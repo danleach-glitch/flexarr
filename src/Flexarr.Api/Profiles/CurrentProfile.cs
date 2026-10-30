@@ -20,10 +20,14 @@ public sealed class CurrentProfile(IHttpContextAccessor http, IOptionsMonitor<Fl
     public string Id => http.HttpContext?.User.FindFirst(FlexarrClaims.Profile)?.Value ?? PlaybackState.DefaultUser;
 
     /// <summary>
-    /// May change settings and manage the server: the API key, the home-network rule, or the main profile. That's the
-    /// API key itself, or the main profile on any other sign-in. Other profiles can browse and watch.
+    /// May change settings and manage the server: the API key itself, or the main profile on a browser or device where
+    /// its PIN was given lately (see <see cref="AdminUnlocks"/>). Other profiles, and the main profile until then, can
+    /// browse and watch.
     /// </summary>
     public bool IsAdmin => http.HttpContext?.User.HasClaim(FlexarrClaims.Admin, "true") == true;
+
+    /// <summary>The main profile is chosen but the server isn't unlocked: its PIN would make this request an admin.</summary>
+    public bool CanUnlock => http.HttpContext?.User.HasClaim(FlexarrClaims.CanUnlock, "true") == true;
 
     /// <summary>The credential is trusted with the server, so it may switch to a main profile without a PIN.</summary>
     public bool IsTrusted => http.HttpContext?.User.HasClaim(FlexarrClaims.Trusted, "true") == true;

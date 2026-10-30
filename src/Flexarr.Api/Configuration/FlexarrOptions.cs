@@ -74,6 +74,13 @@ public sealed class FlexarrOptions
     /// </summary>
     public bool SetupOpen { get; set; }
 
+    /// <summary>
+    /// Choosing the main profile on a browser or device the owner signed in asks for its PIN, not only managing the
+    /// server. Off on new servers; servers whose main profile had a PIN before managing the server took it keep asking
+    /// (set at the first start of that version, see Program.cs).
+    /// </summary>
+    public bool? AskPinForMainProfile { get; set; }
+
     /// <summary>Whether <see cref="LegacySignInsUntil"/> hasn't passed yet.</summary>
     public bool AcceptsLegacySignIns(DateTime utcNow) =>
         LegacySignInsUntil is { } until && utcNow < (until.Kind == DateTimeKind.Local ? until.ToUniversalTime() : until);

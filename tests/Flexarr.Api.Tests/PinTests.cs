@@ -69,7 +69,7 @@ public class PinTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFacto
         }
 
         Assert.Equal(HttpStatusCode.OK, afterAWait.StatusCode);
-        await Admin().PutAsJsonAsync(Api("/profiles/owner"), new { name = "Owner", removePin = true });
+        await factory.SetMainPinAsync(null);
     }
 
     [Fact]
@@ -244,11 +244,11 @@ public class PinTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFacto
         var revealed = await browser.PostAsJsonAsync(Api("/settings/api-key/reveal"), new { confirm = true });
         var renamed = await browser.PutAsJsonAsync(Api("/profiles/owner"), new { name = "Owner" });
         var changed = await browser.PutAsJsonAsync(Api("/profiles/owner"), new { name = "Owner", pin = "24680", currentPin = "13579" });
-        var wrongKey = await browser.PutAsJsonAsync(Api("/profiles/owner"), new { name = "Owner", removePin = true, apiKey = "not-the-key" });
-        var forgotten = await browser.PutAsJsonAsync(Api("/profiles/owner"), new { name = "Owner", removePin = true, apiKey = FlexarrApiFactory.ApiKey });
+        var wrongKey = await browser.PutAsJsonAsync(Api("/profiles/owner"), new { name = "Owner", pin = "1111", apiKey = "not-the-key" });
+        var forgotten = await browser.PutAsJsonAsync(Api("/profiles/owner"), new { name = "Owner", pin = "1111", apiKey = FlexarrApiFactory.ApiKey });
 
         Assert.Equal(HttpStatusCode.OK, first.StatusCode); // a first PIN needs nothing more
-        Assert.Equal(HttpStatusCode.Forbidden, removedWithout.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, removedWithout.StatusCode); // it guards the server's settings: changed, never taken off
         Assert.Equal(HttpStatusCode.Forbidden, changedWithout.StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, wrong.StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, revealed.StatusCode); // the PIN is still there, still guarding the key
@@ -256,7 +256,8 @@ public class PinTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFacto
         Assert.Equal(HttpStatusCode.OK, changed.StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, wrongKey.StatusCode);
         Assert.Equal(HttpStatusCode.OK, forgotten.StatusCode);
-        Assert.False((await forgotten.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("hasPin").GetBoolean());
+        Assert.True((await forgotten.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("hasPin").GetBoolean());
+        await factory.SetMainPinAsync(null);
     }
 
     private sealed class ManualClock : TimeProvider

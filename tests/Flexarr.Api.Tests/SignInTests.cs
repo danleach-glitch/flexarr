@@ -181,7 +181,7 @@ public class SignInTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
         var justConfirmed = await browser.PostAsJsonAsync(Api("/settings/api-key/reveal"), new { confirm = true });
         var wrongPin = await browser.PostAsJsonAsync(Api("/settings/api-key/reveal"), new { pin = "0000" });
         var rightPin = await browser.PostAsJsonAsync(Api("/settings/api-key/reveal"), new { pin = "1593" });
-        await Admin().PutAsJsonAsync(Api("/profiles/owner"), new { name = "Owner", removePin = true });
+        await factory.SetMainPinAsync(null);
 
         Assert.Equal(HttpStatusCode.BadRequest, unconfirmed.StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, justConfirmed.StatusCode);
@@ -284,7 +284,7 @@ public class SignInTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
         var kid = await CreateProfileAsync("Kid on TV");
         var tv = Device(await DeviceTokenAsync("Kid's TV"));
 
-        Assert.Equal(HttpStatusCode.OK, (await tv.GetAsync(Api("/settings"))).StatusCode); // paired as the main profile
+        Assert.Equal(HttpStatusCode.OK, (await tv.GetAsync(Api("/settings"))).StatusCode); // signed in with the key, so unlocked
         await tv.PostAsJsonAsync(Api($"/profiles/{kid}/select"), new { pin = (string?)null });
 
         // The choice is kept on the server: dropping the profile header doesn't make it the main profile again.
@@ -293,13 +293,18 @@ public class SignInTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
         Assert.Equal(HttpStatusCode.Forbidden, (await tv.GetAsync(Api("/settings"))).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await tv.PostAsJsonAsync(Api("/pairing/code/ABC-DEF/approve"), new { })).StatusCode);
 
+        // Watching as the main profile doesn't take its PIN on a device the owner paired; managing the server does.
         var withoutPin = await tv.PostAsJsonAsync(Api("/profiles/owner/select"), new { pin = (string?)null });
-        var withPin = await tv.PostAsJsonAsync(Api("/profiles/owner/select"), new { pin = "4826" });
+        var settingsLocked = await tv.GetAsync(Api("/settings"));
+        var wrongPin = await tv.PostAsJsonAsync(Api("/admin/unlock"), new { pin = "0000" });
+        var unlocked = await tv.PostAsJsonAsync(Api("/admin/unlock"), new { pin = "4826" });
 
-        Assert.Equal(HttpStatusCode.Forbidden, withoutPin.StatusCode);
-        Assert.Equal(HttpStatusCode.OK, withPin.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, withoutPin.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, settingsLocked.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, wrongPin.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, unlocked.StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await tv.GetAsync(Api("/settings"))).StatusCode);
-        await Admin().PutAsJsonAsync(Api("/profiles/owner"), new { name = "Owner", removePin = true });
+        await factory.SetMainPinAsync(null);
     }
 
     [Fact]

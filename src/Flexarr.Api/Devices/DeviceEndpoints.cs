@@ -296,7 +296,7 @@ public static class DeviceEndpoints
         await http.Response.Body.FlushAsync(ct);
 
         using var listener = commands.Listen(deviceId);
-        using var asking = current.IsAdmin ? pairings.Listen() : null;
+        using var asking = current.IsAdmin || current.CanUnlock ? pairings.Listen() : null;
         try
         {
             while (!ct.IsCancellationRequested)

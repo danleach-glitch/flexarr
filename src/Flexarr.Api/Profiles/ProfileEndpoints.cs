@@ -57,7 +57,7 @@ public static partial class ProfileEndpoints
         }).RequireAuthorization(FlexarrClaims.AdminPolicy);
 
         group.MapPut("/{id}", async (string id, ProfileRequest request, HttpContext http, FlexarrDbContext db, CurrentProfile current, PinGuard guard, SignIns signIns,
-            IOptionsMonitor<FlexarrOptions> options, CancellationToken ct) =>
+            AdminUnlocks unlocks, IOptionsMonitor<FlexarrOptions> options, CancellationToken ct) =>
         {
             if (Validate(request) is { } problem)
             {
@@ -71,7 +71,13 @@ public static partial class ProfileEndpoints
 
             // The main profile's PIN guards showing the API key, so a script in the page mustn't be able to take it
             // off (or swap it) first: that takes the PIN it has now, or the key itself.
-            var changesMainPin = profile.IsMain && profile.PinHash is not null && (request.RemovePin == true || !string.IsNullOrEmpty(request.Pin));
+            // It guards managing the server too, so it can be changed but not taken off.
+            if (profile.IsMain && request.RemovePin == true)
+            {
+                return Results.Problem("The main profile needs a PIN: it's what keeps the server's settings to you. You can change it.", statusCode: 409);
+            }
+
+            var changesMainPin = profile.IsMain && profile.PinHash is not null && !string.IsNullOrEmpty(request.Pin);
             if (changesMainPin && await ConfirmMainPinChangeAsync(request, profile, http, current, guard, options.CurrentValue.ApiKey, ct) is { } refused)
             {
                 return refused;
@@ -96,8 +102,9 @@ public static partial class ProfileEndpoints
             await db.SaveChangesAsync(ct);
             if (changesMainPin)
             {
-                // Browsers that signed in with the old PIN have to give the new one.
+                // Browsers that signed in with the old PIN have to give the new one, and so does anywhere it unlocked.
                 signIns.RevokePinVerifiedExcept(current.SignInId);
+                unlocks.LockAllExcept(current.SignInId);
             }
 
             return Results.Ok(ToDto(profile, current));
@@ -219,7 +226,7 @@ public static partial class ProfileEndpoints
         // Choosing a profile returns the token clients send as X-Flexarr-Profile. On a browser or device signed in
         // with its own token, the choice is also kept on the server, so leaving the header off doesn't undo it.
         group.MapPost("/{id}/select", async (string id, SelectProfileRequest request, HttpContext http, FlexarrDbContext db, CurrentProfile current,
-            PinGuard guard, SignIns signIns, CancellationToken ct) =>
+            PinGuard guard, SignIns signIns, AdminUnlocks unlocks, IOptionsMonitor<FlexarrOptions> options, CancellationToken ct) =>
         {
             if (await db.Profiles.AsNoTracking().FirstOrDefaultAsync(p => p.Id == id, ct) is not { } profile)
             {
@@ -233,7 +240,11 @@ public static partial class ProfileEndpoints
                 return Results.Problem("The main profile can only be chosen here once it has a PIN.", statusCode: 403);
             }
 
-            if (profile.PinHash is not null)
+            // The main profile's PIN guards managing the server, not watching as it: on a browser or device the owner
+            // signed in, choosing it only asks if the owner wants it to. A PIN given anyway is checked, and unlocks.
+            var askPin = profile.PinHash is not null
+                && (!profile.IsMain || !current.IsTrusted || options.CurrentValue.AskPinForMainProfile != false || !string.IsNullOrEmpty(request.Pin));
+            if (askPin)
             {
                 var (callers, browser) = PinCaller(http, current);
                 // Someone who may already manage the server could change the PIN anyway, so others' guesses don't hold them up.
@@ -249,20 +260,26 @@ public static partial class ProfileEndpoints
                 }
             }
 
-            if (current.SignInId is { } signIn)
+            var signInId = current.SignInId;
+            if (signInId is not null)
             {
-                signIns.ChooseProfile(signIn, profile.IsMain ? null : profile.Id);
+                signIns.ChooseProfile(signInId, profile.IsMain ? null : profile.Id);
             }
-            else if (profile.IsMain && profile.PinHash is not null
-                && http.User.FindFirst(FlexarrClaims.Method)?.Value == ApiKeyAuthenticationHandler.Methods.Tailscale)
+            else if (profile.IsMain && askPin && http.User.FindFirst(FlexarrClaims.Method)?.Value != ApiKeyAuthenticationHandler.Methods.ApiKey)
             {
-                // Over Tailscale the identity alone doesn't manage the server. The PIN signs this browser in as the
-                // main profile instead: an HttpOnly cookie of its own, listed in Settings, that can be signed out and
-                // lapses when left unused. It only works with the Tailscale login that earned it, still linked to a
-                // profile. (At home the main profile manages the server already.)
-                var (_, token) = signIns.Issue(SignInKind.Browser, ApiKeyAuthenticationHandler.BrowserName(http.Request), NetworkZones.Of(http),
-                    http.Connection.RemoteIpAddress?.ToString(), pinVerified: true, tailscaleLogin: http.User.FindFirst(FlexarrClaims.TailscaleLogin)?.Value);
-                ApiKeyAuthenticationHandler.AppendSessionCookie(http, token);
+                // Without a sign-in (over Tailscale, or at home with "only away from home"), the PIN signs this browser
+                // in as the main profile instead, so the unlock has somewhere to live (see AdminEndpoints).
+                signInId = AdminEndpoints.SignInForUnlock(http, signIns);
+            }
+
+            if (profile.IsMain && askPin && signInId is not null)
+            {
+                unlocks.Unlock(signInId);
+            }
+            else if (!profile.IsMain)
+            {
+                // Someone else is watching here now: managing the server takes the PIN again.
+                unlocks.Lock(signInId);
             }
 
             return Results.Ok(new { token = current.TokenFor(profile), profile = ToDto(profile, current) with { IsCurrent = true } });

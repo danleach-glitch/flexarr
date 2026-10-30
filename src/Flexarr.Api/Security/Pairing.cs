@@ -377,11 +377,19 @@ public static class PairingEndpoints
     public static RouteGroupBuilder MapPairingApprovalEndpoints(this RouteGroupBuilder api)
     {
         // What's waiting, for the web app's prompt (the apps hear it on their command stream; see DeviceEndpoints).
+        // The main profile sees it before it's unlocked; approving takes the unlock.
         api.MapGet("/pairing/waiting", (Pairings pairings) => Results.Ok(pairings.Waiting()))
-            .WithTags("Pairing").RequireAuthorization(FlexarrClaims.AdminPolicy);
+            .WithTags("Pairing").RequireAuthorization(FlexarrClaims.MainProfilePolicy);
+        api.MapGet("/pairing/code/{code}", (string code, Pairings pairings) =>
+            pairings.Find(code) is { } details ? Results.Ok(details) : Results.Problem("That code isn't waiting to connect. It may have expired; the TV shows a new one.", statusCode: 404))
+            .WithTags("Pairing").RequireAuthorization(FlexarrClaims.MainProfilePolicy);
+        // Declining is harmless either way, so a missing code isn't an error.
+        api.MapPost("/pairing/code/{code}/decline", (string code, Pairings pairings) =>
+        {
+            pairings.Decline(code);
+            return Results.NoContent();
+        }).WithTags("Pairing").RequireAuthorization(FlexarrClaims.MainProfilePolicy);
         var group = api.MapGroup("/pairing/code").WithTags("Pairing").RequireAuthorization(FlexarrClaims.AdminPolicy);
-        group.MapGet("/{code}", (string code, Pairings pairings) =>
-            pairings.Find(code) is { } details ? Results.Ok(details) : Results.Problem("That code isn't waiting to connect. It may have expired; the TV shows a new one.", statusCode: 404));
         // Approval takes a JSON body, which a form on another website can't send.
         group.MapPost("/{code}/approve", (string code, PairingApprovalRequest approval, HttpContext http, Pairings pairings) =>
         {
@@ -397,12 +405,6 @@ public static class PairingEndpoints
                     when => $"Ten TVs have been connected in the last hour, which is as many as Flexarr allows. Try again in {when}."),
                 _ => Results.Problem("That code isn't waiting to connect. It may have expired; the TV shows a new one.", statusCode: 404),
             };
-        });
-        // Declining is harmless either way, so a missing code isn't an error.
-        group.MapPost("/{code}/decline", (string code, Pairings pairings) =>
-        {
-            pairings.Decline(code);
-            return Results.NoContent();
         });
         return api;
     }

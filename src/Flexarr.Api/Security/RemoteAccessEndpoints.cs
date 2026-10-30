@@ -27,19 +27,26 @@ public sealed record TailscaleToggle(bool Enabled);
 
 public sealed record TailscaleLinkRequest(string Login, string? ProfileId);
 
-public sealed record MeDto(string ProfileId, string Method, NetworkZone Zone, bool IsAdmin, string? TailscaleLogin);
+/// <param name="CanUnlock">The main profile is chosen but managing the server takes its PIN first (POST /admin/unlock).</param>
+/// <param name="AdminPinMissing">The main profile has no PIN yet, so the server can't be unlocked until it's given one (POST /admin/pin).</param>
+/// <param name="UnlockedUntil">When managing the server takes the PIN again, on this browser or device.</param>
+public sealed record MeDto(string ProfileId, string Method, NetworkZone Zone, bool IsAdmin, string? TailscaleLogin, bool CanUnlock = false, bool AdminPinMissing = false,
+    DateTime? UnlockedUntil = null);
 
 public static class RemoteAccessEndpoints
 {
     public static RouteGroupBuilder MapRemoteAccessEndpoints(this RouteGroupBuilder api)
     {
         // Who this request is: which profile, how it signed in, and from where.
-        api.MapGet("/me", (HttpContext http, Flexarr.Api.Profiles.CurrentProfile profile) => new MeDto(
+        api.MapGet("/me", async (HttpContext http, Flexarr.Api.Profiles.CurrentProfile profile, FlexarrDbContext db, AdminUnlocks unlocks, CancellationToken ct) => new MeDto(
             profile.Id,
             http.User.FindFirst(FlexarrClaims.Method)?.Value ?? "none",
             NetworkZones.Of(http),
             profile.IsAdmin,
-            http.User.FindFirst(FlexarrClaims.TailscaleLogin)?.Value)).WithTags("Remote access");
+            http.User.FindFirst(FlexarrClaims.TailscaleLogin)?.Value,
+            profile.CanUnlock,
+            (profile.IsAdmin || profile.CanUnlock) && await db.Profiles.AnyAsync(p => p.Id == PlaybackState.DefaultUser && p.PinHash == null, ct),
+            profile.IsAdmin ? unlocks.UnlockedUntil(profile.SignInId) : null)).WithTags("Remote access");
 
         var group = api.MapGroup("/remote").WithTags("Remote access").RequireAuthorization(FlexarrClaims.AdminPolicy);
 

@@ -49,7 +49,7 @@ public sealed class FirstRunTests : IDisposable
 
     private string Code => _factory.Services.GetRequiredService<FirstRun>().Code!;
 
-    private static JsonContent Claim(string? code) => JsonContent.Create(new { code });
+    private static JsonContent Claim(string? code, string? pin = "2468") => JsonContent.Create(new { code, pin });
 
     private static async Task<bool> Open(HttpClient client) =>
         (await client.GetFromJsonAsync<JsonElement>(Api("/setup"))).GetProperty("open").GetBoolean();
@@ -83,6 +83,31 @@ public sealed class FirstRunTests : IDisposable
     }
 
     [Fact]
+    public async Task SettingUp_SetsTheMainProfilesPin_AllAtOnce()
+    {
+        var browser = From("192.168.1.30");
+        var code = Code;
+
+        var withoutPin = await browser.PostAsync(Api("/setup/claim"), Claim(code, pin: null));
+        var shortPin = await browser.PostAsync(Api("/setup/claim"), Claim(code, pin: "12"));
+        var openBetween = Options.SetupOpen;
+        var claimed = await browser.PostAsync(Api("/setup/claim"), Claim(code, pin: "97531"));
+        browser.DefaultRequestHeaders.Add("Cookie", claimed.Headers.GetValues("Set-Cookie").Single().Split(';')[0]);
+        var me = await browser.GetFromJsonAsync<JsonElement>(Api("/me"));
+
+        // Closing the page before the button leaves setup open, with the same code.
+        Assert.Equal(HttpStatusCode.BadRequest, withoutPin.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, shortPin.StatusCode);
+        Assert.True(openBetween);
+        Assert.Equal(HttpStatusCode.NoContent, claimed.StatusCode);
+        Assert.True(me.GetProperty("isAdmin").GetBoolean()); // unlocked: the PIN was just given
+        Assert.False(me.GetProperty("adminPinMissing").GetBoolean());
+        using var scope = _factory.Services.CreateScope();
+        var main = await scope.ServiceProvider.GetRequiredService<Flexarr.Core.Data.FlexarrDbContext>().Profiles.FindAsync(Flexarr.Core.Media.PlaybackState.DefaultUser);
+        Assert.True(main!.CheckPin("97531"));
+    }
+
+    [Fact]
     public async Task TheInternet_AndOtherWebsites_CantClaimIt()
     {
         var internet = From("203.0.113.9");
@@ -104,7 +129,8 @@ public sealed class FirstRunTests : IDisposable
 
         var none = await looksLocal.PostAsync(Api("/setup/claim"), null);
         var wrong = await looksLocal.PostAsync(Api("/setup/claim"), Claim("AAAA-AAAA"));
-        for (var i = 2; i < FirstRun.TriesPerCode; i++)
+        // Nothing sent at all isn't a guess; it's turned away before the code is looked at.
+        for (var i = 1; i < FirstRun.TriesPerCode; i++)
         {
             await looksLocal.PostAsync(Api("/setup/claim"), Claim("AAAA-AAAA"));
         }

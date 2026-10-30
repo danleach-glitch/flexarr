@@ -2,6 +2,8 @@ using System.Security.Cryptography;
 using System.Text;
 using Flexarr.Api.Authentication;
 using Flexarr.Api.Configuration;
+using Flexarr.Core.Data;
+using Flexarr.Core.Media;
 using Microsoft.Extensions.Options;
 
 namespace Flexarr.Api.Security;
@@ -13,8 +15,8 @@ namespace Flexarr.Api.Security;
 /// </param>
 public sealed record SetupStatusDto(bool Open, bool CodeRequired = true, string? ServerId = null);
 
-/// <summary>What a browser sends to set the server up.</summary>
-public sealed record SetupClaimDto(string? Code);
+/// <summary>What a browser sends to set the server up: the setup code, and the main profile's PIN (it guards the server's settings).</summary>
+public sealed record SetupClaimDto(string? Code, string? Pin = null);
 
 /// <summary>
 /// Setting up a new server without its API key: until anyone has signed in, a browser on the home network with the
@@ -164,11 +166,18 @@ public static class FirstRunEndpoints
         group.MapGet("/", (HttpContext http, FirstRun firstRun, IOptionsMonitor<FlexarrOptions> options) =>
             Results.Ok(new SetupStatusDto(firstRun.OpenTo(http), ServerId: options.CurrentValue.ServerId)));
         // Only the web app's own scripts send X-Requested-With, so a form on another site can't claim the server.
-        group.MapPost("/claim", (HttpContext http, FirstRun firstRun, SignIns signIns, SetupClaimDto? claim) =>
+        // The PIN comes with the code, so setup is done all at once or not at all: closing the page before the button
+        // leaves it open, with the same code.
+        group.MapPost("/claim", async (HttpContext http, FirstRun firstRun, SignIns signIns, AdminUnlocks unlocks, FlexarrDbContext db, SetupClaimDto? claim,
+            CancellationToken ct) =>
         {
-            var result = http.Request.Headers.ContainsKey(ApiKeyAuthenticationHandler.RequestedWithHeader)
-                ? firstRun.TryClaim(http, claim?.Code)
-                : FirstRun.ClaimResult.Closed;
+            var fromWebApp = http.Request.Headers.ContainsKey(ApiKeyAuthenticationHandler.RequestedWithHeader);
+            if (fromWebApp && firstRun.OpenTo(http) && !AdminEndpoints.IsPin(claim?.Pin))
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["pin"] = ["Choose a PIN of 4 to 8 digits."] });
+            }
+
+            var result = fromWebApp ? firstRun.TryClaim(http, claim?.Code) : FirstRun.ClaimResult.Closed;
             if (result == FirstRun.ClaimResult.WrongCode)
             {
                 return Results.Problem("That isn't this server's setup code. It's in the server's log, and in setup-code.txt in its data folder.",
@@ -180,8 +189,15 @@ public static class FirstRunEndpoints
                 return Results.Problem("This server is already set up. Sign in with a code from a device that's signed in.", statusCode: 403);
             }
 
-            var (_, token) = signIns.Issue(SignInKind.Browser, ApiKeyAuthenticationHandler.BrowserName(http.Request), NetworkZone.Local,
+            if (await db.Profiles.FindAsync([PlaybackState.DefaultUser], ct) is { } main)
+            {
+                main.SetPin(claim!.Pin);
+                await db.SaveChangesAsync(ct);
+            }
+
+            var (signIn, token) = signIns.Issue(SignInKind.Browser, ApiKeyAuthenticationHandler.BrowserName(http.Request), NetworkZone.Local,
                 http.Connection.RemoteIpAddress?.ToString());
+            unlocks.Unlock(signIn.Id);
             ApiKeyAuthenticationHandler.AppendSessionCookie(http, token);
             return Results.NoContent();
         });
