@@ -117,9 +117,13 @@ struct PlaybackPromptTests {
         #expect(PlaybackInfo.prompt(at: 2812, markers: markers, duration: 2831, hasNext: false) == .none)
     }
 
-    @Test func fallsBackToFinalSecondsWithoutCreditsMarker() {
-        #expect(PlaybackInfo.prompt(at: 2790, markers: [], duration: 2831, hasNext: true) == .none)
-        #expect(PlaybackInfo.prompt(at: 2805, markers: [], duration: 2831, hasNext: true) == .nextEpisode)
+    @Test func fallsBackToTheEndWithoutCreditsMarker() {
+        // 3% of a 47-minute episode: the last 85 seconds.
+        #expect(PlaybackInfo.prompt(at: 2740, markers: [], duration: 2831, hasNext: true) == .none)
+        #expect(PlaybackInfo.prompt(at: 2750, markers: [], duration: 2831, hasNext: true) == .nextEpisode)
+        // Never less than 30 seconds, nor more than 2 minutes.
+        #expect(PlaybackInfo.unmarkedCreditsSeconds(duration: 600) == 30)
+        #expect(PlaybackInfo.unmarkedCreditsSeconds(duration: 7200) == 120)
     }
 
     @Test func realPlaybackFixture() throws {

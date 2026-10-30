@@ -106,9 +106,15 @@ sealed interface PlaybackPrompt {
             markers.firstOrNull { it.type == MarkerType.Credits }?.let { credits ->
                 return if (time >= credits.start) NextEpisode else None
             }
-            // No credits marker found: offer the next episode in the final 30 seconds.
-            return if (duration > 120 && time >= duration - 30) NextEpisode else None
+            // No credits marker found: offer the next episode for the end of it, where credits usually are.
+            return if (duration > 120 && time >= duration - unmarkedCreditsSeconds(duration)) NextEpisode else None
         }
+
+        /**
+         * How long before the end the next episode is offered when no credits were found: 3% of the episode, between
+         * 30 seconds and 2 minutes (about 40 seconds of a half-hour show, 100 of an hour-long one).
+         */
+        fun unmarkedCreditsSeconds(duration: Double): Double = (duration * 0.03).coerceIn(30.0, 120.0)
     }
 }
 
