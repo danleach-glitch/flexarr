@@ -295,7 +295,8 @@ function activityState(state, now) {
 
 async function liveActivity(res, { token, environment, event, state }) {
   const now = Math.floor(Date.now() / 1000);
-  if (typeof token !== 'string' || !/^[0-9a-fA-F]{64,200}$/.test(token)) return reply(res, 400, { reason: 'BadToken' });
+  // Longer than a notification's: a Live Activity's token is 128 bytes.
+  if (typeof token !== 'string' || !/^[0-9a-fA-F]{64,512}$/.test(token)) return reply(res, 400, { reason: 'BadToken' });
   if (environment !== 'production' && environment !== 'sandbox') return reply(res, 400, { reason: 'BadEnvironment' });
   if (event !== 'update' && event !== 'end') return reply(res, 400, { reason: 'BadEvent' });
   const content = activityState(state, now);

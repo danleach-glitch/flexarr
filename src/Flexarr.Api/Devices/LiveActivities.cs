@@ -53,6 +53,7 @@ public sealed partial class LiveActivities(NowPlayingFeed feed, ILogger<LiveActi
 
         _entries[request.Token] = new Entry(deviceId, request);
         feed.Follow(deviceId);
+        LogStarted(deviceId);
         return true;
     }
 
@@ -62,6 +63,7 @@ public sealed partial class LiveActivities(NowPlayingFeed feed, ILogger<LiveActi
         if (_entries.TryRemove(token, out var entry))
         {
             feed.Unfollow(entry.DeviceId);
+            LogEnded(entry.DeviceId);
         }
     }
 
@@ -122,8 +124,15 @@ public sealed partial class LiveActivities(NowPlayingFeed feed, ILogger<LiveActi
 
     private static double Seconds(DateTime at) => (at.ToUniversalTime() - DateTime.UnixEpoch).TotalSeconds;
 
-    [GeneratedRegex("^[0-9a-fA-F]{64,200}$")]
+    // Longer than a notification's: a Live Activity's token is 128 bytes.
+    [GeneratedRegex("^[0-9a-fA-F]{64,512}$")]
     private static partial Regex TokenShape();
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "A phone's Live Activity follows device {Device}")]
+    private partial void LogStarted(string device);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "A Live Activity for device {Device} ended")]
+    private partial void LogEnded(string device);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Couldn't update a Live Activity: {Reason}")]
     private partial void LogNotSent(string? reason);

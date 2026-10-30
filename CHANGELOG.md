@@ -73,6 +73,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - When an Apple TV in the house is playing something from Flexarr, the iPhone app shows a **Playing on TV** bar above the tabs, with play/pause. Tap it for a remote: a scrubber you can drag, back and forward 10 seconds, previous and next episode, and **Skip Intro** or **Next Episode** when the TV offers them.
 - From the remote you can also change the TV's soundtrack, subtitles and speed, and its dialogue boost, night mode and speakers. Below are the season's other episodes: tap one to play it on the TV.
 - **Continue on iPhone** stops the film or episode on the TV and carries on from the same moment on the phone.
+- While the remote is following a TV, the phone shows what's playing on the Lock Screen and in the Dynamic Island, with back 10 seconds, play/pause and forward 10. It keeps up while the phone is locked, as long as notifications are on for your server. The title and picture never leave your server: only play/pause and the time pass through Flexarr's notification service.
 - With more than one TV playing, switch between them at the top of the remote. Everyone in the house can control any TV. For menus and volume, use the Remote in Control Centre as before.
 
 ### Android

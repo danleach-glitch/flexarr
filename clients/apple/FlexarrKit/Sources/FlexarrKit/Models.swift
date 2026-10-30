@@ -1282,6 +1282,12 @@ struct DeviceRateBody: Codable, Sendable {
     let rate: Double
 }
 
+struct LiveActivityBody: Codable, Sendable {
+    let token: String
+    let environment: String
+    let itemId: String
+}
+
 /// The `now-playing` event.
 struct DeviceNowPlayingEvent: Decodable, Sendable {
     let deviceId: String

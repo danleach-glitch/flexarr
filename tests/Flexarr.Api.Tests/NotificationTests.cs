@@ -597,7 +597,7 @@ public sealed class NotificationTests : IAsyncLifetime
             itemId = film.Id;
         }
 
-        var token = string.Concat(Enumerable.Repeat("cd34", 16));
+        var token = string.Concat(Enumerable.Repeat("cd34", 64)); // 128 bytes, as a Live Activity's are
         Assert.Equal(HttpStatusCode.BadRequest, (await phone.PutAsJsonAsync(Api($"/devices/{tvId}/activity"), new { token = "nope", environment = "sandbox", itemId })).StatusCode);
         Assert.Equal(HttpStatusCode.NoContent, (await phone.PutAsJsonAsync(Api($"/devices/{tvId}/activity"), new { token, environment = "sandbox", itemId })).StatusCode);
 

@@ -144,7 +144,8 @@ test('a Live Activity update carries times and nothing else', async () => {
 
 test('a Live Activity request with a title in it is refused before reaching Apple', async () => {
   const now = Math.floor(Date.now() / 1000);
-  const answer = await call({ body: { kind: 'liveactivity', token: 'ab'.repeat(32), environment: 'sandbox', event: 'update',
+  // A Live Activity's token is 128 bytes, longer than a notification's.
+  const answer = await call({ body: { kind: 'liveactivity', token: 'ab'.repeat(128), environment: 'sandbox', event: 'update',
     state: { paused: false, position: 1, at: now, duration: 10, rate: 1, title: 'Heat' } } });
   assert.equal(answer.status, 400);
   assert.equal(answer.body.reason, 'BadState');

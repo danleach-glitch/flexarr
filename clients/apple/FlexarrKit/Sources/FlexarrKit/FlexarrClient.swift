@@ -482,6 +482,18 @@ public struct FlexarrClient: Sendable {
         _ = try await send("POST", "devices/\(deviceId)/rate", body: DeviceRateBody(rate: rate))
     }
 
+    /// Tells the server about this phone's Live Activity for what `deviceId` is playing (`itemId`), so it keeps the
+    /// times up to date through the push relay while the phone is locked. Servers before 0.56 don't have it (a 404);
+    /// one with notifications turned off says 409.
+    public func startLiveActivity(device deviceId: String, token: String, environment: String, itemId: String) async throws {
+        _ = try await send("PUT", "devices/\(deviceId)/activity", body: LiveActivityBody(token: token, environment: environment, itemId: itemId))
+    }
+
+    /// The Live Activity has ended: the server stops updating it.
+    public func endLiveActivity(device deviceId: String, token: String) async throws {
+        _ = try await send("DELETE", "devices/\(deviceId)/activity/\(token)")
+    }
+
     /// Changes another device's sound settings. Reaches it only while Flexarr is open there: otherwise a 409. Servers
     /// before 0.56 don't have it (a 404).
     public func setSound(device deviceId: String, _ sound: DeviceSound) async throws -> DeviceCommandResult {

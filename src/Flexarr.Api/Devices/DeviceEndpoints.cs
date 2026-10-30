@@ -268,7 +268,10 @@ public static class DeviceEndpoints
     {
         ArgumentNullException.ThrowIfNull(sessions);
         ArgumentNullException.ThrowIfNull(db);
-        var playing = sessions.Active.Where(s => s.SignInId == deviceId && DateTime.UtcNow - s.LastSeen < NowPlayingStaleness)
+        // Playing but silent for a while (the app was killed, the TV slept) is over, as the playback events count it.
+        var now = DateTime.UtcNow;
+        var playing = sessions.Active.Where(s => s.SignInId == deviceId && now - s.LastSeen < NowPlayingStaleness
+                && (s.Paused || now - (s.ReportedAt ?? s.LastSeen) < Events.PlaybackEvents.PlayingSilence))
             .OrderByDescending(s => s.LastSeen).FirstOrDefault();
         // A title from a library hidden from this profile shows as playing, but not what it is.
         if (playing is null || await LibraryVisibility.PlayingAsync(db, playing.ItemId, playing.ProfileId, ct) is not { } item)
