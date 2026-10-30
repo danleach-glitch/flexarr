@@ -42,6 +42,7 @@ public sealed partial class RemuxIndex(TranscodeSettings settings, string ffprob
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
     private readonly ConcurrentDictionary<string, RemuxInfo> _known = new();
     private readonly ConcurrentDictionary<string, bool> _scanning = new();
+    private readonly ConcurrentDictionary<(string Key, int Stream), double?> _firstPackets = new();
     private readonly SemaphoreSlim _scan = new(1, 1);
 
     public void Dispose() => _scan.Dispose();
@@ -76,6 +77,53 @@ public sealed partial class RemuxIndex(TranscodeSettings settings, string ffprob
 
         var facts = await ProbeAsync(path, ct).ConfigureAwait(false);
         return facts is null ? null : Remember(key, new RemuxInfo(keyframes, facts));
+    }
+
+    /// <summary>
+    /// How many seconds into the file a track's first packet comes, which can be well after the picture when the opening
+    /// is silent and the track simply starts late. Null when it can't be read. Asked once per file and track.
+    /// </summary>
+    public async Task<double?> FirstPacketSecondsAsync(string path, int streamIndex, CancellationToken ct)
+    {
+        var key = Key(path);
+        if (key is null)
+        {
+            return null;
+        }
+
+        if (_firstPackets.TryGetValue((key, streamIndex), out var known))
+        {
+            return known;
+        }
+
+        var output = await RunAsync(["-v", "error", .. FfmpegCommand.LocalFile, "-select_streams", streamIndex.ToString(CultureInfo.InvariantCulture),
+            "-read_intervals", "%+#1", "-show_entries", "packet=pts_time:format=start_time", "-of", "default=noprint_wrappers=1", path], ct).ConfigureAwait(false);
+        var seconds = output is null ? null : ParseFirstPacket(output);
+        _firstPackets[(key, streamIndex)] = seconds;
+        return seconds;
+    }
+
+    /// <summary>Reads "pts_time=21.391000" and "start_time=0.000000" (the file's start) as 21.391.</summary>
+    public static double? ParseFirstPacket(string output)
+    {
+        ArgumentNullException.ThrowIfNull(output);
+        double? packet = null;
+        double start = 0;
+        foreach (var line in output.Split('\n', StringSplitOptions.TrimEntries))
+        {
+            if (line.StartsWith("pts_time=", StringComparison.Ordinal) && packet is null
+                && double.TryParse(line.AsSpan(9), NumberStyles.Float, CultureInfo.InvariantCulture, out var pts))
+            {
+                packet = pts;
+            }
+            else if (line.StartsWith("start_time=", StringComparison.Ordinal)
+                && double.TryParse(line.AsSpan(11), NumberStyles.Float, CultureInfo.InvariantCulture, out var fileStart))
+            {
+                start = fileStart;
+            }
+        }
+
+        return packet - start;
     }
 
     private void ScanLater(string path, string key)

@@ -84,6 +84,15 @@ public sealed class MatroskaCuesTests : IDisposable
         Assert.True(RemuxIndex.ParseFacts("""{"streams":[{"codec_name":"h264","field_order":"tt","width":1920,"height":1080}]}""")!.Interlaced);
     }
 
+    [Fact]
+    public void FirstPacketIsCountedFromTheFilesStart()
+    {
+        // 12 Years a Slave's E-AC-3 track: nothing until 21 seconds in.
+        Assert.Equal(21.391, RemuxIndex.ParseFirstPacket("pts_time=21.391000\nstart_time=0.000000\n")!.Value, 3);
+        Assert.Equal(0.5, RemuxIndex.ParseFirstPacket("pts_time=1.900000\nstart_time=1.400000\n")!.Value, 3);
+        Assert.Null(RemuxIndex.ParseFirstPacket("start_time=0.000000\n"));
+    }
+
     private static async Task<bool> HasFfmpegAsync()
     {
         try

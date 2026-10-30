@@ -44,6 +44,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Playback
 - The first time a film is played, it starts as quickly as any other time. Its scrubbing previews are now made a minute later, and in the background, rather than while the player waits for its first seconds.
+- Films whose sound starts a little after the picture, with a silent opening, now play on Apple TV and iPhone with **Play files directly** off. Before, the player refused them straight away. Their Dolby Digital Plus is converted for these films only, so they play without Atmos.
 
 ### Music
 - On Apple TV, the now-playing bar along the bottom goes away a few seconds after the music is paused or finishes, and comes back when you press play. Now Playing has a new **Stop** button, which ends the music and takes the bar and the Now Playing tab away until you play something else.

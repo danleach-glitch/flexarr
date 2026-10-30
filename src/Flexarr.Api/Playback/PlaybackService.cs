@@ -27,6 +27,9 @@ public sealed class PlaybackService(
     private const double WatchedThreshold = 0.92;
     private const double MinResumeSeconds = 30;
 
+    /// <summary>A copied Dolby track whose first frame is later than this into the file is converted (see StartAsync).</summary>
+    private const double LateAudioSeconds = 0.5;
+
     public async Task<PlaybackInfoDto?> StartAsync(PlaybackRequest request, CancellationToken ct)
     {
         var item = await db.MediaItems.AsNoTracking().FirstOrDefaultAsync(i => i.Id == request.ItemId, ct);
@@ -96,6 +99,15 @@ public sealed class PlaybackService(
             && PlaybackDecider.Repackaged(converting, file, request.Profile, playbackOptions, index) is { } repackaged)
         {
             decision = decision with { Transcode = repackaged };
+        }
+
+        // Fragmented MP4 describes Dolby Digital (Plus) from its first frame, so a track that starts well after the
+        // picture (a silent opening) leaves the stream's init segment without it, and an Apple TV refuses the stream.
+        // That track is converted instead, which needs no frame to describe.
+        if (decision.Transcode is { Fmp4: true, CopyAudio: true, SourceAudioCodec: "ac3" or "eac3", AudioStreamIndex: { } audioStream } copying
+            && await remuxIndex.FirstPacketSecondsAsync(file.Path, audioStream, ct) > LateAudioSeconds)
+        {
+            decision = decision with { Transcode = copying with { CopyAudio = false } };
         }
 
         // The player's own previous session (before an audio switch, a recovery) ends first, so it isn't left encoding
