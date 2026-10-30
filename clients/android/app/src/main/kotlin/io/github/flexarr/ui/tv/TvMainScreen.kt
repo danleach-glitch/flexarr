@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Search
 import io.github.flexarr.core.Library
 import io.github.flexarr.core.LibrarySort
@@ -84,10 +85,11 @@ import io.github.flexarr.ui.profiles.ProfileAvatar
 import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.marquee
 
-/** A screen of its own in the sidebar: Home, a library, Search or Settings. [route] is its first screen's. */
+/** A screen of its own in the sidebar: Home, a library, Discover, Search or Settings. [route] is its first screen's. */
 private data class TvTab(val route: String, val title: String, val icon: ImageVector) {
     companion object {
         val Home = TvTab("home", "Home", Icons.Outlined.Home)
+        val Discover = TvTab("discover", "Discover", Icons.Outlined.AutoAwesome)
         val Search = TvTab("search", "Search", Icons.Outlined.Search)
         val Settings = TvTab("settings", "Settings", Icons.Outlined.Settings)
 
@@ -168,6 +170,7 @@ fun TvMainScreen(model: AppModel) {
                         val route = "tab/library/$id"
                         libraryList.firstOrNull { it.id == id }?.let { TvLibraryTab(model, it, takeFocus = arrives(route), onFocusTaken = arrived(route)) } ?: TvStatusView()
                     }
+                    composable(TvTab.Discover.route) { TvDiscoverScreen(model) }
                     composable(TvTab.Search.route) { TvSearchScreen(model, takeFocus = arrives(TvTab.Search.route), onFocusTaken = arrived(TvTab.Search.route)) }
                     composable(TvTab.Settings.route) { TvSettingsScreen(model, onSwitchProfile = { choosingProfile = true }) }
                     composable("item/{id}") { TvDetailScreen(model, it.arguments!!.getString("id")!!) }
@@ -183,7 +186,7 @@ fun TvMainScreen(model: AppModel) {
                     }
                 }
             }
-            val tabs = listOf(TvTab.Home) + libraryTabs.map(TvTab::library) + listOf(TvTab.Search, TvTab.Settings)
+            val tabs = listOf(TvTab.Home) + libraryTabs.map(TvTab::library) + listOf(TvTab.Discover, TvTab.Search, TvTab.Settings)
             Sidebar(model, sidebarOpen, tabs, tabRoute, onSelect = ::select, onProfile = {
                 closeSidebar()
                 choosingProfile = true
@@ -244,7 +247,7 @@ private fun Sidebar(model: AppModel, open: Boolean, tabs: List<TvTab>, selected:
             // However many libraries there are, the list scrolls rather than pushing Search and Settings out of reach.
             LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 items(tabs, key = { it.route }) { tab ->
-                    if (tab == TvTab.Search) {
+                    if (tab == TvTab.Discover) {
                         // A rule between the libraries and the rest.
                         Box(Modifier.padding(horizontal = 12.dp, vertical = 8.dp).fillMaxWidth().height(1.dp).background(Flexarr.aisle))
                     }

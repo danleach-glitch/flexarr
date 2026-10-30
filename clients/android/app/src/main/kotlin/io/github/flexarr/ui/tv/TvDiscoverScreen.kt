@@ -46,6 +46,10 @@ import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -489,11 +493,12 @@ internal fun TvGenreTile(name: String, caption: String, backdrop: String?, onCli
 }
 
 /**
- * The words at the top-left that switch a screen's view (Discover's Browse and Search), as the Apple TV's ViewSwitch:
- * bright and underlined for the view shown, dim otherwise; focus lifts a word onto a capsule.
+ * The words at the top-left that switch a screen's view (Discover's Browse and Search, a library's Browse, All and
+ * Genres), as the Apple TV's ViewSwitch: bright and underlined for the view shown, dim otherwise; focus lifts a word
+ * onto a capsule. [selectedFocus] reaches the word shown, to give it focus once a switch has replaced the screen.
  */
 @Composable
-internal fun TvViewSwitch(choices: List<String>, selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
+internal fun TvViewSwitch(choices: List<String>, selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier, selectedFocus: FocusRequester? = null) {
     // The words line up with the edge below them; the padding is for the capsule focus puts behind them.
     Row(modifier.offset(x = (-11).dp), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
         choices.forEachIndexed { index, title ->
@@ -503,7 +508,7 @@ internal fun TvViewSwitch(choices: List<String>, selected: Int, onSelect: (Int) 
             Surface(
                 onClick = { onSelect(index) },
                 interactionSource = source,
-                modifier = Modifier.height(28.dp),
+                modifier = Modifier.height(28.dp).then(if (chosen && selectedFocus != null) Modifier.focusRequester(selectedFocus) else Modifier),
                 shape = ClickableSurfaceDefaults.shape(CircleShape),
                 colors = ClickableSurfaceDefaults.colors(
                     containerColor = Color.Transparent,
@@ -516,10 +521,19 @@ internal fun TvViewSwitch(choices: List<String>, selected: Int, onSelect: (Int) 
                 scale = ClickableSurfaceDefaults.scale(focusedScale = 1.06f),
             ) {
                 Box(Modifier.fillMaxHeight().padding(horizontal = 11.dp), contentAlignment = Alignment.Center) {
-                    Text(title, fontSize = 14.sp, fontWeight = if (chosen || focused) FontWeight.Bold else FontWeight.Medium, maxLines = 1)
-                    if (chosen && !focused) {
-                        Box(Modifier.align(Alignment.BottomCenter).offset(y = (-2).dp).fillMaxWidth().height(1.5.dp).background(Flexarr.screen, CircleShape))
-                    }
+                    // The underline is drawn under the word rather than laid out, so it doesn't widen the switch.
+                    Text(
+                        title,
+                        fontSize = 14.sp,
+                        fontWeight = if (chosen || focused) FontWeight.Bold else FontWeight.Medium,
+                        maxLines = 1,
+                        modifier = Modifier.drawBehind {
+                            if (chosen && !focused) {
+                                val thickness = 1.5.dp.toPx()
+                                drawRoundRect(Flexarr.screen, topLeft = Offset(0f, size.height + 2.dp.toPx()), size = Size(size.width, thickness), cornerRadius = CornerRadius(thickness))
+                            }
+                        },
+                    )
                 }
             }
         }

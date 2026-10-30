@@ -27,6 +27,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Mic
@@ -45,7 +46,10 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -170,6 +174,8 @@ private fun Section(title: String, content: androidx.compose.foundation.lazy.Laz
 /** The search field: a magnifier and the words, edged in white while it has focus; OK opens the TV's keyboard. */
 @Composable
 private fun SearchField(value: String, onValue: (String) -> Unit, modifier: Modifier) {
+    val keyboard = LocalSoftwareKeyboardController.current
+    val focusManager = LocalFocusManager.current
     val source = remember { MutableInteractionSource() }
     val focused by source.collectIsFocusedAsState()
     BasicTextField(
@@ -179,6 +185,11 @@ private fun SearchField(value: String, onValue: (String) -> Unit, modifier: Modi
         textStyle = TextStyle(fontSize = 17.sp, color = Flexarr.screen),
         cursorBrush = SolidColor(Flexarr.screen),
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+        // The keyboard's Search: it goes, and focus moves down to what was found.
+        keyboardActions = KeyboardActions(onSearch = {
+            keyboard?.hide()
+            focusManager.moveFocus(FocusDirection.Down)
+        }),
         interactionSource = source,
         modifier = modifier,
         decorationBox = { text ->

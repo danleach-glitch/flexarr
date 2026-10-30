@@ -96,9 +96,8 @@ fun TvLibraryTab(model: AppModel, library: Library, takeFocus: Boolean, onFocusT
 }
 
 /**
- * "Browse", "All films" (or "All shows") and "Genres" as quiet words at the top-left: bright and underlined for the view
- * shown, dim otherwise, lifted onto a capsule by focus. Plain words rather than pills, so it doesn't read as a second
- * row of tabs.
+ * "Browse", "All films" (or "All shows") and "Genres" as quiet words at the top-left. Plain words rather than pills, so
+ * it doesn't read as a second row of tabs.
  */
 @Composable
 private fun LibraryViewSwitch(library: Library, selected: TvLibraryOpening, takesFocus: Boolean, onFocusTaken: () -> Unit, onSelect: (TvLibraryOpening) -> Unit) {
@@ -115,29 +114,7 @@ private fun LibraryViewSwitch(library: Library, selected: TvLibraryOpening, take
         runCatching { requester.requestFocus() }
         onFocusTaken()
     }
-    // The words line up with the edge below them; the room either side is for the capsule focus puts behind them.
-    Row(Modifier.offset(x = (-11).dp), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-        choices.forEach { (choice, title) ->
-            val isSelected = choice == selected
-            Surface(
-                onClick = { onSelect(choice) },
-                modifier = Modifier.height(28.dp).then(if (isSelected) Modifier.focusRequester(requester) else Modifier),
-                shape = ClickableSurfaceDefaults.shape(CircleShape),
-                colors = ClickableSurfaceDefaults.colors(
-                    containerColor = Color.Transparent,
-                    contentColor = if (isSelected) Flexarr.screen else Flexarr.screen.copy(alpha = 0.55f),
-                    focusedContainerColor = Flexarr.screen,
-                    focusedContentColor = Flexarr.room,
-                ),
-                scale = ClickableSurfaceDefaults.scale(focusedScale = 1.06f),
-            ) {
-                Column(Modifier.padding(horizontal = 11.dp).align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(title, fontSize = 14.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium)
-                    if (isSelected) Box(Modifier.padding(top = 1.dp).width(16.dp).height(1.5.dp).background(Flexarr.screen.copy(alpha = 0.8f), CircleShape))
-                }
-            }
-        }
-    }
+    TvViewSwitch(choices.map { it.second }, choices.indexOfFirst { it.first == selected }, onSelect = { onSelect(choices[it].first) }, selectedFocus = requester)
 }
 
 /** A library's own home page, as on the web: a hero of its titles, then its rows (Continue watching, the latest, its Top 10…). */
@@ -189,7 +166,7 @@ private fun LibraryGenres(model: AppModel, library: Library, takeFocus: Boolean,
                 LazyVerticalGrid(
                     GridCells.Fixed(GENRES_ACROSS),
                     contentPadding = PaddingValues(start = TvLayout.Edge, end = TvLayout.Edge, top = 28.dp, bottom = 40.dp),
-                    horizontalArrangement = Arrangement.spacedBy(GENRE_SPACING),
+                    horizontalArrangement = Arrangement.spacedBy(20.dp),
                     verticalArrangement = Arrangement.spacedBy(22.dp),
                 ) {
                     item(span = { GridItemSpan(maxLineSpan) }) { Box(Modifier.padding(bottom = 18.dp)) { switch() } }
@@ -199,9 +176,9 @@ private fun LibraryGenres(model: AppModel, library: Library, takeFocus: Boolean,
                         }
                     }
                     itemsIndexed(genres, key = { _, genre -> genre.name }) { index, genre ->
-                        TvGenreTile(genre.name, genreCaption(library, genre), genre.backdrop, modifier = if (index == 0) Modifier.focusRequester(first) else Modifier) {
+                        TvGenreTile(genre.name, genreCaption(library, genre), genre.backdrop, onClick = {
                             navigator.openLibrary(library.id, LibrarySort.Title, genre.name)
-                        }
+                        }, modifier = if (index == 0) Modifier.focusRequester(first) else Modifier)
                     }
                 }
             }
@@ -216,31 +193,7 @@ private fun genreCaption(library: Library, genre: GenreCount): String {
     return "${genre.count} $noun"
 }
 
-/** Five genres across the screen: a genre is a way in, not something to look at, so smaller than a row's cards. */
 private const val GENRES_ACROSS = 5
-private val GENRE_SPACING = 20.dp
-private val GENRE_WIDTH = (960.dp - TvLayout.Edge * 2 - GENRE_SPACING * (GENRES_ACROSS - 1)) / GENRES_ACROSS
-
-/** A genre as a way in: a backdrop from one of its titles, its name and how many there are. */
-@Composable
-private fun TvGenreTile(name: String, caption: String, backdrop: String?, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    TvArtworkButton(
-        ambient = Flexarr.silver,
-        onClick = onClick,
-        modifier = modifier.width(GENRE_WIDTH),
-        artwork = {
-            RemoteImage(backdrop, 640, Modifier.size(GENRE_WIDTH, GENRE_WIDTH * 9f / 16f)) {
-                Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Flexarr.silver.copy(alpha = 0.3f), Flexarr.seat))))
-            }
-        },
-        caption = { focused ->
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(name, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = if (focused) Flexarr.screen else Flexarr.screen.copy(alpha = 0.85f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(caption, fontSize = 10.sp, color = Flexarr.usher, maxLines = 1)
-            }
-        },
-    )
-}
 
 /**
  * Every title in a library as a poster grid, paged as it scrolls, with sort and genre at the top and an A–Z rail down
