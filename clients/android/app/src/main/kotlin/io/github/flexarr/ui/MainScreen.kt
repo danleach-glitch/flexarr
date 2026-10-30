@@ -156,7 +156,7 @@ fun MainScreen(model: AppModel) {
         }
         // A child chosen (or the device locked) from the picker in Settings: Settings isn't theirs, so they go Home.
         LaunchedEffect(model.isKids) {
-            if (model.isKids && nav.currentBackStack.value.any { it.destination.route?.startsWith(Tab.Settings.route) == true }) {
+            if (model.isKids && currentTab == Tab.Settings) {
                 currentTab = Tab.Home
                 nav.navigate(Tab.Home.route) {
                     popUpTo(nav.graph.findStartDestination().id)
