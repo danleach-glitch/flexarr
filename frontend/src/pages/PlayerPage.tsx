@@ -37,7 +37,7 @@ import {
 } from '../components/icons'
 import { SubtitleSearchDialog } from '../components/SubtitleSearchDialog'
 import { usePolling } from '../hooks/usePolling'
-import { MAX_AUDIO_DELAY_SECONDS, useDelayedSound } from '../hooks/delayedSound'
+import { MAX_AUDIO_DELAY_SECONDS, useSoundChain } from '../hooks/soundChain'
 import { announceWatched } from '../hooks/watched'
 import { episodeCode, formatClock } from '../lib/format'
 import { belongsToFocused } from '../lib/focusedKeys'
@@ -45,6 +45,7 @@ import { mediaErrorRecovery } from '../lib/hlsRecovery'
 import { speedLabel } from '../lib/podcasts'
 import { drawStyled, type StyledSubtitles } from '../lib/styledSubtitles'
 import { cueLine, pictureIn } from '../lib/subtitlePlacement'
+import { dialogueBoostChoices, nightModeChoices, speakerChoices, timeOfDay, useSoundSettings, useSoundShaping, writeSoundSettings } from '../lib/soundSettings'
 import { detectProfile, prefersNativeHls } from '../lib/profile'
 import { extended, FADE_SECONDS, minutesLeft, secondsLeft, sleepChoices, sleepLabel, STILL_WATCHING_SECONDS, type SleepTimer } from '../lib/sleepTimer'
 
@@ -874,7 +875,10 @@ export function PlayerPage() {
 
   // A file the browser plays itself takes a later sound there and then; anything else is the server's to move.
   const soundHere = info?.method === 'DirectPlay' && !info.audioDelayInStream
-  useDelayedSound(video, soundHere ? Math.max(0, audioDelay) : 0)
+  const sound = useSoundSettings()
+  const shaping = useSoundShaping(sound)
+  const playingChannels = info?.audioTracks.find((a) => a.index === info.selectedAudioIndex)?.channels ?? null
+  useSoundChain(video, soundHere ? Math.max(0, audioDelay) : 0, shaping, playingChannels)
 
   /**
    * Moves the file's sound by `by` seconds (0 puts it back), for everyone who plays it. Played here, a later sound changes at
@@ -1382,6 +1386,28 @@ export function PlayerPage() {
                         <Reset />
                       </button>
                     </div>
+                  </div>
+                )}
+                {info.audioTracks.length > 0 && (
+                  <div className="player-menu-column">
+                    <h3>Dialogue boost</h3>
+                    {dialogueBoostChoices.map((b) => (
+                      <MenuItem key={b} selected={sound.dialogueBoost === b} onClick={() => writeSoundSettings({ dialogueBoost: b })}>
+                        {b}
+                      </MenuItem>
+                    ))}
+                    <h3>Night mode</h3>
+                    {nightModeChoices.map((n) => (
+                      <MenuItem key={n} selected={sound.nightMode === n} onClick={() => writeSoundSettings({ nightMode: n })}>
+                        {n === 'Scheduled' ? `${timeOfDay(sound.nightStart)}–${timeOfDay(sound.nightEnd)}` : n}
+                      </MenuItem>
+                    ))}
+                    <h3>Speakers</h3>
+                    {speakerChoices.map((c) => (
+                      <MenuItem key={c.value} selected={sound.speakers === c.value} onClick={() => writeSoundSettings({ speakers: c.value })}>
+                        {c.label}
+                      </MenuItem>
+                    ))}
                   </div>
                 )}
               </div>
