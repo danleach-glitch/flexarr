@@ -277,7 +277,7 @@ export default function App() {
             <label htmlFor="setupCode">Setup code</label>
             <input id="setupCode" name="setupCode" type="text" autoComplete="one-time-code" autoCapitalize="characters" spellCheck={false} placeholder="ABCD-EFGH" required />
             {state.wrongCode && <p className="error">That isn't this server's setup code.</p>}
-            <p className="muted">
+            <p className="muted setup-pin-intro">
               Choose a PIN to protect the server’s settings. Watching doesn’t need it.
             </p>
             <div className="field-row">

@@ -531,7 +531,13 @@ kbd {
   min-width: 0;
 }
 
-/* Setting up: the code, then the main profile's PIN, then the button. */
+/* Setting up: the code, then (below a rule) the PIN for the server's settings, then the button. */
+.setup-welcome .setup-pin-intro {
+  margin-top: 6px;
+  padding-top: 18px;
+  border-top: 1px solid var(--aisle);
+}
+
 .setup-welcome > input {
   width: 100%;
   margin: 8px 0 14px;
