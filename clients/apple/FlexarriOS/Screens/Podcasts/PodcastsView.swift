@@ -28,7 +28,8 @@ struct PodcastsView: View {
         .background(RoomBackground(ambient: home.podcasts.first.map { podcastGlow($0.accentColor) }, intensity: 0.18))
         .navigationTitle("Podcasts")
         .toolbar {
-            if model.podcastStatus?.available != false {
+            // The directory's shows have no age a profile's limit could be checked against.
+            if model.podcastStatus?.available != false, !model.hasAgeLimit {
                 Button { router.push(.podcastBrowse) } label: { Label("Browse", systemImage: "magnifyingglass") }
             }
         }
@@ -46,14 +47,16 @@ struct PodcastsView: View {
         List {
             if home.isEmpty {
                 VStack(spacing: 16) {
-                    Text("Follow a show and its new episodes come here, and to this \(ThisDevice.name) on Wi-Fi.")
+                    Text(model.hasAgeLimit ? "No podcasts yet." : "Follow a show and its new episodes come here, and to this \(ThisDevice.name) on Wi-Fi.")
                         .font(.body.weight(.medium))
                         .foregroundStyle(Color.usher)
                         .multilineTextAlignment(.center)
-                    Button { router.push(.podcastBrowse) } label: {
-                        Label("Browse podcasts", systemImage: "magnifyingglass")
+                    if !model.hasAgeLimit {
+                        Button { router.push(.podcastBrowse) } label: {
+                            Label("Browse podcasts", systemImage: "magnifyingglass")
+                        }
+                        .buttonStyle(ActionButtonStyle(prominent: true))
                     }
-                    .buttonStyle(ActionButtonStyle(prominent: true))
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.horizontal, Layout.edge)

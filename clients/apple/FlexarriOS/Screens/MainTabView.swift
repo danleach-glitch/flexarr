@@ -32,8 +32,11 @@ struct MainTabView: View {
             Tab("Search", systemImage: "magnifyingglass", value: TabID.search, role: .search) {
                 TabStack { SearchView() }
             }
-            Tab("Settings", systemImage: "gearshape.fill", value: TabID.settings) {
-                TabStack { SettingsView() }
+            // The kids app has no Settings: a child's choices are a parent's to make.
+            if !model.isKids {
+                Tab("Settings", systemImage: "gearshape.fill", value: TabID.settings) {
+                    TabStack { SettingsView() }
+                }
             }
         }
         .tabViewStyle(.sidebarAdaptable)

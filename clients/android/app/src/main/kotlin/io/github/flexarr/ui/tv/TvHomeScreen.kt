@@ -203,7 +203,7 @@ private fun HomeHero(home: Home, index: Int, onIndex: (Int) -> Unit, takeFocus: 
             Crossfade(item, animationSpec = tween(600), label = "title") { shown ->
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     TitleArt(shown, maxWidth = 380.dp, maxHeight = 115.dp, fontSize = 55)
-                    TvFactsLine(shown.facts)
+                    TvFactsLine(shown.facts())
                     home.overviews[shown.id]?.let {
                         Text(it, fontSize = 13.5.sp, lineHeight = 18.sp, color = Flexarr.screen.copy(alpha = 0.85f), maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 450.dp))
                     }

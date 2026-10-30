@@ -288,7 +288,8 @@ using (var scope = app.Services.CreateScope())
     }
 
     // An upgrade is about to change the database: keep a copy of it as it was, to go back to.
-    if ((await db.Database.GetPendingMigrationsAsync()).Any() && (await db.Database.GetAppliedMigrationsAsync()).Any())
+    var migrating = (await db.Database.GetPendingMigrationsAsync()).Any();
+    if (migrating && (await db.Database.GetAppliedMigrationsAsync()).Any())
     {
         await backups.BeforeUpgradeAsync(CancellationToken.None);
     }
@@ -298,6 +299,15 @@ using (var scope = app.Services.CreateScope())
     // a database created or restored elsewhere may not have it.
     await db.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL;");
     await PodcastLibrary.EnsureLibraryAsync(db, app.Services.GetRequiredService<IOptions<FlexarrOptions>>().Value, CancellationToken.None);
+    // Age limits read each title's age: work them out for titles saved before, or rated by an older table of ratings.
+    // Saving a title works out its own, so otherwise there's nothing to do.
+    var started = app.Services.GetRequiredService<IOptions<FlexarrOptions>>().Value;
+    if (migrating || restored || started.RatingAges != Flexarr.Core.Media.RatingAges.Version)
+    {
+        await db.ReconcileRatingAgesAsync(CancellationToken.None);
+        started.RatingAges = Flexarr.Core.Media.RatingAges.Version;
+        ServerConfigStore.Update(started.DataDirectory, config => config["ratingAges"] = Flexarr.Core.Media.RatingAges.Version);
+    }
 
     // Managing the server now takes the main profile's PIN, and choosing the main profile doesn't by default. A server
     // whose owner had already given it a PIN goes on asking for it when it's chosen, as before.

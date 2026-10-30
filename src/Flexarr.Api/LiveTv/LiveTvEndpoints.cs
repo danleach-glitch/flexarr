@@ -24,7 +24,11 @@ public sealed record LiveProgrammeDto(long Id, DateTime Start, DateTime End, str
     int? Season, int? Episode, bool IsNew, string? Recording = null, bool Series = false);
 
 /// <param name="IsFavourite">Starred by the profile asking.</param>
-public sealed record LiveChannelDto(Guid Id, double Number, string Name, string? Group, string? LogoUrl, bool IsFavourite, LiveProgrammeDto? Now, LiveProgrammeDto? Next);
+/// <param name="FineForKids">Profiles with an age limit may watch it (absent from servers before 0.56).</param>
+public sealed record LiveChannelDto(Guid Id, double Number, string Name, string? Group, string? LogoUrl, bool IsFavourite, LiveProgrammeDto? Now, LiveProgrammeDto? Next,
+    bool FineForKids = false);
+
+public sealed record ChannelKidsRequest(bool FineForKids);
 
 public sealed record GuideChannelDto(Guid Id, double Number, string Name, string? Group, string? LogoUrl, bool IsFavourite, IReadOnlyList<LiveProgrammeDto> Programmes);
 
@@ -58,7 +62,8 @@ public static partial class LiveTvEndpoints
             var o = options.CurrentValue.LiveTv;
             var channels = await db.LiveChannels.CountAsync(ct);
             var refreshed = status.RefreshedAt ?? await db.LiveChannels.MaxAsync(c => (DateTime?)c.UpdatedAt, ct);
-            return new LiveTvStatusDto(o?.Account is not null, channels, status.Refreshing, refreshed, status.Error, o?.RewindMinutes ?? 60);
+            // To a profile with an age limit, Live TV is only there once a parent has picked channels for it.
+            return new LiveTvStatusDto(o?.Account is not null && (channels > 0 || !db.IsLimited()), channels, status.Refreshing, refreshed, status.Error, o?.RewindMinutes ?? 60);
         });
 
         group.MapGet("/channels", async (FlexarrDbContext db, CurrentProfile profile, TimeProvider clock, CancellationToken ct) =>
@@ -67,9 +72,11 @@ public static partial class LiveTvEndpoints
             var channels = await db.LiveChannels.AsNoTracking().OrderBy(c => c.Number).ThenBy(c => c.Name).ToListAsync(ct);
             var favourites = await FavouritesAsync(db, profile.Id, ct);
 
-            // What's on and what's next on each: the two programmes that end soonest after now.
+            // What's on and what's next on each: the two programmes that end soonest after now. Only the channels it lists:
+            // a profile with an age limit may have a handful of a source's thousands.
+            var listed = db.IsLimited() ? channels.Select(c => c.Id).ToList() : null;
             var upcoming = (await db.LiveProgrammes.AsNoTracking()
-                    .Where(p => p.End > now && p.Start < now.AddHours(12))
+                    .Where(p => p.End > now && p.Start < now.AddHours(12) && (listed == null || listed.Contains(p.ChannelId)))
                     .OrderBy(p => p.Start).ToListAsync(ct))
                 .GroupBy(p => p.ChannelId).ToDictionary(g => g.Key, g => g.Take(2).ToList());
             var marks = await DvrEndpoints.Marks.LoadAsync(db, now, now.AddHours(12), ct);
@@ -88,8 +95,9 @@ public static partial class LiveTvEndpoints
             var window = TimeSpan.FromHours(Math.Clamp(hours ?? 6, 1, MaxGuideWindow.TotalHours));
             var until = start + window;
             var channels = await db.LiveChannels.AsNoTracking().OrderBy(c => c.Number).ThenBy(c => c.Name).ToListAsync(ct);
+            var listed = db.IsLimited() ? channels.Select(c => c.Id).ToList() : null;
             var programmes = (await db.LiveProgrammes.AsNoTracking()
-                    .Where(p => p.End > start && p.Start < until).OrderBy(p => p.Start).ToListAsync(ct))
+                    .Where(p => p.End > start && p.Start < until && (listed == null || listed.Contains(p.ChannelId))).OrderBy(p => p.Start).ToListAsync(ct))
                 .ToLookup(p => p.ChannelId);
             var favourites = await FavouritesAsync(db, profile.Id, ct);
             var marks = await DvrEndpoints.Marks.LoadAsync(db, start, until, ct);
@@ -221,6 +229,19 @@ public static partial class LiveTvEndpoints
             signal.Request();
             return Results.Accepted();
         }).RequireAuthorization(FlexarrClaims.AdminPolicy);
+
+        // The channels profiles with an age limit may watch, picked by a parent.
+        group.MapPut("/channels/{id:guid}/kids", async (Guid id, ChannelKidsRequest request, FlexarrDbContext db, CancellationToken ct) =>
+        {
+            if (await db.LiveChannels.Where(c => c.Id == id).ExecuteUpdateAsync(u => u.SetProperty(c => c.FineForKids, request.FineForKids), ct) == 0)
+            {
+                return Results.NotFound();
+            }
+
+            LibraryVisibility.KidsSettingsChanged();
+            return Results.NoContent();
+        })
+            .RequireAuthorization(FlexarrClaims.AdminPolicy);
 
         return api;
     }
@@ -358,7 +379,7 @@ public static partial class LiveTvEndpoints
     };
 
     internal static LiveChannelDto ToDto(LiveChannel c, bool favourite, LiveProgramme? now, LiveProgramme? next, DvrEndpoints.Marks? marks = null) =>
-        new(c.Id, c.Number, c.Name, c.Group, LogoUrl(c), favourite, now is null ? null : Marked(now, marks), next is null ? null : Marked(next, marks));
+        new(c.Id, c.Number, c.Name, c.Group, LogoUrl(c), favourite, now is null ? null : Marked(now, marks), next is null ? null : Marked(next, marks), c.FineForKids);
 
     private static LiveChannelDto ToDto(LiveChannel c, bool favourite, DvrEndpoints.Marks marks, LiveProgramme? now, LiveProgramme? next) =>
         ToDto(c, favourite, now, next, marks);

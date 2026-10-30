@@ -214,7 +214,15 @@ struct EmptyHomeMessageTests {
         #expect(message.folders == ["/media/films", "/media/tv"])
     }
 
-    @Test func saysAFirstScanIsUnderWay() throws {
+    @Test func saysOneLineToALimitedProfile() throws {
+        let message = try #require(EmptyHomeMessage(libraries: [library("Films", .movies, folders: ["/media/films"])], limitedProfile: "Sam"))
+        #expect(message.title == "Nothing here for Sam yet")
+        #expect(message.body.isEmpty)
+        #expect(message.folders.isEmpty)
+        #expect(EmptyHomeMessage(libraries: [library("Films", .movies, items: 2)], limitedProfile: "Sam") == nil)
+    }
+
+        @Test func saysAFirstScanIsUnderWay() throws {
         let message = try #require(EmptyHomeMessage(libraries: [library("Films", .movies, scan: ScanStatus(path: "/media/films", total: 10, processed: 4))]))
         #expect(message.title == "Looking through your library")
         #expect(message.body == "Flexarr is reading the files in Films (4 of 10). Your films appear here as they’re recognised.")

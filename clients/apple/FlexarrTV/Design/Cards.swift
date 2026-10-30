@@ -236,11 +236,15 @@ struct ItemContextMenu: View {
             }
         }
         let watched = item.userData.watched || item.userData.unwatchedCount == 0
-        Button {
-            leavesRow?(item.id)
-            Task { await model.setWatched(item, !watched) }
-        } label: {
-            Label(watched ? "Mark as unwatched" : "Mark as watched", systemImage: watched ? "eye.slash" : "checkmark.circle")
+        // A child's history keeps itself: watching is the only way to change it.
+        let marks = !model.isKids
+        if marks {
+            Button {
+                leavesRow?(item.id)
+                Task { await model.setWatched(item, !watched) }
+            } label: {
+                Label(watched ? "Mark as unwatched" : "Mark as watched", systemImage: watched ? "eye.slash" : "checkmark.circle")
+            }
         }
         if model.hasWatchlist, item.kind == .movie || item.kind == .series {
             let onList = model.watchlistItems.contains(item.id)
@@ -249,7 +253,7 @@ struct ItemContextMenu: View {
             }
         }
         // Part way through: unwatched forgets the place, which takes it out of Continue Watching.
-        if item.isResumable && !watched {
+        if marks && item.isResumable && !watched {
             Button {
                 leavesRow?(item.id)
                 Task { await model.setWatched(item, false) }
@@ -264,7 +268,7 @@ struct ItemContextMenu: View {
                 Label("Remove from Continue Watching", systemImage: "minus.circle")
             }
         }
-        if item.kind == .episode, item.seriesId != nil, let show = item.seriesTitle {
+        if marks, item.kind == .episode, item.seriesId != nil, let show = item.seriesTitle {
             Button {
                 leavesRow?(item.id)
                 Task { await model.setShowWatched(of: item) }

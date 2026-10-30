@@ -69,6 +69,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.flexarr.AppModel
+import io.github.flexarr.appModel
 import io.github.flexarr.core.EmptyHomeMessage
 import io.github.flexarr.core.Home
 import io.github.flexarr.core.HomeRow
@@ -114,7 +115,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 
-private class HomeContent(val home: Home, val newEpisodes: List<PodcastEpisode>, val emptyMessage: EmptyHomeMessage?)
+private class HomeContent(val home: Home, val newEpisodes: List<PodcastEpisode>, val isEmpty: Boolean, val emptyMessage: EmptyHomeMessage?)
 
 /**
  * Featured titles to swipe through, then the server's rows: Continue Watching, the newest episodes of the podcasts
@@ -131,13 +132,15 @@ fun HomeScreen(model: AppModel) {
             val episodes = async { runCatching { client.newPodcastEpisodes(unplayed = true, take = 20) }.getOrDefault(emptyList()) }
             val home = client.home()
             val newEpisodes = episodes.await()
-            // Nothing at all yet: the libraries say whether a scan is under way or their folders hold nothing.
-            val empty = if (home.featured.isEmpty() && newEpisodes.isEmpty() && home.rows.none { it.hasContent }) {
+            // Nothing at all yet: the libraries say whether a scan is under way or their folders hold nothing. Not to a
+            // profile with an age limit, for whom it's only that nothing's within it.
+            val isEmpty = home.featured.isEmpty() && newEpisodes.isEmpty() && home.rows.none { it.hasContent }
+            val empty = if (isEmpty && model.currentProfile?.hasAgeLimit != true) {
                 runCatching { EmptyHomeMessage.of(client.libraries()) }.getOrNull()
             } else {
                 null
             }
-            HomeContent(home, newEpisodes, empty)
+            HomeContent(home, newEpisodes, isEmpty, empty)
         }
     }
     var featuredIndex by remember { mutableIntStateOf(0) }
@@ -156,8 +159,14 @@ fun HomeScreen(model: AppModel) {
             val home = content.home
             PullToRefreshBox(isRefreshing = loader.refreshing, onRefresh = loader.retry, modifier = Modifier.fillMaxSize()) {
                 LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
-                    // Only when Home has nothing else at all.
-                    content.emptyMessage?.let { message -> item(key = "empty") { EmptyHome(message) } }
+                    // Only when Home has nothing else at all; a profile with an age limit gets one line, not the setup talk.
+                    // One or the other: a profile just switched to can briefly have both.
+                    val limited = model.currentProfile?.takeIf { it.hasAgeLimit }
+                    if (content.isEmpty && limited != null) {
+                        item(key = "empty") { NothingYet(limited.name) }
+                    } else {
+                        content.emptyMessage?.let { message -> item(key = "empty") { EmptyHome(message) } }
+                    }
                     if (home.featured.isNotEmpty()) {
                         item(key = "hero") { HomeHero(home, onIndex = { featuredIndex = it }) }
                     } else {
@@ -175,7 +184,8 @@ fun HomeScreen(model: AppModel) {
                 }
             }
         }
-        if (model.profiles.size > 1) {
+        // Locked to one kids profile, the picker is still the way to unlock.
+        if (model.profiles.size > 1 || model.kidsLock) {
             model.currentProfile?.let { current ->
                 // 32 to see, 48 to touch.
                 Box(
@@ -261,7 +271,8 @@ private fun HeroSlide(home: Home, item: ItemSummary, height: Dp) {
         // Room above for the backdrop and the status bar when large text makes the slide grow.
         Column(Modifier.align(Alignment.BottomStart).padding(start = Edge, end = Edge, bottom = 44.dp, top = 160.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             TitleArt(item, maxWidth = 280.dp, maxHeight = 110.dp, fontSize = 52)
-            FactsLine(item.facts)
+            // No scores for a child.
+            FactsLine(item.facts(scores = !LocalContext.current.appModel.isKids))
             home.overviews[item.id]?.let {
                 Text(it, fontSize = 15.sp, color = Flexarr.screen.copy(alpha = 0.85f), maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 520.dp))
             }
@@ -377,6 +388,16 @@ private fun EmptyHome(message: EmptyHomeMessage) {
             }
         }
         Text("Pull down to refresh.", fontSize = 13.sp, color = Flexarr.usher, fontWeight = FontWeight.Normal)
+    }
+}
+
+/** Home with nothing within a profile's age limit: one calm line, and nothing to set up. */
+@Composable
+private fun NothingYet(name: String) {
+    // As the empty Home looks, as the iPhone's does.
+    Column(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 24.dp).padding(top = 72.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Icon(Icons.Outlined.VideoLibrary, contentDescription = null, tint = Flexarr.silver, modifier = Modifier.size(44.dp))
+        Text("Nothing here for $name yet", style = marquee(34))
     }
 }
 

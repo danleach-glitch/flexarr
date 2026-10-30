@@ -20,7 +20,10 @@ export function HomePage() {
   const podcasts = libraries.some((l) => l.type === 'Podcasts')
   const episodes = useApi((signal) => (podcasts ? getNewEpisodes(signal, true) : Promise.resolve([])), [podcasts])
   // The setup guide, for the main profile: servers before it answer 404, and have no guide.
-  const { me } = useSession()
+  const { me, profiles } = useSession()
+  // A profile with an age limit and nothing within it: no setup talk, no way into Settings.
+  const limited = me?.maxRatingAge != null
+  const nothingFor = <NothingFor name={profiles?.find((p) => p.isCurrent)?.name} />
   // Settings locked or not: the list is the main profile's either way.
   const main = me?.isAdmin === true || me?.canUnlock === true
   const admin = me?.isAdmin === true
@@ -34,6 +37,7 @@ export function HomePage() {
 
   // Podcasts come built in, so they don't count as somewhere to start from; favourite channels do.
   if (libraries.every((l) => l.type === 'Podcasts') && !data.rows.some((r) => r.style === 'live')) {
+    if (limited) return nothingFor
     if (checklist) return <div className="welcome">{checklist}</div>
     return (
       <section className="welcome">
@@ -69,7 +73,7 @@ export function HomePage() {
 
   return (
     <>
-      {empty ? <EmptyLibraries libraries={media} /> : <Hero items={data.featured} overviews={data.overviews} resume={data.resume ?? undefined} resumes={data.resumes} />}
+      {empty ? limited ? nothingFor : <EmptyLibraries libraries={media} /> : <Hero items={data.featured} overviews={data.overviews} resume={data.resume ?? undefined} resumes={data.resumes} />}
       {/* No hero (only Live TV so far): the rows start below the top bar. */}
       <div className={data.featured.length > 0 ? 'rows' : empty ? 'rows rows-after-welcome' : 'rows rows-unheaded'}>
         {checklist}
@@ -97,6 +101,15 @@ export function HomePage() {
 const kinds: Record<Library['type'], string> = { Movies: 'films', TvShows: 'shows', Music: 'music', Podcasts: 'podcasts', HomeVideos: 'home videos' }
 
 /** Libraries are there but hold nothing Flexarr recognised: still scanning, or nothing found in their folders. */
+/** A child's Home with nothing to watch yet: one line. */
+function NothingFor({ name }: { name: string | undefined }) {
+  return (
+    <section className="welcome">
+      <h1>{name ? `Nothing here for ${name} yet` : 'Nothing here yet'}</h1>
+    </section>
+  )
+}
+
 function EmptyLibraries({ libraries }: { libraries: Library[] }) {
   const names = list(libraries.map((l) => l.name))
   const wanted = list([...new Set(libraries.map((l) => kinds[l.type]))])

@@ -57,7 +57,7 @@ public sealed class OnlineMetadataTests : IAsyncLifetime
         Assert.Equal(1, result.FromLookup);
         Assert.Equal(("329865", "tt2543164", MetadataRefresher.TmdbSearch), (item.TmdbId, item.ImdbId, item.MetadataSource));
         Assert.Equal("Linguistics.", item.Overview);
-        Assert.Equal("PG-13", item.ContentRating);
+        Assert.Equal(("12A", 12), (item.ContentRating, item.RatingAge)); // the UK's, for age limits
         Assert.Equal("21 Laps", item.Studio);
         Assert.Equal("abc", item.TrailerYouTubeId);
         Assert.Equal("https://image.tmdb.org/t/p/original/arrival.jpg", item.PosterUrl);

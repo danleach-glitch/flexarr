@@ -16,6 +16,7 @@ import {
 import { FolderPicker } from '../../components/FolderPicker'
 import { ScanProgress } from '../../components/ScanProgress'
 import { useLibraries } from '../../hooks/librariesContext'
+import { useSession } from '../../hooks/sessionContext'
 import { AsyncButton, IconButton } from '../../components/AsyncButton'
 import { Film, Pencil, Picture, Refresh, Trash } from '../../components/icons'
 import { libraryIcons } from '../../components/libraryIcons'
@@ -171,6 +172,19 @@ function PodcastLibrary({ library, onMoved }: { library: Library; onMoved: () =>
 function LibraryRow({ library, onChange }: { library: Library; onChange: () => void }) {
   const [message, setMessage] = useState<string>()
   const [renaming, setRenaming] = useState(false)
+  // Once a profile has an age limit: everything in the library is fine for it, rated or not.
+  const limits = useSession().profiles?.some((p) => p.maxRatingAge != null) === true
+  const [fineForKids, setFineForKids] = useState(library.fineForKids ?? false)
+
+  async function toggleKids(fine: boolean) {
+    setFineForKids(fine)
+    try {
+      await updateLibrary(library.id, { name: library.name, type: library.type, folders: library.folders, fineForKids: fine })
+    } catch (e) {
+      setFineForKids(!fine)
+      setMessage(errorText(e))
+    }
+  }
 
   async function remove() {
     if (!confirm(`Remove “${library.name}” from Flexarr? The files themselves stay where they are.`)) return
@@ -205,6 +219,19 @@ function LibraryRow({ library, onChange }: { library: Library; onChange: () => v
             {f}
           </code>
         ))}
+        {limits && library.fineForKids !== undefined && (
+          <label className="library-kids">
+            <span>Fine for kids, rated or not</span>
+            <input
+              type="checkbox"
+              role="switch"
+              className="switch"
+              aria-label={`${library.name}: fine for kids, rated or not`}
+              checked={fineForKids}
+              onChange={(e) => void toggleKids(e.target.checked)}
+            />
+          </label>
+        )}
         {library.scan && <ScanProgress scan={library.scan} />}
         {message && <p className="muted">{message}</p>}
       </div>

@@ -161,7 +161,7 @@ public static class PodcastEndpoints
             return result.PodcastId is { } id
                 ? Results.Ok(await PodcastAsync(db, id, profile.Id, ct))
                 : Results.Problem(result.Error, statusCode: StatusCodes.Status422UnprocessableEntity, title: "The podcast couldn't be added");
-        });
+        }).NotForAgeLimited();
 
         group.MapGet("/{id:guid}", async (Guid id, FlexarrDbContext db, CurrentProfile profile, PodcastRefreshQueue queue, TimeProvider clock, CancellationToken ct) =>
         {
@@ -434,7 +434,8 @@ public static class PodcastEndpoints
         group.MapGet("/search", async (string q, PodcastDirectory directory, FlexarrDbContext db, CurrentProfile profile, IOptionsMonitor<FlexarrOptions> options,
             CancellationToken ct) =>
         {
-            if (string.IsNullOrWhiteSpace(q))
+            // Apple's directory has no ages to check: a profile with an age limit finds nothing in it.
+            if (string.IsNullOrWhiteSpace(q) || db.IsLimited())
             {
                 return Results.Ok(Array.Empty<DirectoryPodcastDto>());
             }
@@ -453,6 +454,11 @@ public static class PodcastEndpoints
         group.MapGet("/top", async (int? genre, PodcastDirectory directory, FlexarrDbContext db, CurrentProfile profile, IOptionsMonitor<FlexarrOptions> options,
             CancellationToken ct) =>
         {
+            if (db.IsLimited())
+            {
+                return Results.Ok(Array.Empty<DirectoryPodcastDto>());
+            }
+
             try
             {
                 var found = await directory.TopAsync(options.CurrentValue.Podcasts.ResolvedCountry, genre, ct);
@@ -537,7 +543,7 @@ public static class PodcastEndpoints
             }
 
             return Results.Ok(new OpmlImportDto(added, already, failed));
-        }).Accepts<string>("text/x-opml", "application/xml", "text/xml");
+        }).Accepts<string>("text/x-opml", "application/xml", "text/xml").NotForAgeLimited();
 
         return api;
     }

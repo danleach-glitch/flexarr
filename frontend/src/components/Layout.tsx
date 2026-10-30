@@ -16,6 +16,7 @@ import { NowPlaying } from './NowPlaying'
 import { PairingPrompt } from './PairingPrompt'
 import { UnlockPrompt } from './UnlockDialog'
 import { Avatar } from './ProfilePicker'
+import { KidsLockMenuItems } from './KidsLock'
 import { SearchPalette } from './SearchPalette'
 
 const railKey = 'flexarr.sidebarRail'
@@ -67,8 +68,12 @@ export function Layout() {
   const isAdmin = access?.isAdmin ?? true
   const me = profiles?.find((p) => p.isCurrent)
   const other = profiles?.length === 2 ? profiles.find((p) => !p.isCurrent) : undefined
+  // A child's profile has the simpler app: no Settings, no signing the browser out. Any age limit keeps a profile out
+  // of Discover and Coming soon, whose titles Flexarr hasn't got and so can't tell the age of.
+  const kids = access?.isKids === true
+  const limited = access?.maxRatingAge != null
   // Signed in with the API key (a cookie of this browser's own): any profile may end that, say on a shared laptop.
-  const canSignOut = access?.method === 'session'
+  const canSignOut = access?.method === 'session' && !kids
   const location = useLocation()
   // Live TV has a place once a source is set up (Settings › Connections); asked again on leaving Settings.
   const inSettings = location.pathname.startsWith('/settings')
@@ -148,7 +153,7 @@ export function Layout() {
   }, [location.pathname])
 
   return (
-    <div className={['shell', rail && 'rail', bare && 'bare', nowPlaying && 'has-now-playing'].filter(Boolean).join(' ')}>
+    <div className={['shell', rail && 'rail', bare && 'bare', nowPlaying && 'has-now-playing', kids && 'kids'].filter(Boolean).join(' ')}>
       <a className="skip-link" href="#main">
         Skip to content
       </a>
@@ -169,10 +174,12 @@ export function Layout() {
             <kbd>⌘K</kbd>
           </button>
           {/* Every profile has settings of its own; the server's are the main profile's. */}
-          <NavLink to="/settings" className="icon-button" aria-label="Settings">
-            <Gear />
-          </NavLink>
-          {me && profiles && (profiles.length > 1 || canSignOut) && (
+          {!kids && (
+            <NavLink to="/settings" className="icon-button" aria-label="Settings">
+              <Gear />
+            </NavLink>
+          )}
+          {me && profiles && (profiles.length > 1 || canSignOut || access?.kidsLock) && (
             <div className="profile-menu-anchor" ref={profileAnchor}>
               <button className="profile-button" aria-expanded={profileMenu} aria-label={`Profile: ${me.name}`} onClick={() => setProfileMenu(!profileMenu)}>
                 <Avatar profile={me} size={34} />
@@ -207,6 +214,7 @@ export function Layout() {
                       Manage profiles
                     </Link>
                   )}
+                  <KidsLockMenuItems access={access} profiles={profiles} onClose={() => setProfileMenu(false)} />
                   {canSignOut && (
                     <button
                       role="menuitem"
@@ -292,14 +300,18 @@ export function Layout() {
                 <span className="sidebar-label">Live TV</span>
               </NavLink>
             )}
-            <NavLink to="/discover" className="sidebar-link" title={tip('Discover')}>
-              <Sparkles />
-              <span className="sidebar-label">Discover</span>
-            </NavLink>
-            <NavLink to="/upcoming" className="sidebar-link" title={tip('Coming soon')}>
-              <Calendar />
-              <span className="sidebar-label">Coming soon</span>
-            </NavLink>
+            {!limited && (
+              <>
+                <NavLink to="/discover" className="sidebar-link" title={tip('Discover')}>
+                  <Sparkles />
+                  <span className="sidebar-label">Discover</span>
+                </NavLink>
+                <NavLink to="/upcoming" className="sidebar-link" title={tip('Coming soon')}>
+                  <Calendar />
+                  <span className="sidebar-label">Coming soon</span>
+                </NavLink>
+              </>
+            )}
           </nav>
           <button className="sidebar-link sidebar-toggle" aria-expanded={!rail} title={tip('Expand sidebar')} onClick={toggleRail}>
             <ChevronsLeft style={rail ? { transform: 'scaleX(-1)' } : undefined} />

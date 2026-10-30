@@ -96,6 +96,8 @@ export function SettingsPage() {
   const updates = useApi((signal) => (me.data?.isAdmin ? getUpdates(signal) : Promise.resolve(undefined)), [me.data?.isAdmin])
   const badges: Record<string, string | undefined> = { updates: updates.data?.available ? `Flexarr ${updates.data.latest?.version} is available` : undefined }
 
+  // A child's choices are a parent's to make: the kids app has no Settings, even by its address.
+  if (me.data?.isKids) return <Navigate to="/" replace />
   // Which page to open first depends on whose profile this is, so it waits to know.
   if (!section) return me.loading ? null : <Navigate to={`/settings/${isAdmin ? 'overview' : 'playback'}`} replace />
   if (moved[section]) return <Navigate to={`/settings/${moved[section]}`} replace />

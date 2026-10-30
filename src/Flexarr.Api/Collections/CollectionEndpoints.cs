@@ -59,9 +59,9 @@ public static class CollectionEndpoints
         group.MapGet("/suggestions", async (FlexarrDbContext db, CurrentProfile profile, IMemoryCache cache, CancellationToken ct) =>
         {
             // Working them out takes a few dozen queries over the whole library, and they hardly change from minute to minute.
-            // Keyed by the libraries hidden from the profile too, so hiding one drops its titles at once.
+            // Keyed by the libraries hidden from the profile and its age limit too, so changing either takes effect at once.
             var hiddenLibraries = string.Join(',', db.HiddenLibraryIds.Order());
-            var all = await cache.GetOrCreateAsync($"collection-suggestions:{profile.Id}:{hiddenLibraries}", entry =>
+            var all = await cache.GetOrCreateAsync($"collection-suggestions:{profile.Id}:{hiddenLibraries}:{db.MaxRatingAge}:{LibraryVisibility.KidsSettingsVersion}", entry =>
             {
                 entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5);
                 return CollectionSuggestions.ForAsync(db, profile.Id, ct);

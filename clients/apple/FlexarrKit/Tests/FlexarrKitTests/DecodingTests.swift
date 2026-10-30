@@ -161,6 +161,7 @@ struct MusicDecodingTests {
         #expect(detail.item.kind == .album)
         #expect(detail.item.title == "On Every Street")
         #expect(detail.item.facts == ["1991", "12 tracks", "7.5"])
+        #expect(detail.item.facts(scores: false) == ["1991", "12 tracks"])
         #expect(detail.ancestors.map(\.kind) == [.artist])
         #expect(detail.children.allSatisfy { $0.kind == .track })
         #expect(detail.children.map(\.trackNumber) == [1, 2, 3, 4, 5])

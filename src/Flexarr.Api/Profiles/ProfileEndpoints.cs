@@ -21,9 +21,19 @@ namespace Flexarr.Api.Profiles;
 /// owner signed in, choosing it only asks if the owner wants it to (absent from servers before 0.56: there, HasPin).
 /// </param>
 /// <param name="AutoRequestWatchlist">Titles it adds to its watchlist that aren't in the library are requested (absent from servers before 0.56).</param>
+/// <param name="MaxRatingAge">Its age limit, on the UK's steps (0 is U, 8 PG, then 12, 15, 18); null, none. Absent from servers before 0.56.</param>
+/// <param name="IsKids">A child's profile: the simpler app, and leaving it takes the main profile's PIN. Absent from servers before 0.56.</param>
 public sealed record ProfileDto(string Id, string Name, string Color, bool HasPin, bool IsMain, bool IsCurrent, IReadOnlyList<Guid> HiddenLibraryIds, string? Image,
     Guid? RequestShowsLibraryId = null, Guid? RequestFilmsLibraryId = null, IReadOnlyList<string>? LibraryOrder = null, bool AsksPin = false,
-    bool AutoRequestWatchlist = false);
+    bool AutoRequestWatchlist = false, int? MaxRatingAge = null, bool IsKids = false);
+
+/// <param name="MaxRatingAge">The age limit: 0 (U), 8 (PG), 12, 15 or 18; null for none.</param>
+/// <param name="IsKids">A child's profile; it needs an age limit.</param>
+public sealed record AgeLimitRequest(int? MaxRatingAge, bool IsKids = false);
+
+/// <param name="Pin">The main profile's PIN.</param>
+/// <param name="ProfileId">Locking: the kids profile to choose here (else the one chosen already, or the first).</param>
+public sealed record KidsLockRequest(string? Pin, string? ProfileId = null);
 
 /// <summary>The order of a profile's libraries in the menu: library ids, and "live-tv"; empty goes back to by name.</summary>
 public sealed record LibraryOrderRequest(IReadOnlyList<string> Order);
@@ -37,10 +47,14 @@ public sealed record WatchlistRequestsRequest(bool AutoRequest);
 /// <param name="HiddenLibraryIds">Libraries the profile can't see; null leaves them as they are.</param>
 /// <param name="CurrentPin">Changing or removing the main profile's PIN takes the one it has now...</param>
 /// <param name="ApiKey">...or, if that's forgotten, the server's API key.</param>
+/// <param name="MaxRatingAge">Making a profile: its age limit (see <see cref="AgeLimitRequest"/>). Changing one goes through /age-limit.</param>
+/// <param name="IsKids">Making a profile: a child's.</param>
 public sealed record ProfileRequest(string Name, string? Color, string? Pin, bool? RemovePin, IReadOnlyList<Guid>? HiddenLibraryIds = null, string? CurrentPin = null,
-    string? ApiKey = null);
+    string? ApiKey = null, int? MaxRatingAge = null, bool IsKids = false);
 
-public sealed record SelectProfileRequest(string? Pin);
+/// <param name="Pin">The chosen profile's PIN, if it asks for one.</param>
+/// <param name="ParentPin">Leaving a kids profile for one that isn't: the main profile's PIN (choosing the main profile, <paramref name="Pin"/> does).</param>
+public sealed record SelectProfileRequest(string? Pin, string? ParentPin = null);
 
 public static partial class ProfileEndpoints
 {
@@ -48,8 +62,14 @@ public static partial class ProfileEndpoints
     {
         var group = api.MapGroup("/profiles").WithTags("Profiles");
 
-        group.MapGet("/", async (FlexarrDbContext db, CurrentProfile current, CancellationToken ct) =>
-            (await db.Profiles.AsNoTracking().OrderBy(p => p.CreatedAt).ToListAsync(ct)).Select(p => ToDto(p, current)).ToList());
+        // A browser or device locked to kids profiles only offers them.
+        group.MapGet("/", async (FlexarrDbContext db, CurrentProfile current, SignIns signIns, CancellationToken ct) =>
+        {
+            var locked = signIns.ById(current.SignInId)?.KidsLock == true;
+            var parentAsks = await LeavingTakesParentPinAsync(db, current, ct);
+            return (await db.Profiles.AsNoTracking().Where(p => !locked || p.IsKids).OrderBy(p => p.CreatedAt).ToListAsync(ct))
+                .Select(p => ToDto(p, current, parentAsks)).ToList();
+        });
 
         group.MapPost("/", async (ProfileRequest request, FlexarrDbContext db, CurrentProfile current, CancellationToken ct) =>
         {
@@ -58,7 +78,16 @@ public static partial class ProfileEndpoints
                 return problem;
             }
 
-            var profile = new Profile { Id = Profile.NewId(), Name = request.Name.Trim(), Color = request.Color ?? "#a9c2ec", HiddenLibraryIds = request.HiddenLibraryIds?.Distinct().ToList() ?? [] };
+            if (await ValidateAgeLimitAsync(new AgeLimitRequest(request.MaxRatingAge, request.IsKids), isMain: false, db, ct) is { } ageProblem)
+            {
+                return ageProblem;
+            }
+
+            var profile = new Profile
+            {
+                Id = Profile.NewId(), Name = request.Name.Trim(), Color = request.Color ?? "#a9c2ec", HiddenLibraryIds = request.HiddenLibraryIds?.Distinct().ToList() ?? [],
+                MaxRatingAge = request.MaxRatingAge, IsKids = request.IsKids,
+            };
             profile.SetPin(request.Pin);
             db.Profiles.Add(profile);
             await db.SaveChangesAsync(ct);
@@ -97,6 +126,7 @@ public static partial class ProfileEndpoints
             if (request.HiddenLibraryIds is { } hidden)
             {
                 profile.HiddenLibraryIds = hidden.Distinct().ToList();
+                LibraryVisibility.KidsSettingsChanged();
             }
 
             if (request.RemovePin == true)
@@ -118,6 +148,81 @@ public static partial class ProfileEndpoints
 
             return Results.Ok(ToDto(profile, current));
         }).RequireAuthorization(FlexarrClaims.AdminPolicy);
+
+        group.MapPut("/{id}/age-limit", async (string id, AgeLimitRequest request, FlexarrDbContext db, CurrentProfile current, SignIns signIns, CancellationToken ct) =>
+        {
+            if (await db.Profiles.FindAsync([id], ct) is not { } profile)
+            {
+                return Results.NotFound();
+            }
+
+            if (await ValidateAgeLimitAsync(request, profile.IsMain, db, ct) is { } problem)
+            {
+                return problem;
+            }
+
+            if (profile.IsKids && !request.IsKids && await KeepLockedDevicesAsync(id, db, signIns, ct) is { } refused)
+            {
+                return refused;
+            }
+
+            (profile.MaxRatingAge, profile.IsKids) = (request.MaxRatingAge, request.IsKids);
+            await db.SaveChangesAsync(ct);
+            LibraryVisibility.KidsSettingsChanged();
+            return Results.Ok(ToDto(profile, current));
+        }).RequireAuthorization(FlexarrClaims.AdminPolicy);
+
+        // Locks this browser or device to kids profiles, choosing one: the playroom's TV, a child's tablet.
+        group.MapPost("/kids-lock", async (KidsLockRequest request, HttpContext http, FlexarrDbContext db, CurrentProfile current, PinGuard guard, SignIns signIns,
+            AdminUnlocks unlocks, CancellationToken ct) =>
+        {
+            if (current.SignInId is not { } signInId)
+            {
+                return Results.Problem("Only a browser or device that's signed in can be locked to kids profiles.", statusCode: 409);
+            }
+
+            var kids = await db.Profiles.AsNoTracking().Where(p => p.IsKids).OrderBy(p => p.CreatedAt).ToListAsync(ct);
+            var chosen = request.ProfileId is { } wanted ? kids.FirstOrDefault(p => p.Id == wanted) : kids.FirstOrDefault(p => p.Id == current.Id) ?? kids.FirstOrDefault();
+            if (chosen is null)
+            {
+                return request.ProfileId is null ? Results.Problem("Add a kids profile first.", statusCode: 409) : Results.NotFound();
+            }
+
+            // Locked already, moving to another kids profile goes through Who's watching, which asks for whatever PIN it takes.
+            var alreadyLocked = signIns.ById(signInId)?.KidsLock == true;
+            if (alreadyLocked && chosen.Id != current.Id)
+            {
+                return Results.Problem($"Choose {chosen.Name} in Who’s watching.", statusCode: 409);
+            }
+
+            if (!alreadyLocked && await ParentPinAsync(http, db, current, guard, request.Pin, ct) is { } refused)
+            {
+                return refused;
+            }
+
+            signIns.SetKidsLock(signInId, true, chosen.Id);
+            unlocks.Lock(signInId);
+            // A phone handed down keeps telling of new titles for the profile it was set up as: it hears the child's now.
+            await db.NotificationDevices.Where(d => d.SignInId == signInId).ExecuteUpdateAsync(u => u.SetProperty(d => d.ProfileId, chosen.Id), ct);
+            return Results.Ok(new { token = current.TokenFor(chosen), profile = ToDto(chosen, current) with { IsCurrent = true } });
+        });
+
+        group.MapPost("/kids-lock/release", async (KidsLockRequest request, HttpContext http, FlexarrDbContext db, CurrentProfile current, PinGuard guard, SignIns signIns,
+            CancellationToken ct) =>
+        {
+            if (signIns.ById(current.SignInId) is not { KidsLock: true } signIn)
+            {
+                return Results.NoContent();
+            }
+
+            if (await ParentPinAsync(http, db, current, guard, request.Pin, ct) is { } refused)
+            {
+                return refused;
+            }
+
+            signIns.SetKidsLock(signIn.Id, false);
+            return Results.NoContent();
+        });
 
         // A profile's own choice, so anyone signed in as it may make it; the admin may make it for anyone.
         group.MapPut("/{id}/request-libraries", async (string id, RequestLibrariesRequest request, FlexarrDbContext db, CurrentProfile current, CancellationToken ct) =>
@@ -191,11 +296,17 @@ public static partial class ProfileEndpoints
             return Results.Ok(ToDto(profile, current));
         });
 
-        group.MapDelete("/{id}", async (string id, FlexarrDbContext db, ProfileImages images, CancellationToken ct) =>
+        group.MapDelete("/{id}", async (string id, FlexarrDbContext db, ProfileImages images, SignIns signIns, CancellationToken ct) =>
         {
             if (id == PlaybackState.DefaultUser)
             {
                 return Results.Problem("The main profile can't be removed.", statusCode: 409);
+            }
+
+            // A device locked to it would be left as nobody in particular: it moves to another kids profile, if there is one.
+            if (await KeepLockedDevicesAsync(id, db, signIns, ct) is { } refused)
+            {
+                return refused;
             }
 
             // Watch history goes with the profile (cascade).
@@ -254,6 +365,23 @@ public static partial class ProfileEndpoints
                 return Results.NotFound();
             }
 
+            // A child stays in kids profiles: a device locked to them offers nothing else, and leaving one, or any profile
+            // with an age limit for a looser one, takes the main profile's PIN. (Over the API key, which is the server, it
+            // doesn't.) Choosing the main profile, its own PIN is that PIN.
+            if (!profile.IsKids && signIns.ById(current.SignInId)?.KidsLock == true)
+            {
+                return Results.Problem("This device is locked to kids profiles.", statusCode: 403, extensions: new Dictionary<string, object?> { ["kidsLock"] = true });
+            }
+
+            var from = await db.Profiles.AsNoTracking().Where(p => p.Id == current.Id).Select(p => new { p.IsKids, p.MaxRatingAge }).FirstOrDefaultAsync(ct);
+            var loosens = from is not null && (from.IsKids && !profile.IsKids
+                || from.MaxRatingAge is { } limit && (profile.MaxRatingAge is null || profile.MaxRatingAge > limit));
+            var parentPin = request.ParentPin ?? (profile.IsMain ? request.Pin : null);
+            if (loosens && await ParentPinAsync(http, db, current, guard, parentPin, ct) is { } refused)
+            {
+                return refused;
+            }
+
             // Without a PIN on the main profile, choosing it would make anyone the server's admin. A browser or device
             // the main profile signed in may (the household chose not to protect it); a Tailscale guest may not.
             if (profile.IsMain && profile.PinHash is null && !current.IsTrusted)
@@ -263,7 +391,7 @@ public static partial class ProfileEndpoints
 
             // The main profile's PIN guards managing the server, not watching as it: on a browser or device the owner
             // signed in, choosing it only asks if the owner wants it to. A PIN given anyway is checked, and unlocks.
-            var askPin = current.AsksPinFor(profile) || profile.PinHash is not null && !string.IsNullOrEmpty(request.Pin);
+            var askPin = !(loosens && profile.IsMain) && (current.AsksPinFor(profile) || profile.PinHash is not null && !string.IsNullOrEmpty(request.Pin));
             if (askPin)
             {
                 var (callers, browser) = PinCaller(http, current);
@@ -276,23 +404,26 @@ public static partial class ProfileEndpoints
 
                 if (result == PinCheck.Wrong)
                 {
-                    return Results.Problem("That PIN isn't right.", statusCode: 403);
+                    // After a right parent PIN, apps say it was this profile's own that was wrong (ownPin).
+                    return Results.Problem("That PIN isn't right.", statusCode: 403, extensions: new Dictionary<string, object?> { ["ownPin"] = true });
                 }
             }
 
+            // The main profile's PIN was given, as its own or as the parent's.
+            var mainPinGiven = profile.IsMain && (askPin || loosens && !string.IsNullOrEmpty(parentPin));
             var signInId = current.SignInId;
             if (signInId is not null)
             {
                 signIns.ChooseProfile(signInId, profile.IsMain ? null : profile.Id);
             }
-            else if (profile.IsMain && askPin && http.User.FindFirst(FlexarrClaims.Method)?.Value != ApiKeyAuthenticationHandler.Methods.ApiKey)
+            else if (mainPinGiven && http.User.FindFirst(FlexarrClaims.Method)?.Value != ApiKeyAuthenticationHandler.Methods.ApiKey)
             {
                 // Without a sign-in (over Tailscale, or at home with "only away from home"), the PIN signs this browser
                 // in as the main profile instead, so the unlock has somewhere to live (see AdminEndpoints).
                 signInId = AdminEndpoints.SignInForUnlock(http, signIns);
             }
 
-            if (profile.IsMain && askPin && signInId is not null)
+            if (mainPinGiven && signInId is not null)
             {
                 unlocks.Unlock(signInId);
             }
@@ -415,9 +546,106 @@ public static partial class ProfileEndpoints
         return Results.Problem(message(when), statusCode: 429, extensions: new Dictionary<string, object?> { ["retryAfterSeconds"] = seconds });
     }
 
-    internal static ProfileDto ToDto(Profile p, CurrentProfile current) =>
+    /// <param name="parentAsks">
+    /// The profile watching can only be left with the main profile's PIN, so choosing the main profile asks for it
+    /// whatever the setting (and apps that don't know kids profiles show its keypad).
+    /// </param>
+    internal static ProfileDto ToDto(Profile p, CurrentProfile current, bool parentAsks = false) =>
         new(p.Id, p.Name, p.Color, p.PinHash is not null, p.IsMain, p.Id == current.Id, p.HiddenLibraryIds, current.ImageUrlFor(p), p.RequestShowsLibraryId,
-            p.RequestFilmsLibraryId, p.LibraryOrder, current.AsksPinFor(p), p.AutoRequestWatchlist);
+            p.RequestFilmsLibraryId, p.LibraryOrder, current.AsksPinFor(p) || parentAsks && p.IsMain && p.PinHash is not null, p.AutoRequestWatchlist, p.MaxRatingAge,
+            p.IsKids);
+
+    /// <summary>The profile watching is a kids profile or has an age limit, so leaving it may take the main profile's PIN.</summary>
+    private static Task<bool> LeavingTakesParentPinAsync(FlexarrDbContext db, CurrentProfile current, CancellationToken ct) =>
+        current.IsAdmin ? Task.FromResult(false) : db.Profiles.AnyAsync(p => p.Id == current.Id && (p.IsKids || p.MaxRatingAge != null), ct);
+
+    /// <summary>
+    /// Moves devices locked to <paramref name="profileId"/> to another kids profile, before it goes or stops being one;
+    /// null when that's done (or there were none), else why it can't be.
+    /// </summary>
+    private static async Task<IResult?> KeepLockedDevicesAsync(string profileId, FlexarrDbContext db, SignIns signIns, CancellationToken ct)
+    {
+        var locked = signIns.List().Where(s => s.KidsLock && s.ProfileId == profileId).ToList();
+        if (locked.Count == 0)
+        {
+            return null;
+        }
+
+        var other = await db.Profiles.AsNoTracking().Where(p => p.IsKids && p.Id != profileId).OrderBy(p => p.CreatedAt).Select(p => p.Id).FirstOrDefaultAsync(ct);
+        if (other is null)
+        {
+            return Results.Problem(locked.Count == 1
+                ? $"{locked[0].Name} is locked to this profile. Unlock it in Settings › Devices first."
+                : $"{locked.Count} devices are locked to this profile. Unlock them in Settings › Devices first.", statusCode: 409);
+        }
+
+        foreach (var signIn in locked)
+        {
+            signIns.SetKidsLock(signIn.Id, true, other);
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Null when <paramref name="request"/> is an age limit a profile may have: a step of <see cref="RatingAges"/>, a
+    /// kids profile always with one, the main profile never (it manages the server), and a kids profile only once the
+    /// main profile has a PIN (it's what keeps a child in it).
+    /// </summary>
+    private static async Task<IResult?> ValidateAgeLimitAsync(AgeLimitRequest request, bool isMain, FlexarrDbContext db, CancellationToken ct)
+    {
+        if (request.MaxRatingAge is { } age && !RatingAges.Steps.Contains(age))
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]> { ["maxRatingAge"] = ["An age limit is U (0), PG (8), 12, 15 or 18."] });
+        }
+
+        if (request.IsKids && request.MaxRatingAge is null)
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]> { ["maxRatingAge"] = ["A kids profile needs an age limit."] });
+        }
+
+        if (isMain && (request.IsKids || request.MaxRatingAge is not null))
+        {
+            return Results.Problem("The main profile can't have an age limit: it manages the server.", statusCode: 409);
+        }
+
+        if (request.IsKids && await db.Profiles.AnyAsync(p => p.Id == PlaybackState.DefaultUser && p.PinHash == null, ct))
+        {
+            return Results.Problem("Give the main profile a PIN first: it's what keeps children in their profiles.", statusCode: 409);
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Null when the request may do what takes a parent: it gives the main profile's PIN (or holds the API key, or the
+    /// main profile has no PIN to give). The answer carries <c>parentPin</c>, so apps know which PIN to ask for.
+    /// </summary>
+    internal static async Task<IResult?> ParentPinAsync(HttpContext http, FlexarrDbContext db, CurrentProfile current, PinGuard guard, string? pin, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(http);
+        ArgumentNullException.ThrowIfNull(db);
+        if (current.IsAdmin || await db.Profiles.AsNoTracking().FirstOrDefaultAsync(p => p.Id == PlaybackState.DefaultUser, ct) is not { PinHash: not null } main)
+        {
+            return null;
+        }
+
+        var parent = new Dictionary<string, object?> { ["parentPin"] = true };
+        if (string.IsNullOrEmpty(pin))
+        {
+            // Apps from before kids profiles show this as it is: they can choose the main profile and give its PIN.
+            return Results.Problem("Choose the main profile and enter its PIN.", statusCode: 403, extensions: parent);
+        }
+
+        var (callers, browser) = PinCaller(http, current);
+        var (result, retryAfter) = await guard.CheckAsync(main.Id, callers, () => main.CheckPin(pin), ct, mayManage: false, browser);
+        return result switch
+        {
+            PinCheck.Right => null,
+            PinCheck.LockedOut => TooManyPins(http, retryAfter),
+            _ => Results.Problem("That PIN isn't right.", statusCode: 403, extensions: parent),
+        };
+    }
 
     private static IResult? Validate(ProfileRequest request)
     {

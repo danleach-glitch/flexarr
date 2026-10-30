@@ -1,5 +1,8 @@
-import { useState } from 'react'
-import type { LiveTvSettingsUpdate } from '../../api/client'
+import { useDeferredValue, useState } from 'react'
+import { getLiveChannels, setChannelFineForKids, type LiveChannel, type LiveTvSettingsUpdate } from '../../api/client'
+import { useApi } from '../../hooks/useApi'
+import { useSession } from '../../hooks/sessionContext'
+import { errorText } from './useSettings'
 import { SaveStatus, SettingLink, SettingRow, SettingsGroup, SettingsHeader } from './shared'
 import { useSettings } from './useSettings'
 
@@ -86,7 +89,61 @@ export function LiveTvSection() {
           </select>
         </SettingRow>
       </SettingsGroup>
+      <KidsChannels />
     </section>
+  )
+}
+
+/** How many channels Channels for kids lists at once. */
+const ShownChannels = 100
+
+/**
+ * The channels profiles with an age limit may watch, once a profile has one. Guide ratings are too patchy to go by,
+ * so a parent picks; none picked, those profiles don't see Live TV.
+ */
+function KidsChannels() {
+  const limits = useSession().profiles?.some((p) => p.maxRatingAge != null) === true
+  const channels = useApi((signal) => (limits ? getLiveChannels(signal) : Promise.resolve([] as LiveChannel[])), [limits]).data
+  const [fine, setFine] = useState<Record<string, boolean>>({})
+  const [filter, setFilter] = useState('')
+  // Typing stays quick with thousands of channels: the list follows a moment behind.
+  const deferred = useDeferredValue(filter)
+  const [error, setError] = useState<string>()
+  if (!limits || !channels?.length || channels[0].fineForKids === undefined) return null
+
+  const isFine = (c: LiveChannel) => fine[c.id] ?? c.fineForKids === true
+  const matching = channels.filter((c) => c.name.toLowerCase().includes(deferred.trim().toLowerCase()))
+  // The picked ones first, then the first of the rest: finding the others is what the search is for.
+  const shown = [...matching.filter(isFine), ...matching.filter((c) => !isFine(c))].slice(0, ShownChannels)
+  async function toggle(channel: LiveChannel, to: boolean) {
+    setFine((f) => ({ ...f, [channel.id]: to }))
+    setError(undefined)
+    try {
+      await setChannelFineForKids(channel.id, to)
+    } catch (e) {
+      setFine((f) => ({ ...f, [channel.id]: !to }))
+      setError(errorText(e))
+    }
+  }
+
+  return (
+    <SettingsGroup
+      title="Channels for kids"
+      note={error ? <SaveStatus error={error} /> : `${channels.filter(isFine).length} of ${channels.length} for profiles with an age limit.`}
+    >
+      <SettingRow label="Find a channel">
+        <input type="search" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Name" />
+      </SettingRow>
+      <div className="kids-channels">
+        {shown.map((c) => (
+          <SettingRow key={c.id} label={c.name} help={c.group ?? undefined}>
+            <input type="checkbox" role="switch" className="switch" checked={isFine(c)} onChange={(e) => void toggle(c, e.target.checked)} />
+          </SettingRow>
+        ))}
+        {matching.length === 0 && <SettingRow label="No channels by that name" />}
+        {matching.length > shown.length && <SettingRow label={`${matching.length - shown.length} more`} help="Search to find them." />}
+      </div>
+    </SettingsGroup>
   )
 }
 

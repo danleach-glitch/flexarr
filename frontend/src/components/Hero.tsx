@@ -23,13 +23,13 @@ export function Facts({ item, extra = [] }: { item: ItemSummary; extra?: (string
         <span key={f}>{f}</span>
       ))}
       {item.communityRating && (
-        <span>
+        <span className="score">
           <span className="visually-hidden">Rated </span>
           {item.communityRating.toFixed(1)}
           <span className="muted">/10</span>
         </span>
       )}
-      {item.criticRating !== null && item.criticRating !== undefined && <span>{item.criticRating}% critics</span>}
+      {item.criticRating !== null && item.criticRating !== undefined && <span className="score">{item.criticRating}% critics</span>}
     </p>
   )
 }

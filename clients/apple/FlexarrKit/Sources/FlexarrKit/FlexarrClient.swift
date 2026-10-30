@@ -12,6 +12,13 @@ public enum FlexarrClientError: Error, Equatable, LocalizedError {
     case unreachable
     /// A channel couldn't be watched: every stream is recording. Says what, so the player can offer it instead.
     case recordingInTheWay(RecordingInTheWay)
+    /// This takes the main profile's PIN (leaving a kids profile, locking or releasing a device), which wasn't
+    /// given or wasn't right. The message is the server's.
+    case parentPinNeeded(message: String?)
+    /// The main profile's PIN was right but the chosen profile's own PIN wasn't. The message is the server's.
+    case ownPinWrong(message: String?)
+    /// This device is locked to kids profiles, so only they can be chosen.
+    case kidsLocked(message: String?)
 
     public var errorDescription: String? {
         switch self {
@@ -19,6 +26,12 @@ public enum FlexarrClientError: Error, Equatable, LocalizedError {
             "The server didn’t accept this device’s sign-in. Connect it again with a code, or if you typed an API key, check it against Settings › Access on the web. Over Tailscale, your Tailscale account needs linking in Settings › Access."
         case .recordingInTheWay(let recording):
             recording.message
+        case .parentPinNeeded(let message):
+            message ?? "Enter the main profile’s PIN."
+        case .ownPinWrong(let message):
+            message ?? "That PIN isn’t right."
+        case .kidsLocked(let message):
+            message ?? "This device is locked to kids profiles."
         case .http(let status, let message):
             message ?? "The server answered with an error (HTTP \(status))."
         case .unexpectedResponse:
@@ -343,9 +356,21 @@ public struct FlexarrClient: Sendable {
 
     /// Checks the PIN (if the profile has one) and returns the token for `profileToken`.
     /// A wrong PIN is a 403 whose message says so.
-    public func selectProfile(_ id: String, pin: String? = nil) async throws -> ProfileSelection {
-        let data = try await send("POST", "profiles/\(id)/select", body: SelectProfileRequest(pin: pin))
+    public func selectProfile(_ id: String, pin: String? = nil, parentPin: String? = nil) async throws -> ProfileSelection {
+        let data = try await send("POST", "profiles/\(id)/select", body: SelectProfileRequest(pin: pin, parentPin: parentPin))
         return try decode(ProfileSelection.self, from: data)
+    }
+
+    /// Locks this device to kids profiles, choosing `profileId` (else the one chosen here, or the first). Takes the
+    /// main profile's PIN unless it's unlocked here; `parentPinNeeded` otherwise. Servers before 0.56 answer 404.
+    public func lockToKids(pin: String?, profileId: String? = nil) async throws -> ProfileSelection {
+        let data = try await send("POST", "profiles/kids-lock", body: KidsLockRequest(pin: pin, profileId: profileId))
+        return try decode(ProfileSelection.self, from: data)
+    }
+
+    /// Releases this device from kids profiles, with the main profile's PIN (`parentPinNeeded` if it's wrong).
+    public func releaseKidsLock(pin: String) async throws {
+        _ = try await send("POST", "profiles/kids-lock/release", body: KidsLockRequest(pin: pin))
     }
 
     // MARK: Pairing (connecting without typing the API key)
@@ -642,6 +667,11 @@ public struct FlexarrClient: Sendable {
         default:
             if http.statusCode == 409, let recording = RecordingInTheWay(problem: data) {
                 throw FlexarrClientError.recordingInTheWay(recording)
+            }
+            if http.statusCode == 403, let problem = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                if problem["ownPin"] as? Bool == true { throw FlexarrClientError.ownPinWrong(message: Self.problemMessage(data)) }
+                if problem["parentPin"] as? Bool == true { throw FlexarrClientError.parentPinNeeded(message: Self.problemMessage(data)) }
+                if problem["kidsLock"] as? Bool == true { throw FlexarrClientError.kidsLocked(message: Self.problemMessage(data)) }
             }
             throw FlexarrClientError.http(status: http.statusCode, message: Self.problemMessage(data))
         }

@@ -28,6 +28,7 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.material.icons.filled.DragHandle
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MedicalServices
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Star
@@ -123,6 +124,10 @@ fun SettingsScreen(
 ) {
     var confirmSignOut by remember { mutableStateOf(false) }
     var choosingProfile by remember { mutableStateOf(false) }
+    // Locking this device to kids profiles: the main profile's PIN, when the server asks for it, in the picker's sheet.
+    var lockingToKids by remember { mutableStateOf(false) }
+    var asksLockPin by remember { mutableStateOf(false) }
+    var lockProblem by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
     val libraries = rememberLoader(model.credentials, model.librariesVersion) { model.client?.libraries().orEmpty() }
     val notifications = model.notifications
@@ -132,6 +137,23 @@ fun SettingsScreen(
     var turningOnNotifications by remember { mutableStateOf(false) }
     var notificationProblem by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+
+    fun lockToKids() {
+        lockingToKids = true
+        lockProblem = null
+        scope.launch {
+            try {
+                // Several kids profiles: the parent chooses which one this device stays on.
+                if (model.lockToKids(null)) choosingProfile = true
+            } catch (e: FlexarrException.ParentPinNeeded) {
+                asksLockPin = true
+            } catch (e: Exception) {
+                lockProblem = e.message ?: "Something went wrong."
+            } finally {
+                lockingToKids = false
+            }
+        }
+    }
 
     fun turnOnNotifications() {
         val credentials = model.credentials ?: return
@@ -152,12 +174,24 @@ fun SettingsScreen(
             item { PageTitle("Settings") }
             model.currentProfile?.let { current ->
                 item {
-                    Group("Watching as") {
+                    Group("Watching as", footer = lockProblem) {
                         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
                             ProfileAvatar(model, current, size = 44)
                             Text(current.name, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, modifier = Modifier.weight(1f))
-                            if (model.profiles.size > 1) {
+                            // Locked to one kids profile, the picker is still the way to unlock.
+                            if (model.profiles.size > 1 || model.kidsLock) {
                                 Text("Switch", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.silver, modifier = Modifier.pressable({ choosingProfile = true }).padding(6.dp))
+                            }
+                        }
+                        if (model.canLockToKids) {
+                            Divider()
+                            Row(
+                                Modifier.fillMaxWidth().pressable(::lockToKids, enabled = !lockingToKids).padding(horizontal = 16.dp, vertical = 14.dp),
+                                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Icon(Icons.Filled.Lock, contentDescription = null, tint = Flexarr.silver)
+                                Text("Lock to kids profiles", fontSize = 17.sp, color = Flexarr.silver)
                             }
                         }
                     }
@@ -257,6 +291,11 @@ fun SettingsScreen(
     if (choosingProfile) {
         ModalBottomSheet(onDismissRequest = { choosingProfile = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Flexarr.room) {
             ProfilePicker(model, marksCurrent = true, onChosen = { choosingProfile = false })
+        }
+    }
+    if (asksLockPin) {
+        ModalBottomSheet(onDismissRequest = { asksLockPin = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Flexarr.room) {
+            ProfilePicker(model, marksCurrent = true, asksLockPin = true, onCancelled = { asksLockPin = false }, onChosen = { asksLockPin = false })
         }
     }
     notificationProblem?.let { problem ->

@@ -99,14 +99,15 @@ public static class RequestEndpoints
 
     public static RouteGroupBuilder MapRequestEndpoints(this RouteGroupBuilder api)
     {
-        var group = api.MapGroup("/requests").WithTags("Requests");
+        // Profiles with an age limit don't request: Seerr's titles have no ages Flexarr can check.
+        var group = api.MapGroup("/requests").WithTags("Requests").NotForAgeLimited();
 
-        // Whether requests are set up, so clients can hide the feature otherwise.
-        group.MapGet("/status", async (IOptionsMonitor<FlexarrOptions> options, SeerrClient seerr, CancellationToken ct) =>
+        // Whether requests are set up, so clients can hide the feature otherwise. To a profile with an age limit, they aren't.
+        api.MapGet("/requests/status", async (IOptionsMonitor<FlexarrOptions> options, SeerrClient seerr, FlexarrDbContext db, CancellationToken ct) =>
         {
-            var instance = options.CurrentValue.Seerr?.Instance;
+            var instance = db.IsLimited() ? null : options.CurrentValue.Seerr?.Instance;
             return new { configured = instance is not null, reachable = instance is not null && await SafePingAsync(seerr, instance, ct) };
-        });
+        }).WithTags("Requests");
 
         // The libraries this profile's requests could go to (every one, for the admin choosing for others).
         group.MapGet("/destinations", async (IOptionsMonitor<FlexarrOptions> options, SeerrClient seerr, FlexarrDbContext db, CurrentProfile current, CancellationToken ct) =>

@@ -476,6 +476,35 @@ public sealed class LibraryScannerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AParentsBlock_SurvivesARenamedFolder_AndARemoval()
+    {
+        var root = Touch("movies/Dune (2021) {tmdb-438631}/Dune (2021).mkv", "movies/Heat (1995)/Heat (1995).mkv", "movies/Up (2009)/Up (2009).mkv");
+        var movies = Path.Combine(root, "movies");
+        var library = await AddLibrary(LibraryType.Movies, movies);
+        await Scanner().ScanAsync(library, null, default);
+        await _db.MediaItems.Where(i => i.Title == "Dune").ExecuteUpdateAsync(u => u.SetProperty(i => i.KidsOverride, KidsOverride.Block));
+
+        // Radarr renames the folder: the new item takes the Block.
+        Directory.Move(Path.Combine(movies, "Dune (2021) {tmdb-438631}"), Path.Combine(movies, "Dune Part One (2021) {tmdb-438631}"));
+        await Scanner().ScanAsync(library, null, default);
+        _db.ChangeTracker.Clear();
+        Assert.Equal(KidsOverride.Block, (await _db.MediaItems.SingleAsync(i => i.TmdbId == "438631")).KidsOverride);
+
+        // Away long enough to be removed, unwatched: the tombstone keeps the Block for when it's back.
+        var away = Path.Combine(root, "away");
+        Directory.Move(Path.Combine(movies, "Dune Part One (2021) {tmdb-438631}"), away);
+        await Scanner().ScanAsync(library, null, default);
+        await _db.MediaFiles.IgnoreQueryFilters().Where(f => f.MissingSince != null)
+            .ExecuteUpdateAsync(u => u.SetProperty(f => f.MissingSince, DateTime.UtcNow.AddDays(-2)));
+        await Scanner().ScanAsync(library, null, default);
+        Directory.Move(away, Path.Combine(movies, "Dune (2021) {tmdb-438631}"));
+        await Scanner().ScanAsync(library, null, default);
+
+        _db.ChangeTracker.Clear();
+        Assert.Equal(KidsOverride.Block, (await _db.MediaItems.SingleAsync(i => i.TmdbId == "438631")).KidsOverride);
+    }
+
+    [Fact]
     public async Task ScopedScan_WithOtherUnicodeSpelling_MatchesTheExistingSeries()
     {
         var decomposed = "Léon";

@@ -35,6 +35,7 @@ import { Menu, type MenuAction, type MenuPoint } from '../components/ItemMenu'
 import { EpisodeCard } from '../components/EpisodeCard'
 import { Row } from '../components/Row'
 import { EpisodeNotes } from '../components/EpisodeNotes'
+import { useAgeLimits } from '../hooks/sessionContext'
 import { useAudioPlayer, useMusicPage } from '../hooks/audioPlayerContext'
 import { useApi } from '../hooks/useApi'
 import { episodeAsTrack, episodeDate, episodeLength, episodeProgress, looksLikeFeedUrl } from '../lib/podcasts'
@@ -43,6 +44,8 @@ const PAGE = 50
 
 /** The page's heading, with the switch between what you follow and Apple's directory. */
 function PodcastsHeader({ view, children }: { view: 'yours' | 'browse'; children?: ReactNode }) {
+  // Apple's directory has no ages to check, so a profile with an age limit has only the podcasts here already.
+  const { limited } = useAgeLimits()
   return (
     <header className="library-header">
       <div className="library-heading">
@@ -51,9 +54,11 @@ function PodcastsHeader({ view, children }: { view: 'yours' | 'browse'; children
           <Link to="/podcasts" aria-current={view === 'yours' ? 'page' : undefined}>
             Your podcasts
           </Link>
-          <Link to="/podcasts/browse" aria-current={view === 'browse' ? 'page' : undefined}>
-            Browse
-          </Link>
+          {!limited && (
+            <Link to="/podcasts/browse" aria-current={view === 'browse' ? 'page' : undefined}>
+              Browse
+            </Link>
+          )}
         </nav>
       </div>
       {children}
@@ -100,6 +105,7 @@ export function PodcastsPage() {
 
 function PodcastsHome() {
   useMusicPage()
+  const { limited } = useAgeLimits()
   const [version, setVersion] = useState(0)
   const changed = useCallback(() => setVersion((v) => v + 1), [])
   const podcasts = useApi((signal) => getPodcasts(signal), [version])
@@ -145,9 +151,11 @@ function PodcastsHome() {
               if (chosen) void importFile(chosen)
             }}
           />
-          <AsyncButton className="button quiet small" busy={adding} onClick={() => file.current?.click()}>
-            Import
-          </AsyncButton>
+          {!limited && (
+            <AsyncButton className="button quiet small" busy={adding} onClick={() => file.current?.click()}>
+              Import
+            </AsyncButton>
+          )}
           {!empty && (
             <a className="button quiet small" href={opmlUrl} download="Flexarr podcasts.opml">
               Export
@@ -162,7 +170,13 @@ function PodcastsHome() {
       )}
       {podcasts.error && <p className="error">{podcasts.error.message}</p>}
 
-      {empty && (
+      {empty && limited && (
+        <section className="podcast-empty panel">
+          <h2>No podcasts yet</h2>
+        </section>
+      )}
+
+      {empty && !limited && (
         <section className="podcast-empty panel">
           <h2>Follow a podcast to see its new episodes here</h2>
           <p className="muted">

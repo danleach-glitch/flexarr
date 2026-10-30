@@ -17,6 +17,7 @@ import io.github.flexarr.core.PodcastEpisode
 import io.github.flexarr.core.PodcastPreferences
 import io.github.flexarr.core.PodcastStatus
 import io.github.flexarr.core.Profile
+import io.github.flexarr.core.ProfileSelection
 import io.github.flexarr.core.SystemStatus
 import io.github.flexarr.core.WatchlistAdded
 import io.github.flexarr.core.WatchlistEntry
@@ -134,6 +135,20 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     /** The main profile is watching, unlocked or not: it's asked to let devices in. */
     val isMainProfile: Boolean get() = isAdmin || canUnlock
 
+    /** This device is locked to kids profiles: the picker offers only them, until the main profile's PIN releases it. */
+    var kidsLock by mutableStateOf(false)
+        private set
+
+    /** A child is watching: the kids app (no Settings). */
+    val isKids: Boolean get() = currentProfile?.isKids == true
+
+    /** This app has its own sign-in to the server (not its key, Tailscale or the local network), which a lock can stay on. */
+    var hasOwnSignIn by mutableStateOf(false)
+        private set
+
+    /** A grown-up is watching on this app's own sign-in, the household has a kids profile and this device isn't locked yet. */
+    val canLockToKids: Boolean get() = hasOwnSignIn && !isKids && !kidsLock && profiles.any { it.isKids }
+
     /** Asks whether this sign-in is the main profile (and may manage the server), and if so, which devices are waiting to connect. */
     suspend fun loadSignIn() {
         val client = client ?: return
@@ -143,6 +158,8 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         isAdmin = me.isAdmin
         canUnlock = me.canUnlock
         adminPinMissing = me.adminPinMissing
+        kidsLock = me.kidsLock
+        hasOwnSignIn = me.method == "device"
         if (me.isMainProfile) pairing.refresh(client) else pairing.clear()
     }
 
@@ -166,6 +183,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         isAdmin = false
         canUnlock = false
         adminPinMissing = false
+        hasOwnSignIn = false
         pairing.clear()
     }
 
@@ -508,6 +526,11 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
                 phase = Phase.SignedIn(credentials.copy(profileToken = null))
             }
             profiles = list
+            // Locked to kids profiles, the first Who's watching offers Unlock, before anyone is chosen.
+            runCatching { client.me() }.getOrNull()?.let {
+                kidsLock = it.kidsLock
+                hasOwnSignIn = it.method == "device"
+            }
             serverUnreachable = false
         } catch (e: FlexarrException) {
             // Unreachable for now: the screens say so and try again (opening on Downloads, once the list's been read).
@@ -518,13 +541,41 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         }
     }
 
-    /** Checks the PIN (if any) and makes [profile] the one watching on this device. A wrong PIN throws, saying so. */
-    suspend fun chooseProfile(profile: Profile, pin: String? = null) {
+    /**
+     * Checks the PIN (if any) and makes [profile] the one watching on this device. A wrong PIN throws, saying so.
+     * Leaving a kids profile takes the main profile's PIN as [parentPin]; without it, [FlexarrException.ParentPinNeeded].
+     */
+    suspend fun chooseProfile(profile: Profile, pin: String? = null, parentPin: String? = null) {
         val credentials = credentials ?: return
-        val selection = credentials.client().selectProfile(profile.id, pin)
+        chose(credentials.client().selectProfile(profile.id, pin, parentPin), profiles)
+    }
+
+    /**
+     * Locks this device to kids profiles, choosing one: the main profile's PIN unless it's unlocked here. Returns whether
+     * there's more than one kids profile, so the parent should choose which one this device stays on.
+     */
+    suspend fun lockToKids(pin: String?): Boolean {
+        val credentials = credentials ?: return false
+        val selection = credentials.client().lockToKids(pin)
+        kidsLock = true
+        chose(selection, profiles.filter { it.isKids })
+        return profiles.size > 1
+    }
+
+    /** Releases this device from kids profiles with the main profile's PIN; every profile is offered again. */
+    suspend fun releaseKidsLock(pin: String) {
+        val client = client ?: return
+        client.releaseKidsLock(pin)
+        kidsLock = false
+        loadProfiles()
+    }
+
+    /** Takes on the profile the server chose, from [list]. */
+    private fun chose(selection: ProfileSelection, list: List<Profile>) {
+        val credentials = credentials ?: return
         // Straight from one profile to another (the TV's "Who's watching?", a link for someone else): their music,
         // podcasts and Up Next go, as switchProfile's do.
-        if (isSwitch(currentProfile?.id, profile.id)) {
+        if (isSwitch(currentProfile?.id, selection.profile.id)) {
             music.stop()
             podcasts.stop()
             upNext = emptyList()
@@ -533,7 +584,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         // Saved only for a saved sign-in: one for this launch alone stays that way.
         if (saved) store.saveProfile(selection.token)
         phase = Phase.SignedIn(updated)
-        profiles = profiles.map { it.copy(isCurrent = it.id == profile.id) }
+        profiles = list.map { it.copy(isCurrent = it.id == selection.profile.id) }
         watchStateChanged()
     }
 

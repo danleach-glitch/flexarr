@@ -52,6 +52,19 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
     /// </summary>
     public IReadOnlyList<Guid> HiddenLibraryIds { get; set; } = [];
 
+    /// <summary>
+    /// The age limit of the profile this context serves (see <see cref="Profile.MaxRatingAge"/>); null for none, and
+    /// for background work. Items rated above it, unrated ones and ones a parent blocked are filtered out of every
+    /// query, except those a parent allowed and those in <see cref="KidsLibraryIds"/>.
+    /// </summary>
+    public int? MaxRatingAge { get; set; }
+
+    /// <summary>Libraries fine for kids (see <see cref="Library.FineForKids"/>), for the age limit's filter.</summary>
+    public IReadOnlyList<Guid> KidsLibraryIds { get; set; } = [];
+
+    /// <summary>The profile this context serves is a kids profile (see <see cref="Profile.IsKids"/>).</summary>
+    public bool ServesKids { get; set; }
+
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
         ArgumentNullException.ThrowIfNull(configurationBuilder);
@@ -74,7 +87,9 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
             e.Property(l => l.Name).HasMaxLength(200);
             e.HasMany(l => l.Folders).WithOne().HasForeignKey(f => f.LibraryId).OnDelete(DeleteBehavior.Cascade);
             e.HasMany<MediaItem>().WithOne().HasForeignKey(i => i.LibraryId).OnDelete(DeleteBehavior.Cascade);
-            e.HasQueryFilter(l => !HiddenLibraryIds.Contains(l.Id));
+            // Music and home videos have no ratings, so to a profile with an age limit they'd only ever be empty.
+            e.HasQueryFilter(l => !HiddenLibraryIds.Contains(l.Id)
+                && (MaxRatingAge == null || l.FineForKids || l.Type != LibraryType.Music && l.Type != LibraryType.HomeVideos));
         });
 
         modelBuilder.Entity<LibraryFolder>().HasIndex(f => f.Path).IsUnique();
@@ -82,7 +97,10 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
         modelBuilder.Entity<MediaItem>(e =>
         {
             // Every item (seasons and episodes too) carries its library, so hiding one hides all of it.
-            e.HasQueryFilter(i => !HiddenLibraryIds.Contains(i.LibraryId) && i.MissingSince == null);
+            // An age limit hides what's rated above it and what isn't rated, unless a parent allowed it or its library.
+            e.HasQueryFilter(i => !HiddenLibraryIds.Contains(i.LibraryId) && i.MissingSince == null
+                && (MaxRatingAge == null || i.KidsOverride == KidsOverride.Allow
+                    || i.KidsOverride != KidsOverride.Block && (KidsLibraryIds.Contains(i.LibraryId) || i.RatingAge <= MaxRatingAge)));
             e.Property(i => i.AlbumType).HasMaxLength(16);
             e.HasOne(i => i.Parent).WithMany(i => i.Children).HasForeignKey(i => i.ParentId).OnDelete(DeleteBehavior.Cascade);
             e.HasMany(i => i.Files).WithOne(f => f.MediaItem).HasForeignKey(f => f.MediaItemId).OnDelete(DeleteBehavior.Cascade);
@@ -223,6 +241,8 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
         modelBuilder.Entity<LiveChannel>(e =>
         {
             e.HasIndex(c => c.SourceId).IsUnique();
+            // A profile with an age limit sees only the channels a parent picked.
+            e.HasQueryFilter(c => MaxRatingAge == null || c.FineForKids);
             e.Property(c => c.Name).HasMaxLength(200);
             e.Property(c => c.Group).HasMaxLength(200);
             e.Property(c => c.LogoUrl).HasMaxLength(2048);
@@ -367,5 +387,150 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
             e.HasIndex(r => new { r.ProfileId, r.SearchedAt });
             e.HasIndex(r => r.ItemId);
         });
+    }
+
+    public override int SaveChanges(bool acceptAllChangesOnSuccess) =>
+        SaveChangesAsync(acceptAllChangesOnSuccess, CancellationToken.None).GetAwaiter().GetResult();
+
+    public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        // Changes are looked for once, here, not again by the save: a scan tracks the whole library.
+        var detects = ChangeTracker.AutoDetectChangesEnabled;
+        ChangeTracker.DetectChanges();
+        ChangeTracker.AutoDetectChangesEnabled = false;
+        try
+        {
+            var rated = Rate();
+            if (rated.Count == 0)
+            {
+                return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+            }
+
+            // The save and handing its ages down to seasons and episodes go together, or not at all: a show blocked
+            // while its episodes weren't would leave them in search. Once saved, the hand-down isn't cancelled.
+            var own = Database.CurrentTransaction is null ? await Database.BeginTransactionAsync(cancellationToken) : null;
+            await using (own)
+            {
+                var saved = await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+                await PassDownRatingsAsync(rated, CancellationToken.None);
+                if (own is not null)
+                {
+                    await own.CommitAsync(CancellationToken.None);
+                }
+
+                return saved;
+            }
+        }
+        finally
+        {
+            ChangeTracker.AutoDetectChangesEnabled = detects;
+        }
+    }
+
+    /// <summary>
+    /// Gives items being added, or whose rating or parent's say changed, their <see cref="MediaItem.RatingAge"/>, and
+    /// returns them, so their children can take it after saving.
+    /// </summary>
+    private List<Guid> Rate()
+    {
+        var rated = new List<Guid>();
+        foreach (var entry in ChangeTracker.Entries<MediaItem>())
+        {
+            if (entry.State != EntityState.Added && (entry.State != EntityState.Modified
+                || !entry.Property(i => i.ContentRating).IsModified && !entry.Property(i => i.KidsOverride).IsModified && !entry.Property(i => i.ParentId).IsModified))
+            {
+                continue;
+            }
+
+            // Set through the entry, which marks them changed without looking for changes all over again.
+            var item = entry.Entity;
+            if (item.ContentRating is null && item.ParentId is not null)
+            {
+                // A season or episode takes its show's, now if the show's at hand, otherwise once saved.
+                if (item.Parent is { } parent)
+                {
+                    entry.Property(i => i.RatingAge).CurrentValue = parent.RatingAge;
+                    entry.Property(i => i.KidsOverride).CurrentValue = parent.KidsOverride;
+                }
+            }
+            else
+            {
+                entry.Property(i => i.RatingAge).CurrentValue = RatingAges.For(item.Kind, item.ContentRating);
+            }
+
+            rated.Add(item.Id);
+        }
+
+        return rated;
+    }
+
+    /// <summary>
+    /// Hands <paramref name="ids"/>' ages and overrides down to their children and grandchildren, and has those of them
+    /// that are children take their parent's. A child with a rating of its own (an explicit podcast episode) keeps its age.
+    /// </summary>
+    public async Task PassDownRatingsAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(ids);
+        var items = MediaItems.IgnoreQueryFilters();
+        // SQLite takes so many parameters to a statement, and each id is one: a big save goes a few hundred at a time.
+        var chunks = ids.Chunk(IdsPerStatement).ToList();
+        foreach (var chunk in chunks)
+        {
+            await TakeParentsAsync(items.Where(i => i.ParentId != null && chunk.Contains(i.Id)), ct);
+        }
+
+        foreach (var chunk in chunks)
+        {
+            await TakeParentsAsync(items.Where(i => i.ParentId != null && chunk.Contains(i.ParentId.Value)), ct);
+        }
+
+        foreach (var chunk in chunks)
+        {
+            await TakeParentsAsync(items.Where(i => i.Parent!.ParentId != null && chunk.Contains(i.Parent.ParentId.Value)), ct);
+        }
+    }
+
+    private const int IdsPerStatement = 500;
+
+    /// <summary>
+    /// Works out every item's age afresh from its rating, and passes ages and overrides down to every season and
+    /// episode: at startup, so items saved before ages existed (or before this version's table of ratings) are right.
+    /// </summary>
+    public async Task ReconcileRatingAgesAsync(CancellationToken ct)
+    {
+        var items = MediaItems.IgnoreQueryFilters();
+        var ratings = await items.Where(i => i.ContentRating != null).Select(i => i.ContentRating!).Distinct().ToListAsync(ct);
+        foreach (var rating in ratings)
+        {
+            var age = RatingAges.Of(rating);
+            await items.Where(i => i.ContentRating == rating && i.RatingAge != age).ExecuteUpdateAsync(u => u.SetProperty(i => i.RatingAge, age), ct);
+        }
+
+        // Clean podcasts are for everyone; other titles without a rating aren't rated.
+        var podcast = RatingAges.For(MediaKind.Podcast, null);
+        await items.Where(i => i.ContentRating == null && i.ParentId == null && i.Kind == MediaKind.Podcast && i.RatingAge != podcast)
+            .ExecuteUpdateAsync(u => u.SetProperty(i => i.RatingAge, podcast), ct);
+        await items.Where(i => i.ContentRating == null && i.ParentId == null && i.Kind != MediaKind.Podcast && i.RatingAge != null)
+            .ExecuteUpdateAsync(u => u.SetProperty(i => i.RatingAge, (int?)null), ct);
+
+        // Seasons, albums and podcast episodes first, then episodes and tracks.
+        await TakeParentsAsync(items.Where(i => i.ParentId != null && i.Parent!.ParentId == null), ct);
+        await TakeParentsAsync(items.Where(i => i.Parent!.ParentId != null), ct);
+    }
+
+    /// <summary>
+    /// Gives those of <paramref name="children"/> that differ from their parent its age (unless rated themselves) and
+    /// override, in one statement that reads each parent's (however many children there are).
+    /// </summary>
+    private Task<int> TakeParentsAsync(IQueryable<MediaItem> children, CancellationToken ct)
+    {
+        var parents = MediaItems.IgnoreQueryFilters();
+        return children
+            .Where(i => i.KidsOverride != i.Parent!.KidsOverride || i.ContentRating == null && i.RatingAge != i.Parent.RatingAge)
+            .ExecuteUpdateAsync(u => u
+                .SetProperty(i => i.RatingAge, i => i.ContentRating == null
+                    ? parents.Where(p => p.Id == i.ParentId).Select(p => p.RatingAge).FirstOrDefault()
+                    : i.RatingAge)
+                .SetProperty(i => i.KidsOverride, i => parents.Where(p => p.Id == i.ParentId).Select(p => p.KidsOverride).FirstOrDefault()), ct);
     }
 }

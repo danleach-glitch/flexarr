@@ -67,7 +67,7 @@ struct LiveGuideView: View {
         .alert(details?.programme.displayTitle ?? "", isPresented: Binding(get: { details != nil }, set: { if !$0 { details = nil } })) {
             if let channel = details?.channel, let programme = details?.programme {
                 Button("Watch \(channel.name) now") { model.watch(channel, among: order) }
-                if programme.end > now {
+                if !model.hasAgeLimit, programme.end > now {
                     Button(DvrActions.recordLabel(programme)) { act { notice = try await DvrActions.toggleRecording(programme, on: channel.id, client: $0) } }
                     Button(DvrActions.seriesLabel(programme)) { act { try await DvrActions.toggleSeries(programme, on: channel.id, client: $0) } }
                 }
@@ -142,7 +142,7 @@ struct LiveGuideView: View {
                         if onNow {
                             Button { model.watch(channel, among: order) } label: { Label("Watch", systemImage: "play.fill") }
                         }
-                        if programme.end > now {
+                        if !model.hasAgeLimit, programme.end > now {
                             Button { act { notice = try await DvrActions.toggleRecording(programme, on: channel.id, client: $0) } } label: {
                                 Label(DvrActions.recordLabel(programme), systemImage: programme.isSetToRecord ? "record.circle.fill" : "record.circle")
                             }

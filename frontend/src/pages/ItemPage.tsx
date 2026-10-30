@@ -7,10 +7,12 @@ import {
   getItemPage,
   getSimilar,
   imageUrl,
+  setKidsOverride,
   setWatched,
   type Credit,
   type ItemDetail,
   type ItemSummary,
+  type KidsOverride,
   type MediaFile,
 } from '../api/client'
 import { Artwork } from '../components/Artwork'
@@ -26,7 +28,7 @@ import { FixMatchDialog } from '../components/FixMatchDialog'
 import { SubtitleSearchDialog } from '../components/SubtitleSearchDialog'
 import { WatchedToggle } from '../components/WatchedToggle'
 import { WatchlistButton } from '../components/WatchlistButton'
-import { useSession } from '../hooks/sessionContext'
+import { useAgeLimits, useSession } from '../hooks/sessionContext'
 import { announceWatched } from '../hooks/watched'
 import { useApi } from '../hooks/useApi'
 import { AlbumPage, ArtistPage } from './MusicPages'
@@ -74,7 +76,9 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
   const [findingSubtitles, setFindingSubtitles] = useState(false)
   const [subtitlesSaved, setSubtitlesSaved] = useState<string>()
   const [moreAt, setMoreAt] = useState<MenuPoint | null>(null)
-  const { me } = useSession()
+  const { me, profiles } = useSession()
+  // A child's page leaves out watch state and trailers (a YouTube page away from anything rated).
+  const { kids } = useAgeLimits()
   // The main profile, locked or not: deleting asks for the PIN when it's locked (see UnlockPrompt).
   const mainProfile = me?.isAdmin === true || me?.canUnlock === true
   const canDelete = mainProfile && (item.kind === 'Movie' || item.kind === 'Series' || item.kind === 'Episode')
@@ -90,10 +94,20 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
   const more: MenuAction[] = []
   if (progress !== null) more.push({ label: 'Play from the start', run: () => navigate(`/play/${item.id}?t=0`) })
   // Part way through: forget the place without marking it watched, which also takes it out of Continue Watching.
-  if (progress !== null && !item.userData.watched) more.push({ label: 'Mark as unwatched', run: () => markUnwatched() })
+  if (progress !== null && !item.userData.watched && !kids) more.push({ label: 'Mark as unwatched', run: () => markUnwatched() })
   if (item.kind === 'Movie' || item.kind === 'Series') more.push({ label: 'Add to collection…', run: () => openAddToCollection(item) })
   if (detail.canSearchSubtitles) more.push({ label: 'Search for subtitles…', run: () => setFindingSubtitles(true) })
   if (canFixMatch) more.push({ label: 'Fix match…', run: () => setMatching(true) })
+  // A parent's say over the title for profiles with an age limit, once any has one; its episodes follow it.
+  const override = detail.kidsOverride
+  if (mainProfile && override != null && series === undefined && profiles?.some((p) => p.maxRatingAge != null)) {
+    const kids = (to: KidsOverride) => async () => {
+      await setKidsOverride(item.id, to)
+      onChange()
+    }
+    if (override === 'None') more.push({ label: 'Allow for kids', run: kids('Allow') }, { label: 'Block for kids', run: kids('Block') })
+    else more.push({ label: override === 'Allow' ? 'Stop allowing for kids' : 'Stop blocking for kids', run: kids('None') })
+  }
   if (canDelete) {
     if (more.length) more.push('divider')
     more.push({ label: 'Delete…', run: () => setDeleting(true), danger: true })
@@ -163,14 +177,16 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
                 <Shuffle /> Shuffle
               </button>
             )}
-            {detail.trailerYouTubeId && (
+            {detail.trailerYouTubeId && !kids && (
               <button className="button quiet" onClick={() => setTrailer(true)}>
                 <Film /> Trailer
               </button>
             )}
-            <AsyncButton className="button quiet" aria-pressed={item.userData.watched} onClick={toggleWatched}>
-              <Check /> {item.userData.watched ? 'Watched' : 'Mark as watched'}
-            </AsyncButton>
+            {!kids && (
+              <AsyncButton className="button quiet" aria-pressed={item.userData.watched} onClick={toggleWatched}>
+                <Check /> {item.userData.watched ? 'Watched' : 'Mark as watched'}
+              </AsyncButton>
+            )}
             {detail.onWatchlist != null && <WatchlistButton titleKey={{ libraryItemId: item.id }} title={item.title} on={detail.onWatchlist} />}
             {more.length > 0 && (
               <button
@@ -311,6 +327,7 @@ function Seasons({ series, onChange }: { series: ItemDetail; onChange: () => voi
 }
 
 function Episode({ episode, overview, onChange }: { episode: ItemSummary; overview: string | null; onChange: () => void }) {
+  const { kids } = useAgeLimits()
   const progress = progressOf(episode)
 
   return (
@@ -327,7 +344,7 @@ function Episode({ episode, overview, onChange }: { episode: ItemSummary; overvi
           </span>
         )}
       </Link>
-      <WatchedToggle key={`${episode.id}-${episode.userData.watched}`} item={episode} onChanged={onChange} />
+      {!kids && <WatchedToggle key={`${episode.id}-${episode.userData.watched}`} item={episode} onChanged={onChange} />}
       </div>
       <div className="episode-text">
         <h3>

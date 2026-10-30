@@ -32,7 +32,10 @@ public static class LibraryEndpoints
             var libraries = await db.Libraries.Include(l => l.Folders).OrderBy(l => l.Name).ToListAsync(ct);
             var order = await db.Profiles.AsNoTracking().Where(p => p.Id == profile.Id).Select(p => p.LibraryOrder).FirstOrDefaultAsync(ct) ?? [];
             var liveTv = options.CurrentValue.LiveTv?.Account is not null;
-            return InOrder(libraries, order).Where(l => !(liveTv && RecordingsLibrary.Is(l))).Select(l => ToDto(l, counts.GetValueOrDefault(l.Id), progress)).ToList();
+            // A profile with an age limit isn't shown libraries with nothing in them for it: a child's menu is what they can watch.
+            var limited = db.IsLimited();
+            return InOrder(libraries, order).Where(l => !(liveTv && RecordingsLibrary.Is(l)) && (!limited || counts.GetValueOrDefault(l.Id) > 0))
+                .Select(l => ToDto(l, counts.GetValueOrDefault(l.Id), progress)).ToList();
         });
 
         group.MapGet("/{id:guid}", async (Guid id, FlexarrDbContext db, ScanProgress progress, CancellationToken ct) =>
@@ -57,6 +60,7 @@ public static class LibraryEndpoints
                 Name = request.Name.Trim(),
                 Type = request.Type,
                 Folders = Normalize(request.Folders).Select(p => new LibraryFolder { Path = p }).ToList(),
+                FineForKids = request.FineForKids ?? false,
             };
             db.Libraries.Add(library);
             await db.SaveChangesAsync(ct);
@@ -88,6 +92,11 @@ public static class LibraryEndpoints
             var removed = library.Folders.Where(f => !folders.Contains(f.Path)).ToList();
             var added = folders.Where(p => library.Folders.All(f => f.Path != p)).Select(p => new LibraryFolder { Path = p }).ToList();
             library.Name = request.Name.Trim();
+            if (request.FineForKids is { } fine && fine != library.FineForKids)
+            {
+                library.FineForKids = fine;
+                LibraryVisibility.KidsSettingsChanged();
+            }
             library.Folders.RemoveAll(removed.Contains);
             library.Folders.AddRange(added);
 
@@ -152,7 +161,7 @@ public static class LibraryEndpoints
     {
         var scan = progress.Current is { } p && p.LibraryId == library.Id ? new ScanStatusDto(p.Path, p.Total, p.Processed) : null;
         return new LibraryDto(library.Id, library.Name, library.Type, library.Folders.Select(f => f.Path).Order().ToList(),
-            itemCount, library.LastScannedAt, scan);
+            itemCount, library.LastScannedAt, scan, library.FineForKids);
     }
 
     private static List<string> Normalize(IEnumerable<string> folders) =>

@@ -808,6 +808,14 @@ public struct SignInInfo: Decodable, Sendable, Equatable {
     /// When managing the server takes the PIN again; nil when locked (or for the API key, which always may). Absent
     /// from servers before 0.56.
     public var unlockedUntil: Date? = nil
+    /// The profile is a child's: the kids app. Absent from servers before 0.56.
+    public var isKids: Bool? = nil
+    /// The profile's age limit on the UK's steps (0 is U, 8 PG, then 12, 15, 18); nil, none. Absent from servers
+    /// before 0.56.
+    public var maxRatingAge: Int? = nil
+    /// This device is locked to kids profiles: only they're offered until the main profile's PIN releases it.
+    /// Absent from servers before 0.56.
+    public var kidsLock: Bool? = nil
 }
 
 /// What `POST /admin/unlock` answers.
@@ -840,10 +848,14 @@ public struct Profile: Codable, Sendable, Hashable, Identifiable {
     /// Choosing it here asks for its PIN (the main profile doesn't, on a device its owner signed in). Absent from
     /// servers before 0.56: see `needsPinToChoose`.
     public var asksPin: Bool? = nil
+    /// Its age limit on the UK's steps (0 is U, 8 PG, then 12, 15, 18); nil, none. Absent from servers before 0.56.
+    public var maxRatingAge: Int? = nil
+    /// A child's profile: the kids app, and leaving it takes the main profile's PIN. Absent from servers before 0.56.
+    public var isKids: Bool? = nil
 
     public init(id: String, name: String, color: String, hasPin: Bool = false, isMain: Bool = false,
                 isCurrent: Bool = false, hiddenLibraryIds: [String] = [], image: String? = nil, libraryOrder: [String]? = nil,
-                asksPin: Bool? = nil) {
+                asksPin: Bool? = nil, maxRatingAge: Int? = nil, isKids: Bool? = nil) {
         self.id = id
         self.name = name
         self.color = color
@@ -854,7 +866,15 @@ public struct Profile: Codable, Sendable, Hashable, Identifiable {
         self.image = image
         self.libraryOrder = libraryOrder
         self.asksPin = asksPin
+        self.maxRatingAge = maxRatingAge
+        self.isKids = isKids
     }
+
+    /// A child's profile (servers before 0.56 have none).
+    public var isKidsProfile: Bool { isKids == true }
+
+    /// Has an age limit: Discover, Coming Soon and requests aren't for it, since their titles have no age to check.
+    public var hasAgeLimit: Bool { maxRatingAge != nil }
 
     /// Choosing it here asks for its PIN: as the server says, or on older servers whenever it has one.
     public var needsPinToChoose: Bool { asksPin ?? hasPin }
@@ -896,6 +916,13 @@ public struct ProfileSelection: Decodable, Sendable, Equatable {
 
 struct SelectProfileRequest: Codable, Sendable {
     let pin: String?
+    /// Leaving a kids profile: the main profile's PIN.
+    var parentPin: String? = nil
+}
+
+struct KidsLockRequest: Codable, Sendable {
+    let pin: String?
+    var profileId: String? = nil
 }
 
 // MARK: - Downloads

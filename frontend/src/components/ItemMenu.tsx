@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router'
 import { addToWatchlist, ApiError, getTracks, watchlistChanged, removeFromContinueWatching, removeFromWatchlist, setWatched, type ItemSummary } from '../api/client'
 import { openAddToCollection } from './AddToCollection'
 import { openAddToPlaylist } from './AddToPlaylist'
+import { useAgeLimits } from '../hooks/sessionContext'
 import { useAudioPlayer } from '../hooks/audioPlayerContext'
 import { usePlay } from '../hooks/usePlay'
 import { useWatchlistKeys } from '../hooks/useWatchlistKeys'
@@ -28,6 +29,7 @@ export type MenuAction = { label: string; run: () => void | Promise<void>; dange
  */
 export function ItemMenu({ item, at, onClose, continueWatching = false }: { item: ItemSummary; at: MenuPoint; onClose: () => void; continueWatching?: boolean }) {
   const navigate = useNavigate()
+  const { kids } = useAgeLimits()
   const play = usePlay()
   const music = useAudioPlayer()
   const mark =(target: Pick<ItemSummary, 'id' | 'parentId' | 'seriesId'>, watched: boolean) => async () => {
@@ -100,7 +102,14 @@ export function ItemMenu({ item, at, onClose, continueWatching = false }: { item
       break
   }
 
-  return <Menu label={item.title} at={at} actions={actions} onClose={onClose} />
+  return <Menu label={item.title} at={at} actions={kids ? withoutWatched(actions) : actions} onClose={onClose} />
+}
+
+/** A child's menus leave watch state alone: what's watched is what they watched. */
+function withoutWatched(actions: MenuAction[]) {
+  const kept = actions.filter((a) => a === 'divider' || !a.label.startsWith('Mark '))
+  // No divider left at the end, or two together.
+  return kept.filter((a, i) => a !== 'divider' || (i < kept.length - 1 && kept[i + 1] !== 'divider'))
 }
 
 /** A popup list of actions, anchored at a point and kept on screen; Escape, Tab or a click elsewhere closes it. */

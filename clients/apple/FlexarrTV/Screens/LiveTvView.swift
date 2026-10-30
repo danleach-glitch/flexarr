@@ -40,7 +40,7 @@ struct LiveTvView: View {
                             LiveGuideGrid(client: model.client, channels: self.channels(in: category), guide: guide,
                                           onWatch: { model.watch($0, among: order) },
                                           onFavourite: { setFavourite($0, !$0.isFavourite) },
-                                          onRecordingsChanged: { Task { await loadGuide() } })
+                                          onRecordingsChanged: { Task { await loadGuide() } }, records: !model.hasAgeLimit)
                         }
                     }
                     .padding(.leading, Layout.edge)
@@ -110,7 +110,10 @@ struct LiveTvView: View {
                     .padding(.bottom, 24)
             }
             categoryButton(.favourites, "Favourites", systemImage: "star.fill")
-            categoryButton(.recordings, "Recordings", systemImage: "record.circle")
+            // A recording is for everyone, so a profile with an age limit has none to see or set.
+            if !model.hasAgeLimit {
+                categoryButton(.recordings, "Recordings", systemImage: "record.circle")
+            }
             categoryButton(.all, "All channels", systemImage: "square.grid.3x3.fill")
             if groups.count > 1 {
                 ForEach(groups, id: \.self) { categoryButton(.group($0), $0, systemImage: nil) }
@@ -162,7 +165,7 @@ struct LiveTvView: View {
 
     private func loadGuide() async {
         guard let client = model.client else { return }
-        upcoming = try? await client.recordings().upcoming.count
+        if !model.hasAgeLimit { upcoming = try? await client.recordings().upcoming.count }
         if let loaded = try? await client.liveGuide(from: Date().addingTimeInterval(-3600), hours: 24) { guide = loaded }
     }
 

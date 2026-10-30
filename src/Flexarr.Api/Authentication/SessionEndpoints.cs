@@ -12,8 +12,9 @@ public sealed record SignInRename(string? Name);
 
 /// <param name="IsThisOne">The browser or device asking.</param>
 /// <param name="DeviceType">For a device, what it is; absent until its app says (apps from before 0.54 don't).</param>
+/// <param name="KidsLock">Locked to kids profiles (absent from servers before 0.56).</param>
 public sealed record SignInDto(string Id, SignInKind Kind, string Name, DateTime CreatedAt, DateTime LastUsedAt, NetworkZone Zone, string? Address,
-    string ProfileId, string? ProfileName, bool IsThisOne, DeviceType? DeviceType = null);
+    string ProfileId, string? ProfileName, bool IsThisOne, DeviceType? DeviceType = null, bool KidsLock = false);
 
 public static class SessionEndpoints
 {
@@ -44,6 +45,13 @@ public static class SessionEndpoints
         // Signing out: forgets this browser's (or device's) token on the server, and the cookie in the browser.
         api.MapDelete("/session", (HttpContext http, SignIns signIns, CurrentProfile profile) =>
         {
+            // Signed out, a browser at home with "only away from home" would be let in again unlocked.
+            if (signIns.ById(profile.SignInId)?.KidsLock == true)
+            {
+                return Results.Problem("This device is locked to kids profiles. Unlock it first.", statusCode: 409,
+                    extensions: new Dictionary<string, object?> { ["kidsLock"] = true });
+            }
+
             if (profile.SignInId is { } id)
             {
                 signIns.Revoke(id);
@@ -80,9 +88,12 @@ public static class SessionEndpoints
             {
                 var profileId = s.ProfileId is { } chosen && names.ContainsKey(chosen) ? chosen : PlaybackState.DefaultUser;
                 return new SignInDto(s.Id, s.Kind, s.Name, s.CreatedAt, s.LastUsedAt, s.Zone, s.Address, profileId, names.GetValueOrDefault(profileId), s.Id == current.SignInId,
-                    s.DeviceType);
+                    s.DeviceType, s.KidsLock);
             }).ToList();
         });
+
+        // The main profile releasing a browser or device locked to kids profiles, from Settings › Devices.
+        group.MapPost("/{id}/release-kids-lock", (string id, SignIns signIns) => signIns.SetKidsLock(id, false) ? Results.NoContent() : Results.NotFound());
 
         group.MapDelete("/{id}", (string id, SignIns signIns) => signIns.Revoke(id) ? Results.NoContent() : Results.NotFound());
 

@@ -82,9 +82,16 @@ public static class LiveTvTools
         ArgumentNullException.ThrowIfNull(dvr);
         ArgumentNullException.ThrowIfNull(signal);
         ArgumentNullException.ThrowIfNull(profile);
+        // As over the API: recordings have no ratings, so a profile with an age limit doesn't record.
+        if (db.IsLimited())
+        {
+            throw new InvalidOperationException(NotForAgeLimits);
+        }
+
         var programme = await db.LiveProgrammes.AsNoTracking().FirstOrDefaultAsync(p => p.Id == programmeId, ct)
             ?? throw new InvalidOperationException("There's no programme with that id (the guide may have moved on).");
-        var channel = await db.LiveChannels.AsNoTracking().FirstAsync(c => c.Id == programme.ChannelId, ct);
+        var channel = await db.LiveChannels.AsNoTracking().FirstOrDefaultAsync(c => c.Id == programme.ChannelId, ct)
+            ?? throw new InvalidOperationException("There's no channel for that programme.");
         if (series)
         {
             var channelId = anyChannel ? (Guid?)null : channel.Id;
@@ -120,11 +127,18 @@ public static class LiveTvTools
             : $"{programme.Title} on {channel.Name} at {when:HH:mm} will be recorded.";
     }
 
+    private const string NotForAgeLimits = "That isn't available on a profile with an age limit.";
+
     [McpServerTool(Name = "recordings", ReadOnly = true), Description("The DVR: what's set to record (and whether it clashes), the series being recorded, and what's been recorded lately (and why anything didn't).")]
     public static async Task<McpRecordings> RecordingsAsync(FlexarrDbContext db, DvrService dvr, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(db);
         ArgumentNullException.ThrowIfNull(dvr);
+        if (db.IsLimited())
+        {
+            throw new InvalidOperationException(NotForAgeLimits);
+        }
+
         var streams = await dvr.StreamsAsync(ct);
         var upcoming = await db.Recordings.AsNoTracking()
             .Where(r => r.State == RecordingState.Scheduled || r.State == RecordingState.Recording).OrderBy(r => r.Start).ToListAsync(ct);

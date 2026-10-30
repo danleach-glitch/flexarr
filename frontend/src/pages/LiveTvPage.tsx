@@ -6,7 +6,7 @@ import { RecordControls } from '../components/RecordControls'
 import { ChannelLogo } from '../components/LiveChannelCard'
 import { Antenna, Play, RecordDot, SeriesDots, Star } from '../components/icons'
 import { useFavourites } from '../hooks/useFavourites'
-import { useSession } from '../hooks/sessionContext'
+import { useAgeLimits, useSession } from '../hooks/sessionContext'
 import { useApi } from '../hooks/useApi'
 import { usePolling } from '../hooks/usePolling'
 import { clock, programmeTime, programmeTitle, progress, tidyGroup } from '../lib/livetv'
@@ -26,7 +26,9 @@ function guideStart(now = new Date()) {
 
 export default function LiveTvPage() {
   const [params, setParams] = useSearchParams()
-  const view = params.get('view') === 'guide' ? 'guide' : params.get('view') === 'recordings' ? 'recordings' : 'now'
+  // Recordings have no ratings: a profile with an age limit has no Recordings tab, nor Record in the guide.
+  const { limited } = useAgeLimits()
+  const view = params.get('view') === 'guide' ? 'guide' : params.get('view') === 'recordings' && !limited ? 'recordings' : 'now'
   const status = useApi(getLiveTvStatus, [])
   const { me } = useSession()
 
@@ -65,14 +67,16 @@ export default function LiveTvPage() {
           >
             Guide
           </button>
-          <button
-            role="tab"
-            aria-selected={view === 'recordings'}
-            className={view === 'recordings' ? 'season-tab active' : 'season-tab'}
-            onClick={() => setParams({ view: 'recordings' }, { replace: true })}
-          >
-            Recordings
-          </button>
+          {!limited && (
+            <button
+              role="tab"
+              aria-selected={view === 'recordings'}
+              className={view === 'recordings' ? 'season-tab active' : 'season-tab'}
+              onClick={() => setParams({ view: 'recordings' }, { replace: true })}
+            >
+              Recordings
+            </button>
+          )}
         </div>
       </header>
       {status.data?.error && (
@@ -198,6 +202,7 @@ function ChannelRow({ channel: c, favourite, onToggle }: { channel: LiveChannel;
 
 function Guide() {
   const navigate = useNavigate()
+  const { limited } = useAgeLimits()
   const [from] = useState(() => guideStart())
   const [hours, setHours] = useState(GUIDE_HOURS)
   const [guide, setGuide] = useState<LiveGuide>()
@@ -333,7 +338,7 @@ function Guide() {
               Close
             </button>
           </div>
-          <RecordControls programme={selected.programme} channelId={selected.channel.id} now={now} onChanged={() => setVersion((v) => v + 1)} />
+          {!limited && <RecordControls programme={selected.programme} channelId={selected.channel.id} now={now} onChanged={() => setVersion((v) => v + 1)} />}
         </aside>
       )}
     </>

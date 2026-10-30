@@ -75,6 +75,18 @@ public sealed class Profile
     /// </summary>
     public List<string> LibraryOrder { get; set; } = [];
 
+    /// <summary>
+    /// The oldest age a title may be rated for this profile to see it (a step of <see cref="RatingAges"/>); null, no
+    /// limit. Unrated titles are hidden from it unless a parent allows them or their library.
+    /// </summary>
+    public int? MaxRatingAge { get; set; }
+
+    /// <summary>
+    /// A child's profile: the simpler app, no requests, and leaving it (choosing another profile) takes the main
+    /// profile's PIN. Always has an age limit.
+    /// </summary>
+    public bool IsKids { get; set; }
+
     public bool IsMain => Id == PlaybackState.DefaultUser;
 
     public static string NewId() => Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(8));

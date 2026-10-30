@@ -47,7 +47,7 @@ struct MainTabView: View {
     var body: some View {
         TabView(selection: $selection) {
             // Who's watching, at the top of the sidebar as in the TV app.
-            if model.profiles.count > 1, let current = model.currentProfile {
+            if model.offersProfilePicker, let current = model.currentProfile {
                 Tab(value: TabID.profile) {
                     Color.clear
                 } label: {
@@ -97,10 +97,13 @@ struct MainTabView: View {
             // Discover, Search and Settings after the libraries. In a section of their own, since the sidebar puts tabs
             // outside a section above them.
             TabSection {
-                Tab(value: TabID.discover) {
-                    TabStack(router: routers[.discover]) { DiscoverView() }
-                } label: {
-                    Label("Discover", systemImage: "sparkles")
+                // Discover's titles aren't in the library, so they have no age a profile's limit could be checked against.
+                if !model.hasAgeLimit {
+                    Tab(value: TabID.discover) {
+                        TabStack(router: routers[.discover]) { DiscoverView() }
+                    } label: {
+                        Label("Discover", systemImage: "sparkles")
+                    }
                 }
                 if model.hasWatchlist {
                     Tab(value: TabID.watchlist) {
@@ -114,10 +117,13 @@ struct MainTabView: View {
                 } label: {
                     Label("Search", systemImage: "magnifyingglass")
                 }
-                Tab(value: TabID.settings) {
-                    TabStack(router: routers[.settings]) { SettingsView() }
-                } label: {
-                    Label("Settings", systemImage: "gearshape")
+                // The kids app has no Settings: a child's choices are a parent's to make.
+                if !model.isKids {
+                    Tab(value: TabID.settings) {
+                        TabStack(router: routers[.settings]) { SettingsView() }
+                    } label: {
+                        Label("Settings", systemImage: "gearshape")
+                    }
                 }
             } header: {
                 // A rule between them and the libraries: the sidebar takes a section's heading as plain text, so a

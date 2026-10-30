@@ -221,15 +221,17 @@ fun itemActions(item: ItemSummary, showsDetails: Boolean = false, downloads: Boo
             }
         }
         val watched = item.userData.watched || item.userData.unwatchedCount == 0
-        add(MenuAction(if (watched) "Mark as unwatched" else "Mark as watched") { navigator.setWatched(item, !watched) })
+        // A child's watched marks follow what they watch, not what they tap.
+        val kids = model.isKids
+        if (!kids) add(MenuAction(if (watched) "Mark as unwatched" else "Mark as watched") { navigator.setWatched(item, !watched) })
         // Part way through: unwatched forgets the place, which takes it out of Continue Watching.
         if (item.isResumable && !watched) {
-            add(MenuAction("Mark as unwatched") { navigator.setWatched(item, false) })
+            if (!kids) add(MenuAction("Mark as unwatched") { navigator.setWatched(item, false) })
         } else if (inContinueWatching && item.kind == MediaKind.Episode && !watched) {
             add(MenuAction("Remove from Continue Watching") { navigator.removeFromContinueWatching(item) })
         }
         val show = item.seriesTitle
-        if (item.kind == MediaKind.Episode && item.seriesId != null && show != null) {
+        if (!kids && item.kind == MediaKind.Episode && item.seriesId != null && show != null) {
             add(MenuAction("Mark $show as watched") { navigator.setShowWatched(item) })
         }
         if (model.hasWatchlist && (item.kind == MediaKind.Movie || item.kind == MediaKind.Series)) {

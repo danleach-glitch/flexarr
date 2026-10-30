@@ -154,6 +154,16 @@ fun MainScreen(model: AppModel) {
                 }
             }
         }
+        // A child chosen (or the device locked) from the picker in Settings: Settings isn't theirs, so they go Home.
+        LaunchedEffect(model.isKids) {
+            if (model.isKids && currentTab == Tab.Settings) {
+                currentTab = Tab.Home
+                nav.navigate(Tab.Home.route) {
+                    popUpTo(nav.graph.findStartDestination().id)
+                    launchSingleTop = true
+                }
+            }
+        }
         // A notification, shortcut, the widget or another app's flexarr:// link asked to go somewhere.
         val linkScope = rememberCoroutineScope()
         LaunchedEffect(model.pendingLink) {
@@ -236,7 +246,7 @@ fun MainScreen(model: AppModel) {
                 if (model.music.current != null) MusicNowPlayingBar(model) else NowPlayingBar(model)
                 if (!rail) {
                     NavigationBar(containerColor = Flexarr.room.copy(alpha = 0.96f)) {
-                        Tab.entries.forEach { tab ->
+                        Tab.entries.filter { it != Tab.Settings || !model.isKids }.forEach { tab ->
                             NavigationBarItem(
                                 selected = tab == currentTab,
                                 onClick = { select(tab) },
@@ -260,7 +270,7 @@ fun MainScreen(model: AppModel) {
             if (rail) {
                 NavigationRail(containerColor = Flexarr.room, modifier = Modifier.padding(bottom = padding.calculateBottomPadding())) {
                     Spacer(Modifier.weight(1f))
-                    Tab.entries.forEach { tab ->
+                    Tab.entries.filter { it != Tab.Settings || !model.isKids }.forEach { tab ->
                         NavigationRailItem(
                             selected = tab == currentTab,
                             onClick = { select(tab) },

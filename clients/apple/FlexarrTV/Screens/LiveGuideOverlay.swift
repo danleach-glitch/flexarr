@@ -10,6 +10,8 @@ struct LiveGuideOverlay: View {
     let currentId: String?
     let onWatch: (LiveChannel) -> Void
     let onClose: () -> Void
+    /// See `LiveGuideGrid.records`.
+    var records = true
 
     @State private var guide: LiveGuide?
 
@@ -21,7 +23,7 @@ struct LiveGuideOverlay: View {
                     .font(.marquee(56, weight: .black))
                     .foregroundStyle(Color.screen)
                 LiveGuideGrid(client: client, channels: channels, guide: guide, onWatch: onWatch,
-                              onRecordingsChanged: { Task { await load() } }, focusChannel: currentId)
+                              onRecordingsChanged: { Task { await load() } }, focusChannel: currentId, records: records)
             }
             .padding(.leading, Layout.edge)
             .padding(.top, 50)
@@ -35,9 +37,10 @@ struct LiveGuideOverlay: View {
     }
 
     /// The screen the player presents, over itself.
-    static func controller(client: FlexarrClient, channels: [LiveChannel], currentId: String?,
+    static func controller(client: FlexarrClient, channels: [LiveChannel], currentId: String?, records: Bool,
                            onWatch: @escaping (LiveChannel) -> Void, onClose: @escaping () -> Void) -> UIViewController {
-        let host = UIHostingController(rootView: LiveGuideOverlay(client: client, channels: channels, currentId: currentId, onWatch: onWatch, onClose: onClose))
+        let host = UIHostingController(rootView: LiveGuideOverlay(client: client, channels: channels, currentId: currentId, onWatch: onWatch,
+                                                                  onClose: onClose, records: records))
         host.modalPresentationStyle = .overFullScreen
         host.view.backgroundColor = .clear
         return host

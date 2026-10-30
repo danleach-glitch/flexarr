@@ -136,7 +136,7 @@ struct DetailView: View {
             }
 
             HStack(spacing: 22) {
-                FactsLine(facts: item.facts)
+                FactsLine(facts: item.facts(scores: !model.isKids))
                 if let genres = detail?.genres, !genres.isEmpty {
                     Text(genres.prefix(3).joined(separator: ", "))
                         .font(.system(size: 26, weight: .medium))
@@ -182,17 +182,20 @@ struct DetailView: View {
                 }
             }
 
-            Button { Task { await model.setWatched(item, !watched) } } label: {
-                Label(watched ? "Mark as unwatched" : "Mark as watched", systemImage: watched ? "eye.slash" : "checkmark")
-            }
-            .buttonStyle(ActionButtonStyle(ambient: ambient))
-
-            // Part way through: forget the place without marking it watched (it leaves Continue Watching).
-            if item.isResumable && !watched {
-                Button { Task { await model.setWatched(item, false) } } label: {
-                    Label("Mark as unwatched", systemImage: "eye.slash")
+            // A child's history keeps itself: watching is the only way to change it.
+            if !model.isKids {
+                Button { Task { await model.setWatched(item, !watched) } } label: {
+                    Label(watched ? "Mark as unwatched" : "Mark as watched", systemImage: watched ? "eye.slash" : "checkmark")
                 }
                 .buttonStyle(ActionButtonStyle(ambient: ambient))
+
+                // Part way through: forget the place without marking it watched (it leaves Continue Watching).
+                if item.isResumable && !watched {
+                    Button { Task { await model.setWatched(item, false) } } label: {
+                        Label("Mark as unwatched", systemImage: "eye.slash")
+                    }
+                    .buttonStyle(ActionButtonStyle(ambient: ambient))
+                }
             }
 
             if item.kind == .movie || item.kind == .series, let onList = detail?.onWatchlist {

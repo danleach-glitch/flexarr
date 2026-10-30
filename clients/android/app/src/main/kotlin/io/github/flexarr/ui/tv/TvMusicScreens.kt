@@ -353,7 +353,7 @@ fun TvArtistScreen(model: AppModel, id: String) {
                             art = { Box(Modifier.shadow(15.dp, CircleShape)) { TvSquareArtwork(item, 180.dp, circular = true) } },
                             below = {
                                 Row(horizontalArrangement = Arrangement.spacedBy(11.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    TvFactsLine(item.facts)
+                                    TvFactsLine(item.facts())
                                     if (state.value.genres.isNotEmpty()) {
                                         Text(state.value.genres.take(3).joinToString(", "), fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher, maxLines = 1)
                                     }

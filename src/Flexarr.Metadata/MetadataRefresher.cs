@@ -916,7 +916,7 @@ public sealed partial class MetadataRefresher(
         item.OriginalTitle = movie.OriginalTitle is { Length: > 0 } original && original != title ? original : null;
         item.Year = movie.Year > 0 ? movie.Year : item.Year;
         item.Overview = NullIfEmpty(movie.Overview);
-        item.ContentRating = Certification(movie.ReleaseDates);
+        item.ContentRating = Certification(movie.ReleaseDates, settings.Country);
         item.Studio = movie.ProductionCompanies is [var studio, ..] ? studio.Name : null;
         item.RuntimeMinutes = movie.Runtime > 0 ? movie.Runtime : null;
         item.Status = movie.Status;
@@ -944,11 +944,16 @@ public sealed partial class MetadataRefresher(
         }
     }
 
-    /// <summary>The age rating for the US cinema release, or any release with one.</summary>
-    private static string? Certification(TmdbReleases? releases)
+    /// <summary>
+    /// The age rating for the release in the server's country (people know their own), else the UK's (age limits use
+    /// its steps), else the US one, else any release with one.
+    /// </summary>
+    private static string? Certification(TmdbReleases? releases, string? country)
     {
         var all = releases?.Results ?? [];
-        return (all.FirstOrDefault(r => r.Iso31661 == "US")?.ReleaseDates ?? [])
+        return (all.FirstOrDefault(r => r.Iso31661 == (country ?? "GB"))?.ReleaseDates ?? [])
+            .Concat(all.FirstOrDefault(r => r.Iso31661 == "GB")?.ReleaseDates ?? [])
+            .Concat(all.FirstOrDefault(r => r.Iso31661 == "US")?.ReleaseDates ?? [])
             .Concat(all.SelectMany(r => r.ReleaseDates))
             .Select(r => NullIfEmpty(r.Certification)).FirstOrDefault(c => c is not null);
     }

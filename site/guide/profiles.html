@@ -112,7 +112,7 @@
         <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Around the house</p>
         <h1>Profiles</h1>
         <p class="lede">Give everyone in the house their own Continue Watching, history and settings, with an optional PIN, and choose which libraries each profile sees.</p>
-        <p class="meta">5 min read</p>
+        <p class="meta">7 min read</p>
         <nav class="toc" aria-label="On this page">
           <p>On this page</p>
           <ol>
@@ -121,6 +121,7 @@
             <li><a href="#adding-a-profile">Adding a profile</a></li>
             <li><a href="#pins">PINs</a></li>
             <li><a href="#choosing-which-libraries-a-profile-sees">Choosing which libraries a profile sees</a></li>
+            <li><a href="#age-limits-and-kids-profiles">Age limits and kids profiles</a></li>
             <li><a href="#who-s-watching-when-flexarr-opens">Who&#39;s watching when Flexarr opens</a></li>
             <li><a href="#notifications-and-profiles">Notifications and profiles</a></li>
           </ol>
@@ -176,14 +177,43 @@
 </ul>
 <h2 id="choosing-which-libraries-a-profile-sees"><a class="anchor" href="#choosing-which-libraries-a-profile-sees" aria-hidden="true" tabindex="-1">#</a>Choosing which libraries a profile sees</h2>
 <p>When you have more than one library, each profile has a switch for each. A library that&#39;s switched off is hidden everywhere on that profile: Home, search, Discover, Coming soon and requests. Podcasts can be left out the same way.</p>
-<h3 id="profiles-for-children"><a class="anchor" href="#profiles-for-children" aria-hidden="true" tabindex="-1">#</a>Profiles for children</h3>
-<p>Flexarr doesn&#39;t have age ratings or parental controls. What it does have is library visibility, which goes a long way:</p>
-<ol>
-<li>Keep children&#39;s films and shows in their own folders, and add them as their own libraries (for example &quot;Kids&#39; Films&quot; and &quot;Kids&#39; TV&quot;).</li>
-<li>Give the children a profile that sees only those libraries.</li>
-<li>Give your own profile, and the main profile, a PIN so they can&#39;t switch to them.</li>
-</ol>
-<blockquote class="callout note"><p><strong>Note</strong> Hiding libraries keeps titles off the profile in Flexarr. It doesn&#39;t stop anyone requesting new titles through Seerr from that profile, though anything they request still lands in whichever library Sonarr or Radarr puts it in.</p>
+<h2 id="age-limits-and-kids-profiles"><a class="anchor" href="#age-limits-and-kids-profiles" aria-hidden="true" tabindex="-1">#</a>Age limits and kids profiles</h2>
+<h3 id="age-limits"><a class="anchor" href="#age-limits" aria-hidden="true" tabindex="-1">#</a>Age limits</h3>
+<p>Any profile except the main one can have an age limit, in <strong>Settings › Profiles</strong>: <strong>U</strong>, <strong>PG</strong>, <strong>12</strong>, <strong>15</strong> or <strong>18</strong>. Titles rated above it are hidden from that profile on every device: Home, the libraries, search, Continue Watching, the next episode, collections, Siri and notifications. Opening one by its link says it isn&#39;t there.</p>
+<p>Ratings from any country count. An age is rounded up to the next UK step, so Germany&#39;s 16 counts as 18, and a few have a UK equivalent: PG-13 is 12, TV-14 is 15, and R and TV-MA are 18. A rating with its reasons (&quot;Rated R for violence&quot;) counts by its first word. A show&#39;s seasons and episodes follow the show.</p>
+<p>Moving to another profile with the same limit or a stricter one is free. Leaving for a profile with a looser limit, or none, takes the main profile&#39;s PIN.</p>
+<p>A profile with an age limit:</p>
+<ul>
+<li>doesn&#39;t see titles without a rating, or music and home videos, which have none</li>
+<li>doesn&#39;t see Discover or Coming soon, can&#39;t make requests and can&#39;t add podcasts, since Flexarr can&#39;t tell the age of a title it hasn&#39;t got</li>
+<li>sees clean podcasts, but not episodes marked explicit</li>
+<li>sees only the Live TV channels you pick, and no recordings</li>
+</ul>
+<h3 id="letting-things-through-or-keeping-them-out"><a class="anchor" href="#letting-things-through-or-keeping-them-out" aria-hidden="true" tabindex="-1">#</a>Letting things through, or keeping them out</h3>
+<ul>
+<li><strong>A whole library:</strong> switch on <strong>Fine for kids</strong> under it in <strong>Settings › Libraries</strong>. Everything in it shows, rated or not. Good for a folder of cartoons or family videos.</li>
+<li><strong>One film or show:</strong> on its page, choose <strong>⋯</strong> then <strong>Allow for kids</strong> or <strong>Block for kids</strong>. Block wins even in a library that&#39;s fine for kids.</li>
+<li><strong>Live TV:</strong> switch channels on under <strong>Channels for kids</strong> in <strong>Settings › Live TV</strong>. Until you pick some, a profile with an age limit doesn&#39;t see Live TV.</li>
+</ul>
+<h3 id="kids-profiles"><a class="anchor" href="#kids-profiles" aria-hidden="true" tabindex="-1">#</a>Kids profiles</h3>
+<p>Switch on <strong>Kids profile</strong> for a child&#39;s profile (it comes on by itself for a new profile limited to U or PG). A kids profile:</p>
+<ul>
+<li>has no Settings, and no signing out on the web</li>
+<li>has no scores, no score-ranked rows such as Top 10, and a <strong>Watch again</strong> row on Home for the films and shows they&#39;ve finished; on the web, bigger artwork too</li>
+<li>can&#39;t mark things watched, and has no trailers</li>
+<li>can move to another kids profile with the same limit or a stricter one, but leaving for any other profile takes the main profile&#39;s PIN</li>
+</ul>
+<p>Setting one up needs the main profile to have a PIN.</p>
+<h3 id="locking-a-device-to-kids-profiles"><a class="anchor" href="#locking-a-device-to-kids-profiles" aria-hidden="true" tabindex="-1">#</a>Locking a device to kids profiles</h3>
+<p>For the playroom TV or a child&#39;s tablet, lock the device so only kids profiles can be chosen on it:</p>
+<ul>
+<li><strong>Web:</strong> the profile menu, then <strong>Lock to kids profiles</strong>.</li>
+<li><strong>Apple TV:</strong> <strong>Settings › Profiles</strong>, or the profile picker.</li>
+<li><strong>iPhone, iPad and Android:</strong> <strong>Settings</strong>, under <strong>Watching as</strong>, or the profile picker.</li>
+</ul>
+<p>It takes the main profile&#39;s PIN (unless the main profile has settings unlocked there). To unlock it, choose <strong>Unlock</strong> in the profile picker or the web&#39;s profile menu, and enter the PIN. You can also unlock any device from <strong>Settings › Devices</strong> on the web, where locked ones are marked.</p>
+<p>Deleting the kids profile a locked device is on moves it to another kids profile. If it was the last one, unlock the device first.</p>
+<blockquote class="callout note"><p><strong>Note</strong> A device needs its own sign-in to be locked: a browser signed in with the API key once, or an app connected with a code. An app still connected with the API key itself is the server, so kids profiles can&#39;t hold a child there at all: connect it again with a code. With <strong>Only away from home</strong> in <strong>Settings › Access</strong>, a browser at home that hasn&#39;t chosen a profile starts on a kids profile, and choosing the main profile there takes its PIN.</p>
 </blockquote>
 <h2 id="who-s-watching-when-flexarr-opens"><a class="anchor" href="#who-s-watching-when-flexarr-opens" aria-hidden="true" tabindex="-1">#</a>Who&#39;s watching when Flexarr opens</h2>
 <p>When a household has more than one profile, Flexarr asks who&#39;s watching the first time a browser or device connects, and remembers the answer.</p>

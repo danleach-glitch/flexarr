@@ -50,6 +50,18 @@ sealed class FlexarrException(message: String) : Exception(message) {
 
     class Http(val status: Int, message: String?) : FlexarrException(message ?: "The server answered with an error (HTTP $status).")
 
+    /**
+     * This takes the main profile's PIN (leaving a kids profile, locking or releasing a device), which wasn't given or
+     * wasn't right. The message is the server's.
+     */
+    class ParentPinNeeded(message: String?) : FlexarrException(message ?: "Enter the main profile’s PIN.")
+
+    /** The main profile's PIN was right but the chosen profile's own PIN wasn't. The message is the server's. */
+    class OwnPinWrong(message: String?) : FlexarrException(message ?: "That PIN isn’t right.")
+
+    /** This device is locked to kids profiles, so only they can be chosen. */
+    class KidsLocked(message: String?) : FlexarrException(message ?: "This device is locked to kids profiles.")
+
     /** A live channel can't be watched: every stream is recording, [recording] among them. */
     class RecordingInTheWayException(val recording: RecordingInTheWay) : FlexarrException(recording.message)
 
@@ -209,9 +221,25 @@ class FlexarrClient(
 
     suspend fun profiles(): List<Profile> = get("profiles")
 
-    /** Checks the PIN (if the profile has one) and returns the token for [profileToken]. A wrong PIN is a 403 saying so. */
-    suspend fun selectProfile(id: String, pin: String? = null): ProfileSelection =
-        decodeText(serializer(), send("POST", "profiles/$id/select", body = json.encodeToString(SelectProfileRequest(pin))))
+    /**
+     * Checks the PIN (if the profile has one) and returns the token for [profileToken]. A wrong PIN is a 403 saying so.
+     * Leaving a kids profile takes the main profile's PIN as [parentPin]: without it, [FlexarrException.ParentPinNeeded].
+     * With it right but [pin] wrong, [FlexarrException.OwnPinWrong].
+     */
+    suspend fun selectProfile(id: String, pin: String? = null, parentPin: String? = null): ProfileSelection =
+        decodeText(serializer(), send("POST", "profiles/$id/select", body = json.encodeToString(SelectProfileRequest(pin, parentPin))))
+
+    /**
+     * Locks this device to kids profiles, choosing [profileId] (else the one chosen here, or the first). Takes the main
+     * profile's PIN unless it's unlocked here ([FlexarrException.ParentPinNeeded] otherwise). Servers before 0.56 answer 404.
+     */
+    suspend fun lockToKids(pin: String?, profileId: String? = null): ProfileSelection =
+        decodeText(serializer(), send("POST", "profiles/kids-lock", body = json.encodeToString(KidsLockRequest(pin, profileId))))
+
+    /** Releases this device from kids profiles with the main profile's PIN ([FlexarrException.ParentPinNeeded] if it's wrong). */
+    suspend fun releaseKidsLock(pin: String) {
+        send("POST", "profiles/kids-lock/release", body = json.encodeToString(KidsLockRequest(pin)))
+    }
 
     /**
      * Saves the order of [profileId]'s libraries in the menu (see [libraryOrder]); the profile watching may set its own.
@@ -352,6 +380,9 @@ class FlexarrClient(
                 }
                 it.code == 409 && RecordingInTheWay.parse(text) != null ->
                     throw FlexarrException.RecordingInTheWayException(RecordingInTheWay.parse(text)!!)
+                it.code == 403 && problemFlag(text, "parentPin") -> throw FlexarrException.ParentPinNeeded(problemMessage(text))
+                it.code == 403 && problemFlag(text, "ownPin") -> throw FlexarrException.OwnPinWrong(problemMessage(text))
+                it.code == 403 && problemFlag(text, "kidsLock") -> throw FlexarrException.KidsLocked(problemMessage(text))
                 else -> throw FlexarrException.Http(it.code, problemMessage(text))
             }
         }
@@ -592,6 +623,10 @@ class FlexarrClient(
             } catch (_: FlexarrException) {
                 null
             }
+
+        /** Whether the server's problem details carry [name] as true (`parentPin`, `kidsLock`). */
+        internal fun problemFlag(text: String, name: String): Boolean =
+            runCatching { (json.parseToJsonElement(text).jsonObject[name] as? JsonPrimitive)?.content == "true" }.getOrDefault(false)
 
         /** Reads ASP.NET problem details (`errors`, `detail` or `title`), or a plain `reason`, into one message. */
         internal fun problemMessage(text: String): String? {

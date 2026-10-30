@@ -75,6 +75,13 @@ public static partial class DiscoveryEndpoints
                 rows.Add(new HomeRowDto(Watchlist.WatchlistService.HomeRowId, "Ready from your watchlist", "poster", ready, "/watchlist"));
             }
 
+            // Children watch their favourites again and again: on a kids profile, what it finished last comes next.
+            var kids = db.ServesKids;
+            if (kids && await WatchAgainAsync(db, me, ct) is { Count: > 0 } again)
+            {
+                rows.Add(new HomeRowDto(WatchAgainRow, "Watch again", "poster", again));
+            }
+
             // The channel watched last, then the profile's favourites, with what's on them; nothing until there's one.
             if (options.LiveTv?.Account is not null && LayoutEndpoints.IsOn(options.Layout.Home, "live-tv"))
             {
@@ -101,10 +108,14 @@ public static partial class DiscoveryEndpoints
                     ids.Count == 1 ? $"/library/{first.Id}?sort=added" : null));
             }
 
-            rows.Add(new HomeRowDto("top-movies", "Top 10 films in your library", "top10",
-                await TopRated(topLevel.Where(i => i.Kind == MediaKind.Movie)).Take(10).Summaries(me).ToListAsync(ct)));
-            rows.Add(new HomeRowDto("top-shows", "Top 10 shows in your library", "top10",
-                await TopRated(topLevel.Where(i => i.Kind == MediaKind.Series)).Take(10).Summaries(me).ToListAsync(ct)));
+            // Rows ranked by critics' and audiences' scores aren't for children, who aren't shown scores.
+            if (!kids)
+            {
+                rows.Add(new HomeRowDto("top-movies", "Top 10 films in your library", "top10",
+                    await TopRated(topLevel.Where(i => i.Kind == MediaKind.Movie)).Take(10).Summaries(me).ToListAsync(ct)));
+                rows.Add(new HomeRowDto("top-shows", "Top 10 shows in your library", "top10",
+                    await TopRated(topLevel.Where(i => i.Kind == MediaKind.Series)).Take(10).Summaries(me).ToListAsync(ct)));
+            }
 
             // Music this profile has been playing, and the newest albums, when it can see a music library at all.
             var musicLibraries = libraries.Where(l => l.Type == LibraryType.Music).ToList();
@@ -140,8 +151,11 @@ public static partial class DiscoveryEndpoints
                 rows.Add(new HomeRowDto($"genre-{genre.Name}", genre.Name, "poster", picks, $"/discover?genre={Uri.EscapeDataString(genre.Name)}"));
             }
 
-            rows.Add(new HomeRowDto("gems", "Highly rated, not yet watched", "poster",
-                await TopRated(unwatchedMovies).Skip(10).Take(RowSize).Summaries(me).ToListAsync(ct)));
+            if (!kids)
+            {
+                rows.Add(new HomeRowDto("gems", "Highly rated, not yet watched", "poster",
+                    await TopRated(unwatchedMovies).Skip(10).Take(RowSize).Summaries(me).ToListAsync(ct)));
+            }
 
             // Featured: well-rated things with full artwork, unwatched first, changing daily.
             var rotation = await FeaturedAsync(topLevel, me, day, ct);
@@ -176,7 +190,16 @@ public static partial class DiscoveryEndpoints
             var placing = (await db.Libraries.IgnoreQueryFilters().OrderBy(l => l.Name).ToListAsync(ct))
                 .Where(l => !(options.LiveTv?.Account is not null && RecordingsLibrary.Is(l)));
             var layout = LayoutEndpoints.WithWatchlistRow(LayoutEndpoints.ForCombining(options.Layout.Home, placing, options.Layout.CombineLibraries));
-            return new HomeDto(rotation, overviews, LayoutEndpoints.Arrange(shown, layout), upcoming, downloading, resume, resumes);
+            var arranged = LayoutEndpoints.Arrange(shown, layout);
+            if (kids && arranged.FindIndex(r => r.Id == WatchAgainRow) is var at and >= 0)
+            {
+                // Home's layout doesn't know the row, which would put it last; it goes after Continue watching.
+                var row = arranged[at];
+                arranged.RemoveAt(at);
+                arranged.Insert(arranged.FindIndex(r => r.Id == "continue") + 1, row);
+            }
+
+            return new HomeDto(rotation, overviews, arranged, upcoming, downloading, resume, resumes);
         }).WithTags("Discovery");
 
         api.MapGet("/home/continue", async (int? take, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
@@ -304,10 +327,12 @@ public static partial class DiscoveryEndpoints
                 .Take(limit).Summaries(profile.Id).ToListAsync(ct);
             var episodes = await db.MediaItems.Where(i => i.Kind == MediaKind.Episode && EF.Functions.Like(i.Title, contains))
                 .OrderByDescending(i => EF.Functions.Like(i.Title, prefix)).Take(8).Summaries(profile.Id).ToListAsync(ct);
-            var people = await db.People.Where(p => EF.Functions.Like(p.Name, contains) && p.Credits.Any())
-                .OrderByDescending(p => EF.Functions.Like(p.Name, prefix)).ThenByDescending(p => p.Credits.Count)
+            // People in titles this profile may see: not those only in a hidden library, or only above its age limit.
+            var visible = db.MediaItems.Select(i => i.Id);
+            var people = await db.People.Where(p => EF.Functions.Like(p.Name, contains) && p.Credits.Any(c => visible.Contains(c.MediaItemId)))
+                .OrderByDescending(p => EF.Functions.Like(p.Name, prefix)).ThenByDescending(p => p.Credits.Count(c => visible.Contains(c.MediaItemId)))
                 .Take(8)
-                .Select(p => new SearchPersonDto(p.Id, p.Name, ArtworkUrls.Person(p.Id, p.ImageUrl != null), p.Credits.Count))
+                .Select(p => new SearchPersonDto(p.Id, p.Name, ArtworkUrls.Person(p.Id, p.ImageUrl != null), p.Credits.Count(c => visible.Contains(c.MediaItemId))))
                 .ToListAsync(ct);
             var genres = await db.Genres.Where(g => EF.Functions.Like(g.Name, contains)).Select(g => g.Name).Take(5).ToListAsync(ct);
 
@@ -327,8 +352,8 @@ public static partial class DiscoveryEndpoints
             {
                 var close = await index.FindAsync(db, term, Search.SearchIndex.Group.Person, 8 - people.Count, people.Select(p => p.Id).ToHashSet(), ct);
                 var ids = close.Select(m => m.Id).ToList();
-                var found = await db.People.Where(p => ids.Contains(p.Id))
-                    .Select(p => new SearchPersonDto(p.Id, p.Name, ArtworkUrls.Person(p.Id, p.ImageUrl != null), p.Credits.Count))
+                var found = await db.People.Where(p => ids.Contains(p.Id) && p.Credits.Any(c => visible.Contains(c.MediaItemId)))
+                    .Select(p => new SearchPersonDto(p.Id, p.Name, ArtworkUrls.Person(p.Id, p.ImageUrl != null), p.Credits.Count(c => visible.Contains(c.MediaItemId))))
                     .ToListAsync(ct);
                 people.AddRange(found.OrderBy(p => ids.IndexOf(p.Id)));
             }
@@ -385,6 +410,22 @@ public static partial class DiscoveryEndpoints
         }).WithTags("Discovery");
 
         return api;
+    }
+
+    /// <summary>Home's Watch again row, on kids profiles.</summary>
+    public const string WatchAgainRow = "again";
+
+    /// <summary>Films and shows the profile finished, the most recently watched first (a show by its latest episode).</summary>
+    private static async Task<List<ItemSummaryDto>> WatchAgainAsync(FlexarrDbContext db, string profileId, CancellationToken ct)
+    {
+        var finished = await db.PlaybackStates.Where(p => p.UserId == profileId && p.Watched
+                && (p.MediaItem!.Kind == MediaKind.Movie || p.MediaItem.Kind == MediaKind.Episode && p.MediaItem.Parent!.ParentId != null))
+            .OrderByDescending(p => p.LastPlayedAt)
+            .Select(p => p.MediaItem!.Kind == MediaKind.Episode ? p.MediaItem.Parent!.ParentId!.Value : p.MediaItemId)
+            .Take(RowSize * 20).ToListAsync(ct);
+        var ids = finished.Distinct().Take(RowSize).ToList();
+        var items = await db.MediaItems.Where(i => ids.Contains(i.Id)).Summaries(profileId).ToListAsync(ct);
+        return [.. items.OrderBy(i => ids.IndexOf(i.Id))];
     }
 
     /// <summary>Partly watched items first, then the next episode of shows in progress, most recent first.</summary>

@@ -28,7 +28,7 @@ struct HomeView: View {
             }
         }
         .toolbar {
-            if model.profiles.count > 1, let current = model.currentProfile {
+            if model.offersProfilePicker, let current = model.currentProfile {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { choosingProfile = true } label: {
                         ProfileAvatar(profile: current, size: 32)
@@ -66,7 +66,7 @@ struct HomeView: View {
             // The whole screen when there's nothing else. With something to play (podcasts, Coming soon, channels) it
             // stays out of the way: "nothing to watch" would be wrong.
             if home.featured.isEmpty, newEpisodes.isEmpty, !home.rows.contains(where: \.hasContent),
-               let message = EmptyHomeMessage(libraries: model.libraries) {
+               let message = EmptyHomeMessage(libraries: model.libraries, limitedProfile: model.hasAgeLimit ? model.currentProfile?.name : nil) {
                 EmptyHome(message: message)
                     .containerRelativeFrame(.vertical)
             }
@@ -210,7 +210,7 @@ struct HomeHero: View {
 
             VStack(alignment: .leading, spacing: 12) {
                 TitleArt(item: item, maxWidth: 280, maxHeight: 110, fontSize: 52)
-                FactsLine(facts: item.facts)
+                FactsLine(facts: item.facts(scores: !model.isKids))
                 if let overview = overviews[item.id] ?? nil {
                     Text(overview)
                         .font(.subheadline)
@@ -306,10 +306,13 @@ private struct EmptyHome: View {
             Text(message.title)
                 .font(.marquee(34, weight: .black))
                 .foregroundStyle(Color.screen)
-            Text(message.body)
-                .font(.body)
-                .foregroundStyle(Color.usher)
-                .fixedSize(horizontal: false, vertical: true)
+            // A profile with an age limit gets the title alone (see `EmptyHomeMessage`).
+            if !message.body.isEmpty {
+                Text(message.body)
+                    .font(.body)
+                    .foregroundStyle(Color.usher)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             if !message.folders.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
                     ForEach(message.folders, id: \.self) { folder in
@@ -321,9 +324,11 @@ private struct EmptyHome: View {
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel("Folders: \(message.folders.joined(separator: ", "))")
             }
-            Text("Pull down to refresh.")
-                .font(.footnote)
-                .foregroundStyle(Color.usher)
+            if !message.body.isEmpty {
+                Text("Pull down to refresh.")
+                    .font(.footnote)
+                    .foregroundStyle(Color.usher)
+            }
         }
         .padding(.horizontal, 24)
         .frame(maxWidth: 520, alignment: .leading)

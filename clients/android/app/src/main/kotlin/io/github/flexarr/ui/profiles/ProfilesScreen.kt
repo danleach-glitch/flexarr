@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
@@ -53,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import io.github.flexarr.AppModel
+import io.github.flexarr.core.FlexarrException
 import io.github.flexarr.core.Profile
 import io.github.flexarr.ui.components.ActionButton
 import io.github.flexarr.ui.components.pressable
@@ -73,21 +75,51 @@ fun ProfilesScreen(model: AppModel) {
 /**
  * "Who's watching?": avatars to tap, then a PIN for a protected profile. Full screen on first launch, and a sheet from
  * the avatar on Home or from Settings afterwards ([marksCurrent]: the one watching now is marked, and can't be chosen
- * again).
+ * again). With [asksLockPin], it opens on the main profile's PIN to lock this device to kids profiles (Settings' row,
+ * when the server asked for it), and cancelling that is [onCancelled].
  */
 @Composable
-fun ProfilePicker(model: AppModel, marksCurrent: Boolean = false, onChosen: () -> Unit = {}) {
+fun ProfilePicker(
+    model: AppModel,
+    marksCurrent: Boolean = false,
+    asksLockPin: Boolean = false,
+    onCancelled: () -> Unit = {},
+    onChosen: () -> Unit = {},
+) {
     val scope = rememberCoroutineScope()
     var asking by remember { mutableStateOf<Profile?>(null) }
+    // Leaving a kids profile: the main profile's PIN is asked for, keeping the chosen profile's own if it had one.
+    var parent by remember { mutableStateOf<ParentPin?>(null) }
+    // Locking this device to kids profiles, or unlocking it, with the main profile's PIN.
+    var locking by remember { mutableStateOf<KidsLockStep?>(if (asksLockPin) KidsLockStep.Lock else null) }
+    var lockingBusy by remember { mutableStateOf(false) }
+    // Unlocked here, the main profile's PIN just given goes with the next choice rather than being asked for again.
+    var unlockedWith by remember { mutableStateOf<String?>(null) }
     var switching by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
+    val main = model.profiles.firstOrNull { it.isMain }
 
-    suspend fun choose(profile: Profile, pin: String?): Boolean {
+    suspend fun choose(profile: Profile, pin: String?, parentPin: String? = null): Boolean {
         switching = profile.id
         try {
-            model.chooseProfile(profile, pin)
+            model.chooseProfile(profile, pin, parentPin ?: unlockedWith)
             onChosen()
             return true
+        } catch (e: FlexarrException.ParentPinNeeded) {
+            if (parentPin == null) {
+                unlockedWith = null
+                asking = profile
+                parent = ParentPin(pin)
+            } else {
+                error = e.message
+            }
+            return false
+        } catch (e: FlexarrException.OwnPinWrong) {
+            // The main profile's PIN was right: back to the chosen profile's own.
+            asking = profile
+            parent = null
+            error = "That isn’t ${profile.name}’s PIN."
+            return false
         } catch (e: Exception) {
             error = e.message
             return false
@@ -96,22 +128,65 @@ fun ProfilePicker(model: AppModel, marksCurrent: Boolean = false, onChosen: () -
         }
     }
 
-    AnimatedContent(asking, label = "profiles") { pinFor ->
-        if (pinFor != null) {
+    /**
+     * Without a PIN first when locking: the main profile, unlocked here, needs none; otherwise the server asks. Locked
+     * with several kids profiles, the picker stays open for the parent to choose which one this device stays on.
+     */
+    suspend fun kidsLock(step: KidsLockStep, pin: String?): Boolean {
+        try {
+            if (step == KidsLockStep.Lock) {
+                val choosing = model.lockToKids(pin)
+                locking = null
+                if (!choosing) onChosen()
+            } else {
+                model.releaseKidsLock(pin ?: return false)
+                unlockedWith = pin
+                locking = null
+            }
+            return true
+        } catch (e: FlexarrException.ParentPinNeeded) {
+            if (pin == null) locking = step else error = e.message
+            return false
+        } catch (e: Exception) {
+            error = e.message
+            return false
+        }
+    }
+
+    val cancel = {
+        // Only cancelling the lock itself closes the sheet; once locked, Cancel is the kids profiles again.
+        if (asksLockPin && locking != null) onCancelled()
+        asking = null
+        parent = null
+        locking = null
+        error = null
+    }
+
+    AnimatedContent(Triple(asking, parent, locking), label = "profiles") { (pinFor, parentFor, lockStep) ->
+        if (lockStep != null) {
             PinEntry(
-                profile = pinFor,
+                profile = main,
+                title = "Enter the main profile’s PIN",
                 model = model,
                 error = error,
                 onEdit = { error = null },
-                onCancel = {
-                    asking = null
-                    error = null
-                },
-                onSubmit = { pin -> choose(pinFor, pin) },
+                onCancel = cancel,
+                onSubmit = { pin -> kidsLock(lockStep, pin) },
+            )
+        } else if (pinFor != null) {
+            PinEntry(
+                profile = if (parentFor == null) pinFor else main,
+                title = if (parentFor == null) null else "Enter the main profile’s PIN",
+                model = model,
+                error = error,
+                onEdit = { error = null },
+                onCancel = cancel,
+                onSubmit = { pin -> if (parentFor != null) choose(pinFor, parentFor.ownPin, pin) else choose(pinFor, pin) },
             )
         } else {
+            // Clear of the gesture bar, where Lock and Unlock sit last.
             Column(
-                Modifier.fillMaxWidth(),
+                Modifier.fillMaxWidth().navigationBarsPadding().padding(bottom = 16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(32.dp),
             ) {
@@ -165,16 +240,43 @@ fun ProfilePicker(model: AppModel, marksCurrent: Boolean = false, onChosen: () -
                         modifier = Modifier.padding(horizontal = 32.dp).semantics { liveRegion = LiveRegionMode.Polite },
                     )
                 }
+                // Locked, the other profiles wait behind the main profile's PIN; unlocked, a parent can lock it here.
+                if (model.kidsLock) {
+                    ActionButton("Unlock", onClick = {
+                        error = null
+                        locking = KidsLockStep.Release
+                    })
+                } else if (marksCurrent && model.canLockToKids) {
+                    ActionButton("Lock to kids profiles", enabled = !lockingBusy, onClick = {
+                        error = null
+                        lockingBusy = true
+                        scope.launch {
+                            try {
+                                kidsLock(KidsLockStep.Lock, null)
+                            } finally {
+                                lockingBusy = false
+                            }
+                        }
+                    })
+                }
             }
         }
     }
 }
 
-/** A 4 to 8 digit PIN, on the number pad. */
+private data class ParentPin(val ownPin: String?)
+
+private enum class KidsLockStep { Lock, Release }
+
+/**
+ * A 4 to 8 digit PIN, on the number pad: [profile]'s by default; with a [title], whatever that says (the main profile's,
+ * for a parent), under [profile]'s picture if there is one.
+ */
 @Composable
 private fun PinEntry(
-    profile: Profile,
+    profile: Profile?,
     model: AppModel,
+    title: String? = null,
     error: String?,
     onEdit: () -> Unit,
     onCancel: () -> Unit,
@@ -199,8 +301,8 @@ private fun PinEntry(
     }
 
     Column(Modifier.fillMaxWidth().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(22.dp)) {
-        ProfileAvatar(model, profile, size = 84)
-        Text("Enter ${profile.name}’s PIN", style = marquee(32), textAlign = TextAlign.Center)
+        profile?.let { ProfileAvatar(model, it, size = 84) }
+        Text(title ?: "Enter ${profile?.name}’s PIN", style = marquee(32), textAlign = TextAlign.Center)
         BasicTextField(
             value = pin,
             onValueChange = {

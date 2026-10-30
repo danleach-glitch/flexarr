@@ -11,6 +11,11 @@ struct SettingsView: View {
     @Environment(PairingPrompts.self) private var pairing
     @State private var confirmSignOut = false
     @State private var choosingProfile = false
+    /// Locking to kids profiles: the main profile's PIN is being asked for.
+    @State private var askingParentPin = false
+    /// A lock is on its way to the server, so another tap doesn't send a second.
+    @State private var locking = false
+    @State private var lockError: String?
     @State private var siriDeviceName: String?
     /// iOS lets Flexarr show notifications, so if they're off it's this server that isn't sending them.
     @State private var notificationsAllowed = false
@@ -20,18 +25,31 @@ struct SettingsView: View {
     var body: some View {
         List {
             if let current = model.currentProfile {
-                Section("Watching as") {
+                Section {
                     HStack(spacing: 14) {
                         ProfileAvatar(profile: current, size: 44)
                         Text(current.name).font(.body.weight(.semibold))
                         Spacer()
-                        if model.profiles.count > 1 {
+                        if model.offersProfilePicker {
                             Button("Switch") { choosingProfile = true }
                                 .font(.subheadline.weight(.semibold))
                         }
                     }
                     .padding(.vertical, 4)
                     .listRowBackground(Color.seat)
+                    if model.offersKidsLock {
+                        Button {
+                            Task { await lockToKids(pin: nil) }
+                        } label: {
+                            Label("Lock to kids profiles", systemImage: "lock")
+                        }
+                        .disabled(locking)
+                        .listRowBackground(Color.seat)
+                    }
+                } header: {
+                    Text("Watching as")
+                } footer: {
+                    if let lockError { Text(lockError).foregroundStyle(Color.danger) }
                 }
             }
 
@@ -99,6 +117,15 @@ struct SettingsView: View {
             }
         }
         .settingsPage("Settings")
+        .sheet(isPresented: $askingParentPin) {
+            ZStack {
+                RoomBackground(ambient: nil)
+                PinEntry(profile: model.profiles.first(where: \.isMain), title: "Enter the main profile’s PIN", error: $lockError,
+                         onCancel: { askingParentPin = false; lockError = nil }) { pin in
+                    await lockToKids(pin: pin)
+                }
+            }
+        }
         .refreshable { await catchUpOnPairing() }
         .onAppear { siriDeviceName = AppModel.siriDevice == nil ? nil : AppModel.siriDeviceName }
         .task { await catchUpOnPairing() }
@@ -118,6 +145,22 @@ struct SettingsView: View {
             ProfilePickerView(marksCurrent: true)
                 .presentationDetents([.medium, .large])
                 .presentationBackground(Color.room)
+        }
+    }
+
+    /// Without a PIN first: the main profile, unlocked here, needs none; otherwise the server asks for it.
+    private func lockToKids(pin: String?) async {
+        guard !locking else { return }
+        locking = true
+        defer { locking = false }
+        lockError = nil
+        do {
+            try await model.lockToKids(pin: pin)
+            askingParentPin = false
+        } catch FlexarrClientError.parentPinNeeded(let message) {
+            if pin == nil { askingParentPin = true } else { lockError = message ?? "That PIN isn’t right." }
+        } catch {
+            lockError = ConnectionError(error).message
         }
     }
 

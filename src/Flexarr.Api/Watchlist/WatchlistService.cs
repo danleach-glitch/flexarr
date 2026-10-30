@@ -480,6 +480,13 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
         // Only what this profile can see (the query filter), and a show only once it has an episode to play.
         var items = (await db.MediaItems.Where(i => ids.Contains(i.Id) && (i.Kind == MediaKind.Movie || i.Children.Any(s => s.Children.Count > 0)))
             .Summaries(profileId).ToListAsync(ct)).ToDictionary(i => i.Id);
+        // A profile with an age limit sees only what's in the library within it: a title outside has no age to check,
+        // and one above the limit (put on before it was set) isn't shown at all.
+        if (db.IsLimited())
+        {
+            entries = entries.Where(e => e.MediaItemId is { } id && items.ContainsKey(id)).ToList();
+        }
+
         var outside = entries.Where(e => !(e.MediaItemId is { } id && items.ContainsKey(id)) && e.TmdbId is not null).ToList();
         var facts = await SeerrFactsAsync(outside.Select(e => (MediaType(e.Kind), e.TmdbId!.Value)), ct);
         var requested = await RequestedAsync(entries, ct);

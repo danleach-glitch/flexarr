@@ -90,6 +90,8 @@ fun PodcastsScreen(model: AppModel) {
     val client = model.client ?: return
     val navigator = LocalNavigator.current
     val available = model.podcastStatus?.available != false
+    // The directory's shows have no age to check, so a profile with an age limit doesn't browse it.
+    val browses = model.currentProfile?.hasAgeLimit != true
     val loader = rememberLoader(model.credentials, model.watchStateVersion, model.podcasts.current?.id) {
         if (model.podcastStatus == null) model.loadPodcastStatus()
         model.loadUpNext()
@@ -99,7 +101,7 @@ fun PodcastsScreen(model: AppModel) {
     RoomBackground(ambient = glow, intensity = 0.18f) {
         Column(Modifier.fillMaxSize()) {
             PageTitle("Podcasts", onBack = navigator::back) {
-                if (available) IconButton(onClick = navigator::openPodcastBrowse) { Icon(Icons.Filled.Search, contentDescription = "Browse", tint = Flexarr.screen) }
+                if (available && browses) IconButton(onClick = navigator::openPodcastBrowse) { Icon(Icons.Filled.Search, contentDescription = "Browse", tint = Flexarr.screen) }
             }
             if (!available) {
                 StatusView("Podcasts aren’t available on this profile.", empty = true)
@@ -111,8 +113,8 @@ fun PodcastsScreen(model: AppModel) {
                         if (home.isEmpty) {
                             item {
                                 Column(Modifier.fillMaxWidth().padding(horizontal = Edge).padding(top = 60.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                                    Text("Follow a show and its new episodes come here.", fontSize = 17.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher, textAlign = TextAlign.Center)
-                                    ActionButton("Browse podcasts", onClick = navigator::openPodcastBrowse, icon = Icons.Filled.Search, prominent = true)
+                                    Text(if (browses) "Follow a show and its new episodes come here." else "No podcasts yet.", fontSize = 17.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher, textAlign = TextAlign.Center)
+                                    if (browses) ActionButton("Browse podcasts", onClick = navigator::openPodcastBrowse, icon = Icons.Filled.Search, prominent = true)
                                 }
                             }
                         }

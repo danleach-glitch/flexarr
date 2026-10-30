@@ -591,6 +591,12 @@ data class SignInInfo(
     val adminPinMissing: Boolean = false,
     /** When managing the server takes the PIN again on this sign-in; null for the API key, or when it isn't unlocked. */
     val unlockedUntil: String? = null,
+    /** The profile is a child's: the kids app. Absent from servers before 0.56. */
+    val isKids: Boolean = false,
+    /** The profile's age limit on the UK's steps (0 is U, 8 PG, then 12, 15, 18); null, none. Absent from servers before 0.56. */
+    val maxRatingAge: Int? = null,
+    /** This device is locked to kids profiles until the main profile's PIN releases it. Absent from servers before 0.56. */
+    val kidsLock: Boolean = false,
 ) {
     /** The main profile, unlocked or not: it's asked to let devices in (allowing takes its PIN while locked). */
     val isMainProfile: Boolean get() = isAdmin || canUnlock
@@ -631,8 +637,15 @@ data class Profile(
      * Empty: by name. Absent from servers before 0.54, which can't save one.
      */
     val libraryOrder: List<String>? = null,
+    /** Its age limit on the UK's steps (0 is U, 8 PG, then 12, 15, 18); null, none. Absent from servers before 0.56. */
+    val maxRatingAge: Int? = null,
+    /** A child's profile: the kids app, and leaving it takes the main profile's PIN. Absent from servers before 0.56. */
+    val isKids: Boolean = false,
 ) {
     val initial: String get() = name.trim().firstOrNull()?.uppercase() ?: "?"
+
+    /** Has an age limit: Discover, Coming Soon and requests aren't for it, since their titles have no age to check. */
+    val hasAgeLimit: Boolean get() = maxRatingAge != null
 
     /** Whether choosing it here takes its PIN. */
     val takesPin: Boolean get() = asksPin ?: hasPin
@@ -668,7 +681,10 @@ fun <T> sortedByLibraryOrder(entries: List<T>, saved: List<String>, id: (T) -> S
 data class ProfileSelection(val token: String, val profile: Profile)
 
 @Serializable
-internal data class SelectProfileRequest(val pin: String?)
+internal data class SelectProfileRequest(val pin: String?, val parentPin: String? = null)
+
+@Serializable
+internal data class KidsLockRequest(val pin: String?, val profileId: String? = null)
 
 @Serializable
 internal data class LibraryOrderRequest(val order: List<String>)

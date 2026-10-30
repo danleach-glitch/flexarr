@@ -20,7 +20,7 @@ class MusicTest {
         val detail = fixture<ItemDetail>("item-artist")
         assertEquals(MediaKind.Artist, detail.item.kind)
         assertTrue(detail.item.kind.isMusic)
-        assertEquals(listOf("4 albums", "9.4"), detail.item.facts)
+        assertEquals(listOf("4 albums", "9.4"), detail.item.facts())
         assertTrue(detail.children.all { it.kind == MediaKind.Album })
         assertEquals(listOf(1991, 1982, 1980, 1979), detail.children.map { it.year })
         assertEquals("Dire Straits", detail.children.first().artistName)
@@ -29,7 +29,9 @@ class MusicTest {
     @Test
     fun `an album has numbered tracks, on one disc`() {
         val detail = fixture<ItemDetail>("item-album")
-        assertEquals(listOf("1991", "12 tracks", "7.5"), detail.item.facts)
+        assertEquals(listOf("1991", "12 tracks", "7.5"), detail.item.facts())
+        // Kids profiles see no scores.
+        assertEquals(listOf("1991", "12 tracks"), detail.item.facts(scores = false))
         assertEquals(listOf(MediaKind.Artist), detail.ancestors.map { it.kind })
         assertEquals(listOf(1, 2, 3, 4, 5), detail.children.map { it.trackNumber })
         assertNull(detail.children.first().discNumber)

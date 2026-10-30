@@ -75,6 +75,12 @@ public sealed class SignIn
     /// signing people in), and only works from home while that's so.
     /// </summary>
     public string? TailscaleLogin { get; init; }
+
+    /// <summary>
+    /// Locked to kids profiles: only they can be chosen on it, until the main profile's PIN releases it (there, or
+    /// from Settings › Devices).
+    /// </summary>
+    public bool KidsLock { get; set; }
 }
 
 /// <summary>
@@ -314,6 +320,44 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
             }
 
             return earned.Count;
+        }
+    }
+
+    /// <summary>
+    /// Locks a browser or device to kids profiles, choosing <paramref name="profileId"/> (a kids profile) on it, or
+    /// releases it; false if it isn't signed in.
+    /// </summary>
+    public bool SetKidsLock(string id, bool locked, string? profileId = null)
+    {
+        lock (_lock)
+        {
+            if (Loaded().Values.FirstOrDefault(s => s.Id == id) is not { } signIn)
+            {
+                return false;
+            }
+
+            signIn.KidsLock = locked;
+            if (profileId is not null)
+            {
+                signIn.ProfileId = profileId;
+            }
+
+            SaveLocked();
+            return true;
+        }
+    }
+
+    /// <summary>The browser or device sign-in <paramref name="id"/>, if it's still signed in.</summary>
+    public SignIn? ById(string? id)
+    {
+        if (id is null)
+        {
+            return null;
+        }
+
+        lock (_lock)
+        {
+            return Loaded().Values.FirstOrDefault(s => s.Id == id);
         }
     }
 
