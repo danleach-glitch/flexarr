@@ -403,7 +403,8 @@ app.MapMediaBrowserEndpoints();
 app.MapFallbackToFile("index.html", webApp);
 
 // A server with no owner yet says its setup code in the log, where whoever installed it will look.
-app.Services.GetRequiredService<FirstRun>().Announce();
+// Once the server is listening, so the setup link in the log has the port it really uses.
+app.Lifetime.ApplicationStarted.Register(() => app.Services.GetRequiredService<FirstRun>().Announce());
 app.Services.GetRequiredService<PinAlerts>().Watch(app.Services.GetRequiredService<PinGuard>());
 
 await app.RunAsync();

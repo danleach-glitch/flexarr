@@ -44,9 +44,10 @@ public sealed class AdminUnlocks(TimeProvider clock)
     /// <summary>Pushes an unlock on, after a change made with it.</summary>
     public void Extend(string signInId)
     {
-        if (IsUnlocked(signInId))
+        // Only the unlock that's there now: one locked meanwhile (Lock, or a new PIN) stays locked.
+        if (UnlockedUntil(signInId) is { } until)
         {
-            _until[signInId] = clock.GetUtcNow().UtcDateTime + Lasts;
+            _until.TryUpdate(signInId, clock.GetUtcNow().UtcDateTime + Lasts, until);
         }
     }
 

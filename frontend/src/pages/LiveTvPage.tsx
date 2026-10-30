@@ -37,7 +37,7 @@ export default function LiveTvPage() {
         <div className="panel livetv-empty">
           <Antenna />
           <p>Live TV isn’t set up yet.</p>
-          {me?.isAdmin ? (
+          {me?.isAdmin || me?.canUnlock ? (
             <Link className="button" to="/settings/connections">
               Set up Live TV
             </Link>

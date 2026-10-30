@@ -27,7 +27,7 @@ public sealed record SetupClaimDto(string? Code, string? Pin = null);
 /// folder: behind a reverse proxy or Docker's port forwarding, every visitor can look like the home network, and the
 /// code is what only someone with the machine has. Claiming closes setup for good: one owner, then codes and the key.
 /// </summary>
-public sealed partial class FirstRun(IOptionsMonitor<FlexarrOptions> options, ILogger<FirstRun> logger)
+public sealed partial class FirstRun(IOptionsMonitor<FlexarrOptions> options, Microsoft.AspNetCore.Hosting.Server.IServer server, ILogger<FirstRun> logger)
 {
     public const string CodeFileName = "setup-code.txt";
 
@@ -63,8 +63,12 @@ public sealed partial class FirstRun(IOptionsMonitor<FlexarrOptions> options, IL
     /// <summary>At startup, while the server has no owner: says the code where whoever installed it will look.</summary>
     public void Announce() => _ = Code;
 
-    /// <summary>Takes the one claim, if <paramref name="http"/> may, has the code, and nobody has yet.</summary>
-    public ClaimResult TryClaim(HttpContext http, string? code)
+    /// <summary>
+    /// Takes the one claim, if <paramref name="http"/> may, has the code, and nobody has yet. <paramref name="claiming"/>
+    /// (setting the PIN, signing the browser in) runs before setup closes: if it fails, setup stays open with the same
+    /// code.
+    /// </summary>
+    public ClaimResult TryClaim(HttpContext http, string? code, Action? claiming = null)
     {
         lock (ClaimLock)
         {
@@ -85,6 +89,7 @@ public sealed partial class FirstRun(IOptionsMonitor<FlexarrOptions> options, IL
                 return ClaimResult.WrongCode;
             }
 
+            claiming?.Invoke();
             Close(options.CurrentValue);
             return ClaimResult.Claimed;
         }
@@ -119,7 +124,7 @@ public sealed partial class FirstRun(IOptionsMonitor<FlexarrOptions> options, IL
             file = "(couldn't be saved to a file)";
         }
 
-        LogCode(SetupLink("localhost", code), code, file);
+        LogCode(SetupLink("localhost", ListeningPort(), code), code, file);
         return code;
     }
 
@@ -151,10 +156,23 @@ public sealed partial class FirstRun(IOptionsMonitor<FlexarrOptions> options, IL
     /// The welcome page with the code filled in: after the #, which browsers never send to the server, so the code
     /// stays out of logs and proxies. Docker's log viewers make it something to click.
     /// </summary>
-    internal static string SetupLink(string host, string code) => $"http://{host}:{DefaultPort}/#setup={code}";
+    internal static string SetupLink(string host, int port, string code) => $"http://{host}:{port}/#setup={code}";
 
-    /// <summary>The port in the Dockerfile, appsettings.json and the install guides.</summary>
-    private const int DefaultPort = 8383;
+    /// <summary>The port the server listens on (once it's started; see Program.cs), else the usual one.</summary>
+    private int ListeningPort()
+    {
+        var addresses = server.Features.Get<Microsoft.AspNetCore.Hosting.Server.Features.IServerAddressesFeature>()?.Addresses ?? [];
+        foreach (var address in addresses)
+        {
+            // "http://*:8484" and "http://[::]:8484" aren't URIs as such; the port is after the last colon.
+            if (int.TryParse(address[(address.LastIndexOf(':') + 1)..].TrimEnd('/'), out var port))
+            {
+                return port;
+            }
+        }
+
+        return 8383;
+    }
 
     // A warning, so it's in the console even where only warnings are (the macOS service), and easy to spot in it. The
     // link first: setting up from it is only choosing a PIN.
@@ -191,7 +209,23 @@ public static class FirstRunEndpoints
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["pin"] = ["Choose a PIN of 4 to 8 digits."] });
             }
 
-            var result = fromWebApp ? firstRun.TryClaim(http, claim?.Code) : FirstRun.ClaimResult.Closed;
+            // Done inside the claim, before setup closes, so it's all or nothing. (A sign-in closes setup too.)
+            var main = fromWebApp ? await db.Profiles.FindAsync([PlaybackState.DefaultUser], ct) : null;
+            string? token = null;
+            var result = fromWebApp
+                ? firstRun.TryClaim(http, claim?.Code, () =>
+                {
+                    if (main is not null)
+                    {
+                        main.SetPin(claim!.Pin);
+                        db.SaveChanges();
+                    }
+
+                    (var signIn, token) = signIns.Issue(SignInKind.Browser, ApiKeyAuthenticationHandler.BrowserName(http.Request), NetworkZone.Local,
+                        http.Connection.RemoteIpAddress?.ToString());
+                    unlocks.Unlock(signIn.Id);
+                })
+                : FirstRun.ClaimResult.Closed;
             if (result == FirstRun.ClaimResult.WrongCode)
             {
                 return Results.Problem("That isn't this server's setup code. It's in the server's log, and in setup-code.txt in its data folder.",
@@ -203,16 +237,7 @@ public static class FirstRunEndpoints
                 return Results.Problem("This server is already set up. Sign in with a code from a device that's signed in.", statusCode: 403);
             }
 
-            if (await db.Profiles.FindAsync([PlaybackState.DefaultUser], ct) is { } main)
-            {
-                main.SetPin(claim!.Pin);
-                await db.SaveChangesAsync(ct);
-            }
-
-            var (signIn, token) = signIns.Issue(SignInKind.Browser, ApiKeyAuthenticationHandler.BrowserName(http.Request), NetworkZone.Local,
-                http.Connection.RemoteIpAddress?.ToString());
-            unlocks.Unlock(signIn.Id);
-            ApiKeyAuthenticationHandler.AppendSessionCookie(http, token);
+            ApiKeyAuthenticationHandler.AppendSessionCookie(http, token!);
             return Results.NoContent();
         });
         return api;

@@ -167,7 +167,7 @@ export async function claimSetup(code: string, pin: string) {
     headers: { 'X-Requested-With': 'flexarr', 'Content-Type': 'application/json' },
     body: JSON.stringify({ code, pin }),
   })
-  if (!response.ok) throw new ApiError(response.status, response.statusText, [])
+  if (!response.ok) throw await failure(response)
 }
 
 /** An API key left in storage by an earlier version: swap it for a session cookie, then forget it. */
@@ -195,7 +195,33 @@ export function authHeaders(): Record<string, string> {
   return headers
 }
 
-async function request<T>(method: string, path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
+/** Asks for the main profile's PIN (see UnlockPrompt); resolves true once it's given. */
+let askToUnlock: (() => Promise<boolean>) | undefined
+
+/** Where a change refused only because settings are locked asks for the PIN, then goes ahead. */
+export function onLockedChange(ask: () => Promise<boolean>) {
+  askToUnlock = ask
+  return () => {
+    if (askToUnlock === ask) askToUnlock = undefined
+  }
+}
+
+/**
+ * A change was refused (403): whether that's because the main profile is chosen here but settings are locked, asked
+ * afresh. Not for the PIN's own endpoints, whose 403 is a wrong PIN.
+ */
+async function lockedHere(path: string) {
+  if (!askToUnlock || path.startsWith('/admin/') || /^\/profiles\/[^/]+\/select$/.test(path) || path.includes('/api-key/')) return false
+  try {
+    const response = await fetch('/api/v1/me', { headers: authHeaders() })
+    const me = response.ok ? ((await response.json()) as Me) : undefined
+    return me?.canUnlock === true && !me.isAdmin
+  } catch {
+    return false
+  }
+}
+
+async function request<T>(method: string, path: string, body?: unknown, signal?: AbortSignal, retried = false): Promise<T> {
   const headers = authHeaders()
   // Files (profile pictures) go up as they are; everything else is JSON.
   const file = body instanceof Blob
@@ -212,6 +238,8 @@ async function request<T>(method: string, path: string, body?: unknown, signal?:
     body: body === undefined ? undefined : file ? body : JSON.stringify(body),
   }).finally(() => changes && clearApiCache())
 
+  // Locked: the PIN, then the same change again (once).
+  if (response.status === 403 && changes && !retried && (await lockedHere(path)) && (await askToUnlock!())) return request(method, path, body, signal, true)
   if (!response.ok) throw await failure(response)
   if (response.status === 202 || response.status === 204) {
     return undefined as T

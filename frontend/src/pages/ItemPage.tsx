@@ -74,8 +74,10 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
   const [subtitlesSaved, setSubtitlesSaved] = useState<string>()
   const [moreAt, setMoreAt] = useState<MenuPoint | null>(null)
   const { me } = useSession()
-  const canDelete = me?.isAdmin === true && (item.kind === 'Movie' || item.kind === 'Series' || item.kind === 'Episode')
-  const canFixMatch = me?.isAdmin === true && (item.kind === 'Movie' || item.kind === 'Series')
+  // The main profile, locked or not: deleting asks for the PIN when it's locked (see UnlockPrompt).
+  const mainProfile = me?.isAdmin === true || me?.canUnlock === true
+  const canDelete = mainProfile && (item.kind === 'Movie' || item.kind === 'Series' || item.kind === 'Episode')
+  const canFixMatch = mainProfile && (item.kind === 'Movie' || item.kind === 'Series')
   const nextUp = detail.nextUp ?? undefined
   const similar = useApi((signal) => (item.kind === 'Movie' || item.kind === 'Series' ? getSimilar(item.id, signal) : Promise.resolve([])), [item.id])
 

@@ -87,7 +87,7 @@ type ConnectionState =
   | { kind: 'ready' }
   /** `asked`: opened on purpose (Switch profile), so it can be backed out of. */
   | { kind: 'choose-profile'; profiles: Profile[]; asked: boolean; initial?: Profile }
-  | { kind: 'unauthorized'; wrongKey?: boolean; setupOpen?: boolean; wrongCode?: boolean; pinMismatch?: boolean }
+  | { kind: 'unauthorized'; wrongKey?: boolean; setupOpen?: boolean; wrongCode?: boolean; pinMismatch?: boolean; badPin?: string }
   | { kind: 'error'; message: string }
 
 /** Everything below the connection check; rendered inside a router so tests can supply a MemoryRouter. */
@@ -162,7 +162,8 @@ export default function App() {
   const [state, setState] = useState<ConnectionState>({ kind: 'loading' })
   const [attempt, setAttempt] = useState(0)
   const [setupInstall, setSetupInstall] = useState<InstallKind>()
-  const [linkedCode] = useState(takeLinkedSetupCode)
+  // Once the linked code turns out wrong (a new one since), the code box stays, whatever happens next.
+  const [linkedCode, setLinkedCode] = useState(takeLinkedSetupCode)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -249,10 +250,14 @@ export default function App() {
     setState({ kind: 'loading' })
     claimSetup(code, pin)
       .then(() => setAttempt((n) => n + 1))
-      .catch((error: unknown) =>
-        // A wrong code asks again; anything else (set up meanwhile, say) looks afresh at where the server is.
-        error instanceof ApiError && error.status === 400 ? setState({ kind: 'unauthorized', setupOpen: true, wrongCode: true }) : setAttempt((n) => n + 1),
-      )
+      .catch((error: unknown) => {
+        // A wrong code or PIN asks again; anything else (set up meanwhile, say) looks afresh at where the server is.
+        if (!(error instanceof ApiError) || error.status !== 400) return setAttempt((n) => n + 1)
+        const pinProblem = (error.problem?.errors as Record<string, string[]> | undefined)?.pin?.[0]
+        if (pinProblem) return setState({ kind: 'unauthorized', setupOpen: true, badPin: pinProblem })
+        setLinkedCode(undefined)
+        setState({ kind: 'unauthorized', setupOpen: true, wrongCode: true })
+      })
   }
 
   if (state.kind === 'choose-profile') {
@@ -305,7 +310,7 @@ export default function App() {
           <form className="setup-welcome api-key-form" onSubmit={setUp}>
             <h1>Welcome to your Flexarr server</h1>
             {/* Opened from the Mac app (or a link with the code): nothing to look for, only a PIN to choose. */}
-            {linkedCode && !state.wrongCode ? (
+            {linkedCode ? (
               <input name="setupCode" type="hidden" value={linkedCode} />
             ) : (
               <>
@@ -320,7 +325,7 @@ export default function App() {
                 </p>
               </>
             )}
-            <p className={linkedCode && !state.wrongCode ? 'muted' : 'muted setup-pin-intro'}>
+            <p className={linkedCode ? 'muted' : 'muted setup-pin-intro'}>
               Choose a PIN to protect the server’s settings. Watching doesn’t need it.
             </p>
             <div className="field-row">
@@ -334,6 +339,7 @@ export default function App() {
               </label>
             </div>
             {state.pinMismatch && <p className="error">The two PINs don’t match. Type the same one in both.</p>}
+            {state.badPin && <p className="error">{state.badPin}</p>}
             <button type="submit" className="button">
               Set up Flexarr
             </button>

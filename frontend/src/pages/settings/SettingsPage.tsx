@@ -85,10 +85,11 @@ export function SettingsPage() {
   const reloadMe = me.reload
   useEffect(() => {
     if (!unlockedUntil) return
+    // At least a minute: a browser clock ahead of the server's would otherwise ask again every second.
     const timer = window.setTimeout(() => {
       clearApiCache()
       reloadMe()
-    }, Math.max(1000, new Date(unlockedUntil).getTime() - Date.now() + 1000))
+    }, Math.max(60_000, new Date(unlockedUntil).getTime() - Date.now() + 1000))
     return () => window.clearTimeout(timer)
   }, [unlockedUntil, reloadMe])
   // A dot on Updates when there's a release to install. Only the main profile may ask; older servers have no /updates.

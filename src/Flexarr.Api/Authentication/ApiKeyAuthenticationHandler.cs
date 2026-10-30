@@ -95,6 +95,18 @@ public sealed class ApiKeyAuthenticationHandler(
                     return await SucceedAsync(Methods.Session, browser);
                 }
 
+                // Earned with the main profile's PIN at home, where the home network signs people in: only there, and
+                // only while it still does. Taken anywhere else, it's ignored.
+                if (browser.TailscaleLogin is null)
+                {
+                    if (HomeNetworkSignsIn(options))
+                    {
+                        return await SucceedAsync(Methods.Session, browser);
+                    }
+                }
+                else
+                {
+
                 // Earned with the main profile's PIN over Tailscale: only for that login, while it's linked to a profile
                 // (unlinking it signs these out too). Copied to another device or used from home, it's just ignored.
                 (tailscaleLogin, askedTailscale) = (await TrustedTailscaleLoginAsync(Context, whois, options), true);
@@ -102,6 +114,7 @@ public sealed class ApiKeyAuthenticationHandler(
                     && await Context.RequestServices.GetRequiredService<FlexarrDbContext>().Profiles.AnyAsync(p => p.TailscaleLogin == tailscaleLogin, Context.RequestAborted))
                 {
                     return await SucceedAsync(Methods.Session, browser, login: tailscaleLogin);
+                }
                 }
             }
 
@@ -121,14 +134,18 @@ public sealed class ApiKeyAuthenticationHandler(
                 : await SucceedAsync(Methods.Tailscale, linkedProfile: profile, login: login);
         }
 
-        if (options.AuthenticationRequired == AuthenticationRequired.DisabledForLocalAddresses && NetworkZones.Of(Context) == NetworkZone.Local
-            && NetworkZones.AddressedToKnownHost(Context, options.KnownHosts))
+        if (HomeNetworkSignsIn(options))
         {
             return await SucceedAsync(Methods.Local);
         }
 
         return AuthenticateResult.NoResult();
     }
+
+    /// <summary>"Only away from home" is chosen and this request is from home, addressed to one of the server's own names.</summary>
+    private bool HomeNetworkSignsIn(FlexarrOptions options) =>
+        options.AuthenticationRequired == AuthenticationRequired.DisabledForLocalAddresses && NetworkZones.Of(Context) == NetworkZone.Local
+        && NetworkZones.AddressedToKnownHost(Context, options.KnownHosts);
 
     /// <summary>The cookie earlier versions gave every browser: derived from the API key, and the same for all of them.</summary>
     public static string LegacySessionValue(string apiKey) =>

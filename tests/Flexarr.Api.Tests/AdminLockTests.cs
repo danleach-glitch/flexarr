@@ -118,6 +118,31 @@ public class AdminLockTests
         Assert.False(unlocks.IsUnlocked("tv"));
         unlocks.Extend("tv"); // a lapsed unlock isn't brought back
         Assert.False(unlocks.IsUnlocked("tv"));
+        unlocks.Unlock("phone");
+        unlocks.Lock("phone");
+        unlocks.Extend("phone"); // nor a locked one
+        Assert.False(unlocks.IsUnlocked("phone"));
+    }
+
+    [Fact]
+    public async Task TheHouseholdsCollections_ShowAsTheMainProfiles_AndChangingThemTakesThePin()
+    {
+        using var server = new FlexarrApiFactory();
+        await server.SetMainPinAsync("2580");
+        var created = await (await Admin(server).PostAsJsonAsync(Api("/collections"), new { name = "Family films", personal = false })).Content.ReadFromJsonAsync<JsonElement>();
+        var id = created.GetProperty("id").GetString();
+        var tv = await LockedTvAsync(server);
+
+        var listed = (await tv.GetFromJsonAsync<JsonElement>(Api("/collections"))).EnumerateArray().Single(c => c.GetProperty("id").GetString() == id);
+        var renamedLocked = await tv.PutAsJsonAsync(Api($"/collections/{id}"), new { name = "Films" });
+        var madeLocked = await tv.PostAsJsonAsync(Api("/collections"), new { name = "Ours" });
+        await tv.PostAsJsonAsync(Api("/admin/unlock"), new { pin = "2580" });
+        var renamed = await tv.PutAsJsonAsync(Api($"/collections/{id}"), new { name = "Films" });
+
+        Assert.True(listed.GetProperty("canEdit").GetBoolean());
+        Assert.Equal(HttpStatusCode.Forbidden, renamedLocked.StatusCode); // a 403 the apps answer with the PIN
+        Assert.Equal(HttpStatusCode.Forbidden, madeLocked.StatusCode); // the household's by default, as before
+        Assert.Equal(HttpStatusCode.OK, renamed.StatusCode);
     }
 
     [Fact]

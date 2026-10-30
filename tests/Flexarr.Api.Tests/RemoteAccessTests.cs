@@ -235,6 +235,39 @@ public class RemoteAccessTests(RemoteAccessFactory factory) : IClassFixture<Remo
     }
 
     [Fact]
+    public async Task AFirstPin_TakesASignInTheOwnerMade_NotATailscaleIdentityOrTheHomeNetwork()
+    {
+        // The owner's Tailscale identity can be posed as by another program on the server; home lets anyone in.
+        await LinkAsync("owner-first@example.com", null);
+        var owner = ViaTailscale("100.70.1.30", "owner-first@example.com").Append(("X-Requested-With", "flexarr")).ToArray();
+
+        Assert.Equal(HttpStatusCode.Forbidden, await SendAsync(HttpMethod.Post, "/api/v1/admin/pin", new { pin = "1234" }, owner));
+        Assert.Equal(HttpStatusCode.Forbidden, await SendAsync(HttpMethod.Post, "/api/v1/admin/pin", new { pin = "1234" }, Lan, ("X-Requested-With", "flexarr")));
+    }
+
+    [Fact]
+    public async Task ThePinsSignInAtHome_OnlyWorksAtHome()
+    {
+        await SetMainPinAsync("3692");
+        try
+        {
+            using var unlock = new HttpRequestMessage(HttpMethod.Post, "/api/v1/admin/unlock") { Content = JsonContent.Create(new { pin = "3692" }) };
+            unlock.Headers.Add("X-Test-Peer", "192.168.1.52");
+            unlock.Headers.Add("X-Requested-With", "flexarr");
+            var response = await factory.CreateClient().SendAsync(unlock);
+            var cookie = response.Headers.GetValues("Set-Cookie").Single(c => c.StartsWith("flexarr.session=", StringComparison.Ordinal)).Split(';')[0];
+
+            // Taken away from home (through a tunnel, say), it's just ignored.
+            Assert.Equal(HttpStatusCode.Unauthorized, await GetAsync("/api/v1/libraries", ("X-Test-Peer", "203.0.113.7"), ("Cookie", cookie)));
+            Assert.Equal(HttpStatusCode.OK, await GetAsync("/api/v1/settings", ("X-Test-Peer", "192.168.1.52"), ("Cookie", cookie)));
+        }
+        finally
+        {
+            await SetMainPinAsync(null);
+        }
+    }
+
+    [Fact]
     public async Task OnTheHomeNetwork_ThePin_SignsTheBrowserIn_AndUnlocksTheServer()
     {
         await SetMainPinAsync("3691");

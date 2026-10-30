@@ -29,6 +29,9 @@ public sealed class CurrentProfile(IHttpContextAccessor http, IOptionsMonitor<Fl
     /// <summary>The main profile is chosen but the server isn't unlocked: its PIN would make this request an admin.</summary>
     public bool CanUnlock => http.HttpContext?.User.HasClaim(FlexarrClaims.CanUnlock, "true") == true;
 
+    /// <summary>The main profile, unlocked or not (or the API key): it's shown what the main profile may do, and the PIN is asked for when it does it.</summary>
+    public bool IsMainProfile => IsAdmin || CanUnlock;
+
     /// <summary>The credential is trusted with the server, so it may switch to a main profile without a PIN.</summary>
     public bool IsTrusted => http.HttpContext?.User.HasClaim(FlexarrClaims.Trusted, "true") == true;
 

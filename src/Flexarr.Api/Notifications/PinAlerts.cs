@@ -11,9 +11,15 @@ namespace Flexarr.Api.Notifications;
 /// that PIN guards the server's settings, and guessing it quietly is the danger. Like <see cref="PairingAlerts"/>, every
 /// phone on the main profile hears it, whatever news it's chosen.
 /// </summary>
-public sealed partial class PinAlerts(IServiceScopeFactory scopes, SignIns signIns, ILogger<PinAlerts> logger)
+public sealed partial class PinAlerts(IServiceScopeFactory scopes, SignIns signIns, TimeProvider clock, ILogger<PinAlerts> logger)
 {
     public const string Category = "flexarr.pin";
+
+    /// <summary>One notice per spell of guessing: a guesser known by two names (a login and an address) is one person.</summary>
+    public static readonly TimeSpan Quiet = TimeSpan.FromMinutes(10);
+
+    private readonly Lock _sending = new();
+    private DateTimeOffset _lastSent = DateTimeOffset.MinValue;
 
     /// <summary>Listens to <paramref name="guard"/> for the rest of the server's life.</summary>
     public void Watch(PinGuard guard)
@@ -28,6 +34,17 @@ public sealed partial class PinAlerts(IServiceScopeFactory scopes, SignIns signI
 
             var who = Describe(callers);
             LogLockedOut(who);
+            var now = clock.GetUtcNow();
+            lock (_sending)
+            {
+                if (now - _lastSent < Quiet)
+                {
+                    return;
+                }
+
+                _lastSent = now;
+            }
+
             _ = Task.Run(async () =>
             {
                 try

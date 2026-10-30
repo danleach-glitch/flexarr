@@ -13,6 +13,7 @@ import { AddToCollectionHost } from './AddToCollection'
 import { AddToPlaylistHost } from './AddToPlaylist'
 import { NowPlaying } from './NowPlaying'
 import { PairingPrompt } from './PairingPrompt'
+import { UnlockPrompt } from './UnlockDialog'
 import { Avatar } from './ProfilePicker'
 import { SearchPalette } from './SearchPalette'
 
@@ -308,6 +309,7 @@ export function Layout() {
       </main>
       <NowPlaying />
       <PairingPrompt />
+      <UnlockPrompt />
       {searching && <SearchPalette onClose={() => setSearching(false)} />}
     </div>
   )

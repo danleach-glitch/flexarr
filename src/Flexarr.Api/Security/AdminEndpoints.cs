@@ -109,11 +109,13 @@ public static class AdminEndpoints
                 withKey = true;
             }
 
-            var first = main.PinHash is null && current.Id == PlaybackState.DefaultUser && current.IsTrusted;
+            // A first PIN takes a browser or device the owner signed in: a Tailscale identity alone can be posed as by
+            // another program on this machine, and the home-network rule lets in anyone at home.
+            var first = main.PinHash is null && current.Id == PlaybackState.DefaultUser && current.SignInId is not null && current.IsTrusted;
             if (!withKey && !first)
             {
                 return Results.Problem(main.PinHash is null
-                    ? "Choose the main profile to give it a PIN."
+                    ? "Give the main profile a PIN from a browser or device you signed in, or with the API key."
                     : "Enter the server's API key to set a new PIN. It's in config.json in the server's data folder.", statusCode: 403);
             }
 
@@ -142,16 +144,16 @@ public static class AdminEndpoints
 
     /// <summary>
     /// A request without a sign-in of its own (over Tailscale, or at home with "only away from home") that gave the
-    /// main profile's PIN: signs the browser in as the main profile, so the unlock has somewhere to live. Over
-    /// Tailscale it only works with the login that earned it (see <see cref="ApiKeyAuthenticationHandler"/>), and is
-    /// signed out sooner when left unused, or when the PIN changes.
+    /// main profile's PIN: signs the browser in as the main profile, so the unlock has somewhere to live. It only works
+    /// the way it was earned (with that Tailscale login, or from home while home signs people in; see
+    /// <see cref="ApiKeyAuthenticationHandler"/>), and is signed out sooner when left unused, or when the PIN changes.
     /// </summary>
     internal static string SignInForUnlock(HttpContext http, SignIns signIns)
     {
         var login = http.User.FindFirst(FlexarrClaims.TailscaleLogin)?.Value;
         var overTailscale = http.User.FindFirst(FlexarrClaims.Method)?.Value == ApiKeyAuthenticationHandler.Methods.Tailscale && login is not null;
         var (signIn, token) = signIns.Issue(SignInKind.Browser, ApiKeyAuthenticationHandler.BrowserName(http.Request), NetworkZones.Of(http),
-            http.Connection.RemoteIpAddress?.ToString(), pinVerified: overTailscale, tailscaleLogin: overTailscale ? login : null);
+            http.Connection.RemoteIpAddress?.ToString(), pinVerified: true, tailscaleLogin: overTailscale ? login : null);
         ApiKeyAuthenticationHandler.AppendSessionCookie(http, token);
         return signIn.Id;
     }
