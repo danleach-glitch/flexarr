@@ -7,6 +7,7 @@ enum TabID: Hashable {
     case library(String)
     case liveTv
     case discover
+    case watchlist
     case search
     case settings
     /// Who's watching: selecting it opens "Who's watching?" rather than a screen of its own.
@@ -100,6 +101,13 @@ struct MainTabView: View {
                     TabStack(router: routers[.discover]) { DiscoverView() }
                 } label: {
                     Label("Discover", systemImage: "sparkles")
+                }
+                if model.hasWatchlist {
+                    Tab(value: TabID.watchlist) {
+                        TabStack(router: routers[.watchlist]) { WatchlistView() }
+                    } label: {
+                        Label("Watchlist", systemImage: "bookmark")
+                    }
                 }
                 Tab(value: TabID.search, role: .search) {
                     TabStack(router: routers[.search]) { SearchView() }
@@ -415,6 +423,8 @@ struct TabStack<Content: View>: View {
             ExternalTitleView(preview: title)
         case .genre(let name):
             GenreView(name: name)
+        case .watchlist:
+            WatchlistView()
         }
     }
 }

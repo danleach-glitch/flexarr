@@ -296,6 +296,8 @@ public struct ItemDetail: Codable, Sendable {
     /// Subtitles can be found for it through the server's Bazarr (a film or episode Sonarr or Radarr manage, with a
     /// file), for `files.first`, the copy playback picks. Absent from servers before 0.53.
     public var canSearchSubtitles: Bool? = nil
+    /// For a film or show, whether it's on the profile's watchlist. Absent from servers before 0.56 (no watchlist there).
+    public var onWatchlist: Bool? = nil
 }
 
 public struct PersonCredit: Codable, Sendable, Hashable {

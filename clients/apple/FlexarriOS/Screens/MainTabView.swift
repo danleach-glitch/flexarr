@@ -106,6 +106,8 @@ struct TabStack<Content: View>: View {
             PodcastBrowseView()
         case .liveTv:
             LiveTvView()
+        case .watchlist:
+            WatchlistView()
         case .external, .genre:
             // Discover is on the Apple TV and the web; nothing on iPhone or iPad goes here.
             EmptyView()
@@ -137,6 +139,11 @@ struct LibrariesView: View {
                             case .podcasts: router.push(.podcasts)
                             case .liveTv: router.push(.liveTv)
                             }
+                        }
+                    }
+                    if model.hasWatchlist {
+                        Section {
+                            row("Watchlist", icon: "bookmark.fill") { router.push(.watchlist) }
                         }
                     }
                 }

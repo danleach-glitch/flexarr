@@ -260,6 +260,11 @@ struct ItemContextMenu: View {
         Button { Task { await model.setWatched(item, !watched) } } label: {
             Label(watched ? "Mark as unwatched" : "Mark as watched", systemImage: watched ? "eye.slash" : "checkmark.circle")
         }
+        if model.hasWatchlist, item.kind == .movie || item.kind == .series {
+            Button { Task { await model.setOnWatchlist(.library(item.id), true) } } label: {
+                Label("Add to watchlist", systemImage: "bookmark")
+            }
+        }
         // Part way through: unwatched forgets the place, which takes it out of Continue Watching.
         if item.isResumable && !watched {
             Button { Task { await model.setWatched(item, false) } } label: {

@@ -195,6 +195,10 @@ struct DetailView: View {
                 .buttonStyle(ActionButtonStyle(ambient: ambient))
             }
 
+            if item.kind == .movie || item.kind == .series, let onList = detail?.onWatchlist {
+                WatchlistActionButton(key: .library(item.id), on: onList, ambient: ambient)
+            }
+
             if item.kind == .episode, let series {
                 Button { router.push(.item(series)) } label: {
                     Label("Go to show", systemImage: "rectangle.stack")

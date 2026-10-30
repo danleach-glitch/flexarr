@@ -287,6 +287,13 @@ struct ExternalCard: View {
             }
             .frame(width: width, alignment: .leading)
         }
+        .contextMenu {
+            if let onList = title.onWatchlist {
+                Button { Task { await model.setOnWatchlist(WatchlistKey(title), !onList) } } label: {
+                    Label(onList ? "Remove from watchlist" : "Add to watchlist", systemImage: onList ? "bookmark.slash" : "bookmark")
+                }
+            }
+        }
     }
 }
 
@@ -469,8 +476,14 @@ struct ExternalTitleView: View {
                     .lineLimit(4)
                     .frame(maxWidth: 1040, alignment: .leading)
             }
-            RequestButton(title: title)
-                .padding(.top, 14)
+            HStack(spacing: 26) {
+                RequestButton(title: title)
+                if let onList = detail?.onWatchlist {
+                    // Adding can request it too: load again so Request says so.
+                    WatchlistActionButton(key: WatchlistKey(title), on: onList) { Task { await load() } }
+                }
+            }
+            .padding(.top, 14)
         }
         .padding(.leading, Layout.edge)
         .padding(.trailing, 300)

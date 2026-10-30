@@ -27,6 +27,8 @@ struct DetailView: View {
     @State private var savedSubtitles: String?
     /// Said once the search has gone (an alert can't come up while the sheet is still leaving).
     @State private var subtitlesJustSaved: String?
+    /// On the watchlist or not, as changed here, until the page next loads.
+    @State private var onWatchlist: Bool?
     @Environment(\.scenePhase) private var scenePhase
 
     private var item: ItemSummary? { detail?.item ?? (preview?.kind == .season ? nil : preview) }
@@ -204,6 +206,15 @@ struct DetailView: View {
                         Label(watched ? "Unwatched" : "Watched", systemImage: watched ? "eye.slash" : "checkmark")
                     }
                     .accessibilityLabel(watched ? "Mark as unwatched" : "Mark as watched")
+                }
+
+                if item.kind == .movie || item.kind == .series, let onList = onWatchlist ?? detail?.onWatchlist {
+                    Button {
+                        Task { if await model.setOnWatchlist(.library(item.id), !onList) != nil { onWatchlist = !onList } }
+                    } label: {
+                        Label("Watchlist", systemImage: onList ? "bookmark.fill" : "bookmark")
+                    }
+                    .accessibilityLabel(onList ? "Remove from watchlist" : "Add to watchlist")
                 }
 
                 if item.kind == .episode, let series {

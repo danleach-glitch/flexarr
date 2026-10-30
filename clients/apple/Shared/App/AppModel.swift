@@ -400,6 +400,26 @@ final class AppModel {
         podcastStatus = try? await client.podcastStatus()
         if podcastStatus?.available == true { podcastPreferences = try? await client.podcastPreferences() }
         liveTvStatus = try? await client.liveTvStatus()
+        hasWatchlist = await client.hasWatchlist()
+    }
+
+    /// The server keeps watchlists (0.56 and later): the watchlist's buttons, menu items and screen show.
+    private(set) var hasWatchlist = false
+
+    /// Puts a film or show on the profile's watchlist, or takes it off. Nil if that failed; true if adding it also
+    /// requested it (the profile requests what it adds).
+    @discardableResult
+    func setOnWatchlist(_ key: WatchlistKey, _ on: Bool) async -> Bool? {
+        guard let client else { return nil }
+        do {
+            var requested = false
+            if on { requested = try await client.addToWatchlist(key).requested } else { try await client.removeFromWatchlist(key) }
+            invalidate()
+            return requested
+        } catch {
+            log.warning("Watchlist change failed", error: error)
+            return nil
+        }
     }
 
     /// The order of this profile's libraries in the menu, the same on every device; nil from servers before 0.54,
@@ -812,6 +832,8 @@ enum Route: Hashable {
     case external(ExternalTitle)
     /// What the library has in a genre (Apple TV's Discover).
     case genre(String)
+    /// The profile's watchlist.
+    case watchlist
 }
 
 /// One navigation stack per tab.

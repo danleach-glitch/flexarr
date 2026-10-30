@@ -1,0 +1,155 @@
+import FlexarrKit
+import SwiftUI
+
+/// The profile's watchlist: what's ready to play as its usual card, and where everything else has got to, with a
+/// request for anything nobody has asked for. Long press takes a title off.
+struct WatchlistView: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    @State private var entries: [WatchlistEntry]?
+    @State private var error: String?
+    @State private var showing: WatchlistStatus?
+
+    private var columns: [GridItem] {
+        let minimum: CGFloat = sizeClass == .regular ? 140 : 100
+        return [GridItem(.adaptive(minimum: minimum, maximum: minimum * 1.45), spacing: 12, alignment: .top)]
+    }
+
+    private var shown: [WatchlistEntry] { (entries ?? []).filter { showing == nil || $0.status == showing } }
+
+    var body: some View {
+        Group {
+            if let entries, entries.isEmpty {
+                StatusView(state: .empty("Nothing here yet. Add films and shows from their pages."))
+            } else if let entries {
+                ScrollView {
+                    if shown.isEmpty, !entries.isEmpty {
+                        StatusView(state: .empty("Nothing on your watchlist matches.")).frame(height: 300)
+                    }
+                    LazyVGrid(columns: columns, alignment: .leading, spacing: 20) {
+                        ForEach(shown) { entry in
+                            WatchlistCard(entry: entry) { Task { await load() } }
+                        }
+                    }
+                    .padding(.horizontal, Layout.edge)
+                    .padding(.vertical, 12)
+                }
+                .refreshable { await load() }
+            } else if let error {
+                StatusView(state: .failed(error) { Task { await load() } })
+            } else {
+                StatusView(state: .loading)
+            }
+        }
+        .background(RoomBackground(ambient: nil))
+        .navigationTitle("Watchlist")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Picker("Show", selection: $showing) {
+                        Text("Everything").tag(WatchlistStatus?.none)
+                        Text("Ready to watch").tag(WatchlistStatus?.some(.ready))
+                        Text("On its way").tag(WatchlistStatus?.some(.onItsWay))
+                        Text("Coming").tag(WatchlistStatus?.some(.coming))
+                        Text("Not available").tag(WatchlistStatus?.some(.notAvailable))
+                    }
+                } label: {
+                    Label("Show", systemImage: showing == nil ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
+                }
+            }
+        }
+        .task { await load() }
+        .onReceive(NotificationCenter.default.publisher(for: .watchlistChanged)) { _ in Task { await load() } }
+    }
+
+    private func load() async {
+        guard let client = model.client else { return }
+        do {
+            entries = try await client.watchlist()
+            error = nil
+        } catch {
+            self.error = ConnectionError(error).message
+        }
+    }
+}
+
+/// One title on the watchlist: the library's card when it's ready, otherwise its poster and where it's got to.
+private struct WatchlistCard: View {
+    @Environment(AppModel.self) private var model
+    let entry: WatchlistEntry
+    let onChange: () -> Void
+    @State private var requesting = false
+
+    private var key: WatchlistKey? {
+        entry.tmdbId.map { .tmdb(mediaType: entry.mediaType, id: $0) } ?? entry.libraryItemId.map(WatchlistKey.library)
+    }
+
+    var body: some View {
+        Group {
+            if let item = entry.item {
+                PosterCard(item: item)
+            } else {
+                VStack(alignment: .leading, spacing: 6) {
+                    Color.seat
+                        .aspectRatio(2 / 3, contentMode: .fit)
+                        .overlay {
+                            RemoteImage(url: model.client?.imageURL(entry.poster, width: 342)) {
+                                Text(entry.title)
+                                    .font(.marquee(18, weight: .bold))
+                                    .foregroundStyle(Color.screen.opacity(0.8))
+                                    .multilineTextAlignment(.center)
+                                    .padding(8)
+                            }
+                        }
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    Text(entry.title)
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(Color.screen.opacity(0.9))
+                        .lineLimit(1)
+                    status
+                }
+            }
+        }
+        .contextMenu {
+            if let key {
+                Button(role: .destructive) { Task { await model.setOnWatchlist(key, false) } } label: {
+                    Label("Remove from watchlist", systemImage: "bookmark.slash")
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var status: some View {
+        switch entry.status {
+        case .onItsWay:
+            Text("On its way").font(.caption.weight(.semibold)).foregroundStyle(Color.silver)
+        case .coming:
+            Text(comingLabel).font(.caption.weight(.semibold)).foregroundStyle(Color.silver)
+        case .notAvailable:
+            if let title = entry.external {
+                Button {
+                    requesting = true
+                    Task {
+                        try? await model.client?.request(title)
+                        requesting = false
+                        onChange()
+                    }
+                } label: {
+                    Text("Request").font(.caption.weight(.semibold))
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(requesting)
+            }
+        default:
+            EmptyView()
+        }
+    }
+
+    /// "Out 5 Mar 2027", in the phone's own format.
+    private var comingLabel: String {
+        guard let raw = entry.releaseDate, let date = try? Date(raw, strategy: .iso8601.year().month().day()) else { return "Coming" }
+        return "Out \(date.formatted(date: .abbreviated, time: .omitted))"
+    }
+}

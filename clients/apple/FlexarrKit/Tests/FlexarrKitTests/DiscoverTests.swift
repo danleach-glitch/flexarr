@@ -60,3 +60,28 @@ struct DiscoverTests {
         #expect(!status.reachable)
     }
 }
+
+struct WatchlistTests {
+    @Test func entries() throws {
+        let json = #"""
+        [{"id":"a","mediaType":"movie","tmdbId":438631,"title":"Dune","year":2021,"poster":null,"backdrop":null,"addedAt":"2026-10-30T10:00:00Z",
+          "status":"Ready","releaseDate":null,"libraryItemId":"i1","item":null,"source":"flexarr"},
+         {"id":"b","mediaType":"tv","tmdbId":1,"title":"New","year":2027,"poster":null,"backdrop":null,"addedAt":"2026-10-30T10:00:00.1234567Z",
+          "status":"SomethingNewer","releaseDate":"2027-03-05","libraryItemId":null,"item":null,"source":"trakt"}]
+        """#
+        let entries = try FlexarrClient.decoder.decode([WatchlistEntry].self, from: Data(json.utf8))
+        #expect(entries.map(\.status) == [.ready, .unknown])
+        #expect(entries[1].isShow)
+        #expect(entries[1].external?.id == "tv-1")
+        #expect(WatchlistKey(entries[1].external!) == .tmdb(mediaType: "tv", id: 1))
+    }
+
+    @Test func oldServersHaveNoWatchlist() throws {
+        let title = try Fixture.decode(ExternalDetail.self, "requests-title")
+        #expect(title.onWatchlist == nil)
+        let added = try JSONDecoder().decode(ExternalTitle.self, from: Data(#"""
+        {"tmdbId":1,"mediaType":"movie","title":"T","year":null,"overview":null,"poster":null,"backdrop":null,"rating":0,"availability":"None","libraryItemId":null,"onWatchlist":true}
+        """#.utf8))
+        #expect(added.onWatchlist == true)
+    }
+}
