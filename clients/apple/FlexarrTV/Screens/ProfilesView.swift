@@ -97,7 +97,7 @@ struct ProfilePickerView: View {
 
     private func caption(for profile: Profile) -> String? {
         if marksCurrent && profile.isCurrent { return "Watching now" }
-        if profile.hasPin { return "PIN" }
+        if profile.needsPinToChoose { return "PIN" }
         if marksCurrent && profile.id == model.otherProfile?.id { return "Switch" }
         return nil
     }
@@ -109,7 +109,7 @@ struct ProfilePickerView: View {
             dismiss()
             return
         }
-        if profile.hasPin {
+        if profile.needsPinToChoose {
             asking = profile
             return
         }

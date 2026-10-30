@@ -109,13 +109,13 @@ struct ProfilePickerView: View {
 
     private func caption(for profile: Profile) -> String? {
         if marksCurrent && profile.isCurrent { return "Watching now" }
-        if profile.hasPin { return "PIN" }
+        if profile.needsPinToChoose { return "PIN" }
         return nil
     }
 
     private func press(_ profile: Profile) async {
         error = nil
-        if profile.hasPin {
+        if profile.needsPinToChoose {
             asking = profile
             return
         }

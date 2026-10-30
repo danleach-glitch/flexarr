@@ -84,9 +84,16 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         switch action {
         case UNNotificationDismissActionIdentifier:
             return
-        case PushNotifications.allowPairingAction, PushNotifications.declinePairingAction:
+        case PushNotifications.allowPairingAction:
+            // Opens the app (the action's in front) on that device's prompt and allows it there, which asks for the
+            // main profile's PIN when it's locked here.
+            guard let code = info["pairing"], let model = await appModel() else { return }
+            pairing.use(model.client)
+            await pairing.open(code: code)
+            if pairing.current?.code == code { await pairing.allow(code) }
+        case PushNotifications.declinePairingAction:
             guard let code = info["pairing"] else { return }
-            await answerPairing(code, allow: action == PushNotifications.allowPairingAction, title: title)
+            await turnAway(code, title: title)
         case PushNotifications.downloadAction:
             await download(info["play"] ?? info["episode"], podcast: category == PushNotifications.podcastCategory)
         case PushNotifications.playOnTvAction:
@@ -150,34 +157,27 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         if !delivered { await tell("Couldn't play on \(device.name)", "Make sure Flexarr is open on it, then try again.") }
     }
 
-    /// Allow or Don't allow on a "wants to connect" notification, without opening the app (which may have been woken
-    /// just for this, with no window: the sign-in is the saved one). Says how allowing went in a notification of the
-    /// phone's own, and how turning it away went only if it didn't.
+    /// Don't allow on a "wants to connect" notification, without opening the app (which may have been woken just for
+    /// this, with no window: the sign-in is the saved one). Says how it went in a notification of the phone's own only
+    /// if it didn't. (A locked main profile may still turn devices away; allowing one opens the app.)
     @MainActor
-    private func answerPairing(_ code: String, allow: Bool, title: String) async {
+    private func turnAway(_ code: String, title: String) async {
         await PushNotifications.removePairingNotifications { $0 == code }
         // The server's title is "Living room wants to connect".
         let suffix = " wants to connect"
         let name = title.hasSuffix(suffix) ? "“\(title.dropLast(suffix.count))”" : nil
-        let failed = "\(allow ? "Couldn't allow" : "Couldn't turn away") \(name ?? "the device")"
+        let failed = "Couldn't turn away \(name ?? "the device")"
         guard let client else {
             await tell(failed, "This \(ThisDevice.name) isn't signed in to Flexarr.")
             return
         }
         do {
-            if allow {
-                try await client.approvePairing(code: code)
-                await tell(name.map { "\($0) is connected" } ?? "Connected", "It'll be ready in a moment.")
-            } else {
-                try await client.declinePairing(code: code)
-            }
+            try await client.declinePairing(code: code)
             pairing.stoppedWaiting(code)
         } catch FlexarrClientError.http(status: 404, _) {
-            pairing.stoppedWaiting(code)
-            // Turning away one that's gone already is what was wanted.
-            if allow { await tell(failed, "That code has run out. The device shows a new one; open Flexarr to allow it.") }
+            pairing.stoppedWaiting(code) // Gone already, which is what was wanted.
         } catch FlexarrClientError.http(status: 403, _) {
-            await tell(failed, "Switch to the main profile to allow it.")
+            await tell(failed, "Switch to the main profile to turn it away.")
         } catch {
             await tell(failed, ConnectionError(error).message)
         }

@@ -515,6 +515,15 @@ public struct FlexarrClient: Sendable {
         try await get("me")
     }
 
+    /// Unlocks managing the server for this sign-in with the main profile's PIN, for a while (servers from 0.56, where
+    /// choosing the main profile isn't enough by itself). 403: not the right PIN; 429: too many wrong ones, with the
+    /// server's message; 409: the main profile has no PIN yet. Returns when it locks again.
+    @discardableResult
+    public func unlockAdmin(pin: String) async throws -> Date? {
+        let data = try await send("POST", "admin/unlock", body: ["pin": pin])
+        return try decode(AdminUnlock.self, from: data).unlockedUntil
+    }
+
     /// Swaps the server's API key (what Apple TVs were given before per-device sign-ins) for a token of this
     /// device's own, which can be signed out from the web app without changing the key everywhere.
     public func deviceToken(deviceName: String) async throws -> String {

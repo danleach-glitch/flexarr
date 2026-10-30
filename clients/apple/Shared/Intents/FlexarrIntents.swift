@@ -218,16 +218,16 @@ struct ProfileEntity: AppEntity {
 
     let id: String
     let name: String
-    let hasPin: Bool
+    let asksPin: Bool
 
     init(_ profile: Profile) {
         id = profile.id
         name = profile.name
-        hasPin = profile.hasPin
+        asksPin = profile.needsPinToChoose
     }
 
     var displayRepresentation: DisplayRepresentation {
-        DisplayRepresentation(title: "\(name)", subtitle: hasPin ? "Asks for the PIN" : nil)
+        DisplayRepresentation(title: "\(name)", subtitle: asksPin ? "Asks for the PIN" : nil)
     }
 }
 

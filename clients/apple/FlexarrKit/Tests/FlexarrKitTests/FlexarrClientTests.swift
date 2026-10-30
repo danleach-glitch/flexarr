@@ -534,6 +534,62 @@ struct PairingPromptTests {
         #expect(requests.first?.httpBody == Data("{}".utf8))
     }
 
+    @Test func meSaysWhetherTheMainProfileIsLocked_andOlderServersDont() async throws {
+        let body = #"{"profileId":"owner","method":"device","zone":"Local","isAdmin":false,"tailscaleLogin":null,"canUnlock":true,"adminPinMissing":false,"unlockedUntil":null}"#
+        let (client, _) = stubbedClient(.init(status: 200, body: Data(body.utf8)))
+        let me = try await client.me()
+        #expect(me.canUnlock == true)
+        #expect(me.adminPinMissing == false)
+        #expect(me.unlockedUntil == nil)
+
+        let unlocked = #"{"profileId":"owner","method":"device","zone":"Local","isAdmin":true,"tailscaleLogin":null,"canUnlock":false,"adminPinMissing":false,"unlockedUntil":"2026-10-29T12:15:00Z"}"#
+        let (newer, _) = stubbedClient(.init(status: 200, body: Data(unlocked.utf8)))
+        #expect(try await newer.me().unlockedUntil == Date(timeIntervalSince1970: 1_793_276_100))
+
+        let (older, _) = stubbedClient(.init(status: 200, body: Data(#"{"profileId":"owner","method":"device","zone":"Local","isAdmin":true,"tailscaleLogin":null}"#.utf8)))
+        let old = try await older.me()
+        #expect(old.canUnlock == nil)
+        #expect(old.adminPinMissing == nil)
+    }
+
+    @Test func unlockingSendsTheMainProfilesPin() async throws {
+        let (client, host) = stubbedClient(.init(status: 200, body: Data(#"{"unlockedUntil":"2026-10-29T12:15:00Z","token":null}"#.utf8)))
+        let until = try await client.unlockAdmin(pin: "1234")
+        #expect(until == Date(timeIntervalSince1970: 1_793_276_100))
+        let request = try #require(StubProtocol.recorded(host: host).first)
+        #expect(request.httpMethod == "POST")
+        #expect(request.url?.path == "/api/v1/admin/unlock")
+        #expect(String(data: request.httpBody ?? Data(), encoding: .utf8) == #"{"pin":"1234"}"#)
+    }
+
+    @Test func unlockingRefusalsCarryTheServersMessage() async {
+        let (wrong, _) = stubbedClient(.init(status: 403, body: Data(#"{"title":"Forbidden","detail":"That PIN isn't right.","status":403}"#.utf8)))
+        await #expect(throws: FlexarrClientError.http(status: 403, message: "That PIN isn't right.")) {
+            try await wrong.unlockAdmin(pin: "0000")
+        }
+        let tooMany = #"{"title":"Too many wrong PINs. Try again in 30 seconds.","status":429,"retryAfterSeconds":30}"#
+        let (locked, _) = stubbedClient(.init(status: 429, body: Data(tooMany.utf8)))
+        await #expect(throws: FlexarrClientError.http(status: 429, message: "Too many wrong PINs. Try again in 30 seconds.")) {
+            try await locked.unlockAdmin(pin: "0000")
+        }
+        let (missing, _) = stubbedClient(.init(status: 409, body: Data(#"{"detail":"The main profile needs a PIN.","status":409,"pinMissing":true}"#.utf8)))
+        await #expect(throws: FlexarrClientError.http(status: 409, message: "The main profile needs a PIN.")) {
+            try await missing.unlockAdmin(pin: "1234")
+        }
+    }
+
+    @Test func profilesSayWhetherChoosingThemAsksForThePin() throws {
+        let decoder = JSONDecoder()
+        let newer = ##"{"id":"owner","name":"Dan","color":"#a9c2ec","hasPin":true,"isMain":true,"isCurrent":false,"hiddenLibraryIds":[],"image":null,"asksPin":false}"##
+        let main = try decoder.decode(Profile.self, from: Data(newer.utf8))
+        #expect(main.needsPinToChoose == false)
+        // Older servers don't say: a PIN means it's asked for.
+        let older = ##"{"id":"kid","name":"Sam","color":"#e8a87c","hasPin":true,"isMain":false,"isCurrent":false,"hiddenLibraryIds":[],"image":null}"##
+        let kid = try decoder.decode(Profile.self, from: Data(older.utf8))
+        #expect(kid.asksPin == nil)
+        #expect(kid.needsPinToChoose)
+    }
+
     @Test func tooManyApprovalsCarryTheServersMessage() async {
         let (client, _) = stubbedClient(.init(status: 429, body: Data(#"{"detail":"Too many devices connected this hour."}"#.utf8)))
         do {

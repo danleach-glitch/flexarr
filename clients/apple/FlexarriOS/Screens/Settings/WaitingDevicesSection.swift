@@ -38,6 +38,9 @@ private struct WaitingDeviceRow: View {
     @Environment(PairingPrompts.self) private var pairing
     let request: PairingRequest
     let step: PairingPrompts.Step
+    /// The main profile's PIN, once allowing it has turned out to take one.
+    @State private var pin = ""
+    @State private var asksPin = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -73,10 +76,11 @@ private struct WaitingDeviceRow: View {
                         .foregroundStyle(Color.danger)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                if asksPin {
+                    MainProfilePinField(pin: $pin, problem: step.pinProblem, submit: allow)
+                }
                 HStack(spacing: 10) {
-                    Button {
-                        Task { await pairing.allow(request.code) }
-                    } label: {
+                    Button(action: allow) {
                         ZStack {
                             Text("Allow").opacity(step == .working ? 0 : 1)
                             if step == .working { ProgressView().tint(Color.room) }
@@ -84,6 +88,7 @@ private struct WaitingDeviceRow: View {
                         .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(ActionButtonStyle(prominent: true))
+                    .disabled(asksPin && !MainProfilePinField.isComplete(pin))
                     Button {
                         Task { await pairing.decline(request.code) }
                     } label: {
@@ -95,5 +100,12 @@ private struct WaitingDeviceRow: View {
             }
         }
         .padding(.vertical, 6)
+        .onChange(of: step.asksForPin, initial: true) { _, asks in if asks { asksPin = true } }
+    }
+
+    private func allow() {
+        let entered = asksPin ? pin : nil
+        pin = ""
+        Task { await pairing.allow(request.code, pin: entered) }
     }
 }

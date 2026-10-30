@@ -11,7 +11,8 @@ private let log = FlexarrLog("pairing")
 /// allowing one in either place answers it in both.
 ///
 /// Who may allow them is the server's call: it only tells the main profile's sign-ins, and refuses the list (403) to
-/// anyone else, after which this stops asking until the sign-in changes.
+/// anyone else, after which this stops asking until the sign-in changes. From 0.56 allowing one also takes the main
+/// profile's PIN, given lately here: when the server refuses it for that, this asks for the PIN, unlocks and allows.
 @MainActor
 @Observable
 final class PairingPrompts {
@@ -21,6 +22,8 @@ final class PairingPrompts {
         /// Allowed: says so for a moment, then goes.
         case allowed
         case failed(String)
+        /// The main profile is locked here: allowing it takes its PIN. Carries what went wrong last time, if anything.
+        case needsPin(String?)
     }
 
     /// Waiting, in the order they asked (or the one a notification was opened for first).
@@ -112,10 +115,26 @@ final class PairingPrompts {
         waiting.insert(request, at: 0)
     }
 
-    /// Lets the device in (the one on screen, or the one with `code`), says so for a moment, then moves on.
-    func allow(_ code: String? = nil) async {
+    /// Lets the device in (the one on screen, or the one with `code`), says so for a moment, then moves on. With the
+    /// main profile's `pin`, unlocks managing the server first.
+    func allow(_ code: String? = nil, pin: String? = nil) async {
         guard let client, let request = request(code), !isBusy(request.code) else { return }
         steps[request.code] = .working
+        if let pin {
+            do {
+                try await client.unlockAdmin(pin: pin)
+            } catch FlexarrClientError.http(status: 409, _) {
+                steps[request.code] = .failed(Self.pinMissing)
+                return
+            } catch FlexarrClientError.http(status: let status, let message) where status == 403 || status == 429 {
+                // Not the right PIN, or too many wrong ones: the server says which (and for how long).
+                steps[request.code] = .needsPin(message ?? "That PIN isn't right.")
+                return
+            } catch {
+                steps[request.code] = .needsPin(ConnectionError(error).message)
+                return
+            }
+        }
         do {
             try await client.approvePairing(code: request.code)
             steps[request.code] = .allowed
@@ -123,10 +142,20 @@ final class PairingPrompts {
             if step(for: request.code) == .allowed { remove(request.code) }
         } catch FlexarrClientError.http(status: 404, _) {
             steps[request.code] = .failed("It's no longer waiting. It may have expired; the device shows a new code.")
+        } catch FlexarrClientError.http(status: 403, let message) where pin == nil {
+            // The main profile, locked here (or no longer the main profile: then it's the server's message).
+            let me = try? await client.me()
+            if me?.canUnlock == true {
+                steps[request.code] = me?.adminPinMissing == true ? .failed(Self.pinMissing) : .needsPin(nil)
+            } else {
+                steps[request.code] = .failed(ConnectionError(FlexarrClientError.http(status: 403, message: message)).message)
+            }
         } catch {
             steps[request.code] = .failed(ConnectionError(error).message)
         }
     }
+
+    static let pinMissing = "Give the main profile a PIN in Flexarr in a browser first."
 
     /// Turns the device away (the one on screen, or the one with `code`).
     func decline(_ code: String? = nil) async {
