@@ -21,10 +21,7 @@ import androidx.media3.common.Tracks
 import androidx.media3.common.VideoSize
 import androidx.media3.common.text.Cue
 import androidx.media3.common.text.CueGroup
-import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.audio.AudioSink
-import androidx.media3.exoplayer.audio.DefaultAudioSink
 import io.github.flexarr.AppModel
 import io.github.flexarr.ReviewPrompt
 import io.github.flexarr.data.PlayerSettings
@@ -55,7 +52,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlin.math.abs
-import java.time.LocalTime
 
 /**
  * One title playing: asks the server for a session, plays its stream with ExoPlayer, reports progress, offers Skip
@@ -69,14 +65,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     /** Dialogue boost, night mode and the speakers (Settings › Playback, or the audio menu), applied as the sound plays. */
     private val shaper = SoundShaper()
 
-    val player: ExoPlayer = ExoPlayer.Builder(context, object : DefaultRenderersFactory(context) {
-        override fun buildAudioSink(context: Context, enableFloatOutput: Boolean, enableAudioTrackPlaybackParams: Boolean): AudioSink =
-            DefaultAudioSink.Builder(context)
-                .setEnableFloatOutput(enableFloatOutput)
-                .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
-                .setAudioProcessors(arrayOf(shaper))
-                .build()
-    })
+    val player: ExoPlayer = ExoPlayer.Builder(context, shaper.renderers(context))
         .setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(), true)
         .setHandleAudioBecomingNoisy(true)
         .setSeekBackIncrementMs(skipSeconds * 1000L)
@@ -93,14 +82,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     var sound by mutableStateOf(SoundSettings.current(context))
         private set
     private val appContext = context.applicationContext
-    private val soundJob = scope.launch {
-        // A change from Settings or the menu arrives straight away; a scheduled night mode is looked at every minute.
-        launch { SoundSettings.flow(appContext).collect { it?.let { now -> sound = now; shaper.shaping = now.shaping(LocalTime.now()) } } }
-        while (isActive) {
-            delay(60_000)
-            shaper.shaping = sound.shaping(LocalTime.now())
-        }
-    }
+    private val soundJob = shaper.follow(scope, appContext) { sound = it }
 
     fun changeSound(change: (SoundSettings) -> SoundSettings) = SoundSettings.update(appContext, change)
 

@@ -80,7 +80,7 @@ The player's audio menu, and **Settings › Playback**, have three sound setting
 - **Night mode** squeezes loud and quiet together, so explosions don't wake the house and whispers stay audible. **On a schedule** turns it on between set times, even in the middle of a film.
 - **Speakers** folds the sound to **Stereo**, **5.1** or **Headphones**. **Auto** plays every channel your equipment takes.
 
-To change the sound, the Apple TV and iPhone have to work on it as PCM, so while any of these is on, nothing is passed through to your receiver: Atmos plays without its height channels. Leave them off (and **Speakers** on **Auto**) for the full Atmos. They need **Play files directly**, and they don't work over AirPlay, which plays the sound as it is. The web and Android apps have the same settings; in Safari they apply to files played as they are, not to ones the server converts.
+To change the sound, the Apple TV and iPhone have to work on it as PCM, so while any of these is on, nothing is passed through to your receiver: Atmos plays without its height channels. Leave them off (and **Speakers** on **Auto**) for the full Atmos. They need **Play files directly**, and they don't work over AirPlay, which plays the sound as it is. The web and Android apps have the same settings, and use them for live TV too; in Safari they apply to files played as they are, not to ones the server converts.
 
 ## Watching away from home
 

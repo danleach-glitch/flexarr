@@ -1,11 +1,22 @@
 package io.github.flexarr.player
 
+import android.content.Context
 import androidx.media3.common.C
 import androidx.media3.common.audio.AudioProcessor.AudioFormat
 import androidx.media3.common.audio.BaseAudioProcessor
+import androidx.media3.exoplayer.DefaultRenderersFactory
+import androidx.media3.exoplayer.RenderersFactory
+import androidx.media3.exoplayer.audio.AudioSink
+import androidx.media3.exoplayer.audio.DefaultAudioSink
 import io.github.flexarr.data.SoundSettings
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.time.LocalTime
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
@@ -184,6 +195,33 @@ class SoundShaper : BaseAudioProcessor() {
                 return Biquad((1 + alpha * a) / a0, -2 * cos(w) / a0, (1 - alpha * a) / a0, -2 * cos(w) / a0, (1 - alpha / a) / a0)
             }
         }
+    }
+
+    /** Keeps this on the phone's sound settings until the job is cancelled: a change from Settings or the menu arrives straight away, and a scheduled night mode is looked at every minute. [onChange] hears each new setting. */
+    fun follow(scope: CoroutineScope, context: Context, onChange: (SoundSettings) -> Unit = {}): Job = scope.launch {
+        var settings = SoundSettings.current(context)
+        launch {
+            SoundSettings.flow(context).collect { now ->
+                if (now == null) return@collect
+                settings = now
+                shaping = now.shaping(LocalTime.now())
+                onChange(now)
+            }
+        }
+        while (isActive) {
+            delay(60_000)
+            shaping = settings.shaping(LocalTime.now())
+        }
+    }
+
+    /** Renderers whose sound passes through this on its way to the speaker. */
+    fun renderers(context: Context): RenderersFactory = object : DefaultRenderersFactory(context) {
+        override fun buildAudioSink(context: Context, enableFloatOutput: Boolean, enableAudioTrackPlaybackParams: Boolean): AudioSink =
+            DefaultAudioSink.Builder(context)
+                .setEnableFloatOutput(enableFloatOutput)
+                .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
+                .setAudioProcessors(arrayOf(this@SoundShaper))
+                .build()
     }
 
     companion object {

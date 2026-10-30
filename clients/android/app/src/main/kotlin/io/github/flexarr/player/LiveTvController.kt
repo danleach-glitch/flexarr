@@ -47,13 +47,17 @@ class LiveTvController(context: Context, private val model: AppModel, val client
     /** How far back and forward jump in the rewind window, in seconds (Settings › Playback). */
     val skipSeconds = PlayerSettings.skipSeconds(context)
 
-    val player: ExoPlayer = ExoPlayer.Builder(context)
+    /** Dialogue boost, night mode and the speakers, as for films: the phone's sound settings. */
+    private val shaper = SoundShaper()
+
+    val player: ExoPlayer = ExoPlayer.Builder(context, shaper.renderers(context))
         .setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(), true)
         .setHandleAudioBecomingNoisy(true)
         .setSeekBackIncrementMs(skipSeconds * 1000L)
         .setSeekForwardIncrementMs(skipSeconds * 1000L)
         .build()
     private val scope = model.scope
+    private val soundJob = shaper.follow(scope, context.applicationContext)
 
     /** The sleep timer, as over a film (minutes only: a channel has no end of episode). It carries on across channels. */
     val sleep = VideoSleep(scope, player)
@@ -333,6 +337,7 @@ class LiveTvController(context: Context, private val model: AppModel, val client
     fun release() {
         released = true
         ticker?.cancel()
+        soundJob.cancel()
         sleep.set(null)
         stopWatching()
         model.liveStartingChannel = null

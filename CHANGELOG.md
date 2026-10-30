@@ -12,7 +12,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - An empty Home now says **Nothing to watch yet**, with **Set up Flexarr** to open the guide.
 
 ### Sound
-- **Dialogue boost** makes voices easier to follow under music and effects, at Low, Medium or High. **Night mode** quietens loud scenes and lifts quiet ones, so explosions don't wake the house and whispers stay audible. Turn it on, or have it come on by itself between set times (10 pm to 7 am to start with). **Speakers** folds the sound to stereo, 5.1 or headphones. Choose them in the player's audio menu or in **Settings › Playback**, on the web, iPhone, Apple TV and Android. Each device keeps its own, since it's about the room.
+- **Dialogue boost** makes voices easier to follow under music and effects, at Low, Medium or High. **Night mode** quietens loud scenes and lifts quiet ones, so explosions don't wake the house and whispers stay audible. Turn it on, or have it come on by itself between set times (10 pm to 7 am to start with). **Speakers** folds the sound to stereo, 5.1 or headphones. Choose them in the player's audio menu or in **Settings › Playback**, on the web, iPhone, Apple TV and Android. Each device keeps its own, since it's about the room. On the web and Android they apply to live TV too.
 - On iPhone and Apple TV they need **Play files directly**. While any of them is on, surround plays as PCM rather than passed straight to the receiver, so Atmos plays without its height channels. With AirPlay, the sound plays as it is, and the audio menu says so.
 
 ### Search

@@ -110,7 +110,7 @@ function MusicInThisBrowser() {
   )
 }
 
-/** How films and episodes sound in this browser. Kept on the device, since it's about the room and its speakers. */
+/** How films, episodes and live TV sound in this browser. Kept on the device, since it's about the room and its speakers. */
 function SoundInThisBrowser() {
   const settings = useSoundSettings()
   return (
