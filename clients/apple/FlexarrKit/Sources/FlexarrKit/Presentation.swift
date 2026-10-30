@@ -224,9 +224,15 @@ extension PlaybackInfo {
         if let credits = markers.first(where: { $0.type == .credits }) {
             return time >= credits.start ? .nextEpisode : .none
         }
-        // No credits marker detected: offer the next episode in the final 30 seconds.
-        if duration > 120 && time >= duration - 30 { return .nextEpisode }
+        // No credits marker detected: offer the next episode for the end of it, where credits usually are.
+        if duration > 120 && time >= duration - unmarkedCreditsSeconds(duration: duration) { return .nextEpisode }
         return .none
+    }
+
+    /// How long before the end the next episode is offered when no credits were found: 3% of the episode, between
+    /// 30 seconds and 2 minutes (about 40 seconds of a half-hour show, 100 of an hour-long one).
+    public static func unmarkedCreditsSeconds(duration: Double) -> Double {
+        min(max(duration * 0.03, 30), 120)
     }
 }
 

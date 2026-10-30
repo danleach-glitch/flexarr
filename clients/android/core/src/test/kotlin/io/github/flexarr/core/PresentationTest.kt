@@ -100,9 +100,13 @@ class PresentationTest {
     }
 
     @Test
-    fun `falls back to the final seconds without a credits marker`() {
-        assertEquals(PlaybackPrompt.None, PlaybackPrompt.at(2790.0, emptyList(), 2831.0, hasNext = true))
-        assertEquals(PlaybackPrompt.NextEpisode, PlaybackPrompt.at(2805.0, emptyList(), 2831.0, hasNext = true))
+    fun `falls back to the end without a credits marker`() {
+        // 3% of a 47-minute episode: the last 85 seconds.
+        assertEquals(PlaybackPrompt.None, PlaybackPrompt.at(2740.0, emptyList(), 2831.0, hasNext = true))
+        assertEquals(PlaybackPrompt.NextEpisode, PlaybackPrompt.at(2750.0, emptyList(), 2831.0, hasNext = true))
+        // Never less than 30 seconds, nor more than 2 minutes.
+        assertEquals(30.0, PlaybackPrompt.unmarkedCreditsSeconds(600.0), 0.0)
+        assertEquals(120.0, PlaybackPrompt.unmarkedCreditsSeconds(7200.0), 0.0)
     }
 
     @Test

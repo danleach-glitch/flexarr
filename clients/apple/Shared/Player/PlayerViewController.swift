@@ -324,6 +324,8 @@ final class PlayerViewController: UIViewController {
 
     func setPrompt(_ title: String?, countingDown: Bool) {
         controls.setPrompt(title, countingDown: countingDown)
+        countingDownToNext = countingDown
+        updateIdleTimer()
         if title != nil, !controlsVisible {
             // The pill shows on its own, without the rest of the controls.
             controls.promptButton.superview?.alpha = 1
@@ -958,6 +960,21 @@ final class PlayerViewController: UIViewController {
 
     // MARK: Phase
 
+    /// Counting down to the next episode: paused (at the credits) or ended, but about to play on.
+    private var countingDownToNext = false
+
+    /// No screensaver while the picture plays. Apple's player saw to this, but the engine's software route has none
+    /// behind it; loading and buffering leave it as it was, so a stall mid-play doesn't let the screensaver in. Nor
+    /// during the countdown to the next episode: after a long while without a button pressed, the screensaver let back
+    /// in comes at once, and the Apple TV going to sleep with it stops the countdown, so the next episode never starts.
+    private func updateIdleTimer(_ phase: TransportPhase? = nil) {
+        switch phase ?? transport?.phase {
+        case .playing: UIApplication.shared.isIdleTimerDisabled = true
+        case .loading, .buffering: break
+        default: UIApplication.shared.isIdleTimerDisabled = countingDownToNext
+        }
+    }
+
     private func phaseChanged(_ phase: TransportPhase) {
         guard isViewLoaded else { return }
         switch phase {
@@ -965,13 +982,7 @@ final class PlayerViewController: UIViewController {
         default: spinner.stopAnimating()
         }
         controls.setPlaying(phase == .playing || phase == .buffering)
-        // No screensaver while the picture plays. Apple's player saw to this, but the engine's software route has none
-        // behind it; loading and buffering leave it as it was, so a stall mid-play doesn't let the screensaver in.
-        switch phase {
-        case .playing: UIApplication.shared.isIdleTimerDisabled = true
-        case .loading, .buffering: break
-        default: UIApplication.shared.isIdleTimerDisabled = false
-        }
+        updateIdleTimer(phase)
         // Played again from elsewhere (the lock screen, a command) after the sleep timer ran out: awake.
         if phase == .playing, sleepPhase == .asleep { wake() }
         // A moment's buffering mid-play doesn't keep the controls up; a pause does.

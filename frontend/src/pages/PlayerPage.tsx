@@ -46,6 +46,7 @@ import { mediaErrorRecovery } from '../lib/hlsRecovery'
 import { speedLabel } from '../lib/podcasts'
 import { drawStyled, type StyledSubtitles } from '../lib/styledSubtitles'
 import { cueLine, pictureIn } from '../lib/subtitlePlacement'
+import { unmarkedCreditsSeconds } from '../lib/upNext'
 import { dialogueBoostChoices, isShaping, nightModeChoices, readSoundSettings, shapingFor, speakerChoices, timeOfDay, unshaped, useSoundSettings, useSoundShaping, writeSoundSettings } from '../lib/soundSettings'
 import { detectProfile, prefersNativeHls } from '../lib/profile'
 import { extended, FADE_SECONDS, minutesLeft, secondsLeft, sleepChoices, sleepLabel, STILL_WATCHING_SECONDS, type SleepTimer } from '../lib/sleepTimer'
@@ -775,7 +776,7 @@ export function PlayerPage() {
   const recap = info?.markers.find((m) => m.type === 'Recap')
   const credits = info?.markers.find((m) => m.type === 'Credits')
   const skippable = [recap, intro].find((m) => m && time >= m.start && time < m.end - 1)
-  const upNextAt = credits?.start ?? (duration ? duration - 25 : Infinity)
+  const upNextAt = credits?.start ?? (duration ? duration - unmarkedCreditsSeconds(duration) : Infinity)
   // Offered from the credits on, as a button; once the episode is over, with the countdown if auto-play is on.
   const showUpNext = !!info?.next && !upNextCancelled && (finished || (time >= upNextAt && duration > 0))
   const counting = finished && preferences.autoPlayNext && showUpNext
