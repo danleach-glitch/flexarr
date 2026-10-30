@@ -7,8 +7,7 @@ import { AsyncButton } from './AsyncButton'
  * Approving a TV: it shows a code (and a QR code that opens this with the code filled in). Approving gives the TV a
  * sign-in of its own, so only the main profile can.
  */
-/** `compact`: inside a page that already says what to do (the setup guide), just the code. */
-export function ConnectTv({ initialCode = '', titled = true, compact = false }: { initialCode?: string; titled?: boolean; compact?: boolean }) {
+export function ConnectTv({ initialCode = '', titled = true }: { initialCode?: string; titled?: boolean }) {
   const [code, setCode] = useState(initialCode)
   const [details, setDetails] = useState<PairingDetails>()
   const [state, setState] = useState<'idle' | 'checking' | 'approving' | 'declining' | 'done' | 'declined'>('idle')
@@ -153,7 +152,7 @@ export function ConnectTv({ initialCode = '', titled = true, compact = false }: 
           Not connected. The device will show a new code in a moment.
         </p>
       )}
-      {!compact && <p className="muted">Open Flexarr on the TV, iPhone or iPad and enter the code it shows. A TV also shows a QR code to scan with your phone.</p>}
+      <p className="muted">Open Flexarr on the TV, iPhone or iPad and enter the code it shows. A TV also shows a QR code to scan with your phone.</p>
       <div className="field-row">
         <label className="grow">
           Code
@@ -173,7 +172,7 @@ export function ConnectTv({ initialCode = '', titled = true, compact = false }: 
       {errorLine}
       <div className="form-actions">
         <AsyncButton type="submit" className="button" busy={state === 'checking'} disabled={!code.trim()}>
-          {compact ? 'Connect' : 'Continue'}
+          Continue
         </AsyncButton>
       </div>
     </form>

@@ -60,7 +60,7 @@ Next, Flexarr welcomes you with a short setup guide, one card at a time. Choose 
 4. **Your TV and phone.** Open the Flexarr app on your device at home. It shows a code; type it in here. See [Connect your devices](connect-devices.md).
 5. **Away from home.** Turn on Tailscale, if you have it. See [Watch away from home](away-from-home.md).
 
-At the end, the guide shows what's set up, tells you how the first scan is going, and warns you if a library came up empty or Flexarr can't see one of an app's folders.
+At the end, the guide shows what's set up, says **Checking your libraries** while it reads your files for the first time, and warns you if a library came up empty or Flexarr can't see one of an app's folders.
 
 If you leave part way, Home lists what's left under **Finish setting up**. Choose a step to go back to it, or **Hide** to put the list away. Everything in the guide is in Settings too, as described below.
 

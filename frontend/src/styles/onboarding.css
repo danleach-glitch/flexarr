@@ -283,8 +283,7 @@
   height: 20px;
 }
 
-.onboard-tick,
-.onboard-check {
+.onboard-tick {
   display: grid;
   place-items: center;
   flex: none;
@@ -295,51 +294,9 @@
   color: var(--room);
 }
 
-.onboard-tick svg,
-.onboard-check svg {
+.onboard-tick svg {
   width: 16px;
   height: 16px;
-}
-
-/* A folder to tick: the whole tile is the checkbox. */
-.onboard-choice {
-  cursor: pointer;
-}
-
-.onboard-choice:hover {
-  border-color: color-mix(in srgb, var(--screen) 20%, transparent);
-}
-
-.onboard-choice.is-on {
-  border-color: color-mix(in srgb, var(--silver) 50%, transparent);
-  background: color-mix(in srgb, var(--silver) 8%, transparent);
-}
-
-.onboard-choice input {
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.onboard-choice .onboard-check {
-  background: transparent;
-  border: 2px solid color-mix(in srgb, var(--screen) 25%, transparent);
-  color: transparent;
-}
-
-.onboard-choice.is-on .onboard-check {
-  background: var(--silver);
-  border-color: var(--silver);
-  color: var(--room);
-}
-
-.onboard-choice:has(input:focus-visible) {
-  outline: 2px solid var(--silver);
-  outline-offset: 2px;
-}
-
-.onboard-link:hover {
-  border-color: color-mix(in srgb, var(--screen) 20%, transparent);
 }
 
 /* An app's address and key, opened in its tile. */
@@ -389,64 +346,6 @@
   overflow-wrap: anywhere;
 }
 
-/* Adding a folder by hand. */
-.onboard-add {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  margin-top: 18px;
-}
-
-.onboard-add > span {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin-right: 4px;
-  color: var(--usher);
-  font-size: var(--step--1);
-}
-
-.onboard-add > span svg,
-.onboard-chip svg {
-  width: 16px;
-  height: 16px;
-}
-
-.onboard-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 36px;
-  padding: 0 14px;
-  border: 1px solid color-mix(in srgb, var(--screen) 14%, transparent);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--screen);
-  font: inherit;
-  font-size: var(--step--1);
-  cursor: pointer;
-}
-
-.onboard-chip:hover {
-  background: color-mix(in srgb, var(--screen) 6%, transparent);
-}
-
-.onboard-picker {
-  margin-top: 18px;
-  padding: 16px;
-  border-radius: 16px;
-  background: color-mix(in srgb, var(--room) 60%, transparent);
-}
-
-.onboard-picker > p {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin: 0 0 12px;
-  font-weight: 600;
-}
-
 /* People */
 .onboard-people {
   list-style: none;
@@ -482,11 +381,6 @@
 .onboard-person-new input {
   flex: 1;
   min-width: 0;
-}
-
-/* The TV's code. */
-.onboard-code {
-  margin-top: 16px;
 }
 
 /* Back on the left, Skip and the next step on the right. */
@@ -642,46 +536,6 @@
   filter: none;
 }
 
-/* Nothing found to offer: a card for each kind of library. */
-.onboard-kinds {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.onboard-kind-card {
-  display: grid;
-  justify-items: start;
-  gap: 4px;
-  padding: 16px;
-  border: 1px solid color-mix(in srgb, var(--screen) 8%, transparent);
-  border-radius: 16px;
-  background: color-mix(in srgb, var(--room) 60%, transparent);
-  color: var(--screen);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  transition: border-color 0.15s ease, transform 0.15s ease;
-}
-
-.onboard-kind-card:hover {
-  border-color: color-mix(in srgb, var(--silver) 45%, transparent);
-  transform: translateY(-1px);
-}
-
-.onboard-kind-card .onboard-kind {
-  margin-bottom: 8px;
-}
-
-.onboard-kind-card > span:last-child {
-  color: var(--usher);
-  font-size: var(--step--1);
-}
-
-.onboard-code .connect-tv {
-  margin: 0;
-}
-
 /* Your name: the avatar takes it up as it's typed. */
 .onboard-me {
   display: flex;
@@ -780,4 +634,55 @@
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.onboard-tile-picker {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid color-mix(in srgb, var(--screen) 8%, transparent);
+}
+
+.onboard-tile-picker .folder-picker {
+  width: 100%;
+}
+
+.onboard-tile.is-on {
+  border-color: color-mix(in srgb, var(--silver) 40%, transparent);
+  background: color-mix(in srgb, var(--silver) 6%, transparent);
+}
+
+.onboard-soon {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--screen) 8%, transparent);
+  color: var(--usher);
+  font-size: var(--step--1);
+  white-space: nowrap;
+}
+
+/* The libraries' first scan, going round until it's done. */
+.onboard-checking {
+  display: inline-block;
+  width: 64px;
+  height: 64px;
+  margin-bottom: 20px;
+  border: 4px solid color-mix(in srgb, var(--silver) 20%, transparent);
+  border-top-color: var(--silver);
+  border-radius: 50%;
+  animation: onboard-spin 0.9s linear infinite;
+}
+
+@keyframes onboard-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .onboard-checking {
+    animation-duration: 3s;
+  }
 }

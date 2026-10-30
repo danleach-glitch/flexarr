@@ -25,9 +25,9 @@ import {
   type SetupStep,
 } from '../api/client'
 import { AsyncButton } from '../components/AsyncButton'
-import { ConnectTv } from '../components/ConnectTv'
 import { FolderPicker } from '../components/FolderPicker'
-import { Antenna, Check, Close, Film, Folder, Home, Music, Pencil, Plus, Stack, Tv } from '../components/icons'
+import { Antenna, Check, Close, Film, Home, Monitor, Music, Pencil, Phone, Stack, Tv } from '../components/icons'
+import { PairingPrompt } from '../components/PairingPrompt'
 import { Avatar } from '../components/ProfilePicker'
 import { useApi } from '../hooks/useApi'
 import { appLogos } from '../lib/apps'
@@ -48,7 +48,7 @@ const steps: { id: SetupStep | 'name'; title: string; lede: string; icon: ReactN
   },
   { id: 'libraries', title: 'Add your libraries', lede: 'Choose the folders that hold your films, shows and music.', icon: <Film />, summary: 'Add your films, shows and music' },
   { id: 'profiles', title: 'Who’s watching?', lede: 'Everyone gets their own Continue watching and history.', icon: <Home />, summary: 'Add everyone who watches' },
-  { id: 'devices', title: 'Watch on your TV', lede: 'Get the app, open it at home, and type the code it shows.', icon: <Tv />, summary: 'Connect your TV and phone' },
+  { id: 'devices', title: 'Watch on your TV', lede: 'Get the app and open it at home. When it asks to connect, choose Allow here.', icon: <Tv />, summary: 'Connect your TV and phone' },
   { id: 'away', title: 'Watch away from home', lede: 'Tailscale lets your devices reach Flexarr from anywhere, privately.', icon: <Antenna />, summary: 'Watch away from home' },
 ]
 
@@ -133,6 +133,8 @@ export function SetupGuidePage() {
           {place === 'away' && <AwayStep nav={nav} />}
         </section>
       )}
+      {/* A TV or phone opened while the guide is up asks here to connect. */}
+      <PairingPrompt />
     </div>
   )
 }
@@ -387,12 +389,12 @@ function ArrTile(props: { kind: ArrKind; settings: Settings; found?: string; ope
         <form className="onboard-form" onSubmit={connect} aria-label={`Connect ${kind}`}>
           <label>
             <span>Address</span>
-            <input type="url" value={address} required placeholder={usualUrl[kind]} onChange={(e) => setBaseUrl(e.target.value)} />
+            {/* oxlint-disable-next-line jsx-a11y/no-autofocus -- the form opens because this is what comes next. */}
+            <input type="url" value={address} required autoFocus placeholder={usualUrl[kind]} onChange={(e) => setBaseUrl(e.target.value)} />
           </label>
           <label>
             <span>API key</span>
-            {/* oxlint-disable-next-line jsx-a11y/no-autofocus -- the form opens because this is what comes next. */}
-            <input type="text" autoComplete="off" spellCheck={false} value={apiKey} required autoFocus onChange={(e) => setApiKey(e.target.value)} />
+            <input type="text" autoComplete="off" spellCheck={false} value={apiKey} required onChange={(e) => setApiKey(e.target.value)} />
             <small>In {kind}: Settings › General</small>
           </label>
           {error && (
@@ -416,58 +418,54 @@ function ArrTile(props: { kind: ArrKind; settings: Settings; found?: string; ope
 
 const folderKind: Record<ArrKind, LibraryType> = { Sonarr: 'TvShows', Radarr: 'Movies', Lidarr: 'Music' }
 const kindIcon: Record<LibraryType, ReactNode> = { Movies: <Film />, TvShows: <Tv />, Music: <Music />, HomeVideos: <Home />, Podcasts: <Antenna /> }
-const addable: LibraryType[] = ['Movies', 'TvShows', 'Music', 'HomeVideos']
+/** The guide makes one library of each of these; more, and home videos, are in Settings › Libraries. */
+const kinds: LibraryType[] = ['Movies', 'TvShows', 'Music']
 
-interface Planned {
-  type: LibraryType
+interface Choice {
   folder: string
   /** Where an app sees it, when that's elsewhere and the mapping isn't saved yet. */
   mapFrom?: string
-  on: boolean
+  /** Found in an app, rather than chosen here. */
+  fromApp?: string
 }
 
 /** Where an app's root folder is here, if that's known or suggested. */
-function localFolder(f: ArrFolder) {
-  if (f.state === 'Found') return { folder: f.path }
-  if (f.state === 'Mapped' && f.local) return { folder: f.local }
-  if (f.state === 'Suggested' && f.suggested) return { folder: f.suggested.to, mapFrom: f.suggested.from }
+function localFolder(f: ArrFolder): Choice | undefined {
+  if (f.state === 'Found') return { folder: f.path, fromApp: f.app }
+  if (f.state === 'Mapped' && f.local) return { folder: f.local, fromApp: f.app }
+  if (f.state === 'Suggested' && f.suggested) return { folder: f.suggested.to, mapFrom: f.suggested.from, fromApp: f.app }
   return undefined
 }
 
-/** The apps' own folders, ticked ready; and a folder of any kind, chosen by hand. */
+/** A line for films, TV shows and music: added already, a folder ready (the app's, or one chosen), or none yet. */
 function LibrariesStep({ nav }: { nav: StepNav }) {
   const libraries = useApi(getLibraries, [])
   const folders = useApi(getArrFolders, [])
-  const [chosen, setChosen] = useState<Planned[]>()
-  const [adding, setAdding] = useState<LibraryType>()
+  // What's been chosen or cleared here, over what the apps suggest; null is "not this kind".
+  const [chosen, setChosen] = useState<Partial<Record<LibraryType, Choice | null>>>({})
+  const [picking, setPicking] = useState<LibraryType>()
   const [error, setError] = useState<string>()
   const [busy, setBusy] = useState(false)
 
-  const media = libraries.data?.filter((l) => l.type !== 'Podcasts') ?? []
-  // The apps' folders not in a library yet, ticked until unticked; then any picked by hand.
-  const taken = new Set(media.flatMap((l) => l.folders))
-  const fromApps: Planned[] = (folders.data ?? []).flatMap((f) => {
-    const here = localFolder(f)
-    return here && !taken.has(here.folder) ? [{ type: folderKind[f.kind], ...here, on: true }] : []
-  })
-  const planned = chosen ?? fromApps
-  const ticked = planned.filter((p) => p.on)
-  const missing = folders.data?.filter((f) => !localFolder(f)) ?? []
+  if (!libraries.data || (!folders.data && !folders.error)) return <p className="onboard-wait">Looking for your folders…</p>
+  const existing = (type: LibraryType) => libraries.data!.find((l) => l.type === type)
+  const suggested = (type: LibraryType) =>
+    (folders.data ?? []).filter((f) => folderKind[f.kind] === type).map(localFolder).find((c): c is Choice => !!c)
+  const choice = (type: LibraryType) => (type in chosen ? chosen[type] : suggested(type))
+  const toAdd = kinds.filter((type) => !existing(type) && choice(type))
+  const added = kinds.some((type) => existing(type))
+  const missing = (folders.data ?? []).filter((f) => !localFolder(f))
 
   async function add() {
     setError(undefined)
     setBusy(true)
     try {
-      const mappings = ticked.filter((p) => p.mapFrom).map((p) => ({ from: p.mapFrom!, to: p.folder }))
+      const mappings = toAdd.flatMap((type) => (choice(type)?.mapFrom ? [{ from: choice(type)!.mapFrom!, to: choice(type)!.folder }] : []))
       if (mappings.length > 0) {
         const settings = await getSettings()
         await saveSettings({ pathMappings: [...settings.pathMappings, ...mappings] })
       }
-      // One library for each kind, with every folder of that kind in it.
-      for (const type of [...new Set(ticked.map((p) => p.type))]) {
-        if (media.some((l) => l.type === type)) continue
-        await createLibrary({ name: libraryTypeLabel[type], type, folders: ticked.filter((p) => p.type === type).map((p) => p.folder) })
-      }
+      for (const type of toAdd) await createLibrary({ name: libraryTypeLabel[type], type, folders: [choice(type)!.folder] })
       nav.next()
     } catch (e) {
       setError(errorText(e))
@@ -476,82 +474,67 @@ function LibrariesStep({ nav }: { nav: StepNav }) {
     }
   }
 
-  if (!libraries.data || (!folders.data && !folders.error)) return <p className="onboard-wait">Looking for your folders…</p>
   return (
     <>
       <div className="onboard-tiles">
-        {media.map((l) => (
-          <div key={l.id} className="onboard-tile is-done">
-            <div className="onboard-tile-line">
-              <span className="onboard-kind">{kindIcon[l.type]}</span>
-              <span className="onboard-tile-text">
-                <strong>{l.name}</strong>
-                <code>{l.folders.join(', ')}</code>
-              </span>
-              <span className="onboard-tick" role="img" aria-label="Added">
-                <Check />
-              </span>
+        {kinds.map((type) => {
+          const library = existing(type)
+          const picked = choice(type)
+          return (
+            <div key={type} className={`onboard-tile${library ? ' is-done' : picked ? ' is-on' : ''}${picking === type ? ' is-open' : ''}`}>
+              <div className="onboard-tile-line">
+                <span className="onboard-kind">{kindIcon[type]}</span>
+                <span className="onboard-tile-text">
+                  <strong>{libraryTypeLabel[type]}</strong>
+                  {library ? (
+                    <code>{library.folders.join(', ')}</code>
+                  ) : picked ? (
+                    <code>{picked.folder}</code>
+                  ) : (
+                    <span>No folder chosen</span>
+                  )}
+                </span>
+                {library ? (
+                  <span className="onboard-tick" role="img" aria-label="Added">
+                    <Check />
+                  </span>
+                ) : picking === type ? null : picked ? (
+                  <span className="onboard-tile-end">
+                    <button type="button" className="onboard-back" onClick={() => setChosen({ ...chosen, [type]: null })} aria-label={`Don’t add ${libraryTypeLabel[type]}`}>
+                      Remove
+                    </button>
+                    <button type="button" className="button quiet small" onClick={() => setPicking(type)}>
+                      Change
+                    </button>
+                  </span>
+                ) : (
+                  <button type="button" className="button small" onClick={() => setPicking(type)}>
+                    Choose folder
+                  </button>
+                )}
+              </div>
+              {picking === type && (
+                <div className="onboard-tile-picker">
+                  <FolderPicker
+                    onPick={(folder) => {
+                      setChosen({ ...chosen, [type]: { folder } })
+                      setPicking(undefined)
+                    }}
+                  />
+                  <button type="button" className="onboard-back" onClick={() => setPicking(undefined)}>
+                    Cancel
+                  </button>
+                </div>
+              )}
             </div>
-          </div>
-        ))}
-        {planned.map((p, i) => (
-          <label key={p.folder} className={`onboard-tile onboard-choice${p.on ? ' is-on' : ''}`}>
-            <div className="onboard-tile-line">
-              <span className="onboard-kind">{kindIcon[p.type]}</span>
-              <span className="onboard-tile-text">
-                <strong>{libraryTypeLabel[p.type]}</strong>
-                <code>{p.folder}</code>
-              </span>
-              <input type="checkbox" checked={p.on} onChange={(e) => setChosen(planned.map((x, j) => (j === i ? { ...x, on: e.target.checked } : x)))} />
-              <span className="onboard-check" aria-hidden="true">
-                <Check />
-              </span>
-            </div>
-          </label>
-        ))}
+          )
+        })}
         {missing.map((f) => (
           <p key={`${f.app}:${f.path}`} className="onboard-warn">
-            Flexarr can’t see {f.app}’s <code>{f.path}</code> on this server. Add its folder below.
+            Flexarr can’t see {f.app}’s <code>{f.path}</code> on this server. Choose where it is above.
           </p>
         ))}
       </div>
-      {adding ? (
-        <div className="onboard-picker">
-          <p>
-            Where are your {libraryTypeLabel[adding].toLowerCase()}?
-            <button type="button" className="onboard-back" onClick={() => setAdding(undefined)}>
-              Cancel
-            </button>
-          </p>
-          <FolderPicker
-            onPick={(folder) => {
-              if (!planned.some((p) => p.folder === folder)) setChosen([...planned, { type: adding, folder, on: true }])
-              setAdding(undefined)
-            }}
-          />
-        </div>
-      ) : planned.length === 0 && media.length === 0 ? (
-        <div className="onboard-kinds">
-          {addable.map((type) => (
-            <button key={type} type="button" className="onboard-kind-card" onClick={() => setAdding(type)}>
-              <span className="onboard-kind">{kindIcon[type]}</span>
-              <strong>{libraryTypeLabel[type]}</strong>
-              <span>Choose folder</span>
-            </button>
-          ))}
-        </div>
-      ) : (
-        <div className="onboard-add">
-          <span>
-            <Folder /> Add a folder
-          </span>
-          {addable.map((type) => (
-            <button key={type} type="button" className="onboard-chip" onClick={() => setAdding(type)}>
-              <Plus /> {libraryTypeLabel[type]}
-            </button>
-          ))}
-        </div>
-      )}
       {error && (
         <p className="onboard-error" role="alert">
           {error}
@@ -559,15 +542,15 @@ function LibrariesStep({ nav }: { nav: StepNav }) {
       )}
       <StepFooter
         nav={nav}
-        skipLabel={media.length > 0 || ticked.length > 0 ? null : 'Skip'}
+        skipLabel={added || toAdd.length > 0 ? null : 'Skip'}
         next={
-          ticked.length === 0 ? (
-            <button type="button" className="button onboard-primary" disabled={media.length === 0} onClick={nav.next}>
+          toAdd.length === 0 ? (
+            <button type="button" className="button onboard-primary" disabled={!added} onClick={nav.next}>
               Continue
             </button>
           ) : (
             <AsyncButton className="button onboard-primary" busy={busy} onClick={add}>
-              {ticked.length > 1 ? `Add ${ticked.length} folders` : 'Add folder'}
+              {toAdd.length > 1 ? `Add ${toAdd.length} libraries` : 'Add library'}
             </AsyncButton>
           )
         }
@@ -649,22 +632,46 @@ function ProfilesStep({ nav }: { nav: StepNav }) {
   )
 }
 
+const deviceApps: { name: string; icon: ReactNode; href?: string }[] = [
+  { name: 'iPhone and iPad', icon: <Phone />, href: 'https://apps.apple.com/app/flexarr/id6826618084' },
+  { name: 'Apple TV', icon: <Tv /> },
+  { name: 'Android phone and tablet', icon: <Phone /> },
+  { name: 'Android TV, Google TV and Fire TV', icon: <Tv /> },
+]
+
+/** Where to get the apps. A device asking to connect pops up here (the page has PairingPrompt) to allow. */
 function DevicesStep({ nav }: { nav: StepNav }) {
   return (
     <>
       <div className="onboard-tiles">
-        <a className="onboard-tile onboard-link" href="https://apps.apple.com/app/flexarr/id6826618084" target="_blank" rel="noreferrer">
+        {deviceApps.map((app) => (
+          <div key={app.name} className="onboard-tile">
+            <div className="onboard-tile-line">
+              <span className="onboard-kind">{app.icon}</span>
+              <span className="onboard-tile-text">
+                <strong>{app.name}</strong>
+              </span>
+              {app.href ? (
+                <a className="button small" href={app.href} target="_blank" rel="noreferrer">
+                  App Store
+                </a>
+              ) : (
+                <span className="onboard-soon">Coming soon</span>
+              )}
+            </div>
+          </div>
+        ))}
+        <div className="onboard-tile">
           <div className="onboard-tile-line">
-            <img className="onboard-app-logo" src="/icon-192.png" alt="" />
+            <span className="onboard-kind">
+              <Monitor />
+            </span>
             <span className="onboard-tile-text">
-              <strong>Apple TV, iPhone and iPad</strong>
-              <span>Free on the App Store</span>
+              <strong>Any web browser</strong>
+              <code>{window.location.origin}</code>
             </span>
           </div>
-        </a>
-      </div>
-      <div className="onboard-code">
-        <ConnectTv titled={false} compact />
+        </div>
       </div>
       <StepFooter
         nav={nav}
@@ -684,10 +691,10 @@ function AwayStep({ nav }: { nav: StepNav }) {
   const ts = remote.data?.tailscale
   const on = !!ts?.privateAccess || !!remote.data?.tailnetAddress
 
-  async function turnOn() {
+  async function turn(on: boolean) {
     setError(undefined)
     try {
-      await setTailscaleAccess(true)
+      await setTailscaleAccess(on)
       remote.reload()
     } catch (e) {
       setError(errorText(e))
@@ -721,11 +728,18 @@ function AwayStep({ nav }: { nav: StepNav }) {
               <span>{status}</span>
             </span>
             {on ? (
-              <span className="onboard-tick" role="img" aria-label="On">
-                <Check />
+              <span className="onboard-tile-end">
+                {ts?.privateAccess && !remote.data?.inMacApp && (
+                  <AsyncButton className="button quiet small" onClick={() => turn(false)}>
+                    Disconnect
+                  </AsyncButton>
+                )}
+                <span className="onboard-tick" role="img" aria-label="On">
+                  <Check />
+                </span>
               </span>
             ) : ts?.running && !remote.data?.inMacApp ? (
-              <AsyncButton className="button small" onClick={turnOn}>
+              <AsyncButton className="button small" onClick={() => turn(true)}>
                 Turn on
               </AsyncButton>
             ) : (
@@ -760,7 +774,8 @@ function Done({ onFinish }: { onFinish: () => void }) {
   const folders = useApi(getArrFolders, [])
   const guide = useApi(getSetupGuide, [])
   const media = libraries.data?.filter((l) => l.type !== 'Podcasts') ?? []
-  const scanning = media.filter((l) => l.scan)
+  // A library just added hasn't started its first scan yet: that counts as being checked too.
+  const scanning = media.filter((l) => l.scan || !l.lastScannedAt)
   const { reload } = libraries
 
   // Still reading: look again until it's done.
@@ -780,19 +795,21 @@ function Done({ onFinish }: { onFinish: () => void }) {
 
   return (
     <section className="onboard-card onboard-done" aria-labelledby="onboard-title">
-      {media.length > 0 ? (
+      {scanning.length > 0 ? (
+        <span className="onboard-checking" aria-hidden="true" />
+      ) : media.length > 0 ? (
         <span className="onboard-done-mark" aria-hidden="true">
           <Check />
         </span>
       ) : (
         <img className="onboard-hero-mark" src="/logo-mark.svg" alt="" />
       )}
-      <h1 id="onboard-title">{media.length > 0 ? 'You’re all set' : 'Nearly there'}</h1>
+      <h1 id="onboard-title">{media.length === 0 ? 'Nearly there' : scanning.length > 0 ? 'Checking your libraries' : 'You’re all set'}</h1>
       <p className="onboard-lede">
         {media.length === 0
           ? 'Add a library whenever you’re ready, in Settings › Libraries.'
           : scanning.length > 0
-            ? 'Flexarr is reading your files. Titles appear on Home as they’re found.'
+            ? `Flexarr is reading ${total > 0 ? `${read.toLocaleString()} of ${total.toLocaleString()} files` : 'your files'}. You can start watching as titles appear.`
             : `${titles.toLocaleString()} ${titles === 1 ? 'title' : 'titles'} ready to watch.`}
       </p>
       {scanning.length > 0 && (
