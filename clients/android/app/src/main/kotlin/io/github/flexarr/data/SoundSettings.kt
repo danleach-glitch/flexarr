@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.time.LocalTime
+import java.util.Locale
 
 /**
  * How films and episodes sound on this phone: the speakers, a lift for the dialogue and night mode. Kept on the phone
@@ -46,14 +47,15 @@ data class SoundSettings(
     }
 
     companion object {
-        fun clock(minutes: Int) = "%02d:%02d".format(minutes / 60, minutes % 60)
+        fun clock(minutes: Int) = String.format(Locale.ROOT, "%02d:%02d", minutes / 60, minutes % 60)
 
         private val state = MutableStateFlow<SoundSettings?>(null)
+        private val shared = state.asStateFlow()
 
-        /** The phone's settings, live: the player follows a change made while it plays. */
+        /** The phone's settings, live: the player follows a change made while it plays. The same flow every call. */
         fun flow(context: Context): StateFlow<SoundSettings?> {
             if (state.value == null) state.value = read(context)
-            return state.asStateFlow()
+            return shared
         }
 
         fun current(context: Context): SoundSettings = state.value ?: read(context).also { state.value = it }

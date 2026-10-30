@@ -76,14 +76,13 @@ import kotlinx.coroutines.launch
 // The player's menus for audio, subtitles, speed and the sleep timer, and what they open: the iPhone player's
 // UIMenus, Audio sync panel and "Still watching?" question (PlayerViewController and PlayerPanels.swift).
 
-/** The four menus side by side on one glass pill, above the timeline at the right. A menu with nothing in it isn't there. */
+/** The four menus side by side on one glass pill, above the timeline at the right. A menu with nothing in it isn't there; Audio always has the sound settings. */
 @Composable
 internal fun MenuBar(controller: PlaybackController, onInteract: () -> Unit, onAudioSync: () -> Unit, modifier: Modifier = Modifier) {
     val info = controller.info ?: return
-    val hasAudio = info.audioTracks.size > 1 || controller.audioSync != null
     val hasSubtitles = info.subtitles.isNotEmpty() || controller.canSearchSubtitles
     Row(modifier.height(44.dp).glass(RoundedCornerShape(22.dp)).padding(horizontal = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-        if (hasAudio) MenuButton(Icons.Filled.GraphicEq, "Audio", onInteract) { close -> AudioMenu(controller, close, onAudioSync) }
+        MenuButton(Icons.Filled.GraphicEq, "Audio", onInteract) { close -> AudioMenu(controller, close, onAudioSync) }
         if (hasSubtitles) MenuButton(Icons.Filled.ClosedCaption, "Subtitles", onInteract) { close -> SubtitlesMenu(controller, close) }
         val badge = if (controller.rate == 1f) null else PlaybackController.rateLabel(controller.rate)
         MenuButton(Icons.Filled.Speed, "Speed", onInteract, badge = badge) { close -> SpeedMenu(controller, close) }
@@ -250,7 +249,7 @@ private fun MenuScope.AudioMenu(controller: PlaybackController, close: () -> Uni
             leadingIcon = { Icon(Icons.Filled.GraphicEq, contentDescription = null, tint = Flexarr.screen, modifier = Modifier.size(20.dp)) },
         )
     }
-    Divider()
+    if (info.audioTracks.size > 1 || controller.audioSync != null) Divider()
     Submenu("Dialogue boost", sound.dialogueBoost.name) { openPage("dialogue") }
     Submenu("Night mode", if (sound.nightMode == SoundSettings.NightMode.Scheduled) sound.nightHours else sound.nightMode.name) { openPage("night") }
     Submenu("Speakers", sound.speakers.label) { openPage("speakers") }

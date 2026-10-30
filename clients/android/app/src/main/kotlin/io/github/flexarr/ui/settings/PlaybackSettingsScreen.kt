@@ -116,7 +116,10 @@ fun PlaybackSettingsScreen(model: AppModel) {
                         skipSeconds = it
                         PlayerSettings.setSkipSeconds(context, it)
                     }
-                    Divider()
+                }
+            }
+            item {
+                Group(header = "Sound") {
                     Picker("Dialogue boost", SoundSettings.DialogueBoost.entries, sound.dialogueBoost, { it.name }) { boost ->
                         SoundSettings.update(context) { it.copy(dialogueBoost = boost) }
                     }

@@ -33,6 +33,7 @@ class SoundShaper : BaseAudioProcessor() {
     private var rate = 48_000
     private var float = false
 
+    private var layout = Layout.of(0)
     private var frame = FloatArray(0)
     private var out = FloatArray(0)
     // The speech band's filter, one state per channel, remade when its gain changes.
@@ -52,6 +53,7 @@ class SoundShaper : BaseAudioProcessor() {
         channels = format.channelCount
         rate = format.sampleRate
         float = format.encoding == C.ENCODING_PCM_FLOAT
+        layout = Layout.of(channels)
         frame = FloatArray(channels)
         out = FloatArray(channels)
         eqDb = Double.NaN
@@ -69,7 +71,9 @@ class SoundShaper : BaseAudioProcessor() {
         if (size == 0) return
         val output = replaceOutputBuffer(size)
         val now = shaping
-        if (!now.isActive || channels == 0) {
+        // A speaker setting the track already fits changes nothing, so it's passed through untouched, limiter and all.
+        val folds = now.channels != null && now.channels < channels && channels > 2
+        if (channels == 0 || (!folds && now.dialogueDb <= 0 && !now.night)) {
             output.put(inputBuffer).flip()
             return
         }
@@ -79,7 +83,6 @@ class SoundShaper : BaseAudioProcessor() {
             eqDb = speechDb
             eq = if (speechDb > 0) Biquad.peaking(SPEECH_HZ, 0.8, speechDb, rate) else Biquad.flat
         }
-        val layout = Layout.of(channels)
         val centreGain = 10.0.pow(now.dialogueDb / 20).toFloat()
         val attack = exp(-1.0 / (0.005 * rate))
         val release = exp(-1.0 / (0.25 * rate))
@@ -89,10 +92,10 @@ class SoundShaper : BaseAudioProcessor() {
         while (input.remaining() >= channels * bytes) {
             for (c in 0 until channels) frame[c] = if (float) input.getFloat() else input.getShort() / 32768f
             if (now.dialogueDb > 0) {
-                layout.centre?.let { frame[it] *= centreGain }
+                if (layout.centre >= 0) frame[layout.centre] *= centreGain
                 for (c in 0 until channels) frame[c] = eq.run(frame[c], eqState[c])
             }
-            fold(layout, now.channels)
+            fold(if (folds) now.channels else null)
             var peak = 0f
             for (c in 0 until channels) peak = max(peak, abs(out[c]))
             var gain = 1.0
@@ -113,18 +116,20 @@ class SoundShaper : BaseAudioProcessor() {
     }
 
     /** [frame] folded into [out] for [to] channels (null keeps them all), in place in the track's own layout. */
-    private fun fold(layout: Layout, to: Int?) {
+    private fun fold(to: Int?) {
         frame.copyInto(out)
-        if (to == null || to >= channels) return
-        val left = layout.left.sumOf { frame[it].toDouble() }.toFloat()
-        val right = layout.right.sumOf { frame[it].toDouble() }.toFloat()
-        val back = layout.backCentre?.let { frame[it] } ?: 0f
+        if (to == null) return
+        var left = 0f
+        for (i in layout.left) left += frame[i]
+        var right = 0f
+        for (i in layout.right) right += frame[i]
+        val back = if (layout.backCentre >= 0) frame[layout.backCentre] else 0f
         if (to <= 2) {
-            val centre = layout.centre?.let { frame[it] } ?: 0f
+            val centre = if (layout.centre >= 0) frame[layout.centre] else 0f
             out.fill(0f)
             out[0] = frame[0] + MINUS_3DB * (centre + left + back)
             out[1] = frame[1] + MINUS_3DB * (centre + right + back)
-        } else if (layout.left.size > 1 || layout.backCentre != null) {
+        } else if (layout.left.size > 1 || layout.backCentre >= 0) {
             // 6.1 and 7.1 to 5.1: the surrounds merge into the 5.1 pair, at channels 4 and 5.
             for (c in 4 until channels) out[c] = 0f
             out[4] = MINUS_3DB * (left + back)
@@ -143,17 +148,19 @@ class SoundShaper : BaseAudioProcessor() {
         }
     }
 
-    /** Where the centre and the surrounds are in a track of n channels (Android's order: FL FR FC LFE BL BR SL SR). */
-    private class Layout(val centre: Int?, val left: List<Int>, val right: List<Int>, val backCentre: Int? = null) {
+    /** Where the centre and the surrounds are in a track of n channels (Android's order: FL FR FC LFE BL BR SL SR); -1 for none. */
+    private class Layout(val centre: Int, val left: IntArray, val right: IntArray, val backCentre: Int = -1) {
         companion object {
+            private val none = IntArray(0)
+
             fun of(n: Int) = when (n) {
-                3 -> Layout(2, emptyList(), emptyList())
-                4 -> Layout(null, listOf(2), listOf(3))
-                5 -> Layout(2, listOf(3), listOf(4))
-                6 -> Layout(2, listOf(4), listOf(5))
-                7 -> Layout(2, listOf(5), listOf(6), backCentre = 4)
-                8 -> Layout(2, listOf(4, 6), listOf(5, 7))
-                else -> Layout(null, emptyList(), emptyList())
+                3 -> Layout(2, none, none)
+                4 -> Layout(-1, intArrayOf(2), intArrayOf(3))
+                5 -> Layout(2, intArrayOf(3), intArrayOf(4))
+                6 -> Layout(2, intArrayOf(4), intArrayOf(5))
+                7 -> Layout(2, intArrayOf(5), intArrayOf(6), backCentre = 4)
+                8 -> Layout(2, intArrayOf(4, 6), intArrayOf(5, 7))
+                else -> Layout(-1, none, none)
             }
         }
     }
