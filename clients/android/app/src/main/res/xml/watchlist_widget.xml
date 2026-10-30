@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Ready from your watchlist on the home screen (WatchlistWidget): four cells by two, up to four posters, fewer as it's
+<!-- Ready to watch, from the watchlist, on the home screen (WatchlistWidget): four cells by two, up to four posters, fewer as it's
      made narrower. It asks the server again every hour, and whenever the watchlist changes or something's watched. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:description="@string/widget_watchlist_description"

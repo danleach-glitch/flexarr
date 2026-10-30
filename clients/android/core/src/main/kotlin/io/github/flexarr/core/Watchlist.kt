@@ -1,6 +1,7 @@
 package io.github.flexarr.core
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.serializer
 import java.time.LocalDate
 
@@ -63,6 +64,9 @@ data class WatchlistEntry(
                 else -> services.joinToString(", ")
             }
         }
+
+    /** "Film, 2014" or "Show, 2011": for a title the library hasn't got. */
+    val kindLine: String get() = kindLine(mediaType, year)
 
     /** [releaseDate] as a date, or null when there's none (or it isn't one). */
     val releaseDay: LocalDate? get() = releaseDate?.let { runCatching { LocalDate.parse(it.take(10)) }.getOrNull() }
@@ -150,6 +154,54 @@ internal data class WatchlistAddBody(val libraryItemId: String? = null, val medi
 @Serializable
 internal data class TitleRequestBody(val mediaType: String, val tmdbId: Int)
 
+/** "Film, 2014" or "Show, 2011" (just "Film" or "Show" without a year), for "movie" or "tv". */
+fun kindLine(mediaType: String, year: Int?): String =
+    listOfNotNull(if (mediaType == "tv") "Show" else "Film", year?.toString()).joinToString(", ")
+
+/** Where Seerr has a title got to, as the server's search beyond the library says. */
+@Serializable(with = TitleAvailability.Serializer::class)
+enum class TitleAvailability(override val raw: String) : ForwardCompatibleEnum {
+    /** Nobody's asked for it: it can be requested. */
+    None("None"),
+    Requested("Requested"),
+    PartlyAvailable("PartlyAvailable"),
+    Available("Available"),
+    Unknown("");
+
+    object Serializer : ForwardCompatibleEnumSerializer<TitleAvailability>("TitleAvailability", entries, Unknown)
+}
+
+/** A film or show from searching beyond the library (`GET /requests/search`), as the web's Everything results. */
+@Serializable
+data class ExternalTitle(
+    val tmdbId: Int,
+    /** "movie" or "tv". */
+    val mediaType: String,
+    val title: String,
+    val year: Int? = null,
+    val overview: String? = null,
+    /** Server-relative artwork, as [Artwork]'s. */
+    val poster: String? = null,
+    val backdrop: String? = null,
+    val rating: Double = 0.0,
+    val availability: TitleAvailability = TitleAvailability.Unknown,
+    /** In the library after all: it opens as itself. */
+    val libraryItemId: String? = null,
+    /** On this profile's watchlist. Absent from servers before 0.56 (and those without watchlists). */
+    val onWatchlist: Boolean? = null,
+) {
+    /** "movie:123", as [WatchlistKeys.titles] has it. */
+    val key: String get() = "$mediaType:$tmdbId"
+
+    val kindLine: String get() = kindLine(mediaType, year)
+
+    val canRequest: Boolean get() = availability == TitleAvailability.None && libraryItemId == null
+}
+
+/** Whether Seerr is set up on the server (and answering), so search can look beyond the library. */
+@Serializable
+data class RequestsStatus(val configured: Boolean = false, val reachable: Boolean = false)
+
 // Client
 
 /**
@@ -179,6 +231,35 @@ suspend fun FlexarrClient.watchlistKeys(): WatchlistKeys? {
     return decodeText(serializer(), text)
 }
 
+/**
+ * Up to [take] library titles from the watchlist that are ready to play, newest added first, for the widget: the
+ * server's `watchlist/ready`, which doesn't ask Seerr. A server without it (before it, or without watchlists at all)
+ * is asked for the whole watchlist instead, and its ready titles kept; one without a watchlist has none.
+ */
+suspend fun FlexarrClient.readyFromWatchlist(take: Int): List<ItemSummary> {
+    val text = try {
+        send("GET", "watchlist/ready", mapOf("take" to "$take"))
+    } catch (e: FlexarrException.Http) {
+        if (e.status == 404) null else throw e
+    } catch (_: FlexarrException.UnexpectedResponse) {
+        null
+    }
+    if (text != null) return decodeText(ListSerializer(ItemSummary.serializer()), text).take(take)
+    return watchlist().orEmpty().asSequence().filter { it.status == WatchlistStatus.Ready }.mapNotNull { it.item }.take(take).toList()
+}
+
+/** Whether search can look beyond the library ([RequestsStatus]); null from a server that doesn't say. */
+suspend fun FlexarrClient.requestsStatus(): RequestsStatus? = try {
+    decodeText(RequestsStatus.serializer(), sendRaw("GET", "requests/status"))
+} catch (e: FlexarrException.Http) {
+    if (e.status == 404) null else throw e
+} catch (_: FlexarrException.UnexpectedResponse) {
+    null
+}
+
+/** Films and shows beyond the library matching [query], through Seerr. */
+suspend fun FlexarrClient.searchEverything(query: String): List<ExternalTitle> = get("requests/search", mapOf("q" to query))
+
 /** Puts a library film or show on the watchlist (a season or episode stands for its show). Already there is fine. */
 suspend fun FlexarrClient.addToWatchlist(libraryItemId: String): WatchlistAdded =
     sendDecoding("POST", "watchlist", WatchlistAddBody(libraryItemId = libraryItemId))
@@ -195,6 +276,11 @@ suspend fun FlexarrClient.removeFromWatchlist(entryId: String) {
 /** Takes a library title off from its own page, where the entry's id isn't known. */
 suspend fun FlexarrClient.removeLibraryItemFromWatchlist(libraryItemId: String) {
     ignoringGone { send("DELETE", "watchlist", mapOf("libraryItemId" to libraryItemId)) }
+}
+
+/** Takes a title from outside the library off, by "movie" or "tv" and its TMDB id. Already off is fine. */
+suspend fun FlexarrClient.removeFromWatchlist(mediaType: String, tmdbId: Int) {
+    ignoringGone { send("DELETE", "watchlist", mapOf("mediaType" to mediaType, "tmdbId" to "$tmdbId")) }
 }
 
 /** Asks Seerr for a title, as the web's Request button does. */

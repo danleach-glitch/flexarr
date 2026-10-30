@@ -66,7 +66,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.activity.compose.BackHandler
 import io.github.flexarr.AppModel
+import io.github.flexarr.core.ExternalTitle
 import io.github.flexarr.core.ItemSummary
+import io.github.flexarr.core.requestsStatus
+import io.github.flexarr.core.searchEverything
+import io.github.flexarr.ui.components.ItemMenu
+import io.github.flexarr.ui.components.MenuAction
+import io.github.flexarr.ui.components.PosterWidth
+import io.github.flexarr.ui.components.menuActions
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.text.style.TextAlign
 import io.github.flexarr.core.RecentSearches
 import io.github.flexarr.core.SearchResults
 import io.github.flexarr.core.clearRecentSearches
@@ -104,6 +115,9 @@ fun SearchScreen(model: AppModel) {
     var error by remember { mutableStateOf<String?>(null) }
     var attempt by remember { mutableIntStateOf(0) }
     var recents by remember { mutableStateOf(RecentSearches()) }
+    // Films and shows beyond the library, when Seerr's set up: what was found, and the words that found it.
+    var searchesEverything by remember { mutableStateOf(false) }
+    var everything by remember { mutableStateOf<Pair<String, List<ExternalTitle>>?>(null) }
     val focus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
@@ -129,6 +143,31 @@ fun SearchScreen(model: AppModel) {
             throw e
         } catch (_: Exception) {
             RecentSearches()
+        }
+    }
+    LaunchedEffect(model.credentials) {
+        searchesEverything = try {
+            client.requestsStatus()?.configured == true
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            false
+        }
+    }
+    LaunchedEffect(query, attempt, searchesEverything) {
+        val text = query.trim()
+        if (text.isEmpty() || !searchesEverything) {
+            everything = null
+            return@LaunchedEffect
+        }
+        delay(300)
+        // Seerr failing leaves the library's results as they are.
+        everything = text to try {
+            client.searchEverything(text)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            emptyList()
         }
     }
     LaunchedEffect(query, attempt) {
@@ -192,7 +231,14 @@ fun SearchScreen(model: AppModel) {
                 verticalArrangement = Arrangement.spacedBy(24.dp),
             ) {
                 when {
-                    shown != null -> results(shown, query.trim(), onPick = { record(query.trim(), it?.id) })
+                    shown != null -> {
+                        val text = query.trim()
+                        // Beyond the library: what the library's own results haven't already shown.
+                        val found = everything?.takeIf { it.first == text }?.second
+                        val inLibrary = shown.titles.mapTo(HashSet()) { it.id }
+                        val beyond = found?.filter { it.libraryItemId == null || it.libraryItemId !in inLibrary }
+                        results(shown, text, beyond, waitingForMore = searchesEverything && found == null, model = model, onPick = { record(text, it?.id) })
+                    }
                     error != null -> item { StatusView(error, retry = { attempt++ }, modifier = Modifier.height(240.dp)) }
                     query.isBlank() && !recents.isEmpty -> recentRows(
                         recents,
@@ -213,8 +259,15 @@ fun SearchScreen(model: AppModel) {
 }
 
 /** The results; [onPick] hears what was opened from them (null for a person). */
-private fun LazyListScope.results(results: SearchResults, query: String, onPick: (ItemSummary?) -> Unit) {
-    if (results.isEmpty) {
+private fun LazyListScope.results(
+    results: SearchResults,
+    query: String,
+    beyond: List<ExternalTitle>?,
+    waitingForMore: Boolean,
+    model: AppModel,
+    onPick: (ItemSummary?) -> Unit,
+) {
+    if (results.isEmpty && beyond.isNullOrEmpty() && !waitingForMore) {
         item { StatusView("Nothing matches “$query”.", empty = true, modifier = Modifier.height(240.dp)) }
     }
     if (results.titles.isNotEmpty()) {
@@ -238,6 +291,15 @@ private fun LazyListScope.results(results: SearchResults, query: String, onPick:
             }
         }
     }
+    if (!beyond.isNullOrEmpty()) {
+        item(key = "beyond") {
+            Section("Not in your library") {
+                LazyRow(contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(RowSpacing)) {
+                    items(beyond, key = { it.key }) { ExternalCard(model, it) }
+                }
+            }
+        }
+    }
     if (results.people.isNotEmpty()) {
         item(key = "people") {
             Section("People") {
@@ -252,6 +314,77 @@ private fun LazyListScope.results(results: SearchResults, query: String, onPick:
                 }
             }
         }
+    }
+}
+
+/**
+ * A film or show from beyond the library: its poster, name and "Film, 2014". Tapping (or a long press) offers the
+ * watchlist and, when nobody's asked for it, Request; one the library has after all opens as itself.
+ */
+@Composable
+private fun ExternalCard(model: AppModel, title: ExternalTitle) {
+    val navigator = LocalNavigator.current
+    var menu by remember { mutableStateOf(false) }
+    // What's been done here since the search, ahead of the server's next answer.
+    var requested by remember(title.key) { mutableStateOf(false) }
+    var onWatchlist by remember(title.key, title.onWatchlist) { mutableStateOf<Boolean?>(null) }
+    val on = onWatchlist ?: title.onWatchlist ?: (title.key in model.watchlistTitles)
+    val actions = buildList {
+        if (model.hasWatchlist) {
+            add(MenuAction(if (on) "Remove from watchlist" else "Add to watchlist") {
+                onWatchlist = !on
+                navigator.watchlistChange(if (on) "Couldn’t remove this from your watchlist" else "Couldn’t add this to your watchlist") {
+                    try {
+                        val added = model.setTitleOnWatchlist(title.mediaType, title.tmdbId, !on)
+                        if (added?.requested == true) requested = true
+                    } catch (e: Exception) {
+                        onWatchlist = on
+                        throw e
+                    }
+                }
+            })
+        }
+        if (title.canRequest && !requested) {
+            add(MenuAction("Request") {
+                requested = true
+                navigator.watchlistChange("Couldn’t request this") {
+                    try {
+                        model.requestTitle(title.mediaType, title.tmdbId)
+                    } catch (e: Exception) {
+                        requested = false
+                        throw e
+                    }
+                }
+            })
+        }
+    }
+    val libraryId = title.libraryItemId
+    Box {
+        Column(
+            Modifier.width(PosterWidth)
+                .pressable(
+                    onClick = { if (libraryId != null) navigator.openItem(libraryId) else if (actions.isNotEmpty()) menu = true },
+                    onLongClick = { if (actions.isNotEmpty()) menu = true },
+                )
+                .menuActions(actions),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f).clip(RoundedCornerShape(6.dp)).background(Flexarr.seat)) {
+                RemoteImage(title.poster, 342, Modifier.fillMaxSize()) {
+                    Box(
+                        Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Flexarr.silver.copy(alpha = 0.3f), Flexarr.seat))),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(title.title, style = marquee(18, Flexarr.screen.copy(alpha = 0.8f)).copy(fontWeight = FontWeight.Bold), textAlign = TextAlign.Center, modifier = Modifier.padding(8.dp))
+                    }
+                }
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                Text(title.title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen.copy(alpha = 0.9f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(title.kindLine, fontSize = 12.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        ItemMenu(actions, menu, onDismiss = { menu = false })
     }
 }
 

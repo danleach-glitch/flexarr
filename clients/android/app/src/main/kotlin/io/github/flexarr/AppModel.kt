@@ -212,6 +212,10 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     var watchlistItems: Set<String> by mutableStateOf(emptySet())
         private set
 
+    /** "movie:123" / "tv:456" keys of every title on this profile's watchlist, for search beyond the library. */
+    var watchlistTitles: Set<String> by mutableStateOf(emptySet())
+        private set
+
     /** Goes up whenever the watchlist changes here, so the Watchlist screen loads it again. */
     var watchlistVersion by mutableIntStateOf(0)
         private set
@@ -246,6 +250,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
             if (client.profileToken != this.client?.profileToken) return
             hasWatchlist = keys != null
             watchlistItems = keys?.libraryItemIds.orEmpty().toHashSet()
+            watchlistTitles = keys?.titles.orEmpty().toHashSet()
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
@@ -284,6 +289,40 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
             throw e
         } finally {
             watchlistChanged(affectsHome = true)
+        }
+    }
+
+    /**
+     * Puts a film or show from beyond the library on the watchlist, or takes it off, by "movie" or "tv" and its TMDB id
+     * (search's results). Throws if the server refuses.
+     */
+    suspend fun setTitleOnWatchlist(mediaType: String, tmdbId: Int, on: Boolean): WatchlistAdded? {
+        val client = client ?: return null
+        val key = "$mediaType:$tmdbId"
+        val before = watchlistTitles
+        watchlistTitles = if (on) before + key else before - key
+        try {
+            return if (on) {
+                client.addToWatchlist(mediaType, tmdbId)
+            } else {
+                client.removeFromWatchlist(mediaType, tmdbId)
+                null
+            }
+        } catch (e: Exception) {
+            watchlistTitles = before
+            throw e
+        } finally {
+            watchlistChanged(affectsHome = false)
+        }
+    }
+
+    /** Requests a film or show from beyond the library (search's results). Throws if the server (or Seerr) refuses. */
+    suspend fun requestTitle(mediaType: String, tmdbId: Int) {
+        val client = client ?: return
+        try {
+            client.requestTitle(mediaType, tmdbId)
+        } finally {
+            watchlistChanged(affectsHome = false)
         }
     }
 
@@ -327,6 +366,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         watchlistRefresh?.cancel()
         hasWatchlist = false
         watchlistItems = emptySet()
+        watchlistTitles = emptySet()
     }
 
     /** The episodes to hear next, in order, the same on every device. */
@@ -453,7 +493,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         scope.launch {
             ContinueWatchingWidget.refresh(context)
             PodcastWidgets.refresh(context)
-            WatchlistWidget.refresh(context)
+            WatchlistWidget.forget(context)
         }
     }
 
@@ -509,6 +549,8 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         forgetSignIn()
         phase = Phase.SignedIn(credentials.copy(profileToken = null))
         profiles = profiles.map { it.copy(isCurrent = false) }
+        // The widget showed someone else's list: it's dropped, and asks who's watching until someone's chosen.
+        scope.launch { WatchlistWidget.forget(context) }
     }
 
     /**

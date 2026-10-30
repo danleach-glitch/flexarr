@@ -46,9 +46,7 @@ import io.github.flexarr.AppLink
 import io.github.flexarr.R
 import io.github.flexarr.appModel
 import io.github.flexarr.core.FlexarrClient
-import io.github.flexarr.core.WatchlistEntry
-import io.github.flexarr.core.WatchlistStatus
-import io.github.flexarr.core.watchlist
+import io.github.flexarr.core.readyFromWatchlist
 import io.github.flexarr.data.CredentialStore
 import io.github.flexarr.logging.FlexarrLog
 import kotlinx.coroutines.Dispatchers
@@ -60,10 +58,12 @@ import java.io.File
 private val log = FlexarrLog("widget")
 
 /**
- * Ready from your watchlist, on the home screen: up to four posters of what on the profile's watchlist is in the
- * library, newest added first, each opening its page. Asked of the server whenever the widget updates (every hour, when
- * the watchlist changes in the app, and shortly after something's been watched); what it last showed is kept for when
- * the server can't be reached, and a poster is fetched only when it's new to the widget. As Continue Watching's widget.
+ * Ready to watch, on the home screen: up to four posters of what on the profile's watchlist is in the library, newest
+ * added first, each opening its page; the rest opens the Watchlist screen. Asked of the server (`watchlist/ready`, which
+ * doesn't ask Seerr) whenever the widget updates (every hour, when the watchlist changes in the app, and shortly after
+ * something's been watched); what it last showed is kept for when the server can't be reached, and a poster is fetched
+ * only when it's new to the widget. As Continue Watching's widget. With nobody chosen on a server with more than one
+ * profile, it asks for someone to be chosen rather than showing the main profile's list.
  */
 class WatchlistWidget : GlanceAppWidget() {
     override val sizeMode = SizeMode.Exact
@@ -75,6 +75,7 @@ class WatchlistWidget : GlanceAppWidget() {
 
     private sealed interface State {
         data object SignedOut : State
+        data object ChooseProfile : State
         data class Titles(val titles: List<Shown>) : State
     }
 
@@ -85,16 +86,29 @@ class WatchlistWidget : GlanceAppWidget() {
     private data class Shown(val entry: Entry, val picture: Bitmap?)
 
     private suspend fun load(context: Context): State = withContext(Dispatchers.IO) {
-        val credentials = context.appModel.credentials ?: CredentialStore(context).load() ?: return@withContext State.SignedOut
-        val folder = File(context.cacheDir, "widget-watchlist").apply { mkdirs() }
+        val model = context.appModel
+        val credentials = model.credentials ?: CredentialStore(context).load() ?: return@withContext State.SignedOut
+        val folder = folder(context).apply { mkdirs() }
         val saved = File(folder, "watchlist.json")
         fun pictureFile(id: String) = File(folder, "$id.jpg")
         fun keptPicture(id: String): Bitmap? = pictureFile(id).takeIf { it.exists() }?.let { BitmapFactory.decodeFile(it.path) }
+        if (credentials.profileToken == null) {
+            // Without a profile the server answers as the main one: ask for someone to be chosen instead, when there's a choice.
+            val profiles = if (model.profilesLoaded && model.credentials != null) {
+                model.profiles.size
+            } else {
+                runCatching { credentials.client().profiles().size }.getOrNull()
+            }
+            if (profiles == null || profiles > 1) {
+                if (profiles != null) folder.deleteRecursively()
+                return@withContext State.ChooseProfile
+            }
+        }
         val fresh = runCatching {
             val client = credentials.client()
-            // A server without a watchlist has nothing ready.
-            val ready = ready(client.watchlist().orEmpty())
-            ready.map { (entry, source) -> Shown(entry, keptPicture(entry.id) ?: picture(context, client, source)) }
+            client.readyFromWatchlist(MAX).map { item ->
+                Shown(Entry(item.id, item.id, item.title), keptPicture(item.id) ?: picture(context, client, item.artwork.poster))
+            }
         }.onFailure { log.info("Couldn't update the watchlist widget", it) }.getOrNull()
         if (fresh != null) {
             val keep = fresh.map { pictureFile(it.entry.id).name }.toSet() + saved.name
@@ -110,16 +124,8 @@ class WatchlistWidget : GlanceAppWidget() {
         State.Titles(kept.map { Shown(it, keptPicture(it.id)) })
     }
 
-    /** The ready titles that have a page to open, newest added first (the server's order), up to [MAX]. */
-    private fun ready(entries: List<WatchlistEntry>): List<Pair<Entry, WatchlistEntry>> =
-        entries.asSequence()
-            .filter { it.status == WatchlistStatus.Ready }
-            .mapNotNull { e -> (e.libraryItemId ?: e.item?.id)?.let { Entry(e.id, it, e.item?.title ?: e.title) to e } }
-            .take(MAX)
-            .toList()
-
-    private suspend fun picture(context: Context, client: FlexarrClient, entry: WatchlistEntry): Bitmap? {
-        val url = client.imageUrl(entry.poster ?: entry.item?.artwork?.poster, 200) ?: return null
+    private suspend fun picture(context: Context, client: FlexarrClient, poster: String?): Bitmap? {
+        val url = client.imageUrl(poster, 200) ?: return null
         val request = ImageRequest.Builder(context).data(url).size(200, 300).allowHardware(false).build()
         return (context.imageLoader.execute(request) as? SuccessResult)?.image?.toBitmap()
     }
@@ -128,14 +134,15 @@ class WatchlistWidget : GlanceAppWidget() {
     private fun Content(context: Context, state: State) {
         Column(
             GlanceModifier.fillMaxSize().background(ROOM).cornerRadius(20.dp).padding(12.dp)
-                .clickable(actionStartActivity(AppLink.Home.intent(context))),
+                .clickable(actionStartActivity(AppLink.Watchlist.intent(context))),
         ) {
-            Text("Ready from your watchlist", style = TextStyle(color = SCREEN, fontSize = 14.sp, fontWeight = FontWeight.Bold), maxLines = 1)
+            Text("Ready to watch", style = TextStyle(color = SCREEN, fontSize = 14.sp, fontWeight = FontWeight.Bold), maxLines = 1)
             Spacer(GlanceModifier.height(8.dp))
             when (state) {
                 State.SignedOut -> Note("Open Flexarr to connect it to your server.")
+                State.ChooseProfile -> Note("Open Flexarr to choose who’s watching")
                 is State.Titles -> if (state.titles.isEmpty()) {
-                    Note("Nothing ready yet")
+                    Note("Nothing here yet.")
                 } else {
                     val width = LocalSize.current.width
                     val across = when {
@@ -162,20 +169,24 @@ class WatchlistWidget : GlanceAppWidget() {
 
     @Composable
     private fun Card(context: Context, shown: Shown, across: Int, modifier: GlanceModifier) {
-        // A poster's shape where there's room, else what the heading and title leave.
+        // A poster's shape where there's room, else what the heading (and title) leave. Short, the titles go, so
+        // nothing's cut off at the bottom; the posters still say what they are to TalkBack.
         val size = LocalSize.current
+        val titled = size.height >= TITLED_HEIGHT
         val posterWidth = (size.width - 24.dp - GAP * (across - 1)) / across
-        val pictureHeight = minOf(posterWidth * 1.5f, size.height - 80.dp).coerceIn(48.dp, 220.dp)
+        val pictureHeight = minOf(posterWidth * 1.5f, size.height - if (titled) 80.dp else 56.dp).coerceIn(40.dp, 220.dp)
         Column(modifier.clickable(actionStartActivity(AppLink.Item(shown.entry.itemId).intent(context)))) {
             Box(GlanceModifier.fillMaxWidth().height(pictureHeight).cornerRadius(8.dp).background(SEAT), contentAlignment = Alignment.Center) {
                 if (shown.picture != null) {
-                    Image(ImageProvider(shown.picture), contentDescription = null, contentScale = ContentScale.Crop, modifier = GlanceModifier.fillMaxSize().cornerRadius(8.dp))
+                    Image(ImageProvider(shown.picture), contentDescription = if (titled) null else shown.entry.title, contentScale = ContentScale.Crop, modifier = GlanceModifier.fillMaxSize().cornerRadius(8.dp))
                 } else {
                     Image(ImageProvider(R.drawable.ic_brand_mark), contentDescription = null, modifier = GlanceModifier.width(24.dp).height(24.dp))
                 }
             }
-            Spacer(GlanceModifier.height(5.dp))
-            Text(shown.entry.title, style = TextStyle(color = SCREEN, fontSize = 12.sp, fontWeight = FontWeight.Medium), maxLines = 1)
+            if (titled) {
+                Spacer(GlanceModifier.height(5.dp))
+                Text(shown.entry.title, style = TextStyle(color = SCREEN, fontSize = 12.sp, fontWeight = FontWeight.Medium), maxLines = 1)
+            }
         }
     }
 
@@ -189,6 +200,10 @@ class WatchlistWidget : GlanceAppWidget() {
     companion object {
         private const val MAX = 4
         private val GAP = 8.dp
+        /** Below this the posters go without their titles. */
+        private val TITLED_HEIGHT = 160.dp
+
+        private fun folder(context: Context) = File(context.cacheDir, "widget-watchlist")
 
         // The app's own colours (Theme.kt), as the other widgets have them.
         private val ROOM = ColorProvider(Color(0xFF1B1720))
@@ -199,6 +214,12 @@ class WatchlistWidget : GlanceAppWidget() {
         /** The watchlist changed, something was watched, or who's watching changed: the widget asks again. */
         suspend fun refresh(context: Context) {
             runCatching { WatchlistWidget().updateAll(context) }
+        }
+
+        /** Who's watching changed (or nobody's signed in): what the widget kept is dropped, and it asks again. */
+        suspend fun forget(context: Context) {
+            withContext(Dispatchers.IO) { folder(context).deleteRecursively() }
+            refresh(context)
         }
     }
 }

@@ -206,6 +206,11 @@ fun MainScreen(model: AppModel) {
                 AppLink.Search -> select(Tab.Search)
                 AppLink.Downloads -> select(Tab.Downloads)
                 AppLink.Home -> select(Tab.Home)
+                // On Home, so Back leaves it for Home.
+                AppLink.Watchlist -> {
+                    select(Tab.Home)
+                    navigator.openWatchlist()
+                }
                 // The prompt to allow it comes up by itself; a device that's gone is said so.
                 is AppLink.Pairing -> when (model.pairing.open(client, link.code)) {
                     PairingPrompts.Opened.Asking -> Unit

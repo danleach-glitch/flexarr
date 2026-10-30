@@ -203,4 +203,83 @@ class WatchlistTest {
         assertNull(entries[3].streamingLine)
         assertNull(entries[4].streamingLine)
     }
+
+    @Test
+    fun `the widget asks for what's ready, without Seerr`() = runTest {
+        server.enqueue(json("[$itemJson]"))
+        val ready = client().readyFromWatchlist(4)
+        assertEquals(listOf("i1"), ready.map { it.id })
+        val request = server.takeRequest()
+        assertEquals("/api/v1/watchlist/ready", request.url.encodedPath)
+        assertEquals("4", request.url.queryParameter("take"))
+    }
+
+    @Test
+    fun `a server without the ready list gives the ready titles from the whole watchlist`() = runTest {
+        val list = """[
+          {"id":"e1","mediaType":"movie","title":"Dune","status":"Ready","item":$itemJson},
+          {"id":"e2","mediaType":"tv","title":"Coming Thing","status":"Coming"}
+        ]"""
+        // The web app's page for a path it doesn't know, then the whole list.
+        server.enqueue(MockResponse.Builder().code(200).addHeader("Content-Type", "text/html").body("<html></html>").build())
+        server.enqueue(json(list))
+        assertEquals(listOf("i1"), client().readyFromWatchlist(4).map { it.id })
+        assertEquals("/api/v1/watchlist/ready", server.takeRequest().url.encodedPath)
+        assertEquals("/api/v1/watchlist", server.takeRequest().url.encodedPath)
+
+        // A 404 reads the same; a server with no watchlist at all has nothing ready.
+        server.enqueue(json("""{"status":404}""", code = 404))
+        server.enqueue(json("""{"status":404}""", code = 404))
+        assertTrue(client().readyFromWatchlist(4).isEmpty())
+    }
+
+    @Test
+    fun `reads titles from beyond the library`() = runTest {
+        server.enqueue(json(
+            """[
+              {"tmdbId":157336,"mediaType":"movie","title":"Interstellar","year":2014,"overview":"Space.","poster":"/api/v1/images/remote?u=x",
+               "backdrop":null,"rating":8.4,"availability":"None","libraryItemId":null,"onWatchlist":true},
+              {"tmdbId":1399,"mediaType":"tv","title":"Game of Thrones","year":2011,"rating":8.5,"availability":"Available","libraryItemId":"i1"},
+              {"tmdbId":5,"mediaType":"tv","title":"New","rating":0,"availability":"SomethingNew","extra":1}
+            ]""",
+        ))
+        val titles = client().searchEverything("inter stellar")
+        assertEquals("inter stellar", server.takeRequest().url.queryParameter("q"))
+        assertEquals(true, titles[0].onWatchlist)
+        assertEquals("movie:157336", titles[0].key)
+        assertEquals("Film, 2014", titles[0].kindLine)
+        assertTrue(titles[0].canRequest)
+        // A server before watchlists doesn't say.
+        assertNull(titles[1].onWatchlist)
+        assertEquals("i1", titles[1].libraryItemId)
+        assertEquals("Show, 2011", titles[1].kindLine)
+        assertFalse(titles[1].canRequest)
+        assertEquals(TitleAvailability.Unknown, titles[2].availability)
+        assertEquals("Show", titles[2].kindLine)
+        assertFalse(titles[2].canRequest)
+    }
+
+    @Test
+    fun `says whether requests are set up`() = runTest {
+        server.enqueue(json("""{"configured":true,"reachable":false}"""))
+        assertEquals(RequestsStatus(configured = true, reachable = false), client().requestsStatus())
+        server.enqueue(json("""{"status":404}""", code = 404))
+        assertNull(client().requestsStatus())
+    }
+
+    @Test
+    fun `takes a title from beyond the library off by its TMDB id`() = runTest {
+        server.enqueue(MockResponse.Builder().code(204).build())
+        client().removeFromWatchlist("tv", 1399)
+        val delete = server.takeRequest()
+        assertEquals("DELETE", delete.method)
+        assertEquals("tv", delete.url.queryParameter("mediaType"))
+        assertEquals("1399", delete.url.queryParameter("tmdbId"))
+    }
+
+    @Test
+    fun `an entry the library hasn't got says what it is`() {
+        assertEquals("Film, 2014", entry("a", "NotAvailable", null, year = 2014).kindLine)
+        assertEquals("Show, 2011", entry("b", "Coming", null, mediaType = "tv", year = 2011).kindLine)
+    }
 }

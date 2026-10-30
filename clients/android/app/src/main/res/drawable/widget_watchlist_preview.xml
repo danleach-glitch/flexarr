@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- What the widget picker shows for Ready from your watchlist: the heading and four posters, each with its title. -->
+<!-- What the widget picker shows for the watchlist widget (Ready to watch): the heading and four posters, each with its title. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="200dp"
     android:height="120dp"

@@ -168,7 +168,7 @@
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/up_next_widget" />
         </receiver>
 
-        <!-- Ready from your watchlist (WatchlistWidget). -->
+        <!-- Ready to watch, from the watchlist (WatchlistWidget). -->
         <receiver
             android:name=".widget.WatchlistWidgetReceiver"
             android:exported="true"

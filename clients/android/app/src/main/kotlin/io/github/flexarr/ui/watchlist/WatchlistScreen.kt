@@ -96,12 +96,12 @@ fun WatchlistScreen(model: AppModel) {
     RoomBackground(ambient = null) {
         Column {
             PageTitle("Watchlist", onBack = { navigator.back() }) {
-                if (hasEntries) SortAndKind(sort, { sort = it }, kind, { kind = it })
+                if (hasEntries) FilterMenu(filter, { filter = it }, kind, { kind = it }, sort, { sort = it })
             }
             Loaded(loader) { entries ->
                 PullToRefreshBox(isRefreshing = loader.refreshing, onRefresh = loader.retry) {
                     if (entries.isEmpty()) {
-                        StatusView("Nothing here yet. Add films and shows from their pages.", empty = true)
+                        StatusView("Nothing here yet.", empty = true)
                     } else Column {
                         LazyRow(
                             contentPadding = PaddingValues(horizontal = Edge),
@@ -112,7 +112,7 @@ fun WatchlistScreen(model: AppModel) {
                         }
                         val shown = remember(entries, filter, kind, sort) { sort.sorted(entries.filter { filter.matches(it) && kind.matches(it) }) }
                         if (shown.isEmpty()) {
-                            StatusView("Nothing here.", empty = true)
+                            StatusView("Nothing on your watchlist matches.", empty = true)
                         } else {
                             LazyVerticalGrid(
                                 columns = GridCells.Adaptive(GridMinimum),
@@ -177,6 +177,8 @@ private fun EntryCard(model: AppModel, entry: WatchlistEntry) {
             }
             Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
                 Text(entry.title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen.copy(alpha = 0.9f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                // "Film, 2014": a title the library hasn't got has no other way of saying what it is.
+                if (libraryId == null) Text(entry.kindLine, fontSize = 12.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (!canRequest) statusLine(entry)?.let { Text(it, fontSize = 12.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis) }
                 // Where it streams, for a title the library hasn't got.
                 entry.streamingLine?.let { Text(it, fontSize = 12.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis) }
@@ -198,20 +200,31 @@ private fun EntryCard(model: AppModel, entry: WatchlistEntry) {
     }
 }
 
-/** Sort by, and films, shows or both: one button beside the title, as a library's. */
+/** Which titles (as the chips), films, shows or both, and the order: one button beside the title, as a library's. */
 @Composable
-private fun SortAndKind(sort: WatchlistSort, onSort: (WatchlistSort) -> Unit, kind: WatchlistKind, onKind: (WatchlistKind) -> Unit) {
+private fun FilterMenu(
+    filter: WatchlistFilter,
+    onFilter: (WatchlistFilter) -> Unit,
+    kind: WatchlistKind,
+    onKind: (WatchlistKind) -> Unit,
+    sort: WatchlistSort,
+    onSort: (WatchlistSort) -> Unit,
+) {
     var open by remember { mutableStateOf(false) }
+    val filtered = filter != WatchlistFilter.Everything || kind != WatchlistKind.All
     Box {
         IconButton(onClick = { open = true }) {
-            Icon(Icons.Filled.FilterList, contentDescription = "Sort and filter", tint = if (kind == WatchlistKind.All) Flexarr.screen else Flexarr.silver)
+            Icon(Icons.Filled.FilterList, contentDescription = "Filter", tint = if (filtered) Flexarr.silver else Flexarr.screen)
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            MenuHeading("Sort by")
-            WatchlistSort.entries.forEach { option -> Choice(option.label, option == sort) { open = false; onSort(option) } }
-            HorizontalDivider(color = Flexarr.aisle)
             MenuHeading("Show")
+            WatchlistFilter.entries.forEach { option -> Choice(option.label, option == filter) { open = false; onFilter(option) } }
+            HorizontalDivider(color = Flexarr.aisle)
+            MenuHeading("Kind")
             WatchlistKind.entries.forEach { option -> Choice(option.label, option == kind) { open = false; onKind(option) } }
+            HorizontalDivider(color = Flexarr.aisle)
+            MenuHeading("Sort")
+            WatchlistSort.entries.forEach { option -> Choice(option.label, option == sort) { open = false; onSort(option) } }
         }
     }
 }
@@ -235,5 +248,6 @@ private fun Choice(label: String, selected: Boolean, onClick: () -> Unit) {
 private fun statusLine(entry: WatchlistEntry): String? = when (entry.status) {
     WatchlistStatus.OnItsWay -> "On its way"
     WatchlistStatus.Coming -> entry.releaseDay?.let { "Out ${it.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))}" } ?: "Coming"
-    else -> entry.year?.toString()
+    // The year's in the kind line, for a title the library hasn't got.
+    else -> if (entry.libraryItemId == null) null else entry.year?.toString()
 }
