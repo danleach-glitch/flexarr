@@ -11,11 +11,22 @@ namespace Flexarr.Api.Devices;
 public sealed record LiveActivityRequest(string Token, string Environment, Guid ItemId);
 
 /// <summary>
-/// What the phone's Live Activity shows, and all the relay carries: times, no titles (the phone puts those on itself
-/// when it starts the activity, so they never pass through the relay readable).
+/// What the phone's Live Activity shows: times, no titles (the phone puts those on itself when it starts the activity,
+/// so they never pass through the relay readable).
 /// </summary>
-/// <param name="At">When <paramref name="Position"/> was so, in seconds since 1970.</param>
-public sealed record LiveActivityState(bool Paused, double Position, double At, double Duration, double Rate);
+/// <param name="At">When <paramref name="Position"/> was so, in seconds since 1970 by the server's clock.</param>
+public sealed record LiveActivityState(bool Paused, double Position, double At, double Duration, double Rate)
+{
+    /// <summary>
+    /// What the relay is sent: the same, with how long ago <see cref="Position"/> was so in place of when, so a server
+    /// whose clock is off doesn't throw the phone's times out (the relay puts its own clock's time on it).
+    /// </summary>
+    public LiveActivityWire Wire(double now) => new(Paused, Position, Math.Clamp(now - At, 0, 86_400), Duration, Rate);
+}
+
+/// <summary>All the relay carries for a Live Activity (see <see cref="LiveActivityState.Wire"/>).</summary>
+/// <param name="Age">How many seconds ago <paramref name="Position"/> was so.</param>
+public sealed record LiveActivityWire(bool Paused, double Position, double Age, double Duration, double Rate);
 
 /// <summary>
 /// The Live Activities phones have on their Lock Screens for a TV that's playing ("Living room · Slow Horses"), kept
@@ -38,6 +49,7 @@ public sealed partial class LiveActivities(NowPlayingFeed feed, DeviceCommands c
     private const double Drift = 3;
 
     private readonly ConcurrentDictionary<string, Entry> _entries = new(StringComparer.Ordinal);
+    private readonly Lock _gate = new();
     private readonly ConcurrentDictionary<string, DeviceNowPlayingDto> _latest = new(StringComparer.Ordinal);
     private readonly Channel<string> _changed = Channel.CreateUnbounded<string>(new UnboundedChannelOptions { SingleReader = true });
 
@@ -64,6 +76,9 @@ public sealed partial class LiveActivities(NowPlayingFeed feed, DeviceCommands c
         public DateTime? GoneSince { get; set; }
 
         public DateTime RetryAfter { get; set; }
+
+        /// <summary>It's to end (the TV moved on or stopped), and the end hasn't reached the relay yet.</summary>
+        public bool Ending { get; set; }
     }
 
     public static bool IsToken(string? token) => token is not null && TokenShape().IsMatch(token);
@@ -75,14 +90,29 @@ public sealed partial class LiveActivities(NowPlayingFeed feed, DeviceCommands c
     public bool Start(string deviceId, LiveActivityRequest request, string? owner)
     {
         ArgumentNullException.ThrowIfNull(request);
-        End(request.Token);
-        if (_entries.Count >= Limit || (owner is not null && _entries.Values.Count(e => e.Owner == owner) >= LimitPerSignIn))
+        lock (_gate)
         {
-            return false;
+            // The phone giving its token again (a new token, back in front, a restarted server): it replaces its own
+            // registration, never someone else's.
+            if (_entries.TryGetValue(request.Token, out var existing))
+            {
+                if (existing.Owner != owner)
+                {
+                    return false;
+                }
+
+                RemoveLocked(request.Token);
+            }
+
+            if (_entries.Count >= Limit || (owner is not null && _entries.Values.Count(e => e.Owner == owner) >= LimitPerSignIn))
+            {
+                return false;
+            }
+
+            _entries[request.Token] = new Entry(deviceId, request, owner);
+            feed.Follow(deviceId);
         }
 
-        _entries[request.Token] = new Entry(deviceId, request, owner);
-        feed.Follow(deviceId);
         LogStarted(deviceId);
         feed.Look(deviceId);
         return true;
@@ -97,13 +127,24 @@ public sealed partial class LiveActivities(NowPlayingFeed feed, DeviceCommands c
     /// </summary>
     public void End(string token, string deviceId, string? caller)
     {
-        if (_entries.TryGetValue(token, out var entry) && entry.DeviceId == deviceId && (caller is null || entry.Owner is null || entry.Owner == caller))
+        lock (_gate)
         {
-            Remove(token);
+            if (_entries.TryGetValue(token, out var entry) && entry.DeviceId == deviceId && (caller is null || entry.Owner == caller))
+            {
+                RemoveLocked(token);
+            }
         }
     }
 
     private void Remove(string token)
+    {
+        lock (_gate)
+        {
+            RemoveLocked(token);
+        }
+    }
+
+    private void RemoveLocked(string token)
     {
         if (_entries.TryRemove(token, out var entry))
         {
@@ -137,7 +178,17 @@ public sealed partial class LiveActivities(NowPlayingFeed feed, DeviceCommands c
         {
             var playing = change.NowPlaying;
             bool ended;
-            if (playing is null)
+            if (entry.Ending)
+            {
+                // An end the relay couldn't take earlier: tried again once the back-off is over.
+                if (now < entry.RetryAfter)
+                {
+                    continue;
+                }
+
+                ended = true;
+            }
+            else if (playing is null)
             {
                 // Nothing playing: it may be moving on to the next episode. Looked at again once the grace is over.
                 entry.GoneSince ??= now;
@@ -173,8 +224,9 @@ public sealed partial class LiveActivities(NowPlayingFeed feed, DeviceCommands c
 
             // A pause, a resume or the end is worth Apple's high priority; the rest (a seek) isn't.
             var urgent = ended || entry.Sent is null || entry.Sent.Paused != state.Paused;
-            var (outcome, reason) = await relay.SendActivityAsync(entry.Request.Token, entry.Request.Environment, ended ? "end" : "update", state, urgent, ct);
-            if (ended || outcome == PushOutcome.Gone)
+            var (outcome, reason) = await relay.SendActivityAsync(entry.Request.Token, entry.Request.Environment, ended ? "end" : "update", state.Wire(Seconds(now)),
+                urgent, ct);
+            if (outcome == PushOutcome.Gone || (ended && outcome == PushOutcome.Sent))
             {
                 Remove(token);
             }
@@ -184,7 +236,15 @@ public sealed partial class LiveActivities(NowPlayingFeed feed, DeviceCommands c
             }
             else
             {
+                // Not sent: an update waits for the next change after the back-off, an end is tried again then.
                 entry.RetryAfter = now + Backoff;
+                if (ended)
+                {
+                    entry.Ending = true;
+                    entry.Sent = state;
+                    _ = LookAgainAsync(change.DeviceId, Backoff, ct);
+                }
+
                 LogNotSent(reason);
             }
         }

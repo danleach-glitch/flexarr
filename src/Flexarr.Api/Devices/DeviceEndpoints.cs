@@ -46,7 +46,8 @@ public sealed record DeviceRateRequest(double Rate);
 /// <param name="FromBeginning">Start over rather than resume.</param>
 /// <param name="Shuffle">For a show: its episodes in a random order, one after another.</param>
 /// <param name="ProfileId">Whose to play it as: the device switches to that profile first (asking for its PIN, if it has one). Absent: the device's own.</param>
-public sealed record DevicePlayRequest(Guid ItemId, bool FromBeginning = false, bool Shuffle = false, string? ProfileId = null);
+/// <param name="StartSeconds">Where to start a film, episode or track (Undo after Stop); absent, where it was left. Apps before 0.56 ignore it.</param>
+public sealed record DevicePlayRequest(Guid ItemId, bool FromBeginning = false, bool Shuffle = false, string? ProfileId = null, double? StartSeconds = null);
 
 /// <param name="Delivered">The device took the command. False: Flexarr isn't open on it; the command waits a couple of minutes for it to be.</param>
 /// <param name="Item">For play: what will play (the episode, when a show was asked for).</param>
@@ -173,7 +174,8 @@ public static class DeviceEndpoints
         }
 
         // A phone's Live Activity for what a TV is playing: kept up to date through the push relay while the phone is locked.
-        group.MapPut("/{id}/activity", (string id, LiveActivityRequest request, SignIns signIns, LiveActivities activities, PushRelay relay, CurrentProfile current) =>
+        group.MapPut("/{id}/activity", (string id, LiveActivityRequest request, SignIns signIns, LiveActivities activities, PushRelay relay, CurrentProfile current,
+            HttpContext http) =>
         {
             if (!current.IsTrusted)
             {
@@ -185,7 +187,7 @@ public static class DeviceEndpoints
                 return Results.NotFound();
             }
 
-            if (!LiveActivities.IsToken(request.Token) || request.Environment is not ("production" or "sandbox"))
+            if (!LiveActivities.IsToken(request.Token) || request.Environment is not ("production" or "sandbox") || request.ItemId == Guid.Empty)
             {
                 return Results.Problem("Send the activity's push token (hex) and environment (production or sandbox).", statusCode: StatusCodes.Status400BadRequest);
             }
@@ -195,19 +197,19 @@ public static class DeviceEndpoints
                 return Results.Problem("Notifications are turned off on this server.", statusCode: StatusCodes.Status409Conflict);
             }
 
-            return activities.Start(id, request, current.SignInId)
+            return activities.Start(id, request, Owner(current, http))
                 ? Results.NoContent()
                 : Results.Problem("Too many Live Activities.", statusCode: StatusCodes.Status429TooManyRequests);
         });
-        group.MapDelete("/{id}/activity/{token}", (string id, string token, LiveActivities activities, CurrentProfile current) =>
+        group.MapDelete("/{id}/activity/{token}", (string id, string token, LiveActivities activities, CurrentProfile current, HttpContext http) =>
         {
             if (!current.IsTrusted)
             {
                 return Forbidden();
             }
 
-            // A phone ends its own; the API key (no sign-in of its own) any.
-            activities.End(token, id, current.SignInId);
+            // A phone ends its own; the API key itself any.
+            activities.End(token, id, Owner(current, http));
             return Results.NoContent();
         });
 
@@ -250,6 +252,10 @@ public static class DeviceEndpoints
     }
 
     private const int MaxTrackId = 64;
+
+    /// <summary>Who a Live Activity belongs to: the sign-in, or for the API key itself null (it may end any); any other way in (the home network, Tailscale) by its method.</summary>
+    private static string? Owner(CurrentProfile current, HttpContext http) =>
+        current.SignInId ?? (http.User.FindFirst(FlexarrClaims.Method)?.Value is { } method and not ApiKeyAuthenticationHandler.Methods.ApiKey ? $"{method}:{current.Id}" : null);
 
     private static IResult Forbidden() => Results.Problem("Only a signed-in browser or device, or the API key, can play on other devices.", statusCode: 403);
 
@@ -305,9 +311,20 @@ public static class DeviceEndpoints
         }
 
         var remote = playing.Remote;
-        return new NowPlayingDto(item, playing.LastPosition, playing.DurationSeconds, playing.Paused, playing.ReportedAt, remote?.Rate, remote?.Prompt, remote?.HasNext,
+        var dto = new NowPlayingDto(item, playing.LastPosition, playing.DurationSeconds, playing.Paused, playing.ReportedAt, remote?.Rate, remote?.Prompt, remote?.HasNext,
             remote?.Tracks, remote?.Sound, playing.ReportedAt is { } at ? Math.Max(0, (now - at).TotalSeconds) : null);
+        return item.Id == Guid.Empty ? Private(dto) : dto;
     }
+
+    /// <summary>
+    /// A title the listener mayn't see, told as playing and nothing more: its tracks, the button over the picture and
+    /// its length could say what it is as surely as its name.
+    /// </summary>
+    private static NowPlayingDto Private(NowPlayingDto playing) =>
+        playing with { Item = playing.Item.Id == Guid.Empty ? playing.Item : playing.Item.Private(), DurationSeconds = 0, Tracks = null, Prompt = null, HasNext = null, Sound = null };
+
+    /// <summary>How often a device's stream looks again at which libraries its profile hides (tests make it every time).</summary>
+    internal static TimeSpan HiddenRecheck { get; set; } = TimeSpan.FromSeconds(5);
 
     /// <summary>What a play command came to: the result to return, or why it couldn't be sent.</summary>
     public sealed record PlayOutcome(DeviceCommandResultDto? Result, bool Delivered, string? Error, int Status);
@@ -353,8 +370,9 @@ public static class DeviceEndpoints
         var shuffle = request.Shuffle && item.Kind is MediaKind.Series or MediaKind.Season;
         var playing = shuffle ? item.Id : target.Id;
         var summary = await db.MediaItems.Where(i => i.Id == playing).Summaries(profileId).FirstAsync(ct);
+        var start = !shuffle && playing == item.Id && request.StartSeconds is { } at && double.IsFinite(at) && at >= 0 ? at : (double?)null;
         var command = new DeviceCommand(DeviceCommand.NewId(), DeviceCommandKind.Play, playing, request.FromBeginning, SenderName(signIns, current), DateTime.UtcNow, shuffle,
-            ProfileId: request.ProfileId);
+            ProfileId: request.ProfileId, Seconds: start);
         var delivered = commands.Send(device.Id, command);
         return new PlayOutcome(new DeviceCommandResultDto(delivered, device.Name, summary), delivered, null, 0);
     }
@@ -469,10 +487,26 @@ public static class DeviceEndpoints
     /// changes ("event: now-playing", <see cref="DeviceNowPlayingDto"/>), for a remote.
     /// </summary>
     private static async Task StreamAsync(HttpContext http, CurrentProfile current, DeviceCommands commands, Pairings pairings, NowPlayingFeed feed,
-        FlexarrDbContext db, string? accepts, bool? nowPlaying, CancellationToken ct)
+        FlexarrDbContext db, SignIns signIns, string? accepts, bool? nowPlaying, CancellationToken ct)
     {
-        // Titles from libraries hidden from this device's profile are told as playing, but not what they are.
+        // Titles from libraries hidden from this device's profile are told as playing, but not what they are. Looked up
+        // again every few seconds: the profile chosen on the device, or what it hides, can change while it listens.
         var hidden = db.HiddenLibraryIds.ToHashSet();
+        var hiddenAt = DateTime.UtcNow;
+        async Task<HashSet<Guid>> HiddenAsync()
+        {
+            if (DateTime.UtcNow - hiddenAt < HiddenRecheck || current.SignInId is not { } signInId)
+            {
+                return hidden;
+            }
+
+            var profile = signIns.List().FirstOrDefault(s => s.Id == signInId)?.ProfileId ?? PlaybackState.DefaultUser;
+            var ids = await db.Profiles.AsNoTracking().Where(p => p.Id == profile).Select(p => p.HiddenLibraryIds).FirstOrDefaultAsync(ct);
+            hidden = (ids ?? []).ToHashSet();
+            hiddenAt = DateTime.UtcNow;
+            return hidden;
+        }
+
         if (http.User.FindFirst(FlexarrClaims.Method)?.Value != ApiKeyAuthenticationHandler.Methods.Device || current.SignInId is not { } deviceId)
         {
             await Results.Problem("Only a device signed in with its own token (an Apple TV, iPhone or iPad connected to this server) can listen for commands.", statusCode: 403)
@@ -559,9 +593,9 @@ public static class DeviceEndpoints
 
                 while (watching is not null && watching.Changes.TryRead(out var change))
                 {
-                    if (change.NowPlaying is { Item: var item } playing && hidden.Contains(item.LibraryId))
+                    if (change.NowPlaying is { Item: var item } playing && (await HiddenAsync()).Contains(item.LibraryId))
                     {
-                        change = change with { NowPlaying = playing with { Item = item.Private() } };
+                        change = change with { NowPlaying = Private(playing) };
                     }
 
                     await http.Response.WriteAsync($"event: now-playing\ndata: {JsonSerializer.Serialize(change, Json)}\n\n", ct);

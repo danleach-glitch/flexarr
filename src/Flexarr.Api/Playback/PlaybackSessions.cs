@@ -149,7 +149,18 @@ public sealed partial class PlaybackSessions
     public static bool Shows(PlaybackSession session, DateTime now)
     {
         ArgumentNullException.ThrowIfNull(session);
-        return now - session.LastSeen < NowPlayingStaleness && (session.Paused || now - (session.ReportedAt ?? session.LastSeen) < PlaybackEvents.PlayingSilence);
+        return now - session.LastSeen < NowPlayingStaleness && (session.Paused || now - HeardAt(session) < PlaybackEvents.PlayingSilence);
+    }
+
+    /// <summary>
+    /// When a playback was last heard from, for telling it has gone quiet. A player that tells remotes (an Apple TV from
+    /// 0.56) playing: its last report, as requests for its stream can go on while its app is gone. Anything else, or
+    /// paused: its last request of any kind (a phone casting stops reporting while the TV it cast to streams on).
+    /// </summary>
+    public static DateTime HeardAt(PlaybackSession session)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        return !session.Paused && session.Remote is not null ? session.ReportedAt ?? session.LastSeen : session.LastSeen;
     }
 
     private static T? Parse<T>(string? name) where T : struct, Enum =>

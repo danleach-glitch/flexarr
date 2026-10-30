@@ -109,6 +109,8 @@ public static class LibraryVisibility
             EpisodeNumberEnd = null, AirDate = null, Resolution = null, Artwork = new ArtworkDto(null, null, null, null), AccentColor = null,
             CommunityRating = null, CriticRating = null, ContentRating = null, ReleaseDate = null, SeriesTitle = null, DiscNumber = null,
             TrackNumber = null, SeriesId = null, AlbumType = null, TrackArtist = null,
+            // A runtime and when it was added can pick out a film as surely as its title; what the watcher has seen of it too.
+            ChildCount = 0, DurationSeconds = null, RuntimeMinutes = null, AddedAt = DateTime.UnixEpoch, UserData = new UserDataDto(0, false, 0, null, null),
         };
     }
 

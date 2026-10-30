@@ -285,13 +285,15 @@ const DAY = 24 * 60 * 60;
 
 function activityState(state, now) {
   if (!state || typeof state !== 'object' || Array.isArray(state)) return null;
+  // `age`: how long ago `position` was so. The time it was so is worked out here, on this clock, so a server whose
+  // clock is off doesn't throw the phone's times out.
   const keys = Object.keys(state).sort().join(',');
-  if (keys !== 'at,duration,paused,position,rate') return null;
-  const { paused, position, at, duration, rate } = state;
+  if (keys !== 'age,duration,paused,position,rate') return null;
+  const { paused, position, age, duration, rate } = state;
   const number = (n, min, max) => typeof n === 'number' && Number.isFinite(n) && n >= min && n <= max;
   if (typeof paused !== 'boolean' || !number(position, 0, 2 * DAY) || !number(duration, 0, 2 * DAY) || !number(rate, 0.25, 4) ||
-      !number(at, now - DAY, now + DAY)) return null;
-  return { paused, position, at, duration, rate };
+      !number(age, 0, DAY)) return null;
+  return { paused, position, at: Date.now() / 1000 - age, duration, rate };
 }
 
 async function liveActivity(res, { token, environment, event, state, urgent }) {

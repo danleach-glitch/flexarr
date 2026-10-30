@@ -355,6 +355,63 @@ public class DeviceTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
     }
 
     [Fact]
+    public async Task APhoneThatSwitchesProfile_WhileListening_IsToldTitlesAsTheNewProfileMaySeeThem()
+    {
+        var show = await SeedAsync("The Bear", ("S01E01", 1, 1));
+        Guid library;
+        using (var scope = factory.Services.CreateScope())
+        {
+            library = (await scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().MediaItems.FindAsync(show.Series))!.LibraryId;
+        }
+
+        var kid = (await (await Admin().PostAsJsonAsync(Api("/profiles"), new { name = $"Kid {Guid.NewGuid():N}", hiddenLibraryIds = new[] { library } }))
+            .Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString();
+        var (tvId, tv) = await DeviceAsync("Kitchen TV");
+        var (_, phone) = await DeviceAsync("Shared phone");
+        var (response, reader) = await ListenAsync(phone, "?nowPlaying=true");
+        using var publisher = await StartPublisherAsync();
+        var before = DeviceEndpoints.HiddenRecheck;
+        DeviceEndpoints.HiddenRecheck = TimeSpan.Zero;
+        try
+        {
+            // On the main profile when it started listening; switched to the kid's while the stream stays open.
+            Assert.True((await phone.PostAsJsonAsync(Api($"/profiles/{kid}/select"), new { })).IsSuccessStatusCode);
+            var session = Session(tvId, show.Episodes["S01E01"]);
+            factory.Services.GetRequiredService<PlaybackSessions>().Add(session);
+            await NextNowPlayingAsync(reader, tvId);
+            var report = new { positionSeconds = 5.0, rate = 1.0, hasNext = true, prompt = "SkipIntro", tracks = new { audio = new[] { new { id = "1", label = "Director's commentary", selected = true } }, subtitles = Array.Empty<object>() } };
+            await tv.PostAsJsonAsync(Api($"/playback/{session.Id}/progress"), report);
+            var playing = (await NextNowPlayingAsync(reader, tvId)).GetProperty("nowPlaying");
+            Assert.Equal(Flexarr.Api.Profiles.LibraryVisibility.PrivateTitle, playing.GetProperty("item").GetProperty("title").GetString());
+            // Nothing that would say what it is: its tracks, the button over the picture, its length.
+            Assert.Equal(JsonValueKind.Null, playing.GetProperty("tracks").ValueKind);
+            Assert.Equal(JsonValueKind.Null, playing.GetProperty("prompt").ValueKind);
+            Assert.Equal(0, playing.GetProperty("durationSeconds").GetDouble());
+        }
+        finally
+        {
+            DeviceEndpoints.HiddenRecheck = before;
+        }
+
+        response.Dispose();
+        await publisher.StopAsync(default);
+    }
+
+    [Fact]
+    public async Task PlayingOnADevice_FromAPosition_TellsItWhere()
+    {
+        var show = await SeedAsync("Fargo", ("S01E01", 1, 1));
+        var (id, tv) = await DeviceAsync("Spare room");
+        var (response, reader) = await ListenAsync(tv);
+        Assert.Equal(HttpStatusCode.OK, (await Admin().PostAsJsonAsync(Api($"/devices/{id}/play"), new { itemId = show.Episodes["S01E01"], startSeconds = 812.5 })).StatusCode);
+        Assert.Equal(812.5, (await NextCommandAsync(reader)).GetProperty("seconds").GetDouble());
+        // A show (whichever episode is next) starts where that episode was left.
+        Assert.Equal(HttpStatusCode.OK, (await Admin().PostAsJsonAsync(Api($"/devices/{id}/play"), new { itemId = show.Series, startSeconds = 812.5 })).StatusCode);
+        Assert.Equal(JsonValueKind.Null, (await NextCommandAsync(reader)).GetProperty("seconds").ValueKind);
+        response.Dispose();
+    }
+
+    [Fact]
     public async Task AProgressReport_WithValuesThisServerDoesntKnow_StillRecords_AndTracksAreKeptInBounds()
     {
         var show = await SeedAsync("Severance", ("S01E01", 1, 1));

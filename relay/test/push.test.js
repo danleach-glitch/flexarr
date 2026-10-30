@@ -133,12 +133,16 @@ test('without a service account, Android pushes say so', async () => {
 
 test('a Live Activity update carries times and nothing else', async () => {
   const now = Math.floor(Date.now() / 1000);
-  const state = { paused: false, position: 120, at: now, duration: 3000, rate: 1 };
-  assert.deepEqual(push._activityState(state, now), state);
+  const state = { paused: false, position: 120, age: 2, duration: 3000, rate: 1 };
+  const read = push._activityState(state, now);
+  // The time it was so, on the relay's own clock.
+  assert.ok(Math.abs(read.at - (Date.now() / 1000 - 2)) < 1);
+  assert.equal(read.position, 120);
   // A title, text where a number goes, or a time far off: refused.
   assert.equal(push._activityState({ ...state, title: 'Heat' }, now), null);
   assert.equal(push._activityState({ ...state, position: '120' }, now), null);
-  assert.equal(push._activityState({ ...state, at: now + 3 * 86400 }, now), null);
+  assert.equal(push._activityState({ ...state, age: 3 * 86400 }, now), null);
+  assert.equal(push._activityState({ ...state, age: undefined, at: now }, now), null);
   assert.equal(push._activityState({ ...state, rate: 40 }, now), null);
 });
 
@@ -146,18 +150,18 @@ test('a Live Activity request with a title in it is refused before reaching Appl
   const now = Math.floor(Date.now() / 1000);
   // A Live Activity's token is 128 bytes, longer than a notification's.
   const answer = await call({ body: { kind: 'liveactivity', token: 'ab'.repeat(128), environment: 'sandbox', event: 'update',
-    state: { paused: false, position: 1, at: now, duration: 10, rate: 1, title: 'Heat' } } });
+    state: { paused: false, position: 1, age: 0, duration: 10, rate: 1, title: 'Heat' } } });
   assert.equal(answer.status, 400);
   assert.equal(answer.body.reason, 'BadState');
   const badEvent = await call({ body: { kind: 'liveactivity', token: 'ab'.repeat(32), environment: 'sandbox', event: 'start',
-    state: { paused: false, position: 1, at: now, duration: 10, rate: 1 } } });
+    state: { paused: false, position: 1, age: 0, duration: 10, rate: 1 } } });
   assert.equal(badEvent.body.reason, 'BadEvent');
 });
 
 test('a Live Activity update says whether it is urgent with a true or false, nothing else', async () => {
   const now = Math.floor(Date.now() / 1000);
   const answer = await call({ body: { kind: 'liveactivity', token: 'ab'.repeat(128), environment: 'sandbox', event: 'update', urgent: 'yes',
-    state: { paused: false, position: 1, at: now, duration: 10, rate: 1 } } });
+    state: { paused: false, position: 1, age: 0, duration: 10, rate: 1 } } });
   assert.equal(answer.status, 400);
   assert.equal(answer.body.reason, 'BadUrgent');
 });

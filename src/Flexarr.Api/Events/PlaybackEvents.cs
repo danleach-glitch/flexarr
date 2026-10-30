@@ -151,8 +151,7 @@ public sealed class PlaybackEvents
         ArgumentNullException.ThrowIfNull(sessions);
         foreach (var session in sessions)
         {
-            // Playing, what counts is the last report (requests for the stream go on while reports fail); paused, the last request.
-            var heard = session.Paused ? session.LastSeen : session.ReportedAt ?? session.LastSeen;
+            var heard = PlaybackSessions.HeardAt(session);
             if (session.Announced && now - heard > (session.Paused ? PausedSilence : PlayingSilence))
             {
                 Stop(session);

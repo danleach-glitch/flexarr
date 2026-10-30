@@ -612,6 +612,8 @@ public sealed class NotificationTests : IAsyncLifetime
 
         var token = string.Concat(Enumerable.Repeat("cd34", 64)); // 128 bytes, as a Live Activity's are
         Assert.Equal(HttpStatusCode.BadRequest, (await phone.PutAsJsonAsync(Api($"/devices/{tvId}/activity"), new { token = "nope", environment = "sandbox", itemId })).StatusCode);
+        // A private title reaches a phone with no id: there's nothing to follow.
+        Assert.Equal(HttpStatusCode.BadRequest, (await phone.PutAsJsonAsync(Api($"/devices/{tvId}/activity"), new { token, environment = "sandbox", itemId = Guid.Empty })).StatusCode);
 
         var sessions = _server.Services.GetRequiredService<Flexarr.Api.Playback.PlaybackSessions>();
         var session = new Flexarr.Api.Playback.PlaybackSession
@@ -627,6 +629,13 @@ public sealed class NotificationTests : IAsyncLifetime
         var first = _relay.Sent[^1];
         Assert.Equal("liveactivity", first.GetProperty("kind").GetString());
         Assert.Equal("update", first.GetProperty("event").GetString());
+        // How long ago, not when by this server's clock.
+        Assert.InRange(first.GetProperty("state").GetProperty("age").GetDouble(), 0, 5);
+        Assert.False(first.GetProperty("state").TryGetProperty("at", out _));
+
+        // Another phone can't take the registration over.
+        var (_, other) = await PhoneAsync();
+        Assert.NotEqual(HttpStatusCode.NoContent, (await other.PutAsJsonAsync(Api($"/devices/{tvId}/activity"), new { token, environment = "sandbox", itemId })).StatusCode);
         Assert.Equal(token, first.GetProperty("token").GetString());
         Assert.True(first.GetProperty("urgent").GetBoolean());
         // Times only: nothing that says what's playing.
@@ -654,8 +663,12 @@ public sealed class NotificationTests : IAsyncLifetime
         await Task.Delay(900);
         Assert.DoesNotContain(_relay.Sent.Skip(sent), b => b.GetProperty("event").GetString() == "end");
 
-        // It stops on the TV: the activity ends once the grace is over, and isn't followed any more.
+        // It stops on the TV with the relay down: the end is tried again after the back-off, and isn't followed any more.
+        activities.Backoff = TimeSpan.FromMilliseconds(400);
+        _relay.Answer = HttpStatusCode.BadGateway;
         await sessions.RemoveAsync(session.Id);
+        await Task.Delay(1000);
+        _relay.Answer = HttpStatusCode.OK;
         await WaitForAsync(() => _relay.Sent[^1].GetProperty("event").GetString() == "end");
         sent = _relay.Sent.Count;
         sessions.Add(session);

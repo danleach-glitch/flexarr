@@ -86,7 +86,7 @@ public sealed partial class PushRelay(HttpClient http, IOptionsMonitor<FlexarrOp
     /// notification these can't be sealed (the system reads them, not the app), so they carry times and nothing else.
     /// <paramref name="urgent"/>: a pause, resume or end, worth Apple's high priority (which it budgets); a seek isn't.
     /// </summary>
-    public async Task<(PushOutcome Outcome, string? Reason)> SendActivityAsync(string token, string environment, string activityEvent, Devices.LiveActivityState state,
+    public async Task<(PushOutcome Outcome, string? Reason)> SendActivityAsync(string token, string environment, string activityEvent, Devices.LiveActivityWire state,
         bool urgent, CancellationToken ct)
     {
         if (!IsEnabled || !Uri.TryCreate(options.CurrentValue.Notifications.RelayUrl, UriKind.Absolute, out var relay))
@@ -155,7 +155,7 @@ public sealed partial class PushRelay(HttpClient http, IOptionsMonitor<FlexarrOp
     private sealed record RelayRequest(string Token, string Environment, string Payload, string? CollapseId, string? Platform);
 
     /// <param name="Kind">"liveactivity": relays from before Live Activities refuse it (no payload), which only leaves the activity stale.</param>
-    private sealed record ActivityRequest(string Kind, string Token, string Environment, string Event, Devices.LiveActivityState State, bool Urgent);
+    private sealed record ActivityRequest(string Kind, string Token, string Environment, string Event, Devices.LiveActivityWire State, bool Urgent);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "The notification relay refused a push ({Status}: {Reason})")]
     private partial void LogRefused(int status, string? reason);

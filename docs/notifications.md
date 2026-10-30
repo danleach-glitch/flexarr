@@ -158,13 +158,14 @@ posts:
 
 ```json
 { "kind": "liveactivity", "token": "<hex>", "environment": "production", "event": "update", "urgent": false,
-  "state": { "paused": false, "position": 754.2, "at": 1793700000, "duration": 3120, "rate": 1 } }
+  "state": { "paused": false, "position": 754.2, "age": 1.5, "duration": 3120, "rate": 1 } }
 ```
 
-`event` is `update` or `end`. `urgent` (a pause, a resume, the end) goes to Apple at priority 10, which it budgets per
+`event` is `update` or `end`. `age` is how many seconds ago `position` was so; the relay turns it into a time on its own
+clock, so a server whose clock is off doesn't throw the phone's times out. `urgent` (a pause, a resume, the end) goes to Apple at priority 10, which it budgets per
 activity; anything else (a seek) at 5. Left out, it's urgent. The system reads Live Activity updates itself, so unlike notifications they can't be
 sealed: they carry times and nothing else. The phone put the title and the TV's name on when it started the activity,
-and the relay refuses a `state` with any other key (`400 BadState`). It sends Apple `apns-push-type: liveactivity` on the
+and the relay refuses a `state` with any other key (`400 BadState`). Apple is sent `content-state` with `at` (seconds since 1970) in place of `age`. It sends Apple `apns-push-type: liveactivity` on the
 topic `<APNS_TOPIC>.push-type.liveactivity`, with `aps.content-state` set to `state`, a `stale-date` for when it should
 have ended (twenty minutes on for a pause), and for `end` a `dismissal-date` of now. The 12-a-minute limit per token
 applies; the server gathers changes for a second and a half, sends only when the times change more than the activity's own clock shows, and sends nothing while the phone has Flexarr open (it updates the activity itself).
