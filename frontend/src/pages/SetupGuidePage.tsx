@@ -843,7 +843,7 @@ function Done({ onFinish }: { onFinish: () => void }) {
         {media.length === 0
           ? 'Add a library whenever you’re ready, in Settings › Libraries.'
           : scanning.length > 0
-            ? `Flexarr is reading ${total > 0 ? `${read.toLocaleString()} of ${total.toLocaleString()} files` : 'your files'}. You can start watching as titles appear.`
+            ? `Flexarr is reading ${total > 0 ? `${read.toLocaleString()} of ${total.toLocaleString()} files` : 'your files'}.`
             : `${titles.toLocaleString()} ${titles === 1 ? 'title' : 'titles'} ready to watch.`}
       </p>
       {scanning.length > 0 && (
@@ -867,7 +867,7 @@ function Done({ onFinish }: { onFinish: () => void }) {
         </p>
       ))}
       <button type="button" className="button onboard-primary onboard-wide" onClick={onFinish}>
-        {media.length > 0 ? 'Start watching' : 'Go to Home'}
+        {media.length > 0 ? 'Start watching now' : 'Go to Home'}
       </button>
     </section>
   )
