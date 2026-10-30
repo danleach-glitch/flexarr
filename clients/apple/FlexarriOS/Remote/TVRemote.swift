@@ -33,10 +33,22 @@ final class TVRemote {
     private(set) var playing: [Device] = []
     /// The device the remote is on; nil: the one playing that was used last.
     var selectedId: String?
-    /// The remote is showing.
+    /// The remote is showing. While it is, it stays on the TV it opened on (or was switched to): stopping that one
+    /// doesn't land it on another TV with Stop under the same finger.
     var showsRemote = false {
-        didSet { if showsRemote != oldValue { wake() } }
+        didSet {
+            guard showsRemote != oldValue else { return }
+            if showsRemote { selectedId = selectedId.flatMap { id in playing.contains { $0.id == id } ? id : nil } ?? current?.id }
+            pinned = showsRemote
+            listedSinceOpening = false
+            wake()
+        }
     }
+    /// The device list has come since the remote opened: until it has, an empty remote may only be waiting for it.
+    private(set) var listedSinceOpening = false
+    /// Stop's Undo is under way: the remote shows what was stopped until the TV plays it again.
+    private(set) var restarting = false
+    @ObservationIgnored private var pinned = false
     private(set) var notice: Notice?
     /// Counts the viewer's own taps, and the commands that failed: what the haptics follow (not the TV's state, which
     /// someone else may change).
@@ -44,8 +56,12 @@ final class TVRemote {
     private(set) var failures = 0
     /// The episode just asked for from the remote's list, until the TV starts it.
     private(set) var starting: String?
-    /// The bar was put away for this TV and title; it comes back with the next title.
+    /// The bar was put away for this TV and show (or film); it comes back with something else.
     private var hiddenBar: String?
+    /// What Stop stopped, for Undo: the TV and what it was playing, and where.
+    @ObservationIgnored private var stopped: (deviceId: String, playing: DeviceNowPlaying)?
+    /// Stream events held back during a command's hold, the latest for each device: applied when the hold ends.
+    @ObservationIgnored private var heldBack: [String: (nowPlaying: DeviceNowPlaying?, online: Bool?)] = [:]
     /// The app is in front: only then can a Live Activity start.
     @ObservationIgnored var isActive = false {
         didSet {
@@ -83,15 +99,31 @@ final class TVRemote {
     private static let hold: TimeInterval = 1.5
     private static let goneGrace: Duration = .seconds(5)
 
-    /// The device the remote is on.
+    /// The device the remote is on. While the remote is open, only the TV it's on (nil once that one stops).
     var current: Device? {
-        playing.first { $0.id == selectedId } ?? playing.first
+        let chosen = playing.first { $0.id == selectedId }
+        return pinned ? chosen : chosen ?? playing.first
     }
 
-    /// The TV the Playing on TV bar shows: the remote's, unless its bar was put away for what it's playing.
+    /// The TV the Playing on TV bar shows: the remote's, else another playing, leaving out any whose bar was put away
+    /// for what it's playing.
     var barDevice: Device? {
-        guard let device = current, let item = device.nowPlaying?.item.id, Self.key(device.id, item) != hiddenBar else { return nil }
-        return device
+        ([current].compactMap { $0 } + playing).first { device in
+            guard let playing = device.nowPlaying else { return false }
+            return Self.barKey(device.id, playing.item) != hiddenBar
+        }
+    }
+
+    /// Opens the remote (the bar, the Lock Screen's link). Set again even when it already says open: a remote that
+    /// couldn't show (over another sheet) shows now.
+    func open(on deviceId: String? = nil) {
+        if let deviceId { selectedId = deviceId }
+        if showsRemote {
+            showsRemote = false
+            Task { @MainActor in self.showsRemote = true }
+        } else {
+            showsRemote = true
+        }
     }
 
     /// Follows the sign-in: another server or profile starts afresh.
@@ -126,14 +158,21 @@ final class TVRemote {
             if let until = holdUntil[device.id], until > now, let shown = devices.first(where: { $0.id == device.id }) { return shown }
             return device
         }
-        if merged != devices { devices = merged } else { syncActivity() }
+        // Report times a moment apart (each list works its own out) aren't a change worth redrawing for.
+        if !merged.matches(devices) { devices = merged } else { syncActivity() }
+        if showsRemote { listedSinceOpening = true }
         if let starting, playing.contains(where: { $0.nowPlaying?.item.id == starting }) { self.starting = nil }
+        if restarting, let stopped, playing.contains(where: { $0.id == stopped.deviceId }) { restarting = false; self.stopped = nil }
     }
 
     /// The command stream says what a device is playing now, and whether Flexarr is open on it.
     func received(_ deviceId: String, _ nowPlaying: DeviceNowPlaying?, online: Bool?) {
+        // Held back while a command's change shows; the latest is applied when the hold ends (see `endHold`).
+        if let until = holdUntil[deviceId], until > Date() {
+            heldBack[deviceId] = (nowPlaying, online)
+            return
+        }
         heardAt[deviceId] = Date()
-        if let until = holdUntil[deviceId], until > Date() { return }
         guard let index = devices.firstIndex(where: { $0.id == deviceId }) else {
             // A device this phone hasn't heard of yet: the list once, not on every report.
             if unknown.insert(deviceId).inserted { Task { await refresh() } }
@@ -151,6 +190,28 @@ final class TVRemote {
         }
         devices[index].nowPlaying = nowPlaying
         if let starting, nowPlaying?.item.id == starting { self.starting = nil }
+        if restarting, stopped?.deviceId == deviceId, nowPlaying != nil { restarting = false; stopped = nil }
+    }
+
+    /// Holds `deviceId`'s reports back until `until`, then applies the latest that came meanwhile (or asks for the list).
+    private func hold(_ deviceId: String, until: Date) {
+        let deadline = max(holdUntil[deviceId] ?? .distantPast, until)
+        holdUntil[deviceId] = deadline
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(max(0, deadline.timeIntervalSinceNow)))
+            self?.endHold(deviceId, deadline)
+        }
+    }
+
+    private func endHold(_ deviceId: String, _ deadline: Date) {
+        // Renewed by a later command meanwhile: that one's hold ends it.
+        guard holdUntil[deviceId] == deadline else { return }
+        holdUntil[deviceId] = nil
+        if let held = heldBack.removeValue(forKey: deviceId) {
+            received(deviceId, held.nowPlaying, online: held.online)
+        } else {
+            Task { await refresh() }
+        }
     }
 
     /// Asks for the list while the app is up. The stream says as things change; this catches what it can't: often while
@@ -199,7 +260,7 @@ final class TVRemote {
     /// playing" in between.
     func control(_ action: DeviceControl) {
         guard let device = current, device.takes(action.kind) else { return }
-        if action == .skipSegment { show(device.id) { $0.with(prompt: .some(nil)) } } else { holdUntil[device.id] = Date().addingTimeInterval(4) }
+        if action == .skipSegment { show(device.id) { $0.with(prompt: .some(nil)) } } else { hold(device.id, until: Date().addingTimeInterval(4)) }
         send(to: device) { client in _ = try await client.control(device: device.id, action) }
     }
 
@@ -207,7 +268,7 @@ final class TVRemote {
     func play(_ episode: ItemSummary) {
         guard let device = current else { return }
         starting = episode.id
-        holdUntil[device.id] = Date().addingTimeInterval(4)
+        hold(device.id, until: Date().addingTimeInterval(4))
         send(to: device, failed: { [weak self] in self?.starting = nil }) { client in _ = try await client.play(on: device.id, itemId: episode.id) }
         // A TV that never starts it: the row stops saying so.
         Task { [weak self] in
@@ -221,16 +282,19 @@ final class TVRemote {
     @discardableResult
     func stop(offeringUndo: Bool = true) async -> Bool {
         guard let device = current, let client, let index = devices.firstIndex(where: { $0.id == device.id }) else { return false }
-        taps += 1
-        let item = device.nowPlaying?.item.id
         let before = devices[index].nowPlaying
         devices[index].nowPlaying = nil
-        let until = Date().addingTimeInterval(Self.hold)
-        holdUntil[device.id] = until
+        hold(device.id, until: Date().addingTimeInterval(Self.hold))
         do {
             let result = try await client.control(device: device.id, .stop)
             guard result.delivered else { throw FlexarrClientError.http(status: 409, message: "Flexarr isn't open on \(device.name).") }
-            if offeringUndo, let item { say(Notice(text: "Stopped", undo: (device.id, item)), for: 6) }
+            taps += 1
+            // Undo only for a title it can play again (a private one has no id to play).
+            if offeringUndo, let before, !before.item.isPrivate {
+                stopped = (device.id, before.moved(paused: true))
+                say(Notice(text: "Stopped", undo: (device.id, before.item.id)), for: UIAccessibility.isVoiceOverRunning ? 15 : 6)
+                AccessibilityNotification.Announcement("Stopped. Undo available.").post()
+            }
             return true
         } catch {
             if let index = devices.firstIndex(where: { $0.id == device.id }), devices[index].nowPlaying == nil { devices[index].nowPlaying = before }
@@ -240,18 +304,25 @@ final class TVRemote {
     }
 
     /// Undo for Stop: plays it on the TV again, from where it stopped.
+    /// Shown again at once (the remote stays open on it), and played on the TV from the moment it stopped.
     func undoStop() {
         guard let undo = notice?.undo, let client else { return }
         notice = nil
-        taps += 1
+        let snapshot = stopped?.deviceId == undo.deviceId ? stopped?.playing : nil
+        if let snapshot, let index = devices.firstIndex(where: { $0.id == undo.deviceId }) {
+            restarting = true
+            devices[index].nowPlaying = snapshot
+            hold(undo.deviceId, until: Date().addingTimeInterval(6))
+        }
         Task {
             do {
-                _ = try await client.play(on: undo.deviceId, itemId: undo.itemId)
+                _ = try await client.play(on: undo.deviceId, itemId: undo.itemId, startSeconds: snapshot?.positionSeconds)
+                taps += 1
             } catch {
+                restarting = false
+                if let index = devices.firstIndex(where: { $0.id == undo.deviceId }) { devices[index].nowPlaying = nil }
                 fail(error, device: devices.first { $0.id == undo.deviceId })
             }
-            try? await Task.sleep(for: .seconds(Self.hold))
-            await refresh()
         }
     }
 
@@ -286,33 +357,29 @@ final class TVRemote {
 
     /// Puts the bar away until the TV plays something else (nothing on the TV changes).
     func hideBar() {
-        guard let device = current, let item = device.nowPlaying?.item.id else { return }
-        hiddenBar = Self.key(device.id, item)
+        guard let device = barDevice, let item = device.nowPlaying?.item else { return }
+        hiddenBar = Self.barKey(device.id, item)
     }
 
     /// Shows `change` on the device's now playing straight away, and holds back reports that don't know of it yet.
     private func show(_ deviceId: String, _ change: (DeviceNowPlaying) -> DeviceNowPlaying) {
         guard let index = devices.firstIndex(where: { $0.id == deviceId }), let nowPlaying = devices[index].nowPlaying else { return }
         devices[index].nowPlaying = change(nowPlaying)
-        holdUntil[deviceId] = max(holdUntil[deviceId] ?? .distantPast, Date().addingTimeInterval(Self.hold))
+        hold(deviceId, until: Date().addingTimeInterval(Self.hold))
     }
 
+    /// Sends a command; when the hold on the device's reports ends, the latest report is applied (or the list asked
+    /// for). A tap is felt once the TV took it; a failure, as an error.
     private func send(to device: Device, failed: (@MainActor () -> Void)? = nil, _ command: @escaping @MainActor (FlexarrClient) async throws -> Void) {
         guard let client else { return }
-        taps += 1
-        let sentAt = Date()
         Task {
             do {
                 try await command(client)
+                taps += 1
             } catch {
                 failed?()
                 fail(error, device: device)
             }
-            // Once the TV has had a moment to report: the hold ends (unless a later command renewed it), and the list
-            // is asked for only if the stream hasn't said anything since.
-            try? await Task.sleep(for: .seconds(Self.hold))
-            if let until = holdUntil[device.id], until <= Date() { holdUntil[device.id] = nil }
-            if (heardAt[device.id] ?? .distantPast) < sentAt { await refresh() }
         }
     }
 
@@ -337,6 +404,9 @@ final class TVRemote {
 
     private static func key(_ deviceId: String, _ itemId: String) -> String { "\(deviceId)#\(itemId)" }
 
+    /// What hiding the bar covers: the show (its episodes as they follow on) or the film, on that TV.
+    private static func barKey(_ deviceId: String, _ item: ItemSummary) -> String { key(deviceId, item.seriesId ?? item.id) }
+
     // MARK: Live Activity
 
     /// The Live Activity follows the TV the remote is on: started (while the app is in front) when it plays, its times
@@ -355,7 +425,7 @@ final class TVRemote {
                 end(activity)
             }
         }
-        guard isActive, let device = target, let playing = device.nowPlaying, !dismissed.contains(Self.key(device.id, playing.item.id)),
+        guard isActive, let device = target, let playing = device.nowPlaying, !playing.item.isPrivate, !dismissed.contains(Self.key(device.id, playing.item.id)),
               !live.contains(where: { $0.attributes.deviceId == device.id && $0.attributes.itemId == playing.item.id }) else { return }
         start(device, playing)
     }

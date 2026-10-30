@@ -10,24 +10,37 @@ struct TVRemoteView: View {
     @Environment(TVRemote.self) private var remote
     @Environment(\.dismiss) private var dismiss
     @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     /// Where the thumb is while the viewer drags it; nil when the TV's own position shows.
     @State private var scrubbing: Double?
     @State private var episodes: [ItemSummary] = []
     @State private var continuing = false
+    /// What was last shown, kept on screen while Continue on iPhone stops the TV.
+    @State private var lastShown: (device: Device, playing: DeviceNowPlaying)?
     @ScaledMetric(relativeTo: .body) private var extraIcon: CGFloat = 18
 
     private static let skipSeconds: Double = 10
 
+    /// Side by side: a phone in landscape, or an iPad.
+    private var sideBySide: Bool { verticalSizeClass == .compact || horizontalSizeClass == .regular }
+
+    /// The TV and what it's playing to show: the remote's, or while continuing on this phone, what was last shown.
+    private var shown: (device: Device, playing: DeviceNowPlaying)? {
+        if let device = remote.current, let playing = device.nowPlaying { return (device, playing) }
+        return continuing ? lastShown : nil
+    }
+
     var body: some View {
         ZStack {
-            RoomBackground(ambient: remote.current?.nowPlaying?.item.glowColor, intensity: 0.45)
-            if let device = remote.current, let playing = device.nowPlaying {
+            RoomBackground(ambient: shown?.playing.item.glowColor, intensity: 0.45)
+            if let shown {
+                let device = shown.device, playing = shown.playing
                 ScrollView(.vertical) {
                     VStack(spacing: 22) {
                         Capsule().fill(Color.aisle).frame(width: 40, height: 5).padding(.top, 10)
                         header(device)
-                        if verticalSizeClass == .compact {
+                        if sideBySide {
                             // Landscape on a phone: the picture beside the controls, so play/pause needs no scroll.
                             HStack(alignment: .top, spacing: 28) {
                                 VStack(spacing: 14) {
@@ -42,26 +55,34 @@ struct TVRemoteView: View {
                             titles(playing.item)
                             playback(device, playing)
                         }
-                        if !episodes.isEmpty { episodeList(device, playing) }
+                        if !episodes.isEmpty, !playing.item.isPrivate { episodeList(device, playing) }
                     }
                     .padding(.horizontal, 28)
                     .padding(.bottom, 32)
-                    .frame(maxWidth: verticalSizeClass == .compact ? 820 : 560)
+                    .frame(maxWidth: sideBySide ? 820 : 560)
                     .frame(maxWidth: .infinity)
                     .animation(.easeOut(duration: 0.25), value: playing.prompt)
                 }
                 .scrollIndicators(.hidden)
+            } else if !remote.listedSinceOpening && remote.current == nil {
+                // Opened before the list came (from the Lock Screen, say): waiting for it, not "nothing".
+                ProgressView().controlSize(.large).tint(Color.screen)
             } else {
-                StatusView(state: .empty("Nothing is playing on a TV."))
+                StatusView(state: .empty("Nothing is playing."))
             }
         }
         .overlay(alignment: .bottom) { RemoteNoticeView().padding(.bottom, 16) }
+        .accessibilityAction(named: "Undo stop") { remote.undoStop() }
         .task(id: remote.current?.nowPlaying?.item.parentId) { await loadEpisodes() }
-        .task(id: remote.current == nil) {
-            // The TV stopped: a moment on the empty state, then the sheet goes (unless it comes back).
-            guard remote.current == nil, !continuing else { return }
+        .onChange(of: remote.current?.nowPlaying, initial: true) { _, playing in
+            if let device = remote.current, let playing { lastShown = (device, playing) }
+        }
+        .task(id: "\(remote.current == nil)#\(remote.listedSinceOpening)#\(remote.restarting)#\(continuing)") {
+            // The TV stopped: a moment on the empty state, then the sheet goes (unless it comes back). Not before the
+            // list has come, nor while Undo or Continue on iPhone is under way.
+            guard remote.current == nil, remote.listedSinceOpening, !remote.restarting, !continuing else { return }
             try? await Task.sleep(for: .seconds(2))
-            if !Task.isCancelled, remote.current == nil { dismiss() }
+            if !Task.isCancelled, remote.current == nil, !remote.restarting { dismiss() }
         }
     }
 
@@ -229,31 +250,39 @@ struct TVRemoteView: View {
         }
     }
 
-    /// Continue on iPhone, and Stop set apart from it (Undo follows a stop).
+    /// Continue on iPhone, and Stop set apart from it (Undo follows a stop); stacked at the largest text sizes.
+    @ViewBuilder
     private func actions(_ device: Device, _ playing: DeviceNowPlaying) -> some View {
-        HStack(spacing: 12) {
-            Button { continueHere(playing) } label: {
-                Label("Continue on \(ThisDevice.name)", systemImage: "iphone")
-                    .labelStyle(.titleAndIcon)
+        let layout = dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(spacing: 12)) : AnyLayout(HStackLayout(spacing: 12))
+        layout {
+            // A private title can't be played here: there's nothing to say which it is.
+            if !playing.item.isPrivate {
+                Button { continueHere(playing) } label: {
+                    HStack(spacing: 8) {
+                        if continuing { ProgressView().tint(Color.screen) } else { Image(systemName: "iphone") }
+                        Text("Continue on \(ThisDevice.name)")
+                    }
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Color.screen)
                     .padding(.horizontal, 16)
-                    .frame(minHeight: 44)
-                    .background(Capsule().fill(Color.screen.opacity(0.12)))
+                    .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : nil, minHeight: 44)
+                    .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Color.screen.opacity(0.12)))
+                }
+                .buttonStyle(CardButtonStyle())
+                .disabled(continuing)
             }
-            .buttonStyle(CardButtonStyle())
-            .disabled(continuing)
-            Spacer(minLength: 12)
+            if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 12) }
             Button { Task { await remote.stop() } } label: {
                 Label("Stop", systemImage: "stop.fill")
                     .labelStyle(.titleAndIcon)
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color.danger)
+                    .foregroundStyle(Color.screen)
                     .padding(.horizontal, 16)
-                    .frame(minHeight: 44)
-                    .overlay(Capsule().strokeBorder(Color.danger.opacity(0.6), lineWidth: 1))
+                    .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : nil, minHeight: 44)
+                    .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(Color.screen.opacity(0.35), lineWidth: 1))
             }
             .buttonStyle(CardButtonStyle())
+            .disabled(continuing)
             .accessibilityLabel("Stop on \(device.name)")
         }
     }

@@ -1355,6 +1355,8 @@ struct DevicePlayBody: Codable, Sendable {
     let shuffle: Bool
     /// Left out when nil: servers before 0.54 don't know it.
     var profileId: String?
+    /// Left out when nil.
+    var startSeconds: Double?
 }
 
 // MARK: - Subtitles

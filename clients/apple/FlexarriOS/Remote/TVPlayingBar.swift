@@ -25,14 +25,15 @@ struct TVPlayingBar: View {
                 Image(systemName: "xmark")
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(Color.usher)
-                    .frame(width: 28, height: 44)
+                    .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Hide")
+            .accessibilityLabel("Hide bar")
             .accessibilityHint("Keeps playing on \(device.name)")
-            .padding(.trailing, -6)
-            Button { remote.showsRemote = true } label: {
+            .padding(.leading, -8)
+            .padding(.trailing, -10)
+            Button { remote.open() } label: {
                 HStack(spacing: 12) {
                     TVStill(item: playing.item, width: 240)
                         .frame(width: 64, height: 36)
@@ -88,6 +89,7 @@ struct TVPlayingBar: View {
         .transition(.move(edge: .bottom).combined(with: .opacity))
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Playing on \(device.name): \(playing.item.displayTitle)")
+        .accessibilityAction(named: "Undo stop") { remote.undoStop() }
     }
 }
 
@@ -113,7 +115,8 @@ struct RemoteNoticeView: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, notice.undo == nil ? 10 : 0)
-                .background(Capsule().fill(Color.seat).shadow(color: .black.opacity(0.4), radius: 12, y: 4))
+                // A rounded rectangle rather than a capsule: at the largest text sizes the words take several lines.
+                .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(Color.seat).shadow(color: .black.opacity(0.4), radius: 12, y: 4))
                 .padding(.horizontal, 20)
                 .padding(.bottom, 8)
                 .transition(.move(edge: .bottom).combined(with: .opacity))

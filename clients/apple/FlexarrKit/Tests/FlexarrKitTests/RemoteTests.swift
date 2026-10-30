@@ -49,4 +49,26 @@ struct RemoteTests {
         #expect(RemoteTimes(paused: false, position: 110, at: 1_010, duration: 3_000, rate: 1.5).isNews(after: shown))
         #expect(shown.position(at: 4_000) == 3_000)
     }
+
+    @Test func deviceLists_matchDespiteAMomentsDifferenceInReportTimes() {
+        let a = [device("lounge", type: .appleTv, reportedAgo: 5)]
+        let b = [device("lounge", type: .appleTv, reportedAgo: 5.3)]
+        let c = [device("lounge", type: .appleTv, reportedAgo: 20)]
+        #expect(a.matches(b))
+        #expect(!a.matches(c))
+        #expect(!a.matches([]))
+    }
+
+    @Test func subtitlesToTurnOn_keepWhatsOn_thenTheLanguage_neverForcedFirst() {
+        let tracks = PlayerTracks(audio: [], subtitles: [
+            PlayerTrack(id: "1", label: "English (Forced)", selected: false),
+            PlayerTrack(id: "2", label: "French", selected: false),
+            PlayerTrack(id: "3", label: "English", selected: false),
+        ])
+        #expect(tracks.subtitlesToTurnOn(language: "English")?.id == "3")
+        #expect(tracks.subtitlesToTurnOn(language: "German")?.id == "2")
+        let on = PlayerTracks(audio: [], subtitles: [PlayerTrack(id: "1", label: "French", selected: true), PlayerTrack(id: "2", label: "English", selected: false)])
+        #expect(on.subtitlesToTurnOn(language: "English")?.id == "1")
+        #expect(PlayerTracks(audio: [], subtitles: []).subtitlesToTurnOn(language: "English") == nil)
+    }
 }

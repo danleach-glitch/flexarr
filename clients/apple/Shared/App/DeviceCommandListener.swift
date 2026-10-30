@@ -17,9 +17,11 @@ final class DeviceCommandListener {
     static let accepts: [DeviceCommandKind] = [.sound, .seek, .skip, .next, .previous, .skipSegment, .audioTrack, .subtitleTrack, .rate]
 
     /// Listens on `client`'s sign-in, handing each command (and connect prompt, and with `nowPlaying` what every device
-    /// is playing as it changes) to `handle`. Called again with the same client, it carries on.
+    /// is playing as it changes) to `handle`. Called again with the same client and profile, it carries on; another
+    /// profile opens it afresh, so the server tells it what that profile may see.
     func start(_ client: FlexarrClient, nowPlaying: Bool = false, handle: @escaping @MainActor (DeviceEvent) -> Void) {
-        if let listeningFor, listeningFor.baseURL == client.baseURL, listeningFor.apiKey == client.apiKey, task?.isCancelled == false { return }
+        if let listeningFor, listeningFor.baseURL == client.baseURL, listeningFor.apiKey == client.apiKey,
+           listeningFor.profileToken == client.profileToken, task?.isCancelled == false { return }
         stop()
         listeningFor = client
         task = Task { [weak self] in

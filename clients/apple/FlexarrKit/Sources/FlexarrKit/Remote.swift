@@ -18,6 +18,39 @@ extension Array where Element == Device {
     }
 }
 
+extension Array where Element == Device {
+    /// The same devices, playing the same, as `other`: report times a moment apart (each list works its own out from
+    /// the server's report age) count as the same.
+    public func matches(_ other: [Device]) -> Bool {
+        guard count == other.count else { return false }
+        return zip(self, other).allSatisfy { mine, theirs in
+            guard let a = mine.nowPlaying, let b = theirs.nowPlaying, let at = a.reportedAt, let bt = b.reportedAt else { return mine == theirs }
+            guard abs(at.timeIntervalSince(bt)) < 1 else { return false }
+            var same = theirs
+            same.nowPlaying = NowPlaying(item: b.item, positionSeconds: b.positionSeconds, durationSeconds: b.durationSeconds, paused: b.paused, reportedAt: at,
+                                         rate: b.rate, prompt: b.prompt, hasNext: b.hasNext, tracks: b.tracks, sound: b.sound)
+            return mine == same
+        }
+    }
+}
+
+extension ItemSummary {
+    /// A title from a library hidden from this profile, playing somewhere: shown as playing, with nothing to say what
+    /// it is (or to act on it with).
+    public var isPrivate: Bool { id == "00000000-0000-0000-0000-000000000000" }
+}
+
+extension PlayerTracks {
+    /// The subtitles to turn on: those already on; otherwise the first in `language` (a name such as "English") that
+    /// isn't forced-only, then the first that isn't forced-only, then the first.
+    public func subtitlesToTurnOn(language: String?) -> PlayerTrack? {
+        if let on = subtitles.first(where: \.selected) { return on }
+        let full = subtitles.filter { !$0.label.localizedCaseInsensitiveContains("forced") }
+        if let language, let match = full.first(where: { $0.label.localizedCaseInsensitiveContains(language) }) { return match }
+        return full.first ?? subtitles.first
+    }
+}
+
 /// The times a Live Activity shows for a TV, as the server sends them (`LiveActivityState`).
 public struct RemoteTimes: Sendable, Hashable {
     public var paused: Bool

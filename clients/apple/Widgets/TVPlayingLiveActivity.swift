@@ -68,13 +68,17 @@ private struct LockScreenView: View {
                     Text(context.attributes.title)
                         .font(.headline)
                         .foregroundStyle(TVPalette.screen)
-                    // The TV's name on its own line: beside the title, a long one squeezed it.
-                    if let subtitle = context.attributes.subtitle {
-                        Text(subtitle)
-                            .font(.caption)
-                            .foregroundStyle(TVPalette.usher)
+                    // The episode and the TV on one line under the title (beside it, a long TV name squeezed the title;
+                    // on lines of their own, the panel was close to the Lock Screen's height limit).
+                    HStack(spacing: 6) {
+                        if let subtitle = context.attributes.subtitle {
+                            Text(subtitle)
+                                .font(.caption)
+                                .foregroundStyle(TVPalette.usher)
+                                .layoutPriority(1)
+                        }
+                        TVLabel(name: context.attributes.deviceName, isAppleTV: context.attributes.isAppleTV)
                     }
-                    TVLabel(name: context.attributes.deviceName, isAppleTV: context.attributes.isAppleTV)
                 }
                 .lineLimit(1)
                 Spacer(minLength: 0)

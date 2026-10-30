@@ -75,6 +75,7 @@ struct MainTabView: View {
 /// A navigation stack per tab with the shared destinations.
 struct TabStack<Content: View>: View {
     @Environment(AppModel.self) private var model
+    @Environment(TVRemote.self) private var remote
     @State private var router = Router()
     var handlesDeepLinks = false
     @ViewBuilder var content: () -> Content
@@ -91,7 +92,8 @@ struct TabStack<Content: View>: View {
         // So does a TV's: its bar opens the remote.
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 0) {
-                RemoteNoticeView()
+                // The remote has its own (on iPad its sheet doesn't cover the bars: one notice, not two).
+                if !remote.showsRemote { RemoteNoticeView() }
                 TVPlayingBar()
                 NowPlayingBar()
             }

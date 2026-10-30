@@ -785,7 +785,7 @@ final class AppModel {
                 link.host = "play"
                 link.path = "/\(id)"
                 link.queryItems = [URLQueryItem(name: "profile", value: profileId)]
-                    + (command.fromBeginning ? [URLQueryItem(name: "t", value: "0")] : [])
+                    + (command.fromBeginning ? [URLQueryItem(name: "t", value: "0")] : command.seconds.map { [URLQueryItem(name: "t", value: String(Int($0)))] } ?? [])
                     + (command.shuffle ? [URLQueryItem(name: "shuffle", value: "1")] : [])
                 if let url = link.url { open(url: url) }
                 return
@@ -795,7 +795,8 @@ final class AppModel {
                 if let episode = try? await client.podcastEpisode(id) {
                     playEpisode(episode.summary)
                 } else {
-                    player.play(itemId: id, preview: nil, startAt: command.fromBeginning ? 0 : nil, client: client, shuffle: command.shuffle)
+                    // From where it was asked to start (Undo after Stop), else from the beginning or where it was left.
+                    player.play(itemId: id, preview: nil, startAt: command.fromBeginning ? 0 : command.seconds, client: client, shuffle: command.shuffle)
                 }
             }
         case .watch:

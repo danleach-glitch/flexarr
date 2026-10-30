@@ -28,10 +28,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
             }
             model?.onPairingEvent = { [pairing] event in pairing.received(event) }
             model?.onNowPlaying = { [remote] device, playing, online in remote.received(device, playing, online: online) }
-            model?.onOpenRemote = { [remote] device in
-                remote.selectedId = device
-                remote.showsRemote = true
-            }
+            model?.onOpenRemote = { [remote] device in remote.open(on: device) }
         }
     }
 
