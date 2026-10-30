@@ -58,6 +58,7 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Icon
 import androidx.tv.material3.Text
 import io.github.flexarr.AppModel
+import io.github.flexarr.core.Person
 import io.github.flexarr.core.SearchResults
 import io.github.flexarr.ui.components.Load
 import io.github.flexarr.ui.components.LocalNavigator
@@ -218,7 +219,7 @@ fun TvPersonScreen(model: AppModel, id: String, name: String) {
     val person = (loader.state as? Load.Loaded)?.value
     val first = remember { FocusRequester() }
     LaunchedEffect(person?.credits?.firstOrNull()?.item?.id) {
-        if (person?.credits.isNullOrEmpty()) return@LaunchedEffect
+        if (person == null || titles(person).isEmpty()) return@LaunchedEffect
         delay(50)
         runCatching { first.requestFocus() }
     }
@@ -234,13 +235,16 @@ fun TvPersonScreen(model: AppModel, id: String, name: String) {
                     RemoteImage(person?.image, 300, Modifier.size(85.dp).background(Flexarr.seat, CircleShape).clip(CircleShape)) {}
                     Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                         Text(name, style = marquee(36).copy(fontWeight = FontWeight.ExtraBold))
-                        person?.let { Text(if (it.credits.size == 1) "1 title in your library" else "${it.credits.size} titles in your library", fontSize = 13.sp, color = Flexarr.usher) }
+                        person?.let {
+                            val count = titles(it).size
+                            Text(if (count == 1) "1 title in your library" else "$count titles in your library", fontSize = 13.sp, color = Flexarr.usher)
+                        }
                     }
                 }
             }
             when (val state = loader.state) {
                 is Load.Loaded -> {
-                    val credits = state.value.credits.map { it.item }.filter { it.showsOnTv }
+                    val credits = titles(state.value)
                     items(credits.size) { index ->
                     val item = credits[index]
                     TvPosterCard(item, onClick = { navigator.open(item) }, modifier = if (index == 0) Modifier.focusRequester(first) else Modifier)
@@ -252,3 +256,6 @@ fun TvPersonScreen(model: AppModel, id: String, name: String) {
         }
     }
 }
+
+/** Someone's titles, each once: a person who both wrote and starred in a show is credited on it twice. */
+private fun titles(person: Person) = person.credits.map { it.item }.distinctBy { it.id }.filter { it.showsOnTv }
