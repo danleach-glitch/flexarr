@@ -16,13 +16,13 @@ Each profile has its own watchlist: films and shows you want to watch later, whe
 | Siri | "Add Severance to my watchlist in Flexarr", for a film or show in your library. |
 | Assistants | Ask an assistant connected over [MCP](assistant-mcp.md) to add or remove a title, even one you don't have yet. |
 
-Choose **On watchlist** on its page to take a title off again. Adding a title twice keeps one.
+Choose **On watchlist** on its page to take a title off again, or **Remove from watchlist** when you press and hold its poster (on the web, the bookmark on its card). Adding a title twice keeps one, and adding one you took off brings it back.
 
 Titles leave the list by themselves once you've dealt with them: a film when you've watched it, a show when you've started it (it carries on in **Continue watching**). A title you've seen before stays until you watch it again.
 
 ## Your watchlist
 
-On the web, **Watchlist** is in the sidebar under **Browse**. On iPhone, iPad and Android it's at the top of **Libraries**, and on the Apple TV it's in the sidebar beside **Discover**.
+On the web, **Watchlist** is in the sidebar under **Browse**. On iPhone, iPad and Android it's at the top of **Libraries**, and on the Apple TV it's in the sidebar beside **Discover**. Android and iPhone have a **Watchlist** widget too (see [Notifications and widgets](notifications-and-widgets.md)).
 
 Each title says where it's got to:
 
@@ -33,7 +33,9 @@ Each title says where it's got to:
 | **Out** and a date | It isn't released yet. |
 | **Request** | It's out, but nobody's asked for it. Choose **Request** to add it to your library (see [Requests](requests.md)). |
 
-On the web you can show only one kind (**Ready to watch**, **On its way**, **Coming** or **Not available**), only films or only shows, and sort by when you added them, when they came out, or by title. The iPhone and Android apps have the same filters.
+A title you don't have also says which streaming services it's on, such as **On Netflix**, for the country set as **Streaming Region** in Seerr.
+
+Every app can show only one kind (**Ready to watch**, **On its way**, **Coming** or **Not available**), only films or only shows, and sort the list: **Ready first** (the start), **Recently added**, **Release date** or **Title**.
 
 Titles you don't have yet need Seerr connected (see [Requests](requests.md)). Without it, you can still keep a watchlist of what's in your library.
 
