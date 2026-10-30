@@ -55,6 +55,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.navigation.NavController
+import android.annotation.SuppressLint
 import android.net.Uri
 import androidx.navigation.NavGraph
 import androidx.navigation.NavBackStackEntry
@@ -178,7 +180,7 @@ fun TvMainScreen(model: AppModel) {
         if (chosen.route == tabRoute && atTabRoot) return closeSidebar()
         // The tab being left keeps its screens; choosing the tab that's showing goes back to its first.
         if (chosen.route != tabRoute) {
-            tabStacks[tabRoute] = nav.currentBackStack.value.filter { it.destination !is NavGraph }.drop(1).map { it.concreteRoute() }
+            tabStacks[tabRoute] = nav.screensAboveTab()
         }
         val saved = tabStacks.remove(chosen.route).takeIf { chosen.route != tabRoute }.orEmpty()
         tabRoute = chosen.route
@@ -470,11 +472,20 @@ private fun SidebarRow(title: String, selected: Boolean, onClick: () -> Unit, mo
  */
 private fun Modifier.trapsFocus() = focusProperties { onExit = { cancelFocusChange() } }.focusGroup()
 
+/**
+ * The routes of the screens above the tab's first, to open again later. The back stack is the only list of them; the
+ * phone's MainScreen reads it the same way (navigation marks it for its own library's use, but has no other).
+ */
+@SuppressLint("RestrictedApi")
+private fun NavController.screensAboveTab(): List<String> =
+    currentBackStack.value.filter { it.destination !is NavGraph }.drop(1).map { it.concreteRoute() }
+
 /** The route that opened [this] screen, its arguments filled in, to open it again ("item/123", "library/9?sort=title&genre=Drama"). */
-private fun NavBackStackEntry.concreteRoute(): String {
-    val pattern = destination.route.orEmpty()
-    return Regex("\\{(\\w+)\\}").replace(pattern) { match -> Uri.encode(arguments?.getString(match.groupValues[1]).orEmpty()) }
-}
+private fun NavBackStackEntry.concreteRoute(): String = fillRoute(destination.route.orEmpty()) { arguments?.getString(it) }
+
+/** [pattern] ("person/{id}?name={name}") with each argument's value put in, encoded; a missing one is left empty. */
+internal fun fillRoute(pattern: String, argument: (String) -> String?): String =
+    Regex("\\{(\\w+)\\}").replace(pattern) { match -> Uri.encode(argument(match.groupValues[1]).orEmpty()) }
 
 /** What the Now Playing bar takes at the foot of the screen: its 44 points and the gap beneath. */
 private val NOW_PLAYING_BAR_ROOM = 56.dp

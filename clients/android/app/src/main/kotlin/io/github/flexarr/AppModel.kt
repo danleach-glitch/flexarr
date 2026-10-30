@@ -345,7 +345,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         val selection = credentials.client().selectProfile(profile.id, pin)
         // Straight from one profile to another (the TV's "Who's watching?", a link for someone else): their music,
         // podcasts and Up Next go, as switchProfile's do.
-        if (currentProfile?.let { it.id != profile.id } == true) {
+        if (isSwitch(currentProfile?.id, profile.id)) {
             music.stop()
             podcasts.stop()
             upNext = emptyList()
@@ -538,3 +538,6 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         }
     }
 }
+
+/** Choosing [chosen] while [current] is watching changes who's watching (choosing at first sign-in doesn't). */
+internal fun isSwitch(current: String?, chosen: String): Boolean = current != null && current != chosen

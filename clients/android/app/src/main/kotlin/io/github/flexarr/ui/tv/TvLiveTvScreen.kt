@@ -306,8 +306,28 @@ private fun NoFavourites() {
 }
 
 /** Three hours across; past either edge the window moves an hour and a half. */
-private val WINDOW: Duration = Duration.ofHours(3)
-private val STEP: Duration = Duration.ofMinutes(90)
+private val WINDOW: Duration = GuideWindow.WIDTH
+private val STEP: Duration = GuideWindow.STEP
+
+/** Where the guide's three hours start and how they move: on the half hour, no earlier than the guide (or three hours ago), no later than its end. */
+internal object GuideWindow {
+    val WIDTH: Duration = Duration.ofHours(3)
+    val STEP: Duration = Duration.ofMinutes(90)
+
+    fun halfHourBefore(time: Instant): Instant = Instant.ofEpochSecond(Math.floorDiv(time.epochSecond, 1800L) * 1800)
+
+    /** As far back as the guide goes, and no more than three hours ago. */
+    fun earliest(guideFrom: Instant, now: Instant): Instant = halfHourBefore(maxOf(guideFrom, now.minus(Duration.ofHours(3))))
+
+    /** [start] moved [by], kept within the guide: from [earliest] to three hours before [until]. */
+    fun moved(start: Instant, by: Duration, earliest: Instant, until: Instant): Instant {
+        val latest = maxOf(earliest, until.minus(WIDTH))
+        return minOf(maxOf(start.plus(by), earliest), latest)
+    }
+
+    /** The window's within a move of the end of what's fetched: time to fetch more. */
+    fun needsLater(start: Instant, until: Instant): Boolean = start.plus(WIDTH).plus(STEP) >= until
+}
 private val CHANNEL_WIDTH = 115.dp
 private val ROW_HEIGHT = 48.dp
 
@@ -329,7 +349,7 @@ fun TvLiveGuideGrid(
     onNeedLater: () -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
-    var windowStart by remember { mutableStateOf(halfHourBefore(Instant.now())) }
+    var windowStart by remember { mutableStateOf(GuideWindow.halfHourBefore(Instant.now())) }
     var now by remember { mutableStateOf(Instant.now()) }
     var details by remember { mutableStateOf<Pair<LiveProgramme, LiveChannel>?>(null) }
     var menu by remember { mutableStateOf<Pair<LiveProgramme, LiveChannel>?>(null) }
@@ -367,14 +387,12 @@ fun TvLiveGuideGrid(
         on?.let { runCatching { requesters[it.id]?.requestFocus() } }
     }
 
-    val earliest = guide?.let { halfHourBefore(maxOf(it.from, Instant.now().minus(Duration.ofHours(3)))) } ?: windowStart
+    val earliest = guide?.let { GuideWindow.earliest(it.from, Instant.now()) } ?: windowStart
     fun move(by: Duration) {
         val loaded = guide ?: return
-        val latest = maxOf(earliest, loaded.until.minus(WINDOW))
-        val next = windowStart.plus(by)
-        windowStart = minOf(maxOf(next, earliest), latest)
+        windowStart = GuideWindow.moved(windowStart, by, earliest, loaded.until)
         // Near the end of what's been fetched: ask for more, so the next move has somewhere to go.
-        if (windowStart.plus(WINDOW).plus(STEP) >= loaded.until) onNeedLater()
+        if (GuideWindow.needsLater(windowStart, loaded.until)) onNeedLater()
     }
 
     /** Does a recording action, then has the guide fetched again; says why if it couldn't be done. */
@@ -427,7 +445,7 @@ fun TvLiveGuideGrid(
                                         val start = maxOf(programme.start, windowStart)
                                         val end = minOf(programme.end, windowEnd)
                                         val cellWidth = (perSecond * Duration.between(start, end).seconds.toFloat() - 3.dp).coerceAtLeast(20.dp)
-                                        val requester = requesters.getOrPut(programme.id) { FocusRequester() }
+                                        val requester = remember(programme.id) { requesters.getOrPut(programme.id) { FocusRequester() } }
                                         GuideCell(
                                             programme,
                                             time = "${time(programme.start)} – ${time(programme.end)}",
@@ -608,7 +626,6 @@ private fun describe(programme: LiveProgramme, time: (Instant) -> String): Strin
     programme.description?.let(::add)
 }.joinToString("\n")
 
-private fun halfHourBefore(time: Instant): Instant = Instant.ofEpochSecond(time.epochSecond / 1800 * 1800)
 
 /** "Today", "Tomorrow" or the day's name. */
 private fun day(instant: Instant): String {
