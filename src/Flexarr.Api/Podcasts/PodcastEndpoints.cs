@@ -84,6 +84,9 @@ public sealed record AddPodcastRequest(string? FeedUrl = null, long? ITunesId = 
 /// <summary>An episode the phone should have without being asked, from a show it auto-downloads.</summary>
 public sealed record AutoDownloadDto(Guid EpisodeId, Guid PodcastId);
 
+/// <summary>An episode the phone downloaded that's been played since, wherever: the phone deletes its copy.</summary>
+public sealed record PlayedDownloadDto(Guid EpisodeId);
+
 /// <summary>Puts an episode in Up Next: first (Play next), or after the rest.</summary>
 public sealed record UpNextRequest(Guid EpisodeId, bool Next = false);
 
@@ -371,6 +374,14 @@ public static class PodcastEndpoints
 
             return wanted;
         });
+
+        // Downloaded episodes played since (on another device, say, or marked played): the phone needn't keep them. One
+        // played before it was downloaded was downloaded to hear again, so it stays.
+        group.MapGet("/played-downloads", async (FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
+            await db.Downloads.AsNoTracking()
+                .Where(d => d.ProfileId == profile.Id && d.Status != DownloadStatus.Removed && d.MediaItem!.Kind == MediaKind.PodcastEpisode
+                    && d.MediaItem.PlaybackStates.Any(p => p.UserId == profile.Id && p.Watched && p.LastPlayedAt > d.CreatedAt))
+                .Select(d => d.MediaItemId).Distinct().Select(id => new PlayedDownloadDto(id)).ToListAsync(ct));
 
         // Up Next: the episodes to hear after this one, the same on every device. Played ones drop out.
         group.MapGet("/queue", async (FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>

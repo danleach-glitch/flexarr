@@ -188,6 +188,11 @@ public struct PodcastAutoDownload: Codable, Sendable, Hashable {
     public let podcastId: String
 }
 
+/// An episode this phone has downloaded that's since been played (on another device, say): its copy can go.
+public struct PodcastPlayedDownload: Codable, Sendable, Hashable {
+    public let episodeId: String
+}
+
 public enum PodcastEpisodeSort: String, Sendable {
     case newest, oldest
 }
@@ -339,6 +344,11 @@ extension FlexarrClient {
     /// What this phone should have without being asked: the newest unplayed episodes of shows that auto-download.
     public func podcastAutoDownloads() async throws -> [PodcastAutoDownload] {
         try await get("podcasts/auto-downloads")
+    }
+
+    /// Episodes this phone has downloaded that have since been played, wherever. Absent from servers before 0.56.
+    public func podcastPlayedDownloads() async throws -> [PodcastPlayedDownload] {
+        try await get("podcasts/played-downloads")
     }
 
     /// Apple's directory, searched in the country chosen in Settings.

@@ -16,6 +16,8 @@ protocol OfflineLibrary: AnyObject {
     func record(itemId: String, position: Double, finished: Bool)
     /// Marked unwatched part way through: a download starts from the top again, and its unsent place is dropped.
     func forgetPosition(itemId: String)
+    /// Marked watched (an item, or a whole show): a podcast episode's download goes.
+    func markedPlayed(itemId: String)
     func nextInfo(after info: PlaybackInfo) -> PlaybackInfo?
 }
 

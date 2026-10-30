@@ -35,7 +35,7 @@ struct LocalDownload: Codable, Identifiable, Hashable {
     var remoteFileName: String?
     /// Its picture: a film's own; tracks of one album share their cover.
     var imageFileName: String?
-    /// Where watching got to, and when it was finished (it's deleted a day after).
+    /// Where watching got to, and when it was finished (an episode's deleted a day after, a podcast episode's at once).
     var position: Double = 0
     var finishedAt: Date?
     /// Watched offline and not yet told to the server.
@@ -167,7 +167,8 @@ extension LocalCollection {
 /// Downloads on this device: asking the server to get them ready, fetching them in the background (even with the
 /// app closed), playing them offline, sending what was watched once there's a connection, fetching the next
 /// episode by itself (on Wi-Fi), keeping the newest episodes of podcasts that auto-download (on Wi-Fi), and deleting
-/// episodes a day after they're finished. Albums and playlists come as collections of track downloads.
+/// episodes a day after they're finished and podcast episodes once they're played. Albums and playlists come as
+/// collections of track downloads.
 @MainActor
 @Observable
 final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
@@ -199,6 +200,9 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
     }
     private(set) var isOnline = true
     private(set) var isOnWiFi = false
+
+    /// Whether a title is playing from its file now (it isn't deleted from under the player).
+    @ObservationIgnored var isPlaying: (String) -> Bool = { _ in false }
 
     /// Called when the system has finished delivering background downloads (see the app delegate).
     @ObservationIgnored var backgroundCompletion: (() -> Void)?
@@ -403,6 +407,8 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
                 log.warning("Couldn't send offline progress", error: error)
             }
         }
+        deleteFinished() // podcast episodes whose play was waiting to be sent
+        await deletePlayedPodcasts()
         // A title saved by an app that didn't know its kind (a podcast episode, kept by an older version) was saved as
         // "unknown" and would stay so, filed under Films: what the server says now puts it right.
         for download in all where download.profileId == profileId && download.item.kind == .unknown {
@@ -418,6 +424,24 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
     }
 
     // MARK: Podcasts
+
+    /// Podcast episodes played since they were downloaded, wherever (on the web, say, or marked played): the server
+    /// says which, and they go, unless one's playing here or has a play here still to send.
+    private func deletePlayedPodcasts() async {
+        guard let client, isOnline, downloads.contains(where: { $0.item.kind == .podcastEpisode }),
+              let played = try? await client.podcastPlayedDownloads() else { return } // a server before 0.56, or out of reach
+        let ids = Set(played.map(\.episodeId))
+        for download in downloads where download.item.kind == .podcastEpisode && ids.contains(download.item.id) {
+            if download.unsent == nil, !isPlaying(download.item.id) { delete(download.id) }
+        }
+    }
+
+    /// Marked played here: a podcast episode's download goes at once, or a show's when all its episodes were.
+    func markedPlayed(itemId: String) {
+        for download in downloads where download.item.kind == .podcastEpisode && (download.item.id == itemId || download.item.parentId == itemId) {
+            if !isPlaying(download.item.id) { delete(download.id) }
+        }
+    }
 
     /// Makes the phone hold what the server says it should: the newest unplayed episodes of each podcast that
     /// auto-downloads (none when the profile's Auto-download is off). Missing ones are fetched, on Wi-Fi; ones fetched
@@ -701,11 +725,17 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         UserDefaults.standard.removeObject(forKey: "downloads.profile")
     }
 
-    /// Episodes and podcast episodes finished more than a day ago (films are kept until deleted).
+    /// Podcast episodes played to the end, once the server's been told (and the player's moved on), and episodes
+    /// finished more than a day ago (films are kept until deleted).
     private func deleteFinished() {
         let dayAgo = Date().addingTimeInterval(-24 * 60 * 60)
-        for download in all where (download.item.kind == .episode || download.item.kind == .podcastEpisode) && download.unsent == nil {
-            if let finished = download.finishedAt, finished < dayAgo { delete(download.id) }
+        for download in all where download.unsent == nil {
+            guard let finished = download.finishedAt else { continue }
+            switch download.item.kind {
+            case .podcastEpisode where !isPlaying(download.item.id): delete(download.id)
+            case .episode where finished < dayAgo: delete(download.id)
+            default: break
+            }
         }
     }
 

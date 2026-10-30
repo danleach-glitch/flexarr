@@ -77,7 +77,7 @@ fun PodcastSettingsScreen(model: AppModel, onNotifications: () -> Unit) {
                 item {
                     Group(
                         header = "Your profile, on every device",
-                        footer = "Auto-download keeps the newest unplayed episodes of every show you follow, and deletes them once they’re played. Picking a speed in the player changes it here too.",
+                        footer = "Auto-download keeps the newest unplayed episodes of every show you follow. Downloaded episodes are deleted once they’re played. Picking a speed in the player changes it here too.",
                     ) {
                         Toggle("Auto-download new episodes", podcasts.autoDownload, { update(PodcastPreferencesUpdate(autoDownload = it), reconciles = true) })
                         Divider()
