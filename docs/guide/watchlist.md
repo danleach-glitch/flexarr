@@ -35,7 +35,7 @@ Each title says where it's got to:
 
 A title you don't have also says which streaming services it's on, such as **On Netflix**, for the country set as **Streaming Region** in Seerr.
 
-Every app can show only one kind (**Ready to watch**, **On its way**, **Coming** or **Not available**), only films or only shows, and sort the list: **Ready first** (the start), **Recently added**, **Release date** or **Title**.
+Every app can show only one kind (**Ready to watch**, **On its way**, **Coming** or **Not available**), only films or only shows, and sort the list: **Ready first** (the default), **Recently added**, **Release date** or **Title**.
 
 Titles you don't have yet need Seerr connected (see [Requests](requests.md)). Without it, you can still keep a watchlist of what's in your library.
 

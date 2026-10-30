@@ -62,6 +62,7 @@ Each line lists the phase that delivers it.
 ## Data model
 
 - **`WatchlistEntry`:** profile, kind (Movie or Series), TMDB id (also TVDB and IMDb ids when known), title, year, poster, `AddedAt`, `Source` (`Flexarr` or `Trakt`), and the library item once one matches. Unique on profile + kind + TMDB id. It's keyed by external ids rather than library items, so titles the server doesn't have can still go on it. Library items match it when they arrive through the existing scan and webhook paths, the same way `WatchTombstone` and `MediaRequest` do.
+- **Removed entries are kept** (`RemovedAt`, `RemovedReason`: removed, watched or started) rather than deleted, so the Trakt sync can pass removals on, and adding a title again brings its entry back.
 - **`Profile.AutoRequestWatchlist`:** a bool, false by default.
 - **`TraktConnection`:** profile, access and refresh tokens, expiry, Trakt username, `LastActivities` (to compare against), and status (connected, needs sign-in again, or watchlist full).
 - **`TraktOutbox`:** queued scrobbles and sync changes, with attempts and the next try, so nothing is lost while Trakt or the network is down.
