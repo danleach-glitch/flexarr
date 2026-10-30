@@ -90,34 +90,31 @@ struct PlaybackSettingsView: View {
                 SettingsLinkRow(title: "Dialogue boost", symbol: "person.wave.2", value: sound.dialogueBoost.rawValue,
                                 help: "Makes voices easier to follow under music and effects.") {
                     SettingsChoicePage(title: "Dialogue boost", summary: soundSummary, choices: SoundSettings.DialogueBoost.allCases,
-                                       label: \.rawValue, selection: sound.dialogueBoost) { sound.dialogueBoost = $0; SoundSettings.current = sound }
+                                       label: \.rawValue, selection: sound.dialogueBoost) { SoundSettings.current.dialogueBoost = $0 }
                 }
                 SettingsLinkRow(title: "Night mode", symbol: "moon", value: sound.nightMode == .scheduled ? sound.nightHours : sound.nightMode.rawValue,
                                 help: "Quietens loud scenes and lifts quiet ones.") {
                     SettingsChoicePage(title: "Night mode", summary: soundSummary, choices: SoundSettings.NightMode.allCases,
                                        label: { $0 == .scheduled ? "On a schedule" : $0.rawValue }, selection: sound.nightMode) {
-                        sound.nightMode = $0
-                        SoundSettings.current = sound
+                        SoundSettings.current.nightMode = $0
                     }
                 }
                 if sound.nightMode == .scheduled {
                     SettingsLinkRow(title: "Night mode from", symbol: "moon.zzz", value: SoundSettings.clock(sound.nightStart)) {
                         SettingsChoicePage(title: "Night mode from", choices: Self.hours, label: SoundSettings.clock, selection: sound.nightStart) {
-                            sound.nightStart = $0
-                            SoundSettings.current = sound
+                            SoundSettings.current.nightStart = $0
                         }
                     }
                     SettingsLinkRow(title: "Night mode until", symbol: "sunrise", value: SoundSettings.clock(sound.nightEnd)) {
                         SettingsChoicePage(title: "Night mode until", choices: Self.hours, label: SoundSettings.clock, selection: sound.nightEnd) {
-                            sound.nightEnd = $0
-                            SoundSettings.current = sound
+                            SoundSettings.current.nightEnd = $0
                         }
                     }
                 }
                 SettingsLinkRow(title: "Speakers", symbol: "hifispeaker", value: sound.speakers.label,
                                 help: "Auto plays every channel what's connected takes.") {
                     SettingsChoicePage(title: "Speakers", summary: soundSummary, choices: SoundSettings.Speakers.allCases,
-                                       label: \.label, selection: sound.speakers) { sound.speakers = $0; SoundSettings.current = sound }
+                                       label: \.label, selection: sound.speakers) { SoundSettings.current.speakers = $0 }
                 }
             }
             SettingsRow.toggle("Music visualiser", isOn: visualiser, symbol: "waveform",
@@ -127,6 +124,8 @@ struct PlaybackSettingsView: View {
             }
         }
         .animation(.easeOut(duration: 0.2), value: playsFilesDirectly)
+        // The player's audio menu changes these too: this page follows them.
+        .onReceive(NotificationCenter.default.publisher(for: SoundSettings.changed)) { _ in sound = SoundSettings.current }
         .task {
             if let loaded = try? await model.client?.playbackPreferences() { preferences = loaded }
         }

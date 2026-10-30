@@ -80,11 +80,11 @@ struct PlaybackSettingsView: View {
             }
             if playsFilesDirectly {
                 Section {
-                    Picker("Dialogue boost", selection: $sound.dialogueBoost) {
+                    Picker("Dialogue boost", selection: soundSetting(\.dialogueBoost)) {
                         ForEach(SoundSettings.DialogueBoost.allCases, id: \.self) { Text($0.rawValue).tag($0) }
                     }
                     .settingsRow()
-                    Picker("Night mode", selection: $sound.nightMode) {
+                    Picker("Night mode", selection: soundSetting(\.nightMode)) {
                         ForEach(SoundSettings.NightMode.allCases, id: \.self) { Text($0 == .scheduled ? "On a schedule" : $0.rawValue).tag($0) }
                     }
                     .settingsRow()
@@ -94,7 +94,7 @@ struct PlaybackSettingsView: View {
                         DatePicker("Until", selection: minutes(\.nightEnd), displayedComponents: .hourAndMinute)
                             .settingsRow()
                     }
-                    Picker("Speakers", selection: $sound.speakers) {
+                    Picker("Speakers", selection: soundSetting(\.speakers)) {
                         ForEach(SoundSettings.Speakers.allCases, id: \.self) { Text($0.label).tag($0) }
                     }
                     .settingsRow()
@@ -103,23 +103,32 @@ struct PlaybackSettingsView: View {
                 } footer: {
                     Text("Dialogue boost makes voices easier to follow; night mode quietens loud scenes. While either is on, or the speakers are set, surround plays as PCM rather than passed through, and Atmos without its height.")
                 }
-                .onChange(of: sound) { _, changed in SoundSettings.current = changed }
             }
         }
         .settingsPage("Playback")
+        // The player's audio menu changes these too: this page follows, so it never saves an old value back.
+        .onReceive(NotificationCenter.default.publisher(for: SoundSettings.changed)) { _ in sound = SoundSettings.current }
         .animation(.default, value: preferences == nil)
         .task {
             if let loaded = try? await model.client?.playbackPreferences() { preferences = loaded }
         }
     }
 
+    /// One sound setting, saved on its own as soon as it changes, so a change made in the player since stays.
+    private func soundSetting<Value>(_ key: WritableKeyPath<SoundSettings, Value>) -> Binding<Value> {
+        Binding(get: { sound[keyPath: key] }, set: { SoundSettings.current[keyPath: key] = $0 })
+    }
+
     /// A night-mode time (minutes after midnight) as the date a DatePicker shows: today, at that time.
     private func minutes(_ key: WritableKeyPath<SoundSettings, Int>) -> Binding<Date> {
         Binding(
-            get: { Calendar.current.startOfDay(for: Date()).addingTimeInterval(Double(sound[keyPath: key]) * 60) },
+            get: {
+                let minutes = sound[keyPath: key]
+                return Calendar.current.date(bySettingHour: minutes / 60, minute: minutes % 60, second: 0, of: Date()) ?? Date()
+            },
             set: { date in
                 let parts = Calendar.current.dateComponents([.hour, .minute], from: date)
-                sound[keyPath: key] = (parts.hour ?? 0) * 60 + (parts.minute ?? 0)
+                SoundSettings.current[keyPath: key] = (parts.hour ?? 0) * 60 + (parts.minute ?? 0)
             }
         )
     }

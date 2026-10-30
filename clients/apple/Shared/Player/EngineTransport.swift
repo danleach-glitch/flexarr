@@ -84,7 +84,8 @@ final class EngineTransport: PlayerTransport {
         // stream has it moved already.
         options.audioDelaySeconds = info.audioDelayInStream == true ? 0 : info.audioDelaySeconds ?? 0
         // Dialogue boost, night mode and the speakers (this device's sound settings), shaped by the engine.
-        options.audioShaping = SoundSettings.current.shaping(at: Date())
+        let startingTrack = info.audioTracks.first { $0.index == audioIndex ?? info.selectedAudioIndex }
+        options.audioShaping = SoundSettings.current.shaping(at: Date(), sourceChannels: startingTrack?.channels)
         let modes = AVPlayer.availableHDRModes
         options.panelIsInHDRMode = !modes.isEmpty
         options.panelPresentsDolbyVision = modes.contains(.dolbyVision)
@@ -235,7 +236,8 @@ final class EngineTransport: PlayerTransport {
     /// The sound settings as they are now: a change, or a scheduled night mode starting or stopping. A change rebuilds
     /// the session at the playhead (a moment's hold of the picture), so the same value twice does nothing.
     private func applySoundSettings() {
-        engine.setAudioShaping(SoundSettings.current.shaping(at: Date()))
+        let playing = engine.audioTracks.first { $0.id == engine.activeAudioTrackIndex }
+        engine.setAudioShaping(SoundSettings.current.shaping(at: Date(), sourceChannels: playing?.channels))
     }
 
     func stop() {
@@ -572,6 +574,8 @@ final class EngineTransport: PlayerTransport {
             .sink { [weak self] _, _, _ in
                 guard let self else { return }
                 self.delegate?.transportTracksChanged(self)
+                // Another track may need the speaker cap where the last didn't (7.1 after 5.1); unchanged, it's ignored.
+                if !self.loading { self.applySoundSettings() }
             }
             .store(in: &cancellables)
         engine.$currentAVPlayerItem
