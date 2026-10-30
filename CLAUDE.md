@@ -9,7 +9,7 @@ This repo is public. Private details (the home server's address, device IDs, sig
 - **Finishing a branch is `/land`**: changelog entry, pull request, wait for CI, squash-merge. Landing never releases.
 - **Releasing is `/release`, only when the user asks.** Changes pile up under `## Unreleased` in CHANGELOG.md between releases; a release turns that batch into one version. While Flexarr is 0.x, features bump the minor (0.50.0 → 0.51.0); a patch release (0.51.1) is only for fixing something already released. Once a batch has built up, say so and offer a release, but don't cut one unasked.
 - **Testing at home is `/deploy`.** The user's Mac Mini runs `main` as the household test server, stamped `<next minor>-dev.<commit>`. Only `main` or a release tag goes there: a branch's database migration could differ from the one that finally lands, and the Mini's database can't take it back.
-- **Apple devices and TestFlight are `/devices`.** The App Store gets a submission only at a release.
+- **The household's devices (Apple TV, iPhone, Android phone) and TestFlight are `/devices`.** The App Store gets a submission only at a release.
 - **Urgent fix while main holds unfinished work:** branch `release/0.51` from the `v0.51.0` tag, cherry-pick the fix, tag `v0.51.1` there, and land the fix on main too.
 
 ## Rules that apply to every change
