@@ -790,9 +790,10 @@ function AwayStep({ nav }: { nav: StepNav }) {
       )}
       <StepFooter
         nav={nav}
-        skipLabel={on ? null : 'Not now'}
+        skipLabel={null}
         next={
-          <button type="button" className="button onboard-primary" disabled={!on} onClick={nav.next}>
+          // Finishing without it counts as passing it over, so Home's list doesn't keep asking.
+          <button type="button" className="button onboard-primary" onClick={on ? nav.next : nav.skip}>
             Finish
           </button>
         }
