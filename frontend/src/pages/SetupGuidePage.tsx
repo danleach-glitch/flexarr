@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import {
   addArrWebhook,
@@ -8,9 +8,12 @@ import {
   getArrFolders,
   getLibraries,
   getProfiles,
+  getRemoteAccess,
   getSettings,
+  getSetupGuide,
   saveSettings,
   saveSetupGuide,
+  setTailscaleAccess,
   testArr,
   type ArrFolder,
   type ArrKind,
@@ -21,91 +24,156 @@ import {
 import { AsyncButton } from '../components/AsyncButton'
 import { ConnectTv } from '../components/ConnectTv'
 import { FolderPicker } from '../components/FolderPicker'
+import { Antenna, Check, Film, Folder, Home, Music, Plus, Stack, Tv } from '../components/icons'
+import { Avatar } from '../components/ProfilePicker'
 import { useApi } from '../hooks/useApi'
 import { appLogos } from '../lib/apps'
 import { libraryTypeLabel } from '../lib/format'
 import { freeColour } from '../lib/profileColours'
-import { RemoteAccessGroups } from './settings/AccessSection'
 import { errorText } from './settings/useSettings'
+import '../styles/onboarding.css'
 
-const steps: { id: SetupStep; title: string }[] = [
-  { id: 'apps', title: 'Your apps' },
-  { id: 'libraries', title: 'Libraries' },
-  { id: 'profiles', title: 'Who’s watching' },
-  { id: 'devices', title: 'Your TV and phone' },
-  { id: 'away', title: 'Away from home' },
+const steps: { id: SetupStep; title: string; lede: string; icon: ReactNode; summary: string }[] = [
+  {
+    id: 'apps',
+    title: 'Connect your apps',
+    lede: 'Flexarr gets artwork, details and new downloads from Sonarr, Radarr and Lidarr.',
+    icon: <Stack />,
+    summary: 'Connect Sonarr, Radarr or Lidarr',
+  },
+  { id: 'libraries', title: 'Add your libraries', lede: 'Choose the folders that hold your films, shows and music.', icon: <Film />, summary: 'Add your films, shows and music' },
+  { id: 'profiles', title: 'Who’s watching?', lede: 'Everyone gets their own Continue watching and history.', icon: <Home />, summary: 'Add everyone who watches' },
+  { id: 'devices', title: 'Watch on your TV', lede: 'Get the app, open it at home, and type the code it shows.', icon: <Tv />, summary: 'Connect your TV and phone' },
+  { id: 'away', title: 'Watch away from home', lede: 'Tailscale lets your devices reach Flexarr from anywhere, privately.', icon: <Antenna />, summary: 'Watch away from home' },
 ]
 
+type Place = SetupStep | 'welcome' | 'done'
+
 /**
- * The first-run guide: a few short steps from a new server to something to watch, each one skippable. Leaving part
- * way keeps a list of what's left on Home; everything here can be done in Settings too.
+ * The first-run guide: a welcome, a card for each step, and a finish. Every step can be skipped, and leaving part way
+ * keeps a list of what's left on Home; everything here is in Settings too.
  */
 export function SetupGuidePage() {
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
-  const at = steps.findIndex((s) => s.id === params.get('step'))
-  const index = at < 0 ? 0 : at
-  const finished = params.get('step') === 'done'
+  const asked = params.get('step') as Place | null
+  const place: Place = asked === 'done' || steps.some((s) => s.id === asked) ? asked! : 'welcome'
+  const index = steps.findIndex((s) => s.id === place)
   const [skipped, setSkipped] = useState<SetupStep[]>([])
 
   useEffect(() => {
     void saveSetupGuide({ opened: true }).catch(() => undefined)
+    // Kept across visits, so coming back from Home's list adds to what was skipped before.
+    void getSetupGuide()
+      .then((g) => setSkipped(g.skipped))
+      .catch(() => undefined)
   }, [])
 
-  function go(step: SetupStep | 'done') {
-    setParams({ step }, { replace: true })
+  function go(next: Place) {
+    setParams(next === 'welcome' ? {} : { step: next })
     window.scrollTo(0, 0)
   }
 
-  const next = () => go(steps[index + 1]?.id ?? 'done')
-
-  function skip() {
-    const now = [...skipped, steps[index].id]
-    setSkipped(now)
-    void saveSetupGuide({ skipped: now }).catch(() => undefined)
-    next()
+  const nav: StepNav = {
+    back: () => go(index > 0 ? steps[index - 1].id : 'welcome'),
+    next: () => go(steps[index + 1]?.id ?? 'done'),
+    skip: () => {
+      const now = [...new Set([...skipped, steps[index].id])]
+      setSkipped(now)
+      void saveSetupGuide({ skipped: now }).catch(() => undefined)
+      go(steps[index + 1]?.id ?? 'done')
+    },
   }
 
-  const step = steps[index]
   return (
-    <main className="setup-guide">
-      <header className="setup-guide-head">
-        <ol className="setup-steps" aria-label="Steps">
-          {steps.map((s, i) => (
-            <li key={s.id} aria-current={!finished && i === index ? 'step' : undefined} className={finished || i < index ? 'done' : undefined}>
-              <button type="button" onClick={() => go(s.id)}>
-                {s.title}
-              </button>
-            </li>
-          ))}
-        </ol>
-        <Link className="text-button" to="/">
-          I’ll do it myself
-        </Link>
+    <div className="onboard">
+      <header className="onboard-top">
+        <span className="onboard-brand">
+          <img src="/logo-mark.svg" alt="" />
+          Flexarr
+        </span>
+        {place !== 'done' && (
+          <Link className="onboard-later" to="/">
+            Set up later
+          </Link>
+        )}
       </header>
-      {finished ? (
+      {place === 'welcome' ? (
+        <Welcome onStart={() => go('apps')} />
+      ) : place === 'done' ? (
         <Done onFinish={() => navigate('/')} />
       ) : (
-        <section className="setup-step" aria-labelledby="setup-step-title">
-          <h1 id="setup-step-title">{step.title}</h1>
-          {step.id === 'apps' && <AppsStep onNext={next} onNoApps={skip} />}
-          {step.id === 'libraries' && <LibrariesStep onNext={next} />}
-          {step.id === 'profiles' && <ProfilesStep />}
-          {step.id === 'devices' && <DevicesStep />}
-          {step.id === 'away' && <RemoteAccessGroups />}
-          {step.id !== 'apps' && step.id !== 'libraries' && (
-            <div className="setup-actions">
-              <button type="button" className="button quiet" onClick={skip}>
-                Skip
-              </button>
-              <button type="button" className="button" onClick={next}>
-                Continue
-              </button>
-            </div>
-          )}
+        <section className="onboard-card" key={place} aria-labelledby="onboard-title">
+          <div className="onboard-progress" role="progressbar" aria-label="Setup" aria-valuemin={1} aria-valuemax={steps.length} aria-valuenow={index + 1}>
+            <span style={{ width: `${((index + 1) / steps.length) * 100}%` }} />
+          </div>
+          <div className="onboard-card-head">
+            <span className="onboard-icon">{steps[index].icon}</span>
+            <p className="onboard-count">
+              Step {index + 1} of {steps.length}
+            </p>
+            <h1 id="onboard-title">{steps[index].title}</h1>
+            <p className="onboard-lede">{steps[index].lede}</p>
+          </div>
+          {place === 'apps' && <AppsStep nav={nav} />}
+          {place === 'libraries' && <LibrariesStep nav={nav} />}
+          {place === 'profiles' && <ProfilesStep nav={nav} />}
+          {place === 'devices' && <DevicesStep nav={nav} />}
+          {place === 'away' && <AwayStep nav={nav} />}
         </section>
       )}
-    </main>
+    </div>
+  )
+}
+
+interface StepNav {
+  back: () => void
+  next: () => void
+  skip: () => void
+}
+
+function Welcome({ onStart }: { onStart: () => void }) {
+  return (
+    <section className="onboard-card onboard-welcome" aria-labelledby="onboard-title">
+      <img className="onboard-hero-mark" src="/logo-mark.svg" alt="" />
+      <h1 id="onboard-title">Welcome to Flexarr</h1>
+      <p className="onboard-lede">Let’s get your films, shows and music ready to watch. It takes about a minute.</p>
+      <ol className="onboard-plan">
+        {steps.map((s) => (
+          <li key={s.id}>
+            <span className="onboard-plan-icon">{s.icon}</span>
+            {s.summary}
+          </li>
+        ))}
+      </ol>
+      <div className="onboard-welcome-actions">
+        <button type="button" className="button onboard-primary onboard-wide" onClick={onStart}>
+          Get started
+        </button>
+        <Link className="onboard-later" to="/">
+          I’ll set it up myself
+        </Link>
+      </div>
+    </section>
+  )
+}
+
+/** Back on the left; Skip and the step's main button on the right. */
+function StepFooter({ nav, next, skipLabel = 'Skip' }: { nav: StepNav; next: ReactNode; skipLabel?: string | null }) {
+  return (
+    <footer className="onboard-foot">
+      <button type="button" className="onboard-back" onClick={nav.back}>
+        Back
+      </button>
+      <span className="onboard-foot-end">
+        {skipLabel && (
+          <button type="button" className="button quiet" onClick={nav.skip}>
+            {skipLabel}
+          </button>
+        )}
+        {next}
+      </span>
+    </footer>
   )
 }
 
@@ -113,118 +181,126 @@ const arrKinds: ArrKind[] = ['Sonarr', 'Radarr', 'Lidarr']
 const arrPurpose: Record<ArrKind, string> = { Sonarr: 'TV shows', Radarr: 'Films', Lidarr: 'Music' }
 const usualUrl: Record<ArrKind, string> = { Sonarr: 'http://localhost:8989', Radarr: 'http://localhost:7878', Lidarr: 'http://localhost:8686' }
 
-function AppsStep({ onNext, onNoApps }: { onNext: () => void; onNoApps: () => void }) {
+function AppsStep({ nav }: { nav: StepNav }) {
   const settings = useApi(getSettings, [])
   const found = useApi(discoverArrs, [])
+  const [open, setOpen] = useState<ArrKind>()
 
-  if (!settings.data) return <p className="muted">{settings.error ? settings.error.message : 'Loading…'}</p>
+  if (!settings.data) return <p className="onboard-wait">{settings.error ? settings.error.message : 'Loading…'}</p>
   const connected = settings.data.arr.length > 0
   return (
     <>
-      <p className="setup-lede">Connect Sonarr, Radarr or Lidarr and Flexarr takes artwork, details and new downloads from them.</p>
-      <div className="settings-group">
+      <div className="onboard-tiles">
         {arrKinds.map((kind) => (
-          <ArrConnect
+          <ArrTile
             key={kind}
             kind={kind}
             settings={settings.data!}
             found={found.data?.find((f) => f.kind === kind)?.baseUrl}
-            onConnected={settings.reload}
+            open={open === kind}
+            onOpen={(on) => setOpen(on ? kind : undefined)}
+            onConnected={() => {
+              setOpen(undefined)
+              settings.reload()
+            }}
           />
         ))}
       </div>
-      <div className="setup-actions">
-        {!connected && (
-          <button type="button" className="button quiet" onClick={onNoApps}>
-            I don’t use these
+      <StepFooter
+        nav={nav}
+        skipLabel={connected ? null : 'I don’t use these'}
+        next={
+          <button type="button" className="button onboard-primary" disabled={!connected} onClick={nav.next}>
+            Continue
           </button>
-        )}
-        <button type="button" className="button" disabled={!connected} onClick={onNext}>
-          Continue
-        </button>
-      </div>
+        }
+      />
     </>
   )
 }
 
-/** One app: connected already, or its address (filled in when it was found) and key to connect it with. */
-function ArrConnect({ kind, settings, found, onConnected }: { kind: ArrKind; settings: Settings; found?: string; onConnected: () => void }) {
-  const existing = settings.arr.filter((a) => a.kind === kind)
-  const [baseUrl, setBaseUrl] = useState('')
+/** One app: connected already, or found nearby, or not; opened, its address and key. */
+function ArrTile(props: { kind: ArrKind; settings: Settings; found?: string; open: boolean; onOpen: (open: boolean) => void; onConnected: () => void }) {
+  const { kind, settings, found, open } = props
+  const connected = settings.arr.some((a) => a.kind === kind)
+  const [baseUrl, setBaseUrl] = useState<string>()
   const [apiKey, setApiKey] = useState('')
   const [error, setError] = useState<string>()
-  const [webhook, setWebhook] = useState<string>()
-  const [open, setOpen] = useState(false)
+  const [webhookError, setWebhookError] = useState<string>()
   const [busy, setBusy] = useState(false)
+  const address = baseUrl ?? found ?? ''
 
   async function connect(e: FormEvent) {
     e.preventDefault()
     setError(undefined)
     setBusy(true)
-    const connection = { name: kind, kind, baseUrl: baseUrl || found || '', apiKey }
+    const connection = { name: kind, kind, baseUrl: address.trim(), apiKey: apiKey.trim() }
     try {
       const status = await testArr(connection)
       if (!status.ok) return setError(status.error ?? `Couldn’t reach ${kind}.`)
       const current = settings.arr.map((a) => ({ name: a.name, kind: a.kind, baseUrl: a.baseUrl, apiKey: undefined }))
       await saveSettings({ arr: [...current, connection] })
       // New downloads show straight away once the app can tell Flexarr about them.
-      const added = await addArrWebhook(kind).catch((e: unknown) => ({ ok: false, error: errorText(e) }))
-      setWebhook(added.ok ? undefined : (added.error ?? undefined))
-      setOpen(false)
-      onConnected()
-    } catch (e) {
-      setError(errorText(e))
+      const added = await addArrWebhook(kind).catch((err: unknown) => ({ ok: false, error: errorText(err) }))
+      setWebhookError(added.ok ? undefined : (added.error ?? 'Couldn’t add the webhook.'))
+      props.onConnected()
+    } catch (err) {
+      setError(errorText(err))
     } finally {
       setBusy(false)
     }
   }
 
+  const status = connected
+    ? webhookError
+      ? 'Connected. Add its webhook in Settings › Connections.'
+      : 'Connected'
+    : found
+      ? 'Found on your network'
+      : arrPurpose[kind]
+
   return (
-    <div className="connection">
-      <div className="connection-line">
-        <span className={existing.length > 0 ? 'status-dot ok' : 'status-dot'} aria-hidden="true" />
-        <img className="app-logo" src={appLogos[kind]} alt="" />
-        <span className="setting-text">
+    <div className={`onboard-tile${connected ? ' is-done' : ''}${open ? ' is-open' : ''}`}>
+      <div className="onboard-tile-line">
+        <img className="onboard-app-logo" src={appLogos[kind]} alt="" />
+        <span className="onboard-tile-text">
           <strong>{kind}</strong>
-          <span className="muted">{existing.length > 0 ? 'Connected' : found ? `Found at ${found}` : arrPurpose[kind]}</span>
+          <span className={found && !connected ? 'onboard-found' : undefined}>{status}</span>
         </span>
-        {existing.length === 0 && !open && (
-          <span className="connection-actions">
-            <button type="button" className="button small" onClick={() => setOpen(true)}>
+        {connected ? (
+          <span className="onboard-tick" role="img" aria-label="Connected">
+            <Check />
+          </span>
+        ) : (
+          !open && (
+            <button type="button" className="button small" onClick={() => props.onOpen(true)}>
               Connect
             </button>
-          </span>
+          )
         )}
       </div>
-      {webhook && <p className="muted setup-note">{webhook}</p>}
-      {open && (
-        <form className="connection-form" onSubmit={connect} aria-label={`Connect ${kind}`}>
-          <label className="field">
-            Address
-            <input type="url" value={baseUrl || found || ''} required placeholder={usualUrl[kind]} onChange={(e) => setBaseUrl(e.target.value)} />
+      {open && !connected && (
+        <form className="onboard-form" onSubmit={connect} aria-label={`Connect ${kind}`}>
+          <label>
+            <span>Address</span>
+            <input type="url" value={address} required placeholder={usualUrl[kind]} onChange={(e) => setBaseUrl(e.target.value)} />
           </label>
-          <label className="field">
-            API key
-            <input
-              type="text"
-              autoComplete="off"
-              spellCheck={false}
-              value={apiKey}
-              required
-              placeholder={`In ${kind}, under Settings › General`}
-              onChange={(e) => setApiKey(e.target.value)}
-            />
+          <label>
+            <span>API key</span>
+            {/* oxlint-disable-next-line jsx-a11y/no-autofocus -- the form opens because this is what comes next. */}
+            <input type="text" autoComplete="off" spellCheck={false} value={apiKey} required autoFocus onChange={(e) => setApiKey(e.target.value)} />
+            <small>In {kind}: Settings › General</small>
           </label>
           {error && (
-            <p className="error" role="alert">
+            <p className="onboard-error" role="alert">
               {error}
             </p>
           )}
-          <div className="form-actions">
-            <button type="button" className="button quiet" onClick={() => setOpen(false)}>
+          <div className="onboard-form-actions">
+            <button type="button" className="button quiet small" onClick={() => props.onOpen(false)}>
               Cancel
             </button>
-            <AsyncButton type="submit" className="button" busy={busy}>
+            <AsyncButton type="submit" className="button small" busy={busy}>
               Connect
             </AsyncButton>
           </div>
@@ -235,6 +311,8 @@ function ArrConnect({ kind, settings, found, onConnected }: { kind: ArrKind; set
 }
 
 const folderKind: Record<ArrKind, LibraryType> = { Sonarr: 'TvShows', Radarr: 'Movies', Lidarr: 'Music' }
+const kindIcon: Record<LibraryType, ReactNode> = { Movies: <Film />, TvShows: <Tv />, Music: <Music />, HomeVideos: <Home />, Podcasts: <Antenna /> }
+const addable: LibraryType[] = ['Movies', 'TvShows', 'Music', 'HomeVideos']
 
 interface Planned {
   type: LibraryType
@@ -253,122 +331,148 @@ function localFolder(f: ArrFolder) {
 }
 
 /** The apps' own folders, ticked ready; and a folder of any kind, chosen by hand. */
-function LibrariesStep({ onNext }: { onNext: () => void }) {
+function LibrariesStep({ nav }: { nav: StepNav }) {
   const libraries = useApi(getLibraries, [])
   const folders = useApi(getArrFolders, [])
-  const [planned, setPlanned] = useState<Planned[]>()
+  const [chosen, setChosen] = useState<Planned[]>()
   const [adding, setAdding] = useState<LibraryType>()
   const [error, setError] = useState<string>()
+  const [busy, setBusy] = useState(false)
 
-  const taken = new Set(libraries.data?.flatMap((l) => l.folders))
-  useEffect(() => {
-    if (!folders.data || !libraries.data || planned) return
-    setPlanned(
-      folders.data.flatMap((f) => {
-        const here = localFolder(f)
-        return here && !taken.has(here.folder) ? [{ type: folderKind[f.kind], ...here, on: true }] : []
-      }),
-    )
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [folders.data, libraries.data, planned])
-
-  const missing = folders.data?.filter((f) => !localFolder(f)) ?? []
   const media = libraries.data?.filter((l) => l.type !== 'Podcasts') ?? []
-  const chosen = planned?.filter((p) => p.on) ?? []
+  // The apps' folders not in a library yet, ticked until unticked; then any picked by hand.
+  const taken = new Set(media.flatMap((l) => l.folders))
+  const fromApps: Planned[] = (folders.data ?? []).flatMap((f) => {
+    const here = localFolder(f)
+    return here && !taken.has(here.folder) ? [{ type: folderKind[f.kind], ...here, on: true }] : []
+  })
+  const planned = chosen ?? fromApps
+  const ticked = planned.filter((p) => p.on)
+  const missing = folders.data?.filter((f) => !localFolder(f)) ?? []
 
   async function add() {
     setError(undefined)
+    setBusy(true)
     try {
-      const mappings = chosen.filter((p) => p.mapFrom).map((p) => ({ from: p.mapFrom!, to: p.folder }))
+      const mappings = ticked.filter((p) => p.mapFrom).map((p) => ({ from: p.mapFrom!, to: p.folder }))
       if (mappings.length > 0) {
         const settings = await getSettings()
         await saveSettings({ pathMappings: [...settings.pathMappings, ...mappings] })
       }
       // One library for each kind, with every folder of that kind in it.
-      for (const type of [...new Set(chosen.map((p) => p.type))]) {
-        const existing = media.find((l) => l.type === type)
-        if (existing) continue
-        await createLibrary({ name: libraryTypeLabel[type], type, folders: chosen.filter((p) => p.type === type).map((p) => p.folder) })
+      for (const type of [...new Set(ticked.map((p) => p.type))]) {
+        if (media.some((l) => l.type === type)) continue
+        await createLibrary({ name: libraryTypeLabel[type], type, folders: ticked.filter((p) => p.type === type).map((p) => p.folder) })
       }
-      onNext()
+      nav.next()
     } catch (e) {
       setError(errorText(e))
+    } finally {
+      setBusy(false)
     }
   }
 
-  if (!planned) return <p className="muted">{libraries.error?.message ?? 'Looking for your folders…'}</p>
+  if (!libraries.data || (!folders.data && !folders.error)) return <p className="onboard-wait">Looking for your folders…</p>
   return (
     <>
-      <p className="setup-lede">A library is a folder of one kind of thing: films, TV shows, music or home videos.</p>
-      <div className="settings-group">
+      <div className="onboard-tiles">
         {media.map((l) => (
-          <div key={l.id} className="connection-line">
-            <span className="status-dot ok" aria-hidden="true" />
-            <span className="setting-text">
-              <strong>{l.name}</strong>
-              <span className="muted">{l.folders.join(', ')}</span>
-            </span>
+          <div key={l.id} className="onboard-tile is-done">
+            <div className="onboard-tile-line">
+              <span className="onboard-kind">{kindIcon[l.type]}</span>
+              <span className="onboard-tile-text">
+                <strong>{l.name}</strong>
+                <code>{l.folders.join(', ')}</code>
+              </span>
+              <span className="onboard-tick" role="img" aria-label="Added">
+                <Check />
+              </span>
+            </div>
           </div>
         ))}
         {planned.map((p, i) => (
-          <label key={p.folder} className="connection-line setup-folder">
-            <input type="checkbox" checked={p.on} onChange={(e) => setPlanned(planned.map((x, j) => (j === i ? { ...x, on: e.target.checked } : x)))} />
-            <span className="setting-text">
-              <strong>{libraryTypeLabel[p.type]}</strong>
-              <code className="muted">{p.folder}</code>
-            </span>
+          <label key={p.folder} className={`onboard-tile onboard-choice${p.on ? ' is-on' : ''}`}>
+            <div className="onboard-tile-line">
+              <span className="onboard-kind">{kindIcon[p.type]}</span>
+              <span className="onboard-tile-text">
+                <strong>{libraryTypeLabel[p.type]}</strong>
+                <code>{p.folder}</code>
+              </span>
+              <input type="checkbox" checked={p.on} onChange={(e) => setChosen(planned.map((x, j) => (j === i ? { ...x, on: e.target.checked } : x)))} />
+              <span className="onboard-check" aria-hidden="true">
+                <Check />
+              </span>
+            </div>
           </label>
         ))}
         {missing.map((f) => (
-          <p key={`${f.app}:${f.path}`} className="muted setup-note">
-            Flexarr can’t see {f.app}’s <code>{f.path}</code> on this server. Add it below, or see Settings › Connections › Media folders.
+          <p key={`${f.app}:${f.path}`} className="onboard-warn">
+            Flexarr can’t see {f.app}’s <code>{f.path}</code> on this server. Add its folder below.
           </p>
         ))}
       </div>
       {adding ? (
-        <div className="panel">
-          <p>Choose the folder with your {libraryTypeLabel[adding].toLowerCase()}.</p>
+        <div className="onboard-picker">
+          <p>
+            Where are your {libraryTypeLabel[adding].toLowerCase()}?
+            <button type="button" className="onboard-back" onClick={() => setAdding(undefined)}>
+              Cancel
+            </button>
+          </p>
           <FolderPicker
             onPick={(folder) => {
-              if (!planned.some((p) => p.folder === folder)) setPlanned([...planned, { type: adding, folder, on: true }])
+              if (!planned.some((p) => p.folder === folder)) setChosen([...planned, { type: adding, folder, on: true }])
               setAdding(undefined)
             }}
           />
-          <button type="button" className="text-button" onClick={() => setAdding(undefined)}>
-            Cancel
-          </button>
+        </div>
+      ) : planned.length === 0 && media.length === 0 ? (
+        <div className="onboard-kinds">
+          {addable.map((type) => (
+            <button key={type} type="button" className="onboard-kind-card" onClick={() => setAdding(type)}>
+              <span className="onboard-kind">{kindIcon[type]}</span>
+              <strong>{libraryTypeLabel[type]}</strong>
+              <span>Choose folder</span>
+            </button>
+          ))}
         </div>
       ) : (
-        <div className="setup-add">
-          <span className="muted">Add a folder:</span>
-          {(['Movies', 'TvShows', 'Music', 'HomeVideos'] as const).map((type) => (
-            <button key={type} type="button" className="button quiet small" onClick={() => setAdding(type)}>
-              {libraryTypeLabel[type]}
+        <div className="onboard-add">
+          <span>
+            <Folder /> Add a folder
+          </span>
+          {addable.map((type) => (
+            <button key={type} type="button" className="onboard-chip" onClick={() => setAdding(type)}>
+              <Plus /> {libraryTypeLabel[type]}
             </button>
           ))}
         </div>
       )}
       {error && (
-        <p className="error" role="alert">
+        <p className="onboard-error" role="alert">
           {error}
         </p>
       )}
-      <div className="setup-actions">
-        {chosen.length === 0 && media.length > 0 ? (
-          <button type="button" className="button" onClick={onNext}>
-            Continue
-          </button>
-        ) : (
-          <AsyncButton className="button" disabled={chosen.length === 0} onClick={add}>
-            {chosen.length > 1 ? 'Add these' : 'Add library'}
-          </AsyncButton>
-        )}
-      </div>
+      <StepFooter
+        nav={nav}
+        skipLabel={media.length > 0 || ticked.length > 0 ? null : 'Skip'}
+        next={
+          ticked.length === 0 ? (
+            <button type="button" className="button onboard-primary" disabled={media.length === 0} onClick={nav.next}>
+              Continue
+            </button>
+          ) : (
+            <AsyncButton className="button onboard-primary" busy={busy} onClick={add}>
+              {ticked.length > 1 ? `Add ${ticked.length} folders` : 'Add folder'}
+            </AsyncButton>
+          )
+        }
+      />
     </>
   )
 }
 
-function ProfilesStep() {
+function ProfilesStep({ nav }: { nav: StepNav }) {
   const profiles = useApi(getProfiles, [])
   const [name, setName] = useState('')
   const [error, setError] = useState<string>()
@@ -389,89 +493,210 @@ function ProfilesStep() {
     }
   }
 
+  const more = (profiles.data?.length ?? 0) > 1
   return (
     <>
-      <p className="setup-lede">Everyone gets their own Continue watching and history. You can add PINs in Settings › Profiles.</p>
-      <ul className="setup-profiles">
+      <ul className="onboard-people">
         {profiles.data?.map((p) => (
           <li key={p.id}>
-            <span className="setup-avatar" style={{ background: p.color }} aria-hidden="true">
-              {p.name.slice(0, 1).toUpperCase()}
-            </span>
-            {p.name}
+            <Avatar profile={p} size={64} />
+            <span>{p.name}</span>
           </li>
         ))}
       </ul>
-      <form className="setup-inline" onSubmit={add} aria-label="Add a profile">
-        <input type="text" value={name} required maxLength={40} placeholder="Name" aria-label="Name" onChange={(e) => setName(e.target.value)} />
-        <AsyncButton type="submit" className="button quiet" busy={busy}>
+      <form className="onboard-person-new" onSubmit={add} aria-label="Add a profile">
+        <input type="text" value={name} required maxLength={40} placeholder="Add someone: their name" aria-label="Name" onChange={(e) => setName(e.target.value)} />
+        <AsyncButton type="submit" className="button" busy={busy} disabled={!name.trim()}>
           Add
         </AsyncButton>
       </form>
       {error && (
-        <p className="error" role="alert">
+        <p className="onboard-error" role="alert">
           {error}
         </p>
       )}
+      <StepFooter
+        nav={nav}
+        skipLabel={more ? null : 'Just me'}
+        next={
+          <button type="button" className="button onboard-primary" disabled={!more} onClick={nav.next}>
+            Continue
+          </button>
+        }
+      />
     </>
   )
 }
 
-function DevicesStep() {
+function DevicesStep({ nav }: { nav: StepNav }) {
   return (
     <>
-      <p className="setup-lede">
-        Get Flexarr on your <a href="https://apps.apple.com/app/flexarr/id6826618084">iPhone, iPad or Apple TV</a>. Open it at home and it shows a code: type it
-        here.
-      </p>
-      <ConnectTv titled={false} />
+      <div className="onboard-tiles">
+        <a className="onboard-tile onboard-link" href="https://apps.apple.com/app/flexarr/id6826618084" target="_blank" rel="noreferrer">
+          <div className="onboard-tile-line">
+            <img className="onboard-app-logo" src="/icon-192.png" alt="" />
+            <span className="onboard-tile-text">
+              <strong>Apple TV, iPhone and iPad</strong>
+              <span>Free on the App Store</span>
+            </span>
+          </div>
+        </a>
+      </div>
+      <div className="onboard-code">
+        <ConnectTv titled={false} compact />
+      </div>
+      <StepFooter
+        nav={nav}
+        next={
+          <button type="button" className="button onboard-primary" onClick={nav.next}>
+            Continue
+          </button>
+        }
+      />
     </>
   )
 }
 
-/** The end: what's still being read, and anything that looks wrong. */
+function AwayStep({ nav }: { nav: StepNav }) {
+  const remote = useApi(getRemoteAccess, [])
+  const [error, setError] = useState<string>()
+  const ts = remote.data?.tailscale
+  const on = !!ts?.privateAccess || !!remote.data?.tailnetAddress
+
+  async function turnOn() {
+    setError(undefined)
+    try {
+      await setTailscaleAccess(true)
+      remote.reload()
+    } catch (e) {
+      setError(errorText(e))
+    }
+  }
+
+  const status = !remote.data
+    ? 'Checking…'
+    : on
+      ? 'On. Your devices switch to it by themselves.'
+      : remote.data.inMacApp
+        ? 'Install Tailscale on this Mac and your devices.'
+        : remote.data.inContainer && !ts?.installed
+          ? 'Not available in Docker.'
+          : !ts?.installed
+            ? 'Install Tailscale on this server first.'
+            : !ts.running
+              ? 'Installed, but not signed in.'
+              : 'Ready to turn on.'
+
+  return (
+    <>
+      <div className="onboard-tiles">
+        <div className={`onboard-tile${on ? ' is-done' : ''}`}>
+          <div className="onboard-tile-line">
+            <span className="onboard-kind">
+              <Antenna />
+            </span>
+            <span className="onboard-tile-text">
+              <strong>Tailscale</strong>
+              <span>{status}</span>
+            </span>
+            {on ? (
+              <span className="onboard-tick" role="img" aria-label="On">
+                <Check />
+              </span>
+            ) : ts?.running && !remote.data?.inMacApp ? (
+              <AsyncButton className="button small" onClick={turnOn}>
+                Turn on
+              </AsyncButton>
+            ) : (
+              <a className="button quiet small" href="https://flexarr.io/guide/away-from-home" target="_blank" rel="noreferrer">
+                How
+              </a>
+            )}
+          </div>
+        </div>
+      </div>
+      {error && (
+        <p className="onboard-error" role="alert">
+          {error}
+        </p>
+      )}
+      <StepFooter
+        nav={nav}
+        skipLabel={on ? null : 'Not now'}
+        next={
+          <button type="button" className="button onboard-primary" disabled={!on} onClick={nav.next}>
+            Finish
+          </button>
+        }
+      />
+    </>
+  )
+}
+
+/** The end: what's set up, what's still being read, and anything that looks wrong. */
 function Done({ onFinish }: { onFinish: () => void }) {
   const libraries = useApi(getLibraries, [])
   const folders = useApi(getArrFolders, [])
+  const guide = useApi(getSetupGuide, [])
   const media = libraries.data?.filter((l) => l.type !== 'Podcasts') ?? []
   const scanning = media.filter((l) => l.scan)
+  const { reload } = libraries
 
   // Still reading: look again until it's done.
   useEffect(() => {
     if (scanning.length === 0) return
-    const timer = setInterval(libraries.reload, 3000)
+    const timer = setInterval(reload, 3000)
     return () => clearInterval(timer)
-  }, [scanning.length, libraries.reload])
+  }, [scanning.length, reload])
 
+  const total = scanning.reduce((n, l) => n + (l.scan?.total ?? 0), 0)
+  const read = scanning.reduce((n, l) => n + (l.scan?.processed ?? 0), 0)
+  const titles = media.reduce((n, l) => n + l.itemCount, 0)
   const problems = [
     ...media.filter((l) => !l.scan && l.lastScannedAt && l.itemCount === 0).map((l) => `Nothing found in ${l.name}. Is its drive connected?`),
-    ...(folders.data ?? []).filter((f) => f.state === 'Missing').map((f) => `Flexarr can’t see ${f.app}’s ${f.path}. See Settings › Connections › Media folders.`),
+    ...(folders.data ?? []).filter((f) => f.state === 'Missing').map((f) => `Flexarr can’t see ${f.app}’s ${f.path}. Check Settings › Connections.`),
   ]
 
   return (
-    <section className="setup-step">
-      <h1>{media.length === 0 ? 'Nearly there' : 'You’re set up'}</h1>
-      {media.length === 0 ? (
-        <p className="setup-lede">Add a library whenever you’re ready, in Settings › Libraries.</p>
-      ) : scanning.length > 0 ? (
-        <p className="setup-lede">
-          Flexarr is reading your files ({scanning.reduce((n, l) => n + (l.scan?.processed ?? 0), 0)} so far). Titles appear on Home as they’re found.
-        </p>
+    <section className="onboard-card onboard-done" aria-labelledby="onboard-title">
+      {media.length > 0 ? (
+        <span className="onboard-done-mark" aria-hidden="true">
+          <Check />
+        </span>
       ) : (
-        <p className="setup-lede">{media.reduce((n, l) => n + l.itemCount, 0).toLocaleString()} titles ready to watch.</p>
+        <img className="onboard-hero-mark" src="/logo-mark.svg" alt="" />
       )}
-      {problems.length > 0 && (
-        <ul className="setup-problems" role="status">
-          {problems.map((p) => (
-            <li key={p}>{p}</li>
+      <h1 id="onboard-title">{media.length > 0 ? 'You’re all set' : 'Nearly there'}</h1>
+      <p className="onboard-lede">
+        {media.length === 0
+          ? 'Add a library whenever you’re ready, in Settings › Libraries.'
+          : scanning.length > 0
+            ? 'Flexarr is reading your files. Titles appear on Home as they’re found.'
+            : `${titles.toLocaleString()} ${titles === 1 ? 'title' : 'titles'} ready to watch.`}
+      </p>
+      {scanning.length > 0 && (
+        <div className="onboard-scan" role="progressbar" aria-label="Reading your files" aria-valuemin={0} aria-valuemax={total || undefined} aria-valuenow={read}>
+          <span style={{ width: total > 0 ? `${(read / total) * 100}%` : '8%' }} />
+        </div>
+      )}
+      {guide.data && (
+        <ul className="onboard-summary">
+          {steps.map((s) => (
+            <li key={s.id} className={guide.data![s.id] ? 'is-done' : undefined}>
+              <span className="onboard-summary-icon">{guide.data![s.id] ? <Check /> : s.icon}</span>
+              {s.summary}
+            </li>
           ))}
         </ul>
       )}
-      <div className="setup-actions">
-        <button type="button" className="button" onClick={onFinish}>
-          Go to Home
-        </button>
-      </div>
+      {problems.map((p) => (
+        <p key={p} className="onboard-warn" role="status">
+          {p}
+        </p>
+      ))}
+      <button type="button" className="button onboard-primary onboard-wide" onClick={onFinish}>
+        {media.length > 0 ? 'Start watching' : 'Go to Home'}
+      </button>
     </section>
   )
 }

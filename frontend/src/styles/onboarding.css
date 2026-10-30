@@ -1,0 +1,683 @@
+/* The first-run setup guide (/setup): a welcome, one card per step, and a finish, centred over a soft glow. */
+.onboard {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 16px 64px;
+  background:
+    radial-gradient(60rem 40rem at 50% -10%, color-mix(in srgb, var(--silver) 16%, transparent), transparent 70%),
+    radial-gradient(40rem 30rem at 100% 100%, color-mix(in srgb, #e8a0bf 8%, transparent), transparent 70%),
+    var(--room);
+}
+
+.onboard-top {
+  width: 100%;
+  max-width: 40rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24px 0 32px;
+}
+
+.onboard-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--display);
+  font-size: var(--step-2);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.onboard-brand img {
+  width: 28px;
+  height: 28px;
+}
+
+.onboard-later {
+  color: var(--usher);
+  text-decoration: none;
+  font-size: var(--step--1);
+  font-weight: 600;
+}
+
+.onboard-later:hover {
+  color: var(--screen);
+}
+
+.onboard-card {
+  position: relative;
+  width: 100%;
+  max-width: 40rem;
+  padding: 40px clamp(20px, 5vw, 48px) 28px;
+  border: 1px solid color-mix(in srgb, var(--screen) 8%, transparent);
+  border-radius: 24px;
+  background: color-mix(in srgb, var(--seat) 88%, transparent);
+  box-shadow: 0 30px 80px -30px rgb(0 0 0 / 0.7);
+  backdrop-filter: blur(20px);
+  animation: onboard-in 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+  overflow: hidden;
+}
+
+@keyframes onboard-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.99);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .onboard-card,
+  .onboard-done-mark {
+    animation: none;
+  }
+}
+
+.onboard-progress {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 4px;
+  background: color-mix(in srgb, var(--screen) 6%, transparent);
+}
+
+.onboard-progress span {
+  display: block;
+  height: 100%;
+  border-radius: 0 4px 4px 0;
+  background: linear-gradient(90deg, var(--silver), color-mix(in oklab, var(--silver) 50%, var(--screen)));
+  transition: width 0.4s ease;
+}
+
+.onboard-card-head {
+  margin-bottom: 28px;
+}
+
+.onboard-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  margin-bottom: 20px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--silver) 16%, transparent);
+  color: var(--silver);
+}
+
+.onboard-icon svg {
+  width: 26px;
+  height: 26px;
+}
+
+.onboard-count {
+  margin: 0 0 6px;
+  color: var(--usher);
+  font-size: var(--step--1);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.onboard-card h1 {
+  margin: 0 0 10px;
+  font-size: var(--step-4);
+  line-height: 1.05;
+}
+
+.onboard-lede {
+  margin: 0;
+  color: var(--usher);
+  font-size: var(--step-0);
+  line-height: 1.5;
+}
+
+.onboard-wait {
+  color: var(--usher);
+}
+
+/* Welcome */
+.onboard-welcome {
+  text-align: center;
+  padding-top: 48px;
+}
+
+.onboard-hero-mark {
+  width: 72px;
+  height: 72px;
+  margin-bottom: 24px;
+  filter: drop-shadow(0 10px 30px color-mix(in srgb, var(--silver) 40%, transparent));
+}
+
+.onboard-welcome h1 {
+  font-size: var(--step-5);
+}
+
+.onboard-welcome .onboard-lede {
+  max-width: 26rem;
+  margin: 0 auto 32px;
+  font-size: var(--step-1);
+}
+
+.onboard-plan {
+  list-style: none;
+  margin: 0 auto 32px;
+  padding: 0;
+  max-width: 24rem;
+  display: grid;
+  gap: 4px;
+  text-align: left;
+}
+
+.onboard-plan li {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 12px;
+  border-radius: 12px;
+}
+
+.onboard-plan-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--screen) 6%, transparent);
+  color: var(--silver);
+}
+
+.onboard-plan-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.onboard-welcome-actions {
+  display: grid;
+  justify-items: center;
+  gap: 16px;
+}
+
+.onboard-primary {
+  min-width: 9rem;
+}
+
+.onboard-wide {
+  width: 100%;
+  max-width: 24rem;
+  min-height: 52px;
+  font-size: var(--step-0);
+}
+
+/* Tiles: the things a step offers, one per line. */
+.onboard-tiles {
+  display: grid;
+  gap: 10px;
+}
+
+.onboard-tile {
+  display: block;
+  padding: 14px 16px;
+  border: 1px solid color-mix(in srgb, var(--screen) 8%, transparent);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--room) 60%, transparent);
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.onboard-tile.is-open {
+  border-color: color-mix(in srgb, var(--silver) 40%, transparent);
+}
+
+.onboard-tile.is-done {
+  border-color: color-mix(in srgb, var(--go) 30%, transparent);
+  background: color-mix(in srgb, var(--go) 6%, transparent);
+}
+
+.onboard-tile-line {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 44px;
+}
+
+.onboard-tile-text {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.onboard-tile-text > span,
+.onboard-tile-text code {
+  color: var(--usher);
+  font-size: var(--step--1);
+  overflow-wrap: anywhere;
+}
+
+.onboard-found {
+  color: var(--silver) !important;
+}
+
+.onboard-app-logo {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: 10px;
+}
+
+.onboard-kind {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--screen) 6%, transparent);
+  color: var(--silver);
+}
+
+.onboard-kind svg {
+  width: 20px;
+  height: 20px;
+}
+
+.onboard-tick,
+.onboard-check {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--go);
+  color: var(--room);
+}
+
+.onboard-tick svg,
+.onboard-check svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* A folder to tick: the whole tile is the checkbox. */
+.onboard-choice {
+  cursor: pointer;
+}
+
+.onboard-choice:hover {
+  border-color: color-mix(in srgb, var(--screen) 20%, transparent);
+}
+
+.onboard-choice.is-on {
+  border-color: color-mix(in srgb, var(--silver) 50%, transparent);
+  background: color-mix(in srgb, var(--silver) 8%, transparent);
+}
+
+.onboard-choice input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.onboard-choice .onboard-check {
+  background: transparent;
+  border: 2px solid color-mix(in srgb, var(--screen) 25%, transparent);
+  color: transparent;
+}
+
+.onboard-choice.is-on .onboard-check {
+  background: var(--silver);
+  border-color: var(--silver);
+  color: var(--room);
+}
+
+.onboard-choice:has(input:focus-visible) {
+  outline: 2px solid var(--silver);
+  outline-offset: 2px;
+}
+
+.onboard-link:hover {
+  border-color: color-mix(in srgb, var(--screen) 20%, transparent);
+}
+
+/* An app's address and key, opened in its tile. */
+.onboard-form {
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid color-mix(in srgb, var(--screen) 8%, transparent);
+}
+
+.onboard-form label {
+  display: grid;
+  gap: 6px;
+}
+
+.onboard-form label > span {
+  font-size: var(--step--1);
+  font-weight: 600;
+}
+
+.onboard-form small {
+  color: var(--usher);
+}
+
+.onboard-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.onboard-error {
+  margin: 12px 0 0;
+  color: var(--danger);
+}
+
+.onboard-warn {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+  color: color-mix(in oklab, var(--danger) 60%, var(--screen));
+  font-size: var(--step--1);
+}
+
+.onboard-warn code {
+  overflow-wrap: anywhere;
+}
+
+/* Adding a folder by hand. */
+.onboard-add {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.onboard-add > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: 4px;
+  color: var(--usher);
+  font-size: var(--step--1);
+}
+
+.onboard-add > span svg,
+.onboard-chip svg {
+  width: 16px;
+  height: 16px;
+}
+
+.onboard-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid color-mix(in srgb, var(--screen) 14%, transparent);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--screen);
+  font: inherit;
+  font-size: var(--step--1);
+  cursor: pointer;
+}
+
+.onboard-chip:hover {
+  background: color-mix(in srgb, var(--screen) 6%, transparent);
+}
+
+.onboard-picker {
+  margin-top: 18px;
+  padding: 16px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--room) 60%, transparent);
+}
+
+.onboard-picker > p {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 0 0 12px;
+  font-weight: 600;
+}
+
+/* People */
+.onboard-people {
+  list-style: none;
+  margin: 0 0 24px;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.onboard-people li {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  width: 72px;
+  text-align: center;
+  font-size: var(--step--1);
+  animation: onboard-in 0.3s ease;
+}
+
+.onboard-people li > span:last-child {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.onboard-person-new {
+  display: flex;
+  gap: 8px;
+}
+
+.onboard-person-new input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* The TV's code. */
+.onboard-code {
+  margin-top: 16px;
+}
+
+/* Back on the left, Skip and the next step on the right. */
+.onboard-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 32px calc(-1 * clamp(20px, 5vw, 48px)) 0;
+  padding: 20px clamp(20px, 5vw, 48px) 0;
+  border-top: 1px solid color-mix(in srgb, var(--screen) 8%, transparent);
+}
+
+.onboard-foot-end {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.onboard-back {
+  border: 0;
+  background: none;
+  padding: 8px 0;
+  color: var(--usher);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.onboard-back:hover {
+  color: var(--screen);
+}
+
+/* Finish */
+.onboard-done {
+  text-align: center;
+  padding-top: 48px;
+}
+
+.onboard-done-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  margin-bottom: 20px;
+  border-radius: 50%;
+  background: var(--go);
+  color: var(--room);
+  box-shadow: 0 0 0 10px color-mix(in srgb, var(--go) 15%, transparent);
+  animation: onboard-pop 0.5s cubic-bezier(0.3, 1.5, 0.5, 1);
+}
+
+.onboard-done-mark svg {
+  width: 36px;
+  height: 36px;
+}
+
+@keyframes onboard-pop {
+  from {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+}
+
+.onboard-done .onboard-lede {
+  margin-bottom: 24px;
+}
+
+.onboard-scan {
+  height: 6px;
+  max-width: 24rem;
+  margin: 0 auto 24px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--screen) 8%, transparent);
+}
+
+.onboard-scan span {
+  display: block;
+  height: 100%;
+  background: var(--silver);
+  transition: width 0.6s ease;
+}
+
+.onboard-summary {
+  list-style: none;
+  margin: 0 auto 24px;
+  padding: 0;
+  max-width: 24rem;
+  display: grid;
+  gap: 6px;
+  text-align: left;
+  color: var(--usher);
+}
+
+.onboard-summary li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.onboard-summary li.is-done {
+  color: var(--screen);
+}
+
+.onboard-summary-icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--screen) 6%, transparent);
+}
+
+.onboard-summary-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.onboard-summary li.is-done .onboard-summary-icon {
+  background: color-mix(in srgb, var(--go) 20%, transparent);
+  color: var(--go);
+}
+
+.onboard-done .onboard-warn {
+  max-width: 24rem;
+  margin: 0 auto 12px;
+  text-align: left;
+}
+
+@media (max-width: 520px) {
+  .onboard-card h1 {
+    font-size: var(--step-3);
+  }
+
+  .onboard-welcome h1 {
+    font-size: var(--step-4);
+  }
+
+  .onboard-foot {
+    flex-wrap: wrap;
+  }
+}
+
+.onboard-hero-mark {
+  display: block;
+  margin-inline: auto;
+}
+
+.onboard .button.onboard-primary:disabled {
+  opacity: 0.35;
+  filter: none;
+}
+
+/* Nothing found to offer: a card for each kind of library. */
+.onboard-kinds {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.onboard-kind-card {
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+  padding: 16px;
+  border: 1px solid color-mix(in srgb, var(--screen) 8%, transparent);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--room) 60%, transparent);
+  color: var(--screen);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+.onboard-kind-card:hover {
+  border-color: color-mix(in srgb, var(--silver) 45%, transparent);
+  transform: translateY(-1px);
+}
+
+.onboard-kind-card .onboard-kind {
+  margin-bottom: 8px;
+}
+
+.onboard-kind-card > span:last-child {
+  color: var(--usher);
+  font-size: var(--step--1);
+}
+
+.onboard-code .connect-tv {
+  margin: 0;
+}

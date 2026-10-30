@@ -103,6 +103,7 @@ export function Shell() {
               <Routes>
                 <Route path="play/:id" element={<PlayerPage />} />
                 <Route path="live/:id" element={<LivePlayerPage />} />
+                <Route path="setup" element={<SetupGuidePage />} />
                 <Route element={<Layout />}>
                   <Route index element={<HomePage />} />
                   <Route path="library/:id" element={<Fresh><LibraryPage /></Fresh>} />
@@ -122,7 +123,6 @@ export function Shell() {
                   <Route path="discover/:mediaType/:tmdbId" element={<Fresh><ExternalTitlePage /></Fresh>} />
                   <Route path="upcoming" element={<UpcomingPage />} />
                   <Route path="link" element={<LinkPage />} />
-                  <Route path="setup" element={<SetupGuidePage />} />
                   <Route path="settings" element={<SettingsPage />} />
                   <Route path="settings/:section" element={<SettingsPage />} />
                   <Route path="*" element={<p className="page-message muted">There's nothing at this address.</p>} />
