@@ -1,4 +1,4 @@
-import { useEffect, useRef, type RefObject } from 'react'
+import { useEffect, type RefObject } from 'react'
 import { isShaping, type SoundShaping } from '../lib/soundSettings'
 
 /** The furthest a file's sound can be held back, as far as the server lets it be moved. */
@@ -6,121 +6,238 @@ export const MAX_AUDIO_DELAY_SECONDS = 2
 
 /** The speech band a stereo mix's dialogue sits in, lifted by half the boost (a centre channel takes the whole boost). */
 const SPEECH_HZ = 2500
+const MINUS_3DB = Math.SQRT1_2
 
 interface Graph {
   context: AudioContext
   source: MediaElementAudioSourceNode
-  splitter: ChannelSplitterNode
-  merger: ChannelMergerNode
-  centre: GainNode
-  speech: BiquadFilterNode
-  compressor: DynamicsCompressorNode
-  limiter: DynamicsCompressorNode
   delay: DelayNode
+  /** The destination's channel count before anything changed it, for when shaping goes off again. */
+  defaultChannels: number
+  /** The shaping stages between the source and the delay, rebuilt when what's switched on changes. */
+  stages: AudioNode[]
+  centre: GainNode | null
+  speech: BiquadFilterNode | null
+  /** What `stages` was built for, so a change of strength alone ramps the gains rather than rebuilding. */
+  built: string
 }
+
+// One graph per element for the element's life: an element's sound can't be taken back out of Web Audio, and React's
+// development double mount mustn't close a context the element is already bound to.
+const graphs = new WeakMap<HTMLMediaElement, Graph>()
 
 /**
  * Runs a video's sound through Web Audio when it needs to be: held back `delay` seconds for a file whose sound runs
  * ahead, and shaped for the room (folded to the speakers, dialogue lifted, night mode's compression). The graph is made
- * the first time it's needed and kept, since an element's sound can't be taken back out of Web Audio; with nothing to
- * do it passes straight through.
+ * the first time it's needed and kept; with nothing to do it passes straight through.
  */
 export function useSoundChain(video: RefObject<HTMLVideoElement | null>, delay: number, shaping: SoundShaping, sourceChannels: number | null) {
-  const graph = useRef<Graph | null>(null)
   const { channels, dialogueDb, night } = shaping
+  const shaped = isShaping({ channels, dialogueDb, night })
+
+  // The stages: rebuilt only when what's switched on changes; a new strength just ramps the gains.
+  useEffect(() => {
+    const el = video.current
+    if (!el) return
+    const g = graphs.get(el) ?? (shaped ? create(el) : null)
+    if (!g) return
+    try {
+      shape(g, { channels, dialogueDb, night }, sourceChannels)
+    } catch {
+      // Whatever this browser refused, the sound still plays, unshaped.
+      g.stages.forEach((n) => n.disconnect())
+      g.stages = []
+      g.built = ''
+      g.source.disconnect()
+      g.source.connect(g.delay)
+    }
+    return startOnGesture(g.context)
+  }, [video, shaped, channels, dialogueDb, night, sourceChannels])
 
   useEffect(() => {
     const el = video.current
-    if (!el || (delay <= 0 && !isShaping({ channels, dialogueDb, night }) && !graph.current)) return
-    if (!graph.current) {
-      try {
-        graph.current = build(el)
-      } catch {
-        return // No Web Audio here: the sound plays as it is.
-      }
-    }
-    const g = graph.current
-    const { context } = g
-    g.delay.delayTime.setTargetAtTime(Math.max(0, delay), context.currentTime, 0.05)
-    wire(g, { channels, dialogueDb, night }, sourceChannels)
-    if (context.state !== 'suspended') return
-    // Browsers only start sound after a click or a key: the next one starts it, should this run before any.
-    const resume = () => void context.resume()
-    resume()
-    window.addEventListener('pointerdown', resume, { once: true })
-    window.addEventListener('keydown', resume, { once: true })
-    return () => {
-      window.removeEventListener('pointerdown', resume)
-      window.removeEventListener('keydown', resume)
-    }
-  }, [video, delay, channels, dialogueDb, night, sourceChannels])
+    if (!el) return
+    const g = graphs.get(el) ?? (delay > 0 ? create(el) : null)
+    if (!g) return
+    g.delay.delayTime.setTargetAtTime(Math.max(0, delay), g.context.currentTime, 0.05)
+    return startOnGesture(g.context)
+  }, [video, delay])
 
-  useEffect(() => () => void graph.current?.context.close(), [])
+  useEffect(() => {
+    const el = video.current
+    return () => {
+      // Closed once the element has really gone; React's development remount keeps the same element.
+      window.setTimeout(() => {
+        const g = el && graphs.get(el)
+        if (!g || el.isConnected) return
+        graphs.delete(el)
+        void g.context.close()
+      })
+    }
+  }, [video])
 }
 
-function build(el: HTMLVideoElement): Graph {
-  const context = new AudioContext()
-  const centre = context.createGain()
-  const speech = context.createBiquadFilter()
-  speech.type = 'peaking'
-  speech.frequency.value = SPEECH_HZ
-  speech.Q.value = 0.8
-  // Night mode: everything above -30 dB squeezed 4:1 (the node adds its own make-up gain), as the Apple apps do it.
-  const compressor = context.createDynamicsCompressor()
-  compressor.threshold.value = -30
-  compressor.ratio.value = 4
-  compressor.knee.value = 6
-  compressor.attack.value = 0.005
-  compressor.release.value = 0.25
-  // A limiter just under full scale, so the lift and the make-up gain can't clip.
-  const limiter = context.createDynamicsCompressor()
+function create(el: HTMLVideoElement): Graph | null {
+  try {
+    const context = new AudioContext()
+    const source = context.createMediaElementSource(el)
+    const delay = context.createDelay(MAX_AUDIO_DELAY_SECONDS)
+    source.connect(delay).connect(context.destination)
+    const g: Graph = { context, source, delay, defaultChannels: context.destination.channelCount, stages: [], centre: null, speech: null, built: '' }
+    graphs.set(el, g)
+    return g
+  } catch {
+    return null // No Web Audio here: the sound plays as it is.
+  }
+}
+
+/** Browsers only start sound after a click or a key: the next one starts it, should this run before any. */
+function startOnGesture(context: AudioContext) {
+  if (context.state !== 'suspended') return
+  const resume = () => void context.resume()
+  resume()
+  window.addEventListener('pointerdown', resume, { once: true })
+  window.addEventListener('keydown', resume, { once: true })
+  return () => {
+    window.removeEventListener('pointerdown', resume)
+    window.removeEventListener('keydown', resume)
+  }
+}
+
+function shape(g: Graph, shaping: SoundShaping, sourceChannels: number | null) {
+  const { context } = g
+  const destination = context.destination
+  const on = isShaping(shaping)
+  // Off, the output is left as the browser had it; Auto keeps every channel the output takes.
+  destination.channelCount = on ? Math.min(shaping.channels ?? destination.maxChannelCount, destination.maxChannelCount) : g.defaultChannels
+  destination.channelCountMode = 'explicit'
+  destination.channelInterpretation = 'speakers' // 5.1 folds down with its centre and surrounds, not dropped.
+
+  const layout = layoutOf(sourceChannels)
+  const boost = shaping.dialogueDb > 0
+  const built = [boost, shaping.night, layout.kind].join()
+  if (built !== g.built) {
+    g.stages.forEach((n) => n.disconnect())
+    g.source.disconnect()
+    g.stages = []
+    g.centre = g.speech = null
+    g.built = built
+    let last: AudioNode = g.source
+    if (boost || shaping.night) last = layout.kind === 'surround' ? surround(g, last, layout, boost, shaping.night) : stereo(g, last, boost, shaping.night)
+    last.connect(g.delay)
+  }
+  const at = context.currentTime
+  g.centre?.gain.setTargetAtTime(Math.pow(10, shaping.dialogueDb / 20), at, 0.05)
+  g.speech?.gain.setTargetAtTime(shaping.dialogueDb / 2, at, 0.05)
+}
+
+/** Mono and stereo: the speech band lifted, then the dynamics (a compressor carries two channels at most). */
+function stereo(g: Graph, from: AudioNode, boost: boolean, night: boolean): AudioNode {
+  let last = from
+  if (boost) last = last.connect(add(g, speechFilter(g)))
+  return dynamics(g, last, night)
+}
+
+/**
+ * A surround track, gathered into 5.1 (FL FR FC LFE SL SR, Web Audio's order) so the output folds it properly: the
+ * centre lifted, the speech band lifted on every channel, then each pair compressed and limited on its own, since a
+ * compressor carries two channels at most.
+ */
+function surround(g: Graph, from: AudioNode, layout: Layout, boost: boolean, night: boolean): AudioNode {
+  const { context } = g
+  const split = add(g, context.createChannelSplitter(8))
+  const gather = add(g, context.createChannelMerger(6))
+  from.connect(split)
+  const into = (input: number, output: number, level = 1) => {
+    const gain = add(g, context.createGain())
+    gain.gain.value = level
+    split.connect(gain, input).connect(gather, 0, output)
+    return gain
+  }
+  for (const [input, output, level] of layout.map) {
+    const gain = into(input, output, level)
+    if (output === 2 && boost) g.centre = gain
+  }
+  let last: AudioNode = gather
+  if (boost) last = last.connect(add(g, speechFilter(g)))
+  const pairs = add(g, context.createChannelSplitter(6))
+  const out = add(g, context.createChannelMerger(6))
+  last.connect(pairs)
+  for (const pair of [0, 2, 4]) {
+    const join = add(g, context.createChannelMerger(2))
+    pairs.connect(join, pair, 0)
+    pairs.connect(join, pair + 1, 1)
+    const part = add(g, context.createChannelSplitter(2))
+    dynamics(g, join, night).connect(part)
+    part.connect(out, 0, pair)
+    part.connect(out, 1, pair + 1)
+  }
+  return out
+}
+
+/** Night mode's compression, as the Apple apps do it, and a limiter just under full scale so nothing clips. */
+function dynamics(g: Graph, from: AudioNode, night: boolean): AudioNode {
+  const { context } = g
+  let last = from
+  if (night) {
+    // Everything above -30 dB squeezed 4:1; the node adds its own make-up gain.
+    const compressor = add(g, context.createDynamicsCompressor())
+    compressor.threshold.value = -30
+    compressor.ratio.value = 4
+    compressor.knee.value = 6
+    compressor.attack.value = 0.005
+    compressor.release.value = 0.25
+    last = last.connect(compressor)
+  }
+  const limiter = add(g, context.createDynamicsCompressor())
   limiter.threshold.value = -1
   limiter.knee.value = 0
   limiter.ratio.value = 20
   limiter.attack.value = 0.001
   limiter.release.value = 0.1
-  return {
-    context,
-    source: context.createMediaElementSource(el),
-    splitter: context.createChannelSplitter(6),
-    merger: context.createChannelMerger(6),
-    centre,
-    speech,
-    compressor,
-    limiter,
-    delay: context.createDelay(MAX_AUDIO_DELAY_SECONDS),
-  }
+  return last.connect(limiter)
 }
 
-/** Connects only the stages in use, so a setting that's off costs nothing and colours nothing. */
-function wire(g: Graph, shaping: SoundShaping, sourceChannels: number | null) {
-  const { context } = g
-  for (const node of [g.source, g.splitter, g.merger, g.centre, g.speech, g.compressor, g.limiter, g.delay]) node.disconnect()
+function speechFilter(g: Graph) {
+  const speech = g.context.createBiquadFilter()
+  speech.type = 'peaking'
+  speech.frequency.value = SPEECH_HZ
+  speech.Q.value = 0.8
+  speech.gain.value = 0
+  g.speech = speech
+  return speech
+}
 
-  const destination = context.destination
-  // Auto keeps every channel the output can take, as the element does before any of this exists.
-  destination.channelCount = Math.min(shaping.channels ?? destination.maxChannelCount, destination.maxChannelCount)
-  destination.channelCountMode = 'explicit'
-  destination.channelInterpretation = 'speakers' // A 5.1 source folds down with its centre and surrounds, not dropped.
+function add<T extends AudioNode>(g: Graph, node: T): T {
+  g.stages.push(node)
+  return node
+}
 
-  let last: AudioNode = g.source
-  if (shaping.dialogueDb > 0) {
-    // The splitter can't fold mono, it puts it on the left alone: a mono track has no dialogue to pull forward anyway.
-    if ((sourceChannels ?? 2) > 1) {
-      // Channel 2 of 5.1 is the front centre, where the dialogue is; a stereo track's is silent, so it changes nothing.
-      g.centre.gain.value = Math.pow(10, shaping.dialogueDb / 20)
-      last.connect(g.splitter)
-      for (let i = 0; i < 6; i++) {
-        if (i === 2) g.splitter.connect(g.centre, i).connect(g.merger, 0, i)
-        else g.splitter.connect(g.merger, i, i)
-      }
-      // Six out even for stereo, but the empty four fold down to nothing, so stereo still reaches the speakers as it was.
-      last = g.merger
-    }
-    g.speech.gain.value = shaping.dialogueDb / 2
-    last = last.connect(g.speech)
+interface Layout {
+  kind: 'stereo' | 'surround'
+  /** Where each of the track's channels goes in 5.1: [input, output, level]. */
+  map: [number, number, number][]
+}
+
+/**
+ * Where a track's channels sit, in the order browsers decode them. A track of unknown width is taken as stereo, which
+ * a surround one still plays through, just without its own centre lift.
+ */
+export function layoutOf(channels: number | null): Layout {
+  switch (channels) {
+    case 3: // L R C
+      return { kind: 'surround', map: [[0, 0, 1], [1, 1, 1], [2, 2, 1]] }
+    case 4: // L R SL SR: no centre
+      return { kind: 'surround', map: [[0, 0, 1], [1, 1, 1], [2, 4, 1], [3, 5, 1]] }
+    case 5: // L R C SL SR
+      return { kind: 'surround', map: [[0, 0, 1], [1, 1, 1], [2, 2, 1], [3, 4, 1], [4, 5, 1]] }
+    case 6: // 5.1
+      return { kind: 'surround', map: [[0, 0, 1], [1, 1, 1], [2, 2, 1], [3, 3, 1], [4, 4, 1], [5, 5, 1]] }
+    case 7: // 6.1: the back centre into both surrounds
+      return { kind: 'surround', map: [[0, 0, 1], [1, 1, 1], [2, 2, 1], [3, 3, 1], [4, 4, MINUS_3DB], [4, 5, MINUS_3DB], [5, 4, 1], [6, 5, 1]] }
+    case 8: // 7.1: the back pair into the surrounds
+      return { kind: 'surround', map: [[0, 0, 1], [1, 1, 1], [2, 2, 1], [3, 3, 1], [4, 4, MINUS_3DB], [5, 5, MINUS_3DB], [6, 4, MINUS_3DB], [7, 5, MINUS_3DB]] }
+    default:
+      return { kind: 'stereo', map: [] }
   }
-  if (shaping.night) last = last.connect(g.compressor)
-  if (shaping.night || shaping.dialogueDb > 0) last = last.connect(g.limiter)
-  last.connect(g.delay).connect(destination)
 }

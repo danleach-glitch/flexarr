@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { useMemo, useSyncExternalStore } from 'react'
 
 /**
  * How films and episodes sound in this browser: the speakers, a lift for the dialogue and night mode. A device
@@ -47,6 +47,9 @@ export function shapingFor(settings: SoundSettings, now: Date): SoundShaping {
     night: settings.nightMode === 'On' || (settings.nightMode === 'Scheduled' && inWindow(now, settings.nightStart, settings.nightEnd)),
   }
 }
+
+/** Nothing shaped: the sound as it comes. */
+export const unshaped: SoundShaping = { channels: null, dialogueDb: 0, night: false }
 
 export function isShaping(s: SoundShaping) {
   return s.channels !== null || s.dialogueDb > 0 || s.night
@@ -118,15 +121,17 @@ export function useSoundSettings(): SoundSettings {
   return useSyncExternalStore(subscribe, getSnapshot, () => defaultSoundSettings)
 }
 
+// The minute, as a store: read fresh whenever the player renders, and a render each minute while a schedule runs.
+const subscribeMinute = (notify: () => void) => {
+  const timer = window.setInterval(notify, 60_000)
+  return () => window.clearInterval(timer)
+}
+const currentMinute = () => Math.floor(Date.now() / 60_000)
+const noMinute = () => () => {}
+
 /** What the settings mean right now; a scheduled night mode is looked at again every minute so it starts and stops mid-film. */
 export function useSoundShaping(settings: SoundSettings): SoundShaping {
-  const [now, setNow] = useState(() => new Date())
-  const scheduled = settings.nightMode === 'Scheduled'
-  useEffect(() => {
-    if (!scheduled) return
-    const timer = window.setInterval(() => setNow(new Date()), 60_000)
-    return () => window.clearInterval(timer)
-  }, [scheduled])
-  const { channels, dialogueDb, night } = shapingFor(settings, now)
+  const minute = useSyncExternalStore(settings.nightMode === 'Scheduled' ? subscribeMinute : noMinute, currentMinute, currentMinute)
+  const { channels, dialogueDb, night } = shapingFor(settings, new Date(minute * 60_000))
   return useMemo(() => ({ channels, dialogueDb, night }), [channels, dialogueDb, night])
 }

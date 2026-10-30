@@ -45,7 +45,7 @@ import { mediaErrorRecovery } from '../lib/hlsRecovery'
 import { speedLabel } from '../lib/podcasts'
 import { drawStyled, type StyledSubtitles } from '../lib/styledSubtitles'
 import { cueLine, pictureIn } from '../lib/subtitlePlacement'
-import { dialogueBoostChoices, nightModeChoices, speakerChoices, timeOfDay, useSoundSettings, useSoundShaping, writeSoundSettings } from '../lib/soundSettings'
+import { dialogueBoostChoices, nightModeChoices, speakerChoices, timeOfDay, unshaped, useSoundSettings, useSoundShaping, writeSoundSettings } from '../lib/soundSettings'
 import { detectProfile, prefersNativeHls } from '../lib/profile'
 import { extended, FADE_SECONDS, minutesLeft, secondsLeft, sleepChoices, sleepLabel, STILL_WATCHING_SECONDS, type SleepTimer } from '../lib/sleepTimer'
 
@@ -878,7 +878,9 @@ export function PlayerPage() {
   const sound = useSoundSettings()
   const shaping = useSoundShaping(sound)
   const playingChannels = info?.audioTracks.find((a) => a.index === info.selectedAudioIndex)?.channels ?? null
-  useSoundChain(video, soundHere ? Math.max(0, audioDelay) : 0, shaping, playingChannels)
+  // Safari plays a converted stream itself, and its sound can go silent through Web Audio: that's left as it comes.
+  const canShape = !(info?.method === 'Transcode' && prefersNativeHls())
+  useSoundChain(video, soundHere ? Math.max(0, audioDelay) : 0, canShape ? shaping : unshaped, playingChannels)
 
   /**
    * Moves the file's sound by `by` seconds (0 puts it back), for everyone who plays it. Played here, a later sound changes at
@@ -1388,26 +1390,19 @@ export function PlayerPage() {
                     </div>
                   </div>
                 )}
-                {info.audioTracks.length > 0 && (
-                  <div className="player-menu-column">
-                    <h3>Dialogue boost</h3>
-                    {dialogueBoostChoices.map((b) => (
-                      <MenuItem key={b} selected={sound.dialogueBoost === b} onClick={() => writeSoundSettings({ dialogueBoost: b })}>
-                        {b}
-                      </MenuItem>
-                    ))}
-                    <h3>Night mode</h3>
-                    {nightModeChoices.map((n) => (
-                      <MenuItem key={n} selected={sound.nightMode === n} onClick={() => writeSoundSettings({ nightMode: n })}>
-                        {n === 'Scheduled' ? `${timeOfDay(sound.nightStart)}–${timeOfDay(sound.nightEnd)}` : n}
-                      </MenuItem>
-                    ))}
-                    <h3>Speakers</h3>
-                    {speakerChoices.map((c) => (
-                      <MenuItem key={c.value} selected={sound.speakers === c.value} onClick={() => writeSoundSettings({ speakers: c.value })}>
-                        {c.label}
-                      </MenuItem>
-                    ))}
+                {info.audioTracks.length > 0 && canShape && (
+                  <div className="player-menu-column sound">
+                    <h3 id="sound-boost">Dialogue boost</h3>
+                    <Segments labelledBy="sound-boost" choices={dialogueBoostChoices.map((b) => ({ value: b, label: b }))} value={sound.dialogueBoost} onChoose={(dialogueBoost) => writeSoundSettings({ dialogueBoost })} />
+                    <h3 id="sound-night">Night mode</h3>
+                    <Segments
+                      labelledBy="sound-night"
+                      choices={nightModeChoices.map((n) => ({ value: n, label: n === 'Scheduled' ? `${timeOfDay(sound.nightStart)}–${timeOfDay(sound.nightEnd)}` : n, spoken: n === 'Scheduled' ? `On a schedule, ${timeOfDay(sound.nightStart)} to ${timeOfDay(sound.nightEnd)}` : undefined }))}
+                      value={sound.nightMode}
+                      onChoose={(nightMode) => writeSoundSettings({ nightMode })}
+                    />
+                    <h3 id="sound-speakers">Speakers</h3>
+                    <Segments labelledBy="sound-speakers" choices={speakerChoices} value={sound.speakers} onChoose={(speakers) => writeSoundSettings({ speakers })} />
                   </div>
                 )}
               </div>
@@ -1556,6 +1551,19 @@ export function PlayerPage() {
           }}
         />
       )}
+    </div>
+  )
+}
+
+/** A setting's few choices in one row: Dialogue boost, Night mode and Speakers. */
+function Segments<T extends string>({ labelledBy, choices, value, onChoose }: { labelledBy: string; choices: { value: T; label: string; spoken?: string }[]; value: T; onChoose: (value: T) => void }) {
+  return (
+    <div className="player-menu-segments" role="radiogroup" aria-labelledby={labelledBy}>
+      {choices.map((c) => (
+        <button key={c.value} role="radio" aria-checked={c.value === value} aria-label={c.spoken} onClick={() => onChoose(c.value)}>
+          {c.label}
+        </button>
+      ))}
     </div>
   )
 }
