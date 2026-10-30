@@ -4,6 +4,10 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ## Unreleased
 
+### Search
+- Search shows your recent searches before you type anything, on the web, iPhone, Apple TV and Android. It shows your last five searches, plus the things you opened from them, so you can go back with one tap. They follow your profile across devices, so something you searched for on your phone is waiting on the TV. Remove a single search, or clear them all.
+- Search forgives typos, accents and punctuation: "breking bad" finds Breaking Bad, "amelie" finds Amélie and "spiderman" finds Spider-Man. This works for titles, albums, people and genres, including titles you ask for by voice with Siri or Google Assistant.
+
 ### Connecting devices
 - When a new Apple TV, iPhone or Android phone asks to connect, any iPhone or Android phone signed in as the main profile asks "Connect Living room?", with what kind of device it is and its code. Check the code matches the one on the device's screen and tap **Allow**, with no need to go to a computer. It shows while Flexarr is open, and as a notification when it isn't, on phones with notifications turned on. The notification has **Allow** and **Don't allow** buttons of its own (the phone asks to be unlocked first). The web app asks the same when it's open on the main profile.
 - Settings on the iPhone and Android apps, and **Settings › Access › Connect a device** on the web, list the devices waiting to connect, each with **Allow** and **Don't allow**.

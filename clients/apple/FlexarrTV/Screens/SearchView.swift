@@ -7,6 +7,7 @@ struct SearchView: View {
     @State private var query = ""
     @State private var results: SearchResults?
     @State private var error: String?
+    @State private var recents = RecentSearches()
 
     var body: some View {
         ScrollView(.vertical) {
@@ -19,14 +20,14 @@ struct SearchView: View {
                     if !results.titles.isEmpty {
                         section("Movies and shows") {
                             ForEach(results.titles) { item in
-                                PosterCard(item: item) { router.push(.item(item)) }
+                                PosterCard(item: item) { open(item) }
                             }
                         }
                     }
                     if !results.episodes.isEmpty {
                         section("Episodes") {
                             ForEach(results.episodes) { item in
-                                WideCard(item: item, width: 440) { router.push(.item(item)) }
+                                WideCard(item: item, width: 440) { open(item) }
                             }
                         }
                     }
@@ -34,6 +35,7 @@ struct SearchView: View {
                         section("People") {
                             ForEach(results.people) { person in
                                 PersonCard(name: person.name, detail: person.credits == 1 ? "1 title" : "\(person.credits) titles", image: person.image) {
+                                    model.recordSearch(query: query)
                                     router.push(.person(id: person.id, name: person.name))
                                 }
                             }
@@ -42,6 +44,8 @@ struct SearchView: View {
                 } else if let error {
                     StatusView(state: .failed(error) { Task { await search() } })
                         .frame(height: 300)
+                } else if query.isEmpty && !recents.isEmpty {
+                    recentSections
                 }
             }
             .padding(.bottom, 80)
@@ -57,6 +61,42 @@ struct SearchView: View {
             try? await Task.sleep(for: .milliseconds(300))
             guard !Task.isCancelled else { return }
             await search()
+        }
+    }
+
+    /// With nothing typed: the profile's last few searches to run again, and the titles opened from search.
+    @ViewBuilder private var recentSections: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if !recents.queries.isEmpty { RowHeading(title: "Recent searches") }
+            ScrollView(.horizontal) {
+                HStack(spacing: 18) {
+                    ForEach(recents.queries, id: \.self) { words in
+                        Button { query = words } label: {
+                            Label(words, systemImage: "clock.arrow.circlepath")
+                        }
+                        .buttonStyle(PillButtonStyle(selected: false))
+                        .contextMenu {
+                            Button(role: .destructive) { forget(words) } label: { Label("Remove", systemImage: "xmark") }
+                        }
+                    }
+                    Button("Clear", action: clearRecents)
+                        .buttonStyle(PillButtonStyle(selected: false))
+                }
+                .padding(.horizontal, Layout.edge)
+                .padding(.vertical, 28)
+            }
+            .scrollClipDisabled()
+            .focusSection()
+        }
+        if !recents.items.isEmpty {
+            section("Recently opened") {
+                ForEach(recents.items) { item in
+                    PosterCard(item: item) {
+                        model.recordSearch(query: nil, item: item)
+                        router.push(.item(item))
+                    }
+                }
+            }
         }
     }
 
@@ -85,6 +125,7 @@ struct SearchView: View {
         let text = query.trimmingCharacters(in: .whitespaces)
         guard !text.isEmpty, let client = model.client else {
             results = nil
+            await loadRecents()
             return
         }
         do {
@@ -95,6 +136,30 @@ struct SearchView: View {
         } catch {
             self.error = ConnectionError(error).message
         }
+    }
+
+    /// A title picked from the results: noted with the words searched for, then opened.
+    private func open(_ item: ItemSummary) {
+        model.recordSearch(query: query, item: item)
+        router.push(.item(item))
+    }
+
+    /// Servers before 0.56 keep no recent searches, and one that can't be reached shows none: nothing to say either way.
+    private func loadRecents() async {
+        guard let client = model.client else { return }
+        recents = (try? await client.recentSearches()) ?? RecentSearches()
+    }
+
+    private func forget(_ words: String) {
+        recents = RecentSearches(queries: recents.queries.filter { $0 != words }, items: recents.items)
+        guard let client = model.client else { return }
+        Task { try? await client.forgetRecentSearch(query: words) }
+    }
+
+    private func clearRecents() {
+        recents = RecentSearches()
+        guard let client = model.client else { return }
+        Task { try? await client.clearRecentSearches() }
     }
 }
 

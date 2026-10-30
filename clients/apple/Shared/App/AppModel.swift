@@ -580,6 +580,14 @@ final class AppModel {
         invalidate()
     }
 
+    /// A search result was picked, for the profile's recent searches. Sent and forgotten: servers before 0.56
+    /// don't keep them, and `-FlexarrNoHistory` runs leave them alone.
+    func recordSearch(query: String?, item: ItemSummary? = nil) {
+        guard let client, player.recordsHistory else { return }
+        let words = query?.trimmingCharacters(in: .whitespaces)
+        Task { try? await client.recordSearch(query: words?.isEmpty == false ? words : nil, itemId: item?.id) }
+    }
+
     // MARK: Commands from other devices
 
     /// Listens for commands while the app is in front and signed in (with a profile chosen); stops otherwise.

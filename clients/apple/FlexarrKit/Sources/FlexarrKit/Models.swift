@@ -396,6 +396,20 @@ public struct SearchResults: Codable, Sendable {
     public var isEmpty: Bool { titles.isEmpty && episodes.isEmpty && people.isEmpty }
 }
 
+/// The profile's last few searches and the titles opened from them, newest first, shared by all its devices.
+/// Servers before 0.56 don't keep them.
+public struct RecentSearches: Codable, Sendable {
+    public let queries: [String]
+    public let items: [ItemSummary]
+
+    public init(queries: [String] = [], items: [ItemSummary] = []) {
+        self.queries = queries
+        self.items = items
+    }
+
+    public var isEmpty: Bool { queries.isEmpty && items.isEmpty }
+}
+
 // MARK: - Playback
 
 public struct DeviceProfile: Codable, Sendable, Hashable {

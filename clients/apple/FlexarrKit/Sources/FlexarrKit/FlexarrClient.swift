@@ -188,6 +188,38 @@ public struct FlexarrClient: Sendable {
         try await get("search", query: [.init(name: "q", value: query)])
     }
 
+    /// The profile's recent searches and the titles opened from them. Servers before 0.56 have none.
+    public func recentSearches() async throws -> RecentSearches {
+        do {
+            return try await get("search/recent")
+        } catch FlexarrClientError.http(status: 404, _) {
+            return RecentSearches()
+        }
+    }
+
+    /// A search result was picked: the words searched for, and the title when it was one (not a person or genre).
+    /// Reopening a title from the recent row sends just the title, which moves it to the front.
+    public func recordSearch(query: String?, itemId: String?) async throws {
+        _ = try await send("POST", "search/recent", body: RecentSearchBody(query: query, itemId: itemId))
+    }
+
+    public func forgetRecentSearch(query: String) async throws {
+        _ = try await send("DELETE", "search/recent", query: [.init(name: "query", value: query)])
+    }
+
+    public func forgetRecentItem(itemId: String) async throws {
+        _ = try await send("DELETE", "search/recent", query: [.init(name: "itemId", value: itemId)])
+    }
+
+    public func clearRecentSearches() async throws {
+        _ = try await send("DELETE", "search/recent")
+    }
+
+    private struct RecentSearchBody: Encodable {
+        let query: String?
+        let itemId: String?
+    }
+
     public func startPlayback(_ request: PlaybackRequest) async throws -> PlaybackInfo {
         let data = try await send("POST", "playback", body: request)
         return try decode(PlaybackInfo.self, from: data)

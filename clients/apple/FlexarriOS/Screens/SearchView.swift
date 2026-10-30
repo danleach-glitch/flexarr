@@ -8,6 +8,7 @@ struct SearchView: View {
     @FocusState private var typing: Bool
     @State private var results: SearchResults?
     @State private var error: String?
+    @State private var recents = RecentSearches()
 
     var body: some View {
         ScrollView(.vertical) {
@@ -20,14 +21,19 @@ struct SearchView: View {
                     if !results.titles.isEmpty {
                         section("Movies and shows") {
                             ForEach(results.titles) { item in
-                                PosterCard(item: item, width: Layout.posterWidth(sizeClass))
+                                PosterCard(item: item, width: Layout.posterWidth(sizeClass)) {
+                                    model.recordSearch(query: query, item: item)
+                                }
                             }
                         }
                     }
                     if !results.episodes.isEmpty {
                         section("Episodes") {
                             ForEach(results.episodes) { item in
-                                WideCard(item: item, width: Layout.wideWidth(sizeClass))
+                                WideCard(item: item, width: Layout.wideWidth(sizeClass)) {
+                                    model.recordSearch(query: query, item: item)
+                                    model.play(item)
+                                }
                             }
                         }
                     }
@@ -35,13 +41,17 @@ struct SearchView: View {
                         section("People") {
                             ForEach(results.people) { person in
                                 PersonCard(id: person.id, name: person.name,
-                                           detail: person.credits == 1 ? "1 title" : "\(person.credits) titles", image: person.image)
+                                           detail: person.credits == 1 ? "1 title" : "\(person.credits) titles", image: person.image) {
+                                    model.recordSearch(query: query)
+                                }
                             }
                         }
                     }
                 } else if let error {
                     StatusView(state: .failed(error) { Task { await search() } })
                         .frame(height: 240)
+                } else if query.isEmpty && !recents.isEmpty {
+                    recentSections
                 } else {
                     StatusView(state: .empty("Find films, shows, episodes and people in your libraries."))
                         .frame(height: 240)
@@ -69,9 +79,64 @@ struct SearchView: View {
         }
     }
 
-    private func section(_ title: String, @ViewBuilder content: () -> some View) -> some View {
+    /// With nothing typed: the profile's last few searches to run again, and the titles opened from search.
+    @ViewBuilder private var recentSections: some View {
+        if !recents.queries.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+                SectionHeading(title: "Recent searches", actionTitle: "Clear") { clearRecents() }
+                VStack(spacing: 0) {
+                    ForEach(recents.queries, id: \.self) { words in
+                        recentQuery(words)
+                    }
+                }
+                .padding(.horizontal, Layout.edge)
+            }
+        }
+        if !recents.items.isEmpty {
+            // Clear sits on the first heading shown.
+            let clear: (() -> Void)? = recents.queries.isEmpty ? { clearRecents() } : nil
+            section("Recently opened", clear: clear) {
+                ForEach(recents.items) { item in
+                    PosterCard(item: item, width: Layout.posterWidth(sizeClass)) {
+                        model.recordSearch(query: nil, item: item)
+                    }
+                }
+            }
+        }
+    }
+
+    private func recentQuery(_ words: String) -> some View {
+        HStack(spacing: 12) {
+            Button {
+                query = words
+                typing = false
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "clock.arrow.circlepath").foregroundStyle(Color.usher)
+                    Text(words).foregroundStyle(Color.screen).lineLimit(1)
+                    Spacer(minLength: 0)
+                }
+                .padding(.vertical, 10)
+                .contentShape(Rectangle())
+            }
+            Button { forget(words) } label: {
+                Image(systemName: "xmark")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(Color.usher)
+                    .frame(width: 32, height: 32)
+                    .contentShape(Rectangle())
+            }
+            .accessibilityLabel("Remove \(words)")
+        }
+        .buttonStyle(.plain)
+        .contextMenu {
+            Button(role: .destructive) { forget(words) } label: { Label("Remove", systemImage: "xmark") }
+        }
+    }
+
+    private func section(_ title: String, clear: (() -> Void)? = nil, @ViewBuilder content: () -> some View) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            SectionHeading(title: title)
+            SectionHeading(title: title, actionTitle: "Clear", action: clear)
             ScrollView(.horizontal) {
                 LazyHStack(alignment: .top, spacing: Layout.rowSpacing) { content() }
                     .padding(.horizontal, Layout.edge)
@@ -93,6 +158,7 @@ struct SearchView: View {
         guard !text.isEmpty, let client = model.client else {
             results = nil
             error = nil
+            await loadRecents()
             return
         }
         do {
@@ -103,6 +169,24 @@ struct SearchView: View {
         } catch {
             self.error = ConnectionError(error).message
         }
+    }
+
+    /// Servers before 0.56 keep no recent searches, and one that can't be reached shows none: nothing to say either way.
+    private func loadRecents() async {
+        guard let client = model.client else { return }
+        recents = (try? await client.recentSearches()) ?? RecentSearches()
+    }
+
+    private func forget(_ words: String) {
+        recents = RecentSearches(queries: recents.queries.filter { $0 != words }, items: recents.items)
+        guard let client = model.client else { return }
+        Task { try? await client.forgetRecentSearch(query: words) }
+    }
+
+    private func clearRecents() {
+        recents = RecentSearches()
+        guard let client = model.client else { return }
+        Task { try? await client.clearRecentSearches() }
     }
 }
 
