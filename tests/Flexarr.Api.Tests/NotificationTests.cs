@@ -63,9 +63,11 @@ public sealed class NotificationTests : IAsyncLifetime
         return (body.GetProperty("id").GetString()!, client);
     }
 
-    private async Task<HttpResponseMessage> RegisterAsync(HttpClient phone, string token = "ab12", bool upcoming = false, int upcomingHour = 9, bool useCurrentProfile = false) =>
+    private async Task<HttpResponseMessage> RegisterAsync(HttpClient phone, string token = "ab12", bool upcoming = false, int upcomingHour = 9, bool useCurrentProfile = false,
+        bool requests = true) =>
         await phone.PutAsJsonAsync(Api("/notifications/device"), new
         {
+            requests,
             token = string.Concat(Enumerable.Repeat(token, 16)),
             environment = "sandbox",
             key = Convert.ToBase64String(_key),
@@ -362,6 +364,25 @@ public sealed class NotificationTests : IAsyncLifetime
         Assert.DoesNotContain(sent, m => m.GetProperty("t").GetString() == "From your watchlist");
         using var scope = _server.Services.CreateScope();
         Assert.Null((await scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().WatchlistEntries.SingleAsync()).ArrivedAt);
+    }
+
+    [Fact]
+    public async Task APhoneWithRequestsOff_StillHearsTheUsualNewsForAWatchlistFilm()
+    {
+        var (_, phone) = await PhoneAsync();
+        await RegisterAsync(phone, requests: false);
+        await StartAsync();
+        var library = OldLibrary(LibraryType.Movies);
+        await SeedAsync(db =>
+        {
+            db.Libraries.Add(library);
+            db.WatchlistEntries.Add(new WatchlistEntry { ProfileId = PlaybackState.DefaultUser, Kind = MediaKind.Movie, TmdbId = 1100, Title = "Wanted", AddedAt = _clock.Now.AddDays(-5) });
+            db.MediaItems.Add(Film(library, "Wanted", _clock.Now.AddMinutes(1), tmdb: "1100"));
+        });
+
+        var sent = Assert.Single(await RunAtAsync(_clock.Now.AddMinutes(5)));
+
+        Assert.StartsWith("New film", sent.GetProperty("t").GetString(), StringComparison.Ordinal);
     }
 
     [Fact]

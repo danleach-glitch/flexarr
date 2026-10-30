@@ -175,7 +175,7 @@ public static partial class DiscoveryEndpoints
             // Placed by every film and TV library, including ones this profile can't see, as Settings places them.
             var placing = (await db.Libraries.IgnoreQueryFilters().OrderBy(l => l.Name).ToListAsync(ct))
                 .Where(l => !(options.LiveTv?.Account is not null && RecordingsLibrary.Is(l)));
-            var layout = LayoutEndpoints.ForCombining(options.Layout.Home, placing, options.Layout.CombineLibraries);
+            var layout = LayoutEndpoints.WithWatchlistRow(LayoutEndpoints.ForCombining(options.Layout.Home, placing, options.Layout.CombineLibraries));
             return new HomeDto(rotation, overviews, LayoutEndpoints.Arrange(shown, layout), upcoming, downloading, resume, resumes);
         }).WithTags("Discovery");
 

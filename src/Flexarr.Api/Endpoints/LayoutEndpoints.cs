@@ -49,7 +49,7 @@ public static class LayoutEndpoints
             && !(options.LiveTv?.Account is not null && RecordingsLibrary.Is(l))).ToList();
         var collections = await db.Collections.Where(c => c.ShowOnHome && !c.Hidden && (c.OwnerProfileId == null || c.OwnerProfileId == me))
             .OrderBy(c => c.Name).Select(c => new RowChoiceDto($"collection-{c.Id}", $"Collection: {c.Name}", true)).ToListAsync(ct);
-        var home = ForCombining(layout.Home, libraries, layout.CombineLibraries);
+        var home = WithWatchlistRow(ForCombining(layout.Home, libraries, layout.CombineLibraries));
         return new LayoutDto(Merge([.. HomeRows(libraries, layout.CombineLibraries, all.Any(l => l.Type == LibraryType.Music)), .. collections], home),
             Merge(BrowseRows(movies: true), layout.Movies), Merge(BrowseRows(movies: false), layout.Shows),
             layout.CombineLibraries, libraries.GroupBy(l => l.Type).Any(g => g.Count() > 1));
@@ -88,6 +88,7 @@ public static class LayoutEndpoints
     public static List<RowSetting> ForCombining(IReadOnlyList<RowSetting> layout, IEnumerable<Library> libraries, bool combine)
     {
         var result = layout.ToList();
+
         foreach (var kind in libraries.Where(l => l.Type is LibraryType.Movies or LibraryType.TvShows or LibraryType.HomeVideos).GroupBy(l => l.Type))
         {
             List<string> combined = [CombinedRowId(kind.Key)], own = [.. kind.Select(l => $"recent-{l.Id}")];
@@ -104,6 +105,18 @@ public static class LayoutEndpoints
         }
 
         return result;
+    }
+
+    /// <summary>A Home layout saved before the watchlist row, with it straight after Continue watching rather than at the end.</summary>
+    public static List<RowSetting> WithWatchlistRow(List<RowSetting> layout)
+    {
+        var continueAt = layout.FindIndex(r => r.Id == "continue");
+        if (continueAt >= 0 && layout.All(r => r.Id != Watchlist.WatchlistService.HomeRowId))
+        {
+            layout.Insert(continueAt + 1, new RowSetting { Id = Watchlist.WatchlistService.HomeRowId, Enabled = true });
+        }
+
+        return layout;
     }
 
     public static bool IsOn(IReadOnlyList<RowSetting> layout, string id) => !layout.Any(r => r.Id == id && !r.Enabled);

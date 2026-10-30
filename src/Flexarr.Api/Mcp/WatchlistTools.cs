@@ -34,9 +34,10 @@ public static class WatchlistTools
         return (await watchlist.ListAsync(profile.Id, ct)).Select(McpWatchlistEntry.From).ToList();
     }
 
-    [McpServerTool(Name = "add_to_watchlist"), Description("Adds a film or show to this profile's watchlist. Give a library title's id (from search_library), or a title to look up among every film and show (for ones not in the library yet), with its year and kind if known. The result says whether it was also requested.")]
+    [McpServerTool(Name = "add_to_watchlist"), Description("Adds a film or show to this profile's watchlist (which can request it, if the profile asks for that). Give a library title's id (from search_library); or, for one not in the library, its TMDB id with its kind; or a title to look up among every film and show, with its year and kind if known. A title that doesn't match exactly answers with candidates to choose from by TMDB id. The result says whether it was also requested.")]
     public static async Task<string> AddAsync(WatchlistService watchlist, SeerrClient seerr, IOptionsMonitor<FlexarrOptions> options, CurrentProfile profile, CancellationToken ct,
         [Description("A film's or show's id, from search_library")] Guid? itemId = null,
+        [Description("A TMDB id, from an earlier answer's candidates; give kind too")] int? tmdbId = null,
         [Description("The title, for one not in the library, e.g. \"dune part three\"")] string? title = null,
         [Description("The year it came out, to pick the right one")] int? year = null,
         [Description("film or show")] string? kind = null)
@@ -46,10 +47,20 @@ public static class WatchlistTools
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(profile);
 
+        var mediaType = kind?.Trim().ToUpperInvariant() switch
+        {
+            "FILM" or "MOVIE" => "movie",
+            "SHOW" or "TV" or "SERIES" => "tv",
+            _ => null,
+        };
         WatchlistAdd add;
         if (itemId is { } id)
         {
             add = new WatchlistAdd(id);
+        }
+        else if (tmdbId is { } tmdb)
+        {
+            add = new WatchlistAdd(null, mediaType ?? throw new InvalidOperationException("Say whether TMDB id is a film or a show (kind)."), tmdb);
         }
         else if (!string.IsNullOrWhiteSpace(title))
         {
@@ -58,21 +69,27 @@ public static class WatchlistTools
                 throw new InvalidOperationException("Looking up titles that aren't in the library needs a Seerr server. Use search_library for ones that are.");
             }
 
-            var mediaType = kind?.Trim().ToUpperInvariant() switch
+            var wanted = title.Trim();
+            var results = (await seerr.SearchAsync(instance, wanted, ct)).Results
+                .Where(r => r.MediaType is "movie" or "tv" && (mediaType is null || r.MediaType == mediaType)).ToList();
+            static int? yearOf(SeerrResult r) => (r.ReleaseDate ?? r.FirstAirDate) is { Length: >= 4 } d && int.TryParse(d[..4], System.Globalization.CultureInfo.InvariantCulture, out var y) ? y : null;
+            // Only an exact title (and year, if given) is taken as meant: anything looser could have Seerr download
+            // something nobody chose.
+            var exact = results.Where(r => string.Equals((r.Title ?? r.Name)?.Trim(), wanted, StringComparison.OrdinalIgnoreCase)
+                && (year is null || yearOf(r) == year)).ToList();
+            if (exact.Count != 1)
             {
-                "FILM" or "MOVIE" => "movie",
-                "SHOW" or "TV" or "SERIES" => "tv",
-                _ => null,
-            };
-            var found = (await seerr.SearchAsync(instance, title.Trim(), ct)).Results
-                .Where(r => r.MediaType is "movie" or "tv" && (mediaType is null || r.MediaType == mediaType))
-                .OrderByDescending(r => year is { } y && (r.ReleaseDate ?? r.FirstAirDate)?.StartsWith(y.ToString(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal) == true)
-                .FirstOrDefault() ?? throw new InvalidOperationException($"No film or show called \"{title.Trim()}\" was found.");
-            add = new WatchlistAdd(null, found.MediaType, found.Id);
+                var candidates = results.Take(5).Select(r => $"{r.Title ?? r.Name} ({yearOf(r)?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "?"}, {(r.MediaType == "movie" ? "film" : "show")}, tmdbId {r.Id})");
+                throw new InvalidOperationException(results.Count == 0
+                    ? $"No film or show called \"{wanted}\" was found."
+                    : $"Which one? Ask again with its tmdbId and kind: {string.Join("; ", candidates)}.");
+            }
+
+            add = new WatchlistAdd(null, exact[0].MediaType, exact[0].Id);
         }
         else
         {
-            throw new InvalidOperationException("Give a library title's id, or a title to look up.");
+            throw new InvalidOperationException("Give a library title's id, a TMDB id with its kind, or a title to look up.");
         }
 
         var (added, refusal) = await watchlist.AddAsync(profile.Id, add, WatchlistSource.Flexarr, ct);

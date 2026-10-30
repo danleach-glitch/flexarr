@@ -208,7 +208,8 @@ public static class RequestEndpoints
                 var ratings = await SafeGetAsync(seerr, instance, mediaType == "movie" ? $"movie/{tmdbId}/ratingscombined" : $"tv/{tmdbId}/ratings", ct);
                 var recommendations = await SafeGetAsync(seerr, instance, $"{mediaType}/{tmdbId}/recommendations", ct);
                 var onWatchlist = (await watchlist.MembershipAsync(current.Id, new Watchlist.WatchlistAdd(null, mediaType, tmdbId), ct)).OnWatchlist;
-                return Results.Ok(Detail(mediaType, title, ratings, recommendations, library, hidden) with { OnWatchlist = onWatchlist });
+                var wanted = await watchlist.KeysAsync(current.Id, ct);
+                return Results.Ok(Detail(mediaType, title, ratings, recommendations, library, hidden, wanted) with { OnWatchlist = onWatchlist });
             }
             catch (HttpRequestException ex)
             {
@@ -288,7 +289,7 @@ public static class RequestEndpoints
     }
 
     private static ExternalDetailDto Detail(string mediaType, JsonElement t, JsonElement? ratings, JsonElement? recommendations, Dictionary<string, Guid> library,
-        IReadOnlySet<Core.Libraries.LibraryType> hidden)
+        IReadOnlySet<Core.Libraries.LibraryType> hidden, IReadOnlySet<string>? watchlist = null)
     {
         var movie = mediaType == "movie";
         var summary = ToDto(t.Deserialize<SeerrResult>(Web)! with { MediaType = mediaType }, library);
@@ -321,7 +322,7 @@ public static class RequestEndpoints
 
         var recs = recommendations is { } rec
             ? Array(rec, "results").Select(e => e.Deserialize<SeerrResult>(Web)!).Where(e => e.MediaType is "movie" or "tv")
-                .Select(e => ToDto(e, library)).Where(e => e.LibraryItemId is not null || !hidden.Hides(KindOf(e.MediaType))).Take(20).ToList()
+                .Select(e => ToDto(e, library, watchlist)).Where(e => e.LibraryItemId is not null || !hidden.Hides(KindOf(e.MediaType))).Take(20).ToList()
             : [];
 
         return new ExternalDetailDto(

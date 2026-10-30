@@ -81,6 +81,9 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
     /// <summary>A Seerr that didn't answer is asked again after this, not on every load.</summary>
     private static readonly TimeSpan SeerrFailureCacheFor = TimeSpan.FromMinutes(1);
 
+    /// <summary>The most titles one profile's watchlist holds: past it, adding is refused.</summary>
+    public const int MaxEntries = 1000;
+
     /// <summary>Seerr lookups at once while a list loads.</summary>
     private const int SeerrParallelism = 6;
 
@@ -108,10 +111,13 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
         await LinkAsync(profileId, entries, ct);
         await db.SaveChangesAsync(ct);
         var order = entries.Where(e => e.MediaItemId is not null).Select((e, i) => (Id: e.MediaItemId!.Value, i)).ToDictionary(e => e.Id, e => e.i);
-        var ids = order.Keys.ToList();
-        var items = await db.MediaItems.Where(i => ids.Contains(i.Id) && (i.Kind == MediaKind.Movie || i.Children.Any(s => s.Children.Count > 0)))
-            .Summaries(profileId).ToListAsync(ct);
-        return items.OrderBy(i => order[i.Id]).Take(take).ToList();
+        var linked = order.Keys.ToList();
+        // Which can be played (and seen by this profile) first, cheaply; then the full card for only the ones shown.
+        var playable = await db.MediaItems.Where(i => linked.Contains(i.Id) && (i.Kind == MediaKind.Movie || i.Children.Any(s => s.Children.Count > 0)))
+            .Select(i => i.Id).ToListAsync(ct);
+        var shown = playable.OrderBy(id => order[id]).Take(take).ToList();
+        var items = await db.MediaItems.Where(i => shown.Contains(i.Id)).Summaries(profileId).ToListAsync(ct);
+        return items.OrderBy(i => order[i.Id]).ToList();
     }
 
     public async Task<WatchlistMembershipDto> MembershipAsync(string profileId, WatchlistAdd key, CancellationToken ct)
@@ -169,6 +175,11 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
         if (existing is { RemovedAt: null })
         {
             return (new WatchlistAdded(await DtoAsync(profileId, existing, ct), false), null);
+        }
+
+        if (await Live(profileId).CountAsync(ct) >= MaxEntries)
+        {
+            return (null, new WatchlistRefusal(409, $"A watchlist holds up to {MaxEntries:N0} titles. Take some off first."));
         }
 
         WatchlistEntry entry;

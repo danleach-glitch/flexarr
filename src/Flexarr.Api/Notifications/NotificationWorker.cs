@@ -120,12 +120,15 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
                 .Select(p => p.MediaItemId).ToListAsync(ct)).ToHashSet();
             var theirs = answered.Where(a => a.ProfileId == profile.Key).ToList();
             var told = theirs.SelectMany(a => a.Items).ToHashSet();
-            var visible = fresh.Where(i => !hidden.Contains(i.LibraryId) && !watched.Contains(i.Id) && !told.Contains(i.Id)).ToList();
+            var unseen = fresh.Where(i => !hidden.Contains(i.LibraryId) && !watched.Contains(i.Id)).ToList();
 
             // Phones of one profile can still want different things.
             foreach (var wants in profile.GroupBy(d => (d.Films, d.Shows, d.Requests)))
             {
                 var messages = new List<PushMessage>();
+                // A phone that hears about requests and the watchlist gets those instead of the usual news for the same
+                // titles; one that doesn't still gets the usual news.
+                var visible = wants.Key.Requests ? unseen.Where(i => !told.Contains(i.Id)).ToList() : unseen;
                 if (wants.Key.Requests)
                 {
                     messages.AddRange(theirs.Select(a => a.Message));
@@ -311,6 +314,22 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
     {
         var answered = new List<Answered>();
         var waiting = await db.WatchlistEntries.Where(w => w.ArrivedAt == null && w.RemovedAt == null && w.TmdbId != null).ToListAsync(ct);
+        if (waiting.Count == 0)
+        {
+            return answered;
+        }
+
+        // Every title any of them could be, in one go: films in, and shows with an episode in.
+        var wanted = waiting.Select(w => w.TmdbId!.Value.ToString(CultureInfo.InvariantCulture)).Distinct().ToList();
+        var candidates = await db.MediaItems.AsNoTracking()
+            .Where(i => i.ParentId == null && (i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series) && wanted.Contains(i.TmdbId!))
+            .Where(i => i.Kind == MediaKind.Movie ? i.AddedAt <= settled : i.Children.Any(s => s.Children.Any(e => e.AddedAt <= settled)))
+            .Select(i => new { i.Id, i.Kind, i.TmdbId, i.LibraryId, i.Title, i.Year, i.PosterUrl }).ToListAsync(ct);
+        if (candidates.Count == 0)
+        {
+            return answered;
+        }
+
         var hiddenFor = new Dictionary<string, List<Guid>>(StringComparer.Ordinal);
         foreach (var entry in waiting)
         {
@@ -321,11 +340,8 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
             }
 
             var tmdb = entry.TmdbId!.Value.ToString(CultureInfo.InvariantCulture);
-            var title = await db.MediaItems.AsNoTracking()
-                .Where(i => i.Kind == entry.Kind && i.TmdbId == tmdb && i.ParentId == null && !hidden.Contains(i.LibraryId))
-                .Where(i => entry.MediaItemId == null || i.Id == entry.MediaItemId)
-                .Where(i => i.Kind == MediaKind.Movie ? i.AddedAt <= settled : i.Children.Any(s => s.Children.Any(e => e.AddedAt <= settled)))
-                .Select(i => new { i.Id, i.Title, i.Year, i.PosterUrl }).FirstOrDefaultAsync(ct);
+            var title = candidates.FirstOrDefault(i => i.Kind == entry.Kind && i.TmdbId == tmdb && !hidden.Contains(i.LibraryId)
+                && (entry.MediaItemId == null || i.Id == entry.MediaItemId));
             if (title is null)
             {
                 continue;

@@ -442,6 +442,39 @@ public sealed class WatchlistTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AnAssistant_OnlyAddsAnExactMatch_AndOtherwiseOffersCandidates()
+    {
+        _seerr.Responses["GET /api/v1/search?query=dune&page=1"] =
+            """{"page":1,"totalPages":1,"results":[{"id":438631,"mediaType":"movie","title":"Dune","releaseDate":"2021-09-15"},{"id":841,"mediaType":"movie","title":"Dune","releaseDate":"1984-12-14"},{"id":693134,"mediaType":"movie","title":"Dune: Part Two","releaseDate":"2024-02-27"}]}""";
+        _seerr.Responses["GET /api/v1/search?query=Dune&page=1"] = _seerr.Responses["GET /api/v1/search?query=dune&page=1"];
+        SeerrKnows("movie", 438631, "Dune", "2021-09-15");
+        using var scope = _server.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        Task<string> add(string title, int? year) => Mcp.WatchlistTools.AddAsync(services.GetRequiredService<WatchlistService>(), services.GetRequiredService<SeerrClient>(),
+            services.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<Configuration.FlexarrOptions>>(), services.GetRequiredService<Profiles.CurrentProfile>(),
+            CancellationToken.None, title: title, year: year);
+
+        var ambiguous = await Assert.ThrowsAsync<InvalidOperationException>(() => add("dune", null));
+        var added = await add("Dune", 2021);
+
+        Assert.Contains("tmdbId 438631", ambiguous.Message, StringComparison.Ordinal);
+        Assert.Contains("tmdbId 841", ambiguous.Message, StringComparison.Ordinal);
+        Assert.StartsWith("Added Dune (2021)", added, StringComparison.Ordinal);
+        Assert.Equal(0, Requests());
+    }
+
+    [Fact]
+    public async Task ASavedHomeLayout_GetsTheWatchlistRowAfterContinueWatching()
+    {
+        var saved = new[] { new { id = "continue", enabled = true }, new { id = "top-movies", enabled = true } };
+        var layout = await (await Client().PutAsJsonAsync(Api("/settings/layout"), new { home = saved, movies = Array.Empty<object>(), shows = Array.Empty<object>() }))
+            .Content.ReadFromJsonAsync<JsonElement>();
+
+        var ids = layout.GetProperty("home").EnumerateArray().Select(r => r.GetProperty("id").GetString()).ToList();
+        Assert.Equal(ids.IndexOf("continue") + 1, ids.IndexOf("watchlist"));
+    }
+
+    [Fact]
     public async Task ATitleThatComesIn_IsReady()
     {
         SeerrKnows("movie", 6001, "Arriving", "2023-06-01", status: 3);
