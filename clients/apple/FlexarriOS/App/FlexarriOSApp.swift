@@ -299,6 +299,7 @@ struct RootView: View {
             model.onPodcastsChange = { [weak model] in if let model { WidgetBridge.publish(model) } }
             model.music.onChange = { [weak model] in if let model { WidgetBridge.publish(model) } }
             model.music.offlineLibrary = downloads
+            downloads.isPlaying = { [weak model] id in model?.music.isPlayingFile(of: id) == true }
             downloads.attach(client: model.client, profileId: model.currentProfile?.id)
             if model.client != nil { notifications.refresh() }
             // Once the profile's chosen, so a phone signed in again hears about the profile it's on.

@@ -56,6 +56,10 @@ data class OfflineDownload(
 @Serializable
 data class PodcastAutoDownload(val episodeId: String, val podcastId: String)
 
+/** An episode this phone has downloaded that's since been played (on another device, say): its copy can go. */
+@Serializable
+data class PodcastPlayedDownload(val episodeId: String)
+
 @Serializable
 internal data class DownloadRequestBody(val itemId: String, val quality: DownloadQuality)
 
@@ -92,6 +96,9 @@ suspend fun FlexarrClient.reportOfflineProgress(itemId: String, positionSeconds:
 
 /** The newest unplayed episodes of the shows this profile auto-downloads (none when its Auto-download is off). */
 suspend fun FlexarrClient.podcastAutoDownloads(): List<PodcastAutoDownload> = get("podcasts/auto-downloads")
+
+/** Episodes this phone has downloaded that have since been played, wherever. Absent from servers before 0.56. */
+suspend fun FlexarrClient.podcastPlayedDownloads(): List<PodcastPlayedDownload> = get("podcasts/played-downloads")
 
 /** The request for a ready download's file, signed in, from [fromByte] on (to carry on a transfer that stopped). */
 fun FlexarrClient.downloadFileRequest(id: String, fromByte: Long = 0): Request =
@@ -205,10 +212,14 @@ object DownloadRules {
     /** Fetched by itself while automatic downloads are kept to Wi-Fi: it never comes over mobile data. */
     fun isWiFiOnly(download: LocalDownload, automaticOnWiFiOnly: Boolean): Boolean = automaticOnWiFiOnly && download.automatic
 
-    /** Episodes and podcast episodes finished more than a day ago, with nothing left to tell the server (films stay until deleted). */
-    fun finishedWith(downloads: List<LocalDownload>, now: Long): List<LocalDownload> = downloads.filter { download ->
-        (download.item.kind == MediaKind.Episode || download.isPodcastEpisode) && download.unsent == null &&
-            download.finishedAtMillis?.let { now - it > DAY_MILLIS } == true
+    /**
+     * Podcast episodes played to the end, at once (unless [playing] from their file still), and episodes finished more than
+     * a day ago, either with nothing left to tell the server (films stay until deleted).
+     */
+    fun finishedWith(downloads: List<LocalDownload>, now: Long, playing: (String) -> Boolean = { false }): List<LocalDownload> = downloads.filter { download ->
+        download.unsent == null && download.finishedAtMillis?.let { finished ->
+            if (download.isPodcastEpisode) !playing(download.item.id) else download.item.kind == MediaKind.Episode && now - finished > DAY_MILLIS
+        } == true
     }
 
     /** The size to ask for: the one chosen, unless that's an Original this phone can't play (then High). */

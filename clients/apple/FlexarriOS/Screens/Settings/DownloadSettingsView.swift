@@ -44,7 +44,7 @@ struct DownloadSettingsView: View {
             } header: {
                 Text("Storage")
             } footer: {
-                Text("Episodes are deleted a day after you finish them.")
+                Text("Episodes are deleted a day after you finish them, and podcast episodes once they’re played.")
             }
         }
         .settingsPage("Downloads")

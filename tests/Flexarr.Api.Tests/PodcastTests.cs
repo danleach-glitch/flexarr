@@ -517,6 +517,34 @@ public sealed class PodcastTests : IDisposable
     }
 
     [Fact]
+    public async Task PlayedDownloads_AreTheDownloadedEpisodesSincePlayed()
+    {
+        await AddLibraryAsync();
+        var client = Client();
+        var id = (await AddPodcastAsync(client)).GetProperty("id").GetString();
+        var episodes = (await GetAsync(client, $"podcasts/{id}/episodes")).GetProperty("items").EnumerateArray().Select(e => e.GetProperty("id").GetString()).ToList();
+        foreach (var episode in episodes.Take(2))
+        {
+            await client.PostAsJsonAsync(Api("offline"), new { itemId = episode, quality = "Original" });
+        }
+
+        Assert.Empty((await GetAsync(client, "podcasts/played-downloads")).EnumerateArray());
+
+        // Played elsewhere, or marked played: downloaded ones are listed, others aren't.
+        await client.PostAsJsonAsync(Api($"items/{episodes[0]}/watched"), new { watched = true });
+        await client.PostAsJsonAsync(Api($"items/{episodes[2]}/watched"), new { watched = true });
+        var played = await GetAsync(client, "podcasts/played-downloads");
+        Assert.Equal(episodes[0], Assert.Single(played.EnumerateArray()).GetProperty("episodeId").GetString());
+
+        // Taken off the phone: no longer listed. Downloaded again after it was played, to hear again: not listed either.
+        var download = (await GetAsync(client, "offline")).EnumerateArray().First(d => d.GetProperty("itemId").GetString() == episodes[0]);
+        (await client.DeleteAsync(Api($"offline/{download.GetProperty("id").GetString()}"))).EnsureSuccessStatusCode();
+        Assert.Empty((await GetAsync(client, "podcasts/played-downloads")).EnumerateArray());
+        await client.PostAsJsonAsync(Api("offline"), new { itemId = episodes[2], quality = "Original" });
+        Assert.Empty((await GetAsync(client, "podcasts/played-downloads")).EnumerateArray());
+    }
+
+    [Fact]
     public async Task DownloadingAnEpisode_FetchesItIntoThePodcastsFolder_UntilThePhoneHasIt()
     {
         var folder = await AddLibraryAsync();

@@ -333,7 +333,7 @@ fun DownloadSettingsScreen(model: AppModel) {
                 }
             }
             item {
-                Group(header = "Storage", footer = "Episodes are deleted a day after you finish them.") {
+                Group(header = "Storage", footer = "Episodes are deleted a day after you finish them, and podcast episodes once they’re played.") {
                     Fact("Space used", if (downloads.bytesUsed == 0L) "None" else Format.bytes(downloads.bytesUsed))
                     if (downloads.downloads.isNotEmpty()) {
                         Divider()

@@ -337,7 +337,7 @@ val Flexarr.upNext: Color get() = Color(0xFF4A6FA5)
 fun setEpisodePlayed(model: AppModel, episode: PodcastEpisode, played: Boolean) {
     val client = model.client ?: return
     model.scope.launch {
-        runCatching { client.setWatched(episode.id, played) }
+        runCatching { client.setWatched(episode.id, played) }.onSuccess { if (played) model.downloads.markedPlayed(episode.id) }
         model.watchStateChanged()
     }
 }

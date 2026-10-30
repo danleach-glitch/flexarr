@@ -429,6 +429,11 @@ final class MusicPlayer {
         ]
     }
 
+    /// Playing this downloaded track or episode from its file now.
+    func isPlayingFile(of itemId: String) -> Bool {
+        isPlayingOffline && player.currentItem != nil && current?.id == itemId
+    }
+
     private func clearItem() {
         for observer in itemObservers { NotificationCenter.default.removeObserver(observer) }
         itemObservers = []

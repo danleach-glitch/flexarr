@@ -307,6 +307,9 @@ class PodcastPlayer(private val context: Context, private val model: AppModel) {
         }
     }
 
+    /** Playing this downloaded episode from its file now. */
+    fun isPlayingFile(episodeId: String): Boolean = playingDownload && current?.id == episodeId
+
     /** Heard through: stop if the sleep timer says so, else on to the next episode the server suggests. */
     private fun episodeEnded() {
         val episode = current ?: return

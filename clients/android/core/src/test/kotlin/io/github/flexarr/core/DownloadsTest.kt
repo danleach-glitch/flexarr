@@ -95,7 +95,7 @@ class DownloadsTest {
     }
 
     @Test
-    fun `episodes go a day after they're finished, films stay, and unsent progress keeps one`() {
+    fun `episodes go a day after they're finished, podcast episodes at once, films stay, and unsent progress keeps one`() {
         val now = 10 * DownloadRules.DAY_MILLIS
         val old = now - DownloadRules.DAY_MILLIS - 1
         val gone = DownloadRules.finishedWith(
@@ -105,10 +105,15 @@ class DownloadsTest {
                 local(itemId = "c", kind = MediaKind.Movie, finishedAt = old),
                 local(itemId = "d", finishedAt = old, unsent = UnsentProgress(10.0, true, old)),
                 local(itemId = "e", kind = MediaKind.PodcastEpisode, finishedAt = old),
+                local(itemId = "f", kind = MediaKind.PodcastEpisode, finishedAt = now - 1000),
+                local(itemId = "g", kind = MediaKind.PodcastEpisode, finishedAt = now - 1000, unsent = UnsentProgress(0.0, true, now - 1000)),
+                local(itemId = "h", kind = MediaKind.PodcastEpisode, finishedAt = now - 1000),
+                local(itemId = "i", kind = MediaKind.PodcastEpisode),
             ),
             now,
+            playing = { it == "h" },
         )
-        assertEquals(listOf("a", "e"), gone.map { it.item.id })
+        assertEquals(listOf("a", "e", "f"), gone.map { it.item.id })
     }
 
     @Test

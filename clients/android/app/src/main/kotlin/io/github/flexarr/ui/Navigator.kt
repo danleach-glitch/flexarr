@@ -91,7 +91,10 @@ class Navigator(private val nav: NavHostController, private val model: AppModel,
     val notices = SnackbarHostState()
 
     fun setWatched(item: ItemSummary, watched: Boolean) =
-        changeWatchState(if (watched) "Couldn’t mark this as watched" else "Couldn’t mark this as unwatched") { it.setWatched(item.id, watched) }
+        changeWatchState(if (watched) "Couldn’t mark this as watched" else "Couldn’t mark this as unwatched") {
+            it.setWatched(item.id, watched)
+            if (watched) model.downloads.markedPlayed(item.id)
+        }
 
     /** The show of an episode, all of it. */
     fun setShowWatched(episode: ItemSummary) {

@@ -170,8 +170,12 @@ fun PodcastScreen(model: AppModel, id: String) {
         }
         podcast?.let { show -> if (changes) podcast = show.copy(unplayedCount = (show.unplayedCount + if (played) -1 else 1).coerceAtLeast(0)) }
         scope.launch {
-            if (runCatching { client.setWatched(episode.id, played) }.isFailure) reload++ // didn't stick: back to what the server has
-            else runCatching { client.podcast(id) }.onSuccess { podcast = it }
+            if (runCatching { client.setWatched(episode.id, played) }.isFailure) {
+                reload++ // didn't stick: back to what the server has
+            } else {
+                if (played) model.downloads.markedPlayed(episode.id)
+                runCatching { client.podcast(id) }.onSuccess { podcast = it }
+            }
         }
     }
 
@@ -246,7 +250,7 @@ fun PodcastScreen(model: AppModel, id: String) {
                 TextButton(onClick = {
                     markingAllPlayed = false
                     scope.launch {
-                        runCatching { client.setWatched(id, true) }
+                        runCatching { client.setWatched(id, true) }.onSuccess { model.downloads.markedPlayed(id) }
                         model.watchStateChanged()
                     }
                 }) { Text("Mark as Played") }

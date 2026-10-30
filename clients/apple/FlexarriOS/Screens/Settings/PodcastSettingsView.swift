@@ -33,7 +33,7 @@ struct PodcastSettingsView: View {
                 } header: {
                     Text("Your profile, on every device")
                 } footer: {
-                    Text("Auto-download keeps the newest unplayed episodes of every show you follow, and deletes them once they’re played. Picking a speed in the player changes it here too.")
+                    Text("Auto-download keeps the newest unplayed episodes of every show you follow. Downloaded episodes are deleted once they’re played. Picking a speed in the player changes it here too.")
                 }
             }
 

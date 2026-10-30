@@ -562,7 +562,7 @@ final class AppModel {
     func setWatched(_ item: ItemSummary, _ watched: Bool) async {
         guard let client else { return }
         try? await client.setWatched(item.id, watched: watched)
-        if !watched { player.offlineLibrary?.forgetPosition(itemId: item.id) }
+        if watched { player.offlineLibrary?.markedPlayed(itemId: item.id) } else { player.offlineLibrary?.forgetPosition(itemId: item.id) }
         invalidate()
     }
 

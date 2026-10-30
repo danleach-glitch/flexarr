@@ -154,7 +154,7 @@ final class PodcastPageModel {
             await load(model: model) // didn't stick: back to what the server has
             return
         }
-        if !played { model.player.offlineLibrary?.forgetPosition(itemId: episode.id) }
+        if played { model.player.offlineLibrary?.markedPlayed(itemId: episode.id) } else { model.player.offlineLibrary?.forgetPosition(itemId: episode.id) }
         // Other screens catch up; this one already shows it, and only its counts are checked.
         skipsNextReload = true
         model.invalidate()
