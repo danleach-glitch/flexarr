@@ -12,6 +12,9 @@ struct WatchlistView: View {
     /// "movie", "tv", or nil for both.
     @State private var kind: String?
     @State private var sort = WatchlistSort.status
+    /// On screen: changes elsewhere reload it now; otherwise when it next appears.
+    @State private var isVisible = false
+    @State private var stale = false
 
     private var columns: [GridItem] {
         let minimum: CGFloat = sizeClass == .regular ? 140 : 100
@@ -30,6 +33,14 @@ struct WatchlistView: View {
                 StatusView(state: .empty("Nothing here yet. Add films and shows from their pages."))
             } else if let entries {
                 ScrollView {
+                    if let error {
+                        // The list below is what was last loaded.
+                        Label(error, systemImage: "exclamationmark.triangle")
+                            .font(.footnote)
+                            .foregroundStyle(Color.silver)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, Layout.edge)
+                    }
                     if shown.isEmpty, !entries.isEmpty {
                         StatusView(state: .empty("Nothing on your watchlist matches.")).frame(height: 300)
                     }
@@ -74,11 +85,19 @@ struct WatchlistView: View {
             }
         }
         .task { await load() }
-        .onReceive(NotificationCenter.default.publisher(for: .watchlistChanged)) { _ in Task { await load() } }
+        .onAppear {
+            isVisible = true
+            if stale { Task { await load() } }
+        }
+        .onDisappear { isVisible = false }
+        .onReceive(NotificationCenter.default.publisher(for: .watchlistChanged)) { _ in
+            if isVisible { Task { await load() } } else { stale = true }
+        }
     }
 
     private func load() async {
         guard let client = model.client else { return }
+        stale = false
         do {
             entries = try await client.watchlist()
             error = nil
@@ -121,6 +140,9 @@ private struct WatchlistCard: View {
                     Text(entry.title)
                         .font(.footnote.weight(.semibold))
                         .foregroundStyle(Color.screen.opacity(0.9))
+                    Text([entry.isShow ? "Series" : "Film", entry.year.map(String.init)].compactMap { $0 }.joined(separator: ", "))
+                        .font(.caption)
+                        .foregroundStyle(Color.usher)
                     if let streaming = entry.streamingLabel {
                         Text(streaming)
                             .font(.caption)
@@ -128,6 +150,7 @@ private struct WatchlistCard: View {
                     }
                 }
                 .lineLimit(1)
+                .accessibilityElement(children: .combine)
                 status
             }
             .contextMenu {
@@ -152,7 +175,11 @@ private struct WatchlistCard: View {
                 Button {
                     requesting = true
                     Task {
-                        try? await model.client?.request(title)
+                        do {
+                            try await model.client?.request(title)
+                        } catch {
+                            model.watchlistError = ConnectionError(error).message
+                        }
                         requesting = false
                         onChange()
                     }

@@ -416,6 +416,9 @@ final class AppModel {
     /// The library titles on the profile's watchlist, so poster menus offer Add or Remove.
     private(set) var watchlistItems: Set<String> = []
 
+    /// Why the last watchlist change (adding, taking off, requesting from it) didn't happen, for an alert; nil when it did.
+    var watchlistError: String?
+
     /// Called when the watchlist may have changed (the iPhone's widget follows it).
     var onWatchlistChange: (() -> Void)?
 
@@ -449,6 +452,7 @@ final class AppModel {
             return requested
         } catch {
             log.warning("Watchlist change failed", error: error)
+            watchlistError = ConnectionError(error).message
             return nil
         }
     }

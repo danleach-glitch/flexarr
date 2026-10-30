@@ -13,6 +13,9 @@ struct WatchlistView: View {
     @State private var kind: String?
     @State private var sort = WatchlistSort.status
     @FocusState private var focusedItem: String?
+    /// On screen: changes elsewhere reload it now; otherwise when it next appears (the tab stays alive while hidden).
+    @State private var isVisible = false
+    @State private var stale = false
 
     private var columns: [GridItem] {
         let spacing = (1920 - 2 * Layout.edge - 6 * Layout.posterWidth) / 5
@@ -37,6 +40,11 @@ struct WatchlistView: View {
                     StatusView(state: .empty("Nothing here yet. Add films and shows from their pages or Discover.")).frame(height: 500)
                 } else if entries != nil {
                     filters
+                    if let error {
+                        Label(error, systemImage: "exclamationmark.triangle")
+                            .font(.system(size: 24, weight: .medium))
+                            .foregroundStyle(Color.usher)
+                    }
                     if shown.isEmpty {
                         StatusView(state: .empty("Nothing on your watchlist matches.")).frame(height: 300)
                     }
@@ -58,8 +66,23 @@ struct WatchlistView: View {
         .scrollClipDisabled()
         .background(RoomBackground(ambient: entries?.first?.item?.glowColor, intensity: 0.18))
         .task { await load() }
-        .onReceive(NotificationCenter.default.publisher(for: .watchlistChanged)) { _ in Task { await load() } }
+        .onAppear {
+            isVisible = true
+            if stale { Task { await load() } }
+        }
+        .onDisappear { isVisible = false }
+        .onReceive(NotificationCenter.default.publisher(for: .watchlistChanged)) { _ in
+            if isVisible { Task { await load() } } else { stale = true }
+        }
+        // A card taken off while focused: focus moves to the one that took its place, not wherever the focus engine likes.
+        .onChange(of: shown.map(focusID)) { old, new in
+            guard let focused = focusedItem, !new.contains(focused), let at = old.firstIndex(of: focused), !new.isEmpty else { return }
+            focusedItem = new[min(at, new.count - 1)]
+        }
     }
+
+    /// The id a card takes focus by: the library title's for a ready one (PosterCard's), else the entry's.
+    private func focusID(_ entry: WatchlistEntry) -> String { entry.item?.id ?? entry.id }
 
     private var filters: some View {
         HStack(spacing: 18) {
@@ -115,6 +138,7 @@ struct WatchlistView: View {
 
     private func load() async {
         guard let client = model.client else { return }
+        stale = false
         do {
             entries = try await client.watchlist()
             error = nil
