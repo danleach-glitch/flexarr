@@ -79,6 +79,7 @@ function lazyPage<T extends { default: ComponentType }>(load: () => Promise<T>) 
 
 const PlayerPage = lazyPage(() => import('./pages/PlayerPage').then((m) => ({ default: m.PlayerPage })))
 const SettingsPage = lazyPage(() => import('./pages/settings/SettingsPage').then((m) => ({ default: m.SettingsPage })))
+const SetupGuidePage = lazyPage(() => import('./pages/SetupGuidePage').then((m) => ({ default: m.SetupGuidePage })))
 const LiveTvPage = lazyPage(() => import('./pages/LiveTvPage'))
 const LivePlayerPage = lazyPage(() => import('./pages/LivePlayerPage'))
 
@@ -121,6 +122,7 @@ export function Shell() {
                   <Route path="discover/:mediaType/:tmdbId" element={<Fresh><ExternalTitlePage /></Fresh>} />
                   <Route path="upcoming" element={<UpcomingPage />} />
                   <Route path="link" element={<LinkPage />} />
+                  <Route path="setup" element={<SetupGuidePage />} />
                   <Route path="settings" element={<SettingsPage />} />
                   <Route path="settings/:section" element={<SettingsPage />} />
                   <Route path="*" element={<p className="page-message muted">There's nothing at this address.</p>} />

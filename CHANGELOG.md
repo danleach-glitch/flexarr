@@ -4,6 +4,13 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ## Unreleased
 
+### Getting started
+- A new server now opens a short setup guide after you choose its PIN. It walks you through connecting Sonarr, Radarr and Lidarr, adding your libraries, adding everyone who watches, connecting your TV and phone, and watching away from home. You can skip any step, or choose **I'll do it myself** to leave the guide.
+- The guide fills in the address of any Sonarr, Radarr or Lidarr it finds running nearby, so you only paste the API key. It then offers each app's media folders as ready-made libraries, so there's no folder browsing. At the end it says what's still being read, and points out a library that came up empty or a folder Flexarr can't see.
+- Connecting Sonarr, Radarr or Lidarr, in the guide or in **Settings › Connections**, now adds Flexarr's webhook to the app by itself, so new downloads show up straight away. If the app can't reach Flexarr, the webhook addresses are still under **Webhooks** to add by hand.
+- If you leave the guide part way, Home shows **Finish setting up** with what's left. Choose a step to pick up where you left off, or **Hide** to put the list away.
+- An empty Home now says **Nothing to watch yet**, with **Set up Flexarr** to open the guide.
+
 ### Search
 - Search shows your recent searches before you type anything, on the web, iPhone, Apple TV and Android. It shows your last five searches, plus the things you opened from them, so you can go back with one tap. They follow your profile across devices, so something you searched for on your phone is waiting on the TV. Remove a single search, or clear them all.
 - Search forgives typos, accents and punctuation: "breking bad" finds Breaking Bad, "amelie" finds Amélie and "spiderman" finds Spider-Man. This works for titles, albums, people and genres, including titles you ask for by voice with Siri or Google Assistant.

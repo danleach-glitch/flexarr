@@ -32,7 +32,7 @@ export function AccessSection() {
 
 const zoneLabel = { Local: 'your home network', Tailnet: 'Tailscale', Internet: 'the internet' } as const
 
-function RemoteAccessGroups() {
+export function RemoteAccessGroups() {
   const [version, setVersion] = useState(0)
   const remote = useApi(getRemoteAccess, [version])
   const profiles = useApi(getProfiles, [version])

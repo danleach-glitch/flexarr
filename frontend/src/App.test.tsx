@@ -209,7 +209,7 @@ describe('App', () => {
     fireEvent.change(await screen.findByLabelText('API key'), { target: { value: 'secret' } })
     fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
 
-    expect(await screen.findByRole('heading', { name: 'Your cinema is empty' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Nothing to watch yet' })).toBeInTheDocument()
     expect(authorized).toBe(true)
     expect(localStorage.length).toBe(0)
   })
@@ -248,7 +248,7 @@ describe('App', () => {
     // The whole link from the server's log, pasted in.
     fill('http://localhost:8383/#setup=ABCD-EFGH', '2468')
 
-    expect(await screen.findByRole('heading', { name: 'Your cinema is empty' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Nothing to watch yet' })).toBeInTheDocument()
     expect(screen.queryByLabelText('API key')).not.toBeInTheDocument()
     expect(sent).toEqual(['WRONG-ONE 2468', 'ABCD-EFGH 2468'])
   })
@@ -277,7 +277,7 @@ describe('App', () => {
     expect(window.location.hash).toBe('') // out of the address bar at once
     fireEvent.click(screen.getByRole('button', { name: 'Set up Flexarr' }))
 
-    expect(await screen.findByRole('heading', { name: 'Your cinema is empty' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Nothing to watch yet' })).toBeInTheDocument()
     expect(sent).toEqual(['ABCD-EFGH 2468'])
   })
 
@@ -306,7 +306,7 @@ describe('App', () => {
 
     render(<App />)
 
-    expect(await screen.findByRole('heading', { name: 'Your cinema is empty' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Nothing to watch yet' })).toBeInTheDocument()
     expect(sentKey).toBe('secret')
     expect(localStorage.getItem('flexarr.apiKey')).toBeNull()
   })
@@ -1258,7 +1258,7 @@ describe('Profiles', () => {
     fireEvent.change(await screen.findByLabelText('PIN'), { target: { value: '2468' } })
     fireEvent.click(screen.getByRole('button', { name: 'Go' }))
 
-    expect(await screen.findByRole('heading', { name: 'Your cinema is empty' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Nothing to watch yet' })).toBeInTheDocument()
     expect(sentPin).toBe('2468')
     expect(localStorage.getItem('flexarr.profile')).toBe('c1.sig')
   })
@@ -1299,7 +1299,7 @@ describe('Profiles', () => {
     fireEvent.change(await screen.findByLabelText('PIN'), { target: { value: '24681357' } })
     fireEvent.click(screen.getByRole('button', { name: 'Go' }))
 
-    expect(await screen.findByRole('heading', { name: 'Your cinema is empty' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Nothing to watch yet' })).toBeInTheDocument()
     expect(localStorage.getItem('flexarr.profile')).toBeNull()
   })
 
@@ -1318,7 +1318,7 @@ describe('Profiles', () => {
     expect(await screen.findByRole('button', { name: /Dan/ })).toBeInTheDocument()
     expect(localStorage.getItem('flexarr.profile')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Not now' }))
-    expect(await screen.findByRole('heading', { name: 'Your cinema is empty' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Nothing to watch yet' })).toBeInTheDocument()
   })
 
   it('over Tailscale, Switch profile opens the picker', async () => {

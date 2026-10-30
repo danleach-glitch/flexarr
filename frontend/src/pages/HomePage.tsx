@@ -1,13 +1,16 @@
-import { Link } from 'react-router'
-import { getHome, getNewEpisodes, type Library } from '../api/client'
+import { Link, Navigate } from 'react-router'
+import { getHome, getNewEpisodes, getSetupGuide, type Library } from '../api/client'
 import { EpisodeCard } from '../components/EpisodeCard'
 import { Hero } from '../components/Hero'
 import { HomeRows } from '../components/HomeRows'
 import { Row } from '../components/Row'
+import { SetupChecklist } from '../components/SetupChecklist'
 import { UpcomingCard } from '../components/UpcomingCard'
 import { useLibraries } from '../hooks/librariesContext'
+import { useSession } from '../hooks/sessionContext'
 import { useApi } from '../hooks/useApi'
 import { useWatchedChanges } from '../hooks/watched'
+import { showsChecklist } from '../lib/setupGuide'
 
 export function HomePage() {
   const { libraries } = useLibraries()
@@ -16,19 +19,34 @@ export function HomePage() {
   // The newest episodes of the podcasts this profile follows that it hasn't heard, after Continue watching.
   const podcasts = libraries.some((l) => l.type === 'Podcasts')
   const episodes = useApi((signal) => (podcasts ? getNewEpisodes(signal, true) : Promise.resolve([])), [podcasts])
+  // The setup guide, for the main profile: servers before it answer 404, and have no guide.
+  const { me } = useSession()
+  const admin = me?.isAdmin === true
+  const guide = useApi((signal) => (admin ? getSetupGuide(signal).catch(() => null) : Promise.resolve(null)), [admin])
 
   if (error) return <p className="page-message error">{error.message}</p>
-  if (!data) return <div className="hero hero-loading" aria-busy="true" />
+  if (!data || guide.loading) return <div className="hero hero-loading" aria-busy="true" />
+  // A new server, with nothing set up and the guide never opened: start there.
+  if (guide.data && !guide.data.opened && !guide.data.dismissed && !guide.data.apps && !guide.data.libraries && !data.rows.some((r) => r.style === 'live')) return <Navigate to="/setup" replace />
+  const checklist = showsChecklist(guide.data) && <SetupChecklist guide={guide.data} />
 
   // Podcasts come built in, so they don't count as somewhere to start from; favourite channels do.
   if (libraries.every((l) => l.type === 'Podcasts') && !data.rows.some((r) => r.style === 'live')) {
+    if (checklist) return <div className="welcome">{checklist}</div>
     return (
       <section className="welcome">
-        <h1>Your cinema is empty</h1>
+        <h1>Nothing to watch yet</h1>
         <p>Point Flexarr at the folders where your films and shows live, and they'll appear here with artwork.</p>
-        <Link className="button" to="/settings/libraries">
-          Add a library
-        </Link>
+        <div className="welcome-actions">
+          {admin && (
+            <Link className="button" to="/setup">
+              Set up Flexarr
+            </Link>
+          )}
+          <Link className={admin ? 'button quiet' : 'button'} to="/settings/libraries">
+            Add a library
+          </Link>
+        </div>
       </section>
     )
   }
@@ -52,6 +70,7 @@ export function HomePage() {
       {empty ? <EmptyLibraries libraries={media} /> : <Hero items={data.featured} overviews={data.overviews} resume={data.resume ?? undefined} resumes={data.resumes} />}
       {/* No hero (only Live TV so far): the rows start below the top bar. */}
       <div className={data.featured.length > 0 ? 'rows' : empty ? 'rows rows-after-welcome' : 'rows rows-unheaded'}>
+        {checklist}
         {/* Rows come in the order chosen in Settings; Coming soon is one of them. */}
         {!afterContinue && newEpisodes}
         {data.rows.flatMap((row) => [

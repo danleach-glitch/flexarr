@@ -49,13 +49,21 @@ A few things to know:
 
 > **Note** If you see a box asking for an **API key** instead of the welcome, someone has already set this server up, or you're not on the home network. Try opening it by its IP address from a computer at home. If you set it up yourself in another browser, approve this one from there with a code, or sign in with the key (see [The API key](#the-api-key) below).
 
-## What you see next
+## The setup guide
 
-Flexarr doesn't walk you through a long wizard. You land on Home, which says **Your cinema is empty** until you add a library, with an **Add a library** button that takes you to the right place.
+Next, Flexarr opens a short setup guide. Every step can be skipped, and **I'll do it myself** leaves the guide whenever you like:
 
-![An empty Home page saying Your cinema is empty, with an Add a library button](../../site/guide/img/empty-home.webp "Home on a new server, before any libraries")
+1. **Your apps.** Connect Sonarr, Radarr and Lidarr, if you use them. If Flexarr finds one running nearby, its address is filled in already, and you only paste its API key. Flexarr also adds its own webhook to each app, so new downloads show up straight away (see [Webhooks](connect-arrs.md#webhooks-new-downloads-appear-straight-away)). Don't use them? Choose **I don't use these**.
+2. **Libraries.** Each app's media folders are listed, ticked and ready: choose **Add these**. Otherwise, choose a kind under **Add a folder** and pick the folder that holds it.
+3. **Who's watching.** Add a profile for each person in the house. See [Profiles](profiles.md).
+4. **Your TV and phone.** Open the Flexarr app on your device at home. It shows a code; type it in here. See [Connect your devices](connect-devices.md).
+5. **Away from home.** Turn on Tailscale, if you have it. See [Watch away from home](away-from-home.md).
 
-You're signed in as the server's **main profile**, the one that can change settings. If other people will use Flexarr, it's worth giving the main profile a PIN, and making profiles for everyone else, in **Settings › Profiles**. See [Profiles](profiles.md).
+At the end, the guide tells you how the first scan is going, and warns you if a library came up empty or Flexarr can't see one of an app's folders.
+
+If you leave part way, Home lists what's left under **Finish setting up**. Choose a step to go back to it, or **Hide** to put the list away. Everything in the guide is in Settings too, as described below.
+
+You're signed in as the server's **main profile**, the one that can change settings.
 
 ## Add your libraries
 
@@ -68,7 +76,7 @@ A library is a set of folders holding one kind of media. Go to **Settings › Li
 3. Under **Folders**, browse the server's disks and choose **Use this folder** on the folder that holds that media. Add more than one folder if your films are spread across drives.
 4. Choose **Add library**.
 
-Add one library for each kind of media you have. Keep films and TV shows in separate folders: Flexarr expects a films folder to hold films and a TV folder to hold shows.
+The setup guide does this for you; this is how to add one later. Add one library for each kind of media you have. Keep films and TV shows in separate folders: Flexarr expects a films folder to hold films and a TV folder to hold shows.
 
 You can have more than one library of a kind, such as **TV** and **Anime**, or **Films** and **Films in 4K**. Home still shows one **Latest unwatched** row for all your films and one for all your shows, and a title that's in two libraries shows once. To give each library its own row, turn off **Combine libraries of the same kind** in **Settings › Home and Browse**.
 

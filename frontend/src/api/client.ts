@@ -9,6 +9,7 @@ import type {
   Recordings,
   RecordingSeries,
   ArrFolder,
+  ArrKind,
   ArrStatus,
   DirectoryListing,
   DirectoryPodcast,
@@ -798,6 +799,24 @@ export const getArrFolders = (signal?: AbortSignal) => apiGet<ArrFolder[]>('/arr
 export const testArr = (connection: { name: string; kind: string; baseUrl: string; apiKey?: string }) =>
   request<ArrStatus>('POST', '/arr/test', connection)
 export const getActivity = (signal?: AbortSignal) => apiGet<Activity>('/system/activity', signal)
+/** Sonarr, Radarr and Lidarr answering at their usual ports nearby that aren't connected yet. Absent from servers before 0.56.0. */
+export const discoverArrs = (signal?: AbortSignal) => apiGet<{ kind: ArrKind; baseUrl: string }[]>('/arr/discover', signal)
+/** Adds Flexarr's webhook to a connected app, trying each address it might reach Flexarr on. */
+export const addArrWebhook = (name: string) => request<{ ok: boolean; address: string | null; error: string | null }>('POST', '/arr/webhook', { name })
+
+export type SetupStep = 'apps' | 'libraries' | 'profiles' | 'devices' | 'away'
+
+/** The first-run setup guide: what's set up so far, and whether it's been opened or put away. */
+export interface SetupGuide extends Record<SetupStep, boolean> {
+  opened: boolean
+  dismissed: boolean
+  /** Steps passed over, which count as done. */
+  skipped: SetupStep[]
+}
+
+/** Absent (404) from servers before 0.56.0. */
+export const getSetupGuide = (signal?: AbortSignal) => apiGet<SetupGuide>('/setup-guide', signal)
+export const saveSetupGuide = (update: { opened?: boolean; dismissed?: boolean; skipped?: SetupStep[] }) => request<void>('PUT', '/setup-guide', update)
 
 export const browseFilesystem = (path?: string, signal?: AbortSignal) =>
   apiGet<DirectoryListing>(`/filesystem${path ? `?path=${encodeURIComponent(path)}` : ''}`, signal)

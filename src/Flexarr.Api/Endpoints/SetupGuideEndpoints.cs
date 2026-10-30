@@ -79,7 +79,7 @@ public static partial class SetupGuideEndpoints
             return Results.NoContent();
         });
 
-        // Sonarr, Radarr and Lidarr answering at their usual ports nearby, to fill in the address of one being connected:
+        // Sonarr, Radarr and Lidarr (those not connected yet) answering at their usual ports nearby, to fill in the address:
         // by their own name (Docker containers on one network), at the address this browser reached Flexarr on, on this
         // machine, and on the machine running Docker.
         api.MapGet("/arr/discover", async (HttpContext http, IOptionsMonitor<FlexarrOptions> options, ArrClient client, CancellationToken ct) =>
@@ -91,16 +91,16 @@ public static partial class SetupGuideEndpoints
             }
 
             hosts.AddRange(["localhost", "host.docker.internal"]);
-            var connected = options.CurrentValue.Arr.Select(a => (a.Kind, a.BaseUrl.Port)).ToHashSet();
-            var candidates = UsualPorts
+            var connected = options.CurrentValue.Arr.Select(a => a.Kind).ToHashSet();
+            var candidates = UsualPorts.Where(p => !connected.Contains(p.Key))
                 .SelectMany(p => hosts.Prepend(p.Key.ToString().ToLowerInvariant()).Select(host => (Kind: p.Key, Url: new Uri($"http://{host}:{p.Value}"))))
                 .ToList();
 
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
             timeout.CancelAfter(TimeSpan.FromSeconds(3));
             var answers = await Task.WhenAll(candidates.Select(async c => (c.Kind, c.Url, Ok: await client.PingAsync(c.Url, timeout.Token).ConfigureAwait(false))));
-            // One address per app, the first that answered in the order above; none for an app already connected there.
-            return answers.Where(a => a.Ok && !connected.Contains((a.Kind, a.Url.Port)))
+            // One address per app, the first that answered in the order above.
+            return answers.Where(a => a.Ok)
                 .GroupBy(a => a.Kind)
                 .Select(g => new FoundArrDto(g.Key, g.First().Url.ToString().TrimEnd('/')))
                 .ToList();
