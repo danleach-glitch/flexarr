@@ -304,7 +304,6 @@ export default function App() {
         {state.kind === 'unauthorized' && state.setupOpen && (
           <form className="setup-welcome api-key-form" onSubmit={setUp}>
             <h1>Welcome to your Flexarr server</h1>
-            <p className="muted">Set it up from this browser and you’ll be its owner. Your phone, tablet and TV then connect with a code.</p>
             {/* Opened from the Mac app (or a link with the code): nothing to look for, only a PIN to choose. */}
             {linkedCode && !state.wrongCode ? (
               <input name="setupCode" type="hidden" value={linkedCode} />
