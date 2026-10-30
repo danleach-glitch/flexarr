@@ -2,7 +2,6 @@ package io.github.flexarr.ui.tv
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -23,8 +22,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -33,15 +30,15 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
@@ -56,10 +53,8 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -357,40 +352,18 @@ private fun DiscoverSearch(client: FlexarrClient, open: (ExternalTitle) -> Unit)
     }
 }
 
-/** The search field: white-edged with focus, opening the TV's keyboard; Search on the keyboard goes down to the results. */
+/** The search field, opening the TV's keyboard; Search on the keyboard goes down to the results. */
 @Composable
 private fun SearchField(value: String, onValue: (String) -> Unit, modifier: Modifier) {
-    val source = remember { MutableInteractionSource() }
-    val focused by source.collectIsFocusedAsState()
     val keyboard = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
-    BasicTextField(
-        value = value,
-        onValueChange = onValue,
-        singleLine = true,
-        textStyle = TextStyle(fontSize = 16.sp, color = Flexarr.screen),
-        cursorBrush = SolidColor(Flexarr.screen),
+    TvTextField(
+        value, onValue, "Any film or show", modifier.widthIn(max = 520.dp).fillMaxWidth(), icon = Icons.Filled.Search,
         keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, imeAction = ImeAction.Search),
         keyboardActions = KeyboardActions(onSearch = {
             keyboard?.hide()
             focusManager.moveFocus(FocusDirection.Down)
         }),
-        interactionSource = source,
-        modifier = modifier.widthIn(max = 520.dp).fillMaxWidth(),
-        decorationBox = { field ->
-            Row(
-                Modifier.fillMaxWidth().background(Flexarr.seat, RoundedCornerShape(7.dp))
-                    .border(2.dp, if (focused) Flexarr.screen else Color.Transparent, RoundedCornerShape(7.dp)).padding(horizontal = 14.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(Icons.Filled.Search, contentDescription = null, tint = Flexarr.usher, modifier = Modifier.size(18.dp))
-                Box {
-                    if (value.isEmpty()) Text("Any film or show", fontSize = 16.sp, color = Flexarr.usher)
-                    field()
-                }
-            }
-        },
     )
 }
 

@@ -6,15 +6,11 @@ import android.speech.RecognizerIntent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -25,8 +21,6 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -34,28 +28,32 @@ import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import kotlinx.coroutines.launch
+import androidx.compose.material.icons.filled.History
+import io.github.flexarr.ui.components.MenuAction
+import io.github.flexarr.core.clearRecentSearches
+import io.github.flexarr.core.forgetSearch
+import io.github.flexarr.core.recordSearch
+import io.github.flexarr.core.recentSearches
+import io.github.flexarr.core.RecentSearches
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.tv.material3.Icon
 import androidx.tv.material3.Text
 import io.github.flexarr.AppModel
 import io.github.flexarr.core.Person
@@ -84,7 +82,37 @@ fun TvSearchScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
     var results by remember { mutableStateOf<SearchResults?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var attempt by remember { mutableStateOf(0) }
+    var recents by remember { mutableStateOf(RecentSearches()) }
+    var forgetting by remember { mutableStateOf<String?>(null) }
     val field = remember { FocusRequester() }
+
+    // What this profile searched for and opened lately, whenever the field's empty: on opening Search, and once it's
+    // cleared. A server from before recent searches (or one that can't be reached) has none, and none show.
+    LaunchedEffect(query.isEmpty()) {
+        if (query.isNotEmpty()) return@LaunchedEffect
+        recents = try {
+            client.recentSearches()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            RecentSearches()
+        }
+    }
+    // A pick from the results is remembered (not what's typed on the way), with the words that found it; one from the
+    // recents themselves is just the title, moved to the front. On the app's own scope, as opening it leaves Search.
+    // Runs without history remember nothing.
+    fun record(text: String?, itemId: String?) {
+        if (!model.recordsHistory) return
+        model.scope.launch { runCatching { client.recordSearch(text, itemId) } }
+    }
+    fun forget(text: String) {
+        recents = recents.copy(queries = recents.queries - text)
+        model.scope.launch { runCatching { client.forgetSearch(text) } }
+    }
+    fun clear() {
+        recents = RecentSearches()
+        model.scope.launch { runCatching { client.clearRecentSearches() } }
+    }
 
     // "Search Flexarr for Fargo" said to the Assistant: the words go in the field and the search runs.
     LaunchedEffect(model.pendingSearch) {
@@ -133,22 +161,47 @@ fun TvSearchScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
                 }
             }
             val found = results
+            val words = query.trim()
             when {
+                // Nothing typed: the last few searches to run again, and the titles opened from search.
+                words.isEmpty() && !recents.isEmpty -> {
+                    if (recents.queries.isNotEmpty()) item(key = "recent-searches") {
+                        Section("Recent searches") {
+                            items(recents.queries, key = { it }) { text ->
+                                TvActionButton(text, onClick = { query = text }, icon = Icons.Filled.History, onLongClick = { forgetting = text })
+                            }
+                            item(key = "clear") { TvActionButton("Clear", onClick = ::clear) }
+                        }
+                    }
+                    if (recents.items.isNotEmpty()) item(key = "recently-opened") {
+                        Section("Recently opened") {
+                            items(recents.items.filter { it.showsOnTv }, key = { it.id }) { item ->
+                                TvPosterCard(item, onClick = {
+                                    record(null, item.id)
+                                    navigator.open(item)
+                                })
+                            }
+                        }
+                    }
+                }
                 found != null && found.titles.isEmpty() && found.episodes.isEmpty() && found.people.isEmpty() -> item(key = "none") {
                     Box(Modifier.height(200.dp)) { TvStatusView("Nothing matches “${query.trim()}”.", empty = true) }
                 }
                 found != null -> {
                     val titles = found.titles.filter { it.showsOnTv }
                     if (titles.isNotEmpty()) item(key = "titles") {
-                        Section("Movies and shows") { items(titles, key = { it.id }) { TvPosterCard(it, onClick = { navigator.open(it) }) } }
+                        Section("Movies and shows") { items(titles, key = { it.id }) { TvPosterCard(it, onClick = { record(words, it.id); navigator.open(it) }) } }
                     }
                     if (found.episodes.isNotEmpty()) item(key = "episodes") {
-                        Section("Episodes") { items(found.episodes, key = { it.id }) { TvWideCard(it, onClick = { navigator.openItem(it.id) }, width = 220.dp) } }
+                        Section("Episodes") { items(found.episodes, key = { it.id }) { TvWideCard(it, onClick = { record(words, it.id); navigator.openItem(it.id) }, width = 220.dp) } }
                     }
                     if (found.people.isNotEmpty()) item(key = "people") {
                         Section("People") {
                             items(found.people, key = { it.id }) { person ->
-                                TvPersonCard(person.name, if (person.credits == 1) "1 title" else "${person.credits} titles", person.image) { navigator.openPerson(person.id, person.name) }
+                                TvPersonCard(person.name, if (person.credits == 1) "1 title" else "${person.credits} titles", person.image) {
+                                    record(words, null)
+                                    navigator.openPerson(person.id, person.name)
+                                }
                             }
                         }
                     }
@@ -156,6 +209,9 @@ fun TvSearchScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
                 error != null -> item(key = "error") { Box(Modifier.height(200.dp)) { TvStatusView(error, retry = { attempt++ }) } }
             }
         }
+    }
+    forgetting?.let { text ->
+        TvItemMenu(text, listOf(MenuAction("Remove") { forget(text) }), onDismiss = { forgetting = null })
     }
 }
 
@@ -172,41 +228,18 @@ private fun Section(title: String, content: androidx.compose.foundation.lazy.Laz
     }
 }
 
-/** The search field: a magnifier and the words, edged in white while it has focus; OK opens the TV's keyboard. */
+/** The search field: a magnifier and the words; Search on the TV's keyboard puts it away and goes down to the results. */
 @Composable
 private fun SearchField(value: String, onValue: (String) -> Unit, modifier: Modifier) {
     val keyboard = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
-    val source = remember { MutableInteractionSource() }
-    val focused by source.collectIsFocusedAsState()
-    BasicTextField(
-        value = value,
-        onValueChange = onValue,
-        singleLine = true,
-        textStyle = TextStyle(fontSize = 17.sp, color = Flexarr.screen),
-        cursorBrush = SolidColor(Flexarr.screen),
+    TvTextField(
+        value, onValue, "Movies, shows, episodes and people", modifier, icon = Icons.Filled.Search,
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-        // The keyboard's Search: it goes, and focus moves down to what was found.
         keyboardActions = KeyboardActions(onSearch = {
             keyboard?.hide()
             focusManager.moveFocus(FocusDirection.Down)
         }),
-        interactionSource = source,
-        modifier = modifier,
-        decorationBox = { text ->
-            Row(
-                Modifier.fillMaxWidth().height(42.dp).background(Flexarr.screen.copy(alpha = if (focused) 0.16f else 0.1f), RoundedCornerShape(10.dp))
-                    .border(2.dp, if (focused) Flexarr.screen else Color.Transparent, RoundedCornerShape(10.dp)).padding(horizontal = 14.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(Icons.Filled.Search, contentDescription = null, tint = Flexarr.usher, modifier = Modifier.size(18.dp))
-                Box {
-                    if (value.isEmpty()) Text("Movies, shows, episodes and people", fontSize = 17.sp, color = Flexarr.usher)
-                    text()
-                }
-            }
-        },
     )
 }
 

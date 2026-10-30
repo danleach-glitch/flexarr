@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -14,7 +13,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.CallToAction
@@ -41,16 +39,15 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -58,7 +55,6 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -599,19 +595,7 @@ private fun NoteDialog(initial: String, onDone: (String) -> Unit, onCancel: () -
     Dialog(onDismissRequest = onCancel) {
         Column(Modifier.width(440.dp).background(Flexarr.seat, RoundedCornerShape(14.dp)).padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Text("Note", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            BasicTextField(
-                value = draft,
-                onValueChange = { draft = it },
-                singleLine = true,
-                textStyle = TextStyle(fontSize = 15.sp, color = Flexarr.screen),
-                cursorBrush = SolidColor(Flexarr.screen),
-                modifier = Modifier.fillMaxWidth().focusRequester(field)
-                    .background(Flexarr.screen.copy(alpha = 0.08f), RoundedCornerShape(8.dp)).heightIn(min = 38.dp).padding(horizontal = 14.dp, vertical = 10.dp),
-                decorationBox = { inner ->
-                    if (draft.isEmpty()) Text("What happened?", fontSize = 15.sp, color = Flexarr.usher)
-                    inner()
-                },
-            )
+            TvTextField(draft, { draft = it }, "What happened?", Modifier.fillMaxWidth().focusRequester(field))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 TvActionButton("Done", onClick = { onDone(draft) }, prominent = true)
                 TvActionButton("Cancel", onClick = onCancel)

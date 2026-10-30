@@ -4,9 +4,6 @@ import android.graphics.Bitmap
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,7 +15,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -29,12 +25,12 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -42,17 +38,13 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -407,7 +399,7 @@ private fun Field(title: String, content: @Composable () -> Unit) {
     }
 }
 
-/** A text field that shows it has focus with a white edge, and opens the TV's keyboard on OK. */
+/** A field of the connect form: the TV's shared text field, full width. */
 @Composable
 private fun Input(
     value: String,
@@ -418,27 +410,5 @@ private fun Input(
     modifier: Modifier,
     secret: Boolean = false,
 ) {
-    val source = remember { MutableInteractionSource() }
-    val focused by source.collectIsFocusedAsState()
-    BasicTextField(
-        value = value,
-        onValueChange = onValue,
-        singleLine = true,
-        textStyle = TextStyle(fontSize = 15.sp, color = Flexarr.screen),
-        cursorBrush = SolidColor(Flexarr.screen),
-        keyboardOptions = keyboard,
-        keyboardActions = actions,
-        visualTransformation = if (secret) PasswordVisualTransformation() else VisualTransformation.None,
-        interactionSource = source,
-        modifier = modifier.fillMaxWidth(),
-        decorationBox = { field ->
-            Box(
-                Modifier.fillMaxWidth().background(Flexarr.seat, RoundedCornerShape(7.dp))
-                    .border(2.dp, if (focused) Flexarr.screen else Color.Transparent, RoundedCornerShape(7.dp)).padding(12.dp),
-            ) {
-                if (value.isEmpty()) Text(placeholder, fontSize = 15.sp, color = Flexarr.usher)
-                field()
-            }
-        },
-    )
+    TvTextField(value, onValue, placeholder, modifier.fillMaxWidth(), keyboardOptions = keyboard, keyboardActions = actions, secret = secret)
 }

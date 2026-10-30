@@ -24,9 +24,20 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.border
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.BasicTextField
 import kotlinx.coroutines.delay
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.LaunchedEffect
@@ -100,11 +111,13 @@ fun TvActionButton(
     ambient: Color = Flexarr.silver,
     enabled: Boolean = true,
     contentDescription: String? = null,
+    onLongClick: (() -> Unit)? = null,
 ) {
     // Turned off, it stays focusable and only looks it, ignoring presses: a button that went dark while focused (Next
     // at the last track, Connect while connecting) would otherwise leave focus on nothing.
     Surface(
         onClick = { if (enabled) onClick() },
+        onLongClick = onLongClick?.let { long -> { if (enabled) long() } },
         modifier = modifier.height(38.dp).semantics { if (!enabled) disabled() },
         shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(7.dp)),
         colors = ClickableSurfaceDefaults.colors(
@@ -204,6 +217,51 @@ fun tvBackdropWidth(): Int {
         context.getSystemService(android.app.ActivityManager::class.java)?.getMemoryInfo(info)
         if (info.totalMem in 1 until 3L * 1024 * 1024 * 1024) 1280 else 1920
     }
+}
+
+/**
+ * The TV's text field, the same everywhere (Search, Discover, connecting, a diagnostics note): a quiet panel with an
+ * optional icon, edged in white while it has focus; OK opens the TV's keyboard. [secret] hides what's typed.
+ */
+@Composable
+fun TvTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    modifier: Modifier = Modifier,
+    icon: ImageVector? = null,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    keyboardActions: KeyboardActions = KeyboardActions.Default,
+    secret: Boolean = false,
+) {
+    val source = remember { MutableInteractionSource() }
+    val focused by source.collectIsFocusedAsState()
+    BasicTextField(
+        value = value,
+        onValueChange = onValueChange,
+        singleLine = true,
+        textStyle = TextStyle(fontSize = 16.sp, color = Flexarr.screen),
+        cursorBrush = SolidColor(Flexarr.screen),
+        keyboardOptions = keyboardOptions,
+        keyboardActions = keyboardActions,
+        visualTransformation = if (secret) PasswordVisualTransformation() else VisualTransformation.None,
+        interactionSource = source,
+        modifier = modifier,
+        decorationBox = { field ->
+            Row(
+                Modifier.fillMaxWidth().height(42.dp).background(Flexarr.screen.copy(alpha = if (focused) 0.16f else 0.1f), RoundedCornerShape(10.dp))
+                    .border(2.dp, if (focused) Flexarr.screen else Color.Transparent, RoundedCornerShape(10.dp)).padding(horizontal = 14.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (icon != null) Icon(icon, contentDescription = null, tint = Flexarr.usher, modifier = Modifier.size(18.dp))
+                Box(Modifier.weight(1f)) {
+                    if (value.isEmpty()) Text(placeholder, fontSize = 16.sp, color = Flexarr.usher, maxLines = 1)
+                    field()
+                }
+            }
+        },
+    )
 }
 
 /** A row's heading: marquee type on the shared edge. */
