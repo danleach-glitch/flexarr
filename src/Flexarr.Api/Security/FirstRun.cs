@@ -13,7 +13,8 @@ namespace Flexarr.Api.Security;
 /// This server's id (<see cref="FlexarrOptions.ServerId"/>), so an app can check that an address it has just learnt
 /// for its server is the same server (absent from servers before 0.55).
 /// </param>
-public sealed record SetupStatusDto(bool Open, bool CodeRequired = true, string? ServerId = null);
+/// <param name="Install">How the server was installed, so the welcome page can say where its code is (absent before 0.56).</param>
+public sealed record SetupStatusDto(bool Open, bool CodeRequired = true, string? ServerId = null, Updates.InstallKind? Install = null);
 
 /// <summary>What a browser sends to set the server up: the setup code, and the main profile's PIN (it guards the server's settings).</summary>
 public sealed record SetupClaimDto(string? Code, string? Pin = null);
@@ -163,8 +164,11 @@ public static class FirstRunEndpoints
     public static RouteGroupBuilder MapFirstRunEndpoints(this RouteGroupBuilder api)
     {
         var group = api.MapGroup("/setup").WithTags("System").AllowAnonymous();
-        group.MapGet("/", (HttpContext http, FirstRun firstRun, IOptionsMonitor<FlexarrOptions> options) =>
-            Results.Ok(new SetupStatusDto(firstRun.OpenTo(http), ServerId: options.CurrentValue.ServerId)));
+        group.MapGet("/", (HttpContext http, FirstRun firstRun, IOptionsMonitor<FlexarrOptions> options, Updates.IInstallEnvironment install) =>
+        {
+            var open = firstRun.OpenTo(http);
+            return Results.Ok(new SetupStatusDto(open, ServerId: options.CurrentValue.ServerId, Install: open ? install.Kind : null));
+        });
         // Only the web app's own scripts send X-Requested-With, so a form on another site can't claim the server.
         // The PIN comes with the code, so setup is done all at once or not at all: closing the page before the button
         // leaves it open, with the same code.

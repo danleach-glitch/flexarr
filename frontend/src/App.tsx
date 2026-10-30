@@ -10,9 +10,10 @@ import {
   migrateStoredApiKey,
   profileToken,
   saveProfileToken,
-  setupOpen,
+  setupStatus,
   signIn,
   UnauthorizedError,
+  type InstallKind,
   type Profile,
 } from './api/client'
 import { ErrorBoundary } from './components/ErrorBoundary'
@@ -133,9 +134,24 @@ export function Shell() {
   )
 }
 
+/** Where a new server's setup code is, in a sentence, for the way it was installed. */
+function whereTheCodeIs(install: InstallKind | undefined) {
+  switch (install) {
+    case 'MacApp':
+      return 'It’s in the Flexarr menu at the top of your screen.'
+    case 'MacLaunchAgent':
+      return 'It’s in the file setup-code.txt, in the .flexarr/data folder in your home folder.'
+    case 'Docker':
+      return 'It’s in the Flexarr container’s log.'
+    default:
+      return 'It’s in the server’s log.'
+  }
+}
+
 export default function App() {
   const [state, setState] = useState<ConnectionState>({ kind: 'loading' })
   const [attempt, setAttempt] = useState(0)
+  const [setupInstall, setSetupInstall] = useState<InstallKind>()
 
   useEffect(() => {
     const controller = new AbortController()
@@ -182,8 +198,10 @@ export default function App() {
         if (error instanceof UnauthorizedError) {
           errorReporter.disable()
           // A new server nobody has signed in to yet: this browser can set it up, no key needed.
-          void setupOpen().then((open) => {
-            if (!controller.signal.aborted) setState({ kind: 'unauthorized', setupOpen: open })
+          void setupStatus().then(({ open, install }) => {
+            if (controller.signal.aborted) return
+            setSetupInstall(install)
+            setState({ kind: 'unauthorized', setupOpen: open })
           })
         } else setState({ kind: 'error', message: error instanceof Error ? error.message : String(error) })
       })
@@ -277,6 +295,12 @@ export default function App() {
             <label htmlFor="setupCode">Setup code</label>
             <input id="setupCode" name="setupCode" type="text" autoComplete="one-time-code" autoCapitalize="characters" spellCheck={false} placeholder="ABCD-EFGH" required />
             {state.wrongCode && <p className="error">That isn't this server's setup code.</p>}
+            <p className="muted small-print setup-code-help">
+              {whereTheCodeIs(setupInstall)}{' '}
+              <a href="https://flexarr.io/guide/first-setup#enter-the-setup-code" target="_blank" rel="noreferrer">
+                Can’t find it?
+              </a>
+            </p>
             <p className="muted setup-pin-intro">
               Choose a PIN to protect the server’s settings. Watching doesn’t need it.
             </p>
@@ -294,9 +318,6 @@ export default function App() {
             <button type="submit" className="button">
               Set up Flexarr
             </button>
-            <p className="muted small-print">
-              The server shows its setup code in its log as it starts, and keeps it in setup-code.txt in its data folder. With Docker, run docker logs flexarr.
-            </p>
           </form>
         )}
         {state.kind === 'unauthorized' && !state.setupOpen && tvCode && (

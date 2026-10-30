@@ -141,13 +141,18 @@ export async function signIn(key: string) {
   if (!response.ok) throw new ApiError(response.status, response.statusText, [])
 }
 
-/** Whether this browser can set up a new server: nobody has signed in yet, and it's on the home network. */
-export async function setupOpen(): Promise<boolean> {
+/**
+ * Whether this browser can set up a new server (nobody has signed in yet, and it's on the home network), and how it was
+ * installed, which says where its setup code is (absent from servers before 0.56).
+ */
+export async function setupStatus(): Promise<{ open: boolean; install?: InstallKind }> {
   try {
     const response = await fetch('/api/v1/setup')
-    return response.ok && ((await response.json()) as { open: boolean }).open
+    if (!response.ok) return { open: false }
+    const { open, install } = (await response.json()) as { open: boolean; install?: InstallKind | null }
+    return { open, install: install ?? undefined }
   } catch {
-    return false
+    return { open: false }
   }
 }
 

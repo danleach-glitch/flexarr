@@ -532,6 +532,10 @@ kbd {
 }
 
 /* Setting up: the code, then (below a rule) the PIN for the server's settings, then the button. */
+.setup-welcome .setup-code-help {
+  margin: -6px 0 16px;
+}
+
 .setup-welcome .setup-pin-intro {
   margin-top: 6px;
   padding-top: 18px;
