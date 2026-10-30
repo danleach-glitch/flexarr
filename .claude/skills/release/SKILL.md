@@ -1,6 +1,6 @@
 ---
 name: release
-description: Cut a Flexarr release from main (version bump, tag, Docker image, GitHub release), then offer the Mini and Apple devices. Only when the user asks for a release. Takes minor (default), patch, or an exact version.
+description: Cut a Flexarr release from main (version bump, tag, Docker image, GitHub release), then offer the Mini and the devices. Only when the user asks for a release. Takes minor (default), patch, or an exact version.
 ---
 
 # /release [minor|patch|x.y.z]
@@ -15,7 +15,7 @@ Only run this because the user asked for a release in this conversation. Feature
 4. **Publish** (in the background): `scripts/release.sh publish vx.y.z`. It waits for the release commit's CI, the tag's Docker image and its Mac builds (`macos.yml`, which Settings › Updates installs on a Mac), prints every job's result, and creates the GitHub release with that changelog section as notes and the Mac builds and `SHA256SUMS` attached. Read every printed job result before saying it worked.
 5. **Tell the user the version in one line**, then offer, in this order:
    - `/deploy v<x.y.z>` to put the release on the Mini,
-   - `/devices` with that version for the Apple TV, iPhone and TestFlight, if anything under `clients/apple` changed since the last release,
+   - `/devices` with that version for the Apple TV, iPhone, Android phone and TestFlight, if anything under `clients/apple` or `clients/android` changed since the last release,
    - an App Store submission (the user does this in App Store Connect). When a store build goes live, set its `version` (and `status`) in `site/apps.json`, run `make apps`, and land that: flexarr.io/apps shows it. The server and web versions there are already updated by `prepare`.
 6. **Clean up:** `git worktree remove <scratchpad>/release`.
 
