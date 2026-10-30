@@ -1061,6 +1061,9 @@ final class PlaybackController: NSObject {
     /// A title is up in the player.
     var isShowingTitle: Bool { screen != nil && info != nil }
 
+    /// The subtitles the title up can show (Siri's "Turn on subtitles" takes the first).
+    var subtitleTracks: [PlayerTrack] { screen?.remoteTracks?.subtitles ?? [] }
+
     /// What a remote on another device asked of the title that's up: false when there's none, or it isn't a remote's command.
     @discardableResult
     func remote(_ command: DeviceCommand) -> Bool {
