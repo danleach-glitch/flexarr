@@ -117,6 +117,63 @@ class FlexarrClientTest {
     }
 
     @Test
+    fun `the main profile locked or unlocked, from servers that say and ones that don't`() = runTest {
+        server.enqueue(json("""{"profileId":"default","method":"device","zone":"Local","isAdmin":false,"tailscaleLogin":null,"canUnlock":true,"adminPinMissing":false,"unlockedUntil":null}"""))
+        server.enqueue(json("""{"profileId":"default","method":"device","zone":"Local","isAdmin":true,"canUnlock":false,"unlockedUntil":"2026-10-30T09:15:00Z"}"""))
+        server.enqueue(json("""{"profileId":"kid","method":"device","zone":"Local","isAdmin":false,"canUnlock":false,"adminPinMissing":true}"""))
+        // Before 0.56: the main profile was always an admin.
+        server.enqueue(json("""{"profileId":"default","method":"device","zone":"Local","isAdmin":true,"tailscaleLogin":null}"""))
+
+        val locked = client().me()
+        assertEquals(false, locked.isAdmin)
+        assertEquals(true, locked.canUnlock)
+        assertEquals(true, locked.isMainProfile)
+        val unlocked = client().me()
+        assertEquals(true, unlocked.isMainProfile)
+        assertEquals("2026-10-30T09:15:00Z", unlocked.unlockedUntil)
+        val kid = client().me()
+        assertEquals(false, kid.isMainProfile)
+        assertEquals(true, kid.adminPinMissing)
+        val older = client().me()
+        assertEquals(true, older.isMainProfile)
+        assertEquals(false, older.canUnlock)
+        assertNull(older.unlockedUntil)
+    }
+
+    @Test
+    fun `unlocking sends the PIN, and says why not`() = runTest {
+        server.enqueue(json("""{"unlockedUntil":"2026-10-30T09:15:00Z"}"""))
+        server.enqueue(
+            MockResponse.Builder().code(429).addHeader("Content-Type", "application/problem+json")
+                .body("""{"title":"Too many wrong PINs. Try again in 30 seconds.","status":429,"retryAfterSeconds":30}""").build(),
+        )
+        server.enqueue(json("""{"detail":"The main profile needs a PIN before the server's settings can be unlocked.","status":409,"pinMissing":true}""", code = 409))
+
+        assertEquals("2026-10-30T09:15:00Z", client().unlockAdmin("1234").unlockedUntil)
+        val request = server.takeRequest()
+        assertEquals("POST", request.method)
+        assertEquals("/api/v1/admin/unlock", request.url.encodedPath)
+        assertEquals("""{"pin":"1234"}""", request.body!!.utf8())
+        val tooMany = runCatching { client().unlockAdmin("0000") }.exceptionOrNull()
+        assertTrue(tooMany is FlexarrException.Http && tooMany.status == 429)
+        assertEquals("Too many wrong PINs. Try again in 30 seconds.", tooMany!!.message)
+        val missing = runCatching { client().unlockAdmin("0000") }.exceptionOrNull()
+        assertTrue(missing is FlexarrException.Http && missing.status == 409)
+    }
+
+    @Test
+    fun `whether choosing a profile asks for its PIN, falling back to having one on older servers`() = runTest {
+        server.enqueue(
+            json(
+                """[{"id":"default","name":"Dan","color":"#a9c2ec","hasPin":true,"isMain":true,"asksPin":false},""" +
+                    """{"id":"kid","name":"Kid","color":"#a9c2ec","hasPin":true,"asksPin":true},""" +
+                    """{"id":"old","name":"Old","color":"#a9c2ec","hasPin":true}]""",
+            ),
+        )
+        assertEquals(listOf(false, true, true), client().profiles().map { it.takesPin })
+    }
+
+    @Test
     fun `problem details become the error's message`() = runTest {
         server.enqueue(json("""{"title":"Wrong PIN."}""", code = 403))
         val error = runCatching { client().selectProfile("kid", pin = "0000") }.exceptionOrNull()

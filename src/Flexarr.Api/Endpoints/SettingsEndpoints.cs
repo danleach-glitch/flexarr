@@ -37,7 +37,8 @@ public sealed record SettingsDto(
     LiveTvSettingsDto? LiveTv = null,
     string? HostName = null,
     bool HasTmdbKey = false,
-    BazarrConnectionDto? Bazarr = null);
+    BazarrConnectionDto? Bazarr = null,
+    bool AskPinForMainProfile = false);
 
 /// <summary>The Live TV source; the password is never sent back, only whether there is one.</summary>
 public sealed record LiveTvSettingsDto(string BaseUrl, string Username, bool HasPassword, int RewindMinutes, string? DvrFolder = null,
@@ -72,7 +73,8 @@ public sealed record SettingsUpdate(
     PodcastSettingsUpdate? Podcasts = null,
     LiveTvSettingsUpdate? LiveTv = null,
     TmdbKeyUpdate? Tmdb = null,
-    BazarrConnectionUpdate? Bazarr = null);
+    BazarrConnectionUpdate? Bazarr = null,
+    bool? AskPinForMainProfile = null);
 
 /// <param name="ApiKey">TMDB's API key or read access token; empty to remove it.</param>
 public sealed record TmdbKeyUpdate(string ApiKey);
@@ -159,6 +161,11 @@ public static class SettingsEndpoints
                 if (update.AuthenticationRequired is { } auth)
                 {
                     config["authenticationRequired"] = auth.ToString();
+                }
+
+                if (update.AskPinForMainProfile is { } askPin)
+                {
+                    config["askPinForMainProfile"] = askPin;
                 }
 
                 if (update.PathMappings is { } mappings)
@@ -446,7 +453,8 @@ public static class SettingsEndpoints
             : null,
         HostName(),
         o.Tmdb?.ApiKey is { Length: > 0 },
-        o.Bazarr is { BaseUrl.Length: > 0 } b ? new BazarrConnectionDto(b.BaseUrl, b.ApiKey.Length > 0) : null);
+        o.Bazarr is { BaseUrl.Length: > 0 } b ? new BazarrConnectionDto(b.BaseUrl, b.ApiKey.Length > 0) : null,
+        o.AskPinForMainProfile == true);
 
     /// <summary>
     /// This machine's name on the network ("Dans-Mac-Mini"), which the web app puts in place of localhost in links to

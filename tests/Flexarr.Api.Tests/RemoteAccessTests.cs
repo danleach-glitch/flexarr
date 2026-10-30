@@ -125,14 +125,15 @@ public class RemoteAccessTests(RemoteAccessFactory factory) : IClassFixture<Remo
     [Fact]
     public async Task HomeNetwork_RefusesChangesStartedByOtherWebsites()
     {
-        var test = "/api/v1/arr/test";
-        var body = new { name = "Sonarr", kind = "Sonarr", baseUrl = "not a url" };
+        // Choosing a profile that isn't there: refused before it's looked for, or not found once it is.
+        var test = "/api/v1/profiles/nobody/select";
+        var body = new { pin = (string?)null };
 
         Assert.Equal(HttpStatusCode.Forbidden, await SendAsync(HttpMethod.Post, test, body, Lan, ("Origin", "https://attacker.example")));
         Assert.Equal(HttpStatusCode.Forbidden, await SendAsync(HttpMethod.Post, test, body, Lan, ("Sec-Fetch-Site", "cross-site")));
-        Assert.Equal(HttpStatusCode.BadRequest, await SendAsync(HttpMethod.Post, test, body, Lan, ("Sec-Fetch-Site", "same-origin")));
-        Assert.Equal(HttpStatusCode.BadRequest, await SendAsync(HttpMethod.Post, test, body, Lan, ("Origin", "http://localhost")));
-        Assert.Equal(HttpStatusCode.BadRequest, await SendAsync(HttpMethod.Post, test, body, Lan, ("X-Requested-With", "flexarr")));
+        Assert.Equal(HttpStatusCode.NotFound, await SendAsync(HttpMethod.Post, test, body, Lan, ("Sec-Fetch-Site", "same-origin")));
+        Assert.Equal(HttpStatusCode.NotFound, await SendAsync(HttpMethod.Post, test, body, Lan, ("Origin", "http://localhost")));
+        Assert.Equal(HttpStatusCode.NotFound, await SendAsync(HttpMethod.Post, test, body, Lan, ("X-Requested-With", "flexarr")));
     }
 
     [Fact]
@@ -230,7 +231,62 @@ public class RemoteAccessTests(RemoteAccessFactory factory) : IClassFixture<Remo
         var token = (await (await factory.CreateClient().SendAsync(select)).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("token").GetString()!;
 
         Assert.Equal(HttpStatusCode.Forbidden, await GetAsync("/api/v1/settings", Lan, ("X-Flexarr-Profile", token)));
-        Assert.Equal(HttpStatusCode.OK, await GetAsync("/api/v1/settings", Lan));
+        Assert.Equal(HttpStatusCode.Forbidden, await GetAsync("/api/v1/settings", Lan)); // being at home doesn't skip the PIN
+    }
+
+    [Fact]
+    public async Task AFirstPin_TakesASignInTheOwnerMade_NotATailscaleIdentityOrTheHomeNetwork()
+    {
+        // The owner's Tailscale identity can be posed as by another program on the server; home lets anyone in.
+        await LinkAsync("owner-first@example.com", null);
+        var owner = ViaTailscale("100.70.1.30", "owner-first@example.com").Append(("X-Requested-With", "flexarr")).ToArray();
+
+        Assert.Equal(HttpStatusCode.Forbidden, await SendAsync(HttpMethod.Post, "/api/v1/admin/pin", new { pin = "1234" }, owner));
+        Assert.Equal(HttpStatusCode.Forbidden, await SendAsync(HttpMethod.Post, "/api/v1/admin/pin", new { pin = "1234" }, Lan, ("X-Requested-With", "flexarr")));
+    }
+
+    [Fact]
+    public async Task ThePinsSignInAtHome_OnlyWorksAtHome()
+    {
+        await SetMainPinAsync("3692");
+        try
+        {
+            using var unlock = new HttpRequestMessage(HttpMethod.Post, "/api/v1/admin/unlock") { Content = JsonContent.Create(new { pin = "3692" }) };
+            unlock.Headers.Add("X-Test-Peer", "192.168.1.52");
+            unlock.Headers.Add("X-Requested-With", "flexarr");
+            var response = await factory.CreateClient().SendAsync(unlock);
+            var cookie = response.Headers.GetValues("Set-Cookie").Single(c => c.StartsWith("flexarr.session=", StringComparison.Ordinal)).Split(';')[0];
+
+            // Taken away from home (through a tunnel, say), it's just ignored.
+            Assert.Equal(HttpStatusCode.Unauthorized, await GetAsync("/api/v1/libraries", ("X-Test-Peer", "203.0.113.7"), ("Cookie", cookie)));
+            Assert.Equal(HttpStatusCode.OK, await GetAsync("/api/v1/settings", ("X-Test-Peer", "192.168.1.52"), ("Cookie", cookie)));
+        }
+        finally
+        {
+            await SetMainPinAsync(null);
+        }
+    }
+
+    [Fact]
+    public async Task OnTheHomeNetwork_ThePin_SignsTheBrowserIn_AndUnlocksTheServer()
+    {
+        await SetMainPinAsync("3691");
+        try
+        {
+            using var unlock = new HttpRequestMessage(HttpMethod.Post, "/api/v1/admin/unlock") { Content = JsonContent.Create(new { pin = "3691" }) };
+            unlock.Headers.Add("X-Test-Peer", "192.168.1.51");
+            unlock.Headers.Add("X-Requested-With", "flexarr");
+            var response = await factory.CreateClient().SendAsync(unlock);
+            var cookie = response.Headers.GetValues("Set-Cookie").Single(c => c.StartsWith("flexarr.session=", StringComparison.Ordinal)).Split(';')[0];
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal(HttpStatusCode.OK, await GetAsync("/api/v1/settings", ("X-Test-Peer", "192.168.1.51"), ("Cookie", cookie)));
+            Assert.Equal(HttpStatusCode.Forbidden, await GetAsync("/api/v1/settings", ("X-Test-Peer", "192.168.1.51")));
+        }
+        finally
+        {
+            await SetMainPinAsync(null);
+        }
     }
 
     [Fact]
@@ -317,10 +373,11 @@ public class RemoteAccessTests(RemoteAccessFactory factory) : IClassFixture<Remo
         await SetMainPinAsync("4680");
         var (cookie, _) = await ChooseMainWithPinAsync(owner, "4680");
 
-        var changed = await SendAsync(HttpMethod.Put, "/api/v1/profiles/owner", new { name = "Owner", removePin = true }, ("X-Api-Key", FlexarrApiFactory.ApiKey));
+        var changed = await SendAsync(HttpMethod.Put, "/api/v1/profiles/owner", new { name = "Owner", pin = "1470" }, ("X-Api-Key", FlexarrApiFactory.ApiKey));
 
         Assert.Equal(HttpStatusCode.OK, changed);
         Assert.Equal(HttpStatusCode.Forbidden, await GetAsync("/api/v1/settings", [.. owner, ("Cookie", cookie)]));
+        await SetMainPinAsync(null);
     }
 
     [Fact]

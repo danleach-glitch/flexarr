@@ -7,6 +7,9 @@ import SwiftUI
 struct PairingPromptView: View {
     @Environment(PairingPrompts.self) private var prompts
     let request: PairingRequest
+    /// The main profile's PIN, once allowing it has turned out to take one.
+    @State private var pin = ""
+    @State private var asksPin = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -21,6 +24,8 @@ struct PairingPromptView: View {
         .padding(.bottom, 16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .animation(.easeInOut(duration: 0.2), value: prompts.step)
+        // Taller once it takes the PIN, and staying so while it's checked.
+        .presentationDetents([.height(asksPin ? 520 : 420)])
     }
 
     @ViewBuilder private var asking: some View {
@@ -60,13 +65,14 @@ struct PairingPromptView: View {
                 .foregroundStyle(Color.danger)
                 .fixedSize(horizontal: false, vertical: true)
         }
+        if asksPin {
+            MainProfilePinField(pin: $pin, problem: prompts.step.pinProblem, submit: allow)
+        }
 
         Spacer(minLength: 0)
 
         VStack(spacing: 10) {
-            Button {
-                Task { await prompts.allow() }
-            } label: {
+            Button(action: allow) {
                 ZStack {
                     Text("Allow").opacity(prompts.step == .working ? 0 : 1)
                     if prompts.step == .working { ProgressView().tint(Color.room) }
@@ -74,6 +80,7 @@ struct PairingPromptView: View {
                 .frame(maxWidth: .infinity)
             }
             .buttonStyle(ActionButtonStyle(prominent: true))
+            .disabled(asksPin && !MainProfilePinField.isComplete(pin))
             Button("Don't allow") {
                 Task { await prompts.decline() }
             }
@@ -81,6 +88,13 @@ struct PairingPromptView: View {
             .frame(maxWidth: .infinity)
         }
         .disabled(prompts.step == .working)
+        .onChange(of: prompts.step.asksForPin, initial: true) { _, asks in if asks { asksPin = true } }
+    }
+
+    private func allow() {
+        let entered = asksPin ? pin : nil
+        pin = ""
+        Task { await prompts.allow(pin: entered) }
     }
 
     @ViewBuilder private var allowed: some View {
@@ -112,7 +126,6 @@ extension View {
         )) { request in
             PairingPromptView(request: request)
                 .environment(prompts)
-                .presentationDetents([.height(420)])
                 .presentationBackground(Color.room)
                 .presentationDragIndicator(.visible)
                 .interactiveDismissDisabled(prompts.step == .working)
@@ -123,5 +136,62 @@ extension View {
         )) {
             Button("OK", role: .cancel) {}
         }
+    }
+}
+
+extension PairingPrompts.Step {
+    /// Allowing it waits for the main profile's PIN.
+    var asksForPin: Bool {
+        if case .needsPin = self { true } else { false }
+    }
+
+    /// What went wrong with the PIN last time (a wrong one, or too many).
+    var pinProblem: String? {
+        if case .needsPin(let problem) = self { problem } else { nil }
+    }
+}
+
+/// The main profile's PIN, for allowing a device while the main profile is locked here (managing the server takes the
+/// PIN, given lately, from Flexarr 0.56). 4 to 8 digits, on the number pad.
+struct MainProfilePinField: View {
+    @Binding var pin: String
+    /// What went wrong last time: a wrong PIN, or too many.
+    let problem: String?
+    let submit: () -> Void
+
+    @FocusState private var focused: Bool
+
+    static func isComplete(_ pin: String) -> Bool { (4...8).contains(pin.count) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Allowing it takes the main profile’s PIN.")
+                .font(.subheadline)
+                .foregroundStyle(Color.screen)
+            SecureField("PIN", text: $pin)
+                .keyboardType(.numberPad)
+                .textContentType(.oneTimeCode)
+                .font(.title3.monospacedDigit())
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(RoundedRectangle(cornerRadius: 12).fill(Color.seat))
+                .focused($focused)
+                .submitLabel(.done)
+                .onSubmit { if Self.isComplete(pin) { submit() } }
+                .onChange(of: pin) { _, new in
+                    let digits = String(new.filter(\.isNumber).prefix(8))
+                    if digits != new { pin = digits }
+                }
+            if let problem {
+                Label(problem, systemImage: "exclamationmark.triangle.fill")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(Color.danger)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Text("Forgotten it? Reset it from Flexarr in a browser.")
+                .font(.footnote)
+                .foregroundStyle(Color.usher)
+        }
+        .onAppear { focused = true }
     }
 }

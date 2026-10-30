@@ -57,6 +57,15 @@ public sealed class FlexarrApiFactory : WebApplicationFactory<Program>
         });
     }
 
+    /// <summary>Sets or clears the main profile's PIN directly (the API only changes it, never takes it off).</summary>
+    public async Task SetMainPinAsync(string? pin)
+    {
+        using var scope = Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<Flexarr.Core.Data.FlexarrDbContext>();
+        (await db.Profiles.FindAsync(Flexarr.Core.Media.PlaybackState.DefaultUser))!.SetPin(pin);
+        await db.SaveChangesAsync();
+    }
+
     /// <summary>A web service that knows nothing.</summary>
     private sealed class Offline : HttpMessageHandler
     {

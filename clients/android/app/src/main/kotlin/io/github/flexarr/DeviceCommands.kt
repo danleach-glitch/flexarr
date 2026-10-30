@@ -139,7 +139,7 @@ class DeviceCommands(private val context: Context, private val model: AppModel, 
     private suspend fun switchProfile(profileId: String?, itemId: String): Boolean {
         if (profileId == null || profileId == model.currentProfile?.id) return true
         val profile = model.profiles.firstOrNull { it.id == profileId } ?: return true
-        if (!profile.hasPin) {
+        if (!profile.takesPin) {
             return runCatching { model.chooseProfile(profile) }
                 .onFailure { flexarrLog.warning("Couldn't switch to the profile a command asked for", it) }
                 .isSuccess

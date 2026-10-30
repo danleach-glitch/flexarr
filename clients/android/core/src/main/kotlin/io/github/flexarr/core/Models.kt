@@ -581,8 +581,25 @@ data class SignInInfo(
     val profileId: String,
     /** "api-key" (the server's key itself), "device" (this device's own token), "tailscale" or "local". */
     val method: String,
+    /** May manage the server now: the API key, or the main profile on a sign-in where its PIN was given lately. */
     val isAdmin: Boolean,
-)
+    /** The main profile is chosen, but managing the server takes its PIN first ([FlexarrClient.unlockAdmin]). Absent before 0.56. */
+    val canUnlock: Boolean = false,
+    /** The main profile has no PIN yet, so managing the server can't be unlocked until it's given one in a browser. Absent before 0.56. */
+    val adminPinMissing: Boolean = false,
+    /** When managing the server takes the PIN again on this sign-in; null for the API key, or when it isn't unlocked. */
+    val unlockedUntil: String? = null,
+) {
+    /** The main profile, unlocked or not: it's asked to let devices in (allowing takes its PIN while locked). */
+    val isMainProfile: Boolean get() = isAdmin || canUnlock
+}
+
+@Serializable
+internal data class AdminUnlockRequest(val pin: String)
+
+/** What unlocking says: until when, or null for the API key, which always may. */
+@Serializable
+data class AdminUnlock(val unlockedUntil: String? = null)
 
 @Serializable
 internal data class DeviceToken(val token: String)
@@ -598,6 +615,11 @@ data class Profile(
     val color: String,
     val hasPin: Boolean = false,
     val isMain: Boolean = false,
+    /**
+     * Choosing it here asks for its PIN. The main profile's guards managing the server, so on a device the owner signed
+     * in it's only asked for if the owner wants it to be. Absent from servers before 0.56, where [hasPin] says.
+     */
+    val asksPin: Boolean? = null,
     /** The profile the request that fetched this list acted for. */
     val isCurrent: Boolean = false,
     /** The picture's server-relative URL, or null to show the initial on the colour. */
@@ -609,6 +631,9 @@ data class Profile(
     val libraryOrder: List<String>? = null,
 ) {
     val initial: String get() = name.trim().firstOrNull()?.uppercase() ?: "?"
+
+    /** Whether choosing it here takes its PIN. */
+    val takesPin: Boolean get() = asksPin ?: hasPin
 }
 
 /**

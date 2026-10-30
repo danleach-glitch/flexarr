@@ -2417,3 +2417,27 @@
   filter: grayscale(1);
   opacity: 0.5;
 }
+
+/* Under the server's pages while they're unlocked: a quiet way to lock them again before walking away. */
+.settings-lock {
+  align-self: flex-start;
+  margin: 6px 14px 0;
+  font-size: 0.85rem;
+}
+
+/* The server's settings, locked: the PIN (or the key and a new PIN), kept to a comfortable width. */
+.admin-unlock {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 460px;
+}
+
+.admin-unlock .field-help {
+  margin: -6px 0 0;
+}
+
+.admin-unlock .field-row label {
+  flex: 1;
+  min-width: 140px;
+}

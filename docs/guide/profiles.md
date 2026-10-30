@@ -31,10 +31,19 @@ Only the main profile can:
 - connect new devices, and see or replace the API key
 - fix a wrong match, or delete a title through Sonarr or Radarr
 
-Every other profile can browse, watch, listen, make requests through Seerr, and open **Settings** to change its own playback and podcast settings. Under **Settings › Server** they see **Manage the server**, which asks for the main profile.
+Every other profile can browse, watch, listen, make requests through Seerr, and open **Settings** to change its own playback and podcast settings.
 
-> **Important**
-> Give the main profile a PIN. Without one, anyone using a browser or device you've signed in can switch to it and change settings.
+### Unlocking settings
+
+The main profile always has a PIN: you choose it when you set Flexarr up. Watching as the main profile doesn't need it, but doing any of the things above does. Open **Settings** on the main profile and the server's pages say **Settings are locked**: enter the PIN and choose **Unlock**.
+
+Settings stay unlocked on that browser or device for 15 minutes after your last change. They lock again sooner if someone else is chosen there, if you choose **Lock settings** at the bottom of the list, or if the server restarts. Being on your home network doesn't skip the PIN.
+
+A device asking to connect still shows up on the main profile while settings are locked. Choosing **Allow** asks for the PIN first.
+
+If the main profile has no PIN yet (a server set up before Flexarr asked for one), **Settings** asks you to give it one before anything else.
+
+To have Flexarr ask for the PIN whenever someone chooses the main profile too, keeping its watch history private, turn on **Ask for the PIN when someone chooses the main profile** in **Settings › Profiles**. Someone coming in over Tailscale with their own account is always asked.
 
 ## Adding a profile
 
@@ -54,9 +63,9 @@ If you bring your history over from Plex, your Plex Home profile pictures can co
 
 A PIN is 4 to 8 digits. Without one, anyone can switch to that profile. With one, Flexarr asks for it whenever someone chooses the profile.
 
-- To change or remove the main profile's PIN, you need its current PIN. If you've forgotten it, choose **Use the API key instead**; the key is in `config.json` in the server's data folder.
+- The main profile's PIN can be changed but not removed. Changing it takes the current one. If you've forgotten it, see [I forgot a profile's PIN](troubleshooting.md#i-forgot-a-profiles-pin).
 - Wrong guesses lock out the device doing the guessing for a while, longer each time. Someone else guessing can't lock you out of your own profile.
-- The main profile's PIN also unlocks Settings when you're away from home over Tailscale. See [Watch away from home](away-from-home.md).
+- When wrong guesses at the main profile's PIN lock someone out, Flexarr notes it in its log and tells the main profile's phones (with notifications on), naming the device.
 
 ## Choosing which libraries a profile sees
 

@@ -1,12 +1,12 @@
-import { useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { Navigate, NavLink, useParams } from 'react-router'
-import { askForProfile, getMe, getRequestDestinations, getUpdates, signIn, UnauthorizedError, getProfiles, type Profile } from '../../api/client'
-import { AsyncButton } from '../../components/AsyncButton'
+import { clearApiCache, getMe, getRequestDestinations, getUpdates, lockAdmin } from '../../api/client'
 import { useSession } from '../../hooks/sessionContext'
 import { useApi } from '../../hooks/useApi'
 import { hasRequestChoice } from '../../lib/requestLibraries'
 import { AboutSection } from './AboutSection'
 import { AccessSection } from './AccessSection'
+import { AdminUnlock } from './AdminUnlock'
 import { BackupSection } from './BackupSection'
 import { ConnectionsSection } from './ConnectionsSection'
 import { ConnectTvSection } from './ConnectTvSection'
@@ -73,11 +73,25 @@ export function SettingsPage() {
   const name = current?.name
   const destinations = useApi(getRequestDestinations, [])
   const ownPages = destinations.data && hasRequestChoice(destinations.data, current?.hiddenLibraryIds ?? []) ? [...profilePages, requestsPage] : profilePages
-  // Settings for the server are the main profile's: another profile chosen on this browser has only its own pages. The
-  // owner over Tailscale is the exception, with one page saying how to prove it's them. Older servers have no /me:
-  // everything, as before.
+  // Settings for the server are the main profile's, and changing them takes its PIN (given lately on this browser):
+  // locked, the server's pages ask for it. Another profile chosen here has only its own pages. Older servers have no
+  // /me: everything, as before.
   const isAdmin = me.data?.isAdmin ?? true
-  const ownerOverTailscale = !isAdmin && me.data?.method === 'tailscale' && me.data.profileId === 'owner'
+  const locked = !isAdmin && me.data?.canUnlock === true
+  // Signed in with the key on a server set up before setup asked for a PIN: one first, before anything else.
+  const pinMissing = me.data?.adminPinMissing === true
+  // The unlock lapses on the server; ask again then (a change since will have moved it on).
+  const unlockedUntil = me.data?.unlockedUntil
+  const reloadMe = me.reload
+  useEffect(() => {
+    if (!unlockedUntil) return
+    // At least a minute: a browser clock ahead of the server's would otherwise ask again every second.
+    const timer = window.setTimeout(() => {
+      clearApiCache()
+      reloadMe()
+    }, Math.max(60_000, new Date(unlockedUntil).getTime() - Date.now() + 1000))
+    return () => window.clearTimeout(timer)
+  }, [unlockedUntil, reloadMe])
   // A dot on Updates when there's a release to install. Only the main profile may ask; older servers have no /updates.
   const updates = useApi((signal) => (me.data?.isAdmin ? getUpdates(signal) : Promise.resolve(undefined)), [me.data?.isAdmin])
   const badges: Record<string, string | undefined> = { updates: updates.data?.available ? `Flexarr ${updates.data.latest?.version} is available` : undefined }
@@ -90,7 +104,7 @@ export function SettingsPage() {
   const serverPage = serverPages.find((p) => p.id === section)
   // A server page (an old link, say) waits to know whose profile this is, and sends anyone else to their own pages.
   if (!profilePage && me.loading) return null
-  if (!profilePage && !isAdmin && !ownerOverTailscale) return <Navigate to="/settings/playback" replace />
+  if (!profilePage && !isAdmin && !locked) return <Navigate to="/settings/playback" replace />
   const lit = serverPage?.under ?? section
 
   const link = (p: Page) => (
@@ -109,10 +123,15 @@ export function SettingsPage() {
             <h2>{profileHeading(name)}</h2>
             {ownPages.map(link)}
           </div>
-          {(isAdmin || ownerOverTailscale) && (
+          {(isAdmin || locked) && (
             <div className="settings-nav-group">
               <h2>Server</h2>
-              {isAdmin ? serverPages.filter((p) => !p.under).map(link) : link({ id: 'overview', label: 'Manage the server', render: () => null })}
+              {isAdmin && !pinMissing ? serverPages.filter((p) => !p.under).map(link) : link({ id: 'overview', label: locked ? 'Unlock settings' : 'Set a PIN', render: () => null })}
+              {isAdmin && unlockedUntil && (
+                <button type="button" className="text-button settings-lock" onClick={() => void lockAdmin().then(() => window.location.reload())}>
+                  Lock settings
+                </button>
+              )}
             </div>
           )}
         </nav>
@@ -120,8 +139,8 @@ export function SettingsPage() {
       <div className="settings-content">
         {profilePage
           ? profilePage.render()
-          : ownerOverTailscale
-            ? <TailscaleAdminNote />
+          : locked || pinMissing
+            ? <AdminUnlock pinMissing={pinMissing} onUnlocked={() => window.location.reload()} />
             : serverPage
               ? serverPage.render()
               : <p className="muted">There’s no such page in Settings.</p>}
@@ -135,66 +154,4 @@ export function SettingsPage() {
 function profileHeading(name: string | undefined) {
   if (!name) return 'Your profile'
   return /\bprofile$/i.test(name.trim()) ? name : `${name}’s profile`
-}
-
-/** Asks for the main profile (its PIN, if it has one), then comes back to this page of Settings. */
-function switchToMainProfile(main: Profile | undefined) {
-  askForProfile(main?.id)
-  window.location.reload()
-}
-
-/**
- * Over Tailscale the owner's account watches as the main profile but doesn't manage the server on its own: another
- * program on the server could pose as it. The main profile's PIN, or the API key, proves it's really them.
- */
-function TailscaleAdminNote() {
-  const [error, setError] = useState<string>()
-  const [signingIn, setSigningIn] = useState(false)
-  const profiles = useApi(getProfiles, [])
-  const main = profiles.data?.find((p) => p.isMain)
-  const mainHasPin = main?.hasPin ?? false
-
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const key = new FormData(event.currentTarget).get('apiKey')?.toString().trim()
-    if (!key) return
-    setError(undefined)
-    setSigningIn(true)
-    signIn(key)
-      .then(() => window.location.reload())
-      .catch((e: unknown) => {
-        setError(e instanceof UnauthorizedError ? 'That isn’t the right key.' : String(e))
-        setSigningIn(false)
-      })
-  }
-
-  return (
-    <div className="panel">
-      <p className="settings-lede">
-        Over Tailscale, changing settings takes one more step, because another program on the server could pose as your Tailscale account.{' '}
-        {mainHasPin
-          ? 'Choose the main profile with its PIN, and this browser stays signed in until it’s signed out or left unused for two weeks.'
-          : 'Ask whoever manages Flexarr to give the main profile a PIN, or sign in with the API key below.'}
-      </p>
-      {mainHasPin && (
-        <p>
-          <button className="button" onClick={() => switchToMainProfile(main)}>
-            Choose the main profile
-          </button>
-        </p>
-      )}
-      <p className="settings-lede">{mainHasPin ? 'Or sign this browser in with the API key:' : 'Sign this browser in with the API key:'}</p>
-      <form className="api-key-row" onSubmit={submit}>
-        <input name="apiKey" type="password" autoComplete="off" aria-label="API key" required />
-        <AsyncButton type="submit" className="button" busy={signingIn}>
-          Sign in
-        </AsyncButton>
-      </form>
-      {error && (
-        <p className="error" role="alert">
-          {error}
-        </p>
-      )}
-    </div>
-  )
 }

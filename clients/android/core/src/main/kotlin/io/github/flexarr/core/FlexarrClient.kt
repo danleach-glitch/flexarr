@@ -238,6 +238,12 @@ class FlexarrClient(
     /** How this client signed in, which profile it acts for, and whether it may manage the server. */
     suspend fun me(): SignInInfo = get("me")
 
+    /**
+     * Unlocks managing the server on this sign-in for a while, with the main profile's PIN. A wrong one is a 403 saying
+     * so; too many, 429 saying how long to wait; and 409 when the main profile has no PIN yet.
+     */
+    suspend fun unlockAdmin(pin: String): AdminUnlock = sendDecoding("POST", "admin/unlock", AdminUnlockRequest(pin))
+
     /** Swaps the server's API key for a token of this device's own, which can be signed out from the web app. */
     suspend fun deviceToken(deviceName: String): String =
         decodeText(serializer<DeviceToken>(), send("POST", "session/device", body = json.encodeToString(mapOf("deviceName" to deviceName)))).token

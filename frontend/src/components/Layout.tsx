@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router'
-import { askForProfile, clearApiCache, getLiveTvStatus, getPodcastPreferences, selectProfile, signOut } from '../api/client'
+import { askForProfile, asksPin, clearApiCache, getLiveTvStatus, getPodcastPreferences, selectProfile, signOut } from '../api/client'
 import { PODCAST_PREFERENCES_CHANGED } from '../lib/podcasts'
 import { session } from '../lib/session'
 import { useAudioPlayer } from '../hooks/audioPlayerContext'
@@ -13,6 +13,7 @@ import { AddToCollectionHost } from './AddToCollection'
 import { AddToPlaylistHost } from './AddToPlaylist'
 import { NowPlaying } from './NowPlaying'
 import { PairingPrompt } from './PairingPrompt'
+import { UnlockPrompt } from './UnlockDialog'
 import { Avatar } from './ProfilePicker'
 import { SearchPalette } from './SearchPalette'
 
@@ -183,7 +184,7 @@ export function Layout() {
                       role="menuitem"
                       onClick={async () => {
                         // With just one other profile and no PIN to ask for, switch straight to it.
-                        if (other && !other.hasPin) {
+                        if (other && !asksPin(other)) {
                           // Refused (over Tailscale, a main profile without a PIN): the picker says why.
                           await selectProfile(other.id).then(
                             () => session.set('flexarr.profileChosen', '1'),
@@ -197,10 +198,10 @@ export function Layout() {
                         window.location.assign('/')
                       }}
                     >
-                      {other && !other.hasPin ? `Switch to ${other.name}` : 'Switch profile'}
+                      {other && !asksPin(other) ? `Switch to ${other.name}` : 'Switch profile'}
                     </AsyncButton>
                   )}
-                  {isAdmin && (
+                  {(isAdmin || access?.canUnlock) && (
                     <Link role="menuitem" to="/settings/profiles" onClick={() => setProfileMenu(false)}>
                       Manage profiles
                     </Link>
@@ -308,6 +309,7 @@ export function Layout() {
       </main>
       <NowPlaying />
       <PairingPrompt />
+      <UnlockPrompt />
       {searching && <SearchPalette onClose={() => setSearching(false)} />}
     </div>
   )

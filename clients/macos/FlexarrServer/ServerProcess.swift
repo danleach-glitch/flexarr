@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Observation
 
@@ -31,12 +32,19 @@ final class ServerProcess {
     /// The port the server listens on. `defaults write <bundle id> Port 8484` changes it.
     let port: Int = UserDefaults.standard.integer(forKey: "Port").nonZero ?? 8383
     var address: URL { URL(string: "http://localhost:\(port)")! }
+    /// Where Open Flexarr goes: while the server isn't set up, with its code after the #, which the welcome page fills
+    /// in by itself (browsers never send that part to the server, so it stays out of logs). Nobody hunts for the code.
+    var openAddress: URL { setupCode.flatMap { URL(string: "http://localhost:\(port)/#setup=\($0)") } ?? address }
+    /// The welcome page has been opened once this run, so a restart doesn't open another.
+    private var openedForSetup = false
 
     /// Application Support inside the app's container.
     private let root = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         .appending(path: "Flexarr")
     var logDirectory: URL { root.appending(path: "logs") }
     private var setupCodeFile: URL { root.appending(path: "data/setup-code.txt") }
+    /// The server's settings, API key included: only this app (and whoever is signed in to this Mac) can read them.
+    var configFile: URL { root.appending(path: "data/config.json") }
 
     init(folders: MediaFolders) {
         requests = AppRequests(folders: folders)
@@ -178,6 +186,11 @@ extension ServerProcess {
             let code = (try? String(contentsOf: setupCodeFile, encoding: .utf8))?.trimmingCharacters(in: .whitespacesAndNewlines)
             setupCode = code?.isEmpty == false ? code : nil
             guard setupCode != nil, process != nil else { return }
+            // A new server: open its welcome page, code filled in, so setting up is choosing a PIN.
+            if !openedForSetup {
+                openedForSetup = true
+                NSWorkspace.shared.open(openAddress)
+            }
             try? await Task.sleep(for: .seconds(5))
         }
     }

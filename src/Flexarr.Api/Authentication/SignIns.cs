@@ -64,14 +64,15 @@ public sealed class SignIn
     public DeviceType? DeviceType { get; set; }
 
     /// <summary>
-    /// A browser that signed in by choosing the main profile with its PIN (over Tailscale) rather than with the API
-    /// key. It's signed out sooner when left unused, and when the main profile's PIN changes.
+    /// A browser that signed in by giving the main profile's PIN (over Tailscale, or at home with "only away from
+    /// home") rather than with the API key. It's signed out sooner when left unused, and when the main profile's PIN changes.
     /// </summary>
     public bool PinVerified { get; init; }
 
     /// <summary>
     /// For a <see cref="PinVerified"/> sign-in, the Tailscale login it was earned with: it only works for requests that
-    /// come with that login, and goes when the login is unlinked.
+    /// come with that login, and goes when the login is unlinked. Without one, it was earned at home (the home network
+    /// signing people in), and only works from home while that's so.
     /// </summary>
     public string? TailscaleLogin { get; init; }
 }

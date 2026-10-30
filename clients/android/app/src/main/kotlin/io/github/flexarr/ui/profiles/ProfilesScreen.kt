@@ -129,7 +129,7 @@ fun ProfilePicker(model: AppModel, marksCurrent: Boolean = false, onChosen: () -
                                 enabled = switching == null && !current,
                                 onClick = {
                                     error = null
-                                    if (profile.hasPin) asking = profile else scope.launch { choose(profile, null) }
+                                    if (profile.takesPin) asking = profile else scope.launch { choose(profile, null) }
                                 },
                             ),
                             horizontalAlignment = Alignment.CenterHorizontally,
@@ -146,7 +146,7 @@ fun ProfilePicker(model: AppModel, marksCurrent: Boolean = false, onChosen: () -
                             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Text(profile.name, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, maxLines = 1)
                                 Text(
-                                    if (current) "Watching now" else if (profile.hasPin) "PIN" else " ",
+                                    if (current) "Watching now" else if (profile.takesPin) "PIN" else " ",
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Medium,
                                     color = Flexarr.usher,

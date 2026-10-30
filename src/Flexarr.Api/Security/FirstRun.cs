@@ -2,6 +2,8 @@ using System.Security.Cryptography;
 using System.Text;
 using Flexarr.Api.Authentication;
 using Flexarr.Api.Configuration;
+using Flexarr.Core.Data;
+using Flexarr.Core.Media;
 using Microsoft.Extensions.Options;
 
 namespace Flexarr.Api.Security;
@@ -11,10 +13,11 @@ namespace Flexarr.Api.Security;
 /// This server's id (<see cref="FlexarrOptions.ServerId"/>), so an app can check that an address it has just learnt
 /// for its server is the same server (absent from servers before 0.55).
 /// </param>
-public sealed record SetupStatusDto(bool Open, bool CodeRequired = true, string? ServerId = null);
+/// <param name="Install">How the server was installed, so the welcome page can say where its code is (absent before 0.56).</param>
+public sealed record SetupStatusDto(bool Open, bool CodeRequired = true, string? ServerId = null, Updates.InstallKind? Install = null);
 
-/// <summary>What a browser sends to set the server up.</summary>
-public sealed record SetupClaimDto(string? Code);
+/// <summary>What a browser sends to set the server up: the setup code, and the main profile's PIN (it guards the server's settings).</summary>
+public sealed record SetupClaimDto(string? Code, string? Pin = null);
 
 /// <summary>
 /// Setting up a new server without its API key: until anyone has signed in, a browser on the home network with the
@@ -24,7 +27,7 @@ public sealed record SetupClaimDto(string? Code);
 /// folder: behind a reverse proxy or Docker's port forwarding, every visitor can look like the home network, and the
 /// code is what only someone with the machine has. Claiming closes setup for good: one owner, then codes and the key.
 /// </summary>
-public sealed partial class FirstRun(IOptionsMonitor<FlexarrOptions> options, ILogger<FirstRun> logger)
+public sealed partial class FirstRun(IOptionsMonitor<FlexarrOptions> options, Microsoft.AspNetCore.Hosting.Server.IServer server, ILogger<FirstRun> logger)
 {
     public const string CodeFileName = "setup-code.txt";
 
@@ -60,8 +63,12 @@ public sealed partial class FirstRun(IOptionsMonitor<FlexarrOptions> options, IL
     /// <summary>At startup, while the server has no owner: says the code where whoever installed it will look.</summary>
     public void Announce() => _ = Code;
 
-    /// <summary>Takes the one claim, if <paramref name="http"/> may, has the code, and nobody has yet.</summary>
-    public ClaimResult TryClaim(HttpContext http, string? code)
+    /// <summary>
+    /// Takes the one claim, if <paramref name="http"/> may, has the code, and nobody has yet. <paramref name="claiming"/>
+    /// (setting the PIN, signing the browser in) runs before setup closes: if it fails, setup stays open with the same
+    /// code.
+    /// </summary>
+    public ClaimResult TryClaim(HttpContext http, string? code, Action? claiming = null)
     {
         lock (ClaimLock)
         {
@@ -82,6 +89,7 @@ public sealed partial class FirstRun(IOptionsMonitor<FlexarrOptions> options, IL
                 return ClaimResult.WrongCode;
             }
 
+            claiming?.Invoke();
             Close(options.CurrentValue);
             return ClaimResult.Claimed;
         }
@@ -116,7 +124,7 @@ public sealed partial class FirstRun(IOptionsMonitor<FlexarrOptions> options, IL
             file = "(couldn't be saved to a file)";
         }
 
-        LogCode(code, file);
+        LogCode(SetupLink("localhost", ListeningPort(), code), code, file);
         return code;
     }
 
@@ -144,9 +152,32 @@ public sealed partial class FirstRun(IOptionsMonitor<FlexarrOptions> options, IL
         }
     }
 
-    // A warning, so it's in the console even where only warnings are (the macOS service), and easy to spot in it.
-    [LoggerMessage(Level = LogLevel.Warning, Message = "This server isn't set up yet. To set it up, open it in a browser on your home network and enter the setup code {Code}. The code is also in {File}.")]
-    private partial void LogCode(string code, string file);
+    /// <summary>
+    /// The welcome page with the code filled in: after the #, which browsers never send to the server, so the code
+    /// stays out of logs and proxies. Docker's log viewers make it something to click.
+    /// </summary>
+    internal static string SetupLink(string host, int port, string code) => $"http://{host}:{port}/#setup={code}";
+
+    /// <summary>The port the server listens on (once it's started; see Program.cs), else the usual one.</summary>
+    private int ListeningPort()
+    {
+        var addresses = server.Features.Get<Microsoft.AspNetCore.Hosting.Server.Features.IServerAddressesFeature>()?.Addresses ?? [];
+        foreach (var address in addresses)
+        {
+            // "http://*:8484" and "http://[::]:8484" aren't URIs as such; the port is after the last colon.
+            if (int.TryParse(address[(address.LastIndexOf(':') + 1)..].TrimEnd('/'), out var port))
+            {
+                return port;
+            }
+        }
+
+        return 8383;
+    }
+
+    // A warning, so it's in the console even where only warnings are (the macOS service), and easy to spot in it. The
+    // link first: setting up from it is only choosing a PIN.
+    [LoggerMessage(Level = LogLevel.Warning, Message = "This server isn't set up yet. Set it up at {Link} (from another computer, use this one's name or IP address in place of localhost). The setup code is {Code}, also in {File}.")]
+    private partial void LogCode(string link, string code, string file);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Setup was tried with a wrong code {Tries} times, so it has a new code")]
     private partial void LogTooManyTries(int tries);
@@ -161,13 +192,39 @@ public static class FirstRunEndpoints
     public static RouteGroupBuilder MapFirstRunEndpoints(this RouteGroupBuilder api)
     {
         var group = api.MapGroup("/setup").WithTags("System").AllowAnonymous();
-        group.MapGet("/", (HttpContext http, FirstRun firstRun, IOptionsMonitor<FlexarrOptions> options) =>
-            Results.Ok(new SetupStatusDto(firstRun.OpenTo(http), ServerId: options.CurrentValue.ServerId)));
-        // Only the web app's own scripts send X-Requested-With, so a form on another site can't claim the server.
-        group.MapPost("/claim", (HttpContext http, FirstRun firstRun, SignIns signIns, SetupClaimDto? claim) =>
+        group.MapGet("/", (HttpContext http, FirstRun firstRun, IOptionsMonitor<FlexarrOptions> options, Updates.IInstallEnvironment install) =>
         {
-            var result = http.Request.Headers.ContainsKey(ApiKeyAuthenticationHandler.RequestedWithHeader)
-                ? firstRun.TryClaim(http, claim?.Code)
+            var open = firstRun.OpenTo(http);
+            return Results.Ok(new SetupStatusDto(open, ServerId: options.CurrentValue.ServerId, Install: open ? install.Kind : null));
+        });
+        // Only the web app's own scripts send X-Requested-With, so a form on another site can't claim the server.
+        // The PIN comes with the code, so setup is done all at once or not at all: closing the page before the button
+        // leaves it open, with the same code.
+        group.MapPost("/claim", async (HttpContext http, FirstRun firstRun, SignIns signIns, AdminUnlocks unlocks, FlexarrDbContext db, SetupClaimDto? claim,
+            CancellationToken ct) =>
+        {
+            var fromWebApp = http.Request.Headers.ContainsKey(ApiKeyAuthenticationHandler.RequestedWithHeader);
+            if (fromWebApp && firstRun.OpenTo(http) && !AdminEndpoints.IsPin(claim?.Pin))
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["pin"] = ["Choose a PIN of 4 to 8 digits."] });
+            }
+
+            // Done inside the claim, before setup closes, so it's all or nothing. (A sign-in closes setup too.)
+            var main = fromWebApp ? await db.Profiles.FindAsync([PlaybackState.DefaultUser], ct) : null;
+            string? token = null;
+            var result = fromWebApp
+                ? firstRun.TryClaim(http, claim?.Code, () =>
+                {
+                    if (main is not null)
+                    {
+                        main.SetPin(claim!.Pin);
+                        db.SaveChanges();
+                    }
+
+                    (var signIn, token) = signIns.Issue(SignInKind.Browser, ApiKeyAuthenticationHandler.BrowserName(http.Request), NetworkZone.Local,
+                        http.Connection.RemoteIpAddress?.ToString());
+                    unlocks.Unlock(signIn.Id);
+                })
                 : FirstRun.ClaimResult.Closed;
             if (result == FirstRun.ClaimResult.WrongCode)
             {
@@ -180,9 +237,7 @@ public static class FirstRunEndpoints
                 return Results.Problem("This server is already set up. Sign in with a code from a device that's signed in.", statusCode: 403);
             }
 
-            var (_, token) = signIns.Issue(SignInKind.Browser, ApiKeyAuthenticationHandler.BrowserName(http.Request), NetworkZone.Local,
-                http.Connection.RemoteIpAddress?.ToString());
-            ApiKeyAuthenticationHandler.AppendSessionCookie(http, token);
+            ApiKeyAuthenticationHandler.AppendSessionCookie(http, token!);
             return Results.NoContent();
         });
         return api;

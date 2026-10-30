@@ -36,6 +36,7 @@ public sealed class ApiKeyAuthenticationHandler(
     IOptionsMonitor<AuthenticationSchemeOptions> schemeOptions,
     IOptionsMonitor<FlexarrOptions> flexarrOptions,
     SignIns signIns,
+    AdminUnlocks unlocks,
     ITailnetWhois whois,
     ILoggerFactory loggerFactory,
     UrlEncoder encoder)
@@ -94,6 +95,18 @@ public sealed class ApiKeyAuthenticationHandler(
                     return await SucceedAsync(Methods.Session, browser);
                 }
 
+                // Earned with the main profile's PIN at home, where the home network signs people in: only there, and
+                // only while it still does. Taken anywhere else, it's ignored.
+                if (browser.TailscaleLogin is null)
+                {
+                    if (HomeNetworkSignsIn(options))
+                    {
+                        return await SucceedAsync(Methods.Session, browser);
+                    }
+                }
+                else
+                {
+
                 // Earned with the main profile's PIN over Tailscale: only for that login, while it's linked to a profile
                 // (unlinking it signs these out too). Copied to another device or used from home, it's just ignored.
                 (tailscaleLogin, askedTailscale) = (await TrustedTailscaleLoginAsync(Context, whois, options), true);
@@ -101,6 +114,7 @@ public sealed class ApiKeyAuthenticationHandler(
                     && await Context.RequestServices.GetRequiredService<FlexarrDbContext>().Profiles.AnyAsync(p => p.TailscaleLogin == tailscaleLogin, Context.RequestAborted))
                 {
                     return await SucceedAsync(Methods.Session, browser, login: tailscaleLogin);
+                }
                 }
             }
 
@@ -120,14 +134,18 @@ public sealed class ApiKeyAuthenticationHandler(
                 : await SucceedAsync(Methods.Tailscale, linkedProfile: profile, login: login);
         }
 
-        if (options.AuthenticationRequired == AuthenticationRequired.DisabledForLocalAddresses && NetworkZones.Of(Context) == NetworkZone.Local
-            && NetworkZones.AddressedToKnownHost(Context, options.KnownHosts))
+        if (HomeNetworkSignsIn(options))
         {
             return await SucceedAsync(Methods.Local);
         }
 
         return AuthenticateResult.NoResult();
     }
+
+    /// <summary>"Only away from home" is chosen and this request is from home, addressed to one of the server's own names.</summary>
+    private bool HomeNetworkSignsIn(FlexarrOptions options) =>
+        options.AuthenticationRequired == AuthenticationRequired.DisabledForLocalAddresses && NetworkZones.Of(Context) == NetworkZone.Local
+        && NetworkZones.AddressedToKnownHost(Context, options.KnownHosts);
 
     /// <summary>The cookie earlier versions gave every browser: derived from the API key, and the same for all of them.</summary>
     public static string LegacySessionValue(string apiKey) =>
@@ -240,7 +258,11 @@ public sealed class ApiKeyAuthenticationHandler(
         }
     }
 
-    /// <summary>Signs the request in, working out its profile and whether it may manage the server.</summary>
+    /// <summary>
+    /// Signs the request in, working out its profile and whether it may manage the server: the API key always may;
+    /// otherwise it takes the main profile and its PIN, given lately on this browser or device (see
+    /// <see cref="AdminUnlocks"/>).
+    /// </summary>
     private async Task<AuthenticateResult> SucceedAsync(string method, SignIn? signIn = null, string? linkedProfile = null, string? login = null)
     {
         var db = Context.RequestServices.GetRequiredService<FlexarrDbContext>();
@@ -251,13 +273,10 @@ public sealed class ApiKeyAuthenticationHandler(
         {
             // A browser or device the main profile signed in: the profile chosen on it decides, whatever headers say.
             trusted = true;
-            if (signIn.ProfileId is null)
+            if (signIn.ProfileId is null || await db.Profiles.AnyAsync(p => p.Id == signIn.ProfileId, Context.RequestAborted))
             {
-                (profile, admin) = (PlaybackState.DefaultUser, true);
-            }
-            else if (await db.Profiles.AnyAsync(p => p.Id == signIn.ProfileId, Context.RequestAborted))
-            {
-                (profile, admin) = (signIn.ProfileId, signIn.ProfileId == PlaybackState.DefaultUser);
+                profile = signIn.ProfileId ?? PlaybackState.DefaultUser;
+                admin = profile == PlaybackState.DefaultUser && unlocks.IsUnlocked(signIn.Id);
             }
             else
             {
@@ -271,22 +290,22 @@ public sealed class ApiKeyAuthenticationHandler(
             var basis = linkedProfile ?? PlaybackState.DefaultUser;
             trusted = method != Methods.Tailscale || basis == PlaybackState.DefaultUser;
             profile = await ChosenProfileAsync(db) ?? basis;
-            admin = method switch
-            {
-                Methods.ApiKey => true,
-                // Another program on this machine can pose as a tailnet user (it only needs one of their devices'
-                // addresses), so over Tailscale the identity alone watches as the main profile but doesn't manage the
-                // server. Choosing the main profile with its PIN signs this browser in (see ProfileEndpoints), and that
-                // sign-in manages it; a profile token, which is the same in every browser, never does.
-                Methods.Tailscale => false,
-                _ => profile == PlaybackState.DefaultUser,
-            };
+            // Without a sign-in, only the key itself. The main profile's PIN gives a browser at home or on the tailnet
+            // a sign-in of its own, unlocked (see AdminEndpoints). Over Tailscale that matters doubly: another program
+            // on this machine can pose as a tailnet user (it only needs one of their devices' addresses).
+            admin = method == Methods.ApiKey;
         }
 
+        var canUnlock = !admin && profile == PlaybackState.DefaultUser;
         var claims = new List<Claim> { new(FlexarrClaims.Method, method), new(FlexarrClaims.Profile, profile) };
         if (admin)
         {
             claims.Add(new Claim(FlexarrClaims.Admin, "true"));
+        }
+
+        if (canUnlock)
+        {
+            claims.Add(new Claim(FlexarrClaims.CanUnlock, "true"));
         }
 
         if (trusted)

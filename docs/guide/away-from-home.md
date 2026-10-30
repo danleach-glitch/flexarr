@@ -33,7 +33,7 @@ When you first turn it on, your own Tailscale account is linked to the main prof
 Over Tailscale, watching works as it does at home. Changing settings is stricter: you'll be asked to choose the main profile with its PIN. That browser then stays signed in until it's signed out, or left unused for two weeks. See [Profiles](profiles.md) for setting a PIN.
 
 > **Important**
-> If the main profile has no PIN, anyone using a browser or device you've signed in can switch to it. Flexarr warns you about this when Tailscale is on.
+> Someone on your tailnet whose account is linked to another profile can only choose the main profile with its PIN. Changing settings over Tailscale asks for the PIN too, as it does at home.
 
 Don't use **Tailscale Funnel** for Flexarr. Funnel publishes an address to the whole internet. If Flexarr spots it, Settings warns you; turn remote access off and on again to make it private.
 

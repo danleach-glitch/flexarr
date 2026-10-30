@@ -21,7 +21,8 @@ public static class SessionEndpoints
     {
         // The web app signs in by sending the API key once; it gets back an HttpOnly cookie that scripts can't read,
         // holding a token of its own that can be signed out from Settings without affecting anything else.
-        api.MapPost("/session", (HttpContext http, SignIns signIns, CurrentProfile profile) =>
+        // Whoever has just given the key may manage the server for a while (see AdminUnlocks), as with the PIN.
+        api.MapPost("/session", (HttpContext http, SignIns signIns, CurrentProfile profile, AdminUnlocks unlocks) =>
         {
             // Only for the key itself: being on the home network or tailnet doesn't earn a cookie that works anywhere.
             if (!SignedInWithApiKey(http))
@@ -29,8 +30,13 @@ public static class SessionEndpoints
                 return Results.Problem("Send the API key to sign in.", statusCode: 400);
             }
 
-            var (_, token) = signIns.Issue(SignInKind.Browser, ApiKeyAuthenticationHandler.BrowserName(http.Request), NetworkZones.Of(http),
+            var (signIn, token) = signIns.Issue(SignInKind.Browser, ApiKeyAuthenticationHandler.BrowserName(http.Request), NetworkZones.Of(http),
                 http.Connection.RemoteIpAddress?.ToString(), Chosen(profile));
+            if (signIn.ProfileId is null)
+            {
+                unlocks.Unlock(signIn.Id);
+            }
+
             ApiKeyAuthenticationHandler.AppendSessionCookie(http, token);
             return Results.NoContent();
         }).WithTags("System");
@@ -48,7 +54,7 @@ public static class SessionEndpoints
         }).WithTags("System").AllowAnonymous();
 
         // An app holding the API key (an Apple TV set up before per-device sign-ins) swaps it for a token of its own.
-        api.MapPost("/session/device", (DeviceSignInRequest request, HttpContext http, SignIns signIns, CurrentProfile profile) =>
+        api.MapPost("/session/device", (DeviceSignInRequest request, HttpContext http, SignIns signIns, CurrentProfile profile, AdminUnlocks unlocks) =>
         {
             if (!SignedInWithApiKey(http))
             {
@@ -57,6 +63,11 @@ public static class SessionEndpoints
 
             var (signIn, token) = signIns.Issue(SignInKind.Device, request.DeviceName ?? "", NetworkZones.Of(http),
                 http.Connection.RemoteIpAddress?.ToString(), Chosen(profile), deviceType: DeviceTypes.Of(http.Request));
+            if (signIn.ProfileId is null)
+            {
+                unlocks.Unlock(signIn.Id);
+            }
+
             return Results.Ok(new { id = signIn.Id, token });
         }).WithTags("System");
 

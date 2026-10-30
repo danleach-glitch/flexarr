@@ -13,6 +13,12 @@ public static class FlexarrClaims
     public const string Admin = "flexarr:admin";
 
     /// <summary>
+    /// Present ("true") when the main profile is chosen but the server isn't unlocked: the main profile's PIN would let
+    /// the request manage it (see <see cref="AdminUnlocks"/>).
+    /// </summary>
+    public const string CanUnlock = "flexarr:can-unlock";
+
+    /// <summary>
     /// Present ("true") when the credential itself is trusted with the server (the API key, a browser or device the
     /// main profile signed in, the home network), so it may switch to a main profile that has no PIN. A Tailscale
     /// account linked to another profile isn't.
@@ -26,6 +32,9 @@ public static class FlexarrClaims
     public const string TailscaleLogin = "flexarr:tailscale-login";
 
     public const string AdminPolicy = "FlexarrAdmin";
+
+    /// <summary>The main profile, unlocked or not: it sees what's waiting for an admin, and unlocking takes it the rest of the way.</summary>
+    public const string MainProfilePolicy = "FlexarrMainProfile";
 }
 
 public static class RequestPeer

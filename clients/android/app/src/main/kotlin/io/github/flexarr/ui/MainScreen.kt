@@ -185,7 +185,7 @@ fun MainScreen(model: AppModel) {
                     when {
                         // An unknown profile, or the one watching: the link goes ahead as things are.
                         profile == null || profile.isCurrent -> model.pendingLink = link.link
-                        !link.askFirst && !profile.hasPin && runCatching { model.chooseProfile(profile) }.isSuccess ->
+                        !link.askFirst && !profile.takesPin && runCatching { model.chooseProfile(profile) }.isSuccess ->
                             model.pendingLink = link.link
                         else -> {
                             // "Who's watching?" (with the PIN, if it has one); the link goes ahead once someone's chosen.
@@ -323,7 +323,7 @@ fun MainScreen(model: AppModel) {
           }
         }
         // A device asking to connect, over whichever screen is up.
-        if (model.isAdmin) PairingPrompt(model, client)
+        if (model.isMainProfile) PairingPrompt(model, client)
     }
 }
 

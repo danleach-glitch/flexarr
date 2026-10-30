@@ -719,7 +719,7 @@ final class AppModel {
         guard let profile = profiles.first(where: { $0.id == wanted }) ?? profiles.first(where: { $0.name.caseInsensitiveCompare(wanted) == .orderedSame })
         else { return open(url: url) }
         if profile.isCurrent && !needsProfileChoice { return open(url: url) }
-        if !profile.hasPin, (try? await switchProfile(to: profile)) != nil { return open(url: url) }
+        if !profile.needsPinToChoose, (try? await switchProfile(to: profile)) != nil { return open(url: url) }
         afterProfileChoice = url
         linkProfile = profile
         player.stop()
@@ -822,6 +822,6 @@ final class Router {
 private extension Profile {
     func marked(current: Bool) -> Profile {
         Profile(id: id, name: name, color: color, hasPin: hasPin, isMain: isMain, isCurrent: current,
-                hiddenLibraryIds: hiddenLibraryIds, image: image, libraryOrder: libraryOrder)
+                hiddenLibraryIds: hiddenLibraryIds, image: image, libraryOrder: libraryOrder, asksPin: asksPin)
     }
 }

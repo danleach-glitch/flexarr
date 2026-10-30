@@ -48,6 +48,12 @@ public sealed class PinGuard(TimeProvider clock)
     /// <summary>After this long without a wrong PIN (once any lockout is over), half the strikes are forgotten.</summary>
     public static readonly TimeSpan QuietPeriod = TimeSpan.FromMinutes(30);
 
+    /// <summary>
+    /// A caller has just been locked out of a profile for the first time in a run of wrong PINs: the profile, and the
+    /// names the caller goes by ("sign-in:…", "address:…", "tailscale:…"). See <see cref="Notifications.PinAlerts"/>.
+    /// </summary>
+    public event Action<string, IReadOnlyList<string>>? CallerLockedOut;
+
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _gates = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, Strikes> _strikes = new(StringComparer.Ordinal);
 
@@ -117,12 +123,12 @@ public sealed class PinGuard(TimeProvider clock)
                 return (PinCheck.Right, TimeSpan.Zero);
             }
 
-            foreach (var key in callerKeys)
+            if (callerKeys.Select(key => Strike(key, now, FreeAttempts)).ToList().Any(count => count == FreeAttempts))
             {
-                Strike(key, now, FreeAttempts);
+                CallerLockedOut?.Invoke(profileId, callers);
             }
 
-            Strike(mayManage ? managersKey : profileKey, now, mayManage ? ManagersFreeAttempts : FreeAttempts);
+            _ = Strike(mayManage ? managersKey : profileKey, now, mayManage ? ManagersFreeAttempts : FreeAttempts);
 
             // Inside the gate, so guesses at one profile can't run side by side.
             await Task.Delay(TimeSpan.FromSeconds(1), clock, ct);
@@ -182,7 +188,8 @@ public sealed class PinGuard(TimeProvider clock)
         }
     }
 
-    private void Strike(string key, DateTime now, int freeAttempts)
+    /// <summary>Counts a wrong PIN; returns how many there are now.</summary>
+    private int Strike(string key, DateTime now, int freeAttempts)
     {
         var strikes = _strikes.GetOrAdd(key, _ => new Strikes());
         lock (strikes)
@@ -194,6 +201,8 @@ public sealed class PinGuard(TimeProvider clock)
                 var lockout = FirstLockout * Math.Pow(2, Math.Min(strikes.Count - freeAttempts, 10));
                 strikes.LockedUntil = now + (lockout < LongestLockout ? lockout : LongestLockout);
             }
+
+            return strikes.Count;
         }
     }
 }

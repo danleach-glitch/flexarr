@@ -21,6 +21,7 @@ import { useApi } from '../../hooks/useApi'
 import { requestChoices, requestRows } from '../../lib/requestLibraries'
 import { RequestLibrarySelect } from './RequestsSection'
 import { SettingsHeader } from './shared'
+import { useSettings } from './useSettings'
 
 const profileColours = [
   { value: '#a9c2ec', name: 'Blue' },
@@ -64,6 +65,7 @@ export function ProfilesSection() {
       >
         Everyone gets their own Continue Watching, history and Up Next. A PIN keeps a profile private.
       </SettingsHeader>
+      <MainPinChoice />
       <div className="panel profile-list">
         {editing === 'new' && (
           <ProfileForm defaultColour={freeColour(data ?? [])} libraries={libraries} destinations={destinations} onDone={reload} onCancel={() => setEditing(undefined)} />
@@ -115,6 +117,37 @@ export function ProfilesSection() {
         )}
       </div>
     </section>
+  )
+}
+
+/**
+ * The main profile's PIN always guards the server's settings. Whether choosing the main profile to watch asks for it
+ * too is the owner's choice (a Tailscale guest is always asked).
+ */
+function MainPinChoice() {
+  const { settings, save, saveError } = useSettings()
+  if (!settings) return null
+  return (
+    <div className="panel">
+      <label className="setting-row">
+        <span className="setting-text">
+          <strong>Ask for the PIN when someone chooses the main profile</strong>
+          <span className="muted">Changing the server’s settings always asks for it. This keeps the main profile’s watch history private too.</span>
+        </span>
+        <input
+          type="checkbox"
+          role="switch"
+          className="switch"
+          checked={settings.askPinForMainProfile ?? false}
+          onChange={(e) => void save({ askPinForMainProfile: e.target.checked })}
+        />
+      </label>
+      {saveError && (
+        <p className="error" role="alert">
+          {saveError}
+        </p>
+      )}
+    </div>
   )
 }
 
@@ -194,11 +227,13 @@ function ProfileForm({
     }
   }
 
-  const pinHelp = removePin
-    ? 'The PIN goes when you save.'
-    : profile?.hasPin
-      ? `Asked for when someone switches to ${profile.name}.`
-      : 'Anyone can switch to this profile. A PIN keeps it private.'
+  const pinHelp = profile?.isMain
+    ? 'Asked for before the server’s settings change. It can be changed, not taken off.'
+    : removePin
+      ? 'The PIN goes when you save.'
+      : profile?.hasPin
+        ? `Asked for when someone switches to ${profile.name}.`
+        : 'Anyone can switch to this profile. A PIN keeps it private.'
 
   return (
     <form className="profile-form" onSubmit={submit} aria-label={profile ? `Edit ${profile.name}` : 'New profile'}>
@@ -249,14 +284,13 @@ function ProfileForm({
           <span className="setting-text">
             <strong>PIN</strong>
             <span className="muted">{pinHelp}</span>
-            {profile?.isMain && <span className="muted">The main profile’s PIN also unlocks Settings away from home.</span>}
           </span>
           {!choosingPin && !removePin && (
             <span className="library-row-actions">
               <button type="button" className="button quiet small" onClick={() => setChoosingPin(true)}>
                 {profile?.hasPin ? 'Change' : 'Add a PIN'}
               </button>
-              {profile?.hasPin && (
+              {profile?.hasPin && !profile.isMain && (
                 <button type="button" className="text-button danger-text" onClick={() => setRemovePin(true)}>
                   Remove
                 </button>

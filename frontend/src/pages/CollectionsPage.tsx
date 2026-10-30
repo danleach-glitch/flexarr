@@ -34,7 +34,8 @@ export function CollectionsPage() {
   const { me } = useSession()
   const [creating, setCreating] = useState(false)
   const navigate = useNavigate()
-  const isAdmin = me?.isAdmin ?? false
+  // The main profile, locked or not: household collections ask for the PIN when it's locked (see UnlockPrompt).
+  const isAdmin = (me?.isAdmin || me?.canUnlock) ?? false
 
   const all = collections.data ?? []
   const sections = [
@@ -327,7 +328,7 @@ export function CollectionPage() {
 
       {editing && (
         <CollectionEditor
-          isAdmin={me?.isAdmin ?? false}
+          isAdmin={(me?.isAdmin || me?.canUnlock) ?? false}
           collection={c}
           rules={data.rules}
           onClose={() => setEditing(false)}

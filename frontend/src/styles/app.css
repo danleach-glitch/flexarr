@@ -531,6 +531,31 @@ kbd {
   min-width: 0;
 }
 
+/* Setting up: the code, then (below a rule) the PIN for the server's settings, then the button. */
+.setup-welcome .setup-code-help {
+  margin: -6px 0 16px;
+}
+
+.setup-welcome .setup-pin-intro {
+  margin-top: 6px;
+  padding-top: 18px;
+  border-top: 1px solid var(--aisle);
+}
+
+.setup-welcome > input {
+  width: 100%;
+  margin: 8px 0 14px;
+}
+
+.setup-welcome .field-row {
+  margin: 0 0 14px;
+}
+
+.setup-welcome .field-row label {
+  flex: 1;
+  min-width: 140px;
+}
+
 /* ---------- Cards ---------- */
 
 .card {

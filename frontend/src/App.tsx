@@ -10,9 +10,10 @@ import {
   migrateStoredApiKey,
   profileToken,
   saveProfileToken,
-  setupOpen,
+  setupStatus,
   signIn,
   UnauthorizedError,
+  type InstallKind,
   type Profile,
 } from './api/client'
 import { ErrorBoundary } from './components/ErrorBoundary'
@@ -86,7 +87,7 @@ type ConnectionState =
   | { kind: 'ready' }
   /** `asked`: opened on purpose (Switch profile), so it can be backed out of. */
   | { kind: 'choose-profile'; profiles: Profile[]; asked: boolean; initial?: Profile }
-  | { kind: 'unauthorized'; wrongKey?: boolean; setupOpen?: boolean; wrongCode?: boolean }
+  | { kind: 'unauthorized'; wrongKey?: boolean; setupOpen?: boolean; wrongCode?: boolean; pinMismatch?: boolean; badPin?: string }
   | { kind: 'error'; message: string }
 
 /** Everything below the connection check; rendered inside a router so tests can supply a MemoryRouter. */
@@ -133,9 +134,36 @@ export function Shell() {
   )
 }
 
+/**
+ * A setup code handed over in the link (`/#setup=ABCD-EFGH`, as the Mac app opens a new server), taken out of the
+ * address bar straight away. After the #, so the browser never sends it to the server or keeps it in its logs.
+ */
+function takeLinkedSetupCode() {
+  const code = new URLSearchParams(window.location.hash.slice(1)).get('setup')?.trim()
+  if (code) window.history.replaceState(null, '', window.location.pathname + window.location.search)
+  return code || undefined
+}
+
+/** Where a new server's setup code is, in a sentence, for the way it was installed. */
+function whereTheCodeIs(install: InstallKind | undefined) {
+  switch (install) {
+    case 'MacApp':
+      return 'It’s in the Flexarr menu at the top of your screen.'
+    case 'MacLaunchAgent':
+      return 'It’s in the file setup-code.txt, in the .flexarr/data folder in your home folder.'
+    case 'Docker':
+      return 'The Flexarr container’s log has it, and a link that fills it in for you.'
+    default:
+      return 'The server’s log has it, and a link that fills it in for you.'
+  }
+}
+
 export default function App() {
   const [state, setState] = useState<ConnectionState>({ kind: 'loading' })
   const [attempt, setAttempt] = useState(0)
+  const [setupInstall, setSetupInstall] = useState<InstallKind>()
+  // Once the linked code turns out wrong (a new one since), the code box stays, whatever happens next.
+  const [linkedCode, setLinkedCode] = useState(takeLinkedSetupCode)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -182,8 +210,10 @@ export default function App() {
         if (error instanceof UnauthorizedError) {
           errorReporter.disable()
           // A new server nobody has signed in to yet: this browser can set it up, no key needed.
-          void setupOpen().then((open) => {
-            if (!controller.signal.aborted) setState({ kind: 'unauthorized', setupOpen: open })
+          void setupStatus().then(({ open, install }) => {
+            if (controller.signal.aborted) return
+            setSetupInstall(install)
+            setState({ kind: 'unauthorized', setupOpen: open })
           })
         } else setState({ kind: 'error', message: error instanceof Error ? error.message : String(error) })
       })
@@ -207,15 +237,27 @@ export default function App() {
 
   function setUp(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const code = new FormData(event.currentTarget).get('setupCode')?.toString().trim()
+    const form = new FormData(event.currentTarget)
+    // The server's log gives a link with the code in it; pasted whole, the code is taken from it.
+    const typed = form.get('setupCode')?.toString().trim()
+    const code = typed?.includes('setup=') ? new URLSearchParams(typed.slice(typed.indexOf('#') + 1)).get('setup')?.trim() : typed
+    const pin = form.get('setupPin')?.toString() ?? ''
     if (!code) return
+    if (pin !== form.get('setupPinAgain')?.toString()) {
+      setState({ kind: 'unauthorized', setupOpen: true, pinMismatch: true })
+      return
+    }
     setState({ kind: 'loading' })
-    claimSetup(code)
+    claimSetup(code, pin)
       .then(() => setAttempt((n) => n + 1))
-      .catch((error: unknown) =>
-        // A wrong code asks again; anything else (set up meanwhile, say) looks afresh at where the server is.
-        error instanceof ApiError && error.status === 400 ? setState({ kind: 'unauthorized', setupOpen: true, wrongCode: true }) : setAttempt((n) => n + 1),
-      )
+      .catch((error: unknown) => {
+        // A wrong code or PIN asks again; anything else (set up meanwhile, say) looks afresh at where the server is.
+        if (!(error instanceof ApiError) || error.status !== 400) return setAttempt((n) => n + 1)
+        const pinProblem = (error.problem?.errors as Record<string, string[]> | undefined)?.pin?.[0]
+        if (pinProblem) return setState({ kind: 'unauthorized', setupOpen: true, badPin: pinProblem })
+        setLinkedCode(undefined)
+        setState({ kind: 'unauthorized', setupOpen: true, wrongCode: true })
+      })
   }
 
   if (state.kind === 'choose-profile') {
@@ -267,18 +309,40 @@ export default function App() {
         {state.kind === 'unauthorized' && state.setupOpen && (
           <form className="setup-welcome api-key-form" onSubmit={setUp}>
             <h1>Welcome to your Flexarr server</h1>
-            <p className="muted">Set it up from this browser and you’ll be its owner. Your phone, tablet and TV then connect with a code.</p>
-            <label htmlFor="setupCode">Setup code</label>
-            <div className="api-key-row">
-              <input id="setupCode" name="setupCode" type="text" autoComplete="one-time-code" autoCapitalize="characters" spellCheck={false} placeholder="ABCD-EFGH" required />
-              <button type="submit" className="button">
-                Set up Flexarr
-              </button>
-            </div>
-            {state.wrongCode && <p className="error">That isn't this server's setup code.</p>}
-            <p className="muted small-print">
-              The server shows its setup code in its log as it starts, and keeps it in setup-code.txt in its data folder. With Docker, run docker logs flexarr.
+            {/* Opened from the Mac app (or a link with the code): nothing to look for, only a PIN to choose. */}
+            {linkedCode ? (
+              <input name="setupCode" type="hidden" value={linkedCode} />
+            ) : (
+              <>
+                <label htmlFor="setupCode">Setup code</label>
+                <input id="setupCode" name="setupCode" type="text" autoComplete="one-time-code" autoCapitalize="characters" spellCheck={false} placeholder="ABCD-EFGH" required />
+                {state.wrongCode && <p className="error">That isn't this server's setup code.</p>}
+                <p className="muted small-print setup-code-help">
+                  {whereTheCodeIs(setupInstall)}{' '}
+                  <a href="https://flexarr.io/guide/first-setup#enter-the-setup-code" target="_blank" rel="noreferrer">
+                    Can’t find it?
+                  </a>
+                </p>
+              </>
+            )}
+            <p className={linkedCode ? 'muted' : 'muted setup-pin-intro'}>
+              Choose a PIN to protect the server’s settings. Watching doesn’t need it.
             </p>
+            <div className="field-row">
+              <label>
+                PIN (required)
+                <input name="setupPin" type="password" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,8}" title="4 to 8 digits" placeholder="4 to 8 digits" required />
+              </label>
+              <label>
+                Confirm PIN
+                <input name="setupPinAgain" type="password" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,8}" title="4 to 8 digits" required />
+              </label>
+            </div>
+            {state.pinMismatch && <p className="error">The two PINs don’t match. Type the same one in both.</p>}
+            {state.badPin && <p className="error">{state.badPin}</p>}
+            <button type="submit" className="button">
+              Set up Flexarr
+            </button>
           </form>
         )}
         {state.kind === 'unauthorized' && !state.setupOpen && tvCode && (

@@ -187,4 +187,9 @@ done
 curl -sf http://localhost:8383/health >/dev/null || { echo "Flexarr did not become healthy; see $root/logs/console.log" >&2; tail -20 "$root/logs/console.log" >&2; exit 1; }
 REMOTE
 
-echo "==> Flexarr $flexarr_version is running: http://$(ssh "$host" 'scutil --get LocalHostName').local:8383"
+address="http://$(ssh "$host" 'scutil --get LocalHostName').local:8383"
+echo "==> Flexarr $flexarr_version is running: $address"
+# A new server: a link with its setup code filled in, so setting it up is only choosing a PIN.
+if code=$(ssh "$host" "cat $root/data/setup-code.txt 2>/dev/null") && [ -n "$code" ]; then
+  echo "==> Set it up: $address/#setup=$code"
+fi

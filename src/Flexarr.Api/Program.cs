@@ -56,10 +56,13 @@ builder.Services
     .AddAuthentication(ApiKeyAuthenticationHandler.SchemeName)
     .AddScheme<AuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(ApiKeyAuthenticationHandler.SchemeName, null);
 builder.Services.AddAuthorizationBuilder()
-    .AddPolicy(FlexarrClaims.AdminPolicy, policy => policy.AddRequirements(new AdminRequirement()));
+    .AddPolicy(FlexarrClaims.AdminPolicy, policy => policy.AddRequirements(new AdminRequirement()))
+    .AddPolicy(FlexarrClaims.MainProfilePolicy, policy => policy.RequireAssertion(context =>
+        context.User.HasClaim(FlexarrClaims.Admin, "true") || context.User.HasClaim(FlexarrClaims.CanUnlock, "true")));
 builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, AdminHandler>();
 builder.Services.AddSingleton<SignIns>();
 builder.Services.AddSingleton<PinGuard>();
+builder.Services.AddSingleton<AdminUnlocks>();
 
 // Tailscale serve and cloudflared proxy from this machine; trust their forwarded headers, and otherwise only those of
 // proxies listed in TrustedProxies (a reverse proxy in Docker or on another machine). Anything else forwarded counts
@@ -169,6 +172,7 @@ builder.Services.AddSingleton<HealthCheck>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<Pairings>();
 builder.Services.AddSingleton<PairingAlerts>();
+builder.Services.AddSingleton<PinAlerts>();
 builder.Services.AddSingleton<FirstRun>();
 builder.Services.AddSingleton<DeviceCommands>();
 builder.Services.AddHttpClient<PushRelay>(c => c.Timeout = TimeSpan.FromSeconds(20));
@@ -292,6 +296,16 @@ using (var scope = app.Services.CreateScope())
     // a database created or restored elsewhere may not have it.
     await db.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL;");
     await PodcastLibrary.EnsureLibraryAsync(db, app.Services.GetRequiredService<IOptions<FlexarrOptions>>().Value, CancellationToken.None);
+
+    // Managing the server now takes the main profile's PIN, and choosing the main profile doesn't by default. A server
+    // whose owner had already given it a PIN goes on asking for it when it's chosen, as before.
+    var flexarr = app.Services.GetRequiredService<IOptions<FlexarrOptions>>().Value;
+    if (flexarr.AskPinForMainProfile is null)
+    {
+        var askPin = await db.Profiles.AnyAsync(p => p.Id == Flexarr.Core.Media.PlaybackState.DefaultUser && p.PinHash != null);
+        flexarr.AskPinForMainProfile = askPin;
+        ServerConfigStore.Update(flexarr.DataDirectory, config => config["askPinForMainProfile"] = askPin);
+    }
 }
 
 app.Use((http, next) =>
@@ -374,7 +388,8 @@ app.MapGroup("/api/v1")
     .MapNotificationEndpoints()
     .MapEventEndpoints()
     .MapLogEndpoints()
-    .MapSessionEndpoints();
+    .MapSessionEndpoints()
+    .MapAdminEndpoints();
 
 app.MapMcp("/api/v1/mcp").RequireAuthorization();
 
@@ -388,7 +403,9 @@ app.MapMediaBrowserEndpoints();
 app.MapFallbackToFile("index.html", webApp);
 
 // A server with no owner yet says its setup code in the log, where whoever installed it will look.
-app.Services.GetRequiredService<FirstRun>().Announce();
+// Once the server is listening, so the setup link in the log has the port it really uses.
+app.Lifetime.ApplicationStarted.Register(() => app.Services.GetRequiredService<FirstRun>().Announce());
+app.Services.GetRequiredService<PinAlerts>().Watch(app.Services.GetRequiredService<PinGuard>());
 
 await app.RunAsync();
 

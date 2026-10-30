@@ -797,6 +797,20 @@ public struct SignInInfo: Decodable, Sendable, Equatable {
     /// "api-key" (the server's key itself), "device" (this device's own token), "tailscale" or "local".
     public let method: String
     public let isAdmin: Bool
+    /// The main profile is chosen here, but managing the server (allowing a device in, say) takes its PIN first
+    /// (`unlockAdmin`). Absent from servers before 0.56, where choosing it was enough.
+    public var canUnlock: Bool? = nil
+    /// The main profile has no PIN yet, so there's nothing to unlock with: it's set in a browser. Absent from servers
+    /// before 0.56.
+    public var adminPinMissing: Bool? = nil
+    /// When managing the server takes the PIN again; nil when locked (or for the API key, which always may). Absent
+    /// from servers before 0.56.
+    public var unlockedUntil: Date? = nil
+}
+
+/// What `POST /admin/unlock` answers.
+struct AdminUnlock: Decodable, Sendable {
+    let unlockedUntil: Date?
 }
 
 struct DeviceToken: Decodable, Sendable {
@@ -821,9 +835,13 @@ public struct Profile: Codable, Sendable, Hashable, Identifiable {
     /// The order of the libraries in every app's menu: library ids, and "live-tv" for Live TV's place. Empty, by
     /// name. Absent from servers before 0.54, which keep no order: the Apple TV then keeps its own.
     public var libraryOrder: [String]? = nil
+    /// Choosing it here asks for its PIN (the main profile doesn't, on a device its owner signed in). Absent from
+    /// servers before 0.56: see `needsPinToChoose`.
+    public var asksPin: Bool? = nil
 
     public init(id: String, name: String, color: String, hasPin: Bool = false, isMain: Bool = false,
-                isCurrent: Bool = false, hiddenLibraryIds: [String] = [], image: String? = nil, libraryOrder: [String]? = nil) {
+                isCurrent: Bool = false, hiddenLibraryIds: [String] = [], image: String? = nil, libraryOrder: [String]? = nil,
+                asksPin: Bool? = nil) {
         self.id = id
         self.name = name
         self.color = color
@@ -833,7 +851,11 @@ public struct Profile: Codable, Sendable, Hashable, Identifiable {
         self.hiddenLibraryIds = hiddenLibraryIds
         self.image = image
         self.libraryOrder = libraryOrder
+        self.asksPin = asksPin
     }
+
+    /// Choosing it here asks for its PIN: as the server says, or on older servers whenever it has one.
+    public var needsPinToChoose: Bool { asksPin ?? hasPin }
 
     /// The first letter, shown when there's no picture.
     public var initial: String {

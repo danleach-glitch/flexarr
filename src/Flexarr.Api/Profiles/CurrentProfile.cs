@@ -20,13 +20,30 @@ public sealed class CurrentProfile(IHttpContextAccessor http, IOptionsMonitor<Fl
     public string Id => http.HttpContext?.User.FindFirst(FlexarrClaims.Profile)?.Value ?? PlaybackState.DefaultUser;
 
     /// <summary>
-    /// May change settings and manage the server: the API key, the home-network rule, or the main profile. That's the
-    /// API key itself, or the main profile on any other sign-in. Other profiles can browse and watch.
+    /// May change settings and manage the server: the API key itself, or the main profile on a browser or device where
+    /// its PIN was given lately (see <see cref="AdminUnlocks"/>). Other profiles, and the main profile until then, can
+    /// browse and watch.
     /// </summary>
     public bool IsAdmin => http.HttpContext?.User.HasClaim(FlexarrClaims.Admin, "true") == true;
 
+    /// <summary>The main profile is chosen but the server isn't unlocked: its PIN would make this request an admin.</summary>
+    public bool CanUnlock => http.HttpContext?.User.HasClaim(FlexarrClaims.CanUnlock, "true") == true;
+
+    /// <summary>The main profile, unlocked or not (or the API key): it's shown what the main profile may do, and the PIN is asked for when it does it.</summary>
+    public bool IsMainProfile => IsAdmin || CanUnlock;
+
     /// <summary>The credential is trusted with the server, so it may switch to a main profile without a PIN.</summary>
     public bool IsTrusted => http.HttpContext?.User.HasClaim(FlexarrClaims.Trusted, "true") == true;
+
+    /// <summary>
+    /// Whether choosing <paramref name="profile"/> here takes its PIN. The main profile's guards managing the server,
+    /// not watching as it, so on a browser or device the owner signed in it's only asked for if the owner wants it to be.
+    /// </summary>
+    public bool AsksPinFor(Profile profile)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        return profile.PinHash is not null && (!profile.IsMain || !IsTrusted || options.CurrentValue.AskPinForMainProfile != false);
+    }
 
     /// <summary>The browser or device sign-in this request used, if any.</summary>
     public string? SignInId => http.HttpContext?.User.FindFirst(FlexarrClaims.SignIn)?.Value;

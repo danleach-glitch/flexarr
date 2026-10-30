@@ -14,8 +14,8 @@ final class PushNotifications {
     nonisolated static let videoCategory = "flexarr.video"
     nonisolated static let podcastCategory = "flexarr.podcast"
     nonisolated static let recordingCategory = "flexarr.recording"
-    /// "Living room wants to connect": opening it asks to allow the device (see `PairingPrompts`); its buttons answer
-    /// without opening the app.
+    /// "Living room wants to connect": opening it asks to allow the device (see `PairingPrompts`). Allow opens the app
+    /// to allow it there, since that can take the main profile's PIN; Don't allow answers without opening it.
     nonisolated static let pairingCategory = "flexarr.pairing"
     nonisolated static let playAction = "flexarr.play"
     nonisolated static let allowPairingAction = "flexarr.pairing.allow"
@@ -92,8 +92,9 @@ final class PushNotifications {
                                             icon: UNNotificationActionIcon(systemImageName: "arrow.down"))
         let playOnTv = UNNotificationAction(identifier: playOnTvAction, title: "Play on Apple TV", options: [],
                                             icon: UNNotificationActionIcon(systemImageName: "appletv.fill"))
-        // The phone has to be unlocked to answer, and the code to check is in the notification.
-        let allow = UNNotificationAction(identifier: allowPairingAction, title: "Allow", options: [.authenticationRequired],
+        // The phone has to be unlocked to answer, and the code to check is in the notification. Allowing opens the app:
+        // from 0.56 it takes the main profile's PIN when the main profile is locked here, and only the app can ask.
+        let allow = UNNotificationAction(identifier: allowPairingAction, title: "Allow", options: [.foreground],
                                          icon: UNNotificationActionIcon(systemImageName: "checkmark"))
         let decline = UNNotificationAction(identifier: declinePairingAction, title: "Don't allow",
                                            options: [.destructive, .authenticationRequired],
