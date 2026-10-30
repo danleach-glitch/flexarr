@@ -55,6 +55,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import android.net.Uri
+import androidx.navigation.NavGraph
+import androidx.navigation.NavBackStackEntry
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
@@ -167,16 +170,36 @@ fun TvMainScreen(model: AppModel) {
         runCatching { content.requestFocus() }
     }
 
+    // Each tab's screens beyond its first (Movies › a genre › a title), kept as it's left and put back as it's chosen
+    // again, as the Apple TV keeps a stack per tab.
+    val tabStacks = remember { mutableMapOf<String, List<String>>() }
+
     fun select(chosen: TvTab) {
-        if (chosen.route != tabRoute || !atTabRoot) {
-            tabRoute = chosen.route
-            arrivingAt = chosen.route
-            nav.navigate(chosen.route) {
-                popUpTo(nav.graph.id) { inclusive = true }
-                launchSingleTop = true
-            }
+        if (chosen.route == tabRoute && atTabRoot) return closeSidebar()
+        // The tab being left keeps its screens; choosing the tab that's showing goes back to its first.
+        if (chosen.route != tabRoute) {
+            tabStacks[tabRoute] = nav.currentBackStack.value.filter { it.destination !is NavGraph }.drop(1).map { it.concreteRoute() }
         }
+        val saved = tabStacks.remove(chosen.route).takeIf { chosen.route != tabRoute }.orEmpty()
+        tabRoute = chosen.route
+        // Coming back to a screen deeper in, that screen takes focus as it opens, not the tab's first.
+        arrivingAt = chosen.route.takeIf { saved.isEmpty() }
+        nav.navigate(chosen.route) {
+            popUpTo(nav.graph.id) { inclusive = true }
+            launchSingleTop = true
+        }
+        saved.forEach { nav.navigate(it) }
         closeSidebar()
+    }
+
+    // Back to a screen (from a title, say): if nothing on it has focus, its last focused item or first takes it, so
+    // the next press isn't spent finding it.
+    var contentHasFocus by remember { mutableStateOf(false) }
+    LaunchedEffect(entry?.id) {
+        delay(150)
+        if (!contentHasFocus && !sidebarOpen && !showingNowPlaying && !choosingProfile && arrivingAt == null) {
+            runCatching { content.requestFocus() }
+        }
     }
 
     // Now Playing and "Who's watching?" keep focus to themselves while they're up (see trapsFocus); once one has gone,
@@ -259,7 +282,7 @@ fun TvMainScreen(model: AppModel) {
             Box(
                 // Under Now Playing, which covers the screen, the tab isn't drawn: on a 2 GB stick the light behind it
                 // needs what's spare.
-                Modifier.fillMaxSize().drawWithContent { if (!showingNowPlaying) drawContent() }.padding(bottom = barRoom).focusRequester(content).focusRestorer().focusGroup().onKeyEvent { event ->
+                Modifier.fillMaxSize().drawWithContent { if (!showingNowPlaying) drawContent() }.padding(bottom = barRoom).focusRequester(content).onFocusChanged { contentHasFocus = it.hasFocus }.focusRestorer().focusGroup().onKeyEvent { event ->
                     // The remote's play/pause runs the music from any screen (the players and Now Playing take it while
                     // they're up).
                     if (event.type == KeyEventType.KeyDown && event.key == Key.MediaPlayPause && model.music.current != null) {
@@ -446,6 +469,12 @@ private fun SidebarRow(title: String, selected: Boolean, onClick: () -> Unit, mo
  * focusable, and without this, moving past the overlay's last control would land on them, out of sight.
  */
 private fun Modifier.trapsFocus() = focusProperties { onExit = { cancelFocusChange() } }.focusGroup()
+
+/** The route that opened [this] screen, its arguments filled in, to open it again ("item/123", "library/9?sort=title&genre=Drama"). */
+private fun NavBackStackEntry.concreteRoute(): String {
+    val pattern = destination.route.orEmpty()
+    return Regex("\\{(\\w+)\\}").replace(pattern) { match -> Uri.encode(arguments?.getString(match.groupValues[1]).orEmpty()) }
+}
 
 /** What the Now Playing bar takes at the foot of the screen: its 44 points and the gap beneath. */
 private val NOW_PLAYING_BAR_ROOM = 56.dp
