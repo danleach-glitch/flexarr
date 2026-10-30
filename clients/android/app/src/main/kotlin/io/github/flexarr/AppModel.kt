@@ -18,6 +18,13 @@ import io.github.flexarr.core.PodcastPreferences
 import io.github.flexarr.core.PodcastStatus
 import io.github.flexarr.core.Profile
 import io.github.flexarr.core.SystemStatus
+import io.github.flexarr.core.WatchlistAdded
+import io.github.flexarr.core.WatchlistEntry
+import io.github.flexarr.core.addToWatchlist
+import io.github.flexarr.core.removeFromWatchlist
+import io.github.flexarr.core.removeLibraryItemFromWatchlist
+import io.github.flexarr.core.requestTitle
+import io.github.flexarr.core.watchlist
 import io.github.flexarr.core.addToUpNext
 import io.github.flexarr.core.podcastPreferences
 import io.github.flexarr.core.podcastStatus
@@ -34,6 +41,7 @@ import io.github.flexarr.widget.PodcastWidgets
 import io.github.flexarr.data.ServerCredentials
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ProcessLifecycleOwner
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -192,6 +200,89 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
 
     val hasLiveTv: Boolean get() = liveTvStatus?.let { it.configured && it.channels > 0 } ?: false
 
+    /** The server keeps watchlists (0.56 and later), so titles offer one. */
+    var hasWatchlist by mutableStateOf(false)
+        private set
+
+    /** Library ids of the films and shows on this profile's watchlist, for cards' menus. */
+    var watchlistItems: Set<String> by mutableStateOf(emptySet())
+        private set
+
+    /** Goes up whenever the watchlist changes here, so the Watchlist screen loads it again. */
+    var watchlistVersion by mutableIntStateOf(0)
+        private set
+
+    /**
+     * The profile's watchlist, keeping [hasWatchlist] and [watchlistItems] in step with it. Null from a server without
+     * one; throws when the server can't be reached (what's known stays).
+     */
+    suspend fun loadWatchlist(): List<WatchlistEntry>? {
+        val client = client ?: return null
+        val list = client.watchlist()
+        // Someone else may have been chosen meanwhile.
+        if (client.profileToken != this.client?.profileToken) return list
+        hasWatchlist = list != null
+        watchlistItems = list.orEmpty().mapNotNullTo(HashSet()) { it.libraryItemId }
+        return list
+    }
+
+    /** As [loadWatchlist], for when nothing waits on the answer. */
+    suspend fun refreshWatchlist() {
+        try {
+            loadWatchlist()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+        }
+    }
+
+    /** Puts a library film or show on the watchlist, or takes it off. Throws if the server refuses. */
+    suspend fun setOnWatchlist(itemId: String, on: Boolean): WatchlistAdded? {
+        val client = client ?: return null
+        val before = watchlistItems
+        watchlistItems = if (on) before + itemId else before - itemId
+        try {
+            return if (on) {
+                client.addToWatchlist(itemId)
+            } else {
+                client.removeLibraryItemFromWatchlist(itemId)
+                null
+            }
+        } catch (e: Exception) {
+            watchlistItems = before
+            throw e
+        } finally {
+            watchlistVersion++
+        }
+    }
+
+    /** Takes an entry off the watchlist, from the Watchlist screen. Throws if the server refuses. */
+    suspend fun removeFromWatchlist(entry: WatchlistEntry) {
+        val client = client ?: return
+        try {
+            client.removeFromWatchlist(entry.id)
+            entry.libraryItemId?.let { watchlistItems = watchlistItems - it }
+        } finally {
+            watchlistVersion++
+        }
+    }
+
+    /** Requests a title on the watchlist that nobody has asked for yet. Throws if the server (or Seerr) refuses. */
+    suspend fun request(entry: WatchlistEntry) {
+        val client = client ?: return
+        val tmdbId = entry.tmdbId ?: return
+        try {
+            client.requestTitle(entry.mediaType, tmdbId)
+        } finally {
+            watchlistVersion++
+        }
+    }
+
+    private fun forgetWatchlist() {
+        hasWatchlist = false
+        watchlistItems = emptySet()
+    }
+
     /** The episodes to hear next, in order, the same on every device. */
     var upNext: List<PodcastEpisode> by mutableStateOf(emptyList())
         private set
@@ -308,6 +399,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         podcasts.stop()
         podcastStatus = null
         upNext = emptyList()
+        forgetWatchlist()
         if (saved) store.clear()
         profiles = emptyList()
         profilesLoaded = false
@@ -365,6 +457,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         music.stop()
         podcasts.stop()
         upNext = emptyList()
+        forgetWatchlist()
         if (saved) store.saveProfile(null)
         forgetSignIn()
         phase = Phase.SignedIn(credentials.copy(profileToken = null))
@@ -423,6 +516,8 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
 
     fun watchStateChanged() {
         watchStateVersion++
+        // Watched films and started shows leave the watchlist.
+        if (hasWatchlist) scope.launch { refreshWatchlist() }
         scope.launch {
             ContinueWatchingWidget.refresh(context)
             PodcastWidgets.refresh(context)

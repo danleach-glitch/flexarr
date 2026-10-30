@@ -31,6 +31,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Cast
 import androidx.compose.material.icons.filled.ClosedCaption
@@ -298,6 +300,10 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
             if (item.kind == MediaKind.Movie || item.kind == MediaKind.Episode) {
                 DownloadAction(model, item, slot)
             }
+            // Servers before 0.56 don't say, and have no watchlist.
+            if (item.kind == MediaKind.Movie || item.kind == MediaKind.Series) {
+                detail.onWatchlist?.let { saved -> WatchlistAction(item, saved, detail, slot) }
+            }
             if (item.kind == MediaKind.Episode && series != null) {
                 LabeledAction("Show", Icons.Filled.VideoLibrary, { navigator.openItem(series.id) }, slot)
             }
@@ -332,6 +338,24 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
             containerColor = Flexarr.seat,
         )
     }
+}
+
+/** "Watchlist", or "On watchlist" once it's there; tapping puts it on or takes it off. */
+@Composable
+private fun WatchlistAction(item: ItemSummary, saved: Boolean, detail: ItemDetail, modifier: Modifier) {
+    val navigator = LocalNavigator.current
+    // What was tapped here, until the page loads again and the server says.
+    var changed by remember(detail) { mutableStateOf<Boolean?>(null) }
+    val on = changed ?: saved
+    LabeledAction(
+        if (on) "On watchlist" else "Watchlist",
+        if (on) Icons.Filled.Bookmark else Icons.Filled.BookmarkBorder,
+        {
+            changed = !on
+            navigator.setOnWatchlist(item, !on, onFailed = { changed = on })
+        },
+        modifier.semantics { contentDescription = if (on) "On watchlist. Remove from watchlist" else "Add to watchlist" },
+    )
 }
 
 private fun playLabel(target: ItemSummary, container: ItemSummary): String {

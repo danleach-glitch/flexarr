@@ -73,6 +73,7 @@ import io.github.flexarr.ui.podcasts.PodcastScreen
 import io.github.flexarr.ui.podcasts.PodcastsScreen
 import io.github.flexarr.ui.search.PersonScreen
 import io.github.flexarr.ui.search.SearchScreen
+import io.github.flexarr.ui.watchlist.WatchlistScreen
 import io.github.flexarr.ui.pairing.PairingPrompt
 import io.github.flexarr.AppLink
 import io.github.flexarr.PairingPrompts
@@ -120,6 +121,8 @@ fun MainScreen(model: AppModel) {
     LaunchedEffect(model.credentials) { model.listenForCommands() }
     // Whether this profile may manage the server, and so is asked to let devices in.
     LaunchedEffect(model.credentials) { model.loadSignIn() }
+    // Whether the server keeps watchlists, and what's on this profile's (cards' menus offer it).
+    LaunchedEffect(model.credentials) { model.refreshWatchlist() }
     // Downloads follow the server and profile signed in.
     LaunchedEffect(model.credentials, model.currentProfile?.id) { model.downloads.attach(client, model.currentProfile?.id) }
     // Google Play's rating prompt, once the player has closed and the app is back in front (ReviewPrompt says when).
@@ -306,6 +309,7 @@ fun MainScreen(model: AppModel) {
                     LibraryScreen(model, entry.arguments?.getString("id")!!, sort, entry.arguments?.getString("genre")?.takeIf { it.isNotEmpty() })
                 }
                 composable("livetv") { LiveTvScreen(model) }
+                composable("watchlist") { WatchlistScreen(model) }
                 composable("livetv/recordings") { LiveRecordingsScreen(model) }
                 composable("music/{id}") { MusicLibraryScreen(model, it.arguments?.getString("id")!!) }
                 composable("artist/{id}") { ArtistScreen(model, it.arguments?.getString("id")!!) }

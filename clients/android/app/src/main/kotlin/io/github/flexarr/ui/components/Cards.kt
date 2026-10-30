@@ -232,6 +232,10 @@ fun itemActions(item: ItemSummary, showsDetails: Boolean = false, downloads: Boo
         if (item.kind == MediaKind.Episode && item.seriesId != null && show != null) {
             add(MenuAction("Mark $show as watched") { navigator.setShowWatched(item) })
         }
+        if (model.hasWatchlist && (item.kind == MediaKind.Movie || item.kind == MediaKind.Series)) {
+            val on = item.id in model.watchlistItems
+            add(MenuAction(if (on) "Remove from watchlist" else "Add to watchlist") { navigator.setOnWatchlist(item, !on) })
+        }
     }
 }
 

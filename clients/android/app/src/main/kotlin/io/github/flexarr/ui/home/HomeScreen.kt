@@ -124,7 +124,8 @@ private class HomeContent(val home: Home, val newEpisodes: List<PodcastEpisode>,
 @Composable
 fun HomeScreen(model: AppModel) {
     val client = model.client ?: return
-    val loader = rememberLoader(model.credentials, model.watchStateVersion) {
+    // The watchlist too: Home has a row of what on it is ready.
+    val loader = rememberLoader(model.credentials, model.watchStateVersion, model.watchlistVersion) {
         coroutineScope {
             // Empty without podcasts (none followed, no library, a server from before them: an error, also nothing).
             val episodes = async { runCatching { client.newPodcastEpisodes(unplayed = true, take = 20) }.getOrDefault(emptyList()) }

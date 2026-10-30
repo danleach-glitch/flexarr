@@ -55,6 +55,8 @@ class Navigator(private val nav: NavHostController, private val model: AppModel,
 
     fun openLiveTv() = nav.navigate("livetv")
 
+    fun openWatchlist() = nav.navigate("watchlist")
+
     fun openRecordings() = nav.navigate("livetv/recordings")
 
     /** Watches a live channel; Previous and Next go through [order], as the screen listed them. */
@@ -118,6 +120,36 @@ class Navigator(private val nav: NavHostController, private val model: AppModel,
         }
     }
 
+    /**
+     * Puts a film or show on the watchlist, or takes it off, saying so if that didn't work ([onFailed] puts back what
+     * the screen showed).
+     */
+    fun setOnWatchlist(item: ItemSummary, on: Boolean, onFailed: () -> Unit = {}) {
+        model.scope.launch {
+            try {
+                model.setOnWatchlist(item.id, on)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                onFailed()
+                tell(if (on) "Couldn’t add this to your watchlist" else "Couldn’t remove this from your watchlist", e)
+            }
+        }
+    }
+
+    /** Runs a change from the Watchlist screen, saying [failure] if it didn't work. */
+    fun watchlistChange(failure: String, change: suspend () -> Unit) {
+        model.scope.launch {
+            try {
+                change()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                tell(failure, e)
+            }
+        }
+    }
+
     private fun changeWatchState(failure: String, change: suspend (FlexarrClient) -> Unit) {
         val client = model.client ?: return
         model.scope.launch {
@@ -138,10 +170,11 @@ class Navigator(private val nav: NavHostController, private val model: AppModel,
         model.scope.launch { notices.showSnackbar(if (reason != null) "$failure. $reason" else "$failure.") }
     }
 
-    /** A Home row's link, "/library/{id}?sort=added", as a library to open; null for anything else. */
+    /** A Home row's link, "/library/{id}?sort=added" or "/watchlist", as a place to open; null for anything else. */
     fun libraryLink(link: String?): (() -> Unit)? {
         val uri = link?.let(Uri::parse) ?: return null
         val segments = uri.pathSegments
+        if (segments == listOf("watchlist")) return { openWatchlist() }
         if (segments.size != 2 || segments[0] != "library") return null
         val sort = LibrarySort.entries.firstOrNull { it.raw == uri.getQueryParameter("sort") } ?: LibrarySort.Title
         val genre = uri.getQueryParameter("genre")?.takeIf { it.isNotEmpty() }
