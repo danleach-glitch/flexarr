@@ -1118,6 +1118,8 @@ export interface ExternalTitle {
   rating: number
   availability: 'None' | 'Requested' | 'PartlyAvailable' | 'Available'
   libraryItemId: string | null
+  /** Whether it's on this profile's watchlist (Discover and search). Absent from servers before 0.56. */
+  onWatchlist?: boolean | null
 }
 
 export const getRequestStatus = (signal?: AbortSignal) => apiGet<{ configured: boolean; reachable: boolean }>('/requests/status', signal)

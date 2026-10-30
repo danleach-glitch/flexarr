@@ -31,7 +31,7 @@ export function ExternalCard({ title }: { title: ExternalTitle }) {
           compact
           titleKey={title.libraryItemId ? { libraryItemId: title.libraryItemId } : { mediaType: title.mediaType, tmdbId: title.tmdbId }}
           title={title.title}
-          on={false}
+          on={title.onWatchlist ?? false}
           onRequested={() => setRequested(true)}
         />
       </div>

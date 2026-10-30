@@ -21,6 +21,7 @@ public enum AvailabilityDto
 }
 
 /// <summary>A film or show from outside the library (via Seerr), with whether you have it.</summary>
+/// <param name="OnWatchlist">Whether it's on the profile's watchlist (absent from servers before 0.56).</param>
 public sealed record ExternalTitleDto(
     int TmdbId,
     string MediaType,
@@ -31,7 +32,8 @@ public sealed record ExternalTitleDto(
     string? Backdrop,
     double Rating,
     AvailabilityDto Availability,
-    Guid? LibraryItemId);
+    Guid? LibraryItemId,
+    bool? OnWatchlist = null);
 
 public sealed record ExternalRowDto(string Id, string Title, IReadOnlyList<ExternalTitleDto> Items);
 
@@ -126,7 +128,8 @@ public static class RequestEndpoints
             }
         });
 
-        group.MapGet("/discover", async (IOptionsMonitor<FlexarrOptions> options, SeerrClient seerr, FlexarrDbContext db, CancellationToken ct) =>
+        group.MapGet("/discover", async (IOptionsMonitor<FlexarrOptions> options, SeerrClient seerr, FlexarrDbContext db, Watchlist.WatchlistService watchlist,
+            CurrentProfile current, CancellationToken ct) =>
         {
             if (options.CurrentValue.Seerr?.Instance is not { } instance)
             {
@@ -135,6 +138,7 @@ public static class RequestEndpoints
 
             var library = await LibraryIndexAsync(db, ct);
             var hidden = await LibraryVisibility.HiddenTypesAsync(db, ct);
+            var wanted = await watchlist.KeysAsync(current.Id, ct);
             var rows = new List<ExternalRowDto>();
             var today = DateOnly.FromDateTime(DateTime.UtcNow);
             foreach (var (id, list, title) in Lists)
@@ -142,7 +146,7 @@ public static class RequestEndpoints
                 try
                 {
                     var page = await seerr.DiscoverAsync(instance, list, 1, ct, FilterFor(id, today));
-                    rows.Add(new ExternalRowDto(id, title, page.Results.Where(r => r.MediaType is "movie" or "tv").Select(r => ToDto(r, library))
+                    rows.Add(new ExternalRowDto(id, title, page.Results.Where(r => r.MediaType is "movie" or "tv").Select(r => ToDto(r, library, wanted))
                         .Where(t => t.LibraryItemId is not null || !hidden.Hides(KindOf(t.MediaType))).ToList()));
                 }
                 catch (HttpRequestException)
@@ -155,7 +159,8 @@ public static class RequestEndpoints
         });
 
         // Search everything (not just the library): films and shows TMDB knows, marked if you have them.
-        group.MapGet("/search", async (string q, IOptionsMonitor<FlexarrOptions> options, SeerrClient seerr, FlexarrDbContext db, CancellationToken ct) =>
+        group.MapGet("/search", async (string q, IOptionsMonitor<FlexarrOptions> options, SeerrClient seerr, FlexarrDbContext db, Watchlist.WatchlistService watchlist,
+            CurrentProfile current, CancellationToken ct) =>
         {
             if (options.CurrentValue.Seerr?.Instance is not { } instance || string.IsNullOrWhiteSpace(q))
             {
@@ -167,7 +172,8 @@ public static class RequestEndpoints
                 var page = await seerr.SearchAsync(instance, q.Trim(), ct);
                 var library = await LibraryIndexAsync(db, ct);
                 var hidden = await LibraryVisibility.HiddenTypesAsync(db, ct);
-                return Results.Ok(page.Results.Where(r => r.MediaType is "movie" or "tv").Select(r => ToDto(r, library))
+                var wanted = await watchlist.KeysAsync(current.Id, ct);
+                return Results.Ok(page.Results.Where(r => r.MediaType is "movie" or "tv").Select(r => ToDto(r, library, wanted))
                     .Where(t => t.LibraryItemId is not null || !hidden.Hides(KindOf(t.MediaType))).ToList());
             }
             catch (HttpRequestException ex)
@@ -350,7 +356,8 @@ public static class RequestEndpoints
 
     private static MediaKind KindOf(string mediaType) => mediaType == "movie" ? MediaKind.Movie : MediaKind.Series;
 
-    private static ExternalTitleDto ToDto(SeerrResult r, Dictionary<string, Guid> library)
+    /// <param name="watchlist">The profile's watchlist ("movie:123", "tv:456"), to mark titles on it; null leaves that out.</param>
+    private static ExternalTitleDto ToDto(SeerrResult r, Dictionary<string, Guid> library, IReadOnlySet<string>? watchlist = null)
     {
         var key = $"{r.MediaType}:{r.Id.ToString(CultureInfo.InvariantCulture)}";
         var inLibrary = library.TryGetValue(key, out var itemId);
@@ -364,7 +371,8 @@ public static class RequestEndpoints
             Tmdb(r.BackdropPath, "w1280"),
             Math.Round(r.VoteAverage, 1),
             availability,
-            inLibrary ? itemId : null);
+            inLibrary ? itemId : null,
+            watchlist?.Contains(key));
     }
 
     private static string? Tmdb(string? path, string size) =>

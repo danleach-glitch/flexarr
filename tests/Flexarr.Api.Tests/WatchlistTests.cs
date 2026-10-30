@@ -284,6 +284,19 @@ public sealed class WatchlistTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task SearchMarksTitlesOnTheWatchlist()
+    {
+        SeerrKnows("movie", 7001, "Wanted", "2023-06-01");
+        _seerr.Responses["GET /api/v1/search?query=wanted&page=1"] =
+            """{"page":1,"totalPages":1,"results":[{"id":7001,"mediaType":"movie","title":"Wanted"},{"id":7002,"mediaType":"movie","title":"Wanted Too"}]}""";
+        await Client().PostAsJsonAsync(Api("/watchlist"), new { mediaType = "movie", tmdbId = 7001 });
+
+        var found = await Client().GetFromJsonAsync<JsonElement>(Api("/requests/search?q=wanted"));
+
+        Assert.Equal([true, false], found.EnumerateArray().Select(t => t.GetProperty("onWatchlist").GetBoolean()));
+    }
+
+    [Fact]
     public async Task ATitleThatComesIn_IsReady()
     {
         SeerrKnows("movie", 6001, "Arriving", "2023-06-01", status: 3);

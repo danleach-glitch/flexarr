@@ -121,6 +121,11 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
         return new WatchlistMembershipDto(entry is not null, entry?.Id);
     }
 
+    /// <summary>The profile's watchlist as "movie:123" / "tv:456" (TMDB ids), to mark Discover's and search's titles.</summary>
+    public async Task<IReadOnlySet<string>> KeysAsync(string profileId, CancellationToken ct) =>
+        (await db.WatchlistEntries.Where(w => w.ProfileId == profileId && w.TmdbId != null).Select(w => new { w.Kind, w.TmdbId }).ToListAsync(ct))
+        .Select(w => $"{(w.Kind == MediaKind.Movie ? "movie" : "tv")}:{w.TmdbId!.Value.ToString(CultureInfo.InvariantCulture)}").ToHashSet(StringComparer.Ordinal);
+
     /// <summary>Whether a library title (or, for a season or episode, its show) is on the profile's watchlist.</summary>
     public async Task<bool> ContainsItemAsync(string profileId, Guid itemId, CancellationToken ct) =>
         (await MembershipAsync(profileId, new WatchlistAdd(itemId), ct)).OnWatchlist;
