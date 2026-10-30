@@ -9,7 +9,7 @@ import java.util.UUID
 
 /**
  * Somewhere in the app to go from outside it: a notification, an app shortcut, the home-screen widget, or a
- * `flexarr://` link from another app (the iPhone app's: `flexarr://play/<id>?t=…&shuffle=1`, `flexarr://live/<id>`,
+ * `flexarr://` link from another app (the iPhone app's: `flexarr://play/<id>?t=…&shuffle=1`, `flexarr://live/<id>`, `flexarr://watchlist`,
  * any with `profile=<id or name>`). Each is a `flexarr://` address on an intent to [MainActivity], which hands it to
  * the screens ([AppModel.pendingLink]). MainActivity is open to every app (it's the launcher's), so [received] checks
  * a link came from this one before it plays anything or skips "Who's watching?".
@@ -34,6 +34,8 @@ sealed interface AppLink {
     data object Downloads : AppLink
     /** Home, where Continue Watching is. */
     data object Home : AppLink
+    /** The profile's watchlist (the watchlist widget's heading). */
+    data object Watchlist : AppLink
     /** Asks whether to let in the device showing [code] (a notification that it's asking to connect). */
     data class Pairing(val code: String) : AppLink
     /**
@@ -57,6 +59,7 @@ sealed interface AppLink {
             Search -> Uri.parse("flexarr://search")
             Downloads -> Uri.parse("flexarr://downloads")
             Home -> Uri.parse("flexarr://home")
+            Watchlist -> Uri.parse("flexarr://watchlist")
             is Pairing -> Uri.parse("flexarr://pairing/${Uri.encode(code)}")
             is AsProfile -> link.uri.buildUpon().appendQueryParameter("profile", profile).build()
         }
@@ -128,6 +131,7 @@ sealed interface AppLink {
                 "search" -> Search
                 "downloads" -> Downloads
                 "home" -> Home
+                "watchlist" -> Watchlist
                 "pairing" -> uri.pathSegments.firstOrNull()?.takeIf { code -> code.length <= MAX_CODE && code.all { it.isLetterOrDigit() || it == '-' } }?.let(::Pairing)
                 else -> null
             } ?: return null

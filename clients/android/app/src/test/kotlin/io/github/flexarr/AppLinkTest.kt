@@ -33,6 +33,8 @@ class AppLinkTest {
         assertEquals(AppLink.Search, parse("flexarr://search"))
         assertEquals(AppLink.Downloads, parse("flexarr://downloads"))
         assertEquals(AppLink.Home, parse("flexarr://home"))
+        assertEquals(AppLink.Watchlist, parse("flexarr://watchlist"))
+        assertEquals(AppLink.AsProfile("Kids", AppLink.Watchlist), parse("flexarr://watchlist?profile=Kids"))
         assertEquals(AppLink.Live(id), parse("flexarr://live/$id"))
         assertEquals(AppLink.LiveTv, parse("flexarr://livetv"))
         assertEquals(AppLink.Pairing("ABC-DEF"), parse("flexarr://pairing/ABC-DEF"))
@@ -54,7 +56,7 @@ class AppLinkTest {
     fun `a link reads back as itself`() {
         val links = listOf(
             AppLink.Item(id), AppLink.Play("r1"), AppLink.Play(id, startAt = 90, shuffle = true), AppLink.Live(id), AppLink.LiveTv,
-            AppLink.Podcast(id), AppLink.PodcastEpisode(id), AppLink.Search, AppLink.Downloads, AppLink.Home,
+            AppLink.Podcast(id), AppLink.PodcastEpisode(id), AppLink.Search, AppLink.Downloads, AppLink.Home, AppLink.Watchlist,
             AppLink.AsProfile("Kids & co", AppLink.Play(id, startAt = 5)), AppLink.Pairing("ABC-DEF"),
         )
         for (link in links) assertEquals(link, AppLink.parse(link.uri))

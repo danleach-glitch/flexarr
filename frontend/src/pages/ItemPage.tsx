@@ -25,6 +25,7 @@ import { DeleteDialog } from '../components/DeleteDialog'
 import { FixMatchDialog } from '../components/FixMatchDialog'
 import { SubtitleSearchDialog } from '../components/SubtitleSearchDialog'
 import { WatchedToggle } from '../components/WatchedToggle'
+import { WatchlistButton } from '../components/WatchlistButton'
 import { useSession } from '../hooks/sessionContext'
 import { announceWatched } from '../hooks/watched'
 import { useApi } from '../hooks/useApi'
@@ -170,6 +171,7 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
             <AsyncButton className="button quiet" aria-pressed={item.userData.watched} onClick={toggleWatched}>
               <Check /> {item.userData.watched ? 'Watched' : 'Mark as watched'}
             </AsyncButton>
+            {detail.onWatchlist != null && <WatchlistButton titleKey={{ libraryItemId: item.id }} title={item.title} on={detail.onWatchlist} />}
             {more.length > 0 && (
               <button
                 className="button quiet icon"

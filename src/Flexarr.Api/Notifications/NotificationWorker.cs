@@ -105,9 +105,10 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
         fresh = await WithoutReplacementsAsync(db, fresh, shows, ct);
 
         var answered = await RequestsAsync(db, to, now, ct);
+        answered.AddRange(await WatchlistArrivalsAsync(db, answered, to, now, ct));
         if (devices.Count == 0)
         {
-            await db.SaveChangesAsync(ct);
+            await SaveAsync(db, ct);
             return;
         }
 
@@ -119,12 +120,15 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
                 .Select(p => p.MediaItemId).ToListAsync(ct)).ToHashSet();
             var theirs = answered.Where(a => a.ProfileId == profile.Key).ToList();
             var told = theirs.SelectMany(a => a.Items).ToHashSet();
-            var visible = fresh.Where(i => !hidden.Contains(i.LibraryId) && !watched.Contains(i.Id) && !told.Contains(i.Id)).ToList();
+            var unseen = fresh.Where(i => !hidden.Contains(i.LibraryId) && !watched.Contains(i.Id)).ToList();
 
             // Phones of one profile can still want different things.
             foreach (var wants in profile.GroupBy(d => (d.Films, d.Shows, d.Requests)))
             {
                 var messages = new List<PushMessage>();
+                // A phone that hears about requests and the watchlist gets those instead of the usual news for the same
+                // titles; one that doesn't still gets the usual news.
+                var visible = wants.Key.Requests ? unseen.Where(i => !told.Contains(i.Id)).ToList() : unseen;
                 if (wants.Key.Requests)
                 {
                     messages.AddRange(theirs.Select(a => a.Message));
@@ -138,7 +142,29 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
             }
         }
 
-        await db.SaveChangesAsync(ct);
+        await SaveAsync(db, ct);
+    }
+
+    /// <summary>
+    /// Saves the tick's changes. If a watchlist title was linked to another of the profile's entries meanwhile (added
+    /// again by its library id), that one stands and this one is only marked arrived, so the tick still saves and
+    /// nobody is told twice.
+    /// </summary>
+    private static async Task SaveAsync(FlexarrDbContext db, CancellationToken ct)
+    {
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException)
+        {
+            foreach (var entry in db.ChangeTracker.Entries<WatchlistEntry>().Where(e => e.State == EntityState.Modified))
+            {
+                entry.Property(w => w.MediaItemId).CurrentValue = entry.Property(w => w.MediaItemId).OriginalValue;
+            }
+
+            await db.SaveChangesAsync(ct);
+        }
     }
 
     private static async Task<Dictionary<Guid, Show>> ShowsAsync(FlexarrDbContext db, List<Fresh> fresh, CancellationToken ct)
@@ -297,6 +323,76 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
             }
         }
 
+        return answered;
+    }
+
+    /// <summary>
+    /// Titles on a watchlist that are now in a library their profile can see, to tell whoever put them there. A title
+    /// they requested has "Your request is ready" instead, so they hear once; either way the entry is marked as arrived.
+    /// An entry already pointing at the title keeps it, and none is pointed at a title another of the profile's holds
+    /// (one item, one entry per profile), so marking them can't upset the save that follows the notices.
+    /// </summary>
+    private static async Task<List<Answered>> WatchlistArrivalsAsync(FlexarrDbContext db, List<Answered> requests, DateTime settled, DateTime now, CancellationToken ct)
+    {
+        var answered = new List<Answered>();
+        var waiting = await db.WatchlistEntries.Where(w => w.ArrivedAt == null && w.RemovedAt == null && w.TmdbId != null).ToListAsync(ct);
+        if (waiting.Count == 0)
+        {
+            return answered;
+        }
+
+        // Every title any of them could be, in one go: films in, and shows with an episode in.
+        var wanted = waiting.Select(w => w.TmdbId!.Value.ToString(CultureInfo.InvariantCulture)).Distinct().ToList();
+        var candidates = await db.MediaItems.AsNoTracking()
+            .Where(i => i.ParentId == null && (i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series) && wanted.Contains(i.TmdbId!))
+            .Where(i => i.Kind == MediaKind.Movie ? i.AddedAt <= settled : i.Children.Any(s => s.Children.Any(e => e.AddedAt <= settled)))
+            .Select(i => new { i.Id, i.Kind, i.TmdbId, i.LibraryId, i.Title, i.Year, i.PosterUrl }).ToListAsync(ct);
+        if (candidates.Count == 0)
+        {
+            return answered;
+        }
+
+        var hiddenFor = new Dictionary<string, List<Guid>>(StringComparer.Ordinal);
+        foreach (var entry in waiting)
+        {
+            if (!hiddenFor.TryGetValue(entry.ProfileId, out var hidden))
+            {
+                hidden = await db.Profiles.Where(p => p.Id == entry.ProfileId).Select(p => p.HiddenLibraryIds).FirstOrDefaultAsync(ct) ?? [];
+                hiddenFor[entry.ProfileId] = hidden;
+            }
+
+            var tmdb = entry.TmdbId!.Value.ToString(CultureInfo.InvariantCulture);
+            var title = candidates.FirstOrDefault(i => i.Kind == entry.Kind && i.TmdbId == tmdb && !hidden.Contains(i.LibraryId)
+                && (entry.MediaItemId == null || i.Id == entry.MediaItemId));
+            if (title is null)
+            {
+                continue;
+            }
+
+            // Another entry of theirs holds the title (the same one added two ways): that one stands; this one just arrived.
+            if (entry.MediaItemId is null && !await db.WatchlistEntries.AnyAsync(w => w.ProfileId == entry.ProfileId && w.MediaItemId == title.Id, ct))
+            {
+                entry.MediaItemId = title.Id;
+            }
+
+            entry.ArrivedAt = now;
+            var told = requests.Any(r => r.ProfileId == entry.ProfileId && r.Message.Thread == $"item:{title.Id}")
+                || await db.MediaRequests.AnyAsync(r => r.ProfileId == entry.ProfileId && r.Kind == entry.Kind && r.TmdbId == entry.TmdbId && r.FulfilledAt != null && r.FulfilledAt >= entry.AddedAt, ct);
+            if (told)
+            {
+                continue;
+            }
+
+            var first = entry.Kind == MediaKind.Movie ? title.Id : await db.MediaItems.AsNoTracking()
+                .Where(e => e.Kind == MediaKind.Episode && e.Parent!.ParentId == title.Id).OrderBy(e => e.SeasonNumber).ThenBy(e => e.EpisodeNumber).ThenBy(e => e.AirDate)
+                .Select(e => e.Id).FirstOrDefaultAsync(ct);
+            var items = entry.Kind == MediaKind.Movie ? [title.Id]
+                : await db.MediaItems.AsNoTracking().Where(e => e.Kind == MediaKind.Episode && e.Parent!.ParentId == title.Id && e.AddedAt <= settled).Select(e => e.Id).ToListAsync(ct);
+            answered.Add(new Answered(entry.ProfileId, new PushMessage("From your watchlist", $"{WithYear(title.Title, title.Year)} is ready to watch.", "flexarr.video",
+                $"item:{title.Id}", Artwork(title.PosterUrl), Video(title.Id, first)), items));
+        }
+
+        // Saved with the rest once the notices are sent, so nothing is marked told before it's been said.
         return answered;
     }
 

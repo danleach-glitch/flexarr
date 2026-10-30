@@ -82,6 +82,22 @@ struct RootView: View {
                 .transition(.opacity)
             }
         }
+        .alert("Couldn't request this", isPresented: Binding(
+            get: { model.requestError != nil },
+            set: { if !$0 { model.requestError = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(model.requestError ?? "")
+        }
+        .alert("Couldn't change your watchlist", isPresented: Binding(
+            get: { model.watchlistError != nil },
+            set: { if !$0 { model.watchlistError = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(model.watchlistError ?? "")
+        }
         .alert("Couldn't play this channel", isPresented: Binding(
             get: { model.liveTv.errorMessage != nil },
             set: { if !$0 { model.liveTv.errorMessage = nil } }

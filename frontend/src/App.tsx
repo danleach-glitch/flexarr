@@ -33,6 +33,7 @@ import { PersonPage } from './pages/PersonPage'
 import { PlaylistPage, PlaylistsPage } from './pages/PlaylistsPage'
 import { PodcastBrowsePage, PodcastEpisodePage, PodcastPage, PodcastsPage } from './pages/PodcastPages'
 import { UpcomingPage } from './pages/UpcomingPage'
+import { WatchlistPage } from './pages/WatchlistPage'
 import { LinkPage } from './pages/LinkPage'
 import { errorReporter } from './lib/errorReporter'
 import { configureSentry } from './lib/sentry'
@@ -122,6 +123,7 @@ export function Shell() {
                   <Route path="discover" element={<DiscoverPage />} />
                   <Route path="discover/:mediaType/:tmdbId" element={<Fresh><ExternalTitlePage /></Fresh>} />
                   <Route path="upcoming" element={<UpcomingPage />} />
+                  <Route path="watchlist" element={<WatchlistPage />} />
                   <Route path="link" element={<LinkPage />} />
                   <Route path="settings" element={<SettingsPage />} />
                   <Route path="settings/:section" element={<SettingsPage />} />

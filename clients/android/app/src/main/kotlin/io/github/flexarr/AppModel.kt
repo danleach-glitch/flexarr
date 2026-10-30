@@ -18,6 +18,15 @@ import io.github.flexarr.core.PodcastPreferences
 import io.github.flexarr.core.PodcastStatus
 import io.github.flexarr.core.Profile
 import io.github.flexarr.core.SystemStatus
+import io.github.flexarr.core.WatchlistAdded
+import io.github.flexarr.core.WatchlistEntry
+import io.github.flexarr.core.WatchlistStatus
+import io.github.flexarr.core.addToWatchlist
+import io.github.flexarr.core.removeFromWatchlist
+import io.github.flexarr.core.removeLibraryItemFromWatchlist
+import io.github.flexarr.core.requestTitle
+import io.github.flexarr.core.watchlist
+import io.github.flexarr.core.watchlistKeys
 import io.github.flexarr.core.addToUpNext
 import io.github.flexarr.core.podcastPreferences
 import io.github.flexarr.core.podcastStatus
@@ -31,11 +40,14 @@ import io.github.flexarr.logging.LogHub
 import io.github.flexarr.notifications.PushNotifications
 import io.github.flexarr.widget.ContinueWatchingWidget
 import io.github.flexarr.widget.PodcastWidgets
+import io.github.flexarr.widget.WatchlistWidget
 import io.github.flexarr.data.ServerCredentials
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ProcessLifecycleOwner
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -192,6 +204,171 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
 
     val hasLiveTv: Boolean get() = liveTvStatus?.let { it.configured && it.channels > 0 } ?: false
 
+    /** The server keeps watchlists (0.56 and later), so titles offer one. */
+    var hasWatchlist by mutableStateOf(false)
+        private set
+
+    /** Library ids of the films and shows on this profile's watchlist, for cards' menus. */
+    var watchlistItems: Set<String> by mutableStateOf(emptySet())
+        private set
+
+    /** "movie:123" / "tv:456" keys of every title on this profile's watchlist, for search beyond the library. */
+    var watchlistTitles: Set<String> by mutableStateOf(emptySet())
+        private set
+
+    /** Goes up whenever the watchlist changes here, so the Watchlist screen loads it again. */
+    var watchlistVersion by mutableIntStateOf(0)
+        private set
+
+    /**
+     * Goes up only when a watchlist change could alter Home's "Ready from your watchlist" row (a library title went on
+     * or off, or was requested), so taking off a title the library hasn't got doesn't load all of Home again.
+     */
+    var homeWatchlistVersion by mutableIntStateOf(0)
+        private set
+
+    /**
+     * The profile's whole watchlist, for the Watchlist screen (it asks Seerr where each title has got to, so only there).
+     * Null from a server without one; throws when the server can't be reached.
+     */
+    suspend fun loadWatchlist(): List<WatchlistEntry>? {
+        val client = client ?: return null
+        val list = client.watchlist()
+        if (client.profileToken == this.client?.profileToken) hasWatchlist = list != null
+        return list
+    }
+
+    /**
+     * Whether the server keeps watchlists, and which library titles are on this profile's ([watchlistItems]), from the
+     * cheap keys list. What's known stays when the server can't be reached.
+     */
+    suspend fun refreshWatchlist() {
+        val client = client ?: return
+        try {
+            val keys = client.watchlistKeys()
+            // Someone else may have been chosen meanwhile.
+            if (client.profileToken != this.client?.profileToken) return
+            hasWatchlist = keys != null
+            watchlistItems = keys?.libraryItemIds.orEmpty().toHashSet()
+            watchlistTitles = keys?.titles.orEmpty().toHashSet()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+        }
+    }
+
+    private var watchlistRefresh: Job? = null
+
+    /**
+     * [refreshWatchlist] and the watchlist widget, shortly: a run of changes (an offline sync sending a dozen
+     * downloads' progress) asks the server once, after the last.
+     */
+    private fun refreshWatchlistSoon() {
+        watchlistRefresh?.cancel()
+        watchlistRefresh = scope.launch {
+            delay(WATCHLIST_SETTLE_MS)
+            refreshWatchlist()
+            WatchlistWidget.refresh(context)
+        }
+    }
+
+    /** Puts a library film or show on the watchlist, or takes it off. Throws if the server refuses. */
+    suspend fun setOnWatchlist(itemId: String, on: Boolean): WatchlistAdded? {
+        val client = client ?: return null
+        val before = watchlistItems
+        watchlistItems = if (on) before + itemId else before - itemId
+        try {
+            return if (on) {
+                client.addToWatchlist(itemId)
+            } else {
+                client.removeLibraryItemFromWatchlist(itemId)
+                null
+            }
+        } catch (e: Exception) {
+            watchlistItems = before
+            throw e
+        } finally {
+            watchlistChanged(affectsHome = true)
+        }
+    }
+
+    /**
+     * Puts a film or show from beyond the library on the watchlist, or takes it off, by "movie" or "tv" and its TMDB id
+     * (search's results). Throws if the server refuses.
+     */
+    suspend fun setTitleOnWatchlist(mediaType: String, tmdbId: Int, on: Boolean): WatchlistAdded? {
+        val client = client ?: return null
+        val key = "$mediaType:$tmdbId"
+        val before = watchlistTitles
+        watchlistTitles = if (on) before + key else before - key
+        try {
+            return if (on) {
+                client.addToWatchlist(mediaType, tmdbId)
+            } else {
+                client.removeFromWatchlist(mediaType, tmdbId)
+                null
+            }
+        } catch (e: Exception) {
+            watchlistTitles = before
+            throw e
+        } finally {
+            watchlistChanged(affectsHome = false)
+        }
+    }
+
+    /** Requests a film or show from beyond the library (search's results). Throws if the server (or Seerr) refuses. */
+    suspend fun requestTitle(mediaType: String, tmdbId: Int) {
+        val client = client ?: return
+        try {
+            client.requestTitle(mediaType, tmdbId)
+        } finally {
+            watchlistChanged(affectsHome = false)
+        }
+    }
+
+    /** Takes an entry off the watchlist, from the Watchlist screen. Throws if the server refuses. */
+    suspend fun removeFromWatchlist(entry: WatchlistEntry) {
+        val client = client ?: return
+        try {
+            client.removeFromWatchlist(entry.id)
+            entry.libraryItemId?.let { watchlistItems = watchlistItems - it }
+        } finally {
+            watchlistChanged(affectsHome = entry.inLibrary)
+        }
+    }
+
+    /** Requests a title on the watchlist that nobody has asked for yet. Throws if the server (or Seerr) refuses. */
+    suspend fun request(entry: WatchlistEntry) {
+        val client = client ?: return
+        val tmdbId = entry.tmdbId ?: return
+        try {
+            client.requestTitle(entry.mediaType, tmdbId)
+        } finally {
+            watchlistChanged(affectsHome = entry.inLibrary)
+        }
+    }
+
+    /**
+     * The watchlist changed here: its screen loads again, Home too when [affectsHome] (its ready row could change), and
+     * the widget asks again.
+     */
+    private fun watchlistChanged(affectsHome: Boolean) {
+        watchlistVersion++
+        if (affectsHome) homeWatchlistVersion++
+        scope.launch { WatchlistWidget.refresh(context) }
+    }
+
+    /** In the library (or the entry is ready there), so its going could change Home's ready row. */
+    private val WatchlistEntry.inLibrary: Boolean
+        get() = libraryItemId != null || item != null || status == WatchlistStatus.Ready
+
+    private fun forgetWatchlist() {
+        watchlistRefresh?.cancel()
+        hasWatchlist = false
+        watchlistItems = emptySet()
+        watchlistTitles = emptySet()
+    }
+
     /** The episodes to hear next, in order, the same on every device. */
     var upNext: List<PodcastEpisode> by mutableStateOf(emptyList())
         private set
@@ -308,6 +485,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         podcasts.stop()
         podcastStatus = null
         upNext = emptyList()
+        forgetWatchlist()
         if (saved) store.clear()
         profiles = emptyList()
         profilesLoaded = false
@@ -315,6 +493,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         scope.launch {
             ContinueWatchingWidget.refresh(context)
             PodcastWidgets.refresh(context)
+            WatchlistWidget.forget(context)
         }
     }
 
@@ -365,10 +544,13 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         music.stop()
         podcasts.stop()
         upNext = emptyList()
+        forgetWatchlist()
         if (saved) store.saveProfile(null)
         forgetSignIn()
         phase = Phase.SignedIn(credentials.copy(profileToken = null))
         profiles = profiles.map { it.copy(isCurrent = false) }
+        // The widget showed someone else's list: it's dropped, and asks who's watching until someone's chosen.
+        scope.launch { WatchlistWidget.forget(context) }
     }
 
     /**
@@ -423,6 +605,8 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
 
     fun watchStateChanged() {
         watchStateVersion++
+        // Watched films and started shows leave the watchlist (and who's watching may have changed).
+        refreshWatchlistSoon()
         scope.launch {
             ContinueWatchingWidget.refresh(context)
             PodcastWidgets.refresh(context)
@@ -501,6 +685,9 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     }
 
     companion object {
+        /** How long [refreshWatchlistSoon] waits for changes to stop coming. */
+        private const val WATCHLIST_SETTLE_MS = 750L
+
         /**
          * The server's address for away from home, from its [status], as a base URL: every request there carries this
          * sign-in. Null when it has none, it's the [address] already in use, it isn't a Tailscale one (see

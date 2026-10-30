@@ -250,6 +250,11 @@ struct ExternalCard: View {
     var width: CGFloat = Layout.posterWidth
     var focus: FocusState<String?>.Binding?
     var focusID: String?
+    /// In place of the year and state under the title (the watchlist says where the title has got to).
+    var note: String?
+    /// Offers Request in the card's menu (the watchlist, for a title nobody has asked for).
+    var onRequest: (() -> Void)?
+    @State private var watchlistChanged: Bool?
 
     var body: some View {
         ArtworkButton(ambient: .silver, focus: focus, focusID: focusID) {
@@ -280,12 +285,25 @@ struct ExternalCard: View {
                     .font(.system(size: 24, weight: .semibold))
                     .foregroundStyle(focused ? Color.screen : Color.screen.opacity(0.8))
                     .lineLimit(1)
-                Text([title.year.map(String.init), title.state].compactMap { $0 }.joined(separator: "  "))
+                Text(note ?? [title.year.map(String.init), title.state].compactMap { $0 }.joined(separator: "  "))
                     .font(.system(size: 21))
                     .foregroundStyle(Color.usher)
-                    .lineLimit(1)
+                    // A watchlist note ("Out 5 Mar 2027 · On Netflix") gets a second line rather than being cut short.
+                    .lineLimit(note == nil ? 1 : 2)
             }
             .frame(width: width, alignment: .leading)
+        }
+        .contextMenu {
+            if let onRequest {
+                Button(action: onRequest) { Label("Request", systemImage: "plus.circle") }
+            }
+            if let onList = watchlistChanged ?? title.onWatchlist {
+                Button {
+                    Task { if await model.setOnWatchlist(WatchlistKey(title), !onList) != nil { watchlistChanged = !onList } }
+                } label: {
+                    Label(onList ? "Remove from watchlist" : "Add to watchlist", systemImage: onList ? "bookmark.slash" : "bookmark")
+                }
+            }
         }
     }
 }
@@ -469,8 +487,14 @@ struct ExternalTitleView: View {
                     .lineLimit(4)
                     .frame(maxWidth: 1040, alignment: .leading)
             }
-            RequestButton(title: title)
-                .padding(.top, 14)
+            HStack(spacing: 26) {
+                RequestButton(title: title)
+                if let onList = detail?.onWatchlist {
+                    // Adding can request it too: load again so Request says so.
+                    WatchlistActionButton(key: WatchlistKey(title), on: onList) { Task { await load() } }
+                }
+            }
+            .padding(.top, 14)
         }
         .padding(.leading, Layout.edge)
         .padding(.trailing, 300)

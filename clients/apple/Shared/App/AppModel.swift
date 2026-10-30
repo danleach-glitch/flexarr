@@ -119,7 +119,7 @@ final class AppModel {
         ErrorReports.resume(server: credentials?.address)
         Task { await refreshErrorReports() }
         player.onSessionEnded = { [weak self] in
-            self?.invalidate()
+            self?.watchStateChanged()
             self?.music.videoEnded()
         }
         // One thing plays at a time: a film starting pauses the music, which the lock screen offers back after.
@@ -141,6 +141,20 @@ final class AppModel {
             Task { @MainActor in
                 try? await Task.sleep(for: .seconds(3))
                 if let url = URL(string: "flexarr://play/\(play)") { open(url: url) }
+            }
+        }
+        // `-FlexarrSearch <words>` searches for them once the app's up, as Siri would, for screenshots.
+        if let words = defaults.string(forKey: "FlexarrSearch") {
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(3))
+                pendingSearch = words
+            }
+        }
+        // `-FlexarrOpen <flexarr:// link>` opens a screen once the app's up (flexarr://watchlist, say), for screenshots.
+        if let link = defaults.string(forKey: "FlexarrOpen"), let url = URL(string: link) {
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(3))
+                open(url: url)
             }
         }
         #endif
@@ -229,7 +243,16 @@ final class AppModel {
         store.clear()
         libraries = []
         resetProfiles()
+        forgetWatchlist()
         phase = .signedOut
+    }
+
+    /// Nothing of this server's or profile's watchlist stays: not its menus, and not the widget (another person, or
+    /// another server, may be next).
+    private func forgetWatchlist() {
+        hasWatchlist = false
+        watchlistItems = []
+        onWatchlistForgotten?()
     }
 
     private var checkingSignIn = false
@@ -374,6 +397,7 @@ final class AppModel {
         profiles = profiles.map { $0.marked(current: $0.id == profile.id) }
         needsProfileChoice = false
         libraries = []
+        forgetWatchlist()
         phase = .signedIn(credentials)
         // A link that was waiting for this (or, if they chose someone else, whoever is watching now) goes ahead.
         linkProfile = nil
@@ -400,6 +424,65 @@ final class AppModel {
         podcastStatus = try? await client.podcastStatus()
         if podcastStatus?.available == true { podcastPreferences = try? await client.podcastPreferences() }
         liveTvStatus = try? await client.liveTvStatus()
+        await refreshWatchlist()
+    }
+
+    /// The server keeps watchlists (0.56 and later): the watchlist's buttons, menu items and screen show.
+    private(set) var hasWatchlist = false
+
+    /// The library titles on the profile's watchlist, so poster menus offer Add or Remove.
+    private(set) var watchlistItems: Set<String> = []
+
+    /// Why the last watchlist change (adding or taking off) didn't happen, for an alert; nil when it did.
+    var watchlistError: String?
+
+    /// Why the last request (Request on a title the library doesn't have) didn't go through, for an alert.
+    var requestError: String?
+
+    /// Called when the watchlist is forgotten (signing out, another profile), so the widget empties at once.
+    var onWatchlistForgotten: (() -> Void)?
+
+    /// Called when the watchlist may have changed (the iPhone's widget follows it).
+    var onWatchlistChange: (() -> Void)?
+
+    /// Learns what's on the watchlist (cheaply: the server doesn't ask Seerr). Network trouble keeps what was known, so
+    /// the watchlist doesn't vanish while offline; an older server, which has none, hides it.
+    func refreshWatchlist() async {
+        guard let client else { return }
+        do {
+            let keys = try await client.watchlistKeys()
+            let items = Set(keys?.libraryItemIds ?? [])
+            let changed = hasWatchlist != (keys != nil) || watchlistItems != items
+            hasWatchlist = keys != nil
+            watchlistItems = items
+            // Only when something changed: listeners (the widget) fetch again.
+            if changed { onWatchlistChange?() }
+        } catch {
+            log.warning("Couldn't check the watchlist", error: error)
+        }
+    }
+
+    /// Puts a film or show on the profile's watchlist, or takes it off. Nil if that failed; true if adding it also
+    /// requested it (the profile requests what it adds).
+    @discardableResult
+    func setOnWatchlist(_ key: WatchlistKey, _ on: Bool) async -> Bool? {
+        guard let client else { return nil }
+        do {
+            var requested = false
+            if on { requested = try await client.addToWatchlist(key).requested } else { try await client.removeFromWatchlist(key) }
+            if case .library(let id) = key {
+                if on { watchlistItems.insert(id) } else { watchlistItems.remove(id) }
+                // Home's watchlist row can only change for a library title.
+                invalidate()
+            }
+            onWatchlistChange?()
+            Task { await refreshWatchlist() }
+            return requested
+        } catch {
+            log.warning("Watchlist change failed", error: error)
+            watchlistError = ConnectionError(error).message
+            return nil
+        }
     }
 
     /// The order of this profile's libraries in the menu, the same on every device; nil from servers before 0.54,
@@ -434,6 +517,12 @@ final class AppModel {
 
     func invalidate() {
         refreshToken += 1
+    }
+
+    /// Something was watched or marked: titles can leave the watchlist.
+    private func watchStateChanged() {
+        invalidate()
+        if hasWatchlist { Task { await refreshWatchlist() } }
     }
 
     /// Plays random episodes of a show, one after another.
@@ -563,14 +652,14 @@ final class AppModel {
         guard let client else { return }
         try? await client.setWatched(item.id, watched: watched)
         if watched { player.offlineLibrary?.markedPlayed(itemId: item.id) } else { player.offlineLibrary?.forgetPosition(itemId: item.id) }
-        invalidate()
+        watchStateChanged()
     }
 
     /// Every episode of an episode's show watched.
     func setShowWatched(of episode: ItemSummary) async {
         guard let client, let show = episode.seriesId else { return }
         try? await client.setWatched(show, watched: true)
-        invalidate()
+        watchStateChanged()
     }
 
     func removeFromContinueWatching(_ item: ItemSummary) async {
@@ -668,12 +757,13 @@ final class AppModel {
     }
 
     /// `flexarr://item/<id>` shows a title; `flexarr://play/<id>` plays one (a show or season: the episode to watch
-    /// next), with `t=<seconds>`, `s=<subtitle key>` and `shuffle=1`; `flexarr://live/<channel id>` puts a channel on.
-    /// Any of them can add `profile=<id or name>` to switch to that profile first, asking for its PIN if it has one.
+    /// next), with `t=<seconds>`, `s=<subtitle key>` and `shuffle=1`; `flexarr://live/<channel id>` puts a channel on;
+    /// `flexarr://watchlist` opens the watchlist. Any of them can add `profile=<id or name>` to switch to that profile first, asking for its PIN if it has one.
     func open(url: URL) {
         guard url.scheme == "flexarr", let host = url.host() else { return }
         let id = url.pathComponents.dropFirst().first ?? ""
-        guard !id.isEmpty else { return }
+        // flexarr://watchlist (the profile's watchlist) has no id; the rest need one.
+        guard !id.isEmpty || host == "watchlist" else { return }
         var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
         let query = components?.queryItems ?? []
         if let wanted = query.first(where: { $0.name == "profile" })?.value, !wanted.isEmpty {
@@ -684,6 +774,8 @@ final class AppModel {
             return
         }
         switch host {
+        case "watchlist":
+            pendingRoute = .watchlist
         case "item":
             // With its summary, which says what library it's in: the Apple TV opens it on that library's tab.
             Task {
@@ -812,6 +904,8 @@ enum Route: Hashable {
     case external(ExternalTitle)
     /// What the library has in a genre (Apple TV's Discover).
     case genre(String)
+    /// The profile's watchlist.
+    case watchlist
 }
 
 /// One navigation stack per tab.

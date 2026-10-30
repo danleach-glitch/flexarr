@@ -4,6 +4,13 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ## Unreleased
 
+### Watchlist
+- Each profile now has a **Watchlist** of films and shows to watch later, whether you have them yet or not. Add titles from their pages, from posters' menus, from Discover and search (on iPhone and Android, Search now finds films and shows you don't have yet, to add or request), with Siri ("Add Severance to my watchlist in Flexarr"), or through an assistant. It's in the web sidebar, at the top of **Libraries** on iPhone, iPad and Android, and in the Apple TV's sidebar.
+- Each title says where it's got to: ready to play, on its way, out on a date, or ready to request, and which streaming services have the ones you don't. Ones you can play now come first, wait on Home under **Ready from your watchlist** and in a new **Watchlist** widget on iPhone and Android, and your phone tells you **From your watchlist** when one arrives.
+- Show only one kind, only films or only shows, and sort by when you added them, when they came out, or by title, in every app.
+- Titles leave by themselves once you've watched the film or started the show.
+- The main profile can have a profile request what it adds to its watchlist, in **Settings › Profiles**. It's off to start with.
+
 ### Getting started
 - A new server now welcomes you with a short setup guide after you choose its PIN, one card at a time. It asks your name, then walks you through connecting Sonarr, Radarr and Lidarr, adding your libraries, adding everyone who watches, getting Flexarr on all your devices, and watching away from home. You can skip any step after your name, or choose **Set up later** to leave the guide.
 - The guide fills in the address of any Sonarr, Radarr or Lidarr it finds running nearby, so you only paste the API key. It then offers each app's media folders as ready-made libraries (one each for films, TV shows and music), so there's no folder browsing, and warns you if you pick a whole drive. At the end it says what's still being read, and points out a library that came up empty or a folder Flexarr can't see.

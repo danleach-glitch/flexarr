@@ -37,6 +37,7 @@ import io.github.flexarr.ui.theme.marquee
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Folder
@@ -112,6 +113,11 @@ fun LibrariesScreen(model: AppModel) {
                     LazyColumn(contentPadding = PaddingValues(horizontal = Edge, vertical = 8.dp), modifier = Modifier.fillMaxSize()) {
                         item {
                             Column(Modifier.clip(RoundedCornerShape(12.dp)).background(Flexarr.seat)) {
+                                // The watchlist first, ahead of the profile's own order of libraries.
+                                if (model.hasWatchlist) {
+                                    LibraryRow("Watchlist", Icons.Filled.Bookmark) { navigator.openWatchlist() }
+                                    if (entries.isNotEmpty()) HorizontalDivider(Modifier.padding(start = 62.dp), color = Flexarr.aisle.copy(alpha = 0.6f))
+                                }
                                 entries.forEachIndexed { index, entry ->
                                     if (index > 0) HorizontalDivider(Modifier.padding(start = 62.dp), color = Flexarr.aisle.copy(alpha = 0.6f))
                                     LibraryRow(entry.title, entry.icon) {

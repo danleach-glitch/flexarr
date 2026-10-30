@@ -75,8 +75,10 @@ struct TabStack<Content: View>: View {
 
     private func consumeDeepLink() {
         guard handlesDeepLinks, let route = model.pendingRoute else { return }
-        router.push(route)
         model.pendingRoute = nil
+        // A server without a watchlist (before 0.56) has nothing to open.
+        if case .watchlist = route, !model.hasWatchlist { return }
+        router.push(route)
     }
 
     @ViewBuilder
@@ -106,6 +108,8 @@ struct TabStack<Content: View>: View {
             PodcastBrowseView()
         case .liveTv:
             LiveTvView()
+        case .watchlist:
+            WatchlistView()
         case .external, .genre:
             // Discover is on the Apple TV and the web; nothing on iPhone or iPad goes here.
             EmptyView()
@@ -128,6 +132,11 @@ struct LibrariesView: View {
                 }
             } else {
                 List {
+                    if model.hasWatchlist {
+                        Section {
+                            row("Watchlist", icon: "bookmark.fill") { router.push(.watchlist) }
+                        }
+                    }
                     // In the profile's order (Settings › Library order). Podcasts are one place however many libraries hold
                     // them, and say how to set them up when none does.
                     ForEach(LibraryMenuEntry.ordered(model: model)) { entry in

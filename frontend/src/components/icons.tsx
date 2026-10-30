@@ -335,6 +335,11 @@ export const Star = ({ filled, ...p }: IconProps & { filled?: boolean }) => (
   </svg>
 )
 /** Recording: a filled dot, as on a recorder. */
+export const Bookmark = ({ filled, ...p }: IconProps & { filled?: boolean }) => (
+  <svg {...base} {...p} fill={filled ? 'currentColor' : 'none'}>
+    <path d="M6.5 3.5h11a1 1 0 0 1 1 1v16l-6.5-4.2-6.5 4.2v-16a1 1 0 0 1 1-1Z" />
+  </svg>
+)
 export const RecordDot = (p: IconProps) => (
   <svg {...base} {...p} fill="currentColor" stroke="none">
     <circle cx="12" cy="12" r="7" />

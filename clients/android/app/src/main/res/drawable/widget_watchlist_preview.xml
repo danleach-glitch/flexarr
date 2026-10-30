@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- What the widget picker shows for the watchlist widget (Ready to watch): the heading and four posters, each with its title. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="200dp"
+    android:height="120dp"
+    android:viewportWidth="250"
+    android:viewportHeight="150">
+    <path android:fillColor="#1B1720" android:pathData="M20,0h210a20,20 0 0 1 20,20v110a20,20 0 0 1 -20,20h-210a20,20 0 0 1 -20,-20v-110a20,20 0 0 1 20,-20z" />
+    <path android:fillColor="#F2EEE7" android:pathData="M12,12h110v7h-110z" />
+    <path android:fillColor="#25202C" android:pathData="M16,28h44a4,4 0 0 1 4,4v66a4,4 0 0 1 -4,4h-44a4,4 0 0 1 -4,-4v-66a4,4 0 0 1 4,-4z" />
+    <path android:fillColor="#25202C" android:pathData="M74,28h44a4,4 0 0 1 4,4v66a4,4 0 0 1 -4,4h-44a4,4 0 0 1 -4,-4v-66a4,4 0 0 1 4,-4z" />
+    <path android:fillColor="#25202C" android:pathData="M132,28h44a4,4 0 0 1 4,4v66a4,4 0 0 1 -4,4h-44a4,4 0 0 1 -4,-4v-66a4,4 0 0 1 4,-4z" />
+    <path android:fillColor="#25202C" android:pathData="M190,28h44a4,4 0 0 1 4,4v66a4,4 0 0 1 -4,4h-44a4,4 0 0 1 -4,-4v-66a4,4 0 0 1 4,-4z" />
+    <path android:fillColor="#A39AAE" android:pathData="M12,110h40v5h-40z" />
+    <path android:fillColor="#A39AAE" android:pathData="M70,110h34v5h-34z" />
+    <path android:fillColor="#A39AAE" android:pathData="M128,110h42v5h-42z" />
+    <path android:fillColor="#A39AAE" android:pathData="M186,110h30v5h-30z" />
+</vector>

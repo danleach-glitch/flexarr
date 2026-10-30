@@ -63,9 +63,11 @@ public sealed class NotificationTests : IAsyncLifetime
         return (body.GetProperty("id").GetString()!, client);
     }
 
-    private async Task<HttpResponseMessage> RegisterAsync(HttpClient phone, string token = "ab12", bool upcoming = false, int upcomingHour = 9, bool useCurrentProfile = false) =>
+    private async Task<HttpResponseMessage> RegisterAsync(HttpClient phone, string token = "ab12", bool upcoming = false, int upcomingHour = 9, bool useCurrentProfile = false,
+        bool requests = true) =>
         await phone.PutAsJsonAsync(Api("/notifications/device"), new
         {
+            requests,
             token = string.Concat(Enumerable.Repeat(token, 16)),
             environment = "sandbox",
             key = Convert.ToBase64String(_key),
@@ -315,6 +317,92 @@ public sealed class NotificationTests : IAsyncLifetime
         Assert.Equal("Dune (2020) is in the library.", sent.GetProperty("b").GetString());
         using var scope = _server.Services.CreateScope();
         Assert.NotNull((await scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().MediaRequests.SingleAsync()).FulfilledAt);
+    }
+
+    [Fact]
+    public async Task AWatchlistTitleComingIn_TellsWhoWantedIt()
+    {
+        var (_, phone) = await PhoneAsync();
+        await RegisterAsync(phone);
+        await StartAsync();
+        var library = OldLibrary(LibraryType.Movies);
+        await SeedAsync(db =>
+        {
+            db.Libraries.Add(library);
+            db.WatchlistEntries.Add(new WatchlistEntry { ProfileId = PlaybackState.DefaultUser, Kind = MediaKind.Movie, TmdbId = 693134, Title = "Dune: Part Two", AddedAt = _clock.Now.AddDays(-5) });
+            db.MediaItems.Add(Film(library, "Dune: Part Two", _clock.Now.AddMinutes(1), tmdb: "693134"));
+        });
+
+        var sent = Assert.Single(await RunAtAsync(_clock.Now.AddMinutes(5)));
+
+        Assert.Equal("From your watchlist", sent.GetProperty("t").GetString());
+        Assert.Equal("Dune: Part Two (2020) is ready to watch.", sent.GetProperty("b").GetString());
+        using var scope = _server.Services.CreateScope();
+        var entry = await scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().WatchlistEntries.SingleAsync();
+        Assert.NotNull(entry.ArrivedAt);
+        Assert.NotNull(entry.MediaItemId);
+    }
+
+    [Fact]
+    public async Task AWatchlistTitleInALibraryHiddenFromTheProfile_IsntAnnounced()
+    {
+        var (_, phone) = await PhoneAsync();
+        await RegisterAsync(phone);
+        await StartAsync();
+        var films = OldLibrary(LibraryType.Movies);
+        var adults = OldLibrary(LibraryType.Movies);
+        await SeedAsync(db =>
+        {
+            db.Libraries.AddRange(films, adults);
+            db.Profiles.Single(p => p.Id == PlaybackState.DefaultUser).HiddenLibraryIds = [adults.Id];
+            db.WatchlistEntries.Add(new WatchlistEntry { ProfileId = PlaybackState.DefaultUser, Kind = MediaKind.Movie, TmdbId = 293660, Title = "Deadpool", AddedAt = _clock.Now.AddDays(-5) });
+            db.MediaItems.Add(Film(adults, "Deadpool", _clock.Now.AddMinutes(1), tmdb: "293660"));
+        });
+
+        var sent = await RunAtAsync(_clock.Now.AddMinutes(5));
+
+        Assert.DoesNotContain(sent, m => m.GetProperty("t").GetString() == "From your watchlist");
+        using var scope = _server.Services.CreateScope();
+        Assert.Null((await scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().WatchlistEntries.SingleAsync()).ArrivedAt);
+    }
+
+    [Fact]
+    public async Task APhoneWithRequestsOff_StillHearsTheUsualNewsForAWatchlistFilm()
+    {
+        var (_, phone) = await PhoneAsync();
+        await RegisterAsync(phone, requests: false);
+        await StartAsync();
+        var library = OldLibrary(LibraryType.Movies);
+        await SeedAsync(db =>
+        {
+            db.Libraries.Add(library);
+            db.WatchlistEntries.Add(new WatchlistEntry { ProfileId = PlaybackState.DefaultUser, Kind = MediaKind.Movie, TmdbId = 1100, Title = "Wanted", AddedAt = _clock.Now.AddDays(-5) });
+            db.MediaItems.Add(Film(library, "Wanted", _clock.Now.AddMinutes(1), tmdb: "1100"));
+        });
+
+        var sent = Assert.Single(await RunAtAsync(_clock.Now.AddMinutes(5)));
+
+        Assert.StartsWith("New film", sent.GetProperty("t").GetString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AWatchlistTitleAlsoRequested_IsToldOnce()
+    {
+        var (_, phone) = await PhoneAsync();
+        await RegisterAsync(phone);
+        await StartAsync();
+        var library = OldLibrary(LibraryType.Movies);
+        await SeedAsync(db =>
+        {
+            db.Libraries.Add(library);
+            db.WatchlistEntries.Add(new WatchlistEntry { ProfileId = PlaybackState.DefaultUser, Kind = MediaKind.Movie, TmdbId = 438631, Title = "Dune", AddedAt = _clock.Now.AddDays(-2) });
+            db.MediaRequests.Add(new MediaRequest { ProfileId = PlaybackState.DefaultUser, Kind = MediaKind.Movie, TmdbId = 438631, RequestedAt = _clock.Now.AddDays(-2) });
+            db.MediaItems.Add(Film(library, "Dune", _clock.Now.AddMinutes(1), tmdb: "438631"));
+        });
+
+        var sent = Assert.Single(await RunAtAsync(_clock.Now.AddMinutes(5)));
+
+        Assert.Equal("Your request is ready", sent.GetProperty("t").GetString());
     }
 
     [Fact]

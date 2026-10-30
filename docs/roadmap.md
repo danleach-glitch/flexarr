@@ -14,7 +14,6 @@ Sizes are rough: **S** a day or two, **M** about a week, **L** several weeks.
 | Flexarr Server for Mac | The server and web app as a menu bar app for the Mac App Store | 🚧 |
 | Android | An app for phones and tablets, with Android TV and Chromecast after it. M–L. [#49](https://github.com/danleach-glitch/flexarr/discussions/49) | 🚧 |
 | Find subtitles | Search and download subtitles from the player for files that have none. S–M. [#124](https://github.com/danleach-glitch/flexarr/discussions/124) | 🕐 1 |
-| Watchlist | Films and shows to watch later, per profile, whether you have them or not. S–M. [#39](https://github.com/danleach-glitch/flexarr/discussions/39) | 🕐 2 |
 | Tracker sync | Trakt, Simkl, MyAnimeList and AniList: scrobbling, history, ratings and scores. M. [#128](https://github.com/danleach-glitch/flexarr/discussions/128) | 🕐 2 |
 | iPhone as a remote | Full control of what the Apple TV is playing. M. [#127](https://github.com/danleach-glitch/flexarr/discussions/127) | 🕐 3 |
 | Flexarr in your language | Translated apps, a language per profile. M, then ongoing. [#126](https://github.com/danleach-glitch/flexarr/discussions/126) | 🕐 4 |
@@ -62,7 +61,7 @@ Sizes are rough: **S** a day or two, **M** about a week, **L** several weeks.
 | Library | Scanner for films, TV and music, file name parsing, ffprobe media info, webhook-driven and scheduled rescans, Fix match, delete through Sonarr and Radarr, library health, Plex history import, media folders that find themselves, libraries without the \*arr apps, Home videos | ✅ |
 | Metadata | From Sonarr, Radarr and Lidarr with no keys of our own, local `.nfo` files and artwork, TVmaze, TMDB with your own key, image cache, music artwork and album kinds | ✅ |
 | Playback | Direct play on the device (AV1, VC-1 and the rest), repackaging and hardware transcoding, HDR10, HDR10+, HLG and Dolby Vision 5, 7 and 8.1, Atmos passthrough and lossless surround, subtitles with timing, size, position and the system caption style, styled ASS, closed captions and teletext, audio sync, a sleep timer, speed kept per show, skip intro, recap and credits, Up Next, scrubbing previews | ✅ |
-| Finding things | Home rows you arrange, libraries of the same kind combined on Home, search, person and genre pages, collections (manual, smart and Radarr series), Coming soon, Discover and Seerr requests, shuffle | ✅ |
+| Finding things | Home rows you arrange, libraries of the same kind combined on Home, search, person and genre pages, collections (manual, smart and Radarr series), a watchlist that follows titles until they arrive, Coming soon, Discover and Seerr requests, shuffle | ✅ |
 | Music | Queue, playlists, synced lyrics, daily mixes, artist radio, near-gapless, crossfade, volume normalisation, offline albums | ✅ |
 | Podcasts | Apple's directory and any feed, following per profile, Up Next across devices, speeds and sleep timer, OPML, offline and automatic downloads, notifications, widgets, CarPlay (awaiting Apple) | ✅ |
 | Live TV | Dispatcharr sources, guide, favourites, pause and rewind, recording and series recording | ✅ |

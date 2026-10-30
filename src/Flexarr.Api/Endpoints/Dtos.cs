@@ -65,6 +65,7 @@ public sealed record FileDto(Guid Id, string Path, long Size, string? Container,
 
 public sealed record CreditDto(Guid PersonId, string Name, CreditRole Role, string? Character, string? Image);
 
+/// <param name="OnWatchlist">For a film or show, whether it's on the profile's watchlist (absent from servers before 0.56).</param>
 public sealed record ItemDetailDto(
     ItemSummaryDto Item,
     string? Path,
@@ -85,7 +86,8 @@ public sealed record ItemDetailDto(
     bool MatchLocked,
     ItemSummaryDto? NextUp = null,
     ItemDetailDto? Season = null,
-    bool CanSearchSubtitles = false);
+    bool CanSearchSubtitles = false,
+    bool? OnWatchlist = null);
 
 public sealed record PersonCreditDto(ItemSummaryDto Item, CreditRole Role, string? Character);
 

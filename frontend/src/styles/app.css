@@ -1028,6 +1028,7 @@ kbd {
 
 .library-page,
 .discover-page,
+.watchlist-page,
 .person-page {
   padding: calc(var(--nav-height) + 32px) var(--edge) 0;
 }
@@ -1282,6 +1283,110 @@ kbd {
 .external-card .button {
   margin-top: 8px;
   align-self: flex-start;
+}
+
+/* Request (or where it stands) on the left, the watchlist bookmark on the right. */
+.external-card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.external-card-actions .watchlist-toggle {
+  width: 36px;
+  height: 36px;
+  margin-top: 8px;
+  color: var(--silver);
+}
+
+.external-card-actions .watchlist-toggle[aria-pressed='true'],
+.external-card-actions .watchlist-toggle:hover {
+  color: var(--screen);
+}
+
+/* ---------- Watchlist ---------- */
+
+/* Title, then the status chips, then kind and sort: one row each, so the chips never crowd the title. */
+.watchlist-page .library-header {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 16px;
+}
+
+.watchlist-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.watchlist-card {
+  position: relative;
+}
+
+.watchlist-streaming {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* A ready title's own card, with the bookmark under it (as on Discover's cards) to take it off. */
+.watchlist-ready-actions {
+  justify-content: flex-end;
+  margin-top: -6px;
+}
+
+/* On a phone: the status chips scroll in one row, and kind and sort share the next. */
+@media (max-width: 600px) {
+  .watchlist-page .genre-chips {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    /* Fades at the edge, so it's plain there's more to scroll to. */
+    mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
+    margin-inline: calc(var(--edge) * -1);
+    padding-inline: var(--edge);
+  }
+
+  /* The scrolling rows mustn't widen the header (and push sort off the screen). */
+  .watchlist-page .library-header,
+  .watchlist-page .library-header > * {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .watchlist-page .chip,
+  .watchlist-page .external-state {
+    flex: none;
+    white-space: nowrap;
+  }
+
+  .watchlist-tools {
+    flex-wrap: nowrap;
+    gap: 8px;
+  }
+
+  .watchlist-tools .genre-chips {
+    flex: 1;
+    min-width: 0;
+    margin-inline: 0;
+    padding-inline: 0;
+  }
+
+  .watchlist-tools select {
+    flex: none;
+    max-width: 40%;
+  }
+}
+
+/* Fingers need more than a mouse pointer. */
+@media (pointer: coarse) {
+  .external-card-actions .watchlist-toggle {
+    width: 44px;
+    height: 44px;
+  }
 }
 
 .external-state {
@@ -2954,4 +3059,22 @@ a.download-attention {
 .setup-checklist li.done a {
   color: var(--usher);
   text-decoration: line-through;
+}
+
+/* ---------- Notices ---------- */
+
+.notice {
+  position: fixed;
+  left: 50%;
+  /* Above the now-playing bar while it's there. */
+  bottom: calc(var(--now-playing-height, 0px) + 32px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  z-index: 60;
+  max-width: min(90vw, 480px);
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: var(--seat, #25202c);
+  color: var(--screen);
+  font-size: var(--step--1);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 40%);
 }

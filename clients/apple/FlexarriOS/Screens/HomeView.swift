@@ -249,7 +249,9 @@ struct HomeRowView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            SectionHeading(title: row.title, action: row.style == .live ? { router.push(.liveTv) } : linkedLibrary.map { library in { router.push(.library(library.0, library.1)) } })
+            SectionHeading(title: row.title, action: row.style == .live ? { router.push(.liveTv) }
+                : row.link == "/watchlist" ? { router.push(.watchlist) }
+                : linkedLibrary.map { library in { router.push(.library(library.0, library.1)) } })
             ScrollView(.horizontal) {
                 LazyHStack(alignment: .top, spacing: row.style == .top10 ? 6 : Layout.rowSpacing) {
                     // A playlists row carries playlists rather than items.

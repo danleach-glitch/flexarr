@@ -33,12 +33,14 @@ public struct ExternalTitle: Codable, Sendable, Hashable, Identifiable {
     public let availability: Availability
     /// Set when it's in the library: it opens as itself.
     public let libraryItemId: String?
+    /// Whether it's on the profile's watchlist (Discover and search). Absent from servers before 0.56.
+    public var onWatchlist: Bool? = nil
 
     public var id: String { "\(mediaType)-\(tmdbId)" }
     public var isShow: Bool { mediaType == "tv" }
 
     public init(tmdbId: Int, mediaType: String, title: String, year: Int?, overview: String?, poster: String?, backdrop: String?,
-                rating: Double, availability: Availability, libraryItemId: String?) {
+                rating: Double, availability: Availability, libraryItemId: String?, onWatchlist: Bool? = nil) {
         self.tmdbId = tmdbId
         self.mediaType = mediaType
         self.title = title
@@ -49,6 +51,7 @@ public struct ExternalTitle: Codable, Sendable, Hashable, Identifiable {
         self.rating = rating
         self.availability = availability
         self.libraryItemId = libraryItemId
+        self.onWatchlist = onWatchlist
     }
 }
 
@@ -94,13 +97,15 @@ public struct ExternalDetail: Codable, Sendable, Hashable {
     public let availability: Availability
     public let libraryItemId: String?
     public let recommendations: [ExternalTitle]
+    /// Whether it's on the profile's watchlist. Absent from servers before 0.56 (no watchlist there).
+    public var onWatchlist: Bool? = nil
 
     public var isShow: Bool { mediaType == "tv" }
 
     /// The title as Discover's rows know it, for showing the page's header before the rest arrives.
     public var summary: ExternalTitle {
         ExternalTitle(tmdbId: tmdbId, mediaType: mediaType, title: title, year: year, overview: overview, poster: poster, backdrop: backdrop,
-                      rating: tmdbRating ?? 0, availability: availability, libraryItemId: libraryItemId)
+                      rating: tmdbRating ?? 0, availability: availability, libraryItemId: libraryItemId, onWatchlist: onWatchlist)
     }
 }
 

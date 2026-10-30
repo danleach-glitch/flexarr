@@ -176,6 +176,7 @@ public sealed partial class PlexImporter(FlexarrDbContext db, IReadOnlyList<Path
         }
 
         await db.SaveChangesAsync(ct);
+        Watchlist.WatchlistService.LookAgain();
         var result = new PlexImportResult(matched, watched, inProgress, history.Count - history.Keys.Count(byPath.ContainsKey), keptNewer);
         LogImported(result.Matched, result.Watched, result.InProgress, result.Unmatched);
         return result;

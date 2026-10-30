@@ -9,12 +9,16 @@ struct SearchView: View {
     @State private var results: SearchResults?
     @State private var error: String?
     @State private var recents = RecentSearches()
+    /// Films and shows beyond the library (through Seerr), to add to the watchlist or request.
+    @State private var outside: [ExternalTitle] = []
+    /// Seerr is set up, so searches look beyond the library too; nil until asked.
+    @State private var looksOutside: Bool?
 
     var body: some View {
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 24) {
                 if let results {
-                    if results.isEmpty {
+                    if results.isEmpty && outside.isEmpty {
                         StatusView(state: .empty("Nothing matches \u{201C}\(query)\u{201D}."))
                             .frame(height: 240)
                     }
@@ -34,6 +38,13 @@ struct SearchView: View {
                                     model.recordSearch(query: query, item: item)
                                     model.play(item)
                                 }
+                            }
+                        }
+                    }
+                    if !outside.isEmpty {
+                        section("Not in your library") {
+                            ForEach(outside) { title in
+                                OutsideTitleCard(title: title, width: Layout.posterWidth(sizeClass))
                             }
                         }
                     }
@@ -161,10 +172,18 @@ struct SearchView: View {
             await loadRecents()
             return
         }
+        if looksOutside == nil {
+            // Asked once, before the first search that needs it.
+            looksOutside = (try? await client.requestStatus())?.configured == true
+        }
         do {
+            async let beyond: [ExternalTitle] = looksOutside == true ? (try? await client.searchEverything(text)) ?? [] : []
             let found = try await client.search(text)
+            let more = await beyond
             guard text == query.trimmingCharacters(in: .whitespaces) else { return }
             results = found
+            // What the library has is already above.
+            outside = more.filter { $0.libraryItemId == nil && $0.availability != .available }
             error = nil
         } catch {
             self.error = ConnectionError(error).message
@@ -247,5 +266,79 @@ struct PersonView: View {
         } catch {
             self.error = ConnectionError(error).message
         }
+    }
+}
+
+/// A film or show the library doesn't have, from search: tap for Add to watchlist and Request.
+private struct OutsideTitleCard: View {
+    @Environment(AppModel.self) private var model
+    let title: ExternalTitle
+    let width: CGFloat
+    @State private var onList: Bool?
+    @State private var requested = false
+
+    var body: some View {
+        let isOn = onList ?? title.onWatchlist ?? false
+        Menu {
+            if model.hasWatchlist {
+                Button {
+                    Task { if await model.setOnWatchlist(WatchlistKey(title), !isOn) != nil { onList = !isOn } }
+                } label: {
+                    Label(isOn ? "Remove from watchlist" : "Add to watchlist", systemImage: isOn ? "bookmark.slash" : "bookmark")
+                }
+            }
+            if title.availability == .none && !requested {
+                Button {
+                    Task {
+                        do {
+                            try await model.client?.request(title)
+                            requested = true
+                        } catch {
+                            model.requestError = ConnectionError(error).message
+                        }
+                    }
+                } label: {
+                    Label("Request", systemImage: "plus.circle")
+                }
+            }
+        } label: {
+            VStack(alignment: .leading, spacing: 6) {
+                Color.seat
+                    .aspectRatio(2 / 3, contentMode: .fit)
+                    .overlay {
+                        RemoteImage(url: model.client?.imageURL(title.poster, width: 342)) {
+                            Text(title.title)
+                                .font(.marquee(18, weight: .bold))
+                                .foregroundStyle(Color.screen.opacity(0.8))
+                                .multilineTextAlignment(.center)
+                                .padding(8)
+                        }
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .overlay(alignment: .topTrailing) {
+                        if isOn {
+                            Image(systemName: "bookmark.fill")
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(Color.screen)
+                                .padding(6)
+                                .background(Circle().fill(.black.opacity(0.55)))
+                                .padding(6)
+                        }
+                    }
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(title.title)
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(Color.screen.opacity(0.9))
+                    Text([title.isShow ? "Show" : "Film", title.year.map(String.init), requested || title.availability == .requested ? "Requested" : nil]
+                        .compactMap { $0 }.joined(separator: ", "))
+                        .font(.caption)
+                        .foregroundStyle(Color.usher)
+                }
+                .lineLimit(1)
+            }
+            .frame(width: width)
+            .accessibilityElement(children: .combine)
+        }
+        .buttonStyle(.plain)
     }
 }

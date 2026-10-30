@@ -19,6 +19,9 @@ Flexarr is an MCP server. MCP (the [Model Context Protocol](https://modelcontext
 | `set_device_sound` | Changes a device's dialogue boost, night mode or speakers, while Flexarr is open on it. |
 | `mark_watched` | Marks a film or episode watched or unwatched; a show or season marks every episode. Unwatched also forgets how far in it was, taking it out of Continue Watching. |
 | `remove_from_continue_watching` | Takes a film or episode out of Continue Watching without marking it watched. A show stays out until you play another episode of it. |
+| `watchlist` | Your watchlist, with whether each title is ready to play, on its way, coming out later, or not available. |
+| `add_to_watchlist` | Adds a film or show to your watchlist: one from your library, or any title by name (that needs Seerr). Says if it was requested too. |
+| `remove_from_watchlist` | Takes a title off your watchlist. It doesn't cancel a request. |
 | `podcasts` | The podcasts you follow, with how many episodes you haven't heard. |
 | `new_podcast_episodes` | The newest episodes you haven't heard. |
 | `podcast_up_next` | Your podcast Up Next queue. |

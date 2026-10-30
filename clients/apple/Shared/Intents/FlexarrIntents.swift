@@ -258,9 +258,11 @@ enum FlexarrIntentError: Error, CustomLocalizedStringResourceConvertible {
     case nothingToPlay(String)
     case noSuchTitle(String)
     case deviceGone(String)
+    case noWatchlist
 
     var localizedStringResource: LocalizedStringResource {
         switch self {
+        case .noWatchlist: "Your Flexarr server needs updating for the watchlist."
         case .notConnected: "Open Flexarr and connect it to your server first."
         case .nothingToPlay(let title): "\(title) has nothing to play."
         case .noSuchTitle(let term): "Nothing in your library is called \(term)."
@@ -446,6 +448,37 @@ struct AddToUpNextIntent: AppIntent {
         guard let episode = try await Podcasts.nextToHear(podcast.id, client: client) else { throw FlexarrIntentError.nothingToPlay(podcast.title) }
         await model.addToUpNext(episode.id, next: false)
         return .result(dialog: "Added \(episode.title) to Up Next.")
+    }
+}
+
+/// "Add Severance to my watchlist in Flexarr": a film or show from the library, for this profile to watch later.
+struct AddToWatchlistIntent: AppIntent {
+    static let title: LocalizedStringResource = "Add to watchlist"
+    static let description = IntentDescription("Puts a film or show from your library on your watchlist, to watch later.", categoryName: "Watchlist")
+
+    @Parameter(title: "Film or show", requestValueDialog: "What would you like to add?")
+    var title: TitleEntity
+
+    @Dependency private var model: AppModel
+
+    static var parameterSummary: some ParameterSummary {
+        Summary("Add \(\.$title) to my watchlist")
+    }
+
+    @MainActor
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        guard let client = model.client else { throw FlexarrIntentError.notConnected }
+        guard title.kind == .movie || title.kind == .series else { throw FlexarrIntentError.noSuchTitle(title.title) }
+        if !model.hasWatchlist { await model.refreshWatchlist() }
+        guard model.hasWatchlist else { throw FlexarrIntentError.noWatchlist }
+        do {
+            try await client.addToWatchlist(.library(title.id))
+        } catch FlexarrClientError.http(status: 404, _) {
+            throw FlexarrIntentError.noSuchTitle(title.title)
+        }
+        model.invalidate()
+        await model.refreshWatchlist()
+        return .result(dialog: "Added \(title.title) to your watchlist.")
     }
 }
 
@@ -770,6 +803,16 @@ struct FlexarrShortcuts: AppShortcutsProvider {
             ],
             shortTitle: "Shuffle a show",
             systemImageName: "shuffle"
+        )
+        AppShortcut(
+            intent: AddToWatchlistIntent(),
+            phrases: [
+                "Add \(\.$title) to my watchlist in \(.applicationName)",
+                "Add \(\.$title) to my \(.applicationName) watchlist",
+                "Put \(\.$title) on my watchlist in \(.applicationName)",
+            ],
+            shortTitle: "Add to watchlist",
+            systemImageName: "bookmark"
         )
         AppShortcut(
             intent: ContinueWatchingIntent(),

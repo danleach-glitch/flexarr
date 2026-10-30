@@ -6,7 +6,8 @@ import { session } from '../lib/session'
 import { useAudioPlayer } from '../hooks/audioPlayerContext'
 import { useLibraries } from '../hooks/librariesContext'
 import { useSession } from '../hooks/sessionContext'
-import { Antenna, Calendar, ChevronsLeft, Close, Film, Gear, Home, Menu as MenuIcon, Microphone, Playlist, Search, Sparkles, Stack } from './icons'
+import { NoticeHost } from './Notice'
+import { Antenna, Bookmark, Calendar, ChevronsLeft, Close, Film, Gear, Home, Menu as MenuIcon, Microphone, Playlist, Search, Sparkles, Stack } from './icons'
 import { libraryIcons } from './libraryIcons'
 import { AsyncButton } from './AsyncButton'
 import { AddToCollectionHost } from './AddToCollection'
@@ -271,6 +272,10 @@ export function Layout() {
             <h2 className="sidebar-heading">
               <span className="sidebar-label">Browse</span>
             </h2>
+            <NavLink to="/watchlist" className="sidebar-link" title={tip('Watchlist')}>
+              <Bookmark />
+              <span className="sidebar-label">Watchlist</span>
+            </NavLink>
             <NavLink to="/collections" className="sidebar-link" title={tip('Collections')}>
               <Stack />
               <span className="sidebar-label">Collections</span>
@@ -304,6 +309,7 @@ export function Layout() {
       )}
       <main id="main" className="page">
         <Outlet />
+        <NoticeHost />
         <AddToCollectionHost />
         <AddToPlaylistHost />
       </main>

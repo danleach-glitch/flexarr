@@ -262,6 +262,8 @@ data class ItemDetail(
      * file), for `files.first()`, the copy playback picks. Absent from servers before 0.53.
      */
     val canSearchSubtitles: Boolean? = null,
+    /** Films and shows: whether it's on this profile's watchlist. Absent from servers before 0.56 (no watchlist). */
+    val onWatchlist: Boolean? = null,
 )
 
 // People and search

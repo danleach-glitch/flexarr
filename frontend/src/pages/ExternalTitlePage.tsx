@@ -5,6 +5,7 @@ import { Artwork } from '../components/Artwork'
 import { ExternalCard } from '../components/ExternalCard'
 import { Film } from '../components/icons'
 import { RequestButton } from '../components/RequestButton'
+import { WatchlistButton } from '../components/WatchlistButton'
 import { Row } from '../components/Row'
 import { TrailerDialog } from '../components/TrailerDialog'
 import { useApi } from '../hooks/useApi'
@@ -24,6 +25,8 @@ export function ExternalTitlePage() {
 
 function ExternalTitle({ title }: { title: ExternalDetail }) {
   const [trailer, setTrailer] = useState(false)
+  // Adding it to the watchlist can request it too (when this profile requests what it adds).
+  const [requested, setRequested] = useState(false)
   const facts = [
     title.year?.toString(),
     title.mediaType === 'tv' ? (title.seasons ? (title.seasons === 1 ? '1 season' : `${title.seasons} seasons`) : null) : title.runtimeMinutes ? formatDuration(title.runtimeMinutes * 60) : null,
@@ -49,7 +52,15 @@ function ExternalTitle({ title }: { title: ExternalDetail }) {
           <Ratings title={title} />
           {title.overview && <p className="detail-overview">{title.overview}</p>}
           <div className="detail-actions">
-            <RequestButton title={title} size="large" />
+            <RequestButton key={requested ? 'requested' : 'asked'} title={requested ? { ...title, availability: 'Requested' } : title} size="large" />
+            {title.onWatchlist != null && (
+              <WatchlistButton
+                titleKey={{ mediaType: title.mediaType, tmdbId: title.tmdbId }}
+                title={title.title}
+                on={title.onWatchlist}
+                onRequested={() => setRequested(true)}
+              />
+            )}
             {title.trailerYouTubeId && (
               <button className="button quiet" onClick={() => setTrailer(true)}>
                 <Film /> Trailer

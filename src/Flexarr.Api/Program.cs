@@ -20,6 +20,7 @@ using Flexarr.Api.Scanning;
 using Flexarr.Api.Search;
 using Flexarr.Api.Security;
 using Flexarr.Api.Updates;
+using Flexarr.Api.Watchlist;
 using Flexarr.Core.Data;
 using Flexarr.Core.Probing;
 using Flexarr.Core.Scanning;
@@ -203,7 +204,7 @@ builder.Services.AddMcpServer(o =>
         await LibraryVisibility.ApplyAsync(request.Services!, ct);
         return await next(request, ct);
     }))
-    .WithTools([typeof(FlexarrTools), typeof(LiveTvTools)], new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web)
+    .WithTools([typeof(FlexarrTools), typeof(LiveTvTools), typeof(WatchlistTools)], new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web)
     {
         TypeInfoResolver = new System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver(),
         Converters = { new JsonStringEnumConverter() },
@@ -239,6 +240,7 @@ builder.Services.AddSingleton<LyricsCache>();
 builder.Services.AddSingleton<LoudnessCache>();
 builder.Services.AddHostedService<TrickplayWorker>();
 builder.Services.AddScoped<PlaybackService>();
+builder.Services.AddScoped<WatchlistService>();
 builder.Services.AddSingleton(sp => new Flexarr.Streaming.Remux.RemuxIndex(
     Flexarr.Api.Playback.PlaybackEndpoints.TranscodeSettingsFor(sp.GetRequiredService<IOptions<FlexarrOptions>>().Value),
     sp.GetRequiredService<IOptions<FlexarrOptions>>().Value.FfprobePath,
@@ -382,6 +384,7 @@ app.MapGroup("/api/v1")
     .MapDvrEndpoints()
     .MapMusicMixEndpoints()
     .MapRequestEndpoints()
+    .MapWatchlistEndpoints()
     .MapSubtitleSearchEndpoints()
     .MapProfileEndpoints()
     .MapRemoteAccessEndpoints()

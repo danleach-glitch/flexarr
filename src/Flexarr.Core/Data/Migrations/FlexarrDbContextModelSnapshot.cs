@@ -1001,6 +1001,9 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<bool>("AutoPlayNext")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("AutoRequestWatchlist")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Color")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -1082,6 +1085,7 @@ namespace Flexarr.Core.Data.Migrations
                         {
                             Id = "owner",
                             AutoPlayNext = true,
+                            AutoRequestWatchlist = false,
                             Color = "#a9c2ec",
                             CreatedAt = new DateTime(2026, 10, 24, 0, 0, 0, 0, DateTimeKind.Utc),
                             HiddenLibraryIds = "[]",
@@ -1190,6 +1194,90 @@ namespace Flexarr.Core.Data.Migrations
                     b.HasIndex("TvdbId");
 
                     b.ToTable("WatchTombstones");
+                });
+
+            modelBuilder.Entity("Flexarr.Core.Media.WatchlistEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("AddedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("ArrivedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("BackdropUrl")
+                        .HasMaxLength(2048)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ImdbId")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("MediaItemId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PosterUrl")
+                        .HasMaxLength(2048)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ProfileId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateOnly?>("ReleaseDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("RemovedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RemovedReason")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("TmdbId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("TvdbId")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("Year")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MediaItemId");
+
+                    b.HasIndex("ProfileId", "MediaItemId")
+                        .IsUnique()
+                        .HasFilter("\"MediaItemId\" IS NOT NULL");
+
+                    b.HasIndex("ArrivedAt", "Kind", "TmdbId");
+
+                    b.HasIndex("ProfileId", "Kind", "TmdbId")
+                        .IsUnique()
+                        .HasFilter("\"TmdbId\" IS NOT NULL");
+
+                    b.ToTable("WatchlistEntries");
                 });
 
             modelBuilder.Entity("Flexarr.Core.Notifications.MediaRequest", b =>
@@ -1813,6 +1901,20 @@ namespace Flexarr.Core.Data.Migrations
                     b.Navigation("Collections");
 
                     b.Navigation("Playback");
+                });
+
+            modelBuilder.Entity("Flexarr.Core.Media.WatchlistEntry", b =>
+                {
+                    b.HasOne("Flexarr.Core.Media.MediaItem", null)
+                        .WithMany()
+                        .HasForeignKey("MediaItemId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Flexarr.Core.Media.Profile", null)
+                        .WithMany()
+                        .HasForeignKey("ProfileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Flexarr.Core.Notifications.MediaRequest", b =>

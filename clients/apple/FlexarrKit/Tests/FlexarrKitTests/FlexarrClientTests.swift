@@ -243,6 +243,21 @@ struct FlexarrClientTests {
         await #expect(throws: FlexarrClientError.unexpectedResponse) { try await client.systemStatus() }
     }
 
+    @Test func aServerWithoutAWatchlistAnswersNone() async throws {
+        // Servers before 0.56 answer /watchlist/keys with the web app's page.
+        let (old, _) = stubbedClient(.init(status: 200, body: Data("<!doctype html>".utf8), contentType: "text/html"))
+        #expect(try await old.watchlistKeys() == nil)
+        let (current, _) = stubbedClient(.init(status: 200, body: Data(#"{"libraryItemIds":["a"],"titles":["movie:1"]}"#.utf8)))
+        #expect(try await current.watchlistKeys()?.libraryItemIds == ["a"])
+    }
+
+    @Test func readyFromTheWatchlistIsNoneOnAServerWithoutIt() async throws {
+        let (old, _) = stubbedClient(.init(status: 200, body: Data("<!doctype html>".utf8), contentType: "text/html"))
+        #expect(try await old.watchlistReady() == nil)
+        let (current, _) = stubbedClient(.init(status: 200, body: Data("[]".utf8)))
+        #expect(try await current.watchlistReady()?.isEmpty == true)
+    }
+
     @Test func problemDetailsBecomeTheErrorMessage() async {
         let body = Data(#"{"title":"Not found","status":404,"detail":"No such item."}"#.utf8)
         let (client, _) = stubbedClient(.init(status: 404, body: body))
