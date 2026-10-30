@@ -36,8 +36,9 @@ the manifest doesn't offer the app to TVs yet.
    - `DeviceCapabilities` reports the TV's real HDR10, HDR10+, Dolby Vision and 4K support, so more titles play
      without converting.
 5. **Release.** Offer the app to TVs in the manifest, opt in to TV in Play Console, add TV screenshots and the banner
-   to the listing (`app/src/main/play`), get through Google's TV review, and move Android TV on flexarr.io/apps from
-   planned.
+   to the listing (`app/src/main/play`), get through Google's TV review, and move Android TV on flexarr.io/apps to
+   available. Release builds must still refuse sign-in from launch arguments (`LAUNCH_ARGUMENTS` off) once the TV
+   entries move into the main manifest, since any app on a shared TV could send them.
 
 ## Left out on TV
 
@@ -49,3 +50,6 @@ podcasts, push notifications, and the portrait lock.
 - The `Flexarr_Google_TV` emulator is for day-to-day work: drive it with `adb shell input keyevent` (D-pad).
 - A real Google TV stick is for what the emulator can't show: HDR, Dolby Vision, passthrough, refresh-rate switching,
   and speed on 2 GB of RAM.
+- Measure speed with `benchmarkRelease` (`./gradlew :app:installBenchmarkRelease`): release as it ships, with R8, but
+  profileable and with the TV interface on. Debug builds run Compose several times slower, so they say little about
+  speed. `BaselineProfileGenerator.generateTv` records the TV journey for the baseline profile on a TV.

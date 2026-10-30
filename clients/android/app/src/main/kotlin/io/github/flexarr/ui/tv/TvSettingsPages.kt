@@ -253,7 +253,7 @@ internal fun TvPlaybackSettings(model: AppModel) {
                 TvSettingsRow(
                     "Subtitle size", onClick = { choosing = PlaybackChoice.SubtitleSize }, modifier = Modifier.focusFor(PlaybackChoice.SubtitleSize),
                     icon = Icons.Filled.ClosedCaption, value = current.shownSubtitleSize.label, accessory = TvSettingAccessory.Chevron,
-                    help = "How big subtitles are. Subtitles that run early or late can be moved on Apple TV or the web.",
+                    help = "How big subtitles are. Subtitles that run early or late can be moved from the player’s Subtitles menu.",
                 )
             }
             item {

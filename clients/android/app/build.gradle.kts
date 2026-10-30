@@ -132,11 +132,15 @@ sentry {
 }
 
 // The baseline profile's builds take launch arguments too, to sign in (the plugin copies release's fields over them, so
-// they're set per variant).
+// they're set per variant). They have the TV interface as well: benchmarkRelease is release as it ships (R8, no
+// debugging) but profileable, so it's the build to measure the TV interface with on a real stick
+// (`./gradlew :app:installBenchmarkRelease`, then Android Studio's profiler or Perfetto), and the TV journey in the
+// baseline profile is recorded with it.
 androidComponents {
     onVariants { variant ->
         if (variant.name == "nonMinifiedRelease" || variant.name == "benchmarkRelease") {
             variant.buildConfigFields?.put("LAUNCH_ARGUMENTS", com.android.build.api.variant.BuildConfigField("boolean", "true", null))
+            variant.buildConfigFields?.put("TV_UI", com.android.build.api.variant.BuildConfigField("boolean", "true", null))
         }
     }
 }
