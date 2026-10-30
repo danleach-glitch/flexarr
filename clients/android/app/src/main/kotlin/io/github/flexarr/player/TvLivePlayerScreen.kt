@@ -95,12 +95,16 @@ internal fun TvLivePlayerScreen(controller: LiveTvController, onClose: () -> Uni
     var interaction by remember { mutableIntStateOf(0) }
     var choosingChannel by remember { mutableStateOf(false) }
     var showingGuide by remember { mutableStateOf(false) }
+    // The sleep timer's panel down the right, and its button, for focus to go back to when it closes.
+    var sleepMenu by remember { mutableStateOf(false) }
+    var sleepMenuClosed by remember { mutableStateOf(false) }
+    val sleepButton = remember { mapOf(TvMenu.Sleep to FocusRequester()) }
     val root = remember { FocusRequester() }
     var controlsFocused by remember { mutableStateOf(false) }
     var rootFocused by remember { mutableStateOf(false) }
     val timeline = remember { FocusRequester() }
     val asleep = controller.sleep.phase != VideoSleep.Phase.Off
-    val overlay = choosingChannel || showingGuide
+    val overlay = choosingChannel || showingGuide || sleepMenu
     val showing = controlsVisible && !asleep && !overlay && controller.error == null
 
     fun show() {
@@ -121,14 +125,16 @@ internal fun TvLivePlayerScreen(controller: LiveTvController, onClose: () -> Uni
             delay(50)
             // Until the controls have it: once they do, focus is the viewer's to move.
             if (showing && controlsFocused) return@LaunchedEffect
-            runCatching { if (showing) timeline.requestFocus() else root.requestFocus() }
+            runCatching { if (showing) (if (sleepMenuClosed) sleepButton.getValue(TvMenu.Sleep) else timeline).requestFocus() else root.requestFocus() }
         }
     }
+    LaunchedEffect(showing) { if (!showing && !sleepMenu) sleepMenuClosed = false }
 
     BackHandler(enabled = overlay || showing) {
         when {
             showingGuide -> showingGuide = false
             choosingChannel -> choosingChannel = false
+            sleepMenu -> sleepMenu = false
             else -> controlsVisible = false
         }
     }
@@ -195,7 +201,14 @@ internal fun TvLivePlayerScreen(controller: LiveTvController, onClose: () -> Uni
             }
         }
         AnimatedVisibility(showing, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.fillMaxSize().onFocusChanged { controlsFocused = it.hasFocus }) {
-            LiveControls(controller, timeline, onInteract = { interaction++ }, onChannels = { choosingChannel = true }, onGuide = { showingGuide = true })
+            LiveControls(controller, timeline, sleepButton, onInteract = { interaction++ }, onChannels = { choosingChannel = true }, onGuide = { showingGuide = true }, onSleep = { sleepMenu = true })
+        }
+        if (sleepMenu) {
+            TvMenuPanel(TvMenu.Sleep, null, controller.sleep, offersEndOfEpisode = false, onAudioSync = {}, onClose = {
+                sleepMenu = false
+                sleepMenuClosed = true
+                show()
+            }, modifier = Modifier.align(Alignment.CenterEnd))
         }
         SleepPrompt(controller.sleep)
         if (choosingChannel) {
@@ -236,7 +249,7 @@ internal fun TvLivePlayerScreen(controller: LiveTvController, onClose: () -> Uni
 
 /** What's on and the channel at the top; the rewind timeline at the foot, with Channels, Guide, Back to live and the sleep timer. */
 @Composable
-private fun LiveControls(controller: LiveTvController, timeline: FocusRequester, onInteract: () -> Unit, onChannels: () -> Unit, onGuide: () -> Unit) {
+private fun LiveControls(controller: LiveTvController, timeline: FocusRequester, sleepButton: Map<TvMenu, FocusRequester>, onInteract: () -> Unit, onChannels: () -> Unit, onGuide: () -> Unit, onSleep: () -> Unit) {
     Box(Modifier.fillMaxSize()) {
         Box(Modifier.fillMaxWidth().height(130.dp).background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.6f), Color.Transparent))))
         Box(Modifier.fillMaxWidth().height(190.dp).align(Alignment.BottomCenter).background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.7f)))))
@@ -250,9 +263,14 @@ private fun LiveControls(controller: LiveTvController, timeline: FocusRequester,
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 TvActionButton("Channels", onClick = { onChannels(); onInteract() }, icon = Icons.AutoMirrored.Filled.List)
                 TvActionButton("Guide", onClick = { onGuide(); onInteract() }, icon = Icons.Filled.CalendarMonth)
-                if (controller.isBehind) TvActionButton("Back to live", onClick = { controller.goLive(); onInteract() }, icon = Icons.Filled.FastForward, prominent = true, ambient = Flexarr.screen)
+                // It goes once the picture's live, so focus moves to the timeline rather than going with it.
+                if (controller.isBehind) TvActionButton("Back to live", onClick = {
+                    controller.goLive()
+                    onInteract()
+                    runCatching { timeline.requestFocus() }
+                }, icon = Icons.Filled.FastForward, prominent = true, ambient = Flexarr.screen)
                 Spacer(Modifier.weight(1f))
-                SleepMenuBar(controller.sleep, onInteract)
+                TvMenuButtons(null, controller.sleep, listOf(TvMenu.Sleep), sleepButton, onOpen = { onSleep() })
             }
         }
     }
@@ -280,7 +298,8 @@ private fun LiveTimeline(controller: LiveTvController, focus: FocusRequester, on
             },
             contentAlignment = Alignment.CenterStart,
         ) {
-            val fraction = if (duration > 0) (controller.position / duration).toFloat().coerceIn(0f, 1f) else 1f
+            // At live the bar is full, however much of the rewind window has filled so far.
+            val fraction = if (controller.isBehind && duration > 0) (controller.position / duration).toFloat().coerceIn(0f, 1f) else 1f
             val track = if (focused) 8.dp else 5.dp
             Box(Modifier.fillMaxWidth().height(track).background(Flexarr.screen.copy(alpha = 0.3f), CircleShape))
             Box(Modifier.fillMaxWidth(fraction).height(track).background(Flexarr.screen, CircleShape))

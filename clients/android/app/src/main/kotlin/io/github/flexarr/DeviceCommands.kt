@@ -108,7 +108,8 @@ class DeviceCommands(private val context: Context, private val model: AppModel, 
                     // A podcast episode (the command carries only its id) plays in the podcast player; anything else as video.
                     val episode = runCatching { client.podcastEpisode(id) }.getOrNull()
                     if (episode != null) {
-                        model.podcasts.play(episode)
+                        // A TV has no podcasts to show it playing, or to stop it from.
+                        if (!context.usesTvInterface) model.podcasts.play(episode)
                     } else {
                         open(PlayerActivity.intent(context, id, fromBeginning = command.fromBeginning, shuffle = command.shuffle))
                     }

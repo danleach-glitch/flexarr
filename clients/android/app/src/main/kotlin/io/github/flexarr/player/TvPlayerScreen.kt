@@ -89,12 +89,16 @@ internal fun TvPlayerScreen(controller: PlaybackController, onClose: () -> Unit)
     val prompt = remember { FocusRequester() }
     var promptFocused by remember { mutableStateOf(false) }
     var audioSyncOpen by remember { mutableStateOf(false) }
+    // A menu's panel down the right; the button it came from, for focus to go back to.
+    var menuOpen by remember { mutableStateOf<TvMenu?>(null) }
+    var menuClosed by remember { mutableStateOf<TvMenu?>(null) }
+    val menuButtons = remember { TvMenu.entries.associateWith { FocusRequester() } }
     val asleep = controller.sleep.phase != VideoSleep.Phase.Off
     val searchingSubtitles = controller.subtitleSearchFile != null
     // What's on screen to work with: the controls, or nothing (the remote's keys go to the screen itself).
-    val showing = controlsVisible && !asleep && !audioSyncOpen && !searchingSubtitles && controller.error == null
+    val showing = controlsVisible && !asleep && !audioSyncOpen && !searchingSubtitles && menuOpen == null && controller.error == null
     // Skip Intro or Next Episode, which stays up with or without the controls: it's how you skip.
-    val promptUp = controller.promptTitle != null && !asleep && !audioSyncOpen && !searchingSubtitles
+    val promptUp = controller.promptTitle != null && !asleep && !audioSyncOpen && !searchingSubtitles && menuOpen == null
 
     fun show() {
         controlsVisible = true
@@ -107,6 +111,8 @@ internal fun TvPlayerScreen(controller: PlaybackController, onClose: () -> Unit)
         flashCount++
     }
 
+    // Put away, the next time they come it's on the timeline rather than the menu last used.
+    LaunchedEffect(showing) { if (!showing && menuOpen == null) menuClosed = null }
     // Put away after a while of playing untouched, unless something's being done with them.
     LaunchedEffect(showing, interaction, controller.isPlaying, scrubTo) {
         if (showing && controller.isPlaying && scrubTo == null) {
@@ -117,8 +123,8 @@ internal fun TvPlayerScreen(controller: PlaybackController, onClose: () -> Unit)
     // Focus follows: the timeline with the controls up; without them, Skip Intro or Next Episode while it's up (so OK
     // presses it), else the screen itself (for the remote's keys). One place decides, so the controls going away can't
     // take focus back from the pill.
-    LaunchedEffect(showing, promptUp, audioSyncOpen, searchingSubtitles, controller.error) {
-        if (controller.error != null || audioSyncOpen || searchingSubtitles) return@LaunchedEffect
+    LaunchedEffect(showing, promptUp, audioSyncOpen, searchingSubtitles, menuOpen, controller.error) {
+        if (controller.error != null || audioSyncOpen || searchingSubtitles || menuOpen != null) return@LaunchedEffect
         // The controls are placed a frame or two after they're asked for: keep asking for a moment.
         repeat(6) {
             delay(50)
@@ -127,7 +133,8 @@ internal fun TvPlayerScreen(controller: PlaybackController, onClose: () -> Unit)
             if (!showing && promptUp && promptFocused) return@LaunchedEffect
             runCatching {
                 when {
-                    showing -> timeline.requestFocus()
+                    // Back from a menu: its button.
+                    showing -> (menuClosed?.let(menuButtons::getValue) ?: timeline).requestFocus()
                     promptUp -> prompt.requestFocus()
                     else -> root.requestFocus()
                 }
@@ -211,11 +218,18 @@ internal fun TvPlayerScreen(controller: PlaybackController, onClose: () -> Unit)
         controller.error?.let { message -> PlayerError(controller, message, onClose) }
 
         AnimatedVisibility(showing, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.fillMaxSize().onFocusChanged { controlsFocused = it.hasFocus }) {
-            Controls(controller, scrubTo, onScrub = { scrubTo = it; interaction++ }, onInteract = { interaction++ }, onAudioSync = {
-                // The panel takes the controls' place until Done.
+            Controls(controller, scrubTo, onScrub = { scrubTo = it; interaction++ }, onInteract = { interaction++ }, timeline = timeline, menuButtons = menuButtons, onMenu = { menuOpen = it })
+        }
+        menuOpen?.let { menu ->
+            TvMenuPanel(menu, controller, controller.sleep, controller.offersEndOfEpisode, onAudioSync = {
+                menuOpen = null
                 audioSyncOpen = true
                 controlsVisible = false
-            }, timeline = timeline)
+            }, onClose = {
+                menuOpen = null
+                menuClosed = menu
+                show()
+            }, modifier = Modifier.align(Alignment.CenterEnd))
         }
         if (audioSyncOpen && !asleep) {
             TvAudioSync(controller, onDone = {
@@ -263,7 +277,7 @@ internal fun TvPlayerScreen(controller: PlaybackController, onClose: () -> Unit)
 
 /** The title at the top; the timeline at the foot, with the episode buttons and the menus beneath it. */
 @Composable
-private fun Controls(controller: PlaybackController, scrubTo: Double?, onScrub: (Double?) -> Unit, onInteract: () -> Unit, onAudioSync: () -> Unit, timeline: FocusRequester) {
+private fun Controls(controller: PlaybackController, scrubTo: Double?, onScrub: (Double?) -> Unit, onInteract: () -> Unit, timeline: FocusRequester, menuButtons: Map<TvMenu, FocusRequester>, onMenu: (TvMenu) -> Unit) {
     val info = controller.info
     Box(Modifier.fillMaxSize()) {
         // Keep the title and times readable over bright pictures.
@@ -286,7 +300,7 @@ private fun Controls(controller: PlaybackController, scrubTo: Double?, onScrub: 
                     TvActionButton("Next episode", onClick = { controller.playNext(); onInteract() }, icon = Icons.Filled.SkipNext, enabled = info.next != null)
                 }
                 Spacer(Modifier.weight(1f))
-                MenuBar(controller, onInteract, onAudioSync)
+                TvMenuButtons(controller, controller.sleep, controller.tvMenus(), menuButtons, onOpen = onMenu)
             }
         }
     }
@@ -362,39 +376,49 @@ private fun Timeline(controller: PlaybackController, scrubTo: Double?, onScrub: 
 }
 
 /**
- * Moving the sound against the picture, as the phone's Audio sync panel: left and right a step at a time (bigger
- * steps while held). The value is the household's, kept by the server.
+ * Moving the sound against the picture, as the phone's Audio sync panel: on the value, left and right move it a step
+ * at a time (bigger steps while held); Reset and Done are below it. The value is the household's, kept by the server.
  */
 @Composable
 private fun TvAudioSync(controller: PlaybackController, onDone: () -> Unit, modifier: Modifier = Modifier) {
     val seconds = controller.audioSync ?: return
-    val done = remember { FocusRequester() }
-    LaunchedEffect(Unit) { runCatching { done.requestFocus() } }
+    val value = remember { FocusRequester() }
+    val source = remember { MutableInteractionSource() }
+    val focused by source.collectIsFocusedAsState()
+    LaunchedEffect(Unit) { runCatching { value.requestFocus() } }
     fun step(by: Double) = controller.audioSync?.let { controller.setAudioDelay(it + by) }
     Column(
-        modifier.glass(RoundedCornerShape(22.dp)).padding(horizontal = 24.dp, vertical = 18.dp).onPreviewKeyEvent { event ->
-            if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-            // A press moves it a little; held, it moves in bigger steps.
-            val by = if (event.nativeKeyEvent.repeatCount > 0) PlaybackController.AUDIO_SYNC_JUMP else PlaybackController.AUDIO_SYNC_STEP
-            when (event.nativeKeyEvent.keyCode) {
-                KeyEvent.KEYCODE_DPAD_LEFT -> step(-by).let { true }
-                KeyEvent.KEYCODE_DPAD_RIGHT -> step(by).let { true }
-                else -> false
-            }
-        },
+        modifier.glass(RoundedCornerShape(22.dp)).padding(horizontal = 24.dp, vertical = 18.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text("Audio sync", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.White.copy(alpha = 0.7f))
-        Text(PlaybackController.syncLabel(seconds), fontSize = 26.sp, fontWeight = FontWeight.Bold, style = TimeStyle)
-        Text(
-            if (seconds > 0.0005) "Sound later" else if (seconds < -0.0005) "Sound earlier" else "As the file is",
-            fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color.White.copy(alpha = 0.6f),
-        )
-        Text("Left and right move the sound", fontSize = 11.sp, color = Flexarr.usher)
+        Column(
+            Modifier.focusRequester(value).focusable(interactionSource = source)
+                .border(2.dp, if (focused) Flexarr.screen else Color.Transparent, RoundedCornerShape(14.dp))
+                .onKeyEvent { event ->
+                    if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+                    // A press moves it a little; held, it moves in bigger steps.
+                    val by = if (event.nativeKeyEvent.repeatCount > 0) PlaybackController.AUDIO_SYNC_JUMP else PlaybackController.AUDIO_SYNC_STEP
+                    when (event.nativeKeyEvent.keyCode) {
+                        KeyEvent.KEYCODE_DPAD_LEFT -> step(-by).let { true }
+                        KeyEvent.KEYCODE_DPAD_RIGHT -> step(by).let { true }
+                        else -> false
+                    }
+                }
+                .padding(horizontal = 18.dp, vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text("‹  " + PlaybackController.syncLabel(seconds) + "  ›", fontSize = 26.sp, fontWeight = FontWeight.Bold, style = TimeStyle)
+            Text(
+                if (seconds > 0.0005) "Sound later" else if (seconds < -0.0005) "Sound earlier" else "As the file is",
+                fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color.White.copy(alpha = 0.6f),
+            )
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             TvActionButton("Reset", onClick = { controller.setAudioDelay(0.0) })
-            TvActionButton("Done", onClick = onDone, prominent = true, ambient = Flexarr.screen, modifier = Modifier.focusRequester(done))
+            TvActionButton("Done", onClick = onDone, prominent = true, ambient = Flexarr.screen)
         }
     }
 }

@@ -21,6 +21,8 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
@@ -243,20 +245,19 @@ fun TvRoundControl(
     active: Boolean = false,
     enabled: Boolean = true,
 ) {
+    // Turned off, it stays focusable and only looks it, as TvActionButton: Next going dark at the second-last track
+    // mustn't leave focus on nothing.
     Surface(
-        onClick = onClick,
-        enabled = enabled,
-        modifier = modifier.size(size),
+        onClick = { if (enabled) onClick() },
+        modifier = modifier.size(size).semantics { if (!enabled) disabled() },
         shape = ClickableSurfaceDefaults.shape(CircleShape),
         colors = ClickableSurfaceDefaults.colors(
-            containerColor = Flexarr.screen.copy(alpha = if (active) 0.28f else 0.14f),
-            contentColor = if (active) Flexarr.screen else Flexarr.screen.copy(alpha = 0.85f),
-            focusedContainerColor = Flexarr.screen,
+            containerColor = Flexarr.screen.copy(alpha = if (!enabled) 0.08f else if (active) 0.28f else 0.14f),
+            contentColor = if (!enabled) Flexarr.usher.copy(alpha = 0.6f) else if (active) Flexarr.screen else Flexarr.screen.copy(alpha = 0.85f),
+            focusedContainerColor = if (enabled) Flexarr.screen else Flexarr.screen.copy(alpha = 0.35f),
             focusedContentColor = Flexarr.room,
-            pressedContainerColor = Flexarr.screen,
+            pressedContainerColor = if (enabled) Flexarr.screen else Flexarr.screen.copy(alpha = 0.35f),
             pressedContentColor = Flexarr.room,
-            disabledContainerColor = Flexarr.screen.copy(alpha = 0.08f),
-            disabledContentColor = Flexarr.usher.copy(alpha = 0.6f),
         ),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1.08f, pressedScale = 0.95f),
         glow = ClickableSurfaceDefaults.glow(focusedGlow = Glow(Flexarr.silver.copy(alpha = 0.5f), 12.dp)),

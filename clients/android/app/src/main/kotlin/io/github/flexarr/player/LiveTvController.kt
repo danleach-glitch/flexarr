@@ -164,6 +164,10 @@ class LiveTvController(context: Context, private val model: AppModel, val client
         val previous = watching?.viewer
         heartbeat?.cancel()
         player.stop()
+        // The last channel's rewind ("Back to live", how far behind) isn't this one's: it starts at live.
+        position = 0.0
+        duration = 0.0
+        isBehind = false
         showTitle(channel, channel.now)
         starting = scope.launch {
             try {

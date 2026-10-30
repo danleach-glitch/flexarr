@@ -34,6 +34,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Auto-play now moves on to the next episode even if you've left the Apple TV alone for hours. Before, it could go to sleep during the countdown and stop on the credits.
 - For shows with no credits found, Next Episode now appears a little before the end (up to two minutes for an hour-long show), not just in the last 30 seconds.
 - The first time a film is played, it starts as quickly as any other time. Its scrubbing previews are now made a minute later, and in the background, rather than while the player waits for its first seconds.
+- On Android, the player's buttons light up as you reach them with a keyboard's arrow keys or Tab, so you can see where you are.
 - Films whose sound starts a little after the picture, with a silent opening, now play on Apple TV and iPhone with **Play files directly** off. Before, the player refused them straight away. Their Dolby Digital Plus is converted for these films only, so they play without Atmos.
 
 ### Connecting devices
