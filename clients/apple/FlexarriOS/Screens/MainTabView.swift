@@ -54,6 +54,15 @@ struct MainTabView: View {
             guard scenePhase == .active else { return }
             await remote.follow()
         }
+        // The remote for a TV, over every tab; and a tap on it (or a command that failed) felt.
+        .sheet(isPresented: Bindable(remote).showsRemote) {
+            TVRemoteView()
+                .presentationDetents([.large])
+                .presentationDragIndicator(.hidden)
+                .presentationBackground(Color.room)
+        }
+        .sensoryFeedback(.impact(weight: .light), trigger: remote.taps)
+        .sensoryFeedback(.error, trigger: remote.failures)
         .onChange(of: model.pendingRoute) { _, route in
             if route != nil { selection = .home }
         }
@@ -66,7 +75,6 @@ struct MainTabView: View {
 /// A navigation stack per tab with the shared destinations.
 struct TabStack<Content: View>: View {
     @Environment(AppModel.self) private var model
-    @Environment(TVRemote.self) private var remote
     @State private var router = Router()
     var handlesDeepLinks = false
     @ViewBuilder var content: () -> Content
@@ -83,10 +91,10 @@ struct TabStack<Content: View>: View {
         // So does a TV's: its bar opens the remote.
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 0) {
+                RemoteNoticeView()
                 TVPlayingBar()
                 NowPlayingBar()
             }
-            .animation(.easeInOut(duration: 0.3), value: remote.current?.id)
         }
         .environment(router)
         .onChange(of: model.pendingRoute) { _, _ in consumeDeepLink() }

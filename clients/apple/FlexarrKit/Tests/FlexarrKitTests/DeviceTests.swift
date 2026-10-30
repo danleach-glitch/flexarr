@@ -97,4 +97,25 @@ struct DeviceTests {
         let paused = NowPlaying(item: item, positionSeconds: 100, durationSeconds: 600, paused: true, reportedAt: reported)
         #expect(paused.position(at: reported.addingTimeInterval(10)) == 100)
     }
+
+    @Test func nowPlaying_readsDetailsLeniently_andTimesFromTheServersAge() throws {
+        let json = """
+        [{"id":"d1","name":"Living room","online":true,"lastUsedAt":"2026-10-25T10:00:00Z","profileId":"owner","profileName":"Dan","isThisOne":false,
+          "deviceType":"AppleTv",
+          "nowPlaying":{"item":{"id":"e1","libraryId":"l","parentId":null,"kind":"Episode","title":"Pilot","year":null,"seasonNumber":1,"episodeNumber":1,
+            "episodeNumberEnd":null,"airDate":null,"childCount":0,"durationSeconds":600,"resolution":null,"addedAt":"2026-10-25T10:00:00Z",
+            "artwork":{"poster":null,"backdrop":null,"thumb":null,"logo":null},"accentColor":null,"communityRating":null,"criticRating":null,
+            "contentRating":null,"runtimeMinutes":null,"releaseDate":null,"userData":{"positionSeconds":0,"watched":false,"playCount":0,"lastPlayedAt":null},
+            "seriesTitle":"Show"},
+           "positionSeconds":100,"durationSeconds":600,"paused":false,"reportedAt":"2000-01-01T00:00:00Z","ageSeconds":2,"rate":1,
+           "prompt":"SkipCredits","tracks":{"audio":[{"id":"1","label":null,"selected":true}],"subtitles":[]}}}]
+        """
+        let devices = try FlexarrClient.decoder.decode([Device].self, from: Data(json.utf8))
+        let playing = try #require(devices[0].nowPlaying)
+        #expect(playing.tracks == nil) // a track with no label: left out, not the whole list
+        #expect(playing.prompt == .unknown)
+        // From the server's age, not its (badly set) clock.
+        #expect(abs(playing.reportedAt!.timeIntervalSinceNow + 2) < 1)
+        #expect(devices[0].isTV)
+    }
 }

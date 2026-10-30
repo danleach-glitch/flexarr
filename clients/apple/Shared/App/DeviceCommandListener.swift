@@ -14,7 +14,7 @@ final class DeviceCommandListener {
     private var listeningFor: FlexarrClient?
 
     /// The commands beyond the basic ones this app takes: a remote on another device offers these.
-    static let accepts: [DeviceCommandKind] = [.seek, .skip, .next, .previous, .skipSegment, .audioTrack, .subtitleTrack, .rate]
+    static let accepts: [DeviceCommandKind] = [.sound, .seek, .skip, .next, .previous, .skipSegment, .audioTrack, .subtitleTrack, .rate]
 
     /// Listens on `client`'s sign-in, handing each command (and connect prompt, and with `nowPlaying` what every device
     /// is playing as it changes) to `handle`. Called again with the same client, it carries on.

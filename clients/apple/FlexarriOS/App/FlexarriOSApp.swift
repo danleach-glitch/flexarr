@@ -27,7 +27,11 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
                 await notifications.signedOut(client)
             }
             model?.onPairingEvent = { [pairing] event in pairing.received(event) }
-            model?.onNowPlaying = { [remote] device, playing in remote.received(device, playing) }
+            model?.onNowPlaying = { [remote] device, playing, online in remote.received(device, playing, online: online) }
+            model?.onOpenRemote = { [remote] device in
+                remote.selectedId = device
+                remote.showsRemote = true
+            }
         }
     }
 

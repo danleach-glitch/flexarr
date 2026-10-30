@@ -39,6 +39,10 @@ struct TVPlayingAttributes: ActivityAttributes {
     let accent: String?
     /// A small 16:9 picture in the app group's folder (`PodcastSnapshot.artwork`), when one was saved.
     let artworkFile: String?
+    /// The TV takes jumps (its app is from 0.56): back and forward show.
+    var canSkip = true
+    /// An Apple TV, for its icon; otherwise a TV's.
+    var isAppleTV = true
 }
 
 /// Play/pause and the jumps on the Live Activity's buttons. A Live Activity intent, so the system runs it in the app
@@ -66,16 +70,11 @@ struct TVRemoteIntent: LiveActivityIntent {
     #else
     @Dependency private var model: AppModel
 
+    /// Shown on the activity at once; throws when the TV didn't take it, so the system shows the button failed.
     @MainActor
     func perform() async throws -> some IntentResult {
         guard let client = model.client else { return .result() }
-        switch action {
-        case "pause": _ = try? await client.control(device: deviceId, .pause)
-        case "resume": _ = try? await client.control(device: deviceId, .resume)
-        case "back": try? await client.skip(device: deviceId, by: -10)
-        case "forward": try? await client.skip(device: deviceId, by: 10)
-        default: break
-        }
+        try await TVRemote.lockScreen(deviceId: deviceId, action: action, client: client)
         return .result()
     }
     #endif

@@ -34,9 +34,12 @@ final class PlayingEpisode {
 
 /// A slim scrubber: a thin bar that thickens while it's dragged, with a gap where each chapter starts.
 struct PlayerScrubber: View {
+    @Environment(\.isEnabled) private var isEnabled
     let position: Double
     let duration: Double
     var chapterStarts: [Double] = []
+    /// How far VoiceOver's swipes move it, both ways; nil: a podcast's forward 30 and back 15.
+    var step: Double? = nil
     /// Where the thumb is while it's dragged; nil when the track's own position shows.
     @Binding var scrubbing: Double?
     let seek: (Double) -> Void
@@ -55,6 +58,7 @@ struct PlayerScrubber: View {
             }
             .frame(height: scrubbing == nil ? 5 : 10)
             .clipShape(Capsule())
+            .opacity(isEnabled ? 1 : 0.4)
             .frame(maxHeight: .infinity)
             .contentShape(Rectangle())
             .gesture(DragGesture(minimumDistance: 0)
@@ -73,9 +77,10 @@ struct PlayerScrubber: View {
         .accessibilityLabel("Position")
         .accessibilityValue("\(Format.timestamp(position)) of \(Format.timestamp(duration))")
         .accessibilityAdjustableAction { direction in
+            guard isEnabled else { return }
             switch direction {
-            case .increment: seek(min(duration, position + 30))
-            case .decrement: seek(max(0, position - 15))
+            case .increment: seek(min(duration, position + (step ?? 30)))
+            case .decrement: seek(max(0, position - (step ?? 15)))
             @unknown default: break
             }
         }

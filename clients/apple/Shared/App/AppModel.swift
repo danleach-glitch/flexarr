@@ -45,7 +45,9 @@ final class AppModel {
     /// profile): the iPhone asks whether to allow it. Apple TV leaves it to the phones.
     @ObservationIgnored var onPairingEvent: (@MainActor (DeviceEvent) -> Void)?
     /// What a device is playing changed (nil: stopped), from the command stream: the iPhone's remote follows it.
-    @ObservationIgnored var onNowPlaying: (@MainActor (String, DeviceNowPlaying?) -> Void)?
+    @ObservationIgnored var onNowPlaying: (@MainActor (String, DeviceNowPlaying?, Bool?) -> Void)?
+    /// `flexarr://remote/<device id>` (the Live Activity): the iPhone opens its remote on that TV.
+    @ObservationIgnored var onOpenRemote: (@MainActor (String) -> Void)?
     /// About to sign out, with the sign-in still working: the iPhone stops its notifications.
     @ObservationIgnored var onSignOut: (@MainActor (FlexarrClient) async -> Void)?
     private(set) var profiles: [Profile] = []
@@ -765,7 +767,7 @@ final class AppModel {
         commands.start(client, nowPlaying: nowPlaying) { [weak self] event in
             switch event {
             case .command(let command): self?.handle(command)
-            case .nowPlaying(let deviceId, let playing): self?.onNowPlaying?(deviceId, playing)
+            case .nowPlaying(let deviceId, let playing, let online): self?.onNowPlaying?(deviceId, playing, online)
             case .pairing, .pairingEnded: self?.onPairingEvent?(event)
             }
         }
@@ -854,6 +856,10 @@ final class AppModel {
         let id = url.pathComponents.dropFirst().first ?? ""
         // flexarr://watchlist (the profile's watchlist) has no id; the rest need one.
         guard !id.isEmpty || host == "watchlist" else { return }
+        if host == "remote" {
+            onOpenRemote?(id)
+            return
+        }
         var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
         let query = components?.queryItems ?? []
         if let wanted = query.first(where: { $0.name == "profile" })?.value, !wanted.isEmpty {

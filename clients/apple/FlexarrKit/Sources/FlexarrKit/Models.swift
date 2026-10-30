@@ -817,8 +817,9 @@ public enum DeviceEvent: Sendable, Hashable {
     case pairing(PairingRequest)
     /// That device has stopped waiting: whatever asked about it can go.
     case pairingEnded(code: String)
-    /// What a device is playing changed (nil: it stopped). Only on a stream opened with `nowPlaying` (servers from 0.56).
-    case nowPlaying(deviceId: String, NowPlaying?)
+    /// What a device is playing changed (nil: it stopped), or it opened or closed Flexarr (`online`, when the server
+    /// says). Only on a stream opened with `nowPlaying` (servers from 0.56).
+    case nowPlaying(deviceId: String, NowPlaying?, online: Bool?)
 }
 
 /// What `/me` says about this client.
@@ -1091,6 +1092,47 @@ public struct NowPlaying: Codable, Sendable, Hashable {
     public var tracks: PlayerTracks? = nil
     public var sound: DeviceSound? = nil
 
+    enum CodingKeys: String, CodingKey {
+        case item, positionSeconds, durationSeconds, paused, reportedAt, rate, prompt, hasNext, tracks, sound
+        /// How long ago the report was by the server's clock (servers from 0.56): `reportedAt` is worked out from it on
+        /// this device's clock, so a server whose clock is off doesn't throw the times out.
+        case ageSeconds
+    }
+
+    /// The details a remote shows are read leniently: one a newer (or misbehaving) player sent that this app can't read
+    /// is left out, rather than failing the whole device list.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        item = try c.decode(ItemSummary.self, forKey: .item)
+        positionSeconds = try c.decode(Double.self, forKey: .positionSeconds)
+        durationSeconds = try c.decode(Double.self, forKey: .durationSeconds)
+        paused = try c.decode(Bool.self, forKey: .paused)
+        if let age = (try? c.decodeIfPresent(Double.self, forKey: .ageSeconds)) ?? nil {
+            reportedAt = Date().addingTimeInterval(-max(0, age))
+        } else {
+            reportedAt = (try? c.decodeIfPresent(Date.self, forKey: .reportedAt)) ?? nil
+        }
+        rate = (try? c.decodeIfPresent(Double.self, forKey: .rate)) ?? nil
+        prompt = (try? c.decodeIfPresent(PlayerPrompt.self, forKey: .prompt)) ?? nil
+        hasNext = (try? c.decodeIfPresent(Bool.self, forKey: .hasNext)) ?? nil
+        tracks = (try? c.decodeIfPresent(PlayerTracks.self, forKey: .tracks)) ?? nil
+        sound = (try? c.decodeIfPresent(DeviceSound.self, forKey: .sound)) ?? nil
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(item, forKey: .item)
+        try c.encode(positionSeconds, forKey: .positionSeconds)
+        try c.encode(durationSeconds, forKey: .durationSeconds)
+        try c.encode(paused, forKey: .paused)
+        try c.encodeIfPresent(reportedAt, forKey: .reportedAt)
+        try c.encodeIfPresent(rate, forKey: .rate)
+        try c.encodeIfPresent(prompt, forKey: .prompt)
+        try c.encodeIfPresent(hasNext, forKey: .hasNext)
+        try c.encodeIfPresent(tracks, forKey: .tracks)
+        try c.encodeIfPresent(sound, forKey: .sound)
+    }
+
     public init(item: ItemSummary, positionSeconds: Double, durationSeconds: Double, paused: Bool, reportedAt: Date? = nil, rate: Double? = nil,
                 prompt: PlayerPrompt? = nil, hasNext: Bool? = nil, tracks: PlayerTracks? = nil, sound: DeviceSound? = nil) {
         self.item = item
@@ -1118,7 +1160,7 @@ public struct Device: Codable, Sendable, Hashable, Identifiable {
     public let id: String
     public let name: String
     /// Flexarr is open on it and would take a command now. Offline, a command waits two minutes for it.
-    public let online: Bool
+    public var online: Bool
     public let lastUsedAt: Date
     public let profileId: String
     public let profileName: String?
@@ -1128,12 +1170,19 @@ public struct Device: Codable, Sendable, Hashable, Identifiable {
     /// What it is. Absent from servers before 0.54, and until its app says.
     public var deviceType: DeviceType? = nil
     /// The commands it takes, for a remote to offer only those. Absent from servers before 0.56 and from apps that don't
-    /// say: then only play, pause, resume, stop, watch and sound.
+    /// say: then only play, pause, resume, stop and watch.
     public var accepts: [DeviceCommandKind]? = nil
 
     /// It would take `kind`.
     public func takes(_ kind: DeviceCommandKind) -> Bool {
-        accepts?.contains(kind) ?? [.play, .pause, .resume, .stop, .watch, .sound].contains(kind)
+        accepts?.contains(kind) ?? [.play, .pause, .resume, .stop, .watch].contains(kind)
+    }
+
+    /// A TV, as far as a remote is concerned: an Apple TV or Android TV, or (from servers before 0.54, which don't say
+    /// what devices are) anything.
+    public var isTV: Bool {
+        guard let deviceType else { return true }
+        return deviceType == .appleTv || deviceType == .androidTv
     }
 
     public init(id: String, name: String, online: Bool, lastUsedAt: Date, profileId: String, profileName: String?, isThisOne: Bool, nowPlaying: NowPlaying?,
@@ -1292,6 +1341,8 @@ struct LiveActivityBody: Codable, Sendable {
 struct DeviceNowPlayingEvent: Decodable, Sendable {
     let deviceId: String
     let nowPlaying: NowPlaying?
+    /// Absent from servers before 0.56's later builds.
+    var online: Bool? = nil
 }
 
 struct DeviceWatchBody: Codable, Sendable {

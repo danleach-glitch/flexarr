@@ -577,7 +577,7 @@ public struct FlexarrClient: Sendable {
                             if let ended = try? Self.decoder.decode(PairingEnded.self, from: data) { continuation.yield(.pairingEnded(code: ended.code)) }
                         case "now-playing":
                             if let change = try? Self.decoder.decode(DeviceNowPlayingEvent.self, from: data) {
-                                continuation.yield(.nowPlaying(deviceId: change.deviceId, change.nowPlaying))
+                                continuation.yield(.nowPlaying(deviceId: change.deviceId, change.nowPlaying, online: change.online))
                             }
                         default:
                             continue

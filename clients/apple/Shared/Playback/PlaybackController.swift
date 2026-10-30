@@ -293,6 +293,9 @@ final class PlaybackController: NSObject {
         nextCancelled = false
         endFinishing()
         lastReport = Date()
+        // A new session on the server knows nothing yet: its first report tells remotes the tracks and sound.
+        reportedTracks = nil
+        reportedSound = nil
 
         let transport = try makeTransport(for: info)
         self.transport = transport
@@ -672,18 +675,24 @@ final class PlaybackController: NSObject {
         reportedPaused = paused && !ended
         let position = target ?? self.position
         let remote = remoteReport()
-        send { try? await client.reportProgress(sessionId: sessionId, positionSeconds: position, paused: paused, ended: ended, remote: remote) }
+        send { [weak self] in
+            // Tracks and sound count as told only once a report carrying them has gone through.
+            guard (try? await client.reportProgress(sessionId: sessionId, positionSeconds: position, paused: paused, ended: ended, remote: remote)) != nil,
+                  remote.tracks != nil || remote.sound != nil else { return }
+            await MainActor.run {
+                guard let self, self.info?.sessionId == sessionId else { return }
+                if let tracks = remote.tracks { self.reportedTracks = tracks }
+                if let sound = remote.sound { self.reportedSound = sound }
+            }
+        }
     }
 
-    /// What a remote on another device needs, with the tracks and sound only when they've changed since the last report.
+    /// What a remote on another device needs, with the tracks and sound only when they've changed since the last report
+    /// that went through.
     private func remoteReport() -> RemoteReport {
         let tracks = screen?.remoteTracks
         let settings = SoundSettings.current
         let sound = DeviceSound(dialogueBoost: settings.dialogueBoost.rawValue, nightMode: settings.nightMode.rawValue, speakers: settings.speakers.rawValue)
-        defer {
-            reportedTracks = tracks
-            reportedSound = sound
-        }
         return RemoteReport(rate: Double(transport?.rate ?? 1), prompt: remotePrompt, hasNext: info?.next != nil,
                             tracks: tracks == reportedTracks ? nil : tracks, sound: sound == reportedSound ? nil : sound)
     }

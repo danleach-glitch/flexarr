@@ -53,26 +53,26 @@ struct NowPlayingBar: View {
                 }
                 .buttonStyle(CardButtonStyle())
                 if music.isLoading {
-                    ProgressView().tint(Color.screen).frame(width: 40, height: 40)
+                    ProgressView().tint(Color.screen).frame(width: 48, height: 48)
                 } else {
                     Button { music.togglePlayPause() } label: {
                         Label(music.isPlaying ? "Pause" : "Play", systemImage: music.isPlaying ? "pause.fill" : "play.fill")
                     }
                     .buttonStyle(RoundActionStyle())
-                    .frame(width: 40, height: 40)
+                    .frame(width: 48, height: 48)
                 }
                 if music.isPodcast {
                     Button { music.skip(by: 30) } label: {
                         Label("Forward 30 seconds", systemImage: "goforward.30")
                     }
                     .buttonStyle(RoundActionStyle())
-                    .frame(width: 40, height: 40)
+                    .frame(width: 48, height: 48)
                 } else {
                     Button { music.next() } label: {
                         Label("Next", systemImage: "forward.fill")
                     }
                     .buttonStyle(RoundActionStyle())
-                    .frame(width: 40, height: 40)
+                    .frame(width: 48, height: 48)
                     .disabled(!music.hasNext)
                     .opacity(music.hasNext ? 1 : 0.4)
                 }

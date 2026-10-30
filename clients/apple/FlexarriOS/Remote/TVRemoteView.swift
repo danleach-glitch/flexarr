@@ -3,15 +3,19 @@ import SwiftUI
 
 /// The remote for a TV in the house, as a sheet: which TV, its picture and title, a scrubber, the transport (back and
 /// forward 10 seconds, previous and next episode, Skip Intro when the TV offers it), then soundtracks and subtitles,
-/// speed and sound, Continue on this phone, Stop, and the season's other episodes. Menus and volume stay with Apple's
-/// own remote in Control Centre. Buttons a TV's app can't take yet don't show.
+/// speed and sound, Continue on iPhone and Stop, and the season's other episodes. Menus and volume stay with Apple's
+/// own remote in Control Centre. Buttons a TV's app can't take yet don't show. Side by side in landscape.
 struct TVRemoteView: View {
     @Environment(AppModel.self) private var model
     @Environment(TVRemote.self) private var remote
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     /// Where the thumb is while the viewer drags it; nil when the TV's own position shows.
     @State private var scrubbing: Double?
     @State private var episodes: [ItemSummary] = []
+    @State private var continuing = false
+    @ScaledMetric(relativeTo: .body) private var extraIcon: CGFloat = 18
 
     private static let skipSeconds: Double = 10
 
@@ -23,48 +27,57 @@ struct TVRemoteView: View {
                     VStack(spacing: 22) {
                         Capsule().fill(Color.aisle).frame(width: 40, height: 5).padding(.top, 10)
                         header(device)
-                        still(playing)
-                        titles(playing.item)
-                        TimelineView(.periodic(from: .now, by: 0.5)) { context in
-                            let position = playing.position(at: context.date)
-                            VStack(spacing: 18) {
-                                scrubber(device, playing, position: position)
-                                controls(device, playing, position: position)
+                        if verticalSizeClass == .compact {
+                            // Landscape on a phone: the picture beside the controls, so play/pause needs no scroll.
+                            HStack(alignment: .top, spacing: 28) {
+                                VStack(spacing: 14) {
+                                    still(playing)
+                                    titles(playing.item)
+                                }
+                                .frame(maxWidth: 300)
+                                VStack(spacing: 18) { playback(device, playing) }
                             }
+                        } else {
+                            still(playing)
+                            titles(playing.item)
+                            playback(device, playing)
                         }
-                        if let prompt = playing.prompt, prompt != .unknown { promptButton(device, prompt) }
-                        extras(device, playing)
                         if !episodes.isEmpty { episodeList(device, playing) }
                     }
                     .padding(.horizontal, 28)
                     .padding(.bottom, 32)
-                    .frame(maxWidth: 560)
+                    .frame(maxWidth: verticalSizeClass == .compact ? 820 : 560)
                     .frame(maxWidth: .infinity)
+                    .animation(.easeOut(duration: 0.25), value: playing.prompt)
                 }
                 .scrollIndicators(.hidden)
             } else {
                 StatusView(state: .empty("Nothing is playing on a TV."))
             }
         }
-        .overlay(alignment: .bottom) {
-            if let problem = remote.problem {
-                Text(problem)
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(Color.screen)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(Capsule().fill(Color.seat).shadow(color: .black.opacity(0.4), radius: 12, y: 4))
-                    .padding(.bottom, 24)
-                    .padding(.horizontal, 20)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+        .overlay(alignment: .bottom) { RemoteNoticeView().padding(.bottom, 16) }
+        .task(id: remote.current?.nowPlaying?.item.parentId) { await loadEpisodes() }
+        .task(id: remote.current == nil) {
+            // The TV stopped: a moment on the empty state, then the sheet goes (unless it comes back).
+            guard remote.current == nil, !continuing else { return }
+            try? await Task.sleep(for: .seconds(2))
+            if !Task.isCancelled, remote.current == nil { dismiss() }
+        }
+    }
+
+    /// The scrubber, the transport, the TV's button over the picture and the extras.
+    @ViewBuilder
+    private func playback(_ device: Device, _ playing: DeviceNowPlaying) -> some View {
+        TimelineView(.animation(minimumInterval: 0.5, paused: playing.paused)) { context in
+            let position = playing.position(at: context.date)
+            VStack(spacing: 18) {
+                scrubber(device, playing, position: position)
+                controls(device, playing)
             }
         }
-        .animation(.easeOut(duration: 0.25), value: remote.problem)
-        .onAppear { remote.isOpen = true }
-        .onDisappear { remote.isOpen = false }
-        .task(id: remote.current?.nowPlaying?.item.parentId) { await loadEpisodes() }
-        .onChange(of: remote.current == nil) { _, gone in if gone { dismiss() } }
+        if let prompt = playing.prompt, prompt != .unknown { promptButton(device, prompt) }
+        extras(device, playing)
+        actions(device, playing)
     }
 
     // MARK: Parts
@@ -73,7 +86,7 @@ struct TVRemoteView: View {
     @ViewBuilder
     private func header(_ device: Device) -> some View {
         let label = HStack(spacing: 6) {
-            Image(systemName: device.deviceType == .appleTv ? "appletv.fill" : "tv")
+            Image(systemName: device.deviceType == .androidTv ? "tv" : "appletv.fill")
             Text(device.name)
             if remote.playing.count > 1 { Image(systemName: "chevron.down").font(.caption.weight(.bold)) }
         }
@@ -87,8 +100,11 @@ struct TVRemoteView: View {
                     }
                 }
             } label: { label }
+            .accessibilityLabel("TV, \(device.name)")
+            .accessibilityHint("Switches to another TV")
         } else {
             label
+                .accessibilityElement(children: .combine)
         }
     }
 
@@ -101,6 +117,7 @@ struct TVRemoteView: View {
             // Smaller while paused, as Now Playing does.
             .scaleEffect(playing.paused ? 0.92 : 1)
             .animation(.spring(response: 0.45, dampingFraction: 0.8), value: playing.paused)
+            .accessibilityHidden(true)
     }
 
     private func titles(_ item: ItemSummary) -> some View {
@@ -117,31 +134,35 @@ struct TVRemoteView: View {
                     .lineLimit(1)
             }
         }
+        .accessibilityElement(children: .combine)
     }
 
     private func scrubber(_ device: Device, _ playing: DeviceNowPlaying, position: Double) -> some View {
         let duration = playing.durationSeconds
         let shown = scrubbing ?? position
+        let ends = duration > 0
+            ? Text("Ends \(Date().addingTimeInterval(max(0, duration - shown) / max(0.5, playing.rate ?? 1)).formatted(date: .omitted, time: .shortened))")
+            : nil
         return VStack(spacing: 2) {
-            PlayerScrubber(position: position, duration: duration, scrubbing: $scrubbing) { remote.seek(to: $0) }
+            PlayerScrubber(position: position, duration: duration, step: Self.skipSeconds, scrubbing: $scrubbing) { remote.seek(to: $0) }
+                .disabled(!device.takes(.seek))
                 .allowsHitTesting(device.takes(.seek))
             HStack {
                 Text(Format.timestamp(shown))
                     .frame(maxWidth: .infinity, alignment: .leading)
-                if duration > 0 {
-                    // When it'll finish, at the speed it's playing.
-                    Text("Ends \(Date().addingTimeInterval(max(0, duration - shown) / max(0.5, playing.rate ?? 1)).formatted(date: .omitted, time: .shortened))")
-                }
+                // At the largest sizes there's no room between the times: it goes underneath.
+                if !dynamicTypeSize.isAccessibilitySize { ends }
                 Text(duration > 0 ? "-" + Format.timestamp(max(0, duration - shown)) : "")
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }
-            .font(.caption.weight(.medium))
-            .monospacedDigit()
-            .foregroundStyle(Color.usher)
+            if dynamicTypeSize.isAccessibilitySize { ends }
         }
+        .font(.caption.weight(.medium))
+        .monospacedDigit()
+        .foregroundStyle(Color.usher)
     }
 
-    private func controls(_ device: Device, _ playing: DeviceNowPlaying, position: Double) -> some View {
+    private func controls(_ device: Device, _ playing: DeviceNowPlaying) -> some View {
         HStack(spacing: 0) {
             if device.takes(.previous) {
                 Button { remote.control(.previous) } label: { Label("Previous", systemImage: "backward.end.fill") }
@@ -157,7 +178,6 @@ struct TVRemoteView: View {
                 Label(playing.paused ? "Play" : "Pause", systemImage: playing.paused ? "play.fill" : "pause.fill")
             }
             .buttonStyle(TransportStyle(size: 76, filled: true))
-            .sensoryFeedback(.impact(weight: .medium), trigger: playing.paused)
             if device.takes(.skip) {
                 Spacer()
                 Button { remote.skip(by: Self.skipSeconds) } label: { Label("Forward 10 seconds", systemImage: "goforward.10") }
@@ -192,39 +212,58 @@ struct TVRemoteView: View {
         }
     }
 
-    /// Soundtracks and subtitles, speed, sound, Continue on this phone, and Stop: evenly spaced, each lit while it's set.
+    /// Soundtracks and subtitles, speed and sound: evenly spaced, each lit while it's set.
+    @ViewBuilder
     private func extras(_ device: Device, _ playing: DeviceNowPlaying) -> some View {
-        HStack(spacing: 0) {
-            if let tracks = playing.tracks, device.takes(.audioTrack) || device.takes(.subtitleTrack),
-               tracks.audio.count > 1 || !tracks.subtitles.isEmpty {
-                tracksMenu(device, tracks).frame(maxWidth: .infinity)
+        let tracks = playing.tracks.flatMap { tracks in
+            (device.takes(.audioTrack) || device.takes(.subtitleTrack)) && (tracks.audio.count > 1 || !tracks.subtitles.isEmpty) ? tracks : nil
+        }
+        let rate = device.takes(.rate) ? playing.rate : nil
+        let sound = device.takes(.sound) ? playing.sound : nil
+        if tracks != nil || rate != nil || sound != nil {
+            HStack(spacing: 0) {
+                if let tracks { tracksMenu(device, tracks).frame(maxWidth: .infinity) }
+                if let rate { speedMenu(rate).frame(maxWidth: .infinity) }
+                if let sound { soundMenu(sound).frame(maxWidth: .infinity) }
             }
-            if device.takes(.rate), let rate = playing.rate { speedMenu(rate).frame(maxWidth: .infinity) }
-            if let sound = playing.sound { soundMenu(sound).frame(maxWidth: .infinity) }
+        }
+    }
+
+    /// Continue on iPhone, and Stop set apart from it (Undo follows a stop).
+    private func actions(_ device: Device, _ playing: DeviceNowPlaying) -> some View {
+        HStack(spacing: 12) {
             Button { continueHere(playing) } label: {
-                Image(systemName: "iphone")
-                    .font(.system(size: 18, weight: .medium))
-                    .modifier(ExtraLabel(active: false))
+                Label("Continue on \(ThisDevice.name)", systemImage: "iphone")
+                    .labelStyle(.titleAndIcon)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.screen)
+                    .padding(.horizontal, 16)
+                    .frame(minHeight: 44)
+                    .background(Capsule().fill(Color.screen.opacity(0.12)))
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Continue on this \(ThisDevice.name)")
-            .frame(maxWidth: .infinity)
-            Button { remote.stop() } label: {
-                Image(systemName: "stop.fill")
-                    .font(.system(size: 18, weight: .medium))
-                    .modifier(ExtraLabel(active: false))
+            .buttonStyle(CardButtonStyle())
+            .disabled(continuing)
+            Spacer(minLength: 12)
+            Button { Task { await remote.stop() } } label: {
+                Label("Stop", systemImage: "stop.fill")
+                    .labelStyle(.titleAndIcon)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.danger)
+                    .padding(.horizontal, 16)
+                    .frame(minHeight: 44)
+                    .overlay(Capsule().strokeBorder(Color.danger.opacity(0.6), lineWidth: 1))
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Stop")
-            .frame(maxWidth: .infinity)
+            .buttonStyle(CardButtonStyle())
+            .accessibilityLabel("Stop on \(device.name)")
         }
     }
 
     private func tracksMenu(_ device: Device, _ tracks: PlayerTracks) -> some View {
-        let subtitlesOn = tracks.subtitles.contains(where: \.selected)
+        let subtitles = tracks.subtitles.first(where: \.selected)
+        let audio = tracks.audio.first(where: \.selected)
         return Menu {
             if device.takes(.subtitleTrack), !tracks.subtitles.isEmpty {
-                Picker("Subtitles", selection: Binding(get: { tracks.subtitles.first(where: \.selected)?.id },
+                Picker("Subtitles", selection: Binding(get: { subtitles?.id },
                                                        set: { id in remote.setSubtitles(tracks.subtitles.first { $0.id == id }) })) {
                     Text("Off").tag(String?.none)
                     ForEach(tracks.subtitles) { Text($0.label).tag(String?.some($0.id)) }
@@ -232,7 +271,7 @@ struct TVRemoteView: View {
                 .pickerStyle(.inline)
             }
             if device.takes(.audioTrack), tracks.audio.count > 1 {
-                Picker("Audio", selection: Binding(get: { tracks.audio.first(where: \.selected)?.id ?? "" },
+                Picker("Audio", selection: Binding(get: { audio?.id ?? "" },
                                                    set: { id in if let track = tracks.audio.first(where: { $0.id == id }) { remote.setAudio(track) } })) {
                     ForEach(tracks.audio) { Text($0.label).tag($0.id) }
                 }
@@ -240,10 +279,11 @@ struct TVRemoteView: View {
             }
         } label: {
             Image(systemName: "captions.bubble")
-                .font(.system(size: 18, weight: .medium))
-                .modifier(ExtraLabel(active: subtitlesOn))
+                .font(.system(size: extraIcon, weight: .medium))
+                .modifier(ExtraLabel(active: subtitles != nil))
         }
         .accessibilityLabel("Audio and subtitles")
+        .accessibilityValue([subtitles.map { "Subtitles \($0.label)" } ?? "Subtitles off", audio?.label].compactMap { $0 }.joined(separator: ", "))
     }
 
     private func speedMenu(_ rate: Double) -> some View {
@@ -253,11 +293,12 @@ struct TVRemoteView: View {
             }
         } label: {
             Text(speedLabel(rate))
-                .font(.system(size: 16, weight: .semibold))
+                .font(.system(size: extraIcon - 2, weight: .semibold))
                 .monospacedDigit()
                 .modifier(ExtraLabel(active: rate != 1))
         }
-        .accessibilityLabel("Speed, \(speedLabel(rate))")
+        .accessibilityLabel("Speed")
+        .accessibilityValue(speedLabel(rate))
     }
 
     private func speedLabel(_ rate: Double) -> String {
@@ -269,6 +310,8 @@ struct TVRemoteView: View {
         let boost = sound.dialogueBoost.flatMap(SoundSettings.DialogueBoost.init(rawValue:)) ?? .off
         let night = sound.nightMode.flatMap(SoundSettings.NightMode.init(rawValue:)) ?? .off
         let speakers = sound.speakers.flatMap(SoundSettings.Speakers.init(rawValue:)) ?? .auto
+        let set = [boost != .off ? "Dialogue boost \(boost.rawValue)" : nil, night != .off ? "Night mode \(night == .scheduled ? "on a schedule" : "on")" : nil,
+                   speakers != .auto ? "Speakers \(speakers.label)" : nil].compactMap { $0 }
         return Menu {
             Picker("Dialogue boost", selection: Binding(get: { boost }, set: { remote.setSound(DeviceSound(dialogueBoost: $0.rawValue)) })) {
                 ForEach(SoundSettings.DialogueBoost.allCases, id: \.self) { Text($0.rawValue).tag($0) }
@@ -284,10 +327,11 @@ struct TVRemoteView: View {
             .pickerStyle(.menu)
         } label: {
             Image(systemName: night == .off ? "speaker.wave.2" : "moon")
-                .font(.system(size: 18, weight: .medium))
-                .modifier(ExtraLabel(active: boost != .off || night != .off || speakers != .auto))
+                .font(.system(size: extraIcon, weight: .medium))
+                .modifier(ExtraLabel(active: !set.isEmpty))
         }
         .accessibilityLabel("Sound")
+        .accessibilityValue(set.isEmpty ? "As it is" : set.joined(separator: ", "))
     }
 
     /// The season's episodes: tapping one plays it on the TV.
@@ -298,7 +342,8 @@ struct TVRemoteView: View {
                 .foregroundStyle(Color.screen)
             ForEach(episodes) { episode in
                 let isPlaying = episode.id == playing.item.id
-                Button { play(episode, on: device) } label: {
+                let isStarting = episode.id == remote.starting
+                Button { remote.play(episode) } label: {
                     HStack(spacing: 12) {
                         TVStill(item: episode, width: 400)
                             .frame(width: 96, height: 54)
@@ -322,13 +367,18 @@ struct TVRemoteView: View {
                             }
                         }
                         Spacer(minLength: 0)
-                        if episode.userData.watched, !isPlaying { WatchedBadge() }
+                        if isStarting {
+                            ProgressView().tint(Color.screen)
+                        } else if episode.userData.watched, !isPlaying {
+                            WatchedBadge()
+                        }
                     }
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(CardButtonStyle())
-                .disabled(isPlaying)
+                .disabled(isPlaying || isStarting)
                 .accessibilityHint(isPlaying ? "" : "Plays it on \(device.name)")
+                .accessibilityValue(isStarting ? "Starting" : "")
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -346,23 +396,19 @@ struct TVRemoteView: View {
         episodes = detail.children.filter { $0.kind == .episode }
     }
 
-    private func play(_ episode: ItemSummary, on device: Device) {
-        Task {
-            _ = try? await model.client?.play(on: device.id, itemId: episode.id)
-            await remote.refresh()
-        }
-    }
-
-    /// Stops it on the TV and carries on here from the same place.
+    /// Stops it on the TV and, once the TV has, carries on here from the same place. If the TV didn't stop, the remote
+    /// stays with the reason.
     private func continueHere(_ playing: DeviceNowPlaying) {
-        guard let client = model.client else { return }
+        guard let client = model.client, !continuing else { return }
         let position = playing.position(at: Date())
         let item = playing.item
-        remote.stop()
-        dismiss()
-        // Once the sheet has gone: the player can't come up over it.
         let player = model.player
+        continuing = true
         Task {
+            defer { continuing = false }
+            guard await remote.stop(offeringUndo: false) else { return }
+            dismiss()
+            // Once the sheet has gone: the player can't come up over it.
             try? await Task.sleep(for: .milliseconds(450))
             player.play(itemId: item.id, preview: item, startAt: position, client: client)
         }

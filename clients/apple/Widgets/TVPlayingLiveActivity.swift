@@ -4,8 +4,8 @@ import SwiftUI
 import WidgetKit
 
 // What a TV in the house is playing, on the Lock Screen and in the Dynamic Island: the picture, the title, the TV's
-// name, a progress bar that moves by itself while it plays, and back 10, play/pause and forward 10. Tapping it opens
-// the app (its Playing on TV bar opens the remote).
+// name, a progress bar that moves by itself while it plays, and back 10, play/pause and forward 10 (the jumps only for
+// a TV that takes them). Tapping it opens the remote.
 
 struct TVPlayingLiveActivity: Widget {
     var body: some WidgetConfiguration {
@@ -13,6 +13,7 @@ struct TVPlayingLiveActivity: Widget {
             LockScreenView(context: context)
                 .activityBackgroundTint(TVPalette.room.opacity(0.92))
                 .activitySystemActionForegroundColor(TVPalette.screen)
+                .widgetURL(TVPalette.remoteURL(context.attributes))
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
@@ -21,32 +22,34 @@ struct TVPlayingLiveActivity: Widget {
                         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                         .padding(.leading, 4)
                 }
-                DynamicIslandExpandedRegion(.trailing) {
-                    TVLabel(name: context.attributes.deviceName)
-                        .padding(.trailing, 4)
-                }
                 DynamicIslandExpandedRegion(.center) {
-                    Text(context.attributes.title)
-                        .font(.subheadline.weight(.semibold))
-                        .lineLimit(1)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(context.attributes.title)
+                            .font(.subheadline.weight(.semibold))
+                        TVLabel(name: context.attributes.deviceName, isAppleTV: context.attributes.isAppleTV)
+                    }
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    VStack(spacing: 10) {
+                    VStack(spacing: 6) {
                         TVProgress(state: context.state, stale: context.isStale)
-                        TVButtons(deviceId: context.attributes.deviceId, paused: context.state.paused)
+                        TVButtons(attributes: context.attributes, paused: context.state.paused)
                     }
                     .padding(.horizontal, 4)
                 }
             } compactLeading: {
-                Image(systemName: "appletv.fill")
+                TVIcon(isAppleTV: context.attributes.isAppleTV)
                     .foregroundStyle(TVPalette.screen)
             } compactTrailing: {
-                Image(systemName: context.state.paused ? "pause.fill" : "play.fill")
+                // What it's doing, not a button: a pause sign while paused, the waveform while it plays.
+                Image(systemName: context.state.paused ? "pause.fill" : "waveform")
                     .foregroundStyle(TVPalette.usher)
             } minimal: {
-                Image(systemName: context.state.paused ? "pause.fill" : "appletv.fill")
+                Image(systemName: context.state.paused ? "pause.fill" : "waveform")
                     .foregroundStyle(TVPalette.screen)
             }
+            .widgetURL(TVPalette.remoteURL(context.attributes))
             .keylineTint(TVPalette.accent(context.attributes.accent))
         }
     }
@@ -65,32 +68,44 @@ private struct LockScreenView: View {
                     Text(context.attributes.title)
                         .font(.headline)
                         .foregroundStyle(TVPalette.screen)
+                    // The TV's name on its own line: beside the title, a long one squeezed it.
                     if let subtitle = context.attributes.subtitle {
                         Text(subtitle)
                             .font(.caption)
                             .foregroundStyle(TVPalette.usher)
                     }
+                    TVLabel(name: context.attributes.deviceName, isAppleTV: context.attributes.isAppleTV)
                 }
                 .lineLimit(1)
                 Spacer(minLength: 0)
-                TVLabel(name: context.attributes.deviceName)
             }
             TVProgress(state: context.state, stale: context.isStale)
-            TVButtons(deviceId: context.attributes.deviceId, paused: context.state.paused)
+            TVButtons(attributes: context.attributes, paused: context.state.paused)
         }
-        .padding(16)
+        .padding(.horizontal, 16)
+        .padding(.top, 14)
+        .padding(.bottom, 6)
     }
 }
 
 /// The TV's name with its icon.
 private struct TVLabel: View {
     let name: String
+    let isAppleTV: Bool
 
     var body: some View {
-        Label(name, systemImage: "appletv.fill")
+        Label { Text(name) } icon: { TVIcon(isAppleTV: isAppleTV) }
             .font(.caption.weight(.semibold))
             .foregroundStyle(TVPalette.usher)
             .lineLimit(1)
+    }
+}
+
+private struct TVIcon: View {
+    let isAppleTV: Bool
+
+    var body: some View {
+        Image(systemName: isAppleTV ? "appletv.fill" : "tv")
     }
 }
 
@@ -113,30 +128,35 @@ private struct TVProgress: View {
     }
 }
 
-/// Back 10 seconds, play/pause and forward 10, sent to the TV by the app.
+/// Back 10 seconds, play/pause and forward 10 (the jumps only for a TV that takes them), sent to the TV by the app.
+/// Each a full 44 points to tap.
 private struct TVButtons: View {
-    let deviceId: String
+    let attributes: TVPlayingAttributes
     let paused: Bool
 
     var body: some View {
-        HStack(spacing: 36) {
-            Button(intent: TVRemoteIntent(deviceId: deviceId, action: "back")) {
-                Image(systemName: "gobackward.10")
+        HStack(spacing: 20) {
+            if attributes.canSkip {
+                button("back", "gobackward.10", label: "Back 10 seconds")
             }
-            .accessibilityLabel("Back 10 seconds")
-            Button(intent: TVRemoteIntent(deviceId: deviceId, action: paused ? "resume" : "pause")) {
-                Image(systemName: paused ? "play.fill" : "pause.fill")
-                    .font(.title2)
+            button(paused ? "resume" : "pause", paused ? "play.fill" : "pause.fill", label: paused ? "Play" : "Pause")
+                .font(.title2.weight(.semibold))
+            if attributes.canSkip {
+                button("forward", "goforward.10", label: "Forward 10 seconds")
             }
-            .accessibilityLabel(paused ? "Play" : "Pause")
-            Button(intent: TVRemoteIntent(deviceId: deviceId, action: "forward")) {
-                Image(systemName: "goforward.10")
-            }
-            .accessibilityLabel("Forward 10 seconds")
         }
         .font(.title3.weight(.semibold))
         .buttonStyle(.plain)
         .foregroundStyle(TVPalette.screen)
+    }
+
+    private func button(_ action: String, _ symbol: String, label: String) -> some View {
+        Button(intent: TVRemoteIntent(deviceId: attributes.deviceId, action: action)) {
+            Image(systemName: symbol)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .accessibilityLabel(label)
     }
 }
 
@@ -159,6 +179,11 @@ private enum TVPalette {
     static let seat = Color(red: 0x25 / 255, green: 0x20 / 255, blue: 0x2C / 255)
     static let screen = Color(red: 0xF2 / 255, green: 0xEE / 255, blue: 0xE7 / 255)
     static let usher = Color(red: 0xA3 / 255, green: 0x9A / 255, blue: 0xAE / 255)
+
+    /// The link a tap on the activity opens: the remote, on this TV.
+    static func remoteURL(_ attributes: TVPlayingAttributes) -> URL? {
+        URL(string: "flexarr://remote/\(attributes.deviceId)")
+    }
 
     /// "#rrggbb", or the app's silver-grey.
     static func accent(_ hex: String?) -> Color {
