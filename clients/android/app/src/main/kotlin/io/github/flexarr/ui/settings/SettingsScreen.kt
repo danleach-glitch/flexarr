@@ -393,7 +393,7 @@ internal fun Toggle(label: String, on: Boolean, onChange: (Boolean) -> Unit, det
 }
 
 /** "192.168.1.20:8383" for "http://192.168.1.20:8383/". */
-private fun shortAddress(address: String?): String = address.orEmpty().replace(Regex("^https?://"), "").trimEnd('/')
+internal fun shortAddress(address: String?): String = address.orEmpty().replace(Regex("^https?://"), "").trimEnd('/')
 
 /** Address, server version and what it runs on. */
 @Composable
@@ -644,7 +644,7 @@ internal fun Fact(label: String, value: String) {
 }
 
 /** "29 Oct 2026, 09:14" from the server's start time (with or without its offset). */
-private fun upSince(text: String): String? {
+internal fun upSince(text: String): String? {
     val time = runCatching { OffsetDateTime.parse(text).atZoneSameInstant(ZoneId.systemDefault()) }.getOrNull()
         ?: runCatching { LocalDateTime.parse(text).atZone(ZoneId.of("UTC")).withZoneSameInstant(ZoneId.systemDefault()) }.getOrNull()
         ?: return null

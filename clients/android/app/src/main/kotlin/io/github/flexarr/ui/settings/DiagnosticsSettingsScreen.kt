@@ -123,7 +123,7 @@ private fun Notes(footer: String?, content: @Composable () -> Unit) {
 }
 
 /** The lines on top of a diagnostics upload: which app, which device, which server (its host only), who's watching. */
-private fun diagnosticsHeader(model: AppModel): String = buildList {
+internal fun diagnosticsHeader(model: AppModel): String = buildList {
     add("Flexarr for Android ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
     add("Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT}) on ${Build.MANUFACTURER} ${Build.MODEL}")
     add("Sent ${Instant.now()}")
