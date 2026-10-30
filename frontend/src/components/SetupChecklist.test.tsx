@@ -21,14 +21,15 @@ describe('Setup checklist', () => {
     expect(showsChecklist(null)).toBe(false)
   })
 
-  it('counts skipped steps as done and continues at the first one left', () => {
+  it('counts skipped steps as done and continues in Settings at the first one left', () => {
     render(
       <MemoryRouter>
         <SetupChecklist guide={guide} />
       </MemoryRouter>,
     )
     expect(screen.getByText('2 of 5')).toBeTruthy()
-    expect(screen.getByRole('link', { name: 'Continue' }).getAttribute('href')).toBe('/setup?step=libraries')
+    expect(screen.getByRole('link', { name: 'Continue' }).getAttribute('href')).toBe('/settings/libraries')
+    expect(screen.getByRole('link', { name: 'Watch away from home' }).getAttribute('href')).toBe('/settings/access')
   })
 
   it('hides for good', () => {

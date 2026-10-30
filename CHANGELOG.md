@@ -8,7 +8,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - A new server now welcomes you with a short setup guide after you choose its PIN, one card at a time. It asks your name, then walks you through connecting Sonarr, Radarr and Lidarr, adding your libraries, adding everyone who watches, connecting your TV and phone, and watching away from home. You can skip any step after your name, or choose **Set up later** to leave the guide.
 - The guide fills in the address of any Sonarr, Radarr or Lidarr it finds running nearby, so you only paste the API key. It then offers each app's media folders as ready-made libraries, so there's no folder browsing. At the end it says what's still being read, and points out a library that came up empty or a folder Flexarr can't see.
 - Connecting Sonarr, Radarr or Lidarr, in the guide or in **Settings › Connections**, now adds Flexarr's webhook to the app by itself, so new downloads show up straight away. If the app can't reach Flexarr, the webhook addresses are still under **Webhooks** to add by hand.
-- If you leave the guide part way, Home shows **Finish setting up** with what's left. Choose a step to pick up where you left off, or **Hide** to put the list away.
+- If you leave the guide part way, Home shows **Finish setting up** with what's left. Each one opens the right page in Settings, and **Hide** puts the list away.
 - An empty Home now says **Nothing to watch yet**, with **Set up Flexarr** to open the guide.
 
 ### Search

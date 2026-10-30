@@ -3,7 +3,7 @@ import { Link } from 'react-router'
 import { saveSetupGuide, type SetupGuide } from '../api/client'
 import { isDone, setupItems as items } from '../lib/setupGuide'
 
-/** What's left of the setup guide after leaving it part way, each step a way back into it. */
+/** What's left of the setup guide after leaving it part way, each step a link to where it's done in Settings. */
 export function SetupChecklist({ guide }: { guide: SetupGuide }) {
   const [hidden, setHidden] = useState(false)
   if (hidden) return null
@@ -26,12 +26,12 @@ export function SetupChecklist({ guide }: { guide: SetupGuide }) {
       <ul>
         {items.map((i) => (
           <li key={i.id} className={isDone(guide, i.id) ? 'done' : undefined}>
-            <Link to={`/setup?step=${i.id}`}>{i.label}</Link>
+            <Link to={i.settings}>{i.label}</Link>
           </li>
         ))}
       </ul>
       <div className="welcome-actions">
-        <Link className="button" to={`/setup?step=${next.id}`}>
+        <Link className="button" to={next.settings}>
           Continue
         </Link>
         <button type="button" className="button quiet" onClick={hide}>

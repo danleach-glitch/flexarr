@@ -1,11 +1,12 @@
 import type { SetupGuide, SetupStep } from '../api/client'
 
-export const setupItems: { id: SetupStep; label: string }[] = [
-  { id: 'apps', label: 'Connect Sonarr, Radarr or Lidarr' },
-  { id: 'libraries', label: 'Add your libraries' },
-  { id: 'profiles', label: 'Add everyone who watches' },
-  { id: 'devices', label: 'Connect a TV or phone' },
-  { id: 'away', label: 'Watch away from home' },
+/** What's left once the guide is put away, each with where it's done in Settings. */
+export const setupItems: { id: SetupStep; label: string; settings: string }[] = [
+  { id: 'apps', label: 'Connect Sonarr, Radarr or Lidarr', settings: '/settings/connections' },
+  { id: 'libraries', label: 'Add your libraries', settings: '/settings/libraries' },
+  { id: 'profiles', label: 'Add everyone who watches', settings: '/settings/profiles' },
+  { id: 'devices', label: 'Connect a TV or phone', settings: '/settings/tv' },
+  { id: 'away', label: 'Watch away from home', settings: '/settings/access' },
 ]
 
 export const isDone = (guide: SetupGuide, id: SetupStep) => guide[id] || guide.skipped.includes(id)

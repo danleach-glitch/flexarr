@@ -62,7 +62,7 @@ Next, Flexarr welcomes you with a short setup guide, one card at a time. Choose 
 
 At the end, the guide shows what's set up, says **Checking your libraries** while it reads your files for the first time, and warns you if a library came up empty or Flexarr can't see one of an app's folders.
 
-If you leave part way, Home lists what's left under **Finish setting up**. Choose a step to go back to it, or **Hide** to put the list away. Everything in the guide is in Settings too, as described below.
+If you leave part way, Home lists what's left under **Finish setting up**. Each one opens the right page in Settings; **Hide** puts the list away. Everything in the guide is in Settings too, as described below.
 
 You're signed in as the server's **main profile**, the one that can change settings.
 
