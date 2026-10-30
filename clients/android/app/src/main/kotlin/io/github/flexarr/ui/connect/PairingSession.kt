@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.connect
 
+import android.net.Uri
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -94,6 +95,10 @@ class PairingSession {
         }
     }
 
-    /** Where a phone that's signed in approves the code: the QR code on a TV, "Approve in the browser" on a phone. */
-    fun link(server: DiscoveredServer): String? = code?.let { "${server.address.trimEnd('/')}/link?code=$it" }
+    /**
+     * Where a phone that's signed in approves the code: the QR code on a TV, "Approve in the browser" on a phone. The
+     * server's own page, at the address the screen shows for typing the code in on a computer; the code is encoded, so
+     * whatever the server sent can only ever be the code.
+     */
+    fun link(server: DiscoveredServer): String? = code?.let { "${server.address.trimEnd('/')}/link?code=${Uri.encode(it)}" }
 }

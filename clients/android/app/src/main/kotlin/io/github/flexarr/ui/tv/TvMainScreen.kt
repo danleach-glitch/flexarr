@@ -3,6 +3,7 @@ package io.github.flexarr.ui.tv
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -54,6 +55,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
@@ -133,6 +135,9 @@ fun TvMainScreen(model: AppModel) {
         }
     }
     var sidebarOpen by remember { mutableStateOf(false) }
+    // The Now Playing bar's room at the foot, so the last row isn't under it.
+    var barShown by remember { mutableStateOf(false) }
+    val barRoom by animateDpAsState(if (barShown) NOW_PLAYING_BAR_ROOM else 0.dp, label = "bar room")
     var choosingProfile by remember { mutableStateOf(false) }
     // Now Playing over everything, as Play or Shuffle opens it (the Music app's way): Back closes it, back to where
     // it was pressed.
@@ -252,7 +257,9 @@ fun TvMainScreen(model: AppModel) {
     CompositionLocalProvider(LocalClient provides client, LocalNavigator provides navigator) {
         Box(Modifier.fillMaxSize()) {
             Box(
-                Modifier.fillMaxSize().focusRequester(content).focusRestorer().focusGroup().onKeyEvent { event ->
+                // Under Now Playing, which covers the screen, the tab isn't drawn: on a 2 GB stick the light behind it
+                // needs what's spare.
+                Modifier.fillMaxSize().drawWithContent { if (!showingNowPlaying) drawContent() }.padding(bottom = barRoom).focusRequester(content).focusRestorer().focusGroup().onKeyEvent { event ->
                     // The remote's play/pause runs the music from any screen (the players and Now Playing take it while
                     // they're up).
                     if (event.type == KeyEventType.KeyDown && event.key == Key.MediaPlayPause && model.music.current != null) {
@@ -311,7 +318,7 @@ fun TvMainScreen(model: AppModel) {
                 }
             }
             // Music carries on under every screen; the bar says what's playing.
-            TvNowPlayingBar(model, Modifier.align(Alignment.BottomCenter))
+            TvNowPlayingBar(model, Modifier.align(Alignment.BottomCenter), onShown = { barShown = it })
             val tabs = listOf(TvTab.Home) + libraryTabs + listOf(TvTab.Discover, TvTab.Search, TvTab.Settings)
             Sidebar(model, sidebarOpen, tabs, tabRoute, onSelect = ::select, onProfile = {
                 closeSidebar()
@@ -439,6 +446,9 @@ private fun SidebarRow(title: String, selected: Boolean, onClick: () -> Unit, mo
  * focusable, and without this, moving past the overlay's last control would land on them, out of sight.
  */
 private fun Modifier.trapsFocus() = focusProperties { onExit = { cancelFocusChange() } }.focusGroup()
+
+/** What the Now Playing bar takes at the foot of the screen: its 44 points and the gap beneath. */
+private val NOW_PLAYING_BAR_ROOM = 56.dp
 
 /** The library the server makes for the DVR's recordings when the first one's done: a TV library called Recordings. */
 private val Library.isRecordings: Boolean get() = type == LibraryType.TvShows && name == "Recordings"

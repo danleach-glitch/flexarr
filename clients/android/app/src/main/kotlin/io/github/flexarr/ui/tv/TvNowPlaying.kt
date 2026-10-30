@@ -43,6 +43,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -278,7 +279,7 @@ private fun LyricsPage(music: MusicPlayer, track: ItemSummary, lyrics: Lyrics) {
             Titles(music, track, compact = true)
             Timeline(music)
         }
-        TvLyrics(lyrics, music.position, onSeek = music::seek, modifier = Modifier.weight(1f))
+        TvLyrics(lyrics, { music.position }, onSeek = music::seek, modifier = Modifier.weight(1f))
     }
 }
 
@@ -288,8 +289,9 @@ private fun LyricsPage(music: MusicPlayer, track: ItemSummary, lyrics: Lyrics) {
  * so plain ones can be read through with the remote.
  */
 @Composable
-private fun TvLyrics(lyrics: Lyrics, position: Double, onSeek: (Double) -> Unit, modifier: Modifier = Modifier) {
-    val active = lyrics.activeLine(position)
+private fun TvLyrics(lyrics: Lyrics, position: () -> Double, onSeek: (Double) -> Unit, modifier: Modifier = Modifier) {
+    // The position ticks four times a second; the lines only change when the line being sung does.
+    val active by remember(lyrics) { derivedStateOf { lyrics.activeLine(position()) } }
     val list = rememberLazyListState()
     val following = remember { FocusRequester() }
     var hasFocus by remember { mutableStateOf(false) }
@@ -297,7 +299,7 @@ private fun TvLyrics(lyrics: Lyrics, position: Double, onSeek: (Double) -> Unit,
     LaunchedEffect(Unit) {
         active?.let { list.scrollToItem(it, -(list.layoutInfo.viewportSize.height / 2.5f).roundToInt()) }
         repeat(10) {
-            if (runCatching { following.requestFocus() }.isSuccess) return@LaunchedEffect
+            if (runCatching { following.requestFocus() }.getOrDefault(false)) return@LaunchedEffect
             delay(50)
         }
     }
@@ -348,7 +350,7 @@ private fun TvLyrics(lyrics: Lyrics, position: Double, onSeek: (Double) -> Unit,
  * to reach): it goes a few seconds after the music pauses or finishes, and comes back with play.
  */
 @Composable
-fun TvNowPlayingBar(model: AppModel, modifier: Modifier = Modifier) {
+fun TvNowPlayingBar(model: AppModel, modifier: Modifier = Modifier, onShown: (Boolean) -> Unit = {}) {
     val music = model.music
     val active = music.current != null && (music.isPlaying || music.isLoading)
     // At once when music starts, and gone a few seconds after it stops, so the moment between two tracks doesn't blink.
@@ -357,6 +359,7 @@ fun TvNowPlayingBar(model: AppModel, modifier: Modifier = Modifier) {
         if (!active) delay(3_000)
         shown = active
     }
+    LaunchedEffect(shown) { onShown(shown) }
     val track = music.current
     AnimatedVisibility(shown && track != null, modifier, enter = slideInVertically { it } + fadeIn(), exit = slideOutVertically { it } + fadeOut()) {
         if (track == null) return@AnimatedVisibility
@@ -380,7 +383,13 @@ fun TvNowPlayingBar(model: AppModel, modifier: Modifier = Modifier) {
             } else {
                 Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = null, modifier = Modifier.size(12.dp))
             }
-            Text("${Format.timestamp(music.position)}  /  ${Format.timestamp(music.duration)}", fontSize = 11.5.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher, style = Tabular)
+            BarTime(music)
         }
     }
+}
+
+/** Where the track's got to, on its own so the bar around it doesn't recompose with every tick. */
+@Composable
+private fun BarTime(music: MusicPlayer) {
+    Text("${Format.timestamp(music.position)}  /  ${Format.timestamp(music.duration)}", fontSize = 11.5.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher, style = Tabular)
 }
