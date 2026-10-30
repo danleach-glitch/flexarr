@@ -756,6 +756,34 @@ final class PlayerViewController: UIViewController {
 
     // MARK: Menus
 
+    /// Dialogue boost, Night mode and Speakers: this device's sound settings, the same as in Settings › Playback.
+    private func soundMenu(reach: SoundReach) -> UIMenu {
+        let sound = SoundSettings.current
+        func choose(_ change: @escaping (inout SoundSettings) -> Void) -> () -> Void {
+            { [weak self] in
+                var next = SoundSettings.current
+                change(&next)
+                SoundSettings.current = next
+                self?.rebuildMenus()
+            }
+        }
+        let boost = UIMenu(title: "Dialogue boost", subtitle: sound.dialogueBoost.rawValue, children: SoundSettings.DialogueBoost.allCases.map { level in
+            let pick = choose { $0.dialogueBoost = level }
+            return UIAction(title: level.rawValue, state: level == sound.dialogueBoost ? .on : .off) { _ in MainActor.assumeIsolated { pick() } }
+        })
+        let nightLabel = { (mode: SoundSettings.NightMode) in mode == .scheduled ? sound.nightHours : mode.rawValue }
+        let night = UIMenu(title: "Night mode", subtitle: nightLabel(sound.nightMode), children: SoundSettings.NightMode.allCases.map { mode in
+            let pick = choose { $0.nightMode = mode }
+            return UIAction(title: nightLabel(mode), state: mode == sound.nightMode ? .on : .off) { _ in MainActor.assumeIsolated { pick() } }
+        })
+        let speakers = UIMenu(title: "Speakers", subtitle: sound.speakers.label, children: SoundSettings.Speakers.allCases.map { choice in
+            let pick = choose { $0.speakers = choice }
+            return UIAction(title: choice.label, state: choice == sound.speakers ? .on : .off) { _ in MainActor.assumeIsolated { pick() } }
+        })
+        // AirPlay plays the sound itself: the settings stand, and return when it stops.
+        return UIMenu(title: reach == .notOverAirPlay ? "Not over AirPlay" : "", options: .displayInline, children: [boost, night, speakers])
+    }
+
     private func rebuildMenus() {
         guard let transport else { return }
         let audio = transport.audioTracks
@@ -778,6 +806,7 @@ final class PlayerViewController: UIViewController {
             sync.subtitle = audioSync == 0 ? "As the file is" : AudioSyncPanel.label(audioSync)
             audioItems.append(UIMenu(options: .displayInline, children: [sync]))
         }
+        if transport.soundReach != .unsupported { audioItems.append(soundMenu(reach: transport.soundReach)) }
         controls.audioButton.isHidden = audioItems.isEmpty
         controls.audioButton.menu = UIMenu(title: "Audio", children: audioItems)
 

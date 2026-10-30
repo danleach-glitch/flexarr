@@ -67,6 +67,7 @@ On Apple TV, iPhone and iPad, these live in the app's **Settings › Playback** 
 - **Play files directly**: on by default. Off, the server sends a stream instead and converts what the device can't play.
 - **Lossless surround**: appears when **Play files directly** is on. See [HDR and Dolby Atmos](hdr-and-atmos.md).
 - **Skip back and forward**: 10, 15 or 30 seconds.
+- **Dialogue boost**, **Night mode** and **Speakers**: appear when **Play files directly** is on. See [HDR and Dolby Atmos](hdr-and-atmos.md#dialogue-boost-and-night-mode). The web keeps them in **Settings › Playback** under **Sound in this browser**, and Android under **This phone**.
 
 ## How to tell what's happening
 

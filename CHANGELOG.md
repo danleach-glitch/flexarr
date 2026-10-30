@@ -11,6 +11,10 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - If you leave the guide part way, Home shows **Finish setting up** with what's left. Each one opens the right page in Settings, and **Hide** puts the list away.
 - An empty Home now says **Nothing to watch yet**, with **Set up Flexarr** to open the guide.
 
+### Sound
+- **Dialogue boost** makes voices easier to follow under music and effects, at Low, Medium or High. **Night mode** quietens loud scenes and lifts quiet ones, so explosions don't wake the house and whispers stay audible. Turn it on, or have it come on by itself between set times (10 pm to 7 am to start with). **Speakers** folds the sound to stereo, 5.1 or headphones. Choose them in the player's audio menu or in **Settings › Playback**, on the web, iPhone, Apple TV and Android. Each device keeps its own, since it's about the room.
+- On iPhone and Apple TV they need **Play files directly**. While any of them is on, surround plays as PCM rather than passed straight to the receiver, so Atmos plays without its height channels. With AirPlay, the sound plays as it is, and the audio menu says so.
+
 ### Search
 - Search shows your recent searches before you type anything, on the web, iPhone, Apple TV and Android. It shows your last five searches, plus the things you opened from them, so you can go back with one tap. They follow your profile across devices, so something you searched for on your phone is waiting on the TV. Remove a single search, or clear them all.
 - Search forgives typos, accents and punctuation: "breking bad" finds Breaking Bad, "amelie" finds Amélie and "spiderman" finds Spider-Man. This works for titles, albums, people and genres, including titles you ask for by voice with Siri or Google Assistant.

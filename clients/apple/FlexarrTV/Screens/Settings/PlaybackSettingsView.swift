@@ -10,6 +10,7 @@ struct PlaybackSettingsView: View {
     @State private var skipSeconds = PlayerViewController.skipSeconds
     @State private var playsFilesDirectly = PlaybackController.usesEngine
     @State private var losslessAudio = PlaybackController.losslessAudio
+    @State private var sound = SoundSettings.current
     @State private var visualiser = AudioSpectrum.isOn
 
     var body: some View {
@@ -85,6 +86,40 @@ struct PlaybackSettingsView: View {
                     PlaybackController.losslessAudio = losslessAudio
                 }
             }
+            if playsFilesDirectly {
+                SettingsLinkRow(title: "Dialogue boost", symbol: "person.wave.2", value: sound.dialogueBoost.rawValue,
+                                help: "Makes voices easier to follow under music and effects.") {
+                    SettingsChoicePage(title: "Dialogue boost", summary: soundSummary, choices: SoundSettings.DialogueBoost.allCases,
+                                       label: \.rawValue, selection: sound.dialogueBoost) { sound.dialogueBoost = $0; SoundSettings.current = sound }
+                }
+                SettingsLinkRow(title: "Night mode", symbol: "moon", value: sound.nightMode == .scheduled ? sound.nightHours : sound.nightMode.rawValue,
+                                help: "Quietens loud scenes and lifts quiet ones.") {
+                    SettingsChoicePage(title: "Night mode", summary: soundSummary, choices: SoundSettings.NightMode.allCases,
+                                       label: { $0 == .scheduled ? "On a schedule" : $0.rawValue }, selection: sound.nightMode) {
+                        sound.nightMode = $0
+                        SoundSettings.current = sound
+                    }
+                }
+                if sound.nightMode == .scheduled {
+                    SettingsLinkRow(title: "Night mode from", symbol: "moon.zzz", value: SoundSettings.clock(sound.nightStart)) {
+                        SettingsChoicePage(title: "Night mode from", choices: Self.hours, label: SoundSettings.clock, selection: sound.nightStart) {
+                            sound.nightStart = $0
+                            SoundSettings.current = sound
+                        }
+                    }
+                    SettingsLinkRow(title: "Night mode until", symbol: "sunrise", value: SoundSettings.clock(sound.nightEnd)) {
+                        SettingsChoicePage(title: "Night mode until", choices: Self.hours, label: SoundSettings.clock, selection: sound.nightEnd) {
+                            sound.nightEnd = $0
+                            SoundSettings.current = sound
+                        }
+                    }
+                }
+                SettingsLinkRow(title: "Speakers", symbol: "hifispeaker", value: sound.speakers.label,
+                                help: "Auto plays every channel what's connected takes.") {
+                    SettingsChoicePage(title: "Speakers", summary: soundSummary, choices: SoundSettings.Speakers.allCases,
+                                       label: \.label, selection: sound.speakers) { sound.speakers = $0; SoundSettings.current = sound }
+                }
+            }
             SettingsRow.toggle("Music visualiser", isOn: visualiser, symbol: "waveform",
                                help: "Light in the cover's colours moves with the music behind Now Playing.") {
                 visualiser.toggle()
@@ -96,6 +131,11 @@ struct PlaybackSettingsView: View {
             if let loaded = try? await model.client?.playbackPreferences() { preferences = loaded }
         }
     }
+
+    /// What shaping the sound costs, said where it's chosen.
+    private let soundSummary = "While any of these is on, surround plays as PCM rather than passed through, and Atmos without its height."
+    /// Night mode's hours, on the hour.
+    private static let hours = (0..<24).map { $0 * 60 }
 
     private var subtitleSize: SubtitleSize {
         guard let size = preferences?.subtitleSize, size != .unknown else { return .standard }

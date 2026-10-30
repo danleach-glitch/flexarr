@@ -5,6 +5,7 @@ struct PlaybackSettingsView: View {
     @Environment(AppModel.self) private var model
     @State private var playsFilesDirectly = PlaybackController.usesEngine
     @State private var losslessAudio = PlaybackController.losslessAudio
+    @State private var sound = SoundSettings.current
     @State private var skipSeconds = PlayerViewController.skipSeconds
     @State private var preferences: PlaybackPreferences?
 
@@ -77,12 +78,50 @@ struct PlaybackSettingsView: View {
                     ? "Files play as they are, every format with HDR and Dolby Vision. Lossless surround sends TrueHD, DTS-HD and FLAC as multichannel PCM, for a receiver or eARC soundbar; off, they go as Dolby Digital Plus. Until you choose, it's on when what's connected takes it."
                     : "Off, the server sends a stream instead of the file itself. Downloads and remote viewing are unaffected.")
             }
+            if playsFilesDirectly {
+                Section {
+                    Picker("Dialogue boost", selection: $sound.dialogueBoost) {
+                        ForEach(SoundSettings.DialogueBoost.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                    }
+                    .settingsRow()
+                    Picker("Night mode", selection: $sound.nightMode) {
+                        ForEach(SoundSettings.NightMode.allCases, id: \.self) { Text($0 == .scheduled ? "On a schedule" : $0.rawValue).tag($0) }
+                    }
+                    .settingsRow()
+                    if sound.nightMode == .scheduled {
+                        DatePicker("From", selection: minutes(\.nightStart), displayedComponents: .hourAndMinute)
+                            .settingsRow()
+                        DatePicker("Until", selection: minutes(\.nightEnd), displayedComponents: .hourAndMinute)
+                            .settingsRow()
+                    }
+                    Picker("Speakers", selection: $sound.speakers) {
+                        ForEach(SoundSettings.Speakers.allCases, id: \.self) { Text($0.label).tag($0) }
+                    }
+                    .settingsRow()
+                } header: {
+                    Text("Sound")
+                } footer: {
+                    Text("Dialogue boost makes voices easier to follow; night mode quietens loud scenes. While either is on, or the speakers are set, surround plays as PCM rather than passed through, and Atmos without its height.")
+                }
+                .onChange(of: sound) { _, changed in SoundSettings.current = changed }
+            }
         }
         .settingsPage("Playback")
         .animation(.default, value: preferences == nil)
         .task {
             if let loaded = try? await model.client?.playbackPreferences() { preferences = loaded }
         }
+    }
+
+    /// A night-mode time (minutes after midnight) as the date a DatePicker shows: today, at that time.
+    private func minutes(_ key: WritableKeyPath<SoundSettings, Int>) -> Binding<Date> {
+        Binding(
+            get: { Calendar.current.startOfDay(for: Date()).addingTimeInterval(Double(sound[keyPath: key]) * 60) },
+            set: { date in
+                let parts = Calendar.current.dateComponents([.hour, .minute], from: date)
+                sound[keyPath: key] = (parts.hour ?? 0) * 60 + (parts.minute ?? 0)
+            }
+        )
     }
 
     /// A preference that's saved as soon as it changes, and put back if the server says no.

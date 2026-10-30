@@ -40,6 +40,8 @@ final class EngineTransport: PlayerTransport {
     /// The engine let its picture go in the background and the title was paused then: it's rebuilt on the next Play.
     private var restoreOnPlay = false
     private var lifecycleObservers: [NSObjectProtocol] = []
+    /// Looks at a scheduled night mode once a minute, so it starts and stops mid-film.
+    private var soundClock: Timer?
 
     init(info: PlaybackInfo, client: FlexarrClient) throws {
         self.info = info
@@ -81,6 +83,8 @@ final class EngineTransport: PlayerTransport {
         // The file's sound out of sync (the household's fix, kept by the server): moved here, unless the server's
         // stream has it moved already.
         options.audioDelaySeconds = info.audioDelayInStream == true ? 0 : info.audioDelaySeconds ?? 0
+        // Dialogue boost, night mode and the speakers (this device's sound settings), shaped by the engine.
+        options.audioShaping = SoundSettings.current.shaping(at: Date())
         let modes = AVPlayer.availableHDRModes
         options.panelIsInHDRMode = !modes.isEmpty
         options.panelPresentsDolbyVision = modes.contains(.dolbyVision)
@@ -225,7 +229,17 @@ final class EngineTransport: PlayerTransport {
         engine.setAudioDelay(seconds)
     }
 
+    /// The engine can't shape what AirPlay plays: the settings stand, and come back after it.
+    var soundReach: SoundReach { engine.audioShapingState == .unavailable ? .notOverAirPlay : .applied }
+
+    /// The sound settings as they are now: a change, or a scheduled night mode starting or stopping. A change rebuilds
+    /// the session at the playhead (a moment's hold of the picture), so the same value twice does nothing.
+    private func applySoundSettings() {
+        engine.setAudioShaping(SoundSettings.current.shaping(at: Date()))
+    }
+
     func stop() {
+        soundClock?.invalidate()
         lifecycleObservers.forEach { NotificationCenter.default.removeObserver($0) }
         lifecycleObservers = []
         cancellables.removeAll()
@@ -515,7 +529,24 @@ final class EngineTransport: PlayerTransport {
             center.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
                 MainActor.assumeIsolated { self?.becameActive() }
             },
+            center.addObserver(forName: SoundSettings.changed, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.applySoundSettings() }
+            },
         ]
+        soundClock = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, SoundSettings.current.nightMode == .scheduled else { return }
+                self.applySoundSettings()
+            }
+        }
+        engine.$audioShapingState
+            .receive(on: DispatchQueue.main)
+            .removeDuplicates()
+            .sink { [weak self] _ in
+                guard let self else { return }
+                self.delegate?.transportTracksChanged(self) // The audio menu says whether it's reaching the sound.
+            }
+            .store(in: &cancellables)
         engine.$playbackPhase
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.updatePhase() }
