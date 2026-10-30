@@ -26,7 +26,7 @@ import {
 } from '../api/client'
 import { AsyncButton } from '../components/AsyncButton'
 import { FolderPicker } from '../components/FolderPicker'
-import { Antenna, Check, Close, Film, Home, Monitor, Music, Pencil, Phone, Stack, Tv } from '../components/icons'
+import { Antenna, AppleLogo, Check, Close, External, Film, Home, Monitor, Music, Pencil, Phone, Stack, Tv } from '../components/icons'
 import { PairingPrompt } from '../components/PairingPrompt'
 import { Avatar } from '../components/ProfilePicker'
 import { useApi } from '../hooks/useApi'
@@ -667,8 +667,11 @@ function DevicesStep({ nav }: { nav: StepNav }) {
                 <strong>{app.name}</strong>
               </span>
               {app.href ? (
-                <a className="button small" href={app.href} target="_blank" rel="noreferrer">
+                <a className="button small onboard-store" href={app.href} target="_blank" rel="noreferrer">
+                  <AppleLogo className="onboard-store-logo" />
                   App Store
+                  <External />
+                  <span className="visually-hidden"> (opens in a new tab)</span>
                 </a>
               ) : (
                 <span className="onboard-soon">Coming soon</span>

@@ -744,3 +744,18 @@
     gap: 6px;
   }
 }
+
+.onboard .button.onboard-store {
+  gap: 6px;
+}
+
+.onboard .button.onboard-store svg {
+  width: 14px;
+  height: 14px;
+}
+
+.onboard .button.onboard-store .onboard-store-logo {
+  width: 15px;
+  height: 15px;
+  margin-top: -2px;
+}
