@@ -124,4 +124,83 @@ class WatchlistTest {
         assertTrue(error is FlexarrException.Http)
         assertEquals("Titles that aren't in the library need a Seerr server.", error?.message)
     }
+
+    private fun entry(id: String, status: String, added: String?, mediaType: String = "movie", title: String = id, release: String? = null, year: Int? = null) =
+        WatchlistEntry(
+            id = id, mediaType = mediaType, title = title, addedAt = added, releaseDate = release, year = year,
+            status = WatchlistStatus.entries.first { it.raw == status },
+        )
+
+    @Test
+    fun `reads what's on the list cheaply`() = runTest {
+        server.enqueue(json("""{"libraryItemIds":["i1","i2"],"titles":["movie:123","tv:456"]}"""))
+        val keys = client().watchlistKeys()
+        assertEquals(listOf("i1", "i2"), keys?.libraryItemIds)
+        assertEquals(listOf("movie:123", "tv:456"), keys?.titles)
+        assertEquals("/api/v1/watchlist/keys", server.takeRequest().url.encodedPath)
+    }
+
+    @Test
+    fun `a server without a watchlist has no keys`() = runTest {
+        server.enqueue(json("""{"title":"Not Found","status":404}""", code = 404))
+        assertNull(client().watchlistKeys())
+        server.enqueue(MockResponse.Builder().code(200).addHeader("Content-Type", "text/html").body("<!doctype html><html></html>").build())
+        assertNull(client().watchlistKeys())
+    }
+
+    @Test
+    fun `ready first, then on its way, coming and not available, newest added first within each`() {
+        val entries = listOf(
+            entry("na", "NotAvailable", "2026-10-30T12:00:00"),
+            entry("coming", "Coming", "2026-10-30T11:00:00"),
+            entry("readyOld", "Ready", "2026-10-01T10:00:00"),
+            entry("way", "OnItsWay", "2026-10-29T10:00:00"),
+            entry("readyNew", "Ready", "2026-10-30T10:00:00"),
+            entry("readyUndated", "Ready", null),
+        )
+        assertEquals(listOf("readyNew", "readyOld", "readyUndated", "way", "coming", "na"), WatchlistSort.ReadyFirst.sorted(entries).map { it.id })
+        assertEquals(WatchlistSort.ReadyFirst, WatchlistSort.entries.first())
+        assertEquals(listOf("na", "coming", "readyNew", "way", "readyOld", "readyUndated"), WatchlistSort.RecentlyAdded.sorted(entries).map { it.id })
+    }
+
+    @Test
+    fun `sorts by release date and title`() {
+        val entries = listOf(
+            entry("late", "Coming", null, release = "2027-03-05"),
+            entry("none", "NotAvailable", null),
+            entry("yearOnly", "Ready", null, year = 2020),
+            entry("early", "Ready", null, release = "2019-06-01"),
+        )
+        assertEquals(listOf("early", "yearOnly", "late", "none"), WatchlistSort.ReleaseDate.sorted(entries).map { it.id })
+        val titled = listOf(entry("b", "Ready", null, title = "‘Blade Runner’"), entry("a", "Ready", null, title = "alien"), entry("c", "Ready", null, title = "Casablanca"))
+        assertEquals(listOf("a", "b", "c"), WatchlistSort.Title.sorted(titled).map { it.id })
+    }
+
+    @Test
+    fun `filters to films or shows`() {
+        val entries = listOf(entry("m", "Ready", null, mediaType = "movie"), entry("t", "Coming", null, mediaType = "tv"))
+        assertEquals(listOf("m", "t"), entries.filter(WatchlistKind.All::matches).map { it.id })
+        assertEquals(listOf("m"), entries.filter(WatchlistKind.Films::matches).map { it.id })
+        assertEquals(listOf("t"), entries.filter(WatchlistKind.Shows::matches).map { it.id })
+    }
+
+    @Test
+    fun `says where a title streams, when the server knows`() {
+        val entries = decodeEntries(
+            """[
+              {"id":"a","mediaType":"movie","title":"A","status":"NotAvailable","streaming":["Netflix"]},
+              {"id":"b","mediaType":"tv","title":"B","status":"Coming","streaming":["Netflix","Prime Video","Disney Plus"]},
+              {"id":"c","mediaType":"movie","title":"C","status":"NotAvailable"},
+              {"id":"d","mediaType":"movie","title":"D","status":"NotAvailable","streaming":null},
+              {"id":"e","mediaType":"movie","title":"E","status":"NotAvailable","streaming":[]}
+            ]""",
+        )
+        assertEquals(listOf("Netflix"), entries[0].streaming)
+        assertEquals("On Netflix", entries[0].streamingLine)
+        assertEquals("Netflix, Prime Video, Disney Plus", entries[1].streamingLine)
+        assertNull(entries[2].streaming)
+        assertNull(entries[2].streamingLine)
+        assertNull(entries[3].streamingLine)
+        assertNull(entries[4].streamingLine)
+    }
 }

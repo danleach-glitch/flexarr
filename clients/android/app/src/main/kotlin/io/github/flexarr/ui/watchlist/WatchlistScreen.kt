@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -17,7 +18,15 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
@@ -31,6 +40,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -39,10 +51,13 @@ import androidx.compose.ui.unit.sp
 import io.github.flexarr.AppModel
 import io.github.flexarr.core.WatchlistEntry
 import io.github.flexarr.core.WatchlistFilter
+import io.github.flexarr.core.WatchlistKind
+import io.github.flexarr.core.WatchlistSort
 import io.github.flexarr.core.WatchlistStatus
 import io.github.flexarr.ui.components.Edge
 import io.github.flexarr.ui.components.GridMinimum
 import io.github.flexarr.ui.components.ItemMenu
+import io.github.flexarr.ui.components.Load
 import io.github.flexarr.ui.components.Loaded
 import io.github.flexarr.ui.components.LocalNavigator
 import io.github.flexarr.ui.components.MenuAction
@@ -62,21 +77,27 @@ import java.time.format.FormatStyle
 
 /**
  * The profile's watchlist: what's ready plays from the usual poster card, and the rest says where it's got to (on its
- * way, out on a date, or a Request button). Filters along the top; a long press takes a title off.
+ * way, out on a date, where it streams, or a Request button). Status chips along the top, sort and films or shows
+ * behind the button beside the title; a long press takes a title off.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WatchlistScreen(model: AppModel) {
     val navigator = LocalNavigator.current
     var filter by rememberSaveable { mutableStateOf(WatchlistFilter.Everything) }
+    var kind by rememberSaveable { mutableStateOf(WatchlistKind.All) }
+    var sort by rememberSaveable { mutableStateOf(WatchlistSort.ReadyFirst) }
     val loader = rememberLoader(model.credentials, model.watchlistVersion) { model.loadWatchlist().orEmpty() }
+    val hasEntries = (loader.state as? Load.Loaded)?.value?.isNotEmpty() == true
     RoomBackground(ambient = null) {
         Column {
-            PageTitle("Watchlist", onBack = { navigator.back() })
+            PageTitle("Watchlist", onBack = { navigator.back() }) {
+                if (hasEntries) SortAndKind(sort, { sort = it }, kind, { kind = it })
+            }
             Loaded(loader) { entries ->
                 PullToRefreshBox(isRefreshing = loader.refreshing, onRefresh = loader.retry) {
                     if (entries.isEmpty()) {
-                        StatusView("Nothing here yet. Add films and shows from their pages, Discover or search.", empty = true)
+                        StatusView("Nothing here yet. Add films and shows from their pages.", empty = true)
                     } else Column {
                         LazyRow(
                             contentPadding = PaddingValues(horizontal = Edge),
@@ -85,7 +106,7 @@ fun WatchlistScreen(model: AppModel) {
                         ) {
                             items(WatchlistFilter.entries) { option -> PillButton(option.label, option == filter, { filter = option }) }
                         }
-                        val shown = entries.filter(filter::matches)
+                        val shown = remember(entries, filter, kind, sort) { sort.sorted(entries.filter { filter.matches(it) && kind.matches(it) }) }
                         if (shown.isEmpty()) {
                             StatusView("Nothing here.", empty = true)
                         } else {
@@ -152,6 +173,9 @@ private fun EntryCard(model: AppModel, entry: WatchlistEntry) {
             }
             Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
                 Text(entry.title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen.copy(alpha = 0.9f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (!canRequest) statusLine(entry)?.let { Text(it, fontSize = 12.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                // Where it streams, for a title the library hasn't got.
+                entry.streamingLine?.let { Text(it, fontSize = 12.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis) }
                 if (canRequest) {
                     Text(
                         "Request",
@@ -162,13 +186,44 @@ private fun EntryCard(model: AppModel, entry: WatchlistEntry) {
                             .background(Flexarr.screen.copy(alpha = 0.14f))
                             .pressable({ request() }, enabled = !requesting).padding(horizontal = 12.dp, vertical = 6.dp),
                     )
-                } else {
-                    statusLine(entry)?.let { Text(it, fontSize = 12.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis) }
                 }
             }
         }
         ItemMenu(actions, menu, onDismiss = { menu = false })
     }
+}
+
+/** Sort by, and films, shows or both: one button beside the title, as a library's. */
+@Composable
+private fun SortAndKind(sort: WatchlistSort, onSort: (WatchlistSort) -> Unit, kind: WatchlistKind, onKind: (WatchlistKind) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { open = true }) {
+            Icon(Icons.Filled.FilterList, contentDescription = "Sort and filter", tint = if (kind == WatchlistKind.All) Flexarr.screen else Flexarr.silver)
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            MenuHeading("Sort by")
+            WatchlistSort.entries.forEach { option -> Choice(option.label, option == sort) { open = false; onSort(option) } }
+            HorizontalDivider(color = Flexarr.aisle)
+            MenuHeading("Show")
+            WatchlistKind.entries.forEach { option -> Choice(option.label, option == kind) { open = false; onKind(option) } }
+        }
+    }
+}
+
+@Composable
+private fun MenuHeading(text: String) {
+    Text(text, fontSize = 13.sp, color = Flexarr.usher, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp).semantics { heading() })
+}
+
+@Composable
+private fun Choice(label: String, selected: Boolean, onClick: () -> Unit) {
+    DropdownMenuItem(
+        text = { Text(label, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal) },
+        trailingIcon = { if (selected) Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp)) },
+        onClick = onClick,
+        modifier = Modifier.semantics { this.selected = selected },
+    )
 }
 
 /** "On its way", "Out 5 Mar 2027" (in the phone's own date format), or the year. */

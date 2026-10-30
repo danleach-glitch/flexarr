@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ready from your watchlist on the home screen (WatchlistWidget): four cells by two, up to four posters, fewer as it's
+     made narrower. It asks the server again every hour, and whenever the watchlist changes or something's watched. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/widget_watchlist_description"
+    android:initialLayout="@layout/glance_default_loading_layout"
+    android:minWidth="110dp"
+    android:minHeight="110dp"
+    android:minResizeWidth="110dp"
+    android:minResizeHeight="110dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="2"
+    android:previewImage="@drawable/widget_watchlist_preview"
+    android:resizeMode="horizontal|vertical"
+    android:updatePeriodMillis="3600000"
+    android:widgetCategory="home_screen" />

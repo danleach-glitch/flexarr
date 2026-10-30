@@ -47,8 +47,21 @@ data class WatchlistEntry(
     val item: ItemSummary? = null,
     /** "flexarr", or "trakt" for a title brought across from Trakt. */
     val source: String = "flexarr",
+    /** Titles not in the library: the subscription services it's on in the household's region, a few at most. */
+    val streaming: List<String>? = null,
 ) {
     val isMovie: Boolean get() = mediaType == "movie"
+
+    /** "On Netflix", or "Netflix, Prime Video"; null when it isn't known to stream anywhere. */
+    val streamingLine: String?
+        get() {
+            val services = streaming?.map(String::trim)?.filter(String::isNotEmpty).orEmpty()
+            return when (services.size) {
+                0 -> null
+                1 -> "On ${services[0]}"
+                else -> services.joinToString(", ")
+            }
+        }
 
     /** [releaseDate] as a date, or null when there's none (or it isn't one). */
     val releaseDay: LocalDate? get() = releaseDate?.let { runCatching { LocalDate.parse(it.take(10)) }.getOrNull() }
@@ -75,6 +88,61 @@ enum class WatchlistFilter(val label: String) {
     }
 }
 
+/** Films, shows, or both: the Watchlist screen's kind filter, as the web's. */
+enum class WatchlistKind(val label: String) {
+    All("Films and shows"),
+    Films("Films"),
+    Shows("Shows");
+
+    fun matches(entry: WatchlistEntry): Boolean = when (this) {
+        All -> true
+        Films -> entry.mediaType == "movie"
+        Shows -> entry.mediaType == "tv"
+    }
+}
+
+/** How the Watchlist screen orders its titles, as the web's. */
+enum class WatchlistSort(val label: String) {
+    /** Ready, then on its way, coming, not available; newest added first within each. */
+    ReadyFirst("Ready first"),
+    RecentlyAdded("Recently added"),
+    /** Soonest (oldest) first; titles with no date last. */
+    ReleaseDate("Release date"),
+    Title("Title");
+
+    fun sorted(entries: List<WatchlistEntry>): List<WatchlistEntry> = when (this) {
+        ReadyFirst -> entries.sortedWith(compareBy<WatchlistEntry> { rank(it.status) }.then(newestAdded))
+        RecentlyAdded -> entries.sortedWith(newestAdded)
+        ReleaseDate -> entries.sortedBy { releaseKey(it) }
+        Title -> entries.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { titleKey(it) })
+    }
+
+    private companion object {
+        val newestAdded: Comparator<WatchlistEntry> = compareByDescending(nullsFirst<String>()) { it.addedAt }
+
+        fun rank(status: WatchlistStatus) = when (status) {
+            WatchlistStatus.Ready -> 0
+            WatchlistStatus.OnItsWay -> 1
+            WatchlistStatus.Coming -> 2
+            WatchlistStatus.NotAvailable -> 3
+            WatchlistStatus.Unknown -> 4
+        }
+
+        fun releaseKey(entry: WatchlistEntry): String =
+            entry.item?.releaseDate ?: entry.releaseDate ?: entry.year?.let { "$it-01-01" } ?: "9999"
+
+        /** Letters, digits and spaces only, as the web sorts ignoring punctuation. */
+        fun titleKey(entry: WatchlistEntry): String = entry.title.filter { it.isLetterOrDigit() || it.isWhitespace() }.trim()
+    }
+}
+
+/**
+ * What's on the profile's watchlist, without where each has got to: library ids (linked, or matched by TMDB id) and
+ * "movie:123" / "tv:456" keys. Cheap for the server (no Seerr), for poster menus that offer Add or Remove.
+ */
+@Serializable
+data class WatchlistKeys(val libraryItemIds: List<String> = emptyList(), val titles: List<String> = emptyList())
+
 @Serializable
 internal data class WatchlistAddBody(val libraryItemId: String? = null, val mediaType: String? = null, val tmdbId: Int? = null)
 
@@ -90,6 +158,18 @@ internal data class TitleRequestBody(val mediaType: String, val tmdbId: Int)
 suspend fun FlexarrClient.watchlist(): List<WatchlistEntry>? {
     val text = try {
         sendRaw("GET", "watchlist")
+    } catch (e: FlexarrException.Http) {
+        if (e.status == 404) return null else throw e
+    } catch (_: FlexarrException.UnexpectedResponse) {
+        return null
+    }
+    return decodeText(serializer(), text)
+}
+
+/** What's on the watchlist ([WatchlistKeys]); null from servers before 0.56, as [watchlist]. */
+suspend fun FlexarrClient.watchlistKeys(): WatchlistKeys? {
+    val text = try {
+        sendRaw("GET", "watchlist/keys")
     } catch (e: FlexarrException.Http) {
         if (e.status == 404) return null else throw e
     } catch (_: FlexarrException.UnexpectedResponse) {

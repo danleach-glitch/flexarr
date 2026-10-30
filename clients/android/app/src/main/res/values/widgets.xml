@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The podcast widgets' names and descriptions in the widget picker (PodcastWidgets). -->
+<!-- The podcast widgets' and the watchlist widget's names and descriptions in the widget picker. -->
 <resources>
     <string name="widget_listening_label">Continue listening</string>
     <string name="widget_listening_description">The podcast episode you’re on, to carry on with</string>
     <string name="widget_up_next_label">Up Next</string>
     <string name="widget_up_next_description">The podcast episodes waiting in Up Next</string>
+    <string name="widget_watchlist_label">Watchlist</string>
+    <string name="widget_watchlist_description">Ready from your watchlist</string>
 </resources>

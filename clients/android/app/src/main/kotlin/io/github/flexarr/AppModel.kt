@@ -25,6 +25,7 @@ import io.github.flexarr.core.removeFromWatchlist
 import io.github.flexarr.core.removeLibraryItemFromWatchlist
 import io.github.flexarr.core.requestTitle
 import io.github.flexarr.core.watchlist
+import io.github.flexarr.core.watchlistKeys
 import io.github.flexarr.core.addToUpNext
 import io.github.flexarr.core.podcastPreferences
 import io.github.flexarr.core.podcastStatus
@@ -38,12 +39,14 @@ import io.github.flexarr.logging.LogHub
 import io.github.flexarr.notifications.PushNotifications
 import io.github.flexarr.widget.ContinueWatchingWidget
 import io.github.flexarr.widget.PodcastWidgets
+import io.github.flexarr.widget.WatchlistWidget
 import io.github.flexarr.data.ServerCredentials
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ProcessLifecycleOwner
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -213,26 +216,46 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         private set
 
     /**
-     * The profile's watchlist, keeping [hasWatchlist] and [watchlistItems] in step with it. Null from a server without
-     * one; throws when the server can't be reached (what's known stays).
+     * The profile's whole watchlist, for the Watchlist screen (it asks Seerr where each title has got to, so only there).
+     * Null from a server without one; throws when the server can't be reached.
      */
     suspend fun loadWatchlist(): List<WatchlistEntry>? {
         val client = client ?: return null
         val list = client.watchlist()
-        // Someone else may have been chosen meanwhile.
-        if (client.profileToken != this.client?.profileToken) return list
-        hasWatchlist = list != null
-        watchlistItems = list.orEmpty().mapNotNullTo(HashSet()) { it.libraryItemId }
+        if (client.profileToken == this.client?.profileToken) hasWatchlist = list != null
         return list
     }
 
-    /** As [loadWatchlist], for when nothing waits on the answer. */
+    /**
+     * Whether the server keeps watchlists, and which library titles are on this profile's ([watchlistItems]), from the
+     * cheap keys list. What's known stays when the server can't be reached.
+     */
     suspend fun refreshWatchlist() {
+        val client = client ?: return
         try {
-            loadWatchlist()
+            val keys = client.watchlistKeys()
+            // Someone else may have been chosen meanwhile.
+            if (client.profileToken != this.client?.profileToken) return
+            hasWatchlist = keys != null
+            watchlistItems = keys?.libraryItemIds.orEmpty().toHashSet()
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
+        }
+    }
+
+    private var watchlistRefresh: Job? = null
+
+    /**
+     * [refreshWatchlist] and the watchlist widget, shortly: a run of changes (an offline sync sending a dozen
+     * downloads' progress) asks the server once, after the last.
+     */
+    private fun refreshWatchlistSoon() {
+        watchlistRefresh?.cancel()
+        watchlistRefresh = scope.launch {
+            delay(WATCHLIST_SETTLE_MS)
+            refreshWatchlist()
+            WatchlistWidget.refresh(context)
         }
     }
 
@@ -252,7 +275,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
             watchlistItems = before
             throw e
         } finally {
-            watchlistVersion++
+            watchlistChanged()
         }
     }
 
@@ -263,7 +286,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
             client.removeFromWatchlist(entry.id)
             entry.libraryItemId?.let { watchlistItems = watchlistItems - it }
         } finally {
-            watchlistVersion++
+            watchlistChanged()
         }
     }
 
@@ -274,11 +297,18 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         try {
             client.requestTitle(entry.mediaType, tmdbId)
         } finally {
-            watchlistVersion++
+            watchlistChanged()
         }
     }
 
+    /** The watchlist changed here: its screen and Home load again, and the widget asks again. */
+    private fun watchlistChanged() {
+        watchlistVersion++
+        scope.launch { WatchlistWidget.refresh(context) }
+    }
+
     private fun forgetWatchlist() {
+        watchlistRefresh?.cancel()
         hasWatchlist = false
         watchlistItems = emptySet()
     }
@@ -407,6 +437,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         scope.launch {
             ContinueWatchingWidget.refresh(context)
             PodcastWidgets.refresh(context)
+            WatchlistWidget.refresh(context)
         }
     }
 
@@ -516,8 +547,8 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
 
     fun watchStateChanged() {
         watchStateVersion++
-        // Watched films and started shows leave the watchlist.
-        if (hasWatchlist) scope.launch { refreshWatchlist() }
+        // Watched films and started shows leave the watchlist (and who's watching may have changed).
+        refreshWatchlistSoon()
         scope.launch {
             ContinueWatchingWidget.refresh(context)
             PodcastWidgets.refresh(context)
@@ -596,6 +627,9 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     }
 
     companion object {
+        /** How long [refreshWatchlistSoon] waits for changes to stop coming. */
+        private const val WATCHLIST_SETTLE_MS = 750L
+
         /**
          * The server's address for away from home, from its [status], as a base URL: every request there carries this
          * sign-in. Null when it has none, it's the [address] already in use, it isn't a Tailscale one (see
