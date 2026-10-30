@@ -29,7 +29,7 @@ A new server greets you with **Welcome to your Flexarr server** and asks for its
 - **The Mac app**: the menu bar menu, as **Setup Code**. Choose it to copy the code.
 - **macOS (installed with the script)**: `~/.flexarr/logs/console.log`, or `~/.flexarr/data/setup-code.txt`.
 
-Type it in and choose **Set up Flexarr**. This browser becomes the server's owner and is signed in. That's the whole sign-up. The code stops working once the server is set up, and after ten wrong tries it's replaced with a new one (the log says so).
+Type it in, choose a **PIN** for the main profile (4 to 8 digits, typed twice), and choose **Set up Flexarr**. This browser becomes the server's owner and is signed in. That's the whole sign-up. The PIN keeps the server's settings to you: anyone in the house can watch as the main profile, but changing settings asks for it. If you close the page before choosing **Set up Flexarr**, nothing has happened yet, and the same code still works. The code stops working once the server is set up, and after ten wrong tries it's replaced with a new one (the log says so).
 
 ![The welcome panel on a new server, asking for its setup code beside a Set up Flexarr button](../../site/guide/img/welcome.webp "What a new server shows a browser on your home network")
 

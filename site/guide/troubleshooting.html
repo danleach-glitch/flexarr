@@ -206,7 +206,8 @@
 <h3 id="i-forgot-a-profile-s-pin"><a class="anchor" href="#i-forgot-a-profile-s-pin" aria-hidden="true" tabindex="-1">#</a>I forgot a profile&#39;s PIN</h3>
 <ul>
 <li><strong>Someone else&#39;s profile:</strong> sign in as the main profile, open <strong>Settings › Profiles</strong>, edit their profile, and set a new PIN or remove it. You don&#39;t need the old one.</li>
-<li><strong>The main profile:</strong> changing or removing its PIN asks for the current one. Choose <strong>Use the API key instead</strong> and enter the server&#39;s API key. The same link appears on the PIN pad after too many wrong guesses.</li>
+<li><strong>The main profile:</strong> in a browser, open <strong>Settings</strong>, choose <strong>Forgotten it?</strong> under the PIN, and enter the server&#39;s API key with a new PIN. That browser is unlocked, and anywhere the old PIN was given is locked again. The Apple TV and phone apps send you to a browser for this.</li>
+<li><strong>The Mac app:</strong> choose <strong>Reset Admin PIN…</strong> from Flexarr&#39;s menu bar icon and type a new PIN. Being at the Mac is enough; no key is needed.</li>
 </ul>
 <p>The API key is in Flexarr&#39;s <code>config.json</code>: <code>~/.flexarr/data/config.json</code> on a Mac, or <code>/config/config.json</code> in Docker.</p>
 <p>After a few wrong PINs, the profile is locked on that device for a while, longer each time. Other devices aren&#39;t affected.</p>

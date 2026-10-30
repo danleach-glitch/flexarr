@@ -111,7 +111,7 @@
         <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Around the house</p>
         <h1>Profiles</h1>
         <p class="lede">Give everyone in the house their own Continue Watching, history and settings, with an optional PIN, and choose which libraries each profile sees.</p>
-        <p class="meta">4 min read</p>
+        <p class="meta">5 min read</p>
         <nav class="toc" aria-label="On this page">
           <p>On this page</p>
           <ol>
@@ -148,9 +148,13 @@
 <li>connect new devices, and see or replace the API key</li>
 <li>fix a wrong match, or delete a title through Sonarr or Radarr</li>
 </ul>
-<p>Every other profile can browse, watch, listen, make requests through Seerr, and open <strong>Settings</strong> to change its own playback and podcast settings. Under <strong>Settings › Server</strong> they see <strong>Manage the server</strong>, which asks for the main profile.</p>
-<blockquote class="callout important"><p><strong>Important</strong> Give the main profile a PIN. Without one, anyone using a browser or device you&#39;ve signed in can switch to it and change settings.</p>
-</blockquote>
+<p>Every other profile can browse, watch, listen, make requests through Seerr, and open <strong>Settings</strong> to change its own playback and podcast settings.</p>
+<h3 id="unlocking-settings"><a class="anchor" href="#unlocking-settings" aria-hidden="true" tabindex="-1">#</a>Unlocking settings</h3>
+<p>The main profile always has a PIN: you choose it when you set Flexarr up. Watching as the main profile doesn&#39;t need it, but doing any of the things above does. Open <strong>Settings</strong> on the main profile and the server&#39;s pages say <strong>Settings are locked</strong>: enter the PIN and choose <strong>Unlock</strong>.</p>
+<p>Settings stay unlocked on that browser or device for 15 minutes after your last change. They lock again sooner if someone else is chosen there, if you choose <strong>Lock settings</strong> at the bottom of the list, or if the server restarts. Being on your home network doesn&#39;t skip the PIN.</p>
+<p>A device asking to connect still shows up on the main profile while settings are locked. Choosing <strong>Allow</strong> asks for the PIN first.</p>
+<p>If the main profile has no PIN yet (a server set up before Flexarr asked for one), <strong>Settings</strong> asks you to give it one before anything else.</p>
+<p>To have Flexarr ask for the PIN whenever someone chooses the main profile too, keeping its watch history private, turn on <strong>Ask for the PIN when someone chooses the main profile</strong> in <strong>Settings › Profiles</strong>. Someone coming in over Tailscale with their own account is always asked.</p>
 <h2 id="adding-a-profile"><a class="anchor" href="#adding-a-profile" aria-hidden="true" tabindex="-1">#</a>Adding a profile</h2>
 <p>On the web, signed in as the main profile:</p>
 <ol>
@@ -165,9 +169,9 @@
 <h2 id="pins"><a class="anchor" href="#pins" aria-hidden="true" tabindex="-1">#</a>PINs</h2>
 <p>A PIN is 4 to 8 digits. Without one, anyone can switch to that profile. With one, Flexarr asks for it whenever someone chooses the profile.</p>
 <ul>
-<li>To change or remove the main profile&#39;s PIN, you need its current PIN. If you&#39;ve forgotten it, choose <strong>Use the API key instead</strong>; the key is in <code>config.json</code> in the server&#39;s data folder.</li>
+<li>The main profile&#39;s PIN can be changed but not removed. Changing it takes the current one. If you&#39;ve forgotten it, see <a href="/guide/troubleshooting#i-forgot-a-profiles-pin">I forgot a profile&#39;s PIN</a>.</li>
 <li>Wrong guesses lock out the device doing the guessing for a while, longer each time. Someone else guessing can&#39;t lock you out of your own profile.</li>
-<li>The main profile&#39;s PIN also unlocks Settings when you&#39;re away from home over Tailscale. See <a href="/guide/away-from-home">Watch away from home</a>.</li>
+<li>When wrong guesses at the main profile&#39;s PIN lock someone out, Flexarr notes it in its log and tells the main profile&#39;s phones (with notifications on), naming the device.</li>
 </ul>
 <h2 id="choosing-which-libraries-a-profile-sees"><a class="anchor" href="#choosing-which-libraries-a-profile-sees" aria-hidden="true" tabindex="-1">#</a>Choosing which libraries a profile sees</h2>
 <p>When you have more than one library, each profile has a switch for each. A library that&#39;s switched off is hidden everywhere on that profile: Home, search, Discover, Coming soon and requests. Podcasts can be left out the same way.</p>
