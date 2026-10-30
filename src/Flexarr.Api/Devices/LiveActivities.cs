@@ -37,7 +37,7 @@ public sealed record LiveActivityWire(bool Paused, double Position, double Age, 
 /// has Flexarr open: it updates the activity itself. Kept in memory: a restarted server forgets them until the phone
 /// is next opened.
 /// </summary>
-public sealed partial class LiveActivities(NowPlayingFeed feed, DeviceCommands commands, ILogger<LiveActivities> logger)
+public sealed partial class LiveActivities(NowPlayingFeed feed, DeviceCommands commands, Authentication.SignIns signIns, ILogger<LiveActivities> logger)
 {
     /// <summary>Enough for every phone in a house many times over; more is someone filling the server.</summary>
     private const int Limit = 200;
@@ -47,6 +47,9 @@ public sealed partial class LiveActivities(NowPlayingFeed feed, DeviceCommands c
 
     /// <summary>A position this far from where the last update's clock says it would be is a seek: sent.</summary>
     private const double Drift = 3;
+
+    /// <summary>An end the relay won't take is tried this many times, then given up (the activity goes stale by itself).</summary>
+    private const int EndAttempts = 5;
 
     private readonly ConcurrentDictionary<string, Entry> _entries = new(StringComparer.Ordinal);
     private readonly Lock _gate = new();
@@ -79,6 +82,9 @@ public sealed partial class LiveActivities(NowPlayingFeed feed, DeviceCommands c
 
         /// <summary>It's to end (the TV moved on or stopped), and the end hasn't reached the relay yet.</summary>
         public bool Ending { get; set; }
+
+        /// <summary>Ends tried and not taken.</summary>
+        public int FailedEnds { get; set; }
     }
 
     public static bool IsToken(string? token) => token is not null && TokenShape().IsMatch(token);
@@ -174,8 +180,16 @@ public sealed partial class LiveActivities(NowPlayingFeed feed, DeviceCommands c
         ArgumentNullException.ThrowIfNull(change);
         ArgumentNullException.ThrowIfNull(relay);
         var now = DateTime.UtcNow;
+        var signedIn = signIns.List().Select(s => s.Id).ToHashSet(StringComparer.Ordinal);
         foreach (var (token, entry) in _entries.Where(e => e.Value.DeviceId == change.DeviceId).ToList())
         {
+            // The phone was signed out (revoked in Settings): it hears no more. Owners that aren't sign-ins ("local:…") stay.
+            if (entry.Owner is { } signIn && !signIn.Contains(':', StringComparison.Ordinal) && !signedIn.Contains(signIn))
+            {
+                Remove(token);
+                continue;
+            }
+
             var playing = change.NowPlaying;
             bool ended;
             if (entry.Ending)
@@ -236,10 +250,19 @@ public sealed partial class LiveActivities(NowPlayingFeed feed, DeviceCommands c
             }
             else
             {
-                // Not sent: an update waits for the next change after the back-off, an end is tried again then.
+                // Not sent: an update waits for the next change after the back-off, an end is tried again then, a few
+                // times (not at all with notifications turned off): then it's given up, and the activity goes stale.
                 entry.RetryAfter = now + Backoff;
                 if (ended)
                 {
+                    entry.FailedEnds++;
+                    if (entry.FailedEnds >= EndAttempts || !relay.IsEnabled)
+                    {
+                        Remove(token);
+                        LogNotSent(reason);
+                        continue;
+                    }
+
                     entry.Ending = true;
                     entry.Sent = state;
                     _ = LookAgainAsync(change.DeviceId, Backoff, ct);

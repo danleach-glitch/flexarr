@@ -276,7 +276,8 @@ public static class FlexarrTools
             if (await LibraryVisibility.PlayingAsync(db, session.ItemId, session.ProfileId, ct) is { } item)
             {
                 list.Add(new McpNowPlaying(session.SignInId is { } id && devices.TryGetValue(id, out var device) ? device : "A browser or script",
-                    names.GetValueOrDefault(session.ProfileId, "Main"), McpTitle.From(item), session.LastPosition, session.DurationSeconds, session.Paused));
+                    names.GetValueOrDefault(session.ProfileId, "Main"), McpTitle.From(item), session.LastPosition,
+                    item.Id == Guid.Empty ? 0 : session.DurationSeconds, session.Paused)); // a private title's length could say which it is
             }
         }
 

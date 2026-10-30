@@ -174,8 +174,8 @@ public static class DeviceEndpoints
         }
 
         // A phone's Live Activity for what a TV is playing: kept up to date through the push relay while the phone is locked.
-        group.MapPut("/{id}/activity", (string id, LiveActivityRequest request, SignIns signIns, LiveActivities activities, PushRelay relay, CurrentProfile current,
-            HttpContext http) =>
+        group.MapPut("/{id}/activity", async (string id, LiveActivityRequest request, SignIns signIns, LiveActivities activities, PushRelay relay, CurrentProfile current,
+            FlexarrDbContext db, HttpContext http, CancellationToken ct) =>
         {
             if (!current.IsTrusted)
             {
@@ -195,6 +195,13 @@ public static class DeviceEndpoints
             if (!relay.IsEnabled)
             {
                 return Results.Problem("Notifications are turned off on this server.", statusCode: StatusCodes.Status409Conflict);
+            }
+
+            // Only a title the caller may see: following one it mayn't would tell it whether the TV is playing it.
+            var library = await db.MediaItems.AsNoTracking().Where(i => i.Id == request.ItemId).Select(i => (Guid?)i.LibraryId).FirstOrDefaultAsync(ct);
+            if (library is not { } libraryId || db.HiddenLibraryIds.Contains(libraryId))
+            {
+                return Results.Problem("There's no title with that id.", statusCode: StatusCodes.Status404NotFound);
             }
 
             return activities.Start(id, request, Owner(current, http))
@@ -370,7 +377,8 @@ public static class DeviceEndpoints
         var shuffle = request.Shuffle && item.Kind is MediaKind.Series or MediaKind.Season;
         var playing = shuffle ? item.Id : target.Id;
         var summary = await db.MediaItems.Where(i => i.Id == playing).Summaries(profileId).FirstAsync(ct);
-        var start = !shuffle && playing == item.Id && request.StartSeconds is { } at && double.IsFinite(at) && at >= 0 ? at : (double?)null;
+        // Within two days: nothing plays longer, and a device turns it into a whole number of seconds.
+        var start = !shuffle && playing == item.Id && request.StartSeconds is { } at && double.IsFinite(at) && at is >= 0 and <= 172_800 ? at : (double?)null;
         var command = new DeviceCommand(DeviceCommand.NewId(), DeviceCommandKind.Play, playing, request.FromBeginning, SenderName(signIns, current), DateTime.UtcNow, shuffle,
             ProfileId: request.ProfileId, Seconds: start);
         var delivered = commands.Send(device.Id, command);
@@ -500,8 +508,10 @@ public static class DeviceEndpoints
                 return hidden;
             }
 
+            // The profile chosen on the device; one since deleted watches as the main profile, as at sign-in.
             var profile = signIns.List().FirstOrDefault(s => s.Id == signInId)?.ProfileId ?? PlaybackState.DefaultUser;
-            var ids = await db.Profiles.AsNoTracking().Where(p => p.Id == profile).Select(p => p.HiddenLibraryIds).FirstOrDefaultAsync(ct);
+            var ids = await db.Profiles.AsNoTracking().Where(p => p.Id == profile).Select(p => p.HiddenLibraryIds).FirstOrDefaultAsync(ct)
+                ?? await db.Profiles.AsNoTracking().Where(p => p.Id == PlaybackState.DefaultUser).Select(p => p.HiddenLibraryIds).FirstOrDefaultAsync(ct);
             hidden = (ids ?? []).ToHashSet();
             hiddenAt = DateTime.UtcNow;
             return hidden;

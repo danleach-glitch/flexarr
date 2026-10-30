@@ -614,6 +614,8 @@ public sealed class NotificationTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.BadRequest, (await phone.PutAsJsonAsync(Api($"/devices/{tvId}/activity"), new { token = "nope", environment = "sandbox", itemId })).StatusCode);
         // A private title reaches a phone with no id: there's nothing to follow.
         Assert.Equal(HttpStatusCode.BadRequest, (await phone.PutAsJsonAsync(Api($"/devices/{tvId}/activity"), new { token, environment = "sandbox", itemId = Guid.Empty })).StatusCode);
+        // Only a title the phone may see.
+        Assert.Equal(HttpStatusCode.NotFound, (await phone.PutAsJsonAsync(Api($"/devices/{tvId}/activity"), new { token, environment = "sandbox", itemId = Guid.NewGuid() })).StatusCode);
 
         var sessions = _server.Services.GetRequiredService<Flexarr.Api.Playback.PlaybackSessions>();
         var session = new Flexarr.Api.Playback.PlaybackSession

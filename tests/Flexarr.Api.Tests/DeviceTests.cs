@@ -408,6 +408,9 @@ public class DeviceTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
         // A show (whichever episode is next) starts where that episode was left.
         Assert.Equal(HttpStatusCode.OK, (await Admin().PostAsJsonAsync(Api($"/devices/{id}/play"), new { itemId = show.Series, startSeconds = 812.5 })).StatusCode);
         Assert.Equal(JsonValueKind.Null, (await NextCommandAsync(reader)).GetProperty("seconds").ValueKind);
+        // Past anything that plays: left out, so a device never has to make sense of it.
+        Assert.Equal(HttpStatusCode.OK, (await Admin().PostAsJsonAsync(Api($"/devices/{id}/play"), new { itemId = show.Episodes["S01E01"], startSeconds = 1e300 })).StatusCode);
+        Assert.Equal(JsonValueKind.Null, (await NextCommandAsync(reader)).GetProperty("seconds").ValueKind);
         response.Dispose();
     }
 
