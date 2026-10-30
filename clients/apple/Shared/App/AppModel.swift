@@ -143,6 +143,13 @@ final class AppModel {
                 if let url = URL(string: "flexarr://play/\(play)") { open(url: url) }
             }
         }
+        // `-FlexarrOpen <flexarr:// link>` opens a screen once the app's up (flexarr://watchlist, say), for screenshots.
+        if let link = defaults.string(forKey: "FlexarrOpen"), let url = URL(string: link) {
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(3))
+                open(url: url)
+            }
+        }
         #endif
     }
 
