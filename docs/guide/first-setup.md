@@ -54,11 +54,11 @@ A few things to know:
 Next, Flexarr welcomes you with a short setup guide, one card at a time. Choose **Get started**, or **I'll set it up myself** to go straight to Home. Every step after your name can be skipped, and **Set up later** leaves the guide whenever you like:
 
 1. **Your name.** Type your name and choose a colour for your profile, the one that runs Flexarr.
-1. **Your apps.** Connect Sonarr, Radarr and Lidarr, if you use them. If Flexarr finds one running nearby, its address is filled in already, and you only paste its API key. Flexarr also adds its own webhook to each app, so new downloads show up straight away (see [Webhooks](connect-arrs.md#webhooks-new-downloads-appear-straight-away)). Connected the wrong one? Choose **Disconnect**. Don't use them? Choose **Skip**.
-2. **Libraries.** Each app's media folders are listed, ticked and ready: choose **Add**. Otherwise, choose a kind (**Movies**, **TV Shows**, **Music** or **Home Videos**) and pick the folder that holds it.
-3. **Who's watching.** Add a profile for each person in the house, or choose **Just me**. Added someone by mistake? Choose the **✕** on their picture. See [Profiles](profiles.md).
-4. **Your TV and phone.** Open the Flexarr app on your device at home. It shows a code; type it in here. See [Connect your devices](connect-devices.md).
-5. **Away from home.** Turn on Tailscale, if you have it. See [Watch away from home](away-from-home.md).
+2. **Your apps.** Connect Sonarr, Radarr and Lidarr, if you use them. If Flexarr finds one running nearby, its address is filled in already, and you only paste its API key. Flexarr also adds its own webhook to each app, so new downloads show up straight away (see [Webhooks](connect-arrs.md#webhooks-new-downloads-appear-straight-away)). Connected the wrong one? Choose **Disconnect**. Don't use them? Choose **Skip**.
+3. **Libraries.** There's a line each for **Movies**, **TV Shows** and **Music**. A folder from Sonarr, Radarr or Lidarr is filled in already. Otherwise choose **Choose folder**, go to the folder that holds it and choose **Add library**. Then choose **Next**. The guide adds one library of each kind; more, and home videos, are in **Settings › Libraries**.
+4. **Who's watching.** Add a profile for each person in the house, or choose **Skip**. Added someone by mistake? Choose the **✕** on their picture. See [Profiles](profiles.md).
+5. **Watch on all your devices.** Each app is listed with where to get it. Open it at home, and when it asks to connect, choose **Allow**. See [Connect your devices](connect-devices.md).
+6. **Away from home.** Turn on Tailscale, and **Disconnect** to turn it off again. Not installed yet? **Get Tailscale** opens its download page: install it on the server, sign in, then choose **Check again**. In Docker, see [Watch away from home](away-from-home.md) for other ways.
 
 At the end, the guide shows what's set up, says **Checking your libraries** while it reads your files for the first time, and warns you if a library came up empty or Flexarr can't see one of an app's folders.
 
