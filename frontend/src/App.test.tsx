@@ -1044,6 +1044,8 @@ describe('Player', () => {
     renderAt('/play/e1')
     await screen.findByText('Pilot')
     const video = document.querySelector('video')!
+    // The title shows before the first stream is attached; an error before then isn't a stopped transcode yet.
+    await vi.waitFor(() => expect(video.src).toContain('/playback/s1/'), { timeout: 5000 })
     act(() => {
       video.dispatchEvent(new Event('error'))
     })
@@ -1076,8 +1078,10 @@ describe('Player', () => {
 
     renderAt('/play/e1')
     await screen.findByText('Pilot')
+    const video = document.querySelector('video')!
+    await vi.waitFor(() => expect(video.src).toContain('/playback/s1/'), { timeout: 5000 })
     act(() => {
-      document.querySelector('video')!.dispatchEvent(new Event('error'))
+      video.dispatchEvent(new Event('error'))
     })
 
     // The dialog can open with the plain "stopped" message and take the server's reason a moment later (CI runners
