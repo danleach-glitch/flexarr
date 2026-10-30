@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Watchlist · Flexarr guide</title>
+  <meta name="description" content="Keep a list of films and shows to watch later, whether you have them yet or not, and hear when they arrive.">
+  <meta name="theme-color" content="#1b1720">
+  <meta name="color-scheme" content="dark">
+  <meta name="apple-itunes-app" content="app-id=6826618084">
+  <link rel="canonical" href="https://flexarr.io/guide/watchlist">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta property="og:title" content="Watchlist · Flexarr guide">
+  <meta property="og:description" content="Keep a list of films and shows to watch later, whether you have them yet or not, and hear when they arrive.">
+  <meta property="og:image" content="https://flexarr.io/shots/og.jpg">
+  <meta property="og:url" content="https://flexarr.io/guide/watchlist">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;700&family=Big+Shoulders+Display:wght@700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/base.css">
+  <link rel="stylesheet" href="/guide/guide.css">
+</head>
+<body class="guide">
+  <a class="skip" href="#main">Skip to the article</a>
+  <div class="glow" aria-hidden="true"></div>
+  <header class="site-header">
+    <div class="wrap bar">
+      <a class="wordmark" href="/" aria-label="Flexarr home"><img src="/logo-mark.svg" alt="">flexarr</a>
+      <nav class="site-nav" aria-label="Main">
+        <a href="/#features">Features</a>
+        <a class="keep" href="/apps">The Apps</a>
+        <a class="keep" href="/guide" aria-current="page">Guide</a>
+        <a class="github keep" href="https://github.com/danleach-glitch/flexarr" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.8 1.19 1.83 1.19 3.09 0 4.42-2.69 5.39-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></svg>GitHub</a>
+      </nav>
+    </div>
+  </header>
+  <div class="wrap layout">
+    <aside class="sidebar" aria-label="Guide">
+        <div class="search" role="search">
+          <label class="visually-hidden" for="guide-search">Search the guide</label>
+          <input id="guide-search" type="search" placeholder="Search the guide" autocomplete="off" spellcheck="false" aria-controls="guide-results">
+          <ol id="guide-results" class="results" hidden></ol>
+        </div>
+        <details class="contents">
+          <summary>Guide contents</summary>
+          <nav>
+            <details class="section">
+            <summary>Getting started</summary>
+            <ul>
+              <li><a href="/guide/what-you-need">What you need</a></li>
+              <li><a href="/guide/install-macos">Install on a Mac</a></li>
+              <li><a href="/guide/install-synology">Install on a Synology NAS</a></li>
+              <li><a href="/guide/install-unraid">Install on Unraid</a></li>
+              <li><a href="/guide/install-docker">Install with Docker on Linux or Windows</a></li>
+              <li><a href="/guide/first-setup">First setup</a></li>
+              <li><a href="/guide/without-arrs">Without Sonarr and Radarr</a></li>
+              <li><a href="/guide/connect-devices">Connect your devices</a></li>
+              <li><a href="/guide/apple-tv-xcode">Install the Apple TV app with Xcode</a></li>
+              <li><a href="/guide/updating">Updating Flexarr</a></li>
+            </ul>
+            </details>
+            <details class="section">
+            <summary>Your *arrs</summary>
+            <ul>
+              <li><a href="/guide/connect-arrs">Connect Sonarr, Radarr, Lidarr and Seerr</a></li>
+              <li><a href="/guide/media-paths">Media paths</a></li>
+              <li><a href="/guide/requests">Requests</a></li>
+            </ul>
+            </details>
+            <details class="section" open>
+            <summary>Watching and listening</summary>
+            <ul>
+              <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
+              <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
+              <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
+              <li><a href="/guide/music">Music</a></li>
+              <li><a href="/guide/podcasts">Podcasts</a></li>
+              <li><a href="/guide/watchlist" aria-current="page">Watchlist</a></li>
+              <li><a href="/guide/downloads">Downloads</a></li>
+              <li><a href="/guide/live-tv">Live TV and recording</a></li>
+            </ul>
+            </details>
+            <details class="section">
+            <summary>Around the house</summary>
+            <ul>
+              <li><a href="/guide/profiles">Profiles</a></li>
+              <li><a href="/guide/away-from-home">Watch away from home</a></li>
+              <li><a href="/guide/siri-and-shortcuts">Siri and Shortcuts</a></li>
+              <li><a href="/guide/notifications-and-widgets">Notifications and widgets</a></li>
+              <li><a href="/guide/home-assistant">Home Assistant</a></li>
+              <li><a href="/guide/assistant-mcp">Use an AI assistant</a></li>
+            </ul>
+            </details>
+            <details class="section">
+            <summary>Looking after it</summary>
+            <ul>
+              <li><a href="/guide/import-from-plex">Bring your history over from Plex</a></li>
+              <li><a href="/guide/library-health">Library health</a></li>
+              <li><a href="/guide/backups">Backups</a></li>
+              <li><a href="/guide/logs-and-diagnostics">Logs and diagnostics</a></li>
+              <li><a href="/guide/troubleshooting">Troubleshooting</a></li>
+              <li><a href="/guide/faq">Frequently asked questions</a></li>
+            </ul>
+            </details>
+          </nav>
+        </details>
+      </aside>
+    <main id="main">
+      <article>
+        <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Watching and listening</p>
+        <h1>Watchlist</h1>
+        <p class="lede">Keep a list of films and shows to watch later, whether you have them yet or not, and hear when they arrive.</p>
+        <p class="meta">3 min read</p>
+        <nav class="toc" aria-label="On this page">
+          <p>On this page</p>
+          <ol>
+            <li><a href="#adding-and-removing">Adding and removing</a></li>
+            <li><a href="#your-watchlist">Your watchlist</a></li>
+            <li><a href="#when-something-arrives">When something arrives</a></li>
+            <li><a href="#requesting-what-you-add">Requesting what you add</a></li>
+          </ol>
+        </nav>
+        <div class="prose">
+<p>Each profile has its own watchlist: films and shows you want to watch later, whether they&#39;re in your library yet or not. When something on it arrives, you hear about it, and it waits on Home under <strong>Ready from your watchlist</strong>.</p>
+<h2 id="adding-and-removing"><a class="anchor" href="#adding-and-removing" aria-hidden="true" tabindex="-1">#</a>Adding and removing</h2>
+<div class="table"><table>
+<thead>
+<tr>
+<th>Where</th>
+<th>How</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Web app</td>
+<td><strong>Watchlist</strong> on a title&#39;s page, the bookmark under a poster in Discover and search, or <strong>Add to watchlist</strong> in a poster&#39;s menu.</td>
+</tr>
+<tr>
+<td>iPhone and iPad</td>
+<td><strong>Watchlist</strong> on a film&#39;s or show&#39;s page, or <strong>Add to watchlist</strong> when you press and hold a poster.</td>
+</tr>
+<tr>
+<td>Apple TV</td>
+<td><strong>Watchlist</strong> on a title&#39;s page (Discover&#39;s too), or <strong>Add to watchlist</strong> when you press and hold a poster.</td>
+</tr>
+<tr>
+<td>Android</td>
+<td><strong>Watchlist</strong> on a film&#39;s or show&#39;s page, or <strong>Add to watchlist</strong> when you press and hold a poster.</td>
+</tr>
+<tr>
+<td>Siri</td>
+<td>&quot;Add Severance to my watchlist in Flexarr&quot;, for a film or show in your library.</td>
+</tr>
+<tr>
+<td>Assistants</td>
+<td>Ask an assistant connected over <a href="/guide/assistant-mcp">MCP</a> to add or remove a title, even one you don&#39;t have yet.</td>
+</tr>
+</tbody></table></div>
+<p>Choose <strong>On watchlist</strong> on its page to take a title off again. Adding a title twice keeps one.</p>
+<p>Titles leave the list by themselves once you&#39;ve dealt with them: a film when you&#39;ve watched it, a show when you&#39;ve started it (it carries on in <strong>Continue watching</strong>). A title you&#39;ve seen before stays until you watch it again.</p>
+<h2 id="your-watchlist"><a class="anchor" href="#your-watchlist" aria-hidden="true" tabindex="-1">#</a>Your watchlist</h2>
+<p>On the web, <strong>Watchlist</strong> is in the sidebar under <strong>Browse</strong>. On iPhone, iPad and Android it&#39;s at the top of <strong>Libraries</strong>, and on the Apple TV it&#39;s in the sidebar beside <strong>Discover</strong>.</p>
+<p>Each title says where it&#39;s got to:</p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>You see</th>
+<th>What it means</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Its usual poster</td>
+<td>It&#39;s in your library. Play it.</td>
+</tr>
+<tr>
+<td><strong>On its way</strong></td>
+<td>It&#39;s been requested, or Sonarr or Radarr are getting it.</td>
+</tr>
+<tr>
+<td><strong>Out</strong> and a date</td>
+<td>It isn&#39;t released yet.</td>
+</tr>
+<tr>
+<td><strong>Request</strong></td>
+<td>It&#39;s out, but nobody&#39;s asked for it. Choose <strong>Request</strong> to add it to your library (see <a href="/guide/requests">Requests</a>).</td>
+</tr>
+</tbody></table></div>
+<p>On the web you can show only one kind (<strong>Ready to watch</strong>, <strong>On its way</strong>, <strong>Coming</strong> or <strong>Not available</strong>), only films or only shows, and sort by when you added them, when they came out, or by title. The iPhone and Android apps have the same filters.</p>
+<p>Titles you don&#39;t have yet need Seerr connected (see <a href="/guide/requests">Requests</a>). Without it, you can still keep a watchlist of what&#39;s in your library.</p>
+<h2 id="when-something-arrives"><a class="anchor" href="#when-something-arrives" aria-hidden="true" tabindex="-1">#</a>When something arrives</h2>
+<p>When a title on your watchlist arrives in your library, your iPhone, iPad or Android phone says <strong>From your watchlist</strong>, if that profile has notifications on. It follows the <strong>Requests</strong> switch in the app&#39;s notification settings. If you also requested the title, you hear once, as <strong>Your request is ready</strong>. See <a href="/guide/notifications-and-widgets">Notifications and widgets</a>.</p>
+<h2 id="requesting-what-you-add"><a class="anchor" href="#requesting-what-you-add" aria-hidden="true" tabindex="-1">#</a>Requesting what you add</h2>
+<p>The main profile can have a profile&#39;s watchlist request what it adds: open <strong>Settings › Profiles</strong>, edit the profile, and turn on <strong>Request what … adds to the watchlist</strong>. It&#39;s off to start with, and only shows when Seerr is connected.</p>
+<p>With it on, a film or show that isn&#39;t in your library and hasn&#39;t been asked for is requested as soon as it&#39;s added. It never requests:</p>
+<ul>
+<li>titles that are already in your library or already requested</li>
+<li>films for a profile that can&#39;t see any film library, or shows for one that can&#39;t see any TV library</li>
+<li>titles brought across from another service rather than added in Flexarr</li>
+</ul>
+<p>Taking a title off the watchlist doesn&#39;t cancel its request.</p>
+
+        </div>
+        <nav class="pager" aria-label="More of the guide">
+          <a class="prev" href="/guide/podcasts"><span>Previous</span>Podcasts</a>
+          <a class="next" href="/guide/downloads"><span>Next</span>Downloads</a>
+        </nav>
+        <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/watchlist.md">Edit this page on GitHub</a> <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20Watchlist">Report something wrong or missing</a></p>
+      </article>
+    </main>
+  </div>
+  <footer class="site-footer">
+    <div class="wrap bar">
+      <span>Flexarr is free for noncommercial use under the PolyForm Noncommercial License.<br>Not affiliated with the *arr projects.</span>
+      <nav aria-label="Project">
+        <a href="/guide">Guide</a>
+        <a href="/apps">Apps</a>
+        <a href="https://github.com/danleach-glitch/flexarr" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/danleach-glitch/flexarr/releases" target="_blank" rel="noopener">Releases</a>
+        <a href="https://github.com/danleach-glitch/flexarr/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a>
+        <a href="https://github.com/danleach-glitch/flexarr/issues" target="_blank" rel="noopener">Report a problem</a>
+        <a href="/donate">Donate</a>
+        <a href="/privacy">Privacy</a>
+      </nav>
+    </div>
+  </footer>
+  <script src="/guide/guide.js" defer></script>
+</body>
+</html>

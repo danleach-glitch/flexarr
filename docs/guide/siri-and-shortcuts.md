@@ -15,6 +15,7 @@ Every phrase needs the word **Flexarr** in it, so Siri knows which app you mean.
 - "Play *Heat* in Flexarr" or "Watch *Heat* in Flexarr"
 - "Shuffle *Family Guy* in Flexarr"
 - "Continue watching in Flexarr"
+- "Add *Severance* to my watchlist in Flexarr" (see [Watchlist](watchlist.md))
 
 A show plays the episode you're up to. A film carries on from where you left off. Shuffle plays a show's episodes in a random order, one after another. Continue watching picks up whatever you were in the middle of most recently.
 
@@ -65,6 +66,7 @@ Everything Siri can do is also in the Shortcuts app on iPhone and iPad, as actio
 | **Play a film or show** | Plays a film, or the next episode of a show. Can start from the beginning. |
 | **Shuffle a show** | Plays a show's episodes in a random order. |
 | **Continue watching** | Picks up what you were in the middle of. |
+| **Add to watchlist** | Puts a film or show from your library on your watchlist. |
 | **Pause, resume or stop** | Controls what Flexarr is playing. |
 | **Night mode** | Turns night mode on or off, here or on another device with Flexarr open. |
 | **Dialogue boost** | Sets dialogue boost to off, low, medium or high, here or on another device with Flexarr open. |
