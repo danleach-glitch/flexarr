@@ -345,7 +345,7 @@ private fun PlayerScreen(controller: PlaybackController, onClose: () -> Unit, in
     }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
-        VideoSurface(controller)
+        VideoSurface(controller.player)
         SubtitleLayer(controller)
         // In the corner window, the picture is all there is.
         if (inPictureInPicture) return@Box
@@ -427,9 +427,9 @@ private fun PlayerScreen(controller: PlaybackController, onClose: () -> Unit, in
     }
 }
 
-/** The picture, filling the screen at its own shape, kept awake while it's up. The phone's player and the TV's. */
+/** The picture, filling the screen at its own shape, kept awake while it's up. The phone's players and the TV's. */
 @Composable
-internal fun VideoSurface(controller: PlaybackController) {
+internal fun VideoSurface(player: androidx.media3.common.Player) {
     AndroidView(
         factory = { context ->
             PlayerView(context).apply {
@@ -439,7 +439,7 @@ internal fun VideoSurface(controller: PlaybackController) {
                 setShutterBackgroundColor(AndroidColor.BLACK)
                 // Subtitles are drawn by SubtitleLayer, at the profile's size and height.
                 subtitleView?.visibility = android.view.View.GONE
-                player = controller.player
+                this.player = player
             }
         },
         modifier = Modifier.fillMaxSize(),

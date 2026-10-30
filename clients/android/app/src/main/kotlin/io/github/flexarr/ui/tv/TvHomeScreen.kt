@@ -60,6 +60,8 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Icon
 import androidx.tv.material3.Text
 import io.github.flexarr.AppModel
+import io.github.flexarr.appModel
+import androidx.compose.ui.platform.LocalContext
 import io.github.flexarr.core.EmptyHomeMessage
 import io.github.flexarr.core.Home
 import io.github.flexarr.core.HomeRow
@@ -140,11 +142,15 @@ internal fun TvHomeRows(home: Home, emptyMessage: EmptyHomeMessage?, takeFocus: 
 }
 
 /**
- * What the TV shows of a row so far: films and TV. Music, playlists and Live TV channels come with their screens
- * (docs/android-tv.md), and a row with nothing in it would be a bare heading.
+ * What the TV shows of a row so far: films, TV and Live TV's favourite channels. Music and playlists come with their
+ * screens (docs/android-tv.md), and a row with nothing in it would be a bare heading.
  */
 private val HomeRow.shows: Boolean
-    get() = style != HomeRowStyle.Live && style != HomeRowStyle.Tracks && style != HomeRowStyle.Playlists && items.any { it.showsOnTv }
+    get() = when (style) {
+        HomeRowStyle.Live -> !channels.isNullOrEmpty()
+        HomeRowStyle.Tracks, HomeRowStyle.Playlists -> false
+        else -> items.any { it.showsOnTv }
+    }
 
 /**
  * Full-bleed featured hero: backdrop, clear logo, facts, two lines of overview, Play and More info. Left on Play or
@@ -247,6 +253,8 @@ private fun HomeRowView(row: HomeRow) {
                 verticalAlignment = Alignment.Top,
             ) {
                 when (row.style) {
+                    // The profile's favourite channels; channel up and down go through them.
+                    HomeRowStyle.Live -> items(row.channels.orEmpty(), key = { it.id }) { TvHomeChannelCard(LocalContext.current.appModel, it, row.channels.orEmpty()) }
                     HomeRowStyle.Wide -> items(items, key = { it.id }) { TvWideCard(it, onClick = { navigator.play(it) }) }
                     HomeRowStyle.Top10 -> itemsIndexed(items, key = { _, item -> item.id }) { index, item -> TvTop10Card(index + 1, item, onClick = { navigator.open(item) }) }
                     else -> items(items, key = { it.id }) { TvPosterCard(it, onClick = { navigator.open(it) }) }

@@ -25,6 +25,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.SettingsInputAntenna
 import io.github.flexarr.core.Library
 import io.github.flexarr.core.LibrarySort
 import io.github.flexarr.core.LibraryType
@@ -89,6 +90,7 @@ import io.github.flexarr.ui.theme.marquee
 private data class TvTab(val route: String, val title: String, val icon: ImageVector) {
     companion object {
         val Home = TvTab("home", "Home", Icons.Outlined.Home)
+        val LiveTv = TvTab("tab/livetv", "Live TV", Icons.Outlined.SettingsInputAntenna)
         val Discover = TvTab("discover", "Discover", Icons.Outlined.AutoAwesome)
         val Search = TvTab("search", "Search", Icons.Outlined.Search)
         val Settings = TvTab("settings", "Settings", Icons.Outlined.Settings)
@@ -113,9 +115,15 @@ fun TvMainScreen(model: AppModel) {
     var tabRoute by rememberSaveable { mutableStateOf(TvTab.Home.route) }
     val libraries = rememberLoader(model.credentials, model.librariesVersion) { client.libraries() }
     val libraryList = (libraries.state as? Load.Loaded)?.value.orEmpty()
-    // Films, shows and home videos so far: music has its own screens to come.
-    val libraryTabs = LibraryMenuEntry.ordered(model, libraryList).filterIsInstance<LibraryMenuEntry.Shelf>()
-        .map { it.library }.filter { it.type != LibraryType.Music }
+    // The libraries and Live TV in the profile's order. Music has its own screens to come; podcasts stay on the phone
+    // and the web; and the DVR's Recordings library has no tab of its own once Live TV has one (Live TV › Recordings).
+    val libraryTabs = LibraryMenuEntry.ordered(model, libraryList).mapNotNull { entry ->
+        when (entry) {
+            is LibraryMenuEntry.Shelf -> entry.library.takeIf { it.type != LibraryType.Music && !(model.hasLiveTv && it.isRecordings) }?.let(TvTab::library)
+            LibraryMenuEntry.LiveTv -> TvTab.LiveTv
+            is LibraryMenuEntry.Podcasts -> null
+        }
+    }
     var sidebarOpen by remember { mutableStateOf(false) }
     var choosingProfile by remember { mutableStateOf(false) }
     // The screen a tab opens on takes focus (Home's Play, a library's first title, Search's field) as the app opens and
@@ -130,6 +138,8 @@ fun TvMainScreen(model: AppModel) {
 
     // Signed in (or as someone else): commands for this device ("play on the living room TV") come to this sign-in.
     LaunchedEffect(model.credentials) { model.listenForCommands() }
+    // Whether the server has Live TV, for its place in the sidebar.
+    LaunchedEffect(model.credentials) { model.loadLiveTvStatus() }
 
     fun closeSidebar() {
         sidebarOpen = false
@@ -170,6 +180,7 @@ fun TvMainScreen(model: AppModel) {
                         val route = "tab/library/$id"
                         libraryList.firstOrNull { it.id == id }?.let { TvLibraryTab(model, it, takeFocus = arrives(route), onFocusTaken = arrived(route)) } ?: TvStatusView()
                     }
+                    composable(TvTab.LiveTv.route) { TvLiveTvScreen(model, takeFocus = arrives(TvTab.LiveTv.route), onFocusTaken = arrived(TvTab.LiveTv.route)) }
                     composable(TvTab.Discover.route) { TvDiscoverScreen(model) }
                     composable(TvTab.Search.route) { TvSearchScreen(model, takeFocus = arrives(TvTab.Search.route), onFocusTaken = arrived(TvTab.Search.route)) }
                     composable(TvTab.Settings.route) { TvSettingsScreen(model, onSwitchProfile = { choosingProfile = true }) }
@@ -186,7 +197,7 @@ fun TvMainScreen(model: AppModel) {
                     }
                 }
             }
-            val tabs = listOf(TvTab.Home) + libraryTabs.map(TvTab::library) + listOf(TvTab.Discover, TvTab.Search, TvTab.Settings)
+            val tabs = listOf(TvTab.Home) + libraryTabs + listOf(TvTab.Discover, TvTab.Search, TvTab.Settings)
             Sidebar(model, sidebarOpen, tabs, tabRoute, onSelect = ::select, onProfile = {
                 closeSidebar()
                 choosingProfile = true
@@ -290,3 +301,6 @@ private fun SidebarRow(title: String, selected: Boolean, onClick: () -> Unit, mo
         }
     }
 }
+
+/** The library the server makes for the DVR's recordings when the first one's done: a TV library called Recordings. */
+private val Library.isRecordings: Boolean get() = type == LibraryType.TvShows && name == "Recordings"
