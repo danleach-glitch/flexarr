@@ -42,6 +42,7 @@ import io.github.flexarr.core.downloadOptions
 import io.github.flexarr.core.markDownloadReceived
 import io.github.flexarr.core.offlineDownload
 import io.github.flexarr.core.podcastAutoDownloads
+import io.github.flexarr.core.podcastPlayedDownloads
 import io.github.flexarr.core.artistName
 import io.github.flexarr.core.reportOfflineProgress
 import io.github.flexarr.core.requestDownload
@@ -64,7 +65,8 @@ private val flexarrLog = FlexarrLog("downloads")
  * background (carrying on after the app or phone restarts: those asked for by hand as user-initiated jobs on Android 14
  * on, the rest with WorkManager), playing them with no connection, sending
  * what was watched once there's a connection again, fetching the next episode by itself, keeping the newest episodes of
- * podcasts that auto-download, and deleting episodes a day after they're finished. Downloads the phone starts by itself
+ * podcasts that auto-download, and deleting episodes a day after they're finished and podcast episodes once they're
+ * played. Downloads the phone starts by itself
  * wait for Wi-Fi unless Settings says otherwise. Albums and playlists come as collections of track downloads.
  */
 class DownloadStore(private val context: Context, private val model: AppModel) {
@@ -378,7 +380,7 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
 
     private suspend fun catchUpOnce() {
         ready()
-        DownloadRules.finishedWith(all, System.currentTimeMillis()).forEach { remove(it.id, tellServer = true) }
+        removeFinished()
         val client = currentClient ?: return
         if (!isOnline) return
         for (id in unsentDeletes) {
@@ -405,6 +407,8 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
                 if (e !is FlexarrException.Unreachable) flexarrLog.warning("Couldn't send offline progress", e)
             }
         }
+        removeFinished() // podcast episodes whose play was waiting to be sent
+        removePlayedPodcasts(client)
         // A title saved by an app that didn't know its kind (a podcast episode, kept by an older version) was saved as
         // Unknown and would stay so, filed under Films: what the server says now puts it right, as on iPhone.
         for (download in all.filter { it.profileId == profileId && it.item.kind == MediaKind.Unknown }) {
@@ -677,6 +681,30 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
     }
 
     // Deleting
+
+    private fun removeFinished() =
+        DownloadRules.finishedWith(all, System.currentTimeMillis(), model.podcasts::isPlayingFile).forEach { remove(it.id, tellServer = true) }
+
+    /**
+     * Podcast episodes played since they were downloaded, wherever (on the web, say, or marked played): the server says
+     * which, and they go, unless one's playing here or has a play here still to send.
+     */
+    private suspend fun removePlayedPodcasts(client: FlexarrClient) {
+        if (podcastEpisodes.isEmpty()) return
+        val played = try {
+            client.podcastPlayedDownloads().map { it.episodeId }.toSet()
+        } catch (_: FlexarrException) {
+            return // a server before 0.56, or out of reach
+        }
+        podcastEpisodes.filter { it.item.id in played && it.unsent == null && !model.podcasts.isPlayingFile(it.item.id) }
+            .forEach { remove(it.id, tellServer = true) }
+    }
+
+    /** Marked played here: a podcast episode's download goes at once, or a show's when all its episodes were. */
+    fun markedPlayed(itemId: String) {
+        podcastEpisodes.filter { (it.item.id == itemId || it.item.parentId == itemId) && !model.podcasts.isPlayingFile(it.item.id) }
+            .forEach { remove(it.id, tellServer = true) }
+    }
 
     /** Deleted by hand. A podcast episode's is never fetched by itself again (the server is told, and this phone remembers). */
     fun delete(id: String) {
