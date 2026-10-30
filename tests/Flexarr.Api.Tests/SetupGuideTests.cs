@@ -26,8 +26,9 @@ public sealed class SetupGuideTests
 
         var saved = await client.PutAsJsonAsync("/api/v1/setup-guide", new { opened = true, skipped = new[] { "away", "nonsense", "away" } });
         Assert.Equal(HttpStatusCode.NoContent, saved.StatusCode);
-        var after = await Eventually(() => client.GetFromJsonAsync<SetupGuideDto>("/api/v1/setup-guide", Json), g => g!.Opened);
-        Assert.Equal(["away"], after!.Skipped);
+        var after = await client.GetFromJsonAsync<SetupGuideDto>("/api/v1/setup-guide", Json);
+        Assert.True(after!.Opened); // Straight away: the save waits for the options to reload.
+        Assert.Equal(["away"], after.Skipped);
         Assert.False(after.Dismissed);
     }
 
@@ -129,20 +130,6 @@ public sealed class SetupGuideTests
 
         Assert.False(result!.Ok);
         Assert.DoesNotContain(arr.Requests, r => r == "POST /api/v3/notification");
-    }
-
-    private static async Task<T> Eventually<T>(Func<Task<T>> read, Func<T, bool> ready)
-    {
-        for (var i = 0; ; i++)
-        {
-            var value = await read();
-            if (ready(value) || i == 50)
-            {
-                return value;
-            }
-
-            await Task.Delay(100);
-        }
     }
 
     private static HttpClient Client(WebApplicationFactory<Program> app)

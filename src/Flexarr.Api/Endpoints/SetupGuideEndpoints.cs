@@ -67,15 +67,27 @@ public static partial class SetupGuideEndpoints
                 await tailscale.RemoteUrlAsync(LocalPort(http), ct) is not null);
         });
 
-        group.MapPut("/", (SetupGuideUpdate update, IOptionsMonitor<FlexarrOptions> options) =>
+        group.MapPut("/", async (SetupGuideUpdate update, IOptionsMonitor<FlexarrOptions> options, CancellationToken ct) =>
         {
             var guide = options.CurrentValue.SetupGuide;
+            // Answered once the options hold the change, so the guide read straight after (Home, after Hide) has it.
+            var reloaded = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            using var watch = options.OnChange(_ => reloaded.TrySetResult());
             ServerConfigStore.Update(options.CurrentValue.DataDirectory, config => config["setupGuide"] = new JsonObject
             {
                 ["opened"] = update.Opened ?? guide.Opened,
                 ["dismissed"] = update.Dismissed ?? guide.Dismissed,
                 ["skipped"] = new JsonArray([.. (update.Skipped ?? guide.Skipped).Where(Steps.Contains).Distinct().Select(s => (JsonNode)s)]),
             });
+            try
+            {
+                await reloaded.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
+            }
+            catch (TimeoutException)
+            {
+                // Nothing changed on disk (the same again), or the watcher is slow.
+            }
+
             return Results.NoContent();
         });
 

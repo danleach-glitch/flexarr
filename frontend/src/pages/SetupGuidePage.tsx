@@ -150,7 +150,11 @@ function Welcome({ onStart }: { onStart: () => void }) {
     <section className="onboard-card onboard-welcome" aria-labelledby="onboard-title">
       <img className="onboard-hero-mark" src="/logo-mark.svg" alt="" />
       <h1 id="onboard-title">Welcome to Flexarr</h1>
-      <p className="onboard-lede">Let’s get your films, shows and music ready to watch. It takes about a minute.</p>
+      <p className="onboard-lede">
+        Let’s get your films, shows and music ready to watch.
+        <br />
+        It takes just 2 minutes.
+      </p>
       <ol className="onboard-plan">
         {steps.map((s) => (
           <li key={s.id}>
