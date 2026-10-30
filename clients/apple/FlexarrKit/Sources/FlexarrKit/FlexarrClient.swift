@@ -429,6 +429,13 @@ public struct FlexarrClient: Sendable {
         return try decode(DeviceCommandResult.self, from: data)
     }
 
+    /// Changes another device's sound settings. Reaches it only while Flexarr is open there: otherwise a 409. Servers
+    /// before 0.56 don't have it (a 404).
+    public func setSound(device deviceId: String, _ sound: DeviceSound) async throws -> DeviceCommandResult {
+        let data = try await send("POST", "devices/\(deviceId)/sound", body: sound)
+        return try decode(DeviceCommandResult.self, from: data)
+    }
+
     /// Commands sent to this device, as they arrive (see `deviceEvents`, which this is the commands of).
     public func commandStream() -> AsyncThrowingStream<DeviceCommand, Error> {
         let events = deviceEvents()

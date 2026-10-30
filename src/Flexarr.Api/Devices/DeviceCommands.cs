@@ -13,6 +13,40 @@ public enum DeviceCommandKind
 
     /// <summary>Put on a Live TV channel (<see cref="DeviceCommand.ChannelId"/>).</summary>
     Watch,
+
+    /// <summary>Change the device's own sound settings (<see cref="DeviceCommand.Sound"/>): dialogue boost, night mode, speakers.</summary>
+    Sound,
+}
+
+public enum DialogueBoost
+{
+    Off,
+    Low,
+    Medium,
+    High,
+}
+
+public enum NightMode
+{
+    Off,
+    On,
+
+    /// <summary>Between the hours set on the device.</summary>
+    Scheduled,
+}
+
+public enum Speakers
+{
+    Auto,
+    Stereo,
+    Surround,
+    Headphones,
+}
+
+/// <summary>Sound settings for a device to take. Each one that's absent stays as the device has it.</summary>
+public sealed record DeviceSound(DialogueBoost? DialogueBoost = null, NightMode? NightMode = null, Speakers? Speakers = null)
+{
+    public bool IsEmpty => DialogueBoost is null && NightMode is null && Speakers is null;
 }
 
 /// <summary>
@@ -25,8 +59,9 @@ public enum DeviceCommandKind
 /// <param name="Shuffle">The show's episodes in a random order, one after another.</param>
 /// <param name="ChannelId">With <see cref="DeviceCommandKind.Watch"/>, the Live TV channel to put on.</param>
 /// <param name="ProfileId">With <see cref="DeviceCommandKind.Play"/>, whose to play it as: the device switches to that profile first. Absent: whoever is watching there.</param>
+/// <param name="Sound">With <see cref="DeviceCommandKind.Sound"/>, the settings to change.</param>
 public sealed record DeviceCommand(string Id, DeviceCommandKind Kind, Guid? ItemId, bool FromBeginning, string? SentBy, DateTime SentAt, bool Shuffle = false,
-    Guid? ChannelId = null, string? ProfileId = null)
+    Guid? ChannelId = null, string? ProfileId = null, DeviceSound? Sound = null)
 {
     public static string NewId() => Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(8));
 }
@@ -107,9 +142,10 @@ public sealed class DeviceCommands(TimeProvider clock)
     /// <summary>
     /// Sends a command. True when the device is listening and took it; false when it's kept for the device to pick up
     /// when Flexarr is next opened on it (within <see cref="WaitLimit"/>). Only the latest waits: a Play after a Pause
-    /// is what's meant.
+    /// is what's meant. With <paramref name="keep"/> false a command for a device that isn't listening is dropped, so it
+    /// can't push out a Play that's waiting.
     /// </summary>
-    public bool Send(string deviceId, DeviceCommand command)
+    public bool Send(string deviceId, DeviceCommand command, bool keep = true)
     {
         ArgumentException.ThrowIfNullOrEmpty(deviceId);
         ArgumentNullException.ThrowIfNull(command);
@@ -118,7 +154,11 @@ public sealed class DeviceCommands(TimeProvider clock)
             return true;
         }
 
-        _waiting[deviceId] = command;
+        if (keep)
+        {
+            _waiting[deviceId] = command;
+        }
+
         return false;
     }
 

@@ -54,7 +54,7 @@ fun deviceKind(deviceType: String?): String? = when (deviceType) {
 
 @Serializable(with = DeviceCommandKind.Serializer::class)
 enum class DeviceCommandKind(override val raw: String) : ForwardCompatibleEnum {
-    Play("Play"), Pause("Pause"), Resume("Resume"), Stop("Stop"), Watch("Watch"), Unknown("");
+    Play("Play"), Pause("Pause"), Resume("Resume"), Stop("Stop"), Watch("Watch"), Sound("Sound"), Unknown("");
 
     object Serializer : ForwardCompatibleEnumSerializer<DeviceCommandKind>("DeviceCommandKind", entries, Unknown)
 }
@@ -78,7 +78,16 @@ data class DeviceCommand(
      * and when it's whoever is watching here.
      */
     val profileId: String? = null,
+    /** With [DeviceCommandKind.Sound], the sound settings to change. Absent from servers before 0.56. */
+    val sound: DeviceSound? = null,
 )
+
+/**
+ * Sound settings for this device to take, from another device or an assistant. Each one that's absent stays as it is;
+ * values are "Off"/"Low"/"Medium"/"High", "Off"/"On"/"Scheduled" and "Auto"/"Stereo"/"Surround"/"Headphones".
+ */
+@Serializable
+data class DeviceSound(val dialogueBoost: String? = null, val nightMode: String? = null, val speakers: String? = null)
 
 /** What came of telling a device to do something. */
 @Serializable

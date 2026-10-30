@@ -220,9 +220,28 @@ final class EngineTransport: PlayerTransport {
     }
 
     var volume: Float {
-        get { engine.volume }
-        set { engine.volume = newValue }
+        get { wantedVolume }
+        set {
+            wantedVolume = newValue
+            engine.volume = newValue * shapingTrim
+        }
     }
+    /// The level asked for (the sleep timer fades it), before `shapingTrim`.
+    private var wantedVolume: Float = 1
+    /// Dolby soundtracks carry a dialogue level that a TV or receiver turns them down to when they're passed through;
+    /// decoded here for shaping they'd come out louder, music and all, so they're turned down to match. Films
+    /// commonly sit about 4 dB above that reference, so this is a typical figure, not the track's own.
+    private var shapingTrim: Float = 1
+
+    private func updateShapingTrim() {
+        let codec = engine.audioTracks.first { $0.id == engine.activeAudioTrackIndex }?.codec.lowercased() ?? ""
+        let dolby = ["ac3", "eac3", "truehd", "mlp"].contains(codec)
+        let trim: Float = engine.audioShapingState == .applied && dolby ? Self.dolbyTrim : 1
+        guard trim != shapingTrim else { return }
+        shapingTrim = trim
+        engine.volume = wantedVolume * trim
+    }
+    private static let dolbyTrim = Float(pow(10.0, -4.0 / 20))
 
     /// Moves the file's sound later (earlier when negative) while it plays: the engine brings the change to the
     /// playhead at once, with a moment's hold of the picture.
@@ -546,6 +565,7 @@ final class EngineTransport: PlayerTransport {
             .removeDuplicates()
             .sink { [weak self] _ in
                 guard let self else { return }
+                self.updateShapingTrim()
                 self.delegate?.transportTracksChanged(self) // The audio menu says whether it's reaching the sound.
             }
             .store(in: &cancellables)
@@ -576,6 +596,7 @@ final class EngineTransport: PlayerTransport {
                 self.delegate?.transportTracksChanged(self)
                 // Another track may need the speaker cap where the last didn't (7.1 after 5.1); unchanged, it's ignored.
                 if !self.loading { self.applySoundSettings() }
+                self.updateShapingTrim()
             }
             .store(in: &cancellables)
         engine.$currentAVPlayerItem

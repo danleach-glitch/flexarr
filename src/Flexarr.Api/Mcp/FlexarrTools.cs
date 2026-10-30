@@ -232,6 +232,32 @@ public static class FlexarrTools
             result.Delivered ? $"Sent {kind.ToString().ToLowerInvariant()} to {result.DeviceName}." : $"Flexarr isn't open on {result.DeviceName}, so there's nothing to {kind.ToString().ToLowerInvariant()}.");
     }
 
+    [McpServerTool(Name = "set_device_sound"), Description("Changes a device's sound: dialogue boost (makes voices clearer), night mode (quietens loud scenes) and speakers. Only reaches a device with Flexarr open; anything left out stays as it is.")]
+    public static McpCommandResult SetDeviceSound([Description("The device's id, from list_devices")] string deviceId,
+        [Description("off, low, medium or high")] string? dialogueBoost, [Description("off, on, or scheduled (the hours set on the device)")] string? nightMode,
+        [Description("auto, stereo, surround (5.1) or headphones")] string? speakers, SignIns signIns, DeviceCommands commands, CurrentProfile profile)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        if (!profile.IsTrusted)
+        {
+            throw new InvalidOperationException("This sign-in may not control other devices.");
+        }
+
+        static T? Parse<T>(string? value, string name) where T : struct, Enum =>
+            string.IsNullOrWhiteSpace(value) ? null
+            : Enum.TryParse<T>(value.Trim(), ignoreCase: true, out var parsed) && Enum.IsDefined(parsed) ? parsed
+            : throw new ArgumentException($"{name} must be {string.Join(", ", Enum.GetNames<T>()).ToLowerInvariant()}", name);
+        var sound = new DeviceSound(Parse<DialogueBoost>(dialogueBoost, nameof(dialogueBoost)), Parse<NightMode>(nightMode, nameof(nightMode)), Parse<Speakers>(speakers, nameof(speakers)));
+        if (sound.IsEmpty)
+        {
+            throw new ArgumentException("Say what to change: dialogueBoost, nightMode or speakers.");
+        }
+
+        var result = DeviceEndpoints.SetSound(deviceId, sound, signIns, commands, profile) ?? throw new InvalidOperationException("No device with that id is signed in.");
+        return new McpCommandResult(result.Delivered, result.DeviceName, null,
+            result.Delivered ? $"Changed the sound on {result.DeviceName}." : $"Flexarr isn't open on {result.DeviceName}, so its sound wasn't changed.");
+    }
+
     [McpServerTool(Name = "now_playing", ReadOnly = true), Description("Everything playing right now across the household's screens: which device, whose profile, what, and how far in.")]
     public static async Task<IReadOnlyList<McpNowPlaying>> NowPlayingAsync(SignIns signIns, PlaybackSessions sessions, FlexarrDbContext db, CancellationToken ct)
     {

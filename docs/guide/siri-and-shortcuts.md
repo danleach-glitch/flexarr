@@ -33,6 +33,7 @@ These work for podcasts the profile follows. See [Podcasts](podcasts.md).
 - "Pause Flexarr"
 - "Resume Flexarr"
 - "Stop Flexarr"
+- "Turn on night mode in Flexarr" (and "Turn off night mode in Flexarr")
 
 ## Playing on your Apple TV
 
@@ -65,6 +66,8 @@ Everything Siri can do is also in the Shortcuts app on iPhone and iPad, as actio
 | **Shuffle a show** | Plays a show's episodes in a random order. |
 | **Continue watching** | Picks up what you were in the middle of. |
 | **Pause, resume or stop** | Controls what Flexarr is playing. |
+| **Night mode** | Turns night mode on or off, here or on another device. |
+| **Dialogue boost** | Sets dialogue boost to off, low, medium or high, here or on another device. |
 | **Play a podcast's latest episode** | The newest episode you haven't heard. |
 | **What's new in my podcasts** | Says the newest episodes you haven't heard. |
 | **Add a podcast to Up Next** | Puts the next episode at the end of Up Next. |

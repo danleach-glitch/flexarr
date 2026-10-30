@@ -1022,7 +1022,21 @@ public struct Device: Codable, Sendable, Hashable, Identifiable {
 }
 
 public enum DeviceCommandKind: String, ForwardCompatibleEnum {
-    case play = "Play", pause = "Pause", resume = "Resume", stop = "Stop", watch = "Watch", unknown
+    case play = "Play", pause = "Pause", resume = "Resume", stop = "Stop", watch = "Watch", sound = "Sound", unknown
+}
+
+/// Sound settings for this device to take, from another device or an assistant. Each one that's absent stays as it is;
+/// values are "Off"/"Low"/"Medium"/"High", "Off"/"On"/"Scheduled" and "Auto"/"Stereo"/"Surround"/"Headphones".
+public struct DeviceSound: Codable, Sendable, Hashable {
+    public let dialogueBoost: String?
+    public let nightMode: String?
+    public let speakers: String?
+
+    public init(dialogueBoost: String? = nil, nightMode: String? = nil, speakers: String? = nil) {
+        self.dialogueBoost = dialogueBoost
+        self.nightMode = nightMode
+        self.speakers = speakers
+    }
 }
 
 /// Something another device, the web app or an assistant asked this device to do.
@@ -1042,9 +1056,11 @@ public struct DeviceCommand: Codable, Sendable, Hashable, Identifiable {
     /// With `play`, the profile to play it as: switch to it first (asking for its PIN, if it has one). Absent from
     /// servers before 0.54, and when it's whoever is watching here.
     public let profileId: String?
+    /// With `sound`, the settings to change. Absent from servers before 0.56.
+    public var sound: DeviceSound? = nil
 
     public init(id: String, kind: DeviceCommandKind, itemId: String?, fromBeginning: Bool, sentBy: String?, sentAt: Date, shuffle: Bool = false,
-                channelId: String? = nil, profileId: String? = nil) {
+                channelId: String? = nil, profileId: String? = nil, sound: DeviceSound? = nil) {
         self.id = id
         self.kind = kind
         self.itemId = itemId
@@ -1054,6 +1070,7 @@ public struct DeviceCommand: Codable, Sendable, Hashable, Identifiable {
         self.shuffle = shuffle
         self.channelId = channelId
         self.profileId = profileId
+        self.sound = sound
     }
 
     public init(from decoder: Decoder) throws {
@@ -1067,6 +1084,7 @@ public struct DeviceCommand: Codable, Sendable, Hashable, Identifiable {
         shuffle = try container.decodeIfPresent(Bool.self, forKey: .shuffle) ?? false // servers before 0.23 don't send it
         channelId = try container.decodeIfPresent(String.self, forKey: .channelId)
         profileId = try container.decodeIfPresent(String.self, forKey: .profileId)
+        sound = try? container.decodeIfPresent(DeviceSound.self, forKey: .sound)
     }
 }
 
