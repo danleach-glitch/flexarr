@@ -51,15 +51,15 @@ A few things to know:
 
 ## The setup guide
 
-Next, Flexarr opens a short setup guide. Every step can be skipped, and **I'll do it myself** leaves the guide whenever you like:
+Next, Flexarr welcomes you with a short setup guide, one card at a time. Choose **Get started**, or **I'll set it up myself** to go straight to Home. Every step can be skipped, and **Set up later** leaves the guide whenever you like:
 
 1. **Your apps.** Connect Sonarr, Radarr and Lidarr, if you use them. If Flexarr finds one running nearby, its address is filled in already, and you only paste its API key. Flexarr also adds its own webhook to each app, so new downloads show up straight away (see [Webhooks](connect-arrs.md#webhooks-new-downloads-appear-straight-away)). Don't use them? Choose **I don't use these**.
-2. **Libraries.** Each app's media folders are listed, ticked and ready: choose **Add these**. Otherwise, choose a kind under **Add a folder** and pick the folder that holds it.
-3. **Who's watching.** Add a profile for each person in the house. See [Profiles](profiles.md).
+2. **Libraries.** Each app's media folders are listed, ticked and ready: choose **Add**. Otherwise, choose a kind (**Movies**, **TV Shows**, **Music** or **Home Videos**) and pick the folder that holds it.
+3. **Who's watching.** Add a profile for each person in the house, or choose **Just me**. See [Profiles](profiles.md).
 4. **Your TV and phone.** Open the Flexarr app on your device at home. It shows a code; type it in here. See [Connect your devices](connect-devices.md).
 5. **Away from home.** Turn on Tailscale, if you have it. See [Watch away from home](away-from-home.md).
 
-At the end, the guide tells you how the first scan is going, and warns you if a library came up empty or Flexarr can't see one of an app's folders.
+At the end, the guide shows what's set up, tells you how the first scan is going, and warns you if a library came up empty or Flexarr can't see one of an app's folders.
 
 If you leave part way, Home lists what's left under **Finish setting up**. Choose a step to go back to it, or **Hide** to put the list away. Everything in the guide is in Settings too, as described below.
 
