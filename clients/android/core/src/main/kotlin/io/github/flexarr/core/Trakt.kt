@@ -79,6 +79,8 @@ data class TraktStatus(
     val importing: Boolean = false,
     val queued: Int = 0,
     val pending: TraktPendingConnect? = null,
+    /** Why the last history import didn't finish, if it didn't. Absent from servers before 0.57's last builds. */
+    val importError: String? = null,
 ) {
     val isConnected: Boolean get() = state == TraktAccountState.Connected
 
@@ -185,6 +187,7 @@ object TraktWords {
     const val GENERIC_ERROR = "That didn’t work. Try again."
     const val UNAVAILABLE = "Trakt isn’t available on this server."
     const val UNREACHABLE = "Couldn’t reach the server."
+    const val TRY_AGAIN = "Try again"
     const val ENTER_CODE = "Enter this code at trakt.tv/activate."
     const val WAITS = "Flexarr waits, so you can leave this."
     const val IMPORT = "Bring your Trakt history across"
@@ -196,8 +199,15 @@ object TraktWords {
     const val DISCONNECT_TEXT = "What you’ve watched stays as it is, here and on Trakt."
     const val SYNCING = "Syncing…"
 
-    /** The server's own words for a call that failed ("Couldn't reach Trakt."), or [GENERIC_ERROR]. */
-    fun problem(error: Throwable): String = (error as? FlexarrException.Http)?.detail ?: GENERIC_ERROR
+    /**
+     * The server's own words for a call that failed (its problem details' `detail`, never the `title`), [UNREACHABLE]
+     * when the server couldn't be reached at all, or [GENERIC_ERROR].
+     */
+    fun problem(error: Throwable): String = when (error) {
+        is FlexarrException.Http -> error.detail?.takeIf(String::isNotBlank) ?: GENERIC_ERROR
+        is FlexarrException.Unreachable, is java.io.IOException -> UNREACHABLE
+        else -> GENERIC_ERROR
+    }
 
     /** "A B 1 2 C D": a code read out a character at a time. */
     fun spelled(code: String): String = code.toList().joinToString(" ")

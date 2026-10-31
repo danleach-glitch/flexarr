@@ -26,6 +26,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontFamily
@@ -64,23 +66,31 @@ internal fun TvTraktSettings(model: AppModel) {
     val status = trakt.status
     var confirmDisconnect by remember { mutableStateOf(false) }
     val code = status?.waitingCode
-    // The first control of whichever part is showing takes focus, and again when the part changes (the import's row
-    // turning into Bring across, say).
+    // The first control of whichever part is showing takes focus, and again when the part changes (a code to enter
+    // turning into the account, say).
     val phase = when {
         trakt.unreachable -> "unreachable"
         !trakt.loaded || status == null || !status.available -> null
-        status.isConnected -> "connected/${status.importedAt == null}/${status.importing}/${trakt.preview != null}"
+        status.isConnected -> "connected"
         code != null -> "code"
         else -> "connect"
     }
     val focus = remember { FocusRequester() }
     TakeFocus(focus, key = phase, ready = phase != null)
+    // When the import's row changes (into Bring across, or gone once the history is across), focus follows only if it
+    // was there: someone down on a list stays where they are.
+    var onImport by remember { mutableStateOf(false) }
+    val importPhase = status?.takeIf { it.isConnected }?.let { "${it.importedAt == null}/${it.importing}/${trakt.preview != null}" }
+    TakeFocus(focus, key = importPhase, ready = importPhase != null && onImport)
+    // Which row has focus, as far as the import cares: set as a row gains focus, so the import's row going away
+    // doesn't forget it was there.
+    val notImport = Modifier.onFocusChanged { if (it.hasFocus) onImport = false }
 
     TvSettingsPage("Trakt", summary = "Keep what you watch, your place and your watchlist in step with Trakt.") {
         when {
             trakt.unreachable -> {
                 item { TvSettingsNote(TraktWords.UNREACHABLE, Modifier.padding(vertical = 4.dp)) }
-                item { TvSettingsRow("Retry", onClick = { trakt.retry() }, modifier = Modifier.focusRequester(focus), icon = Icons.Filled.Refresh) }
+                item { TvSettingsRow(TraktWords.TRY_AGAIN, onClick = { trakt.retry() }, modifier = Modifier.focusRequester(focus), icon = Icons.Filled.Refresh) }
             }
             !trakt.loaded -> item {
                 Box(Modifier.fillMaxWidth().padding(vertical = 16.dp), contentAlignment = Alignment.Center) {
@@ -98,7 +108,7 @@ internal fun TvTraktSettings(model: AppModel) {
                 if (offersImport) {
                     val preview = trakt.preview
                     item {
-                        val top = Modifier.padding(top = 18.dp).focusRequester(focus)
+                        val top = Modifier.padding(top = 18.dp).focusRequester(focus).onFocusChanged { if (it.hasFocus) onImport = true }
                         when {
                             status.importing -> TvSettingsRow(TraktWords.IMPORTING, onClick = {}, modifier = top, icon = Icons.Filled.History)
                             preview != null -> TvSettingsRow(
@@ -114,28 +124,30 @@ internal fun TvTraktSettings(model: AppModel) {
                 } else {
                     item { TvSettingsFact(TraktWords.IMPORTED, status.imported?.let(::relativeTime).orEmpty()) }
                 }
-                trakt.problemAt(TraktSpot.History)?.let { item { Problem(it) } }
+                trakt.historyProblem(status)?.let { item { Problem(it) } }
                 item {
                     TvSettingsRow(
                         if (trakt.syncing) TraktWords.SYNCING else "Sync now", onClick = { trakt.sync() },
-                        modifier = if (offersImport) Modifier else Modifier.padding(top = 18.dp).focusRequester(focus),
+                        modifier = notImport.then(if (offersImport) Modifier else Modifier.padding(top = 18.dp).focusRequester(focus)),
                         icon = Icons.Filled.Sync, help = "Flexarr syncs every few minutes by itself.",
                     )
                 }
                 item {
                     TvSettingsRow(
-                        "Disconnect", onClick = { if (!trakt.working) confirmDisconnect = true }, icon = Icons.Filled.LinkOff, destructive = true,
+                        "Disconnect", onClick = { if (!trakt.working) confirmDisconnect = true }, modifier = notImport, icon = Icons.Filled.LinkOff, destructive = true,
                         help = "Stop syncing this profile with Trakt.",
                     )
                 }
                 trakt.problemAt(TraktSpot.Account)?.let { item { Problem(it) } }
                 trakt.lists?.takeIf { it.isNotEmpty() }?.let { lists ->
                     item { TvSettingsGroupLabel("Lists", Modifier.padding(top = 10.dp)) }
+                    item { TvSettingsNote(TraktWords.LISTS_NOTE, Modifier.padding(bottom = 4.dp)) }
                     lists.forEach { list ->
                         item(key = list.id) {
+                            // Dimmed while a choice saves, when pressing does nothing.
                             TvSettingsToggle(
                                 list.name, isOn = list.selected, flip = { if (!trakt.savingLists) trakt.choose(list, !list.selected) },
-                                icon = Icons.AutoMirrored.Filled.List, help = "${list.detail}. ${TraktWords.LISTS_NOTE}",
+                                modifier = notImport.alpha(if (trakt.savingLists) 0.45f else 1f), icon = Icons.AutoMirrored.Filled.List, help = list.detail,
                             )
                         }
                     }

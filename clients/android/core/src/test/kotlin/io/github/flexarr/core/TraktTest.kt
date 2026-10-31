@@ -142,7 +142,28 @@ class TraktTest {
         val broke = runCatching { client().syncTraktNow() }.exceptionOrNull()!!
         assertEquals("That didn’t work. Try again.", TraktWords.problem(broke))
         assertEquals("That didn’t work. Try again.", TraktWords.problem(IllegalStateException()))
+        assertEquals("That didn’t work. Try again.", TraktWords.problem(FlexarrException.Http(500, "Internal Server Error", detail = null)))
         assertEquals("A B 1 2", TraktWords.spelled("AB12"))
+    }
+
+    @Test
+    fun `a server that can't be reached says so`() = runTest {
+        val unreachable = FlexarrClient(server.url("/"), apiKey = "device-token")
+        server.close()
+        val error = runCatching { unreachable.syncTraktNow() }.exceptionOrNull()!!
+        assertEquals("Couldn’t reach the server.", TraktWords.problem(error))
+        assertEquals("Couldn’t reach the server.", TraktWords.problem(java.net.SocketTimeoutException()))
+    }
+
+    @Test
+    fun `reads why the last import didn't finish`() {
+        val failed = FlexarrClient.json.decodeFromString(
+            TraktStatus.serializer(),
+            """{"available":true,"state":"connected","username":"dan","importing":false,"importError":"Trakt stopped answering."}""",
+        )
+        assertEquals("Trakt stopped answering.", failed.importError)
+        val older = FlexarrClient.json.decodeFromString(TraktStatus.serializer(), """{"available":true,"state":"connected","importing":false}""")
+        assertNull(older.importError)
     }
 
     @Test

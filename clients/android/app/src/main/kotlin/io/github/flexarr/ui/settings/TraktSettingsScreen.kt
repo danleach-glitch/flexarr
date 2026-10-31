@@ -95,7 +95,7 @@ fun TraktSettingsScreen(model: AppModel) {
                     Group {
                         Line(TraktWords.UNREACHABLE)
                         Divider()
-                        ActionRow("Retry", icon = Icons.Filled.Refresh) { trakt.retry() }
+                        ActionRow(TraktWords.TRY_AGAIN, icon = Icons.Filled.Refresh) { trakt.retry() }
                     }
                 }
                 !trakt.loaded -> item {
@@ -124,7 +124,7 @@ fun TraktSettingsScreen(model: AppModel) {
                             }
                         }
                     }
-                    item { WithProblem(trakt.problemAt(TraktSpot.History)) { HistoryImport(trakt, status) } }
+                    item { WithProblem(trakt.historyProblem(status)) { HistoryImport(trakt, status) } }
                     trakt.lists?.takeIf { it.isNotEmpty() }?.let { lists -> item { WithProblem(trakt.problemAt(TraktSpot.Lists)) { Lists(trakt, lists) } } }
                 }
                 status.waitingCode != null -> item {
@@ -287,6 +287,10 @@ internal class TraktState(private val model: AppModel, private val scope: kotlin
 
     fun problemAt(spot: TraktSpot): String? = problem?.takeIf { it.first == spot }?.second
 
+    /** What went wrong with the history: the last call there, or why the last import didn't finish. */
+    fun historyProblem(status: TraktStatus): String? =
+        problemAt(TraktSpot.History) ?: status.importError?.takeIf { it.isNotBlank() && !status.importing }
+
     suspend fun load() {
         val client = model.client ?: return
         try {
@@ -354,7 +358,8 @@ internal class TraktState(private val model: AppModel, private val scope: kotlin
         val after = before.map { if (it.id == list.id) it.copy(selected = on) else it }
         lists = after
         savingLists = true
-        problem = null
+        // Only the lists' own problem goes: one under the account stays until something there is tried again.
+        if (problem?.first == TraktSpot.Lists) problem = null
         scope.launch {
             try {
                 client.saveTraktLists(after.filter { it.selected }.map { it.id })
