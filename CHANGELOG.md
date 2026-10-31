@@ -2,6 +2,14 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### Profiles
+- The main profile can have a PIN of its own, apart from the admin PIN. Its PIN keeps your watch history private: choosing your profile asks for it on every device, and you can add, change or remove it in **Settings › Profiles** like anyone's. The admin PIN still guards the server's settings and lets a child off a kids profile. It also works when choosing the main profile.
+- Upgrading turns the PIN you had into the admin PIN. The main profile keeps it as its own too only if **Ask for the PIN when someone chooses the main profile** was on. That switch is gone, and nobody is signed out.
+- A new **Settings › Security** page holds the admin PIN, the API key and the signed-in browsers and TVs. Change the admin PIN there with the current one, or with the API key if it's forgotten. **Settings › Access** keeps watching away from home.
+- The apps' admin PIN prompts show a padlock, no longer the main profile's picture.
+
 ## 0.56.0 · 31 October 2026
 
 ### Watchlist
