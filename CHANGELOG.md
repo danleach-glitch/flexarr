@@ -39,6 +39,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Settings on the web has an icon beside each page.
 - **Settings › Access** is now **Remote access**. Old links still work.
 
+### Downloads
+- A download on the iPhone or iPad that's cut off part way (the connection drops, the phone locks) carries on from where it got to, rather than starting again.
+
 ## 0.56.0 · 31 October 2026
 
 ### Watchlist
