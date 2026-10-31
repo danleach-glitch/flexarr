@@ -144,10 +144,11 @@ private fun ChooseServer(browser: ServerBrowser, onPick: (DiscoveredServer) -> U
         lookingAWhile = true
     }
     val first = remember { FocusRequester() }
-    val manual = remember { FocusRequester() }
-    // The first server found takes focus, so one click of the remote picks it; until then, typing an address has it.
+    val guest = remember { FocusRequester() }
+    // The first server found takes focus, so one click of the remote picks it; until then (and in a home with no
+    // server, a guest's), joining someone's Flexarr has it.
     val firstServer = browser.servers.firstOrNull()?.address
-    LaunchedEffect(firstServer) { runCatching { if (firstServer != null) first.requestFocus() else manual.requestFocus() } }
+    LaunchedEffect(firstServer) { runCatching { if (firstServer != null) first.requestFocus() else guest.requestFocus() } }
     Column(verticalArrangement = Arrangement.spacedBy(15.dp)) {
         Text("Servers on your network", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher)
         if (browser.servers.isEmpty()) {
@@ -169,8 +170,8 @@ private fun ChooseServer(browser: ServerBrowser, onPick: (DiscoveredServer) -> U
                 )
             }
         }
-        TvActionButton("Enter an address instead", onClick = onManual, modifier = Modifier.padding(top = 5.dp).focusRequester(manual))
-        TvActionButton("Join someone’s Flexarr", onClick = onGuest)
+        TvActionButton("Enter an address instead", onClick = onManual, modifier = Modifier.padding(top = 5.dp))
+        TvActionButton("Join someone’s Flexarr", onClick = onGuest, modifier = Modifier.focusRequester(guest))
     }
 }
 
