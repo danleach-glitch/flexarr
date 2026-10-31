@@ -363,4 +363,19 @@ public class RemoteGuestTests(RemoteGuestFactory factory) : IClassFixture<Remote
         Assert.Equal(HttpStatusCode.BadRequest, (await admin.PostAsJsonAsync("/api/v1/remote/guests/tv-code", new { code = "O0O0", name = "x", profileId = gran })).StatusCode);
         Assert.Equal(before, (await admin.GetFromJsonAsync<List<GuestInviteDto>>("/api/v1/remote/guests/invites", Web))!.Count);
     }
+
+    [Fact]
+    public async Task Each_guest_device_shows_how_it_reaches_the_server()
+    {
+        var (_, _) = await JoinAsync("Gran14"); // redeemed from RemoteGuestFactory.Guest, which the fake tailnet has on Tailscale's relay
+        using var admin = factory.Admin();
+
+        var devices = await admin.GetFromJsonAsync<List<GuestDeviceDto>>("/api/v1/remote/guests/devices", Web);
+
+        var gran = devices!.Single(d => d.Name == "Gran14's iPad");
+        Assert.True(gran.Online);
+        Assert.Equal(TailnetPath.Derp, gran.Path);
+        Assert.Equal("Gran14", gran.ProfileName);
+        Assert.Equal(RemoteGuestFactory.Guest, gran.Address);
+    }
 }

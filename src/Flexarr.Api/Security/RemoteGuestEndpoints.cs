@@ -17,6 +17,13 @@ public sealed record CreateInviteRequest(string Name, string ProfileId);
 
 public sealed record RedeemInviteRequest(string Token);
 
+/// <summary>A guest's device, as Settings › Access lists it.</summary>
+/// <param name="Path">How it reaches this server right now: Direct, PeerRelay (through this server's relay), Derp
+/// (Tailscale's shared relays, about 2 Mbps), or Unknown (not connected lately).</param>
+/// <param name="TailscaleAdminUrl">Where the owner deletes the device from the tailnet.</param>
+public sealed record GuestDeviceDto(string Id, string Name, string? ProfileId, string? ProfileName, Authentication.DeviceType? DeviceType, DateTime CreatedAt,
+    DateTime LastUsedAt, string? Address, bool Online, TailnetPath Path, DateTime? LastSeen, string TailscaleAdminUrl);
+
 /// <param name="Code">The code the guest's TV shows (8 letters and digits; spaces and dashes are fine).</param>
 public sealed record TvCodeRequest(string Code, string Name, string ProfileId);
 
@@ -102,6 +109,13 @@ public static class RemoteGuestEndpoints
             }
         });
 
+        group.MapGet("/devices", async (SignIns signIns, ITailnet tailnet, FlexarrDbContext db, CancellationToken ct) =>
+        {
+            var names = await db.Profiles.AsNoTracking().ToDictionaryAsync(p => p.Id, p => p.Name, ct);
+            var snapshot = await tailnet.SnapshotAsync(ct);
+            return Results.Ok(Describe(signIns.List().Where(s => s.Guest), snapshot, names));
+        });
+
         group.MapDelete("/invites/{id}", async (string id, GuestInvites invites, CancellationToken ct) =>
             await invites.CancelAsync(id, ct) ? Results.NoContent() : Results.NotFound());
 
@@ -163,6 +177,19 @@ public static class RemoteGuestEndpoints
         }
 
         return (profile, owner, null);
+    }
+
+    /// <summary>Guests' devices with how each reaches this server now, matched to the tailnet by address.</summary>
+    internal static List<GuestDeviceDto> Describe(IEnumerable<SignIn> guests, TailnetSnapshot? snapshot, IReadOnlyDictionary<string, string> profileNames)
+    {
+        var peers = (snapshot?.Peers ?? []).Where(p => p.Address is not null).GroupBy(p => p.Address!).ToDictionary(g => g.Key, g => g.First());
+        return guests.Select(g =>
+        {
+            var peer = g.GuestAddress is { } address ? peers.GetValueOrDefault(address) : null;
+            return new GuestDeviceDto(g.Id, g.Name, g.ProfileId, g.ProfileId is { } id ? profileNames.GetValueOrDefault(id) : null, g.DeviceType, g.CreatedAt,
+                g.LastUsedAt, g.GuestAddress, peer?.Online == true, peer?.Online == true ? peer.Path : TailnetPath.Unknown, peer?.LastSeen,
+                "https://login.tailscale.com/admin/machines");
+        }).OrderByDescending(d => d.Online).ThenByDescending(d => d.LastUsedAt).ToList();
     }
 
     internal static GuestInviteDto ToDto(GuestInvite invite, IReadOnlyDictionary<string, string> profileNames) =>
