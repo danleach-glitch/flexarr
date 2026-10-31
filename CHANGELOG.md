@@ -51,6 +51,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - After too many wrong PINs, the web's **Settings are locked** page and PIN prompt count the wait down, and **Unlock** comes back when it's over.
 - The profile picture at the top of Home on iPhone and Android is bigger, so it's easier to find and tap.
 - Switching to another profile on Android stops the music or podcast that was playing, as on iPhone, and clears Up Next, so what you play next counts for the right person.
+- On the web, **Test** in **Settings › Connections** shows a red cross when the test fails, as well as a green tick when it works.
 
 ### Playback
 - Auto-play now moves on to the next episode even if you've left the Apple TV alone for hours. Before, it could go to sleep during the countdown and stop on the credits.
