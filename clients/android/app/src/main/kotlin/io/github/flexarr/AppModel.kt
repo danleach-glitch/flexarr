@@ -693,7 +693,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
             serverUnreachable = false
         } catch (e: FlexarrException) {
             // A guest's device the host has removed is turned away (403) whatever it asks: back to joining.
-            if (e is FlexarrException.Http && e.status == 403 && credentials?.isGuest == true) return removedAsGuest()
+            if (e is FlexarrException.Http && e.guestRemoved && credentials?.isGuest == true) return removedAsGuest()
             // Unreachable for now: the screens say so and try again (opening on Downloads, once the list's been read).
             if (e is FlexarrException.Unreachable) downloads.ready()
             serverUnreachable = e is FlexarrException.Unreachable
@@ -878,7 +878,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
                 refused.client().me()
             } catch (e: FlexarrException.Http) {
                 // A guest's device its host removed: refused everything (403), not just the sign-in.
-                if (e.status == 403 && credentials == refused && refused.isGuest) removedAsGuest()
+                if (e.guestRemoved && credentials == refused && refused.isGuest) removedAsGuest()
             } catch (_: FlexarrException.Unauthorized) {
                 if (credentials == refused) {
                     val kept = downloads.signedOutByServer(refused.address)

@@ -48,8 +48,12 @@ sealed class FlexarrException(message: String) : Exception(message) {
         "The server didn’t accept this device’s sign-in. Connect it again with a code, or if you typed an API key, check it against Settings › Security on the web.",
     )
 
-    /** [detail]: the server's own words for what went wrong (its problem details' `detail`), when it gave some. */
-    class Http(val status: Int, message: String?, val detail: String? = null) : FlexarrException(message ?: "The server answered with an error (HTTP $status).")
+    /**
+     * [detail]: the server's own words for what went wrong (its problem details' `detail`), when it gave some.
+     * [guestRemoved]: a 403 saying this is a family guest's device its host removed (servers from 0.57).
+     */
+    class Http(val status: Int, message: String?, val detail: String? = null, val guestRemoved: Boolean = false) :
+        FlexarrException(message ?: "The server answered with an error (HTTP $status).")
 
     /**
      * This takes the admin PIN (leaving a kids profile, locking or releasing a device), which wasn't given or
@@ -394,7 +398,7 @@ class FlexarrClient(
                 // A family guest's device its host removed: refused whatever it asks, so the app signs out (as for 401).
                 it.code == 403 && problemFlag(text, "guestRemoved") -> {
                     onUnauthorized?.invoke()
-                    throw FlexarrException.Http(it.code, problemMessage(text), problemDetail(text))
+                    throw FlexarrException.Http(it.code, problemMessage(text), problemDetail(text), guestRemoved = true)
                 }
                 else -> throw FlexarrException.Http(it.code, problemMessage(text), problemDetail(text))
             }
