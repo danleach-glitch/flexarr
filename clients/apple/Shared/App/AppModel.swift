@@ -472,6 +472,16 @@ final class AppModel {
         }
     }
 
+    /// The error `work` throws, if any.
+    private static func failure(of work: () async throws -> Any?) async -> Error? {
+        do {
+            _ = try await work()
+            return nil
+        } catch {
+            return error
+        }
+    }
+
     /// Try again, after the tunnel didn't start.
     func retryGuestTunnel() async {
         tunnelProblem = nil
@@ -479,9 +489,15 @@ final class AppModel {
     }
 
     func loadProfiles() async {
-        if credentials?.isGuest == true {
+        if let guest = credentials?.guest {
             guard await ensureGuestTunnel() else { return }
             upgradeChecked = true // a guest's sign-in is its own already
+            // Removed by its host: the server refuses everything from this device (403), not just the sign-in.
+            if case FlexarrClientError.http(status: 403, _)? = await Self.failure(of: { try await self.client?.me() }) {
+                signedOutNotice = "This \(ThisDevice.name) was removed. Ask \(guest.ownerName) for a new invite."
+                forget()
+                return
+            }
         }
         if !upgradeChecked, let credentials {
             upgradeChecked = true
