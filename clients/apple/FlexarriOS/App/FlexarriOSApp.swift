@@ -108,6 +108,8 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
             if let code = info["pairing"] {
                 pairing.use(model.client)
                 await pairing.open(code: code)
+            } else if category == PushNotifications.pinCategory {
+                model.pendingSettings = true
             } else if action == PushNotifications.playAction, let id = info["play"] ?? info["episode"],
                let url = URL(string: "flexarr://play/\(id)") {
                 model.open(url: url)

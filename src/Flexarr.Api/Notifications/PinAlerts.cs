@@ -79,7 +79,7 @@ public sealed partial class PinAlerts(IServiceScopeFactory scopes, SignIns signI
     }
 
     public static PushMessage Message(string who) =>
-        new("Someone's guessing your PIN", $"{who} got the main profile's PIN wrong too many times and has to wait. If it wasn't you, change the PIN in Settings › Profiles.",
+        new("Someone's guessing your PIN", $"{who} got the main profile's PIN wrong too many times and has to wait. If it wasn't you, change the PIN in a browser, in Settings › Profiles.",
             Category, Thread: Category);
 
     /// <summary>"Living Room TV", "the Tailscale account sam@example.com", or "a device at 192.168.1.20".</summary>

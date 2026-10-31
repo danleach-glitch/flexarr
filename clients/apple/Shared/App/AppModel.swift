@@ -71,6 +71,8 @@ final class AppModel {
     var pendingRoute: Route?
     /// Words to search for, from Siri ("Search for Fargo in Flexarr"); the Search tab takes them.
     var pendingSearch: String?
+    /// Set to open the Settings tab (iPhone and iPad), as "Someone's guessing your PIN" does; the tabs clear it.
+    var pendingSettings = false
     /// Bumped when Play or Shuffle starts music on Apple TV, which then goes to its Now Playing tab.
     var nowPlayingRequests = 0
     /// The server's error-report switch, as it last said (nil until asked, and from servers before it).

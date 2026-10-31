@@ -86,6 +86,8 @@ class FlexarrMessagingService : FirebaseMessagingService() {
             val info = payload.info
             val opens: AppLink = when (payload.category) {
                 PushPayload.PODCAST -> info["podcast"]?.let { AppLink.Podcast(it) }
+                // Someone's guessing the PIN: Settings, with the devices waiting to connect.
+                PushPayload.PIN -> AppLink.Settings
                 else -> info["item"]?.let { AppLink.Item(it) }
             } ?: AppLink.Home
             val builder = NotificationCompat.Builder(context, if (payload.category == PushPayload.UPCOMING) UPCOMING_CHANNEL else CHANNEL)

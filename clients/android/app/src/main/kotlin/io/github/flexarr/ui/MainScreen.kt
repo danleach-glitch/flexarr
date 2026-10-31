@@ -216,6 +216,7 @@ fun MainScreen(model: AppModel) {
                 AppLink.Search -> select(Tab.Search)
                 AppLink.Downloads -> select(Tab.Downloads)
                 AppLink.Home -> select(Tab.Home)
+                AppLink.Settings -> if (!model.isKids) select(Tab.Settings)
                 // On Home, so Back leaves it for Home.
                 AppLink.Watchlist -> {
                     select(Tab.Home)
