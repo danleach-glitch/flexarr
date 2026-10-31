@@ -69,6 +69,12 @@ struct MainTabView: View {
         .onChange(of: model.pendingSearch) { _, words in
             if words != nil { selection = .search }
         }
+        // Opening the app from a notification can set it before the tabs are up.
+        .onChange(of: model.pendingSettings, initial: true) { _, wanted in
+            guard wanted else { return }
+            model.pendingSettings = false
+            if !model.isKids { selection = .settings }
+        }
     }
 }
 

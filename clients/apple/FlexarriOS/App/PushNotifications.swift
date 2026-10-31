@@ -17,6 +17,8 @@ final class PushNotifications {
     /// "Living room wants to connect": opening it asks to allow the device (see `PairingPrompts`). Allow opens the app
     /// to allow it there, since that can take the main profile's PIN; Don't allow answers without opening it.
     nonisolated static let pairingCategory = "flexarr.pairing"
+    /// "Someone's guessing your PIN": opening it goes to Settings, with the devices waiting to connect.
+    nonisolated static let pinCategory = "flexarr.pin"
     nonisolated static let playAction = "flexarr.play"
     nonisolated static let allowPairingAction = "flexarr.pairing.allow"
     nonisolated static let declinePairingAction = "flexarr.pairing.decline"

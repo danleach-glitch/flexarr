@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { setAdminPin, unlockAdmin } from '../../api/client'
 import { AsyncButton } from '../../components/AsyncButton'
+import { usePinLockout } from '../../hooks/usePinLockout'
 import { SettingsHeader } from './shared'
 import { errorText } from './useSettings'
 
@@ -19,9 +20,11 @@ export function AdminUnlock({ pinMissing, onUnlocked }: { pinMissing: boolean; o
   const [apiKey, setApiKey] = useState('')
   const [error, setError] = useState<string>()
   const [busy, setBusy] = useState(false)
+  const lockout = usePinLockout()
 
   async function submit(event: FormEvent) {
     event.preventDefault()
+    if (lockout.locked) return
     if (mode !== 'pin' && newPin !== confirmPin) {
       setError('The two PINs don’t match. Type the same one in both.')
       return
@@ -33,7 +36,7 @@ export function AdminUnlock({ pinMissing, onUnlocked }: { pinMissing: boolean; o
       else await setAdminPin(newPin, mode === 'forgotten' ? apiKey.trim() : undefined)
       onUnlocked()
     } catch (e) {
-      setError(errorText(e))
+      setError(lockout.lockFrom(e) ? undefined : errorText(e))
       setPin('')
       setBusy(false)
     }
@@ -77,9 +80,9 @@ export function AdminUnlock({ pinMissing, onUnlocked }: { pinMissing: boolean; o
           </>
         )}
         {mode === 'new' && newPinFields}
-        {error && (
+        {(lockout.message ?? error) && (
           <p className="error" role="alert">
-            {error}
+            {lockout.message ?? error}
           </p>
         )}
         <div className="form-actions">
@@ -99,7 +102,7 @@ export function AdminUnlock({ pinMissing, onUnlocked }: { pinMissing: boolean; o
               Use the PIN
             </button>
           )}
-          <AsyncButton type="submit" className="button" busy={busy}>
+          <AsyncButton type="submit" className="button" busy={busy} disabled={lockout.locked}>
             {mode === 'pin' ? 'Unlock' : 'Save PIN'}
           </AsyncButton>
         </div>

@@ -36,6 +36,8 @@ sealed interface AppLink {
     data object Home : AppLink
     /** The profile's watchlist (the watchlist widget's heading). */
     data object Watchlist : AppLink
+    /** Settings (a notification that someone's guessing the main profile's PIN). */
+    data object Settings : AppLink
     /** Asks whether to let in the device showing [code] (a notification that it's asking to connect). */
     data class Pairing(val code: String) : AppLink
     /**
@@ -60,6 +62,7 @@ sealed interface AppLink {
             Downloads -> Uri.parse("flexarr://downloads")
             Home -> Uri.parse("flexarr://home")
             Watchlist -> Uri.parse("flexarr://watchlist")
+            Settings -> Uri.parse("flexarr://settings")
             is Pairing -> Uri.parse("flexarr://pairing/${Uri.encode(code)}")
             is AsProfile -> link.uri.buildUpon().appendQueryParameter("profile", profile).build()
         }
@@ -132,6 +135,7 @@ sealed interface AppLink {
                 "downloads" -> Downloads
                 "home" -> Home
                 "watchlist" -> Watchlist
+                "settings" -> Settings
                 "pairing" -> uri.pathSegments.firstOrNull()?.takeIf { code -> code.length <= MAX_CODE && code.all { it.isLetterOrDigit() || it == '-' } }?.let(::Pairing)
                 else -> null
             } ?: return null

@@ -12,6 +12,7 @@ import {
   wantsParentPin,
   type Profile,
 } from '../api/client'
+import { usePinLockout } from '../hooks/usePinLockout'
 import { AsyncButton } from './AsyncButton'
 import { Crown } from './icons'
 
@@ -21,21 +22,6 @@ export function Avatar({ profile, size = 40 }: { profile: Pick<Profile, 'name' |
       {profile.image ? <img src={profile.image} alt="" /> : profile.name.trim().charAt(0).toUpperCase()}
     </span>
   )
-}
-
-/** How long a lockout lasts: what the server said, or else read from its message ("Try again in 29 seconds"). */
-function lockoutSeconds(error: ApiError): number | undefined {
-  if (error.retryAfterSeconds !== undefined) return error.retryAfterSeconds
-  const message = error.messages[0] ?? ''
-  const count = /in (\d+) (second|minute)/.exec(message)
-  if (count) return Number(count[1]) * (count[2] === 'minute' ? 60 : 1)
-  return /in a minute/.test(message) ? 60 : undefined
-}
-
-/** "29 seconds", "a minute", "3 minutes", as the server words it. */
-function waitFor(seconds: number) {
-  const minutes = Math.ceil(seconds / 60)
-  return seconds < 60 ? `${seconds} second${seconds === 1 ? '' : 's'}` : minutes <= 1 ? 'a minute' : `${minutes} minutes`
 }
 
 /** A phone or tablet: its own number keyboard would cover the on-screen pad, so the field isn't focused for it. */
@@ -60,9 +46,6 @@ export function ProfilePicker({
   const [pin, setPin] = useState('')
   const [error, setError] = useState<string>()
   const [checking, setChecking] = useState(false)
-  /** When a lockout ends (ms since the epoch), while one is on. */
-  const [lockedUntil, setLockedUntil] = useState<number>()
-  const [now, setNow] = useState(() => Date.now())
   const [usingKey, setUsingKey] = useState(false)
   /** Leaving a kids profile: the pad asks for the main profile's PIN, keeping the chosen profile's own (if it has one). */
   const [parent, setParent] = useState<{ ownPin?: string }>()
@@ -71,14 +54,17 @@ export function ProfilePicker({
   // The main profile's PIN, given just now (to unlock this browser, or before a wrong own PIN): not asked for again.
   const knownParentPin = useRef(takeParentPin())
 
-  const remaining = lockedUntil === undefined ? 0 : Math.max(0, Math.ceil((lockedUntil - now) / 1000))
-  const locked = remaining > 0
+  // When a lockout is over the keys come back and the field takes focus again.
+  const lockout = usePinLockout(() => {
+    if (!touchScreen()) setTimeout(() => field.current?.focus())
+  })
+  const locked = lockout.locked
 
   function ask(profile: Profile | undefined) {
     setAsking(profile)
     setPin('')
     setError(undefined)
-    setLockedUntil(undefined)
+    lockout.reset()
     setUsingKey(false)
     setParent(undefined)
   }
@@ -107,10 +93,7 @@ export function ProfilePicker({
         setError(`That isn’t ${profile.name}’s PIN.`)
         return
       }
-      const seconds = e instanceof ApiError && e.status === 429 ? lockoutSeconds(e) : undefined
-      if (seconds !== undefined) {
-        setNow(Date.now())
-        setLockedUntil(Date.now() + seconds * 1000)
+      if (lockout.lockFrom(e)) {
         setError(undefined)
       } else {
         setError(e instanceof ApiError && e.messages[0] ? e.messages[0] : 'Couldn’t switch profile.')
@@ -130,20 +113,6 @@ export function ProfilePicker({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once, for the profile it opened with
   }, [initial])
 
-  // The lockout counts down each second; when it's over the keys come back and the field takes focus again.
-  useEffect(() => {
-    if (lockedUntil === undefined) return
-    const timer = setInterval(() => {
-      const at = Date.now()
-      setNow(at)
-      if (at >= lockedUntil) {
-        setLockedUntil(undefined)
-        if (!touchScreen()) setTimeout(() => field.current?.focus())
-      }
-    }, 1000)
-    return () => clearInterval(timer)
-  }, [lockedUntil])
-
   // Escape goes back to the profiles from anywhere on the PIN pad, even while its keys are off during a lockout.
   useEffect(() => {
     if (!asking) return
@@ -152,6 +121,7 @@ export function ProfilePicker({
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- ask only sets state (and clears the lockout)
   }, [asking])
 
   function press(digit: string) {
@@ -242,7 +212,7 @@ export function ProfilePicker({
           />
           {locked ? (
             <div className="pin-lockout" role="status">
-              <p className="error">Too many wrong PINs. Try again in {waitFor(remaining)}.</p>
+              <p className="error">{lockout.message}</p>
               {(asking.isMain || parent) && (
                 <p className="muted">
                   Forgotten it?{' '}
