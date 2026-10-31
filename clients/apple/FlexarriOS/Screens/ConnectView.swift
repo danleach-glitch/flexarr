@@ -60,7 +60,8 @@ struct ConnectView: View {
         .onAppear {
             browser.start()
             // Signed out on the server: show a code for the same server straight away.
-            if model.signedOutNotice != nil, let server = model.store.lastAddress.flatMap(FlexarrClient.normalizeAddress) {
+            // (Not a removed guest: its "server" was its own tunnel. It stays here, to join again with a new code.)
+            if model.signedOutNotice != nil, !model.signedOutAsGuest, let server = model.store.lastAddress.flatMap(FlexarrClient.normalizeAddress) {
                 step = .pair(DiscoveredServer(name: server.host() ?? "Flexarr", address: server))
             }
             #if DEBUG

@@ -88,6 +88,8 @@ final class AppModel {
     private(set) var errorReports: ErrorReportSetting?
     /// Why the connect screen is showing when nobody asked for it: the server stopped accepting this device.
     private(set) var signedOutNotice: String?
+    /// The notice is for a guest its host removed: there's no server of its own to show a code for.
+    private(set) var signedOutAsGuest = false
     /// A family guest's tunnel to its host's server didn't start: why, shown with Try again and Leave.
     private(set) var tunnelProblem: String?
     /// An invite link was opened (or pasted): the app asks "Join Dan's Flexarr?" before anything happens, since a
@@ -350,6 +352,7 @@ final class AppModel {
                 guard credentials == refused else { return }
                 signedOutNotice = "This \(ThisDevice.name) was removed. Ask \(refused.guest?.ownerName ?? "its owner") for a new invite."
                 forget()
+                signedOutAsGuest = true
                 return
             } catch {
                 return // Unreachable or restarting: no reason to forget the sign-in.
@@ -357,6 +360,7 @@ final class AppModel {
             // Not if it's been replaced meanwhile (another profile chosen, or connected again).
             guard credentials == refused else { return }
             signedOutNotice = "This \(ThisDevice.name) was signed out."
+            signedOutAsGuest = false
             forget()
         }
     }
@@ -467,6 +471,7 @@ final class AppModel {
             let credentials = ServerCredentials(address: address, apiKey: redeemed.apiKey, guest: info)
             try store.save(credentials)
             signedOutNotice = nil
+            signedOutAsGuest = false
             tunnelProblem = nil
             upgradeChecked = true
             remoteChecked = true
@@ -508,6 +513,7 @@ final class AppModel {
             if case FlexarrClientError.http(status: 403, _)? = await Self.failure(of: { try await self.client?.me() }) {
                 signedOutNotice = "This \(ThisDevice.name) was removed. Ask \(guest.ownerName) for a new invite."
                 forget()
+                signedOutAsGuest = true
                 return
             }
         }

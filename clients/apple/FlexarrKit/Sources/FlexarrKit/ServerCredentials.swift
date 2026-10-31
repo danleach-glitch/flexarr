@@ -83,7 +83,8 @@ public struct CredentialStore: Sendable {
         let account = credentials.address.absoluteString
         try writeKey(credentials.apiKey, account: account)
         defaults.set(account, forKey: addressKey)
-        defaults.set(account, forKey: "\(addressKey).last")
+        // A guest's address is its own tunnel on this device: no use to offer as the server to connect to again.
+        if credentials.guest == nil { defaults.set(account, forKey: "\(addressKey).last") }
         saveProfile(credentials.profileToken)
         saveRemoteAddress(credentials.remoteAddress)
         defaults.set(credentials.guest.flatMap { try? JSONEncoder().encode($0) }, forKey: "\(addressKey).guest")
