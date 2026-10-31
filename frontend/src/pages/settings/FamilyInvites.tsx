@@ -23,6 +23,9 @@ import { useApi } from '../../hooks/useApi'
 import { freeColour } from '../../lib/profileColours'
 import { usePolling } from '../../hooks/usePolling'
 import { describeGuest } from '../../lib/guests'
+import { deviceTypeName } from '../../lib/deviceTypes'
+import { Avatar } from '../../components/ProfilePicker'
+import { DeviceTypeIcon } from '../../components/DeviceTypeIcon'
 import { SettingRow, SettingsGroup, ToggleRow } from './shared'
 import { errorText } from './useSettings'
 
@@ -201,6 +204,11 @@ export function GuestsGroup({ onChange }: { onChange: () => void }) {
   const [newPerson, setNewPerson] = useState('')
   /** Asking who's being invited, before their device. */
   const [naming, setNaming] = useState(false)
+  // It opens at the top of the list, where the new person will appear: brought into view.
+  const namingPanel = useRef<HTMLFormElement>(null)
+  useEffect(() => {
+    if (naming) namingPanel.current?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' })
+  }, [naming])
   const [inviteError, setInviteError] = useState<string>()
   /** Devices that joined while this page was open, marked New. */
   const [joined, setJoined] = useState<string[]>([])
@@ -214,10 +222,11 @@ export function GuestsGroup({ onChange }: { onChange: () => void }) {
   usePolling(refresh, adding ? 2000 : waiting.data?.length ? 8000 : null)
 
   const guestProfiles = profiles.data?.filter((p) => !p.isMain) ?? []
-  const listed = guestProfiles.filter(
+  // Newest first, so someone just invited is at the top, where their card was made.
+  const listed = [...guestProfiles].reverse().filter(
     (p) => p.id === adding || devices.data?.some((d) => d.profileId === p.id) || waiting.data?.some((w) => w.profileId === p.id),
   )
-  const people: { id: string; name: string }[] = addingFor && !listed.some((p) => p.id === addingFor.id) ? [addingFor, ...listed] : listed
+  const people: { id: string; name: string; color?: string }[] = addingFor && !listed.some((p) => p.id === addingFor.id) ? [addingFor, ...listed] : listed
   const others = guestProfiles.filter((p) => !people.some((person) => person.id === p.id))
 
   async function remove(device: GuestDevice) {
@@ -251,21 +260,20 @@ export function GuestsGroup({ onChange }: { onChange: () => void }) {
     }
   }
 
+  // A card for each guest, newest first, with someone being invited at the top, where their card will be.
   return (
-    <SettingsGroup
-      title="Guests"
-      action={
-        !naming &&
-        !adding && (
+    <div className="settings-group">
+      <div className="settings-group-head">
+        <h3 className="settings-subhead">Guests</h3>
+        {!naming && !adding && (
           <button type="button" className="button small" onClick={() => setNaming(true)}>
             Invite someone
           </button>
-        )
-      }
-      note="Each guest watches as a profile of their own, and can’t switch to another. Each device joins with a code that works once."
-    >
+        )}
+      </div>
+      <div className="guest-cards">
       {naming && (
-        <form className="guest-add" onSubmit={(e) => void invite(e)}>
+        <form className="panel guest-card guest-add" ref={namingPanel} onSubmit={(e) => void invite(e)}>
           <div className="guest-add-head">
             <label htmlFor="guest-new-name" className="guest-add-title">
               Who are you inviting?
@@ -304,11 +312,21 @@ export function GuestsGroup({ onChange }: { onChange: () => void }) {
           )}
         </form>
       )}
-      {people.length === 0 && !naming && <p className="muted guest-empty">No guests yet.</p>}
+      {people.length === 0 && !naming && (
+        <div className="panel guest-card">
+          <p className="muted guest-empty">No guests yet.</p>
+        </div>
+      )}
       {people.map((person) => (
-        <div key={person.id} className="guest-person">
+        <div key={person.id} className="panel setting-rows guest-card guest-person">
           <div className="guest-person-head">
-            <strong>{person.name}</strong>
+            <span className="guest-who">
+              <Avatar profile={{ name: person.name, color: person.color ?? guestProfiles.find((p) => p.id === person.id)?.color ?? '#a9c2ec' }} size={40} />
+              <span className="guest-who-text">
+                <strong className="guest-name">{person.name}</strong>
+                <span className="muted">{deviceCount(devices.data?.filter((d) => d.profileId === person.id).length ?? 0)}</span>
+              </span>
+            </span>
             {adding !== person.id && (
               <button type="button" className="button small" onClick={() => setAddingFor(person)}>
                 Add device
@@ -331,21 +349,21 @@ export function GuestsGroup({ onChange }: { onChange: () => void }) {
           {devices.data
             ?.filter((d) => d.profileId === person.id)
             .map((d) => (
-              <SettingRow
-                key={d.id}
-                as="div"
-                label={
-                  <>
-                    {d.name}
+              <div key={d.id} className="guest-device">
+                <span className="sign-in-icon">
+                  <DeviceTypeIcon type={d.deviceType} />
+                </span>
+                <span className="setting-text">
+                  <strong>
+                    {deviceLabel(d, person.name)}
                     {joined.includes(d.id) && <span className="guest-new-tag">New</span>}
-                  </>
-                }
-                help={describeGuest(d, false)}
-              >
-                <AsyncButton className="button danger small" aria-label={`Remove ${d.name}`} onClick={() => remove(d)}>
+                  </strong>
+                  <span className="muted">{describeGuest(d, false)}</span>
+                </span>
+                <AsyncButton className="button quiet small" aria-label={`Remove ${d.name}`} onClick={() => remove(d)}>
                   Remove
                 </AsyncButton>
-              </SettingRow>
+              </div>
             ))}
           {waiting.data
             ?.filter((w) => w.profileId === person.id && adding !== person.id)
@@ -363,17 +381,27 @@ export function GuestsGroup({ onChange }: { onChange: () => void }) {
             ))}
         </div>
       ))}
+      </div>
       {removed && (
-        <p className="muted" role="status">
+        <p className="settings-note" role="status">
           {removed.name} can’t reach Flexarr any more. To free its place on your tailnet, delete it in{' '}
           <a href={removed.tailscaleAdminUrl}>Tailscale’s Machines</a>.
         </p>
       )}
-    </SettingsGroup>
+      <p className="settings-note">Each guest watches as a profile of their own, and can’t switch to another. Each device joins with a code that works once.</p>
+    </div>
   )
 }
 
 type AddPhase = 'code' | 'link' | 'waiting'
+
+const deviceCount = (n: number) => (n === 0 ? 'No devices yet' : n === 1 ? '1 device' : `${n} devices`)
+
+/** What the device is ("iPhone"), already being in its person's card; its full name when its app hasn't said. */
+const deviceLabel = (device: GuestDevice, person: string) => {
+  const prefix = [`${person}’s `, `${person}'s `].find((p) => device.name.startsWith(p))
+  return deviceTypeName(device.deviceType) ?? (prefix ? device.name.slice(prefix.length) : device.name)
+}
 
 /**
  * Adding a device for a guest, as one panel that moves through its steps: type the code their device shows (any

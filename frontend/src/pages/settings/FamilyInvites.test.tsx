@@ -131,7 +131,8 @@ describe('Settings › Access › Family invites', () => {
     render(<FamilyInvites />)
 
     // Gran has a device; Aunt Sue, with a profile but no devices yet, is suggested by name; the main profile never is.
-    expect(await screen.findByText('Gran’s iPad')).toBeVisible()
+    expect(await screen.findByText('iPad')).toBeVisible()
+    expect(screen.getByText('1 device')).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: 'Invite someone' }))
     const suggestions = document.querySelectorAll('#guest-profiles option')
     expect(Array.from(suggestions).map((o) => o.getAttribute('value'))).toEqual(['Aunt Sue'])

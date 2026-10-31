@@ -2610,9 +2610,6 @@
 }
 
 /* A guest and their devices: the name and Add device over its rows. */
-.guest-person + .guest-person {
-  border-top: 1px solid var(--aisle);
-}
 
 .guest-person-head {
   display: flex;
@@ -2633,10 +2630,7 @@
   padding-top: 6px;
 }
 
-.guest-add + .guest-person,
-.guest-add + .guest-empty {
-  border-top: 1px solid var(--aisle);
-}
+
 
 .guest-add-head {
   display: flex;
@@ -2738,4 +2732,58 @@
 
 .guest-add .field-help {
   font-size: var(--step--1);
+}
+
+/* The name box suggests existing profiles, but is a text box, not a menu. */
+#guest-new-name::-webkit-calendar-picker-indicator {
+  display: none !important;
+}
+
+/* Guests: a card each, and one for someone being invited. */
+.guest-cards {
+  display: grid;
+  gap: 12px;
+}
+
+.guest-card .guest-person-head {
+  padding-top: 16px;
+}
+
+.guest-card .guest-empty {
+  padding: 0;
+}
+
+/* A guest's card: who (picture, name, how many devices) over their devices, each a smaller row with its icon. */
+.guest-who {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.guest-who-text {
+  display: grid;
+  gap: 1px;
+  font-size: var(--step--1);
+}
+
+.guest-name {
+  font-size: var(--step-1, 1.15rem);
+}
+
+.guest-device {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--aisle);
+  font-size: var(--step--1);
+}
+
+.guest-person-head + .guest-device {
+  margin-top: 10px;
+}
+
+.guest-device .setting-text {
+  flex: 1 1 auto;
+  min-width: 0;
 }
