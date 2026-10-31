@@ -138,6 +138,11 @@ final class AppModel {
         // Before anything else can crash: the server's answer comes later (see `refreshErrorReports`).
         ErrorReports.resume(server: credentials?.address)
         Task { await refreshErrorReports() }
+        #if DEBUG
+        // `-FlexarrOpen flexarr://item/<id>` opens a screen as the app starts, as a link would, without the simulator
+        // asking first (used for checking a screen in the simulator).
+        if let link = defaults.string(forKey: "FlexarrOpen").flatMap(URL.init(string:)) { open(url: link) }
+        #endif
         player.onSessionEnded = { [weak self] in
             self?.watchStateChanged()
             self?.music.videoEnded()

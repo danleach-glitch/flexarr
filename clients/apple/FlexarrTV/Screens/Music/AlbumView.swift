@@ -22,6 +22,9 @@ struct AlbumView: View {
     var body: some View {
         ZStack {
             RoomBackground(ambient: ambient, intensity: 0.4)
+                // The whole screen, as a title's backdrop is: left to fill the space it's offered, a screen opened from the
+                // sidebar starts beside where the sidebar opens, leaving a bare strip down the left.
+                .frame(width: 1920, height: 1080)
             if let item = page.item {
                 ScrollView(.vertical) {
                     VStack(alignment: .leading, spacing: 48) {

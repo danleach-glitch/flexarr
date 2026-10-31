@@ -69,6 +69,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Music
 - On Apple TV, the now-playing bar along the bottom goes away a few seconds after the music is paused or finishes, and comes back when you press play. Now Playing has a new **Stop** button, which ends the music and takes the bar and the Now Playing tab away until you play something else.
+- On Apple TV, album, artist and playlist pages fill the screen, without the grey strip down the left.
 - On the web, **Made for you** mixes are cards the size of albums again, not one blurry mix filling the width of the page.
 
 ### Podcasts
