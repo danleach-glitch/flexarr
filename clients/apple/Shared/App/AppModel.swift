@@ -1042,9 +1042,10 @@ final class AppModel {
 
     // MARK: Commands from other devices
 
-    /// Listens for commands while the app is in front and signed in (with a profile chosen); stops otherwise.
+    /// Listens for commands while the app is in front and signed in (with a profile chosen); stops otherwise. Not for a
+    /// family guest: its host's devices and assistants have no business playing things on it.
     func listenForCommands(_ inFront: Bool) {
-        guard inFront, let client, profilesLoaded, !needsProfileChoice else {
+        guard inFront, let client, profilesLoaded, !needsProfileChoice, credentials?.isGuest != true else {
             commands.stop()
             return
         }
