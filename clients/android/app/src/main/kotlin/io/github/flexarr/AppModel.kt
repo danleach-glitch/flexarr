@@ -552,13 +552,17 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         leaving?.join()
         val info = GuestTunnelInfo(invite.tailnetTarget, invite.hostname, owner)
         val port = withContext(Dispatchers.IO) {
-            // Afresh: an identity left from an earlier invite would keep the node on that tailnet and ignore this key.
-            tunnel.forget()
+            // Trying this invite again after its sign-in didn't go through: the node joined with its key already (which
+            // is spent now), so it starts as that identity. Otherwise afresh: an identity left from an earlier invite
+            // would keep the node on that tailnet and ignore this key.
+            val joinedBefore = tunnel.hasIdentityFor(info)
+            if (!joinedBefore) tunnel.forget()
             tunnel.use(info)
             try {
-                tunnel.start(invite.authKey)
+                tunnel.start(if (joinedBefore) "" else invite.authKey)
             } catch (e: TunnelException) {
-                tunnel.forget()
+                // A refused identity or key is no use again; anything else (the network) leaves it for Try again.
+                if (e.needsLogin) tunnel.forget() else tunnel.use(null)
                 throw GuestJoinException(guestJoinProblem(e, owner, keyRefused = e.needsLogin))
             }
         }

@@ -47,10 +47,20 @@ class GuestTunnel(context: Context) : LoopbackTunnel {
      */
     val preferredPort: Int
         get() {
-            val prefs = context.getSharedPreferences("tunnel", Context.MODE_PRIVATE)
             prefs.getInt(PORT, 0).takeIf { it in PORTS }?.let { return it }
             return Random.nextInt(PORTS.first, PORTS.last + 1).also { prefs.edit { putInt(PORT, it) } }
         }
+
+    private val prefs get() = context.getSharedPreferences("tunnel", Context.MODE_PRIVATE)
+
+    /**
+     * The node's saved identity joined the tailnet with an invite for [info] (the same target and name), so joining
+     * with that invite again needs no key: its key was used up the first time.
+     */
+    fun hasIdentityFor(info: GuestTunnelInfo): Boolean =
+        prefs.getString(IDENTITY, null) == identity(info) && stateDir.exists()
+
+    private fun identity(info: GuestTunnelInfo) = "${info.target}|${info.hostname}"
 
     /** Tunnels to [info] from now on, putting itself in front of loopback requests; null stops it and stands aside. */
     fun use(info: GuestTunnelInfo?) {
@@ -82,6 +92,8 @@ class GuestTunnel(context: Context) : LoopbackTunnel {
             throw TunnelException(message, needsLogin = refused, e)
         }
         listening = port
+        // Its key is spent now: trying the same invite again (a sign-in that didn't go through) uses this identity.
+        if (authKey.isNotEmpty()) prefs.edit { putString(IDENTITY, identity(info)) }
         flexarrLog.info("The tunnel is up on $port (${status().path})")
         onPort?.invoke(port)
         port
@@ -117,6 +129,7 @@ class GuestTunnel(context: Context) : LoopbackTunnel {
     fun forget() {
         use(null)
         stateDir.deleteRecursively()
+        prefs.edit { remove(IDENTITY) }
     }
 
     /** `state`: running, starting, stopped, needs-login or error. `path`: direct, peer-relay, derp or unknown. */
@@ -135,6 +148,7 @@ class GuestTunnel(context: Context) : LoopbackTunnel {
 
     private companion object {
         const val PORT = "port"
+        const val IDENTITY = "identity"
         /** The dynamic range, out of the way of servers people run on their phones. */
         val PORTS = 49152..65535
     }
