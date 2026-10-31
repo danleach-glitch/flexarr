@@ -67,10 +67,11 @@ A PIN is 4 to 8 digits. Without one, anyone can switch to that profile. With one
 
 - The main profile's PIN works like anyone's: add it, change it or remove it in **Settings › Profiles**. It can be the same as the admin PIN or different.
 - The admin PIN is in **Settings › Security**. It can be changed but not removed, and changing it takes the current one. If you've forgotten it, see [I forgot a profile's PIN](troubleshooting.md#i-forgot-a-profiles-pin).
-- Without a PIN of its own, the main profile is chosen freely on browsers and devices you signed in. Someone coming in over Tailscale with their own account is asked for the admin PIN.
-- On a server from before the two were apart, the PIN you had became the admin PIN. The main profile kept it as its own too only if **Ask for the PIN when someone chooses the main profile** was on.
+- Without a PIN of its own, the main profile is chosen freely on browsers and devices you signed in. Someone coming in over Tailscale with their own account, or a browser at home that isn't signed in while there are kids profiles, is asked for the admin PIN instead, even when the main profile has a PIN of its own.
+- Forgotten a profile's PIN? Choose **Forgot PIN?** under its PIN pad and enter the admin PIN: the PIN comes off, and you can give it a new one in **Settings › Profiles**.
+- On a server from before the two were apart, the PIN you had became the admin PIN. The main profile kept it as its own too only if **Ask for the PIN when someone chooses the main profile** was on. Changing the admin PIN later doesn't change that one: change it in **Settings › Profiles** too.
 - Wrong guesses lock out the device doing the guessing for a while, longer each time. Someone else guessing can't lock you out of your own profile.
-- When wrong guesses at the admin PIN lock someone out, Flexarr notes it in its log and tells the main profile's phones (with notifications on), naming the device.
+- When wrong guesses at the admin PIN, or at the main profile's own, lock someone out, Flexarr notes it in its log and tells the main profile's phones (with notifications on), naming the device.
 
 ## Choosing which libraries a profile sees
 

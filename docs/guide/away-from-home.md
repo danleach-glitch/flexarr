@@ -30,10 +30,10 @@ In a browser away from home, open the private address instead of the usual one.
 
 When you first turn it on, your own Tailscale account is linked to the main profile. Anyone else you invite to your tailnet appears under **People on your tailnet** in **Settings › Access**. Choose a profile for each person. Anyone set to **Not allowed** is turned away, even though Tailscale lets them reach the server.
 
-Over Tailscale, watching works as it does at home. Changing settings is stricter: you'll be asked to choose the main profile with the admin PIN. That browser then stays signed in until it's signed out, or left unused for two weeks. See [Profiles](profiles.md) for setting a PIN.
+Over Tailscale, watching works as it does at home. Changing settings is stricter: you'll be asked to choose the main profile with the admin PIN. That browser then stays signed in until it's signed out, or left unused for two weeks. See [Unlocking settings](profiles.md#unlocking-settings) for the admin PIN.
 
 > **Important**
-> Someone on your tailnet whose account is linked to another profile can only choose the main profile with a PIN: its own, or the admin PIN. Changing settings over Tailscale asks for the admin PIN, as it does at home.
+> Someone on your tailnet whose account is linked to another profile can only choose the main profile with the admin PIN, even if it has a PIN of its own. Changing settings over Tailscale asks for the admin PIN, as it does at home.
 
 Don't use **Tailscale Funnel** for Flexarr. Funnel publishes an address to the whole internet. If Flexarr spots it, Settings warns you; turn remote access off and on again to make it private.
 

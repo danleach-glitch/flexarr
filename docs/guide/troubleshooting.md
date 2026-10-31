@@ -112,8 +112,8 @@ With a paid Apple Developer account, an install lasts a year instead. See [Apple
 
 ### I forgot a profile's PIN
 
-- **Someone else's profile:** sign in as the main profile, open **Settings › Profiles**, edit their profile, and set a new PIN or remove it. You don't need the old one.
-- **The main profile's own PIN:** unlock settings with the admin PIN, then set a new one or remove it in **Settings › Profiles**, as for anyone.
+- **Someone else's profile:** choose **Forgot PIN?** under its PIN pad and enter the admin PIN, which takes the PIN off. Or sign in as the main profile, open **Settings › Profiles**, edit their profile, and set a new PIN or remove it. You don't need the old one.
+- **The main profile's own PIN:** the admin PIN opens the main profile too. Then set a new one or remove it in **Settings › Profiles**, as for anyone.
 - **The admin PIN:** in a browser, open **Settings**, choose **Forgotten it?** under the PIN (or **Change** then **Use the API key instead** in **Settings › Security**), and enter the server's API key with a new PIN. That browser is unlocked, and anywhere the old PIN was given is locked again. The Apple TV and phone apps send you to a browser for this.
 - **The Mac app:** choose **Reset Admin PIN…** from Flexarr's menu bar icon and type a new PIN. Being at the Mac is enough; no key is needed.
 
