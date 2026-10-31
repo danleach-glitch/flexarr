@@ -40,10 +40,11 @@ import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -221,11 +222,11 @@ private fun GuestCode(model: AppModel, onBack: () -> Unit) {
                 }
                 joinProblem != null -> {
                     ErrorNote(joinProblem)
+                    // Try again only when it could work (the host couldn't be reached); otherwise a new code for a new invite.
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         if (model.joinCanRetry) TvActionButton("Try again", onClick = model::confirmInvite, prominent = true, modifier = Modifier.focusRequester(retry))
                         TvActionButton("New code", onClick = model::dismissInvite, prominent = !model.joinCanRetry,
                             modifier = if (model.joinCanRetry) Modifier else Modifier.focusRequester(newCode))
-                    // Try again only when it could work (the host couldn't be reached); otherwise a new code for a new invite.
                     }
                 }
                 // Asked first: anyone who heard the code could have sent theirs.
