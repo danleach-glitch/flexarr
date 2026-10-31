@@ -36,7 +36,12 @@ public static partial class SetupGuideEndpoints
     /// <summary>The steps a guide can have; others are dropped.</summary>
     private static readonly HashSet<string> Steps = ["apps", "libraries", "profiles", "devices", "away"];
 
-    private static readonly Dictionary<ArrKind, int> UsualPorts = new() { [ArrKind.Sonarr] = 8989, [ArrKind.Radarr] = 7878, [ArrKind.Lidarr] = 8686 };
+    /// <summary>Where each kind usually answers: its container names and port. The Readarr family shares a kind but not a name.</summary>
+    private static readonly (ArrKind Kind, string[] Names, int Port)[] UsualPlaces =
+    [
+        (ArrKind.Sonarr, ["sonarr"], 8989), (ArrKind.Radarr, ["radarr"], 7878), (ArrKind.Lidarr, ["lidarr"], 8686),
+        (ArrKind.Readarr, ["bookshelf", "readarr"], 8787), (ArrKind.Readarr, ["chaptarr"], 8789),
+    ];
 
     /// <summary>The triggers (as the apps' schemas name them) that mean a file came, went or moved: what Flexarr scans for.</summary>
     private static readonly HashSet<string> Triggers = new(StringComparer.OrdinalIgnoreCase)
@@ -45,6 +50,7 @@ public static partial class SetupGuideEndpoints
         "onSeriesAdd", "onSeriesDelete", "onEpisodeFileDelete", "onEpisodeFileDeleteForUpgrade",
         "onMovieAdded", "onMovieDelete", "onMovieFileDelete", "onMovieFileDeleteForUpgrade",
         "onReleaseImport", "onArtistAdd", "onArtistDelete", "onAlbumDelete", "onTrackRetag",
+        "onAuthorAdded", "onAuthorDelete", "onBookDelete", "onBookFileDelete", "onBookFileDeleteForUpgrade", "onBookRetag",
     };
 
     public static RouteGroupBuilder MapSetupGuideEndpoints(this RouteGroupBuilder api)
@@ -112,8 +118,9 @@ public static partial class SetupGuideEndpoints
 
             hosts.AddRange(["localhost", "host.docker.internal"]);
             var connected = options.CurrentValue.Arr.Select(a => a.Kind).ToHashSet();
-            var candidates = UsualPorts.Where(p => !connected.Contains(p.Key))
-                .SelectMany(p => hosts.Prepend(p.Key.ToString().ToLowerInvariant()).Select(host => (Kind: p.Key, Url: new Uri($"http://{host}:{p.Value}"))))
+            var candidates = UsualPlaces.Where(p => !connected.Contains(p.Kind))
+                .SelectMany(p => p.Names.Concat(hosts).Select(host => (p.Kind, Url: new Uri($"http://{host}:{p.Port}"))))
+                .DistinctBy(c => c.Url)
                 .ToList();
 
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);

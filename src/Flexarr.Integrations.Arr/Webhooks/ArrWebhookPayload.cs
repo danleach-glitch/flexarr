@@ -25,6 +25,12 @@ public sealed record ArrWebhookPayload
     public PathItem? Artist { get; init; }
     public IReadOnlyList<FileItem>? TrackFiles { get; init; }
 
+    // Readarr, Bookshelf, Chaptarr
+    public AuthorItem? Author { get; init; }
+    public IReadOnlyList<BookFileItem>? BookFiles { get; init; }
+    public IReadOnlyList<BookFileItem>? RenamedBookFiles { get; init; }
+    public BookFileItem? BookFile { get; init; }
+
     public sealed record PathItem(string? Title, string? Path);
 
     public sealed record SeriesItem(string? Title, string? Path, int? TvdbId = null);
@@ -32,4 +38,9 @@ public sealed record ArrWebhookPayload
     public sealed record MovieItem(string? Title, string? FolderPath, int? TmdbId = null);
 
     public sealed record FileItem(string? Path, string? RelativePath);
+
+    public sealed record AuthorItem(string? Name, string? Path);
+
+    /// <param name="PreviousPath">Where a renamed file was.</param>
+    public sealed record BookFileItem(string? Path, string? PreviousPath = null);
 }

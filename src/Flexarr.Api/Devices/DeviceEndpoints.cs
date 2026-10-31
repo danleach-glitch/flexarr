@@ -22,9 +22,10 @@ namespace Flexarr.Api.Devices;
 /// <param name="Sound">Its sound settings.</param>
 /// <param name="AgeSeconds">How long ago <paramref name="ReportedAt"/> was, by the server's clock, for a device whose own clock differs.</param>
 /// <param name="ProfileId">Whose it is: the profile it plays against, so a phone's remote follows only its own profile's TV.</param>
+/// <param name="Chapter">The chapter of a book playing. Absent from servers before 0.58.</param>
 public sealed record NowPlayingDto(ItemSummaryDto Item, double PositionSeconds, double DurationSeconds, bool Paused, DateTime? ReportedAt = null,
     double? Rate = null, PlayerPrompt? Prompt = null, bool? HasNext = null, PlayerTracks? Tracks = null, DeviceSound? Sound = null, double? AgeSeconds = null,
-    string? ProfileId = null);
+    string? ProfileId = null, string? Chapter = null);
 
 /// <summary>An Apple TV, iPhone, iPad or Android device signed in to this server, and whether it would take a command right now.</summary>
 /// <param name="Online">Flexarr is open on it and listening. Offline, a command waits a couple of minutes for it.</param>
@@ -43,6 +44,9 @@ public sealed record DeviceSkipRequest(double Seconds);
 public sealed record DeviceTrackRequest(string? TrackId);
 
 public sealed record DeviceRateRequest(double Rate);
+
+/// <summary>A sleep timer for a device: minutes from now, the end of the book's chapter, or neither to turn it off.</summary>
+public sealed record DeviceSleepRequest(double? Minutes = null, bool EndOfChapter = false);
 
 /// <param name="ItemId">A film, episode or track to play, or a show, season or album: the next episode (or the first track) is worked out for the device's profile.</param>
 /// <param name="FromBeginning">Start over rather than resume.</param>
@@ -168,9 +172,13 @@ public static class DeviceEndpoints
                 ? Results.Problem("That isn't one of the player's subtitles.", statusCode: StatusCodes.Status400BadRequest)
                 : Remote(id, DeviceCommandKind.SubtitleTrack, signIns, commands, current, trackId: string.IsNullOrEmpty(request.TrackId) ? null : request.TrackId));
         group.MapPost("/{id}/rate", (string id, DeviceRateRequest request, SignIns signIns, DeviceCommands commands, CurrentProfile current) =>
-            request.Rate is >= 0.5 and <= 2
+            request.Rate is >= 0.5 and <= 3.5
                 ? Remote(id, DeviceCommandKind.Rate, signIns, commands, current, rate: request.Rate)
-                : Results.Problem("The speed is between 0.5 and 2.", statusCode: StatusCodes.Status400BadRequest));
+                : Results.Problem("The speed is between 0.5 and 3.5.", statusCode: StatusCodes.Status400BadRequest));
+        group.MapPost("/{id}/sleep", (string id, DeviceSleepRequest request, SignIns signIns, DeviceCommands commands, CurrentProfile current) =>
+            request.Minutes is null or (>= 1 and <= 600)
+                ? Remote(id, DeviceCommandKind.Sleep, signIns, commands, current, seconds: request.EndOfChapter ? null : request.Minutes * 60, endOfChapter: request.EndOfChapter ? true : null)
+                : Results.Problem("Sleep in 1 to 600 minutes, or at the end of the chapter.", statusCode: StatusCodes.Status400BadRequest));
         foreach (var (path, kind) in new[] { ("next", DeviceCommandKind.Next), ("previous", DeviceCommandKind.Previous), ("skip-segment", DeviceCommandKind.SkipSegment) })
         {
             group.MapPost($"/{{id}}/{path}", (string id, SignIns signIns, DeviceCommands commands, CurrentProfile current) => Remote(id, kind, signIns, commands, current));
@@ -230,8 +238,16 @@ public static class DeviceEndpoints
     }
 
     /// <summary>Sends a remote's command to a device that's listening and takes it: 409 when it isn't open, or its app is too old.</summary>
+    /// <summary>The same as the sleep endpoint, for the assistant's tools.</summary>
+    public static IResult Sleep(string deviceId, DeviceSleepRequest request, SignIns signIns, DeviceCommands commands, CurrentProfile current)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return Remote(deviceId, DeviceCommandKind.Sleep, signIns, commands, current, seconds: request.EndOfChapter ? null : request.Minutes * 60,
+            endOfChapter: request.EndOfChapter ? true : null);
+    }
+
     private static IResult Remote(string deviceId, DeviceCommandKind kind, SignIns signIns, DeviceCommands commands, CurrentProfile current, double? seconds = null,
-        string? trackId = null, double? rate = null)
+        string? trackId = null, double? rate = null, bool? endOfChapter = null)
     {
         if (!current.IsTrusted)
         {
@@ -255,7 +271,7 @@ public static class DeviceEndpoints
         }
 
         var command = new DeviceCommand(DeviceCommand.NewId(), kind, null, false, SenderName(signIns, current), DateTime.UtcNow, Seconds: seconds, TrackId: trackId,
-            Rate: rate);
+            Rate: rate, EndOfChapter: endOfChapter);
         return commands.Send(device.Id, command, keep: false)
             ? Results.Ok(new DeviceCommandResultDto(true, device.Name, null))
             : Results.Problem($"Flexarr isn't open on {device.Name}.", statusCode: StatusCodes.Status409Conflict);
@@ -327,8 +343,11 @@ public static class DeviceEndpoints
         }
 
         var remote = playing.Remote;
+        var chapter = playing.BookParts is null || item.Id == Guid.Empty ? null
+            : await db.MediaChapters.Where(c => c.MediaItemId == playing.ItemId && c.StartSeconds <= playing.LastPosition)
+                .OrderByDescending(c => c.StartSeconds).Select(c => c.Title).FirstOrDefaultAsync(ct);
         var dto = new NowPlayingDto(item, playing.LastPosition, playing.DurationSeconds, playing.Paused, playing.ReportedAt, remote?.Rate, remote?.Prompt, remote?.HasNext,
-            remote?.Tracks, remote?.Sound, playing.ReportedAt is { } at ? Math.Max(0, (now - at).TotalSeconds) : null, playing.ProfileId);
+            remote?.Tracks, remote?.Sound, playing.ReportedAt is { } at ? Math.Max(0, (now - at).TotalSeconds) : null, playing.ProfileId, chapter);
         return item.Id == Guid.Empty ? Private(dto) : dto;
     }
 
@@ -473,7 +492,7 @@ public static class DeviceEndpoints
     {
         switch (item.Kind)
         {
-            case MediaKind.Movie or MediaKind.Episode or MediaKind.Track or MediaKind.PodcastEpisode:
+            case MediaKind.Movie or MediaKind.Episode or MediaKind.Track or MediaKind.PodcastEpisode or MediaKind.Audiobook:
                 return item;
             case MediaKind.Podcast:
                 return await Podcasts.PodcastLibrary.NextToHearAsync(db, item.Id, profileId, ct);
