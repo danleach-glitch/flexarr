@@ -13,6 +13,8 @@ struct TraktSettingsView: View {
     @State private var chosen: Set<String> = []
     @State private var working = false
     @State private var syncing = false
+    /// List choices save on their own, whatever else is running.
+    @State private var savingLists = false
     @State private var problem: String?
     @State private var confirmDisconnect = false
 
@@ -21,7 +23,7 @@ struct TraktSettingsView: View {
     var body: some View {
         SettingsPage(title: "Trakt", summary: "Keep what you watch, your place and your watchlist in step with Trakt.") {
             if unavailable || status?.available == false {
-                SettingsFact("Trakt", "Not available on this server")
+                Text(TraktWords.unavailable).font(.system(size: 30)).foregroundStyle(Color.usher)
             } else if let status {
                 if status.state == .connected {
                     connected(status)
@@ -34,9 +36,6 @@ struct TraktSettingsView: View {
                 }
             } else {
                 ProgressView().padding(.top, 20)
-            }
-            if let problem {
-                Text(problem).font(.system(size: 28)).foregroundStyle(Color.danger).padding(.top, 20)
             }
         }
         .task { await load() }
@@ -71,7 +70,6 @@ struct TraktSettingsView: View {
                         .minimumScaleFactor(0.5)
                         .foregroundStyle(Color.screen)
                         .accessibilityLabel(pending.userCode.map(String.init).joined(separator: " "))
-                        .speechSpellsOutCharacters()
                 }
             }
             .padding(.bottom, 30)
@@ -89,29 +87,35 @@ struct TraktSettingsView: View {
 
     @ViewBuilder private func connected(_ status: TraktStatus) -> some View {
         SettingsFact("Account", status.username ?? "Connected")
-        SettingsFact("Synced", status.lastSyncAt.map { $0.formatted(.relative(presentation: .named)) } ?? "Not yet")
+        Text(TraktWords.synced(status.lastSyncAt)).font(.system(size: 30)).foregroundStyle(Color.usher).padding(.horizontal, 32)
         if status.queued > 0 {
             SettingsFact("Waiting to send", status.queued.formatted())
         }
         if status.watchlistFull {
-            SettingsFact("Watchlist", "Full on Trakt")
+            Text(TraktWords.watchlistFull).font(.system(size: 28)).foregroundStyle(Color.usher).padding(.horizontal, 32)
         }
 
         // One row whatever stage the import is at, so focus stays on it as it changes.
         importRow(status).padding(.top, 36)
         SettingsRow(title: syncing ? "Syncing…" : "Sync now", symbol: "arrow.triangle.2.circlepath",
                     help: status.lastError ?? "Flexarr syncs every few minutes by itself.") {
+            guard !working else { return }
             syncing = true
             run { try await $0.syncTraktNow() }
         }
         SettingsRow(title: "Disconnect", symbol: "xmark.circle", help: "Stop syncing this profile with Trakt.", destructive: true) {
             confirmDisconnect = true
         }
+        // Beside the actions it's about, not below the lists.
+        if let problem {
+            Text(problem).font(.system(size: 28)).foregroundStyle(Color.danger).padding(.horizontal, 32)
+        }
 
         if let lists, !lists.isEmpty {
             SettingsGroupLabel("Lists").padding(.top, 36)
+            Text(TraktWords.listsNote).font(.system(size: 26)).foregroundStyle(Color.usher).padding(.horizontal, 32)
             ForEach(lists) { list in
-                SettingsRow.toggle(list.name, isOn: chosen.contains(list.id), symbol: "list.bullet", help: "\(list.detail). \(TraktWords.listsNote)") {
+                SettingsRow.toggle(list.name, isOn: chosen.contains(list.id), symbol: "list.bullet", help: list.detail) {
                     choose(list.id)
                 }
             }
@@ -132,22 +136,26 @@ struct TraktSettingsView: View {
                 run { try await $0.confirmTraktImport() }
             }
         }
-        return SettingsRow(title: TraktWords.importEntry, symbol: "clock.arrow.circlepath", help: "See what changes first.") {
+        return SettingsRow(title: TraktWords.importEntry, symbol: "clock.arrow.circlepath", help: status.importError ?? "See what changes first.") {
             run { client in preview = try await client.previewTraktImport() }
         }
     }
 
     private func choose(_ id: String) {
+        guard let client = model.client, !savingLists else { return }
         let before = chosen
         if chosen.contains(id) { chosen.remove(id) } else { chosen.insert(id) }
         let ids = lists?.map(\.id).filter(chosen.contains) ?? []
-        run(reload: false) { client in
+        savingLists = true
+        problem = nil
+        Task {
             do {
                 try await client.saveTraktLists(ids)
             } catch {
                 chosen = before
-                throw error
+                problem = TraktWords.problem(error)
             }
+            savingLists = false
         }
     }
 

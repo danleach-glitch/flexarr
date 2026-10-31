@@ -43,6 +43,8 @@ public struct TraktStatus: Codable, Sendable, Hashable {
     public let importing: Bool
     public let queued: Int
     public var pending: TraktPendingConnect? = nil
+    /// Why the last import didn't finish. Absent from servers before 0.57's last builds.
+    public var importError: String? = nil
 }
 
 /// What the first history import would do, shown before it's confirmed.

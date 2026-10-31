@@ -15,6 +15,10 @@ struct TraktSettingsView: View {
     @State private var lists: [TraktList]?
     @State private var chosen: Set<String> = []
     @State private var working: Part?
+    /// Sync now under way (the account part runs other things too, like Disconnect).
+    @State private var syncing = false
+    /// List choices save on their own, whatever else is running.
+    @State private var savingLists = false
     @State private var problems: [Part: String] = [:]
     @State private var confirmDisconnect = false
 
@@ -81,7 +85,6 @@ struct TraktSettingsView: View {
                     .padding(.vertical, 8)
                     .textSelection(.enabled)
                     .accessibilityLabel(pending.userCode.map(String.init).joined(separator: " "))
-                    .speechSpellsOutCharacters()
                     .listRowBackground(Color.seat)
                 if let url = URL(string: pending.verificationUrl) {
                     Button {
@@ -118,21 +121,24 @@ struct TraktSettingsView: View {
     @ViewBuilder private func connected(_ status: TraktStatus) -> some View {
         Section {
             LabeledContent("Account", value: status.username ?? "Connected").settingsRow()
-            LabeledContent("Synced", value: status.lastSyncAt.map { $0.formatted(.relative(presentation: .named)) } ?? "Not yet").settingsRow()
+            Text(TraktWords.synced(status.lastSyncAt)).settingsRow()
             if status.queued > 0 {
                 LabeledContent("Waiting to send", value: status.queued.formatted()).settingsRow()
             }
             Button {
+                syncing = true
                 run(.account) { try await $0.syncTraktNow() }
             } label: {
                 HStack {
-                    Text(working == .account ? "Syncing…" : "Sync now")
-                    if working == .account { Spacer(); ProgressView() }
+                    Text(syncing ? "Syncing…" : "Sync now")
+                    if syncing { Spacer(); ProgressView().id(UUID()) }
                 }
             }
             .disabled(working != nil)
             .listRowBackground(Color.seat)
             Button("Disconnect", role: .destructive) { confirmDisconnect = true }
+                .foregroundStyle(Color.danger)
+                .disabled(working != nil)
                 .listRowBackground(Color.seat)
             problemRow(.account)
         } footer: {
@@ -148,7 +154,7 @@ struct TraktSettingsView: View {
         Section {
             if status.importing {
                 HStack {
-                    ProgressView()
+                    ProgressView().id(UUID())
                     Text(TraktWords.importing).foregroundStyle(Color.usher)
                 }
                 .listRowBackground(Color.seat)
@@ -171,6 +177,9 @@ struct TraktSettingsView: View {
                 .listRowBackground(Color.seat)
             }
             problemRow(.history)
+            if problems[.history] == nil, !status.importing, status.importedAt == nil, let failed = status.importError {
+                Text(failed).font(.footnote).foregroundStyle(Color.danger).listRowBackground(Color.seat)
+            }
         } header: {
             Text("Your history")
         } footer: {
@@ -190,7 +199,7 @@ struct TraktSettingsView: View {
                             Text(list.detail).font(.footnote).foregroundStyle(Color.usher)
                         }
                     }
-                    .disabled(working == .lists)
+                    .disabled(savingLists)
                     .settingsRow()
                 }
                 problemRow(.lists)
@@ -203,16 +212,20 @@ struct TraktSettingsView: View {
     }
 
     private func choose(_ id: String, _ on: Bool) {
+        guard let client = model.client, !savingLists else { return }
         let before = chosen
         if on { chosen.insert(id) } else { chosen.remove(id) }
         let ids = lists?.map(\.id).filter(chosen.contains) ?? []
-        run(.lists, reload: false) { client in
+        savingLists = true
+        problems[.lists] = nil
+        Task {
             do {
                 try await client.saveTraktLists(ids)
             } catch {
                 chosen = before
-                throw error
+                problems[.lists] = TraktWords.problem(error)
             }
+            savingLists = false
         }
     }
 
@@ -245,6 +258,7 @@ struct TraktSettingsView: View {
             }
             if reload { await load() }
             working = nil
+            syncing = false
         }
     }
 }
