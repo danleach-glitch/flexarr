@@ -12,8 +12,8 @@ import { Close } from './icons'
 const DONE_MS = 2_500
 
 /**
- * A device showing a code asks every admin with Flexarr open, so nobody has to type the code: one device at a time,
- * the rest waiting behind it. Closing it leaves the device waiting (Settings › Access › Connect a device still can).
+ * A device showing a code asks every admin with Flexarr open, so nobody has to type the code: a banner at the top of
+ * whatever page is open, one device at a time, the rest waiting behind it. Closing it leaves the device waiting (Settings › Access › Connect a device still can).
  * That page lists every waiting device itself, so this keeps out of the way there.
  */
 export function PairingPrompt() {
@@ -37,7 +37,7 @@ export function PairingPrompt() {
 
   if (connected) {
     return (
-      <section className="pairing-prompt" role="status" aria-label="Device connected">
+      <section className="pairing-prompt pairing-prompt-done" role="status" aria-label="Device connected">
         <p className="pairing-prompt-title">“{connected.deviceName}” is connected</p>
       </section>
     )
@@ -81,8 +81,15 @@ function Prompt({
   const [error, setError] = useState<string>()
   const [pin, setPin] = useState('')
   const [unlocked, setUnlocked] = useState(false)
+  // Locked here: Allow asks for the main profile's PIN, then allows with it (as on the phones).
+  const [asksPin, setAsksPin] = useState(false)
+  const needsPin = locked && !unlocked
 
   async function allow() {
+    if (needsPin && !asksPin) {
+      setAsksPin(true)
+      return
+    }
     setState('approving')
     setError(undefined)
     try {
@@ -113,40 +120,48 @@ function Prompt({
 
   return (
     <section className="pairing-prompt" aria-label="A device is asking to connect" aria-live="polite">
-      <div className="pairing-prompt-head">
-        <span className="sign-in-icon">
-          <DeviceTypeIcon type={details.deviceType} />
-        </span>
+      <span className="sign-in-icon">
+        <DeviceTypeIcon type={details.deviceType} />
+      </span>
+      <div className="pairing-prompt-body">
         <p className="pairing-prompt-title">Connect “{details.deviceName}”?</p>
-        {/* Not now: the device keeps waiting, and can still be connected from Settings. */}
-        <button type="button" className="icon-button pairing-prompt-close" aria-label="Not now" title="Not now" onClick={() => onFinished(details.code)}>
-          <Close />
-        </button>
-      </div>
-      <p className="muted">{asking(details)}</p>
-      <p>
-        {details.zone !== 'Local' && 'This didn’t come from your home network. '}
-        Check its screen shows <strong className="pairing-code">{details.code}</strong>.
-      </p>
-      {locked && !unlocked && (
-        <label className="field">
-          <span className="field-label">Main profile’s PIN</span>
-          <input type="password" inputMode="numeric" autoComplete="off" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 8))} />
-        </label>
-      )}
-      {error && (
-        <p className="error" role="alert">
-          {error}
+        <p className="muted">{asking(details)}</p>
+        <p>
+          {details.zone !== 'Local' && 'This didn’t come from your home network. '}
+          Check its screen shows <strong className="pairing-code">{details.code}</strong>.
         </p>
-      )}
-      <div className="form-actions">
-        <AsyncButton className="button quiet small" busy={state === 'declining'} disabled={state === 'approving'} onClick={() => decline()}>
-          Don’t allow
-        </AsyncButton>
-        <AsyncButton className="button small" busy={state === 'approving'} disabled={state === 'declining' || (locked && !unlocked && pin.length < 4)} onClick={() => allow()}>
+        {needsPin && asksPin && (
+          <label className="field">
+            <span className="field-label">Main profile’s PIN</span>
+            <input
+              type="password"
+              inputMode="numeric"
+              autoComplete="off"
+              autoFocus
+              value={pin}
+              onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 8))}
+              onKeyDown={(e) => e.key === 'Enter' && pin.length >= 4 && void allow()}
+            />
+          </label>
+        )}
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
+      </div>
+      <div className="pairing-prompt-actions">
+        <AsyncButton className="button" busy={state === 'approving'} disabled={state === 'declining' || (needsPin && asksPin && pin.length < 4)} onClick={() => allow()}>
           Allow
         </AsyncButton>
+        <AsyncButton className="button quiet" busy={state === 'declining'} disabled={state === 'approving'} onClick={() => decline()}>
+          Don’t allow
+        </AsyncButton>
       </div>
+      {/* Not now: the device keeps waiting, and can still be connected from Settings. */}
+      <button type="button" className="icon-button pairing-prompt-close" aria-label="Not now" title="Not now" onClick={() => onFinished(details.code)}>
+        <Close />
+      </button>
     </section>
   )
 }

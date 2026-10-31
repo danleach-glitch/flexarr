@@ -53,14 +53,26 @@ import kotlinx.coroutines.launch
 import java.time.Duration
 import java.time.Instant
 
-/**
- * Devices showing a code and waiting to connect, for the main profile to allow or turn away here: the same list the
- * prompt asks from ([io.github.flexarr.PairingPrompts]), so one closed there can still be let in. As the iPhone's.
- */
+/** The waiting devices on a page of their own (kept for links to it; Settings shows them itself). */
 @Composable
 fun WaitingDevicesScreen(model: AppModel) {
-    val client = model.client ?: return
     val navigator = LocalNavigator.current
+    RoomBackground(ambient = null) {
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
+            item { PageTitle("Devices waiting to connect", onBack = { navigator.back() }) }
+            item { WaitingDevicesSection(model, header = null) }
+        }
+    }
+}
+
+/**
+ * Devices showing a code and waiting to connect, for the main profile to allow or turn away here: the same list the
+ * prompt asks from ([io.github.flexarr.PairingPrompts]), so one closed there can still be let in. In Settings, as the
+ * iPhone's.
+ */
+@Composable
+fun WaitingDevicesSection(model: AppModel, header: String? = "Devices waiting to connect") {
+    val client = model.client ?: return
     val scope = rememberCoroutineScope()
     val pairing = model.pairing
     var loading by remember { mutableStateOf(true) }
@@ -71,6 +83,8 @@ fun WaitingDevicesScreen(model: AppModel) {
     var outcome by remember { mutableStateOf<String?>(null) }
     /** The main profile's PIN, while allowing takes it here. */
     var pin by remember { mutableStateOf("") }
+    /** Locked here, Allow asks for the PIN first (as on iPhone), once for any of them. */
+    var asksPin by remember { mutableStateOf(false) }
 
     // The server's list on opening, as the stream only brings what changes after it's open.
     LaunchedEffect(model.credentials) {
@@ -92,7 +106,12 @@ fun WaitingDevicesScreen(model: AppModel) {
     }
 
     fun answer(device: WaitingDevice, allow: Boolean) {
-        if (sending != null || allow && !mayAllow(model, pin)) return
+        if (sending != null) return
+        if (allow && !model.isAdmin && !asksPin) {
+            asksPin = true
+            return
+        }
+        if (allow && !mayAllow(model, pin)) return
         sending = device.code
         outcome = null
         scope.launch {
@@ -117,55 +136,49 @@ fun WaitingDevicesScreen(model: AppModel) {
         }
     }
 
-    RoomBackground(ambient = null) {
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
-            item { PageTitle("Devices waiting to connect", onBack = { navigator.back() }) }
-            outcome?.let { message ->
-                item {
-                    Text(
-                        message,
-                        fontSize = 15.sp,
-                        color = Flexarr.screen,
-                        modifier = Modifier.padding(horizontal = 32.dp).semantics { liveRegion = LiveRegionMode.Polite },
-                    )
-                }
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        outcome?.let { message ->
+            Text(
+                message,
+                fontSize = 15.sp,
+                color = Flexarr.screen,
+                modifier = Modifier.padding(horizontal = 32.dp).semantics { liveRegion = LiveRegionMode.Polite },
+            )
+        }
+        val waiting = pairing.waiting
+        Group(
+            header = header,
+            footer = problem ?: listOfNotNull(
+                "Allow one only if its screen shows the same code.".takeIf { waiting.isNotEmpty() },
+                // Without them, a device asking is only heard about while Flexarr is open here.
+                "Turn on Notifications to be asked when Flexarr isn't open.".takeIf { !model.notifications.isOn },
+            ).joinToString(" ").ifEmpty { null },
+        ) {
+            // Locked here: allowing takes the main profile's PIN, given once for any of them.
+            if (asksPin && !model.isAdmin && waiting.isNotEmpty()) {
+                MainPinField(model, pin, onPin = { pin = it }, onDone = {}, Modifier.padding(horizontal = 16.dp, vertical = 14.dp), fieldColor = Flexarr.aisle)
+                Divider()
             }
-            val waiting = pairing.waiting
-            item {
-                Group(
-                    footer = problem ?: listOfNotNull(
-                        "Allow one only if its screen shows the same code.".takeIf { waiting.isNotEmpty() },
-                        // Without them, a device asking is only heard about while Flexarr is open here.
-                        "Turn on Notifications to be asked when Flexarr isn't open.".takeIf { !model.notifications.isOn },
-                    ).joinToString(" ").ifEmpty { null },
-                ) {
-                    // Locked here: allowing takes the main profile's PIN, given once for any of them.
-                    if (!model.isAdmin && waiting.isNotEmpty()) {
-                        MainPinField(model, pin, onPin = { pin = it }, onDone = {}, Modifier.padding(horizontal = 16.dp, vertical = 14.dp), fieldColor = Flexarr.aisle)
-                        Divider()
-                    }
-                    when {
-                        waiting.isEmpty() && loading -> Row(Modifier.fillMaxWidth().padding(16.dp)) {
-                            CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = Flexarr.usher)
-                        }
-                        waiting.isEmpty() -> Text(
-                            "No devices are waiting. When one asks to connect, it shows here and your phone asks you.",
-                            fontSize = 15.sp,
-                            color = Flexarr.usher,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            when {
+                waiting.isEmpty() && loading -> Row(Modifier.fillMaxWidth().padding(16.dp)) {
+                    CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = Flexarr.usher)
+                }
+                waiting.isEmpty() -> Text(
+                    "No devices are waiting. When one asks to connect, it shows here and your phone asks you.",
+                    fontSize = 15.sp,
+                    color = Flexarr.usher,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                )
+                else -> waiting.forEachIndexed { index, device ->
+                    key(device.code) {
+                        if (index > 0) Divider()
+                        WaitingDeviceRow(
+                            device,
+                            sending = sending == device.code,
+                            enabled = sending == null,
+                            mayAllow = !asksPin || mayAllow(model, pin),
+                            onAnswer = { answer(device, it) },
                         )
-                        else -> waiting.forEachIndexed { index, device ->
-                            key(device.code) {
-                                if (index > 0) Divider()
-                                WaitingDeviceRow(
-                                    device,
-                                    sending = sending == device.code,
-                                    enabled = sending == null,
-                                    mayAllow = mayAllow(model, pin),
-                                    onAnswer = { answer(device, it) },
-                                )
-                            }
-                        }
                     }
                 }
             }

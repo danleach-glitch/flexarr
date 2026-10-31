@@ -90,6 +90,12 @@ public sealed class Pairings(SignIns signIns, TimeProvider clock)
     /// <summary>Pairings turned away, by id, and until when the device polling one is told so.</summary>
     private readonly ConcurrentDictionary<string, DateTime> _declinedIds = new(StringComparer.Ordinal);
 
+    /// <summary>
+    /// The code each device turned away was showing (by address, name and kind), and until when Try again gets it back:
+    /// the code on the phones stays the one on the device's screen, rather than changing with every try.
+    /// </summary>
+    private readonly ConcurrentDictionary<string, (string Code, DateTime Until)> _declinedCodes = new(StringComparer.Ordinal);
+
     /// <summary>One open command stream of the main profile's. Disposing it (the request ended) stops its notices.</summary>
     public sealed class Listener : IDisposable
     {
@@ -172,8 +178,11 @@ public sealed class Pairings(SignIns signIns, TimeProvider clock)
             return null;
         }
 
-        var code = new string(Enumerable.Range(0, 6).Select(_ => Alphabet[RandomNumberGenerator.GetInt32(Alphabet.Length)]).ToArray());
         var now = clock.GetUtcNow().UtcDateTime;
+        var code = address is not null && _declinedCodes.TryRemove(DeviceKey(address, name, deviceType), out var declined) && declined.Until > now
+            && !_pending.Values.Any(p => p.Code == declined.Code)
+                ? declined.Code
+                : new string(Enumerable.Range(0, 6).Select(_ => Alphabet[RandomNumberGenerator.GetInt32(Alphabet.Length)]).ToArray());
         // Only the one code straight after "Don't allow" is quiet: asking again after that is someone trying again.
         var quiet = address is not null && _declined.TryRemove(address, out var until) && until > now && !stopsWhenDeclined;
         var pending = new Pending(Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(16)), code, name,
@@ -287,6 +296,7 @@ public sealed class Pairings(SignIns signIns, TimeProvider clock)
         if (pending.Address is { } address)
         {
             _declined[address] = now + DeclinedQuiet;
+            _declinedCodes[DeviceKey(address, pending.DeviceName, pending.DeviceType)] = (pending.Code, now + Lifetime);
         }
 
         _declinedIds[pending.Id] = now + Lifetime;
@@ -324,7 +334,14 @@ public sealed class Pairings(SignIns signIns, TimeProvider clock)
         {
             _declinedIds.TryRemove(new KeyValuePair<string, DateTime>(id, until));
         }
+
+        foreach (var (key, declined) in _declinedCodes.Where(d => d.Value.Until < now))
+        {
+            _declinedCodes.TryRemove(new KeyValuePair<string, (string, DateTime)>(key, declined));
+        }
     }
+
+    private static string DeviceKey(string address, string name, DeviceType? deviceType) => $"{address}\n{name}\n{deviceType}";
 
     private static string Format(string code) => $"{code[..3]}-{code[3..]}";
 }

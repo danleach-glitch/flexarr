@@ -81,11 +81,12 @@ struct PairingPromptView: View {
             }
             .buttonStyle(ActionButtonStyle(prominent: true))
             .disabled(asksPin && !MainProfilePinField.isComplete(pin))
-            Button("Don't allow") {
+            Button {
                 Task { await prompts.decline() }
+            } label: {
+                Text("Don't allow").frame(maxWidth: .infinity)
             }
             .buttonStyle(ActionButtonStyle())
-            .frame(maxWidth: .infinity)
         }
         .disabled(prompts.step == .working)
         .onChange(of: prompts.step.asksForPin, initial: true) { _, asks in if asks { asksPin = true } }
