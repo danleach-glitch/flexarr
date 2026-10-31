@@ -897,11 +897,11 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     /** The host removed this guest's device: its sign-in and tunnel go, and the connect screen says what to do. */
     private fun removedAsGuest() {
         val credentials = credentials ?: return
-        val owner = credentials.guest?.ownerName?.ifEmpty { null } ?: "its owner"
+        val owner = credentials.guest?.ownerName?.ifEmpty { null }
         downloads.signedOutByServer(credentials.address)
         notifications.forget()
         forget()
-        signedOutNotice = "This device was removed. Ask $owner for a new invite."
+        signedOutNotice = if (owner != null) "You no longer have access to $owner’s Flexarr." else "You no longer have access to this Flexarr."
         signedOutAsGuest = true
     }
 

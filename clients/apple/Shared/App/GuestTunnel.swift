@@ -28,7 +28,7 @@ final class GuestTunnel: @unchecked Sendable {
 
         var errorDescription: String? {
             switch self {
-            case .needsInvite: "This device was removed from the server it was invited to. Ask for a new invite."
+            case .needsInvite: "You no longer have access to this Flexarr."
             case .failed(let why): "Couldn’t connect (\(why))."
             }
         }

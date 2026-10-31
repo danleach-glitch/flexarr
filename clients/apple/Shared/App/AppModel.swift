@@ -350,7 +350,7 @@ final class AppModel {
             } catch FlexarrClientError.http(status: 403, _) where refused.isGuest {
                 // A guest's device its host removed: refused everything, not just the sign-in.
                 guard credentials == refused else { return }
-                signedOutNotice = "This \(ThisDevice.name) was removed. Ask \(refused.guest?.ownerName ?? "its owner") for a new invite."
+                signedOutNotice = refused.guest.map { "You no longer have access to \($0.ownerName)’s Flexarr." } ?? "You no longer have access to this Flexarr."
                 forget()
                 signedOutAsGuest = true
                 return
@@ -511,7 +511,7 @@ final class AppModel {
             upgradeChecked = true // a guest's sign-in is its own already
             // Removed by its host: the server refuses everything from this device (403), not just the sign-in.
             if case FlexarrClientError.http(status: 403, _)? = await Self.failure(of: { try await self.client?.me() }) {
-                signedOutNotice = "This \(ThisDevice.name) was removed. Ask \(guest.ownerName) for a new invite."
+                signedOutNotice = "You no longer have access to \(guest.ownerName)’s Flexarr."
                 forget()
                 signedOutAsGuest = true
                 return
