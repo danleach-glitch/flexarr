@@ -148,6 +148,21 @@ public class FfmpegCommandTests
     }
 
     [Fact]
+    public void SoundShaping_LiftsTheCentreChannel_OrTheVoiceBand_ThenCompressesAndLimits()
+    {
+        var surround = Plan with { Sound = new SoundShaping(DialogueBoostDb: 6, Night: true), SourceAudioChannels = 6 };
+        var args = string.Join(' ', FfmpegCommand.Hls("/in.mkv", surround, 0, "/out", Settings(HardwareAcceleration.None)));
+        Assert.Contains("-af pan=5.1|c0=c0|c1=c1|c2=1.995*c2|c3=c3|c4=c4|c5=c5,acompressor=threshold=-40dB:ratio=8:attack=5:release=250:knee=6:makeup=14dB,alimiter=limit=-1dB:level=false -c:a aac -ac 2",
+            args, StringComparison.Ordinal);
+
+        var stereo = Plan with { Sound = new SoundShaping(DialogueBoostDb: 9), SourceAudioChannels = 2 };
+        Assert.Equal(["-af", "equalizer=f=2000:t=o:w=1.5:g=9,alimiter=limit=-1dB:level=false"], FfmpegCommand.SoundFilter(stereo));
+
+        Assert.Empty(FfmpegCommand.SoundFilter(Plan));
+        Assert.DoesNotContain("-af", string.Join(' ', FfmpegCommand.Hls("/in.mkv", Plan, 0, "/out", Settings(HardwareAcceleration.None))), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void SoundOutOfSync_ComesFromTheFileAgain_ReadFromTheDelayBeforeThePicture()
     {
         // Later: the sound that goes with the picture at 60 s is the file's at 59.5 s.

@@ -31,10 +31,11 @@ struct HomeView: View {
             if model.offersProfilePicker, let current = model.currentProfile {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { choosingProfile = true } label: {
-                        ProfileAvatar(profile: current, size: 32)
+                        ProfileAvatar(profile: current, size: 56)
                     }
                     .accessibilityLabel("Profile: \(current.name)")
                 }
+                .withoutSharedBackground()
             }
         }
         .toolbarBackground(.hidden, for: .navigationBar)
@@ -333,5 +334,17 @@ private struct EmptyHome: View {
         .padding(.horizontal, 24)
         .frame(maxWidth: 520, alignment: .leading)
         .frame(maxWidth: .infinity)
+    }
+}
+
+private extension ToolbarContent {
+    /// The profile picture on its own, without iOS 26's glass pill around it.
+    @ToolbarContentBuilder
+    func withoutSharedBackground() -> some ToolbarContent {
+        if #available(iOS 26, *) {
+            sharedBackgroundVisibility(.hidden)
+        } else {
+            self
+        }
     }
 }

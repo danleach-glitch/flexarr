@@ -83,7 +83,8 @@ protocol PlayerTransport: AnyObject {
 extension PlayerTransport {
     var isPlaying: Bool { phase == .playing || phase == .buffering }
 
-    /// Only the engine shapes the sound: Apple's player over a server stream or a download plays it as it comes.
+    /// The engine shapes the sound, and so does the server for a stream it converts; Apple's player over the original
+    /// file or a download plays it as it comes.
     var soundReach: SoundReach { .unsupported }
 
     /// The subtitles showing are teletext, whose caption page can be chosen. Only the engine decodes teletext.

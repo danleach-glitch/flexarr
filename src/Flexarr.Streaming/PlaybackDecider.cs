@@ -41,7 +41,18 @@ public sealed record SubtitleTrack(string Key, int? StreamIndex, string? Externa
 }
 
 public sealed record PlaybackOptions(int? AudioStreamIndex = null, string? SubtitleKey = null, long? MaxBitrate = null, int? MaxHeight = null, bool ForceTranscode = false,
-    double AudioDelaySeconds = 0);
+    double AudioDelaySeconds = 0, SoundShaping? Sound = null);
+
+/// <summary>
+/// The listener's sound settings, for a stream the server converts: the player can't shape a stream it doesn't decode
+/// itself, so the server does. <see cref="MaxChannels"/> folds surround down for the speakers in the room.
+/// </summary>
+public sealed record SoundShaping(int? MaxChannels = null, double DialogueBoostDb = 0, bool Night = false)
+{
+    public const double MaxDialogueBoostDb = 12;
+
+    public bool Shapes => DialogueBoostDb > 0 || Night;
+}
 
 public sealed record TranscodePlan(
     int VideoStreamIndex,
@@ -61,6 +72,12 @@ public sealed record TranscodePlan(
 {
     /// <summary>Seconds the sound is played later (negative: earlier) than the picture, to match a file that's out of sync.</summary>
     public double AudioDelaySeconds { get; init; }
+
+    /// <summary>The sound is shaped (<see cref="SoundShaping"/>) on the way; it's then always converted.</summary>
+    public SoundShaping? Sound { get; init; }
+
+    /// <summary>How many channels the source track has, which the dialogue lift needs to find the centre channel.</summary>
+    public int SourceAudioChannels { get; init; }
 
     /// <summary>The video is copied as it is (repackaged), cut at <see cref="Repackage.SegmentStarts"/>; null when it's converted.</summary>
     public Repackage? Repackage { get; init; }
@@ -310,13 +327,14 @@ public static class PlaybackDecider
         // Fragmented MP4 (Apple's players) passes Dolby Digital Plus through with its Atmos, and FLAC up to 7.1.
         var fmp4 = profile.Fmp4;
         var channels = audio?.Channels ?? 2;
-        var copyAudio = audio is not null
+        var sound = audio is not null && options.Sound is { Shapes: true } shaping ? shaping : null;
+        var copyAudio = sound is null && audio is not null
             && (fmp4 ? Fmp4AudioCodecs : HlsAudioCodecs).Contains(audio.Codec)
             && profile.AudioCodecs.Contains(audio.Codec, StringComparer.OrdinalIgnoreCase)
             && channels <= profile.MaxAudioChannels;
         // What can't go as it is goes lossless (FLAC) when it's lossless or surround to begin with, so a DTS or
         // TrueHD track loses nothing more on the way; stereo, or a tight bitrate cap, gets AAC as before.
-        var lossless = !copyAudio && audio is not null && fmp4
+        var lossless = !copyAudio && sound is null && audio is not null && fmp4
             && profile.AudioCodecs.Contains("flac", StringComparer.OrdinalIgnoreCase)
             && (maxBitrate == 0 || maxBitrate >= LosslessMinBitrate)
             && (IsLossless(audio) || channels > 2);
@@ -329,7 +347,7 @@ public static class PlaybackDecider
             Math.Max(bitrate, 500_000),
             ToneMap: file.VideoRange != VideoRange.Sdr,
             copyAudio,
-            Math.Clamp(Math.Min(channels, profile.MaxAudioChannels), 1, lossless || copyAudio ? 8 : 6),
+            Math.Clamp(Math.Min(Math.Min(channels, profile.MaxAudioChannels), sound?.MaxChannels ?? 8), 1, lossless || copyAudio ? 8 : 6),
             subtitle is { IsText: false } ? subtitle : null,
             audio?.Codec,
             fmp4,
@@ -338,6 +356,8 @@ public static class PlaybackDecider
             HighResolutionAudio: lossless && IsLossless(audio!))
         {
             AudioDelaySeconds = delay,
+            Sound = sound,
+            SourceAudioChannels = channels,
         };
 
         return new PlaybackDecision(PlaybackMethod.Transcode, reasons, audio, subtitle, plan);

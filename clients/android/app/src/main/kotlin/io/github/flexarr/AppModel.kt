@@ -149,6 +149,10 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     /** A grown-up is watching on this app's own sign-in, the household has a kids profile and this device isn't locked yet. */
     val canLockToKids: Boolean get() = hasOwnSignIn && !isKids && !kidsLock && profiles.any { it.isKids }
 
+    /** The picker's padlock over kids profiles: child lock on, or able to be turned on here, a kids profile included
+     *  (Settings doesn't offer it there), where turning it on takes the admin PIN. */
+    val showsKidsPadlock: Boolean get() = kidsLock || canLockToKids || (hasOwnSignIn && isKids)
+
     /** Asks whether this sign-in is the main profile (and may manage the server), and if so, which devices are waiting to connect. */
     suspend fun loadSignIn() {
         val client = client ?: return

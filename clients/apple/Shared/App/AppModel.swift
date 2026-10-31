@@ -234,6 +234,10 @@ final class AppModel {
         signInMethod == "device" && !kidsLock && !isKids && profiles.contains(where: \.isKidsProfile)
     }
 
+    /// The picker's padlock over kids profiles: whenever child lock is on, or could be turned on here. On a kids
+    /// profile too (Settings doesn't offer it there), where turning it on takes the admin PIN.
+    var showsKidsPadlock: Bool { kidsLock || offersKidsLock || (signInMethod == "device" && isKids) }
+
     /// With exactly two profiles, the one that isn't watching: switching is a single press.
     var otherProfile: Profile? {
         profiles.count == 2 ? profiles.first(where: { !$0.isCurrent }) : nil

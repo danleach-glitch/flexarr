@@ -185,10 +185,10 @@ function dynamics(g: Graph, from: AudioNode, night: boolean): AudioNode {
   const { context } = g
   let last = from
   if (night) {
-    // Everything above -30 dB squeezed 4:1; the node adds its own make-up gain.
+    // Everything above -40 dB squeezed 8:1; the node adds its own make-up gain.
     const compressor = add(g, context.createDynamicsCompressor())
-    compressor.threshold.value = -30
-    compressor.ratio.value = 4
+    compressor.threshold.value = -40
+    compressor.ratio.value = 8
     compressor.knee.value = 6
     compressor.attack.value = 0.005
     compressor.release.value = 0.25

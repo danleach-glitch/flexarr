@@ -187,14 +187,14 @@ fun HomeScreen(model: AppModel) {
         // Locked to one kids profile, the picker is still the way to unlock.
         if (model.profiles.size > 1 || model.kidsLock) {
             model.currentProfile?.let { current ->
-                // 32 to see, 48 to touch.
+                // Big enough to find at a glance, and to touch.
                 Box(
                     Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(4.dp).minimumInteractiveComponentSize().clip(CircleShape)
                         .pressable({ choosingProfile = true }, onClickLabel = "Switch profile")
                         .semantics { contentDescription = "Profile: ${current.name}" },
                     contentAlignment = Alignment.Center,
                 ) {
-                    ProfileAvatar(model, current, size = 32)
+                    ProfileAvatar(model, current, size = 56)
                 }
             }
         }

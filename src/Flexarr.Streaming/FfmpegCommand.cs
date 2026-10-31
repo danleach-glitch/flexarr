@@ -191,7 +191,7 @@ public static class FfmpegCommand
                 args.AddRange(["-map", $"0:{audioIndex}"]);
                 args.AddRange(plan.CopyAudio
                     ? ["-c:a", "copy"]
-                    : ["-c:a", "aac", "-ac", plan.AudioChannels.ToString(CultureInfo.InvariantCulture), "-b:a", plan.AudioChannels > 2 ? "384k" : "160k"]);
+                    : [.. SoundFilter(plan), "-c:a", "aac", "-ac", plan.AudioChannels.ToString(CultureInfo.InvariantCulture), "-b:a", plan.AudioChannels > 2 ? "384k" : "160k"]);
             }
         }
         else
@@ -393,9 +393,47 @@ public static class FfmpegCommand
             }
             else
             {
-                args.AddRange(["-c:a", "aac", "-ac", channels, "-b:a", plan.AudioChannels > 2 ? "384k" : "192k"]);
+                args.AddRange([.. SoundFilter(plan), "-c:a", "aac", "-ac", channels, "-b:a", plan.AudioChannels > 2 ? "384k" : "192k"]);
             }
         }
+    }
+
+    /// <summary>
+    /// The listener's sound settings (<see cref="TranscodePlan.Sound"/>) as an audio filter, matching what the apps do
+    /// when they decode the sound themselves: dialogue lifted (the centre channel of 5.1 and 7.1, the voice band of
+    /// stereo), night mode's compressor evening out loud and quiet, and a limiter so neither clips.
+    /// </summary>
+    public static string[] SoundFilter(TranscodePlan plan)
+    {
+        if (plan.Sound is not { Shapes: true } sound)
+        {
+            return [];
+        }
+
+        var filters = new List<string>();
+        var boost = Math.Clamp(sound.DialogueBoostDb, 0, SoundShaping.MaxDialogueBoostDb);
+        if (boost > 0)
+        {
+            if (plan.SourceAudioChannels is 6 or 8)
+            {
+                var gain = Math.Pow(10, boost / 20);
+                var channels = Enumerable.Range(0, plan.SourceAudioChannels)
+                    .Select(c => c == 2 ? string.Create(CultureInfo.InvariantCulture, $"c2={gain:0.###}*c2") : $"c{c}=c{c}");
+                filters.Add($"pan={(plan.SourceAudioChannels == 6 ? "5.1" : "7.1")}|{string.Join('|', channels)}");
+            }
+            else
+            {
+                filters.Add(string.Create(CultureInfo.InvariantCulture, $"equalizer=f=2000:t=o:w=1.5:g={boost:0.#}"));
+            }
+        }
+
+        if (sound.Night)
+        {
+            filters.Add("acompressor=threshold=-40dB:ratio=8:attack=5:release=250:knee=6:makeup=14dB");
+        }
+
+        filters.Add("alimiter=limit=-1dB:level=false");
+        return ["-af", string.Join(',', filters)];
     }
 
     /// <summary>
