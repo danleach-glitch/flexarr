@@ -1,0 +1,69 @@
+/* ---------- Audiobooks: library ---------- */
+
+.books-library {
+  padding-bottom: 48px;
+}
+
+/* Shelves run edge to edge, as on Home: their track carries the page's margin itself. */
+.book-shelves {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 36px;
+  margin: 0 calc(-1 * var(--edge));
+}
+
+.book-shelves .row-header,
+.book-genres {
+  padding: 0 var(--edge);
+}
+
+.book-genres h2 {
+  margin-bottom: 12px;
+  font-size: var(--step-2);
+  font-weight: 800;
+}
+
+.book-filters {
+  margin-bottom: 18px;
+}
+
+.book-filters select {
+  max-width: 14rem;
+}
+
+.book-language {
+  width: 8rem;
+}
+
+.book-count {
+  margin-bottom: 14px;
+}
+
+.people-grid {
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+}
+
+/* A series' first covers fanned behind one another, each smaller and dimmer than the one in front. */
+.book-stack {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  padding: 14px 14px 0 0;
+}
+
+.book-stack > .card-frame {
+  grid-area: 1 / 1;
+}
+
+.book-stack-2 > :nth-child(2),
+.book-stack-3 > :nth-child(2) {
+  transform: translate(7px, -7px) scale(0.96);
+  filter: brightness(0.7);
+  z-index: -1;
+}
+
+.book-stack-3 > :nth-child(3) {
+  transform: translate(14px, -14px) scale(0.92);
+  filter: brightness(0.5);
+  z-index: -2;
+}

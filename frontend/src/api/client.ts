@@ -11,6 +11,10 @@ import type {
   ArrFolder,
   ArrKind,
   ArrStatus,
+  BookPerson,
+  BookSeries,
+  BookSeriesSummary,
+  BookShelves,
   DirectoryListing,
   DirectoryPodcast,
   Download,
@@ -458,6 +462,40 @@ export function getLibraryItems(
   // A letter jump's big pages go once, straight into the grid: caching them would only crowd out everything else.
   return (options.take ?? 0) > 200 ? timedGet<Paged<ItemSummary>>(path, signal) : cachedGet<Paged<ItemSummary>>(path, signal)
 }
+
+// ---------- Audiobooks
+
+/** What an audiobooks library's All view can filter and sort by; everything left out is "any". */
+export interface BookFilters {
+  search?: string
+  progress?: 'notstarted' | 'inprogress' | 'finished'
+  author?: string
+  narrator?: string
+  genre?: string
+  language?: string
+  abridged?: boolean
+  minHours?: number
+  maxHours?: number
+  sort?: 'title' | 'author' | 'series' | 'added' | 'released' | 'length' | 'listened'
+  descending?: boolean
+  skip?: number
+  take?: number
+}
+
+const queryString = (options: object) => {
+  const params = new URLSearchParams()
+  for (const [key, value] of Object.entries(options)) if (value !== undefined && value !== '' && value !== null) params.set(key, String(value))
+  return params.size ? `?${params}` : ''
+}
+
+export const getBookShelves = (libraryId: string, signal?: AbortSignal) => cachedGet<BookShelves>(`/libraries/${libraryId}/book-shelves`, signal)
+export const getLibraryBooks = (libraryId: string, filters: BookFilters, signal?: AbortSignal) =>
+  cachedGet<Paged<ItemSummary>>(`/libraries/${libraryId}/books${queryString(filters)}`, signal)
+export const getBookSeriesList = (libraryId: string, options: { search?: string; skip?: number; take?: number }, signal?: AbortSignal) =>
+  cachedGet<Paged<BookSeriesSummary>>(`/libraries/${libraryId}/book-series${queryString(options)}`, signal)
+export const getBookPeople = (libraryId: string, options: { role: 'author' | 'narrator'; search?: string; skip?: number; take?: number }, signal?: AbortSignal) =>
+  cachedGet<Paged<BookPerson>>(`/libraries/${libraryId}/book-people${queryString(options)}`, signal)
+export const getBookSeries = (id: string, signal?: AbortSignal) => cachedGet<BookSeries>(`/book-series/${id}`, signal)
 
 /** A library's genres, biggest first; `backdrop` (from one of its titles) is absent from servers before 0.54. */
 export const getLibraryGenres = (id: string, signal?: AbortSignal) =>

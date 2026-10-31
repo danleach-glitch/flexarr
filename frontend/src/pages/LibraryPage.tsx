@@ -10,6 +10,7 @@ import { useMusicPage } from '../hooks/audioPlayerContext'
 import { useLibraries } from '../hooks/librariesContext'
 import { useApi } from '../hooks/useApi'
 import { useWatchedChanges, watchedSince } from '../hooks/watched'
+import { BooksLibrary } from './BooksLibrary'
 
 const PAGE_SIZE = 200
 const LETTERS = ['#', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ']
@@ -36,6 +37,8 @@ export function LibraryPage() {
   if (!library) return <p className="page-message muted">{libraries.length ? 'This library no longer exists.' : 'Loading…'}</p>
   // Podcasts have pages of their own: what you follow, and Apple's directory to find more.
   if (library.type === 'Podcasts') return <Navigate to="/podcasts" replace />
+  // Books have shelves, series, authors and narrators of their own.
+  if (library.type === 'Audiobooks') return <BooksLibrary library={library} />
 
   const all = params.get('view') === 'all' || params.has('sort') || params.has('genre')
   if (all) return <LibraryAll key={id} />

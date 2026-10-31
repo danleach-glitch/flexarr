@@ -48,6 +48,7 @@ import './styles/player.css'
 import './styles/settings.css'
 import './styles/podcasts.css'
 import './styles/livetv.css'
+import './styles/books.css'
 
 // The player (with hls.js) and settings load on demand to keep the first page light.
 /**
