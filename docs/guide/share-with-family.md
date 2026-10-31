@@ -34,18 +34,15 @@ Flexarr checks your policy again every hour. If it's ever changed so guests coul
 
 ## Invite someone
 
-Give them a profile of their own first, in [Profiles](profiles.md). Then in **Settings › Access › Invite someone**, choose their profile and a name for their device.
+Give them a profile of their own first, in [Profiles](profiles.md). Then under **Guests** in **Settings › Access**, choose them and **Add device**.
 
-- **A phone or tablet:** choose **Make invite**. Send them the link by message or email, or scan the QR code with their phone's camera. The link is shown only once.
-- **A TV:** on their Apple TV, they choose **Watching from another home?** on Flexarr's first screen. It shows a code like `H42K-FM5W`. They read it to you over the phone, you type it in next to **TV**, and choose **Send**.
+1. On their phone, tablet or Apple TV, they install Flexarr, open it and choose **Invited by someone?**. It shows a code like `H42K-FM5W`.
+2. They read it to you over the phone, or send it.
+3. You type it in and choose **Connect**. Their device joins as their profile.
 
-An invite works once and lasts 3 days. Invites not used yet are listed, with **Cancel**. When someone uses one, your phone tells you, so an invite that went astray shows up straight away.
+Each device joins this way, so for someone with a phone and a TV, do it on each. Rather send a link? Choose **Or send them a link instead**: message them the link, or scan its QR code with their phone's camera. Tapping it opens Flexarr, which asks **Join Dan's Flexarr?**.
 
-### What they do
-
-Tapping the link opens Flexarr, which asks **Join Dan's Flexarr?**. They choose **Join**, and they're in.
-
-If the app isn't on their phone yet, the link opens a page with the App Store button. Once the app is installed, they tap **Open in Flexarr** on that page, or **Paste Invite** in the app.
+An invite works once and lasts 3 days. Invites not used yet show under the person, with **Cancel**. When a device joins, your phone tells you, so one you didn't expect shows up straight away.
 
 ## Guests
 

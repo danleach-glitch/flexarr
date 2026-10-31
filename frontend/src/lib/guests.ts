@@ -9,7 +9,7 @@ const pathLabel: Record<TailnetPath, string> = {
 }
 
 /** "Gran · Slow relay · last used 2 hours ago": a guest's device in Settings › Access. */
-export function describeGuest(device: GuestDevice) {
+export function describeGuest(device: GuestDevice, withProfile = true) {
   const connection = device.online ? pathLabel[device.path] : 'Offline'
-  return [device.profileName, connection, `last used ${relativeTime(device.lastUsedAt)}`].filter(Boolean).join(' · ')
+  return [withProfile ? device.profileName : null, connection, `last used ${relativeTime(device.lastUsedAt)}`].filter(Boolean).join(' · ')
 }

@@ -63,6 +63,23 @@ describe('Settings › Access › Family invites', () => {
     expect(await screen.findByText(/Flexarr in Docker can’t use yet/)).toBeVisible()
   })
 
+  it('folds the setup away and back under one title', async () => {
+    mockApi({
+      '/remote/guests': setup({ clientId: 'abc', hasClient: true, check: safe }),
+      '/profiles': [main, gran],
+      '/remote/guests/invites': [],
+      '/remote/guests/devices': [],
+    })
+    render(<FamilyInvites />)
+    const show = await screen.findByRole('button', { name: 'Show' })
+    expect(screen.getByText('Tailscale setup')).toBeVisible()
+    fireEvent.click(show)
+    expect(screen.getByText('Paste this into your tailnet policy')).toBeVisible()
+    expect(screen.getByText('Tailscale setup')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Hide' }))
+    expect(screen.queryByText('Paste this into your tailnet policy')).not.toBeInTheDocument()
+  })
+
   it('walks through the setup with the snippet, and saves the client', async () => {
     let saved: unknown
     mockApi({
@@ -98,7 +115,7 @@ describe('Settings › Access › Family invites', () => {
     expect(screen.queryByText('Invite someone')).not.toBeInTheDocument()
   })
 
-  it('lists guests by person, and adds a phone by link or a TV by its code', async () => {
+  it('lists guests by person, and adds a device by its code or a link', async () => {
     let tv: unknown
     let link: unknown
     mockApi({
@@ -122,19 +139,20 @@ describe('Settings › Access › Family invites', () => {
     const who = screen.getByLabelText<HTMLSelectElement>('Who to invite')
     expect(Array.from(who.options).map((o) => o.text)).toEqual(['Invite someone…', 'Aunt Sue'])
 
+    // Any device's code: phone, tablet or TV alike.
     fireEvent.click(screen.getByRole('button', { name: 'Add device' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Make link' }))
+    const connect = screen.getByRole('button', { name: 'Connect' })
+    expect(connect).toBeDisabled()
+    fireEvent.change(screen.getByLabelText('Their code'), { target: { value: 'abcd-efgh' } })
+    fireEvent.click(connect)
+    await waitFor(() => expect(tv).toEqual({ code: 'ABCD-EFGH', name: null, profileId: 'gran' }))
+    expect(await screen.findByText(/Their device joins in a moment/)).toBeVisible()
+
+    // Or a link to message them, with its QR code.
+    fireEvent.click(screen.getByRole('button', { name: 'Or send them a link instead' }))
     expect(await screen.findByText('https://flexarr.io/join#abc')).toBeVisible()
     expect(link).toEqual({ name: null, profileId: 'gran' })
     expect(screen.getByRole('img', { name: 'QR code of the invite' }).querySelector('svg')).not.toBeNull()
-
-    fireEvent.click(screen.getByRole('radio', { name: 'TV' }))
-    const connect = screen.getByRole('button', { name: 'Connect' })
-    expect(connect).toBeDisabled()
-    fireEvent.change(screen.getByLabelText('TV code'), { target: { value: 'abcd-efgh' } })
-    fireEvent.click(connect)
-    await waitFor(() => expect(tv).toEqual({ code: 'ABCD-EFGH', name: null, profileId: 'gran' }))
-    expect(await screen.findByText(/The TV joins in a moment/)).toBeVisible()
   })
 
   it('shows how each guest is connected, and removing one points to Tailscale', async () => {
@@ -151,7 +169,7 @@ describe('Settings › Access › Family invites', () => {
     })
     render(<FamilyInvites />)
 
-    expect(await screen.findByText(/Gran · Slow relay · last used/)).toBeVisible()
+    expect(await screen.findByText(/^Slow relay · last used/)).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: 'Remove Gran’s iPad' }))
     expect(await screen.findByText(/can’t reach Flexarr any more/)).toBeVisible()
     expect(screen.getByRole('link', { name: 'Tailscale’s Machines' })).toHaveAttribute('href', 'https://login.tailscale.com/admin/machines')

@@ -13,6 +13,8 @@ struct ConnectView: View {
         case choose
         case pair(DiscoveredServer)
         case manual
+        /// A family invite: this device shows a code to give whoever invited it.
+        case guest
     }
 
     var body: some View {
@@ -38,11 +40,13 @@ struct ConnectView: View {
 
                 switch step {
                 case .choose:
-                    ChooseServer(browser: browser, onPick: { step = .pair($0) }, onManual: { step = .manual })
+                    ChooseServer(browser: browser, onPick: { step = .pair($0) }, onManual: { step = .manual }, onGuest: { step = .guest })
                 case .pair(let server):
                     PairWithServer(server: server, onBack: { step = .choose })
                 case .manual:
                     ManualConnect(onPair: { step = .pair($0) }, onBack: { step = .choose })
+                case .guest:
+                    GuestCodeView(onBack: { step = .choose })
                 }
             }
             .padding(24)
@@ -76,6 +80,7 @@ private struct ChooseServer: View {
     let browser: ServerBrowser
     let onPick: (DiscoveredServer) -> Void
     let onManual: () -> Void
+    let onGuest: () -> Void
     /// Nothing has turned up for a while: say what to check.
     @State private var lookingAWhile = false
 
@@ -116,7 +121,7 @@ private struct ChooseServer: View {
             Button("Enter an address instead", action: onManual)
                 .font(.body.weight(.semibold))
                 .padding(.top, 6)
-            PasteInvite()
+            PasteInvite(onCode: onGuest)
                 .padding(.top, 18)
         }
         .task {

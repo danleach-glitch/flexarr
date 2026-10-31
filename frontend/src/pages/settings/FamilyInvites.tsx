@@ -105,16 +105,23 @@ export function SetupGroup({ setup, onChange, collapsed = false }: { setup: Remo
     </div>
   ) : null
 
+  const toggle = (
+    <button type="button" className="button quiet small" aria-expanded={open} onClick={() => setOpen(!open)}>
+      {open ? 'Hide' : 'Show'}
+    </button>
+  )
+
   if (!open)
     return (
-      <SettingsGroup title="Tailscale for guests" action={<button type="button" className="button quiet small" onClick={() => setOpen(true)}>Show setup</button>}>
-        {status}
+      <SettingsGroup title="Tailscale setup" action={toggle}>
+        {status ?? <p className="muted">Three steps with Tailscale, once.</p>}
       </SettingsGroup>
     )
 
   return (
     <SettingsGroup
-      title="Family invites"
+      title="Tailscale setup"
+      action={toggle}
       note="Guests don’t need Tailscale or an account. Their apps join your tailnet, can reach Flexarr and nothing else, and you can remove them at any time."
     >
       <ol className="guest-steps">
@@ -235,10 +242,11 @@ export function GuestsGroup({ onChange }: { onChange: () => void }) {
               </button>
             )}
           </div>
+          {adding === person.id && <AddDevice profileId={person.id} name={person.name} onDone={() => setAdding(undefined)} onChange={refresh} />}
           {devices.data
             ?.filter((d) => d.profileId === person.id)
             .map((d) => (
-              <SettingRow key={d.id} as="div" label={d.name} help={describeGuest(d)}>
+              <SettingRow key={d.id} as="div" label={d.name} help={describeGuest(d, false)}>
                 <AsyncButton className="button danger small" aria-label={`Remove ${d.name}`} onClick={() => remove(d)}>
                   Remove
                 </AsyncButton>
@@ -258,7 +266,6 @@ export function GuestsGroup({ onChange }: { onChange: () => void }) {
                 </AsyncButton>
               </SettingRow>
             ))}
-          {adding === person.id && <AddDevice profileId={person.id} name={person.name} onDone={() => setAdding(undefined)} onChange={refresh} />}
         </div>
       ))}
       {removed && (
@@ -294,9 +301,11 @@ export function GuestsGroup({ onChange }: { onChange: () => void }) {
   )
 }
 
-/** Adding a device for a guest: a phone or tablet gets a link and QR code; a TV, type in the code it shows. */
+/**
+ * Adding a device for a guest: on that device they choose Invited by someone? and read (or send) you the code it
+ * shows, which you type in here. Any device can, phone or TV. A link (and its QR code) is there too, to message them.
+ */
 export function AddDevice({ profileId, name, onDone, onChange }: { profileId: string; name: string; onDone: () => void; onChange: () => void }) {
-  const [kind, setKind] = useState<'phone' | 'tv'>('phone')
   const [link, setLink] = useState<string>()
   const [code, setCode] = useState('')
   const [sent, setSent] = useState(false)
@@ -312,7 +321,7 @@ export function AddDevice({ profileId, name, onDone, onChange }: { profileId: st
     }
   }
 
-  async function connectTv() {
+  async function connect() {
     setError(undefined)
     try {
       await inviteGuestTv(code, null, profileId)
@@ -326,62 +335,40 @@ export function AddDevice({ profileId, name, onDone, onChange }: { profileId: st
 
   return (
     <div className="guest-add" aria-label={`Add a device for ${name}`}>
-      <div className="guest-kinds" role="radiogroup" aria-label="What kind of device">
-        {(['phone', 'tv'] as const).map((k) => (
-          <button
-            key={k}
-            type="button"
-            role="radio"
-            aria-checked={kind === k}
-            className={kind === k ? 'button small' : 'button quiet small'}
-            onClick={() => {
-              setKind(k)
-              setError(undefined)
-            }}
-          >
-            {k === 'phone' ? 'Phone or tablet' : 'TV'}
+      <div className="guest-add-step">
+        <span className="muted">
+          On {name}’s phone, tablet or TV, they open Flexarr and choose <strong>Invited by someone?</strong>. Type in the code it shows.
+        </span>
+        <span className="guest-tv">
+          <input
+            id="guest-code"
+            value={code}
+            onChange={(e) => setCode(e.target.value.toUpperCase())}
+            placeholder="ABCD-EFGH"
+            maxLength={9}
+            autoComplete="off"
+            spellCheck={false}
+            aria-label="Their code"
+          />
+          <AsyncButton className="button small" disabled={code.replace(/[^A-Za-z0-9]/g, '').length !== 8} onClick={() => connect()}>
+            Connect
+          </AsyncButton>
+          <button type="button" className="button quiet small" onClick={onDone}>
+            Done
           </button>
-        ))}
-        <button type="button" className="button quiet small guest-add-close" onClick={onDone}>
-          Done
-        </button>
+        </span>
+        {sent && (
+          <span className="muted" role="status">
+            Sent. Their device joins in a moment.
+          </span>
+        )}
       </div>
-      {kind === 'phone' ? (
-        link ? (
-          <InviteLink link={link} name={name} />
-        ) : (
-          <div className="guest-add-step">
-            <span className="muted">A link to send {name}, and a QR code to scan with their phone or tablet.</span>
-            <AsyncButton className="button small" onClick={() => makeLink()}>
-              Make link
-            </AsyncButton>
-          </div>
-        )
-      ) : sent ? (
-        <p className="muted" role="status">
-          Sent. The TV joins in a moment.
-        </p>
+      {link ? (
+        <InviteLink link={link} name={name} />
       ) : (
-        <div className="guest-add-step">
-          <span className="muted">
-            On {name}’s TV, open Flexarr and choose <strong>Watching from another home?</strong>. Type in the code it shows.
-          </span>
-          <span className="guest-tv">
-            <input
-              id="guest-tv-code"
-              value={code}
-              onChange={(e) => setCode(e.target.value.toUpperCase())}
-              placeholder="ABCD-EFGH"
-              maxLength={9}
-              autoComplete="off"
-              spellCheck={false}
-              aria-label="TV code"
-            />
-            <AsyncButton className="button small" disabled={code.replace(/[^A-Za-z0-9]/g, '').length !== 8} onClick={() => connectTv()}>
-              Connect
-            </AsyncButton>
-          </span>
-        </div>
+        <button type="button" className="button quiet small guest-add-link" onClick={() => void makeLink()}>
+          Or send them a link instead
+        </button>
       )}
       {error && (
         <p className="error" role="alert">

@@ -167,7 +167,7 @@ private fun ChooseServer(browser: ServerBrowser, onPick: (DiscoveredServer) -> U
             }
         }
         TvActionButton("Enter an address instead", onClick = onManual, modifier = Modifier.padding(top = 5.dp).focusRequester(manual))
-        TvActionButton("Watching from another home?", onClick = onGuest)
+        TvActionButton("Invited by someone?", onClick = onGuest)
     }
 }
 
@@ -179,52 +179,9 @@ private fun ChooseServer(browser: ServerBrowser, onPick: (DiscoveredServer) -> U
 @Composable
 private fun GuestCode(model: AppModel, onBack: () -> Unit) {
     var attempt by remember { mutableIntStateOf(0) }
-    var code by remember { mutableStateOf<GuestTvCode?>(null) }
-    var problem by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(attempt) {
-        code = null
-        problem = null
-        while (true) {
-            val tv = withContext(Dispatchers.Default) { GuestTvCode.create() }
-            try {
-                tv.register()
-            } catch (e: CancellationException) {
-                throw e
-            } catch (_: GuestTvCode.Failure.CodeTaken) {
-                continue
-            } catch (e: Exception) {
-                problem = "Can’t reach Flexarr. Check this TV’s internet."
-                delay(10_000)
-                continue
-            }
-            code = tv
-            problem = null
-            // Until it runs out (then a new one), or the invite arrives.
-            while (true) {
-                delay(3_000)
-                val answer = try {
-                    tv.poll()
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (_: GuestTvCode.Failure.BadInvite) {
-                    problem = "That invite couldn’t be opened. Ask for another."
-                    break
-                } catch (_: Exception) {
-                    // The network dropped for a moment: the code stands, so keep asking.
-                    continue
-                }
-                when (answer) {
-                    GuestTvCode.Answer.Waiting -> continue
-                    GuestTvCode.Answer.Expired -> break
-                    is GuestTvCode.Answer.Invite -> {
-                        model.offerInvite(answer.invite)
-                        model.confirmInvite()
-                        return@LaunchedEffect
-                    }
-                }
-            }
-        }
-    }
+    val guest = io.github.flexarr.ui.connect.rememberGuestCode(model, attempt)
+    val code = guest.code
+    val problem = guest.problem
     val back = remember { FocusRequester() }
     val retry = remember { FocusRequester() }
     val invite = model.offeredInvite

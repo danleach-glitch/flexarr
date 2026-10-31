@@ -218,7 +218,6 @@ dependencies {
     // Google Play's in-app rating prompt (ReviewPrompt).
     implementation(libs.play.review)
     // Scan code for family invites: Google Play services' own scanner, so the app needs no camera permission.
-    implementation(libs.play.code.scanner)
     implementation(libs.kotlinx.coroutines.guava)
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)

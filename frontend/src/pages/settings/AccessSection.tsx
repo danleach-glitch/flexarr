@@ -157,7 +157,10 @@ export function RemoteAccessGroups() {
       )}
 
       {ts.running && remote.data.links.length > 0 && (
-        <SettingsGroup title="People on your tailnet" note="Each person opens as their own profile. Anyone without one is turned away.">
+        <SettingsGroup
+          title="People with their own Tailscale"
+          note="People on your tailnet with the Tailscale app and their own account. Choose the profile each one gets when they open Flexarr in a browser, or Not allowed to turn them away."
+        >
           {remote.data.links.map((person) => (
             <SettingRow key={person.login} label={person.name} help={person.login}>
               <select

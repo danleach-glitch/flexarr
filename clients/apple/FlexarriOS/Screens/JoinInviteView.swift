@@ -75,29 +75,87 @@ struct JoinInviteView: View {
     }
 }
 
-/// On the connect screen: an invite copied from flexarr.io/join (the app wasn't installed when its link was opened).
+/// On the connect screen, for a family guest: a code to give whoever invited them (the usual way), or an invite link
+/// they were sent and copied.
 struct PasteInvite: View {
     @Environment(AppModel.self) private var model
+    let onCode: () -> Void
     @State private var notAnInvite = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             Text("Invited by someone?")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(Color.usher)
-            PasteButton(payloadType: String.self) { texts in
-                if let invite = texts.lazy.compactMap(GuestInvite.parse).first {
-                    notAnInvite = false
-                    model.pendingInvite = invite
-                } else {
-                    notAnInvite = true
-                }
+            Button(action: onCode) {
+                Label("Get a code", systemImage: "person.badge.key")
+                    .frame(maxWidth: .infinity)
             }
-            .labelStyle(.titleAndIcon)
-            .tint(.silver)
-            Text(notAnInvite ? "That isn’t an invite. Copy it again from the message." : "Or open the invite’s link, or scan its code with the Camera.")
-                .font(.footnote)
-                .foregroundStyle(notAnInvite ? Color.screen : Color.usher)
+            .buttonStyle(ActionButtonStyle(prominent: false))
+            HStack(spacing: 10) {
+                Text(notAnInvite ? "That isn’t an invite." : "Sent a link instead?")
+                    .font(.footnote)
+                    .foregroundStyle(notAnInvite ? Color.screen : Color.usher)
+                PasteButton(payloadType: String.self) { texts in
+                    if let invite = texts.lazy.compactMap(GuestInvite.parse).first {
+                        notAnInvite = false
+                        model.pendingInvite = invite
+                    } else {
+                        notAnInvite = true
+                    }
+                }
+                .labelStyle(.titleOnly)
+                .buttonBorderShape(.capsule)
+                .controlSize(.small)
+                .tint(.silver)
+            }
         }
+    }
+}
+
+/// "Invited by someone?": the code to read or text to whoever invited this iPhone or iPad (see `GuestCodeWaiter`).
+struct GuestCodeView: View {
+    @Environment(AppModel.self) private var model
+    let onBack: () -> Void
+    @State private var waiter = GuestCodeWaiter()
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            if let joining = waiter.joining {
+                HStack(spacing: 12) {
+                    ProgressView()
+                    Text("Joining \(joining.ownerName)’s Flexarr…")
+                        .font(.headline)
+                        .foregroundStyle(Color.screen)
+                }
+            } else {
+                Text("Give this code to the person who invited you")
+                    .font(.headline)
+                    .foregroundStyle(Color.usher)
+                Text(waiter.code?.display ?? "····-····")
+                    .font(.system(size: 46, weight: .bold, design: .monospaced))
+                    .foregroundStyle(Color.screen)
+                    .textSelection(.enabled)
+                    .accessibilityLabel(waiter.code.map { $0.code.map(String.init).joined(separator: " ") } ?? "Getting a code")
+                if let code = waiter.code {
+                    ShareLink(item: code.display, message: Text("My Flexarr code")) {
+                        Label("Send it", systemImage: "square.and.arrow.up")
+                    }
+                    .font(.body.weight(.semibold))
+                }
+                Text("They type it into Settings › Access in Flexarr. Keep this screen open.")
+                    .font(.footnote)
+                    .foregroundStyle(Color.usher)
+            }
+            if let problem = waiter.problem {
+                Text(problem)
+                    .font(.callout.weight(.medium))
+                    .foregroundStyle(Color.screen)
+            }
+            Button("Back", action: onBack)
+                .font(.body.weight(.semibold))
+                .disabled(waiter.joining != nil)
+        }
+        .task { await waiter.run(model: model) }
     }
 }

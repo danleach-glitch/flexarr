@@ -13,9 +13,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.google.mlkit.vision.barcode.common.Barcode
-import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
-import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import io.github.flexarr.AppModel
 import io.github.flexarr.core.GuestInvite
 import io.github.flexarr.logging.FlexarrLog
@@ -79,18 +76,4 @@ fun pasteInvite(context: Context, model: AppModel) {
         return
     }
     model.offerInvite(GuestInvite.parse(text))
-}
-
-/**
- * Scan code: the QR code on the inviter's screen, read by Google Play services' scanner, which shows its own camera
- * view and needs no camera permission here.
- */
-fun scanInvite(context: Context, model: AppModel) {
-    val options = GmsBarcodeScannerOptions.Builder().setBarcodeFormats(Barcode.FORMAT_QR_CODE).build()
-    GmsBarcodeScanning.getClient(context, options).startScan()
-        .addOnSuccessListener { code -> model.offerInvite(code.rawValue?.let(GuestInvite::parse)) }
-        .addOnFailureListener {
-            flexarrLog.info("The code scanner isn't available", it)
-            model.inviteProblem = "Scanning isn’t available on this device. Paste the invite link instead."
-        }
 }

@@ -25,7 +25,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentPaste
-import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Warning
@@ -83,6 +84,8 @@ private sealed interface Step {
     data object Choose : Step
     data class Pair(val server: DiscoveredServer) : Step
     data object Manual : Step
+    /** A family invite: this device shows a code to give whoever invited it. */
+    data object Guest : Step
 }
 
 internal const val INSTALL_URL = "https://flexarr.io/#install"
@@ -130,11 +133,12 @@ fun ConnectScreen(model: AppModel) {
                         browser,
                         onPick = { step = Step.Pair(it) },
                         onManual = { step = Step.Manual },
+                        onGuest = { step = Step.Guest },
                         onPasteInvite = { pasteInvite(context, model) },
-                        onScanInvite = { scanInvite(context, model) },
                     )
                     is Step.Pair -> PairWithServer(model, current.server, onBack = { step = Step.Choose })
                     Step.Manual -> ManualConnect(model, onPair = { step = Step.Pair(it) }, onBack = { step = Step.Choose })
+                    Step.Guest -> PhoneGuestCode(model, onBack = { model.dismissInvite(); step = Step.Choose })
                 }
             }
         }
@@ -151,8 +155,8 @@ private fun ChooseServer(
     browser: ServerBrowser,
     onPick: (DiscoveredServer) -> Unit,
     onManual: () -> Unit,
+    onGuest: () -> Unit,
     onPasteInvite: () -> Unit,
-    onScanInvite: () -> Unit,
 ) {
     // Nothing has turned up for a while: say what to check.
     var lookingAWhile by remember { mutableStateOf(false) }
@@ -190,11 +194,11 @@ private fun ChooseServer(
             }
         }
         Text("Enter an address instead", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.silver, modifier = Modifier.padding(top = 6.dp).pressable(onManual).minimumInteractiveComponentSize())
-        // Someone else's Flexarr, from another home: their invite link, or the QR code on their screen.
-        Text("Got an invite?", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, modifier = Modifier.padding(top = 14.dp))
+        // Someone else's Flexarr, from another home: a code to give them (the usual way), or a link they sent.
+        Text("Invited by someone?", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, modifier = Modifier.padding(top = 14.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            ActionButton("Paste invite", onClick = onPasteInvite, icon = Icons.Filled.ContentPaste)
-            ActionButton("Scan code", onClick = onScanInvite, icon = Icons.Filled.QrCodeScanner)
+            ActionButton("Get a code", onClick = onGuest, icon = Icons.Filled.Key)
+            ActionButton("Paste link", onClick = onPasteInvite, icon = Icons.Filled.ContentPaste)
         }
     }
 }
@@ -505,4 +509,45 @@ private fun Input(
             field()
         },
     )
+}
+
+/** "Invited by someone?" on a phone or tablet: the code to read or send to whoever invited it (see [rememberGuestCode]). */
+@Composable
+private fun PhoneGuestCode(model: AppModel, onBack: () -> Unit) {
+    var attempt by remember { mutableIntStateOf(0) }
+    val guest = rememberGuestCode(model, attempt)
+    val context = LocalContext.current
+    val invite = model.offeredInvite
+    val joinProblem = model.joinProblem
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        if (invite != null) {
+            Text("Joining ${invite.ownerName}’s Flexarr as ${invite.profileName}", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Flexarr.screen)
+            if (joinProblem == null) {
+                CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = Flexarr.usher)
+            } else {
+                Text(joinProblem, fontSize = 15.sp, color = Flexarr.screen)
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    ActionButton("Try again", onClick = model::confirmInvite)
+                    ActionButton("New code", onClick = { model.dismissInvite(); attempt++ })
+                }
+            }
+        } else {
+            Text("Give this code to the person who invited you", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher)
+            val shown = guest.code
+            if (shown != null) {
+                Text(shown.display, fontSize = 44.sp, fontWeight = FontWeight.Black, letterSpacing = 3.sp, color = Flexarr.screen)
+                ActionButton("Send it", icon = Icons.Filled.Share, onClick = {
+                    val send = android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain")
+                        .putExtra(android.content.Intent.EXTRA_TEXT, shown.display)
+                    context.startActivity(android.content.Intent.createChooser(send, null))
+                })
+                Text("They type it into Settings › Access in Flexarr. Keep this screen open.", fontSize = 13.sp, color = Flexarr.usher)
+            } else if (guest.problem == null) {
+                CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = Flexarr.usher)
+            }
+            guest.problem?.let { Text(it, fontSize = 15.sp, color = Flexarr.screen) }
+        }
+        Text("Back", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.silver,
+            modifier = Modifier.padding(top = 6.dp).pressable(onBack).minimumInteractiveComponentSize())
+    }
 }
