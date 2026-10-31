@@ -14,7 +14,7 @@ Sizes are rough: **S** a day or two, **M** about a week, **L** several weeks.
 | Flexarr Server for Mac | The server and web app as a menu bar app for the Mac App Store | 🚧 |
 | Android | An app for phones and tablets, with Android TV and Chromecast after it. M–L. [#49](https://github.com/danleach-glitch/flexarr/discussions/49) | 🚧 |
 | Find subtitles | Search and download subtitles from the player for files that have none. S–M. [#124](https://github.com/danleach-glitch/flexarr/discussions/124) | 🕐 1 |
-| Tracker sync | Trakt, Simkl, MyAnimeList and AniList: scrobbling, history, ratings and scores. M. [#128](https://github.com/danleach-glitch/flexarr/discussions/128) | 🕐 2 |
+| Tracker sync | Trakt is built (on its way in the next release). Still to come: ratings, then Simkl, MyAnimeList and AniList. M. [#128](https://github.com/danleach-glitch/flexarr/discussions/128) | 🚧 |
 | iPhone as a remote | Full control of what the Apple TV is playing. M. [#127](https://github.com/danleach-glitch/flexarr/discussions/127) | 🕐 3 |
 | Flexarr in your language | Translated apps, a language per profile. M, then ongoing. [#126](https://github.com/danleach-glitch/flexarr/discussions/126) | 🕐 4 |
 | Cast and trivia | Who's on screen and facts about the title while you watch. M. [#43](https://github.com/danleach-glitch/flexarr/discussions/43) | 🕐 5 |
