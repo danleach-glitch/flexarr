@@ -360,7 +360,7 @@ function ArrRow({
     void onSave(draft).finally(() => setSaving(false))
   }
 
-  const statusText = test === 'testing' ? 'Testing…' : shown?.ok ? `Connected · version ${shown.version}` : shown ? shown.error : isNew ? notConnected(connection.kind) : 'Checking…'
+  const statusText = test === 'testing' ? 'Testing…' : shown?.ok ? `Connected · ${shown.app ? `${shown.app} ` : ''}version ${shown.version}` : shown ? shown.error : isNew ? notConnected(connection.kind) : 'Checking…'
   return (
     <div className="connection">
       <ConnectionLine

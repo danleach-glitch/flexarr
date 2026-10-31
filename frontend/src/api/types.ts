@@ -569,6 +569,8 @@ export interface ArrStatus {
   ok: boolean
   version: string | null
   error: string | null
+  /** Which of the Readarr family answered: "Readarr", "Bookshelf" or "Chaptarr". Absent from servers before 0.58. */
+  app?: string | null
 }
 
 /** One of an app's root folders, and where Flexarr finds it. */
