@@ -1262,6 +1262,9 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<bool>("PodcastsInSidebar")
                         .HasColumnType("INTEGER");
 
+                    b.Property<Guid?>("RequestAudiobooksLibraryId")
+                        .HasColumnType("TEXT");
+
                     b.Property<Guid?>("RequestFilmsLibraryId")
                         .HasColumnType("TEXT");
 
@@ -1686,6 +1689,14 @@ namespace Flexarr.Core.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("BookArrId")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("BookForeignId")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime?>("FulfilledAt")
                         .HasColumnType("TEXT");
 
@@ -1700,6 +1711,10 @@ namespace Flexarr.Core.Data.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime>("RequestedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Title")
+                        .HasMaxLength(500)
                         .HasColumnType("TEXT");
 
                     b.Property<int>("TmdbId")
@@ -2011,7 +2026,7 @@ namespace Flexarr.Core.Data.Migrations
             modelBuilder.Entity("Flexarr.Core.Books.BookSeriesEntry", b =>
                 {
                     b.HasOne("Flexarr.Core.Media.MediaItem", "Book")
-                        .WithMany()
+                        .WithMany("SeriesEntries")
                         .HasForeignKey("BookId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -2539,6 +2554,8 @@ namespace Flexarr.Core.Data.Migrations
                     b.Navigation("Files");
 
                     b.Navigation("PlaybackStates");
+
+                    b.Navigation("SeriesEntries");
                 });
 
             modelBuilder.Entity("Flexarr.Core.Media.Person", b =>

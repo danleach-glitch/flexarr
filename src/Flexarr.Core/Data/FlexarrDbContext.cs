@@ -376,6 +376,9 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
             e.Property(r => r.ProfileId).HasMaxLength(64);
             e.HasOne<Profile>().WithMany().HasForeignKey(r => r.ProfileId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(r => new { r.FulfilledAt, r.Kind, r.TmdbId });
+            e.Property(r => r.BookForeignId).HasMaxLength(100);
+            e.Property(r => r.BookArrId).HasMaxLength(100);
+            e.Property(r => r.Title).HasMaxLength(500);
         });
 
         modelBuilder.Entity<TraktConnection>(e =>

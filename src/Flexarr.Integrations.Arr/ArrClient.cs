@@ -140,6 +140,26 @@ public sealed class ArrClient(HttpClient httpClient)
         response.EnsureSuccessStatusCode();
     }
 
+    /// <summary>Books it knows of matching the words, as it sent them: for adding one back exactly as it describes it.</summary>
+    public Task<JsonArray> LookupBooksRawAsync(ArrInstance readarr, string term, CancellationToken ct = default) =>
+        GetAsync<JsonArray>(readarr, $"book/lookup?term={Uri.EscapeDataString(term)}", ct);
+
+    /// <summary>Quality profiles, metadata profiles or root folders ("qualityprofile", "metadataprofile", "rootfolder").</summary>
+    public Task<JsonArray> GetListAsync(ArrInstance readarr, string what, CancellationToken ct = default) =>
+        GetAsync<JsonArray>(readarr, what, ct);
+
+    /// <summary>Adds a book (and its author, if new) as its lookup described it; the app's answer, with the book's new id.</summary>
+    public Task<JsonObject> AddBookAsync(ArrInstance readarr, JsonObject book, CancellationToken ct = default) =>
+        PostAsync<JsonObject>(readarr, "book", book, ct);
+
+    /// <summary>Asks the app to search for books now.</summary>
+    public Task<JsonObject> SearchBooksAsync(ArrInstance readarr, IReadOnlyList<string> bookIds, CancellationToken ct = default) =>
+        PostAsync<JsonObject>(readarr, "command", new JsonObject
+        {
+            ["name"] = "BookSearch",
+            ["bookIds"] = new JsonArray([.. bookIds.Select(id => long.TryParse(id, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var n) ? (JsonNode)JsonValue.Create(n) : JsonValue.Create(id))]),
+        }, ct);
+
     /// <summary>Books it knows of matching the words, owned or not: for requests and Fix match.</summary>
     public Task<IReadOnlyList<ReadarrBook>> LookupBooksAsync(ArrInstance readarr, string term, CancellationToken ct = default) =>
         GetAsync<IReadOnlyList<ReadarrBook>>(readarr, $"book/lookup?term={Uri.EscapeDataString(term)}", ct);

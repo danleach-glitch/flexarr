@@ -106,7 +106,10 @@ public static class RequestEndpoints
         api.MapGet("/requests/status", async (IOptionsMonitor<FlexarrOptions> options, SeerrClient seerr, FlexarrDbContext db, CancellationToken ct) =>
         {
             var instance = db.IsLimited() ? null : options.CurrentValue.Seerr?.Instance;
-            return new { configured = instance is not null, reachable = instance is not null && await SafePingAsync(seerr, instance, ct) };
+            // Books are requested from Readarr, Bookshelf or Chaptarr, not Seerr. Absent from servers before 0.58.
+            var books = !db.IsLimited() && Books.BookRequestEndpoints.Instance(options.CurrentValue) is not null
+                && await db.Libraries.AnyAsync(l => l.Type == Flexarr.Core.Libraries.LibraryType.Audiobooks, ct);
+            return new { configured = instance is not null, reachable = instance is not null && await SafePingAsync(seerr, instance, ct), books };
         }).WithTags("Requests");
 
         // The libraries this profile's requests could go to (every one, for the admin choosing for others).

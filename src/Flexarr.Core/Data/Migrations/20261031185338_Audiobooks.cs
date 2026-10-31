@@ -39,6 +39,12 @@ namespace Flexarr.Core.Data.Migrations
                 nullable: false,
                 defaultValue: 0.0);
 
+            migrationBuilder.AddColumn<Guid>(
+                name: "RequestAudiobooksLibraryId",
+                table: "Profiles",
+                type: "TEXT",
+                nullable: true);
+
             migrationBuilder.AddColumn<string>(
                 name: "Device",
                 table: "PlaybackStates",
@@ -62,6 +68,27 @@ namespace Flexarr.Core.Data.Migrations
                 name: "Biography",
                 table: "People",
                 type: "TEXT",
+                nullable: true);
+
+            migrationBuilder.AddColumn<string>(
+                name: "BookArrId",
+                table: "MediaRequests",
+                type: "TEXT",
+                maxLength: 100,
+                nullable: true);
+
+            migrationBuilder.AddColumn<string>(
+                name: "BookForeignId",
+                table: "MediaRequests",
+                type: "TEXT",
+                maxLength: 100,
+                nullable: true);
+
+            migrationBuilder.AddColumn<string>(
+                name: "Title",
+                table: "MediaRequests",
+                type: "TEXT",
+                maxLength: 500,
                 nullable: true);
 
             migrationBuilder.AddColumn<int>(
@@ -201,8 +228,8 @@ namespace Flexarr.Core.Data.Migrations
                 table: "Profiles",
                 keyColumn: "Id",
                 keyValue: "owner",
-                columns: new[] { "AudiobookSkipBackSeconds", "AudiobookSkipForwardSeconds", "AudiobookSmartRewind", "AudiobookSpeed" },
-                values: new object[] { 30, 30, true, 1.0 });
+                columns: new[] { "AudiobookSkipBackSeconds", "AudiobookSkipForwardSeconds", "AudiobookSmartRewind", "AudiobookSpeed", "RequestAudiobooksLibraryId" },
+                values: new object[] { 30, 30, true, 1.0, null });
 
             migrationBuilder.CreateIndex(
                 name: "IX_BookDetails_ArrBookId",
@@ -281,6 +308,10 @@ namespace Flexarr.Core.Data.Migrations
                 table: "Profiles");
 
             migrationBuilder.DropColumn(
+                name: "RequestAudiobooksLibraryId",
+                table: "Profiles");
+
+            migrationBuilder.DropColumn(
                 name: "Device",
                 table: "PlaybackStates");
 
@@ -295,6 +326,18 @@ namespace Flexarr.Core.Data.Migrations
             migrationBuilder.DropColumn(
                 name: "Biography",
                 table: "People");
+
+            migrationBuilder.DropColumn(
+                name: "BookArrId",
+                table: "MediaRequests");
+
+            migrationBuilder.DropColumn(
+                name: "BookForeignId",
+                table: "MediaRequests");
+
+            migrationBuilder.DropColumn(
+                name: "Title",
+                table: "MediaRequests");
 
             migrationBuilder.DropColumn(
                 name: "BookOrder",

@@ -55,16 +55,26 @@ public static class NotificationPlatforms
     public const string Android = "android";
 }
 
-/// <summary>A film or show a profile asked for from Flexarr, so it can be told when it's in.</summary>
+/// <summary>A film, show or audiobook a profile asked for from Flexarr, so it can be told when it's in.</summary>
 public sealed class MediaRequest
 {
     public Guid Id { get; set; } = Guid.CreateVersion7();
     public required string ProfileId { get; set; }
 
-    /// <summary><see cref="MediaKind.Movie"/> or <see cref="MediaKind.Series"/>.</summary>
+    /// <summary><see cref="MediaKind.Movie"/>, <see cref="MediaKind.Series"/> or <see cref="MediaKind.Audiobook"/>.</summary>
     public MediaKind Kind { get; set; }
 
+    /// <summary>A film's or show's; 0 for a book.</summary>
     public int TmdbId { get; set; }
+
+    /// <summary>A book's id with Readarr's metadata source (Goodreads, Hardcover, or Chaptarr's prefixed ones), as text.</summary>
+    public string? BookForeignId { get; set; }
+
+    /// <summary>The book's id in the Readarr-compatible app it was requested from, which the library learns when it's in.</summary>
+    public string? BookArrId { get; set; }
+
+    /// <summary>A book's title and author, for the notice when it's in.</summary>
+    public string? Title { get; set; }
     public DateTime RequestedAt { get; set; } = DateTime.UtcNow;
 
     /// <summary>When it arrived (and the profile was told); null while it's awaited.</summary>

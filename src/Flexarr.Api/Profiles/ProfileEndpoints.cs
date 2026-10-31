@@ -26,7 +26,9 @@ namespace Flexarr.Api.Profiles;
 /// <param name="AsksAdminPin">The PIN choosing it here asks for is the admin PIN, not its own. Absent from servers before 0.57.</param>
 public sealed record ProfileDto(string Id, string Name, string Color, bool HasPin, bool IsMain, bool IsCurrent, IReadOnlyList<Guid> HiddenLibraryIds, string? Image,
     Guid? RequestShowsLibraryId = null, Guid? RequestFilmsLibraryId = null, IReadOnlyList<string>? LibraryOrder = null, bool AsksPin = false,
-    bool AutoRequestWatchlist = false, int? MaxRatingAge = null, bool IsKids = false, bool AsksAdminPin = false);
+    bool AutoRequestWatchlist = false, int? MaxRatingAge = null, bool IsKids = false, bool AsksAdminPin = false,
+    // The audiobooks library its book requests go to; null, the chosen root folder. Absent from servers before 0.58.
+    Guid? RequestAudiobooksLibraryId = null);
 
 /// <param name="MaxRatingAge">The age limit: 0 (U), 8 (PG), 12, 15 or 18; null for none.</param>
 /// <param name="IsKids">A child's profile; it needs an age limit.</param>
@@ -594,7 +596,7 @@ public static partial class ProfileEndpoints
     internal static ProfileDto ToDto(Profile p, CurrentProfile current) =>
         new(p.Id, p.Name, p.Color, p.PinHash is not null, p.IsMain, p.Id == current.Id, p.HiddenLibraryIds, current.ImageUrlFor(p), p.RequestShowsLibraryId,
             p.RequestFilmsLibraryId, p.LibraryOrder, current.AsksPinFor(p), p.AutoRequestWatchlist, p.MaxRatingAge,
-            p.IsKids, current.AsksAdminPinFor(p));
+            p.IsKids, current.AsksAdminPinFor(p), p.RequestAudiobooksLibraryId);
 
 
     /// <summary>

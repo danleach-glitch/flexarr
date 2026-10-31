@@ -78,6 +78,91 @@ public class AudiobookArrTests(FlexarrApiFactory factory) : IClassFixture<Flexar
         Assert.Equal(HttpStatusCode.OK, (await client.GetAsync(new Uri($"/api/v1/items/{bookId}", UriKind.Relative))).StatusCode);
     }
 
+    private const string Lookup = """
+        [{"id": 0, "foreignBookId": "hc:1", "title": "The Impossible Fortune", "releaseDate": "2025-09-25T00:00:00Z", "monitored": false,
+          "author": {"authorName": "Richard Osman", "foreignAuthorId": "hc:9"}, "editions": [{"monitored": true}],
+          "images": [{"coverType": "cover", "remoteUrl": "https://covers.example/tif.jpg"}]},
+         {"id": 13, "foreignBookId": "hc:2", "title": "The Man Who Died Twice", "monitored": false, "author": {"authorName": "Richard Osman"}},
+         {"id": 12, "foreignBookId": "hc:3", "title": "The Thursday Murder Club", "monitored": true, "author": {"authorName": "Richard Osman"}}]
+        """;
+
+    private static FakeArr BookshelfForRequests()
+    {
+        var arr = new FakeArr();
+        arr.Responses["GET //bookshelf.test/api/v1/book/lookup?term=osman"] = Lookup;
+        arr.Responses["GET //bookshelf.test/api/v1/qualityprofile"] = """[{"id": 1, "name": "eBook"}, {"id": 2, "name": "Spoken"}]""";
+        arr.Responses["GET //bookshelf.test/api/v1/metadataprofile"] = """[{"id": 1, "name": "Standard"}, {"id": 2, "name": "None"}]""";
+        arr.Responses["GET //bookshelf.test/api/v1/rootfolder"] = """[{"path": "/data/audiobooks"}]""";
+        arr.Responses["POST //bookshelf.test/api/v1/book"] = """{"id": 21, "foreignBookId": "hc:1"}""";
+        arr.Responses["PUT //bookshelf.test/api/v1/book/monitor"] = "[]";
+        arr.Responses["POST //bookshelf.test/api/v1/command"] = """{"id": 99}""";
+        return arr;
+    }
+
+    [Fact]
+    public async Task BookSearch_SaysWhatsInTheLibrary_Requested_OrAvailable()
+    {
+        var library = await LibraryAsync();
+        var owned = await BookAsync(library, managedBy: "Bookshelf", arrId: "12");
+        using var app = BookshelfForRequests().Serve(factory, bookshelf: true);
+
+        var results = await Client(app.CreateClient()).GetFromJsonAsync<JsonElement>(new Uri("/api/v1/requests/books/search?q=osman", UriKind.Relative));
+
+        var byTitle = results.EnumerateArray().ToDictionary(r => r.GetProperty("title").GetString()!);
+        Assert.Equal("Available", byTitle["The Impossible Fortune"].GetProperty("availability").GetString());
+        Assert.Equal("https://covers.example/tif.jpg", byTitle["The Impossible Fortune"].GetProperty("cover").GetString());
+        Assert.Equal("Available", byTitle["The Man Who Died Twice"].GetProperty("availability").GetString());
+        Assert.Equal("InLibrary", byTitle["The Thursday Murder Club"].GetProperty("availability").GetString());
+        Assert.Equal(owned, byTitle["The Thursday Murder Club"].GetProperty("itemId").GetGuid());
+    }
+
+    [Fact]
+    public async Task RequestingANewBook_AddsItWithItsAuthorFollowingNothingElse_ThenSearches()
+    {
+        await LibraryAsync();
+        var arr = BookshelfForRequests();
+        string? added = null;
+        arr.OnRequest = r =>
+        {
+            if (r.Method == HttpMethod.Post && r.RequestUri!.AbsolutePath == "/api/v1/book")
+            {
+                added = r.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            }
+        };
+        using var app = arr.Serve(factory, bookshelf: true);
+
+        var response = await Client(app.CreateClient()).PostAsJsonAsync(new Uri("/api/v1/requests/books", UriKind.Relative), new { foreignBookId = "hc:1", query = "osman" });
+
+        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+        var book = JsonDocument.Parse(added!).RootElement;
+        Assert.True(book.GetProperty("monitored").GetBoolean());
+        var author = book.GetProperty("author");
+        Assert.Equal((2, 1, "/data/audiobooks", "none"), (author.GetProperty("qualityProfileId").GetInt32(), author.GetProperty("metadataProfileId").GetInt32(),
+            author.GetProperty("rootFolderPath").GetString(), author.GetProperty("monitorNewItems").GetString()));
+        Assert.Contains("POST /api/v1/command", arr.Requests);
+        using var scope = app.Services.CreateScope();
+        var request = await scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().MediaRequests.SingleAsync(r => r.BookForeignId == "hc:1");
+        Assert.Equal(("21", "The Impossible Fortune by Richard Osman"), (request.BookArrId, request.Title));
+
+        // Asked again, it's Requested.
+        var again = await Client(app.CreateClient()).GetFromJsonAsync<JsonElement>(new Uri("/api/v1/requests/books/search?q=osman", UriKind.Relative));
+        Assert.Equal("Requested", again.EnumerateArray().Single(r => r.GetProperty("foreignBookId").GetString() == "hc:1").GetProperty("availability").GetString());
+    }
+
+    [Fact]
+    public async Task RequestingABookTheAppKnows_MonitorsItInstead()
+    {
+        await LibraryAsync();
+        var arr = BookshelfForRequests();
+        using var app = arr.Serve(factory, bookshelf: true);
+
+        var response = await Client(app.CreateClient()).PostAsJsonAsync(new Uri("/api/v1/requests/books", UriKind.Relative), new { foreignBookId = "hc:2", query = "osman" });
+
+        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+        Assert.Contains("PUT /api/v1/book/monitor", arr.Requests);
+        Assert.DoesNotContain("POST /api/v1/book", arr.Requests);
+    }
+
     private static string CalendarPath()
     {
         var today = DateTime.UtcNow.Date;
