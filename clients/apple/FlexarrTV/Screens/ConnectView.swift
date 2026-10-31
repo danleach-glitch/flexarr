@@ -90,6 +90,11 @@ private struct ChooseServer: View {
     /// Nothing has turned up for a while: say what to check.
     @State private var lookingAWhile = false
 
+    private var joinButton: some View {
+        Button("Join someone’s Flexarr", action: onGuest)
+            .buttonStyle(ActionButtonStyle(prominent: false))
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 30) {
             Text("Servers on your network")
@@ -121,11 +126,12 @@ private struct ChooseServer: View {
                     .focused($focused, equals: server.id)
                 }
             }
+            // With no server of its own here, it's likely a guest's TV: joining comes first, and takes the focus.
+            if browser.servers.isEmpty { joinButton.padding(.top, 10) }
             Button("Enter an address instead", action: onManual)
                 .buttonStyle(ActionButtonStyle(prominent: false))
-                .padding(.top, 10)
-            Button("Join someone’s Flexarr", action: onGuest)
-                .buttonStyle(ActionButtonStyle(prominent: false))
+                .padding(.top, browser.servers.isEmpty ? 0 : 10)
+            if !browser.servers.isEmpty { joinButton }
         }
         // The first server found takes focus, so one click of the remote picks it.
         .onChange(of: browser.servers.first?.id, initial: true) { _, first in
