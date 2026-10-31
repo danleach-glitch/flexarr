@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
@@ -28,8 +29,33 @@ public sealed class FlexarrApiFactory : WebApplicationFactory<Program>
     /// <summary>A scratch folder tests can use as a library root.</summary>
     public string MediaDirectory => Directory.CreateDirectory(Path.Combine(DataDirectory, "media")).FullName;
 
+    /// <summary>
+    /// A database with every migration applied, made once per test run. Each server starts from a copy, so starting
+    /// one doesn't run the migrations again; the rest of startup runs as it does for real.
+    /// </summary>
+    private static readonly Lazy<string> MigratedDatabase = new(() =>
+    {
+        var path = Path.Combine(Directory.CreateTempSubdirectory("flexarr-api-template-").FullName, "flexarr.db");
+        var options = new Microsoft.EntityFrameworkCore.DbContextOptionsBuilder<Flexarr.Core.Data.FlexarrDbContext>()
+            .UseSqlite($"Data Source={path};Pooling=False").Options;
+        using (var db = new Flexarr.Core.Data.FlexarrDbContext(options))
+        {
+            db.Database.Migrate();
+        }
+
+        AppDomain.CurrentDomain.ProcessExit += (_, _) => Directory.Delete(Path.GetDirectoryName(path)!, recursive: true);
+        return path;
+    });
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
+        // A test that put a database in place (a restore, an older one) keeps its own.
+        var database = Path.Combine(DataDirectory, "flexarr.db");
+        if (!File.Exists(database))
+        {
+            File.Copy(MigratedDatabase.Value, database);
+        }
+
         builder.UseEnvironment("Testing");
         // appsettings.json never changes during a test; watching it would only use up Linux's file watchers.
         builder.UseSetting("hostBuilder:reloadConfigOnChange", "false");
