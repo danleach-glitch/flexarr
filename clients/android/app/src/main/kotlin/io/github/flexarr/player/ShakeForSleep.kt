@@ -34,7 +34,7 @@ internal fun ShakeForSleep(sleep: VideoSleep) {
  * A shake: a few hard jolts (well over gravity) close together, as UIKit counts one, so setting the phone down or
  * turning over in bed isn't. Once heard, the next is a second later at the earliest.
  */
-private class ShakeListener(private val onShake: () -> Unit) : SensorEventListener {
+internal class ShakeListener(private val onShake: () -> Unit) : SensorEventListener {
     private var jolts = 0
     private var firstJolt = 0L
     private var lastShake = 0L

@@ -57,7 +57,10 @@ import io.github.flexarr.AppLink
 import io.github.flexarr.R
 import io.github.flexarr.appModel
 import io.github.flexarr.core.FlexarrClient
+import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.PodcastEpisode
+import io.github.flexarr.core.bookDuration
+import io.github.flexarr.core.isBookFinished
 import io.github.flexarr.core.continueListening
 import io.github.flexarr.core.upNext
 import io.github.flexarr.data.CredentialStore
@@ -87,6 +90,8 @@ object PodcastWidgets {
         val show: String,
         val progress: Double? = null,
         val remainingSeconds: Double? = null,
+        /** An audiobook (Continue listening shows whichever was heard last, a book or an episode); [show] is its author. */
+        val book: Boolean = false,
     )
 
     /** What both widgets show: the episode to carry on with, and the first few in Up Next. */
@@ -117,21 +122,35 @@ object PodcastWidgets {
         val snapshot = loading.withLock {
             asked?.takeIf { System.currentTimeMillis() - it.first < FRESH_MS }?.second ?: runCatching {
                 val client = credentials.client()
-                // The episode the app is playing (or has paused) comes first; else the one most recently part-heard.
+                // What the app is playing (or has paused), a book or an episode, comes first; else whichever was heard
+                // last: the book, unless it's finished since, or the episode most recently part-heard.
                 val playing = model.podcasts.current
-                val current = playing ?: client.continueListening(take = 1).firstOrNull()
+                val playingBook = model.books.current
+                val lastBook = if (playing == null && playingBook == null) {
+                    lastBookId(context)?.let { id -> runCatching { client.item(id).item }.getOrNull() }?.takeIf { !it.isBookFinished }
+                } else {
+                    null
+                }
+                val book = playingBook ?: lastBook
+                val current = if (book != null) null else playing ?: client.continueListening(take = 1).firstOrNull()
                 val queue = client.upNext().filter { it.id != current?.id }.take(UP_NEXT)
+                val bookEntry = book?.let {
+                    if (it === playingBook) bookEntry(it, model.books.position, model.books.duration) else bookEntry(it, it.userData.positionSeconds, it.bookDuration)
+                }
                 val fresh = Snapshot(
-                    current?.let { if (it === playing) entry(it, model.podcasts.position, model.podcasts.duration) else entry(it) },
+                    bookEntry ?: current?.let { if (it === playing) entry(it, model.podcasts.position, model.podcasts.duration) else entry(it) },
                     queue.map { entry(it) },
                 )
                 // Pictures beside the list, by id: only new ones are fetched, and ones no longer shown go.
                 val shown = listOfNotNull(current) + queue
                 shown.forEach { episode ->
                     val file = pictureFile(episode.id)
-                    if (!file.exists()) picture(context, client, episode)?.let { bitmap -> file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.JPEG, 85, it) } }
+                    if (!file.exists()) picture(context, client, episode.artwork.poster ?: episode.artwork.thumb)?.let { bitmap -> file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.JPEG, 85, it) } }
                 }
-                val keep = shown.map { pictureFile(it.id).name }.toSet() + saved.name
+                if (book != null && !pictureFile(book.id).exists()) {
+                    picture(context, client, book.artwork.poster)?.let { bitmap -> pictureFile(book.id).outputStream().use { bitmap.compress(Bitmap.CompressFormat.JPEG, 85, it) } }
+                }
+                val keep = (shown.map { it.id } + listOfNotNull(book?.id)).map { pictureFile(it).name }.toSet() + saved.name
                 folder.listFiles()?.forEach { if (it.name !in keep) it.delete() }
                 saved.writeText(FlexarrClient.json.encodeToString(Snapshot.serializer(), fresh))
                 fresh.also { asked = System.currentTimeMillis() to it }
@@ -140,9 +159,33 @@ object PodcastWidgets {
         State.Episodes(
             current = snapshot.current?.let { Shown(it, keptPicture(it.id)) },
             upNext = snapshot.upNext.map { Shown(it, keptPicture(it.id)) },
-            isPlaying = model.podcasts.isPlaying && model.podcasts.current?.id == snapshot.current?.id,
-        )
+            isPlaying = (model.podcasts.isPlaying && model.podcasts.current?.id == snapshot.current?.id) ||
+                (model.books.isPlaying && model.books.current?.id == snapshot.current?.id),
+        ).also { bookIds = listOfNotNull(snapshot.current?.takeIf { it.book }?.id).toSet() }
     }
+
+    /** The book shown, whose taps play it as a book rather than an episode. */
+    @Volatile
+    private var bookIds: Set<String> = emptySet()
+
+    private fun bookEntry(book: ItemSummary, position: Double, duration: Double) = Entry(
+        id = book.id,
+        title = book.title,
+        show = book.book?.authors.orEmpty(),
+        progress = if (duration > 0 && position > 0) (position / duration).coerceIn(0.0, 1.0) else null,
+        remainingSeconds = if (duration > 0 && position > 0) (duration - position).coerceAtLeast(0.0) else null,
+        book = true,
+    )
+
+    /** Heard last: a book ([bookId]) or a podcast episode (null), for Continue listening to show when nothing's loaded. */
+    fun heard(context: Context, bookId: String?) {
+        context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE).edit().putString(LAST_BOOK, bookId).apply()
+    }
+
+    private fun lastBookId(context: Context): String? = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE).getString(LAST_BOOK, null)
+
+    private const val PREFERENCES = "widgets"
+    private const val LAST_BOOK = "lastBook"
 
     private fun entry(episode: PodcastEpisode, position: Double = episode.userData.positionSeconds, duration: Double = episode.durationSeconds ?: 0.0) =
         Entry(
@@ -153,9 +196,9 @@ object PodcastWidgets {
             remainingSeconds = if (duration > 0) (duration - position).coerceAtLeast(0.0) else null,
         )
 
-    /** The episode's square picture (its own, else its show's), small enough for a widget. */
-    private suspend fun picture(context: Context, client: FlexarrClient, episode: PodcastEpisode): Bitmap? {
-        val url = client.imageUrl(episode.artwork.poster ?: episode.artwork.thumb, 200) ?: return null
+    /** A square picture (an episode's or its show's, a book's cover), small enough for a widget. */
+    private suspend fun picture(context: Context, client: FlexarrClient, path: String?): Bitmap? {
+        val url = client.imageUrl(path, 200) ?: return null
         val request = ImageRequest.Builder(context).data(url).size(200, 200).allowHardware(false).build()
         return (context.imageLoader.execute(request) as? SuccessResult)?.image?.toBitmap()
     }
@@ -173,14 +216,15 @@ object PodcastWidgets {
     }
 
     /** Tapping an episode plays it (and opens Now Playing), as on iPhone. */
-    internal fun play(context: Context, id: String): Action = actionStartActivity(AppLink.PodcastEpisode(id).intent(context))
+    internal fun play(context: Context, id: String): Action =
+        actionStartActivity((if (id in bookIds) AppLink.Play(id) else AppLink.PodcastEpisode(id)).intent(context))
 
     /**
      * The play button: pauses or carries on with the episode the app has loaded, without opening it; any other episode
      * (the app's not playing it) opens to play.
      */
     internal fun toggle(context: Context, id: String): Action =
-        if (context.appModel.podcasts.current?.id == id) actionRunCallback<TogglePodcast>(actionParametersOf(episodeKey to id)) else play(context, id)
+        if (context.appModel.podcasts.current?.id == id || context.appModel.books.current?.id == id) actionRunCallback<TogglePodcast>(actionParametersOf(episodeKey to id)) else play(context, id)
 
     internal val episodeKey = ActionParameters.Key<String>("episode")
 
@@ -203,7 +247,12 @@ object PodcastWidgets {
 class TogglePodcast : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
         val podcasts = context.appModel.podcasts
-        if (podcasts.current?.id == parameters[PodcastWidgets.episodeKey]) withContext(Dispatchers.Main) { podcasts.togglePlayPause() }
+        val books = context.appModel.books
+        val id = parameters[PodcastWidgets.episodeKey]
+        when (id) {
+            books.current?.id -> withContext(Dispatchers.Main) { books.togglePlayPause() }
+            podcasts.current?.id -> withContext(Dispatchers.Main) { podcasts.togglePlayPause() }
+        }
     }
 }
 
@@ -247,7 +296,7 @@ class ContinueListeningWidget : GlanceAppWidget() {
         ) {
             when {
                 state == PodcastWidgets.State.SignedOut -> Note("Open Flexarr to connect it to your server.")
-                shown == null -> Note("Nothing to carry on with. The podcast you’re listening to shows up here.")
+                shown == null -> Note("Nothing to carry on with. What you’re listening to shows up here.")
                 LocalSize.current.width >= WIDE.width -> Wide(context, shown, (state as PodcastWidgets.State.Episodes).isPlaying)
                 else -> Small(context, shown, (state as PodcastWidgets.State.Episodes).isPlaying)
             }

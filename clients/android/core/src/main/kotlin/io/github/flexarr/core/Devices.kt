@@ -54,7 +54,10 @@ fun deviceKind(deviceType: String?): String? = when (deviceType) {
 
 @Serializable(with = DeviceCommandKind.Serializer::class)
 enum class DeviceCommandKind(override val raw: String) : ForwardCompatibleEnum {
-    Play("Play"), Pause("Pause"), Resume("Resume"), Stop("Stop"), Watch("Watch"), Sound("Sound"), Unknown("");
+    Play("Play"), Pause("Pause"), Resume("Resume"), Stop("Stop"), Watch("Watch"), Sound("Sound"),
+    /** The sleep timer for what's playing: [DeviceCommand.seconds], or [DeviceCommand.endOfChapter]; neither turns it off. */
+    Sleep("Sleep"),
+    Unknown("");
 
     object Serializer : ForwardCompatibleEnumSerializer<DeviceCommandKind>("DeviceCommandKind", entries, Unknown)
 }
@@ -80,6 +83,10 @@ data class DeviceCommand(
     val profileId: String? = null,
     /** With [DeviceCommandKind.Sound], the sound settings to change. Absent from servers before 0.56. */
     val sound: DeviceSound? = null,
+    /** With [DeviceCommandKind.Sleep], stop after this many seconds. Absent from servers before 0.58. */
+    val seconds: Double? = null,
+    /** With [DeviceCommandKind.Sleep], stop at the end of the book's chapter. Absent from servers before 0.58. */
+    val endOfChapter: Boolean? = null,
 )
 
 /**
@@ -194,7 +201,7 @@ fun FlexarrClient.commandStream(): Flow<DeviceCommand> = deviceEvents().filterIs
 fun FlexarrClient.deviceEvents(): Flow<DeviceEvent> = flow {
     val request = Request.Builder()
         // The commands beyond the basic ones this app takes (servers from 0.56 send only those).
-        .url(baseUrl.newBuilder().addPathSegments("api/v1/devices/commands").addQueryParameter("accepts", "Sound").build())
+        .url(baseUrl.newBuilder().addPathSegments("api/v1/devices/commands").addQueryParameter("accepts", "Sound,Sleep").build())
         .header("Accept", "text/event-stream")
         .signIn()
         .build()

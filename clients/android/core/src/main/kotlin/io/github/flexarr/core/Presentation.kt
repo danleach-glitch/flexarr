@@ -38,7 +38,7 @@ object Format {
 
 /** Duration in seconds from the probed file, falling back to the metadata's runtime. */
 val ItemSummary.effectiveDuration: Double?
-    get() = durationSeconds?.takeIf { it > 0 } ?: runtimeMinutes?.takeIf { it > 0 }?.let { it * 60.0 }
+    get() = durationSeconds?.takeIf { it > 0 } ?: runtimeMinutes?.takeIf { it > 0 }?.let { it * 60.0 } ?: book?.durationSeconds?.takeIf { it > 0 }
 
 /** Fraction watched (0 to 1) when the item has a resume point, otherwise null. */
 val ItemSummary.progress: Double?
@@ -165,6 +165,7 @@ data class EmptyHomeMessage(val title: String, val body: String, val folders: Li
             LibraryType.Music -> "music"
             LibraryType.Podcasts -> "podcasts"
             LibraryType.HomeVideos -> "home videos"
+            LibraryType.Audiobooks -> "audiobooks"
             LibraryType.Unknown -> "titles"
         }
 

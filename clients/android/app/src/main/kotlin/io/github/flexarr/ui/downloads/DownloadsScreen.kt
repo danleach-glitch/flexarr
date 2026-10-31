@@ -20,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowCircleDown
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.HourglassTop
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Movie
@@ -97,7 +98,7 @@ fun DownloadsScreen(model: AppModel) {
     RoomBackground(ambient = null) {
         Column {
             PageTitle("Downloads")
-            if (store.downloads.isEmpty() && store.musicCollections.isEmpty()) {
+            if (store.downloads.isEmpty() && store.musicCollections.isEmpty() && model.bookDownloads.books.isEmpty()) {
                 StatusView(
                     "Download films, episodes, albums, playlists and podcast episodes to watch and listen with no connection. Look for Download on a title’s page.",
                     empty = true,
@@ -118,10 +119,11 @@ fun DownloadsScreen(model: AppModel) {
                     section("Films", store.films) { DownloadRow(model, it) }
                     store.shows.forEach { (show, episodes) -> section(show, episodes) { DownloadRow(model, it) } }
                     section("Music", store.musicCollections) { CollectionRow(model, it, onOpen = { opened = it.id }) }
+                    section("Audiobooks", model.bookDownloads.books) { BookDownloadRow(model, it) }
                     section("Podcasts", store.podcastEpisodes) { PodcastDownloadRow(model, it) }
                     item {
                         Text(
-                            "${Format.bytes(store.bytesUsed)} used on this phone.",
+                            "${Format.bytes(store.bytesUsed + model.bookDownloads.bytesUsed)} used on this phone.",
                             fontSize = 13.sp,
                             color = Flexarr.usher,
                             modifier = Modifier.padding(horizontal = Edge),
@@ -157,6 +159,57 @@ private fun DownloadRow(model: AppModel, download: LocalDownload) {
         doneLine = listOfNotNull(download.quality.label.takeIf { download.quality != DownloadQuality.Unknown }, download.sizeBytes?.let(Format::bytes), if (download.finishedAtMillis != null) "Watched" else null),
         onPlay = { context.startActivity(PlayerActivity.offlineIntent(context, download.id)) },
     )
+}
+
+/** A whole book on the phone: its cover, title and author, and how far it's come; tapping plays it once it's here. */
+@Composable
+private fun BookDownloadRow(model: AppModel, book: io.github.flexarr.core.LocalBook) {
+    val store = model.bookDownloads
+    val navigator = io.github.flexarr.ui.components.LocalNavigator.current
+    var menu by remember { mutableStateOf(false) }
+    Row(
+        Modifier.fillMaxWidth().pressable({ navigator.playBook(book.item) }, enabled = book.isDownloaded, onLongClick = { menu = true }).padding(start = 12.dp, top = 10.dp, bottom = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(63.dp).clip(RoundedCornerShape(6.dp)).background(Flexarr.aisle), contentAlignment = Alignment.Center) {
+            Icon(Icons.Filled.Headphones, contentDescription = null, tint = Flexarr.usher)
+            store.image(book)?.let { AsyncImage(model = it, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()) }
+            val duration = book.manifest.durationSeconds
+            if (book.isDownloaded && book.finishedAtMillis == null && duration > 0 && book.position > 0) {
+                ProgressBar((book.position / duration).coerceAtMost(1.0), Modifier.align(Alignment.BottomCenter).padding(5.dp))
+            }
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(book.item.title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            book.item.book?.authors?.let { Text(it, fontSize = 12.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+            @Composable fun caption(text: String) = Text(text, fontSize = 12.sp, color = Flexarr.usher, style = io.github.flexarr.ui.podcasts.Tabular)
+            when {
+                book.phase == LocalPhase.Failed -> Text(book.failure ?: "Couldn’t download this.", fontSize = 12.sp, color = Flexarr.danger)
+                !book.isDownloaded -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    val progress = store.progress(book)
+                    caption("Downloading, ${(progress * 100).toInt()}%")
+                    LinearProgressIndicator(progress = { progress.toFloat() }, color = Flexarr.silver, trackColor = Flexarr.aisle, modifier = Modifier.fillMaxWidth().padding(end = 4.dp))
+                }
+                else -> Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.ArrowCircleDown, contentDescription = "Downloaded", tint = Flexarr.downloaded, modifier = Modifier.size(14.dp))
+                    caption(listOfNotNull(Format.bytes(book.estimatedBytes), if (book.finishedAtMillis != null) "Finished" else null).joinToString("   "))
+                }
+            }
+        }
+        Box {
+            IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "More for ${book.item.title}", tint = Flexarr.usher) }
+            DropdownMenu(menu, onDismissRequest = { menu = false }) {
+                if (book.phase == LocalPhase.Failed) {
+                    DropdownMenuItem(text = { Text("Try again") }, onClick = { menu = false; navigator.downloadBook(book.item) })
+                }
+                DropdownMenuItem(
+                    text = { Text(if (book.isDownloaded) "Remove download" else "Stop download", color = Flexarr.danger) },
+                    onClick = { menu = false; store.remove(book.itemId) },
+                )
+            }
+        }
+    }
 }
 
 /** A podcast episode on the phone: its artwork, title and show; tapping plays it once it's here. */

@@ -33,7 +33,10 @@ open class ForwardCompatibleEnumSerializer<T>(
 
 @Serializable(with = LibraryType.Serializer::class)
 enum class LibraryType(override val raw: String) : ForwardCompatibleEnum {
-    Movies("Movies"), TvShows("TvShows"), Music("Music"), Podcasts("Podcasts"), HomeVideos("HomeVideos"), Unknown("");
+    Movies("Movies"), TvShows("TvShows"), Music("Music"), Podcasts("Podcasts"), HomeVideos("HomeVideos"),
+    /** Absent from servers before 0.58. Kids profiles never see these. */
+    Audiobooks("Audiobooks"),
+    Unknown("");
 
     object Serializer : ForwardCompatibleEnumSerializer<LibraryType>("LibraryType", entries, Unknown)
 }
@@ -42,7 +45,10 @@ enum class LibraryType(override val raw: String) : ForwardCompatibleEnum {
 enum class MediaKind(override val raw: String) : ForwardCompatibleEnum {
     Movie("Movie"), Series("Series"), Season("Season"), Episode("Episode"),
     Artist("Artist"), Album("Album"), Track("Track"),
-    Podcast("Podcast"), PodcastEpisode("PodcastEpisode"), Unknown("");
+    Podcast("Podcast"), PodcastEpisode("PodcastEpisode"),
+    /** A book: its files play as one timeline. Absent from servers before 0.58. */
+    Audiobook("Audiobook"),
+    Unknown("");
 
     /** Something that plays: a film, an episode or a track (the rest open to their contents). */
     val isPlayable: Boolean get() = this == Movie || this == Episode || this == Track || this == PodcastEpisode
@@ -191,6 +197,8 @@ data class ItemSummary(
     val trackNumber: Int? = null,
     /** Tracks only: the track's own artist when it isn't the album's (a compilation's tracks, a featured artist). */
     val trackArtist: String? = null,
+    /** A book's authors, narrator, series and length. Absent from servers before 0.58. */
+    val book: BookSummary? = null,
 )
 
 @Serializable(with = VideoRange.Serializer::class)
@@ -223,7 +231,10 @@ data class MediaFile(
 
 @Serializable(with = CreditRole.Serializer::class)
 enum class CreditRole(override val raw: String) : ForwardCompatibleEnum {
-    Actor("Actor"), Director("Director"), Writer("Writer"), Producer("Producer"), Creator("Creator"), Unknown("");
+    Actor("Actor"), Director("Director"), Writer("Writer"), Producer("Producer"), Creator("Creator"),
+    /** A book's. Absent from servers before 0.58. */
+    Author("Author"), Narrator("Narrator"), Translator("Translator"),
+    Unknown("");
 
     object Serializer : ForwardCompatibleEnumSerializer<CreditRole>("CreditRole", entries, Unknown)
 }
@@ -264,6 +275,8 @@ data class ItemDetail(
     val canSearchSubtitles: Boolean? = null,
     /** Films and shows: whether it's on this profile's watchlist. Absent from servers before 0.56 (no watchlist). */
     val onWatchlist: Boolean? = null,
+    /** A book's edition, series, chapters and bookmarks. Absent from servers before 0.58. */
+    val book: BookDetail? = null,
 )
 
 // People and search
@@ -272,7 +285,14 @@ data class ItemDetail(
 data class PersonCredit(val item: ItemSummary, val role: CreditRole, val character: String? = null)
 
 @Serializable
-data class Person(val id: String, val name: String, val image: String? = null, val credits: List<PersonCredit> = emptyList())
+data class Person(
+    val id: String,
+    val name: String,
+    val image: String? = null,
+    val credits: List<PersonCredit> = emptyList(),
+    /** An author's or narrator's biography. Absent from servers before 0.58. */
+    val biography: String? = null,
+)
 
 @Serializable
 data class PersonSummary(val id: String, val name: String, val image: String? = null, val credits: Int)
@@ -286,8 +306,12 @@ data class SearchResults(
     val albums: List<ItemSummary> = emptyList(),
     /** Tracks by name, each with its album's. Absent from servers before music search. */
     val tracks: List<SearchTrack> = emptyList(),
+    /** Audiobooks, apart from [titles]. Absent from servers before 0.58. */
+    val books: List<ItemSummary> = emptyList(),
+    /** Book series by name. Absent from servers before 0.58. */
+    val bookSeries: List<BookSeriesSearch> = emptyList(),
 ) {
-    val isEmpty: Boolean get() = titles.isEmpty() && episodes.isEmpty() && people.isEmpty()
+    val isEmpty: Boolean get() = titles.isEmpty() && episodes.isEmpty() && people.isEmpty() && books.isEmpty() && bookSeries.isEmpty()
 }
 
 @Serializable
@@ -366,6 +390,8 @@ data class PlaybackRequest(
     val forceTranscode: Boolean? = null,
     /** Getting the next episode ready during the credits: conversion starts now, and it never ends another screen. */
     val prepare: Boolean? = null,
+    /** A name for this device, for a book's "Jump to … from {device}?" elsewhere. Servers before 0.58 ignore it. */
+    val deviceName: String? = null,
 )
 
 @Serializable
@@ -468,6 +494,8 @@ data class PlaybackInfo(
      * servers before 0.53.
      */
     val canSearchSubtitles: Boolean? = null,
+    /** A book's files on its timeline, chapters, bookmarks and place. Absent from servers before 0.58. */
+    val book: BookManifest? = null,
 ) {
     /** The server keeps audio offsets and show speeds (0.53 and later). */
     val hasPlayerControls: Boolean get() = audioDelaySeconds != null

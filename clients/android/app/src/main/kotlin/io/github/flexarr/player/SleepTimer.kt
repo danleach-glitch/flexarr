@@ -24,6 +24,28 @@ class SleepTimer(private val scope: CoroutineScope) {
         data object EndOfEpisode : Setting {
             override val label get() = "End of episode"
         }
+
+        /** A book's: stops where the chapter playing ends. */
+        data object EndOfChapter : Setting {
+            override val label get() = "End of chapter"
+        }
+    }
+
+    /** A timer of minutes runs [minutes] longer (a shake of the phone, for a book). */
+    fun extend(minutes: Int) {
+        val ends = endsAt ?: return
+        val setting = setting ?: return
+        job?.cancel()
+        val later = ends + minutes * 60_000L
+        endsAt = later
+        job = scope.launch {
+            delay(later - System.currentTimeMillis())
+            job = null
+            this@SleepTimer.setting = null
+            endsAt = null
+            onExpire?.invoke()
+        }
+        this.setting = setting
     }
 
     var setting: Setting? by mutableStateOf(null)

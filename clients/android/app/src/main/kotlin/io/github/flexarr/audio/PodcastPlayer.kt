@@ -142,6 +142,9 @@ class PodcastPlayer(private val context: Context, private val model: AppModel) {
         errorMessage = null
         // One thing plays at a time: music stops for the episode.
         model.music.stop()
+        if (model.books.current != null) model.books.stop()
+        // The Continue listening widget shows the episode now, not the last book.
+        PodcastWidgets.heard(context, bookId = null)
         AudioService.start(context)
         val download = model.downloads.entry(episode.id)?.takeIf { it.isDownloaded }
         val file = download?.let(model.downloads::file)

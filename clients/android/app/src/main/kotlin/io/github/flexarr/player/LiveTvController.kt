@@ -160,6 +160,7 @@ class LiveTvController(context: Context, private val model: AppModel, val client
         // Music or a podcast playing stops for the channel.
         model.podcasts.pause()
         model.music.pause()
+        model.books.pause()
         starting?.cancel()
         startingChannel = channel
         model.liveStartingChannel = channel.id
