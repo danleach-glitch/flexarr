@@ -24,6 +24,13 @@ public sealed record RedeemInviteRequest(string Token);
 public sealed record GuestDeviceDto(string Id, string Name, string? ProfileId, string? ProfileName, Authentication.DeviceType? DeviceType, DateTime CreatedAt,
     DateTime LastUsedAt, string? Address, bool Online, TailnetPath Path, DateTime? LastSeen, string TailscaleAdminUrl);
 
+/// <param name="Port">The UDP port to relay on; omitted keeps the saved one, else <see cref="RemoteGuestEndpoints.DefaultRelayPort"/>.</param>
+public sealed record RelayRequest(bool Enabled, int? Port = null);
+
+/// <param name="Port">The UDP port the owner forwards on the router; null when the relay is off.</param>
+/// <param name="Working">This server's Tailscale is relaying on that port.</param>
+public sealed record RelayDto(int? Port, bool Working, string? Problem = null);
+
 /// <param name="Code">The code the guest's TV shows (8 letters and digits; spaces and dashes are fine).</param>
 public sealed record TvCodeRequest(string Code, string Name, string ProfileId);
 
@@ -33,6 +40,9 @@ public sealed record RedeemedInviteDto(string ApiKey, string ProfileId, string S
 /// <summary>Family invites: guests watching from their own homes through Tailscale built into the apps (docs/remote-guests.md).</summary>
 public static class RemoteGuestEndpoints
 {
+    /// <summary>The faster relay's UDP port unless the owner picks another.</summary>
+    public const int DefaultRelayPort = 40000;
+
     public static RouteGroupBuilder MapRemoteGuestEndpoints(this RouteGroupBuilder api)
     {
         var group = api.MapGroup("/remote/guests").WithTags("Family invites").RequireAuthorization(FlexarrClaims.AdminPolicy);
@@ -116,6 +126,33 @@ public static class RemoteGuestEndpoints
             return Results.Ok(Describe(signIns.List().Where(s => s.Guest), snapshot, names));
         });
 
+        // The faster relay: this server becomes a Tailscale peer relay, so guests whose networks can't connect
+        // directly go through it rather than Tailscale's shared relays. The snippet gains the relay grant.
+        group.MapPut("/relay", async (RelayRequest request, ITailnet tailnet, IOptionsMonitor<FlexarrOptions> options, CancellationToken ct) =>
+        {
+            var settings = options.CurrentValue;
+            int? port = request.Enabled ? request.Port ?? settings.RemoteGuests.RelayPort ?? DefaultRelayPort : null;
+            if (port is < 1024 or > 65535)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["port"] = ["Choose a port from 1024 to 65535."] });
+            }
+
+            if (await tailnet.SetRelayPortAsync(port, ct) is { } problem)
+            {
+                return Results.Problem($"Tailscale couldn't {(request.Enabled ? "start" : "stop")} the relay: {problem}", statusCode: 502);
+            }
+
+            settings.RemoteGuests.RelayPort = port;
+            ServerConfigStore.Update(settings.DataDirectory, config =>
+            {
+                var section = config["remoteGuests"] as System.Text.Json.Nodes.JsonObject ?? [];
+                section["relayPort"] = port;
+                config["remoteGuests"] = section;
+            });
+            var snapshot = await tailnet.SnapshotAsync(ct);
+            return Results.Ok(RelayStatus(port, snapshot));
+        });
+
         group.MapDelete("/invites/{id}", async (string id, GuestInvites invites, CancellationToken ct) =>
             await invites.CancelAsync(id, ct) ? Results.NoContent() : Results.NotFound());
 
@@ -178,6 +215,10 @@ public static class RemoteGuestEndpoints
 
         return (profile, owner, null);
     }
+
+    internal static RelayDto RelayStatus(int? port, TailnetSnapshot? snapshot) =>
+        new(port, port is not null && snapshot?.RelayPort == port,
+            port is not null && snapshot is not null && snapshot.RelayPort != port ? "Tailscale on the server isn't relaying yet. It needs Tailscale 1.86 or newer." : null);
 
     /// <summary>Guests' devices with how each reaches this server now, matched to the tailnet by address.</summary>
     internal static List<GuestDeviceDto> Describe(IEnumerable<SignIn> guests, TailnetSnapshot? snapshot, IReadOnlyDictionary<string, string> profileNames)

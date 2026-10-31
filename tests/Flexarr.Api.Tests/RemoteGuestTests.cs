@@ -378,4 +378,23 @@ public class RemoteGuestTests(RemoteGuestFactory factory) : IClassFixture<Remote
         Assert.Equal("Gran14", gran.ProfileName);
         Assert.Equal(RemoteGuestFactory.Guest, gran.Address);
     }
+
+    [Fact]
+    public async Task The_faster_relay_turns_on_and_off_on_the_servers_tailscale()
+    {
+        using var admin = factory.Admin();
+
+        var on = await admin.PutAsJsonAsync("/api/v1/remote/guests/relay", new { enabled = true });
+        Assert.Equal(HttpStatusCode.OK, on.StatusCode);
+        var relay = (await on.Content.ReadFromJsonAsync<RelayDto>(Web))!;
+        Assert.Equal(RemoteGuestEndpoints.DefaultRelayPort, relay.Port);
+        Assert.True(relay.Working);
+        Assert.Equal(RemoteGuestEndpoints.DefaultRelayPort, factory.Tailnet.RelayPorts[^1]);
+
+        var off = await admin.PutAsJsonAsync("/api/v1/remote/guests/relay", new { enabled = false });
+        Assert.Null((await off.Content.ReadFromJsonAsync<RelayDto>(Web))!.Port);
+        Assert.Null(factory.Tailnet.RelayPorts[^1]);
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await admin.PutAsJsonAsync("/api/v1/remote/guests/relay", new { enabled = true, port = 80 })).StatusCode);
+    }
 }
