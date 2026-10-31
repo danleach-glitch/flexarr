@@ -50,6 +50,7 @@ struct MainTabView: View {
         // What the TVs are playing, followed while the app is in front.
         .task(id: "\(model.credentials?.address.absoluteString ?? "")#\(model.currentProfile?.id ?? "")#\(scenePhase == .active)") {
             remote.use(model.client)
+            remote.profileId = model.currentProfile?.id
             remote.isActive = scenePhase == .active
             guard scenePhase == .active else { return }
             await remote.follow()

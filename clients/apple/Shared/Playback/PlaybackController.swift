@@ -1182,11 +1182,28 @@ final class PlaybackController: NSObject {
         }
     }
 
+    /// The screen to present the player from: never one on its way out (a sheet still closing), which would refuse it
+    /// and leave nothing on screen.
     private static func topViewController() -> UIViewController? {
         let scene = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
         var top = scene?.keyWindow?.rootViewController ?? scene?.windows.first?.rootViewController
-        while let presented = top?.presentedViewController { top = presented }
+        while let presented = top?.presentedViewController, !presented.isBeingDismissed { top = presented }
         return top
+    }
+
+    /// Waits (up to two seconds) for a sheet that's closing to be gone, so the player can come up in its place.
+    static func sheetsSettled() async {
+        for _ in 0..<40 {
+            let scene = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
+            var top = scene?.keyWindow?.rootViewController
+            var closing = false
+            while let presented = top?.presentedViewController {
+                if presented.isBeingDismissed || presented.isBeingPresented { closing = true }
+                top = presented
+            }
+            if !closing { return }
+            try? await Task.sleep(for: .milliseconds(50))
+        }
     }
 }
 

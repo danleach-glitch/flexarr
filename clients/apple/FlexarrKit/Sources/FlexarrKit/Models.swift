@@ -1091,9 +1091,11 @@ public struct NowPlaying: Codable, Sendable, Hashable {
     public var hasNext: Bool? = nil
     public var tracks: PlayerTracks? = nil
     public var sound: DeviceSound? = nil
+    /// Whose it is: the profile it plays against. Absent from servers before 0.56 (the device's own profile stands in).
+    public var profileId: String? = nil
 
     enum CodingKeys: String, CodingKey {
-        case item, positionSeconds, durationSeconds, paused, reportedAt, rate, prompt, hasNext, tracks, sound
+        case item, positionSeconds, durationSeconds, paused, reportedAt, rate, prompt, hasNext, tracks, sound, profileId
         /// How long ago the report was by the server's clock (servers from 0.56): `reportedAt` is worked out from it on
         /// this device's clock, so a server whose clock is off doesn't throw the times out.
         case ageSeconds
@@ -1117,6 +1119,7 @@ public struct NowPlaying: Codable, Sendable, Hashable {
         hasNext = (try? c.decodeIfPresent(Bool.self, forKey: .hasNext)) ?? nil
         tracks = (try? c.decodeIfPresent(PlayerTracks.self, forKey: .tracks)) ?? nil
         sound = (try? c.decodeIfPresent(DeviceSound.self, forKey: .sound)) ?? nil
+        profileId = (try? c.decodeIfPresent(String.self, forKey: .profileId)) ?? nil
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -1131,10 +1134,12 @@ public struct NowPlaying: Codable, Sendable, Hashable {
         try c.encodeIfPresent(hasNext, forKey: .hasNext)
         try c.encodeIfPresent(tracks, forKey: .tracks)
         try c.encodeIfPresent(sound, forKey: .sound)
+        try c.encodeIfPresent(profileId, forKey: .profileId)
     }
 
     public init(item: ItemSummary, positionSeconds: Double, durationSeconds: Double, paused: Bool, reportedAt: Date? = nil, rate: Double? = nil,
-                prompt: PlayerPrompt? = nil, hasNext: Bool? = nil, tracks: PlayerTracks? = nil, sound: DeviceSound? = nil) {
+                prompt: PlayerPrompt? = nil, hasNext: Bool? = nil, tracks: PlayerTracks? = nil, sound: DeviceSound? = nil, profileId: String? = nil) {
+        self.profileId = profileId
         self.item = item
         self.positionSeconds = positionSeconds
         self.durationSeconds = durationSeconds

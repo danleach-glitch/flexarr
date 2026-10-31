@@ -21,8 +21,10 @@ namespace Flexarr.Api.Devices;
 /// <param name="Tracks">Its soundtracks and subtitles.</param>
 /// <param name="Sound">Its sound settings.</param>
 /// <param name="AgeSeconds">How long ago <paramref name="ReportedAt"/> was, by the server's clock, for a device whose own clock differs.</param>
+/// <param name="ProfileId">Whose it is: the profile it plays against, so a phone's remote follows only its own profile's TV.</param>
 public sealed record NowPlayingDto(ItemSummaryDto Item, double PositionSeconds, double DurationSeconds, bool Paused, DateTime? ReportedAt = null,
-    double? Rate = null, PlayerPrompt? Prompt = null, bool? HasNext = null, PlayerTracks? Tracks = null, DeviceSound? Sound = null, double? AgeSeconds = null);
+    double? Rate = null, PlayerPrompt? Prompt = null, bool? HasNext = null, PlayerTracks? Tracks = null, DeviceSound? Sound = null, double? AgeSeconds = null,
+    string? ProfileId = null);
 
 /// <summary>An Apple TV, iPhone, iPad or Android device signed in to this server, and whether it would take a command right now.</summary>
 /// <param name="Online">Flexarr is open on it and listening. Offline, a command waits a couple of minutes for it.</param>
@@ -319,7 +321,7 @@ public static class DeviceEndpoints
 
         var remote = playing.Remote;
         var dto = new NowPlayingDto(item, playing.LastPosition, playing.DurationSeconds, playing.Paused, playing.ReportedAt, remote?.Rate, remote?.Prompt, remote?.HasNext,
-            remote?.Tracks, remote?.Sound, playing.ReportedAt is { } at ? Math.Max(0, (now - at).TotalSeconds) : null);
+            remote?.Tracks, remote?.Sound, playing.ReportedAt is { } at ? Math.Max(0, (now - at).TotalSeconds) : null, playing.ProfileId);
         return item.Id == Guid.Empty ? Private(dto) : dto;
     }
 

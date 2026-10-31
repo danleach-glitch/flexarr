@@ -25,7 +25,15 @@ final class TVRemote {
     /// Every device signed in, as last heard.
     private var devices: [Device] = [] {
         didSet {
-            playing = devices.playingTVs()
+            playing = devices.playingTVs(for: profileId)
+            syncActivity()
+        }
+    }
+    /// The profile chosen on this phone: the bar, the remote and the Lock Screen follow only TVs playing for it.
+    var profileId: String? {
+        didSet {
+            guard profileId != oldValue else { return }
+            playing = devices.playingTVs(for: profileId)
             syncActivity()
         }
     }
