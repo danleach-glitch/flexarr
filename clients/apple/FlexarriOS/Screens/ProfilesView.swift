@@ -64,8 +64,11 @@ struct ProfilePickerView: View {
                 }
                 .transition(.opacity)
             } else if let asking {
-                PinEntry(profile: parent == nil ? asking : model.profiles.first(where: \.isMain),
-                         title: parent == nil ? nil : "Enter the admin PIN", error: $error,
+                // The admin PIN is the server's, not the main profile's own: a padlock rather than its picture. A main
+                // profile with no PIN of its own asks a guest for the admin PIN too.
+                let adminPin = parent != nil || asking.isMain && !asking.hasPin
+                PinEntry(profile: adminPin ? nil : asking,
+                         title: adminPin ? "Enter the admin PIN" : nil, error: $error,
                          onCancel: { self.asking = nil; parent = nil; error = nil }) { pin in
                     if let parent {
                         await choose(asking, pin: parent.ownPin, parentPin: pin)

@@ -69,7 +69,10 @@ struct ProfilePickerView: View {
                 }
                 .transition(.opacity)
             } else if let asking {
-                PinPad(profile: parent == nil ? asking : mainProfile, title: parent == nil ? nil : "Enter the admin PIN", error: $error,
+                // The admin PIN is the server's, not the main profile's own: a padlock rather than its picture. A main
+                // profile with no PIN of its own asks a guest for the admin PIN too.
+                let adminPin = parent != nil || asking.isMain && !asking.hasPin
+                PinPad(profile: adminPin ? nil : asking, title: adminPin ? "Enter the admin PIN" : nil, error: $error,
                        onCancel: { cancelPin(asking) }) { pin in
                     if let parent {
                         await choose(asking, pin: parent.ownPin, parentPin: pin)
@@ -134,7 +137,6 @@ struct ProfilePickerView: View {
         }
     }
 
-    private var mainProfile: Profile? { model.profiles.first(where: \.isMain) }
 
     /// The padlock over each kids profile: open while child lock can be turned on (it locks to that profile), closed
     /// while it's on. As on the phones.

@@ -120,7 +120,7 @@ struct SettingsView: View {
         .sheet(isPresented: $askingParentPin) {
             ZStack {
                 RoomBackground(ambient: nil)
-                PinEntry(profile: model.profiles.first(where: \.isMain), title: "Enter the admin PIN", error: $lockError,
+                PinEntry(profile: nil, title: "Enter the admin PIN", error: $lockError,
                          onCancel: { askingParentPin = false; lockError = nil }) { pin in
                     await lockToKids(pin: pin)
                 }
