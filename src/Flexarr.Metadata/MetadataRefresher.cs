@@ -28,7 +28,8 @@ public sealed partial class MetadataRefresher(
     ImageCache images,
     IMetadataSettings settings,
     ILogger<MetadataRefresher> logger,
-    TmdbClient? tmdb = null)
+    TmdbClient? tmdb = null,
+    Books.BookProviders? bookProviders = null)
 {
     private static readonly TimeSpan StaleAfter = TimeSpan.FromDays(7);
     private static readonly TimeSpan RetryUnmatchedAfter = TimeSpan.FromDays(1);

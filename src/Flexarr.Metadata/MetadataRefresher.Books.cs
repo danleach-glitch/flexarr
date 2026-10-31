@@ -33,7 +33,7 @@ public sealed partial class MetadataRefresher
             }
         }
 
-        int fromArr = 0, unmatched = 0, local = 0;
+        int fromArr = 0, lookedUp = 0, unmatched = 0, local = 0;
         foreach (var book in books)
         {
             var details = book.Book ??= new BookDetails { MediaItemId = book.Id };
@@ -47,21 +47,49 @@ public sealed partial class MetadataRefresher
                 await ApplyReadarrAsync(book, details, match, hit.Catalogue, ct).ConfigureAwait(false);
                 fromArr++;
             }
-            else if (catalogues.Count > 0)
+
+            // Online: by its ids, else (unless it was matched by hand) by title and author.
+            var online = false;
+            if (bookProviders is not null)
             {
-                unmatched++;
+                try
+                {
+                    var found = await bookProviders.LookupAsync(details.Asin, details.Isbn, ct).ConfigureAwait(false)
+                        ?? (book.MatchLocked ? null : await bookProviders.FindAsync(book.Title, wanted.Authors, ct).ConfigureAwait(false));
+                    if (found is not null)
+                    {
+                        await ApplyOnlineAsync(book, details, found, overwrite: false, ct).ConfigureAwait(false);
+                        online = true;
+                    }
+                }
+                catch (Exception ex) when (ex is System.Text.Json.JsonException || IsNetworkFailure(ex, ct))
+                {
+                    LogItemFailed(ex, book.Title);
+                }
             }
-            else
+
+            if (hit.Book is null)
             {
-                local++;
+                if (online)
+                {
+                    lookedUp++;
+                }
+                else if (catalogues.Count > 0 || bookProviders is not null)
+                {
+                    unmatched++;
+                }
+                else
+                {
+                    local++;
+                }
             }
 
             book.MetadataUpdatedAt = DateTime.UtcNow;
-            await SaveEveryAsync(fromArr + unmatched + local, ct).ConfigureAwait(false);
+            await SaveEveryAsync(fromArr + lookedUp + unmatched + local, ct).ConfigureAwait(false);
         }
 
         await db.SaveChangesAsync(ct).ConfigureAwait(false);
-        return new MetadataRefreshResult(fromArr, 0, unmatched, local);
+        return new MetadataRefreshResult(fromArr, lookedUp, unmatched, local);
     }
 
     /// <summary>An app's authors, books, files and series; null if it can't be asked right now.</summary>
@@ -141,6 +169,134 @@ public sealed partial class MetadataRefresher
                     ?? db.BookSeries.Add(new BookSeries { LibraryId = book.LibraryId, Name = series.Title!, SortName = SortTitle.For(series.Title!), Description = Plain(series.Description), ExternalId = series.Id }).Entity;
                 db.BookSeriesEntries.Add(new BookSeriesEntry { SeriesId = stored.Id, BookId = book.Id, Sequence = position, SortOrder = BookAssembler.SequenceOrder(position) });
             }
+        }
+    }
+
+    /// <summary>
+    /// What an online provider says about a book: only its gaps, unless <paramref name="overwrite"/> (a match chosen by
+    /// hand, whose details are what was chosen). Its authors' photos and biographies and, for a guessed set of chapters,
+    /// Audible's.
+    /// </summary>
+    public async Task ApplyOnlineAsync(MediaItem book, BookDetails details, Books.BookMatch found, bool overwrite, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(book);
+        ArgumentNullException.ThrowIfNull(details);
+        ArgumentNullException.ThrowIfNull(found);
+        T? Pick<T>(T? current, T? online) => overwrite ? online ?? current : current ?? online;
+
+        if (overwrite)
+        {
+            book.Title = found.Title;
+            book.SortTitle = SortTitle.For(found.Title);
+        }
+
+        details.Subtitle = Pick(details.Subtitle, found.Subtitle);
+        details.Publisher = Pick(details.Publisher, found.Publisher);
+        details.Language = Pick(details.Language, found.Language);
+        details.Isbn = Pick(details.Isbn, found.Isbn);
+        details.Asin = Pick(details.Asin, found.Asin);
+        details.Abridged = found.Abridged is { } abridged && (overwrite || !details.Abridged) ? abridged : details.Abridged;
+        book.Overview = Pick(book.Overview, found.Description);
+        book.ReleaseDate = book.ReleaseDate is not null && !overwrite ? book.ReleaseDate : found.ReleaseDate ?? book.ReleaseDate;
+        book.Year = book.Year is not null && !overwrite ? book.Year : found.ReleaseDate?.Year ?? book.Year;
+        book.Studio ??= details.Publisher;
+        book.PosterUrl = Pick(book.PosterUrl, found.Cover);
+        book.MetadataSource ??= found.Provider;
+
+        if ((overwrite || book.Genres.Count == 0) && found.Genres.Count > 0)
+        {
+            book.Genres.Clear();
+            foreach (var name in found.Genres.Distinct(StringComparer.OrdinalIgnoreCase).Take(5))
+            {
+                book.Genres.Add(await db.Genres.FirstOrDefaultAsync(g => g.Name == name, ct).ConfigureAwait(false)
+                    ?? db.Genres.Local.FirstOrDefault(g => string.Equals(g.Name, name, StringComparison.OrdinalIgnoreCase))
+                    ?? db.Genres.Add(new Genre { Name = name }).Entity);
+            }
+        }
+
+        await CreditsAsync(book, CreditRole.Author, found.Authors, overwrite, ct).ConfigureAwait(false);
+        await CreditsAsync(book, CreditRole.Narrator, found.Narrators, overwrite, ct).ConfigureAwait(false);
+
+        if (found.Series.Count > 0 && (overwrite || !await db.BookSeriesEntries.AnyAsync(e => e.BookId == book.Id, ct).ConfigureAwait(false)))
+        {
+            await db.BookSeriesEntries.Where(e => e.BookId == book.Id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
+            foreach (var part in found.Series)
+            {
+                var stored = await db.BookSeries.FirstOrDefaultAsync(s => s.LibraryId == book.LibraryId && s.Name == part.Name, ct).ConfigureAwait(false)
+                    ?? db.BookSeries.Local.FirstOrDefault(s => s.LibraryId == book.LibraryId && s.Name == part.Name)
+                    ?? db.BookSeries.Add(new BookSeries { LibraryId = book.LibraryId, Name = part.Name, SortName = SortTitle.For(part.Name) }).Entity;
+                db.BookSeriesEntries.Add(new BookSeriesEntry { SeriesId = stored.Id, BookId = book.Id, Sequence = part.Sequence, SortOrder = BookAssembler.SequenceOrder(part.Sequence) });
+            }
+        }
+
+        // The first author's photo and biography, from Audible.
+        if (bookProviders is not null && found.AuthorAsins is { Count: > 0 } asins
+            && book.Credits.Where(c => c.Role == CreditRole.Author).OrderBy(c => c.Order).Select(c => c.Person).FirstOrDefault() is { } person
+            && (person.Biography is null || person.ImageUrl is null)
+            && await bookProviders.AuthorAsync(asins[0], ct).ConfigureAwait(false) is { } author)
+        {
+            person.Asin ??= asins[0];
+            person.Biography ??= author.Biography;
+            person.ImageUrl ??= author.Image;
+        }
+
+        // Audible's chapters, in place of guessed ones, when Audible says they're accurate and the length agrees.
+        if (bookProviders is not null && details.Asin is { } asin && details.ChapterSource is ChapterSource.Even or ChapterSource.None
+            or ChapterSource.Files && await db.MediaChapters.CountAsync(c => c.MediaItemId == book.Id, ct).ConfigureAwait(false) <= 1)
+        {
+            await UseAudibleChaptersAsync(book.Id, details, asin, shift: 0, ct).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>Replaces a book's chapters with Audible's for <paramref name="asin"/>, moved by <paramref name="shift"/> seconds; false if they don't fit.</summary>
+    public async Task<bool> UseAudibleChaptersAsync(Guid bookId, BookDetails details, string asin, double shift, CancellationToken ct, bool force = false)
+    {
+        ArgumentNullException.ThrowIfNull(details);
+        if (bookProviders is null || await bookProviders.ChaptersAsync(asin, ct).ConfigureAwait(false) is not { Chapters.Count: > 0 } audible)
+        {
+            return false;
+        }
+
+        var length = details.DurationSeconds;
+        if (!force && (!audible.Accurate || length <= 0 || Math.Abs(audible.RuntimeSeconds - length) > Math.Max(30, length * 0.01)))
+        {
+            return false;
+        }
+
+        await db.MediaChapters.Where(c => c.MediaItemId == bookId).ExecuteDeleteAsync(ct).ConfigureAwait(false);
+        var chapters = audible.Chapters.Select(c => c with { StartSeconds = Math.Max(0, c.StartSeconds + shift), EndSeconds = Math.Max(0, c.EndSeconds + shift) })
+            .Where(c => length <= 0 || c.StartSeconds < length).ToList();
+        db.MediaChapters.AddRange(chapters.Select((c, i) => new MediaChapter
+        {
+            MediaItemId = bookId, Index = i, Title = c.Title, StartSeconds = i == 0 ? 0 : c.StartSeconds,
+            EndSeconds = i == chapters.Count - 1 && length > 0 ? length : c.EndSeconds,
+        }));
+        details.ChapterSource = ChapterSource.Audible;
+        return true;
+    }
+
+    /// <summary>Credits in a role from a provider: when the book has none in it, or a chosen match says so.</summary>
+    private async Task CreditsAsync(MediaItem book, CreditRole role, IReadOnlyList<string> names, bool overwrite, CancellationToken ct)
+    {
+        var current = book.Credits.Where(c => c.Role == role).ToList();
+        if (names.Count == 0 || (current.Count > 0 && !overwrite))
+        {
+            return;
+        }
+
+        foreach (var credit in current)
+        {
+            book.Credits.Remove(credit);
+            db.Credits.Remove(credit);
+        }
+
+        for (var i = 0; i < names.Count; i++)
+        {
+            var name = names[i];
+            var person = await db.People.FirstOrDefaultAsync(p => p.Name == name, ct).ConfigureAwait(false)
+                ?? db.People.Local.FirstOrDefault(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase))
+                ?? db.People.Add(new Person { Name = name }).Entity;
+            book.Credits.Add(new Credit { MediaItemId = book.Id, Person = person, PersonId = person.Id, Role = role, Order = i });
         }
     }
 

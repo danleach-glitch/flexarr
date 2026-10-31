@@ -1,0 +1,1 @@
+- `google-search.json` is written from Google's documented `volumes` shape: keyless calls get a quota of zero. The rest were recorded 2026-10-31.

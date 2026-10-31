@@ -16,4 +16,7 @@ public interface IMetadataSettings
 
     /// <summary>The server's country (ISO 3166-1, "GB"), whose age ratings are shown first; null, the UK's.</summary>
     string? Country => null;
+
+    /// <summary>How books are looked up online: providers in order, Audible's region, optional keys.</summary>
+    Books.BookMetadataSettings Books => Metadata.Books.BookMetadataSettings.Default;
 }
