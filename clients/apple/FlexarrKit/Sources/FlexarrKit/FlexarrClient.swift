@@ -727,6 +727,8 @@ public struct FlexarrClient: Sendable {
                 if problem["ownPin"] as? Bool == true { throw FlexarrClientError.ownPinWrong(message: Self.problemMessage(data)) }
                 if problem["parentPin"] as? Bool == true { throw FlexarrClientError.parentPinNeeded(message: Self.problemMessage(data)) }
                 if problem["kidsLock"] as? Bool == true { throw FlexarrClientError.kidsLocked(message: Self.problemMessage(data)) }
+                // A family guest's device its host removed: refused whatever it asks, so the app signs out (as for 401).
+                if problem["guestRemoved"] as? Bool == true { onUnauthorized?() }
             }
             throw FlexarrClientError.http(status: http.statusCode, message: Self.problemMessage(data))
         }

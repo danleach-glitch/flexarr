@@ -345,6 +345,12 @@ final class AppModel {
                 return // Accepted after all.
             } catch FlexarrClientError.unauthorized {
                 // Refused again: signed out.
+            } catch FlexarrClientError.http(status: 403, _) where refused.isGuest {
+                // A guest's device its host removed: refused everything, not just the sign-in.
+                guard credentials == refused else { return }
+                signedOutNotice = "This \(ThisDevice.name) was removed. Ask \(refused.guest?.ownerName ?? "its owner") for a new invite."
+                forget()
+                return
             } catch {
                 return // Unreachable or restarting: no reason to forget the sign-in.
             }

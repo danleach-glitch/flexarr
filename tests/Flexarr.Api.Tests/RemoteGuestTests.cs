@@ -321,7 +321,10 @@ public class RemoteGuestTests(RemoteGuestFactory factory) : IClassFixture<Remote
         Assert.Equal(HttpStatusCode.NoContent, (await admin.DeleteAsync($"/api/v1/sign-ins/{id}")).StatusCode);
 
         using var removed = factory.From(stranger, key);
-        Assert.Equal(HttpStatusCode.Forbidden, (await removed.GetAsync("/api/v1/setup")).StatusCode);
+        var refused = await removed.GetAsync("/api/v1/setup");
+        Assert.Equal(HttpStatusCode.Forbidden, refused.StatusCode);
+        // The apps tell this refusal from any other, and sign out.
+        Assert.True((await refused.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("guestRemoved").GetBoolean());
         Assert.Equal(HttpStatusCode.Forbidden, (await removed.GetAsync("/api/v1/me")).StatusCode);
     }
 

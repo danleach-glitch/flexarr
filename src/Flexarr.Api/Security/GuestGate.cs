@@ -34,7 +34,8 @@ public static class GuestGate
         }
 
         http.Response.StatusCode = StatusCodes.Status403Forbidden;
-        await http.Response.WriteAsJsonAsync(new { title = "This device was removed from the server. Ask its owner for a new invite.", status = 403 },
+        // guestRemoved lets the apps tell this from any other refusal, and sign out rather than show an error.
+        await http.Response.WriteAsJsonAsync(new { title = "This device was removed from the server. Ask its owner for a new invite.", status = 403, guestRemoved = true },
             http.RequestAborted);
     });
 }

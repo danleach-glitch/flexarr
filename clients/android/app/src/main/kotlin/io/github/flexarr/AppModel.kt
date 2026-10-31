@@ -872,6 +872,9 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
             try {
                 delay(1_000)
                 refused.client().me()
+            } catch (e: FlexarrException.Http) {
+                // A guest's device its host removed: refused everything (403), not just the sign-in.
+                if (e.status == 403 && credentials == refused && refused.isGuest) removedAsGuest()
             } catch (_: FlexarrException.Unauthorized) {
                 if (credentials == refused) {
                     val kept = downloads.signedOutByServer(refused.address)

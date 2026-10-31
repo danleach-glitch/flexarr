@@ -383,6 +383,11 @@ class FlexarrClient(
                 it.code == 403 && problemFlag(text, "parentPin") -> throw FlexarrException.ParentPinNeeded(problemMessage(text))
                 it.code == 403 && problemFlag(text, "ownPin") -> throw FlexarrException.OwnPinWrong(problemMessage(text))
                 it.code == 403 && problemFlag(text, "kidsLock") -> throw FlexarrException.KidsLocked(problemMessage(text))
+                // A family guest's device its host removed: refused whatever it asks, so the app signs out (as for 401).
+                it.code == 403 && problemFlag(text, "guestRemoved") -> {
+                    onUnauthorized?.invoke()
+                    throw FlexarrException.Http(it.code, problemMessage(text))
+                }
                 else -> throw FlexarrException.Http(it.code, problemMessage(text))
             }
         }
