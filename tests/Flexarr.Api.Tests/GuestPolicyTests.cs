@@ -155,11 +155,15 @@ public class GuestPolicyTests
     [InlineData("""{"src":["*"],"dst":["autogroup:internet"],"ip":["*"]}""", "grants")]
     [InlineData("""{"src":["tag:flexarr-guest"],"dst":["flexarr"],"ip":["tcp:8989"]}""", "grants")]
     [InlineData("""{"src":["tag:flexarr-guest"],"dst":["flexarr"],"ip":["*"]}""", "grants")]
+    [InlineData("""{"src":["autogroup:tagged"],"dst":["192.168.1.0/24"],"ip":["*"]}""", "grants")]
+    [InlineData("""{"src":["100.64.0.0/11"],"dst":["autogroup:internet"],"ip":["*"]}""", "grants")]
+    [InlineData("""{"src":["ipset:everyone"],"dst":["192.168.1.0/24"],"ip":["*"]}""", "grants")]
+    [InlineData("""{"src":["tag:flexarr-guest"],"dst":["flexarr"],"app":{"tailscale.com/cap/drive":[]}}""", "grants")]
     public async Task A_rule_letting_guests_reach_more_than_flexarr_is_caught_without_tailscale_testing_it(string grant, string where)
     {
         var (policy, fake, _, _) = Make();
         using var _ = policy;
-        fake.Policy = Policy($$"""{"hosts":{"flexarr":"100.64.0.1"},"grants":[{"src":["tag:flexarr-guest"],"dst":["flexarr"],"ip":["tcp:8383"]},{{grant}}]}""");
+        fake.Policy = Policy($$"""{"hosts":{"flexarr":"100.64.0.1"},"ipsets":{"everyone":["100.64.0.0/10"]},"grants":[{"src":["tag:flexarr-guest"],"dst":["flexarr"],"ip":["tcp:8383"]},{{grant}}]}""");
 
         var check = await policy.CheckAsync(CancellationToken.None);
 
@@ -181,6 +185,12 @@ public class GuestPolicyTests
         Assert.Empty(GuestPolicy.Widening(policy, "tag:flexarr-guest", "100.64.0.1", 8383));
         policy["acls"]!.AsArray().Add(JsonNode.Parse("""{"action":"accept","src":["*"],"dst":["*:*"]}"""));
         Assert.Single(GuestPolicy.Widening(policy, "tag:flexarr-guest", "100.64.0.1", 8383));
+
+        // Tailscale takes the sections in any case.
+        var shouty = Policy("""{"Hosts":{"flexarr":"100.64.0.1"},"ACLs":[{"action":"accept","src":["*"],"dst":["*:*"]}]}""");
+        Assert.Single(GuestPolicy.Widening(shouty, "tag:flexarr-guest", "100.64.0.1", 8383));
+        // A household device's own address as a source doesn't take in guests.
+        Assert.Empty(GuestPolicy.Widening(Policy("""{"acls":[{"action":"accept","src":["100.64.0.2"],"dst":["*:*"]}]}"""), "tag:flexarr-guest", "100.64.0.1", 8383));
     }
 
     private static JsonObject Policy(string json) => (JsonObject)JsonNode.Parse(json)!;

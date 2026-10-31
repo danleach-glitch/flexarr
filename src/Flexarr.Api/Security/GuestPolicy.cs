@@ -29,7 +29,13 @@ public sealed partial class GuestPolicy(TailscaleApi api, ITailnet tailnet, IOpt
     private static readonly int[] OtherServerPorts = [22, 80, 443, 445, 5900, TailscaleService.Port, 8989, 7878, 8686, 9696, 5055, 6767, 8080, 8090, 32400, 8123];
 
     /// <summary>Sources that take in a guest device whatever the rest of the rule says.</summary>
-    private static readonly string[] SourcesForEveryone = ["*", "autogroup:danger-all", "0.0.0.0/0", "::/0", "100.64.0.0/10", "fd7a:115c:a1e0::/48"];
+    private static readonly string[] SourcesForEveryone = ["*", "autogroup:danger-all", "autogroup:tagged"];
+
+    /// <summary>Tailscale's address ranges: a source range overlapping either (wider than one address) takes in guests.</summary>
+    private static readonly System.Net.IPNetwork[] TailnetRanges = [System.Net.IPNetwork.Parse("100.64.0.0/10"), System.Net.IPNetwork.Parse("fd7a:115c:a1e0::/48")];
+
+    /// <summary>The one capability guests may have on top of Flexarr's port: the faster relay.</summary>
+    private const string RelayCapability = "tailscale.com/cap/relay";
 
     /// <summary>Ports checked on each other device.</summary>
     private static readonly int[] OtherDevicePorts = [22, 80, 443];
@@ -163,8 +169,9 @@ public sealed partial class GuestPolicy(TailscaleApi api, ITailnet tailnet, IOpt
             }
         }
 
-        var tests = policy["tests"] as JsonArray ?? [];
-        policy["tests"] = tests;
+        var key = policy.FirstOrDefault(p => p.Key.Equals("tests", StringComparison.OrdinalIgnoreCase)).Key ?? "tests";
+        var tests = policy[key] as JsonArray ?? [];
+        policy[key] = tests;
         tests.Add(new JsonObject
         {
             ["src"] = tag,
@@ -183,7 +190,9 @@ public sealed partial class GuestPolicy(TailscaleApi api, ITailnet tailnet, IOpt
         var port = flexarrPort.ToString(CultureInfo.InvariantCulture);
         // Names this server goes by: its address, and any host alias for it ("flexarr" in the snippet).
         var server = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { self, $"{self}/32" };
-        if (policy["hosts"] is JsonObject hosts)
+        var hosts = Section(policy, "hosts") as JsonObject;
+        var ipsets = Section(policy, "ipsets") as JsonObject;
+        if (hosts is not null)
         {
             foreach (var (name, value) in hosts)
             {
@@ -194,11 +203,30 @@ public sealed partial class GuestPolicy(TailscaleApi api, ITailnet tailnet, IOpt
             }
         }
 
-        bool TakesGuests(JsonNode? src) => Strings(src).Any(s => s.Equals(tag, StringComparison.OrdinalIgnoreCase)
-            || SourcesForEveryone.Contains(s, StringComparer.OrdinalIgnoreCase));
+        // A source as Tailscale reads it: host aliases and ipsets stand for the addresses they name.
+        IEnumerable<string> Expand(string source, int depth = 0)
+        {
+            if (depth > 4)
+            {
+                return [source];
+            }
+
+            if (source.StartsWith("ipset:", StringComparison.OrdinalIgnoreCase)
+                && ipsets?.FirstOrDefault(p => p.Key.Equals(source[6..], StringComparison.OrdinalIgnoreCase)).Value is { } set)
+            {
+                return Strings(set).SelectMany(e => Expand(e.TrimStart('+'), depth + 1));
+            }
+
+            return hosts?.FirstOrDefault(p => p.Key.Equals(source, StringComparison.OrdinalIgnoreCase)).Value?.ToString() is { } address
+                ? Expand(address, depth + 1)
+                : [source];
+        }
+
+        bool TakesGuests(JsonNode? src) => Strings(src).SelectMany(s => Expand(s)).Any(s => s.Equals(tag, StringComparison.OrdinalIgnoreCase)
+            || SourcesForEveryone.Contains(s, StringComparer.OrdinalIgnoreCase) || CoversTailnet(s));
 
         var found = new List<string>();
-        foreach (var rule in (policy["acls"] as JsonArray ?? []).OfType<JsonObject>())
+        foreach (var rule in (Section(policy, "acls") as JsonArray ?? []).OfType<JsonObject>())
         {
             if (rule["action"]?.ToString() is { } action && !action.Equals("accept", StringComparison.OrdinalIgnoreCase) || !TakesGuests(rule["src"]))
             {
@@ -213,7 +241,7 @@ public sealed partial class GuestPolicy(TailscaleApi api, ITailnet tailnet, IOpt
             }
         }
 
-        foreach (var rule in (policy["grants"] as JsonArray ?? []).OfType<JsonObject>())
+        foreach (var rule in (Section(policy, "grants") as JsonArray ?? []).OfType<JsonObject>())
         {
             if (!TakesGuests(rule["src"]))
             {
@@ -225,13 +253,15 @@ public sealed partial class GuestPolicy(TailscaleApi api, ITailnet tailnet, IOpt
             var ip = Strings(rule["ip"]).ToList();
             // Flexarr's port alone, or (the faster relay) no network access at all, only the relay capability.
             var portOnly = ip.All(i => i == port || i.Equals($"tcp:{port}", StringComparison.OrdinalIgnoreCase));
-            if (!toServerOnly || !portOnly)
+            var capabilities = (rule["app"] as JsonObject)?.Select(c => c.Key).ToList() ?? [];
+            var relayOnly = capabilities.All(c => c.Equals(RelayCapability, StringComparison.OrdinalIgnoreCase));
+            if (!toServerOnly || !portOnly || !relayOnly || ip.Count == 0 && capabilities.Count == 0)
             {
                 found.Add($"grants: {Describe(rule["src"])} → {string.Join(", ", dst)}{(ip.Count > 0 ? $" ({string.Join(", ", ip)})" : "")}");
             }
         }
 
-        foreach (var rule in (policy["ssh"] as JsonArray ?? []).OfType<JsonObject>())
+        foreach (var rule in (Section(policy, "ssh") as JsonArray ?? []).OfType<JsonObject>())
         {
             if (TakesGuests(rule["src"]))
             {
@@ -240,6 +270,23 @@ public sealed partial class GuestPolicy(TailscaleApi api, ITailnet tailnet, IOpt
         }
 
         return found;
+    }
+
+    /// <summary>A top-level section of the policy, whatever its case ("ACLs" and "acls" both work in Tailscale).</summary>
+    private static JsonNode? Section(JsonObject policy, string name) =>
+        policy.FirstOrDefault(p => p.Key.Equals(name, StringComparison.OrdinalIgnoreCase)).Value;
+
+    /// <summary>Whether <paramref name="source"/> is a range (wider than one address) overlapping Tailscale's addresses.</summary>
+    private static bool CoversTailnet(string source)
+    {
+        if (!System.Net.IPNetwork.TryParse(source, out var range))
+        {
+            return false;
+        }
+
+        var single = range.BaseAddress.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork ? 32 : 128;
+        return range.PrefixLength < single && TailnetRanges.Any(t => t.BaseAddress.AddressFamily == range.BaseAddress.AddressFamily
+            && (range.Contains(t.BaseAddress) || t.Contains(range.BaseAddress)));
     }
 
     private static IEnumerable<string> Strings(JsonNode? node) => node switch
