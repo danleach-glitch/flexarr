@@ -879,7 +879,7 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         if (error as? URLError)?.code == .cancelled { return }
         // Cut off part-way (the network went, or a guest's tunnel slept with the phone locked): back to waiting, to
         // carry on from where it got to once the server's in reach again (the next catch-up, back in front).
-        if let data = (error as NSError).userInfo[NSURLSessionDownloadTaskResumeDataKey] as? Data {
+        if let data = (error as NSError).userInfo[NSURLSessionDownloadTaskResumeData] as? Data {
             held(id, resumeData: data)
             if isOnline { poll() }
             return
