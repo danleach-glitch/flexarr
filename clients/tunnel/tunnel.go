@@ -19,6 +19,7 @@ import (
 	"net"
 	"net/netip"
 	"os"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -114,6 +115,14 @@ func Start(stateDir, hostname, authKey, targetAddr, controlURL string) (int, err
 		failLocked(err)
 		mu.Unlock()
 		return 0, err
+	}
+	// Tailscale finds a folder for its (switched off) logging's state from the environment, and panics when there's
+	// none to be found, as in an Android app, which has no HOME, TMPDIR or writable working directory.
+	if os.Getenv("TS_LOGS_DIR") == "" {
+		logs := filepath.Join(stateDir, "logs")
+		if err := os.MkdirAll(logs, 0o700); err == nil {
+			os.Setenv("TS_LOGS_DIR", logs)
+		}
 	}
 	s := &tsnet.Server{
 		Dir:        stateDir,

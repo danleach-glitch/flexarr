@@ -28,5 +28,11 @@ gomobile bind \
   -trimpath -ldflags="-s -w" \
   -o build/flexarr-tunnel.aar \
   .
+# gomobile's keep rule covers the whole -javapkg (io.github.flexarr.**), which is the app's own package too, so R8 would
+# keep every class of the app. Narrowed to the tunnel's own.
+rules="$(mktemp -d)"
+printf -- '-keep class go.** { *; }\n-keep class io.github.flexarr.tunnel.** { *; }\n' >"$rules/proguard.txt"
+(cd "$rules" && zip -q "$OLDPWD/build/flexarr-tunnel.aar" proguard.txt)
+rm -rf "$rules"
 echo "==> build/flexarr-tunnel.aar ($(du -h build/flexarr-tunnel.aar | cut -f1))"
 unzip -l build/flexarr-tunnel.aar | awk '/jni\/.*\.so/ {printf "  %-40s %6.1f MB\n", $4, $1/1048576}'
