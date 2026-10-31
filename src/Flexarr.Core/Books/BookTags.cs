@@ -54,7 +54,36 @@ public static partial class BookTags
 
     /// <summary>"Stephen Fry; Hugh Laurie", "Stephen Fry/Hugh Laurie", "Stephen Fry, Hugh Laurie" as separate people.</summary>
     internal static IReadOnlyList<string> People(string? value) =>
-        value is null ? [] : [.. value.Split('/').SelectMany(BookLayout.SplitAuthors).Select(p => p.Trim()).Where(p => p.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase)];
+        value is null ? [] : [.. value.Split('/').SelectMany(BookLayout.SplitAuthors).Select(p => Spaces().Replace(p, " ").Trim()).Where(p => p.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase)];
+
+    /// <summary>
+    /// A title with a series number in it, taken apart: "TMC 03 The Bullet That Missed" (a short code and a number),
+    /// "The Last Devil to Die: Thursday Murder Club, Book 4" and "The Mountain Shadow (Shantaram, Book 2)".
+    /// </summary>
+    public static (string Title, string? Sequence) SplitSeriesNumber(string title)
+    {
+        ArgumentNullException.ThrowIfNull(title);
+        if (CodePrefix().Match(title) is { Success: true } code)
+        {
+            return (title[code.Length..].Trim(), code.Groups["n"].Value.TrimStart('0') is { Length: > 0 } n ? n : "0");
+        }
+
+        if (BookSuffix().Match(title) is { Success: true } book)
+        {
+            return (title[..book.Index].Trim(), book.Groups["n"].Value);
+        }
+
+        return (title, null);
+    }
+
+    [GeneratedRegex(@"^[A-Z]{2,6}\s?(?<n>\d{1,3})\s+(?=\S)")]
+    private static partial Regex CodePrefix();
+
+    [GeneratedRegex(@"\s*(?:[:\-–(]\s*[^:()]*?,?\s*)?\b(?:book|bk\.?|volume|vol\.?)\s*(?<n>\d+(?:\.\d+)?)\)?\s*$", RegexOptions.IgnoreCase)]
+    private static partial Regex BookSuffix();
+
+    [GeneratedRegex(@"\s{2,}")]
+    private static partial Regex Spaces();
 
     /// <summary>"3", "Book 3", "#3", "3.5" → "3", "3.5".</summary>
     internal static string Sequence(string value) =>

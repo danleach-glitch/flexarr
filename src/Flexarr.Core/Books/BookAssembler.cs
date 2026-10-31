@@ -90,6 +90,13 @@ public sealed partial class BookAssembler(FlexarrDbContext db, IMediaProbe probe
         var isFile = files.Count == 1 && PathComparison.Key(files[0].Path) == PathComparison.Key(key);
         var first = probes[ordered[0].Id];
         var tags = first is null ? BookInfo.Empty : BookTags.Read(first.Tags, singleFile: ordered.Count == 1);
+        // Files that disagree on their album (each disc of a set named apart) don't name the book: its folder does.
+        var albums = ordered.Select(f => probes[f.Id]?.Tags is { } t && t.TryGetValue("album", out var a) ? a.Trim().ToLowerInvariant() : null).OfType<string>().Distinct().Count();
+        if (albums > 1)
+        {
+            tags = tags with { Title = null };
+        }
+
         if (first?.HasCoverArt == true)
         {
             tags = tags with { Cover = $"embedded://{ordered[0].Path}" };
@@ -97,6 +104,16 @@ public sealed partial class BookAssembler(FlexarrDbContext db, IMediaProbe probe
 
         var sidecars = isFile ? BookInfo.Empty : BookSidecars.Read(key);
         var info = sidecars.Over(tags).Over(FromPath(BookLayout.Describe(root, key, isFile)));
+        if (info.Title is { } named && BookTags.SplitSeriesNumber(named) is { Sequence: { } number } split && split.Title.Length > 0)
+        {
+            // "TMC 03 The Bullet That Missed": the number is its place in the series, when the series has none.
+            info = info with
+            {
+                Title = split.Title,
+                Series = [.. info.Series.Select(s => s.Sequence is null ? s with { Sequence = number } : s)],
+            };
+        }
+
         if (!book.MatchLocked)
         {
             await ApplyAsync(book, details, info, ct).ConfigureAwait(false); // matched by hand: what was chosen stands

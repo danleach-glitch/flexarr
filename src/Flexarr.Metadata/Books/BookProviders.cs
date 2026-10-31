@@ -106,10 +106,13 @@ public sealed class BookProviders(HttpClient http, Func<IMetadataSettings> setti
     {
         ArgumentNullException.ThrowIfNull(authors);
         var wanted = Fold(title);
+        var main = Fold(MainTitle(title));
         var names = authors.Select(Fold).ToHashSet(StringComparer.Ordinal);
-        foreach (var match in await SearchAsync(title, authors.Count > 0 ? authors[0] : null, ct).ConfigureAwait(false))
+        foreach (var match in await SearchAsync(MainTitle(title), authors.Count > 0 ? authors[0] : null, ct).ConfigureAwait(false))
         {
-            if (Fold(match.Title) == wanted && (names.Count == 0 || match.Authors.Any(a => names.Contains(Fold(a)))))
+            var theirs = Fold(match.Title);
+            if ((theirs == wanted || theirs == main || Fold(MainTitle(match.Title)) == main)
+                && (names.Count == 0 || match.Authors.Any(a => names.Contains(Fold(a)))))
             {
                 return match;
             }
@@ -339,6 +342,13 @@ public sealed class BookProviders(HttpClient http, Func<IMetadataSettings> setti
         }
 
         return value.Length >= 4 && int.TryParse(value[..4], NumberStyles.Integer, CultureInfo.InvariantCulture, out var year) && year > 1000 ? new DateOnly(year, 1, 1) : null;
+    }
+
+    /// <summary>"Sapiens: A Brief History of Humankind" → "Sapiens": the title without its subtitle.</summary>
+    private static string MainTitle(string title)
+    {
+        var cut = title.IndexOfAny([':', '(']);
+        return cut > 2 ? title[..cut].Trim() : title;
     }
 
     /// <summary>"english" → "English".</summary>

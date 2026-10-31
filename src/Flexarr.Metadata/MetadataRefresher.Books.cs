@@ -217,7 +217,23 @@ public sealed partial class MetadataRefresher
         await CreditsAsync(book, CreditRole.Author, found.Authors, overwrite, ct).ConfigureAwait(false);
         await CreditsAsync(book, CreditRole.Narrator, found.Narrators, overwrite, ct).ConfigureAwait(false);
 
-        if (found.Series.Count > 0 && (overwrite || !await db.BookSeriesEntries.AnyAsync(e => e.BookId == book.Id, ct).ConfigureAwait(false)))
+        // A series the files named without a number takes the provider's, for the same series or when each has one.
+        var unnumbered = await db.BookSeriesEntries.Include(e => e.Series).Where(e => e.BookId == book.Id).ToListAsync(ct).ConfigureAwait(false);
+        if (!overwrite && found.Series.Count > 0 && unnumbered.Count > 0)
+        {
+            foreach (var entry in unnumbered.Where(e => e.Sequence is null))
+            {
+                var part = found.Series.FirstOrDefault(p => p.Sequence is not null && BookInfo.SameSeries(p.Name, entry.Series!.Name))
+                    ?? (unnumbered.Count == 1 && found.Series.Count == 1 ? found.Series[0] : null);
+                if (part?.Sequence is { } sequence)
+                {
+                    entry.Sequence = sequence;
+                    entry.SortOrder = BookAssembler.SequenceOrder(sequence);
+                }
+            }
+        }
+
+        if (found.Series.Count > 0 && (overwrite || unnumbered.Count == 0))
         {
             await db.BookSeriesEntries.Where(e => e.BookId == book.Id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
             foreach (var part in found.Series)

@@ -146,4 +146,23 @@ public sealed class BookLayoutTests
     {
         Assert.Equal(order, BookAssembler.SequenceOrder(sequence));
     }
+
+    [Theory]
+    [InlineData("TMC 03 The Bullet That Missed", "The Bullet That Missed", "3")]
+    [InlineData("The Last Devil To Die: Thursday Murder Club, Book 4", "The Last Devil To Die", "4")]
+    [InlineData("The Mountain Shadow: Shantaram, Book 2", "The Mountain Shadow", "2")]
+    [InlineData("Going Postal (Discworld, Book 33)", "Going Postal", "33")]
+    [InlineData("Sapiens: A Brief History of Humankind", "Sapiens: A Brief History of Humankind", null)]
+    [InlineData("The Book Thief", "The Book Thief", null)]
+    [InlineData("CIA 2020 Annual Report", "CIA 2020 Annual Report", null)]
+    public void ASeriesNumberInTheTitle_IsTakenOut(string title, string clean, string? sequence)
+    {
+        Assert.Equal((clean, sequence), BookTags.SplitSeriesNumber(title));
+    }
+
+    [Fact]
+    public void NamesLoseStraySpaces()
+    {
+        Assert.Equal(["Héctor García", "Francesc Miralles"], BookTags.Read(new Dictionary<string, string> { ["artist"] = "Héctor García, Francesc   Miralles" }, true).Authors);
+    }
 }

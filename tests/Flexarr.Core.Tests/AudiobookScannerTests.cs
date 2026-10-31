@@ -156,6 +156,30 @@ public sealed class AudiobookScannerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task FilesThatDisagreeOnTheirAlbum_LetTheFolderNameTheBook()
+    {
+        Touch("Alan Watts/Out of Your Mind/1-01 a.mp3", "Alan Watts/Out of Your Mind/2-01 b.mp3");
+        _probe.Tags["1-01 a.mp3"] = new() { ["album"] = "Out Of Your Mind: The Nature of Consciousness I" };
+        _probe.Tags["2-01 b.mp3"] = new() { ["album"] = "Out Of Your Mind: The Nature of Consciousness II" };
+
+        await ScanAsync();
+
+        Assert.Equal("Out of Your Mind", (await _db.MediaItems.SingleAsync()).Title);
+    }
+
+    [Fact]
+    public async Task ASeriesNumberInTheTitleTag_NumbersTheSeries()
+    {
+        Touch("Richard Osman/A Thursday Murder Club Mystery/The Bullet That Missed/TMC3.m4b");
+        _probe.Tags["TMC3.m4b"] = new() { ["album"] = "TMC 03 The Bullet That Missed" };
+
+        await ScanAsync();
+
+        Assert.Equal("The Bullet That Missed", (await _db.MediaItems.SingleAsync()).Title);
+        Assert.Equal("3", (await _db.BookSeriesEntries.SingleAsync()).Sequence);
+    }
+
+    [Fact]
     public async Task InABookOfManyFiles_TheTitleTagIsAChapter_NotTheBook()
     {
         Touch("Alan Watts/Out of Your Mind/1-01 Introduction.mp3", "Alan Watts/Out of Your Mind/1-02 Our Image.mp3");
