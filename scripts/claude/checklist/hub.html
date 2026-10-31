@@ -83,8 +83,9 @@ dialog button.go { background: var(--high); border-color: var(--high); color: #f
 /*COMMON_JS*/
 
 // Records in this page's db:
-//   pages/<slug>          written by Claude: {title, url, kind, branch, total, stage, registeredAt, updatedAt}
-//   ticks/<slug>--<id>    mirrored ticks, written by Claude: {done, note, at}
+//   pages/<slug>          written by Claude: {title, url, kind, branch, total, stage, registeredAt, updatedAt,
+//                         doneIds, syncedAt, lastTickAt}; doneIds = the page's done or dropped ids at the last /hub sync
+//   ticks/<slug>--<id>    live ticks since then, written by Claude as it ticks the page: {done, note, at}
 //   prefs/<slug>          written by this page: {pinned, archived, deleteMarked, deleted}
 const KINDS = ['brief', 'audit', 'review', 'plan', 'test list'];
 const STALE_MS = (DATA.staleDays || 3) * 86400000;
@@ -105,14 +106,17 @@ function ago(t) {
 
 function summarise(slug) {
   const p = pages[slug], pr = prefs[slug] || {};
-  let done = 0, last = Math.max(ts(p.updatedAt), ts(p.registeredAt));
+  // Done = the ids done at the last sync, plus live ticks since, minus anything unticked since.
+  const doneIds = new Set(Array.isArray(p.doneIds) ? p.doneIds : []);
+  let last = Math.max(ts(p.updatedAt), ts(p.registeredAt), ts(p.lastTickAt));
   for (const [key, t] of Object.entries(mirror)) {
     if (!key.startsWith(slug + '--')) continue;
-    if (t.done || (typeof t.note === 'string' && t.note.startsWith('dropped'))) done++;
+    const id = key.slice(slug.length + 2);
+    if (t.done || (typeof t.note === 'string' && t.note.startsWith('dropped'))) doneIds.add(id); else doneIds.delete(id);
     last = Math.max(last, ts(t.at));
   }
   const total = Number(p.total) || 0;
-  done = Math.min(done, total || done);
+  const done = Math.min(doneIds.size, total || doneIds.size);
   const landed = /^landed/i.test(p.stage || '');
   const open = total ? total - done : 0;
   const stale = !landed && !pr.archived && open > 0 && last && Date.now() - last > STALE_MS;
