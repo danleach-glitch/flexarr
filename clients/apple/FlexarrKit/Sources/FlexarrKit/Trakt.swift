@@ -191,7 +191,8 @@ extension FlexarrClient {
     }
 
     public func syncTraktNow() async throws {
-        _ = try await send("POST", "trakt/sync")
+        // The server syncs before answering (watchlist titles may need looking up), so this one waits longer.
+        _ = try await send("POST", "trakt/sync", timeout: 90)
     }
 }
 
