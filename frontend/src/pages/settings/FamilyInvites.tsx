@@ -26,7 +26,7 @@ import { describeGuest } from '../../lib/guests'
 import { deviceTypeName } from '../../lib/deviceTypes'
 import { Avatar } from '../../components/ProfilePicker'
 import { DeviceTypeIcon } from '../../components/DeviceTypeIcon'
-import { SettingRow, SettingsGroup, ToggleRow } from './shared'
+import { SettingsGroup, ToggleRow } from './shared'
 import { errorText } from './useSettings'
 
 const POLICY_URL = 'https://login.tailscale.com/admin/acls/file'
@@ -267,7 +267,7 @@ export function GuestsGroup({ onChange }: { onChange: () => void }) {
         <h3 className="settings-subhead">Guests</h3>
         {!naming && !adding && (
           <button type="button" className="button small" onClick={() => setNaming(true)}>
-            Invite someone
+            Add new guest
           </button>
         )}
       </div>
@@ -275,15 +275,14 @@ export function GuestsGroup({ onChange }: { onChange: () => void }) {
       {naming && (
         <form className="panel guest-card guest-add" ref={namingPanel} onSubmit={(e) => void invite(e)}>
           <div className="guest-add-head">
-            <label htmlFor="guest-new-name" className="guest-add-title">
-              Who are you inviting?
-            </label>
+            <span className="guest-add-title">New guest</span>
             <button type="button" className="button quiet small" onClick={() => setNaming(false)}>
               Cancel
             </button>
           </div>
           <div className="guest-add-step">
             <label className="field">
+              <span className="field-label">Name</span>
               <input
                 id="guest-new-name"
                 type="text"
@@ -294,7 +293,7 @@ export function GuestsGroup({ onChange }: { onChange: () => void }) {
                 autoComplete="off"
                 autoFocus
               />
-              <span className="field-help">Their name. They get a profile of their own, or the one they already have.</span>
+              <span className="field-help">They get a profile of their own, or the one they already have.</span>
             </label>
             <datalist id="guest-profiles">
               {others.map((p) => (
@@ -318,67 +317,69 @@ export function GuestsGroup({ onChange }: { onChange: () => void }) {
         </div>
       )}
       {people.map((person) => (
-        <div key={person.id} className="panel setting-rows guest-card guest-person">
-          <div className="guest-person-head">
-            <span className="guest-who">
-              <Avatar profile={{ name: person.name, color: person.color ?? guestProfiles.find((p) => p.id === person.id)?.color ?? '#a9c2ec' }} size={40} />
-              <span className="guest-who-text">
-                <strong className="guest-name">{person.name}</strong>
-                <span className="muted">{deviceCount(devices.data?.filter((d) => d.profileId === person.id).length ?? 0)}</span>
-              </span>
-            </span>
-            {adding !== person.id && (
-              <button type="button" className="button small" onClick={() => setAddingFor(person)}>
-                Add device
-              </button>
+        <div key={person.id} className="panel guest-card guest-person">
+          <span className="guest-who">
+            <Avatar profile={{ name: person.name, color: person.color ?? guestProfiles.find((p) => p.id === person.id)?.color ?? '#a9c2ec' }} size={40} />
+            <strong className="guest-name">{person.name}</strong>
+          </span>
+          <div className="guest-devices">
+            {devices.data
+              ?.filter((d) => d.profileId === person.id)
+              .map((d) => (
+                <div key={d.id} className="guest-device">
+                  <span className="sign-in-icon">
+                    <DeviceTypeIcon type={d.deviceType} />
+                  </span>
+                  <span className="setting-text">
+                    <strong>
+                      {deviceLabel(d, person.name)}
+                      {joined.includes(d.id) && <span className="guest-new-tag">New</span>}
+                    </strong>
+                    <span className="muted">{describeGuest(d, false)}</span>
+                  </span>
+                  <AsyncButton className="button quiet small" aria-label={`Remove ${d.name}`} onClick={() => remove(d)}>
+                    Remove
+                  </AsyncButton>
+                </div>
+              ))}
+            {waiting.data
+              ?.filter((w) => w.profileId === person.id && adding !== person.id)
+              .map((w) => (
+                <div key={w.id} className="guest-device">
+                  <span className="sign-in-icon guest-waiting-icon">
+                    <span className="guest-spinner" aria-hidden="true" />
+                  </span>
+                  <span className="setting-text">
+                    <strong>{w.via === 'TvCode' ? 'Joining' : 'Invite link, not used yet'}</strong>
+                    <span className="muted">
+                      Works until {new Date(w.expiresAt).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })}
+                    </span>
+                  </span>
+                  <AsyncButton className="button quiet small" aria-label={`Cancel the invite for ${person.name}`} onClick={() => cancel(w.id)}>
+                    Cancel
+                  </AsyncButton>
+                </div>
+              ))}
+            {adding === person.id ? (
+              <AddDevice
+                name={person.name}
+                profileId={person.id}
+                devices={devices.data?.filter((d) => d.profileId === person.id) ?? []}
+                onClose={() => setAddingFor(undefined)}
+                onChange={refresh}
+                onJoined={(deviceId) => {
+                  setJoined((ids) => [...ids, deviceId])
+                  setAddingFor(undefined)
+                }}
+              />
+            ) : (
+              <div className="guest-device guest-add-row">
+                <button type="button" className="text-button" onClick={() => setAddingFor(person)}>
+                  + Add device
+                </button>
+              </div>
             )}
           </div>
-          {adding === person.id && (
-            <AddDevice
-              name={person.name}
-              profileId={person.id}
-              devices={devices.data?.filter((d) => d.profileId === person.id) ?? []}
-              onClose={() => setAddingFor(undefined)}
-              onChange={refresh}
-              onJoined={(deviceId) => {
-                setJoined((ids) => [...ids, deviceId])
-                setAddingFor(undefined)
-              }}
-            />
-          )}
-          {devices.data
-            ?.filter((d) => d.profileId === person.id)
-            .map((d) => (
-              <div key={d.id} className="guest-device">
-                <span className="sign-in-icon">
-                  <DeviceTypeIcon type={d.deviceType} />
-                </span>
-                <span className="setting-text">
-                  <strong>
-                    {deviceLabel(d, person.name)}
-                    {joined.includes(d.id) && <span className="guest-new-tag">New</span>}
-                  </strong>
-                  <span className="muted">{describeGuest(d, false)}</span>
-                </span>
-                <AsyncButton className="button quiet small" aria-label={`Remove ${d.name}`} onClick={() => remove(d)}>
-                  Remove
-                </AsyncButton>
-              </div>
-            ))}
-          {waiting.data
-            ?.filter((w) => w.profileId === person.id && adding !== person.id)
-            .map((w) => (
-              <SettingRow
-                key={w.id}
-                as="div"
-                label={w.via === 'TvCode' ? 'TV, joining' : 'Invite link, not used yet'}
-                help={`Works until ${new Date(w.expiresAt).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })}`}
-              >
-                <AsyncButton className="button quiet small" aria-label={`Cancel the invite for ${person.name}`} onClick={() => cancel(w.id)}>
-                  Cancel
-                </AsyncButton>
-              </SettingRow>
-            ))}
         </div>
       ))}
       </div>
@@ -394,8 +395,6 @@ export function GuestsGroup({ onChange }: { onChange: () => void }) {
 }
 
 type AddPhase = 'code' | 'link' | 'waiting'
-
-const deviceCount = (n: number) => (n === 0 ? 'No devices yet' : n === 1 ? '1 device' : `${n} devices`)
 
 /** What the device is ("iPhone"), already being in its person's card; its full name when its app hasn't said. */
 const deviceLabel = (device: GuestDevice, person: string) => {

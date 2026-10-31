@@ -2753,21 +2753,29 @@
   padding: 0;
 }
 
-/* A guest's card: who (picture, name, how many devices) over their devices, each a smaller row with its icon. */
+/* A guest's card: who on the left; their devices on the right, a row each, with Add device as the last row. */
+.guest-card.guest-person {
+  display: grid;
+  grid-template-columns: minmax(140px, 200px) 1fr;
+  gap: 4px 20px;
+  align-items: start;
+  padding: 4px 20px;
+}
+
 .guest-who {
   display: inline-flex;
   align-items: center;
   gap: 12px;
-}
-
-.guest-who-text {
-  display: grid;
-  gap: 1px;
-  font-size: var(--step--1);
+  padding: 14px 0;
 }
 
 .guest-name {
   font-size: var(--step-1, 1.15rem);
+}
+
+.guest-devices {
+  display: grid;
+  min-width: 0;
 }
 
 .guest-device {
@@ -2775,15 +2783,38 @@
   align-items: center;
   gap: 12px;
   padding: 12px 0;
-  border-top: 1px solid var(--aisle);
   font-size: var(--step--1);
 }
 
-.guest-person-head + .guest-device {
-  margin-top: 10px;
+.guest-device + .guest-device,
+.guest-device + .guest-add {
+  border-top: 1px solid var(--aisle);
 }
 
 .guest-device .setting-text {
   flex: 1 1 auto;
   min-width: 0;
+}
+
+.guest-add-row {
+  padding: 14px 0;
+}
+
+.guest-waiting-icon .guest-spinner {
+  width: 14px;
+  height: 14px;
+}
+
+.guest-person .guest-add {
+  padding: 14px 0 16px;
+}
+
+@media (max-width: 640px) {
+  .guest-card.guest-person {
+    grid-template-columns: 1fr;
+  }
+
+  .guest-who {
+    padding-bottom: 0;
+  }
 }

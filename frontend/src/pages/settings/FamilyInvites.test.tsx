@@ -132,13 +132,12 @@ describe('Settings › Access › Family invites', () => {
 
     // Gran has a device; Aunt Sue, with a profile but no devices yet, is suggested by name; the main profile never is.
     expect(await screen.findByText('iPad')).toBeVisible()
-    expect(screen.getByText('1 device')).toBeVisible()
-    fireEvent.click(screen.getByRole('button', { name: 'Invite someone' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add new guest' }))
     const suggestions = document.querySelectorAll('#guest-profiles option')
     expect(Array.from(suggestions).map((o) => o.getAttribute('value'))).toEqual(['Aunt Sue'])
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
 
-    fireEvent.click(screen.getByRole('button', { name: 'Add device' }))
+    fireEvent.click(screen.getByRole('button', { name: '+ Add device' }))
     const connect = screen.getByRole('button', { name: 'Connect' })
     expect(connect).toBeDisabled()
     fireEvent.change(screen.getByLabelText('Type the code their device shows'), { target: { value: 'abcd-efgh' } })
@@ -169,7 +168,7 @@ describe('Settings › Access › Family invites', () => {
     })
     render(<FamilyInvites />)
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Add device' }))
+    fireEvent.click(await screen.findByRole('button', { name: '+ Add device' }))
     fireEvent.click(screen.getByRole('button', { name: 'No code? Send a link instead' }))
     expect(await screen.findByText('https://flexarr.io/join#abc')).toBeVisible()
     expect(link).toEqual({ name: null, profileId: 'gran' })
@@ -216,8 +215,8 @@ describe('Settings › Access › Family invites', () => {
     })
     render(<FamilyInvites />)
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Invite someone' }))
-    fireEvent.change(screen.getByLabelText('Who are you inviting?'), { target: { value: ' Dad ' } })
+    fireEvent.click(await screen.findByRole('button', { name: 'Add new guest' }))
+    fireEvent.change(screen.getByLabelText(/^Name/), { target: { value: ' Dad ' } })
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
 
     await waitFor(() => expect(made).toMatchObject({ name: 'Dad' }))
