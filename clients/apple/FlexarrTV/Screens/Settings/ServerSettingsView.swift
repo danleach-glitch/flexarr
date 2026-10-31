@@ -11,7 +11,16 @@ struct ServerSettingsView: View {
     var body: some View {
         SettingsPage(title: "Server", summary: summary) {
             SettingsGroupLabel("Connection")
+            if let guest = model.credentials?.guest {
+                // A family guest: no address to show, just whose server, and a way to leave it.
+                SettingsFact("Connected by invite", "\(guest.ownerName)’s Flexarr")
+                SettingsRow(title: "Leave", symbol: "rectangle.portrait.and.arrow.right",
+                            help: "Sign this Apple TV out. Joining again takes a new code.") {
+                    model.signOut()
+                }
+            } else {
             SettingsFact("Address", address(model.credentials?.address))
+            }
             if let remote = model.credentials?.remoteAddress {
                 SettingsFact("Away from home", address(remote))
                 SettingsFact("Connected", model.client?.addresses.isAway == true ? "Away, over Tailscale" : "At home")

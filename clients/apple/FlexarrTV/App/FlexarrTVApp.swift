@@ -65,7 +65,8 @@ struct RootView: View {
         .task(id: model.credentials?.address) { await model.loadProfiles() }
         // Top Shelf follows whoever's signed in here; after watching, its Continue Watching is refreshed.
         .task(id: model.credentials) {
-            SharedSignIn.save(model.credentials.map { SharedSignIn.Value(address: $0.address, apiKey: $0.apiKey, profileToken: $0.profileToken) })
+            // A family guest's Top Shelf stays empty: the extension runs apart from the app, so it can't reach the tunnel.
+            SharedSignIn.save(model.credentials.flatMap { $0.isGuest ? nil : SharedSignIn.Value(address: $0.address, apiKey: $0.apiKey, profileToken: $0.profileToken) })
             TVTopShelfContentProvider.topShelfContentDidChange()
         }
         .onChange(of: model.refreshToken) { TVTopShelfContentProvider.topShelfContentDidChange() }
