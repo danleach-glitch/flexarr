@@ -16,7 +16,7 @@ import io.github.flexarr.ui.theme.Flexarr
 
 
 /**
- * "Join Dan's Flexarr as Gran?": a family invite from a link, a paste or a scan, asked about before anything happens
+ * "Join Dan’s Flexarr?" (as Gran): a family invite from a link, a paste or a scan, asked about before anything happens
  * (a link could have come from any app or web page). Over every screen, signed in or not; not for one that came to
  * the code this device showed, which that screen asks about.
  */
@@ -33,33 +33,38 @@ fun InviteDialog(model: AppModel) {
     }
     // One that came to the code this device showed is asked about on that screen.
     val invite = model.offeredInvite?.takeIf { !model.inviteFromCode } ?: return
+    val owner = invite.ownerName
     val problem = model.joinProblem
-    val body: (@Composable () -> Unit)? = when {
-        model.joining -> {
-            {
+    val notNow: @Composable () -> Unit = { TextButton(onClick = model::dismissInvite) { Text("Not now", color = Flexarr.screen) } }
+    when {
+        model.joining -> AlertDialog(
+            onDismissRequest = {},
+            text = {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                     CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = Flexarr.usher)
-                    Text("Joining…")
+                    Text("Joining $owner’s Flexarr…")
                 }
-            }
-        }
-        problem != null -> {
-            { Text(problem) }
-        }
-        else -> null
+            },
+            confirmButton = {},
+            containerColor = Flexarr.seat,
+        )
+        // Try again only when it could work (the host couldn't be reached).
+        problem != null -> AlertDialog(
+            onDismissRequest = model::dismissInvite,
+            text = { Text(problem) },
+            confirmButton = {
+                if (model.joinCanRetry) TextButton(onClick = model::confirmInvite) { Text("Try again", color = Flexarr.screen) } else notNow()
+            },
+            dismissButton = if (model.joinCanRetry) notNow else null,
+            containerColor = Flexarr.seat,
+        )
+        else -> AlertDialog(
+            onDismissRequest = model::dismissInvite,
+            title = { Text("Join $owner’s Flexarr?") },
+            text = { Text("You’ll watch as ${invite.profileName}.") },
+            confirmButton = { TextButton(onClick = model::confirmInvite) { Text("Join", color = Flexarr.screen) } },
+            dismissButton = notNow,
+            containerColor = Flexarr.seat,
+        )
     }
-    AlertDialog(
-        onDismissRequest = model::dismissInvite,
-        title = { Text("Join ${invite.ownerName}’s Flexarr as ${invite.profileName}?") },
-        text = body,
-        confirmButton = {
-            TextButton(onClick = model::confirmInvite, enabled = !model.joining) {
-                Text(if (problem != null) "Try again" else "Join", color = Flexarr.screen)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = model::dismissInvite, enabled = !model.joining) { Text("Cancel", color = Flexarr.screen) }
-        },
-        containerColor = Flexarr.seat,
-    )
 }

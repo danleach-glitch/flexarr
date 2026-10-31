@@ -45,6 +45,7 @@ import io.github.flexarr.widget.WatchlistWidget
 import io.github.flexarr.data.ServerCredentials
 import io.github.flexarr.data.GuestTunnelInfo
 import io.github.flexarr.core.GuestInvite
+import io.github.flexarr.core.GuestJoinProblem
 import io.github.flexarr.core.guestJoinProblem
 import io.github.flexarr.core.redeemInvite
 import io.github.flexarr.guest.GuestTunnel
@@ -525,6 +526,10 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     var joinProblem: String? by mutableStateOf(null)
         private set
 
+    /** Trying [joinProblem]'s invite again could work (it couldn't reach the host): Try again is offered only then. */
+    var joinCanRetry by mutableStateOf(false)
+        private set
+
     /** "Join": joins with [offeredInvite], in the app's own scope, so it finishes whatever the screens do meanwhile. */
     fun confirmInvite() {
         val invite = offeredInvite ?: return
@@ -538,8 +543,12 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
                 inviteFromCode = false
             } catch (e: CancellationException) {
                 throw e
+            } catch (e: GuestJoinException) {
+                joinProblem = e.message
+                joinCanRetry = e.canRetry
             } catch (e: Exception) {
-                joinProblem = e.message ?: "That didn’t work. Try again."
+                joinProblem = "That didn’t work."
+                joinCanRetry = true
             } finally {
                 joining = false
             }
@@ -1134,4 +1143,6 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
 internal fun isSwitch(current: String?, chosen: String): Boolean = current != null && current != chosen
 
 /** Joining with an invite didn't work; the message says why, for the guest. */
-class GuestJoinException(message: String) : Exception(message)
+class GuestJoinException(problem: GuestJoinProblem) : Exception(problem.message) {
+    val canRetry = problem.canRetry
+}

@@ -555,8 +555,9 @@ private fun PhoneGuestCode(model: AppModel, onBack: () -> Unit) {
                 joinProblem != null -> {
                     ErrorNote(joinProblem)
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        ActionButton("Try again", onClick = model::confirmInvite, prominent = true)
-                        ActionButton("New code", onClick = model::dismissInvite)
+                    // Try again only when it could work (the host couldn't be reached); otherwise a new code for a new invite.
+                        if (model.joinCanRetry) ActionButton("Try again", onClick = model::confirmInvite, prominent = true)
+                        ActionButton("New code", onClick = model::dismissInvite, prominent = !model.joinCanRetry)
                     }
                 }
                 // Asked first: anyone who heard the code could have sent theirs.

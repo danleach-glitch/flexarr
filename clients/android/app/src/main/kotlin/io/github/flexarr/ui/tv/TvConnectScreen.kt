@@ -194,14 +194,15 @@ private fun GuestCode(model: AppModel, onBack: () -> Unit) {
     val newCode = remember { FocusRequester() }
     val invite = model.offeredInvite?.takeIf { model.inviteFromCode }
     val joinProblem = model.joinProblem
-    // On Join when an invite arrives (one click for whoever's holding the remote), on Try again after a problem.
+    // On Join when an invite arrives (one click for whoever's holding the remote), on Try again (or New code, when
+    // trying again can't work) after a problem.
     val asking = invite != null && joinProblem == null && !model.joining
-    LaunchedEffect(asking, joinProblem != null, guest.stopped, code == null && problem != null) {
+    LaunchedEffect(asking, joinProblem != null, model.joinCanRetry, guest.stopped, code == null && problem != null) {
         runCatching {
             when {
                 asking -> join.requestFocus()
                 guest.stopped && invite == null -> newCode.requestFocus()
-                invite != null && joinProblem != null -> retry.requestFocus()
+                invite != null && joinProblem != null -> if (model.joinCanRetry) retry.requestFocus() else newCode.requestFocus()
                 invite == null && code == null && problem != null -> retry.requestFocus()
                 else -> back.requestFocus()
             }
@@ -219,8 +220,10 @@ private fun GuestCode(model: AppModel, onBack: () -> Unit) {
                 joinProblem != null -> {
                     ErrorNote(joinProblem)
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        TvActionButton("Try again", onClick = model::confirmInvite, prominent = true, modifier = Modifier.focusRequester(retry))
-                        TvActionButton("New code", onClick = model::dismissInvite)
+                        if (model.joinCanRetry) TvActionButton("Try again", onClick = model::confirmInvite, prominent = true, modifier = Modifier.focusRequester(retry))
+                        TvActionButton("New code", onClick = model::dismissInvite, prominent = !model.joinCanRetry,
+                            modifier = if (model.joinCanRetry) Modifier else Modifier.focusRequester(newCode))
+                    // Try again only when it could work (the host couldn't be reached); otherwise a new code for a new invite.
                     }
                 }
                 // Asked first: anyone who heard the code could have sent theirs.

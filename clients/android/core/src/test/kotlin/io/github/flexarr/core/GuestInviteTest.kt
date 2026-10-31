@@ -82,11 +82,15 @@ class GuestInviteTest {
     }
 
     @Test
-    fun `says why joining didn't work, and whom to ask`() {
-        assertEquals("This invite has run out or been used. Ask Dan for a new one.", guestJoinProblem(FlexarrException.Http(410, null), "Dan"))
-        assertTrue(guestJoinProblem(FlexarrException.Http(503, null), "Dan").contains("paused"))
-        assertTrue(guestJoinProblem(IOException(), "Dan", keyRefused = true).contains("run out"))
-        assertTrue(guestJoinProblem(FlexarrException.Unreachable(IOException()), "Dan").startsWith("Couldn’t reach Dan’s"))
+    fun `says why joining didn't work, and whether trying again could`() {
+        val used = GuestJoinProblem("That invite has run out or been used.", canRetry = false)
+        assertEquals(used, guestJoinProblem(FlexarrException.Http(410, null), "Dan"))
+        assertEquals(used, guestJoinProblem(IOException(), "Dan", keyRefused = true))
+        assertEquals(GuestJoinProblem("Dan’s Flexarr isn’t taking guests just now.", canRetry = false), guestJoinProblem(FlexarrException.Http(503, null), "Dan"))
+        assertEquals(
+            GuestJoinProblem("Can’t reach Dan’s Flexarr. Check this device’s internet.", canRetry = true),
+            guestJoinProblem(FlexarrException.Unreachable(IOException()), "Dan"),
+        )
     }
 
     @Test

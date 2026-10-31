@@ -146,13 +146,18 @@ internal data class RedeemInviteRequest(val token: String)
 suspend fun FlexarrClient.redeemInvite(token: String): RedeemedInvite =
     sendDecoding<RedeemInviteRequest, RedeemedInvite>("POST", "invites/redeem", RedeemInviteRequest(token))
 
-/** Why joining with an invite didn't work, said for the guest: short, and saying whom to ask. */
-fun guestJoinProblem(error: Throwable, ownerName: String, keyRefused: Boolean = false): String = when {
-    keyRefused -> "This invite has run out or been used. Ask $ownerName for a new one."
-    error is FlexarrException.Http && error.status == 410 -> "This invite has run out or been used. Ask $ownerName for a new one."
-    error is FlexarrException.Http && error.status == 503 -> "Invites are paused on $ownerName’s Flexarr. Ask them to check it."
-    error is FlexarrException.Http && (error.status == 403 || error.status == 404) -> "This invite didn’t work. Ask $ownerName for a new one."
-    else -> "Couldn’t reach $ownerName’s Flexarr. Check your internet and try again."
+/** Why joining with an invite didn't work, said for the guest, and whether trying the same invite again could work. */
+data class GuestJoinProblem(val message: String, val canRetry: Boolean)
+
+/**
+ * Why joining with an invite didn't work: short, and the same words as the Apple apps. Only not reaching the host is
+ * worth trying again; the rest need a new invite.
+ */
+fun guestJoinProblem(error: Throwable, ownerName: String, keyRefused: Boolean = false): GuestJoinProblem = when {
+    keyRefused || (error is FlexarrException.Http && error.status == 410) -> GuestJoinProblem("That invite has run out or been used.", canRetry = false)
+    error is FlexarrException.Http && error.status == 503 -> GuestJoinProblem("$ownerName’s Flexarr isn’t taking guests just now.", canRetry = false)
+    error is FlexarrException.Http && (error.status == 403 || error.status == 404) -> GuestJoinProblem("This invite didn’t work. Ask $ownerName for a new one.", canRetry = false)
+    else -> GuestJoinProblem("Can’t reach $ownerName’s Flexarr. Check this device’s internet.", canRetry = true)
 }
 
 /**
