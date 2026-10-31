@@ -151,6 +151,41 @@ public class GuestPolicyTests
     }
 
     [Theory]
+    [InlineData("""{"src":["*"],"dst":["192.168.1.0/24"],"ip":["*"]}""", "grants")]
+    [InlineData("""{"src":["*"],"dst":["autogroup:internet"],"ip":["*"]}""", "grants")]
+    [InlineData("""{"src":["tag:flexarr-guest"],"dst":["flexarr"],"ip":["tcp:8989"]}""", "grants")]
+    [InlineData("""{"src":["tag:flexarr-guest"],"dst":["flexarr"],"ip":["*"]}""", "grants")]
+    public async Task A_rule_letting_guests_reach_more_than_flexarr_is_caught_without_tailscale_testing_it(string grant, string where)
+    {
+        var (policy, fake, _, _) = Make();
+        using var _ = policy;
+        fake.Policy = Policy($$"""{"hosts":{"flexarr":"100.64.0.1"},"grants":[{"src":["tag:flexarr-guest"],"dst":["flexarr"],"ip":["tcp:8383"]},{{grant}}]}""");
+
+        var check = await policy.CheckAsync(CancellationToken.None);
+
+        Assert.False(check.Safe);
+        Assert.Contains(check.Problems, p => p.StartsWith(where, StringComparison.Ordinal));
+        Assert.DoesNotContain(fake.Calls, c => c.Path.EndsWith("/validate", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void The_snippet_its_relay_grant_and_rules_for_members_pass_the_rule_check()
+    {
+        var policy = Policy("""
+            {"hosts":{"flexarr":"100.64.0.1"},
+             "acls":[{"action":"accept","src":["autogroup:member"],"dst":["*:*"]},{"action":"accept","src":["tag:flexarr-guest"],"dst":["flexarr:8383"]}],
+             "grants":[{"src":["tag:flexarr-guest"],"dst":["flexarr"],"ip":["tcp:8383"]},{"src":["tag:flexarr-guest"],"dst":["flexarr"],"app":{"tailscale.com/cap/relay":[]}}],
+             "ssh":[{"action":"check","src":["autogroup:member"],"dst":["autogroup:self"],"users":["autogroup:nonroot"]}]}
+            """);
+
+        Assert.Empty(GuestPolicy.Widening(policy, "tag:flexarr-guest", "100.64.0.1", 8383));
+        policy["acls"]!.AsArray().Add(JsonNode.Parse("""{"action":"accept","src":["*"],"dst":["*:*"]}"""));
+        Assert.Single(GuestPolicy.Widening(policy, "tag:flexarr-guest", "100.64.0.1", 8383));
+    }
+
+    private static JsonObject Policy(string json) => (JsonObject)JsonNode.Parse(json)!;
+
+    [Theory]
     [InlineData("timeout")]
     [InlineData("html")]
     public async Task A_slow_or_strange_answer_from_Tailscale_is_not_safe_and_never_throws(string broken)

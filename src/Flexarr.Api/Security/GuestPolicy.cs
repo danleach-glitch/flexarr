@@ -21,8 +21,15 @@ public sealed record GuestPolicyCheck(bool Safe, IReadOnlyList<string> Problems,
 public sealed partial class GuestPolicy(TailscaleApi api, ITailnet tailnet, IOptionsMonitor<FlexarrOptions> options, IServer server, TimeProvider clock,
     ILogger<GuestPolicy> logger) : IDisposable
 {
-    /// <summary>This server's other ports a guest must not reach: SSH, file sharing, screen sharing, Tailscale's HTTPS.</summary>
-    private static readonly int[] OtherServerPorts = [22, 445, 5900, TailscaleService.Port];
+    /// <summary>
+    /// This server's other ports a guest must not reach: SSH, file sharing, screen sharing, Tailscale's HTTPS, and the
+    /// usual homes of what runs beside Flexarr (Sonarr, Radarr, Lidarr, Prowlarr, Seerr, Bazarr, qBittorrent, SABnzbd,
+    /// Plex, Home Assistant).
+    /// </summary>
+    private static readonly int[] OtherServerPorts = [22, 80, 443, 445, 5900, TailscaleService.Port, 8989, 7878, 8686, 9696, 5055, 6767, 8080, 8090, 32400, 8123];
+
+    /// <summary>Sources that take in a guest device whatever the rest of the rule says.</summary>
+    private static readonly string[] SourcesForEveryone = ["*", "autogroup:danger-all", "0.0.0.0/0", "::/0", "100.64.0.0/10", "fd7a:115c:a1e0::/48"];
 
     /// <summary>Ports checked on each other device.</summary>
     private static readonly int[] OtherDevicePorts = [22, 80, 443];
@@ -102,6 +109,14 @@ public sealed partial class GuestPolicy(TailscaleApi api, ITailnet tailnet, IOpt
             return Unsafe($"Couldn't reach Tailscale ({ex.Message}).");
         }
 
+        // Tailscale's tests can only try a few addresses; reading the rules themselves catches the rest (a subnet
+        // router, an exit node, another port on this server).
+        if (Widening(policy, settings.Tag, self, FlexarrPort) is { Count: > 0 } widening)
+        {
+            return new GuestPolicyCheck(false, ["Guests could reach more than Flexarr. Narrow these rules so they leave guests out (use autogroup:member, not \"*\"):", .. widening.Take(5)], now,
+                Validated: true);
+        }
+
         var others = snapshot.Peers
             .Where(p => p.Address is not null && !p.Tags.Contains(settings.Tag, StringComparer.OrdinalIgnoreCase))
             .OrderByDescending(p => p.Online).ThenByDescending(p => p.LastSeen)
@@ -157,6 +172,84 @@ public sealed partial class GuestPolicy(TailscaleApi api, ITailnet tailnet, IOpt
             ["deny"] = deny,
         });
     }
+
+    /// <summary>
+    /// The rules in <paramref name="policy"/> that let a guest reach anything but Flexarr's port on this server,
+    /// described for the owner. Only the snippet's own grants (Flexarr's port, and the faster relay) are allowed.
+    /// </summary>
+    internal static List<string> Widening(JsonObject policy, string tag, string self, int flexarrPort)
+    {
+        ArgumentNullException.ThrowIfNull(policy);
+        var port = flexarrPort.ToString(CultureInfo.InvariantCulture);
+        // Names this server goes by: its address, and any host alias for it ("flexarr" in the snippet).
+        var server = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { self, $"{self}/32" };
+        if (policy["hosts"] is JsonObject hosts)
+        {
+            foreach (var (name, value) in hosts)
+            {
+                if (value?.ToString() is { } address && server.Contains(address))
+                {
+                    server.Add(name);
+                }
+            }
+        }
+
+        bool TakesGuests(JsonNode? src) => Strings(src).Any(s => s.Equals(tag, StringComparison.OrdinalIgnoreCase)
+            || SourcesForEveryone.Contains(s, StringComparer.OrdinalIgnoreCase));
+
+        var found = new List<string>();
+        foreach (var rule in (policy["acls"] as JsonArray ?? []).OfType<JsonObject>())
+        {
+            if (rule["action"]?.ToString() is { } action && !action.Equals("accept", StringComparison.OrdinalIgnoreCase) || !TakesGuests(rule["src"]))
+            {
+                continue;
+            }
+
+            // "flexarr:8383" is fine; anything else ("*:*", "192.168.1.0/24:*", "flexarr:*") isn't.
+            var wider = Strings(rule["dst"]).Where(d => !(d.LastIndexOf(':') is var colon and > 0 && server.Contains(d[..colon]) && d[(colon + 1)..] == port)).ToList();
+            if (wider.Count > 0)
+            {
+                found.Add($"acls: {Describe(rule["src"])} → {string.Join(", ", wider)}");
+            }
+        }
+
+        foreach (var rule in (policy["grants"] as JsonArray ?? []).OfType<JsonObject>())
+        {
+            if (!TakesGuests(rule["src"]))
+            {
+                continue;
+            }
+
+            var dst = Strings(rule["dst"]).ToList();
+            var toServerOnly = dst.Count > 0 && dst.All(server.Contains);
+            var ip = Strings(rule["ip"]).ToList();
+            // Flexarr's port alone, or (the faster relay) no network access at all, only the relay capability.
+            var portOnly = ip.All(i => i == port || i.Equals($"tcp:{port}", StringComparison.OrdinalIgnoreCase));
+            if (!toServerOnly || !portOnly)
+            {
+                found.Add($"grants: {Describe(rule["src"])} → {string.Join(", ", dst)}{(ip.Count > 0 ? $" ({string.Join(", ", ip)})" : "")}");
+            }
+        }
+
+        foreach (var rule in (policy["ssh"] as JsonArray ?? []).OfType<JsonObject>())
+        {
+            if (TakesGuests(rule["src"]))
+            {
+                found.Add($"ssh: {Describe(rule["src"])} → {Describe(rule["dst"])}");
+            }
+        }
+
+        return found;
+    }
+
+    private static IEnumerable<string> Strings(JsonNode? node) => node switch
+    {
+        JsonArray array => array.Select(n => n?.ToString()).OfType<string>(),
+        JsonValue value when value.ToString() is { } one => [one],
+        _ => [],
+    };
+
+    private static string Describe(JsonNode? node) => string.Join(", ", Strings(node));
 
     private static string Summary(IReadOnlyList<string> problems, string tag) =>
         problems.Any(p => p.Contains("want: Drop", StringComparison.OrdinalIgnoreCase) || p.Contains("got: Accept", StringComparison.OrdinalIgnoreCase))
