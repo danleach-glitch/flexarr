@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { renderSVG } from 'uqr'
 import {
   cancelGuestInvite,
+  createProfile,
   checkGuestPolicy,
   createGuestInvite,
   getGuestDevices,
@@ -18,6 +19,7 @@ import {
 import { AsyncButton } from '../../components/AsyncButton'
 import { CopyButton } from '../../components/CopyButton'
 import { useApi } from '../../hooks/useApi'
+import { freeColour } from '../../lib/profileColours'
 import { usePolling } from '../../hooks/usePolling'
 import { describeGuest } from '../../lib/guests'
 import { SettingRow, SettingsGroup, ToggleRow } from './shared'
@@ -194,6 +196,7 @@ export function GuestsGroup({ onChange }: { onChange: () => void }) {
   const [adding, setAdding] = useState<string>()
   const [removed, setRemoved] = useState<GuestDevice>()
   const [newPerson, setNewPerson] = useState('')
+  const [inviteError, setInviteError] = useState<string>()
 
   const refresh = () => {
     devices.reload()
@@ -220,17 +223,27 @@ export function GuestsGroup({ onChange }: { onChange: () => void }) {
     refresh()
   }
 
-  if (profiles.data && guestProfiles.length === 0)
-    return (
-      <SettingsGroup title="Guests">
-        <p className="muted">Give each guest a profile of their own first, in Profiles. They watch as that profile and nothing else.</p>
-      </SettingsGroup>
-    )
+  /** Invite someone by name: their profile if they have one (not the main profile), else a new one made here. */
+  async function invite(e: FormEvent) {
+    e.preventDefault()
+    const name = newPerson.trim()
+    if (!name) return
+    setInviteError(undefined)
+    try {
+      const existing = guestProfiles.find((p) => p.name.trim().toLowerCase() === name.toLowerCase())
+      const profile = existing ?? (await createProfile({ name, color: freeColour(profiles.data ?? []) }))
+      if (!existing) profiles.reload()
+      setAdding(profile.id)
+      setNewPerson('')
+    } catch (err) {
+      setInviteError(errorText(err))
+    }
+  }
 
   return (
     <SettingsGroup
       title="Guests"
-      note="Each device joins with its own invite, which works once and lasts 3 days. Slow relay means their network and yours can’t connect directly: Flexarr lowers their quality to fit."
+      note="Each guest gets a profile of their own, made here, which they watch as and can’t leave. Each device joins with its own code or link, which works once and lasts 3 days."
     >
       {people.map((person) => (
         <div key={person.id} className="guest-person">
@@ -274,28 +287,32 @@ export function GuestsGroup({ onChange }: { onChange: () => void }) {
           <a href={removed.tailscaleAdminUrl}>Tailscale’s Machines</a>.
         </p>
       )}
-      {others.length > 0 && !adding && (
-        <div className="guest-new">
-          <select id="guest-new-profile" aria-label="Who to invite" value={newPerson} onChange={(e) => setNewPerson(e.target.value)}>
-            <option value="">Invite someone…</option>
+      {!adding && (
+        <form className="guest-new" onSubmit={(e) => void invite(e)}>
+          <input
+            id="guest-new-name"
+            aria-label="Their name"
+            placeholder="Their name, e.g. Dad"
+            value={newPerson}
+            onChange={(e) => setNewPerson(e.target.value)}
+            list="guest-profiles"
+            maxLength={40}
+            autoComplete="off"
+          />
+          <datalist id="guest-profiles">
             {others.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
+              <option key={p.id} value={p.name} />
             ))}
-          </select>
-          <button
-            type="button"
-            className="button small"
-            disabled={!newPerson}
-            onClick={() => {
-              setAdding(newPerson)
-              setNewPerson('')
-            }}
-          >
-            Invite
-          </button>
-        </div>
+          </datalist>
+          <AsyncButton type="submit" className="button small" disabled={!newPerson.trim()}>
+            Invite someone
+          </AsyncButton>
+        </form>
+      )}
+      {inviteError && (
+        <p className="error" role="alert">
+          {inviteError}
+        </p>
       )}
     </SettingsGroup>
   )

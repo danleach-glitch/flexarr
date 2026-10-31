@@ -134,10 +134,10 @@ describe('Settings › Access › Family invites', () => {
     })
     render(<FamilyInvites />)
 
-    // Gran has a device; Aunt Sue is offered to invite; the main profile never is.
+    // Gran has a device; Aunt Sue, with a profile but no devices yet, is suggested by name; the main profile never is.
     expect(await screen.findByText('Gran’s iPad')).toBeVisible()
-    const who = screen.getByLabelText<HTMLSelectElement>('Who to invite')
-    expect(Array.from(who.options).map((o) => o.text)).toEqual(['Invite someone…', 'Aunt Sue'])
+    const suggestions = document.querySelectorAll('#guest-profiles option')
+    expect(Array.from(suggestions).map((o) => o.getAttribute('value'))).toEqual(['Aunt Sue'])
 
     // Any device's code: phone, tablet or TV alike.
     fireEvent.click(screen.getByRole('button', { name: 'Add device' }))
@@ -173,6 +173,26 @@ describe('Settings › Access › Family invites', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Remove Gran’s iPad' }))
     expect(await screen.findByText(/can’t reach Flexarr any more/)).toBeVisible()
     expect(screen.getByRole('link', { name: 'Tailscale’s Machines' })).toHaveAttribute('href', 'https://login.tailscale.com/admin/machines')
+  })
+
+  it('invites someone new by name, making their profile here', async () => {
+    let made: unknown
+    mockApi({
+      '/remote/guests': setup({ clientId: 'abc', hasClient: true, check: safe }),
+      '/profiles': [main],
+      '/remote/guests/invites': [],
+      '/remote/guests/devices': [],
+      'POST /profiles': (init?: RequestInit) => {
+        made = JSON.parse(String(init?.body))
+        return { ...gran, id: 'dad', name: 'Dad' }
+      },
+    })
+    render(<FamilyInvites />)
+
+    fireEvent.change(await screen.findByLabelText('Their name'), { target: { value: ' Dad ' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Invite someone' }))
+
+    await waitFor(() => expect(made).toMatchObject({ name: 'Dad' }))
   })
 
   it('names each connection plainly', () => {

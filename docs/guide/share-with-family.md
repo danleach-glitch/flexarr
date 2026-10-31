@@ -34,7 +34,7 @@ Flexarr checks your policy again every hour. If it's ever changed so guests coul
 
 ## Invite someone
 
-Give them a profile of their own first, in [Profiles](profiles.md). Then under **Guests** in **Settings › Access**, choose them and **Add device**.
+Under **Guests** in **Settings › Access**, type their name ("Dad") and choose **Invite someone**. Flexarr makes them a profile of their own, which they watch as and can't leave. You can set its age limit or hidden libraries later in [Profiles](profiles.md). Someone who already has a profile, type their name and it's used.
 
 1. On their phone, tablet or Apple TV, they install Flexarr, open it and choose **Invited by someone?**. It shows a code like `H42K-FM5W`.
 2. They read it to you over the phone, or send it.
