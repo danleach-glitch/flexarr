@@ -56,11 +56,17 @@ final class GuestTunnel: @unchecked Sendable {
         // start while the first is connecting would stop it, and two nodes can't share the state folder.
         let task: Task<URL, Error> = lock.withLock {
             if let starting, startingTarget == info.target { return starting }
-            if let running, running.target == info.target, status()?.state == "running",
+            // Cheap (never waits on the Go side), so asking each time the app comes to the front costs nothing.
+            if let running, running.target == info.target, Self.state() == "running",
                let url = URL(string: "http://127.0.0.1:\(running.port)") {
                 return Task { url }
             }
-            let made = Task.detached(priority: .userInitiated) { [self] in try startBlocking(info, authKey: authKey) }
+            // After any stop still under way, so it can't stop this one.
+            let stopping = self.stopping
+            let made = Task.detached(priority: .userInitiated) { [self] in
+                await stopping?.value
+                return try startBlocking(info, authKey: authKey)
+            }
             starting = made
             startingTarget = info.target
             return made
@@ -77,8 +83,12 @@ final class GuestTunnel: @unchecked Sendable {
     private var startingTarget: String?
 
     private func startBlocking(_ info: GuestTunnelInfo, authKey: String?) throws -> URL {
-        let folder = Self.stateFolder
+        var folder = Self.stateFolder
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        // Once the folder is there (the first time, it isn't until now).
+        var values = URLResourceValues()
+        values.isExcludedFromBackup = true
+        try? folder.setResourceValues(values)
         Self.restoreIdentity(into: folder)
         FlexarrTunnelSetPreferredPort(Int32(Self.preferredPort))
         let port = folder.path.withCString { dir in
@@ -94,7 +104,7 @@ final class GuestTunnel: @unchecked Sendable {
         guard port > 0 else {
             let why = Self.take(FlexarrTunnelLastError()) ?? "unknown error"
             log.warning("The tunnel didn't start: \(why)")
-            if status()?.state == "needs-login" { throw Failure.needsInvite }
+            if Self.state() == "needs-login" { throw Failure.needsInvite }
             throw Failure.failed(why)
         }
         Self.saveIdentity(from: folder)
@@ -102,19 +112,45 @@ final class GuestTunnel: @unchecked Sendable {
         return URL(string: "http://127.0.0.1:\(port)")!
     }
 
-    /// How it's going: running, and whether directly or through a relay.
+    /// How it's going: running, and whether directly or through a relay. Asks the Go side, which can take a moment:
+    /// call it off the main thread (`connectionPath`).
     func status() -> Status? {
         guard let text = Self.take(FlexarrTunnelStatus()) else { return nil }
         return try? JSONDecoder().decode(Status.self, from: Data(text.utf8))
     }
 
-    /// Stops the tunnel. `forget` also deletes this device's identity on the host's tailnet (leaving it).
-    func stop(forget: Bool = false) {
-        FlexarrTunnelStop()
-        lock.withLock { running = nil }
-        if forget {
-            try? FileManager.default.removeItem(at: Self.stateFolder)
-            Self.deleteIdentity()
+    /// How the tunnel reaches the host now ("direct", "peer-relay", "derp"), asked off the main thread.
+    func connectionPath() async -> String? {
+        await Task.detached(priority: .utility) { [self] in status()?.path }.value
+    }
+
+    /// "running", "starting", "stopped", "needs-login" or "error": never waits.
+    static func state() -> String? {
+        take(FlexarrTunnelState())
+    }
+
+    private var stopping: Task<Void, Never>?
+
+    /// Stops the tunnel, off the main thread (the Go side waits for the node to close). `forget` also deletes this
+    /// device's identity on the host's tailnet (leaving it). A start made after this waits for it; await the task
+    /// returned to know it's done.
+    @discardableResult
+    func stop(forget: Bool = false) -> Task<Void, Never> {
+        lock.withLock {
+            running = nil
+            starting = nil
+            startingTarget = nil
+            let previous = stopping
+            let task = Task.detached(priority: .userInitiated) {
+                await previous?.value
+                FlexarrTunnelStop()
+                if forget {
+                    try? FileManager.default.removeItem(at: Self.stateFolder)
+                    Self.deleteIdentity()
+                }
+            }
+            stopping = task
+            return task
         }
     }
 
@@ -126,11 +162,7 @@ final class GuestTunnel: @unchecked Sendable {
         #else
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         #endif
-        var folder = base.appendingPathComponent("Tailscale", isDirectory: true)
-        var values = URLResourceValues()
-        values.isExcludedFromBackup = true
-        try? folder.setResourceValues(values)
-        return folder
+        return base.appendingPathComponent("Tailscale", isDirectory: true)
     }
 
     /// The same loopback port every launch, chosen once, so addresses kept from the last launch (artwork in the

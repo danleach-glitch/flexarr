@@ -7,6 +7,8 @@ struct ServerSettingsView: View {
     @State private var error: String?
 
     @State private var confirmLeave = false
+    /// A guest's tunnel right now (see `connection`), asked off the main thread.
+    @State private var path: String?
 
     var body: some View {
         List {
@@ -70,7 +72,7 @@ struct ServerSettingsView: View {
 
     /// A guest's tunnel right now: straight to the host's server, or through a relay.
     private var connection: String {
-        switch GuestTunnel.shared.status()?.path {
+        switch path {
         case "direct": "Direct"
         case "peer-relay": "Through the server’s relay"
         case "derp": "Through a relay (slower)"
@@ -109,6 +111,7 @@ struct ServerSettingsView: View {
     }
 
     private func load() async {
+        if model.credentials?.isGuest == true { path = await GuestTunnel.shared.connectionPath() }
         guard let client = model.client else { return }
         do {
             status = try await client.systemStatus()
