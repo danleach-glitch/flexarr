@@ -416,15 +416,29 @@ public static partial class ProfileEndpoints
             if (current.AsksPinFor(profile) || pinGiven && (profile.PinHash is not null || hasAdminPin))
             {
                 var (callers, browser) = PinCaller(http, current);
-                // One check for whichever PIN may choose it, so the admin PIN isn't counted as a wrong guess at the
-                // profile's own. Guesses at the main profile count with the admin PIN's: either one opens it.
-                Func<bool> check = adminPinOnly
-                    ? () => profile.CheckAdminPin(request.Pin)
-                    : hasAdminPin
-                        ? () => profile.PinHash is not null && profile.CheckPin(request.Pin) || profile.CheckAdminPin(request.Pin)
-                        : () => profile.CheckPin(request.Pin);
+                // Each PIN is counted on its own, so a right one never clears the other's wrong guesses: knowing the main
+                // profile's own PIN mustn't buy fresh tries at the admin PIN. Its own first; if that's wrong, the admin
+                // PIN, and when that's right the wrong guess it caused at the own PIN is taken back, so choosing the
+                // main profile with the admin PIN again and again never locks anyone out.
                 // Someone who may already manage the server could change the PIN anyway, so others' guesses don't hold them up.
-                var (result, retryAfter) = await guard.CheckAsync(hasAdminPin ? PinGuard.AdminKey : profile.Id, callers, check, ct, mayManage: current.IsAdmin, browser);
+                var result = PinCheck.Wrong;
+                var retryAfter = TimeSpan.Zero;
+                var ownTried = !adminPinOnly && profile.PinHash is not null;
+                if (ownTried)
+                {
+                    (result, retryAfter) = await guard.CheckAsync(profile.Id, callers, () => profile.CheckPin(request.Pin), ct, mayManage: current.IsAdmin, browser);
+                }
+
+                if (result == PinCheck.Wrong && hasAdminPin)
+                {
+                    (result, retryAfter) = await guard.CheckAsync(PinGuard.AdminKey, callers, () => profile.CheckAdminPin(request.Pin), ct, mayManage: current.IsAdmin,
+                        browser);
+                    if (result == PinCheck.Right && ownTried)
+                    {
+                        guard.Forgive(profile.Id, callers, current.IsAdmin);
+                    }
+                }
+
                 if (result == PinCheck.LockedOut)
                 {
                     return TooManyPins(http, retryAfter);

@@ -187,4 +187,31 @@ public class MainProfileChoiceTests
         Assert.Equal(HttpStatusCode.Conflict, oldWay.StatusCode);
         Assert.False(profiles.EnumerateArray().Single(p => p.GetProperty("isMain").GetBoolean()).GetProperty("hasPin").GetBoolean());
     }
+
+    [Fact]
+    public async Task TheMainProfilesOwnPin_DoesntWipeWrongGuessesAtTheAdminPin()
+    {
+        using var server = new FlexarrApiFactory();
+        await SetUpAsync(server.Services);
+        var admin = server.CreateClient();
+        admin.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+        var token = (await (await admin.PostAsJsonAsync(Api("/session/device"), new { deviceName = "Family TV" })).Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("token").GetString();
+        var tv = server.CreateClient();
+        tv.DefaultRequestHeaders.Add("X-Api-Key", token);
+        await tv.PostAsJsonAsync(Api("/admin/lock"), new { });
+
+        // Three wrong guesses, the own PIN in between, then one more: the fourth wrong one locks it out all the same.
+        for (var i = 0; i < 3; i++)
+        {
+            await tv.PostAsJsonAsync(Api("/admin/unlock"), new { pin = $"000{i}" });
+        }
+
+        var ownPin = await ChooseMainAsync(tv, OwnPin);
+        await tv.PostAsJsonAsync(Api("/admin/unlock"), new { pin = "0003" });
+        var rightAfter = await tv.PostAsJsonAsync(Api("/admin/unlock"), new { pin = AdminPin });
+
+        Assert.Equal(HttpStatusCode.OK, ownPin.StatusCode);
+        Assert.Equal(HttpStatusCode.TooManyRequests, rightAfter.StatusCode);
+    }
 }

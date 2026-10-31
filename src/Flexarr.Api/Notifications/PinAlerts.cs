@@ -27,7 +27,7 @@ public sealed partial class PinAlerts(IServiceScopeFactory scopes, SignIns signI
         ArgumentNullException.ThrowIfNull(guard);
         guard.CallerLockedOut += (profileId, callers) =>
         {
-            if (profileId != PinGuard.AdminKey)
+            if (profileId != PinGuard.AdminKey && profileId != PlaybackState.DefaultUser)
             {
                 return;
             }

@@ -143,6 +143,29 @@ public sealed class PinGuard(TimeProvider clock)
         }
     }
 
+    /// <summary>
+    /// Takes back the wrong guess just counted at <paramref name="profileId"/> from these callers: the PIN they gave
+    /// was the right one for another check (the admin PIN, given to choose the main profile).
+    /// </summary>
+    public void Forgive(string profileId, IReadOnlyList<string> callers, bool mayManage)
+    {
+        ArgumentNullException.ThrowIfNull(callers);
+        foreach (var key in callers.Select(c => $"caller:{profileId}|{c}").Append(mayManage ? $"managers:{profileId}" : $"profile:{profileId}"))
+        {
+            if (_strikes.TryGetValue(key, out var strikes))
+            {
+                lock (strikes)
+                {
+                    strikes.Count = Math.Max(0, strikes.Count - 1);
+                    if (strikes.Count < FreeAttempts)
+                    {
+                        strikes.LockedUntil = default;
+                    }
+                }
+            }
+        }
+    }
+
     /// <summary>Notes that a browser gave the admin PIN. When the list is full, the one longest unseen goes.</summary>
     private void Remember(string browser, DateTime now)
     {
