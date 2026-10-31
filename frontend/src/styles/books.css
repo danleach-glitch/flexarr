@@ -43,6 +43,160 @@
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
 }
 
+/* ---------- Audiobooks: a book's page ---------- */
+
+.book-page {
+  padding-bottom: 48px;
+}
+
+.book-page .music-header h1 {
+  font-size: clamp(var(--step-4), 4vw, 4rem);
+}
+
+.book-series-link {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-bottom: 10px;
+  font-weight: 600;
+}
+
+.book-series-link a,
+.book-people a {
+  color: var(--screen);
+  text-decoration: none;
+}
+
+.book-series-link a:hover,
+.book-people a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.book-subtitle {
+  margin-top: 8px;
+  font-size: var(--step-1);
+  color: color-mix(in srgb, var(--screen) 78%, transparent);
+}
+
+.book-people {
+  margin-top: 8px;
+}
+
+.book-page .facts {
+  margin-top: 12px;
+}
+
+.book-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 40px;
+  align-items: start;
+  margin-bottom: 40px;
+}
+
+.book-body > :only-child {
+  grid-column: 1 / -1;
+  max-width: 900px;
+}
+
+.book-about .detail-overview-block {
+  max-width: 44rem;
+}
+
+.book-edition {
+  margin-top: 12px;
+}
+
+.book-chapters h2 {
+  margin-bottom: 8px;
+  font-size: var(--step-1);
+  font-weight: 700;
+}
+
+.book-chapters .track-title {
+  position: relative;
+  padding-bottom: 6px;
+}
+
+/* How far through the chapter playing: a thin line under its title. */
+.chapter-progress {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--ambient);
+}
+
+.track.done .track-title {
+  color: var(--usher);
+}
+
+.track.done .track-number svg {
+  color: var(--usher);
+}
+
+.book-rows {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 36px;
+  margin: 0 calc(-1 * var(--edge));
+}
+
+.book-rows .row-header {
+  padding: 0 var(--edge);
+}
+
+.book-bookmarks {
+  list-style: none;
+  max-width: 900px;
+  margin: -16px 0 40px;
+  padding: 0;
+}
+
+.book-bookmark {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  border-radius: var(--radius-control);
+}
+
+.book-bookmark:hover,
+.book-bookmark:focus-within {
+  background: var(--seat);
+}
+
+.book-bookmark-jump {
+  display: grid;
+  grid-template-columns: 5.5rem minmax(0, 1fr);
+  gap: 16px;
+  align-items: baseline;
+  padding: 10px 12px;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.book-bookmark-time {
+  color: var(--usher);
+  font-variant-numeric: tabular-nums;
+}
+
+.book-bookmark-text {
+  display: flex;
+  flex-direction: column;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 900px) {
+  .book-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 /* A series' first covers fanned behind one another, each smaller and dimmer than the one in front. */
 .book-stack {
   position: relative;

@@ -11,6 +11,8 @@ import type {
   ArrFolder,
   ArrKind,
   ArrStatus,
+  BookListening,
+  Bookmark,
   BookPerson,
   BookSeries,
   BookSeriesSummary,
@@ -496,6 +498,20 @@ export const getBookSeriesList = (libraryId: string, options: { search?: string;
 export const getBookPeople = (libraryId: string, options: { role: 'author' | 'narrator'; search?: string; skip?: number; take?: number }, signal?: AbortSignal) =>
   cachedGet<Paged<BookPerson>>(`/libraries/${libraryId}/book-people${queryString(options)}`, signal)
 export const getBookSeries = (id: string, signal?: AbortSignal) => cachedGet<BookSeries>(`/book-series/${id}`, signal)
+/** "Listen again": back to the start, no longer finished (when it was finished is kept). */
+export const listenAgain = (id: string) => request<void>('POST', `/items/${id}/listen-again`)
+export const getBookmarks = (id: string, signal?: AbortSignal) => apiGet<Bookmark[]>(`/items/${id}/bookmarks`, signal)
+export const addBookmark = (id: string, positionSeconds: number, note?: string) => request<Bookmark>('POST', `/items/${id}/bookmarks`, { positionSeconds, note })
+export const saveBookmarkNote = (bookmarkId: string, note: string | null) => request<Bookmark>('PUT', `/bookmarks/${bookmarkId}`, { note })
+export const deleteBookmark = (bookmarkId: string) => request<void>('DELETE', `/bookmarks/${bookmarkId}`)
+/** Settings › Audiobooks: default speed, skip steps and smart rewind. */
+export const BOOK_LISTENING_CHANGED = 'flexarr:book-listening'
+export const getBookListening = (signal?: AbortSignal) => cachedGet<BookListening>('/books/listening', signal)
+export async function saveBookListening(changes: Partial<BookListening>) {
+  const saved = await request<BookListening>('PUT', '/books/listening', changes)
+  window.dispatchEvent(new Event(BOOK_LISTENING_CHANGED))
+  return saved
+}
 
 /** A library's genres, biggest first; `backdrop` (from one of its titles) is absent from servers before 0.54. */
 export const getLibraryGenres = (id: string, signal?: AbortSignal) =>

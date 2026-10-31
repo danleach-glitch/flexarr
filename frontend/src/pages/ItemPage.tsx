@@ -33,6 +33,7 @@ import { useAgeLimits, useSession } from '../hooks/sessionContext'
 import { announceWatched } from '../hooks/watched'
 import { useApi } from '../hooks/useApi'
 import { AlbumPage, ArtistPage } from './MusicPages'
+import { BookPage } from './BookPage'
 import {
   episodeHeading,
   formatBitrate,
@@ -63,6 +64,7 @@ export function ItemPage() {
   }
   if (data.item.kind === 'Album') return <AlbumPage detail={data} />
   if (data.item.kind === 'Artist') return <ArtistPage detail={data} />
+  if (data.item.kind === 'Audiobook') return <BookPage key={id} detail={data} onChange={() => setVersion((v) => v + 1)} />
 
   return <Detail key={id} detail={data} onChange={() => setVersion((v) => v + 1)} />
 }
