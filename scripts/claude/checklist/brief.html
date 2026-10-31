@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TITLE}}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/*CSS*/
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div class="eyebrow">Flexarr · brief</div>
+  <h1 id="title"></h1>
+  <div class="meta" id="meta"></div>
+  <div class="brief"><span class="label">The brief</span><blockquote id="brief"></blockquote></div>
+  <p class="lede" id="summary"></p>
+  <p class="rule"><b>Rule:</b> nothing is built until you say go. Then Claude builds the list in order, commits after each item and ticks it here with the commit in the note. Items marked <span class="you">You</span> are yours.</p>
+  <div class="decisions-head">Key decisions</div>
+  <ul class="decisions" id="decisions"></ul>
+  <div class="progress">
+    <div><span class="big" id="p-done">0</span> <span style="color:var(--muted)">of <span id="p-total">0</span> done</span></div>
+    <div class="bar"><div id="p-bar"></div></div>
+    <div class="areas" id="p-areas"></div>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;align-items:center">
+      <span class="sync" id="p-sync"></span>
+      <div class="filters" id="filter"><button type="button" aria-pressed="true" data-h="0">All</button><button type="button" aria-pressed="false" data-h="1">Hide done</button></div>
+    </div>
+  </div>
+</header>
+<main id="main"></main>
+<footer id="footer"></footer>
+</div>
+<script id="data" type="application/json">/*DATA*/</script>
+<script>
+/*COMMON_JS*/
+
+// A phase has items, or groups of items: {name, intro?, items?, groups?: [{name, items}]}.
+const PHASES = DATA.phases.map((p, i) => ({ ...p, anchor: 'phase-' + (i + 1), groups: p.groups || [{ name: '', items: p.items || [] }] }));
+for (const p of PHASES) p.ids = p.groups.flatMap(g => g.items.map(i => i.id));
+const ALL = PHASES.flatMap(p => p.ids);
+
+function itemLines(item) {
+  return [item.detail && md(item.detail),
+    item.files && `<span class="files">${esc(item.files)}</span>`,
+    item.check && `Check: ${md(item.check)}`];
+}
+
+function renderStatic() {
+  $('title').textContent = DATA.title;
+  $('brief').innerHTML = md(DATA.brief);
+  $('summary').innerHTML = md(DATA.summary);
+  $('meta').innerHTML = [
+    '<span class="stage" id="stage"></span>',
+    DATA.branch ? `<span>Branch <code>${esc(DATA.branch)}</code></span>` : '<span>No branch yet</span>',
+    DATA.plan && `<span>Plan <code>${esc(DATA.plan)}</code></span>`,
+    `<span>${esc(DATA.date)}</span>`,
+    `<span>${esc(DATA.kind)}</span>`,
+  ].filter(Boolean).join('');
+  $('decisions').innerHTML = (DATA.decided || []).map(d => `<li>${md(d)}</li>`).join('');
+
+  const copy = (item) => `Build ${item.id} from the ${DATA.title}${DATA.branch ? ' on ' + DATA.branch : ''}: ${plain(item.title)}`;
+  let html = PHASES.map(p => sectionHtml(p.anchor, p.name,
+    p.groups.map(g => `${g.name ? `<h3>${md(g.name)}</h3>` : '<div style="height:10px"></div>'}<ul class="items">${
+      g.items.map(i => rowHtml(i, { lines: itemLines(i), copyText: copy(i) })).join('')}</ul>`).join(''),
+    { intro: p.intro, count: '' })).join('');
+  if (DATA.parity) html += parityHtml(DATA.parity);
+  if ((DATA.defaults || []).length) html += sectionHtml('defaults', 'Defaults I picked', listHtml(DATA.defaults), { intro: 'Choices the code, the rules or common sense answered, so you weren’t asked.' });
+  if ((DATA.later || []).length) html += sectionHtml('later', 'Later', listHtml(DATA.later), { intro: 'Ideas not picked for this branch, so nothing is forgotten.' });
+  if ((DATA.risks || []).length) html += sectionHtml('risks', 'Risks', listHtml(DATA.risks));
+  $('main').innerHTML = html;
+  $('footer').innerHTML = md(DATA.footer || 'Ticks live in the db collection `checks`: doc id = item id, `{done: true, note: "<short hash>"}`.');
+}
+
+function render() {
+  paintRows();
+  for (const p of PHASES) {
+    const c = document.querySelector(`[data-count="${p.anchor}"]`);
+    if (c) c.textContent = `${p.ids.filter(isResolved).length} of ${p.ids.length} done`;
+  }
+  const done = setProgress(ALL, PHASES.map(p => ({ name: p.name.replace(/^Phase \d+ · /, ''), anchor: p.anchor, ids: p.ids })));
+  if (!DATA.branch && done === 0) setStage({ label: 'Waiting for go', kind: 'waiting' });
+  else if (done < ALL.length) setStage({ label: 'Building', kind: 'building' });
+  else setStage({ label: 'Built', kind: 'done', note: 'next: /preview and /audit' });
+}
+
+renderStatic();
+wireControls(render);
+render();
+loadTicks(render);
+</script>
+</body>
+</html>

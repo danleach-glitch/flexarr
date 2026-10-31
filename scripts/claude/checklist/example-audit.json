@@ -1,0 +1,161 @@
+{
+ "title": "Sleep Timer Audit",
+ "branch": "feat/sleep-timer",
+ "commit": "1a2b3c4d",
+ "date": "2 November 2026",
+ "summary": "A sleep timer in every player that fades out and pauses after 15, 30 or 60 minutes or at the end of the episode, remembered per profile on the server.",
+ "history": [
+  {
+   "date": "2 Nov 2026",
+   "commit": "1a2b3c4d",
+   "text": "First audit."
+  },
+  {
+   "date": "3 Nov 2026",
+   "commit": "5e6f7a8b",
+   "text": "Follow-up: ticked bug-1 and ux-1, added perf-1."
+  }
+ ],
+ "mustFix": [
+  {
+   "ids": [
+    "bug-1"
+   ],
+   "title": "End of episode stops on the next episode instead",
+   "why": "wrong pause point"
+  },
+  {
+   "ids": [
+    "compat-1",
+    "land-1"
+   ],
+   "title": "Older apps and the changelog"
+  }
+ ],
+ "sections": {
+  "bug": {
+   "items": [
+    {
+     "id": "bug-1",
+     "sev": "High",
+     "title": "End of episode stops after autoplay has started the next one",
+     "where": "frontend/src/player/SleepTimer.tsx:48",
+     "what": "The timer listens for `ended`, but autoplay starts the next episode first, so it pauses 2 seconds into it.",
+     "fix": "Check the timer before autoplay picks the next item.",
+     "verified": "confirmed",
+     "shots": [
+      {
+       "src": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzOTAiIGhlaWdodD0iMjQwIj48cmVjdCB3aWR0aD0iMzkwIiBoZWlnaHQ9IjI0MCIgZmlsbD0iIzFiMjAzMCIvPjxyZWN0IHg9IjI0IiB5PSIyNCIgd2lkdGg9IjE2MCIgaGVpZ2h0PSIxNiIgcng9IjQiIGZpbGw9IiM4ZWE2ZmYiLz48cmVjdCB4PSIyNCIgeT0iNTYiIHdpZHRoPSIzNDIiIGhlaWdodD0iMTIwIiByeD0iOCIgZmlsbD0iIzJhMzE0MiIvPjx0ZXh0IHg9IjE5NSIgeT0iMjE0IiBmaWxsPSIjOTlhMmIzIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+c2NyZWVuc2hvdCBwbGFjZWhvbGRlcjwvdGV4dD48L3N2Zz4=",
+       "caption": "Paused on the next episode"
+      }
+     ]
+    },
+    {
+     "id": "bug-2",
+     "sev": "Low",
+     "title": "Countdown drifts while the tab is in the background",
+     "where": "frontend/src/player/SleepTimer.tsx:21",
+     "what": "Uses setInterval ticks rather than an end time.",
+     "fix": "Store the end time and compute what's left.",
+     "verified": "uncertain"
+    }
+   ],
+   "doneWell": [
+    "The fade uses the player's own volume, so the user's volume comes back after."
+   ]
+  },
+  "perf": {
+   "items": [
+    {
+     "id": "perf-1",
+     "sev": "Info",
+     "title": "Settings are fetched again on every player open",
+     "where": "frontend/src/player/usePlayerSettings.ts:12",
+     "what": "Already in the profile query cache.",
+     "fix": "Read from the cache."
+    }
+   ]
+  },
+  "compat": {
+   "items": [
+    {
+     "id": "compat-1",
+     "sev": "Medium",
+     "title": "New field not optional in FlexarrKit",
+     "where": "clients/apple/FlexarrKit/Sources/Models/ProfileSettings.swift:30",
+     "what": "Decoding fails against a 0.56 server.",
+     "fix": "`public var sleepTimer: SleepTimer? = nil`, noted “Absent from servers before 0.57”.",
+     "verified": "confirmed"
+    }
+   ]
+  },
+  "ux": {
+   "items": [
+    {
+     "id": "ux-1",
+     "sev": "Medium",
+     "title": "Timer button has no VoiceOver label",
+     "where": "clients/apple/FlexarriOS/Player/SleepTimerButton.swift:14",
+     "what": "Reads as “moon”.",
+     "fix": "Label it “Sleep timer, 30 minutes left”."
+    }
+   ]
+  },
+  "land": {
+   "items": [
+    {
+     "id": "land-1",
+     "sev": "Medium",
+     "title": "No changelog entry",
+     "where": "CHANGELOG.md",
+     "fix": "Add one under Unreleased."
+    }
+   ]
+  },
+  "idea": {
+   "items": [
+    {
+     "id": "idea-1",
+     "sev": "S",
+     "title": "Shake to extend by 15 minutes on iPhone",
+     "what": "Audiobook apps do this; easy with the motion API."
+    },
+    {
+     "id": "idea-2",
+     "sev": "M",
+     "title": "Sleep timer from Home Assistant",
+     "what": "A service call, for bedtime automations."
+    }
+   ]
+  }
+ },
+ "parity": {
+  "rows": [
+   {
+    "mark": "✅",
+    "client": "Web",
+    "what": "Done"
+   },
+   {
+    "mark": "🟡",
+    "client": "Apple TV",
+    "what": "Options menu only, no countdown"
+   },
+   {
+    "mark": "❌",
+    "client": "Android",
+    "what": "Missing"
+   }
+  ],
+  "legend": "✅ done · 🟡 partly · ❌ missing"
+ },
+ "screenshots": {
+  "intro": "Web only; the simulators weren't started for this example.",
+  "items": [
+   {
+    "src": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzOTAiIGhlaWdodD0iMjQwIj48cmVjdCB3aWR0aD0iMzkwIiBoZWlnaHQ9IjI0MCIgZmlsbD0iIzFiMjAzMCIvPjxyZWN0IHg9IjI0IiB5PSIyNCIgd2lkdGg9IjE2MCIgaGVpZ2h0PSIxNiIgcng9IjQiIGZpbGw9IiM4ZWE2ZmYiLz48cmVjdCB4PSIyNCIgeT0iNTYiIHdpZHRoPSIzNDIiIGhlaWdodD0iMTIwIiByeD0iOCIgZmlsbD0iIzJhMzE0MiIvPjx0ZXh0IHg9IjE5NSIgeT0iMjE0IiBmaWxsPSIjOTlhMmIzIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+c2NyZWVuc2hvdCBwbGFjZWhvbGRlcjwvdGV4dD48L3N2Zz4=",
+    "caption": "Web player with the timer menu open"
+   }
+  ]
+ }
+}
