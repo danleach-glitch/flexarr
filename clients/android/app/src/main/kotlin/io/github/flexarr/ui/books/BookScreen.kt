@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.ArrowCircleDown
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.outlined.CheckCircle
@@ -221,7 +222,11 @@ private fun BookPage(model: AppModel, detail: ItemDetail, defaultSpeed: Double, 
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    icon = if (finished) Icons.Filled.Replay else Icons.Filled.PlayArrow,
+                    icon = when {
+                        playingThis && player.isPlaying -> Icons.Filled.Pause
+                        finished -> Icons.Filled.Replay
+                        else -> Icons.Filled.PlayArrow
+                    },
                     prominent = true,
                     ambient = glowColor(item.accentColor),
                 )

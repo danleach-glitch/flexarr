@@ -96,7 +96,7 @@ class BookPlayer(private val context: Context, private val model: AppModel) {
             override fun seekToPrevious() = previousChapter()
             override fun seekToPreviousMediaItem() = previousChapter()
 
-            override fun getDuration(): Long = chapterSpan()?.let { ((it.second - it.first) * 1000).toLong() } ?: (duration * 1000).toLong()
+            override fun getDuration(): Long = chapterSpan()?.let { ((it.second - it.first) * 1000).toLong() } ?: (this@BookPlayer.duration * 1000).toLong()
             override fun getContentDuration(): Long = getDuration()
             override fun getCurrentPosition(): Long = ((timelinePosition() - (chapterSpan()?.first ?: 0.0)) * 1000).toLong().coerceAtLeast(0)
             override fun getContentPosition(): Long = getCurrentPosition()

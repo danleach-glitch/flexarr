@@ -316,7 +316,7 @@ private fun Step(icon: ImageVector, label: String, enabled: Boolean = true, onCl
 @Composable
 private fun Scrubber(player: BookPlayer, chapters: List<BookChapter>, scrubbing: Double?, onScrub: (Double?) -> Unit) {
     val context = LocalContext.current
-    var wholeBook by remember { mutableStateOf(chapters.isEmpty()) }
+    var wholeBook by remember(chapters.isEmpty()) { mutableStateOf(chapters.isEmpty()) }
     val shown = scrubbing ?: player.position
     val chapterIndex = chapters.chapterAt(shown)
     val span = if (!wholeBook && chapterIndex != null) {
