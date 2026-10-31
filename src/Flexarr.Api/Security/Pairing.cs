@@ -357,12 +357,19 @@ public static class PairingEndpoints
     public static RouteGroupBuilder MapPairingDeviceEndpoints(this RouteGroupBuilder api)
     {
         var group = api.MapGroup("/pairing").WithTags("Pairing").AllowAnonymous();
-        group.MapPost("/", (PairingStartRequest request, HttpContext http, Pairings pairings, PairingAlerts alerts, IOptionsMonitor<FlexarrOptions> options) =>
+        group.MapPost("/", async (PairingStartRequest request, HttpContext http, Pairings pairings, PairingAlerts alerts, IOptionsMonitor<FlexarrOptions> options,
+            ITailnetWhois whois) =>
         {
             var zone = NetworkZones.Of(http);
             if (zone == NetworkZone.Internet || !NetworkZones.AddressedToKnownHost(http, options.CurrentValue.KnownHosts))
             {
                 return Results.Problem("A device can only connect with a code from your home network or over Tailscale. Use the API key instead.", statusCode: 403);
+            }
+
+            // A family guest's device joins with its invite, never with a code it could ask the household to approve.
+            if (zone == NetworkZone.Tailnet && await GuestDevices.AddressOfAsync(http, whois, options.CurrentValue.RemoteGuests) is not null)
+            {
+                return Results.Problem("Guests join with an invite from the server's owner.", statusCode: 403);
             }
 
             if (Pairings.UnfitName(request.DeviceName))

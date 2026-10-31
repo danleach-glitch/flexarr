@@ -219,4 +219,74 @@ public class RemoteGuestTests(RemoteGuestFactory factory) : IClassFixture<Remote
             factory.Services.GetRequiredService<GuestPolicy>().Forget();
         }
     }
+
+    /// <summary>Invites a guest to a new profile and redeems it from the guest device; returns the profile and the device's key.</summary>
+    private async Task<(string Profile, string ApiKey)> JoinAsync(string name)
+    {
+        var profile = await factory.AddProfileAsync(name);
+        var (_, payload) = await InviteAsync(profile, $"{name}'s iPad");
+        var redeemed = await RedeemAsync(RemoteGuestFactory.Guest, payload.T);
+        Assert.Equal(HttpStatusCode.OK, redeemed.StatusCode);
+        return (profile, (await redeemed.Content.ReadFromJsonAsync<RedeemedInviteDto>(Web))!.ApiKey);
+    }
+
+    [Fact]
+    public async Task A_guest_stays_on_its_profile_and_never_manages_the_server()
+    {
+        var (gran, key) = await JoinAsync("Gran7");
+        var other = await factory.AddProfileAsync("Someone else");
+        using var guest = factory.From(RemoteGuestFactory.Guest, key);
+
+        var me = await guest.GetFromJsonAsync<JsonElement>("/api/v1/me");
+        Assert.False(me.GetProperty("isAdmin").GetBoolean());
+        Assert.False(me.GetProperty("canUnlock").GetBoolean());
+
+        var profiles = await guest.GetFromJsonAsync<List<JsonElement>>("/api/v1/profiles");
+        Assert.Equal([gran], profiles!.Select(p => p.GetProperty("id").GetString()));
+
+        Assert.Equal(HttpStatusCode.Forbidden, (await guest.PostAsJsonAsync($"/api/v1/profiles/{other}/select", new { })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await guest.PostAsJsonAsync($"/api/v1/profiles/{PlaybackState.DefaultUser}/select", new { })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await guest.PostAsJsonAsync("/api/v1/profiles/kids-lock", new { })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await guest.GetAsync("/api/v1/remote/guests/invites")).StatusCode);
+    }
+
+    [Fact]
+    public async Task A_guest_token_only_works_from_its_own_device()
+    {
+        var (_, key) = await JoinAsync("Gran8");
+
+        using var elsewhere = factory.From("192.168.1.50", key);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await elsewhere.GetAsync("/api/v1/me")).StatusCode);
+        using var otherTailnet = factory.From(RemoteGuestFactory.Owner, key);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await otherTailnet.GetAsync("/api/v1/me")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Guests_and_the_household_never_see_each_others_devices()
+    {
+        var (_, key) = await JoinAsync("Gran9");
+        using var guest = factory.From(RemoteGuestFactory.Guest, key);
+        Assert.Empty((await guest.GetFromJsonAsync<List<JsonElement>>("/api/v1/devices"))!);
+
+        using var admin = factory.Admin();
+        var devices = await admin.GetFromJsonAsync<List<JsonElement>>("/api/v1/devices");
+        Assert.DoesNotContain(devices!, d => d.GetProperty("name").GetString() == "Gran9's iPad");
+    }
+
+    [Fact]
+    public async Task A_guest_device_cant_ask_for_a_pairing_code()
+    {
+        using var guest = factory.From(RemoteGuestFactory.Guest);
+        var response = await guest.PostAsJsonAsync("/api/v1/pairing", new { deviceName = "Sneaky TV" });
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Tagged_devices_cant_be_linked_to_a_profile()
+    {
+        var gran = await factory.AddProfileAsync("Gran10");
+        using var admin = factory.Admin();
+        var response = await admin.PostAsJsonAsync("/api/v1/remote/tailscale/links", new { login = "tagged-devices", profileId = gran });
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
 }

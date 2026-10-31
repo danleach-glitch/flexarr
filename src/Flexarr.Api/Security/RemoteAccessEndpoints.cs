@@ -84,6 +84,12 @@ public static class RemoteAccessEndpoints
         group.MapPost("/tailscale/links", async (TailscaleLinkRequest request, HttpContext http, TailscaleService tailscale, FlexarrDbContext db, SignIns signIns,
             CancellationToken ct) =>
         {
+            // Tagged devices (family guests among them) all share this login: linking it would give every one a profile.
+            if (string.Equals(request.Login.Trim(), "tagged-devices", StringComparison.OrdinalIgnoreCase))
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["login"] = ["Tagged devices can't be linked to a profile. Invite guests from Family invites instead."] });
+            }
+
             // One profile per Tailscale account: unlink it wherever it was first.
             var before = await db.Profiles.AsNoTracking().Where(p => p.TailscaleLogin == request.Login).Select(p => p.Id).FirstOrDefaultAsync(ct);
             await db.Profiles.Where(p => p.TailscaleLogin == request.Login).ExecuteUpdateAsync(u => u.SetProperty(p => p.TailscaleLogin, (string?)null), ct);

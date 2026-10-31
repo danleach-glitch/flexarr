@@ -79,6 +79,12 @@ public sealed class ApiKeyAuthenticationHandler(
                 return AuthenticateResult.Fail("Invalid API key");
             }
 
+            // A guest's token only works from the guest device that redeemed the invite: copied anywhere else, it's refused.
+            if (device.Guest && !FromGuestAddress(device))
+            {
+                return AuthenticateResult.Fail("This guest sign-in belongs to another device");
+            }
+
             signIns.NoteDeviceType(device, DeviceTypes.Of(Request));
             return await SucceedAsync(Methods.Device, device);
         }
@@ -269,7 +275,17 @@ public sealed class ApiKeyAuthenticationHandler(
         string profile;
         bool admin;
         bool trusted;
-        if (signIn is not null)
+        if (signIn is { Guest: true })
+        {
+            // A family guest: its invite's profile, nothing else, and never trusted. A removed profile ends it.
+            if (signIn.ProfileId is not { } guestProfile || !await db.Profiles.AnyAsync(p => p.Id == guestProfile && p.Id != PlaybackState.DefaultUser, Context.RequestAborted))
+            {
+                return AuthenticateResult.Fail("This guest's profile has been removed");
+            }
+
+            (profile, admin, trusted) = (guestProfile, false, false);
+        }
+        else if (signIn is not null)
         {
             // A browser or device the main profile signed in: the profile chosen on it decides, whatever headers say.
             trusted = true;
@@ -309,7 +325,8 @@ public sealed class ApiKeyAuthenticationHandler(
             admin = method == Methods.ApiKey;
         }
 
-        var canUnlock = !admin && profile == PlaybackState.DefaultUser;
+        var guest = signIn is { Guest: true };
+        var canUnlock = !admin && !guest && profile == PlaybackState.DefaultUser;
         var claims = new List<Claim> { new(FlexarrClaims.Method, method), new(FlexarrClaims.Profile, profile) };
         if (admin)
         {
@@ -331,12 +348,25 @@ public sealed class ApiKeyAuthenticationHandler(
             claims.Add(new Claim(FlexarrClaims.SignIn, signIn.Id));
         }
 
+        if (guest)
+        {
+            claims.Add(new Claim(FlexarrClaims.Guest, "true"));
+        }
+
         if (login is not null)
         {
             claims.Add(new Claim(FlexarrClaims.TailscaleLogin, login));
         }
 
         return AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(new ClaimsIdentity(claims, SchemeName)), SchemeName));
+    }
+
+    /// <summary>Whether the request came straight from the tailnet address the guest's device redeemed its invite from.</summary>
+    private bool FromGuestAddress(SignIn guest)
+    {
+        var peer = RequestPeer.Of(Context);
+        var address = peer is { IsIPv4MappedToIPv6: true } ? peer.MapToIPv4() : peer;
+        return address is not null && guest.GuestAddress is { } expected && address.ToString() == expected;
     }
 
     /// <summary>The household's first kids profile, if it has one.</summary>
