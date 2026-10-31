@@ -131,6 +131,8 @@ Store. When they're turned on by default:
 - add `share-with-family` to `docs/guide/index.json` (after `away-from-home`), link it from `away-from-home.md` and the
   FAQ, and run `make guide`;
 - add `ANDROID_CERT_SHA256` to the relay's environment, and Upstash, if they aren't there yet;
+- add the changelog entry (Settings › Access › Family invites; Watching from another home? on Apple TV and Android TV;
+  Paste Invite);
 - settle the apps' export compliance answer and set `ITSAppUsesNonExemptEncryption` in `clients/apple/project.yml`.
 
 ## Later
