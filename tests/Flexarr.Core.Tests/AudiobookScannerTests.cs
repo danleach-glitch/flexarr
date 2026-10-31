@@ -129,6 +129,129 @@ public sealed class AudiobookScannerTests : IAsyncLifetime
         Assert.Equal(2 * BookProbe.Length, book.Book!.DurationSeconds);
     }
 
+    [Fact]
+    public async Task TagsDescribeTheBook_OverItsPath()
+    {
+        Touch("Unsorted/rip 4/Richard Osman - TMC1 The Thursday Murder Club.m4b");
+        _probe.Tags["Richard Osman - TMC1 The Thursday Murder Club.m4b"] = new()
+        {
+            ["album"] = "The Thursday Murder Club (Unabridged)", ["title"] = "Chapter 1", ["artist"] = "Richard Osman", ["composer"] = "Lesley Manville",
+            ["mvnm"] = "Thursday Murder Club", ["mvin"] = "1", ["asin"] = "b07ql7c4nl", ["date"] = "2020-09-03", ["publisher"] = "Penguin Audio",
+            ["genre"] = "Mystery; Crime",
+        };
+
+        await ScanAsync();
+
+        var book = await _db.MediaItems.Include(i => i.Book).Include(i => i.Genres).SingleAsync();
+        Assert.Equal("The Thursday Murder Club", book.Title);
+        Assert.Equal(2020, book.Year);
+        Assert.Equal(new DateOnly(2020, 9, 3), book.ReleaseDate);
+        Assert.Equal("B07QL7C4NL", book.Book!.Asin);
+        Assert.Equal("Penguin Audio", book.Book.Publisher);
+        Assert.Equal(["Crime", "Mystery"], book.Genres.Select(g => g.Name).Order());
+        Assert.Equal(["Richard Osman"], await AuthorsAsync(book.Id));
+        Assert.Equal(["Lesley Manville"], await NarratorsAsync(book.Id));
+        var entry = await _db.BookSeriesEntries.Include(e => e.Series).SingleAsync();
+        Assert.Equal(("Thursday Murder Club", "1"), (entry.Series!.Name, entry.Sequence!));
+    }
+
+    [Fact]
+    public async Task InABookOfManyFiles_TheTitleTagIsAChapter_NotTheBook()
+    {
+        Touch("Alan Watts/Out of Your Mind/1-01 Introduction.mp3", "Alan Watts/Out of Your Mind/1-02 Our Image.mp3");
+        _probe.Tags["1-01 Introduction.mp3"] = new() { ["title"] = "Introduction", ["artist"] = "Alan Watts" };
+
+        await ScanAsync();
+
+        Assert.Equal("Out of Your Mind", (await _db.MediaItems.SingleAsync()).Title);
+    }
+
+    [Fact]
+    public async Task AnOpfFile_WinsOverTags()
+    {
+        Touch("Terry Pratchett/Going Postal/01.mp3", "Terry Pratchett/Going Postal/02.mp3");
+        _probe.Tags["01.mp3"] = new() { ["album"] = "going postal (tagged)", ["artist"] = "Pratchett" };
+        File.WriteAllText(Path.Combine(Books, "Terry Pratchett/Going Postal/metadata.opf"), """
+            <?xml version="1.0" encoding="utf-8"?>
+            <package xmlns="http://www.idpf.org/2007/opf" version="2.0">
+              <metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf">
+                <dc:title>Going Postal</dc:title>
+                <dc:creator opf:role="aut">Terry Pratchett</dc:creator>
+                <dc:creator opf:role="nrt">Stephen Briggs</dc:creator>
+                <dc:description>&lt;p&gt;Moist von Lipwig was a con artist.&lt;/p&gt;&lt;p&gt;Then he ran the post office.&lt;/p&gt;</dc:description>
+                <dc:publisher>Isis</dc:publisher>
+                <dc:date>2004-09-25T00:00:00+00:00</dc:date>
+                <dc:language>eng</dc:language>
+                <dc:identifier opf:scheme="ISBN">9780753122624</dc:identifier>
+                <dc:identifier opf:scheme="ASIN">B002V0QK4C</dc:identifier>
+                <dc:subject>Fantasy</dc:subject>
+                <meta name="calibre:series" content="Discworld"/>
+                <meta name="calibre:series_index" content="33.0"/>
+              </metadata>
+            </package>
+            """);
+
+        await ScanAsync();
+
+        var book = await _db.MediaItems.Include(i => i.Book).SingleAsync();
+        Assert.Equal("Going Postal", book.Title);
+        Assert.Equal("Moist von Lipwig was a con artist.\n\nThen he ran the post office.", book.Overview);
+        Assert.Equal(("9780753122624", "B002V0QK4C", "eng"), (book.Book!.Isbn, book.Book.Asin, book.Book.Language));
+        Assert.Equal(["Terry Pratchett"], await AuthorsAsync(book.Id));
+        Assert.Equal(["Stephen Briggs"], await NarratorsAsync(book.Id));
+        Assert.Equal("33", (await _db.BookSeriesEntries.SingleAsync()).Sequence);
+    }
+
+    [Fact]
+    public async Task AudiobookshelfMetadataJson_DescTxtAndReaderTxt()
+    {
+        Touch("Andy Weir/Project Hail Mary/a.m4b");
+        var folder = Path.Combine(Books, "Andy Weir/Project Hail Mary");
+        File.WriteAllText(Path.Combine(folder, "metadata.json"), """
+            {"title":"Project Hail Mary","subtitle":"A Novel","authors":["Andy Weir"],"narrators":[],"series":["Hail Mary #1"],
+             "genres":["Science Fiction"],"publishedYear":"2021","publisher":"Audible Studios","description":null,"asin":"B08G9PRS1K",
+             "language":"English","explicit":false,"abridged":false}
+            """);
+        File.WriteAllText(Path.Combine(folder, "desc.txt"), "Ryland Grace is the sole survivor.\n");
+        File.WriteAllText(Path.Combine(folder, "reader.txt"), "Ray Porter\n");
+
+        await ScanAsync();
+
+        var book = await _db.MediaItems.Include(i => i.Book).SingleAsync();
+        Assert.Equal(("Project Hail Mary", "A Novel", 2021), (book.Title, book.Book!.Subtitle, book.Year));
+        Assert.Equal("Ryland Grace is the sole survivor.", book.Overview);
+        Assert.Equal(["Ray Porter"], await NarratorsAsync(book.Id));
+        Assert.Equal("1", (await _db.BookSeriesEntries.SingleAsync()).Sequence);
+    }
+
+    [Theory]
+    [InlineData("cover.jpg")]
+    [InlineData("Folder.jpg")]
+    [InlineData("Can't Hurt Me by David Goggins - Cover.jpg")]
+    [InlineData("anything.png")]
+    public async Task ACoverImageInTheFolder(string name)
+    {
+        Touch("A/Book/01.mp3", $"A/Book/{name}");
+
+        await ScanAsync();
+
+        Assert.Equal($"file://{Path.Combine(Books, "A/Book", name)}", (await _db.MediaItems.SingleAsync()).PosterUrl);
+    }
+
+    [Fact]
+    public async Task EmbeddedArtwork_WhenTheFolderHasNoCover()
+    {
+        Touch("A/Book/01.m4b");
+        _probe.CoverArt = true;
+
+        await ScanAsync();
+
+        Assert.Equal($"embedded://{Path.Combine(Books, "A/Book/01.m4b")}", (await _db.MediaItems.SingleAsync()).PosterUrl);
+    }
+
+    private async Task<List<string>> NarratorsAsync(Guid bookId) =>
+        await _db.Credits.Where(c => c.MediaItemId == bookId && c.Role == CreditRole.Narrator).OrderBy(c => c.Order).Select(c => c.Person!.Name).ToListAsync();
+
     private async Task<List<string>> AuthorsAsync(Guid bookId) =>
         await _db.Credits.Where(c => c.MediaItemId == bookId && c.Role == CreditRole.Author).OrderBy(c => c.Order).Select(c => c.Person!.Name).ToListAsync();
 
@@ -160,6 +283,7 @@ public sealed class AudiobookScannerTests : IAsyncLifetime
     {
         public const double Length = 600;
         public int BookCalls;
+        public bool CoverArt;
 
         /// <summary>Tags by the end of the file's path ("CD1/01.mp3" or "01.mp3").</summary>
         public Dictionary<string, Dictionary<string, string>> Tags { get; } = [];
@@ -176,7 +300,7 @@ public sealed class AudiobookScannerTests : IAsyncLifetime
         {
             Interlocked.Increment(ref BookCalls);
             var chapters = Chapters.FirstOrDefault(c => path.EndsWith("/" + c.Key, StringComparison.Ordinal)).Value ?? [];
-            return Task.FromResult(new BookFileProbe(Length, TagsFor(path), chapters, false));
+            return Task.FromResult(new BookFileProbe(Length, TagsFor(path), chapters, CoverArt));
         }
 
         private Dictionary<string, string> TagsFor(string path)

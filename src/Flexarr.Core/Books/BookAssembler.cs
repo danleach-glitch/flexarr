@@ -80,8 +80,17 @@ public sealed partial class BookAssembler(FlexarrDbContext db, IMediaProbe probe
         var details = book.Book ??= new BookDetails { MediaItemId = book.Id };
         details.DurationSeconds = ordered.Sum(f => f.DurationSeconds ?? probes[f.Id]?.DurationSeconds ?? 0);
 
+        // Sidecars, then the first file's tags, then the path: each fills only what the one above leaves out.
         var isFile = files.Count == 1 && PathComparison.Key(files[0].Path) == PathComparison.Key(key);
-        var info = FromPath(BookLayout.Describe(root, key, isFile));
+        var first = probes[ordered[0].Id];
+        var tags = first is null ? BookInfo.Empty : BookTags.Read(first.Tags, singleFile: ordered.Count == 1);
+        if (first?.HasCoverArt == true)
+        {
+            tags = tags with { Cover = $"embedded://{ordered[0].Path}" };
+        }
+
+        var sidecars = isFile ? BookInfo.Empty : BookSidecars.Read(key);
+        var info = sidecars.Over(tags).Over(FromPath(BookLayout.Describe(root, key, isFile)));
         await ApplyAsync(book, details, info, ct).ConfigureAwait(false);
     }
 
