@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { renderSVG } from 'uqr'
 import {
   cancelGuestInvite,
   createProfile,
+  deleteProfile,
   freshly,
   checkGuestPolicy,
-  createGuestInvite,
   getGuestDevices,
   getGuestInvites,
   getProfiles,
@@ -15,9 +14,11 @@ import {
   saveGuestClient,
   setGuestRelay,
   type GuestDevice,
+  type Profile,
   type RemoteGuests,
 } from '../../api/client'
-import { AsyncButton } from '../../components/AsyncButton'
+import { AsyncButton, IconButton } from '../../components/AsyncButton'
+import { Trash } from '../../components/icons'
 import { CopyButton } from '../../components/CopyButton'
 import { useApi } from '../../hooks/useApi'
 import { freeColour } from '../../lib/profileColours'
@@ -198,7 +199,8 @@ export function GuestsGroup({ onChange }: { onChange: () => void }) {
   const devices = useApi(getGuestDevices, [])
   const waiting = useApi(getGuestInvites, [])
   /** Who a device is being added for: kept here, so a profile made a moment ago shows before the list catches up. */
-  const [addingFor, setAddingFor] = useState<{ id: string; name: string }>()
+  /** `made`: the profile was made a moment ago for this guest, so giving up before a device joins removes it again. */
+  const [addingFor, setAddingFor] = useState<{ id: string; name: string; color?: string; made?: boolean }>()
   const adding = addingFor?.id
   const [removed, setRemoved] = useState<GuestDevice>()
   const [newPerson, setNewPerson] = useState('')
@@ -210,6 +212,8 @@ export function GuestsGroup({ onChange }: { onChange: () => void }) {
     if (naming) namingPanel.current?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' })
   }, [naming])
   const [inviteError, setInviteError] = useState<string>()
+  /** The profile already called what was typed, refused as a new guest's name. */
+  const [nameTaken, setNameTaken] = useState<Profile>()
   /** Devices that joined while this page was open, marked New. */
   const [joined, setJoined] = useState<string[]>([])
 
@@ -227,10 +231,18 @@ export function GuestsGroup({ onChange }: { onChange: () => void }) {
     (p) => p.id === adding || devices.data?.some((d) => d.profileId === p.id) || waiting.data?.some((w) => w.profileId === p.id),
   )
   const people: { id: string; name: string; color?: string }[] = addingFor && !listed.some((p) => p.id === addingFor.id) ? [addingFor, ...listed] : listed
-  // The colour a new profile would get, or theirs if the name is someone who has one.
-  const named = guestProfiles.find((p) => p.name.trim().toLowerCase() === newPerson.trim().toLowerCase())
-  const newGuestColour = named?.color ?? freeColour(profiles.data ?? [])
-  const others = guestProfiles.filter((p) => !people.some((person) => person.id === p.id))
+  // The colour their new profile will get.
+  const newGuestColour = freeColour(profiles.data ?? [])
+  /** Gives up adding a device; a profile made for this a moment ago, with nothing joined, goes with it. */
+  async function stopAdding() {
+    const giving = addingFor
+    setAddingFor(undefined)
+    const anything = devices.data?.some((d) => d.profileId === giving?.id) || waiting.data?.some((w) => w.profileId === giving?.id)
+    if (giving?.made && !anything) {
+      await deleteProfile(giving.id).catch(() => undefined)
+      profiles.reload()
+    }
+  }
 
   async function remove(device: GuestDevice) {
     await removeGuestDevice(device.id)
@@ -243,7 +255,10 @@ export function GuestsGroup({ onChange }: { onChange: () => void }) {
     refresh()
   }
 
-  /** Invite someone by name: their profile if they have one (not the main profile), else a new one made here. */
+  /**
+   * A new guest by name, with a profile of their own made here. Names are unique: one that's taken is refused, and if
+   * it's another guest's, adding a device for them is offered instead.
+   */
   async function invite(e: FormEvent) {
     e.preventDefault()
     const name = newPerson.trim()
@@ -252,10 +267,14 @@ export function GuestsGroup({ onChange }: { onChange: () => void }) {
     try {
       // Asked afresh (the list is kept a few minutes), so a profile just made isn't made twice.
       const current = await freshly(() => getProfiles())
-      const existing = current.find((p) => !p.isMain && p.name.trim().toLowerCase() === name.toLowerCase())
-      const profile = existing ?? (await createProfile({ name, color: freeColour(current) }))
-      if (!existing) profiles.reload()
-      setAddingFor({ id: profile.id, name: profile.name })
+      const taken = current.find((p) => p.name.trim().toLowerCase() === name.toLowerCase())
+      if (taken) {
+        setNameTaken(taken)
+        return
+      }
+      const profile = await createProfile({ name, color: freeColour(current) })
+      profiles.reload()
+      setAddingFor({ id: profile.id, name: profile.name, color: profile.color, made: true })
       setNewPerson('')
       setNaming(false)
     } catch (err) {
@@ -287,27 +306,44 @@ export function GuestsGroup({ onChange }: { onChange: () => void }) {
             aria-label="Name"
             aria-describedby="guest-new-help"
             value={newPerson}
-            onChange={(e) => setNewPerson(e.target.value)}
-            list="guest-profiles"
+            onChange={(e) => {
+              setNewPerson(e.target.value)
+              setNameTaken(undefined)
+            }}
+            aria-invalid={nameTaken ? true : undefined}
             maxLength={40}
             autoComplete="off"
             autoFocus
           />
-          <datalist id="guest-profiles">
-            {others.map((p) => (
-              <option key={p.id} value={p.name} />
-            ))}
-          </datalist>
           <AsyncButton type="submit" className="button" disabled={!newPerson.trim()}>
             Continue
           </AsyncButton>
-          <button type="button" className="button quiet" onClick={() => setNaming(false)}>
+          <button type="button" className="text-button guest-cancel" onClick={() => setNaming(false)}>
             Cancel
           </button>
           </div>
           <span id="guest-new-help" className="field-help guest-new-help">
-            They get a profile of their own, or the one they already have.
+            They get a profile of their own.
           </span>
+          {nameTaken && (
+            <p className="error guest-new-help" role="alert">
+              There’s already a profile called {nameTaken.name}.{' '}
+              {!nameTaken.isMain && (
+                <button
+                  type="button"
+                  className="text-button"
+                  onClick={() => {
+                    setAddingFor({ id: nameTaken.id, name: nameTaken.name, color: nameTaken.color })
+                    setNaming(false)
+                    setNewPerson('')
+                    setNameTaken(undefined)
+                  }}
+                >
+                  Add a device for {nameTaken.name} instead
+                </button>
+              )}
+            </p>
+          )}
           {inviteError && (
             <p className="error guest-new-help" role="alert">
               {inviteError}
@@ -341,9 +377,7 @@ export function GuestsGroup({ onChange }: { onChange: () => void }) {
                     </strong>
                     <span className="muted">{describeGuest(d, false)}</span>
                   </span>
-                  <AsyncButton className="button quiet small" aria-label={`Remove ${d.name}`} onClick={() => remove(d)}>
-                    Remove
-                  </AsyncButton>
+                  <IconButton label="Remove" aria-label={`Remove ${d.name}`} icon={<Trash />} className="button quiet small icon danger-icon" onClick={() => remove(d)} />
                 </div>
               ))}
             {waiting.data
@@ -369,7 +403,7 @@ export function GuestsGroup({ onChange }: { onChange: () => void }) {
                 name={person.name}
                 profileId={person.id}
                 devices={devices.data?.filter((d) => d.profileId === person.id) ?? []}
-                onClose={() => setAddingFor(undefined)}
+                onClose={() => void stopAdding()}
                 onChange={refresh}
                 onJoined={(deviceId) => {
                   setJoined((ids) => [...ids, deviceId])
@@ -398,8 +432,6 @@ export function GuestsGroup({ onChange }: { onChange: () => void }) {
   )
 }
 
-type AddPhase = 'code' | 'link' | 'waiting'
-
 /** What the device is ("iPhone"), already being in its person's card; its full name when its app hasn't said. */
 const deviceLabel = (device: GuestDevice, person: string) => {
   const prefix = [`${person}’s `, `${person}'s `].find((p) => device.name.startsWith(p))
@@ -407,12 +439,10 @@ const deviceLabel = (device: GuestDevice, person: string) => {
 }
 
 /**
- * Adding a device for a guest, as one panel that moves through its steps: type the code their device shows (any
- * device: phone, tablet or TV, under Invited by someone?) or send a link instead; then wait, saying so, until the
- * device appears; then say it joined and close. Nothing resets in between.
+ * Adding a device for a guest: type the code their device shows (any device, phone, tablet or TV, under Invited by
+ * someone?), then wait, saying so, until it appears; then say it joined and close. Nothing resets in between.
  */
 export function AddDevice({
-  name,
   profileId,
   devices,
   onClose,
@@ -426,13 +456,12 @@ export function AddDevice({
   onChange: () => void
   onJoined: (deviceId: string) => void
 }) {
-  const [phase, setPhase] = useState<AddPhase>('code')
+  const [waiting, setWaiting] = useState(false)
   const [code, setCode] = useState('')
-  const [link, setLink] = useState<string>()
   const [error, setError] = useState<string>()
   // The devices there before, so the one that joins is the one not among them.
   const [before, setBefore] = useState(() => devices.map((d) => d.id))
-  const arrived = phase !== 'code' ? devices.find((d) => !before.includes(d.id)) : undefined
+  const arrived = waiting ? devices.find((d) => !before.includes(d.id)) : undefined
 
   // Joined: say so a moment, then the panel closes and the new device is marked in the list. Keyed on which device
   // joined, so the list refreshing meanwhile doesn't start the moment again.
@@ -453,54 +482,36 @@ export function AddDevice({
     setBefore(devices.map((d) => d.id))
     try {
       await inviteGuestTv(code, null, profileId)
-      setPhase('waiting')
+      setWaiting(true)
       onChange()
     } catch (err) {
       setError(errorText(err))
     }
   }
 
-  async function makeLink() {
-    setError(undefined)
-    setBefore(devices.map((d) => d.id))
-    try {
-      setLink((await createGuestInvite(null, profileId)).link)
-      setPhase('link')
-      onChange()
-    } catch (err) {
-      setError(errorText(err))
-    }
-  }
-
-  const title = arrived
-    ? `✓ ${arrived.name} joined`
-    : phase === 'code'
-      ? 'Type the code their device shows'
-      : phase === 'link'
-        ? 'Send them this link'
-        : 'Waiting for their device to join…'
+  const title = arrived ? `✓ ${arrived.name} joined` : waiting ? 'Waiting for their device to join…' : 'Type the code their device shows'
 
   return (
-    <div className="guest-add" role="group" aria-label={`Add a device for ${name}`}>
+    <div className="guest-add" role="group" aria-label="Add a device">
       <div className="guest-add-head">
-        {phase === 'code' && !arrived ? (
+        {!waiting ? (
           <label htmlFor="guest-code" className="guest-add-title">
             {title}
           </label>
         ) : (
           <span className={arrived ? 'guest-add-title guest-joined' : 'guest-add-title'} role="status">
-            {phase === 'waiting' && !arrived && <span className="guest-spinner" aria-hidden="true" />}
+            {!arrived && <span className="guest-spinner" aria-hidden="true" />}
             {title}
           </span>
         )}
         {!arrived && (
-          <button type="button" className="button quiet small" onClick={onClose}>
+          <button type="button" className="text-button guest-cancel" onClick={onClose}>
             Cancel
           </button>
         )}
       </div>
 
-      {arrived ? null : phase === 'code' ? (
+      {arrived ? null : !waiting ? (
         <form className="guest-add-step" onSubmit={(e) => void connect(e)}>
           <span className="field-help">
             On their phone, tablet or TV, they open Flexarr and choose <strong>Invited by someone?</strong>
@@ -522,20 +533,7 @@ export function AddDevice({
               Connect
             </AsyncButton>
           </span>
-          <button type="button" className="text-button" onClick={() => void makeLink()}>
-            No code? Send a link instead
-          </button>
         </form>
-      ) : phase === 'link' && link ? (
-        <div className="guest-add-step">
-          <InviteLink link={link} name={name} />
-          <span className="guest-waiting field-help">
-            <span className="guest-spinner" aria-hidden="true" /> Waiting for them to open it…
-          </span>
-          <button type="button" className="text-button" onClick={() => setPhase('code')}>
-            Use a code instead
-          </button>
-        </div>
       ) : (
         <div className="guest-add-step">
           <span className="field-help">It takes a few seconds. Their screen moves on by itself.</span>
@@ -547,25 +545,6 @@ export function AddDevice({
           {error}
         </p>
       )}
-    </div>
-  )
-}
-
-/** The invite just made: its link to send, and a QR code to scan with the guest's phone. Shown once. */
-export function InviteLink({ link, name }: { link: string; name: string }) {
-  return (
-    <div className="guest-invite" aria-label={`Invite for ${name}`}>
-      {/* uqr draws plain SVG from the link: nothing in it comes from elsewhere. */}
-      <div className="guest-qr" role="img" aria-label="QR code of the invite" dangerouslySetInnerHTML={{ __html: renderSVG(link, { border: 2 }) }} />
-      <div className="guest-invite-text">
-        <span className="field-help">Message it to them, or scan this code with their phone’s camera. It’s shown only now.</span>
-        <span className="guest-link-row">
-          <code className="guest-link" title={link}>
-            {link}
-          </code>
-          <CopyButton text={link} what="the invite" />
-        </span>
-      </div>
     </div>
   )
 }

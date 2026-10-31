@@ -2843,3 +2843,8 @@
   padding-left: 52px;
   font-size: var(--step--1);
 }
+
+/* Cancel in adding a guest or a device: a quiet link at the right. */
+.guest-cancel {
+  margin-left: auto;
+}

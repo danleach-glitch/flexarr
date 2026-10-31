@@ -1,7 +1,5 @@
 package io.github.flexarr.ui.connect
 
-import android.content.ClipboardManager
-import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
@@ -14,11 +12,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import io.github.flexarr.AppModel
-import io.github.flexarr.core.GuestInvite
-import io.github.flexarr.logging.FlexarrLog
 import io.github.flexarr.ui.theme.Flexarr
 
-private val flexarrLog = FlexarrLog("invite")
 
 /**
  * "Join Dan's Flexarr as Gran?": a family invite from a link, a paste or a scan, asked about before anything happens
@@ -65,15 +60,4 @@ fun InviteDialog(model: AppModel) {
         },
         containerColor = Flexarr.seat,
     )
-}
-
-/** Paste invite: the link (or the part after its #) from the clipboard, offered to join. */
-fun pasteInvite(context: Context, model: AppModel) {
-    val clipboard = context.getSystemService(ClipboardManager::class.java)
-    val text = clipboard.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(context)?.toString()
-    if (text.isNullOrBlank()) {
-        model.inviteProblem = "Copy the invite link first."
-        return
-    }
-    model.offerInvite(GuestInvite.parse(text))
 }

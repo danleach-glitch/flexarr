@@ -132,10 +132,6 @@ describe('Settings › Access › Family invites', () => {
 
     // Gran has a device; Aunt Sue, with a profile but no devices yet, is suggested by name; the main profile never is.
     expect(await screen.findByText('iPad')).toBeVisible()
-    fireEvent.click(screen.getByRole('button', { name: 'Add new guest' }))
-    const suggestions = document.querySelectorAll('#guest-profiles option')
-    expect(Array.from(suggestions).map((o) => o.getAttribute('value'))).toEqual(['Aunt Sue'])
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
 
     fireEvent.click(screen.getByRole('button', { name: '+ Add device' }))
     const connect = screen.getByRole('button', { name: 'Connect' })
@@ -154,31 +150,45 @@ describe('Settings › Access › Family invites', () => {
     expect(screen.queryByText(/Waiting for/)).not.toBeInTheDocument()
   }, 15000)
 
-  it('sends a link instead, with its QR code, and can go back to a code', async () => {
-    let link: unknown
+  it('refuses a name that’s taken, offering to add a device for that guest instead', async () => {
+    let made = false
     mockApi({
       '/remote/guests': setup({ clientId: 'abc', hasClient: true, check: safe }),
-      '/profiles': [main, gran],
+      '/profiles': [main, gran, { ...gran, id: 'sue', name: 'Aunt Sue' }],
       '/remote/guests/invites': [],
       '/remote/guests/devices': [device()],
-      'POST /remote/guests/invites': (init?: RequestInit) => {
-        link = JSON.parse(String(init?.body))
-        return { invite: { id: 'i1', name: '', profileId: 'gran', profileName: 'Gran', via: 'Link', createdAt: '', expiresAt: '' }, link: 'https://flexarr.io/join#abc' }
+      'POST /profiles': () => {
+        made = true
+        return gran
       },
     })
     render(<FamilyInvites />)
 
-    fireEvent.click(await screen.findByRole('button', { name: '+ Add device' }))
-    fireEvent.click(screen.getByRole('button', { name: 'No code? Send a link instead' }))
-    expect(await screen.findByText('https://flexarr.io/join#abc')).toBeVisible()
-    expect(link).toEqual({ name: null, profileId: 'gran' })
-    expect(screen.getByRole('img', { name: 'QR code of the invite' }).querySelector('svg')).not.toBeNull()
-    expect(screen.getByText('Waiting for them to open it…')).toBeVisible()
+    fireEvent.click(await screen.findByRole('button', { name: 'Add new guest' }))
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'aunt sue' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
+    expect(await screen.findByText(/There’s already a profile called/)).toBeVisible()
+    expect(made).toBe(false)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Use a code instead' }))
-    expect(screen.getByLabelText('Type the code their device shows')).toBeVisible()
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
-    expect(screen.queryByLabelText('Type the code their device shows')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Add a device for Aunt Sue instead' }))
+    expect(await screen.findByLabelText('Type the code their device shows')).toBeVisible()
+    expect(screen.getByText('Aunt Sue')).toBeVisible()
+  })
+
+  it('refuses the main profile’s name, with nothing to offer', async () => {
+    mockApi({
+      '/remote/guests': setup({ clientId: 'abc', hasClient: true, check: safe }),
+      '/profiles': [main, gran],
+      '/remote/guests/invites': [],
+      '/remote/guests/devices': [],
+    })
+    render(<FamilyInvites />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Add new guest' }))
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Dan' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
+    expect(await screen.findByText(/There’s already a profile called/)).toBeVisible()
+    expect(screen.queryByRole('button', { name: /Add a device for/ })).not.toBeInTheDocument()
   })
 
   it('shows how each guest is connected, and removing one points to Tailscale', async () => {
@@ -223,6 +233,29 @@ describe('Settings › Access › Family invites', () => {
     // Straight on to their device, under their name, before the profile list has caught up.
     expect(await screen.findByLabelText('Type the code their device shows')).toBeVisible()
     expect(screen.getByText('Dad')).toBeVisible()
+  })
+
+  it('cancelling before any device joins removes the profile it just made', async () => {
+    let removed: string | undefined
+    mockApi({
+      '/remote/guests': setup({ clientId: 'abc', hasClient: true, check: safe }),
+      '/profiles': [main],
+      '/remote/guests/invites': [],
+      '/remote/guests/devices': [],
+      'POST /profiles': { ...gran, id: 'mum', name: 'Mum' },
+      'DELETE /profiles/mum': () => {
+        removed = 'mum'
+        return undefined
+      },
+    })
+    render(<FamilyInvites />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Add new guest' }))
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Mum' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
+    expect(await screen.findByLabelText('Type the code their device shows')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    await waitFor(() => expect(removed).toBe('mum'))
   })
 
   it('names each connection plainly', () => {

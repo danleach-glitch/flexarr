@@ -24,7 +24,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Dns
@@ -60,6 +59,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -134,7 +136,6 @@ fun ConnectScreen(model: AppModel) {
                         onPick = { step = Step.Pair(it) },
                         onManual = { step = Step.Manual },
                         onGuest = { step = Step.Guest },
-                        onPasteInvite = { pasteInvite(context, model) },
                     )
                     is Step.Pair -> PairWithServer(model, current.server, onBack = { step = Step.Choose })
                     Step.Manual -> ManualConnect(model, onPair = { step = Step.Pair(it) }, onBack = { step = Step.Choose })
@@ -156,7 +157,6 @@ private fun ChooseServer(
     onPick: (DiscoveredServer) -> Unit,
     onManual: () -> Unit,
     onGuest: () -> Unit,
-    onPasteInvite: () -> Unit,
 ) {
     // Nothing has turned up for a while: say what to check.
     var lookingAWhile by remember { mutableStateOf(false) }
@@ -179,21 +179,28 @@ private fun ChooseServer(
             }
         }
 
-        // Someone else's Flexarr, from another home: a code to give them (the usual way), or a link they sent.
+        // Someone else's Flexarr, from another home: a code to give whoever invited them.
         Text("Invited by someone?", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, modifier = Modifier.padding(top = 10.dp))
-        ChoiceRow(Icons.Filled.Key, "Get a code", "For the person who invited you", onClick = onGuest)
-        Text("Sent a link? Paste it", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.silver,
-            modifier = Modifier.pressable(onPasteInvite).minimumInteractiveComponentSize())
+        ChoiceRow(Icons.Filled.Key, "Get a code", null, onClick = onGuest)
 
-        if (browser.servers.isEmpty() && lookingAWhile) {
+        // Typing an address is for the few whose server can't be found: offered only once it hasn't been, or under
+        // the list for one that isn't in it.
+        if (browser.servers.isNotEmpty() || lookingAWhile) {
+            val lead = if (browser.servers.isEmpty()) "Can’t see your server? Check it’s on the same Wi-Fi, or " else "Not listed? "
+            val link = if (browser.servers.isEmpty()) "enter its address" else "Enter its address"
             Text(
-                "Can’t see your server? Check it’s running and this device is on the same Wi-Fi, or enter its address.",
+                buildAnnotatedString {
+                    append(lead)
+                    withLink(LinkAnnotation.Clickable("address", TextLinkStyles(SpanStyle(color = Flexarr.silver, fontWeight = FontWeight.SemiBold))) { onManual() }) {
+                        append(link)
+                    }
+                    append(".")
+                },
                 fontSize = 15.sp,
                 color = Flexarr.usher,
-                modifier = Modifier.padding(top = 10.dp),
+                modifier = Modifier.padding(top = 6.dp),
             )
         }
-        Text("Enter an address instead", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.silver, modifier = Modifier.pressable(onManual).minimumInteractiveComponentSize())
         if (browser.servers.isEmpty()) NewToFlexarr(Modifier.padding(top = 10.dp))
     }
 }
@@ -202,7 +209,7 @@ private fun ChooseServer(
 @Composable
 private fun ChoiceRow(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, detail: String?, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Flexarr.seat).pressable(onClick).padding(16.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Flexarr.seat).pressable(onClick).padding(horizontal = 16.dp, vertical = 13.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

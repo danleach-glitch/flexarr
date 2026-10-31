@@ -75,36 +75,16 @@ struct JoinInviteView: View {
     }
 }
 
-/// On the connect screen, for a family guest: a code to give whoever invited them (the usual way), or an invite link
-/// they were sent and copied.
-struct PasteInvite: View {
-    @Environment(AppModel.self) private var model
+/// On the connect screen, for a family guest: a code to give whoever invited them.
+struct InvitedBySomeone: View {
     let onCode: () -> Void
-    @State private var notAnInvite = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Invited by someone?")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(Color.usher)
-            ChoiceRow(systemImage: "key", title: "Get a code", detail: "For the person who invited you", action: onCode)
-            HStack(spacing: 10) {
-                Text(notAnInvite ? "That isn’t an invite." : "Sent a link?")
-                    .font(.subheadline)
-                    .foregroundStyle(notAnInvite ? Color.screen : Color.usher)
-                PasteButton(payloadType: String.self) { texts in
-                    if let invite = texts.lazy.compactMap(GuestInvite.parse).first {
-                        notAnInvite = false
-                        model.pendingInvite = invite
-                    } else {
-                        notAnInvite = true
-                    }
-                }
-                .labelStyle(.titleOnly)
-                .buttonBorderShape(.capsule)
-                .controlSize(.small)
-                .tint(.silver)
-            }
+            ChoiceRow(systemImage: "key", title: "Get a code", action: onCode)
         }
     }
 }

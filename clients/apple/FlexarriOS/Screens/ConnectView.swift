@@ -105,17 +105,21 @@ private struct ChooseServer: View {
                 }
             }
 
-            PasteInvite(onCode: onGuest)
+            InvitedBySomeone(onCode: onGuest)
                 .padding(.top, 10)
 
-            if browser.servers.isEmpty, lookingAWhile {
-                Text("Can’t see your server? Check it’s running and this \(ThisDevice.name) is on the same Wi-Fi, or enter its address.")
-                    .font(.subheadline)
-                    .foregroundStyle(Color.usher)
-                    .padding(.top, 10)
+            // Typing an address is for the few whose server can't be found: offered only once it hasn't been, or
+            // under the list for one that isn't in it.
+            if !browser.servers.isEmpty || lookingAWhile {
+                HStack(spacing: 4) {
+                    Text(browser.servers.isEmpty ? "Can’t see your server?" : "Not listed?")
+                        .foregroundStyle(Color.usher)
+                    Button("Enter its address", action: onManual)
+                        .fontWeight(.semibold)
+                }
+                .font(.subheadline)
+                .padding(.top, 6)
             }
-            Button("Enter an address instead", action: onManual)
-                .font(.body.weight(.semibold))
             if browser.servers.isEmpty {
                 NewToFlexarr()
                     .padding(.top, 10)
@@ -452,7 +456,8 @@ struct ChoiceRow: View {
                 Spacer()
                 Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(Color.usher)
             }
-            .padding(16)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 13)
             .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.seat))
             .contentShape(Rectangle())
         }
