@@ -52,6 +52,19 @@
   height: 20px;
 }
 
+/* ---------- Settings › Audiobooks ---------- */
+
+.key-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.key-row input {
+  width: min(16rem, 60vw);
+}
+
 /* ---------- Audiobooks: library ---------- */
 
 .books-library {

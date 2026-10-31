@@ -78,6 +78,27 @@ function flatten(results: SearchResults): Result[] {
       itemId: item.parentId ?? item.id,
       track: item,
     })),
+    // Audiobooks and their series, apart from films and shows (servers before 0.58 leave them out).
+    ...(results.books ?? []).map((b) => ({
+      key: b.id,
+      group: 'Audiobooks',
+      title: b.title,
+      detail: authorsLine(b),
+      image: imageUrl(b.artwork.poster, 92),
+      href: itemLink(b),
+      thumb: 'albums',
+      itemId: b.id,
+    })),
+    ...(results.bookSeries ?? []).map((series) => ({
+      key: `bs-${series.id}`,
+      group: 'Book series',
+      title: series.name,
+      detail: series.bookCount === 1 ? '1 book' : `${series.bookCount} books`,
+      image: undefined,
+      href: `/book-series/${series.id}`,
+      thumb: 'genres',
+      itemId: null,
+    })),
     ...results.people.map((p) => ({
       key: p.id,
       group: 'People',
@@ -260,7 +281,7 @@ export function SearchPalette({ onClose }: { onClose: () => void }) {
           <input
             ref={input}
             type="search"
-            placeholder="Films, shows, music, episodes, people, genres"
+            placeholder="Films, shows, music, books, people, genres"
             value={query}
             onChange={(e) => {
               setQuery(e.target.value)

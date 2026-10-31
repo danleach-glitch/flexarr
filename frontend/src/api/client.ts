@@ -506,6 +506,20 @@ export const saveBookmarkNote = (bookmarkId: string, note: string | null) => req
 export const deleteBookmark = (bookmarkId: string) => request<void>('DELETE', `/bookmarks/${bookmarkId}`)
 /** Settings › Audiobooks: default speed, skip steps and smart rewind. */
 export const BOOK_LISTENING_CHANGED = 'flexarr:book-listening'
+/** How the server looks books up online (main profile only); keys are never sent back, only whether there is one. */
+export interface BookMetadataSettings {
+  region: string
+  /** In order of trust, from the ones in `allProviders`. */
+  providers: string[]
+  hasGoogleBooksKey: boolean
+  hasHardcoverToken: boolean
+  regions: string[]
+  allProviders: string[]
+}
+export const getBookMetadataSettings = (signal?: AbortSignal) => apiGet<BookMetadataSettings>('/settings/book-metadata', signal)
+/** An empty key removes it. */
+export const saveBookMetadataSettings = (changes: { region?: string; providers?: string[]; googleBooksKey?: string; hardcoverToken?: string }) =>
+  request<BookMetadataSettings>('PUT', '/settings/book-metadata', changes)
 export const getBookListening = (signal?: AbortSignal) => cachedGet<BookListening>('/books/listening', signal)
 export async function saveBookListening(changes: Partial<BookListening>) {
   const saved = await request<BookListening>('PUT', '/books/listening', changes)
@@ -612,7 +626,8 @@ export type CollectionKind = 'Manual' | 'Smart' | 'Franchise' | 'TraktList'
 /** What a smart collection holds; every rule is optional. */
 export interface SmartRules {
   libraryIds?: string[] | null
-  type?: 'movie' | 'series' | null
+  /** "book" is audiobooks, never mixed with films and shows. */
+  type?: 'movie' | 'series' | 'book' | null
   genres?: string[] | null
   yearFrom?: number | null
   yearTo?: number | null
