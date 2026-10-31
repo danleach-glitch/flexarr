@@ -209,6 +209,17 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
 
     @ObservationIgnored private var client: FlexarrClient?
     @ObservationIgnored private var session: URLSession!
+    /// A family guest's transfers: the system's background downloader runs apart from the app, so it can't reach the
+    /// tunnel's port inside it. These carry on only while the app is open.
+    @ObservationIgnored private lazy var guestSession = URLSession(configuration: .default, delegate: self, delegateQueue: .main)
+    /// Where a new transfer goes: the guest's session for a family guest, the background one for everyone else.
+    private var transferSession: URLSession { GuestMode.isActive ? guestSession : session }
+
+    /// Every transfer under way, in either session.
+    private func allTasks(_ body: @escaping @Sendable ([URLSessionTask]) -> Void) {
+        let sessions = GuestMode.isActive ? [session!, guestSession] : [session!]
+        for session in sessions { session.getAllTasks(completionHandler: body) }
+    }
     @ObservationIgnored private var polling: Task<Void, Never>?
     @ObservationIgnored private let monitor = NWPathMonitor()
     @ObservationIgnored private var lastSaved = Date.distantPast
@@ -367,7 +378,7 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
     private func pauseWiFiOnlyTransfers() {
         let held = Set(all.filter { isWiFiOnly($0) && !$0.isDownloaded }.map(\.id))
         guard !held.isEmpty else { return }
-        session.getAllTasks { tasks in
+        allTasks { tasks in
             for task in tasks {
                 guard let id = task.taskDescription, held.contains(id), let download = task as? URLSessionDownloadTask else { continue }
                 download.cancel { data in
@@ -626,7 +637,7 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
                 // Allowed on mobile data (Settings), but not in Low Data Mode.
                 request.allowsConstrainedNetworkAccess = false
             }
-            let task = resumeData.removeValue(forKey: remote.id).map { session.downloadTask(withResumeData: $0) } ?? session.downloadTask(with: request)
+            let task = resumeData.removeValue(forKey: remote.id).map { transferSession.downloadTask(withResumeData: $0) } ?? transferSession.downloadTask(with: request)
             task.taskDescription = remote.id
             task.resume()
         case .removed where !local.isDownloaded:
@@ -670,7 +681,7 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
 
     func delete(_ id: String) {
         guard let download = all.first(where: { $0.id == id }) else { return }
-        session.getAllTasks { tasks in
+        allTasks { tasks in
             for task in tasks where task.taskDescription == id { task.cancel() }
         }
         if let name = download.fileName {
