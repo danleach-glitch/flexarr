@@ -59,6 +59,16 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="flexarr" />
             </intent-filter>
+            <!-- Family invites: https://flexarr.io/join#<invite> opens the app straight away (flexarr.io's assetlinks.json
+                 names it), and the invite after the # never reaches the website. Asked about before anything happens. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" />
+                <data android:host="flexarr.io" />
+                <data android:path="/join" />
+            </intent-filter>
             <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
         </activity>
 

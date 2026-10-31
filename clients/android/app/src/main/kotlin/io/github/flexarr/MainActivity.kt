@@ -12,6 +12,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import kotlinx.coroutines.launch
 import io.github.flexarr.core.FlexarrClient
+import io.github.flexarr.core.GuestInvite
 import io.github.flexarr.core.PushPayload
 import io.github.flexarr.notifications.FlexarrMessagingService
 import io.github.flexarr.player.PlayerActivity
@@ -53,7 +54,12 @@ class MainActivity : ComponentActivity() {
      * [AppLink.received] keeps one from another app from playing anything.
      */
     private fun openLink(intent: Intent) {
-        AppLink.received(this, intent)?.let { appModel.pendingLink = it }
+        when (val link = AppLink.received(this, intent)) {
+            null -> Unit
+            // Asked about first ("Join Dan's Flexarr as Gran?"): it could have come from any app or web page.
+            is AppLink.Join -> appModel.offerInvite(GuestInvite.decode(link.payload))
+            else -> appModel.pendingLink = link
+        }
     }
 
     /**

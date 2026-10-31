@@ -233,6 +233,8 @@ fun MainScreen(model: AppModel) {
                     PairingPrompts.Opened.Gone -> navigator.notices.showSnackbar("That device isn’t waiting any more. If it shows a new code, it asks again.")
                     PairingPrompts.Opened.NotMainProfile -> navigator.notices.showSnackbar("Switch to the main profile to allow it.")
                 }
+                // Asked about over every screen (InviteDialog), never sent here.
+                is AppLink.Join -> Unit
             } } }
         }
         // With no connection to the server, the app opens on what's downloaded.

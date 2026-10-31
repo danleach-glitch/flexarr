@@ -43,6 +43,14 @@ import io.github.flexarr.widget.ContinueWatchingWidget
 import io.github.flexarr.widget.PodcastWidgets
 import io.github.flexarr.widget.WatchlistWidget
 import io.github.flexarr.data.ServerCredentials
+import io.github.flexarr.data.GuestTunnelInfo
+import io.github.flexarr.core.GuestInvite
+import io.github.flexarr.core.guestJoinProblem
+import io.github.flexarr.core.redeemInvite
+import io.github.flexarr.guest.GuestTunnel
+import io.github.flexarr.guest.TunnelException
+import kotlinx.coroutines.withContext
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ProcessLifecycleOwner
 import kotlinx.coroutines.CancellationException
@@ -84,6 +92,10 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     var signedOutNotice: String? by mutableStateOf(null)
         private set
 
+    /** The notice is for a guest whose host removed it: there's no home server to show a code for. */
+    var signedOutAsGuest = false
+        private set
+
     var profiles: List<Profile> by mutableStateOf(emptyList())
         private set
 
@@ -111,7 +123,8 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     /** Listens for commands while the app is in front (any of its screens, the players included), and signed in. */
     fun listenForCommands() {
         val inFront = ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
-        val client = client
+        // A guest's device isn't one of the household's: nothing sends it commands.
+        val client = client?.takeIf { !isGuest }
         if (inFront && client != null) commands.start(client) else commands.stop()
         // Back in front: any that ended while the app was away go, and any waiting since are asked about.
         if (inFront && client != null && isMainProfile) scope.launch { pairing.refresh(client) }
@@ -147,7 +160,19 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         private set
 
     /** A grown-up is watching on this app's own sign-in, the household has a kids profile and this device isn't locked yet. */
-    val canLockToKids: Boolean get() = hasOwnSignIn && !isKids && !kidsLock && profiles.any { it.isKids }
+    val canLockToKids: Boolean get() = hasOwnSignIn && !isGuest && !isKids && !kidsLock && profiles.any { it.isKids }
+
+    /** The server said this is a family guest's sign-in (servers from 0.57). */
+    private var serverSaysGuest by mutableStateOf(false)
+
+    /**
+     * Signed in as a family guest, through the tunnel inside the app: one profile, fixed by the invite, and no Cast
+     * (a Chromecast can't reach the tunnel).
+     */
+    val isGuest: Boolean get() = credentials?.isGuest == true || serverSaysGuest
+
+    /** The Tailscale node a guest reaches its host's server through. */
+    val tunnel = GuestTunnel(context)
 
     /** The picker's padlock over kids profiles: child lock on, or able to be turned on here, a kids profile included
      *  (Settings doesn't offer it there), where turning it on takes the admin PIN. */
@@ -164,6 +189,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         adminPinMissing = me.adminPinMissing
         kidsLock = me.kidsLock
         hasOwnSignIn = me.method == "device"
+        serverSaysGuest = me.isGuest
         if (me.isMainProfile) pairing.refresh(client) else pairing.clear()
     }
 
@@ -188,6 +214,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         canUnlock = false
         adminPinMissing = false
         hasOwnSignIn = false
+        serverSaysGuest = false
         pairing.clear()
     }
 
@@ -457,6 +484,112 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         scope.launch { notifications.resume(credentials) }
     }
 
+    /** A family invite opened from a link, a paste or a scan, waiting for "Join Dan's Flexarr as Gran?". */
+    var offeredInvite: GuestInvite? by mutableStateOf(null)
+
+    /** Said instead when what was opened isn't a whole invite, or this device is signed in already. */
+    var inviteProblem: String? by mutableStateOf(null)
+
+    /** Offers [invite] to join (null: a link that isn't a whole invite). Nothing happens until it's confirmed. */
+    fun offerInvite(invite: GuestInvite?) {
+        when {
+            invite == null -> inviteProblem = "That invite isn’t complete. Ask for the link again."
+            phase is Phase.SignedIn -> inviteProblem = "Sign out in Settings first, then open the invite again."
+            else -> {
+                offeredInvite = invite
+                joinProblem = null
+            }
+        }
+    }
+
+    /** Joining with [offeredInvite] is under way (it can take a while: the tunnel joins the host's tailnet first). */
+    var joining by mutableStateOf(false)
+        private set
+
+    /** Why joining with [offeredInvite] didn't work, for the guest. */
+    var joinProblem: String? by mutableStateOf(null)
+        private set
+
+    /** "Join": joins with [offeredInvite], in the app's own scope, so it finishes whatever the screens do meanwhile. */
+    fun confirmInvite() {
+        val invite = offeredInvite ?: return
+        if (joining) return
+        joining = true
+        joinProblem = null
+        scope.launch {
+            try {
+                join(invite)
+                offeredInvite = null
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                joinProblem = e.message ?: "That didn’t work. Try again."
+            } finally {
+                joining = false
+            }
+        }
+    }
+
+    /** "Cancel", or the problem said: the invite is let go. */
+    fun dismissInvite() {
+        if (joining) return
+        offeredInvite = null
+        joinProblem = null
+        inviteProblem = null
+    }
+
+    /** Leaving as a guest, while the server is told and the tunnel taken down: a new join waits for it. */
+    private var leaving: Job? = null
+
+    /**
+     * Joins with a family invite: the tunnel joins the host's tailnet with its key, the invite's token is swapped there for
+     * this device's own sign-in (locked by the server to the invite's profile), and that's saved. Throws with what to
+     * say to the guest when it doesn't work.
+     */
+    suspend fun join(invite: GuestInvite) {
+        val owner = invite.ownerName
+        if (invite.isExpired()) throw GuestJoinException(guestJoinProblem(IllegalStateException(), owner, keyRefused = true))
+        leaving?.join()
+        val info = GuestTunnelInfo(invite.tailnetTarget, invite.hostname, owner)
+        val port = withContext(Dispatchers.IO) {
+            // Afresh: an identity left from an earlier invite would keep the node on that tailnet and ignore this key.
+            tunnel.forget()
+            tunnel.use(info)
+            try {
+                tunnel.start(invite.authKey)
+            } catch (e: TunnelException) {
+                tunnel.forget()
+                throw GuestJoinException(guestJoinProblem(e, owner, keyRefused = e.needsLogin))
+            }
+        }
+        val address = "http://127.0.0.1:$port/"
+        val redeemed = try {
+            FlexarrClient(address.toHttpUrl()).redeemInvite(invite.token)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // The node stays known to the tailnet (its key is spent), so trying again with the same invite still works.
+            withContext(Dispatchers.IO) { tunnel.use(null) }
+            throw GuestJoinException(guestJoinProblem(e, owner))
+        }
+        val credentials = ServerCredentials(address, redeemed.apiKey, guest = info)
+        store.save(credentials)
+        saved = true
+        signedIn(credentials)
+        flexarrLog.info("Joined as a guest")
+    }
+
+    /** The tunnel came up on [port]: a guest's sign-in follows it there, if it had to move from the one it had. */
+    private fun tunnelMoved(port: Int) {
+        scope.launch {
+            val now = credentials?.takeIf { it.isGuest } ?: return@launch
+            val address = "http://127.0.0.1:$port/"
+            if (now.address == address) return@launch
+            if (saved) store.saveGuestAddress(address)
+            phase = Phase.SignedIn(now.copy(address = address))
+        }
+    }
+
     /** Signs in for this launch only, without saving or swapping the key: debug builds started from the command line. */
     fun signInForThisLaunch(address: String, apiKey: String, remote: String? = null) {
         val url = FlexarrClient.normalizeAddress(address) ?: return
@@ -469,6 +602,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         profiles = emptyList()
         profilesLoaded = false
         signedOutNotice = null
+        signedOutAsGuest = false
         phase = Phase.SignedIn(credentials)
     }
 
@@ -485,6 +619,8 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         remoteChecked = true
         // Once a launch too: the server says when the morning's "on today" arrives in this phone's time zone.
         scope.launch { notifications.checkTimeZone() }
+        // A guest only ever reaches the server through its tunnel.
+        if (credentials.isGuest) return
         val status = runCatching { credentials.client().systemStatus() }.getOrNull() ?: return
         val remote = remoteAddress(status, credentials.address, kept = credentials.remoteAddress)
         // Who's watching may have been chosen meanwhile: what matters is that it's still the same sign-in.
@@ -500,11 +636,21 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         val client = client
         // Downloads go too: what was watched offline is sent and the server's copies dropped first, while the sign-in works.
         val downloadsDone = downloads.signedOut(client)
-        if (saved) client?.let { client -> scope.launch { downloadsDone.join(); notifications.signedOut(client); runCatching { client.signOut() } } }
-        forget()
+        val told = if (saved) client?.let { client -> scope.launch { downloadsDone.join(); notifications.signedOut(client); runCatching { client.signOut() } } } else null
+        forget(tunnelNeededBy = told)
     }
 
-    private fun forget() {
+    /**
+     * Forgets the sign-in. A guest's tunnel goes too, with its identity on the host's tailnet (its sign-in has gone, so
+     * it's no use): once [tunnelNeededBy] has finished telling the server.
+     */
+    private fun forget(tunnelNeededBy: Job? = null) {
+        if (credentials?.isGuest == true || tunnel.isInUse) {
+            leaving = scope.launch {
+                tunnelNeededBy?.join()
+                withContext(Dispatchers.IO) { tunnel.forget() }
+            }
+        }
         commands.stop()
         forgetSignIn()
         music.stop()
@@ -538,9 +684,12 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
             runCatching { client.me() }.getOrNull()?.let {
                 kidsLock = it.kidsLock
                 hasOwnSignIn = it.method == "device"
+                serverSaysGuest = it.isGuest
             }
             serverUnreachable = false
         } catch (e: FlexarrException) {
+            // A guest's device the host has removed is turned away (403) whatever it asks: back to joining.
+            if (e is FlexarrException.Http && e.status == 403 && credentials?.isGuest == true) return removedAsGuest()
             // Unreachable for now: the screens say so and try again (opening on Downloads, once the list's been read).
             if (e is FlexarrException.Unreachable) downloads.ready()
             serverUnreachable = e is FlexarrException.Unreachable
@@ -627,9 +776,9 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         watchStateChanged()
     }
 
-    /** Back to choosing who's watching. */
+    /** Back to choosing who's watching. Never for a guest, which the server keeps on its invite's profile. */
     fun switchProfile() {
-        val credentials = credentials ?: return
+        val credentials = credentials?.takeIf { !isGuest } ?: return
         // Someone else's music, podcasts and Up Next.
         music.stop()
         podcasts.stop()
@@ -742,6 +891,17 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         }
     }
 
+    /** The host removed this guest's device: its sign-in and tunnel go, and the connect screen says what to do. */
+    private fun removedAsGuest() {
+        val credentials = credentials ?: return
+        val owner = credentials.guest?.ownerName?.ifEmpty { null } ?: "its owner"
+        downloads.signedOutByServer(credentials.address)
+        notifications.forget()
+        forget()
+        signedOutNotice = "This device was removed. Ask $owner for a new invite."
+        signedOutAsGuest = true
+    }
+
     /**
      * The same sign-in with this device's own token in place of the server's API key, if it holds the key. Unchanged
      * if it doesn't, or the server is too old to offer one.
@@ -778,6 +938,18 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
 
     init {
         signInChanged()
+        tunnel.onPort = ::tunnelMoved
+        // A guest's tunnel starts now, off the main thread, so it's up (or on its way) before the first request, which
+        // waits for it either way.
+        savedSignIn?.guest?.let { guest ->
+            tunnel.use(guest)
+            scope.launch(Dispatchers.IO) { runCatching { tunnel.start() } }
+        }
+    }
+
+    /** Back in front: a guest's tunnel is started again if it stopped while the app was away. */
+    fun cameToFront() {
+        if (credentials?.isGuest == true) scope.launch(Dispatchers.IO) { tunnel.ensureRunning() }
     }
 
     companion object {
@@ -824,3 +996,6 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
 
 /** Choosing [chosen] while [current] is watching changes who's watching (choosing at first sign-in doesn't). */
 internal fun isSwitch(current: String?, chosen: String): Boolean = current != null && current != chosen
+
+/** Joining with an invite didn't work; the message says why, for the guest. */
+class GuestJoinException(message: String) : Exception(message)

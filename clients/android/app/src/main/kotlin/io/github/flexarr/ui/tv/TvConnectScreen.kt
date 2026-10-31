@@ -56,6 +56,10 @@ import com.google.zxing.qrcode.QRCodeWriter
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
 import io.github.flexarr.AppModel
 import io.github.flexarr.core.FlexarrClient
+import io.github.flexarr.core.GuestTvCode
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import io.github.flexarr.data.DiscoveredServer
 import io.github.flexarr.data.ServerBrowser
 import io.github.flexarr.ui.components.BrandMark
@@ -70,6 +74,8 @@ private sealed interface Step {
     data object Choose : Step
     data class Pair(val server: DiscoveredServer) : Step
     data object Manual : Step
+    /** Someone else's Flexarr, from another home: a code to read to them. */
+    data object Guest : Step
 }
 
 /**
@@ -89,7 +95,7 @@ fun TvConnectScreen(model: AppModel) {
     // Signed out on the server: show a code for the same server straight away.
     var step by remember {
         val last = model.store.lastAddress
-        mutableStateOf(if (model.signedOutNotice != null && last != null) Step.Pair(server(last)) else Step.Choose)
+        mutableStateOf(if (model.signedOutNotice != null && !model.signedOutAsGuest && last != null) Step.Pair(server(last)) else Step.Choose)
     }
     BackHandler(enabled = step != Step.Choose) { step = Step.Choose }
 
@@ -111,9 +117,10 @@ fun TvConnectScreen(model: AppModel) {
             }
             Box(Modifier.width(410.dp)) {
                 when (val current = step) {
-                    Step.Choose -> ChooseServer(browser, onPick = { step = Step.Pair(it) }, onManual = { step = Step.Manual })
+                    Step.Choose -> ChooseServer(browser, onPick = { step = Step.Pair(it) }, onManual = { step = Step.Manual }, onGuest = { step = Step.Guest })
                     is Step.Pair -> PairWithServer(model, current.server, onBack = { step = Step.Choose })
                     Step.Manual -> ManualConnect(model, onPair = { step = Step.Pair(it) }, onBack = { step = Step.Choose })
+                    Step.Guest -> GuestCode(model, onBack = { step = Step.Choose })
                 }
             }
         }
@@ -126,7 +133,7 @@ private fun server(address: String): DiscoveredServer {
 }
 
 @Composable
-private fun ChooseServer(browser: ServerBrowser, onPick: (DiscoveredServer) -> Unit, onManual: () -> Unit) {
+private fun ChooseServer(browser: ServerBrowser, onPick: (DiscoveredServer) -> Unit, onManual: () -> Unit, onGuest: () -> Unit) {
     // Nothing has turned up for a while: say what to check.
     var lookingAWhile by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
@@ -160,6 +167,98 @@ private fun ChooseServer(browser: ServerBrowser, onPick: (DiscoveredServer) -> U
             }
         }
         TvActionButton("Enter an address instead", onClick = onManual, modifier = Modifier.padding(top = 5.dp).focusRequester(manual))
+        TvActionButton("Watching from another home?", onClick = onGuest)
+    }
+}
+
+/**
+ * A family invite for this TV: a code to read out to whoever invited it, who types it into their Flexarr. The code
+ * meets their server's invite at Flexarr's relay, sealed so only this TV can open it, and the TV then joins as a phone
+ * does with a link (the tunnel, then a sign-in of its own). A code lasts ten minutes; a new one replaces it.
+ */
+@Composable
+private fun GuestCode(model: AppModel, onBack: () -> Unit) {
+    var attempt by remember { mutableIntStateOf(0) }
+    var code by remember { mutableStateOf<GuestTvCode?>(null) }
+    var problem by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(attempt) {
+        code = null
+        problem = null
+        while (true) {
+            val tv = withContext(Dispatchers.Default) { GuestTvCode.create() }
+            try {
+                tv.register()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: GuestTvCode.Failure.CodeTaken) {
+                continue
+            } catch (e: Exception) {
+                problem = "Can’t reach Flexarr. Check this TV’s internet."
+                delay(10_000)
+                continue
+            }
+            code = tv
+            problem = null
+            // Until it runs out (then a new one), or the invite arrives.
+            while (true) {
+                delay(3_000)
+                val answer = try {
+                    tv.poll()
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: GuestTvCode.Failure.BadInvite) {
+                    problem = "That invite couldn’t be opened. Ask for another."
+                    break
+                } catch (_: Exception) {
+                    // The network dropped for a moment: the code stands, so keep asking.
+                    continue
+                }
+                when (answer) {
+                    GuestTvCode.Answer.Waiting -> continue
+                    GuestTvCode.Answer.Expired -> break
+                    is GuestTvCode.Answer.Invite -> {
+                        model.offerInvite(answer.invite)
+                        model.confirmInvite()
+                        return@LaunchedEffect
+                    }
+                }
+            }
+        }
+    }
+    val back = remember { FocusRequester() }
+    val retry = remember { FocusRequester() }
+    val invite = model.offeredInvite
+    val joinProblem = model.joinProblem
+    LaunchedEffect(joinProblem != null) { runCatching { if (joinProblem != null) retry.requestFocus() else back.requestFocus() } }
+    BackHandler { model.dismissInvite(); onBack() }
+
+    Column(verticalArrangement = Arrangement.spacedBy(15.dp)) {
+        if (invite != null) {
+            Text("Joining ${invite.ownerName}’s Flexarr as ${invite.profileName}", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            if (joinProblem == null) {
+                CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = Flexarr.usher)
+            } else {
+                ErrorNote(joinProblem)
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    TvActionButton("Try again", onClick = model::confirmInvite, prominent = true, modifier = Modifier.focusRequester(retry))
+                    TvActionButton("New code", onClick = { model.dismissInvite(); attempt++ })
+                }
+            }
+        } else {
+            Text("Read this code to the person who invited you", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            val shown = code
+            if (shown != null) {
+                Text(shown.display, fontSize = 56.sp, fontWeight = FontWeight.Black, letterSpacing = 4.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = Flexarr.usher)
+                    Text("This screen moves on by itself.", fontSize = 13.sp, color = Flexarr.usher)
+                }
+            } else if (problem == null) {
+                CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = Flexarr.usher)
+            }
+            problem?.let { ErrorNote(it) }
+        }
+        TvActionButton("Back", onClick = { model.dismissInvite(); onBack() }, modifier = Modifier.focusRequester(back), enabled = !model.joining)
     }
 }
 

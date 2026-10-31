@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import io.github.flexarr.AppModel
 import androidx.compose.animation.Crossfade
 import io.github.flexarr.ui.connect.ConnectScreen
+import io.github.flexarr.ui.connect.InviteDialog
 import io.github.flexarr.ui.connect.WelcomeScreen
 import io.github.flexarr.ui.connect.rememberWelcomed
 import io.github.flexarr.ui.profiles.ProfilesScreen
@@ -35,6 +36,7 @@ fun FlexarrRoot(model: AppModel) {
                 }
             }
         }
+        InviteDialog(model)
     }
 }
 

@@ -24,6 +24,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.ContentPaste
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Warning
@@ -101,7 +103,7 @@ fun ConnectScreen(model: AppModel) {
     // Signed out on the server: show a code for the same server straight away.
     var step by remember {
         val last = model.store.lastAddress
-        mutableStateOf(if (model.signedOutNotice != null && last != null) Step.Pair(server(last)) else Step.Choose)
+        mutableStateOf(if (model.signedOutNotice != null && !model.signedOutAsGuest && last != null) Step.Pair(server(last)) else Step.Choose)
     }
     // Back from a code or an address goes back to the servers, as the screen's own Back does, rather than out of the app.
     BackHandler(enabled = step != Step.Choose) { step = Step.Choose }
@@ -124,7 +126,13 @@ fun ConnectScreen(model: AppModel) {
             }
             AnimatedContent(step, label = "connect") { current ->
                 when (current) {
-                    Step.Choose -> ChooseServer(browser, onPick = { step = Step.Pair(it) }, onManual = { step = Step.Manual })
+                    Step.Choose -> ChooseServer(
+                        browser,
+                        onPick = { step = Step.Pair(it) },
+                        onManual = { step = Step.Manual },
+                        onPasteInvite = { pasteInvite(context, model) },
+                        onScanInvite = { scanInvite(context, model) },
+                    )
                     is Step.Pair -> PairWithServer(model, current.server, onBack = { step = Step.Choose })
                     Step.Manual -> ManualConnect(model, onPair = { step = Step.Pair(it) }, onBack = { step = Step.Choose })
                 }
@@ -139,7 +147,13 @@ private fun server(address: String): DiscoveredServer {
 }
 
 @Composable
-private fun ChooseServer(browser: ServerBrowser, onPick: (DiscoveredServer) -> Unit, onManual: () -> Unit) {
+private fun ChooseServer(
+    browser: ServerBrowser,
+    onPick: (DiscoveredServer) -> Unit,
+    onManual: () -> Unit,
+    onPasteInvite: () -> Unit,
+    onScanInvite: () -> Unit,
+) {
     // Nothing has turned up for a while: say what to check.
     var lookingAWhile by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
@@ -176,6 +190,12 @@ private fun ChooseServer(browser: ServerBrowser, onPick: (DiscoveredServer) -> U
             }
         }
         Text("Enter an address instead", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.silver, modifier = Modifier.padding(top = 6.dp).pressable(onManual).minimumInteractiveComponentSize())
+        // Someone else's Flexarr, from another home: their invite link, or the QR code on their screen.
+        Text("Got an invite?", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, modifier = Modifier.padding(top = 14.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            ActionButton("Paste invite", onClick = onPasteInvite, icon = Icons.Filled.ContentPaste)
+            ActionButton("Scan code", onClick = onScanInvite, icon = Icons.Filled.QrCodeScanner)
+        }
     }
 }
 

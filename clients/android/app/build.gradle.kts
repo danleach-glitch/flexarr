@@ -161,8 +161,32 @@ play {
     resolutionStrategy.set(ResolutionStrategy.AUTO)
 }
 
+// The Tailscale tunnel family guests reach their host's server through (clients/tunnel, Go, built by gomobile into an
+// AAR). Built here when it's missing or older than its sources, as `make tunnel-android` would; CI builds it first.
+// Needs Go, the NDK and a JDK (clients/tunnel/README.md). Google Play's bundles give each phone just its own ABI's library.
+val tunnelDir: File = rootDir.resolve("../tunnel")
+val tunnelAar: File = tunnelDir.resolve("build/flexarr-tunnel.aar")
+val buildTunnel by tasks.registering(Exec::class) {
+    description = "Builds the guest tunnel's AAR (clients/tunnel/build-android.sh) when it's missing or stale."
+    workingDir = tunnelDir
+    commandLine("./build-android.sh")
+    // Go is often only on the shell's PATH (Homebrew's), which Android Studio doesn't read.
+    environment("PATH", listOf(System.getenv("PATH").orEmpty(), "/opt/homebrew/bin", "/usr/local/go/bin", "/usr/local/bin").joinToString(File.pathSeparator))
+    // Locals, so the configuration cache doesn't have to keep the build script.
+    val aar = tunnelAar
+    val sources = tunnelDir.listFiles { file -> file.extension == "go" || file.name in setOf("go.mod", "go.sum", "tags.sh", "build-android.sh") }.orEmpty().toList()
+    onlyIf("the tunnel's AAR is missing or older than its sources") {
+        !aar.exists() || sources.any { it.lastModified() > aar.lastModified() }
+    }
+    doFirst {
+        logger.lifecycle("Building the guest tunnel (clients/tunnel/build-android.sh); this takes a few minutes the first time.")
+    }
+}
+tasks.named("preBuild") { dependsOn(buildTunnel) }
+
 dependencies {
     implementation(project(":core"))
+    implementation(files(tunnelAar))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.splashscreen)
@@ -193,6 +217,8 @@ dependencies {
     implementation(libs.kotlinx.coroutines.play.services)
     // Google Play's in-app rating prompt (ReviewPrompt).
     implementation(libs.play.review)
+    // Scan code for family invites: Google Play services' own scanner, so the app needs no camera permission.
+    implementation(libs.play.code.scanner)
     implementation(libs.kotlinx.coroutines.guava)
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)

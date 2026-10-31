@@ -517,10 +517,18 @@ class FlexarrClient(
             error is ConnectException || error is UnknownHostException || error is NoRouteToHostException ||
                 error is SocketTimeoutException || error is SSLException
 
+        /**
+         * The family guest's tunnel, when this app has one (the app sets it): requests to 127.0.0.1 wait for it to be up,
+         * go to the port it's listening on, and start it again if it's gone. Null leaves loopback requests alone.
+         */
+        @Volatile
+        var loopbackTunnel: LoopbackTunnel? = null
+
         /** One connection pool for the whole app; clients for different sign-ins share it. */
         val sharedHttp: OkHttpClient = OkHttpClient.Builder()
             .connectTimeout(10, TimeUnit.SECONDS)
             .readTimeout(20, TimeUnit.SECONDS)
+            .addInterceptor(LoopbackTunnel.interceptor { loopbackTunnel })
             .build()
 
         /**
@@ -586,6 +594,9 @@ class FlexarrClient(
         }
 
         private val homeSuffixes = listOf(".local", ".ts.net", ".lan", ".home", ".internal", ".home.arpa")
+
+        /** [host] is an IPv4 address in 100.64.0.0/10, where Tailscale gives its devices addresses (never looked up). */
+        fun isTailscaleHost(host: String): Boolean = ipAddress(host)?.let(::isTailscaleAddress) == true
 
         /** 100.64.0.0/10, where Tailscale gives its devices addresses. */
         private fun isTailscaleAddress(address: InetAddress): Boolean =
