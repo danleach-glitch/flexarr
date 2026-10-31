@@ -436,7 +436,7 @@ private struct GuestCode: View {
     @State private var waiter = GuestCodeWaiter()
     @FocusState private var focus: Choice?
 
-    private enum Choice { case main, back }
+    private enum Choice { case main, newCode, back }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 30) {
@@ -453,6 +453,7 @@ private struct GuestCode: View {
                     .font(.system(size: 44, weight: .bold))
                     .foregroundStyle(Color.screen)
                     .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isHeader)
                 Text("You’ll watch as \(offer.profileName).")
                     .font(.system(size: 30))
                     .foregroundStyle(Color.usher)
@@ -460,6 +461,8 @@ private struct GuestCode: View {
                     Button("Join") { Task { await waiter.join(model: model) } }
                         .buttonStyle(ActionButtonStyle(prominent: true))
                         .focused($focus, equals: .main)
+                        // VoiceOver lands here, not on the title: it says whose.
+                        .accessibilityLabel("Join \(offer.ownerName)’s Flexarr")
                     Button("Not now") { waiter.newCode() }
                         .buttonStyle(ActionButtonStyle(prominent: false))
                 }
@@ -476,7 +479,7 @@ private struct GuestCode: View {
                     }
                     Button(waiter.noCode ? "Try again" : "New code") { waiter.newCode() }
                         .buttonStyle(ActionButtonStyle(prominent: !waiter.canTryAgain))
-                        .focused($focus, equals: waiter.canTryAgain ? nil : .main)
+                        .focused($focus, equals: .newCode)
                 }
             } else if waiter.stopped {
                 Button("Show a new code") { waiter.newCode() }
@@ -496,14 +499,28 @@ private struct GuestCode: View {
                     .foregroundStyle(Color.usher)
             }
             if waiter.offer == nil {
-                Button("Back", action: onBack)
+                // Still focusable while joining (the focus has nowhere else to be), but does nothing till it's done.
+                Button("Back") { if waiter.joining == nil { onBack() } }
                     .buttonStyle(ActionButtonStyle(prominent: false))
                     .focused($focus, equals: .back)
-                    .disabled(waiter.joining != nil)
+                    .opacity(waiter.joining == nil ? 1 : 0.5)
             }
         }
         // Join (or the way on) takes the focus as it appears, so one click does it.
-        .onChange(of: "\(waiter.offer != nil)#\(waiter.problem ?? "")#\(waiter.stopped)") { focus = .main }
+        .onChange(of: "\(waiter.offer != nil)#\(waiter.problem ?? "")#\(waiter.stopped)#\(waiter.joining != nil)") {
+            if waiter.joining != nil {
+                focus = .back
+            } else if waiter.problem != nil, !waiter.canTryAgain {
+                focus = .newCode
+            } else {
+                focus = .main
+            }
+        }
+        // The invite arrived while the code showed: said aloud.
+        .onChange(of: waiter.offer?.token) { _, token in
+            guard token != nil, let offer = waiter.offer else { return }
+            AccessibilityNotification.Announcement("Join \(offer.ownerName)’s Flexarr?").post()
+        }
         // Polls only while the app is in front; back in front, the same code carries on.
         .task(id: "\(waiter.round)#\(scenePhase == .active)") {
             guard scenePhase == .active else { return }

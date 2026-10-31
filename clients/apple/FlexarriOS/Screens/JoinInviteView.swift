@@ -106,6 +106,8 @@ struct GuestCodeView: View {
     @Environment(\.scenePhase) private var scenePhase
     let onBack: () -> Void
     @State private var waiter = GuestCodeWaiter()
+    /// VoiceOver moves to "Join Dan’s Flexarr?" when the invite arrives.
+    @AccessibilityFocusState private var titleFocused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -122,6 +124,8 @@ struct GuestCodeView: View {
                     Text("Join \(offer.ownerName)’s Flexarr?")
                         .font(.title2.weight(.bold))
                         .foregroundStyle(Color.screen)
+                        .accessibilityAddTraits(.isHeader)
+                        .accessibilityFocused($titleFocused)
                     Text("You’ll watch as \(offer.profileName).")
                         .foregroundStyle(Color.usher)
                 }
@@ -170,6 +174,12 @@ struct GuestCodeView: View {
                     .font(.body.weight(.semibold))
                     .disabled(waiter.joining != nil)
             }
+        }
+        // The invite arrived while the code showed: said aloud, and VoiceOver moves to it.
+        .onChange(of: waiter.offer?.token) { _, token in
+            guard token != nil, let offer = waiter.offer else { return }
+            AccessibilityNotification.Announcement("Join \(offer.ownerName)’s Flexarr?").post()
+            titleFocused = true
         }
         // Polls only while the app is in front; back in front, the same code carries on.
         .task(id: "\(waiter.round)#\(scenePhase == .active)") {
