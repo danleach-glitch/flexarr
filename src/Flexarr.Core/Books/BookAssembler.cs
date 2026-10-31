@@ -92,6 +92,46 @@ public sealed partial class BookAssembler(FlexarrDbContext db, IMediaProbe probe
         var sidecars = isFile ? BookInfo.Empty : BookSidecars.Read(key);
         var info = sidecars.Over(tags).Over(FromPath(BookLayout.Describe(root, key, isFile)));
         await ApplyAsync(book, details, info, ct).ConfigureAwait(false);
+
+        // Chapters someone edited, or took from Audible, are kept: the files can't say anything better.
+        if (details.ChapterSource is not (ChapterSource.Edited or ChapterSource.Audible))
+        {
+            var sources = ordered.Select(f => new ChapterSourceFile(f.Path, f.DurationSeconds ?? probes[f.Id]?.DurationSeconds ?? 0, probes[f.Id]?.Tags, probes[f.Id]?.Chapters ?? [])).ToList();
+            var (chapters, source) = BookChapters.Build(sources, isFile ? null : CueSheet(key), book.Title);
+            await ReplaceChaptersAsync(book.Id, chapters, ct).ConfigureAwait(false);
+            details.ChapterSource = source;
+        }
+    }
+
+    /// <summary>The text of the only .cue sheet in a book's folder.</summary>
+    private static string? CueSheet(string folder)
+    {
+        try
+        {
+            var sheets = Directory.EnumerateFiles(folder, "*.cue").Take(2).ToList();
+            return sheets.Count == 1 ? File.ReadAllText(sheets[0]) : null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Puts <paramref name="chapters"/> in place of the book's stored ones.</summary>
+    public async Task ReplaceChaptersAsync(Guid bookId, IReadOnlyList<BookChapter> chapters, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(chapters);
+        var stored = await db.MediaChapters.Where(c => c.MediaItemId == bookId).ToListAsync(ct).ConfigureAwait(false);
+        db.MediaChapters.RemoveRange(stored);
+        if (stored.Count > 0)
+        {
+            await db.SaveChangesAsync(ct).ConfigureAwait(false); // the unique (book, index) would clash with the new rows
+        }
+
+        db.MediaChapters.AddRange(chapters.Select((c, i) => new MediaChapter
+        {
+            MediaItemId = bookId, Index = i, Title = c.Title.Length > 500 ? c.Title[..500] : c.Title, StartSeconds = c.StartSeconds, EndSeconds = c.EndSeconds,
+        }));
     }
 
     /// <summary>

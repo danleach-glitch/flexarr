@@ -249,6 +249,36 @@ public sealed class AudiobookScannerTests : IAsyncLifetime
         Assert.Equal($"embedded://{Path.Combine(Books, "A/Book/01.m4b")}", (await _db.MediaItems.SingleAsync()).PosterUrl);
     }
 
+    [Fact]
+    public async Task ChaptersAreStored_OnTheBooksTimeline()
+    {
+        Touch("A/Book/01.mp3", "A/Book/02.mp3");
+        _probe.Chapters["02.mp3"] = [new(0, 300, "Two A"), new(300, 600, "Two B")];
+
+        await ScanAsync();
+
+        var book = await _db.MediaItems.Include(i => i.Book).SingleAsync();
+        Assert.Equal(ChapterSource.Embedded, book.Book!.ChapterSource);
+        var chapters = await _db.MediaChapters.OrderBy(c => c.Index).Select(c => new { c.Title, c.StartSeconds }).ToListAsync();
+        Assert.Equal([("01", 0.0), ("Two A", 600.0), ("Two B", 900.0)], chapters.Select(c => (c.Title, c.StartSeconds)));
+    }
+
+    [Fact]
+    public async Task EditedChapters_SurviveARescan()
+    {
+        Touch("A/Book/01.mp3");
+        await ScanAsync();
+        var book = await _db.MediaItems.Include(i => i.Book).SingleAsync();
+        (await _db.MediaChapters.SingleAsync()).Title = "Renamed by hand";
+        book.Book!.ChapterSource = ChapterSource.Edited;
+        await _db.SaveChangesAsync();
+        Touch("A/Book/02.mp3");
+
+        await ScanAsync();
+
+        Assert.Equal("Renamed by hand", (await _db.MediaChapters.SingleAsync()).Title);
+    }
+
     private async Task<List<string>> NarratorsAsync(Guid bookId) =>
         await _db.Credits.Where(c => c.MediaItemId == bookId && c.Role == CreditRole.Narrator).OrderBy(c => c.Order).Select(c => c.Person!.Name).ToListAsync();
 
