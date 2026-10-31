@@ -11,6 +11,9 @@ public enum MediaKind
     Track,
     Podcast,
     PodcastEpisode,
+
+    /// <summary>A book in an audiobooks library: a top-level item whose files play back to back as one timeline.</summary>
+    Audiobook,
 }
 
 /// <summary>
@@ -145,4 +148,10 @@ public sealed class MediaItem
 
     /// <summary>Where a <see cref="MediaKind.PodcastEpisode"/>'s sound is, and what its feed says about it.</summary>
     public Podcasts.PodcastEpisode? Enclosure { get; set; }
+
+    /// <summary>What an <see cref="MediaKind.Audiobook"/>'s edition says about it.</summary>
+    public Books.BookDetails? Book { get; set; }
+
+    /// <summary>The series a book is in, with its number in each.</summary>
+    public List<Books.BookSeriesEntry> SeriesEntries { get; set; } = [];
 }

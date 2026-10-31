@@ -16,6 +16,15 @@ public sealed class PlaybackState
     public int PlayCount { get; set; }
     public DateTime LastPlayedAt { get; set; } = DateTime.UtcNow;
 
+    /// <summary>
+    /// When a book was last finished. Kept when it's listened to again, so finished books stay counted; null for
+    /// anything but books, and for books never finished.
+    /// </summary>
+    public DateTime? FinishedAt { get; set; }
+
+    /// <summary>The device that last recorded a place in a book, so another can offer to jump there. Books only.</summary>
+    public string? Device { get; set; }
+
     /// <summary>Preferred audio/subtitle languages carry over between episodes of a series.</summary>
     public string? AudioLanguage { get; set; }
     public string? SubtitleLanguage { get; set; }

@@ -26,6 +26,17 @@ public static class ItemQueries
                 SeriesId = i.Kind == MediaKind.Episode || i.Kind == MediaKind.Track ? i.Parent!.ParentId
                     : i.Kind == MediaKind.Season || i.Kind == MediaKind.Album || i.Kind == MediaKind.PodcastEpisode ? i.ParentId : null,
                 PodcastDuration = i.Enclosure != null ? i.Enclosure.DurationSeconds : null,
+                // A book's: its authors (two at most), first narrator and a series, and its whole length.
+                Book = i.Kind != MediaKind.Audiobook ? null : new
+                {
+                    Author1 = i.Credits.Where(c => c.Role == CreditRole.Author).OrderBy(c => c.Order).Select(c => c.Person!.Name).FirstOrDefault(),
+                    Author2 = i.Credits.Where(c => c.Role == CreditRole.Author).OrderBy(c => c.Order).Skip(1).Select(c => c.Person!.Name).FirstOrDefault(),
+                    Authors = i.Credits.Count(c => c.Role == CreditRole.Author),
+                    Narrator = i.Credits.Where(c => c.Role == CreditRole.Narrator).OrderBy(c => c.Order).Select(c => c.Person!.Name).FirstOrDefault(),
+                    Series = i.SeriesEntries.OrderBy(e => e.Series!.Entries.Count).Select(e => new { e.Series!.Name, e.Sequence }).FirstOrDefault(),
+                    Duration = i.Book != null ? i.Book.DurationSeconds : 0,
+                    FinishedAt = i.PlaybackStates.Where(p => p.UserId == profileId).Select(p => p.FinishedAt).FirstOrDefault(),
+                },
                 // Part of a home video library: its folders and videos are kept by their paths, a show's seasons and
                 // episodes never are. They're shown by name, not as S01E02.
                 HomeVideo = i.Kind == MediaKind.Series ? i.Children.Any(s => s.Path != null)
@@ -41,7 +52,7 @@ public static class ItemQueries
             .Select(x => new ItemSummaryDto(
                 x.Item.Id, x.Item.LibraryId, x.Item.ParentId, x.Item.Kind, x.Item.Title, x.Item.Year, x.Item.SeasonNumber, x.Item.EpisodeNumber,
                 x.Item.EpisodeNumberEnd, x.Item.AirDate, x.ChildCount,
-                x.Best == null ? x.PodcastDuration : x.Best.DurationSeconds,
+                x.Book != null ? x.Book.Duration : x.Best == null ? x.PodcastDuration : x.Best.DurationSeconds,
                 x.Best == null ? null : Resolution.Label(x.Best.Width, x.Best.Height),
                 x.Item.AddedAt,
                 ArtworkUrls.For(x.Item.Id, x.Item.MetadataUpdatedAt == null ? 0 : x.Item.MetadataUpdatedAt.Value.Ticks / 10_000_000,
@@ -64,5 +75,9 @@ public static class ItemQueries
                 x.SeriesId,
                 x.Item.AlbumType,
                 x.Item.TrackArtist,
-                x.HomeVideo));
+                x.HomeVideo,
+                x.Book == null ? null : new Books.BookSummaryDto(
+                    x.Book.Author2 == null ? x.Book.Author1 : x.Book.Author1 + ", " + x.Book.Author2, x.Book.Authors, x.Book.Narrator,
+                    x.Book.Series == null ? null : x.Book.Series.Name, x.Book.Series == null ? null : x.Book.Series.Sequence,
+                    x.Book.Duration, x.Book.FinishedAt)));
 }

@@ -1,0 +1,23 @@
+{
+  "author": {
+    "id": 3,
+    "name": "Richard Osman",
+    "path": "/data/audiobooks/Richard Osman",
+    "goodreadsId": "6914939"
+  },
+  "book": {
+    "id": 12,
+    "goodreadsId": "46000520",
+    "title": "The Thursday Murder Club",
+    "edition": {
+      "title": "The Thursday Murder Club",
+      "goodreadsId": "54825869",
+      "asin": "B07QL7C4NL",
+      "isbn13": "9780241992302"
+    },
+    "releaseDate": "2020-09-03T00:00:00Z"
+  },
+  "deletedFiles": true,
+  "eventType": "BookDelete",
+  "instanceName": "Readarr"
+}
