@@ -12,23 +12,19 @@ Sizes are rough: **S** a day or two, **M** about a week, **L** several weeks.
 |---|---|:-:|
 | Apple TV on the App Store | With Apple for review | 🚧 |
 | Flexarr Server for Mac | The server and web app as a menu bar app for the Mac App Store | 🚧 |
-| Android | An app for phones and tablets, with Android TV and Chromecast after it. M–L. [#49](https://github.com/danleach-glitch/flexarr/discussions/49) | 🚧 |
-| Find subtitles | Search and download subtitles from the player for files that have none. S–M. [#124](https://github.com/danleach-glitch/flexarr/discussions/124) | 🕐 1 |
+| Android | An app for phones and tablets, with Chromecast, and Android TV and Google TV after it. M–L. [#49](https://github.com/danleach-glitch/flexarr/discussions/49) | 🚧 |
 | Tracker sync | Trakt is built (on its way in the next release). Still to come: ratings, then Simkl, MyAnimeList and AniList. M. [#128](https://github.com/danleach-glitch/flexarr/discussions/128) | 🚧 |
-| iPhone as a remote | Full control of what the Apple TV is playing. M. [#127](https://github.com/danleach-glitch/flexarr/discussions/127) | 🕐 3 |
-| Flexarr in your language | Translated apps, a language per profile. M, then ongoing. [#126](https://github.com/danleach-glitch/flexarr/discussions/126) | 🕐 4 |
-| Cast and trivia | Who's on screen and facts about the title while you watch. M. [#43](https://github.com/danleach-glitch/flexarr/discussions/43) | 🕐 5 |
-| Family filter | Mute language and skip scenes, with parental ratings for profiles. M. [#44](https://github.com/danleach-glitch/flexarr/discussions/44) | 🕐 5 |
-| TrueHD Atmos with height channels | Object audio kept for receivers that decode it. M. [#45](https://github.com/danleach-glitch/flexarr/discussions/45) | 🕐 5 |
-| Multiview | Up to four live channels at once. M. [#38](https://github.com/danleach-glitch/flexarr/discussions/38) | 🕐 6 |
-| Music visualiser | On Now Playing. S–M. [#46](https://github.com/danleach-glitch/flexarr/discussions/46) | 🕐 7 |
-| Mixes and radio by sound | Built from how songs sound, not just their tags. L. [#47](https://github.com/danleach-glitch/flexarr/discussions/47) | 🕐 7 |
+| Invite family to watch from afar | A link or code connects their apps, with Tailscale built in: no account, sign-in or setup for them. M–L. [#146](https://github.com/danleach-glitch/flexarr/discussions/146) | 🚧 |
+| Flexarr in your language | Translated apps, a language per profile. M, then ongoing. [#126](https://github.com/danleach-glitch/flexarr/discussions/126) | 🕐 1 |
+| Cast and trivia | Who's on screen and facts about the title while you watch. M. [#43](https://github.com/danleach-glitch/flexarr/discussions/43) | 🕐 2 |
+| Family filter | Mute language and skip scenes. Kids profiles with age ratings are built. M. [#44](https://github.com/danleach-glitch/flexarr/discussions/44) | 🕐 2 |
+| TrueHD Atmos with height channels | Object audio kept for receivers that decode it. M. [#45](https://github.com/danleach-glitch/flexarr/discussions/45) | 🕐 2 |
+| Multiview | Up to four live channels at once. M. [#38](https://github.com/danleach-glitch/flexarr/discussions/38) | 🕐 3 |
+| Mixes and radio by sound | Built from how songs sound, not just their tags. L. [#47](https://github.com/danleach-glitch/flexarr/discussions/47) | 🕐 4 |
 | Photo libraries | [#48](https://github.com/danleach-glitch/flexarr/discussions/48) | 🗓️ |
 | Audiobooks | A library for audiobooks with Readarr, Bookshelf or Chaptarr: chapters, series, narrators, bookmarks, offline listening, requests and an import from Audiobookshelf. L. [Plan](audiobooks.md), [#144](https://github.com/danleach-glitch/flexarr/discussions/144) | 🗓️ |
-| Speaker setup | Stereo or 5.1 output with a centre-channel boost, built with dialogue boost and night mode. Waiting for the Apple apps' player to be able to shape the sound ([AetherEngine#923](https://github.com/superuser404notfound/AetherEngine/issues/923)). S–M. [#125](https://github.com/danleach-glitch/flexarr/discussions/125), [#23](https://github.com/danleach-glitch/flexarr/discussions/23) | 🗓️ |
 | PostgreSQL | As an alternative to SQLite. [#14](https://github.com/danleach-glitch/flexarr/issues/14) | 🗓️ |
 | New files noticed at once | In libraries the \*arr apps don't manage, rather than at the next scan. [#3](https://github.com/danleach-glitch/flexarr/issues/3) | 🗓️ |
-| Invite family to watch from afar | A link or code connects their apps, with Tailscale built in: no account, sign-in or setup for them. M–L. [#146](https://github.com/danleach-glitch/flexarr/discussions/146) | 🚧 |
 | Subtitles made on the device | For titles that have none. [#111](https://github.com/danleach-glitch/flexarr/discussions/111) | 💡 |
 | "What did they say?" | Replay the last few seconds with subtitles. [#112](https://github.com/danleach-glitch/flexarr/discussions/112) | 💡 |
 | Watching together | Shared progress for the people in the room. [#20](https://github.com/danleach-glitch/flexarr/discussions/20) | 💡 |
@@ -60,11 +56,11 @@ Sizes are rough: **S** a day or two, **M** about a week, **L** several weeks.
 | Foundations | Server, API-key auth, CI (server, web, Apple, Docker, CodeQL), Docker image with PUID/PGID and VA-API/Quick Sync, macOS deploy, semver releases, Settings › Updates with one-click updates on a Mac, backups, logs and opt-in error reports | ✅ |
 | Library | Scanner for films, TV and music, file name parsing, ffprobe media info, webhook-driven and scheduled rescans, Fix match, delete through Sonarr and Radarr, library health, Plex history import, media folders that find themselves, libraries without the \*arr apps, Home videos | ✅ |
 | Metadata | From Sonarr, Radarr and Lidarr with no keys of our own, local `.nfo` files and artwork, TVmaze, TMDB with your own key, image cache, music artwork and album kinds | ✅ |
-| Playback | Direct play on the device (AV1, VC-1 and the rest), repackaging and hardware transcoding, HDR10, HDR10+, HLG and Dolby Vision 5, 7 and 8.1, Atmos passthrough and lossless surround, subtitles with timing, size, position and the system caption style, styled ASS, closed captions and teletext, audio sync, a sleep timer, speed kept per show, skip intro, recap and credits, Up Next, scrubbing previews | ✅ |
+| Playback | Direct play on the device (AV1, VC-1 and the rest), repackaging and hardware transcoding, HDR10, HDR10+, HLG and Dolby Vision 5, 7 and 8.1, Atmos passthrough and lossless surround, subtitles with timing, size, position and the system caption style, styled ASS, closed captions and teletext, subtitle search with Bazarr, dialogue boost, night mode and stereo or 5.1 speakers, audio sync, a sleep timer, speed kept per show, skip intro, recap and credits, Up Next, scrubbing previews | ✅ |
 | Finding things | Home rows you arrange, libraries of the same kind combined on Home, search, person and genre pages, collections (manual, smart and Radarr series), a watchlist that follows titles until they arrive, Coming soon, Discover and Seerr requests, shuffle | ✅ |
-| Music | Queue, playlists, synced lyrics, daily mixes, artist radio, near-gapless, crossfade, volume normalisation, offline albums | ✅ |
+| Music | Queue, playlists, synced lyrics, daily mixes, artist radio, near-gapless, crossfade, volume normalisation, offline albums, a visualiser on Now Playing | ✅ |
 | Podcasts | Apple's directory and any feed, following per profile, Up Next across devices, speeds and sleep timer, OPML, offline and automatic downloads, notifications, widgets, CarPlay (awaiting Apple) | ✅ |
 | Live TV | Dispatcharr sources, guide, favourites, pause and rewind, recording and series recording | ✅ |
 | Apple apps | Apple TV, iPhone and iPad with Flexarr's own player, profiles, Top Shelf with title logos, downloads, Picture in Picture and AirPlay; the iPhone and iPad app on the App Store | ✅ |
-| Control | Siri and Shortcuts (play, shuffle, on another device), play on another device, an MCP server for assistants, [Home Assistant](https://github.com/danleach-glitch/flexarr-home-assistant) (media players and playback triggers) | ✅ |
-| Profiles and access | Per-person history and settings, PINs, a sign-in per device, Bonjour and code pairing, Tailscale with automatic fallback | ✅ |
+| Control | Siri and Shortcuts (play, shuffle, on another device), play on another device, the iPhone as an Apple TV remote with Lock Screen controls, an MCP server for assistants, [Home Assistant](https://github.com/danleach-glitch/flexarr-home-assistant) (media players and playback triggers) | ✅ |
+| Profiles and access | Per-person history and settings, PINs and an admin PIN, kids profiles with age ratings and child lock, a sign-in per device, Bonjour and code pairing, Tailscale with automatic fallback | ✅ |
