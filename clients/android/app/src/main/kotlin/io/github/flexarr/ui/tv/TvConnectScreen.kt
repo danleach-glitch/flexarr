@@ -42,6 +42,8 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -228,7 +230,9 @@ private fun GuestCode(model: AppModel, onBack: () -> Unit) {
                 }
                 // Asked first: anyone who heard the code could have sent theirs.
                 else -> {
-                    Text("Join ${invite.ownerName}’s Flexarr?", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                    // Said as it arrives: whoever's using TalkBack is looking at the code.
+                    Text("Join ${invite.ownerName}’s Flexarr?", fontSize = 22.sp, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite; heading() })
                     Text("You’ll watch as ${invite.profileName}.", fontSize = 16.sp, color = Flexarr.usher)
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         TvActionButton("Join", onClick = model::confirmInvite, prominent = true, modifier = Modifier.focusRequester(join))

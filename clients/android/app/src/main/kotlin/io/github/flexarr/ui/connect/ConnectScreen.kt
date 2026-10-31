@@ -54,6 +54,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
@@ -562,7 +563,9 @@ private fun PhoneGuestCode(model: AppModel, onBack: () -> Unit) {
                 }
                 // Asked first: anyone who heard the code could have sent theirs.
                 else -> {
-                    Text("Join ${invite.ownerName}’s Flexarr?", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Flexarr.screen)
+                    // Said as it arrives: whoever's using TalkBack is looking at the code.
+                    Text("Join ${invite.ownerName}’s Flexarr?", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Flexarr.screen,
+                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite; heading() })
                     Text("You’ll watch as ${invite.profileName}.", fontSize = 17.sp, color = Flexarr.usher)
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         ActionButton("Join", onClick = model::confirmInvite, prominent = true)
