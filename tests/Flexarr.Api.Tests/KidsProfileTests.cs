@@ -151,7 +151,7 @@ public class KidsProfileTests
     }
 
     [Fact]
-    public async Task LeavingAKidsProfile_TakesTheMainProfilesPin_ButMovingToAnotherDoesnt()
+    public async Task WithoutChildLock_AKidsProfile_CanBeLeftForAnyProfile_WithNoPinButItsOwn()
     {
         using var server = new FlexarrApiFactory();
         await server.SetMainPinAsync(MainPin);
@@ -163,17 +163,14 @@ public class KidsProfileTests
 
         var toBen = await SelectAsync(tv, ben);
         var toMum = await SelectAsync(tv, mum);
-        var wrong = await SelectAsync(tv, mum, new { parentPin = "0000" });
+        await SelectAsync(tv, ada);
         var toMain = await SelectAsync(tv, "owner");
-        var right = await SelectAsync(tv, mum, new { parentPin = MainPin });
+        var main = (await tv.GetFromJsonAsync<JsonElement>(Api("/profiles"))).EnumerateArray().Single(p => p.GetProperty("isMain").GetBoolean());
 
         Assert.Equal(HttpStatusCode.OK, toBen.StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, toMum.StatusCode);
-        Assert.True((await JsonAsync(toMum)).GetProperty("parentPin").GetBoolean());
-        Assert.Equal(HttpStatusCode.Forbidden, wrong.StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, toMain.StatusCode);
-        Assert.Equal(HttpStatusCode.OK, right.StatusCode);
-        Assert.Equal(mum, (await tv.GetFromJsonAsync<JsonElement>(Api("/me"))).GetProperty("profileId").GetString());
+        Assert.Equal(HttpStatusCode.OK, toMum.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, toMain.StatusCode); // its PIN guards the server's settings, not watching as it
+        Assert.False(main.GetProperty("asksPin").GetBoolean());
     }
 
     [Fact]
@@ -193,7 +190,7 @@ public class KidsProfileTests
         var toBen = await SelectAsync(tv, ben); // PG to U is stricter: no PIN
         var offered = (await tv.GetFromJsonAsync<JsonElement>(Api("/profiles"))).EnumerateArray().Select(p => p.GetProperty("id").GetString()).ToList();
         var toMum = await SelectAsync(tv, mum, new { parentPin = MainPin });
-        var toAdaAlone = await SelectAsync(tv, ada); // U to PG is a looser limit: the main profile's PIN
+        var toAdaAlone = await SelectAsync(tv, ada); // between kids profiles: no PIN, child lock or not
         var toAda = await SelectAsync(tv, ada, new { parentPin = MainPin });
         var me = await tv.GetFromJsonAsync<JsonElement>(Api("/me"));
         var devices = await Admin(server).GetFromJsonAsync<JsonElement>(Api("/sign-ins"));
@@ -205,7 +202,7 @@ public class KidsProfileTests
         Assert.Equal([ada, ben], offered);
         Assert.Equal(HttpStatusCode.Forbidden, toMum.StatusCode);
         Assert.True((await JsonAsync(toMum)).GetProperty("kidsLock").GetBoolean());
-        Assert.Equal(HttpStatusCode.Forbidden, toAdaAlone.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, toAdaAlone.StatusCode);
         Assert.Equal(HttpStatusCode.OK, toAda.StatusCode);
         Assert.Equal((ada, true), (me.GetProperty("profileId").GetString(), me.GetProperty("kidsLock").GetBoolean()));
         Assert.Contains(devices.EnumerateArray(), d => d.GetProperty("kidsLock").GetBoolean());
@@ -346,7 +343,7 @@ public class KidsProfileTests
     }
 
     [Fact]
-    public async Task LeavingAnyAgeLimit_ForALooserOne_TakesTheMainProfilesPin_AndOldAppsAreShownItsKeypad()
+    public async Task LeavingAnAgeLimit_TakesNoPin_ButAProfilesOwnPinStillCounts()
     {
         using var server = new FlexarrApiFactory();
         await server.SetMainPinAsync(MainPin);
@@ -355,16 +352,15 @@ public class KidsProfileTests
         var tv = await TvAsync(server);
         await SelectAsync(tv, sam);
 
-        var main = (await tv.GetFromJsonAsync<JsonElement>(Api("/profiles"))).EnumerateArray().Single(p => p.GetProperty("isMain").GetBoolean());
         var toMum = await SelectAsync(tv, mum);
-        var toMainWithItsPin = await SelectAsync(tv, "owner", new { pin = MainPin });
-
+        await SelectAsync(tv, sam);
         var dad = (await (await Admin(server).PostAsJsonAsync(Api("/profiles"), new { name = "Dad", pin = "1234" })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString()!;
-        var wrongOwn = await SelectAsync(tv, dad, new { pin = "9999", parentPin = MainPin });
-        Assert.True((await JsonAsync(wrongOwn)).GetProperty("ownPin").GetBoolean()); // the parent's was right, Dad's wasn't
-        Assert.True(main.GetProperty("asksPin").GetBoolean()); // so an app that doesn't know parentPin shows the keypad
-        Assert.Equal(HttpStatusCode.Forbidden, toMum.StatusCode);
-        Assert.Equal(HttpStatusCode.OK, toMainWithItsPin.StatusCode);
+        var wrongOwn = await SelectAsync(tv, dad, new { pin = "9999", parentPin = MainPin }); // an older app still sends parentPin
+        var rightOwn = await SelectAsync(tv, dad, new { pin = "1234" });
+
+        Assert.Equal(HttpStatusCode.OK, toMum.StatusCode);
+        Assert.True((await JsonAsync(wrongOwn)).GetProperty("ownPin").GetBoolean());
+        Assert.Equal(HttpStatusCode.OK, rightOwn.StatusCode);
     }
 
     [Fact]

@@ -66,9 +66,8 @@ public static partial class ProfileEndpoints
         group.MapGet("/", async (FlexarrDbContext db, CurrentProfile current, SignIns signIns, CancellationToken ct) =>
         {
             var locked = signIns.ById(current.SignInId)?.KidsLock == true;
-            var parentAsks = await LeavingTakesParentPinAsync(db, current, ct);
             return (await db.Profiles.AsNoTracking().Where(p => !locked || p.IsKids).OrderBy(p => p.CreatedAt).ToListAsync(ct))
-                .Select(p => ToDto(p, current, parentAsks)).ToList();
+                .Select(p => ToDto(p, current)).ToList();
         });
 
         group.MapPost("/", async (ProfileRequest request, FlexarrDbContext db, CurrentProfile current, CancellationToken ct) =>
@@ -370,21 +369,12 @@ public static partial class ProfileEndpoints
                 return Results.NotFound();
             }
 
-            // A child stays in kids profiles: a device locked to them offers nothing else, and leaving one, or any profile
-            // with an age limit for a looser one, takes the main profile's PIN. (Over the API key, which is the server, it
-            // doesn't.) Choosing the main profile, its own PIN is that PIN.
+            // Child lock is what keeps a child in kids profiles: a device with it on offers nothing else, and only the admin
+            // PIN turns it off. Without it, any profile may be chosen from any other, kids profiles included, with no PIN
+            // but the chosen profile's own. (`parentPin`, from apps that asked for it before, is accepted and not needed.)
             if (!profile.IsKids && signIns.ById(current.SignInId)?.KidsLock == true)
             {
                 return Results.Problem("Child lock is on for this device.", statusCode: 403, extensions: new Dictionary<string, object?> { ["kidsLock"] = true });
-            }
-
-            var from = await db.Profiles.AsNoTracking().Where(p => p.Id == current.Id).Select(p => new { p.IsKids, p.MaxRatingAge }).FirstOrDefaultAsync(ct);
-            var loosens = from is not null && (from.IsKids && !profile.IsKids
-                || from.MaxRatingAge is { } limit && (profile.MaxRatingAge is null || profile.MaxRatingAge > limit));
-            var parentPin = request.ParentPin ?? (profile.IsMain ? request.Pin : null);
-            if (loosens && await ParentPinAsync(http, db, current, guard, parentPin, ct) is { } refused)
-            {
-                return refused;
             }
 
             // Without a PIN on the main profile, choosing it would make anyone the server's admin. A browser or device
@@ -396,7 +386,7 @@ public static partial class ProfileEndpoints
 
             // The main profile's PIN guards managing the server, not watching as it: on a browser or device the owner
             // signed in, choosing it only asks if the owner wants it to. A PIN given anyway is checked, and unlocks.
-            var askPin = !(loosens && profile.IsMain) && (current.AsksPinFor(profile) || profile.PinHash is not null && !string.IsNullOrEmpty(request.Pin));
+            var askPin = current.AsksPinFor(profile) || profile.PinHash is not null && !string.IsNullOrEmpty(request.Pin);
             if (askPin)
             {
                 var (callers, browser) = PinCaller(http, current);
@@ -409,13 +399,13 @@ public static partial class ProfileEndpoints
 
                 if (result == PinCheck.Wrong)
                 {
-                    // After a right parent PIN, apps say it was this profile's own that was wrong (ownPin).
+                    // `ownPin`: this profile's own PIN was the wrong one (apps from before also sent a parent's).
                     return Results.Problem("That PIN isn't right.", statusCode: 403, extensions: new Dictionary<string, object?> { ["ownPin"] = true });
                 }
             }
 
-            // The main profile's PIN was given, as its own or as the parent's.
-            var mainPinGiven = profile.IsMain && (askPin || loosens && !string.IsNullOrEmpty(parentPin));
+            // The main profile's PIN was given (checked above): it unlocks the server's settings here too.
+            var mainPinGiven = profile.IsMain && askPin;
             var signInId = current.SignInId;
             if (signInId is not null)
             {
@@ -551,18 +541,11 @@ public static partial class ProfileEndpoints
         return Results.Problem(message(when), statusCode: 429, extensions: new Dictionary<string, object?> { ["retryAfterSeconds"] = seconds });
     }
 
-    /// <param name="parentAsks">
-    /// The profile watching can only be left with the main profile's PIN, so choosing the main profile asks for it
-    /// whatever the setting (and apps that don't know kids profiles show its keypad).
-    /// </param>
-    internal static ProfileDto ToDto(Profile p, CurrentProfile current, bool parentAsks = false) =>
+    internal static ProfileDto ToDto(Profile p, CurrentProfile current) =>
         new(p.Id, p.Name, p.Color, p.PinHash is not null, p.IsMain, p.Id == current.Id, p.HiddenLibraryIds, current.ImageUrlFor(p), p.RequestShowsLibraryId,
-            p.RequestFilmsLibraryId, p.LibraryOrder, current.AsksPinFor(p) || parentAsks && p.IsMain && p.PinHash is not null, p.AutoRequestWatchlist, p.MaxRatingAge,
+            p.RequestFilmsLibraryId, p.LibraryOrder, current.AsksPinFor(p), p.AutoRequestWatchlist, p.MaxRatingAge,
             p.IsKids);
 
-    /// <summary>The profile watching is a kids profile or has an age limit, so leaving it may take the main profile's PIN.</summary>
-    private static Task<bool> LeavingTakesParentPinAsync(FlexarrDbContext db, CurrentProfile current, CancellationToken ct) =>
-        current.IsAdmin ? Task.FromResult(false) : db.Profiles.AnyAsync(p => p.Id == current.Id && (p.IsKids || p.MaxRatingAge != null), ct);
 
     /// <summary>
     /// Moves devices locked to <paramref name="profileId"/> to another kids profile, before it goes or stops being one;
