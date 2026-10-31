@@ -255,6 +255,8 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<Flexarr.Api.Profiles.CurrentProfile>();
 builder.Services.AddSingleton<TailscaleService>();
 builder.Services.AddSingleton<ITailnetWhois>(sp => sp.GetRequiredService<TailscaleService>());
+builder.Services.AddHttpClient(TailscaleApi.HttpClientName, c => c.Timeout = TimeSpan.FromSeconds(20));
+builder.Services.AddSingleton<TailscaleApi>();
 builder.Services.AddHostedService<PlaybackSweeper>();
 builder.Services.AddHostedService<MarkerDetectionWorker>();
 
