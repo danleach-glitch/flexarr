@@ -453,8 +453,9 @@ public struct FlexarrClient: Sendable {
     }
 
     /// Pauses, resumes or stops what a device is playing.
-    public func control(device deviceId: String, _ action: DeviceControl) async throws -> DeviceCommandResult {
-        let data = try await send("POST", "devices/\(deviceId)/\(action.rawValue)")
+    /// `handOff` with `.stop`: it carries on on this device (Continue on iPhone), which the TV says.
+    public func control(device deviceId: String, _ action: DeviceControl, handOff: Bool = false) async throws -> DeviceCommandResult {
+        let data = try await send("POST", "devices/\(deviceId)/\(action.rawValue)", query: handOff ? [.init(name: "handOff", value: "true")] : [])
         return try decode(DeviceCommandResult.self, from: data)
     }
 

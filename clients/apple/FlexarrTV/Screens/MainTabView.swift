@@ -385,6 +385,24 @@ struct TabStack<Content: View>: View {
         }
         // Music carries on under every screen; the bar says what's playing and opens Now Playing.
         .safeAreaInset(edge: .bottom) { NowPlayingBar() }
+        // "Now playing on iPhone": Continue on iPhone moved what was playing here to a phone.
+        .overlay(alignment: .top) {
+            if let notice = model.handOffNotice {
+                Label(notice, systemImage: "iphone")
+                    .font(.system(size: 28, weight: .semibold))
+                    .foregroundStyle(Color.screen)
+                    .padding(.horizontal, 32)
+                    .padding(.vertical, 18)
+                    .background(Capsule().fill(Color.seat))
+                    .padding(.top, 40)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .task(id: notice) {
+                        try? await Task.sleep(for: .seconds(4))
+                        if model.handOffNotice == notice { model.handOffNotice = nil }
+                    }
+            }
+        }
+        .animation(.easeInOut(duration: 0.3), value: model.handOffNotice)
         .environment(router)
         .onChange(of: model.pendingRoute) { _, _ in consumeDeepLink() }
         .onChange(of: opensLinks) { _, _ in consumeDeepLink() }
