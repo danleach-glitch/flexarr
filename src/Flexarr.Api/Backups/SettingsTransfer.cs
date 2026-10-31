@@ -54,7 +54,9 @@ public static class SettingsTransfer
         ["layout"] = ["layout"],
         ["podcasts"] = ["podcasts"],
         ["notifications"] = ["notifications"],
-        [AccessSection] = ["authenticationRequired", "trustedProxies", "knownHosts", "loopbackNeedsForwarding", "remoteGuests"],
+        // Not family invites: their Tailscale OAuth client can mint keys into this tailnet, and the policy they rely
+        // on names this server's own address, so another server sets them up afresh.
+        [AccessSection] = ["authenticationRequired", "trustedProxies", "knownHosts", "loopbackNeedsForwarding"],
         // Where things are on this machine: rarely right on another.
         [MachineSection] = ["ffmpegPath", "ffprobePath", "cacheDirectory", "backups"],
         [KeysSection] = ["apiKey", "webhookSecret", "imageSecret"],
