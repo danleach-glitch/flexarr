@@ -28,7 +28,10 @@ import io.github.flexarr.core.matchingSpoken
 import io.github.flexarr.core.PodcastEpisode
 import io.github.flexarr.core.PodcastEpisodeSort
 import io.github.flexarr.core.artistName
+import io.github.flexarr.core.bookShelves
+import io.github.flexarr.core.books
 import io.github.flexarr.core.newPodcastEpisodes
+import io.github.flexarr.core.progress
 import io.github.flexarr.core.playlist
 import io.github.flexarr.core.playlists
 import io.github.flexarr.core.podcast
@@ -67,6 +70,7 @@ class CarLibrary(private val model: AppModel) : MediaLibrarySession.Callback {
     private val episodes = ConcurrentHashMap<String, PodcastEpisode>()
     private val trackLists = ConcurrentHashMap<String, List<ItemSummary>>()
     private val foundTracks = ConcurrentHashMap<String, ItemSummary>()
+    private val books = ConcurrentHashMap<String, ItemSummary>()
     /** The car's searches, by what was searched for, kept for when it asks for the results. */
     private val searches = ConcurrentHashMap<String, List<MediaItem>>()
     private val voice = VoiceSearch(model)
@@ -127,15 +131,39 @@ class CarLibrary(private val model: AppModel) : MediaLibrarySession.Callback {
     }
 
     private suspend fun children(client: FlexarrClient, parentId: String): List<MediaItem> = when {
-        parentId == ROOT -> listOf(
-            folder(UP_NEXT, "Up Next", list = true),
-            folder(NEW, "New episodes", list = true),
-            folder(PODCASTS, "Podcasts"),
-            folder(MUSIC, "Music"),
-        )
+        // The car shows four tabs at most: with audiobooks, Books takes one, and New episodes moves into Podcasts.
+        parentId == ROOT -> if (model.hasAudiobooks || model.bookDownloads.books.isNotEmpty()) {
+            listOf(
+                folder(BOOKS, "Books"),
+                folder(UP_NEXT, "Up Next", list = true),
+                folder(PODCASTS, "Podcasts"),
+                folder(MUSIC, "Music"),
+            )
+        } else {
+            listOf(
+                folder(UP_NEXT, "Up Next", list = true),
+                folder(NEW, "New episodes", list = true),
+                folder(PODCASTS, "Podcasts"),
+                folder(MUSIC, "Music"),
+            )
+        }
         parentId == UP_NEXT -> client.upNext().map { episode(client, it, showsPodcast = true) }
         parentId == NEW -> client.newPodcastEpisodes(unplayed = true).map { episode(client, it, showsPodcast = true) }
-        parentId == PODCASTS -> client.podcasts().map { folder("podcast:${it.id}", it.title, subtitle = it.author, artwork = client.imageUrl(it.artwork.poster, 400), list = true) }
+        parentId == BOOKS -> listOf(
+            folder(BOOKS_CONTINUE, "Continue listening", list = true),
+            folder(BOOKS_DOWNLOADED, "Downloaded", list = true),
+            folder(BOOKS_LIBRARY, "Library", list = true),
+        )
+        // What's on the go, from every audiobook library (with no connection, the books here).
+        parentId == BOOKS_CONTINUE -> runCatching {
+            model.audiobookLibraries.flatMap { client.bookShelves(it.id).continueListening }.map { book(client, it) }
+        }.getOrElse { model.bookDownloads.books.filter { it.position > 0 && it.finishedAtMillis == null }.map { book(client, it.item) } }
+        parentId == BOOKS_DOWNLOADED -> model.bookDownloads.books.filter { it.isDownloaded }.map { book(client, it.item) }
+        parentId == BOOKS_LIBRARY -> model.audiobookLibraries.flatMap { client.books(it.id, take = 200).items }.map { book(client, it) }
+        parentId == PODCASTS -> {
+            val shows = client.podcasts().map { folder("podcast:${it.id}", it.title, subtitle = it.author, artwork = client.imageUrl(it.artwork.poster, 400), list = true) }
+            if (model.hasAudiobooks || model.bookDownloads.books.isNotEmpty()) listOf(folder(NEW, "New episodes", list = true)) + shows else shows
+        }
         parentId.startsWith("podcast:") -> {
             // Its unplayed episodes, newest first (or oldest, as it's listened to).
             val podcast = client.podcast(parentId.substringAfter(':'))
@@ -196,6 +224,7 @@ class CarLibrary(private val model: AppModel) : MediaLibrarySession.Callback {
             folder("list:playlist-${it.id}", it.name, subtitle = "${it.trackCount} songs", artwork = client.imageUrl(it.cover ?: it.covers.firstOrNull(), 400), list = true)
         }
         val found = client.search(query)
+        val books = found.books.map { book(client, it) }
         val artists = found.titles.filter { it.kind == MediaKind.Artist }.map {
             folder("list:artist-${it.id}", it.title, artwork = client.imageUrl(it.artwork.poster, 400), list = true)
         }
@@ -207,7 +236,16 @@ class CarLibrary(private val model: AppModel) : MediaLibrarySession.Callback {
             val subtitle = listOfNotNull(match.item.artistName, match.album).joinToString(" · ").ifEmpty { null }
             playable("song:${match.item.id}", match.item.title, subtitle, client.imageUrl(match.item.artwork.poster, 400), MediaMetadata.MEDIA_TYPE_MUSIC)
         }
-        return podcasts + playlists + artists + albums + tracks
+        return podcasts + books + playlists + artists + albums + tracks
+    }
+
+    /** A book the car can play, from where this profile left it. */
+    private fun book(client: FlexarrClient, item: ItemSummary): MediaItem {
+        books[item.id] = item
+        return playable(
+            "book:${item.id}", item.title, item.book?.authors, client.imageUrl(item.artwork.poster, 400),
+            MediaMetadata.MEDIA_TYPE_AUDIO_BOOK, progress = item.progress,
+        )
     }
 
     /**
@@ -262,6 +300,11 @@ class CarLibrary(private val model: AppModel) : MediaLibrarySession.Callback {
                         val id = mediaId.substringAfter(':')
                         chosen(voice.track(client, foundTracks[id] ?: client.item(id).item))?.let { play(it.mediaId) }
                     }
+                    mediaId.startsWith("book:") -> {
+                        val id = mediaId.substringAfter(':')
+                        val book = books[id] ?: model.bookDownloads.entry(id)?.item ?: client.item(id).item
+                        model.books.play(book)
+                    }
                     mediaId == RESUME -> resume()
                 }
             }.onFailure { log.warning("Couldn't play $mediaId from the car", it) }
@@ -272,6 +315,8 @@ class CarLibrary(private val model: AppModel) : MediaLibrarySession.Callback {
     private fun resume() {
         if (model.music.current != null) {
             if (!model.music.isPlaying) model.music.resume()
+        } else if (model.books.current != null) {
+            if (!model.books.isPlaying) model.books.resume()
         } else if (model.podcasts.current != null && !model.podcasts.isPlaying) {
             model.podcasts.togglePlayPause()
         }
@@ -340,6 +385,10 @@ class CarLibrary(private val model: AppModel) : MediaLibrarySession.Callback {
         const val NEW = "new"
         const val PODCASTS = "podcasts"
         const val MUSIC = "music"
+        const val BOOKS = "books"
+        const val BOOKS_CONTINUE = "books-continue"
+        const val BOOKS_DOWNLOADED = "books-downloaded"
+        const val BOOKS_LIBRARY = "books-library"
         private const val RESUME = "resume"
 
         // Android Auto's content-style hints: lists for episodes, a grid for shows and playlists.
