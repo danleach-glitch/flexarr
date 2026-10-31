@@ -16,7 +16,7 @@ struct ServerSettingsView: View {
                 // A family guest: no address to show, just whose server, and a way to leave it.
                 SettingsFact("Connected by invite", "\(guest.ownerName)’s Flexarr")
                 SettingsRow(title: "Leave", symbol: "rectangle.portrait.and.arrow.right",
-                            help: "Sign this Apple TV out. Joining again takes a new code.") {
+                            help: "Stop watching \(guest.ownerName)’s Flexarr here. Joining again takes a new code.") {
                     confirmLeave = true
                 }
                 .leaveGuestConfirmation(isPresented: $confirmLeave, owner: guest.ownerName) { model.signOut() }
