@@ -10,7 +10,10 @@ import { coverPalette, fillPalette, glow, parseHex, type Rgb } from '../lib/pale
 import { chapterAt, episodeDate, previousChapterStart } from '../lib/podcasts'
 import { Aurora } from './Aurora'
 import { EpisodeNotes } from './EpisodeNotes'
-import { ChevronDown, ChevronLeft, ChevronRight, Forward30, More, Next, Notes, Pause, Play, Replay15 } from './icons'
+import { authorsLine, chapterEnd, isBook } from '../lib/books'
+import { BookmarkList } from './BookmarkList'
+import { BookTools } from './BookTools'
+import { ChevronDown, ChevronLeft, ChevronRight, More, Next, Notes, Pause, Play, SkipBack, SkipForward } from './icons'
 import { Menu, type MenuPoint } from './ItemMenu'
 import { PodcastTools } from './PodcastTools'
 
@@ -26,7 +29,6 @@ import { PodcastTools } from './PodcastTools'
 export function NowPlayingView({ onClose }: { onClose: () => void }) {
   const player = useAudioPlayer()
   const time = useAudioTime()
-  const scrub = useScrub(time, player.seek)
   const { visualiser } = useMusicSettings()
   const closeButton = useRef<HTMLButtonElement>(null)
   const location = useLocation()
@@ -35,8 +37,18 @@ export function NowPlayingView({ onClose }: { onClose: () => void }) {
   const poster = track?.artwork.poster
   const [found, setFound] = useState<{ poster: string; colours: Rgb[] } | null>(null)
   const podcast = track?.kind === 'PodcastEpisode'
+  const book = isBook(track)
   const details = usePlayingEpisode(podcast ? track?.id : undefined)
-  const chapters = details?.chapters ?? []
+  const chapters = podcast ? (details?.chapters ?? []) : (player.book?.chapters ?? [])
+  const duration = player.duration || track?.durationSeconds || 0
+  const chapter = chapterAt(chapters, time)
+  // A book's scrubber can cover just the chapter playing.
+  const [scope, setScope] = useState<'book' | 'chapter'>('book')
+  const ranged = book && scope === 'chapter' && chapter !== null && player.book !== null
+  const from = ranged ? chapters[chapter].startSeconds : 0
+  const to = ranged ? chapterEnd(player.book!.chapters, chapter, duration) : duration
+  const length = Math.max(0, to - from)
+  const scrub = useScrub(time - from, (s) => player.seek(from + s))
   const [showingNotes, setShowingNotes] = useState(false)
   const [menuAt, setMenuAt] = useState<MenuPoint | null>(null)
   const navigate = useNavigate()
@@ -85,16 +97,16 @@ export function NowPlayingView({ onClose }: { onClose: () => void }) {
 
   if (!track) return null
 
-  const duration = player.duration || track.durationSeconds || 0
-  const chapter = chapterAt(chapters, time)
   const toggleMenu = (e: MouseEvent<HTMLButtonElement>) => {
     const r = e.currentTarget.getBoundingClientRect()
     setMenuAt(menuAt ? null : { x: r.right - 200, y: r.bottom + 6 })
   }
   const album = track.parentId ? (podcast ? `/podcasts/${track.parentId}` : `/item/${track.parentId}`) : undefined
   const artist = podcast ? album : track.seriesId && !track.trackArtist ? `/item/${track.seriesId}` : undefined
-  const titleLink = podcast ? `/podcasts/episode/${track.id}` : album
-  const upNext = player.queue[player.index + 1]
+  const titleLink = book ? `/item/${track.id}` : podcast ? `/podcasts/episode/${track.id}` : album
+  const upNext = book ? undefined : player.queue[player.index + 1]
+  const skips = podcast || book
+  const { back, forward } = player.skipSteps
   const [r, g, b] = colours[0]
   const style = { '--ambient': track.accentColor ?? `rgb(${r} ${g} ${b})`, '--glow': `rgb(${r} ${g} ${b})` } as CSSProperties
 
@@ -107,7 +119,20 @@ export function NowPlayingView({ onClose }: { onClose: () => void }) {
       </button>
 
       <div className="np-view-stage">
-        {podcast && showingNotes ? (
+        {book && showingNotes && player.book ? (
+          <div className="np-view-details">
+            <section>
+              <h3>Chapters</h3>
+              <ChapterList chapters={chapters} current={chapter} playing={player.playing} onSeek={player.seek} />
+            </section>
+            {player.book.bookmarks.length > 0 && (
+              <section>
+                <h3>Bookmarks</h3>
+                <BookmarkList bookmarks={player.book.bookmarks} chapters={player.book.chapters} onJump={player.seek} onRemove={player.removeBookmark} />
+              </section>
+            )}
+          </div>
+        ) : podcast && showingNotes ? (
           <EpisodeDetails episode={details?.episode ?? null} chapters={chapters} current={chapter} playing={player.playing} onSeek={player.seek} />
         ) : (
           <div className="np-view-cover">{poster && <img src={imageUrl(poster, 780)} alt="" />}</div>
@@ -121,7 +146,9 @@ export function NowPlayingView({ onClose }: { onClose: () => void }) {
           ) : (
             <h2 className="np-view-title">{track.title}</h2>
           )}
-          {artist ? (
+          {book ? (
+            <span className="np-view-artist">{authorsLine(track)}</span>
+          ) : artist ? (
             <Link to={artist} className="np-view-artist">
               {track.seriesTitle}
             </Link>
@@ -149,7 +176,7 @@ export function NowPlayingView({ onClose }: { onClose: () => void }) {
           )}
 
           <div className="np-view-seek">
-            {duration > 0 && chapters.length > 0 && (
+            {duration > 0 && chapters.length > 0 && !ranged && (
               <div className="np-view-marks" aria-hidden="true">
                 {chapters
                   .filter((c) => c.startSeconds > 0 && c.startSeconds < duration)
@@ -161,24 +188,24 @@ export function NowPlayingView({ onClose }: { onClose: () => void }) {
             <input
               type="range"
               min={0}
-              max={Math.max(1, Math.floor(duration))}
-              value={Math.min(scrub.shown, Math.floor(duration))}
+              max={Math.max(1, Math.floor(length))}
+              value={Math.min(scrub.shown, Math.floor(length))}
               {...scrub.inputProps}
               aria-label="Seek"
               className={scrub.scrubbing ? 'scrubbing' : undefined}
-              style={{ '--progress': `${duration > 0 ? (Math.min(scrub.shown, duration) / duration) * 100 : 0}%` } as CSSProperties}
+              style={{ '--progress': `${length > 0 ? (Math.min(scrub.shown, length) / length) * 100 : 0}%` } as CSSProperties}
             />
             <div className="np-view-times">
               <span>{formatClock(scrub.shown)}</span>
-              {podcast && duration > 0 && <EndsAt remaining={Math.max(0, duration - scrub.shown) / player.speed} />}
-              <span>-{formatClock(Math.max(0, duration - scrub.shown))}</span>
+              {skips && duration > 0 && <EndsAt remaining={Math.max(0, duration - (from + scrub.shown)) / player.speed} />}
+              <span>-{formatClock(Math.max(0, length - scrub.shown))}</span>
             </div>
           </div>
 
           <div className="np-view-controls">
-            {podcast ? (
-              <button className="icon-button np-view-skip" onClick={() => player.skipBy(-15)} aria-label="Back 15 seconds">
-                <Replay15 />
+            {skips ? (
+              <button className="icon-button np-view-skip" onClick={() => player.skipBy(-back)} aria-label={`Back ${back} seconds`}>
+                <SkipBack seconds={back} />
               </button>
             ) : (
               <button className="icon-button np-view-skip" onClick={player.previous} aria-label="Previous track">
@@ -188,9 +215,9 @@ export function NowPlayingView({ onClose }: { onClose: () => void }) {
             <button className="icon-button np-view-toggle" onClick={player.toggle} aria-label={player.playing ? 'Pause' : 'Play'}>
               {player.playing ? <Pause /> : <Play />}
             </button>
-            {podcast ? (
-              <button className="icon-button np-view-skip" onClick={() => player.skipBy(30)} aria-label="Forward 30 seconds">
-                <Forward30 />
+            {skips ? (
+              <button className="icon-button np-view-skip" onClick={() => player.skipBy(forward)} aria-label={`Forward ${forward} seconds`}>
+                <SkipForward seconds={forward} />
               </button>
             ) : (
               <button className="icon-button np-view-skip" onClick={player.next} aria-label="Next track" disabled={!upNext}>
@@ -198,6 +225,31 @@ export function NowPlayingView({ onClose }: { onClose: () => void }) {
               </button>
             )}
           </div>
+
+          {book && (
+            <div className="np-view-tools">
+              <BookTools player={player} />
+              <button
+                className={showingNotes ? 'icon-button np-view-tool active' : 'icon-button np-view-tool'}
+                onClick={() => setShowingNotes(!showingNotes)}
+                aria-pressed={showingNotes}
+                aria-label="Chapters and bookmarks"
+                title={showingNotes ? 'Show the cover' : 'Chapters and bookmarks'}
+              >
+                <Notes />
+              </button>
+              {chapters.length > 0 && (
+                <button
+                  className={ranged ? 'icon-button np-view-tool np-view-scope active' : 'icon-button np-view-tool np-view-scope'}
+                  onClick={() => setScope(scope === 'book' ? 'chapter' : 'book')}
+                  aria-pressed={ranged}
+                  title={ranged ? 'The bar covers this chapter' : 'The bar covers the whole book'}
+                >
+                  {ranged ? 'Chapter' : 'Book'}
+                </button>
+              )}
+            </div>
+          )}
 
           {podcast && (
             <div className="np-view-tools">
@@ -286,6 +338,27 @@ function sharePodcast(podcast: Podcast) {
   else void navigator.clipboard?.writeText(podcast.link)
 }
 
+/** Chapters, the one playing marked; clicking one goes there. Opened part way through, the one playing is in view. */
+function ChapterList({ chapters, current, playing, onSeek }: { chapters: PodcastChapter[]; current: number | null; playing: boolean; onSeek: (seconds: number) => void }) {
+  const list = useRef<HTMLOListElement>(null)
+  useEffect(() => {
+    list.current?.querySelector('[aria-current="true"]')?.scrollIntoView({ block: 'center' })
+  }, [])
+  return (
+    <ol ref={list} className="np-view-chapters">
+      {chapters.map((c, i) => (
+        <li key={c.startSeconds}>
+          <button className={i === current ? 'current' : current !== null && i < current ? 'heard' : undefined} aria-current={i === current} onClick={() => onSeek(c.startSeconds)}>
+            <span className="np-view-chapter-time">{formatClock(c.startSeconds)}</span>
+            <span className="np-view-chapter-title">{c.title}</span>
+            {i === current && <span className={playing ? 'np-view-chapter-live playing' : 'np-view-chapter-live'} aria-hidden="true" />}
+          </button>
+        </li>
+      ))}
+    </ol>
+  )
+}
+
 /** The episode's chapters (clicking one goes there) and notes, in the cover's place. */
 function EpisodeDetails({
   episode,
@@ -300,33 +373,12 @@ function EpisodeDetails({
   playing: boolean
   onSeek: (seconds: number) => void
 }) {
-  const list = useRef<HTMLOListElement>(null)
-
-  // Opened part way through, the chapter playing is in view.
-  useEffect(() => {
-    list.current?.querySelector('[aria-current="true"]')?.scrollIntoView({ block: 'center' })
-  }, [])
-
   return (
     <div className="np-view-details">
       {chapters.length > 0 && (
         <section>
           <h3>Chapters</h3>
-          <ol ref={list} className="np-view-chapters">
-            {chapters.map((c, i) => (
-              <li key={c.startSeconds}>
-                <button
-                  className={i === current ? 'current' : current !== null && i < current ? 'heard' : undefined}
-                  aria-current={i === current}
-                  onClick={() => onSeek(c.startSeconds)}
-                >
-                  <span className="np-view-chapter-time">{formatClock(c.startSeconds)}</span>
-                  <span className="np-view-chapter-title">{c.title}</span>
-                  {i === current && <span className={playing ? 'np-view-chapter-live playing' : 'np-view-chapter-live'} aria-hidden="true" />}
-                </button>
-              </li>
-            ))}
-          </ol>
+          <ChapterList chapters={chapters} current={current} playing={playing} onSeek={onSeek} />
         </section>
       )}
       <section>

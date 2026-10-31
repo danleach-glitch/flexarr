@@ -6,18 +6,17 @@ import {
   imageUrl,
   listenAgain,
   setBookFinished,
-  type BookDetail,
-  type Bookmark,
   type Credit,
   type ItemDetail,
   type ItemSummary,
 } from '../api/client'
 import { openAddToCollection } from '../components/AddToCollection'
 import { Artwork } from '../components/Artwork'
+import { BookmarkList } from '../components/BookmarkList'
 import { AsyncButton } from '../components/AsyncButton'
 import { PosterCard } from '../components/Cards'
 import { DeleteDialog } from '../components/DeleteDialog'
-import { Bookmark as BookmarkIcon, Check, Close, Play } from '../components/icons'
+import { Bookmark as BookmarkIcon, Check, Play } from '../components/icons'
 import type { MenuAction } from '../components/ItemMenu'
 import { Overview } from '../components/Overview'
 import { Row } from '../components/Row'
@@ -149,7 +148,7 @@ export function BookPage({ detail, onChange }: { detail: ItemDetail; onChange: (
         </div>
       </header>
 
-      {showBookmarks && book.bookmarks.length > 0 && <Bookmarks id="book-bookmarks" bookmarks={book.bookmarks} chapters={book} onJump={playAt} onChange={onChange} />}
+      {showBookmarks && book.bookmarks.length > 0 && <BookmarkList id="book-bookmarks" bookmarks={book.bookmarks} chapters={book.chapters} onJump={playAt} onRemove={(id) => deleteBookmark(id).then(onChange)} />}
 
       <div className="book-body">
         {detail.overview && (
@@ -219,48 +218,5 @@ function BookRow({ title, items, link }: { title: string; items: ItemSummary[]; 
         <PosterCard key={b.id} item={b} />
       ))}
     </Row>
-  )
-}
-
-/** The profile's bookmarks in this book: a place (and chapter) to jump to, its note, and a way to remove it. */
-export function Bookmarks({
-  id,
-  bookmarks,
-  chapters,
-  onJump,
-  onChange,
-}: {
-  id?: string
-  bookmarks: Bookmark[]
-  chapters: Pick<BookDetail, 'chapters'>
-  onJump: (at: number) => void
-  onChange: () => void
-}) {
-  return (
-    <ol className="book-bookmarks" id={id} aria-label="Bookmarks">
-      {[...bookmarks]
-        .sort((a, b) => a.positionSeconds - b.positionSeconds)
-        .map((b) => {
-          const chapter = chapters.chapters[chapterIndexAt(chapters.chapters, b.positionSeconds)]
-          return (
-            <li key={b.id} className="book-bookmark">
-              <button className="book-bookmark-jump" onClick={() => onJump(b.positionSeconds)}>
-                <span className="book-bookmark-time">{formatClock(b.positionSeconds)}</span>
-                <span className="book-bookmark-text">
-                  {b.note ?? chapter?.title ?? 'Bookmark'}
-                  {b.note && chapter && <span className="muted">{chapter.title}</span>}
-                </span>
-              </button>
-              <AsyncButton
-                className="icon-button"
-                aria-label={`Remove the bookmark at ${formatClock(b.positionSeconds)}`}
-                onClick={() => deleteBookmark(b.id).then(onChange)}
-              >
-                <Close />
-              </AsyncButton>
-            </li>
-          )
-        })}
-    </ol>
   )
 }

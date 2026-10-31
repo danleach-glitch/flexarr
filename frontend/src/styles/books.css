@@ -30,6 +30,23 @@
   height: 14px;
 }
 
+/* Now Playing's switch between the whole book and the chapter on the scrubber: a word, so as wide as it needs. */
+.np-view-tools .np-view-scope {
+  width: auto;
+  padding: 0 14px;
+  font-weight: 700;
+}
+
+.np-view-details .book-bookmarks {
+  margin: 0;
+  font-size: var(--step--1);
+}
+
+.np-view-details .book-bookmark-jump {
+  grid-template-columns: 3.5rem minmax(0, 1fr);
+  padding: 8px 10px;
+}
+
 .now-playing-bookmark svg {
   width: 20px;
   height: 20px;
