@@ -23,7 +23,7 @@ The easiest way is through [HACS](https://hacs.xyz), the community store for Hom
 4. Go to **Settings › Devices & services › Add integration** and choose **Flexarr**.
 5. Enter the **Server address**, for example `http://192.168.1.20:8383`, and the **API key**.
 
-The API key is in Flexarr under **Settings › Access**, signed in as the main profile. Showing it asks for the admin PIN.
+The API key is in Flexarr under **Settings › Security**, signed in as the main profile. Showing it asks for the admin PIN.
 
 
 > **Note**

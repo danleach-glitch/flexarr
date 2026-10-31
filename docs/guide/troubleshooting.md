@@ -24,7 +24,7 @@ A new Flexarr server has no owner until someone sets it up in a browser. The app
 
 1. On a computer on your home network, open the server's address (the app shows it) in a web browser.
 2. Enter the server's setup code (it's in the server's log; [First setup](first-setup.md#enter-the-setup-code) says where for your install) and choose **Set up Flexarr**. That browser becomes the server's owner, with no key needed.
-3. Go to **Settings › Access › Connect a device** and type in the code the app is showing.
+3. Go to **Settings › Security › Connect a device** and type in the code the app is showing.
 
 The app moves on by itself once you have. See [First setup](first-setup.md).
 
@@ -113,7 +113,8 @@ With a paid Apple Developer account, an install lasts a year instead. See [Apple
 ### I forgot a profile's PIN
 
 - **Someone else's profile:** sign in as the main profile, open **Settings › Profiles**, edit their profile, and set a new PIN or remove it. You don't need the old one.
-- **The main profile:** in a browser, open **Settings**, choose **Forgotten it?** under the PIN, and enter the server's API key with a new PIN. That browser is unlocked, and anywhere the old PIN was given is locked again. The Apple TV and phone apps send you to a browser for this.
+- **The main profile's own PIN:** unlock settings with the admin PIN, then set a new one or remove it in **Settings › Profiles**, as for anyone.
+- **The admin PIN:** in a browser, open **Settings**, choose **Forgotten it?** under the PIN (or **Change** then **Use the API key instead** in **Settings › Security**), and enter the server's API key with a new PIN. That browser is unlocked, and anywhere the old PIN was given is locked again. The Apple TV and phone apps send you to a browser for this.
 - **The Mac app:** choose **Reset Admin PIN…** from Flexarr's menu bar icon and type a new PIN. Being at the Mac is enough; no key is needed.
 
 The API key is in Flexarr's `config.json`: `~/.flexarr/data/config.json` on a Mac, or `/config/config.json` in Docker.
