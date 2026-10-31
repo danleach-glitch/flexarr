@@ -253,8 +253,8 @@ struct DownloadButton: View {
         } message: {
             Text(failure ?? "")
         }
-        .confirmationDialog(download?.isDownloaded == true ? "Remove this download?" : "Stop this download?",
-                            isPresented: $removing, titleVisibility: .visible) {
+        .alert(download?.isDownloaded == true ? "Remove this download?" : "Stop this download?",
+                            isPresented: $removing) {
             Button(download?.isDownloaded == true ? "Remove download" : "Stop download", role: .destructive) {
                 if let download { store.delete(download.id) }
             }

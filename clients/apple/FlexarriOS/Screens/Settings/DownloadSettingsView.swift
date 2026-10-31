@@ -48,7 +48,7 @@ struct DownloadSettingsView: View {
             }
         }
         .settingsPage("Downloads")
-        .confirmationDialog("Delete all downloads?", isPresented: $confirmDeleteDownloads, titleVisibility: .visible) {
+        .alert("Delete all downloads?", isPresented: $confirmDeleteDownloads) {
             Button("Delete all", role: .destructive) { downloads.deleteAll() }
             Button("Cancel", role: .cancel) {}
         }

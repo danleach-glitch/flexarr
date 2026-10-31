@@ -385,7 +385,7 @@ struct EpisodeDownloadButton: View {
         }
         .buttonStyle(.borderless)
         .accessibilityLabel(waiting ? "Waiting for Wi-Fi" : DownloadStateIcon.accessibilityLabel(download?.state))
-        .confirmationDialog(download?.isDownloaded == true ? "Remove this download?" : "Stop this download?", isPresented: $removing, titleVisibility: .visible) {
+        .alert(download?.isDownloaded == true ? "Remove this download?" : "Stop this download?", isPresented: $removing) {
             Button(download?.isDownloaded == true ? "Remove download" : "Stop download", role: .destructive) {
                 if let download { store.remove(download.id) }
             }
