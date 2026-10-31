@@ -72,7 +72,7 @@ struct ConnectView: View {
                 step = .pair(DiscoveredServer(name: server.host() ?? "Flexarr", address: server))
             }
             // `-FlexarrGuestCode YES` opens "Join someone’s Flexarr" directly.
-            if UserDefaults.standard.bool(forKey: "FlexarrGuestCode") { step = .guest }
+            if UserDefaults.standard.bool(forKey: "FlexarrGuestCode"), GuestInvite.guestInvitesOffered { step = .guest }
             #endif
         }
         .onDisappear { browser.stop() }
@@ -127,11 +127,12 @@ private struct ChooseServer: View {
                 }
             }
             // With no server of its own here, it's likely a guest's TV: joining comes first, and takes the focus.
-            if browser.servers.isEmpty { joinButton.padding(.top, 10) }
+            let offersJoin = GuestInvite.guestInvitesOffered
+            if offersJoin, browser.servers.isEmpty { joinButton.padding(.top, 10) }
             Button("Enter an address instead", action: onManual)
                 .buttonStyle(ActionButtonStyle(prominent: false))
-                .padding(.top, browser.servers.isEmpty ? 0 : 10)
-            if !browser.servers.isEmpty { joinButton }
+                .padding(.top, offersJoin && browser.servers.isEmpty ? 0 : 10)
+            if offersJoin, !browser.servers.isEmpty { joinButton }
         }
         // The first server found takes focus, so one click of the remote picks it.
         .onChange(of: browser.servers.first?.id, initial: true) { _, first in

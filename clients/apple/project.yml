@@ -17,6 +17,9 @@ settings:
     # The iPhone and iPad app's bundle ID; its widgets' is this plus .widgets, and the app group they share is
     # group.<this>. Set it rather than PRODUCT_BUNDLE_IDENTIFIER, which would give the widgets the app's own.
     FLEXARR_IOS_BUNDLE_ID: io.github.flexarr.ios
+    # Joining someone's Flexarr (family invites) is offered: NO until servers have family invites switched on; a
+    # release turns it to YES. Debug builds and `-FlexarrGuestInvites YES` offer it anyway (GuestInvite.guestInvitesOffered).
+    FLEXARR_GUEST_INVITES: "NO"
 packages:
   FlexarrKit:
     path: FlexarrKit
@@ -66,6 +69,7 @@ targets:
         ITSAppUsesNonExemptEncryption: true
         # Where the sign-in is shared with the Top Shelf extension.
         FlexarrKeychainGroup: $(AppIdentifierPrefix)io.github.flexarr.shared
+        FlexarrGuestInvites: $(FLEXARR_GUEST_INVITES)
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen: {}
@@ -140,6 +144,7 @@ targets:
       properties:
         CFBundleDisplayName: Flexarr
         FlexarrAppGroup: group.$(FLEXARR_IOS_BUNDLE_ID)
+        FlexarrGuestInvites: $(FLEXARR_GUEST_INVITES)
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         # CarPlay's own scene (podcasts in the car). Without the CarPlay entitlement (see FLEXARR_IOS_ENTITLEMENTS) the

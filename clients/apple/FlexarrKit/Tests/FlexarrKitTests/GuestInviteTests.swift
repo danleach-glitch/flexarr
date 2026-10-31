@@ -5,6 +5,14 @@ import Testing
 
 /// Family invites: reading an invite link, keeping a guest's sign-in, and a TV opening its sealed invite.
 struct GuestInviteTests {
+    @Test func joiningIsOfferedOnlyOnceTheBuildSaysSo() {
+        #expect(GuestInvite.guestInvitesOffered(info: "YES", asked: false))
+        #expect(GuestInvite.guestInvitesOffered(info: true, asked: false))
+        #expect(!GuestInvite.guestInvitesOffered(info: "NO", asked: false))
+        #expect(!GuestInvite.guestInvitesOffered(info: nil, asked: false))
+        #expect(GuestInvite.guestInvitesOffered(info: "NO", asked: true))
+    }
+
     private func payload(_ fields: [String: Any]) -> String {
         var base: [String: Any] = ["v": 1, "n": "Dan", "s": "server-1", "a": "100.101.102.103:8383", "k": "tskey-auth-abc",
                                    "t": "token-123", "g": "Gran’s iPad", "p": "Gran", "e": "2099-01-01T00:00:00Z"]

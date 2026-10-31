@@ -70,7 +70,7 @@ struct ConnectView: View {
                 step = .pair(DiscoveredServer(name: server.host() ?? "Flexarr", address: server))
             }
             // `-FlexarrGuestCode YES` opens "Join someone’s Flexarr"'s code directly.
-            if UserDefaults.standard.bool(forKey: "FlexarrGuestCode") { step = .guest }
+            if UserDefaults.standard.bool(forKey: "FlexarrGuestCode"), GuestInvite.guestInvitesOffered { step = .guest }
             #endif
         }
         .onDisappear { browser.stop() }
@@ -106,8 +106,10 @@ private struct ChooseServer: View {
                 }
             }
 
-            InvitedBySomeone(onCode: onGuest)
-                .padding(.top, 10)
+            if GuestInvite.guestInvitesOffered {
+                InvitedBySomeone(onCode: onGuest)
+                    .padding(.top, 10)
+            }
 
             // Typing an address is for the few whose server can't be found: offered only once it hasn't been, or
             // under the list for one that isn't in it.

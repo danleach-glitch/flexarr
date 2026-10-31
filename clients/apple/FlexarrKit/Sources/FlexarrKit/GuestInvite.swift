@@ -49,6 +49,26 @@ public struct GuestInvite: Codable, Sendable, Equatable {
         return slug.isEmpty ? "flexarr-guest" : "flexarr-guest-\(slug)"
     }
 
+    /// The apps offer joining someone's Flexarr (the Join button, invite links): once servers have family invites
+    /// switched on. The app's Info.plist key `FlexarrGuestInvites` (build setting FLEXARR_GUEST_INVITES) says YES,
+    /// or it's a debug build, or `-FlexarrGuestInvites YES` was given at launch.
+    public static var guestInvitesOffered: Bool {
+        #if DEBUG
+        return true
+        #else
+        return guestInvitesOffered(info: Bundle.main.object(forInfoDictionaryKey: "FlexarrGuestInvites"),
+                                   asked: UserDefaults.standard.bool(forKey: "FlexarrGuestInvites"))
+        #endif
+    }
+
+    /// `info` as Info.plist gives it: a Bool, or the build setting's "YES" or "NO".
+    static func guestInvitesOffered(info: Any?, asked: Bool) -> Bool {
+        if asked { return true }
+        if let on = info as? Bool { return on }
+        if let text = info as? String { return ["yes", "true", "1"].contains(text.lowercased()) }
+        return false
+    }
+
     public func isExpired(now: Date = Date()) -> Bool {
         e.map { $0 <= now } ?? false
     }

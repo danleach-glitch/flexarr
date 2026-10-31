@@ -1152,7 +1152,7 @@ final class AppModel {
     /// `flexarr://watchlist` opens the watchlist. Any of them can add `profile=<id or name>` to switch to that profile first, asking for its PIN if it has one.
     func open(url: URL) {
         // https://flexarr.io/join#… or flexarr://join#…: a family invite, asked about first.
-        if let invite = GuestInvite.parse(url.absoluteString) {
+        if GuestInvite.guestInvitesOffered, let invite = GuestInvite.parse(url.absoluteString) {
             pendingInvite = invite
             return
         }
