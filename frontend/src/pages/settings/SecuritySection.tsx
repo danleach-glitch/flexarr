@@ -48,6 +48,10 @@ function AdminPinGroup() {
   const [busy, setBusy] = useState(false)
   const [changed, setChanged] = useState(false)
   const lockout = usePinLockout()
+  // Too many wrong PINs only hold up the PIN: the API key is checked on its own.
+  const held = lockout.locked && !forgotten
+  const opener = useRef<HTMLButtonElement>(null)
+  const proof = useRef<HTMLInputElement>(null)
 
   function close() {
     setChanging(false)
@@ -57,11 +61,13 @@ function AdminPinGroup() {
     setPin('')
     setConfirmPin('')
     setError(undefined)
+    // Back to the button that opened it, as the API key's forms do.
+    requestAnimationFrame(() => opener.current?.focus())
   }
 
   async function submit(event: FormEvent) {
     event.preventDefault()
-    if (lockout.locked) return
+    if (held) return
     if (pin !== confirmPin) {
       setError('The two PINs don’t match. Type the same one in both.')
       return
@@ -75,6 +81,7 @@ function AdminPinGroup() {
     } catch (e) {
       setError(lockout.lockFrom(e) ? undefined : errorText(e))
       setCurrentPin('')
+      requestAnimationFrame(() => proof.current?.focus())
     } finally {
       setBusy(false)
     }
@@ -83,11 +90,18 @@ function AdminPinGroup() {
   return (
     <SettingsGroup
       title="Admin PIN"
-      note={changed ? <span role="status">PIN changed. Anywhere the old one unlocked settings is locked again.</span> : 'Separate from the main profile’s own PIN, which is in Profiles.'}
+      note={
+        <>
+          {/* Mounted from the start, so screen readers hear it when it fills. */}
+          <span role="status">{changed ? 'PIN changed. Anywhere the old one unlocked settings is locked again. ' : ''}</span>
+          Separate from the main profile’s own PIN, which is in <Link to="/settings/profiles">Profiles</Link>.
+        </>
+      }
     >
-      <SettingRow as="div" label="Admin PIN" help="Asked for before the server’s settings change, and to let a child off a kids profile.">
+      <SettingRow as="div" label="PIN" help="Asked for before the server’s settings change, and to let a child off a kids profile.">
         {!changing && (
           <button
+            ref={opener}
             type="button"
             className="button quiet small"
             onClick={() => {
@@ -105,12 +119,21 @@ function AdminPinGroup() {
             {forgotten ? (
               <label>
                 API key
-                <input type="password" autoComplete="off" required autoFocus value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
+                <input ref={proof} type="password" autoComplete="off" required autoFocus value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
               </label>
             ) : (
               <label>
                 Current PIN
-                <input type="password" inputMode="numeric" autoComplete="off" required autoFocus value={currentPin} onChange={(e) => setCurrentPin(digits(e.target.value))} />
+                <input
+                  ref={proof}
+                  type="password"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  required
+                  autoFocus
+                  value={currentPin}
+                  onChange={(e) => setCurrentPin(digits(e.target.value))}
+                />
               </label>
             )}
             <label>
@@ -132,7 +155,7 @@ function AdminPinGroup() {
               </button>
             </p>
           )}
-          {(error || lockout.message) && (
+          {(error || (held && lockout.message)) && (
             <p className="error" role="alert">
               {error ?? lockout.message}
             </p>
@@ -141,7 +164,7 @@ function AdminPinGroup() {
             <button type="button" className="button quiet small" onClick={close}>
               Cancel
             </button>
-            <AsyncButton type="submit" className="button small" busy={busy} disabled={lockout.locked}>
+            <AsyncButton type="submit" className="button small" busy={busy} disabled={held}>
               Change PIN
             </AsyncButton>
           </div>
@@ -162,8 +185,9 @@ function ApiKeyGroup({ onSignedOut }: { onSignedOut: () => void }) {
   // Replacing the key asks again first, and so does showing it when there's an admin PIN (the server insists).
   const [ask, setAsk] = useState<'reveal' | 'rotate'>()
   const [confirming, setConfirming] = useState(false)
+  // Until /me answers, assume there's an admin PIN: asking for one too many beats showing the key without it.
   const me = useApi(getMe, [])
-  const mainHasPin = me.data !== undefined && me.data.adminPinMissing !== true
+  const mainHasPin = me.data?.adminPinMissing !== true
   const askForm = useRef<HTMLFormElement>(null)
   const opener = useRef<HTMLButtonElement | null>(null)
   const keyArea = useRef<HTMLDivElement>(null)

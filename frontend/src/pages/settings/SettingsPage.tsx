@@ -130,7 +130,7 @@ export function SettingsPage() {
           {(isAdmin || locked) && (
             <div className="settings-nav-group">
               <h2>Server</h2>
-              {isAdmin && !pinMissing ? serverPages.filter((p) => !p.under).map(link) : link({ id: 'overview', label: locked ? 'Unlock settings' : 'Set a PIN', render: () => null })}
+              {isAdmin && !pinMissing ? serverPages.filter((p) => !p.under).map(link) : link({ id: 'overview', label: locked ? 'Unlock settings' : 'Choose an admin PIN', render: () => null })}
               {isAdmin && unlockedUntil && (
                 <button type="button" className="text-button settings-lock" onClick={() => void lockAdmin().then(() => window.location.reload())}>
                   Lock settings

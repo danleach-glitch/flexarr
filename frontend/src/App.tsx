@@ -380,7 +380,7 @@ export default function App() {
               </li>
               <li>
                 <span>
-                  Go to <strong>Settings</strong>, then <strong>Access</strong>, then <strong>Connect a device</strong>.
+                  Go to <strong>Settings</strong>, then <strong>Security</strong>, then <strong>Connect a device</strong>.
                 </span>
               </li>
               <li>

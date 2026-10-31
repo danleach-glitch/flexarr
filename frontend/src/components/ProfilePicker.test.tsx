@@ -16,6 +16,36 @@ const tooMany = (headers: Record<string, string>, detail = 'Too many wrong PINs.
   new Response(JSON.stringify({ detail }), { status: 429, headers })
 
 describe('PIN pad', () => {
+  it('takes a forgotten PIN off with the admin PIN, then chooses the profile', async () => {
+    let forgotten: unknown
+    const chosen = vi.fn()
+    mockApi({
+      'POST /profiles/c1/forgot-pin': (init?: RequestInit) => {
+        forgotten = JSON.parse(String(init?.body))
+        return { ...kids, hasPin: false, asksPin: false }
+      },
+      'POST /profiles/c1/select': { token: 'c1.sig', profile: { ...kids, hasPin: false, isCurrent: true } },
+    })
+    render(<ProfilePicker profiles={[main, kids]} onChosen={chosen} />)
+    fireEvent.click(screen.getByRole('button', { name: /Kids/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Forgot PIN?' }))
+
+    expect(screen.getByRole('heading', { name: 'Enter the admin PIN' })).toBeInTheDocument()
+    for (const d of '2580') fireEvent.click(screen.getByRole('button', { name: d }))
+    fireEvent.click(screen.getByRole('button', { name: 'Go' }))
+
+    await vi.waitFor(() => expect(chosen).toHaveBeenCalled())
+    expect(forgotten).toEqual({ adminPin: '2580' })
+  })
+
+  it('asks for the admin PIN, under a padlock, where the server says choosing the main profile takes it', () => {
+    render(<ProfilePicker profiles={[{ ...main, asksPin: true, asksAdminPin: true }, kids]} onChosen={() => {}} />)
+    fireEvent.click(screen.getByRole('button', { name: /Dan/ }))
+
+    expect(screen.getByRole('heading', { name: 'Enter the admin PIN' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Forgot PIN?' })).not.toBeInTheDocument()
+  })
+
   it('deletes a digit at a time, and goes back only once the PIN is empty', async () => {
     render(<ProfilePicker profiles={[main, kids]} onChosen={() => {}} />)
     fireEvent.click(screen.getByRole('button', { name: /Kids/ }))

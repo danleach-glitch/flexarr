@@ -44,7 +44,7 @@ const sections: { id: string; label: string; help: string; off?: boolean }[] = [
   { id: 'layout', label: 'Home and Browse', help: 'Which rows show, in what order.' },
   { id: 'podcasts', label: 'Podcasts', help: 'The country for charts.' },
   { id: 'notifications', label: 'Notifications', help: 'Push notifications to phones.' },
-  { id: 'access', label: 'Access', help: 'Who has to sign in, and trusted proxies. Asks for the admin PIN.' },
+  { id: 'access', label: 'Access', help: 'When to ask for the API key, and trusted proxies. Asks for the admin PIN.' },
   { id: 'machine', label: 'This machine’s paths', help: 'ffmpeg, the cache and backups folders. Usually wrong on another machine, and it asks for the admin PIN.', off: true },
   {
     id: 'keys',
@@ -72,7 +72,8 @@ export function BackupSection() {
   const backups = useApi(getBackups, [])
   // Restoring keys and access settings asks for the admin PIN, when there is one.
   const me = useApi(getMe, [])
-  const mainHasPin = me.data !== undefined && me.data.adminPinMissing !== true
+  // Until /me answers, assume there's an admin PIN: asking for it beats a refusal from the server.
+  const mainHasPin = me.data?.adminPinMissing !== true
   const [dialog, setDialog] = useState<Dialog>()
   const [error, setError] = useState<string>()
   const [restarting, setRestarting] = useState(false)

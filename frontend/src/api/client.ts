@@ -1297,10 +1297,18 @@ export interface Profile {
   maxRatingAge?: number | null
   /** A child's profile: the kids app, and leaving it takes the admin PIN. Absent from servers before 0.56. */
   isKids?: boolean
+  /** The PIN choosing it here asks for is the admin PIN, not its own. Absent from servers before 0.57. */
+  asksAdminPin?: boolean
 }
 
 /** Whether choosing a profile here asks for its PIN. */
 export const asksPin = (profile: Profile) => profile.asksPin ?? profile.hasPin
+
+/** Whether the PIN choosing a profile here asks for is the admin PIN (older servers: a main profile without its own). */
+export const asksAdminPin = (profile: Profile) => profile.asksAdminPin ?? (profile.isMain && !profile.hasPin)
+
+/** Takes a forgotten PIN off a profile with the admin PIN, from the profile picker (servers from 0.57). */
+export const forgetPin = (id: string, adminPin: string) => request<Profile>('POST', `/profiles/${id}/forgot-pin`, { adminPin })
 
 /** Changing or removing the admin PIN takes `currentPin`, or `apiKey` if it's forgotten. */
 type ProfileChanges = { name: string; color: string; pin?: string; removePin?: boolean; hiddenLibraryIds?: string[]; currentPin?: string; apiKey?: string }

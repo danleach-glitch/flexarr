@@ -1777,6 +1777,26 @@ kbd {
   font-size: var(--step-3);
 }
 
+/* In place of a profile picture when the pad asks for the admin PIN. */
+.pin-padlock {
+  display: grid;
+  place-items: center;
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  background: var(--seat);
+  color: var(--usher);
+}
+
+.pin-padlock svg {
+  width: 40px;
+  height: 40px;
+}
+
+.pin-pad > .muted {
+  margin: -10px 0 0;
+}
+
 .pin-display {
   width: 220px;
   text-align: center;

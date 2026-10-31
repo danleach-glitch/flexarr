@@ -37,7 +37,8 @@ export function ProfilesSection() {
   const [editing, setEditing] = useState<Profile | 'new'>()
   // A kids profile is only as safe as the admin PIN, which is what it takes to leave one.
   const me = useApi(getMe, [])
-  const mainHasPin = me.data !== undefined && me.data.adminPinMissing !== true
+  // Until /me answers, assume there is one, so the Kids switch isn't disabled for a moment.
+  const mainHasPin = me.data?.adminPinMissing !== true
   const reload = () => {
     setEditing(undefined)
     setVersion((v) => v + 1)

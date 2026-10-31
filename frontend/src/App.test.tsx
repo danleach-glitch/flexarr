@@ -650,12 +650,14 @@ describe('Settings', () => {
 
     renderAt('/settings/security')
 
-    // Hidden behind dots; with no admin PIN, the eye shows it straight away.
+    // Hidden behind dots; the eye asks for the admin PIN first (assumed until /me says there's none).
     expect(await screen.findByLabelText('API key, hidden')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Show the API key' }))
+    fireEvent.change(await screen.findByLabelText('Admin PIN'), { target: { value: '2580' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Show the key' }))
     expect(await screen.findByText('the-key')).toBeInTheDocument()
     const reveal = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/settings/api-key/reveal'))
-    expect(JSON.parse(String(reveal?.[1]?.body))).toMatchObject({ confirm: true })
+    expect(JSON.parse(String(reveal?.[1]?.body))).toMatchObject({ pin: '2580', confirm: true })
     expect(screen.getByRole('button', { name: 'Copy the API key' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Hide the API key' }))
     expect(screen.queryByText('the-key')).not.toBeInTheDocument()
@@ -738,7 +740,7 @@ describe('Settings', () => {
     fireEvent.change(pin, { target: { value: '1234' } })
     fireEvent.click(screen.getByRole('checkbox'))
     fireEvent.click(screen.getByRole('button', { name: 'Replace the key' }))
-    expect(await screen.findByRole('status')).toHaveTextContent('New key made. The old one stopped working. 3 browsers and TVs were signed out.')
+    expect(await screen.findByText(/^New key made/)).toHaveTextContent('New key made. The old one stopped working. 3 browsers and TVs were signed out.')
     expect(screen.getByText('new-key')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Copy the API key' })).toBeInTheDocument()
   })

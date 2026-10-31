@@ -849,6 +849,21 @@
   max-width: 560px;
 }
 
+/* Changing the admin PIN: the fields, the help and the buttons one under another, as the key's forms. */
+.setting-row.admin-pin-form {
+  display: grid;
+  align-items: stretch;
+  gap: 12px;
+}
+
+.admin-pin-form .field-row label {
+  flex: 1 1 160px;
+}
+
+.profile-pin > .field-help {
+  font-size: var(--step--1);
+}
+
 .key-confirm .checkbox {
   align-items: flex-start;
   margin-top: 0;
