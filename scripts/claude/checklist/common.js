@@ -24,7 +24,7 @@ const isResolved = id => isDone(id) || isDropped(id);
 // opts: {lines: [html], pill, sevClass, copyText}
 function rowHtml(item, opts = {}) {
   const lines = (opts.lines || []).filter(Boolean).map(l => `<small>${l}</small>`).join('');
-  return `<li data-item="${esc(item.id)}"${opts.sevClass ? ` class="sev ${opts.sevClass}"` : ''}>
+  return `<li id="${esc(item.id)}" data-item="${esc(item.id)}"${opts.sevClass ? ` class="sev ${opts.sevClass}"` : ''}>
     <input type="checkbox" class="check" id="c-${esc(item.id)}" data-id="${esc(item.id)}" aria-label="Done: ${esc(plain(item.title))}" disabled>
     <div><b>${opts.pill ? `<span class="pill">${esc(opts.pill)}</span>` : ''}${md(item.title)}</b>${item.you ? '<span class="you">You</span>' : ''}${lines}<small class="note" data-note="${esc(item.id)}" hidden></small></div>
     <div class="side"><span class="idtag">${esc(item.id)}</span><button type="button" class="copy" data-copy="${esc(opts.copyText || item.id)}" aria-label="Copy a prompt for ${esc(item.id)}">Copy</button></div>

@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TITLE}}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/*CSS*/
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div class="eyebrow">Flexarr · audit before landing</div>
+  <h1 id="title"></h1>
+  <div class="meta" id="meta"></div>
+  <p class="lede" id="summary"></p>
+  <p class="rule"><b>Rule:</b> an audit fixes nothing on its own. You pick what to fix; Claude ticks each item here as its fix is committed, with the commit in the note. The fix-before-landing list ticks itself.</p>
+  <div class="decisions-head" id="history-head" hidden>Audit history</div>
+  <ul class="decisions" id="history" hidden></ul>
+  <div class="progress">
+    <div><span class="big" id="p-done">0</span> <span style="color:var(--muted)">of <span id="p-total">0</span> done</span></div>
+    <div class="bar"><div id="p-bar"></div></div>
+    <div class="areas" id="p-areas"></div>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;align-items:center">
+      <span class="sync" id="p-sync"></span>
+      <div class="filters" id="filter"><button type="button" aria-pressed="true" data-h="0">All</button><button type="button" aria-pressed="false" data-h="1">Hide done</button></div>
+    </div>
+  </div>
+</header>
+<main id="main"></main>
+<footer id="footer"></footer>
+</div>
+<script id="data" type="application/json">/*DATA*/</script>
+<script>
+/*COMMON_JS*/
+
+const SECTIONS = [
+  ['bug', 'Bugs'], ['perf', 'Performance'], ['sec', 'Security'], ['compat', 'Compatibility'],
+  ['ux', 'UI & UX'], ['land', 'Land readiness'], ['idea', 'Ideas'],
+].filter(([k]) => DATA.sections[k]).map(([k, name]) => {
+  const s = DATA.sections[k];
+  return { key: k, name, anchor: 'sec-' + k, intro: s.intro, items: s.items || [], doneWell: s.doneWell || [], ids: (s.items || []).map(i => i.id) };
+});
+const COUNTED = SECTIONS.filter(s => s.key !== 'idea').flatMap(s => s.ids);
+const MUST = DATA.mustFix || [];
+
+function findingLines(f) {
+  const shots = (f.shots || []).map(s => `<img src="${esc(s.src)}" alt="${esc(s.caption || f.title)}" loading="lazy">`).join('');
+  return [
+    f.where && `<span class="files">${esc(f.where)}</span>`,
+    f.what && md(f.what),
+    f.fix && `<b style="font-weight:600;color:var(--fg)">Fix:</b> ${md(f.fix)}`,
+    f.verified && `<span class="idtag">${esc(f.verified)}</span>`,
+    shots && `<span class="shots">${shots}</span>`,
+  ];
+}
+
+function renderStatic() {
+  $('title').textContent = DATA.title;
+  $('summary').innerHTML = md(DATA.summary);
+  $('meta').innerHTML = [
+    '<span class="stage" id="stage"></span>',
+    `<span>Branch <code>${esc(DATA.branch)}</code></span>`,
+    `<span>Commit <code>${esc(DATA.commit)}</code></span>`,
+    DATA.pr && `<span>PR ${esc(DATA.pr)}</span>`,
+    `<span>${esc(DATA.date)}</span>`,
+  ].filter(Boolean).join('');
+  if ((DATA.history || []).length) {
+    $('history-head').hidden = false; $('history').hidden = false;
+    $('history').innerHTML = DATA.history.map(h => `<li><b>${esc(h.date)}</b> · <code>${esc(h.commit)}</code> · ${md(h.text)}</li>`).join('');
+  }
+
+  let html = '';
+  if (MUST.length) {
+    html += sectionHtml('must', 'Fix before landing', `<ol class="must">${MUST.map((m, i) => `
+      <li data-must="${i}"><input type="checkbox" class="must-check" disabled aria-label="Done: ${esc(plain(m.title))}">
+        <div><b>${md(m.title)}</b><small>${m.ids.map(id => `<a href="#${esc(id)}">${esc(id)}</a>`).join(' · ')}${m.why ? ' · ' + md(m.why) : ''}</small></div></li>`).join('')}</ol>`,
+      { intro: 'Ticks itself when every item it points to is done.', count: '' });
+  }
+  const copy = f => `Fix ${f.id} from the ${DATA.title} on ${DATA.branch}: ${plain(f.title)}${f.where ? ' (' + f.where + ')' : ''}`;
+  for (const s of SECTIONS) {
+    const rows = s.items.map(f => rowHtml(f, { lines: findingLines(f), pill: f.sev, sevClass: 's-' + f.sev, copyText: copy(f) })).join('');
+    const good = s.doneWell.length ? `<div class="good"><h4>Done well</h4><ul class="plain">${s.doneWell.map(g => `<li>${md(g)}</li>`).join('')}</ul></div>` : '';
+    html += sectionHtml(s.anchor, s.name,
+      (rows ? `<ul class="items" style="margin-top:10px">${rows}</ul>` : '<p class="intro">Nothing found.</p>') + good,
+      { intro: s.intro || (s.key === 'idea' ? 'Ranked by value for effort. Not counted in the progress.' : ''), count: '' });
+  }
+  if (DATA.parity) html += parityHtml({ heading: 'Parity', ...DATA.parity });
+  const shots = DATA.screenshots;
+  if (shots && (shots.items || []).length) {
+    html += sectionHtml('shots', 'Screenshots', `<div class="gallery">${shots.items.map(s =>
+      `<figure><img src="${esc(s.src)}" alt="${esc(s.caption)}" loading="lazy"><figcaption>${md(s.caption)}</figcaption></figure>`).join('')}</div>`,
+      { intro: shots.intro });
+  }
+  $('main').innerHTML = html;
+  $('footer').innerHTML = md(DATA.footer || 'Ticks live in the db collection `checks`: doc id = item id, `{done: true, note: "<commit or PR>"}`.');
+}
+
+function render() {
+  paintRows();
+  let open = 0;
+  MUST.forEach((m, i) => {
+    const li = document.querySelector(`[data-must="${i}"]`);
+    const d = m.ids.every(isResolved);
+    if (!d) open++;
+    li.classList.toggle('done', d);
+    li.querySelector('input').checked = d;
+  });
+  const mc = document.querySelector('[data-count="must"]');
+  if (mc) mc.textContent = `${MUST.length - open} of ${MUST.length} done`;
+  for (const s of SECTIONS) {
+    const c = document.querySelector(`[data-count="${s.anchor}"]`);
+    if (c) c.textContent = s.ids.length ? `${s.ids.filter(isResolved).length} of ${s.ids.length} done` : '';
+  }
+  const done = setProgress(COUNTED, SECTIONS.filter(s => s.ids.length).map(s => ({ name: s.name, anchor: s.anchor, ids: s.ids })));
+  if (open) setStage({ label: `${open} to fix before landing`, kind: 'waiting' });
+  else if (done < COUNTED.length) setStage({ label: 'Ready to land', kind: 'done', note: `${COUNTED.length - done} other items open` });
+  else setStage({ label: 'Ready to land', kind: 'done' });
+}
+
+renderStatic();
+wireControls(render);
+render();
+loadTicks(render);
+</script>
+</body>
+</html>
