@@ -94,7 +94,6 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
 
     private string FilePath => Path.Combine(options.CurrentValue.DataDirectory, FileName);
 
-    /// <summary>Invites still waiting, newest first.</summary>
     /// <summary>
     /// The profiles that are guests, so Settings lists one even after their last device is removed (their profile, and
     /// what they've watched, stay until the owner removes the guest). Profiles since removed are left to the caller to
@@ -190,6 +189,7 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
         return _guests;
     }
 
+    /// <summary>Invites still waiting, newest first.</summary>
     public IReadOnlyList<GuestInvite> Waiting()
     {
         lock (_lock)
@@ -210,13 +210,35 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
             throw new InviteException("Family invites aren't turned on.", StatusCodes.Status404NotFound);
         }
 
+        // Counted with those being made right now, so two made at once can't both take the last place.
         lock (_lock)
         {
-            if (Loaded().Count >= MaxWaiting)
+            if (Loaded().Count + _making >= MaxWaiting)
             {
                 throw new InviteException($"{MaxWaiting} invites are already waiting. Cancel some first.");
             }
+
+            _making++;
         }
+
+        try
+        {
+            return await MakeAsync(name, profileId, profileName, ownerName, via, ct);
+        }
+        finally
+        {
+            lock (_lock)
+            {
+                _making--;
+            }
+        }
+    }
+
+    /// <summary>Invites being made right now (between the count and the key).</summary>
+    private int _making;
+
+    private async Task<(GuestInvite Invite, InvitePayload Payload)> MakeAsync(string? name, string profileId, string profileName, string ownerName, InviteVia via, CancellationToken ct)
+    {
 
         var check = await policy.CheckAsync(ct);
         if (!check.Safe)
