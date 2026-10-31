@@ -1,5 +1,6 @@
 using Flexarr.Api.Authentication;
 using Flexarr.Core.Data;
+using Microsoft.EntityFrameworkCore;
 
 namespace Flexarr.Api.Notifications;
 
@@ -13,12 +14,24 @@ public sealed partial class GuestAlerts(IServiceScopeFactory scopes, ILogger<Gue
         "Your Tailscale policy now lets guests reach more than Flexarr. Open Settings › Access to fix it.", Category, Thread: Category,
         Open: new Dictionary<string, string> { ["settings"] = "access" }), "guests-paused");
 
-    /// <summary>A guest used an invite. Defined with c-12; a no-op until then.</summary>
-    public void Joined(string deviceName, string profileId)
+    /// <summary>
+    /// A guest used an invite, so the owner hears straight away: one that went astray (forwarded, intercepted) shows up
+    /// as someone unexpected joining, to be removed in Settings.
+    /// </summary>
+    public void Joined(string deviceName, string profileId) => Send(async (scope, ct) =>
     {
-    }
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        var profile = await db.Profiles.AsNoTracking().Where(p => p.Id == profileId).Select(p => p.Name).FirstOrDefaultAsync(ct);
+        return JoinedMessage(deviceName, profile);
+    }, $"guest-joined-{deviceName}");
 
-    private void Send(PushMessage message, string collapseId) => _ = Task.Run(async () =>
+    public static PushMessage JoinedMessage(string deviceName, string? profileName) => new($"{deviceName} joined",
+        profileName is null ? "Someone used your invite. Not expected? Remove the device in Settings › Access." : $"Watching as {profileName}. Not expected? Remove it in Settings › Access.",
+        Category, Thread: Category, Open: new Dictionary<string, string> { ["settings"] = "access" });
+
+    private void Send(PushMessage message, string collapseId) => Send((_, _) => Task.FromResult(message), collapseId);
+
+    private void Send(Func<IServiceScope, CancellationToken, Task<PushMessage>> make, string collapseId) => _ = Task.Run(async () =>
     {
         try
         {
@@ -33,6 +46,7 @@ public sealed partial class GuestAlerts(IServiceScopeFactory scopes, ILogger<Gue
             var phones = await PairingAlerts.MainProfilePhonesAsync(db, scope.ServiceProvider.GetRequiredService<SignIns>(), CancellationToken.None);
             if (phones.Count > 0)
             {
+                var message = await make(scope, CancellationToken.None);
                 await scope.ServiceProvider.GetRequiredService<Notifier>().SendAsync(db, phones, message, collapseId, CancellationToken.None);
             }
         }

@@ -197,3 +197,16 @@ public class GuestPolicyTests
         Assert.Null(TailscaleService.RelayPortOf("""{"WantRunning":true}"""));
     }
 }
+
+public class GuestAlertTests
+{
+    [Fact]
+    public void Joining_says_who_and_as_whom_and_how_to_undo_it()
+    {
+        var message = Flexarr.Api.Notifications.GuestAlerts.JoinedMessage("Gran's iPad", "Gran");
+        Assert.Equal("Gran's iPad joined", message.Title);
+        Assert.Contains("Watching as Gran", message.Body, StringComparison.Ordinal);
+        Assert.Contains("Settings › Access", message.Body, StringComparison.Ordinal);
+        Assert.Equal("access", message.Open!["settings"]);
+    }
+}
