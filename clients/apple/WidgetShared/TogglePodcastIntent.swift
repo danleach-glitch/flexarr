@@ -4,7 +4,7 @@ import Foundation
 /// The Play/Pause button on the podcast widgets. An audio intent, so the system runs it in the app (which owns the
 /// player), waking it if need be; the widget only shows the button.
 struct TogglePodcastIntent: AudioPlaybackIntent {
-    static let title: LocalizedStringResource = "Play or pause the podcast"
+    static let title: LocalizedStringResource = "Play or pause what you were listening to"
     static let isDiscoverable = false
 
     @Parameter(title: "Episode")

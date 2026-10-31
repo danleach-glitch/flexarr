@@ -978,6 +978,20 @@ final class AppModel {
         music.playBook(book, at: position, client: client)
     }
 
+    /// What was listened to last, book or podcast episode (the newest of the two "continue listening" lists), for
+    /// Resume listening and the widget.
+    func lastListened() async -> ItemSummary? {
+        guard let client, !isKids else { return nil }
+        var candidates: [ItemSummary] = []
+        if podcastStatus?.available != false, let episode = try? await client.continueListening(take: 1).first {
+            candidates.append(episode.summary)
+        }
+        for library in libraries where library.type == .audiobooks {
+            if let book = try? await client.bookShelves(library.id).continueListening.first { candidates.append(book) }
+        }
+        return candidates.max { ($0.userData.lastPlayedAt ?? .distantPast) < ($1.userData.lastPlayedAt ?? .distantPast) }
+    }
+
     /// Marks a book finished (it leaves Continue listening) or not.
     func setBookFinished(_ book: ItemSummary, _ finished: Bool) async {
         guard let client else { return }
@@ -1212,6 +1226,8 @@ final class AppModel {
         guard let client else { return }
         if let episode = try? await client.podcastEpisode(itemId) {
             playEpisode(episode.summary)
+        } else if let detail = try? await client.item(itemId), detail.item.kind == .audiobook {
+            playBook(detail.item)
         } else if let detail = try? await client.item(itemId), detail.item.kind == .series || detail.item.kind == .season {
             if let next = try? await client.nextUp(itemId) { play(next) } else { pendingRoute = .itemID(itemId) }
         } else {

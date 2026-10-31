@@ -1092,14 +1092,19 @@ struct FlexarrShortcuts: AppShortcutsProvider {
             shortTitle: "Add to Up Next",
             systemImageName: "text.line.last.and.arrowtriangle.forward"
         )
+        // Books and podcast episodes share this one (Apple allows ten): whichever played last. Play Up Next stays in the
+        // Shortcuts app, as do Play a book and Sleep at the end of the chapter.
         AppShortcut(
-            intent: PlayUpNextIntent(),
+            intent: ResumeListeningIntent(),
             phrases: [
-                "Play my Up Next in \(.applicationName)",
-                "Play Up Next in \(.applicationName)",
+                "Resume listening in \(.applicationName)",
+                "Continue listening in \(.applicationName)",
+                "Resume my audiobook in \(.applicationName)",
+                "Resume my book in \(.applicationName)",
+                "Resume my podcast in \(.applicationName)",
             ],
-            shortTitle: "Play Up Next",
-            systemImageName: "list.bullet"
+            shortTitle: "Resume listening",
+            systemImageName: "headphones"
         )
         AppShortcut(
             intent: ControlPlaybackIntent(),
