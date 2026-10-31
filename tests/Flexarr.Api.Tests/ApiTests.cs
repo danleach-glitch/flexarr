@@ -114,7 +114,7 @@ public class ApiTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFacto
     public async Task Webhook_UnknownSource_IsNotFound()
     {
         var response = await factory.CreateClient().PostAsJsonAsync(
-            new Uri($"/api/v1/webhooks/readarr?apikey={FlexarrApiFactory.ApiKey}", UriKind.Relative),
+            new Uri($"/api/v1/webhooks/mylarr?apikey={FlexarrApiFactory.ApiKey}", UriKind.Relative),
             new { eventType = "Download" });
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
