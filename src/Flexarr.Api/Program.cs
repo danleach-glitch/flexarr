@@ -260,6 +260,7 @@ builder.Services.AddHttpClient(TailscaleApi.HttpClientName, c => c.Timeout = Tim
 builder.Services.AddSingleton<TailscaleApi>();
 builder.Services.AddSingleton<ITailnet>(sp => sp.GetRequiredService<TailscaleService>());
 builder.Services.AddSingleton<GuestPolicy>();
+builder.Services.AddSingleton<GuestInvites>();
 builder.Services.AddHostedService<GuestPolicyWatcher>();
 builder.Services.AddHostedService<PlaybackSweeper>();
 builder.Services.AddHostedService<MarkerDetectionWorker>();
@@ -408,6 +409,7 @@ app.MapGroup("/api/v1")
     .MapSubtitleSearchEndpoints()
     .MapProfileEndpoints()
     .MapRemoteAccessEndpoints()
+    .MapRemoteGuestEndpoints()
     .MapDeviceEndpoints()
     .MapNotificationEndpoints()
     .MapEventEndpoints()
@@ -418,7 +420,7 @@ app.MapGroup("/api/v1")
 app.MapMcp("/api/v1/mcp").RequireAuthorization();
 
 // Artwork and media are fetched by <img>/<video> tags and native players, which can't send the API key header.
-app.MapGroup("/api/v1").MapImageEndpoints().MapStreamEndpoints().MapLiveTvStreamEndpoints().MapProfileImageEndpoints().MapPairingDeviceEndpoints().MapFirstRunEndpoints();
+app.MapGroup("/api/v1").MapImageEndpoints().MapStreamEndpoints().MapLiveTvStreamEndpoints().MapProfileImageEndpoints().MapPairingDeviceEndpoints().MapFirstRunEndpoints().MapGuestRedeemEndpoints();
 
 // Emby/Jellyfin-compatible endpoints for the *arr apps' built-in connection.
 app.MapMediaBrowserEndpoints();

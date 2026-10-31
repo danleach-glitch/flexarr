@@ -81,6 +81,15 @@ public sealed class SignIn
     /// from Settings › Devices).
     /// </summary>
     public bool KidsLock { get; set; }
+
+    /// <summary>
+    /// A family guest's device, joined to the tailnet with an invite: locked to <see cref="ProfileId"/>, never trusted,
+    /// and only valid from <see cref="GuestAddress"/>. See docs/remote-guests.md.
+    /// </summary>
+    public bool Guest { get; init; }
+
+    /// <summary>For a guest, the tailnet address of the device that redeemed the invite.</summary>
+    public string? GuestAddress { get; init; }
 }
 
 /// <summary>
@@ -149,6 +158,56 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
         LogIssued(kind, PathComparison.Printable(signIn.Name), zone);
         FirstRun.Close(options.CurrentValue);
         return (signIn, token);
+    }
+
+    /// <summary>
+    /// Signs in a family guest's device at tailnet address <paramref name="address"/>, locked to
+    /// <paramref name="profileId"/>. Another guest sign-in for the same address (the device used a second invite) is
+    /// replaced.
+    /// </summary>
+    public (SignIn SignIn, string Token) IssueGuest(string name, string profileId, string address, DeviceType? deviceType)
+    {
+        var token = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32));
+        var now = clock.GetUtcNow().UtcDateTime;
+        var signIn = new SignIn
+        {
+            Id = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(8)),
+            Kind = SignInKind.Device,
+            Name = name.Trim() is { Length: > 0 } trimmed ? trimmed[..Math.Min(trimmed.Length, 80)] : "A guest",
+            TokenHash = Hash(token),
+            CreatedAt = now,
+            LastUsedAt = now,
+            Zone = NetworkZone.Tailnet,
+            Address = address,
+            ProfileId = profileId,
+            DeviceType = deviceType,
+            Guest = true,
+            GuestAddress = address,
+        };
+
+        lock (_lock)
+        {
+            foreach (var old in Loaded().Values.Where(s => s.Guest && s.GuestAddress == address).ToList())
+            {
+                Loaded().Remove(old.TokenHash);
+            }
+
+            Loaded()[signIn.TokenHash] = signIn;
+            SaveLocked();
+        }
+
+        LogIssued(SignInKind.Device, PathComparison.Printable(signIn.Name), NetworkZone.Tailnet);
+        return (signIn, token);
+    }
+
+    /// <summary>Whether a family guest's device at <paramref name="address"/> is signed in (not removed or expired).</summary>
+    public bool HasGuestAt(string address)
+    {
+        lock (_lock)
+        {
+            var now = clock.GetUtcNow().UtcDateTime;
+            return Loaded().Values.Any(s => s.Guest && s.GuestAddress == address && !Expired(s, now));
+        }
     }
 
     /// <summary>The sign-in a token belongs to, if it's still valid; notes that it was used.</summary>

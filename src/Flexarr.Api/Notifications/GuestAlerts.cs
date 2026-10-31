@@ -13,6 +13,11 @@ public sealed partial class GuestAlerts(IServiceScopeFactory scopes, ILogger<Gue
         "Your Tailscale policy now lets guests reach more than Flexarr. Open Settings › Access to fix it.", Category, Thread: Category,
         Open: new Dictionary<string, string> { ["settings"] = "access" }), "guests-paused");
 
+    /// <summary>A guest used an invite. Defined with c-12; a no-op until then.</summary>
+    public void Joined(string deviceName, string profileId)
+    {
+    }
+
     private void Send(PushMessage message, string collapseId) => _ = Task.Run(async () =>
     {
         try

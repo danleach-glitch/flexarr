@@ -88,7 +88,7 @@ public static class NetworkZones
             address = address.MapToIPv4();
         }
 
-        if (IsTailnet(address))
+        if (IsTailnetAddress(address))
         {
             return NetworkZone.Tailnet;
         }
@@ -161,7 +161,7 @@ public static class NetworkZones
             || knownHosts.Any(k => string.Equals(k.Trim().TrimEnd('.'), host, StringComparison.OrdinalIgnoreCase));
     }
 
-    private static bool IsTailnet(IPAddress address)
+    public static bool IsTailnetAddress(IPAddress address)
     {
         var b = address.GetAddressBytes();
         return address.AddressFamily == AddressFamily.InterNetwork
