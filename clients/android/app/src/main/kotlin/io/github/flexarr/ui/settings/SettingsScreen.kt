@@ -17,7 +17,6 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.DownloadForOffline
 import androidx.compose.material3.Switch
@@ -120,7 +119,6 @@ fun SettingsScreen(
     onDownloads: () -> Unit,
     onPodcasts: () -> Unit,
     onNotifications: () -> Unit,
-    onWaitingDevices: () -> Unit,
 ) {
     var confirmSignOut by remember { mutableStateOf(false) }
     var choosingProfile by remember { mutableStateOf(false) }
@@ -232,14 +230,9 @@ fun SettingsScreen(
                     SettingsLink("Notifications", Icons.Filled.Notifications, value = if (model.notifications.isOn) "On" else "Off", onClick = onNotifications)
                 }
             }
-            // The main profile lets in TVs, phones and tablets showing a code.
+            // The main profile lets in TVs, phones and tablets showing a code, right here (as on iPhone).
             if (model.isMainProfile) {
-                item {
-                    Group {
-                        val waiting = model.pairing.waiting.size
-                        SettingsLink("Devices waiting to connect", Icons.Filled.Devices, value = if (waiting > 0) "$waiting" else null, onClick = onWaitingDevices)
-                    }
-                }
+                item { WaitingDevicesSection(model) }
             }
             item {
                 Group {

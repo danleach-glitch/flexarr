@@ -303,7 +303,6 @@ fun MainScreen(model: AppModel) {
                         onDownloads = { nav.navigate("settings/downloads") },
                         onPodcasts = { nav.navigate("settings/podcasts") },
                         onNotifications = { nav.navigate("settings/notifications") },
-                        onWaitingDevices = { nav.navigate("settings/waiting-devices") },
                     )
                 }
                 composable("settings/playback") { PlaybackSettingsScreen(model) }

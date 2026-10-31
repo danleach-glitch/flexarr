@@ -144,6 +144,9 @@ class FlexarrMessagingService : FirebaseMessagingService() {
                 .setStyle(NotificationCompat.BigTextStyle().bigText(payload.body))
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setCategory(NotificationCompat.CATEGORY_STATUS)
+                // Shown whole on the lock screen, Allow and Don't allow too: the name and code are already on the device's
+                // own screen, and answering still unlocks the phone first.
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setAutoCancel(true)
                 // Codes last minutes, not hours.
                 .setTimeoutAfter(15 * 60 * 1000L)

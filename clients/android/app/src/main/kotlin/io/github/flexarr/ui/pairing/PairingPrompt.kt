@@ -175,6 +175,8 @@ private fun PairingSheet(model: AppModel, client: FlexarrClient, device: Waiting
     val scope = rememberCoroutineScope()
     var answer by remember { mutableStateOf<Answer>(Answer.Asking) }
     var pin by remember { mutableStateOf("") }
+    // Locked here: Allow asks for the main profile's PIN, then allows with it (as on iPhone).
+    var asksPin by remember { mutableStateOf(false) }
 
     // Its code runs out (the device shows a new one, which asks again).
     LaunchedEffect(device.expiresAt) {
@@ -188,7 +190,12 @@ private fun PairingSheet(model: AppModel, client: FlexarrClient, device: Waiting
     }
 
     fun allow() {
-        if (answer == Answer.Sending || answer == Answer.Connected || !mayAllow(model, pin)) return
+        if (answer == Answer.Sending || answer == Answer.Connected) return
+        if (!model.isAdmin && !asksPin) {
+            asksPin = true
+            return
+        }
+        if (!mayAllow(model, pin)) return
         answer = Answer.Sending
         scope.launch {
             try {
@@ -274,13 +281,13 @@ private fun PairingSheet(model: AppModel, client: FlexarrClient, device: Waiting
                 else -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     val sending = answer == Answer.Sending
                     // Locked here: allowing takes the main profile's PIN.
-                    if (!model.isAdmin) MainPinField(model, pin, onPin = { pin = it }, onDone = ::allow, Modifier.padding(bottom = 6.dp))
+                    if (asksPin && !model.isAdmin) MainPinField(model, pin, onPin = { pin = it }, onDone = ::allow, Modifier.padding(bottom = 6.dp))
                     if (sending) {
                         Row(Modifier.fillMaxWidth().padding(vertical = 13.dp), horizontalArrangement = Arrangement.Center) {
                             CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = Flexarr.screen)
                         }
                     } else {
-                        ActionButton("Allow", ::allow, Modifier.fillMaxWidth(), prominent = true, enabled = mayAllow(model, pin))
+                        ActionButton("Allow", ::allow, Modifier.fillMaxWidth(), prominent = true, enabled = !asksPin || mayAllow(model, pin))
                     }
                     ActionButton("Don’t allow", ::decline, Modifier.fillMaxWidth(), enabled = !sending)
                 }
