@@ -2,6 +2,11 @@
   <PropertyGroup>
     <AssemblyName>Flexarr</AssemblyName>
     <RootNamespace>Flexarr.Api</RootNamespace>
+    <!-- The API's endpoint handlers are written at build time, not compiled from expressions each time a server
+         starts: starting is quicker, and test servers no longer queue on the runtime's code-generation lock. -->
+    <EnableRequestDelegateGenerator>true</EnableRequestDelegateGenerator>
+    <!-- RDG004: the few endpoints answering with an anonymous type are left to be built at runtime, as before. -->
+    <NoWarn>$(NoWarn);RDG004</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />

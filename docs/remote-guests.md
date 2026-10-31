@@ -139,8 +139,8 @@ have them). When they're turned on by default:
   FAQ, and run `make guide`;
 - add `ANDROID_CERT_SHA256` to the relay's environment, and Upstash, if they aren't there yet;
 - add the changelog entry (Settings › Remote access › Guests; Join someone’s Flexarr with a code on every app);
-- answer App Store Connect's export compliance question once (standard encryption algorithms, no documents) and add
-  the `ITSEncryptionExportComplianceCode` it gives beside `ITSAppUsesNonExemptEncryption` in `clients/apple/project.yml`.
+- export compliance is settled: the apps declare exempt encryption (`ITSAppUsesNonExemptEncryption` false, the reasoning
+  beside it in `clients/apple/project.yml`).
 
 ## Later
 
