@@ -150,6 +150,21 @@ public class GuestPolicyTests
         Assert.Equal(2, fake.Calls.Count(c => c.Path.EndsWith("/validate", StringComparison.Ordinal)));
     }
 
+    [Theory]
+    [InlineData("timeout")]
+    [InlineData("html")]
+    public async Task A_slow_or_strange_answer_from_Tailscale_is_not_safe_and_never_throws(string broken)
+    {
+        var (policy, fake, _, _) = Make();
+        using var _ = policy;
+        fake.Broken = broken;
+
+        var check = await policy.CheckAsync(CancellationToken.None);
+
+        Assert.False(check.Safe);
+        Assert.False(check.Validated);
+    }
+
     [Fact]
     public async Task Without_a_client_or_Tailscale_it_is_not_safe()
     {
@@ -206,7 +221,7 @@ public class GuestAlertTests
         var message = Flexarr.Api.Notifications.GuestAlerts.JoinedMessage("Gran's iPad", "Gran");
         Assert.Equal("Gran's iPad joined", message.Title);
         Assert.Contains("Watching as Gran", message.Body, StringComparison.Ordinal);
-        Assert.Contains("Settings › Access", message.Body, StringComparison.Ordinal);
+        Assert.Contains("Settings › Remote access", message.Body, StringComparison.Ordinal);
         Assert.Equal("access", message.Open!["settings"]);
     }
 }
