@@ -31,8 +31,12 @@ const ended: Record<Exclude<TraktPendingConnect['state'], 'Waiting' | 'Connected
   Failed: 'That didn’t work. Try again.',
 }
 
-/** The server's own words for what went wrong, when it gave some. */
-const problemText = (e: unknown, fallback = 'That didn’t work. Try again.') => (e instanceof ApiError && e.messages[0]) || fallback
+/** The server's own words for what went wrong (its problem's detail), or that it couldn't be reached. */
+const problemText = (e: unknown, fallback = 'That didn’t work. Try again.') => {
+  if (e instanceof ApiError && typeof e.problem?.detail === 'string' && e.problem.detail) return e.problem.detail
+  if (e instanceof TypeError) return 'Couldn’t reach the server.'
+  return fallback
+}
 
 /** This profile's Trakt account: connect by code, how the sync is going, the first import, lists, and the admin's overview. */
 export function TraktSection() {
@@ -158,7 +162,8 @@ function Connected({ status, reload }: { status: TraktStatus; reload: () => void
 function History({ status, reload }: { status: TraktStatus; reload: () => void }) {
   const { error, act } = useAction(reload)
   const [preview, setPreview] = useState<TraktImportPreview | null>(null)
-  const note = error ? <SaveStatus error={error} /> : preview && !status.importedAt && !status.importing ? 'Nothing is marked unwatched, on either side.' : undefined
+  const failed = error ?? (!status.importing && !status.importedAt ? status.importError : null)
+  const note = failed ? <SaveStatus error={failed} /> : preview && !status.importedAt && !status.importing ? 'Nothing is marked unwatched, on either side.' : undefined
 
   let row
   if (status.importing) row = <SettingRow as="div" label="Bringing your history across…" />
@@ -226,7 +231,7 @@ function Lists() {
       await saveTraktLists(next)
     } catch (e) {
       setChosen(null)
-      setError(problemText(e, 'That didn’t save. Try again.'))
+      setError(problemText(e))
     } finally {
       setSaving(false)
     }

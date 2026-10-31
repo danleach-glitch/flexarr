@@ -1569,6 +1569,8 @@ export interface TraktStatus {
   importing: boolean
   queued: number
   pending?: TraktPendingConnect | null
+  /** Why the last import didn't finish. Absent from servers before 0.57's last builds. */
+  importError?: string | null
 }
 
 export interface TraktImportPreview {

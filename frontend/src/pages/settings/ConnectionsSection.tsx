@@ -202,8 +202,9 @@ export function ConnectionsSection() {
             onOpen={() => setOpen('trakt')}
             onClose={() => setOpen(undefined)}
             onSave={async (traktApp) => {
-              // Trakt's sign-ins belong to the app that gave them: everyone connects again after a switch.
-              if (!confirm('Change the Trakt app? Everyone who connected to Trakt will need to connect again.')) return
+              // Trakt's sign-ins belong to the app that gave them: everyone connects again after a switch (a new secret for
+              // the same app changes nothing for them).
+              if ((traktApp.clientId || null) !== (settings.traktApp?.clientId || null) && !confirm('Change the Trakt app? Everyone who connected to Trakt will need to connect again.')) return
               if (!(await save({ traktApp }))) return
               setOpen(undefined)
               window.dispatchEvent(new Event(TRAKT_CHANGED))

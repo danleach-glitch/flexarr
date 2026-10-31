@@ -15,6 +15,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Settings says plainly if Trakt has signed Flexarr out, if a free account's watchlist is full, or if changes are waiting to send. **Disconnect** makes Trakt forget Flexarr; what you've watched stays.
 - The main profile can use its own Trakt app instead of Flexarr's, in **Settings › Connections › Trakt**.
 
+### Backups
+- Restoring a backup now keeps your TMDB key, and a settings file you export includes it (and your own Trakt app, if you set one up).
+
 ### Profiles
 - The main profile can have a PIN of its own, apart from the admin PIN. Choosing your profile then asks for it on every device. Add, change or remove it in **Settings › Profiles**, like anyone's. The admin PIN still guards the server's settings and lets a child off a kids profile, and it opens the main profile too.
 - Someone on your tailnet with their own account chooses the main profile with the admin PIN only. So does a browser at home that isn't signed in, when there are kids profiles.
