@@ -91,7 +91,7 @@ struct SettingsView: View {
                 SettingsLink("Notifications", icon: "bell.fill", value: notifications.isOn ? "On" : "Off") { NotificationSettingsView() }
                 SettingsLink("Siri", icon: "waveform", value: siriDeviceName ?? "This \(ThisDevice.name)") { SiriSettingsView() }
                 if let trakt, trakt.available {
-                    SettingsLink("Trakt", icon: "arrow.triangle.2.circlepath", value: trakt.state == .connected ? trakt.username : trakt.state == .needsSignIn ? "Signed out" : "Off") {
+                    SettingsLink("Trakt", icon: "arrow.triangle.2.circlepath", value: trakt.state == .connected ? trakt.username ?? "On" : trakt.state == .needsSignIn ? "Signed out" : "Off") {
                         TraktSettingsView()
                     }
                 }

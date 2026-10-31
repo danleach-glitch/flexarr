@@ -3,45 +3,69 @@ import SwiftUI
 import UIKit
 
 /// This profile's Trakt account: connect by a code entered at trakt.tv/activate, how the sync is going, the first
-/// history import (previewed first), and disconnecting.
+/// history import (previewed first), the lists brought across, and disconnecting.
 struct TraktSettingsView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.scenePhase) private var scenePhase
     @State private var status: TraktStatus?
+    @State private var loadFailed = false
+    /// The server no longer offers Trakt to this profile (an older one, or it's a kids profile now).
+    @State private var unavailable = false
     @State private var preview: TraktImportPreview?
-    @State private var working = false
-    @State private var problem: String?
+    @State private var lists: [TraktList]?
+    @State private var chosen: Set<String> = []
+    @State private var working: Part?
+    @State private var problems: [Part: String] = [:]
     @State private var confirmDisconnect = false
+
+    /// Where on the page something happened, so its error shows beside it.
+    private enum Part { case account, history, lists }
 
     private var waiting: Bool { status?.pending?.state == .waiting || status?.importing == true }
 
     var body: some View {
         List {
-            if let status {
-                if status.state == .connected {
+            if unavailable {
+                Section { Text(TraktWords.unavailable).foregroundStyle(Color.usher).listRowBackground(Color.seat) }
+            } else if let status {
+                if !status.available {
+                    Section { Text(TraktWords.unavailable).foregroundStyle(Color.usher).listRowBackground(Color.seat) }
+                } else if status.state == .connected {
                     connected(status)
-                    if status.importedAt == nil { importSection(status) }
+                    history(status)
+                    listsSection
                 } else {
                     connect(status)
                 }
-            }
-            if let problem {
-                Section { Text(problem).foregroundStyle(.red).listRowBackground(Color.seat) }
+            } else if loadFailed {
+                Section {
+                    Text(TraktWords.unreachable).foregroundStyle(Color.danger).listRowBackground(Color.seat)
+                    Button("Try again") { Task { await load() } }.listRowBackground(Color.seat)
+                }
+            } else {
+                Section { ProgressView().frame(maxWidth: .infinity).listRowBackground(Color.seat) }
             }
         }
         .settingsPage("Trakt")
         .task { await load() }
         .refreshable { await load() }
-        // While a code waits, or the import runs, keep looking.
-        .task(id: waiting) {
-            while waiting, !Task.isCancelled {
+        // While a code waits, or the import runs, keep looking: only while Flexarr is on screen.
+        .task(id: waiting && scenePhase == .active) {
+            while waiting, scenePhase == .active, !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(2))
                 await load()
             }
         }
-        .confirmationDialog("Disconnect Trakt?", isPresented: $confirmDisconnect, titleVisibility: .visible) {
-            Button("Disconnect", role: .destructive) { run { try await $0.disconnectTrakt() } }
+        .confirmationDialog(TraktWords.disconnectTitle, isPresented: $confirmDisconnect, titleVisibility: .visible) {
+            Button("Disconnect", role: .destructive) { run(.account) { try await $0.disconnectTrakt() } }
         } message: {
-            Text("What you've watched stays as it is, here and on Trakt.")
+            Text(TraktWords.disconnectMessage)
+        }
+    }
+
+    @ViewBuilder private func problemRow(_ part: Part) -> some View {
+        if let problem = problems[part] {
+            Text(problem).font(.footnote).foregroundStyle(Color.danger).listRowBackground(Color.seat)
         }
     }
 
@@ -51,9 +75,13 @@ struct TraktSettingsView: View {
                 Text(pending.userCode)
                     .font(.system(.largeTitle, design: .monospaced).weight(.heavy))
                     .tracking(4)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.4)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 8)
                     .textSelection(.enabled)
+                    .accessibilityLabel(pending.userCode.map(String.init).joined(separator: " "))
+                    .speechSpellsOutCharacters()
                     .listRowBackground(Color.seat)
                 if let url = URL(string: pending.verificationUrl) {
                     Button {
@@ -64,22 +92,25 @@ struct TraktSettingsView: View {
                     }
                     .listRowBackground(Color.seat)
                 }
-                Button("Cancel", role: .cancel) { run { try await $0.cancelTraktConnect() } }
+                Button("Cancel", role: .cancel) { run(.account) { try await $0.cancelTraktConnect() } }
                     .listRowBackground(Color.seat)
+                problemRow(.account)
             } footer: {
-                Text("Enter the code at \(pending.verificationUrl.replacingOccurrences(of: "https://", with: "")). Flexarr waits, so you can leave this.")
+                Text("\(TraktWords.enterCode(at: pending.verificationUrl)) \(TraktWords.waiting)")
             }
         } else {
             Section {
                 Button {
-                    run { _ = try await $0.connectTrakt() }
+                    run(.account) { _ = try await $0.connectTrakt() }
                 } label: {
                     Label(status.state == .needsSignIn ? "Connect \(status.username ?? "Trakt") again" : "Connect Trakt", systemImage: "link")
                 }
-                .disabled(working)
+                .disabled(working != nil)
                 .listRowBackground(Color.seat)
+                problemRow(.account)
             } footer: {
-                Text(status.state == .needsSignIn ? "Trakt signed Flexarr out." : status.pending?.state.problem ?? "Each profile connects its own account.")
+                Text(status.state == .needsSignIn ? TraktWords.signedOut
+                     : status.pending.flatMap { $0.error ?? $0.state.problem } ?? "Each profile connects its own account.")
             }
         }
     }
@@ -91,68 +122,129 @@ struct TraktSettingsView: View {
             if status.queued > 0 {
                 LabeledContent("Waiting to send", value: status.queued.formatted()).settingsRow()
             }
-            Button("Sync now") { run { try await $0.syncTraktNow() } }
-                .disabled(working)
-                .listRowBackground(Color.seat)
+            Button {
+                run(.account) { try await $0.syncTraktNow() }
+            } label: {
+                HStack {
+                    Text(working == .account ? "Syncing…" : "Sync now")
+                    if working == .account { Spacer(); ProgressView() }
+                }
+            }
+            .disabled(working != nil)
+            .listRowBackground(Color.seat)
             Button("Disconnect", role: .destructive) { confirmDisconnect = true }
                 .listRowBackground(Color.seat)
+            problemRow(.account)
         } footer: {
             if let error = status.lastError {
                 Text(error)
             } else if status.watchlistFull {
-                Text("Trakt's watchlist is full. New titles stay on Flexarr's list.")
+                Text(TraktWords.watchlistFull)
             }
         }
     }
 
-    @ViewBuilder private func importSection(_ status: TraktStatus) -> some View {
+    @ViewBuilder private func history(_ status: TraktStatus) -> some View {
         Section {
             if status.importing {
                 HStack {
                     ProgressView()
-                    Text("Bringing your history across…").foregroundStyle(Color.usher)
+                    Text(TraktWords.importing).foregroundStyle(Color.usher)
                 }
                 .listRowBackground(Color.seat)
+            } else if let importedAt = status.importedAt {
+                LabeledContent(TraktWords.imported, value: importedAt.formatted(.relative(presentation: .named))).settingsRow()
             } else if let preview {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(preview.summary).font(.body.weight(.semibold))
                     Text(preview.details).font(.footnote).foregroundStyle(Color.usher)
                 }
                 .listRowBackground(Color.seat)
-                Button("Bring across") { run { try await $0.confirmTraktImport() } }
-                    .disabled(working)
+                Button(TraktWords.importAction) { run(.history) { try await $0.confirmTraktImport() } }
+                    .disabled(working != nil)
                     .listRowBackground(Color.seat)
             } else {
-                Button("Bring your Trakt history across") {
-                    run { client in preview = try await client.previewTraktImport() }
+                Button(TraktWords.importEntry) {
+                    run(.history) { client in preview = try await client.previewTraktImport() }
                 }
-                .disabled(working)
+                .disabled(working != nil)
                 .listRowBackground(Color.seat)
             }
+            problemRow(.history)
         } header: {
             Text("Your history")
         } footer: {
-            Text(preview == nil ? "See what changes first." : "Nothing is marked unwatched, on either side.")
+            if status.importedAt == nil, !status.importing {
+                Text(preview == nil ? "See what changes first." : "Nothing is marked unwatched, on either side.")
+            }
+        }
+    }
+
+    @ViewBuilder private var listsSection: some View {
+        if let lists, !lists.isEmpty {
+            Section {
+                ForEach(lists) { list in
+                    Toggle(isOn: Binding(get: { chosen.contains(list.id) }, set: { on in choose(list.id, on) })) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(list.name)
+                            Text(list.detail).font(.footnote).foregroundStyle(Color.usher)
+                        }
+                    }
+                    .disabled(working == .lists)
+                    .settingsRow()
+                }
+                problemRow(.lists)
+            } header: {
+                Text("Lists")
+            } footer: {
+                Text(TraktWords.listsNote)
+            }
+        }
+    }
+
+    private func choose(_ id: String, _ on: Bool) {
+        let before = chosen
+        if on { chosen.insert(id) } else { chosen.remove(id) }
+        let ids = lists?.map(\.id).filter(chosen.contains) ?? []
+        run(.lists, reload: false) { client in
+            do {
+                try await client.saveTraktLists(ids)
+            } catch {
+                chosen = before
+                throw error
+            }
         }
     }
 
     private func load() async {
         guard let client = model.client else { return }
-        if let loaded = try? await client.traktStatus() { status = loaded }
+        do {
+            let loaded = try await client.traktStatus()
+            loadFailed = false
+            // Gone from the server: say so rather than show nothing.
+            unavailable = loaded == nil
+            status = loaded
+            if status?.state == .connected, lists == nil, let loaded = try? await client.traktLists() {
+                lists = loaded
+                chosen = Set(loaded.filter(\.selected).map(\.id))
+            }
+        } catch {
+            if status == nil { loadFailed = true }
+        }
     }
 
-    private func run(_ work: @escaping (FlexarrClient) async throws -> Void) {
-        guard let client = model.client, !working else { return }
-        working = true
-        problem = nil
+    private func run(_ part: Part, reload: Bool = true, _ work: @escaping (FlexarrClient) async throws -> Void) {
+        guard let client = model.client, working == nil else { return }
+        working = part
+        problems[part] = nil
         Task {
             do {
                 try await work(client)
             } catch {
-                problem = "That didn't work. Try again."
+                problems[part] = TraktWords.problem(error)
             }
-            await load()
-            working = false
+            if reload { await load() }
+            working = nil
         }
     }
 }

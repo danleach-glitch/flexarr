@@ -56,7 +56,7 @@ struct SettingsView: View {
             }
             if let trakt, trakt.available {
                 SettingsLinkRow(title: "Trakt", symbol: "arrow.triangle.2.circlepath",
-                                value: trakt.state == .connected ? trakt.username : trakt.state == .needsSignIn ? "Signed out" : "Off",
+                                value: trakt.state == .connected ? trakt.username ?? "On" : trakt.state == .needsSignIn ? "Signed out" : "Off",
                                 help: "Keep what this profile watches, and its watchlist, in step with Trakt.") {
                     TraktSettingsView()
                 }
