@@ -239,7 +239,7 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
     @ObservationIgnored private var unsentDeletes: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "downloads.unsentDeletes") ?? []) {
         didSet { UserDefaults.standard.set(Array(unsentDeletes), forKey: "downloads.unsentDeletes") }
     }
-    /// Where transfers paused for want of Wi-Fi had got to, to carry on from there.
+    /// Where transfers paused for want of Wi-Fi, or cut off part-way, had got to, to carry on from there.
     @ObservationIgnored private var resumeData: [String: Data] = [:]
 
     nonisolated static let folder: URL = {
@@ -393,7 +393,8 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         }
     }
 
-    /// A transfer stopped for want of Wi-Fi: back to waiting (the server still has it ready), to carry on later.
+    /// A transfer stopped for want of Wi-Fi or cut off: back to waiting (the server still has it ready), to carry on
+    /// later.
     private func held(_ id: String, resumeData data: Data?) {
         if let data { resumeData[id] = data }
         update(id) { if case .downloading = $0.state { $0.state = .preparing(1) } }
@@ -876,6 +877,13 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
     fileprivate func stopped(_ id: String, _ error: Error) {
         guard let download = all.first(where: { $0.id == id }), !download.isDownloaded else { return }
         if (error as? URLError)?.code == .cancelled { return }
+        // Cut off part-way (the network went, or a guest's tunnel slept with the phone locked): back to waiting, to
+        // carry on from where it got to once the server's in reach again (the next catch-up, back in front).
+        if let data = (error as NSError).userInfo[NSURLSessionDownloadTaskResumeDataKey] as? Data {
+            held(id, resumeData: data)
+            if isOnline { poll() }
+            return
+        }
         update(id) { $0.state = .failed("The download stopped. Try again.") }
     }
 }
