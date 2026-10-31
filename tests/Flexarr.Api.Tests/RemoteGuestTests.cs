@@ -397,4 +397,60 @@ public class RemoteGuestTests(RemoteGuestFactory factory) : IClassFixture<Remote
 
         Assert.Equal(HttpStatusCode.BadRequest, (await admin.PutAsJsonAsync("/api/v1/remote/guests/relay", new { enabled = true, port = 80 })).StatusCode);
     }
+
+    [Fact]
+    public async Task Setup_shows_the_snippet_with_this_servers_address_and_never_the_secret()
+    {
+        using var admin = factory.Admin();
+        await admin.PostAsync("/api/v1/remote/guests/check", null);
+
+        var response = await admin.GetAsync("/api/v1/remote/guests");
+        var text = await response.Content.ReadAsStringAsync();
+        var setup = JsonSerializer.Deserialize<RemoteGuestsDto>(text, Web)!;
+
+        Assert.True(setup.Enabled);
+        Assert.True(setup.HasClient);
+        Assert.Equal("client", setup.ClientId);
+        Assert.Equal("100.64.0.1", setup.Address);
+        Assert.Contains("\"flexarr\": \"100.64.0.1\"", setup.Snippet, StringComparison.Ordinal);
+        Assert.True(setup.Check!.Safe);
+        Assert.DoesNotContain("secret", text, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Saving_the_client_checks_it_and_keeps_the_secret_when_left_out()
+    {
+        using var admin = factory.Admin();
+        try
+        {
+            // Same id, no secret: the saved secret stays, and Tailscale accepts it.
+            Assert.Equal(HttpStatusCode.OK, (await admin.PutAsJsonAsync("/api/v1/remote/guests/client", new { clientId = "client" })).StatusCode);
+            // A new id needs its secret.
+            Assert.Equal(HttpStatusCode.BadRequest, (await admin.PutAsJsonAsync("/api/v1/remote/guests/client", new { clientId = "other" })).StatusCode);
+            // A client Tailscale refuses says so.
+            factory.Tailscale.AcceptClient = false;
+            var refused = await admin.PutAsJsonAsync("/api/v1/remote/guests/client", new { clientId = "client", clientSecret = "wrong" });
+            Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+            Assert.Contains("didn't accept", await refused.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        }
+        finally
+        {
+            factory.Tailscale.AcceptClient = true;
+            await admin.PutAsJsonAsync("/api/v1/remote/guests/client", new { clientId = "client", clientSecret = "secret" });
+        }
+    }
+
+    [Fact]
+    public async Task Removing_a_guests_device_shuts_it_out_and_only_guests_can_be_removed_here()
+    {
+        var (_, key) = await JoinAsync("Gran15");
+        using var guest = factory.From(RemoteGuestFactory.Guest, key);
+        Assert.True((await guest.GetFromJsonAsync<JsonElement>("/api/v1/me")).GetProperty("isGuest").GetBoolean());
+
+        using var admin = factory.Admin();
+        var device = (await admin.GetFromJsonAsync<List<GuestDeviceDto>>("/api/v1/remote/guests/devices", Web))!.Single(d => d.Name == "Gran15's iPad");
+        Assert.Equal(HttpStatusCode.NoContent, (await admin.DeleteAsync($"/api/v1/remote/guests/devices/{device.Id}")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await guest.GetAsync("/api/v1/me")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await admin.DeleteAsync("/api/v1/remote/guests/devices/not-a-guest")).StatusCode);
+    }
 }

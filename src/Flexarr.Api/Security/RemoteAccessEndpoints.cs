@@ -33,8 +33,9 @@ public sealed record TailscaleLinkRequest(string Login, string? ProfileId);
 /// <param name="IsKids">The profile is a child's: show the kids app, and leaving it takes the admin PIN. Absent from servers before 0.56.</param>
 /// <param name="MaxRatingAge">The profile's age limit (0 is U, 8 PG, then 12, 15, 18); null, none. Absent from servers before 0.56.</param>
 /// <param name="KidsLock">This browser or device is locked to kids profiles. Absent from servers before 0.56.</param>
+/// <param name="IsGuest">A family guest's device: it stays on its profile and has no household devices. Absent from servers before 0.57.</param>
 public sealed record MeDto(string ProfileId, string Method, NetworkZone Zone, bool IsAdmin, string? TailscaleLogin, bool CanUnlock = false, bool AdminPinMissing = false,
-    DateTime? UnlockedUntil = null, bool IsKids = false, int? MaxRatingAge = null, bool KidsLock = false);
+    DateTime? UnlockedUntil = null, bool IsKids = false, int? MaxRatingAge = null, bool KidsLock = false, bool IsGuest = false);
 
 public static class RemoteAccessEndpoints
 {
@@ -53,7 +54,7 @@ public static class RemoteAccessEndpoints
                 profile.CanUnlock,
                 (profile.IsAdmin || profile.CanUnlock) && await db.Profiles.AnyAsync(p => p.Id == PlaybackState.DefaultUser && p.PinHash == null, ct),
                 profile.IsAdmin ? unlocks.UnlockedUntil(profile.SignInId) : null,
-                db.ServesKids, db.MaxRatingAge, signIns.ById(profile.SignInId)?.KidsLock == true);
+                db.ServesKids, db.MaxRatingAge, signIns.ById(profile.SignInId)?.KidsLock == true, profile.IsGuest);
         }).WithTags("Remote access");
 
         var group = api.MapGroup("/remote").WithTags("Remote access").RequireAuthorization(FlexarrClaims.AdminPolicy);

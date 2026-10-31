@@ -24,6 +24,19 @@ public sealed record RedeemInviteRequest(string Token);
 public sealed record GuestDeviceDto(string Id, string Name, string? ProfileId, string? ProfileName, Authentication.DeviceType? DeviceType, DateTime CreatedAt,
     DateTime LastUsedAt, string? Address, bool Online, TailnetPath Path, DateTime? LastSeen, string TailscaleAdminUrl);
 
+/// <summary>Family invites' setup, as Settings › Access shows it.</summary>
+/// <param name="Enabled">Family invites are turned on for this server (hidden until the apps that carry Tailscale are out).</param>
+/// <param name="Available">This server can do them: Tailscale is installed here (not Docker or the Mac app, yet).</param>
+/// <param name="ClientId">The OAuth client's id; its secret is never sent, only <paramref name="HasClient"/>.</param>
+/// <param name="Address">This server's tailnet address, which guests reach Flexarr on.</param>
+/// <param name="Snippet">The lines to paste into the tailnet policy, with this server's address filled in.</param>
+/// <param name="Check">The safety check's last answer; null until it has run.</param>
+public sealed record RemoteGuestsDto(bool Enabled, bool Available, string? Problem, bool TailscaleRunning, string? Address, string? DnsName, int FlexarrPort,
+    string Tag, string ClientId, bool HasClient, string? Snippet, GuestPolicyCheck? Check, RelayDto Relay, int Waiting, int Devices);
+
+/// <param name="ClientSecret">Omitted (or empty) keeps the saved one while the id stays the same.</param>
+public sealed record GuestClientRequest(string ClientId, string? ClientSecret);
+
 /// <param name="Port">The UDP port to relay on; omitted keeps the saved one, else <see cref="RemoteGuestEndpoints.DefaultRelayPort"/>.</param>
 public sealed record RelayRequest(bool Enabled, int? Port = null);
 
@@ -46,6 +59,59 @@ public static class RemoteGuestEndpoints
     public static RouteGroupBuilder MapRemoteGuestEndpoints(this RouteGroupBuilder api)
     {
         var group = api.MapGroup("/remote/guests").WithTags("Family invites").RequireAuthorization(FlexarrClaims.AdminPolicy);
+
+        group.MapGet("/", async (HttpContext http, GuestPolicy policy, ITailnet tailnet, GuestInvites invites, SignIns signIns,
+            IOptionsMonitor<FlexarrOptions> options, CancellationToken ct) => Results.Ok(await DescribeAsync(http, policy, tailnet, invites, signIns, options, ct)));
+
+        // The owner's Tailscale OAuth client. Saving it checks it straight away.
+        group.MapPut("/client", async (GuestClientRequest request, HttpContext http, TailscaleApi api, GuestPolicy policy, ITailnet tailnet, GuestInvites invites,
+            SignIns signIns, IOptionsMonitor<FlexarrOptions> options, CancellationToken ct) =>
+        {
+            var settings = options.CurrentValue;
+            var id = request.ClientId.Trim();
+            var secret = request.ClientSecret?.Trim() is { Length: > 0 } given ? given
+                : id == settings.RemoteGuests.ClientId ? settings.RemoteGuests.ClientSecret : "";
+            if (id.Length > 0 && secret.Length == 0)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["clientSecret"] = ["Paste the client's secret too."] });
+            }
+
+            settings.RemoteGuests.ClientId = id;
+            settings.RemoteGuests.ClientSecret = id.Length == 0 ? "" : secret;
+            ServerConfigStore.Update(settings.DataDirectory, config =>
+            {
+                var section = config["remoteGuests"] as System.Text.Json.Nodes.JsonObject ?? [];
+                section["clientId"] = settings.RemoteGuests.ClientId;
+                section["clientSecret"] = settings.RemoteGuests.ClientSecret;
+                config["remoteGuests"] = section;
+            });
+            api.Forget();
+            policy.Forget();
+            if (id.Length > 0 && await api.CheckClientAsync(ct) is { } problem)
+            {
+                return Results.Problem(problem, statusCode: 400);
+            }
+
+            if (id.Length > 0)
+            {
+                await policy.CheckAsync(ct, fresh: true);
+            }
+
+            return Results.Ok(await DescribeAsync(http, policy, tailnet, invites, signIns, options, ct));
+        });
+
+        // Checks the policy again now (after pasting the snippet).
+        group.MapPost("/check", async (HttpContext http, GuestPolicy policy, ITailnet tailnet, GuestInvites invites, SignIns signIns,
+            IOptionsMonitor<FlexarrOptions> options, CancellationToken ct) =>
+        {
+            await policy.CheckAsync(ct, fresh: true);
+            return Results.Ok(await DescribeAsync(http, policy, tailnet, invites, signIns, options, ct));
+        });
+
+        // Removing a guest's device signs it out, and the gate then refuses everything from it (GuestGate). It stays
+        // on the tailnet until the owner deletes it in Tailscale's admin page (the device list links there).
+        group.MapDelete("/devices/{id}", (string id, SignIns signIns) =>
+            signIns.ById(id) is { Guest: true } && signIns.Revoke(id) ? Results.NoContent() : Results.NotFound());
 
         group.MapGet("/invites", async (GuestInvites invites, FlexarrDbContext db, CancellationToken ct) =>
         {
@@ -214,6 +280,26 @@ public static class RemoteGuestEndpoints
         }
 
         return (profile, owner, null);
+    }
+
+    internal static async Task<RemoteGuestsDto> DescribeAsync(HttpContext http, GuestPolicy policy, ITailnet tailnet, GuestInvites invites, SignIns signIns,
+        IOptionsMonitor<FlexarrOptions> options, CancellationToken ct)
+    {
+        var settings = options.CurrentValue.RemoteGuests;
+        var kind = http.RequestServices.GetRequiredService<Updates.IInstallEnvironment>().Kind;
+        var snapshot = await tailnet.SnapshotAsync(ct);
+        var problem = kind switch
+        {
+            Updates.InstallKind.Docker => "Family invites need Tailscale on the server, which Flexarr in Docker can't use yet.",
+            Updates.InstallKind.MacApp => "Family invites aren't in the Mac app yet.",
+            _ when snapshot is null => "Install Tailscale on the server and sign in to it.",
+            _ when !snapshot.Running => "Tailscale is installed but not connected. Sign in to Tailscale on the server.",
+            _ => null,
+        };
+        var snippet = snapshot?.Address is { } address ? GuestPolicy.Snippet(settings.Tag, address, policy.FlexarrPort, settings.RelayPort is not null) : null;
+        return new RemoteGuestsDto(settings.Enabled, kind is not (Updates.InstallKind.Docker or Updates.InstallKind.MacApp), problem, snapshot?.Running == true,
+            snapshot?.Address, snapshot?.DnsName, policy.FlexarrPort, settings.Tag, settings.ClientId, settings.HasClient, snippet, policy.Last,
+            RelayStatus(settings.RelayPort, snapshot), invites.Waiting().Count, signIns.List().Count(s => s.Guest));
     }
 
     internal static RelayDto RelayStatus(int? port, TailnetSnapshot? snapshot) =>
