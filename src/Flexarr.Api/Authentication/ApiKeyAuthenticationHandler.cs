@@ -355,13 +355,13 @@ public sealed class ApiKeyAuthenticationHandler(
 
         var id = token[..dot];
         var options = flexarrOptions.CurrentValue;
-        var found = await db.Profiles.AsNoTracking().Where(p => p.Id == id).Select(p => new { p.PinHash }).FirstOrDefaultAsync(Context.RequestAborted);
+        var found = await db.Profiles.AsNoTracking().Where(p => p.Id == id).Select(p => new { p.PinHash, p.AdminPinHash }).FirstOrDefaultAsync(Context.RequestAborted);
         if (found is null)
         {
             return null;
         }
 
-        return CurrentProfile.Verifies(options.ApiKey, id, found.PinHash, token[(dot + 1)..], options.AcceptsLegacySignIns(DateTime.UtcNow)) ? id : null;
+        return CurrentProfile.Verifies(options.ApiKey, id, Profile.TokenPinHashOf(id, found.PinHash, found.AdminPinHash), token[(dot + 1)..], options.AcceptsLegacySignIns(DateTime.UtcNow)) ? id : null;
     }
 
     private static bool IsApiKey(string provided, string? key) =>

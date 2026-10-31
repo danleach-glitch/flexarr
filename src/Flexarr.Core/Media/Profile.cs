@@ -96,6 +96,16 @@ public sealed class Profile
 
     public bool IsMain => Id == PlaybackState.DefaultUser;
 
+    /// <summary>
+    /// The PIN a profile token is bound to, so changing it retires tokens handed out before: the profile's own, or for a
+    /// main profile without one, the admin PIN (which it had as its one PIN before they were split).
+    /// </summary>
+    public string? TokenPinHash => TokenPinHashOf(Id, PinHash, AdminPinHash);
+
+    /// <inheritdoc cref="TokenPinHash"/>
+    public static string? TokenPinHashOf(string id, string? pinHash, string? adminPinHash) =>
+        id == PlaybackState.DefaultUser ? pinHash ?? adminPinHash : pinHash;
+
     public static string NewId() => Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(8));
 
     public void SetPin(string? pin) => PinHash = Hash(pin);

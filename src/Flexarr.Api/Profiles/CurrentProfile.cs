@@ -55,7 +55,7 @@ public sealed class CurrentProfile(IHttpContextAccessor http, IOptionsMonitor<Fl
     public string TokenFor(Profile profile)
     {
         ArgumentNullException.ThrowIfNull(profile);
-        return $"{profile.Id}.{Sign(options.CurrentValue.ApiKey, $"profile:{profile.Id}:{profile.PinHash}")}";
+        return $"{profile.Id}.{Sign(options.CurrentValue.ApiKey, $"profile:{profile.Id}:{profile.TokenPinHash}")}";
     }
 
     /// <summary>

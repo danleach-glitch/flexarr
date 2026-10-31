@@ -57,12 +57,17 @@ public sealed class FlexarrApiFactory : WebApplicationFactory<Program>
         });
     }
 
-    /// <summary>Sets or clears the main profile's PIN directly (the API only changes it, never takes it off).</summary>
-    public async Task SetMainPinAsync(string? pin)
+    /// <summary>Sets or clears the admin PIN directly (the API only changes it, never takes it off).</summary>
+    public Task SetMainPinAsync(string? pin) => ChangeMainAsync(main => main.SetAdminPin(pin));
+
+    /// <summary>Sets or clears the main profile's own PIN, the one choosing it asks for.</summary>
+    public Task SetMainProfilePinAsync(string? pin) => ChangeMainAsync(main => main.SetPin(pin));
+
+    private async Task ChangeMainAsync(Action<Flexarr.Core.Media.Profile> change)
     {
         using var scope = Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<Flexarr.Core.Data.FlexarrDbContext>();
-        (await db.Profiles.FindAsync(Flexarr.Core.Media.PlaybackState.DefaultUser))!.SetPin(pin);
+        change((await db.Profiles.FindAsync(Flexarr.Core.Media.PlaybackState.DefaultUser))!);
         await db.SaveChangesAsync();
     }
 
