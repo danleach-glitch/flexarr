@@ -103,7 +103,6 @@ fun ProfilePicker(
     var unlockedWith by remember { mutableStateOf<String?>(null) }
     var switching by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
-    val main = model.profiles.firstOrNull { it.isMain }
     // Child lock can be turned off from the web while the app's open: what it says now.
     LaunchedEffect(Unit) { model.refreshKidsLock() }
 
@@ -182,7 +181,7 @@ fun ProfilePicker(
     AnimatedContent(Triple(asking, parent, locking), label = "profiles") { (pinFor, parentFor, lockStep) ->
         if (lockStep != null) {
             PinEntry(
-                profile = main,
+                profile = null,
                 title = "Enter the admin PIN",
                 model = model,
                 error = error,
@@ -191,9 +190,12 @@ fun ProfilePicker(
                 onSubmit = { pin -> kidsLock(lockStep, pin) },
             )
         } else if (pinFor != null) {
+            // The admin PIN is the server's, not the main profile's own: a padlock rather than its picture. A main
+            // profile with no PIN of its own asks a guest for the admin PIN too.
+            val adminPin = parentFor != null || pinFor.isMain && !pinFor.hasPin
             PinEntry(
-                profile = if (parentFor == null) pinFor else main,
-                title = if (parentFor == null) null else "Enter the admin PIN",
+                profile = if (adminPin) null else pinFor,
+                title = if (adminPin) "Enter the admin PIN" else null,
                 model = model,
                 error = error,
                 onEdit = { error = null },
@@ -306,8 +308,8 @@ private data class ParentPin(val ownPin: String?)
 private enum class KidsLockStep { Lock, Release }
 
 /**
- * A 4 to 8 digit PIN, on the number pad: [profile]'s by default; with a [title], whatever that says (the main profile's,
- * for a parent), under [profile]'s picture if there is one.
+ * A 4 to 8 digit PIN, on the number pad: [profile]'s by default; with a [title], whatever that says (the admin PIN, for
+ * a parent), under [profile]'s picture, or a padlock without one.
  */
 @Composable
 private fun PinEntry(
@@ -338,7 +340,11 @@ private fun PinEntry(
     }
 
     Column(Modifier.fillMaxWidth().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(22.dp)) {
-        profile?.let { ProfileAvatar(model, it, size = 84) }
+        if (profile != null) {
+            ProfileAvatar(model, profile, size = 84)
+        } else {
+            Icon(Icons.Filled.Lock, contentDescription = null, tint = Flexarr.usher, modifier = Modifier.size(72.dp))
+        }
         Text(title ?: "Enter ${profile?.name}’s PIN", style = marquee(32), textAlign = TextAlign.Center)
         BasicTextField(
             value = pin,

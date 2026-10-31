@@ -182,7 +182,9 @@ private fun PinPad(model: AppModel, profile: Profile, error: String?, checking: 
     ) {
         Column(Modifier.width(320.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(15.dp)) {
             ProfileAvatar(model, profile, size = 90)
-            Text("Enter ${profile.name}’s PIN", style = marquee(28).copy(fontWeight = FontWeight.ExtraBold))
+            // A main profile with no PIN of its own asks a guest for the admin PIN.
+            Text(if (profile.isMain && !profile.hasPin) "Enter the admin PIN" else "Enter ${profile.name}’s PIN",
+                style = marquee(28).copy(fontWeight = FontWeight.ExtraBold))
             Row(Modifier.height(20.dp), horizontalArrangement = Arrangement.spacedBy(11.dp), verticalAlignment = Alignment.CenterVertically) {
                 repeat(maxOf(4, pin.length)) { index ->
                     Box(Modifier.size(15.dp).background(if (index < pin.length) Flexarr.screen else Color.Transparent, CircleShape).border(1.5.dp, Flexarr.usher, CircleShape))
