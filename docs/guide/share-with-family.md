@@ -14,7 +14,7 @@ Their app has Tailscale built in and joins your tailnet as a **Flexarr guest**. 
 
 In Flexarr on the web, signed in as the main profile, go to **Settings › Remote access**. **Tailscale setup** has three steps:
 
-1. **Paste the policy.** Flexarr shows a few lines with your server's tailnet address filled in. Copy them into your tailnet policy in Tailscale's admin console (**Access controls**). They create the `tag:flexarr-guest` tag and let guests reach Flexarr's port on your server, and nothing else.
+1. **Paste this into your tailnet policy.** Flexarr shows a few lines with your server's tailnet address filled in. Copy them into your tailnet policy in Tailscale's admin console (**Access controls**). They create the `tag:flexarr-guest` tag and let guests reach Flexarr's port on your server, and nothing else.
 2. **Create an OAuth client.** In Tailscale's admin console, under **Settings › Trust credentials**, make an OAuth client with two scopes: **Auth Keys** (write, with the tag `tag:flexarr-guest`) and **Policy File** (read). Nothing else: Flexarr refuses a client that can do more.
 3. **Paste its ID and secret** into Flexarr and choose **Save**.
 
@@ -59,15 +59,15 @@ If your server's tailnet address or Flexarr's port changes (Tailscale reinstalle
 
 ## Faster relay
 
-Turn on **Faster relay** in Tailscale setup to make your server relay its own guests' connections, instead of Tailscale's shared relays. Then:
+In **Tailscale setup** (choose **Show**), turn on **Faster relay** to make your server relay its own guests' connections, instead of Tailscale's shared relays. Then:
 
-1. On your router, forward the UDP port it shows (40000 unless you choose another) to the server.
+1. On your router, forward the UDP port it shows to the server.
 2. Update your tailnet policy with the lines in setup, which now include the relay.
 
 ## For guests
 
 - **Leave** is in **Settings** in the app. Joining again takes a new code.
-- If the app can't reach your Flexarr, it says so, with **Try again**. Downloads on an iPhone or Android phone still play.
+- If the app can't reach your Flexarr, it says so, with **Try again** and **Leave**. Downloads on an iPhone, iPad or Android phone still play from there.
 - **AirPlay** and **Chromecast** aren't offered: those devices can't reach the private connection inside the guest's phone.
 - **Downloads** on iPhone and iPad carry on only while Flexarr is open.
 - **Top Shelf** on a guest's Apple TV stays empty.
