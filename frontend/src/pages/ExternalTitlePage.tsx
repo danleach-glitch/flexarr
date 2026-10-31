@@ -10,6 +10,7 @@ import { Row } from '../components/Row'
 import { TrailerDialog } from '../components/TrailerDialog'
 import { useApi } from '../hooks/useApi'
 import { formatDuration } from '../lib/format'
+import { Overview } from '../components/Overview'
 
 /** A film or show from Discover that isn't in the library: what it is, how it's rated, its trailer, and a request. */
 export function ExternalTitlePage() {
@@ -50,7 +51,7 @@ function ExternalTitle({ title }: { title: ExternalDetail }) {
             ))}
           </p>
           <Ratings title={title} />
-          {title.overview && <p className="detail-overview">{title.overview}</p>}
+          {title.overview && <Overview text={title.overview} />}
           <div className="detail-actions">
             <RequestButton key={requested ? 'requested' : 'asked'} title={requested ? { ...title, availability: 'Requested' } : title} size="large" />
             {title.onWatchlist != null && (

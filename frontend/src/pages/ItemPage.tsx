@@ -27,6 +27,7 @@ import { DeleteDialog } from '../components/DeleteDialog'
 import { FixMatchDialog } from '../components/FixMatchDialog'
 import { SubtitleSearchDialog } from '../components/SubtitleSearchDialog'
 import { WatchedToggle } from '../components/WatchedToggle'
+import { Overview } from '../components/Overview'
 import { WatchlistButton } from '../components/WatchlistButton'
 import { useAgeLimits, useSession } from '../hooks/sessionContext'
 import { announceWatched } from '../hooks/watched'
@@ -166,7 +167,7 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
               item.kind === 'Episode' && item.releaseDate ? new Date(item.releaseDate).toLocaleDateString(undefined, { dateStyle: 'medium' }) : null,
             ]}
           />
-          {detail.overview && <p className="detail-overview">{detail.overview}</p>}
+          {detail.overview && <Overview text={detail.overview} />}
           <div className="detail-actions">
             {playTarget && (
               <button className="button" onClick={() => navigate(`/play/${playTarget.id}`)}>

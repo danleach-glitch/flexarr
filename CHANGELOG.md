@@ -60,6 +60,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Film and show pages
 - On the web, Play, Trailer, Watched, Watchlist and **⋯** sit on one row, rather than wrapping onto a second.
+- On the web, a long description is cut to four lines, with **More** to read the rest.
 
 ### iPhone
 - **Sign out**, **Delete all downloads**, removing a download and unfollowing a podcast ask in a normal dialog in the middle of the screen, rather than a bubble pointing at the wrong row.

@@ -55,6 +55,31 @@
   text-shadow: 0 1px 12px rgb(0 0 0 / 0.5);
 }
 
+.detail-overview.clamped {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.detail-overview-block .detail-overview {
+  margin-bottom: 0;
+}
+
+.overview-toggle {
+  margin-top: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--screen);
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  text-shadow: 0 1px 12px rgb(0 0 0 / 0.5);
+  cursor: pointer;
+}
+
 .detail-actions {
   display: flex;
   flex-wrap: wrap;
