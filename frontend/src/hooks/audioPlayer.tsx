@@ -14,7 +14,7 @@ import {
   type BookManifest,
   type ItemSummary,
 } from '../api/client'
-import { authorsLine, chapterIndexAt, clampSpeed, fadeLevel, isBook, nextChapterStart, previousChapterStart } from '../lib/books'
+import { authorsLine, chapterIndexAt, clampSpeed, fadeLevel, isBook, nextChapterStart, previousChapterStart, sleepReached } from '../lib/books'
 import { episodeAsTrack, PODCAST_PREFERENCES_CHANGED } from '../lib/podcasts'
 import { useMusicSettings } from '../lib/musicSettings'
 import { FADE_SECONDS } from '../lib/sleepTimer'
@@ -244,7 +244,8 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!sleep || 'endOfEpisode' in sleep) return
     const check = () => {
-      const left = 'until' in sleep ? (sleep.until - Date.now()) / 1000 : (sleep.at - position.current) / (bookSpeedRef.current || 1)
+      const left =
+        'until' in sleep ? (sleep.until - Date.now()) / 1000 : sleepReached(sleep.at, position.current) ? 0 : (sleep.at - position.current) / (bookSpeedRef.current || 1)
       if (left <= 0) {
         engine().pause()
         engine().volume(1)
