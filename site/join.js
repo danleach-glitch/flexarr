@@ -44,21 +44,17 @@
   if (apple) document.getElementById('android').hidden = true;
   if (!apple && !android) document.getElementById('desktop').hidden = false;
 
-  // Copied so the app can offer to paste it when it first opens, after installing.
+  // Copied only when asked: the link carries the invite's key, which shouldn't sit in clipboard history (or a
+  // cloud clipboard) for the three days it works.
   const copied = document.getElementById('copied');
   document.getElementById('copy').addEventListener('click', async () => {
     try {
       await navigator.clipboard.writeText(location.href);
-      copied.textContent = 'Copied. Open Flexarr and tap Paste invite.';
+      copied.textContent = 'Copied. Once Flexarr is installed, open the link again.';
     } catch {
       copied.textContent = "Couldn't copy here. Use Open in Flexarr instead.";
     }
   });
-  for (const store of ['app-store', 'android']) {
-    document.getElementById(store).addEventListener('click', () => {
-      navigator.clipboard?.writeText(location.href).catch(() => {});
-    });
-  }
 
   show('invite');
 })();
