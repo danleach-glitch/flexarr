@@ -100,22 +100,25 @@ public class PinSplitTests
     }
 
     [Fact]
-    public async Task GuessingTheAdminPin_DoesntStopTheOwnerChoosingTheirProfileWithItsOwnPin()
+    public async Task GuessingTheAdminPin_HoldsOffThatDevice_NotTheOwnersOthers()
     {
+        // Either PIN chooses the main profile, so they're counted together: a guesser can't switch to the other one.
         using var server = new FlexarrApiFactory();
         await server.SetMainPinAsync("2580");
         await server.SetMainProfilePinAsync("1357");
-        var tv = await TvAsync(server);
+        var guesser = await TvAsync(server, "Guesser");
+        var owners = await TvAsync(server, "Owner's TV");
         for (var i = 0; i < 5; i++)
         {
-            await tv.PostAsJsonAsync(Api("/admin/unlock"), new { pin = $"000{i}" });
+            await guesser.PostAsJsonAsync(Api("/admin/unlock"), new { pin = $"000{i}" });
         }
 
-        var unlock = await tv.PostAsJsonAsync(Api("/admin/unlock"), new { pin = "2580" });
-        var ownPin = await tv.PostAsJsonAsync(Api("/profiles/owner/select"), new { pin = "1357" });
+        var guesserOwnPin = await guesser.PostAsJsonAsync(Api("/profiles/owner/select"), new { pin = "1357" });
+        await Task.Delay(PinGuard.ProfileThrottle); // everyone else is only slowed down
+        var ownersOwnPin = await owners.PostAsJsonAsync(Api("/profiles/owner/select"), new { pin = "1357" });
 
-        Assert.Equal(HttpStatusCode.TooManyRequests, unlock.StatusCode);
-        Assert.Equal(HttpStatusCode.OK, ownPin.StatusCode);
+        Assert.Equal(HttpStatusCode.TooManyRequests, guesserOwnPin.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, ownersOwnPin.StatusCode);
     }
 
     [Fact]
