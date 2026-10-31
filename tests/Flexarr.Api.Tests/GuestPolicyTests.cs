@@ -256,3 +256,36 @@ public class MacAppRemoteUrlTests
         Assert.Equal("https://mini.ts.net:8443", Flexarr.Api.Endpoints.SystemEndpoints.RemoteUrl(Flexarr.Api.Updates.InstallKind.Other, "https://mini.ts.net:8443", () => "100.64.0.5", 8383));
     }
 }
+
+public class TvInviteSealingTests
+{
+    [Fact]
+    public void The_shared_vector_opens_as_the_apps_open_it()
+    {
+        var path = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "clients", "apple", "FlexarrKit", "Tests", "FlexarrKitTests", "Fixtures", "tv-invite.json");
+        using var vector = JsonDocument.Parse(File.ReadAllText(path));
+        var root = vector.RootElement;
+        var tvPublic = Convert.FromBase64String(root.GetProperty("tvPublicKey").GetString()!);
+        using var tv = System.Security.Cryptography.ECDiffieHellman.Create(new System.Security.Cryptography.ECParameters
+        {
+            Curve = System.Security.Cryptography.ECCurve.NamedCurves.nistP256,
+            D = Convert.FromBase64String(root.GetProperty("tvPrivateKey").GetString()!),
+            Q = new System.Security.Cryptography.ECPoint { X = tvPublic[1..33], Y = tvPublic[33..] },
+        });
+
+        var opened = GuestTvCodes.Open(tv, Convert.FromBase64String(root.GetProperty("serverKey").GetString()!), Convert.FromBase64String(root.GetProperty("sealed").GetString()!));
+
+        Assert.Equal(root.GetProperty("plaintext").GetString(), System.Text.Encoding.UTF8.GetString(opened));
+    }
+
+    [Fact]
+    public void What_the_server_seals_opens_with_the_tvs_key_only()
+    {
+        using var tv = System.Security.Cryptography.ECDiffieHellman.Create(System.Security.Cryptography.ECCurve.NamedCurves.nistP256);
+        using var someoneElse = System.Security.Cryptography.ECDiffieHellman.Create(System.Security.Cryptography.ECCurve.NamedCurves.nistP256);
+        var (serverKey, box) = GuestTvCodes.Seal(GuestTvCodes.Uncompressed(tv.ExportParameters(false)), "invite"u8.ToArray());
+
+        Assert.Equal("invite"u8.ToArray(), GuestTvCodes.Open(tv, serverKey, box));
+        Assert.ThrowsAny<System.Security.Cryptography.CryptographicException>(() => GuestTvCodes.Open(someoneElse, serverKey, box));
+    }
+}
