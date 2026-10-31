@@ -77,6 +77,14 @@ struct SearchView: View {
         .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Movies, shows, episodes and people")
         // Opening Search is for typing: the field's ready with the keyboard up.
         .searchFocused($typing)
+        // Pressing Search keeps the words as a recent search, as picking a result does: shown at once, without waiting
+        // for the server, so clearing the field shows it straight away.
+        .onSubmit(of: .search) {
+            let words = query.trimmingCharacters(in: .whitespaces)
+            guard !words.isEmpty, model.player.recordsHistory else { return }
+            model.recordSearch(query: words)
+            recents = RecentSearches(queries: Array(([words] + recents.queries.filter { $0.caseInsensitiveCompare(words) != .orderedSame }).prefix(5)), items: recents.items)
+        }
         .onAppear {
             takeSiriSearch()
             if query.isEmpty { typing = true }
