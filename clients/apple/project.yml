@@ -17,6 +17,9 @@ settings:
     # The iPhone and iPad app's bundle ID; its widgets' is this plus .widgets, and the app group they share is
     # group.<this>. Set it rather than PRODUCT_BUNDLE_IDENTIFIER, which would give the widgets the app's own.
     FLEXARR_IOS_BUNDLE_ID: io.github.flexarr.ios
+    # Joining someone's Flexarr (family invites) is offered: NO until servers have family invites switched on; a
+    # release turns it to YES. Debug builds and `-FlexarrGuestInvites YES` offer it anyway (GuestInvite.guestInvitesOffered).
+    FLEXARR_GUEST_INVITES: "NO"
 packages:
   FlexarrKit:
     path: FlexarrKit
@@ -33,6 +36,12 @@ targets:
   FlexarrTV:
     type: application
     platform: tvOS
+    preBuildScripts:
+      # The tunnel's library, built once if it isn't there (make tunnel-apple rebuilds it when its sources change).
+      - name: Build the tunnel if missing
+        basedOnDependencyAnalysis: false
+        script: |
+          [ -d "$SRCROOT/../tunnel/build/FlexarrTunnel.xcframework" ] || PATH="$PATH:/opt/homebrew/bin:/usr/local/go/bin" make -C "$SRCROOT/../.." tunnel-apple
     # Shared/ is the app model, player and design tokens both apps use.
     sources: [Shared, FlexarrTV]
     dependencies:
@@ -41,6 +50,9 @@ targets:
       - package: Sentry
         product: Sentry
       - target: FlexarrTopShelf
+      # Tailscale built in, for family guests (clients/tunnel, a static library built by make tunnel-apple).
+      - framework: ../tunnel/build/FlexarrTunnel.xcframework
+        embed: false
     entitlements:
       path: FlexarrTV/FlexarrTV.entitlements
       properties:
@@ -50,12 +62,14 @@ targets:
       path: FlexarrTV/Info.plist
       properties:
         CFBundleDisplayName: Flexarr
-        # HTTPS, and CryptoKit's AES-GCM for notification content: only encryption that comes with Apple's operating
-        # system, which is exempt. Answers App Store Connect's export compliance question for each build; confirm it
-        # against the questionnaire if the app ever ships its own encryption.
-        ITSAppUsesNonExemptEncryption: false
+        # Export compliance: the apps carry Tailscale for family guests (WireGuard: Go's own ChaCha20-Poly1305 and
+        # Curve25519, standard algorithms, from open-source code), so they do use encryption beyond the system's. In
+        # App Store Connect that's "standard encryption algorithms", which needs no documents. Once answered there,
+        # add the ITSEncryptionExportComplianceCode it gives beside this, and uploads stop asking.
+        ITSAppUsesNonExemptEncryption: true
         # Where the sign-in is shared with the Top Shelf extension.
         FlexarrKeychainGroup: $(AppIdentifierPrefix)io.github.flexarr.shared
+        FlexarrGuestInvites: $(FLEXARR_GUEST_INVITES)
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen: {}
@@ -107,6 +121,12 @@ targets:
   FlexarriOS:
     type: application
     platform: iOS
+    preBuildScripts:
+      # The tunnel's library, built once if it isn't there (make tunnel-apple rebuilds it when its sources change).
+      - name: Build the tunnel if missing
+        basedOnDependencyAnalysis: false
+        script: |
+          [ -d "$SRCROOT/../tunnel/build/FlexarrTunnel.xcframework" ] || PATH="$PATH:/opt/homebrew/bin:/usr/local/go/bin" make -C "$SRCROOT/../.." tunnel-apple
     # WidgetShared is what the app and its widgets both know: the snapshot it writes for them, the Play/Pause intent.
     sources: [Shared, FlexarriOS, WidgetShared]
     dependencies:
@@ -116,11 +136,15 @@ targets:
         product: Sentry
       - target: FlexarrWidgets
       - target: FlexarrNotificationService
+      # Tailscale built in, for family guests (clients/tunnel, a static library built by make tunnel-apple).
+      - framework: ../tunnel/build/FlexarrTunnel.xcframework
+        embed: false
     info:
       path: FlexarriOS/Info.plist
       properties:
         CFBundleDisplayName: Flexarr
         FlexarrAppGroup: group.$(FLEXARR_IOS_BUNDLE_ID)
+        FlexarrGuestInvites: $(FLEXARR_GUEST_INVITES)
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         # CarPlay's own scene (podcasts in the car). Without the CarPlay entitlement (see FLEXARR_IOS_ENTITLEMENTS) the
@@ -154,8 +178,11 @@ targets:
         CFBundleURLTypes:
           - CFBundleURLName: io.github.flexarr.ios
             CFBundleURLSchemes: [flexarr]
-        # HTTPS and CryptoKit (notification content), both Apple's own, which is exempt from export documentation.
-        ITSAppUsesNonExemptEncryption: false
+        # Export compliance: the apps carry Tailscale for family guests (WireGuard: Go's own ChaCha20-Poly1305 and
+        # Curve25519, standard algorithms, from open-source code), so they do use encryption beyond the system's. In
+        # App Store Connect that's "standard encryption algorithms", which needs no documents. Once answered there,
+        # add the ITSEncryptionExportComplianceCode it gives beside this, and uploads stop asking.
+        ITSAppUsesNonExemptEncryption: true
         # How "Flexarr" tends to come out of speech recognition, so Siri still knows which app is meant.
         # App Store Connect rejects more than three per language (ITMS-90626).
         INAlternativeAppNames:

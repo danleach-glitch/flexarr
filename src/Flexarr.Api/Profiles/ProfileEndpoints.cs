@@ -70,7 +70,9 @@ public static partial class ProfileEndpoints
         group.MapGet("/", async (FlexarrDbContext db, CurrentProfile current, SignIns signIns, CancellationToken ct) =>
         {
             var locked = signIns.ById(current.SignInId)?.KidsLock == true;
-            return (await db.Profiles.AsNoTracking().Where(p => !locked || p.IsKids).OrderBy(p => p.CreatedAt).ToListAsync(ct))
+            // A family guest sees only the profile its invite gave it.
+            var guestProfile = current.IsGuest ? current.Id : null;
+            return (await db.Profiles.AsNoTracking().Where(p => (!locked || p.IsKids) && (guestProfile == null || p.Id == guestProfile)).OrderBy(p => p.CreatedAt).ToListAsync(ct))
                 .Select(p => ToDto(p, current)).ToList();
         });
 
@@ -173,6 +175,11 @@ public static partial class ProfileEndpoints
         group.MapPost("/kids-lock", async (KidsLockRequest request, HttpContext http, FlexarrDbContext db, CurrentProfile current, PinGuard guard, SignIns signIns,
             AdminUnlocks unlocks, CancellationToken ct) =>
         {
+            if (current.IsGuest)
+            {
+                return Results.Problem("A guest's device stays on the profile it was invited to.", statusCode: 403);
+            }
+
             if (current.SignInId is not { } signInId)
             {
                 return Results.Problem("Child lock needs a browser or device that's signed in.", statusCode: 409);
@@ -211,6 +218,12 @@ public static partial class ProfileEndpoints
         group.MapPost("/{id}/forgot-pin", async (string id, ForgotPinRequest request, HttpContext http, FlexarrDbContext db, CurrentProfile current, PinGuard guard,
             CancellationToken ct) =>
         {
+            // A family guest has no say over anyone's PIN, and no tries at the admin PIN to spend.
+            if (current.IsGuest)
+            {
+                return Results.Problem("Guests can't change PINs.", statusCode: 403);
+            }
+
             if (await db.Profiles.FindAsync([id], ct) is not { } profile)
             {
                 return Results.NotFound();
@@ -331,7 +344,7 @@ public static partial class ProfileEndpoints
         });
 
         group.MapDelete("/{id}", async (string id, FlexarrDbContext db, ProfileImages images, SignIns signIns, Trakt.TraktClient trakt,
-            Trakt.TraktConnector connector, CancellationToken ct) =>
+            Trakt.TraktConnector connector, Security.GuestInvites guests, CancellationToken ct) =>
         {
             if (id == PlaybackState.DefaultUser)
             {
@@ -354,6 +367,8 @@ public static partial class ProfileEndpoints
             }
 
             images.Delete(id);
+            // A guest's profile: their devices are signed out and their invites cancelled, as Remove guest does.
+            await guests.ForgetProfileAsync(id, ct);
             return Results.NoContent();
         }).RequireAuthorization(FlexarrClaims.AdminPolicy);
 
@@ -401,6 +416,12 @@ public static partial class ProfileEndpoints
             if (await db.Profiles.AsNoTracking().FirstOrDefaultAsync(p => p.Id == id, ct) is not { } profile)
             {
                 return Results.NotFound();
+            }
+
+            // A family guest keeps the profile its invite gave it.
+            if (current.IsGuest && profile.Id != current.Id)
+            {
+                return Results.Problem("Guests stay on the profile they were invited to.", statusCode: 403);
             }
 
             // Child lock is what keeps a child in kids profiles: a device with it on offers nothing else, and only the admin

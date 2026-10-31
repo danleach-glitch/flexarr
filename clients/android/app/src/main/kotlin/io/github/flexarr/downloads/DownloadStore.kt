@@ -237,6 +237,9 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
     /** How far it's got being got ready or coming down, 0 to 1: up to the moment, for a transfer under way. */
     fun progress(download: LocalDownload): Double = transferring[download.id] ?: download.progress
 
+    /** A download is coming in right now. */
+    val isTransferring: Boolean get() = transferring.isNotEmpty()
+
     fun isWiFiOnly(download: LocalDownload): Boolean = DownloadRules.isWiFiOnly(download, automaticOnWiFiOnly)
 
     /** A download may start by itself now: not asked of the server until it can come (see [DownloadNetwork.mayStartAutomatic]). */

@@ -15,6 +15,8 @@ struct ConnectView: View {
         case choose
         case pair(DiscoveredServer)
         case manual
+        /// A family invite: this TV shows a code to read to whoever invited it.
+        case guest
     }
 
     var body: some View {
@@ -42,11 +44,13 @@ struct ConnectView: View {
             Group {
                 switch step {
                 case .choose:
-                    ChooseServer(browser: browser, onPick: { step = .pair($0) }, onManual: { step = .manual })
+                    ChooseServer(browser: browser, onPick: { step = .pair($0) }, onManual: { step = .manual }, onGuest: { step = .guest })
                 case .pair(let server):
                     PairWithServer(server: server, onBack: { step = .choose })
                 case .manual:
                     ManualConnect(onPair: { step = .pair($0) }, onBack: { step = .choose })
+                case .guest:
+                    GuestCode(onBack: { step = .choose })
                 }
             }
             .frame(width: 820)
@@ -58,7 +62,8 @@ struct ConnectView: View {
         .onAppear {
             browser.start()
             // Signed out on the server: show a code for the same server straight away.
-            if model.signedOutNotice != nil, let server = model.store.lastAddress.flatMap(FlexarrClient.normalizeAddress) {
+            // (Not a removed guest: its "server" was its own tunnel. It stays here, to join again with a new code.)
+            if model.signedOutNotice != nil, !model.signedOutAsGuest, let server = model.store.lastAddress.flatMap(FlexarrClient.normalizeAddress) {
                 step = .pair(DiscoveredServer(name: server.host() ?? "Flexarr", address: server))
             }
             #if DEBUG
@@ -66,6 +71,8 @@ struct ConnectView: View {
             if let server = UserDefaults.standard.string(forKey: "FlexarrPairWith").flatMap(FlexarrClient.normalizeAddress) {
                 step = .pair(DiscoveredServer(name: server.host() ?? "Flexarr", address: server))
             }
+            // `-FlexarrGuestCode YES` opens "Join someone’s Flexarr" directly.
+            if UserDefaults.standard.bool(forKey: "FlexarrGuestCode"), GuestInvite.guestInvitesOffered { step = .guest }
             #endif
         }
         .onDisappear { browser.stop() }
@@ -78,9 +85,15 @@ private struct ChooseServer: View {
     let browser: ServerBrowser
     let onPick: (DiscoveredServer) -> Void
     let onManual: () -> Void
+    let onGuest: () -> Void
     @FocusState private var focused: String?
     /// Nothing has turned up for a while: say what to check.
     @State private var lookingAWhile = false
+
+    private var joinButton: some View {
+        Button("Join someone’s Flexarr", action: onGuest)
+            .buttonStyle(ActionButtonStyle(prominent: false))
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 30) {
@@ -113,9 +126,13 @@ private struct ChooseServer: View {
                     .focused($focused, equals: server.id)
                 }
             }
+            // With no server of its own here, it's likely a guest's TV: joining comes first, and takes the focus.
+            let offersJoin = GuestInvite.guestInvitesOffered
+            if offersJoin, browser.servers.isEmpty { joinButton.padding(.top, 10) }
             Button("Enter an address instead", action: onManual)
                 .buttonStyle(ActionButtonStyle(prominent: false))
-                .padding(.top, 10)
+                .padding(.top, offersJoin && browser.servers.isEmpty ? 0 : 10)
+            if offersJoin, !browser.servers.isEmpty { joinButton }
         }
         // The first server found takes focus, so one click of the remote picks it.
         .onChange(of: browser.servers.first?.id, initial: true) { _, first in
@@ -405,6 +422,109 @@ private struct ManualConnect: View {
             } catch {
                 self.error = ConnectionError(error).message
             }
+        }
+    }
+}
+
+// MARK: - A family invite, by code
+
+/// "Join someone’s Flexarr": the code to read to whoever invited this Apple TV (see `GuestCodeWaiter`).
+private struct GuestCode: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.scenePhase) private var scenePhase
+    let onBack: () -> Void
+    @State private var waiter = GuestCodeWaiter()
+    @FocusState private var focus: Choice?
+
+    private enum Choice { case main, newCode, back }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 30) {
+            if let joining = waiter.joining {
+                HStack(spacing: 20) {
+                    ProgressView()
+                    Text("Joining \(joining.ownerName)’s Flexarr…")
+                        .font(.system(size: 32, weight: .semibold))
+                        .foregroundStyle(Color.screen)
+                }
+            } else if let offer = waiter.offer {
+                // Anyone who heard the code could have sent an invite: one click to say it's the right one.
+                Text("Join \(offer.ownerName)’s Flexarr?")
+                    .font(.system(size: 44, weight: .bold))
+                    .foregroundStyle(Color.screen)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isHeader)
+                Text("You’ll watch as \(offer.profileName).")
+                    .font(.system(size: 30))
+                    .foregroundStyle(Color.usher)
+                HStack(spacing: 30) {
+                    Button("Join") { Task { await waiter.join(model: model) } }
+                        .buttonStyle(ActionButtonStyle(prominent: true))
+                        .focused($focus, equals: .main)
+                        // VoiceOver lands here, not on the title: it says whose.
+                        .accessibilityLabel("Join \(offer.ownerName)’s Flexarr")
+                    Button("Not now") { waiter.newCode() }
+                        .buttonStyle(ActionButtonStyle(prominent: false))
+                }
+            } else if let problem = waiter.problem {
+                Text(problem)
+                    .font(.system(size: 28, weight: .medium))
+                    .foregroundStyle(Color.screen)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 30) {
+                    if waiter.canTryAgain {
+                        Button("Try again") { Task { await waiter.join(model: model) } }
+                            .buttonStyle(ActionButtonStyle(prominent: true))
+                            .focused($focus, equals: .main)
+                    }
+                    Button(waiter.noCode ? "Try again" : "New code") { waiter.newCode() }
+                        .buttonStyle(ActionButtonStyle(prominent: !waiter.canTryAgain))
+                        .focused($focus, equals: .newCode)
+                }
+            } else if waiter.stopped {
+                Button("Show a new code") { waiter.newCode() }
+                    .buttonStyle(ActionButtonStyle(prominent: true))
+                    .focused($focus, equals: .main)
+            } else {
+                Text("Read this code to the person who invited you")
+                    .font(.system(size: 32, weight: .semibold))
+                    .foregroundStyle(Color.usher)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(waiter.code?.display ?? "····-····")
+                    .font(.system(size: 110, weight: .bold, design: .monospaced))
+                    .foregroundStyle(Color.screen)
+                    .accessibilityLabel(waiter.code.map { $0.code.map(String.init).joined(separator: " ") } ?? "Getting a code")
+                Text("They type it into Settings › Remote access in Flexarr.")
+                    .font(.system(size: 26))
+                    .foregroundStyle(Color.usher)
+            }
+            if waiter.offer == nil {
+                // Still focusable while joining (the focus has nowhere else to be), but does nothing till it's done.
+                Button("Back") { if waiter.joining == nil { onBack() } }
+                    .buttonStyle(ActionButtonStyle(prominent: false))
+                    .focused($focus, equals: .back)
+                    .opacity(waiter.joining == nil ? 1 : 0.5)
+            }
+        }
+        // Join (or the way on) takes the focus as it appears, so one click does it.
+        .onChange(of: "\(waiter.offer != nil)#\(waiter.problem ?? "")#\(waiter.stopped)#\(waiter.joining != nil)") {
+            if waiter.joining != nil {
+                focus = .back
+            } else if waiter.problem != nil, !waiter.canTryAgain {
+                focus = .newCode
+            } else {
+                focus = .main
+            }
+        }
+        // The invite arrived while the code showed: said aloud.
+        .onChange(of: waiter.offer?.token) { _, token in
+            guard token != nil, let offer = waiter.offer else { return }
+            AccessibilityNotification.Announcement("Join \(offer.ownerName)’s Flexarr?").post()
+        }
+        // Polls only while the app is in front; back in front, the same code carries on.
+        .task(id: "\(waiter.round)#\(scenePhase == .active)") {
+            guard scenePhase == .active else { return }
+            await waiter.run()
         }
     }
 }

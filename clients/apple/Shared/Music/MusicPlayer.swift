@@ -415,6 +415,10 @@ final class MusicPlayer {
 
     private func attach(_ item: AVPlayerItem) {
         clearItem()
+        #if os(iOS)
+        // Not for a family guest (who may have signed in since launch): an AirPlay receiver can't reach the tunnel.
+        player.allowsExternalPlayback = !GuestMode.isActive
+        #endif
         player.replaceCurrentItem(with: item)
         #if os(tvOS)
         // Only the Apple TV shows the visualiser, and with it off nothing listens.

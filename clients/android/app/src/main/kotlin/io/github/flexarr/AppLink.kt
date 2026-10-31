@@ -12,7 +12,8 @@ import java.util.UUID
  * `flexarr://` link from another app (the iPhone app's: `flexarr://play/<id>?t=…&shuffle=1`, `flexarr://live/<id>`, `flexarr://watchlist`,
  * any with `profile=<id or name>`). Each is a `flexarr://` address on an intent to [MainActivity], which hands it to
  * the screens ([AppModel.pendingLink]). MainActivity is open to every app (it's the launcher's), so [received] checks
- * a link came from this one before it plays anything or skips "Who's watching?".
+ * a link came from this one before it plays anything or skips "Who's watching?". A family invite ([Join]) also comes as
+ * `https://flexarr.io/join#…`, and always asks before it does anything, wherever it came from.
  */
 sealed interface AppLink {
     /** A film, show or episode's page. */
@@ -46,6 +47,11 @@ sealed interface AppLink {
      * through "Who's watching?", so another app can't change who's watching by itself.
      */
     data class AsProfile(val profile: String, val link: AppLink, val askFirst: Boolean = false) : AppLink
+    /**
+     * A family invite: [payload] is what follows the # (base64url JSON, see [io.github.flexarr.core.GuestInvite]). The
+     * part after a # never leaves the phone, so the invite isn't sent to flexarr.io when a browser opens the link.
+     */
+    data class Join(val payload: String) : AppLink
 
     val uri: Uri
         get() = when (this) {
@@ -65,6 +71,7 @@ sealed interface AppLink {
             Settings -> Uri.parse("flexarr://settings")
             is Pairing -> Uri.parse("flexarr://pairing/${Uri.encode(code)}")
             is AsProfile -> link.uri.buildUpon().appendQueryParameter("profile", profile).build()
+            is Join -> Uri.parse("flexarr://join").buildUpon().encodedFragment(payload).build()
         }
 
     /** An intent that opens the app there, marked as the app's own (a notification's, the widget's). */
@@ -115,6 +122,7 @@ sealed interface AppLink {
         }
 
         fun parse(uri: Uri?): AppLink? {
+            if (uri != null && isJoin(uri)) return uri.encodedFragment?.takeIf { it.isNotEmpty() }?.let(::Join)
             if (uri?.scheme != "flexarr") return null
             // Ids are the server's (GUIDs): anything else could reach another of its paths once put in one.
             val id = uri.pathSegments.firstOrNull()?.takeIf(FlexarrClient::isPlainId)
@@ -143,6 +151,13 @@ sealed interface AppLink {
             // A profile is only looked for among this server's, never sent anywhere, so its name may be anything.
             val profile = uri.getQueryParameter("profile")?.trim()?.takeIf { it.isNotEmpty() && it.length <= MAX_PROFILE }
             return profile?.let { AsProfile(it, link) } ?: link
+        }
+
+        /** flexarr://join, or https://flexarr.io/join (the App Link, and what a QR code holds). */
+        private fun isJoin(uri: Uri): Boolean = when (uri.scheme) {
+            "flexarr" -> uri.host == "join"
+            "https" -> (uri.host == "flexarr.io" || uri.host == "www.flexarr.io") && uri.path?.trimEnd('/') == "/join"
+            else -> false
         }
 
         private const val MAX_PROFILE = 100

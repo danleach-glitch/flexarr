@@ -81,6 +81,18 @@ public sealed class SignIn
     /// from Settings › Devices).
     /// </summary>
     public bool KidsLock { get; set; }
+
+    /// <summary>
+    /// A family guest's device, joined to the tailnet with an invite: locked to <see cref="ProfileId"/>, never trusted,
+    /// and only valid from <see cref="GuestAddress"/>. See docs/remote-guests.md.
+    /// </summary>
+    public bool Guest { get; init; }
+
+    /// <summary>For a guest, the tailnet address of the device that redeemed the invite.</summary>
+    public string? GuestAddress { get; init; }
+
+    /// <summary>Where a guest's app reaches this server (its tailnet address and Flexarr's port when invited).</summary>
+    public string? GuestServer { get; init; }
 }
 
 /// <summary>
@@ -151,6 +163,71 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
         return (signIn, token);
     }
 
+    /// <summary>
+    /// Signs in a family guest's device at tailnet address <paramref name="address"/>, locked to
+    /// <paramref name="profileId"/>. Another guest sign-in for the same address (the device used a second invite) is
+    /// replaced.
+    /// </summary>
+    public (SignIn SignIn, string Token) IssueGuest(string name, string profileId, string address, DeviceType? deviceType, string? server = null)
+    {
+        var token = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32));
+        var now = clock.GetUtcNow().UtcDateTime;
+        var signIn = new SignIn
+        {
+            Id = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(8)),
+            Kind = SignInKind.Device,
+            Name = name.Trim() is { Length: > 0 } trimmed ? trimmed[..Math.Min(trimmed.Length, 80)] : "A guest",
+            // Kept under a prefix an older server never looks up: rolled back to a version without family invites,
+            // a guest's token matches nothing, rather than passing for a trusted household device.
+            TokenHash = GuestHashPrefix + Hash(token),
+            CreatedAt = now,
+            LastUsedAt = now,
+            Zone = NetworkZone.Tailnet,
+            Address = address,
+            ProfileId = profileId,
+            DeviceType = deviceType,
+            Guest = true,
+            GuestAddress = address,
+            GuestServer = server,
+        };
+
+        lock (_lock)
+        {
+            foreach (var old in Loaded().Values.Where(s => s.Guest && s.GuestAddress == address).ToList())
+            {
+                Loaded().Remove(old.TokenHash);
+            }
+
+            Loaded()[signIn.TokenHash] = signIn;
+            SaveLocked();
+        }
+
+        LogIssued(SignInKind.Device, PathComparison.Printable(signIn.Name), NetworkZone.Tailnet);
+        return (signIn, token);
+    }
+
+    /// <summary>Whether any family guest is signed in (so the guest gate has someone to keep out once removed).</summary>
+    public bool HasAnyGuest
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return Loaded().Values.Any(s => s.Guest);
+            }
+        }
+    }
+
+    /// <summary>Whether a family guest's device at <paramref name="address"/> is signed in (not removed or expired).</summary>
+    public bool HasGuestAt(string address)
+    {
+        lock (_lock)
+        {
+            var now = clock.GetUtcNow().UtcDateTime;
+            return Loaded().Values.Any(s => s.Guest && s.GuestAddress == address && !Expired(s, now));
+        }
+    }
+
     /// <summary>The sign-in a token belongs to, if it's still valid; notes that it was used.</summary>
     public SignIn? Find(string token, SignInKind kind)
     {
@@ -159,11 +236,21 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
             return null;
         }
 
-        var hash = Hash(token);
         var now = clock.GetUtcNow().UtcDateTime;
         lock (_lock)
         {
-            if (!Loaded().TryGetValue(hash, out var signIn) || signIn.Kind != kind)
+            // A household sign-in, or a guest's under its prefix (only ever a guest's).
+            var hash = Hash(token);
+            if (!Loaded().TryGetValue(hash, out var signIn) || signIn.Guest)
+            {
+                hash = GuestHashPrefix + hash;
+                if (!Loaded().TryGetValue(hash, out signIn) || !signIn.Guest)
+                {
+                    return null;
+                }
+            }
+
+            if (signIn.Kind != kind)
             {
                 return null;
             }
@@ -373,6 +460,9 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
             }
         }
     }
+
+    /// <summary>What a guest sign-in's token hash starts with (see <see cref="IssueGuest"/>).</summary>
+    public const string GuestHashPrefix = "guest:";
 
     private static string Hash(string token) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
 

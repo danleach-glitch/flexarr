@@ -6,8 +6,23 @@ struct ServerSettingsView: View {
     @State private var status: SystemStatus?
     @State private var error: String?
 
+    @State private var confirmLeave = false
+    /// A guest's tunnel right now (see `connection`), asked off the main thread.
+    @State private var path: String?
+
     var body: some View {
         List {
+            if let guest = model.credentials?.guest {
+                Section {
+                    row("Server", "\(guest.ownerName)’s Flexarr")
+                    row("Connection", connection)
+                    Button("Leave", role: .destructive) { confirmLeave = true }
+                        .listRowBackground(Color.seat)
+                } header: {
+                    Text("Connected by invite")
+                }
+                .leaveGuestConfirmation(isPresented: $confirmLeave, owner: guest.ownerName) { model.signOut() }
+            } else {
             Section {
                 address("Address", model.credentials?.address)
                 if let remote = model.credentials?.remoteAddress {
@@ -16,8 +31,9 @@ struct ServerSettingsView: View {
                 }
             } footer: {
                 Text(model.credentials?.remoteAddress == nil
-                     ? "To use Flexarr away from home, turn on remote access with Tailscale in Settings › Access on the web; this \(ThisDevice.name) picks the address up by itself."
+                     ? "To use Flexarr away from home, turn on remote access with Tailscale in Settings › Remote access on the web; this \(ThisDevice.name) picks the address up by itself."
                      : "Away from home, this \(ThisDevice.name) reaches the server over Tailscale, which needs to be connected on it.")
+            }
             }
 
             Section {
@@ -48,6 +64,16 @@ struct ServerSettingsView: View {
         .settingsPage("Server")
         .task { await load() }
         .refreshable { await load() }
+    }
+
+    /// A guest's tunnel right now: straight to the host's server, or through a relay.
+    private var connection: String {
+        switch path {
+        case "direct": "Direct"
+        case "peer-relay": "Through the server’s relay"
+        case "derp": "Through a relay (slower)"
+        default: "Connecting"
+        }
     }
 
     /// As the server says now, or as this device last heard while it can't be asked.
@@ -81,6 +107,7 @@ struct ServerSettingsView: View {
     }
 
     private func load() async {
+        if model.credentials?.isGuest == true { path = await GuestTunnel.shared.connectionPath() }
         guard let client = model.client else { return }
         do {
             status = try await client.systemStatus()

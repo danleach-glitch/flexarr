@@ -45,11 +45,15 @@ import kotlin.coroutines.resumeWithException
 sealed class FlexarrException(message: String) : Exception(message) {
     /** The server rejected the sign-in (or one is required and none was sent). */
     class Unauthorized : FlexarrException(
-        "The server didn’t accept this device’s sign-in. Connect it again with a code, or if you typed an API key, check it against Settings › Access on the web.",
+        "The server didn’t accept this device’s sign-in. Connect it again with a code, or if you typed an API key, check it against Settings › Security on the web.",
     )
 
-    /** [detail]: the server's own words for what went wrong (its problem details' `detail`), when it gave some. */
-    class Http(val status: Int, message: String?, val detail: String? = null) : FlexarrException(message ?: "The server answered with an error (HTTP $status).")
+    /**
+     * [detail]: the server's own words for what went wrong (its problem details' `detail`), when it gave some.
+     * [guestRemoved]: a 403 saying this is a family guest's device its host removed (servers from 0.57).
+     */
+    class Http(val status: Int, message: String?, val detail: String? = null, val guestRemoved: Boolean = false) :
+        FlexarrException(message ?: "The server answered with an error (HTTP $status).")
 
     /**
      * This takes the admin PIN (leaving a kids profile, locking or releasing a device), which wasn't given or
@@ -391,6 +395,11 @@ class FlexarrClient(
                 it.code == 403 && problemFlag(text, "parentPin") -> throw FlexarrException.ParentPinNeeded(problemMessage(text))
                 it.code == 403 && problemFlag(text, "ownPin") -> throw FlexarrException.OwnPinWrong(problemMessage(text))
                 it.code == 403 && problemFlag(text, "kidsLock") -> throw FlexarrException.KidsLocked(problemMessage(text))
+                // A family guest's device its host removed: refused whatever it asks, so the app signs out (as for 401).
+                it.code == 403 && problemFlag(text, "guestRemoved") -> {
+                    onUnauthorized?.invoke()
+                    throw FlexarrException.Http(it.code, problemMessage(text), problemDetail(text), guestRemoved = true)
+                }
                 else -> throw FlexarrException.Http(it.code, problemMessage(text), problemDetail(text))
             }
         }
@@ -525,10 +534,18 @@ class FlexarrClient(
             error is ConnectException || error is UnknownHostException || error is NoRouteToHostException ||
                 error is SocketTimeoutException || error is SSLException
 
+        /**
+         * The family guest's tunnel, when this app has one (the app sets it): requests to 127.0.0.1 wait for it to be up,
+         * go to the port it's listening on, and start it again if it's gone. Null leaves loopback requests alone.
+         */
+        @Volatile
+        var loopbackTunnel: LoopbackTunnel? = null
+
         /** One connection pool for the whole app; clients for different sign-ins share it. */
         val sharedHttp: OkHttpClient = OkHttpClient.Builder()
             .connectTimeout(10, TimeUnit.SECONDS)
             .readTimeout(20, TimeUnit.SECONDS)
+            .addInterceptor(LoopbackTunnel.interceptor { loopbackTunnel })
             .build()
 
         /**
@@ -594,6 +611,9 @@ class FlexarrClient(
         }
 
         private val homeSuffixes = listOf(".local", ".ts.net", ".lan", ".home", ".internal", ".home.arpa")
+
+        /** [host] is an IPv4 address in 100.64.0.0/10, where Tailscale gives its devices addresses (never looked up). */
+        fun isTailscaleHost(host: String): Boolean = ipAddress(host)?.let(::isTailscaleAddress) == true
 
         /** 100.64.0.0/10, where Tailscale gives its devices addresses. */
         private fun isTailscaleAddress(address: InetAddress): Boolean =

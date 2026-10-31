@@ -31,6 +31,7 @@ This repo is public. Private details (the home server's address, device IDs, sig
 - .NET is in `~/.dotnet`, not on the default PATH: `export PATH="$HOME/.dotnet:$PATH"`.
 - Always `dotnet build`/`dotnet test` with `--disable-build-servers`: a reused MSBuild node from a differently-cased path breaks `.editorconfig` matching and the analyzers fail the build.
 - Frontend: npm. Never run prettier. Lint `npx oxlint src`, types `npx tsc -b --noEmit`, tests `npx vitest run`.
+- Go (`brew install go`) builds the Tailscale tunnel both apps carry (`clients/tunnel`): Xcode's pre-build and Gradle's preBuild run it, so building either app needs it. The Apple simulator slices are arm64 only.
 - Apple: edit `clients/apple/project.yml`, not the generated `.xcodeproj`. Keep `MARKETING_VERSION` quoted. Run `swift test` in `clients/apple/FlexarrKit` when FlexarrKit changes.
 - Migrations: `dotnet ef migrations add X --project src/Flexarr.Core --startup-project src/Flexarr.Core --output-dir Data/Migrations`.
 - Commands that run for minutes without output (UI test tours, deploys, Apple builds) go in the background.

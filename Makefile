@@ -1,4 +1,4 @@
-.PHONY: guide apps apple-install ios-install ios-upload ios-dsyms tv-upload mac-upload android-bundle android-upload android-listing setup dev-api dev-web test test-api test-web test-apple build apple docker deploy logs
+.PHONY: tunnel tunnel-test tunnel-apple tunnel-android guide apps apple-install ios-install ios-upload ios-dsyms tv-upload mac-upload android-bundle android-upload android-listing setup dev-api dev-web test test-api test-web test-apple build apple docker deploy logs
 
 export DOTNET_CLI_TELEMETRY_OPTOUT := 1
 
@@ -23,11 +23,30 @@ test-web:
 test-apple:
 	cd clients/apple/FlexarrKit && swift test
 
+# The Tailscale tunnel the apps carry for family guests (clients/tunnel, Go): rebuilt when its sources change.
+TUNNEL_SRC := $(shell find clients/tunnel -name '*.go' -not -path '*/spike/*') clients/tunnel/go.mod clients/tunnel/go.sum clients/tunnel/tags.sh
+GO_PATH_ADD = PATH="$$PATH:/opt/homebrew/bin:/usr/local/go/bin"
+clients/tunnel/build/apple.stamp: $(TUNNEL_SRC) clients/tunnel/build-apple.sh
+	$(GO_PATH_ADD) clients/tunnel/build-apple.sh && touch $@
+# Also writes the sources' hash the Android build compares (buildTunnel in clients/android/app/build.gradle.kts: the
+# package's Go files but its tests, go.mod, go.sum, tags.sh and build-android.sh, each as name NUL content NUL, sorted
+# by name), so Gradle doesn't build the AAR again.
+clients/tunnel/build/android.stamp: $(TUNNEL_SRC) clients/tunnel/build-android.sh
+	$(GO_PATH_ADD) clients/tunnel/build-android.sh
+	cd clients/tunnel && for f in $$(ls | LC_ALL=C sort); do case "$$f" in *_test.go) ;; *.go|go.mod|go.sum|tags.sh|build-android.sh) \
+	  [ -f "$$f" ] && { printf '%s\0' "$$f"; cat "$$f"; printf '\0'; } ;; esac; done | shasum -a 256 | cut -d' ' -f1 >build/flexarr-tunnel.aar.hash
+	touch $@
+tunnel-test: ## Test the apps' Tailscale tunnel
+	cd clients/tunnel && $(GO_PATH_ADD) go test ./...
+tunnel-apple: clients/tunnel/build/apple.stamp ## Build the tunnel for the Apple apps (xcframework)
+tunnel-android: clients/tunnel/build/android.stamp ## Build the tunnel for the Android app (AAR)
+tunnel: tunnel-apple tunnel-android ## Build the tunnel for every app
+
 build: ## Build server and web client
 	dotnet build -c Release
 	cd frontend && npm run build
 
-apple: ## Generate the Xcode project and build the tvOS and iOS apps
+apple: tunnel-apple ## Generate the Xcode project and build the tvOS and iOS apps
 	cd clients/apple && xcodegen generate && \
 	xcodebuild -project Flexarr.xcodeproj -scheme FlexarrTV -destination 'generic/platform=tvOS' CODE_SIGNING_ALLOWED=NO build && \
 	xcodebuild -project Flexarr.xcodeproj -scheme FlexarriOS -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build
@@ -35,7 +54,7 @@ apple: ## Generate the Xcode project and build the tvOS and iOS apps
 # Install on a real Apple TV (paired in Xcode). A free Apple ID's installs stop opening after 7 days; run this again.
 #   make apple-install TEAM=<team id> BUNDLE_ID=com.yourname.flexarr.tv [DEVICE=<udid>]
 # TEAM is in Xcode › Settings › Accounts; DEVICE defaults to the first paired Apple TV.
-apple-install: ## Build, sign and install the tvOS app on a paired Apple TV
+apple-install: tunnel-apple ## Build, sign and install the tvOS app on a paired Apple TV
 	@test -n "$(TEAM)" -a -n "$(BUNDLE_ID)" || { echo "usage: make apple-install TEAM=<team id> BUNDLE_ID=com.yourname.flexarr.tv [DEVICE=<udid>]"; exit 1; }
 	cd clients/apple && xcodegen generate --quiet
 	device="$(DEVICE)"; [ -n "$$device" ] || device=$$(xcrun devicectl list devices 2>/dev/null | awk '/AppleTV/ && !/simulated/ {for (i=1;i<=NF;i++) if ($$i ~ /^[0-9A-F]{8}-[0-9A-F]{16}$$/) {print $$i; exit}}'); \
@@ -56,7 +75,7 @@ IOS_ENTITLEMENTS ?= FlexarriOS/FlexarriOS.entitlements
 WIDGET_ENTITLEMENTS ?= Widgets/FlexarrWidgets.entitlements
 NOTIFICATION_ENTITLEMENTS ?= NotificationService/NotificationService.entitlements
 
-ios-install: ## Build, sign and install the iOS app on a connected iPhone or iPad
+ios-install: tunnel-apple ## Build, sign and install the iOS app on a connected iPhone or iPad
 	@test -n "$(TEAM)" -a -n "$(BUNDLE_ID)" || { echo "usage: make ios-install TEAM=<team id> BUNDLE_ID=com.yourname.flexarr.ios [DEVICE=<udid>]"; exit 1; }
 	cd clients/apple && xcodegen generate --quiet
 	device="$(DEVICE)"; [ -n "$$device" ] || device=$$(xcrun devicectl list devices 2>/dev/null | awk '/iPhone|iPad/ && !/simulated/ {for (i=1;i<=NF;i++) if ($$i ~ /^[0-9A-F]{8}-[0-9A-F]{16}$$/ || $$i ~ /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$$/) {print $$i; exit}}'); \
@@ -77,7 +96,7 @@ APPLE_VERSION = $(if $(MARKETING),MARKETING_VERSION=$(MARKETING))
 # Sign in to App Store Connect with an API key instead of Xcode's account: ASC_KEY_ID, ASC_ISSUER_ID and ASC_KEY_PATH (the .p8).
 ASC_AUTH = $(if $(ASC_KEY_ID),-authenticationKeyID $(ASC_KEY_ID) -authenticationKeyIssuerID $(ASC_ISSUER_ID) -authenticationKeyPath $(ASC_KEY_PATH))
 
-ios-upload: ## Archive the iOS app and upload it to App Store Connect
+ios-upload: tunnel-apple ## Archive the iOS app and upload it to App Store Connect
 	@test -n "$(TEAM)" -a -n "$(BUNDLE_ID)" || { echo "usage: make ios-upload TEAM=<team id> BUNDLE_ID=com.yourname.flexarr.ios"; exit 1; }
 	cd clients/apple && xcodegen generate --quiet
 	xcodebuild -project clients/apple/Flexarr.xcodeproj -scheme FlexarriOS -configuration Release -destination 'generic/platform=iOS' \
@@ -107,7 +126,7 @@ apps: ## Build flexarr.io/apps (site/apps.html) from site/apps.json
 # Archive the tvOS app and upload it to App Store Connect. Pass the iOS app's bundle ID to ship both on one
 # listing (universal purchase); the Top Shelf extension becomes <bundle id>.topshelf.
 #   make tv-upload TEAM=<team id> BUNDLE_ID=com.yourname.flexarr.ios
-tv-upload: ## Archive the tvOS app and upload it to App Store Connect
+tv-upload: tunnel-apple ## Archive the tvOS app and upload it to App Store Connect
 	@test -n "$(TEAM)" -a -n "$(BUNDLE_ID)" || { echo "usage: make tv-upload TEAM=<team id> BUNDLE_ID=com.yourname.flexarr.ios"; exit 1; }
 	cd clients/apple && xcodegen generate --quiet
 	xcodebuild -project clients/apple/Flexarr.xcodeproj -scheme FlexarrTV -configuration Release -destination 'generic/platform=tvOS' \
@@ -148,9 +167,9 @@ mac-upload: ## Archive the Mac app and upload it to App Store Connect
 TRACK ?= internal
 ANDROID_JAVA ?= /Applications/Android Studio.app/Contents/jbr/Contents/Home
 ANDROID_GRADLE = cd clients/android && JAVA_HOME="$${JAVA_HOME:-$(ANDROID_JAVA)}" ./gradlew $(if $(MARKETING),-Pflexarr.version=$(MARKETING))
-android-bundle: ## Build the signed Android app bundle for Google Play
+android-bundle: tunnel-android ## Build the signed Android app bundle for Google Play
 	$(ANDROID_GRADLE) :app:bundleRelease
-android-upload: ## Upload the Android app to a Google Play testing track
+android-upload: tunnel-android ## Upload the Android app to a Google Play testing track
 	$(ANDROID_GRADLE) -Pflexarr.track=$(TRACK) :app:publishReleaseBundle
 android-listing: ## Publish the Android app's Google Play listing
 	$(ANDROID_GRADLE) :app:publishReleaseListing

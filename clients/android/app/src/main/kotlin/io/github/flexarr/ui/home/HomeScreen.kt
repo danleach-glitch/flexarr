@@ -186,8 +186,8 @@ fun HomeScreen(model: AppModel) {
                 }
             }
         }
-        // Locked to one kids profile, the picker is still the way to unlock.
-        if (model.profiles.size > 1 || model.kidsLock) {
+        // Locked to one kids profile, the picker is still the way to unlock. A guest stays on its invite's profile.
+        if (!model.isGuest && (model.profiles.size > 1 || model.kidsLock)) {
             model.currentProfile?.let { current ->
                 // Big enough to find at a glance, and to touch.
                 Box(

@@ -1,5 +1,6 @@
 package io.github.flexarr
 
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import io.github.flexarr.logging.FlexarrLog
 import android.content.Intent
 import android.content.pm.ActivityInfo
@@ -12,6 +13,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import kotlinx.coroutines.launch
 import io.github.flexarr.core.FlexarrClient
+import io.github.flexarr.core.GuestInvite
 import io.github.flexarr.core.PushPayload
 import io.github.flexarr.notifications.FlexarrMessagingService
 import io.github.flexarr.player.PlayerActivity
@@ -53,7 +55,14 @@ class MainActivity : ComponentActivity() {
      * [AppLink.received] keeps one from another app from playing anything.
      */
     private fun openLink(intent: Intent) {
-        AppLink.received(this, intent)?.let { appModel.pendingLink = it }
+        when (val link = AppLink.received(this, intent)) {
+            null -> Unit
+            // Asked about first ("Join Dan's Flexarr as Gran?"): it could have come from any app or web page.
+            // Not in builds without family invites yet (BuildConfig.GUEST_INVITES), which say so.
+            is AppLink.Join ->
+                if (BuildConfig.GUEST_INVITES) appModel.offerInvite(GuestInvite.decode(link.payload)) else appModel.inviteProblem = "Update Flexarr to join."
+            else -> appModel.pendingLink = link
+        }
     }
 
     /**
@@ -70,6 +79,8 @@ class MainActivity : ComponentActivity() {
         if (!BuildConfig.LAUNCH_ARGUMENTS) return
         val model = appModel
         if (intent.hasExtra("noHistory")) model.recordsHistory = !intent.getBooleanExtra("noHistory", false)
+        // Debug builds only: `--es pairRelay http://10.0.2.2:8795/api/pair` points "Join someone’s Flexarr" at a local relay.
+        intent.getStringExtra("pairRelay")?.toHttpUrlOrNull()?.let { model.pairRelay = it }
         val server = intent.getStringExtra("server")
         val key = intent.getStringExtra("apiKey")
         if (server != null && key != null) model.signInForThisLaunch(server, key, remote = intent.getStringExtra("remote"))

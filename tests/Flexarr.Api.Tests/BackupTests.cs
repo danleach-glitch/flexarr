@@ -681,4 +681,28 @@ public class BackupTests
             Directory.Delete(folder, recursive: true);
         }
     }
+
+    [Fact]
+    public void A_restore_keeps_family_invites_from_this_server_or_else_the_backup()
+    {
+        var folder = Directory.CreateTempSubdirectory("flexarr-restore-").FullName;
+        try
+        {
+            var restored = Path.Combine(folder, "restored.json");
+            var current = Path.Combine(folder, "current.json");
+            File.WriteAllText(restored, """{"remoteGuests":{"enabled":true,"clientId":"from-backup"},"authenticationRequired":"Enabled"}""");
+            File.WriteAllText(current, """{"remoteGuests":{"enabled":true,"clientId":"this-server"}}""");
+            Flexarr.Api.Backups.SettingsTransfer.KeepMachinePaths(restored, current);
+            Assert.Contains("this-server", File.ReadAllText(restored), StringComparison.Ordinal);
+
+            File.WriteAllText(restored, """{"remoteGuests":{"enabled":true,"clientId":"from-backup"}}""");
+            File.WriteAllText(current, "{}");
+            Flexarr.Api.Backups.SettingsTransfer.KeepMachinePaths(restored, current);
+            Assert.Contains("from-backup", File.ReadAllText(restored), StringComparison.Ordinal);
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
 }

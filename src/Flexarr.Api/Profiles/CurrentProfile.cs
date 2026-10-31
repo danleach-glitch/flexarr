@@ -62,6 +62,9 @@ public sealed class CurrentProfile(IHttpContextAccessor http, IOptionsMonitor<Fl
         return profile.IsMain && TakesAdminPinForMain;
     }
 
+    /// <summary>A family guest's device: it keeps the profile its invite gave it, and sees nothing of the household's devices.</summary>
+    public bool IsGuest => http.HttpContext?.User.HasClaim(FlexarrClaims.Guest, "true") == true;
+
     /// <summary>The browser or device sign-in this request used, if any.</summary>
     public string? SignInId => http.HttpContext?.User.FindFirst(FlexarrClaims.SignIn)?.Value;
 

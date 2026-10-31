@@ -2,7 +2,11 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "cleanUrls": true,
   "redirects": [{ "source": "/install", "destination": "/#setup", "permanent": false }],
-  "rewrites": [{ "source": "/api/push", "destination": "https://push.flexarr.io/api/push" }],
+  "rewrites": [
+    { "source": "/api/push", "destination": "https://push.flexarr.io/api/push" },
+    { "source": "/.well-known/apple-app-site-association", "destination": "https://push.flexarr.io/api/app-links?platform=apple" },
+    { "source": "/.well-known/assetlinks.json", "destination": "https://push.flexarr.io/api/app-links?platform=android" }
+  ],
   "ignoreCommand": "if [ -n \"$VERCEL_GIT_PREVIOUS_SHA\" ] && git cat-file -e \"$VERCEL_GIT_PREVIOUS_SHA^{commit}\" 2>/dev/null && git diff --quiet \"$VERCEL_GIT_PREVIOUS_SHA\" HEAD -- .; then exit 0; else exit 1; fi",
   "headers": [
     {

@@ -7,11 +7,22 @@ struct ServerSettingsView: View {
     @State private var status: SystemStatus?
     @State private var error: String?
     @State private var checking = false
+    @State private var confirmLeave = false
 
     var body: some View {
         SettingsPage(title: "Server", summary: summary) {
             SettingsGroupLabel("Connection")
+            if let guest = model.credentials?.guest {
+                // A family guest: no address to show, just whose server, and a way to leave it.
+                SettingsFact("Connected by invite", "\(guest.ownerName)’s Flexarr")
+                SettingsRow(title: "Leave", symbol: "rectangle.portrait.and.arrow.right",
+                            help: "Stop watching \(guest.ownerName)’s Flexarr here. Joining again takes a new code.") {
+                    confirmLeave = true
+                }
+                .leaveGuestConfirmation(isPresented: $confirmLeave, owner: guest.ownerName) { model.signOut() }
+            } else {
             SettingsFact("Address", address(model.credentials?.address))
+            }
             if let remote = model.credentials?.remoteAddress {
                 SettingsFact("Away from home", address(remote))
                 SettingsFact("Connected", model.client?.addresses.isAway == true ? "Away, over Tailscale" : "At home")
@@ -58,7 +69,7 @@ struct ServerSettingsView: View {
 
     private var summary: String {
         model.credentials?.remoteAddress == nil
-            ? "To watch away from home, turn on remote access with Tailscale in Settings › Access on the web. This Apple TV picks the address up by itself."
+            ? "To watch away from home, turn on remote access with Tailscale in Settings › Remote access on the web. This Apple TV picks the address up by itself."
             : "Away from home, this Apple TV reaches the server over Tailscale, which needs to be connected on it."
     }
 

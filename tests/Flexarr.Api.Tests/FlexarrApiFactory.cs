@@ -133,6 +133,15 @@ public sealed class FakeWhois : ITailnetWhois
     public ConcurrentDictionary<string, string> Owners { get; } = new();
 
     public Task<string?> LoginAsync(IPAddress address, CancellationToken ct) => Task.FromResult(Owners.GetValueOrDefault(address.ToString()));
+
+    /// <summary>Tagged devices' tags, by address.</summary>
+    public ConcurrentDictionary<string, string[]> Tags { get; } = new();
+
+    /// <summary>Addresses Tailscale can't identify just now (whois timing out).</summary>
+    public ConcurrentDictionary<string, bool> Unknown { get; } = new();
+
+    public Task<IReadOnlyList<string>?> TagsAsync(IPAddress address, CancellationToken ct) =>
+        Task.FromResult<IReadOnlyList<string>?>(Unknown.ContainsKey(address.ToString()) ? null : Tags.GetValueOrDefault(address.ToString()) ?? []);
 }
 
 public sealed class RecordingScanQueue : ILibraryScanQueue

@@ -13,7 +13,7 @@ const DONE_MS = 2_500
 
 /**
  * A device showing a code asks every admin with Flexarr open, so nobody has to type the code: a banner at the top of
- * whatever page is open, one device at a time, the rest waiting behind it. Closing it leaves the device waiting (Settings › Access › Connect a device still can).
+ * whatever page is open, one device at a time, the rest waiting behind it. Closing it leaves the device waiting (Settings › Security › Connect a device still can).
  * That page lists every waiting device itself, so this keeps out of the way there.
  */
 export function PairingPrompt() {

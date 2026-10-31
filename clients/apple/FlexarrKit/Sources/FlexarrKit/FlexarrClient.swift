@@ -19,11 +19,13 @@ public enum FlexarrClientError: Error, Equatable, LocalizedError {
     case ownPinWrong(message: String?)
     /// This device is locked to kids profiles, so only they can be chosen.
     case kidsLocked(message: String?)
+    /// This family guest's device was removed by its host (403 with `guestRemoved`): turned away whatever it asks.
+    case guestRemoved(message: String?)
 
     public var errorDescription: String? {
         switch self {
         case .unauthorized:
-            "The server didn’t accept this device’s sign-in. Connect it again with a code, or if you typed an API key, check it against the API key in Settings on the web. Over Tailscale, your Tailscale account needs linking in Settings › Access."
+            "The server didn’t accept this device’s sign-in. Connect it again with a code, or if you typed an API key, check it against the API key in Settings on the web. Over Tailscale, your Tailscale account needs linking in Settings › Remote access."
         case .recordingInTheWay(let recording):
             recording.message
         case .parentPinNeeded(let message):
@@ -32,6 +34,8 @@ public enum FlexarrClientError: Error, Equatable, LocalizedError {
             message ?? "That PIN isn’t right."
         case .kidsLocked(let message):
             message ?? "Child lock is on for this device."
+        case .guestRemoved(let message):
+            message ?? "This device was removed from the server."
         case .http(let status, let message):
             message ?? "The server answered with an error (HTTP \(status))."
         case .unexpectedResponse:
@@ -734,6 +738,11 @@ public struct FlexarrClient: Sendable {
                 if problem["ownPin"] as? Bool == true { throw FlexarrClientError.ownPinWrong(message: Self.problemMessage(data)) }
                 if problem["parentPin"] as? Bool == true { throw FlexarrClientError.parentPinNeeded(message: Self.problemMessage(data)) }
                 if problem["kidsLock"] as? Bool == true { throw FlexarrClientError.kidsLocked(message: Self.problemMessage(data)) }
+                // A family guest's device its host removed: refused whatever it asks, so the app signs out (as for 401).
+                if problem["guestRemoved"] as? Bool == true {
+                    onUnauthorized?()
+                    throw FlexarrClientError.guestRemoved(message: Self.problemMessage(data))
+                }
             }
             throw FlexarrClientError.http(status: http.statusCode, message: Self.problemMessage(data))
         }

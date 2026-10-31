@@ -280,7 +280,13 @@ public static class DeviceEndpoints
         ArgumentNullException.ThrowIfNull(current);
         var names = await db.Profiles.AsNoTracking().ToDictionaryAsync(p => p.Id, p => p.Name, ct);
         var list = new List<DeviceDto>();
-        foreach (var device in signIns.List().Where(s => s.Kind == SignInKind.Device))
+        // A family guest sees none of the household's devices, and guests' own devices aren't anyone's to control.
+        if (current.IsGuest)
+        {
+            return [];
+        }
+
+        foreach (var device in signIns.List().Where(s => s.Kind == SignInKind.Device && !s.Guest))
         {
             var profileId = device.ProfileId is { } chosen && names.ContainsKey(chosen) ? chosen : PlaybackState.DefaultUser;
             var nowPlaying = await NowPlayingAsync(device.Id, sessions, db, ct);
@@ -455,7 +461,7 @@ public static class DeviceEndpoints
     public static SignIn? Find(SignIns signIns, string deviceId)
     {
         ArgumentNullException.ThrowIfNull(signIns);
-        return signIns.List().FirstOrDefault(s => s.Kind == SignInKind.Device && s.Id == deviceId);
+        return signIns.List().FirstOrDefault(s => s.Kind == SignInKind.Device && !s.Guest && s.Id == deviceId);
     }
 
     /// <summary>
@@ -536,7 +542,7 @@ public static class DeviceEndpoints
             .OfType<DeviceCommandKind>().ToList();
         using var listener = commands.Listen(deviceId, takes);
         using var asking = current.IsAdmin || current.CanUnlock ? pairings.Listen() : null;
-        using var watching = nowPlaying == true ? feed.Listen() : null;
+        using var watching = nowPlaying == true && !current.IsGuest ? feed.Listen() : null;
 
         http.Response.StatusCode = StatusCodes.Status200OK;
         http.Response.Headers.ContentType = "text/event-stream";

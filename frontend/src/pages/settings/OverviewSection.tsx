@@ -74,7 +74,7 @@ export function OverviewSection() {
           }
         />
         <SettingLink to="/settings/connections" label="Connections" help={<span className={down.length > 0 ? 'error' : undefined}>{connections}</span>} />
-        <SettingLink to="/settings/access" label="Access" help={status ? (status.remoteUrl ? 'Remote access is on, over Tailscale' : 'Home network only. Remote access is off') : '…'} />
+        <SettingLink to="/settings/remote" label="Remote access" help={status ? (status.remoteUrl ? 'Remote access is on, over Tailscale' : 'Home network only. Remote access is off') : '…'} />
         <SettingLink to="/settings/security" label="Security" help="The admin PIN, the API key and signed-in devices" />
         <SettingLink to="/settings/about" label="About" help={status ? `Flexarr ${status.version.split('+')[0]}` : '…'} />
       </SettingsGroup>

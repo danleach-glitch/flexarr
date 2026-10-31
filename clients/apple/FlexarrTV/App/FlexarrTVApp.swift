@@ -44,7 +44,10 @@ struct RootView: View {
                 ConnectView()
                     .transition(.opacity)
             case .signedIn(let credentials):
-                if !model.profilesLoaded {
+                if model.tunnelProblem != nil {
+                    TunnelProblemView()
+                        .transition(.opacity)
+                } else if !model.profilesLoaded {
                     ProgressView().scaleEffect(1.4)
                 } else if model.needsProfileChoice {
                     ProfilePickerView()
@@ -62,7 +65,8 @@ struct RootView: View {
         .task(id: model.credentials?.address) { await model.loadProfiles() }
         // Top Shelf follows whoever's signed in here; after watching, its Continue Watching is refreshed.
         .task(id: model.credentials) {
-            SharedSignIn.save(model.credentials.map { SharedSignIn.Value(address: $0.address, apiKey: $0.apiKey, profileToken: $0.profileToken) })
+            // A family guest's Top Shelf stays empty: the extension runs apart from the app, so it can't reach the tunnel.
+            SharedSignIn.save(model.credentials.flatMap { $0.isGuest ? nil : SharedSignIn.Value(address: $0.address, apiKey: $0.apiKey, profileToken: $0.profileToken) })
             TVTopShelfContentProvider.topShelfContentDidChange()
         }
         .onChange(of: model.refreshToken) { TVTopShelfContentProvider.topShelfContentDidChange() }
@@ -71,7 +75,11 @@ struct RootView: View {
             model.listenForCommands(scenePhase == .active)
         }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { Task { await model.refreshErrorReports() } }
+            if phase == .active {
+                // A guest's tunnel may have stopped while the app was away: back up before anything asks.
+                Task { await model.ensureGuestTunnel() }
+                Task { await model.refreshErrorReports() }
+            }
         }
         .overlay {
             if model.player.isStarting || model.liveTv.isStarting {

@@ -4,15 +4,18 @@ import { getProfiles, getRemoteAccess, linkTailscale, setTailscaleAccess, type R
 import { AsyncButton } from '../../components/AsyncButton'
 import { CopyButton } from '../../components/CopyButton'
 import { useApi } from '../../hooks/useApi'
+import { FamilyInvites } from './FamilyInvites'
 import { SettingRow, SettingsGroup, SettingsHeader } from './shared'
 import { errorText } from './useSettings'
 
-/** Who can reach Flexarr, and from where. The API key, the admin PIN and the devices signed in are in Security. */
-export function AccessSection() {
+/** Watching from somewhere else: away from home over Tailscale, people with their own Tailscale, and family invites.
+ * The API key, the admin PIN and the devices signed in are in Security. */
+export function RemoteAccessSection() {
   return (
     <section>
-      <SettingsHeader title="Access">Who can reach Flexarr, and from where.</SettingsHeader>
+      <SettingsHeader title="Remote access">Watch away from home, and let family watch from theirs.</SettingsHeader>
       <RemoteAccessGroups />
+      <FamilyInvites />
     </section>
   )
 }
@@ -58,7 +61,7 @@ export function RemoteAccessGroups() {
           ts.publicAccess ? undefined : (
             <>
               Tailscale lets your devices reach Flexarr from anywhere, privately, with nothing opened on your router. The apps switch to it by
-              themselves. To share Flexarr, invite someone to your tailnet and give them a profile.
+              themselves.
               {remote.data.cloudflareTunnelRunning && ' A Cloudflare Tunnel runs on this server, but it doesn’t route to Flexarr.'} {you}
             </>
           )
@@ -142,7 +145,10 @@ export function RemoteAccessGroups() {
       )}
 
       {ts.running && remote.data.links.length > 0 && (
-        <SettingsGroup title="People on your tailnet" note="Each person opens as their own profile. Anyone without one is turned away.">
+        <SettingsGroup
+          title="People with their own Tailscale"
+          note="People on your tailnet with the Tailscale app and their own account. Choose the profile each one gets when they open Flexarr in a browser, or Not allowed to turn them away."
+        >
           {remote.data.links.map((person) => (
             <SettingRow key={person.login} label={person.name} help={person.login}>
               <select

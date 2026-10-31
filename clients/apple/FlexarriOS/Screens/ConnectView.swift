@@ -13,6 +13,8 @@ struct ConnectView: View {
         case choose
         case pair(DiscoveredServer)
         case manual
+        /// A family invite: this device shows a code to give whoever invited it.
+        case guest
     }
 
     var body: some View {
@@ -38,11 +40,13 @@ struct ConnectView: View {
 
                 switch step {
                 case .choose:
-                    ChooseServer(browser: browser, onPick: { step = .pair($0) }, onManual: { step = .manual })
+                    ChooseServer(browser: browser, onPick: { step = .pair($0) }, onManual: { step = .manual }, onGuest: { step = .guest })
                 case .pair(let server):
                     PairWithServer(server: server, onBack: { step = .choose })
                 case .manual:
                     ManualConnect(onPair: { step = .pair($0) }, onBack: { step = .choose })
+                case .guest:
+                    GuestCodeView(onBack: { step = .choose })
                 }
             }
             .padding(24)
@@ -56,7 +60,8 @@ struct ConnectView: View {
         .onAppear {
             browser.start()
             // Signed out on the server: show a code for the same server straight away.
-            if model.signedOutNotice != nil, let server = model.store.lastAddress.flatMap(FlexarrClient.normalizeAddress) {
+            // (Not a removed guest: its "server" was its own tunnel. It stays here, to join again with a new code.)
+            if model.signedOutNotice != nil, !model.signedOutAsGuest, let server = model.store.lastAddress.flatMap(FlexarrClient.normalizeAddress) {
                 step = .pair(DiscoveredServer(name: server.host() ?? "Flexarr", address: server))
             }
             #if DEBUG
@@ -64,6 +69,8 @@ struct ConnectView: View {
             if let server = UserDefaults.standard.string(forKey: "FlexarrPairWith").flatMap(FlexarrClient.normalizeAddress) {
                 step = .pair(DiscoveredServer(name: server.host() ?? "Flexarr", address: server))
             }
+            // `-FlexarrGuestCode YES` opens "Join someone’s Flexarr"'s code directly.
+            if UserDefaults.standard.bool(forKey: "FlexarrGuestCode"), GuestInvite.guestInvitesOffered { step = .guest }
             #endif
         }
         .onDisappear { browser.stop() }
@@ -76,10 +83,13 @@ private struct ChooseServer: View {
     let browser: ServerBrowser
     let onPick: (DiscoveredServer) -> Void
     let onManual: () -> Void
+    let onGuest: () -> Void
     /// Nothing has turned up for a while: say what to check.
     @State private var lookingAWhile = false
 
     var body: some View {
+        // In the order people come: their own server at home, an invite to someone else's, typing an address, and
+        // only then setting up a server of their own.
         VStack(alignment: .leading, spacing: 14) {
             Text("Servers on your network")
                 .font(.subheadline.weight(.semibold))
@@ -89,33 +99,34 @@ private struct ChooseServer: View {
                     ProgressView()
                     Text("Looking for Flexarr…").foregroundStyle(Color.usher)
                 }
-                .padding(.vertical, 8)
-                if lookingAWhile {
-                    Text("Can’t see your server? Check it’s running and this \(ThisDevice.name) is on the same Wi-Fi, or enter its address.")
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(Color.screen)
-                }
-                NewToFlexarr()
-                    .padding(.top, 8)
+                .padding(.vertical, 4)
             } else {
                 ForEach(browser.servers) { server in
-                    Button { onPick(server) } label: {
-                        HStack(spacing: 12) {
-                            Image(systemName: "server.rack").foregroundStyle(Color.silver)
-                            Text(server.name).font(.body.weight(.semibold)).foregroundStyle(Color.screen)
-                            Spacer()
-                            Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(Color.usher)
-                        }
-                        .padding(16)
-                        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.seat))
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(CardButtonStyle())
+                    ChoiceRow(systemImage: "server.rack", title: server.name, action: { onPick(server) })
                 }
             }
-            Button("Enter an address instead", action: onManual)
-                .font(.body.weight(.semibold))
+
+            if GuestInvite.guestInvitesOffered {
+                InvitedBySomeone(onCode: onGuest)
+                    .padding(.top, 10)
+            }
+
+            // Typing an address is for the few whose server can't be found: offered only once it hasn't been, or
+            // under the list for one that isn't in it.
+            if !browser.servers.isEmpty || lookingAWhile {
+                HStack(spacing: 4) {
+                    Text(browser.servers.isEmpty ? "Can’t see your server?" : "Not listed?")
+                        .foregroundStyle(Color.usher)
+                    Button("Enter its address", action: onManual)
+                        .fontWeight(.semibold)
+                }
+                .font(.subheadline)
                 .padding(.top, 6)
+            }
+            if browser.servers.isEmpty {
+                NewToFlexarr()
+                    .padding(.top, 10)
+            }
         }
         .task {
             guard (try? await Task.sleep(for: .seconds(6))) != nil else { return }
@@ -141,7 +152,7 @@ private struct NewToFlexarr: View {
                     Text("New to Flexarr?")
                         .font(.headline)
                         .foregroundStyle(Color.screen)
-                    Text("You’ll need the Flexarr server on a computer at home: a Mac, a NAS or anything with Docker.")
+                    Text("Set up your own server at home on Mac, Docker or a NAS.")
                         .font(.subheadline)
                         .foregroundStyle(Color.usher)
                         .fixedSize(horizontal: false, vertical: true)
@@ -425,5 +436,34 @@ private struct ManualConnect: View {
                 self.error = ConnectionError(error).message
             }
         }
+    }
+}
+
+/** One choice as a card row: an icon, what it is (and a line under it), and a chevron. */
+struct ChoiceRow: View {
+    let systemImage: String
+    let title: String
+    var detail: String?
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: systemImage).foregroundStyle(Color.silver)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title).font(.body.weight(.semibold)).foregroundStyle(Color.screen)
+                    if let detail {
+                        Text(detail).font(.subheadline).foregroundStyle(Color.usher)
+                    }
+                }
+                Spacer()
+                Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(Color.usher)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 13)
+            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.seat))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(CardButtonStyle())
     }
 }

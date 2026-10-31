@@ -41,16 +41,26 @@ public static class SystemEndpoints
             return Results.Text(reader.ReadToEnd(), "text/markdown; charset=utf-8");
         });
 
-        group.MapGet("/status", async (HttpContext http, TailscaleService tailscale, IOptionsMonitor<FlexarrOptions> options, CancellationToken ct) => new SystemStatus(
+        group.MapGet("/status", async (HttpContext http, TailscaleService tailscale, IOptionsMonitor<FlexarrOptions> options, Updates.IInstallEnvironment install,
+            CancellationToken ct) => new SystemStatus(
             "Flexarr",
             Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "0.0.0",
             RuntimeInformation.OSDescription,
             RuntimeInformation.FrameworkDescription,
             StartTime,
-            await tailscale.RemoteUrlAsync(http.Connection.LocalPort > 0 ? http.Connection.LocalPort : 8383, ct),
+            RemoteUrl(install.Kind, await tailscale.RemoteUrlAsync(Port(http), ct), RemoteAccessEndpoints.TailnetIp, Port(http)),
             options.CurrentValue.Logs is { ErrorReports: true, ErrorReportsId: { } id } ? new ErrorReportStatus(true, id) : new ErrorReportStatus(false, null),
             options.CurrentValue.ServerId));
 
         return api;
     }
+
+    private static int Port(HttpContext http) => http.Connection.LocalPort > 0 ? http.Connection.LocalPort : 8383;
+
+    /// <summary>
+    /// The address the apps fall back to away from home. The Mac app's sandbox can't run the tailscale command, so
+    /// there it's this Mac's own tailnet address, plain HTTP on Flexarr's port (inside Tailscale's encryption).
+    /// </summary>
+    internal static string? RemoteUrl(Updates.InstallKind kind, string? tailscaleUrl, Func<string?> tailnetIp, int port) =>
+        tailscaleUrl ?? (kind == Updates.InstallKind.MacApp && tailnetIp() is { } ip ? $"http://{ip}:{port.ToString(System.Globalization.CultureInfo.InvariantCulture)}" : null);
 }

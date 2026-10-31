@@ -216,6 +216,19 @@ struct FlexarrClientTests {
         #expect(FlexarrClientError.ownPinWrong(message: nil).errorDescription == "That PIN isn’t right.")
     }
 
+    @Test func aRemovedGuestIsToldApartFromOtherRefusals() async {
+        let removed = #"{"title":"This device was removed from the server.","status":403,"guestRemoved":true}"#
+        let (client, _) = stubbedClient(.init(status: 403, body: Data(removed.utf8)))
+        await #expect(throws: FlexarrClientError.guestRemoved(message: "This device was removed from the server.")) {
+            try await client.me()
+        }
+
+        let (other, _) = stubbedClient(.init(status: 403, body: Data(#"{"title":"Not allowed.","status":403}"#.utf8)))
+        await #expect(throws: FlexarrClientError.http(status: 403, message: "Not allowed.")) {
+            try await other.me()
+        }
+    }
+
     @Test func locksToKidsAndReadsTheLimits() async throws {
         let body = ##"{"token":"ada.sig","profile":{"id":"ada","name":"Ada","color":"#e8a0bf","hasPin":false,"isMain":false,"isCurrent":true,"hiddenLibraryIds":[],"image":null,"maxRatingAge":8,"isKids":true}}"##
         let (client, host) = stubbedClient(.init(status: 200, body: Data(body.utf8)))

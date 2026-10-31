@@ -209,6 +209,22 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
 
     @ObservationIgnored private var client: FlexarrClient?
     @ObservationIgnored private var session: URLSession!
+    /// A family guest's transfers: the system's background downloader runs apart from the app, so it can't reach the
+    /// tunnel's port inside it. These carry on only while the app is open.
+    @ObservationIgnored private lazy var guestSession: URLSession = {
+        madeGuestSession = true
+        return URLSession(configuration: .default, delegate: self, delegateQueue: .main)
+    }()
+    /// Whether `guestSession` exists: its transfers outlive guest mode (Leave cancels them after it's ended).
+    @ObservationIgnored private var madeGuestSession = false
+    /// Where a new transfer goes: the guest's session for a family guest, the background one for everyone else.
+    private var transferSession: URLSession { GuestMode.isActive ? guestSession : session }
+
+    /// Every transfer under way, in either session.
+    private func allTasks(_ body: @escaping @Sendable ([URLSessionTask]) -> Void) {
+        let sessions = madeGuestSession || GuestMode.isActive ? [session!, guestSession] : [session!]
+        for session in sessions { session.getAllTasks(completionHandler: body) }
+    }
     @ObservationIgnored private var polling: Task<Void, Never>?
     @ObservationIgnored private let monitor = NWPathMonitor()
     @ObservationIgnored private var lastSaved = Date.distantPast
@@ -223,7 +239,7 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
     @ObservationIgnored private var unsentDeletes: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "downloads.unsentDeletes") ?? []) {
         didSet { UserDefaults.standard.set(Array(unsentDeletes), forKey: "downloads.unsentDeletes") }
     }
-    /// Where transfers paused for want of Wi-Fi had got to, to carry on from there.
+    /// Where transfers paused for want of Wi-Fi, or cut off part-way, had got to, to carry on from there.
     @ObservationIgnored private var resumeData: [String: Data] = [:]
 
     nonisolated static let folder: URL = {
@@ -367,7 +383,7 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
     private func pauseWiFiOnlyTransfers() {
         let held = Set(all.filter { isWiFiOnly($0) && !$0.isDownloaded }.map(\.id))
         guard !held.isEmpty else { return }
-        session.getAllTasks { tasks in
+        allTasks { tasks in
             for task in tasks {
                 guard let id = task.taskDescription, held.contains(id), let download = task as? URLSessionDownloadTask else { continue }
                 download.cancel { data in
@@ -377,7 +393,8 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         }
     }
 
-    /// A transfer stopped for want of Wi-Fi: back to waiting (the server still has it ready), to carry on later.
+    /// A transfer stopped for want of Wi-Fi or cut off: back to waiting (the server still has it ready), to carry on
+    /// later.
     private func held(_ id: String, resumeData data: Data?) {
         if let data { resumeData[id] = data }
         update(id) { if case .downloading = $0.state { $0.state = .preparing(1) } }
@@ -626,7 +643,7 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
                 // Allowed on mobile data (Settings), but not in Low Data Mode.
                 request.allowsConstrainedNetworkAccess = false
             }
-            let task = resumeData.removeValue(forKey: remote.id).map { session.downloadTask(withResumeData: $0) } ?? session.downloadTask(with: request)
+            let task = resumeData.removeValue(forKey: remote.id).map { transferSession.downloadTask(withResumeData: $0) } ?? transferSession.downloadTask(with: request)
             task.taskDescription = remote.id
             task.resume()
         case .removed where !local.isDownloaded:
@@ -670,7 +687,7 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
 
     func delete(_ id: String) {
         guard let download = all.first(where: { $0.id == id }) else { return }
-        session.getAllTasks { tasks in
+        allTasks { tasks in
             for task in tasks where task.taskDescription == id { task.cancel() }
         }
         if let name = download.fileName {
@@ -860,6 +877,13 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
     fileprivate func stopped(_ id: String, _ error: Error) {
         guard let download = all.first(where: { $0.id == id }), !download.isDownloaded else { return }
         if (error as? URLError)?.code == .cancelled { return }
+        // Cut off part-way (the network went, or a guest's tunnel slept with the phone locked): back to waiting, to
+        // carry on from where it got to once the server's in reach again (the next catch-up, back in front).
+        if let data = (error as NSError).userInfo[NSURLSessionDownloadTaskResumeData] as? Data {
+            held(id, resumeData: data)
+            if isOnline { poll() }
+            return
+        }
         update(id) { $0.state = .failed("The download stopped. Try again.") }
     }
 }

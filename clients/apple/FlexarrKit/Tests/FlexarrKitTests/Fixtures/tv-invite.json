@@ -1,0 +1,8 @@
+{
+  "comment": "A TV invite sealed as the server seals it (P-256 ECDH, HKDF-SHA256 salt tvPublicKey||serverKey info flexarr-tv-invite, AES-256-GCM nonce|ciphertext|tag). Every app opens it in its tests.",
+  "tvPrivateKey": "J9XGidVMev5xG3V7iPvWG0IpcKmeDAJzqhVp3uwp8HI=",
+  "tvPublicKey": "BPcdGk8hiHUadAg/OabktzpnVFVpk0YyesYFdGI2ZSqMW0RZVMHRPVdxn1NBIht1m6VGkZ5ig+WKhRVWbcabh94=",
+  "serverKey": "BN4XugqBr+1T7NlWkuUGYNAfWF5U1ODHvB7Uf5hz/LrEdLAJFVtLp7iCUj0ZsbSqFUrhJSrf+3DtIltQgHQkbYI=",
+  "sealed": "0TTosSTtDfQiIfTaWEU37ir3lax0K/Dv2Cfl0GuadP4MI4P3zSIchRfxPTxccXeXGdDr",
+  "plaintext": "eyJ2IjoxLCJuIjoiRGFuIn0"
+}
