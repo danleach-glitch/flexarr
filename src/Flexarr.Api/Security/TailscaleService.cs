@@ -25,6 +25,42 @@ public interface ITailnetWhois
 {
     /// <summary>The Tailscale login of the person whose device has <paramref name="address"/>, or null if unknown.</summary>
     Task<string?> LoginAsync(IPAddress address, CancellationToken ct);
+
+    /// <summary>The tags of the device with <paramref name="address"/> (a tagged device's login is "tagged-devices").</summary>
+    Task<IReadOnlyList<string>> TagsAsync(IPAddress address, CancellationToken ct) => Task.FromResult<IReadOnlyList<string>>([]);
+}
+
+/// <summary>How a tailnet device's traffic reaches this server.</summary>
+public enum TailnetPath
+{
+    Unknown,
+
+    /// <summary>Straight between the two devices.</summary>
+    Direct,
+
+    /// <summary>Through a peer relay (this server's own, when the faster relay is on).</summary>
+    PeerRelay,
+
+    /// <summary>Through Tailscale's shared relays (DERP), which slow down to about 2 Mbps.</summary>
+    Derp,
+}
+
+/// <summary>Another device on the tailnet, as this server's Tailscale sees it.</summary>
+public sealed record TailnetPeer(string HostName, string? Address, IReadOnlyList<string> Tags, bool Online, DateTime? LastSeen, TailnetPath Path);
+
+/// <summary>This server's place on the tailnet.</summary>
+/// <param name="Address">This server's tailnet IPv4 address.</param>
+/// <param name="RelayPort">The UDP port this server's peer relay listens on, or null when it isn't one.</param>
+public sealed record TailnetSnapshot(bool Running, string? Address, string? DnsName, IReadOnlyList<TailnetPeer> Peers, int? RelayPort = null);
+
+/// <summary>The tailnet as this server's Tailscale sees it, and the one setting family invites change.</summary>
+public interface ITailnet
+{
+    /// <summary>The tailnet now (kept for a few seconds); null when Tailscale isn't installed or answering.</summary>
+    Task<TailnetSnapshot?> SnapshotAsync(CancellationToken ct);
+
+    /// <summary>Makes this server a peer relay on <paramref name="port"/>, or stops it (null). Returns the problem, if any.</summary>
+    Task<string?> SetRelayPortAsync(int? port, CancellationToken ct);
 }
 
 /// <summary>
@@ -32,8 +68,14 @@ public interface ITailnetWhois
 /// <c>tailscale serve</c>, which gives it an HTTPS address, a certificate, and each visitor's verified identity.
 /// Flexarr uses its own port (8443) so anything already served on 443 is left alone.
 /// </summary>
-public sealed partial class TailscaleService(ILogger<TailscaleService> logger, TimeProvider clock) : ITailnetWhois
+public sealed partial class TailscaleService(ILogger<TailscaleService> logger, TimeProvider clock) : ITailnetWhois, ITailnet
 {
+    /// <summary>How long <see cref="SnapshotAsync"/>'s answer is kept.</summary>
+    public static readonly TimeSpan SnapshotLifetime = TimeSpan.FromSeconds(10);
+
+    private readonly Lock _snapshotLock = new();
+    private (DateTimeOffset At, Task<TailnetSnapshot?> Lookup)? _snapshot;
+
     public const int Port = 8443;
 
     private readonly WhoisCache _whois = new(WhoisAsync, clock);
@@ -203,6 +245,125 @@ public sealed partial class TailscaleService(ILogger<TailscaleService> logger, T
     /// </summary>
     public Task<string?> LoginAsync(IPAddress address, CancellationToken ct) => _whois.LoginAsync(address, ct);
 
+    public async Task<IReadOnlyList<string>> TagsAsync(IPAddress address, CancellationToken ct) => (await _whois.AnswerAsync(address, ct))?.Tags ?? [];
+
+    public Task<TailnetSnapshot?> SnapshotAsync(CancellationToken ct)
+    {
+        if (Cli is null)
+        {
+            return Task.FromResult<TailnetSnapshot?>(null);
+        }
+
+        Task<TailnetSnapshot?> lookup;
+        lock (_snapshotLock)
+        {
+            var now = clock.GetUtcNow();
+            if (_snapshot is { } kept && !kept.Lookup.IsFaulted && (!kept.Lookup.IsCompleted || now - kept.At < SnapshotLifetime))
+            {
+                lookup = kept.Lookup;
+            }
+            else
+            {
+                lookup = LookupSnapshotAsync();
+                _snapshot = (now, lookup);
+            }
+        }
+
+        return lookup.WaitAsync(ct);
+    }
+
+    private static async Task<TailnetSnapshot?> LookupSnapshotAsync()
+    {
+        var (ok, json, _) = await RunAsync(CancellationToken.None, "status", "--json");
+        if (!ok)
+        {
+            return null;
+        }
+
+        using var status = ParseStatus(json);
+        if (status is null)
+        {
+            return null;
+        }
+
+        var snapshot = Snapshot(status.RootElement);
+        var (prefsOk, prefsJson, _) = await RunAsync(CancellationToken.None, "debug", "prefs");
+        return prefsOk ? snapshot with { RelayPort = RelayPortOf(prefsJson) } : snapshot;
+    }
+
+    /// <summary>Reads <c>tailscale status --json</c>.</summary>
+    internal static TailnetSnapshot Snapshot(JsonElement root)
+    {
+        var running = root.TryGetProperty("BackendState", out var backend) && backend.GetString() == "Running";
+        var self = root.GetProperty("Self");
+        var peers = new List<TailnetPeer>();
+        if (root.TryGetProperty("Peer", out var all) && all.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var peer in all.EnumerateObject())
+            {
+                var p = peer.Value;
+                var curAddr = Text(p, "CurAddr");
+                var peerRelay = Text(p, "PeerRelay");
+                var relay = Text(p, "Relay");
+                var path = curAddr is { Length: > 0 } ? TailnetPath.Direct
+                    : peerRelay is { Length: > 0 } ? TailnetPath.PeerRelay
+                    : relay is { Length: > 0 } && p.TryGetProperty("Active", out var active) && active.ValueKind == JsonValueKind.True ? TailnetPath.Derp
+                    : TailnetPath.Unknown;
+                DateTime? lastSeen = p.TryGetProperty("LastSeen", out var seen) && seen.ValueKind == JsonValueKind.String && seen.TryGetDateTime(out var at) && at.Year > 2000
+                    ? at.ToUniversalTime()
+                    : null;
+                peers.Add(new TailnetPeer(Text(p, "HostName") ?? "", Ipv4(p), Strings(p, "Tags"),
+                    p.TryGetProperty("Online", out var online) && online.ValueKind == JsonValueKind.True, lastSeen, path));
+            }
+        }
+
+        return new TailnetSnapshot(running, Ipv4(self), Text(self, "DNSName")?.TrimEnd('.'), peers);
+    }
+
+    /// <summary>The peer relay's port from <c>tailscale debug prefs</c>, when this server is one.</summary>
+    internal static int? RelayPortOf(string prefsJson)
+    {
+        try
+        {
+            using var prefs = JsonDocument.Parse(prefsJson);
+            return prefs.RootElement.TryGetProperty("RelayServerPort", out var port) && port.ValueKind == JsonValueKind.Number && port.GetInt32() > 0
+                ? port.GetInt32()
+                : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    public async Task<string?> SetRelayPortAsync(int? port, CancellationToken ct)
+    {
+        if (Cli is null)
+        {
+            return "Tailscale isn't installed on the server.";
+        }
+
+        // An empty port turns the relay off.
+        var (ok, _, error) = await RunAsync(ct, "set", $"--relay-server-port={(port is { } p ? p.ToString(System.Globalization.CultureInfo.InvariantCulture) : "")}");
+        lock (_snapshotLock)
+        {
+            _snapshot = null;
+        }
+
+        return ok ? null : error;
+    }
+
+    private static string? Text(JsonElement element, string name) =>
+        element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+
+    private static List<string> Strings(JsonElement element, string name) =>
+        element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Array
+            ? value.EnumerateArray().Where(v => v.ValueKind == JsonValueKind.String).Select(v => v.GetString()!).ToList()
+            : [];
+
+    private static string? Ipv4(JsonElement element) =>
+        Strings(element, "TailscaleIPs").FirstOrDefault(a => IPAddress.TryParse(a, out var ip) && ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork);
+
     /// <summary>One <c>tailscale whois</c> run, with its own time limit (not any one request's).</summary>
     private static async Task<WhoisAnswer> WhoisAsync(IPAddress address)
     {
@@ -224,7 +385,8 @@ public sealed partial class TailscaleService(ILogger<TailscaleService> logger, T
             var login = whois.RootElement.TryGetProperty("UserProfile", out var user) && user.TryGetProperty("LoginName", out var name)
                 ? name.GetString()
                 : null;
-            return new WhoisAnswer(login, Definite: true);
+            var tags = whois.RootElement.TryGetProperty("Node", out var node) ? Strings(node, "Tags") : [];
+            return new WhoisAnswer(login, Definite: true, tags);
         }
         catch (JsonException)
         {
@@ -311,7 +473,8 @@ public sealed partial class TailscaleService(ILogger<TailscaleService> logger, T
 }
 
 /// <param name="Definite">Tailscale answered (even "nobody"), rather than timing out.</param>
-public sealed record WhoisAnswer(string? Login, bool Definite);
+/// <param name="Tags">The device's tags: a tagged device belongs to no one ("tagged-devices").</param>
+public sealed record WhoisAnswer(string? Login, bool Definite, IReadOnlyList<string>? Tags = null);
 
 /// <summary>
 /// Who owns each tailnet address, shared by every request. A browser over Tailscale has no session cookie, so each of
@@ -336,7 +499,10 @@ public sealed class WhoisCache(Func<IPAddress, Task<WhoisAnswer>> lookup, TimePr
         public DateTime? KeepUntil { get; set; }
     }
 
-    public async Task<string?> LoginAsync(IPAddress address, CancellationToken ct)
+    public async Task<string?> LoginAsync(IPAddress address, CancellationToken ct) => (await AnswerAsync(address, ct))?.Login;
+
+    /// <summary>Tailscale's whole answer for <paramref name="address"/>, or null when the lookup failed.</summary>
+    public async Task<WhoisAnswer?> AnswerAsync(IPAddress address, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(address);
         Entry? started = null;
@@ -366,7 +532,7 @@ public sealed class WhoisCache(Func<IPAddress, Task<WhoisAnswer>> lookup, TimePr
 
         try
         {
-            return (await entry.Lookup.WaitAsync(ct)).Login;
+            return await entry.Lookup.WaitAsync(ct);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {

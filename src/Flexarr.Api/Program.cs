@@ -173,6 +173,7 @@ builder.Services.AddSingleton<HealthCheck>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<Pairings>();
 builder.Services.AddSingleton<PairingAlerts>();
+builder.Services.AddSingleton<GuestAlerts>();
 builder.Services.AddSingleton<PinAlerts>();
 builder.Services.AddSingleton<FirstRun>();
 builder.Services.AddSingleton<DeviceCommands>();
@@ -257,6 +258,9 @@ builder.Services.AddSingleton<TailscaleService>();
 builder.Services.AddSingleton<ITailnetWhois>(sp => sp.GetRequiredService<TailscaleService>());
 builder.Services.AddHttpClient(TailscaleApi.HttpClientName, c => c.Timeout = TimeSpan.FromSeconds(20));
 builder.Services.AddSingleton<TailscaleApi>();
+builder.Services.AddSingleton<ITailnet>(sp => sp.GetRequiredService<TailscaleService>());
+builder.Services.AddSingleton<GuestPolicy>();
+builder.Services.AddHostedService<GuestPolicyWatcher>();
 builder.Services.AddHostedService<PlaybackSweeper>();
 builder.Services.AddHostedService<MarkerDetectionWorker>();
 
