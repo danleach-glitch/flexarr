@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using Flexarr.Api.Configuration;
 using Microsoft.Extensions.Options;
@@ -50,13 +51,20 @@ public sealed partial class GuestTvCodes(IHttpClientFactory clients, IOptionsMon
             throw new InviteException($"Flexarr's relay answered {(int)response.StatusCode}. Try again in a minute.", StatusCodes.Status502BadGateway);
         }
 
-        var body = await response.Content.ReadFromJsonAsync<TvKey>(ct);
         try
         {
+            var body = await response.Content.ReadFromJsonAsync<TvKey>(ct);
             var key = Convert.FromBase64String(body?.PublicKey ?? "");
-            return key.Length == 65 && key[0] == 0x04 ? key : null;
+            if (key.Length != 65 || key[0] != 0x04)
+            {
+                return null;
+            }
+
+            // A point that isn't on the curve can't be sealed to: found now, before an invite is made for it.
+            using var _ = ECDiffieHellman.Create(PublicParameters(key));
+            return key;
         }
-        catch (FormatException)
+        catch (Exception ex) when (ex is FormatException or JsonException or NotSupportedException or CryptographicException)
         {
             return null;
         }

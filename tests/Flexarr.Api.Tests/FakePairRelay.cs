@@ -13,6 +13,9 @@ public sealed class FakePairRelay : HttpMessageHandler
     /// <summary>Sealed invites left for each code.</summary>
     public Dictionary<string, JsonObject> Invites { get; } = [];
 
+    /// <summary>Set to make leaving an invite time out, as a struggling relay would.</summary>
+    public bool DeliveryTimesOut { get; set; }
+
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         var query = System.Web.HttpUtility.ParseQueryString(request.RequestUri!.Query);
@@ -26,6 +29,11 @@ public sealed class FakePairRelay : HttpMessageHandler
 
         if (request.Method == HttpMethod.Post && query["action"] == "invite")
         {
+            if (DeliveryTimesOut)
+            {
+                throw new TaskCanceledException("The request was canceled due to the configured HttpClient.Timeout.");
+            }
+
             if (!Keys.ContainsKey(code))
             {
                 return new HttpResponseMessage(HttpStatusCode.NotFound);

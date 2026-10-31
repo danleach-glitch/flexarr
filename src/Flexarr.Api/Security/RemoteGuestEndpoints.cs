@@ -183,14 +183,22 @@ public static class RemoteGuestEndpoints
 
                 return Results.Problem(ex.Message, statusCode: ex.Status);
             }
-            catch (HttpRequestException)
+            catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
             {
+                // Anything else on the way (the relay timing out or answering nonsense, a TV key that won't import):
+                // the invite never reached the TV, so it and its Tailscale key go rather than wait three days.
                 if (invite is not null)
                 {
                     await invites.CancelAsync(invite.Id, CancellationToken.None);
                 }
 
                 return Results.Problem("Couldn't reach Flexarr's relay. Try again in a minute.", statusCode: 502);
+            }
+            catch (OperationCanceledException) when (invite is not null)
+            {
+                // The owner closed the page part way: the TV may never get it.
+                await invites.CancelAsync(invite.Id, CancellationToken.None);
+                throw;
             }
         });
 

@@ -439,6 +439,36 @@ public class RemoteGuestTests(RemoteGuestFactory factory) : IClassFixture<Remote
     }
 
     [Fact]
+    public async Task A_relay_that_times_out_or_a_key_off_the_curve_leaves_no_invite_behind()
+    {
+        var gran = await factory.AddProfileAsync("Gran44");
+        using var admin = factory.Admin();
+        var before = (await admin.GetFromJsonAsync<List<GuestInviteDto>>("/api/v1/remote/guests/invites", Web))!.Count;
+
+        // A point that isn't on P-256 (x = y = 1): refused before any invite is made.
+        var offCurve = new byte[65];
+        offCurve[0] = 0x04;
+        offCurve[32] = 1;
+        offCurve[64] = 1;
+        factory.PairRelay.Keys["BADKEY22"] = Convert.ToBase64String(offCurve);
+        Assert.Equal(HttpStatusCode.NotFound, (await admin.PostAsJsonAsync("/api/v1/remote/guests/tv-code", new { code = "BADK-EY22", name = "x", profileId = gran })).StatusCode);
+
+        using var tv = System.Security.Cryptography.ECDiffieHellman.Create(System.Security.Cryptography.ECCurve.NamedCurves.nistP256);
+        factory.PairRelay.Keys["SPEEDRAY"] = Convert.ToBase64String(GuestTvCodes.Uncompressed(tv.ExportParameters(false)));
+        factory.PairRelay.DeliveryTimesOut = true;
+        try
+        {
+            Assert.Equal(HttpStatusCode.BadGateway, (await admin.PostAsJsonAsync("/api/v1/remote/guests/tv-code", new { code = "SPEE-DRAY", name = "x", profileId = gran })).StatusCode);
+        }
+        finally
+        {
+            factory.PairRelay.DeliveryTimesOut = false;
+        }
+
+        Assert.Equal(before, (await admin.GetFromJsonAsync<List<GuestInviteDto>>("/api/v1/remote/guests/invites", Web))!.Count);
+    }
+
+    [Fact]
     public async Task Each_guest_device_shows_how_it_reaches_the_server()
     {
         var (_, _) = await JoinAsync("Gran14"); // redeemed from RemoteGuestFactory.Guest, which the fake tailnet has on Tailscale's relay
