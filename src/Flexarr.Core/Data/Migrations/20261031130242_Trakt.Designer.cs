@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Flexarr.Core.Data.Migrations
 {
     [DbContext(typeof(FlexarrDbContext))]
-    [Migration("20261031115457_Trakt")]
+    [Migration("20261031130242_Trakt")]
     partial class Trakt
     {
         /// <inheritdoc />
@@ -1017,6 +1017,9 @@ namespace Flexarr.Core.Data.Migrations
                 {
                     b.Property<string>("Id")
                         .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AdminPinHash")
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("AutoPlayNext")

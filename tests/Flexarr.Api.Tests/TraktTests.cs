@@ -770,7 +770,7 @@ public sealed class TraktTests : IAsyncLifetime
     [Fact]
     public async Task MakingAProfileAKidsProfile_DisconnectsItsTrakt()
     {
-        await SeedAsync(db => db.Profiles.Single(p => p.Id == Owner).SetPin("2468"));
+        await SeedAsync(db => db.Profiles.Single(p => p.Id == Owner).SetAdminPin("2468"));
         var kid = (await (await Client().PostAsJsonAsync(Api("/profiles"), new { name = "Sam" })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString()!;
         await ConnectAsync(kid, slug: "sam");
         _trakt.Set("RELAY revoke", "{}");
@@ -894,8 +894,8 @@ public sealed class TraktTests : IAsyncLifetime
     [Fact]
     public async Task KidsProfiles_HaveNoTrakt()
     {
-        // A kids profile needs the main profile to have a PIN, and an age limit.
-        await SeedAsync(db => db.Profiles.Single(p => p.Id == Owner).SetPin("2468"));
+        // A kids profile needs an admin PIN, and an age limit.
+        await SeedAsync(db => db.Profiles.Single(p => p.Id == Owner).SetAdminPin("2468"));
         var kid = (await (await Client().PostAsJsonAsync(Api("/profiles"), new { name = "Kid", maxRatingAge = 8, isKids = true })).Content.ReadFromJsonAsync<JsonElement>())
             .GetProperty("id").GetString();
         var token = (await (await Client().PostAsJsonAsync(Api("/session/device"), new { deviceName = "Playroom TV" })).Content.ReadFromJsonAsync<JsonElement>())
