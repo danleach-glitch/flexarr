@@ -371,7 +371,7 @@ final class AppModel {
                 return // Accepted after all.
             } catch FlexarrClientError.unauthorized {
                 // Refused again: signed out.
-            } catch FlexarrClientError.http(status: 403, _) where refused.isGuest {
+            } catch FlexarrClientError.guestRemoved where refused.isGuest {
                 // A guest's device its host removed: refused everything, not just the sign-in.
                 guard credentials == refused else { return }
                 signedOutNotice = refused.guest.map { "You no longer have access to \($0.ownerName)’s Flexarr." } ?? "You no longer have access to this Flexarr."
@@ -561,7 +561,7 @@ final class AppModel {
             guard await ensureGuestTunnel() else { return }
             upgradeChecked = true // a guest's sign-in is its own already
             // Removed by its host: the server refuses everything from this device (403), not just the sign-in.
-            if case FlexarrClientError.http(status: 403, _)? = await Self.failure(of: { try await self.client?.me() }) {
+            if case FlexarrClientError.guestRemoved? = await Self.failure(of: { try await self.client?.me() }) {
                 signedOutNotice = "You no longer have access to \(guest.ownerName)’s Flexarr."
                 forget()
                 signedOutAsGuest = true
