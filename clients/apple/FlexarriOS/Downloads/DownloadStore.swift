@@ -211,13 +211,18 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
     @ObservationIgnored private var session: URLSession!
     /// A family guest's transfers: the system's background downloader runs apart from the app, so it can't reach the
     /// tunnel's port inside it. These carry on only while the app is open.
-    @ObservationIgnored private lazy var guestSession = URLSession(configuration: .default, delegate: self, delegateQueue: .main)
+    @ObservationIgnored private lazy var guestSession: URLSession = {
+        madeGuestSession = true
+        return URLSession(configuration: .default, delegate: self, delegateQueue: .main)
+    }()
+    /// Whether `guestSession` exists: its transfers outlive guest mode (Leave cancels them after it's ended).
+    @ObservationIgnored private var madeGuestSession = false
     /// Where a new transfer goes: the guest's session for a family guest, the background one for everyone else.
     private var transferSession: URLSession { GuestMode.isActive ? guestSession : session }
 
     /// Every transfer under way, in either session.
     private func allTasks(_ body: @escaping @Sendable ([URLSessionTask]) -> Void) {
-        let sessions = GuestMode.isActive ? [session!, guestSession] : [session!]
+        let sessions = madeGuestSession || GuestMode.isActive ? [session!, guestSession] : [session!]
         for session in sessions { session.getAllTasks(completionHandler: body) }
     }
     @ObservationIgnored private var polling: Task<Void, Never>?
