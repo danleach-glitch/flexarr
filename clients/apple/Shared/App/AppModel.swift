@@ -60,6 +60,9 @@ final class AppModel {
     /// The main profile's PIN, just given to turn child lock off: the next profile chosen within a minute takes it, so
     /// leaving the kids profile doesn't ask for it again.
     @ObservationIgnored private var heldParentPin: (pin: String, until: Date)?
+
+    /// The main profile's PIN given here in the last minute (turning child lock off), if any.
+    var recentParentPin: String? { heldParentPin.flatMap { $0.until > Date() ? $0.pin : nil } }
     /// How this app is signed in ("device" for its own sign-in; see `SignInInfo.method`), as the server last said.
     private(set) var signInMethod: String?
     /// A link (or another device) asked to play as this profile, which has a PIN: "Who's watching?" opens on its PIN.
