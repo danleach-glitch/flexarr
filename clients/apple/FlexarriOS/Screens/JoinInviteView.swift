@@ -45,7 +45,14 @@ struct JoinInviteView: View {
                     Task { await join() }
                 } label: {
                     Group {
-                        if joining { ProgressView() } else { Text("Join") }
+                        if joining {
+                            HStack(spacing: 10) {
+                                ProgressView()
+                                Text("Joining \(invite.ownerName)’s Flexarr…")
+                            }
+                        } else {
+                            Text("Join")
+                        }
                     }
                     .frame(maxWidth: .infinity)
                 }
