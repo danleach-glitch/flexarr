@@ -133,6 +133,9 @@ struct TabStack<Content: View>: View {
             DetailView(id: id, preview: nil)
         case .person(let id, let name):
             PersonView(id: id, name: name)
+        case .library(let library, _, _) where library.type == .unknown:
+            // A library of a type this app doesn't know (from a newer server): nothing to show it with.
+            EmptyView()
         case .library(let library, _, _) where library.type == .music:
             MusicLibraryView(library: library)
         case .library(let library, _, _) where library.type == .podcasts:

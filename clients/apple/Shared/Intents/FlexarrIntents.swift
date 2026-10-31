@@ -67,7 +67,8 @@ struct TitleQuery: EntityStringQuery {
     @MainActor
     func entities(matching string: String) async throws -> [TitleEntity] {
         guard let client = model.client else { throw FlexarrIntentError.notConnected }
-        let titles = try await client.search(string).titles.map(TitleEntity.init)
+        // Kinds this app doesn't know (from a newer server) can't be played from here.
+        let titles = try await client.search(string).titles.filter { $0.kind != .unknown }.map(TitleEntity.init)
         return titles + Podcasts.matching(string, in: (try? await client.podcasts()) ?? []).map(TitleEntity.init)
     }
 
@@ -78,7 +79,7 @@ struct TitleQuery: EntityStringQuery {
         guard let client = model.client else { return [] }
         var titles: [ItemSummary] = []
         let libraries = model.libraries.isEmpty ? ((try? await client.libraries()) ?? []) : model.libraries
-        for library in libraries.sorted(by: { $0.type == .tvShows && $1.type != .tvShows }) where library.type != .music && library.type != .podcasts {
+        for library in libraries.sorted(by: { $0.type == .tvShows && $1.type != .tvShows }) where [.movies, .tvShows, .homeVideos].contains(library.type) {
             if let page = try? await client.libraryItems(library.id, sort: .added, take: 300) { titles.append(contentsOf: page.items) }
             if titles.count >= 600 { break }
         }

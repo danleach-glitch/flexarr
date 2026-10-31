@@ -286,8 +286,8 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         all.filter { $0.profileId == profileId }.sorted { $0.createdAt > $1.createdAt }
     }
 
-    /// This profile's films and episodes (tracks show under their albums and playlists).
-    var videoDownloads: [LocalDownload] { downloads.filter { $0.item.kind != .track && $0.item.kind != .podcastEpisode } }
+    /// This profile's films and episodes (tracks show under their albums and playlists; kinds this app doesn't know aren't videos).
+    var videoDownloads: [LocalDownload] { downloads.filter { [.movie, .episode].contains($0.item.kind) } }
 
     /// This profile's podcast episodes, newest first.
     var podcastDownloads: [LocalDownload] {

@@ -50,7 +50,9 @@ enum TabBarEntry: Identifiable, Hashable {
     /// recordings are in Live TV › Recordings, so their library has no tab of its own while Live TV has one.
     @MainActor
     static func available(model: AppModel) -> [TabBarEntry] {
-        model.libraries.filter { $0.type != .podcasts && !(model.hasLiveTv && isRecordings($0)) }.map(TabBarEntry.library)
+        // Types the Apple TV has no screens for (audiobooks, and any from a newer server) get no tab rather than a film grid.
+        model.libraries.filter { $0.type != .podcasts && $0.type != .audiobooks && $0.type != .unknown && !(model.hasLiveTv && isRecordings($0)) }
+            .map(TabBarEntry.library)
             + (model.hasLiveTv ? [.liveTv] : [])
     }
 
