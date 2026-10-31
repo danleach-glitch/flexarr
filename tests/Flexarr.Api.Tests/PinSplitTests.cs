@@ -1,3 +1,5 @@
+using System.Net.Http.Json;
+using System.Text.Json;
 using Flexarr.Api.Profiles;
 using Flexarr.Core.Data;
 using Flexarr.Core.Media;
@@ -60,5 +62,24 @@ public class PinSplitTests
 
         Assert.True(main.CheckPin("2580"));
         Assert.NotEqual(main.AdminPinHash, main.PinHash);
+    }
+
+    [Fact]
+    public async Task TheOldAskForThePinSetting_SaysWhetherTheMainProfileHasAPin_AndSavingItDoesNothing()
+    {
+        using var server = new FlexarrApiFactory();
+        var admin = server.CreateClient();
+        admin.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+        var settings = new Uri("/api/v1/settings", UriKind.Relative);
+
+        var before = (await admin.GetFromJsonAsync<JsonElement>(settings)).GetProperty("askPinForMainProfile").GetBoolean();
+        await admin.PutAsJsonAsync(settings, new { askPinForMainProfile = true });
+        var afterSaving = (await admin.GetFromJsonAsync<JsonElement>(settings)).GetProperty("askPinForMainProfile").GetBoolean();
+        await server.SetMainProfilePinAsync("1357");
+        var withPin = (await admin.GetFromJsonAsync<JsonElement>(settings)).GetProperty("askPinForMainProfile").GetBoolean();
+
+        Assert.False(before);
+        Assert.False(afterSaving);
+        Assert.True(withPin);
     }
 }
