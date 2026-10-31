@@ -209,7 +209,7 @@ public static partial class BookSidecars
     }
 
     /// <summary>A description without its HTML: paragraphs become blank lines, tags and entities go.</summary>
-    internal static string PlainText(string html)
+    public static string PlainText(string html)
     {
         var text = Paragraphs().Replace(html, "\n\n");
         text = Breaks().Replace(text, "\n");

@@ -31,7 +31,9 @@ public static partial class DeleteEndpoints
                 return Results.NotFound();
             }
 
-            var (instance, _) = Manager(item, options.CurrentValue);
+            var instance = item.Kind == MediaKind.Audiobook
+                ? (await BookManagerAsync(db, item, options.CurrentValue, ct)).Instance
+                : Manager(item, options.CurrentValue).Instance;
             return Results.Ok(new DeletionDto(instance?.Name, instance is null ? await FilesAsync(db, item, ct) : []));
         }).WithTags("Items").RequireAuthorization(FlexarrClaims.MainProfilePolicy);
 
@@ -43,9 +45,14 @@ public static partial class DeleteEndpoints
                 return Results.NotFound();
             }
 
-            if (item.Kind is not (MediaKind.Movie or MediaKind.Series or MediaKind.Episode))
+            if (item.Kind is not (MediaKind.Movie or MediaKind.Series or MediaKind.Episode or MediaKind.Audiobook))
             {
-                return Results.Problem("Only films, shows and episodes can be deleted.", statusCode: 400);
+                return Results.Problem("Only films, shows, episodes and audiobooks can be deleted.", statusCode: 400);
+            }
+
+            if (item.Kind == MediaKind.Audiobook)
+            {
+                return await DeleteBookAsync(db, item, options.CurrentValue, arr, logs.CreateLogger("Flexarr.Delete"), ct);
             }
 
             var (instance, managedId) = Manager(item, options.CurrentValue);
@@ -87,6 +94,47 @@ public static partial class DeleteEndpoints
         }).WithTags("Items").RequireAuthorization(FlexarrClaims.MainProfilePolicy);
 
         return api;
+    }
+
+    /// <summary>The Readarr-compatible app that manages a book, and the book's id there.</summary>
+    private static async Task<(ArrInstance? Instance, string? BookId)> BookManagerAsync(FlexarrDbContext db, MediaItem book, FlexarrOptions options, CancellationToken ct)
+    {
+        var arrId = await db.BookDetails.Where(d => d.MediaItemId == book.Id).Select(d => d.ArrBookId).FirstOrDefaultAsync(ct);
+        var instance = options.Arr.FirstOrDefault(a => a.Kind == ArrKind.Readarr && a.Name == book.MetadataSource);
+        return instance is not null && arrId is not null ? (instance, arrId) : (null, null);
+    }
+
+    /// <summary>
+    /// A book: unmonitored in its app first, so it isn't fetched again, then its files deleted there. A book no app
+    /// manages has its files deleted by Flexarr.
+    /// </summary>
+    private static async Task<IResult> DeleteBookAsync(FlexarrDbContext db, MediaItem book, FlexarrOptions options, ArrClient arr, ILogger logger, CancellationToken ct)
+    {
+        var (instance, bookId) = await BookManagerAsync(db, book, options, ct);
+        if (instance is null || bookId is null)
+        {
+            return await DeleteFromDiskAsync(db, book, logger, ct);
+        }
+
+        try
+        {
+            await arr.SetBookMonitoredAsync(instance, bookId, monitored: false, ct);
+            foreach (var file in await arr.GetBookFilesForBookAsync(instance, bookId, ct))
+            {
+                if (file.Id is { } fileId)
+                {
+                    await arr.DeleteAsync(instance, $"bookfile/{Uri.EscapeDataString(fileId)}", ct);
+                }
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            return Results.Problem($"{instance.Name} didn't delete it ({(int?)ex.StatusCode ?? 0}). Nothing was removed from Flexarr.", statusCode: 502);
+        }
+
+        await RemoveFromLibraryAsync(db, book, ct);
+        LogDeleted(logger, book.Kind, Name(book), instance.Name);
+        return Results.NoContent();
     }
 
     /// <summary>The Radarr or Sonarr that manages the title (episodes through their show), and its id there.</summary>

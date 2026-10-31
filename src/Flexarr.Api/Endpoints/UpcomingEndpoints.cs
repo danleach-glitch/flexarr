@@ -2,6 +2,7 @@ using System.Globalization;
 using Flexarr.Api.Configuration;
 using Flexarr.Api.Profiles;
 using Flexarr.Core.Data;
+using Flexarr.Core.Libraries;
 using Flexarr.Core.Media;
 using Flexarr.Integrations.Arr;
 using Flexarr.Integrations.Arr.Models;
@@ -69,6 +70,7 @@ public static class UpcomingEndpoints
         var range = $"calendar:{start:yyyy-MM-dd}:{end:yyyy-MM-dd}";
         var sonarrs = options.Arr.Where(a => a.Kind == ArrKind.Sonarr).ToList();
         var radarrs = options.Arr.Where(a => a.Kind == ArrKind.Radarr).ToList();
+        var readarrs = options.Arr.Where(a => a.Kind == ArrKind.Readarr).ToList();
 
         // Every instance at once, so a slow one costs its own wait rather than adding to everyone else's.
         var queueTask = QueueAsync(options, arr, cache, ct);
@@ -76,9 +78,12 @@ public static class UpcomingEndpoints
             token => arr.GetCalendarAsync<SonarrEpisode>(sonarr, start, end, token), ct)).ToList();
         var movieTasks = radarrs.Select(radarr => CachedAsync(cache, Key(radarr, range), CalendarTtl,
             token => arr.GetCalendarAsync<RadarrMovie>(radarr, start, end, token), ct)).ToList();
+        var bookTasks = readarrs.Select(readarr => CachedAsync(cache, Key(readarr, range), CalendarTtl,
+            token => arr.GetBookCalendarAsync(readarr, start, end, token), ct)).ToList();
         var queue = await queueTask;
         var episodeCalendars = await Task.WhenAll(episodeTasks);
         var movieCalendars = await Task.WhenAll(movieTasks);
+        var bookCalendars = await Task.WhenAll(bookTasks);
 
         // Look up just the titles on the calendar, not every id in the library.
         var series = await SeriesIndexAsync(db, episodeCalendars.SelectMany(c => c).Select(e => e.Series?.TvdbId), ct);
@@ -130,14 +135,33 @@ public static class UpcomingEndpoints
             }
         }
 
+        // Books by authors the app follows, on their release day. Shown only to profiles that can see an audiobooks library.
+        var bookIds = bookCalendars.SelectMany(c => c).Select(b => b.Id).OfType<string>().Distinct().ToList();
+        var ownBooks = bookIds.Count == 0 ? [] : await db.BookDetails.Where(d => d.ArrBookId != null && bookIds.Contains(d.ArrBookId))
+            .Select(d => new { d.ArrBookId, d.MediaItemId }).ToListAsync(ct);
+        foreach (var (readarr, calendar) in readarrs.Zip(bookCalendars))
+        {
+            foreach (var book in calendar.Where(b => b.ReleaseDate is not null))
+            {
+                queue.TryGetValue($"readarr-{book.Id}", out var download);
+                var cover = book.Images.Concat(book.Edition?.Images ?? []).FirstOrDefault(i => i.CoverType is "cover" or "poster")?.RemoteUrl;
+                results.Add(new UpcomingDto(
+                    $"readarr-{readarr.Name}-{book.Id}", MediaKind.Audiobook, book.Title ?? "Untitled", book.Author?.AuthorName ?? book.AuthorTitle,
+                    null, null, book.ReleaseDate!.Value, "Out", book.Overview, Remote(cover), null,
+                    ownBooks.FirstOrDefault(o => o.ArrBookId == book.Id)?.MediaItemId, false, download, readarr.Name, null));
+            }
+        }
+
         // Something not in a library this profile can see is shown unless the profile can't see any library of its kind.
         var hidden = await LibraryVisibility.HiddenTypesAsync(db, ct);
-        return results.Where(r => r.LibraryItemId is not null || !hidden.Hides(r.Kind)).OrderBy(r => r.Date).ToList();
+        var noBooks = !await db.Libraries.AnyAsync(l => l.Type == LibraryType.Audiobooks, ct);
+        return results.Where(r => r.LibraryItemId is not null || !hidden.Hides(r.Kind))
+            .Where(r => !(noBooks && r.Kind == MediaKind.Audiobook)).OrderBy(r => r.Date).ToList();
     }
 
     public static async Task<List<DownloadDto>> DownloadsAsync(FlexarrOptions options, ArrClient arr, IMemoryCache? cache, FlexarrDbContext db, string? host, CancellationToken ct)
     {
-        var instances = options.Arr.Where(a => a.Kind is ArrKind.Sonarr or ArrKind.Radarr).ToList();
+        var instances = options.Arr.Where(a => a.Kind is ArrKind.Sonarr or ArrKind.Radarr or ArrKind.Readarr).ToList();
         var queues = await Task.WhenAll(instances.Select(instance => QueueOfAsync(instance, arr, cache, ct)));
         var series = await SeriesIndexAsync(db, queues.SelectMany(q => q).Select(q => q.Series?.TvdbId), ct);
         var downloads = new List<DownloadDto>();
@@ -147,6 +171,14 @@ public static class UpcomingEndpoints
             {
                 var state = new DownloadStateDto(Math.Round(q.Progress, 3), q.Timeleft, q.TrackedDownloadState ?? q.Status);
                 var queuePage = WebUrl(instance, host, "activity/queue");
+                if (instance.Kind == ArrKind.Readarr)
+                {
+                    downloads.Add(new DownloadDto($"q-{instance.Name}-{q.Id}", MediaKind.Audiobook, q.Book?.Title ?? q.Title ?? "Book",
+                        q.Book?.Author?.AuthorName ?? q.Book?.AuthorTitle, null, null,
+                        Remote(q.Book?.Images.FirstOrDefault(i => i.CoverType is "cover" or "poster")?.RemoteUrl), null, state, instance.Name, queuePage));
+                    continue;
+                }
+
                 downloads.Add(instance.Kind == ArrKind.Sonarr
                     ? new DownloadDto($"q-{instance.Name}-{q.Id}", MediaKind.Episode, q.Episode?.Title ?? q.Title ?? "Episode", q.Series?.Title,
                         q.Episode?.SeasonNumber, q.Episode?.EpisodeNumber, Remote(q.Series?.Images.FirstOrDefault(i => i.CoverType == "poster")?.RemoteUrl),
@@ -167,14 +199,19 @@ public static class UpcomingEndpoints
     /// <inheritdoc cref="QueueAsync(FlexarrOptions, ArrClient, CancellationToken)"/>
     internal static async Task<Dictionary<string, DownloadStateDto>> QueueAsync(FlexarrOptions options, ArrClient arr, IMemoryCache? cache, CancellationToken ct)
     {
-        var instances = options.Arr.Where(a => a.Kind is ArrKind.Sonarr or ArrKind.Radarr).ToList();
+        var instances = options.Arr.Where(a => a.Kind is ArrKind.Sonarr or ArrKind.Radarr or ArrKind.Readarr).ToList();
         var queues = await Task.WhenAll(instances.Select(instance => QueueOfAsync(instance, arr, cache, ct)));
         var map = new Dictionary<string, DownloadStateDto>(StringComparer.Ordinal);
         foreach (var (instance, queue) in instances.Zip(queues))
         {
             foreach (var q in queue)
             {
-                var key = instance.Kind == ArrKind.Sonarr ? $"sonarr-{q.EpisodeId}" : $"radarr-{q.MovieId}";
+                var key = instance.Kind switch
+                {
+                    ArrKind.Sonarr => $"sonarr-{q.EpisodeId}",
+                    ArrKind.Readarr => $"readarr-{q.BookId ?? q.Book?.Id}",
+                    _ => $"radarr-{q.MovieId}",
+                };
                 map.TryAdd(key, new DownloadStateDto(Math.Round(q.Progress, 3), q.Timeleft, q.TrackedDownloadState ?? q.Status));
             }
         }

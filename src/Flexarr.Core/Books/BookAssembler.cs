@@ -97,7 +97,10 @@ public sealed partial class BookAssembler(FlexarrDbContext db, IMediaProbe probe
 
         var sidecars = isFile ? BookInfo.Empty : BookSidecars.Read(key);
         var info = sidecars.Over(tags).Over(FromPath(BookLayout.Describe(root, key, isFile)));
-        await ApplyAsync(book, details, info, ct).ConfigureAwait(false);
+        if (!book.MatchLocked)
+        {
+            await ApplyAsync(book, details, info, ct).ConfigureAwait(false); // matched by hand: what was chosen stands
+        }
 
         // Chapters someone edited, or took from Audible, are kept: the files can't say anything better.
         if (details.ChapterSource is not (ChapterSource.Edited or ChapterSource.Audible))

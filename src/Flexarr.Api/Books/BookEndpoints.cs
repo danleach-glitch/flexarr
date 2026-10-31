@@ -149,6 +149,30 @@ public static class BookEndpoints
             return Results.Ok(await BookPlayback.ListeningAsync(db, profile.Id, ct));
         }).WithTags("Audiobooks");
 
+        var admin = api.MapGroup("/settings/book-metadata").WithTags("Settings").RequireAuthorization(Security.FlexarrClaims.AdminPolicy);
+        admin.MapGet("/", (Microsoft.Extensions.Options.IOptionsMonitor<Configuration.FlexarrOptions> options) => Results.Ok(MetadataSettings(options.CurrentValue)));
+        admin.MapPut("/", async (BookMetadataSettingsRequest request, Microsoft.Extensions.Options.IOptionsMonitor<Configuration.FlexarrOptions> options) =>
+        {
+            if (request.Region is { } region && !Flexarr.Metadata.Books.BookMetadataSettings.Regions.Contains(region)
+                || request.Providers is { } providers && (providers.Count == 0 || providers.Any(p => !Flexarr.Metadata.Books.BookMetadataSettings.AllProviders.Contains(p))))
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["bookMetadata"] = ["Pick a known Audible store and at least one provider."] });
+            }
+
+            var current = options.CurrentValue.BookMetadata;
+            var reloaded = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            using var watch = options.OnChange((_, _) => reloaded.TrySetResult());
+            Configuration.ServerConfigStore.Update(options.CurrentValue.DataDirectory, config => config["bookMetadata"] = new System.Text.Json.Nodes.JsonObject
+            {
+                ["region"] = request.Region ?? current.Region,
+                ["providers"] = request.Providers is { } chosen ? new System.Text.Json.Nodes.JsonArray([.. chosen.Distinct().Select(p => (System.Text.Json.Nodes.JsonNode?)p)]) : current.Providers is { } kept ? new System.Text.Json.Nodes.JsonArray([.. kept.Select(p => (System.Text.Json.Nodes.JsonNode?)p)]) : null,
+                ["googleBooksKey"] = request.GoogleBooksKey is { } g ? (g.Trim() is { Length: > 0 } gk ? gk : null) : current.GoogleBooksKey,
+                ["hardcoverToken"] = request.HardcoverToken is { } h ? (h.Trim() is { Length: > 0 } hk ? hk : null) : current.HardcoverToken,
+            });
+            await Task.WhenAny(reloaded.Task, Task.Delay(TimeSpan.FromSeconds(5)));
+            return Results.Ok(MetadataSettings(options.CurrentValue));
+        });
+
         api.MapGet("/book-series/{id:guid}", async (Guid id, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
             await BookQueries.SeriesAsync(db, id, profile.Id, ct) is { } series && await IsBooksAsync(db, series.LibraryId, ct)
                 ? Results.Ok(series)
@@ -156,6 +180,13 @@ public static class BookEndpoints
             .WithTags("Audiobooks");
 
         return api;
+    }
+
+    private static BookMetadataSettingsDto MetadataSettings(Configuration.FlexarrOptions options)
+    {
+        var resolved = options.BookMetadata.Resolved(options.Podcasts.ResolvedCountry);
+        return new BookMetadataSettingsDto(resolved.Region, resolved.Providers, resolved.GoogleBooksKey is not null, resolved.HardcoverToken is not null,
+            Flexarr.Metadata.Books.BookMetadataSettings.Regions, Flexarr.Metadata.Books.BookMetadataSettings.AllProviders);
     }
 
     /// <summary>A book this profile can see.</summary>

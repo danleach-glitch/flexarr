@@ -127,6 +127,8 @@ public sealed class FlexarrOptions
 
     public PodcastOptions Podcasts { get; set; } = new();
 
+    public BookMetadataOptions BookMetadata { get; set; } = new();
+
     public NotificationOptions Notifications { get; set; } = new();
 
     public TraktOptions Trakt { get; set; } = new();
@@ -213,6 +215,28 @@ public sealed class LiveTvOptions
         Uri.TryCreate(BaseUrl, UriKind.Absolute, out var url) && url.Scheme is "http" or "https" && Username.Length > 0 && Password.Length > 0
             ? new Flexarr.Api.LiveTv.XtreamAccount(url, Username, Password)
             : null;
+}
+
+/// <summary>How books are looked up online (config.json's <c>bookMetadata</c>).</summary>
+public sealed class BookMetadataOptions
+{
+    /// <summary>Audible's store ("uk", "us"…). Unset, the server's own country's, or the US store.</summary>
+    public string? Region { get; set; }
+
+    /// <summary>Providers to ask, in order. Unset, all of them: Audible, Open Library, Google Books, Hardcover.</summary>
+    public List<string>? Providers { get; set; }
+
+    public string? GoogleBooksKey { get; set; }
+    public string? HardcoverToken { get; set; }
+
+    /// <param name="country">The server's country ("gb", "us"), for a region nobody chose.</param>
+    public Flexarr.Metadata.Books.BookMetadataSettings Resolved(string country)
+    {
+        var region = Region ?? (country == "gb" ? "uk" : country);
+        return new(Flexarr.Metadata.Books.BookMetadataSettings.Regions.Contains(region) ? region : "us",
+            Providers is { Count: > 0 } chosen ? chosen : Flexarr.Metadata.Books.BookMetadataSettings.AllProviders,
+            GoogleBooksKey is { Length: > 0 } g ? g : null, HardcoverToken is { Length: > 0 } h ? h : null);
+    }
 }
 
 public sealed class PodcastOptions
