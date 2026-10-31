@@ -578,7 +578,8 @@ private fun PhoneGuestCode(model: AppModel, onBack: () -> Unit) {
             Text(guest.problem!!, fontSize = 15.sp, color = Flexarr.screen)
             ActionButton(if (guest.badInvite) "New code" else "Try again", onClick = { attempt++ }, prominent = true)
         } else {
-            Text("Give this code to the person who invited you", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher)
+            // Not once codes have stopped: there's none to give.
+            if (!guest.stopped) Text("Give this code to the person who invited you", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher)
             val shown = guest.code
             if (shown != null) {
                 Text(shown.display, fontSize = 44.sp, fontWeight = FontWeight.Black, letterSpacing = 3.sp, color = Flexarr.screen,

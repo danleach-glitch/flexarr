@@ -245,7 +245,8 @@ private fun GuestCode(model: AppModel, onBack: () -> Unit) {
             ErrorNote(problem)
             TvActionButton(if (guest.badInvite) "New code" else "Try again", onClick = { attempt++ }, prominent = true, modifier = Modifier.focusRequester(retry))
         } else {
-            Text("Read this code to the person who invited you", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            // Not once codes have stopped: there's none to read.
+            if (!guest.stopped) Text("Read this code to the person who invited you", fontSize = 20.sp, fontWeight = FontWeight.Bold)
             val shown = code
             if (shown != null) {
                 Text(shown.display, fontSize = 56.sp, fontWeight = FontWeight.Black, letterSpacing = 4.sp, modifier = Modifier.semantics { contentDescription = shown.spoken })
