@@ -2,6 +2,7 @@ import { useEffect, useId, useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
 import { onLockedChange, unlockAdmin } from '../api/client'
 import { useModal } from '../hooks/useModal'
+import { usePinLockout } from '../hooks/usePinLockout'
 import { errorText } from '../pages/settings/useSettings'
 import { AsyncButton } from './AsyncButton'
 
@@ -32,17 +33,19 @@ function UnlockDialog({ onDone }: { onDone: (unlocked: boolean) => void }) {
   const [pin, setPin] = useState('')
   const [error, setError] = useState<string>()
   const [busy, setBusy] = useState(false)
+  const lockout = usePinLockout()
   const dialog = useModal<HTMLFormElement>(() => onDone(false), !busy)
 
   async function submit(event: FormEvent) {
     event.preventDefault()
+    if (lockout.locked) return
     setBusy(true)
     setError(undefined)
     try {
       await unlockAdmin({ pin })
       onDone(true)
     } catch (e) {
-      setError(errorText(e))
+      setError(lockout.lockFrom(e) ? undefined : errorText(e))
       setPin('')
       setBusy(false)
     }
@@ -56,9 +59,9 @@ function UnlockDialog({ onDone }: { onDone: (unlocked: boolean) => void }) {
           <span className="field-label">Main profile’s PIN</span>
           <input type="password" inputMode="numeric" autoComplete="off" required minLength={4} autoFocus value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 8))} />
         </label>
-        {error && (
+        {(lockout.message ?? error) && (
           <p className="error" role="alert">
-            {error}
+            {lockout.message ?? error}
           </p>
         )}
         <div className="form-actions">
@@ -68,7 +71,7 @@ function UnlockDialog({ onDone }: { onDone: (unlocked: boolean) => void }) {
           <button type="button" className="button quiet" onClick={() => onDone(false)} disabled={busy}>
             Cancel
           </button>
-          <AsyncButton type="submit" className="button" busy={busy}>
+          <AsyncButton type="submit" className="button" busy={busy} disabled={lockout.locked}>
             Unlock
           </AsyncButton>
         </div>
