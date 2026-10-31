@@ -107,6 +107,13 @@ struct WatchlistTitleEntity: AppEntity {
         kind = item.kind
     }
 
+    init(id: String, title: String, year: Int?, kind: MediaKind) {
+        self.id = id
+        self.title = title
+        self.year = year
+        self.kind = kind
+    }
+
     init(_ outside: ExternalTitle) {
         id = "\(Self.outsidePrefix)\(outside.mediaType):\(outside.tmdbId)"
         title = outside.title
@@ -151,8 +158,14 @@ struct WatchlistTitleQuery: EntityStringQuery {
         return library.map(WatchlistTitleEntity.init) + outside.prefix(10).map(WatchlistTitleEntity.init)
     }
 
+    /// The library's films and shows, so Siri knows their names in "Save … in Flexarr" (a phrase only matches names it
+    /// was given). Any other title goes through "Add to my watchlist in Flexarr", which asks for it.
     @MainActor
-    func suggestedEntities() async throws -> [WatchlistTitleEntity] { [] }
+    func suggestedEntities() async throws -> [WatchlistTitleEntity] {
+        try await TitleQuery().suggestedEntities().filter { $0.kind == .movie || $0.kind == .series }.map {
+            WatchlistTitleEntity(id: $0.id, title: $0.title, year: $0.year, kind: $0.kind)
+        }
+    }
 }
 
 /// A podcast this profile follows.
@@ -1030,6 +1043,10 @@ struct FlexarrShortcuts: AppShortcutsProvider {
                 "Add \(\.$title) to \(.applicationName)",
                 "\(.applicationName) save \(\.$title)",
                 "\(.applicationName) save \(\.$title) for later",
+                // No title in the phrase: Siri asks which, and any title (one you don't have too) can be the answer.
+                "Add to my watchlist in \(.applicationName)",
+                "Add something to my \(.applicationName) watchlist",
+                "Save something in \(.applicationName)",
             ],
             shortTitle: "Add to watchlist",
             systemImageName: "bookmark"
