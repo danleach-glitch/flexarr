@@ -374,9 +374,7 @@ final class AppModel {
             } catch FlexarrClientError.guestRemoved where refused.isGuest {
                 // A guest's device its host removed: refused everything, not just the sign-in.
                 guard credentials == refused else { return }
-                signedOutNotice = refused.guest.map { "You no longer have access to \($0.ownerName)’s Flexarr." } ?? "You no longer have access to this Flexarr."
-                forget()
-                signedOutAsGuest = true
+                removedAsGuest(refused.guest)
                 return
             } catch {
                 return // Unreachable or restarting: no reason to forget the sign-in.
@@ -434,8 +432,27 @@ final class AppModel {
     @discardableResult
     func ensureGuestTunnel() async -> Bool {
         guard let credentials, let guest = credentials.guest else { return true }
+        let network = NetworkWatch.shared
+        network.onReturn = { [weak self] in
+            guard let self, self.tunnelProblem != nil else { return }
+            Task { await self.ensureGuestTunnel() }
+        }
+        // The tunnel tries for up to a minute: with no network, or still nothing after a while, the problem shows
+        // now (Downloads are there on iPhone) while it carries on trying.
+        let early = Task { @MainActor [weak self] in
+            for second in 1...15 {
+                guard (try? await Task.sleep(for: .seconds(1))) != nil, let self, self.credentials?.guest == guest else { return }
+                if network.isOffline || second == 15 {
+                    if self.tunnelProblem == nil { self.tunnelProblem = network.isOffline ? "No network" : "Still connecting" }
+                    return
+                }
+            }
+        }
+        defer { early.cancel() }
         do {
             let address = try await GuestTunnel.shared.start(guest)
+            early.cancel()
+            let recovered = tunnelProblem != nil
             tunnelProblem = nil
             // The port it asked for was taken: the sign-in moves to the one it got.
             if let now = self.credentials, now.guest == guest, now.address != address {
@@ -445,12 +462,28 @@ final class AppModel {
                 try? store.save(moved)
                 phase = .signedIn(moved)
             }
+            // Back after the problem showed: whatever gave up waiting for the tunnel (the profiles) goes again.
+            if recovered, !loadingProfiles { Task { await loadProfiles() } }
             return true
+        } catch GuestTunnel.Failure.needsInvite {
+            // Deleted from the host's tailnet (or its key ran out): Try again can't help, so it's as if removed.
+            guard self.credentials?.guest == guest else { return false }
+            removedAsGuest(guest)
+            return false
         } catch {
             guard self.credentials?.guest == guest else { return false }
+            log.warning("The guest tunnel didn't start: \(error.localizedDescription)")
             tunnelProblem = error.localizedDescription
             return false
         }
+    }
+
+    /// The host removed this device (or deleted it from their tailnet): signed out, back to joining, saying why.
+    private func removedAsGuest(_ guest: GuestTunnelInfo?) {
+        let owner = guest.map(\.ownerName).flatMap { $0.trimmingCharacters(in: .whitespaces).isEmpty ? nil : "\($0)’s Flexarr" }
+        signedOutNotice = "You no longer have access to \(owner ?? "this Flexarr")."
+        forget()
+        signedOutAsGuest = true
     }
 
     enum JoinError: LocalizedError {
@@ -556,15 +589,18 @@ final class AppModel {
         await loadProfiles()
     }
 
+    /// `loadProfiles` is under way (a tunnel that comes back doesn't start another).
+    @ObservationIgnored private var loadingProfiles = false
+
     func loadProfiles() async {
+        loadingProfiles = true
+        defer { loadingProfiles = false }
         if let guest = credentials?.guest {
             guard await ensureGuestTunnel() else { return }
             upgradeChecked = true // a guest's sign-in is its own already
             // Removed by its host: the server refuses everything from this device (403), not just the sign-in.
             if case FlexarrClientError.guestRemoved? = await Self.failure(of: { try await self.client?.me() }) {
-                signedOutNotice = "You no longer have access to \(guest.ownerName)’s Flexarr."
-                forget()
-                signedOutAsGuest = true
+                removedAsGuest(guest)
                 return
             }
         }
