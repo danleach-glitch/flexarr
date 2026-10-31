@@ -125,6 +125,21 @@ public sealed class ArrClient(HttpClient httpClient)
     public Task<IReadOnlyList<ReadarrBook>> GetBookCalendarAsync(ArrInstance readarr, DateTime start, DateTime end, CancellationToken ct = default) =>
         GetAsync<IReadOnlyList<ReadarrBook>>(readarr, $"calendar?start={start:yyyy-MM-dd}&end={end:yyyy-MM-dd}&includeAuthor=true&unmonitored=false", ct);
 
+    /// <summary>The files the app has for one book.</summary>
+    public Task<IReadOnlyList<ReadarrBookFile>> GetBookFilesForBookAsync(ArrInstance readarr, string bookId, CancellationToken ct = default) =>
+        GetAsync<IReadOnlyList<ReadarrBookFile>>(readarr, $"bookfile?bookId={Uri.EscapeDataString(bookId)}", ct);
+
+    /// <summary>Monitors a book or stops: an unmonitored book isn't searched for or fetched again.</summary>
+    public async Task SetBookMonitoredAsync(ArrInstance readarr, string bookId, bool monitored, CancellationToken ct = default)
+    {
+        // Readarr's ids are numbers; anything else is sent as it came.
+        JsonNode id = long.TryParse(bookId, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var n) ? JsonValue.Create(n) : JsonValue.Create(bookId);
+        using var request = Request(readarr, HttpMethod.Put, "book/monitor");
+        request.Content = JsonContent.Create(new JsonObject { ["bookIds"] = new JsonArray(id), ["monitored"] = monitored }, options: Json);
+        using var response = await httpClient.SendAsync(request, ct).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+    }
+
     /// <summary>Books it knows of matching the words, owned or not: for requests and Fix match.</summary>
     public Task<IReadOnlyList<ReadarrBook>> LookupBooksAsync(ArrInstance readarr, string term, CancellationToken ct = default) =>
         GetAsync<IReadOnlyList<ReadarrBook>>(readarr, $"book/lookup?term={Uri.EscapeDataString(term)}", ct);

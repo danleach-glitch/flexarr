@@ -9,9 +9,6 @@ namespace Flexarr.Metadata;
 /// <summary>Audiobooks: what Readarr, Bookshelf or Chaptarr know about a book fills what its files don't say.</summary>
 public sealed partial class MetadataRefresher
 {
-    /// <summary>The source of a book's details when a Readarr-compatible app supplied some.</summary>
-    public const string Readarr = "Readarr";
-
     /// <summary>What one app knows, fetched once per refresh.</summary>
     private sealed record ReadarrCatalogue(ArrInstance Instance, IReadOnlyList<ReadarrAuthor> Authors, IReadOnlyList<ReadarrBook> Books,
         IReadOnlyList<ReadarrBookFile> Files, IReadOnlyDictionary<string, List<(ReadarrSeries Series, string? Position)>> SeriesByBook);
@@ -112,7 +109,8 @@ public sealed partial class MetadataRefresher
         book.Year ??= book.ReleaseDate?.Year;
         book.Studio ??= details.Publisher;
         book.PosterUrl ??= Cover(match.Images) ?? Cover(edition?.Images ?? []);
-        book.MetadataSource ??= Readarr;
+        // Which app has it: deleting it goes through that one.
+        book.MetadataSource = catalogue.Instance.Name;
 
         if (book.Genres.Count == 0 && match.Genres.Count > 0)
         {
