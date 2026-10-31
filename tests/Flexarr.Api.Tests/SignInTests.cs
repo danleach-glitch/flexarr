@@ -172,12 +172,12 @@ public class SignInTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
     }
 
     [Fact]
-    public async Task ShowingTheKey_AsksAgain_ForTheMainProfilesPinWhenItHasOne()
+    public async Task ShowingTheKey_AsksAgain_ForTheAdminPinWhenThereIsOne()
     {
         var (browser, _) = await SignInBrowserAsync();
         var unconfirmed = await browser.PostAsJsonAsync(Api("/settings/api-key/reveal"), new { });
 
-        await Admin().PutAsJsonAsync(Api("/profiles/owner"), new { name = "Owner", pin = "1593" });
+        await Admin().PostAsJsonAsync(Api("/admin/pin"), new { pin = "1593" });
         var justConfirmed = await browser.PostAsJsonAsync(Api("/settings/api-key/reveal"), new { confirm = true });
         var wrongPin = await browser.PostAsJsonAsync(Api("/settings/api-key/reveal"), new { pin = "0000" });
         var rightPin = await browser.PostAsJsonAsync(Api("/settings/api-key/reveal"), new { pin = "1593" });
@@ -280,7 +280,7 @@ public class SignInTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
     [Fact]
     public async Task ADevice_WatchingAsAnotherProfile_CantManageTheServer_UntilTheMainProfileIsChosenAgain()
     {
-        await Admin().PutAsJsonAsync(Api("/profiles/owner"), new { name = "Owner", pin = "4826" });
+        await Admin().PostAsJsonAsync(Api("/admin/pin"), new { pin = "4826" });
         var kid = await CreateProfileAsync("Kid on TV");
         var tv = Device(await DeviceTokenAsync("Kid's TV"));
 

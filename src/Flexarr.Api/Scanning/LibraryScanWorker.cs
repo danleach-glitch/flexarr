@@ -203,6 +203,7 @@ public sealed partial class LibraryScanWorker(
 
         // A film or show that came back under a new folder only has its TMDB/TVDB id once Radarr or Sonarr matched it.
         await WatchHistoryCarryOver.CarryOverAsync(db, ct);
+        await TraktHolds.ApplyAsync(db, ct);
     }
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Couldn't work out path mappings before refreshing metadata")]

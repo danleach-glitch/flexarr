@@ -52,7 +52,7 @@ public static class RemoteAccessEndpoints
                 profile.IsAdmin,
                 http.User.FindFirst(FlexarrClaims.TailscaleLogin)?.Value,
                 profile.CanUnlock,
-                (profile.IsAdmin || profile.CanUnlock) && await db.Profiles.AnyAsync(p => p.Id == PlaybackState.DefaultUser && p.PinHash == null, ct),
+                (profile.IsAdmin || profile.CanUnlock) && await db.Profiles.AnyAsync(p => p.Id == PlaybackState.DefaultUser && p.AdminPinHash == null, ct),
                 profile.IsAdmin ? unlocks.UnlockedUntil(profile.SignInId) : null,
                 db.ServesKids, db.MaxRatingAge, signIns.ById(profile.SignInId)?.KidsLock == true, profile.IsGuest);
         }).WithTags("Remote access");
@@ -123,7 +123,7 @@ public static class RemoteAccessEndpoints
         var state = await tailscale.StateAsync(port, ct);
         var linked = await db.Profiles.AsNoTracking().Where(p => p.TailscaleLogin != null).ToDictionaryAsync(p => p.TailscaleLogin!, p => p.Id, ct);
         var links = state.People.Select(p => new TailnetLinkDto(p.Login, p.Name, linked.GetValueOrDefault(p.Login))).ToList();
-        var mainPin = await db.Profiles.AsNoTracking().AnyAsync(p => p.Id == PlaybackState.DefaultUser && p.PinHash != null, ct);
+        var mainPin = await db.Profiles.AsNoTracking().AnyAsync(p => p.Id == PlaybackState.DefaultUser && p.AdminPinHash != null, ct);
         return new RemoteAccessDto(
             NetworkZones.Of(http),
             http.User.FindFirst(FlexarrClaims.TailscaleLogin)?.Value,

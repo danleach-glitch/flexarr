@@ -14,9 +14,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material.icons.outlined.PlayCircle
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -35,6 +37,8 @@ import io.github.flexarr.AppModel
 import io.github.flexarr.BuildConfig
 import io.github.flexarr.core.FlexarrClient
 import io.github.flexarr.core.Library
+import io.github.flexarr.core.TraktStatus
+import io.github.flexarr.core.traktStatus
 import io.github.flexarr.ui.components.Load
 import io.github.flexarr.ui.components.Loader
 import io.github.flexarr.ui.components.rememberLoader
@@ -42,7 +46,7 @@ import io.github.flexarr.ui.library.LibraryMenuEntry
 import io.github.flexarr.ui.theme.Flexarr
 
 /** Settings' pages, opened from the first and from each other; Back goes to the one before. */
-internal enum class TvSettingsPageId { Main, Playback, Libraries, Sidebar, Server, Diagnostics }
+internal enum class TvSettingsPageId { Main, Playback, Libraries, Sidebar, Trakt, Server, Diagnostics }
 
 /**
  * Settings, as the Apple TV's SettingsView: a short list of pages, each row saying how it's set now, the details a
@@ -56,6 +60,13 @@ fun TvSettingsScreen(model: AppModel, onSwitchProfile: () -> Unit) {
     var returningFrom by remember { mutableStateOf<TvSettingsPageId?>(null) }
     // Here rather than on a page, so the Sidebar row is there at once when Back comes to it.
     val libraries = rememberLoader(model.credentials, model.librariesVersion) { model.client?.libraries().orEmpty() }
+    // Null until known, and from servers without Trakt (before 0.57) or on kids profiles: then there's no Trakt row.
+    // Asked again on coming back to the first page, so the row says how it's set now.
+    var trakt by remember { mutableStateOf<TraktStatus?>(null) }
+    val onMain = stack.last() == TvSettingsPageId.Main
+    LaunchedEffect(model.credentials, model.currentProfile?.id, onMain) {
+        if (onMain) trakt = runCatching { model.client?.traktStatus() }.getOrNull()
+    }
 
     fun open(page: TvSettingsPageId) {
         returningFrom = null
@@ -65,10 +76,11 @@ fun TvSettingsScreen(model: AppModel, onSwitchProfile: () -> Unit) {
     BackHandler(enabled = stack.size > 1) { returningFrom = stack.removeAt(stack.lastIndex) }
 
     when (stack.last()) {
-        TvSettingsPageId.Main -> MainPage(model, libraries, returningFrom, onSwitchProfile, ::open)
+        TvSettingsPageId.Main -> MainPage(model, libraries, trakt?.takeIf { it.available }, returningFrom, onSwitchProfile, ::open)
         TvSettingsPageId.Playback -> TvPlaybackSettings(model)
         TvSettingsPageId.Libraries -> TvLibrarySettings()
         TvSettingsPageId.Sidebar -> TvSidebarSettings(model, libraries)
+        TvSettingsPageId.Trakt -> TvTraktSettings(model)
         TvSettingsPageId.Server -> TvServerSettings(model, libraries, returningFrom, onDiagnostics = { open(TvSettingsPageId.Diagnostics) })
         TvSettingsPageId.Diagnostics -> TvDiagnosticsSettings(model)
     }
@@ -82,6 +94,7 @@ internal fun sidebarEntries(model: AppModel, libraries: Loader<List<Library>>): 
 private fun MainPage(
     model: AppModel,
     libraries: Loader<List<Library>>,
+    trakt: TraktStatus?,
     returningFrom: TvSettingsPageId?,
     onSwitchProfile: () -> Unit,
     open: (TvSettingsPageId) -> Unit,
@@ -97,7 +110,7 @@ private fun MainPage(
     // Coming back, the row that opened the page; otherwise the first row.
     val focusOn = returningFrom ?: if (switches) null else TvSettingsPageId.Playback
     val focus = remember { FocusRequester() }
-    TakeFocus(focus, key = focusOn, ready = focusOn != TvSettingsPageId.Sidebar || sidebarFirst != null)
+    TakeFocus(focus, key = focusOn, ready = (focusOn != TvSettingsPageId.Sidebar || sidebarFirst != null) && (focusOn != TvSettingsPageId.Trakt || trakt != null))
 
     fun Modifier.focusFor(page: TvSettingsPageId?) = if (page == focusOn) focusRequester(focus) else this
 
@@ -136,6 +149,15 @@ private fun MainPage(
                     "Sidebar", onClick = { open(TvSettingsPageId.Sidebar) }, modifier = Modifier.focusFor(TvSettingsPageId.Sidebar),
                     icon = Icons.Filled.Menu, value = "${sidebarFirst.title} first", accessory = TvSettingAccessory.Chevron,
                     help = "The order of your libraries and Live TV in the sidebar, between Home and Discover.",
+                )
+            }
+        }
+        if (trakt != null) {
+            item {
+                TvSettingsRow(
+                    "Trakt", onClick = { open(TvSettingsPageId.Trakt) }, modifier = Modifier.focusFor(TvSettingsPageId.Trakt),
+                    icon = Icons.Filled.Sync, value = trakt.settingsValue, accessory = TvSettingAccessory.Chevron,
+                    help = "Keep what this profile watches, and its watchlist, in step with Trakt.",
                 )
             }
         }

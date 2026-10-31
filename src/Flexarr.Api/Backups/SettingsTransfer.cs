@@ -48,7 +48,7 @@ public static class SettingsTransfer
     /// <summary>The settings in each section, as config.json names them.</summary>
     public static readonly IReadOnlyDictionary<string, string[]> Sections = new Dictionary<string, string[]>
     {
-        ["connections"] = ["arr", "seerr", "bazarr", "pathMappings"],
+        ["connections"] = ["arr", "seerr", "bazarr", "tmdb", "trakt", "pathMappings"],
         ["liveTv"] = ["liveTv"],
         ["streaming"] = ["transcoding"],
         ["layout"] = ["layout"],
@@ -59,6 +59,32 @@ public static class SettingsTransfer
         [MachineSection] = ["ffmpegPath", "ffprobePath", "cacheDirectory", "backups"],
         [KeysSection] = ["apiKey", "webhookSecret", "imageSecret"],
     };
+
+    /// <summary>Settings added to a section later: a file without them leaves this server's as they are.</summary>
+    private static readonly HashSet<string> KeptUnlessGiven = new(StringComparer.OrdinalIgnoreCase) { "trakt", "tmdb" };
+
+    /// <summary>
+    /// What of a setting goes between servers: for Trakt, only the app's id and secret, never where its token calls go
+    /// (a file can't send everyone's Trakt sign-ins to another address).
+    /// </summary>
+    private static JsonNode? Portable(string key, JsonNode? value)
+    {
+        if (!key.Equals("trakt", StringComparison.OrdinalIgnoreCase) || value is not JsonObject trakt)
+        {
+            return value;
+        }
+
+        var app = new JsonObject();
+        foreach (var name in new[] { "clientId", "clientSecret" })
+        {
+            if (trakt.FirstOrDefault(p => p.Key.Equals(name, StringComparison.OrdinalIgnoreCase)).Value is { } v)
+            {
+                app[name] = v.DeepClone();
+            }
+        }
+
+        return app;
+    }
 
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
     {
@@ -170,7 +196,7 @@ public static class SettingsTransfer
         var settings = new JsonObject();
         foreach (var (key, value) in config.Where(p => SectionOf(p.Key) is not null))
         {
-            settings[key] = value?.DeepClone();
+            settings[key] = Portable(key, value?.DeepClone());
         }
 
         db.HiddenLibraryIds = [];
@@ -231,15 +257,16 @@ public static class SettingsTransfer
             {
                 foreach (var section in chosen.Where(s => settings.Any(p => SectionOf(p.Key) == s)))
                 {
-                    // The section as the file has it: settings it doesn't have go back to their defaults.
-                    foreach (var key in config.Select(p => p.Key).Where(k => SectionOf(k) == section).ToList())
+                    // The section as the file has it: settings it doesn't have go back to their defaults, except ones a
+                    // file from before they were exported can't have had (your own Trakt app, the TMDB key).
+                    foreach (var key in config.Select(p => p.Key).Where(k => SectionOf(k) == section && !(KeptUnlessGiven.Contains(k) && !settings.ContainsKey(k))).ToList())
                     {
                         config.Remove(key);
                     }
 
                     foreach (var (key, value) in settings.Where(p => SectionOf(p.Key) == section))
                     {
-                        config[key] = value?.DeepClone();
+                        config[key] = Portable(key, value?.DeepClone());
                     }
 
                     applied.Add(section);

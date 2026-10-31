@@ -1,0 +1,45 @@
+{
+ "title": "Sleep Timer Brief",
+ "brief": "Add a sleep timer to the players so playback stops after a set time or at the end of the episode.",
+ "summary": "A sleep timer in every player: pick 15, 30 or 60 minutes or *End of episode*, and playback fades out and pauses. The server only remembers each profile's last choice.",
+ "date": "1 November 2026",
+ "kind": "feature",
+ "branch": "feat/sleep-timer",
+ "decided": [
+  "**Choices:** 15, 30, 60 minutes and *End of episode*.",
+  "**Remembered:** per profile, on the server, so it follows you between devices."
+ ],
+ "defaults": [
+  "The last minute fades the volume out rather than cutting it.",
+  "A new optional `sleepTimer` field on profile settings; older apps ignore it."
+ ],
+ "parity": {
+  "rows": [
+   {"mark": "✅", "client": "Web", "what": "Timer button in the player"},
+   {"mark": "✅", "client": "iPhone", "what": "Timer button and Live Activity countdown"},
+   {"mark": "🟡", "client": "Apple TV", "what": "In the player's options menu only"},
+   {"mark": "❌", "client": "Android TV", "what": "Later"}
+  ]
+ },
+ "phases": [
+  {"name": "Phase 1 · Server", "intro": "The setting, before any player uses it.", "items": [
+   {"id": "srv-1", "title": "Remember each profile's last sleep timer choice", "detail": "Optional field on profile settings.", "files": "src/Flexarr.Core/Media/Profile.cs, Data/Migrations/*SleepTimer*", "check": "dotnet test"},
+   {"id": "test-1", "title": "Settings round trip and older-app tests", "files": "tests/Flexarr.Api.Tests/ProfileSettingsTests.cs", "check": "dotnet test --disable-build-servers"}
+  ]},
+  {"name": "Phase 2 · Players", "groups": [
+   {"name": "Web", "items": [
+    {"id": "web-1", "title": "Timer button with the four choices, fade-out and pause", "files": "frontend/src/player/SleepTimer.tsx", "check": "npx vitest run; preview"}
+   ]},
+   {"name": "Apple", "items": [
+    {"id": "ios-1", "title": "iPhone timer button and countdown", "files": "clients/apple/FlexarriOS/Player/SleepTimerButton.swift", "check": "build; simulator"},
+    {"id": "tv-1", "title": "Apple TV options menu entry", "files": "clients/apple/FlexarrTV/Player/PlayerOptions.swift", "check": "build; simulator"}
+   ]}
+  ]},
+  {"name": "Phase 3 · Landing", "items": [
+   {"id": "docs-1", "title": "Changelog entry and the guide's player page", "files": "CHANGELOG.md, docs/guide/player.md, site/guide", "check": "make guide"},
+   {"id": "test-2", "title": "Try it on the real Apple TV", "detail": "A timer set on the phone should stop the TV.", "check": "by hand", "you": true}
+  ]}
+ ],
+ "later": ["**Shake to extend (S):** shaking the iPhone adds 15 minutes, like audiobook apps."],
+ "risks": ["Fading the volume on tvOS may not be possible with the system player; it then just pauses."]
+}

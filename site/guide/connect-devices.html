@@ -78,6 +78,7 @@
               <li><a href="/guide/music">Music</a></li>
               <li><a href="/guide/podcasts">Podcasts</a></li>
               <li><a href="/guide/watchlist">Watchlist</a></li>
+              <li><a href="/guide/trakt">Trakt</a></li>
               <li><a href="/guide/downloads">Downloads</a></li>
               <li><a href="/guide/iphone-remote">Your iPhone as a remote</a></li>
               <li><a href="/guide/live-tv">Live TV and recording</a></li>
@@ -132,7 +133,7 @@
 <h2 id="allow-it-from-your-phone"><a class="anchor" href="#allow-it-from-your-phone" aria-hidden="true" tabindex="-1">#</a>Allow it from your phone</h2>
 <p>When a device asks to connect, every iPhone and Android phone signed in as the main profile asks <strong>Connect “Living room”?</strong>, with the device&#39;s code. Check the code matches the one on the device&#39;s screen and tap <strong>Allow</strong>. If the device isn&#39;t yours, tap <strong>Don&#39;t allow</strong>: the device says <strong>Not allowed</strong>, and asks again only if someone there chooses <strong>Try again</strong>.</p>
 <p>The phone asks while Flexarr is open on it. When it isn&#39;t, a notification says the device wants to connect, if notifications are turned on for that phone. Choose <strong>Allow</strong> or <strong>Don&#39;t allow</strong> on the notification itself (the phone asks to be unlocked first), or tap it to get the same question in the app. The web app asks too, when it&#39;s open on the main profile.</p>
-<p>To see every device waiting, open <strong>Settings</strong> in the app, or <strong>Settings › Devices › Connect a device</strong> on the web. Each one has <strong>Allow</strong> and <strong>Don&#39;t allow</strong>.</p>
+<p>To see every device waiting, open <strong>Settings</strong> in the app, or <strong>Settings › Security › Connect a device</strong> on the web. Each one has <strong>Allow</strong> and <strong>Don&#39;t allow</strong>.</p>
 <p>Turned a device away by mistake? Choose <strong>Try again</strong> on the device, and allow it this time. (An app from before version 0.56 shows a new code by itself instead; you aren&#39;t asked about that one, but it&#39;s listed in Settings as turned away, with <strong>Allow</strong>.)</p>
 <h2 id="iphone-and-ipad"><a class="anchor" href="#iphone-and-ipad" aria-hidden="true" tabindex="-1">#</a>iPhone and iPad</h2>
 <p>Get the app <a href="https://apps.apple.com/app/flexarr/id6826618084" rel="noopener">from the App Store</a>.</p>
@@ -141,24 +142,24 @@
 <li>When iOS asks whether Flexarr can find devices on your local network, choose <strong>Allow</strong>. Without it, the app can&#39;t see your server.</li>
 <li>Under <strong>Servers on your network</strong>, choose your server.</li>
 <li>The app shows <strong>Connect this iPhone</strong> (or iPad) with a code like <code>ABC-123</code>.</li>
-<li>On another phone signed in to Flexarr, tap <strong>Allow</strong> when it asks (see <a href="#allow-it-from-your-phone">Allow it from your phone</a>). Or, on your computer, open the server&#39;s address in a browser, go to <strong>Settings › Devices › Connect a device</strong>, type in the code and choose <strong>Continue</strong>.</li>
+<li>On another phone signed in to Flexarr, tap <strong>Allow</strong> when it asks (see <a href="#allow-it-from-your-phone">Allow it from your phone</a>). Or, on your computer, open the server&#39;s address in a browser, go to <strong>Settings › Security › Connect a device</strong>, type in the code and choose <strong>Continue</strong>.</li>
 <li>Check that the code matches the one on your phone, and choose <strong>Allow</strong>.</li>
 </ol>
 <p>The app moves on by itself a moment later. If your household has several profiles, it asks who&#39;s watching.</p>
 <p>If Safari on the same phone is already signed in to Flexarr, <strong>Approve in Safari instead</strong> opens the approval page there, so you don&#39;t need the computer.</p>
-<figure><img src="/guide/img/connect-device.webp" alt="The Connect a device page with a box for the code shown on the TV, iPhone or iPad" data-caption="Settings › Devices › Connect a device, where you type the code" loading="lazy" decoding="async"></figure>
+<figure><img src="/guide/img/connect-device.webp" alt="The Connect a device page with a box for the code shown on the TV, iPhone or iPad" data-caption="Settings › Security › Connect a device, where you type the code" loading="lazy" decoding="async"></figure>
 <h2 id="apple-tv"><a class="anchor" href="#apple-tv" aria-hidden="true" tabindex="-1">#</a>Apple TV</h2>
 <p>The Apple TV app isn&#39;t on the App Store yet. Until it is, <a href="/guide/apple-tv-xcode">install it with Xcode</a>.</p>
 <ol>
 <li>Open Flexarr on the Apple TV. It lists <strong>Servers on your network</strong>; choose yours.</li>
 <li>The TV shows <strong>Connect this Apple TV</strong> and a code.</li>
-<li>On your phone, tap <strong>Allow</strong> when it asks, checking the code matches. Or, on your computer, go to <strong>Settings › Devices › Connect a device</strong>, type in the code, then choose <strong>Continue</strong> and <strong>Allow</strong>.</li>
+<li>On your phone, tap <strong>Allow</strong> when it asks, checking the code matches. Or, on your computer, go to <strong>Settings › Security › Connect a device</strong>, type in the code, then choose <strong>Continue</strong> and <strong>Allow</strong>.</li>
 </ol>
 <p>The TV also shows a QR code. Scan it with a phone that&#39;s already signed in to Flexarr in its browser, and the approval page opens with the code filled in.</p>
 <blockquote class="callout note"><p><strong>Note</strong> A code lasts as long as the device keeps showing it. If you go back and choose the server again, the device gets a new code.</p>
 </blockquote>
 <h2 id="other-browsers"><a class="anchor" href="#other-browsers" aria-hidden="true" tabindex="-1">#</a>Other browsers</h2>
-<p>Browsers don&#39;t get a code. Open the server&#39;s address in the new browser and it asks for the <strong>API key</strong>: type it in once, and the browser gets a sign-in of its own, so it doesn&#39;t keep the key. The key is in <strong>Settings › Devices</strong> on the browser you set up with (see <a href="/guide/first-setup#the-api-key">The API key</a>).</p>
+<p>Browsers don&#39;t get a code. Open the server&#39;s address in the new browser and it asks for the <strong>API key</strong>: type it in once, and the browser gets a sign-in of its own, so it doesn&#39;t keep the key. The key is in <strong>Settings › Security</strong> on the browser you set up with (see <a href="/guide/first-setup#the-api-key">The API key</a>).</p>
 <p>Over <a href="/guide/away-from-home">Tailscale</a>, browsers sign in by your Tailscale account instead, with no key.</p>
 <h2 id="who-can-approve-a-device"><a class="anchor" href="#who-can-approve-a-device" aria-hidden="true" tabindex="-1">#</a>Who can approve a device</h2>
 <p>Only the <strong>main profile</strong> can connect devices. If the browser you&#39;re using is on another profile, the <strong>Connect a device</strong> page says so and offers <strong>Switch to the main profile</strong> (asking for its PIN, if it has one).</p>
@@ -182,7 +183,7 @@
 </ul>
 <p>Use the server&#39;s IP address and port. You&#39;ll find the IP address in your router&#39;s list of devices, or on the server itself.</p>
 <h2 id="manage-and-remove-devices"><a class="anchor" href="#manage-and-remove-devices" aria-hidden="true" tabindex="-1">#</a>Manage and remove devices</h2>
-<p>Signed in as the main profile, go to <strong>Settings › Devices</strong>. Under <strong>Signed-in browsers and TVs</strong> you&#39;ll see every browser, iPhone, iPad and Apple TV with a sign-in of its own, and when it was last used.</p>
+<p>Signed in as the main profile, go to <strong>Settings › Security</strong>. Under <strong>Signed-in browsers and TVs</strong> you&#39;ll see every browser, iPhone, iPad and Apple TV with a sign-in of its own, and when it was last used.</p>
 <ul>
 <li><strong>Rename</strong> gives a device a name you&#39;ll recognise.</li>
 <li><strong>Sign out</strong> signs out one device. It&#39;ll need a new code to come back.</li>

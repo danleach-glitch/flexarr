@@ -84,6 +84,7 @@ import io.github.flexarr.core.liveChannels
 import io.github.flexarr.core.podcastEpisode
 import io.github.flexarr.ui.settings.DiagnosticsSettingsScreen
 import io.github.flexarr.ui.settings.NotificationSettingsScreen
+import io.github.flexarr.ui.settings.TraktSettingsScreen
 import io.github.flexarr.ui.settings.WaitingDevicesScreen
 import io.github.flexarr.ui.settings.DownloadSettingsScreen
 import io.github.flexarr.ui.settings.LibraryOrderSettingsScreen
@@ -310,6 +311,7 @@ fun MainScreen(model: AppModel) {
                         onDownloads = { nav.navigate("settings/downloads") },
                         onPodcasts = { nav.navigate("settings/podcasts") },
                         onNotifications = { nav.navigate("settings/notifications") },
+                        onTrakt = { nav.navigate("settings/trakt") },
                     )
                 }
                 composable("settings/playback") { PlaybackSettingsScreen(model) }
@@ -318,6 +320,7 @@ fun MainScreen(model: AppModel) {
                 composable("settings/server") { ServerSettingsScreen(model, onDiagnostics = { nav.navigate("settings/diagnostics") }) }
                 composable("settings/diagnostics") { DiagnosticsSettingsScreen(model) }
                 composable("settings/notifications") { NotificationSettingsScreen(model) }
+                composable("settings/trakt") { TraktSettingsScreen(model) }
                 composable("settings/waiting-devices") { WaitingDevicesScreen(model) }
                 composable("settings/library-order") { LibraryOrderSettingsScreen(model) }
                 composable(

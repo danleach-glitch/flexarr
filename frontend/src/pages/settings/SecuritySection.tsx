@@ -1,20 +1,25 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
-import { getProfiles, revealApiKey, rotateApiKey, type Settings } from '../../api/client'
+import { getMe, revealApiKey, rotateApiKey, setAdminPin, type Settings } from '../../api/client'
 import { AsyncButton } from '../../components/AsyncButton'
 import { CopyButton } from '../../components/CopyButton'
 import { Eye, EyeOff } from '../../components/icons'
 import { SignIns } from '../../components/SignIns'
 import { useApi } from '../../hooks/useApi'
+import { usePinLockout } from '../../hooks/usePinLockout'
 import { SaveStatus, SettingRow, SettingsGroup, SettingsHeader } from './shared'
 import { errorText, useSettings } from './useSettings'
 
-/** The browsers and TVs signed in, connecting another, and the API key that signs in a new one. */
-export function DevicesSection() {
+const digits = (value: string) => value.replace(/\D/g, '').slice(0, 8)
+
+/** What keeps the server to its owner: the admin PIN, the API key, and the browsers and TVs signed in. */
+export function SecuritySection() {
   const [signInsVersion, setSignInsVersion] = useState(0)
   return (
     <section>
-      <SettingsHeader title="Devices">The browsers and TVs signed in to Flexarr, and the key that signs in a new one.</SettingsHeader>
+      <SettingsHeader title="Security">The admin PIN, the API key, and the browsers and TVs signed in.</SettingsHeader>
+      <AdminPinGroup />
+      <ApiKeyGroup onSignedOut={() => setSignInsVersion((n) => n + 1)} />
       <div className="settings-group">
         <div className="settings-group-head">
           <h3 className="settings-subhead">Signed-in browsers and TVs</h3>
@@ -24,8 +29,148 @@ export function DevicesSection() {
         </div>
         <SignIns key={signInsVersion} />
       </div>
-      <ApiKeyGroup onSignedOut={() => setSignInsVersion((n) => n + 1)} />
     </section>
+  )
+}
+
+/**
+ * The admin PIN: asked for before the server's settings change and to let a child off a kids profile. The main
+ * profile's own PIN, for watching as it, is apart (in Profiles). Changing it takes the current one, or the API key.
+ */
+function AdminPinGroup() {
+  const [changing, setChanging] = useState(false)
+  const [forgotten, setForgotten] = useState(false)
+  const [currentPin, setCurrentPin] = useState('')
+  const [apiKey, setApiKey] = useState('')
+  const [pin, setPin] = useState('')
+  const [confirmPin, setConfirmPin] = useState('')
+  const [error, setError] = useState<string>()
+  const [busy, setBusy] = useState(false)
+  const [changed, setChanged] = useState(false)
+  const lockout = usePinLockout()
+  // Too many wrong PINs only hold up the PIN: the API key is checked on its own.
+  const held = lockout.locked && !forgotten
+  const opener = useRef<HTMLButtonElement>(null)
+  const proof = useRef<HTMLInputElement>(null)
+
+  function close() {
+    setChanging(false)
+    setForgotten(false)
+    setCurrentPin('')
+    setApiKey('')
+    setPin('')
+    setConfirmPin('')
+    setError(undefined)
+    // Back to the button that opened it, as the API key's forms do.
+    requestAnimationFrame(() => opener.current?.focus())
+  }
+
+  async function submit(event: FormEvent) {
+    event.preventDefault()
+    if (held) return
+    if (pin !== confirmPin) {
+      setError('The two PINs don’t match. Type the same one in both.')
+      return
+    }
+    setError(undefined)
+    setBusy(true)
+    try {
+      await setAdminPin(pin, forgotten ? { apiKey: apiKey.trim() } : { currentPin })
+      close()
+      setChanged(true)
+    } catch (e) {
+      setError(lockout.lockFrom(e) ? undefined : errorText(e))
+      setCurrentPin('')
+      requestAnimationFrame(() => proof.current?.focus())
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <SettingsGroup
+      title="Admin PIN"
+      note={
+        <>
+          {/* Mounted from the start, so screen readers hear it when it fills. */}
+          <span role="status">{changed ? 'PIN changed. Anywhere the old one unlocked settings is locked again. ' : ''}</span>
+          Separate from the main profile’s own PIN, which is in <Link to="/settings/profiles">Profiles</Link>.
+        </>
+      }
+    >
+      <SettingRow as="div" label="PIN" help="Asked for before the server’s settings change, and to let a child off a kids profile.">
+        {!changing && (
+          <button
+            ref={opener}
+            type="button"
+            className="button quiet small"
+            onClick={() => {
+              setChanged(false)
+              setChanging(true)
+            }}
+          >
+            Change
+          </button>
+        )}
+      </SettingRow>
+      {changing && (
+        <form className="setting-row static admin-pin-form" aria-label="Change the admin PIN" onSubmit={submit} onKeyDown={(e) => e.key === 'Escape' && close()}>
+          <div className="field-row">
+            {forgotten ? (
+              <label>
+                API key
+                <input ref={proof} type="password" autoComplete="off" required autoFocus value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
+              </label>
+            ) : (
+              <label>
+                Current PIN
+                <input
+                  ref={proof}
+                  type="password"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  required
+                  autoFocus
+                  value={currentPin}
+                  onChange={(e) => setCurrentPin(digits(e.target.value))}
+                />
+              </label>
+            )}
+            <label>
+              New PIN
+              <input type="password" inputMode="numeric" autoComplete="new-password" required minLength={4} placeholder="4 to 8 digits" value={pin} onChange={(e) => setPin(digits(e.target.value))} />
+            </label>
+            <label>
+              Confirm new PIN
+              <input type="password" inputMode="numeric" autoComplete="new-password" required minLength={4} value={confirmPin} onChange={(e) => setConfirmPin(digits(e.target.value))} />
+            </label>
+          </div>
+          {forgotten ? (
+            <p className="field-help">It’s in config.json in the server’s data folder: ~/.flexarr/data on a Mac, /config with Docker.</p>
+          ) : (
+            <p className="field-help">
+              Forgotten it?{' '}
+              <button type="button" className="text-button" onClick={() => setForgotten(true)}>
+                Use the API key instead
+              </button>
+            </p>
+          )}
+          {(error || (held && lockout.message)) && (
+            <p className="error" role="alert">
+              {error ?? lockout.message}
+            </p>
+          )}
+          <div className="form-actions">
+            <button type="button" className="button quiet small" onClick={close}>
+              Cancel
+            </button>
+            <AsyncButton type="submit" className="button small" busy={busy} disabled={held}>
+              Change PIN
+            </AsyncButton>
+          </div>
+        </form>
+      )}
+    </SettingsGroup>
   )
 }
 
@@ -37,11 +182,12 @@ function ApiKeyGroup({ onSignedOut }: { onSignedOut: () => void }) {
   // After a new key: how many browsers and TVs were signed out with it.
   const [rotated, setRotated] = useState<{ signedOut: number }>()
   const [auth, setAuth] = useState<Settings['authenticationRequired']>()
-  // Replacing the key asks again first, and so does showing it when the main profile has a PIN (the server insists).
+  // Replacing the key asks again first, and so does showing it when there's an admin PIN (the server insists).
   const [ask, setAsk] = useState<'reveal' | 'rotate'>()
   const [confirming, setConfirming] = useState(false)
-  const profiles = useApi(getProfiles, [])
-  const mainHasPin = profiles.data?.find((p) => p.isMain)?.hasPin ?? false
+  // Until /me answers, assume there's an admin PIN: asking for one too many beats showing the key without it.
+  const me = useApi(getMe, [])
+  const mainHasPin = me.data?.adminPinMissing !== true
   const askForm = useRef<HTMLFormElement>(null)
   const opener = useRef<HTMLButtonElement | null>(null)
   const keyArea = useRef<HTMLDivElement>(null)

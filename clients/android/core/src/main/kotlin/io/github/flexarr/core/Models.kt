@@ -626,10 +626,12 @@ data class Profile(
     val hasPin: Boolean = false,
     val isMain: Boolean = false,
     /**
-     * Choosing it here asks for its PIN. The main profile's guards managing the server, so on a device the owner signed
-     * in it's only asked for if the owner wants it to be. Absent from servers before 0.56, where [hasPin] says.
+     * Choosing it here asks for a PIN: its own, or for the main profile where the owner didn't sign in, the admin PIN
+     * (see [asksAdminPin]). Absent from servers before 0.56, where [hasPin] says.
      */
     val asksPin: Boolean? = null,
+    /** The PIN choosing it here asks for is the admin PIN, not its own. Absent from servers before 0.57: see [takesAdminPin]. */
+    val asksAdminPin: Boolean? = null,
     /** The profile the request that fetched this list acted for. */
     val isCurrent: Boolean = false,
     /** The picture's server-relative URL, or null to show the initial on the colour. */
@@ -651,6 +653,12 @@ data class Profile(
 
     /** Whether choosing it here takes its PIN. */
     val takesPin: Boolean get() = asksPin ?: hasPin
+
+    /**
+     * Whether the PIN choosing it here takes is the admin PIN: as the server says, or on older servers for a main
+     * profile with no PIN of its own (the only one there it could be).
+     */
+    val takesAdminPin: Boolean get() = asksAdminPin ?: (isMain && !hasPin)
 }
 
 /**
@@ -687,6 +695,9 @@ internal data class SelectProfileRequest(val pin: String?, val parentPin: String
 
 @Serializable
 internal data class KidsLockRequest(val pin: String?, val profileId: String? = null)
+
+@Serializable
+internal data class ForgotPinRequest(val adminPin: String)
 
 @Serializable
 internal data class LibraryOrderRequest(val order: List<String>)

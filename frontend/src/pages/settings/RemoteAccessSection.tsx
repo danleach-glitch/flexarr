@@ -3,12 +3,13 @@ import { Link } from 'react-router'
 import { getProfiles, getRemoteAccess, linkTailscale, setTailscaleAccess, type RemoteAccess } from '../../api/client'
 import { AsyncButton } from '../../components/AsyncButton'
 import { CopyButton } from '../../components/CopyButton'
-import { FamilyInvites } from './FamilyInvites'
 import { useApi } from '../../hooks/useApi'
+import { FamilyInvites } from './FamilyInvites'
 import { SettingRow, SettingsGroup, SettingsHeader } from './shared'
 import { errorText } from './useSettings'
 
-/** Watching from somewhere else: away from home over Tailscale, people with their own Tailscale, and family invites. */
+/** Watching from somewhere else: away from home over Tailscale, people with their own Tailscale, and family invites.
+ * The API key, the admin PIN and the devices signed in are in Security. */
 export function RemoteAccessSection() {
   return (
     <section>
@@ -138,8 +139,8 @@ export function RemoteAccessGroups() {
 
       {ts.privateAccess && !remote.data.mainProfileHasPin && (
         <p className="panel advice">
-          Anyone using a browser or TV you’ve signed in can switch to the main profile, which can change settings, because it has no PIN. Give it one in{' '}
-          <Link to="/settings/profiles">Profiles</Link>.
+          Anyone using a browser or TV you’ve signed in can change settings, because there’s no admin PIN. Choose one in{' '}
+          <Link to="/settings/security">Security</Link>.
         </p>
       )}
 
@@ -170,4 +171,3 @@ export function RemoteAccessGroups() {
     </>
   )
 }
-

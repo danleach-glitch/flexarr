@@ -130,7 +130,7 @@ export function ConnectTv({ initialCode = '', titled = true }: { initialCode?: s
             someone sent you this link, choose Don’t allow.
           </p>
         )}
-        <p className="field-help">It signs in to Flexarr like any other device. You can sign it out later in Settings › Devices.</p>
+        <p className="field-help">It signs in to Flexarr like any other device. You can sign it out later in Settings › Security.</p>
         {errorLine}
         <div className="form-actions">
           <AsyncButton className="button quiet" busy={state === 'declining'} disabled={state === 'approving'} onClick={() => decline()} autoFocus={!home}>

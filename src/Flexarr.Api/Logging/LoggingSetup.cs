@@ -69,7 +69,8 @@ public static class LoggingSetup
             levels.Update(current.Logs);
             errorReports.Apply(current.Logs);
             Redactor.UseSecrets([
-                current.ApiKey, current.WebhookSecret, current.ImageSecret, current.Seerr?.ApiKey, current.Bazarr?.ApiKey, current.LiveTv?.Password, current.RemoteGuests.ClientSecret,
+                current.ApiKey, current.WebhookSecret, current.ImageSecret, current.Seerr?.ApiKey, current.Bazarr?.ApiKey, current.LiveTv?.Password,
+                current.Trakt.ClientSecret, current.Tmdb?.ApiKey, current.RemoteGuests.ClientSecret,
                 .. current.Arr.Select(a => a.ApiKey),
             ]);
         }

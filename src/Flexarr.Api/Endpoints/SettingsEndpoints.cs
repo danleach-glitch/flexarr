@@ -38,7 +38,16 @@ public sealed record SettingsDto(
     string? HostName = null,
     bool HasTmdbKey = false,
     BazarrConnectionDto? Bazarr = null,
-    bool AskPinForMainProfile = false);
+    // Whether choosing the main profile asks for a PIN: since 0.57, whether it has a PIN of its own.
+    bool AskPinForMainProfile = false,
+    TraktAppDto? TraktApp = null);
+
+/// <summary>The admin's own Trakt app, used instead of Flexarr's; the secret is never sent back, only whether there is one.</summary>
+public sealed record TraktAppDto(string ClientId, bool HasSecret);
+
+/// <param name="ClientId">Empty to go back to Flexarr's own app.</param>
+/// <param name="ClientSecret">Omitted to keep the saved one, which is only kept for the same client id.</param>
+public sealed record TraktAppUpdate(string ClientId, string? ClientSecret);
 
 /// <summary>The Live TV source; the password is never sent back, only whether there is one.</summary>
 public sealed record LiveTvSettingsDto(string BaseUrl, string Username, bool HasPassword, int RewindMinutes, string? DvrFolder = null,
@@ -74,7 +83,9 @@ public sealed record SettingsUpdate(
     LiveTvSettingsUpdate? LiveTv = null,
     TmdbKeyUpdate? Tmdb = null,
     BazarrConnectionUpdate? Bazarr = null,
-    bool? AskPinForMainProfile = null);
+    // Ignored since 0.57: the main profile has a PIN of its own, set in Profiles like anyone's.
+    bool? AskPinForMainProfile = null,
+    TraktAppUpdate? TraktApp = null);
 
 /// <param name="ApiKey">TMDB's API key or read access token; empty to remove it.</param>
 public sealed record TmdbKeyUpdate(string ApiKey);
@@ -111,7 +122,8 @@ public static class SettingsEndpoints
         var group = api.MapGroup("/settings").WithTags("Settings").RequireAuthorization(FlexarrClaims.AdminPolicy);
 
         group.MapGet("/", async (IOptionsMonitor<FlexarrOptions> options, FlexarrDbContext db, CancellationToken ct) =>
-            ToDto(options.CurrentValue, await AvailableAsync(options.CurrentValue, ct), await LiveTv.DvrFolders.ResolveAsync(db, options.CurrentValue, ct)));
+            ToDto(options.CurrentValue, await AvailableAsync(options.CurrentValue, ct), await LiveTv.DvrFolders.ResolveAsync(db, options.CurrentValue, ct),
+                await MainHasOwnPinAsync(db, ct)));
 
         group.MapPut("/", async (SettingsUpdate update, IOptionsMonitor<FlexarrOptions> options, LiveTv.LiveTvRefreshSignal liveTvRefresh, FlexarrDbContext db,
             ILibraryScanQueue scans, CancellationToken ct) =>
@@ -130,6 +142,12 @@ public static class SettingsEndpoints
             if (update.Seerr is { BaseUrl.Length: > 0 } badSeerr && WebAddress(badSeerr.BaseUrl) is null)
             {
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["seerr"] = [$"“{badSeerr.BaseUrl}” isn't a valid http or https address."] });
+            }
+
+            if (update.TraktApp is { } traktApp && (traktApp.ClientId?.Trim() ?? "") is { Length: > 0 } traktId
+                && (traktId.Length > 128 || !traktId.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_')))
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["traktApp"] = ["That doesn't look like a Trakt client ID."] });
             }
 
             if (update.Bazarr is { BaseUrl.Length: > 0 } badBazarr && WebAddress(badBazarr.BaseUrl) is null)
@@ -163,11 +181,6 @@ public static class SettingsEndpoints
                     config["authenticationRequired"] = auth.ToString();
                 }
 
-                if (update.AskPinForMainProfile is { } askPin)
-                {
-                    config["askPinForMainProfile"] = askPin;
-                }
-
                 if (update.PathMappings is { } mappings)
                 {
                     config["pathMappings"] = JsonSerializer.SerializeToNode(mappings.Where(m => m.From.Length > 0 && m.To.Length > 0), Json);
@@ -192,6 +205,26 @@ public static class SettingsEndpoints
                         ["baseUrl"] = bazarr.BaseUrl.Trim(),
                         ["apiKey"] = string.IsNullOrWhiteSpace(bazarr.ApiKey) ? savedKey : bazarr.ApiKey.Trim(),
                     };
+                }
+
+                if (update.TraktApp is { } app)
+                {
+                    var id = app.ClientId?.Trim() ?? "";
+                    var savedSecret = current.Trakt.ClientId == id ? current.Trakt.ClientSecret : "";
+                    // Only the app's two keys change: a relay or API address set in config.json stays.
+                    var trakt = config["trakt"] as JsonObject ?? [];
+                    if (id.Length == 0)
+                    {
+                        trakt.Remove("clientId");
+                        trakt.Remove("clientSecret");
+                    }
+                    else
+                    {
+                        trakt["clientId"] = id;
+                        trakt["clientSecret"] = string.IsNullOrWhiteSpace(app.ClientSecret) ? savedSecret : app.ClientSecret.Trim();
+                    }
+
+                    config["trakt"] = trakt.Count == 0 ? null : trakt;
                 }
 
                 if (update.Tmdb is { } tmdb)
@@ -279,7 +312,8 @@ public static class SettingsEndpoints
                 }
             }
 
-            return Results.Ok(ToDto(options.CurrentValue, await AvailableAsync(options.CurrentValue, ct), await LiveTv.DvrFolders.ResolveAsync(db, options.CurrentValue, ct)));
+            return Results.Ok(ToDto(options.CurrentValue, await AvailableAsync(options.CurrentValue, ct), await LiveTv.DvrFolders.ResolveAsync(db, options.CurrentValue, ct),
+                await MainHasOwnPinAsync(db, ct)));
         });
 
         // Showing the key is a POST, so it needs the web app's own header (see RequestForgery) and can't be read by a
@@ -435,7 +469,10 @@ public static class SettingsEndpoints
         return api;
     }
 
-    private static SettingsDto ToDto(FlexarrOptions o, IReadOnlyList<HardwareAcceleration> available, string dvrFolder) => new(
+    private static Task<bool> MainHasOwnPinAsync(FlexarrDbContext db, CancellationToken ct) =>
+        db.Profiles.AsNoTracking().AnyAsync(p => p.Id == PlaybackState.DefaultUser && p.PinHash != null, ct);
+
+    private static SettingsDto ToDto(FlexarrOptions o, IReadOnlyList<HardwareAcceleration> available, string dvrFolder, bool mainHasOwnPin) => new(
         o.Transcoding,
         available,
         o.AuthenticationRequired,
@@ -454,7 +491,8 @@ public static class SettingsEndpoints
         HostName(),
         o.Tmdb?.ApiKey is { Length: > 0 },
         o.Bazarr is { BaseUrl.Length: > 0 } b ? new BazarrConnectionDto(b.BaseUrl, b.ApiKey.Length > 0) : null,
-        o.AskPinForMainProfile == true);
+        mainHasOwnPin,
+        o.Trakt.ClientId.Length > 0 ? new TraktAppDto(o.Trakt.ClientId, o.Trakt.ClientSecret.Length > 0) : null);
 
     /// <summary>
     /// This machine's name on the network ("Dans-Mac-Mini"), which the web app puts in place of localhost in links to
@@ -490,7 +528,7 @@ public static class SettingsEndpoints
         }
 
         var main = await db.Profiles.AsNoTracking().FirstOrDefaultAsync(p => p.Id == PlaybackState.DefaultUser, ct);
-        if (main?.PinHash is null)
+        if (main?.AdminPinHash is null)
         {
             return request?.Confirm == true ? null : Results.Problem($"Confirm that you want to {action}.", statusCode: 400);
         }
@@ -501,7 +539,7 @@ public static class SettingsEndpoints
         }
 
         var (callers, browser) = ProfileEndpoints.PinCaller(http, current);
-        var (result, retryAfter) = await guard.CheckAsync(main.Id, callers, () => main.CheckPin(request.Pin), ct, mayManage: true, browser);
+        var (result, retryAfter) = await guard.CheckAsync(PinGuard.AdminKey, callers, () => main.CheckAdminPin(request.Pin), ct, mayManage: true, browser);
         return result switch
         {
             PinCheck.Right => null,

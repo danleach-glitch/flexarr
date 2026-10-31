@@ -23,7 +23,7 @@ public enum FlexarrClientError: Error, Equatable, LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .unauthorized:
-            "The server didn’t accept this device’s sign-in. Connect it again with a code, or if you typed an API key, check it against Settings › Access on the web. Over Tailscale, your Tailscale account needs linking in Settings › Access."
+            "The server didn’t accept this device’s sign-in. Connect it again with a code, or if you typed an API key, check it against the API key in Settings on the web. Over Tailscale, your Tailscale account needs linking in Settings › Access."
         case .recordingInTheWay(let recording):
             recording.message
         case .parentPinNeeded(let message):
@@ -368,6 +368,13 @@ public struct FlexarrClient: Sendable {
     public func lockToKids(pin: String?, profileId: String? = nil) async throws -> ProfileSelection {
         let data = try await send("POST", "profiles/kids-lock", body: KidsLockRequest(pin: pin, profileId: profileId))
         return try decode(ProfileSelection.self, from: data)
+    }
+
+    /// Takes a forgotten PIN off a profile with the admin PIN, from the profile picker (`parentPinNeeded` if it's
+    /// wrong). Returns the profile, now without one. Servers before 0.57 answer 404.
+    public func forgetPin(of id: String, adminPin: String) async throws -> Profile {
+        let data = try await send("POST", "profiles/\(id)/forgot-pin", body: ["adminPin": adminPin])
+        return try decode(Profile.self, from: data)
     }
 
     /// Releases this device from kids profiles, with the admin PIN (`parentPinNeeded` if it's wrong).

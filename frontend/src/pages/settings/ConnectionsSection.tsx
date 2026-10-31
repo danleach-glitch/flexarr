@@ -30,8 +30,11 @@ import { appLogos } from '../../lib/apps'
 import { OpenApp, SaveStatus, SettingsGroup, SettingsHeader } from './shared'
 import { errorText, useSettings } from './useSettings'
 
+/** Settings › Trakt may have come or gone: the Settings page looks again. */
+export const TRAKT_CHANGED = 'flexarr:trakt'
+
 /** The connections with a form of their own, by the name the open row goes by. */
-type OtherService = 'seerr' | 'bazarr' | 'tmdb' | 'livetv'
+type OtherService = 'seerr' | 'bazarr' | 'tmdb' | 'livetv' | 'trakt'
 
 const arrKinds = ['Sonarr', 'Radarr', 'Lidarr'] as const
 
@@ -44,6 +47,7 @@ const purpose: Record<ArrKind | OtherService, string> = {
   bazarr: 'Subtitles',
   tmdb: 'Film details without Radarr',
   livetv: 'Live TV',
+  trakt: 'Trakt',
 }
 
 const notConnected = (service: ArrKind | OtherService) => `Not connected · ${purpose[service]}`
@@ -190,6 +194,20 @@ export function ConnectionsSection() {
             onClose={() => setOpen(undefined)}
             onSave={async (apiKey) => {
               if (await save({ tmdb: { apiKey } })) setOpen(undefined)
+            }}
+          />
+          <TraktAppRow
+            app={settings.traktApp ?? null}
+            open={open === 'trakt'}
+            onOpen={() => setOpen('trakt')}
+            onClose={() => setOpen(undefined)}
+            onSave={async (traktApp) => {
+              // Trakt's sign-ins belong to the app that gave them: everyone connects again after a switch (a new secret for
+              // the same app changes nothing for them).
+              if ((traktApp.clientId || null) !== (settings.traktApp?.clientId || null) && !confirm('Change the Trakt app? Everyone who connected to Trakt will need to connect again.')) return
+              if (!(await save({ traktApp }))) return
+              setOpen(undefined)
+              window.dispatchEvent(new Event(TRAKT_CHANGED))
             }}
           />
           <DispatcharrRow
@@ -619,6 +637,69 @@ function TmdbRow({
             </AsyncButton>
           </div>
           <p className="muted field-hint">This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
+        </form>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Trakt works through Flexarr's own Trakt app. Someone building Flexarr themselves, or who wants their own, can give
+ * their app's id and secret instead; the secret is never sent back.
+ */
+function TraktAppRow({
+  app,
+  open,
+  onOpen,
+  onClose,
+  onSave,
+}: {
+  app: { clientId: string; hasSecret: boolean } | null
+  open: boolean
+  onOpen: () => void
+  onClose: () => void
+  onSave: (app: { clientId: string; clientSecret?: string }) => Promise<void>
+}) {
+  const [clientId, setClientId] = useState(app?.clientId ?? '')
+  const [secret, setSecret] = useState('')
+  const [saving, setSaving] = useState(false)
+  return (
+    <div className="connection">
+      <ConnectionLine icon={<Refresh />} name="Trakt" ok={app ? app.hasSecret : undefined} status={app ? 'Your own Trakt app' : 'Flexarr’s Trakt app'} baseUrl="" connected open={open} onOpen={onOpen} />
+      {open && (
+        <form
+          className="connection-form"
+          aria-label="Edit Trakt"
+          onSubmit={(e) => {
+            e.preventDefault()
+            setSaving(true)
+            void onSave({ clientId: clientId.trim(), clientSecret: secret.trim() || undefined }).finally(() => setSaving(false))
+          }}
+        >
+          <p className="muted">Each profile connects its own Trakt account in its Settings. To use your own Trakt app instead of Flexarr’s, give its details.</p>
+          <div className="field-row">
+            <label className="grow">
+              Client ID
+              <input value={clientId} autoComplete="off" onChange={(e) => setClientId(e.target.value)} />
+            </label>
+            <label className="grow">
+              Client secret
+              <input type="password" value={secret} autoComplete="off" placeholder={app?.hasSecret ? 'Saved; paste to replace' : ''} onChange={(e) => setSecret(e.target.value)} />
+            </label>
+          </div>
+          <div className="form-actions">
+            {app && (
+              <AsyncButton type="button" className="button danger small form-actions-start" onClick={() => onSave({ clientId: '' })}>
+                Use Flexarr’s app
+              </AsyncButton>
+            )}
+            <button type="button" className="button quiet small" onClick={onClose}>
+              Cancel
+            </button>
+            <AsyncButton type="submit" className="button small" busy={saving} disabled={!clientId.trim() || (!secret.trim() && !(app?.hasSecret && app.clientId === clientId.trim()))}>
+              Save
+            </AsyncButton>
+          </div>
         </form>
       )}
     </div>

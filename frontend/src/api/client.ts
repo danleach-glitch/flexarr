@@ -551,7 +551,7 @@ export const getGenres = (signal?: AbortSignal) => cachedGet<Genre[]>('/genres',
 
 // ---------- Collections
 
-export type CollectionKind = 'Manual' | 'Smart' | 'Franchise'
+export type CollectionKind = 'Manual' | 'Smart' | 'Franchise' | 'TraktList'
 
 /** What a smart collection holds; every rule is optional. */
 export interface SmartRules {
@@ -1287,8 +1287,8 @@ export interface Profile {
   /** The order of the libraries in the menu on every device: library ids, and "live-tv". Absent from servers before 0.54. */
   libraryOrder?: string[]
   /**
-   * Choosing it here asks for its PIN. The main profile's guards the server's settings, so on a browser the owner signed
-   * in it's only asked for if the owner wants it to be. Absent from servers before 0.56, where `hasPin` says.
+   * Choosing it here asks for a PIN: its own, or for a main profile without one, the admin PIN (asked only of a guest,
+   * not a browser the owner signed in). Absent from servers before 0.56, where `hasPin` says.
    */
   asksPin?: boolean
   /** Titles it adds to its watchlist that aren't in the library are requested. Absent from servers before 0.56. */
@@ -1297,10 +1297,18 @@ export interface Profile {
   maxRatingAge?: number | null
   /** A child's profile: the kids app, and leaving it takes the admin PIN. Absent from servers before 0.56. */
   isKids?: boolean
+  /** The PIN choosing it here asks for is the admin PIN, not its own. Absent from servers before 0.57. */
+  asksAdminPin?: boolean
 }
 
 /** Whether choosing a profile here asks for its PIN. */
 export const asksPin = (profile: Profile) => profile.asksPin ?? profile.hasPin
+
+/** Whether the PIN choosing a profile here asks for is the admin PIN (older servers: a main profile without its own). */
+export const asksAdminPin = (profile: Profile) => profile.asksAdminPin ?? (profile.isMain && !profile.hasPin)
+
+/** Takes a forgotten PIN off a profile with the admin PIN, from the profile picker (servers from 0.57). */
+export const forgetPin = (id: string, adminPin: string) => request<Profile>('POST', `/profiles/${id}/forgot-pin`, { adminPin })
 
 /** Changing or removing the admin PIN takes `currentPin`, or `apiKey` if it's forgotten. */
 type ProfileChanges = { name: string; color: string; pin?: string; removePin?: boolean; hiddenLibraryIds?: string[]; currentPin?: string; apiKey?: string }
@@ -1325,8 +1333,8 @@ export const uploadProfileImage = (id: string, image: Blob) => request<Profile>(
 export const removeProfileImage = (id: string) => request<Profile>('DELETE', `/profiles/${id}/image`)
 
 /**
- * Switches to a profile (checking its PIN) and remembers it on this device. Leaving a kids profile takes the main
- * profile's PIN as `parentPin`; without it the server says so (an ApiError whose problem has `parentPin`).
+ * Switches to a profile (checking its PIN) and remembers it on this device. Leaving a kids profile takes the admin
+ * PIN as `parentPin`; without it the server says so (an ApiError whose problem has `parentPin`).
  */
 export async function selectProfile(id: string, pin?: string, parentPin?: string) {
   const result = await request<{ token: string; profile: Profile }>('POST', `/profiles/${id}/select`, { pin, parentPin })
@@ -1388,9 +1396,9 @@ export interface Me {
   zone: NetworkZone
   isAdmin: boolean
   tailscaleLogin: string | null
-  /** The main profile is chosen, but managing the server takes its PIN first (unlockAdmin). Absent before 0.56. */
+  /** The main profile is chosen, but managing the server takes the admin PIN first (unlockAdmin). Absent before 0.56. */
   canUnlock?: boolean
-  /** The main profile has no PIN yet, so the server's settings can't be unlocked until it's given one (setAdminPin). */
+  /** There's no admin PIN yet, so the server's settings can't be unlocked until one is chosen (setAdminPin). */
   adminPinMissing?: boolean
   /** When managing the server takes the PIN again here; null for the API key, which always may. */
   unlockedUntil?: string | null
@@ -1420,6 +1428,7 @@ export interface RemoteAccess {
   }
   links: { login: string; name: string; profileId: string | null }[]
   cloudflareTunnelRunning: boolean
+  /** There's an admin PIN (the name is from before the main profile had a PIN of its own). */
   mainProfileHasPin: boolean
   /** Flexarr runs in a container (Docker), which can't reach the host's Tailscale. */
   inContainer: boolean
@@ -1448,11 +1457,11 @@ export async function lockAdmin() {
 }
 
 /**
- * Gives the main profile a PIN: its first (on a server set up before setup asked for one), or a new one with the API
- * key when it's been forgotten. Unlocks this browser, and anywhere else the old one was given locks.
+ * Sets the admin PIN: the first (on a server set up before setup asked for one), a new one knowing the current one, or
+ * a new one with the API key when it's been forgotten. Unlocks this browser, and anywhere else the old one was given locks.
  */
-export async function setAdminPin(pin: string, apiKey?: string) {
-  const result = await request<{ unlockedUntil: string | null }>('POST', '/admin/pin', { pin, apiKey })
+export async function setAdminPin(pin: string, proof: { apiKey?: string; currentPin?: string } = {}) {
+  const result = await request<{ unlockedUntil: string | null }>('POST', '/admin/pin', { pin, ...proof })
   clearApiCache()
   return result
 }
@@ -1610,3 +1619,80 @@ export async function sendClientLogs(appVersion: string, entries: ClientLogEntry
     return 0
   }
 }
+
+// ---------- Trakt (servers from 0.57)
+
+/** How a connect by code is going, or how it just ended. */
+export interface TraktPendingConnect {
+  state: 'Waiting' | 'Connected' | 'Expired' | 'Denied' | 'InUse' | 'Failed'
+  userCode: string
+  verificationUrl: string
+  qrUrl: string
+  expiresAt: string
+  error?: string | null
+}
+
+export interface TraktStatus {
+  /** The server can offer Trakt at all. */
+  available: boolean
+  state: 'disconnected' | 'connected' | 'needsSignIn'
+  username?: string | null
+  connectedAt?: string | null
+  lastSyncAt?: string | null
+  lastError?: string | null
+  watchlistFull: boolean
+  importedAt?: string | null
+  importing: boolean
+  queued: number
+  pending?: TraktPendingConnect | null
+  /** Why the last import didn't finish. Absent from servers before 0.57's last builds. */
+  importError?: string | null
+}
+
+export interface TraktImportPreview {
+  traktFilms: number
+  traktEpisodes: number
+  inLibrary: number
+  newToFlexarr: number
+  notOnServer: number
+  unmatched: number
+  toTrakt: number
+}
+
+export interface TraktProfile {
+  profileId: string
+  profileName: string
+  state: TraktStatus['state']
+  username?: string | null
+  lastSyncAt?: string | null
+  lastError?: string | null
+}
+
+/** Null from servers without Trakt (before 0.57), and on kids profiles. */
+export const getTraktStatus = (signal?: AbortSignal) =>
+  apiGet<TraktStatus>('/trakt/status', signal).catch((e: unknown) => {
+    // No Trakt here (a server before 0.57, or a kids profile): null. The server not answering is an error, said as one.
+    if ((e instanceof ApiError && (e.status === 404 || e.status === 403)) || e instanceof SyntaxError) return null
+    throw e
+  })
+export const connectTrakt = () => request<TraktPendingConnect>('POST', '/trakt/connect')
+export const cancelTraktConnect = () => request<void>('DELETE', '/trakt/connect')
+export const disconnectTrakt = () => request<void>('DELETE', '/trakt')
+export const previewTraktImport = () => request<TraktImportPreview>('POST', '/trakt/import')
+export const confirmTraktImport = () => request<void>('POST', '/trakt/import?confirm=true')
+export const syncTraktNow = () => request<void>('POST', '/trakt/sync')
+export const getTraktProfiles = (signal?: AbortSignal) => apiGet<TraktProfile[]>('/trakt/profiles', signal)
+
+export interface TraktList {
+  /** "{user}/{list}": what saving the choice takes. */
+  id: string
+  name: string
+  /** Whose it is, for a list liked on Trakt; null for the profile's own. */
+  owner?: string | null
+  itemCount: number
+  liked: boolean
+  selected: boolean
+}
+
+export const getTraktLists = (signal?: AbortSignal) => apiGet<TraktList[]>('/trakt/lists', signal)
+export const saveTraktLists = (ids: string[]) => request<void>('PUT', '/trakt/lists', { ids })

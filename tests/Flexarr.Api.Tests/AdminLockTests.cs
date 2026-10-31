@@ -99,18 +99,25 @@ public class AdminLockTests
     }
 
     [Fact]
-    public async Task AskingForThePin_WhenChoosingTheMainProfile_IsTheOwnersChoice()
+    public async Task TheMainProfilesOwnPin_IsAskedForEverywhere_AndTheAdminPinWorksToo()
     {
         using var server = new FlexarrApiFactory();
         await server.SetMainPinAsync("2580");
         var tv = await LockedTvAsync(server);
-        await Admin(server).PutAsJsonAsync(Api("/settings"), new { askPinForMainProfile = true });
+        var freely = await tv.PostAsJsonAsync(Api("/profiles/owner/select"), new { pin = (string?)null });
+        await server.SetMainProfilePinAsync("1357");
 
         var withoutPin = await tv.PostAsJsonAsync(Api("/profiles/owner/select"), new { pin = (string?)null });
-        await Admin(server).PutAsJsonAsync(Api("/settings"), new { askPinForMainProfile = false });
+        var ownPin = await tv.PostAsJsonAsync(Api("/profiles/owner/select"), new { pin = "1357" });
+        var lockedAfterOwnPin = await tv.GetAsync(Api("/settings"));
+        var adminPin = await tv.PostAsJsonAsync(Api("/profiles/owner/select"), new { pin = "2580" });
 
+        Assert.Equal(HttpStatusCode.OK, freely.StatusCode); // no PIN of its own: a device the owner paired chooses it freely
         Assert.Equal(HttpStatusCode.Forbidden, withoutPin.StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await tv.PostAsJsonAsync(Api("/profiles/owner/select"), new { pin = (string?)null })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, ownPin.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, lockedAfterOwnPin.StatusCode); // its own PIN is for watching, not managing
+        Assert.Equal(HttpStatusCode.OK, adminPin.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await tv.GetAsync(Api("/settings"))).StatusCode); // the admin PIN unlocks too
     }
 
     [Fact]
@@ -208,7 +215,7 @@ public class AdminLockTests
 
         // A locked main profile isn't already managing the server, so it gets four tries, not the eight admins share.
         Assert.Equal([HttpStatusCode.Forbidden, HttpStatusCode.Forbidden, HttpStatusCode.Forbidden, HttpStatusCode.Forbidden, HttpStatusCode.TooManyRequests], statuses);
-        Assert.Equal(["owner"], lockedOut);
+        Assert.Equal([PinGuard.AdminKey], lockedOut);
         Assert.Equal(HttpStatusCode.TooManyRequests, (await tv.PostAsJsonAsync(Api("/admin/unlock"), new { pin = "2580" })).StatusCode);
         // The key still gets in, and is how a forgotten PIN is replaced.
         Assert.Equal(HttpStatusCode.OK, (await tv.PostAsJsonAsync(Api("/admin/unlock"), new { apiKey = FlexarrApiFactory.ApiKey })).StatusCode);
@@ -262,14 +269,18 @@ public class AdminLockTests
     }
 
     [Fact]
-    public async Task TheMainProfilesPin_CantBeTakenOff()
+    public async Task TheMainProfilesOwnPin_ComesOff_ButTheAdminPinStays()
     {
         using var server = new FlexarrApiFactory();
         await server.SetMainPinAsync("2580");
+        await server.SetMainProfilePinAsync("1357");
 
         var removed = await Admin(server).PutAsJsonAsync(Api("/profiles/owner"), new { name = "Owner", removePin = true });
+        var tv = await LockedTvAsync(server);
 
-        Assert.Equal(HttpStatusCode.Conflict, removed.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, removed.StatusCode);
+        Assert.False((await removed.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("hasPin").GetBoolean());
+        Assert.Equal(HttpStatusCode.OK, (await tv.PostAsJsonAsync(Api("/admin/unlock"), new { pin = "2580" })).StatusCode);
     }
 
     private sealed class MovableClock : TimeProvider

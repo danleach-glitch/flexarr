@@ -904,10 +904,13 @@ public struct Profile: Codable, Sendable, Hashable, Identifiable {
     public var maxRatingAge: Int? = nil
     /// A child's profile: the kids app, and leaving it takes the admin PIN. Absent from servers before 0.56.
     public var isKids: Bool? = nil
+    /// The PIN choosing it here asks for is the admin PIN, not its own. Absent from servers before 0.57: see
+    /// `asksAdminPinToChoose`.
+    public var asksAdminPin: Bool? = nil
 
     public init(id: String, name: String, color: String, hasPin: Bool = false, isMain: Bool = false,
                 isCurrent: Bool = false, hiddenLibraryIds: [String] = [], image: String? = nil, libraryOrder: [String]? = nil,
-                asksPin: Bool? = nil, maxRatingAge: Int? = nil, isKids: Bool? = nil) {
+                asksPin: Bool? = nil, maxRatingAge: Int? = nil, isKids: Bool? = nil, asksAdminPin: Bool? = nil) {
         self.id = id
         self.name = name
         self.color = color
@@ -920,6 +923,7 @@ public struct Profile: Codable, Sendable, Hashable, Identifiable {
         self.asksPin = asksPin
         self.maxRatingAge = maxRatingAge
         self.isKids = isKids
+        self.asksAdminPin = asksAdminPin
     }
 
     /// A child's profile (servers before 0.56 have none).
@@ -930,6 +934,10 @@ public struct Profile: Codable, Sendable, Hashable, Identifiable {
 
     /// Choosing it here asks for its PIN: as the server says, or on older servers whenever it has one.
     public var needsPinToChoose: Bool { asksPin ?? hasPin }
+
+    /// The PIN choosing it here asks for is the admin PIN: as the server says, or on older servers for a main profile
+    /// with no PIN of its own (the only one there it could be).
+    public var asksAdminPinToChoose: Bool { asksAdminPin ?? (isMain && !hasPin) }
 
     /// The first letter, shown when there's no picture.
     public var initial: String {

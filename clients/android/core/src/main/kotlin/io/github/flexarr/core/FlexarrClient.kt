@@ -48,7 +48,8 @@ sealed class FlexarrException(message: String) : Exception(message) {
         "The server didn’t accept this device’s sign-in. Connect it again with a code, or if you typed an API key, check it against Settings › Access on the web.",
     )
 
-    class Http(val status: Int, message: String?) : FlexarrException(message ?: "The server answered with an error (HTTP $status).")
+    /** [detail]: the server's own words for what went wrong (its problem details' `detail`), when it gave some. */
+    class Http(val status: Int, message: String?, val detail: String? = null) : FlexarrException(message ?: "The server answered with an error (HTTP $status).")
 
     /**
      * This takes the admin PIN (leaving a kids profile, locking or releasing a device), which wasn't given or
@@ -236,6 +237,13 @@ class FlexarrClient(
     suspend fun lockToKids(pin: String?, profileId: String? = null): ProfileSelection =
         decodeText(serializer(), send("POST", "profiles/kids-lock", body = json.encodeToString(KidsLockRequest(pin, profileId))))
 
+    /**
+     * Takes a forgotten PIN off a profile with the admin PIN, from the profile picker ([FlexarrException.ParentPinNeeded]
+     * if it's wrong). Returns the profile, now without one. Servers before 0.57 answer 404.
+     */
+    suspend fun forgetPin(id: String, adminPin: String): Profile =
+        sendDecoding("POST", "profiles/$id/forgot-pin", ForgotPinRequest(adminPin))
+
     /** Releases this device from kids profiles with the admin PIN ([FlexarrException.ParentPinNeeded] if it's wrong). */
     suspend fun releaseKidsLock(pin: String) {
         send("POST", "profiles/kids-lock/release", body = json.encodeToString(KidsLockRequest(pin)))
@@ -386,9 +394,9 @@ class FlexarrClient(
                 // A family guest's device its host removed: refused whatever it asks, so the app signs out (as for 401).
                 it.code == 403 && problemFlag(text, "guestRemoved") -> {
                     onUnauthorized?.invoke()
-                    throw FlexarrException.Http(it.code, problemMessage(text))
+                    throw FlexarrException.Http(it.code, problemMessage(text), problemDetail(text))
                 }
-                else -> throw FlexarrException.Http(it.code, problemMessage(text))
+                else -> throw FlexarrException.Http(it.code, problemMessage(text), problemDetail(text))
             }
         }
     }
@@ -643,6 +651,10 @@ class FlexarrClient(
         /** Whether the server's problem details carry [name] as true (`parentPin`, `kidsLock`). */
         internal fun problemFlag(text: String, name: String): Boolean =
             runCatching { (json.parseToJsonElement(text).jsonObject[name] as? JsonPrimitive)?.content == "true" }.getOrDefault(false)
+
+        /** The `detail` of RFC 7807 problem details, alone: what the server says went wrong, in its words. */
+        internal fun problemDetail(text: String): String? =
+            runCatching { (json.parseToJsonElement(text).jsonObject["detail"] as? JsonPrimitive)?.takeIf { it.isString }?.content }.getOrNull()?.takeIf { it.isNotBlank() }
 
         /** Reads ASP.NET problem details (`errors`, `detail` or `title`), or a plain `reason`, into one message. */
         internal fun problemMessage(text: String): String? {

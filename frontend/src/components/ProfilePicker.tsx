@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import {
   ApiError,
+  asksAdminPin,
   asksPin,
+  forgetPin,
   clearApiCache,
   ownPinWrong,
   saveProfileToken,
@@ -14,7 +16,7 @@ import {
 } from '../api/client'
 import { usePinLockout } from '../hooks/usePinLockout'
 import { AsyncButton } from './AsyncButton'
-import { Crown } from './icons'
+import { Crown, Padlock } from './icons'
 
 export function Avatar({ profile, size = 40 }: { profile: Pick<Profile, 'name' | 'color'> & { image?: string | null }; size?: number }) {
   return (
@@ -49,8 +51,9 @@ export function ProfilePicker({
   const [usingKey, setUsingKey] = useState(false)
   /** Leaving a kids profile: the pad asks for the admin PIN, keeping the chosen profile's own (if it has one). */
   const [parent, setParent] = useState<{ ownPin?: string }>()
+  /** Its PIN is forgotten: the pad asks for the admin PIN, which takes it off. */
+  const [forgetting, setForgetting] = useState(false)
   const field = useRef<HTMLInputElement>(null)
-  const main = profiles.find((p) => p.isMain)
   // The admin PIN, given just now (to unlock this browser, or before a wrong own PIN): not asked for again.
   const knownParentPin = useRef(takeParentPin())
 
@@ -67,6 +70,24 @@ export function ProfilePicker({
     lockout.reset()
     setUsingKey(false)
     setParent(undefined)
+    setForgetting(false)
+  }
+
+  /** The admin PIN was given for a forgotten one: it comes off, and the profile is chosen. */
+  async function forget(profile: Profile, adminPin: string) {
+    setChecking(true)
+    try {
+      const cleared = await forgetPin(profile.id, adminPin)
+      setForgetting(false)
+      onChosen(await selectProfile(cleared.id))
+    } catch (e) {
+      if (lockout.lockFrom(e)) setError(undefined)
+      else if (e instanceof ApiError && e.status === 404) setError(`Take the PIN off in Settings › Profiles, signed in as the main profile.`)
+      else setError(e instanceof ApiError && e.messages[0] ? e.messages[0] : 'Couldn’t take the PIN off.')
+      setPin('')
+    } finally {
+      setChecking(false)
+    }
   }
 
   async function choose(profile: Profile, code?: string, parentCode?: string) {
@@ -187,7 +208,8 @@ export function ProfilePicker({
           className="pin-pad"
           onSubmit={(e) => {
             e.preventDefault()
-            if (!checking && !locked && pin.length >= 4) void (parent ? choose(asking, parent.ownPin, pin) : choose(asking, pin))
+            if (checking || locked || pin.length < 4) return
+            void (forgetting ? forget(asking, pin) : parent ? choose(asking, parent.ownPin, pin) : choose(asking, pin))
           }}
           // With a key of the pad focused, the keyboard's digits and Backspace still work.
           onKeyDown={(e) => {
@@ -196,8 +218,16 @@ export function ProfilePicker({
             else if (e.key === 'Backspace') erase()
           }}
         >
-          <Avatar profile={parent && main ? main : asking} size={88} />
-          <h1>{parent ? 'Enter the admin PIN' : `Enter ${asking.name}’s PIN`}</h1>
+          {/* The admin PIN is the server's, not the main profile's own: a padlock rather than its picture. */}
+          {parent || forgetting || asksAdminPin(asking) ? (
+            <span className="pin-padlock" aria-hidden="true">
+              <Padlock />
+            </span>
+          ) : (
+            <Avatar profile={asking} size={88} />
+          )}
+          <h1>{parent || forgetting || asksAdminPin(asking) ? 'Enter the admin PIN' : `Enter ${asking.name}’s PIN`}</h1>
+          {forgetting && <p className="muted">It takes {asking.name}’s PIN off.</p>}
           <input
             ref={field}
             className="pin-display"
@@ -226,6 +256,19 @@ export function ProfilePicker({
             <p className={error ? 'error' : 'muted pin-status'} role={error ? 'alert' : 'status'}>
               {error ?? (checking ? 'Checking…' : '')}
             </p>
+          )}
+          {!asking.isMain && !parent && !forgetting && !locked && (
+            <button
+              type="button"
+              className="text-button pin-forgot"
+              onClick={() => {
+                setForgetting(true)
+                setPin('')
+                setError(undefined)
+              }}
+            >
+              Forgot PIN?
+            </button>
           )}
           <div className="pin-keys">
             {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((d) => (

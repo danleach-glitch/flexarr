@@ -275,6 +275,7 @@ public sealed class ApiKeyAuthenticationHandler(
         string profile;
         bool admin;
         bool trusted;
+        var kidsHome = false;
         if (signIn is { Guest: true })
         {
             // A family guest: its invite's profile, nothing else, and never trusted. A removed profile ends it.
@@ -311,14 +312,21 @@ public sealed class ApiKeyAuthenticationHandler(
             var basis = linkedProfile ?? PlaybackState.DefaultUser;
             trusted = method != Methods.Tailscale || basis == PlaybackState.DefaultUser;
             var chosen = await ChosenProfileAsync(db);
-            profile = chosen ?? basis;
             // At home with "only away from home", a browser without a profile chosen would be the main profile, so a
             // child could leave a kids profile by opening a private window. With kids profiles in the house, it starts
-            // on one; choosing the main profile there takes its PIN, which signs the browser in.
-            if (method == Methods.Local && chosen is null && await FirstKidsProfileAsync(db) is { } kids)
+            // on one, and choosing the main profile there takes the admin PIN, which signs the browser in.
+            // Only looked up where it matters: no profile chosen yet, or the main profile.
+            var kids = method == Methods.Local && (chosen is null || chosen == PlaybackState.DefaultUser) ? await FirstKidsProfileAsync(db) : null;
+            kidsHome = kids is not null;
+            // Where choosing the main profile takes the admin PIN (a Tailscale guest, that browser at home), it lives
+            // on the sign-in the PIN gave. A main-profile token alone isn't enough: it's bound to the main profile's own
+            // PIN, so changing the admin PIN wouldn't retire it.
+            if (chosen == PlaybackState.DefaultUser && (!trusted || kidsHome))
             {
-                profile = kids;
+                chosen = null;
             }
+
+            profile = chosen ?? kids ?? basis;
             // Without a sign-in, only the key itself. The admin PIN gives a browser at home or on the tailnet
             // a sign-in of its own, unlocked (see AdminEndpoints). Over Tailscale that matters doubly: another program
             // on this machine can pose as a tailnet user (it only needs one of their devices' addresses).
@@ -341,6 +349,11 @@ public sealed class ApiKeyAuthenticationHandler(
         if (trusted)
         {
             claims.Add(new Claim(FlexarrClaims.Trusted, "true"));
+        }
+
+        if (kidsHome)
+        {
+            claims.Add(new Claim(FlexarrClaims.KidsHome, "true"));
         }
 
         if (signIn is not null)
@@ -385,13 +398,13 @@ public sealed class ApiKeyAuthenticationHandler(
 
         var id = token[..dot];
         var options = flexarrOptions.CurrentValue;
-        var found = await db.Profiles.AsNoTracking().Where(p => p.Id == id).Select(p => new { p.PinHash }).FirstOrDefaultAsync(Context.RequestAborted);
+        var found = await db.Profiles.AsNoTracking().Where(p => p.Id == id).Select(p => new { p.PinHash, p.AdminPinHash }).FirstOrDefaultAsync(Context.RequestAborted);
         if (found is null)
         {
             return null;
         }
 
-        return CurrentProfile.Verifies(options.ApiKey, id, found.PinHash, token[(dot + 1)..], options.AcceptsLegacySignIns(DateTime.UtcNow)) ? id : null;
+        return CurrentProfile.Verifies(options.ApiKey, id, Profile.TokenPinHashOf(id, found.PinHash, found.AdminPinHash), token[(dot + 1)..], options.AcceptsLegacySignIns(DateTime.UtcNow)) ? id : null;
     }
 
     private static bool IsApiKey(string provided, string? key) =>

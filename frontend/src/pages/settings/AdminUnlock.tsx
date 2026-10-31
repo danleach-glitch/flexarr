@@ -8,7 +8,7 @@ import { errorText } from './useSettings'
 const digits = (value: string) => value.replace(/\D/g, '').slice(0, 8)
 
 /**
- * The server's settings, locked: the main profile watches without its PIN, but managing the server takes it. Forgotten,
+ * The server's settings, locked: managing the server takes the admin PIN, apart from the main profile's own. Forgotten,
  * the API key (in config.json, which only whoever has the server can read) sets a new one. A server set up before setup
  * asked for a PIN gets one here first.
  */
@@ -33,7 +33,7 @@ export function AdminUnlock({ pinMissing, onUnlocked }: { pinMissing: boolean; o
     setBusy(true)
     try {
       if (mode === 'pin') await unlockAdmin({ pin })
-      else await setAdminPin(newPin, mode === 'forgotten' ? apiKey.trim() : undefined)
+      else await setAdminPin(newPin, mode === 'forgotten' ? { apiKey: apiKey.trim() } : {})
       onUnlocked()
     } catch (e) {
       setError(lockout.lockFrom(e) ? undefined : errorText(e))
@@ -57,9 +57,9 @@ export function AdminUnlock({ pinMissing, onUnlocked }: { pinMissing: boolean; o
 
   return (
     <section>
-      <SettingsHeader title={mode === 'new' ? 'Give the main profile a PIN' : 'Settings are locked'}>
+      <SettingsHeader title={mode === 'new' ? 'Choose an admin PIN' : 'Settings are locked'}>
         {mode === 'new'
-          ? 'Before anything else: the admin PIN keeps the server’s settings to you. Choosing the main profile to watch doesn’t need it.'
+          ? 'Before anything else: the admin PIN keeps the server’s settings to you. The main profile can have a PIN of its own for watching, in Profiles.'
           : 'Changing the server takes the admin PIN. It stays unlocked on this browser for 15 minutes after your last change.'}
       </SettingsHeader>
       <form className="panel admin-unlock" onSubmit={submit} aria-label={mode === 'pin' ? 'Unlock settings' : 'Set the admin PIN'}>

@@ -258,7 +258,7 @@ private fun PairWithServer(model: AppModel, server: DiscoveredServer, onBack: ()
                             append("Go to ")
                             bold("Settings")
                             append(", then ")
-                            bold("Access")
+                            bold("Security")
                             append(", then ")
                             bold("Connect a device")
                             append(".")
@@ -279,9 +279,8 @@ private fun PairWithServer(model: AppModel, server: DiscoveredServer, onBack: ()
                     Text(
                         buildAnnotatedString {
                             append("Or on a computer, open ")
-                            bold(server.address)
-                            append(", go to ")
-                            bold("Settings › Devices › Connect a device")
+                            // The page's own address works on servers before and after Connect a device moved to Security.
+                            bold(server.address.trimEnd('/') + "/settings/tv")
                             append(" and type in the code.")
                         },
                         fontSize = 13.sp,
@@ -333,9 +332,9 @@ private fun NumberedStep(number: Int, text: androidx.compose.ui.text.AnnotatedSt
     }
 }
 
-/** A QR code, drawn crisp at any size on a white tile. */
+/** A QR code, drawn crisp at any size on a white tile (here, and for Trakt's activation page). */
 @Composable
-private fun QrCode(text: String, modifier: Modifier = Modifier) {
+internal fun QrCode(text: String, modifier: Modifier = Modifier) {
     val bitmap = remember(text) { qrBitmap(text) }
     Box(modifier.background(Color.White, RoundedCornerShape(9.dp)).padding(9.dp)) {
         Image(bitmap, contentDescription = "QR code", filterQuality = FilterQuality.None, modifier = Modifier.fillMaxSize())

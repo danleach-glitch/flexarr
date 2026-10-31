@@ -25,14 +25,17 @@ public enum PinCheck
 /// </para>
 /// <para>
 /// Callers without a sign-in are told apart by address, which several people can share (a household's devices behind
-/// one gateway). A browser that has given the main profile's right PIN before gets a count of its own for it, so
+/// one gateway). A browser that has given the right admin PIN before gets a count of its own for it, so
 /// someone else's guesses from the same address don't lock it out. A browser that hasn't shares the address's count,
-/// so throwing away its cookie doesn't earn a guesser fresh attempts. Only the main profile's browsers are remembered,
-/// so knowing another profile's PIN doesn't let anyone crowd the owner's browser out of the list.
+/// so throwing away its cookie doesn't earn a guesser fresh attempts. Only browsers that gave the admin PIN are remembered,
+/// so knowing a profile's PIN doesn't let anyone crowd the owner's browser out of the list.
 /// </para>
 /// </summary>
 public sealed class PinGuard(TimeProvider clock)
 {
+    /// <summary>What the admin PIN is counted under, apart from the main profile's own PIN.</summary>
+    public const string AdminKey = "admin";
+
     private const int FreeAttempts = 4;
 
     /// <summary>Wrong PINs before the count shared by callers that may manage the server locks them all out.</summary>
@@ -57,7 +60,7 @@ public sealed class PinGuard(TimeProvider clock)
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _gates = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, Strikes> _strikes = new(StringComparer.Ordinal);
 
-    /// <summary>Browsers that have given the main profile's right PIN, and when they last did.</summary>
+    /// <summary>Browsers that have given the right admin PIN, and when they last did.</summary>
     private readonly ConcurrentDictionary<string, DateTime> _knownBrowsers = new(StringComparer.Ordinal);
 
     private sealed class Strikes
@@ -86,7 +89,7 @@ public sealed class PinGuard(TimeProvider clock)
     {
         ArgumentNullException.ThrowIfNull(callers);
         ArgumentNullException.ThrowIfNull(check);
-        var remembers = browser is not null && profileId == PlaybackState.DefaultUser;
+        var remembers = browser is not null && profileId == AdminKey;
         var known = remembers && _knownBrowsers.ContainsKey(browser!);
         // Per profile, so a right PIN for your own profile doesn't wipe your wrong ones at someone else's.
         string[] callerKeys = known ? [$"browser:{profileId}|{browser}"] : [.. callers.Select(c => $"caller:{profileId}|{c}")];
@@ -137,6 +140,29 @@ public sealed class PinGuard(TimeProvider clock)
         finally
         {
             gate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Takes back the wrong guess just counted at <paramref name="profileId"/> from these callers: the PIN they gave
+    /// was the right one for another check (the admin PIN, given to choose the main profile).
+    /// </summary>
+    public void Forgive(string profileId, IReadOnlyList<string> callers, bool mayManage)
+    {
+        ArgumentNullException.ThrowIfNull(callers);
+        foreach (var key in callers.Select(c => $"caller:{profileId}|{c}").Append(mayManage ? $"managers:{profileId}" : $"profile:{profileId}"))
+        {
+            if (_strikes.TryGetValue(key, out var strikes))
+            {
+                lock (strikes)
+                {
+                    strikes.Count = Math.Max(0, strikes.Count - 1);
+                    if (strikes.Count < FreeAttempts)
+                    {
+                        strikes.LockedUntil = default;
+                    }
+                }
+            }
         }
     }
 

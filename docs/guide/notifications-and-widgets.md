@@ -33,7 +33,7 @@ Notifications have buttons. Films and episodes have **Play**, **Download** and *
 
 Each phone gets notifications for one profile: the one it was on when you turned them on. A phone the household shares gets one set, not one for each person. If you switch profile, **Settings › Notifications** offers **Get notifications for … instead**. See [Profiles](profiles.md).
 
-Signing the phone out, or signing it out from **Settings › Devices** on the web, stops its notifications.
+Signing the phone out, or signing it out from **Settings › Security** on the web, stops its notifications.
 
 ### How they reach your phone, and what's shared
 

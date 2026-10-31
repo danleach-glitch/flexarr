@@ -25,6 +25,12 @@ public static class FlexarrClaims
     /// </summary>
     public const string Trusted = "flexarr:trusted";
 
+    /// <summary>
+    /// Present ("true") on a browser at home without a sign-in of its own ("only away from home") in a household with
+    /// kids profiles: a child could open one in a private window, so choosing the main profile there takes the admin PIN.
+    /// </summary>
+    public const string KidsHome = "flexarr:kids-home";
+
     /// <summary>The browser or device sign-in the request used, if any.</summary>
     public const string SignIn = "flexarr:sign-in";
 

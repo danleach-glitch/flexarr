@@ -1,16 +1,16 @@
 import { useEffect, type ComponentType, type ReactNode, type SVGProps } from 'react'
 import { Navigate, NavLink, useParams } from 'react-router'
-import { clearApiCache, getMe, getRequestDestinations, getUpdates, lockAdmin } from '../../api/client'
+import { clearApiCache, getMe, getRequestDestinations, getTraktStatus, getUpdates, lockAdmin } from '../../api/client'
 import { useSession } from '../../hooks/sessionContext'
 import { useApi } from '../../hooks/useApi'
-import { Antenna, Download, Film, Gauge, Globe, Inbox, Info, LayoutGrid, Lock, Microphone, Monitor, Notes, PanelLeft, PlayCircle, Plug, Restore, Stack, Users } from '../../components/icons'
+import { Antenna, Download, Film, Gauge, Globe, History, Inbox, Info, LayoutGrid, Microphone, Notes, Padlock, PanelLeft, Shield, PlayCircle, Plug, Restore, Stack, Users } from '../../components/icons'
 import { hasRequestChoice } from '../../lib/requestLibraries'
 import { AboutSection } from './AboutSection'
+import { SecuritySection } from './SecuritySection'
 import { AdminUnlock } from './AdminUnlock'
 import { BackupSection } from './BackupSection'
-import { ConnectionsSection } from './ConnectionsSection'
+import { ConnectionsSection, TRAKT_CHANGED } from './ConnectionsSection'
 import { ConnectTvSection } from './ConnectTvSection'
-import { DevicesSection } from './DevicesSection'
 import { HealthSection } from './HealthSection'
 import { ImportSection } from './ImportSection'
 import { LayoutSection } from './LayoutSection'
@@ -25,6 +25,7 @@ import { RequestsSection } from './RequestsSection'
 import { LiveTvSection } from './LiveTvSection'
 import { StreamingSection } from './StreamingSection'
 import { SidebarSection } from './SidebarSection'
+import { TraktSection } from './TraktSection'
 import { UpdatesSection } from './UpdatesSection'
 
 interface Page {
@@ -44,6 +45,9 @@ const profilePages: Page[] = [
   { id: 'sidebar', label: 'Sidebar', icon: PanelLeft, render: () => <SidebarSection /> },
 ]
 
+/** Listed when the server offers Trakt (from 0.57). */
+const traktPage: Page = { id: 'trakt', label: 'Trakt', icon: History, render: () => <TraktSection /> }
+
 /** Listed only when there's a choice to make: two TV or film libraries Seerr can add requests to. */
 const requestsPage: Page = { id: 'requests', label: 'Requests', icon: Inbox, render: () => <RequestsSection /> }
 
@@ -58,9 +62,9 @@ const serverPages: Page[] = [
   { id: 'streaming', label: 'Streaming', icon: Film, render: () => <StreamingSection /> },
   { id: 'livetv', label: 'Live TV', icon: Antenna, render: () => <LiveTvSection /> },
   { id: 'connections', label: 'Connections', icon: Plug, render: () => <ConnectionsSection /> },
-  { id: 'devices', label: 'Devices', icon: Monitor, render: () => <DevicesSection /> },
-  { id: 'tv', label: 'Connect a device', render: () => <ConnectTvSection />, under: 'devices' },
   { id: 'remote', label: 'Remote access', icon: Globe, render: () => <RemoteAccessSection /> },
+  { id: 'security', label: 'Security', icon: Shield, render: () => <SecuritySection /> },
+  { id: 'tv', label: 'Connect a device', render: () => <ConnectTvSection />, under: 'security' },
   { id: 'backups', label: 'Backup and restore', icon: Restore, render: () => <BackupSection /> },
   { id: 'updates', label: 'Updates', icon: Download, render: () => <UpdatesSection /> },
   { id: 'logs', label: 'Logs', icon: Notes, render: () => <LogsSection /> },
@@ -68,7 +72,7 @@ const serverPages: Page[] = [
 ]
 
 /** Pages that moved, so old links and bookmarks still land somewhere sensible. */
-const moved: Record<string, string> = { activity: 'overview', server: 'remote', access: 'remote', changelog: 'about' }
+const moved: Record<string, string> = { activity: 'overview', server: 'remote', access: 'remote', devices: 'security', changelog: 'about' }
 
 export function SettingsPage() {
   const { section } = useParams()
@@ -77,8 +81,15 @@ export function SettingsPage() {
   const current = profiles?.find((p) => p.isCurrent)
   const name = current?.name
   const destinations = useApi(getRequestDestinations, [])
-  const ownPages = destinations.data && hasRequestChoice(destinations.data, current?.hiddenLibraryIds ?? []) ? [...profilePages, requestsPage] : profilePages
-  // Settings for the server are the main profile's, and changing them takes its PIN (given lately on this browser):
+  const trakt = useApi((signal) => getTraktStatus(signal), [])
+  const reloadTrakt = trakt.reload
+  useEffect(() => {
+    window.addEventListener(TRAKT_CHANGED, reloadTrakt)
+    return () => window.removeEventListener(TRAKT_CHANGED, reloadTrakt)
+  }, [reloadTrakt])
+  const withTrakt = trakt.data?.available ? [...profilePages, traktPage] : profilePages
+  const ownPages = destinations.data && hasRequestChoice(destinations.data, current?.hiddenLibraryIds ?? []) ? [...withTrakt, requestsPage] : withTrakt
+  // Settings for the server are the main profile's, and changing them takes the admin PIN (given lately on this browser):
   // locked, the server's pages ask for it. Another profile chosen here has only its own pages. Older servers have no
   // /me: everything, as before.
   const isAdmin = me.data?.isAdmin ?? true
@@ -107,7 +118,7 @@ export function SettingsPage() {
   if (!section) return me.loading ? null : <Navigate to={`/settings/${isAdmin ? 'overview' : 'playback'}`} replace />
   if (moved[section]) return <Navigate to={`/settings/${moved[section]}`} replace />
 
-  const profilePage = [...profilePages, requestsPage].find((p) => p.id === section)
+  const profilePage = [...profilePages, traktPage, requestsPage].find((p) => p.id === section)
   const serverPage = serverPages.find((p) => p.id === section)
   // A server page (an old link, say) waits to know whose profile this is, and sends anyone else to their own pages.
   if (!profilePage && me.loading) return null
@@ -134,7 +145,7 @@ export function SettingsPage() {
           {(isAdmin || locked) && (
             <div className="settings-nav-group">
               <h2>Server</h2>
-              {isAdmin && !pinMissing ? serverPages.filter((p) => !p.under).map(link) : link({ id: 'overview', label: locked ? 'Unlock settings' : 'Set a PIN', icon: Lock, render: () => null })}
+              {isAdmin && !pinMissing ? serverPages.filter((p) => !p.under).map(link) : link({ id: 'overview', label: locked ? 'Unlock settings' : 'Choose an admin PIN', icon: Padlock, render: () => null })}
               {isAdmin && unlockedUntil && (
                 <button type="button" className="text-button settings-lock" onClick={() => void lockAdmin().then(() => window.location.reload())}>
                   Lock settings

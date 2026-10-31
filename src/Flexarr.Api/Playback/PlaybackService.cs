@@ -25,7 +25,7 @@ public sealed class PlaybackService(
     Security.GuestLinks guestLinks)
 {
     /// <summary>Within this distance of the end (or once the credits start) an item counts as watched.</summary>
-    private const double WatchedThreshold = 0.92;
+    internal const double WatchedThreshold = 0.92;
     private const double MinResumeSeconds = 30;
 
     /// <summary>A copied Dolby track whose first frame is later than this into the file is converted (see StartAsync).</summary>
@@ -364,6 +364,11 @@ public sealed class PlaybackService(
 
             state.Watched = true;
             state.PositionSeconds = 0;
+            if (item.Kind is MediaKind.Movie or MediaKind.Episode)
+            {
+                // Watched where Trakt couldn't hear it: it goes to Trakt's history with when it was.
+                await Trakt.TraktOutbox.QueueHistoryAsync(db, profile.Id, [(itemId, playedAt)], ct);
+            }
         }
         else if (progress.PositionSeconds > MinResumeSeconds)
         {
@@ -434,6 +439,7 @@ public sealed class PlaybackService(
         var existing = await db.PlaybackStates.Where(p => p.UserId == profile.Id && targets.Contains(p.MediaItemId))
             .ToDictionaryAsync(p => p.MediaItemId, ct);
         var cleared = false;
+        var nowWatched = new List<(Guid, DateTime)>();
         foreach (var id in targets)
         {
             if (!existing.TryGetValue(id, out var state))
@@ -465,7 +471,15 @@ public sealed class PlaybackService(
             {
                 state.PlayCount = 1;
             }
+
+            if (watched)
+            {
+                nowWatched.Add((id, state.LastPlayedAt));
+            }
         }
+
+        // Marked watched here: Trakt hears of it. Marked unwatched isn't passed on; Trakt's history stays as it was.
+        await Trakt.TraktOutbox.QueueHistoryAsync(db, profile.Id, nowWatched, ct);
 
         if (cleared && item.Kind == MediaKind.Episode)
         {

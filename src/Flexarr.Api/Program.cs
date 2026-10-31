@@ -19,6 +19,7 @@ using Flexarr.Api.Profiles;
 using Flexarr.Api.Scanning;
 using Flexarr.Api.Search;
 using Flexarr.Api.Security;
+using Flexarr.Api.Trakt;
 using Flexarr.Api.Updates;
 using Flexarr.Api.Watchlist;
 using Flexarr.Core.Data;
@@ -187,6 +188,17 @@ builder.Services.AddHostedService<NotificationWorker>();
 // What's playing where, as it changes, for Home Assistant: GET /api/v1/events.
 builder.Services.AddSingleton<PlaybackEvents>();
 builder.Services.AddHostedService<PlaybackEventPublisher>();
+// Trakt, per profile (docs/watchlist-trakt.md): connect by code, scrobbles, history and the watchlist both ways.
+builder.Services.AddHttpClient<TraktClient>(c => c.Timeout = TimeSpan.FromSeconds(30));
+builder.Services.AddScoped<TraktAccounts>();
+builder.Services.AddScoped<TraktSync>();
+builder.Services.AddScoped<TraktLists>();
+builder.Services.AddScoped<TraktRecommendations>();
+builder.Services.AddSingleton<TraktConnector>();
+builder.Services.AddSingleton<TraktImports>();
+builder.Services.AddHostedService<TraktScrobbler>();
+builder.Services.AddHostedService<TraktOutboxWorker>();
+builder.Services.AddHostedService<TraktSyncWorker>();
 // An AI assistant's way in (Claude and the like): the same sign-in as a script, at /api/v1/mcp.
 builder.Services.AddMcpServer(o =>
 {
@@ -332,6 +344,8 @@ using (var scope = app.Services.CreateScope())
         flexarr.AskPinForMainProfile = askPin;
         ServerConfigStore.Update(flexarr.DataDirectory, config => config["askPinForMainProfile"] = askPin);
     }
+
+    await Flexarr.Api.Profiles.PinSplit.SettleAsync(db, flexarr.AskPinForMainProfile == true, CancellationToken.None);
 }
 
 app.Use((http, next) =>
@@ -410,6 +424,7 @@ app.MapGroup("/api/v1")
     .MapMusicMixEndpoints()
     .MapRequestEndpoints()
     .MapWatchlistEndpoints()
+    .MapTraktEndpoints()
     .MapSubtitleSearchEndpoints()
     .MapProfileEndpoints()
     .MapRemoteAccessEndpoints()

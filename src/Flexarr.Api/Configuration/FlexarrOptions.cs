@@ -129,6 +129,8 @@ public sealed class FlexarrOptions
 
     public NotificationOptions Notifications { get; set; } = new();
 
+    public TraktOptions Trakt { get; set; } = new();
+
     public Logging.LogOptions Logs { get; set; } = new();
 
     /// <summary>Optional Live TV source: Dispatcharr (or another server with an Xtream Codes API).</summary>
@@ -266,6 +268,21 @@ public sealed class NotificationOptions
 {
     public bool Enabled { get; set; } = true;
     public string RelayUrl { get; set; } = "https://push.flexarr.io/api/push";
+}
+
+/// <summary>
+/// Trakt (see docs/watchlist-trakt.md). By default Flexarr's own Trakt app: its public client id comes from the relay,
+/// which also holds the secret and makes the token calls. An admin's own app (both id and secret) bypasses the relay.
+/// </summary>
+public sealed class TraktOptions
+{
+    public string ClientId { get; set; } = "";
+    public string ClientSecret { get; set; } = "";
+    public string RelayUrl { get; set; } = "https://push.flexarr.io/api/trakt";
+    public string ApiUrl { get; set; } = "https://api.trakt.tv";
+
+    /// <summary>Both an id and a secret of the admin's own Trakt app.</summary>
+    public bool HasOwnApp => ClientId.Length > 0 && ClientSecret.Length > 0;
 }
 
 public sealed class TmdbOptions

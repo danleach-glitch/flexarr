@@ -40,7 +40,7 @@ The assistant acts as the main profile, since it signs in with the API key. Its 
 ## What you'll need
 
 - Your server's address, such as `http://mini.local:8383` or `http://192.168.1.20:8383`. The MCP address is that with `/api/v1/mcp` on the end.
-- The API key, from **Settings › Devices** in Flexarr, signed in as the main profile. Showing it asks for the admin PIN.
+- The API key, from **Settings › Security** in Flexarr, signed in as the main profile. Showing it asks for the admin PIN.
 
 ## Claude Code
 
@@ -74,5 +74,5 @@ Some apps, including Claude Desktop's configuration file, only start MCP servers
 - **Keep the assistant on your network.** Use Flexarr's home address, or its Tailscale address away from home (see [Watch away from home](away-from-home.md)). Never put Flexarr on the internet over plain `http://` to reach it from an assistant.
 - **Don't share configuration files** that contain the key, or commit them to a code repository.
 - **Prefer the header.** Flexarr also accepts the key in the address as `?apikey=`, for tools that can't send headers, but addresses end up in logs and histories more easily.
-- **If the key leaks**, choose **Make a new key** in **Settings › Devices**. Everything using the old key stops working until you give it the new one.
+- **If the key leaks**, choose **Make a new key** in **Settings › Security**. Everything using the old key stops working until you give it the new one.
 - **Check before it acts.** An assistant can play, stop, mark things watched and set recordings. Most assistant apps ask before using a tool; leave that on if you'd rather approve each one.

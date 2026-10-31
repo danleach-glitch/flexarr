@@ -648,6 +648,17 @@ struct PairingPromptTests {
         #expect(kid.needsPinToChoose)
     }
 
+    @Test func theAdminPinIsAskedForAsTheServerSays_OrForAMainProfileWithNoPinOfItsOwn() throws {
+        let decoder = JSONDecoder()
+        let guest = ##"{"id":"owner","name":"Dan","color":"#a9c2ec","hasPin":true,"isMain":true,"isCurrent":false,"hiddenLibraryIds":[],"image":null,"asksPin":true,"asksAdminPin":true}"##
+        #expect(try decoder.decode(Profile.self, from: Data(guest.utf8)).asksAdminPinToChoose)
+        // Servers before 0.57 don't say: only a main profile without a PIN of its own could mean the admin PIN.
+        let older = ##"{"id":"owner","name":"Dan","color":"#a9c2ec","hasPin":true,"isMain":true,"isCurrent":false,"hiddenLibraryIds":[],"image":null}"##
+        #expect(try decoder.decode(Profile.self, from: Data(older.utf8)).asksAdminPinToChoose == false)
+        let noPin = ##"{"id":"owner","name":"Dan","color":"#a9c2ec","hasPin":false,"isMain":true,"isCurrent":false,"hiddenLibraryIds":[],"image":null}"##
+        #expect(try decoder.decode(Profile.self, from: Data(noPin.utf8)).asksAdminPinToChoose)
+    }
+
     @Test func tooManyApprovalsCarryTheServersMessage() async {
         let (client, _) = stubbedClient(.init(status: 429, body: Data(#"{"detail":"Too many devices connected this hour."}"#.utf8)))
         do {

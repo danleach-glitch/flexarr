@@ -78,6 +78,7 @@
               <li><a href="/guide/music">Music</a></li>
               <li><a href="/guide/podcasts">Podcasts</a></li>
               <li><a href="/guide/watchlist">Watchlist</a></li>
+              <li><a href="/guide/trakt">Trakt</a></li>
               <li><a href="/guide/downloads">Downloads</a></li>
               <li><a href="/guide/iphone-remote">Your iPhone as a remote</a></li>
               <li><a href="/guide/live-tv">Live TV and recording</a></li>
@@ -143,8 +144,8 @@
 </blockquote>
 <h3 id="who-can-get-in"><a class="anchor" href="#who-can-get-in" aria-hidden="true" tabindex="-1">#</a>Who can get in</h3>
 <p>When you first turn it on, your own Tailscale account is linked to the main profile. Anyone else you invite to your tailnet appears under <strong>People with their own Tailscale</strong> in <strong>Settings › Remote access</strong>. Choose a profile for each person. Anyone set to <strong>Not allowed</strong> is turned away, even though Tailscale lets them reach the server.</p>
-<p>Over Tailscale, watching works as it does at home. Changing settings is stricter: you&#39;ll be asked to choose the main profile with its PIN. That browser then stays signed in until it&#39;s signed out, or left unused for two weeks. See <a href="/guide/profiles">Profiles</a> for setting a PIN.</p>
-<blockquote class="callout important"><p><strong>Important</strong> Someone on your tailnet whose account is linked to another profile can only choose the main profile with its PIN. Changing settings over Tailscale asks for the PIN too, as it does at home.</p>
+<p>Over Tailscale, watching works as it does at home. Changing settings is stricter: you&#39;ll be asked to choose the main profile with the admin PIN. That browser then stays signed in until it&#39;s signed out, or left unused for two weeks. See <a href="/guide/profiles#unlocking-settings">Unlocking settings</a> for the admin PIN.</p>
+<blockquote class="callout important"><p><strong>Important</strong> Someone on your tailnet whose account is linked to another profile can only choose the main profile with the admin PIN, even if it has a PIN of its own. Changing settings over Tailscale asks for the admin PIN, as it does at home.</p>
 </blockquote>
 <p>Don&#39;t use <strong>Tailscale Funnel</strong> for Flexarr. Funnel publishes an address to the whole internet. If Flexarr spots it, Settings warns you; turn remote access off and on again to make it private.</p>
 <h2 id="quality-away-from-home"><a class="anchor" href="#quality-away-from-home" aria-hidden="true" tabindex="-1">#</a>Quality away from home</h2>
@@ -172,19 +173,19 @@
 }
 </code></pre>
 <p>Then a request from the same computer that doesn&#39;t say who it&#39;s for counts as the internet, so a badly set up proxy can&#39;t let anyone in. A browser on the server itself then needs the API key too.</p>
-<blockquote class="callout important"><p><strong>Important</strong> In <strong>Settings › Devices</strong>, <strong>Ask for it</strong> set to <strong>Only away from home</strong> lets devices on your home network in as the main profile without a key. With a reverse proxy, that makes the settings above matter. If in doubt, leave it on <strong>Always</strong>.</p>
+<blockquote class="callout important"><p><strong>Important</strong> In <strong>Settings › Security</strong>, <strong>Ask for it</strong> set to <strong>Only away from home</strong> lets devices on your home network in as the main profile without a key. With a reverse proxy, that makes the settings above matter. If in doubt, leave it on <strong>Always</strong>.</p>
 </blockquote>
 <h2 id="why-not-forward-a-port"><a class="anchor" href="#why-not-forward-a-port" aria-hidden="true" tabindex="-1">#</a>Why not forward a port?</h2>
 <p>It&#39;s tempting to open port 8383 on your router and connect to <code>http://your-home-address:8383</code>. Please don&#39;t. Plain <code>http://</code> isn&#39;t encrypted, so your API key, your sign-ins and what you watch cross the internet readable by anyone along the way. It also puts your server in front of every scanner on the internet.</p>
 <p>Plain <code>http://</code> is fine on a home network you trust. Anywhere else, use Tailscale or HTTPS.</p>
 <h2 id="connecting-a-device-from-outside"><a class="anchor" href="#connecting-a-device-from-outside" aria-hidden="true" tabindex="-1">#</a>Connecting a device from outside</h2>
-<p>Devices normally connect with a code you approve in <strong>Settings › Devices › Connect a device</strong>, and that only works from your home network or over Tailscale. To connect an app through a reverse proxy instead, use the API key:</p>
+<p>Devices normally connect with a code you approve in <strong>Settings › Security › Connect a device</strong>, and that only works from your home network or over Tailscale. To connect an app through a reverse proxy instead, use the API key:</p>
 <ul>
 <li><strong>iPhone and iPad:</strong> on the connect screen, choose <strong>Enter an address instead</strong>, then <strong>Connecting from outside your home? Use an API key</strong>.</li>
 <li><strong>Apple TV:</strong> the same: <strong>Enter an address instead</strong>, then <strong>Connecting from outside your home? Use an API key</strong>.</li>
 </ul>
-<p>The API key is in <strong>Settings › Devices</strong> under <strong>API key</strong>. Showing it asks for the admin PIN. It&#39;s also in <code>config.json</code>.</p>
-<blockquote class="callout important"><p><strong>Important</strong> The API key gives full control of your server. Don&#39;t paste it anywhere you wouldn&#39;t paste a password. If it leaks, <strong>Make a new key</strong> in <strong>Settings › Devices</strong> replaces it, and can sign out every other browser and device at the same time.</p>
+<p>The API key is in <strong>Settings › Security</strong> under <strong>API key</strong>. Showing it asks for the admin PIN. It&#39;s also in <code>config.json</code>.</p>
+<blockquote class="callout important"><p><strong>Important</strong> The API key gives full control of your server. Don&#39;t paste it anywhere you wouldn&#39;t paste a password. If it leaks, <strong>Make a new key</strong> in <strong>Settings › Security</strong> replaces it, and can sign out every other browser and device at the same time.</p>
 </blockquote>
 
         </div>

@@ -45,6 +45,8 @@ struct ProfilePickerView: View {
     @State private var lockTarget: Profile?
     @State private var switching: String?
     @State private var error: String?
+    /// Its PIN is forgotten: the admin PIN is asked for, which takes it off.
+    @State private var forgetting: Profile?
 
     private struct ParentPin: Equatable {
         let ownPin: String?
@@ -63,9 +65,19 @@ struct ProfilePickerView: View {
                     }
                 }
                 .transition(.opacity)
+            } else if let forgetting {
+                PinEntry(profile: nil, title: "Enter the admin PIN", note: "It takes \(forgetting.name)’s PIN off.", error: $error,
+                         onCancel: { self.forgetting = nil; error = nil }) { pin in
+                    await forget(forgetting, adminPin: pin)
+                }
+                .transition(.opacity)
             } else if let asking {
-                PinEntry(profile: parent == nil ? asking : model.profiles.first(where: \.isMain),
-                         title: parent == nil ? nil : "Enter the admin PIN", error: $error,
+                // The admin PIN is the server's, not the main profile's own: a padlock rather than its picture. Where
+                // the server says choosing the main profile takes it (a guest), the same.
+                let adminPin = parent != nil || asking.asksAdminPinToChoose
+                PinEntry(profile: adminPin ? nil : asking,
+                         title: adminPin ? "Enter the admin PIN" : nil, error: $error,
+                         onForgot: adminPin || asking.isMain ? nil : { forgetting = asking; self.asking = nil; error = nil },
                          onCancel: { self.asking = nil; parent = nil; error = nil }) { pin in
                     if let parent {
                         await choose(asking, pin: parent.ownPin, parentPin: pin)
@@ -79,6 +91,7 @@ struct ProfilePickerView: View {
             }
         }
         .animation(.easeInOut(duration: 0.2), value: asking)
+        .animation(.easeInOut(duration: 0.2), value: forgetting)
         .animation(.easeInOut(duration: 0.2), value: kidsLockPin)
         // A link asked to play as a profile with a PIN: straight to its PIN.
         .onAppear { if let profile = model.linkProfile, !marksCurrent { asking = profile } }
@@ -243,6 +256,22 @@ struct ProfilePickerView: View {
         }
     }
 
+    /// The admin PIN takes a forgotten PIN off, and the profile is chosen.
+    private func forget(_ profile: Profile, adminPin: String) async {
+        guard let client = model.client else { return }
+        do {
+            let cleared = try await client.forgetPin(of: profile.id, adminPin: adminPin)
+            forgetting = nil
+            await choose(cleared, pin: nil)
+        } catch FlexarrClientError.parentPinNeeded(let message) {
+            self.error = message ?? "That isn’t the admin PIN."
+        } catch FlexarrClientError.http(status: 404, _) {
+            self.error = "Take the PIN off in Settings › Profiles on the web."
+        } catch {
+            self.error = ConnectionError(error).message
+        }
+    }
+
     private func release(_ pin: String) async {
         do {
             try await model.releaseKidsLock(pin: pin)
@@ -281,7 +310,11 @@ struct ProfilePickerView: View {
 struct PinEntry: View {
     let profile: Profile?
     var title: String? = nil
+    /// A line under the title.
+    var note: String? = nil
     @Binding var error: String?
+    /// Offers "Forgot PIN?", which asks for the admin PIN instead.
+    var onForgot: (() -> Void)? = nil
     let onCancel: () -> Void
     let onSubmit: (String) async -> Void
 
@@ -298,10 +331,17 @@ struct PinEntry: View {
                     .font(.system(size: 72))
                     .foregroundStyle(Color.usher)
                     .frame(width: 84, height: 84)
+                    .accessibilityHidden(true)
             }
             Text(title ?? profile.map { "Enter \($0.name)’s PIN" } ?? "Enter the PIN")
                 .font(.marquee(32, weight: .heavy))
                 .foregroundStyle(Color.screen)
+            if let note {
+                Text(note)
+                    .font(.subheadline)
+                    .foregroundStyle(Color.usher)
+                    .multilineTextAlignment(.center)
+            }
             SecureField("PIN", text: $pin)
                 .keyboardType(.numberPad)
                 .textContentType(.oneTimeCode)
@@ -327,6 +367,11 @@ struct PinEntry: View {
                 Button("Continue", action: submit)
                     .buttonStyle(ActionButtonStyle(prominent: true))
                     .disabled(pin.count < 4 || checking)
+            }
+            if let onForgot {
+                Button("Forgot PIN?", action: onForgot)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(Color.usher)
             }
         }
         .padding(32)
