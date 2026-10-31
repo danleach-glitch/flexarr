@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TITLE}}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/*CSS*/
+/* Hub: summary tiles, then one ruled list of pages, each a row with progress and actions. */
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.tile { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; display: grid; gap: 2px; }
+.tile b { font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.tile span { font-size: 13px; color: var(--muted); }
+.tile.alert b { color: var(--high); }
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; justify-content: space-between; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chips button { font: inherit; font-size: 13px; color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 99px; padding: 3px 11px; cursor: pointer; font-variant-numeric: tabular-nums; }
+.chips button[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.chips button small { color: inherit; opacity: .7; }
+ul.pages { list-style: none; margin: 10px 0 0; padding: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+ul.pages > li { display: grid; grid-template-columns: minmax(0, 1fr) 190px 250px; gap: 6px 18px; padding: 13px 16px; border-top: 1px solid var(--line); align-items: center; }
+ul.pages > li:first-child { border-top: 0; }
+ul.pages > li.landed .ptitle a { color: var(--muted); }
+ul.pages > li.archived { opacity: .55; }
+.ptitle { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; min-width: 0; }
+.ptitle a { color: var(--fg); font-weight: 700; text-decoration: none; overflow-wrap: anywhere; }
+.ptitle a:hover { color: var(--accent); text-decoration: underline; }
+.pmeta { grid-column: 1; display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12.5px; color: var(--muted); }
+.kind { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--accent); background: var(--accent-soft); border-radius: 4px; padding: 1px 6px; }
+.pill { font-size: 11px; font-weight: 600; border-radius: 4px; padding: 1px 6px; }
+.pill.stale { color: var(--high); background: var(--high-bg); }
+.pill.landed { color: var(--good); background: var(--good-soft); }
+.pill.marked { color: var(--you); background: var(--you-bg); }
+.pin { color: var(--you); }
+.prog { grid-column: 2; grid-row: 1 / 3; display: grid; gap: 4px; font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.prog .bar > div { background: var(--good); }
+.acts { grid-column: 3; grid-row: 1 / 3; display: flex; gap: 6px; justify-content: flex-end; }
+.acts button { font: inherit; font-size: 12px; color: var(--muted); background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 2px 8px; cursor: pointer; white-space: nowrap; }
+.acts button:hover { color: var(--fg); border-color: var(--muted); }
+.acts button.danger:hover { color: var(--high); border-color: var(--high); }
+.acts button[aria-pressed="true"] { color: var(--fg); border-color: var(--fg); }
+.empty { padding: 24px 16px; color: var(--muted); text-align: center; }
+dialog { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--fg); padding: 20px; max-width: 420px; }
+dialog::backdrop { background: rgb(0 0 0 / .35); }
+dialog .row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+dialog button { font: inherit; font-size: 14px; border-radius: 8px; padding: 6px 14px; cursor: pointer; border: 1px solid var(--line); background: var(--surface); color: var(--fg); }
+dialog button.go { background: var(--high); border-color: var(--high); color: #fff; }
+@media (max-width: 640px) {
+  ul.pages > li { grid-template-columns: 1fr; }
+  .prog, .acts { grid-column: 1; grid-row: auto; }
+  .acts { justify-content: flex-start; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div class="eyebrow">Flexarr · checklists</div>
+  <h1 id="title"></h1>
+  <p class="lede">Every brief, audit, review, plan and test list in one place. Ticks reach this page as Claude makes them; ticks made by hand on a page arrive at the next <code>/hub</code> sync.</p>
+  <div class="tiles" id="tiles"></div>
+  <span class="sync" id="p-sync"></span>
+</header>
+<main>
+  <div class="toolbar">
+    <div class="chips" id="kinds" aria-label="Kind"></div>
+    <div class="chips" id="views"></div>
+  </div>
+  <ul class="pages" id="pages"></ul>
+  <p class="legend" id="deleteNote"></p>
+</main>
+<footer id="footer"></footer>
+</div>
+<dialog id="confirm" aria-labelledby="confirm-title">
+  <h2 id="confirm-title" style="font-size:18px">Delete this page?</h2>
+  <p id="confirm-text" style="margin-top:8px;color:var(--muted)"></p>
+  <div class="row"><button type="button" id="confirm-no">Keep it</button><button type="button" class="go" id="confirm-yes">Delete</button></div>
+</dialog>
+<script id="data" type="application/json">/*DATA*/</script>
+<script>
+/*COMMON_JS*/
+
+// Records in this page's db:
+//   pages/<slug>          written by Claude: {title, url, kind, branch, total, stage, registeredAt, updatedAt,
+//                         doneIds, syncedAt, lastTickAt}; doneIds = the page's done or dropped ids at the last /hub sync
+//   ticks/<slug>--<id>    live ticks since then, written by Claude as it ticks the page: {done, note, at}
+//   prefs/<slug>          written by this page: {pinned, archived, deleteMarked, deleted}
+const KINDS = ['brief', 'audit', 'review', 'plan', 'test list'];
+const STALE_MS = (DATA.staleDays || 3) * 86400000;
+let pages = {}, mirror = {}, prefs = {};
+let kind = 'all', view = 'live', connector = null;
+
+const ts = s => { const t = Date.parse(s || ''); return Number.isNaN(t) ? 0 : t; };
+function ago(t) {
+  if (!t) return 'no activity yet';
+  const m = Math.round((Date.now() - t) / 60000);
+  if (m < 1) return 'just now';
+  if (m < 60) return m + ' min ago';
+  const h = Math.round(m / 60);
+  if (h < 24) return h + ' h ago';
+  const d = Math.round(h / 24);
+  return d === 1 ? 'yesterday' : d + ' days ago';
+}
+
+function summarise(slug) {
+  const p = pages[slug], pr = prefs[slug] || {};
+  // Done = the ids done at the last sync, plus live ticks since, minus anything unticked since.
+  const doneIds = new Set(Array.isArray(p.doneIds) ? p.doneIds : []);
+  let last = Math.max(ts(p.updatedAt), ts(p.registeredAt), ts(p.lastTickAt));
+  for (const [key, t] of Object.entries(mirror)) {
+    if (!key.startsWith(slug + '--')) continue;
+    const id = key.slice(slug.length + 2);
+    if (t.done || (typeof t.note === 'string' && t.note.startsWith('dropped'))) doneIds.add(id); else doneIds.delete(id);
+    last = Math.max(last, ts(t.at));
+  }
+  const total = Number(p.total) || 0;
+  const done = Math.min(doneIds.size, total || doneIds.size);
+  const landed = /^landed/i.test(p.stage || '');
+  const open = total ? total - done : 0;
+  const stale = !landed && !pr.archived && open > 0 && last && Date.now() - last > STALE_MS;
+  return { slug, p, pr, total, done, open, last, landed, stale };
+}
+
+function visible(s) {
+  if (s.pr.deleted) return false;
+  if (kind !== 'all' && (s.p.kind || 'plan') !== kind) return false;
+  if (view === 'live') return !s.pr.archived && !s.landed;
+  if (view === 'stale') return s.stale;
+  if (view === 'landed') return s.landed && !s.pr.archived;
+  if (view === 'marked') return !!s.pr.deleteMarked;
+  if (view === 'archived') return !!s.pr.archived;
+  return true;
+}
+
+function render() {
+  const all = Object.keys(pages).map(summarise).filter(s => !s.pr.deleted);
+  const live = all.filter(s => !s.pr.archived && !s.landed);
+  const tiles = [
+    ['Live pages', live.length],
+    ['Items open', live.reduce((n, s) => n + s.open, 0)],
+    ['Stale', all.filter(s => s.stale).length, 'alert'],
+    ['Landed', all.filter(s => s.landed).length],
+  ];
+  $('tiles').innerHTML = tiles.map(([label, n, cls]) => `<div class="tile${cls && n ? ' ' + cls : ''}"><b>${n}</b><span>${label}</span></div>`).join('');
+
+  const kindCount = k => all.filter(s => (k === 'all' || (s.p.kind || 'plan') === k) && !s.pr.archived).length;
+  $('kinds').innerHTML = ['all', ...KINDS].filter(k => k === 'all' || kindCount(k))
+    .map(k => `<button type="button" data-kind="${k}" aria-pressed="${k === kind}">${k === 'all' ? 'All' : k[0].toUpperCase() + k.slice(1)} <small>${kindCount(k)}</small></button>`).join('');
+  const views = [['live', 'Live'], ['stale', 'Stale'], ['landed', 'Landed'], ['marked', 'Marked for deletion'], ['archived', 'Archived'], ['everything', 'Everything']];
+  const viewCount = v => all.filter(s => { const keep = view; view = v; const r = visible(s); view = keep; return r; }).length;
+  $('views').innerHTML = views.filter(([v]) => ['live', 'everything'].includes(v) || viewCount(v))
+    .map(([v, label]) => `<button type="button" data-view="${v}" aria-pressed="${v === view}">${label} <small>${viewCount(v)}</small></button>`).join('');
+
+  const rows = all.filter(visible).sort((a, b) =>
+    (b.pr.pinned ? 1 : 0) - (a.pr.pinned ? 1 : 0) || (a.landed ? 1 : 0) - (b.landed ? 1 : 0) || b.last - a.last);
+  $('pages').innerHTML = rows.length ? rows.map(rowFor).join('') : '<li class="empty">Nothing here.</li>';
+
+  $('deleteNote').textContent = connector
+    ? 'Delete removes a page for good, after you confirm.'
+    : 'This page can’t delete artifacts itself. Mark pages for deletion, then ask Claude to run /hub delete; it confirms each one.';
+}
+
+function rowFor(s) {
+  const { p, pr } = s;
+  const pct = s.total ? Math.round(100 * s.done / s.total) : 0;
+  const prog = s.total
+    ? `<div class="bar"><div style="width:${pct}%"></div></div><span>${s.done} of ${s.total} done</span>`
+    : `<span>${esc(p.stage || 'No item count')}</span>`;
+  const del = connector
+    ? `<button type="button" class="danger" data-act="delete" data-slug="${esc(s.slug)}">Delete</button>`
+    : `<button type="button" data-act="mark" data-slug="${esc(s.slug)}" aria-pressed="${!!pr.deleteMarked}">${pr.deleteMarked ? 'Unmark' : 'Mark for deletion'}</button>`;
+  return `<li class="${s.landed ? 'landed' : ''}${pr.archived ? ' archived' : ''}">
+    <div class="ptitle">${pr.pinned ? '<span class="pin" aria-label="Pinned">★</span>' : ''}<a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.title)}</a>
+      <span class="kind">${esc(p.kind || 'plan')}</span>
+      ${s.stale ? '<span class="pill stale">Stale</span>' : ''}
+      ${s.landed ? `<span class="pill landed">${esc(p.stage)}</span>` : ''}
+      ${pr.deleteMarked ? '<span class="pill marked">Marked for deletion</span>' : ''}</div>
+    <div class="pmeta">${p.branch ? `<span><code>${esc(p.branch)}</code></span>` : ''}${!s.landed && p.stage ? `<span>${esc(p.stage)}</span>` : ''}<span>${ago(s.last)}</span></div>
+    <div class="prog">${prog}</div>
+    <div class="acts">
+      <button type="button" data-act="pin" data-slug="${esc(s.slug)}" aria-pressed="${!!pr.pinned}">${pr.pinned ? 'Unpin' : 'Pin'}</button>
+      <button type="button" data-act="archive" data-slug="${esc(s.slug)}" aria-pressed="${!!pr.archived}">${pr.archived ? 'Restore' : 'Archive'}</button>
+      ${del}
+    </div></li>`;
+}
+
+async function savePrefs(slug, change) {
+  if (!db || !canWrite) { $('p-sync').textContent = 'Only the owner can change this page.'; return; }
+  const prev = prefs[slug];
+  prefs[slug] = { ...(prev || {}), ...change };
+  render();
+  try { await db.collection('prefs').doc(slug).set(prefs[slug]); }
+  catch { prefs[slug] = prev; render(); $('p-sync').textContent = 'Couldn’t save that change. Reload and try again.'; }
+}
+
+let pendingDelete = null;
+document.addEventListener('click', async e => {
+  const k = e.target.closest('[data-kind]'); if (k) { kind = k.dataset.kind; render(); return; }
+  const v = e.target.closest('[data-view]'); if (v) { view = v.dataset.view; render(); return; }
+  const a = e.target.closest('[data-act]'); if (!a) return;
+  const slug = a.dataset.slug, pr = prefs[slug] || {};
+  if (a.dataset.act === 'pin') savePrefs(slug, { pinned: !pr.pinned });
+  if (a.dataset.act === 'archive') savePrefs(slug, { archived: !pr.archived });
+  if (a.dataset.act === 'mark') savePrefs(slug, { deleteMarked: !pr.deleteMarked });
+  if (a.dataset.act === 'delete') {
+    pendingDelete = slug;
+    $('confirm-text').textContent = `“${pages[slug]?.title}” and its ticks are removed for good.`;
+    $('confirm').showModal();
+  }
+});
+$('confirm-no').addEventListener('click', () => { pendingDelete = null; $('confirm').close(); });
+$('confirm-yes').addEventListener('click', async () => {
+  const slug = pendingDelete; pendingDelete = null; $('confirm').close();
+  if (!slug || !connector) return;
+  try {
+    await connector.callTool(DATA.connector, 'delete_artifact', { slug });
+    await savePrefs(slug, { deleted: true, deletedAt: new Date().toISOString() });
+    $('p-sync').textContent = `Deleted “${pages[slug]?.title}”.`;
+  } catch (err) {
+    $('p-sync').textContent = `Couldn’t delete it (${err?.code || 'error'}). Mark it instead and ask Claude.`;
+  }
+});
+
+// Delete through the artifacts connector only if this viewer has it; otherwise fall back to marking.
+async function findConnector() {
+  try {
+    const mcp = await window.claude?.use?.('mcp');
+    if (!mcp) return;
+    await mcp.describeTool(DATA.connector, 'delete_artifact');
+    connector = mcp;
+    render();
+  } catch { connector = null; }
+}
+
+$('title').textContent = DATA.title;
+$('footer').innerHTML = md('Records: `pages/<slug>` and `ticks/<slug>--<id>` written by Claude, `prefs/<slug>` by this page. Rendered from `scripts/claude/checklist/hub.html`.');
+render();
+
+(async () => {
+  const sync = $('p-sync');
+  sync.textContent = 'Loading…';
+  const timer = setTimeout(() => { if (!db) sync.textContent = 'Saved data isn’t available in this view.'; }, 10000);
+  try {
+    db = await window.claude?.use?.('db');
+    const user = await window.claude?.use?.('user');
+    canWrite = !!db && (user ? user.can?.('data.write') !== false : true);
+  } catch { db = null; }
+  clearTimeout(timer);
+  if (!db) { sync.textContent = 'Saved data isn’t available in this view.'; return; }
+  const listen = (name, assign) => db.collection(name).onSnapshot(snap => {
+    const out = {}; snap.docs.forEach(d => { out[d.id] = d.data() || {}; });
+    assign(out); sync.textContent = 'Live · updates as checklists are ticked'; render();
+  }, () => { sync.textContent = 'Lost the connection. Reload to try again.'; });
+  listen('pages', o => { pages = o; });
+  listen('ticks', o => { mirror = o; });
+  listen('prefs', o => { prefs = o; });
+  findConnector();
+})();
+setInterval(render, 60000);
+</script>
+</body>
+</html>

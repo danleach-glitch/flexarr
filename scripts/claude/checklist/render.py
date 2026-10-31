@@ -3,6 +3,7 @@
 
     python3 scripts/claude/checklist/render.py brief data.json out.html
     python3 scripts/claude/checklist/render.py audit data.json out.html
+    python3 scripts/claude/checklist/render.py hub hub.json out.html
     python3 scripts/claude/checklist/render.py extract page.html data.json
 
 extract pulls the data back out of a published page (save it with read_artifact first), so a later session can
@@ -125,11 +126,17 @@ def extract(src, out):
     print(f"{out}: data from {src}")
 
 
+def check_hub(data, errors):
+    need(data, ["title", "connector"], "hub", errors)
+    if not isinstance(data.get("staleDays", 3), int) or data.get("staleDays", 3) < 1:
+        errors.append("staleDays must be a whole number of days")
+
+
 def main():
     if len(sys.argv) == 4 and sys.argv[1] == "extract":
         extract(Path(sys.argv[2]), Path(sys.argv[3]))
         return
-    if len(sys.argv) != 4 or sys.argv[1] not in ("brief", "audit"):
+    if len(sys.argv) != 4 or sys.argv[1] not in ("brief", "audit", "hub"):
         print(__doc__.strip(), file=sys.stderr)
         sys.exit(2)
     kind, src, out = sys.argv[1], Path(sys.argv[2]), Path(sys.argv[3])
@@ -138,7 +145,7 @@ def main():
     except (OSError, json.JSONDecodeError) as e:
         fail([f"can't read {src}: {e}"])
     errors = []
-    (check_brief if kind == "brief" else check_audit)(data, errors)
+    {"brief": check_brief, "audit": check_audit, "hub": check_hub}[kind](data, errors)
     if errors:
         fail(errors)
 

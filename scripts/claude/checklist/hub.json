@@ -1,0 +1,5 @@
+{
+ "title": "Checklists",
+ "connector": "claude-artifacts",
+ "staleDays": 3
+}
