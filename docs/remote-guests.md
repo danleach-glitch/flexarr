@@ -123,6 +123,16 @@ What guests lose:
 - **iPhone downloads:** they run only while the app is open, since the system's background download service can't use the tunnel.
 - **Apple TV Top Shelf:** shows nothing for a guest TV.
 
+## Turning it on
+
+Family invites stay hidden (`RemoteGuests:Enabled` false) until the iPhone app that carries the tunnel is on the App
+Store. When they're turned on by default:
+
+- add `share-with-family` to `docs/guide/index.json` (after `away-from-home`), link it from `away-from-home.md` and the
+  FAQ, and run `make guide`;
+- add `ANDROID_CERT_SHA256` to the relay's environment, and Upstash, if they aren't there yet;
+- settle the apps' export compliance answer and set `ITSAppUsesNonExemptEncryption` in `clients/apple/project.yml`.
+
 ## Later
 
 - Invite from the iPhone and Android apps.
