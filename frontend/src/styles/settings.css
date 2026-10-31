@@ -2593,3 +2593,48 @@
   overflow-wrap: anywhere;
   font-size: 0.8rem;
 }
+
+/* A guest and their devices: the name and Add device over its rows. */
+.guest-person + .guest-person {
+  border-top: 1px solid var(--aisle);
+}
+
+.guest-person-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 0 4px;
+}
+
+.guest-add {
+  display: grid;
+  gap: 12px;
+  margin: 8px 0 14px;
+  padding: 14px;
+  border: 1px solid var(--aisle);
+  border-radius: 12px;
+}
+
+.guest-kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.guest-add-close {
+  margin-left: auto;
+}
+
+.guest-add-step {
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+}
+
+.guest-new {
+  display: flex;
+  gap: 8px;
+  padding: 14px 0;
+  border-top: 1px solid var(--aisle);
+}

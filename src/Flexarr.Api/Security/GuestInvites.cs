@@ -98,7 +98,7 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
     /// Makes an invite for <paramref name="profileId"/>, once the safety check passes: mints the Tailscale key, keeps
     /// the invite and returns the payload for the guest's link (or TV).
     /// </summary>
-    public async Task<(GuestInvite Invite, InvitePayload Payload)> CreateAsync(string name, string profileId, string profileName, string ownerName, InviteVia via, CancellationToken ct)
+    public async Task<(GuestInvite Invite, InvitePayload Payload)> CreateAsync(string? name, string profileId, string profileName, string ownerName, InviteVia via, CancellationToken ct)
     {
         var settings = options.CurrentValue.RemoteGuests;
         if (!settings.Enabled)
@@ -142,7 +142,8 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
         }
 
         var token = Base64Url(RandomNumberGenerator.GetBytes(32));
-        var trimmed = name.Trim() is { Length: > 0 } t ? t[..Math.Min(t.Length, 60)] : "A guest";
+        // Usually none: the device is named when it joins, from the profile and what it is ("Gran's iPhone").
+        var trimmed = name?.Trim() is { Length: > 0 } t ? t[..Math.Min(t.Length, 60)] : "";
         var invite = new GuestInvite
         {
             Id = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(8)),
@@ -161,9 +162,9 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
             SaveLocked();
         }
 
-        LogCreated(PathComparison.Printable(trimmed), via);
+        LogCreated(PathComparison.Printable(trimmed.Length > 0 ? trimmed : profileName), via);
         var payload = new InvitePayload(1, ownerName, options.CurrentValue.ServerId ?? "",
-            $"{address}:{policy.FlexarrPort.ToString(CultureInfo.InvariantCulture)}", key.Key, token, trimmed, profileName, invite.ExpiresAt);
+            $"{address}:{policy.FlexarrPort.ToString(CultureInfo.InvariantCulture)}", key.Key, token, trimmed.Length > 0 ? trimmed : profileName, profileName, invite.ExpiresAt);
         return (invite, payload);
     }
 
@@ -191,7 +192,8 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
     /// Swaps an invite's token for a guest sign-in on the device at <paramref name="address"/> (a guest device on the
     /// tailnet, checked by the caller). Works once.
     /// </summary>
-    public (SignIn SignIn, string Token, GuestInvite Invite) Redeem(string token, string address, DeviceType? deviceType)
+    public (SignIn SignIn, string Token, GuestInvite Invite) Redeem(string token, string address, DeviceType? deviceType,
+        Func<string, string?>? profileNameFor = null)
     {
         if (string.IsNullOrEmpty(token) || token.Length > 128)
         {
@@ -212,9 +214,26 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
             SaveLocked();
         }
 
-        var (signIn, signInToken) = signIns.IssueGuest(invite.Name, invite.ProfileId, address, deviceType);
-        LogRedeemed(PathComparison.Printable(invite.Name), address);
+        var name = invite.Name.Length > 0 ? invite.Name : DeviceName(profileNameFor?.Invoke(invite.ProfileId), deviceType);
+        var (signIn, signInToken) = signIns.IssueGuest(name, invite.ProfileId, address, deviceType);
+        LogRedeemed(PathComparison.Printable(name), address);
         return (signIn, signInToken, invite);
+    }
+
+    /// <summary>"Gran's iPhone": a guest's device as lists show it, from its profile and what its app says it is.</summary>
+    public static string DeviceName(string? profileName, DeviceType? type)
+    {
+        var what = type switch
+        {
+            DeviceType.AppleTv => "Apple TV",
+            DeviceType.IPhone => "iPhone",
+            DeviceType.IPad => "iPad",
+            DeviceType.AndroidPhone => "Android phone",
+            DeviceType.AndroidTablet => "Android tablet",
+            DeviceType.AndroidTv => "Android TV",
+            _ => "device",
+        };
+        return profileName is { Length: > 0 } who ? $"{who}’s {what}" : $"A guest’s {what}";
     }
 
     /// <summary>Encodes a payload for the invite link: https://flexarr.io/join#&lt;this&gt;.</summary>

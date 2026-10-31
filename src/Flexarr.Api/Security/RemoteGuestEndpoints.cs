@@ -13,7 +13,8 @@ public sealed record GuestInviteDto(string Id, string Name, string ProfileId, st
 /// <param name="Link">https://flexarr.io/join#…, to send the guest (and to draw as a QR code). Shown once.</param>
 public sealed record CreatedInviteDto(GuestInviteDto Invite, string Link);
 
-public sealed record CreateInviteRequest(string Name, string ProfileId);
+/// <param name="Name">What to call the device; omitted, it's named when it joins ("Gran's iPhone").</param>
+public sealed record CreateInviteRequest(string? Name, string ProfileId);
 
 public sealed record RedeemInviteRequest(string Token);
 
@@ -45,7 +46,7 @@ public sealed record RelayRequest(bool Enabled, int? Port = null);
 public sealed record RelayDto(int? Port, bool Working, string? Problem = null);
 
 /// <param name="Code">The code the guest's TV shows (8 letters and digits; spaces and dashes are fine).</param>
-public sealed record TvCodeRequest(string Code, string Name, string ProfileId);
+public sealed record TvCodeRequest(string Code, string? Name, string ProfileId);
 
 /// <param name="ApiKey">The guest device's own sign-in, sent as X-Api-Key.</param>
 public sealed record RedeemedInviteDto(string ApiKey, string ProfileId, string ServerId, string Name);
@@ -229,7 +230,7 @@ public static class RemoteGuestEndpoints
     public static RouteGroupBuilder MapGuestRedeemEndpoints(this RouteGroupBuilder api)
     {
         api.MapPost("/invites/redeem", async (RedeemInviteRequest request, HttpContext http, GuestInvites invites, GuestPolicy policy, ITailnetWhois whois,
-            IOptionsMonitor<FlexarrOptions> options, Notifications.GuestAlerts alerts, CancellationToken ct) =>
+            IOptionsMonitor<FlexarrOptions> options, Notifications.GuestAlerts alerts, FlexarrDbContext db, CancellationToken ct) =>
         {
             var settings = options.CurrentValue.RemoteGuests;
             if (!settings.Enabled)
@@ -250,8 +251,9 @@ public static class RemoteGuestEndpoints
 
             try
             {
-                var (signIn, token, invite) = invites.Redeem(request.Token, address, DeviceTypes.Of(http.Request));
-                alerts.Joined(invite.Name, invite.ProfileId);
+                var names = await db.Profiles.AsNoTracking().ToDictionaryAsync(p => p.Id, p => p.Name, ct);
+                var (signIn, token, invite) = invites.Redeem(request.Token, address, DeviceTypes.Of(http.Request), names.GetValueOrDefault);
+                alerts.Joined(signIn.Name, invite.ProfileId);
                 return Results.Ok(new RedeemedInviteDto(token, signIn.ProfileId!, options.CurrentValue.ServerId ?? "", signIn.Name));
             }
             catch (InviteException ex)

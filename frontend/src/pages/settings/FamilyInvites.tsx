@@ -18,6 +18,7 @@ import {
 import { AsyncButton } from '../../components/AsyncButton'
 import { CopyButton } from '../../components/CopyButton'
 import { useApi } from '../../hooks/useApi'
+import { usePolling } from '../../hooks/usePolling'
 import { describeGuest } from '../../lib/guests'
 import { SettingRow, SettingsGroup, ToggleRow } from './shared'
 import { errorText } from './useSettings'
@@ -46,8 +47,7 @@ export function FamilyInvites() {
         </SettingsGroup>
       ) : ready ? (
         <>
-          <InviteGroup onChange={refresh} />
-          <GuestDevices version={version} onChange={refresh} />
+          <GuestsGroup onChange={refresh} />
           <RelayGroup setup={setup} onChange={refresh} />
           <SetupGroup setup={setup} onChange={refresh} collapsed />
         </>
@@ -175,119 +175,225 @@ export function SetupGroup({ setup, onChange, collapsed = false }: { setup: Remo
   )
 }
 
-/** Invite someone's phone (a link and QR code) or TV (the code it shows), and the invites still waiting. */
-export function InviteGroup({ onChange }: { onChange: () => void }) {
+/**
+ * Guests, person by person: each guest's profile with its devices (how each is connected) and invites still waiting,
+ * and Add device. A device joins with a one-use invite: a phone or tablet by a link (or its QR code), a TV by typing
+ * in the code it shows, since a TV can't open a link.
+ */
+export function GuestsGroup({ onChange }: { onChange: () => void }) {
   const profiles = useApi(getProfiles, [])
-  const [version, setVersion] = useState(0)
-  const waiting = useApi(getGuestInvites, [version])
-  const guestProfiles = profiles.data?.filter((p) => !p.isMain) ?? []
-  const [profileId, setProfileId] = useState('')
-  const [name, setName] = useState('')
-  const [tvCode, setTvCode] = useState('')
-  const [made, setMade] = useState<{ link: string; name: string }>()
-  const [sentToTv, setSentToTv] = useState<string>()
-  const [error, setError] = useState<string>()
-  const chosen = profileId || guestProfiles[0]?.id || ''
-  const chosenName = guestProfiles.find((p) => p.id === chosen)?.name ?? ''
-  const deviceName = name.trim() || (chosenName ? `${chosenName}’s device` : '')
+  const devices = useApi(getGuestDevices, [])
+  const waiting = useApi(getGuestInvites, [])
+  const [adding, setAdding] = useState<string>()
+  const [removed, setRemoved] = useState<GuestDevice>()
+  const [newPerson, setNewPerson] = useState('')
 
-  async function invite(kind: 'link' | 'tv') {
+  const refresh = () => {
+    devices.reload()
+    waiting.reload()
+    onChange()
+  }
+  // While anything is on its way (a link sent, a TV's code typed in), see it arrive.
+  usePolling(refresh, waiting.data?.length || adding ? 4000 : null)
+
+  const guestProfiles = profiles.data?.filter((p) => !p.isMain) ?? []
+  const people = guestProfiles.filter(
+    (p) => p.id === adding || devices.data?.some((d) => d.profileId === p.id) || waiting.data?.some((w) => w.profileId === p.id),
+  )
+  const others = guestProfiles.filter((p) => !people.includes(p))
+
+  async function remove(device: GuestDevice) {
+    await removeGuestDevice(device.id)
+    setRemoved(device)
+    refresh()
+  }
+
+  async function cancel(id: string) {
+    await cancelGuestInvite(id)
+    refresh()
+  }
+
+  if (profiles.data && guestProfiles.length === 0)
+    return (
+      <SettingsGroup title="Guests">
+        <p className="muted">Give each guest a profile of their own first, in Profiles. They watch as that profile and nothing else.</p>
+      </SettingsGroup>
+    )
+
+  return (
+    <SettingsGroup
+      title="Guests"
+      note="Each device joins with its own invite, which works once and lasts 3 days. Slow relay means their network and yours can’t connect directly: Flexarr lowers their quality to fit."
+    >
+      {people.map((person) => (
+        <div key={person.id} className="guest-person">
+          <div className="guest-person-head">
+            <strong>{person.name}</strong>
+            {adding !== person.id && (
+              <button type="button" className="button small" onClick={() => setAdding(person.id)}>
+                Add device
+              </button>
+            )}
+          </div>
+          {devices.data
+            ?.filter((d) => d.profileId === person.id)
+            .map((d) => (
+              <SettingRow key={d.id} as="div" label={d.name} help={describeGuest(d)}>
+                <AsyncButton className="button danger small" aria-label={`Remove ${d.name}`} onClick={() => remove(d)}>
+                  Remove
+                </AsyncButton>
+              </SettingRow>
+            ))}
+          {waiting.data
+            ?.filter((w) => w.profileId === person.id)
+            .map((w) => (
+              <SettingRow
+                key={w.id}
+                as="div"
+                label={w.via === 'TvCode' ? 'TV, joining' : 'Invite link, not used yet'}
+                help={`Works until ${new Date(w.expiresAt).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })}`}
+              >
+                <AsyncButton className="button quiet small" aria-label={`Cancel the invite for ${person.name}`} onClick={() => cancel(w.id)}>
+                  Cancel
+                </AsyncButton>
+              </SettingRow>
+            ))}
+          {adding === person.id && <AddDevice profileId={person.id} name={person.name} onDone={() => setAdding(undefined)} onChange={refresh} />}
+        </div>
+      ))}
+      {removed && (
+        <p className="muted" role="status">
+          {removed.name} can’t reach Flexarr any more. To free its place on your tailnet, delete it in{' '}
+          <a href={removed.tailscaleAdminUrl}>Tailscale’s Machines</a>.
+        </p>
+      )}
+      {others.length > 0 && !adding && (
+        <div className="guest-new">
+          <select id="guest-new-profile" aria-label="Who to invite" value={newPerson} onChange={(e) => setNewPerson(e.target.value)}>
+            <option value="">Invite someone…</option>
+            {others.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            className="button small"
+            disabled={!newPerson}
+            onClick={() => {
+              setAdding(newPerson)
+              setNewPerson('')
+            }}
+          >
+            Invite
+          </button>
+        </div>
+      )}
+    </SettingsGroup>
+  )
+}
+
+/** Adding a device for a guest: a phone or tablet gets a link and QR code; a TV, type in the code it shows. */
+export function AddDevice({ profileId, name, onDone, onChange }: { profileId: string; name: string; onDone: () => void; onChange: () => void }) {
+  const [kind, setKind] = useState<'phone' | 'tv'>('phone')
+  const [link, setLink] = useState<string>()
+  const [code, setCode] = useState('')
+  const [sent, setSent] = useState(false)
+  const [error, setError] = useState<string>()
+
+  async function makeLink() {
     setError(undefined)
-    setSentToTv(undefined)
     try {
-      if (kind === 'link') {
-        const { link } = await createGuestInvite(deviceName, chosen)
-        setMade({ link, name: deviceName })
-      } else {
-        await inviteGuestTv(tvCode, name.trim() || `${chosenName}’s TV`, chosen)
-        setSentToTv(`Sent. ${name.trim() || 'The TV'} will connect in a moment.`)
-        setTvCode('')
-      }
-      setVersion((v) => v + 1)
+      setLink((await createGuestInvite(null, profileId)).link)
       onChange()
     } catch (err) {
       setError(errorText(err))
     }
   }
 
-  async function cancel(id: string) {
-    await cancelGuestInvite(id)
-    setVersion((v) => v + 1)
-    onChange()
+  async function connectTv() {
+    setError(undefined)
+    try {
+      await inviteGuestTv(code, null, profileId)
+      setSent(true)
+      setCode('')
+      onChange()
+    } catch (err) {
+      setError(errorText(err))
+    }
   }
 
-  if (profiles.data && guestProfiles.length === 0)
-    return (
-      <SettingsGroup title="Invite someone">
-        <p className="muted">Give them a profile of their own first, in Profiles.</p>
-      </SettingsGroup>
-    )
-
   return (
-    <SettingsGroup title="Invite someone" note="An invite works once and lasts 3 days.">
-      <SettingRow label="Profile" help="What they watch as. They can’t switch to another.">
-        <select id="guest-profile" value={chosen} onChange={(e) => setProfileId(e.target.value)}>
-          {guestProfiles.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
-      </SettingRow>
-      <SettingRow label="Device name" help="How it shows in your list.">
-        <input id="guest-device-name" value={name} onChange={(e) => setName(e.target.value)} placeholder={deviceName || 'Gran’s iPad'} maxLength={60} />
-      </SettingRow>
-      <SettingRow as="div" label="Phone or tablet" help="A link to send them, and a QR code.">
-        <AsyncButton className="button small" disabled={!chosen} onClick={() => invite('link')}>
-          Make invite
-        </AsyncButton>
-      </SettingRow>
-      {made && <InviteLink link={made.link} name={made.name} onDone={() => setMade(undefined)} />}
-      <SettingRow label="TV" help="The code their TV shows under Watching from another home.">
-        <span className="guest-tv">
-          <input
-            id="guest-tv-code"
-            value={tvCode}
-            onChange={(e) => setTvCode(e.target.value.toUpperCase())}
-            placeholder="ABCD-EFGH"
-            maxLength={9}
-            autoComplete="off"
-            spellCheck={false}
-            aria-label="TV code"
-          />
-          <AsyncButton className="button small" disabled={!chosen || tvCode.replace(/[^A-Za-z0-9]/g, '').length !== 8} onClick={() => invite('tv')}>
-            Send
-          </AsyncButton>
-        </span>
-      </SettingRow>
-      {sentToTv && (
+    <div className="guest-add" aria-label={`Add a device for ${name}`}>
+      <div className="guest-kinds" role="radiogroup" aria-label="What kind of device">
+        {(['phone', 'tv'] as const).map((k) => (
+          <button
+            key={k}
+            type="button"
+            role="radio"
+            aria-checked={kind === k}
+            className={kind === k ? 'button small' : 'button quiet small'}
+            onClick={() => {
+              setKind(k)
+              setError(undefined)
+            }}
+          >
+            {k === 'phone' ? 'Phone or tablet' : 'TV'}
+          </button>
+        ))}
+        <button type="button" className="button quiet small guest-add-close" onClick={onDone}>
+          Done
+        </button>
+      </div>
+      {kind === 'phone' ? (
+        link ? (
+          <InviteLink link={link} name={name} />
+        ) : (
+          <div className="guest-add-step">
+            <span className="muted">A link to send {name}, and a QR code to scan with their phone or tablet.</span>
+            <AsyncButton className="button small" onClick={() => makeLink()}>
+              Make link
+            </AsyncButton>
+          </div>
+        )
+      ) : sent ? (
         <p className="muted" role="status">
-          {sentToTv}
+          Sent. The TV joins in a moment.
         </p>
+      ) : (
+        <div className="guest-add-step">
+          <span className="muted">
+            On {name}’s TV, open Flexarr and choose <strong>Watching from another home?</strong>. Type in the code it shows.
+          </span>
+          <span className="guest-tv">
+            <input
+              id="guest-tv-code"
+              value={code}
+              onChange={(e) => setCode(e.target.value.toUpperCase())}
+              placeholder="ABCD-EFGH"
+              maxLength={9}
+              autoComplete="off"
+              spellCheck={false}
+              aria-label="TV code"
+            />
+            <AsyncButton className="button small" disabled={code.replace(/[^A-Za-z0-9]/g, '').length !== 8} onClick={() => connectTv()}>
+              Connect
+            </AsyncButton>
+          </span>
+        </div>
       )}
       {error && (
         <p className="error" role="alert">
           {error}
         </p>
       )}
-      {waiting.data?.map((w) => (
-        <SettingRow
-          key={w.id}
-          as="div"
-          label={w.name}
-          help={`Waiting · ${w.profileName ?? 'a profile'} · ${w.via === 'TvCode' ? 'TV' : 'link'} · until ${new Date(w.expiresAt).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })}`}
-        >
-          <AsyncButton className="button quiet small" onClick={() => cancel(w.id)}>
-            Cancel
-          </AsyncButton>
-        </SettingRow>
-      ))}
-    </SettingsGroup>
+    </div>
   )
 }
 
 /** The invite just made: its link to send, and a QR code to scan with the guest's phone. Shown once. */
-export function InviteLink({ link, name, onDone }: { link: string; name: string; onDone: () => void }) {
+export function InviteLink({ link, name }: { link: string; name: string }) {
   return (
     <div className="guest-invite" aria-label={`Invite for ${name}`}>
       {/* uqr draws plain SVG from the link: nothing in it comes from elsewhere. */}
@@ -298,47 +404,9 @@ export function InviteLink({ link, name, onDone }: { link: string; name: string;
         <code className="remote-address guest-link">{link}</code>
         <span className="connection-actions">
           <CopyButton text={link} what="the invite" />
-          <button type="button" className="button quiet small" onClick={onDone}>
-            Done
-          </button>
         </span>
       </div>
     </div>
-  )
-}
-
-/** Guests' devices: who, how they're connected now, and Remove. */
-export function GuestDevices({ version, onChange }: { version: number; onChange: () => void }) {
-  const devices = useApi(getGuestDevices, [version])
-  const [removed, setRemoved] = useState<GuestDevice>()
-
-  async function remove(device: GuestDevice) {
-    await removeGuestDevice(device.id)
-    setRemoved(device)
-    onChange()
-  }
-
-  if (!devices.data?.length && !removed) return null
-  return (
-    <SettingsGroup
-      title="Guests"
-      note="Slow relay means their network and yours can’t connect directly. Flexarr lowers their quality to fit, or turn on the faster relay below."
-    >
-      {devices.data?.map((d) => (
-        <SettingRow key={d.id} as="div" label={d.name} help={describeGuest(d)}>
-          <span className={d.online ? (d.path === 'Derp' ? 'status-dot warn' : 'status-dot ok') : 'status-dot'} aria-hidden="true" />
-          <AsyncButton className="button danger small" aria-label={`Remove ${d.name}`} onClick={() => remove(d)}>
-            Remove
-          </AsyncButton>
-        </SettingRow>
-      ))}
-      {removed && (
-        <p className="muted" role="status">
-          {removed.name} can’t reach Flexarr any more. To free its place on your tailnet, delete it in{' '}
-          <a href={removed.tailscaleAdminUrl}>Tailscale’s Machines</a>.
-        </p>
-      )}
-    </SettingsGroup>
   )
 }
 

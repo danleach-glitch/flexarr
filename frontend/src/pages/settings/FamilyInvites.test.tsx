@@ -98,38 +98,46 @@ describe('Settings › Access › Family invites', () => {
     expect(screen.queryByText('Invite someone')).not.toBeInTheDocument()
   })
 
-  it('makes an invite with a link and a QR code, and sends one to a TV by its code', async () => {
+  it('lists guests by person, and adds a phone by link or a TV by its code', async () => {
     let tv: unknown
+    let link: unknown
     mockApi({
       '/remote/guests': setup({ clientId: 'abc', hasClient: true, check: safe }),
-      '/profiles': [main, gran],
+      '/profiles': [main, gran, { ...gran, id: 'sue', name: 'Aunt Sue' }],
       '/remote/guests/invites': [],
-      '/remote/guests/devices': [],
-      'POST /remote/guests/invites': { invite: { id: 'i1', name: 'Gran’s device', profileId: 'gran', profileName: 'Gran', via: 'Link', createdAt: '', expiresAt: '' }, link: 'https://flexarr.io/join#abc' },
+      '/remote/guests/devices': [device()],
+      'POST /remote/guests/invites': (init?: RequestInit) => {
+        link = JSON.parse(String(init?.body))
+        return { invite: { id: 'i1', name: '', profileId: 'gran', profileName: 'Gran', via: 'Link', createdAt: '', expiresAt: '' }, link: 'https://flexarr.io/join#abc' }
+      },
       'POST /remote/guests/tv-code': (init?: RequestInit) => {
         tv = JSON.parse(String(init?.body))
-        return { id: 'i2', name: 'Gran’s TV', profileId: 'gran', profileName: 'Gran', via: 'TvCode', createdAt: '', expiresAt: '' }
+        return { id: 'i2', name: '', profileId: 'gran', profileName: 'Gran', via: 'TvCode', createdAt: '', expiresAt: '' }
       },
     })
     render(<FamilyInvites />)
 
-    // The main profile is never offered.
-    const profile = await screen.findByLabelText<HTMLSelectElement>(/^Profile/)
-    await waitFor(() => expect(Array.from(profile.options).map((o) => o.text)).toEqual(['Gran']))
+    // Gran has a device; Aunt Sue is offered to invite; the main profile never is.
+    expect(await screen.findByText('Gran’s iPad')).toBeVisible()
+    const who = screen.getByLabelText<HTMLSelectElement>('Who to invite')
+    expect(Array.from(who.options).map((o) => o.text)).toEqual(['Invite someone…', 'Aunt Sue'])
 
-    fireEvent.click(screen.getByRole('button', { name: 'Make invite' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add device' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Make link' }))
     expect(await screen.findByText('https://flexarr.io/join#abc')).toBeVisible()
+    expect(link).toEqual({ name: null, profileId: 'gran' })
     expect(screen.getByRole('img', { name: 'QR code of the invite' }).querySelector('svg')).not.toBeNull()
 
-    const send = screen.getByRole('button', { name: 'Send' })
-    expect(send).toBeDisabled()
+    fireEvent.click(screen.getByRole('radio', { name: 'TV' }))
+    const connect = screen.getByRole('button', { name: 'Connect' })
+    expect(connect).toBeDisabled()
     fireEvent.change(screen.getByLabelText('TV code'), { target: { value: 'abcd-efgh' } })
-    fireEvent.click(send)
-    await waitFor(() => expect(tv).toEqual({ code: 'ABCD-EFGH', name: 'Gran’s TV', profileId: 'gran' }))
-    expect(await screen.findByText(/will connect in a moment/)).toBeVisible()
+    fireEvent.click(connect)
+    await waitFor(() => expect(tv).toEqual({ code: 'ABCD-EFGH', name: null, profileId: 'gran' }))
+    expect(await screen.findByText(/The TV joins in a moment/)).toBeVisible()
   })
 
-  it('lists guests with how they’re connected, and removing one points to Tailscale', async () => {
+  it('shows how each guest is connected, and removing one points to Tailscale', async () => {
     let removed = false
     mockApi({
       '/remote/guests': setup({ clientId: 'abc', hasClient: true, check: safe }),

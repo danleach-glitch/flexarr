@@ -456,4 +456,20 @@ public class RemoteGuestTests(RemoteGuestFactory factory) : IClassFixture<Remote
         Assert.Equal(HttpStatusCode.Forbidden, (await guest.GetAsync("/api/v1/me")).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await admin.DeleteAsync("/api/v1/remote/guests/devices/not-a-guest")).StatusCode);
     }
+
+    [Fact]
+    public async Task A_device_invited_without_a_name_is_named_from_its_profile_and_what_it_is()
+    {
+        var aunt = await factory.AddProfileAsync("Aunt Sue");
+        using var admin = factory.Admin();
+        var created = await (await admin.PostAsJsonAsync("/api/v1/remote/guests/invites", new { profileId = aunt })).Content.ReadFromJsonAsync<CreatedInviteDto>(Web);
+        var payload = GuestInvites.Decode(created!.Link[GuestInvites.LinkBase.Length..])!;
+        Assert.Equal("Aunt Sue", payload.G); // the tailnet name comes from the profile
+
+        using var guest = factory.From(RemoteGuestFactory.Guest);
+        guest.DefaultRequestHeaders.Add("X-Flexarr-Device", "IPad");
+        var redeemed = await (await guest.PostAsJsonAsync("/api/v1/invites/redeem", new { token = payload.T })).Content.ReadFromJsonAsync<RedeemedInviteDto>(Web);
+
+        Assert.Equal("Aunt Sue’s iPad", redeemed!.Name);
+    }
 }
