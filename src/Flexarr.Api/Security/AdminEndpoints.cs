@@ -13,8 +13,9 @@ namespace Flexarr.Api.Security;
 public sealed record AdminUnlockRequest(string? Pin, string? ApiKey = null);
 
 /// <param name="Pin">The new admin PIN, 4 to 8 digits.</param>
-/// <param name="ApiKey">Needed when there's an admin PIN already (it's been forgotten).</param>
-public sealed record AdminPinRequest(string Pin, string? ApiKey = null);
+/// <param name="ApiKey">When there's an admin PIN already and it's been forgotten.</param>
+/// <param name="CurrentPin">When there's an admin PIN already: changing it knowing the one it has now. Absent from servers before 0.57.</param>
+public sealed record AdminPinRequest(string Pin, string? ApiKey = null, string? CurrentPin = null);
 
 /// <param name="UnlockedUntil">When managing the server takes the PIN again; null for the API key, which always may.</param>
 /// <param name="Token">After a new PIN, the main profile's new <c>X-Flexarr-Profile</c> token (the old one stops working).</param>
@@ -83,10 +84,10 @@ public static class AdminEndpoints
         });
 
         // The first PIN, on a server set up before setup asked for one, may be set by the main profile on a browser or
-        // device the owner signed in. Once there is one, a new one takes the API key: that's the way back from a
-        // forgotten PIN. (Changing it knowing the old one is in Settings › Profiles.)
+        // device the owner signed in. Once there is one, a new one takes the one it has now, or the API key: that's the
+        // way back from a forgotten PIN.
         group.MapPost("/pin", async (AdminPinRequest request, HttpContext http, FlexarrDbContext db, CurrentProfile current, SignIns signIns, AdminUnlocks unlocks,
-            IOptionsMonitor<FlexarrOptions> options, CancellationToken ct) =>
+            PinGuard guard, IOptionsMonitor<FlexarrOptions> options, CancellationToken ct) =>
         {
             if (!IsPin(request.Pin))
             {
@@ -112,11 +113,35 @@ public static class AdminEndpoints
             // A first PIN takes a browser or device the owner signed in: a Tailscale identity alone can be posed as by
             // another program on this machine, and the home-network rule lets in anyone at home.
             var first = main.AdminPinHash is null && current.Id == PlaybackState.DefaultUser && current.SignInId is not null && current.IsTrusted;
+            if (!withKey && !first && main.AdminPinHash is not null && !string.IsNullOrEmpty(request.CurrentPin))
+            {
+                // Knowing the PIN it has now: the guard counts this like unlocking, so it's no back door for guessing.
+                if (!current.IsAdmin && !current.CanUnlock)
+                {
+                    return Results.Problem("Choose the main profile to change the admin PIN.", statusCode: 403);
+                }
+
+                var (callers, browser) = ProfileEndpoints.PinCaller(http, current);
+                var (result, retryAfter) = await guard.CheckAsync(PinGuard.AdminKey, callers, () => main.CheckAdminPin(request.CurrentPin), ct,
+                    mayManage: current.IsAdmin, browser);
+                if (result == PinCheck.LockedOut)
+                {
+                    return ProfileEndpoints.TooManyPins(http, retryAfter);
+                }
+
+                if (result == PinCheck.Wrong)
+                {
+                    return Results.Problem("That isn't the current admin PIN.", statusCode: 403);
+                }
+
+                withKey = true; // as good as the key, from here
+            }
+
             if (!withKey && !first)
             {
                 return Results.Problem(main.AdminPinHash is null
                     ? "Choose an admin PIN from a browser or device you signed in, or with the API key."
-                    : "Enter the server's API key to set a new PIN. It's in config.json in the server's data folder.", statusCode: 403);
+                    : "Enter the current admin PIN, or the server's API key (it's in config.json in the server's data folder).", statusCode: 403);
             }
 
             var replacing = main.AdminPinHash is not null;

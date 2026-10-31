@@ -366,14 +366,14 @@ public class RemoteAccessTests(RemoteAccessFactory factory) : IClassFixture<Remo
     }
 
     [Fact]
-    public async Task ChangingTheMainPin_SignsOutBrowsersThatSignedInWithTheOldOne()
+    public async Task ChangingTheAdminPin_SignsOutBrowsersThatSignedInWithTheOldOne()
     {
         await LinkAsync("owner-repin@example.com", null);
         var owner = ViaTailscale("100.70.1.24", "owner-repin@example.com").Append(("X-Requested-With", "flexarr")).ToArray();
         await SetMainPinAsync("4680");
         var (cookie, _) = await ChooseMainWithPinAsync(owner, "4680");
 
-        var changed = await SendAsync(HttpMethod.Put, "/api/v1/profiles/owner", new { name = "Owner", pin = "1470" }, ("X-Api-Key", FlexarrApiFactory.ApiKey));
+        var changed = await SendAsync(HttpMethod.Post, "/api/v1/admin/pin", new { pin = "1470" }, ("X-Api-Key", FlexarrApiFactory.ApiKey));
 
         Assert.Equal(HttpStatusCode.OK, changed);
         Assert.Equal(HttpStatusCode.Forbidden, await GetAsync("/api/v1/settings", [.. owner, ("Cookie", cookie)]));
@@ -432,7 +432,7 @@ public class RemoteAccessTests(RemoteAccessFactory factory) : IClassFixture<Remo
     {
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
-        (await db.Profiles.FindAsync(PlaybackState.DefaultUser))!.SetPin(pin);
+        (await db.Profiles.FindAsync(PlaybackState.DefaultUser))!.SetAdminPin(pin);
         await db.SaveChangesAsync();
     }
 

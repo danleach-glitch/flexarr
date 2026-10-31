@@ -36,13 +36,13 @@ public sealed class CurrentProfile(IHttpContextAccessor http, IOptionsMonitor<Fl
     public bool IsTrusted => http.HttpContext?.User.HasClaim(FlexarrClaims.Trusted, "true") == true;
 
     /// <summary>
-    /// Whether choosing <paramref name="profile"/> here takes its PIN. The main profile's guards managing the server,
-    /// not watching as it, so on a browser or device the owner signed in it's only asked for if the owner wants it to be.
+    /// Whether choosing <paramref name="profile"/> here takes a PIN: its own, if it has one. The main profile without
+    /// one asks for the admin PIN anywhere but a browser or device the owner signed in.
     /// </summary>
     public bool AsksPinFor(Profile profile)
     {
         ArgumentNullException.ThrowIfNull(profile);
-        return profile.PinHash is not null && (!profile.IsMain || !IsTrusted || options.CurrentValue.AskPinForMainProfile != false);
+        return profile.PinHash is not null || profile.IsMain && !IsTrusted;
     }
 
     /// <summary>The browser or device sign-in this request used, if any.</summary>
