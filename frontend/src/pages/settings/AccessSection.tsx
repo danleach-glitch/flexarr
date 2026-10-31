@@ -5,6 +5,7 @@ import { AsyncButton } from '../../components/AsyncButton'
 import { CopyButton } from '../../components/CopyButton'
 import { Eye, EyeOff } from '../../components/icons'
 import { SignIns } from '../../components/SignIns'
+import { FamilyInvites } from './FamilyInvites'
 import { useApi } from '../../hooks/useApi'
 import { SaveStatus, SettingRow, SettingsGroup, SettingsHeader } from './shared'
 import { errorText, useSettings } from './useSettings'
@@ -16,6 +17,7 @@ export function AccessSection() {
     <section>
       <SettingsHeader title="Access">Who can reach Flexarr, from where, and the browsers and TVs signed in to it.</SettingsHeader>
       <RemoteAccessGroups />
+      <FamilyInvites />
       <ApiKeyGroup onSignedOut={() => setSignInsVersion((n) => n + 1)} />
       <div className="settings-group">
         <div className="settings-group-head">

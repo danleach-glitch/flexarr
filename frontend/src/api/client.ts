@@ -1400,6 +1400,8 @@ export interface Me {
   maxRatingAge?: number | null
   /** This browser is locked to kids profiles. Absent from servers before 0.56. */
   kidsLock?: boolean
+  /** A family guest's device: it stays on its profile. Absent from servers before 0.57. */
+  isGuest?: boolean
 }
 
 export interface RemoteAccess {
@@ -1457,6 +1459,78 @@ export async function setAdminPin(pin: string, apiKey?: string) {
 export const getRemoteAccess = (signal?: AbortSignal) => apiGet<RemoteAccess>('/remote', signal)
 export const setTailscaleAccess = (enabled: boolean) => request<RemoteAccess>('POST', '/remote/tailscale', { enabled })
 export const linkTailscale = (login: string, profileId: string | null) => request<RemoteAccess>('POST', '/remote/tailscale/links', { login, profileId })
+
+/** Family invites: guests whose apps join your tailnet with Tailscale built in (docs/remote-guests.md). */
+export interface GuestPolicyCheck {
+  safe: boolean
+  problems: string[]
+  checkedAt: string
+  validated: boolean
+}
+
+export interface RemoteGuests {
+  /** Turned on for this server (hidden until the apps that carry Tailscale are out). */
+  enabled: boolean
+  /** This server can do it: Tailscale is installed here (not Docker or the Mac app, yet). */
+  available: boolean
+  problem: string | null
+  tailscaleRunning: boolean
+  address: string | null
+  dnsName: string | null
+  flexarrPort: number
+  tag: string
+  clientId: string
+  hasClient: boolean
+  snippet: string | null
+  check: GuestPolicyCheck | null
+  relay: GuestRelay
+  waiting: number
+  devices: number
+}
+
+export interface GuestRelay {
+  port: number | null
+  working: boolean
+  problem?: string | null
+}
+
+export interface GuestInvite {
+  id: string
+  name: string
+  profileId: string
+  profileName: string | null
+  via: 'Link' | 'TvCode'
+  createdAt: string
+  expiresAt: string
+}
+
+export type TailnetPath = 'Unknown' | 'Direct' | 'PeerRelay' | 'Derp'
+
+export interface GuestDevice {
+  id: string
+  name: string
+  profileId: string | null
+  profileName: string | null
+  deviceType: DeviceType | null
+  createdAt: string
+  lastUsedAt: string
+  address: string | null
+  online: boolean
+  path: TailnetPath
+  lastSeen: string | null
+  tailscaleAdminUrl: string
+}
+
+export const getRemoteGuests = (signal?: AbortSignal) => apiGet<RemoteGuests>('/remote/guests', signal)
+export const saveGuestClient = (clientId: string, clientSecret?: string) => request<RemoteGuests>('PUT', '/remote/guests/client', { clientId, clientSecret })
+export const checkGuestPolicy = () => request<RemoteGuests>('POST', '/remote/guests/check')
+export const setGuestRelay = (enabled: boolean) => request<GuestRelay>('PUT', '/remote/guests/relay', { enabled })
+export const getGuestInvites = (signal?: AbortSignal) => apiGet<GuestInvite[]>('/remote/guests/invites', signal)
+export const createGuestInvite = (name: string, profileId: string) => request<{ invite: GuestInvite; link: string }>('POST', '/remote/guests/invites', { name, profileId })
+export const inviteGuestTv = (code: string, name: string, profileId: string) => request<GuestInvite>('POST', '/remote/guests/tv-code', { code, name, profileId })
+export const cancelGuestInvite = (id: string) => request<void>('DELETE', `/remote/guests/invites/${encodeURIComponent(id)}`)
+export const getGuestDevices = (signal?: AbortSignal) => apiGet<GuestDevice[]>('/remote/guests/devices', signal)
+export const removeGuestDevice = (id: string) => request<void>('DELETE', `/remote/guests/devices/${encodeURIComponent(id)}`)
 
 /** A browser or TV signed in to this server with its own token. */
 export interface SignIn {
