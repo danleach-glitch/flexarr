@@ -13,6 +13,8 @@ struct SettingsView: View {
     @State private var asksWhoIsWatching = AppModel.asksWhoIsWatching
     @AppStorage(LibraryOpening.storageKey) private var libraryOpensOn = LibraryOpening.browse
     @AppStorage(TabBarEntry.storageKey) private var tabBarOrder = ""
+    /// Nil until known, and from servers without Trakt (before 0.57) or on kids profiles.
+    @State private var trakt: TraktStatus?
 
     var body: some View {
         SettingsPage(title: "Settings", summary: "Flexarr for Apple TV \(Bundle.main.shortVersion)") {
@@ -52,6 +54,13 @@ struct SettingsView: View {
                     ProfileSettingsView()
                 }
             }
+            if let trakt, trakt.available {
+                SettingsLinkRow(title: "Trakt", symbol: "arrow.triangle.2.circlepath",
+                                value: trakt.state == .connected ? trakt.username : trakt.state == .needsSignIn ? "Signed out" : "Off",
+                                help: "Keep what this profile watches, and its watchlist, in step with Trakt.") {
+                    TraktSettingsView()
+                }
+            }
             SettingsLinkRow(title: "Server", symbol: "server.rack", value: connection,
                             help: "The server this Apple TV uses: its address, how it's reached and what it's running.") {
                 ServerSettingsView()
@@ -75,6 +84,7 @@ struct SettingsView: View {
             Text("This Apple TV will need to connect again to use the server.")
         }
         .fullScreenCover(isPresented: $choosingProfile) { ProfilePickerView(marksCurrent: true) }
+        .task(id: model.currentProfile?.id) { trakt = try? await model.client?.traktStatus() }
     }
 
     private var connection: String? {

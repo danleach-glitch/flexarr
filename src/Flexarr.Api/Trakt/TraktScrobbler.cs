@@ -88,6 +88,11 @@ public sealed partial class TraktScrobbler(PlaybackEvents events, IServiceScopeF
             ? new TraktScrobbleBody(new TraktSyncMovie(title.Ids), null, null, Math.Round(progress, 2))
             : new TraktScrobbleBody(null, new TraktSyncShow(title.Ids), new TraktEpisode(title.Season!.Value, title.Number!.Value), Math.Round(progress, 2));
         await TraktOutbox.QueueScrobbleAsync(db, profileId, action, body, ct);
+        if (action == "stop")
+        {
+            // Trakt's history has a new play: worth a sync soon, so Up next and the watchlist follow.
+            TraktSyncWorker.Nudge();
+        }
     }
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Couldn't scrobble a {Kind} event to Trakt")]

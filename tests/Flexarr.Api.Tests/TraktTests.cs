@@ -162,6 +162,19 @@ public sealed class TraktTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ACodeNobodyEnters_Expires()
+    {
+        _server.Services.GetRequiredService<TraktConnector>().MinimumInterval = TimeSpan.FromMilliseconds(20);
+        _trakt.Then("RELAY device", new FakeTrakt.Answer(HttpStatusCode.BadRequest), new FakeTrakt.Answer(HttpStatusCode.Gone));
+
+        await Client().PostAsync(Api("/trakt/connect"), null);
+        var status = await WaitForAsync(s => s.GetProperty("pending").ValueKind == JsonValueKind.Object && s.GetProperty("pending").GetProperty("state").GetString() != "Waiting");
+
+        Assert.Equal("Expired", status.GetProperty("pending").GetProperty("state").GetString());
+        Assert.Equal("disconnected", status.GetProperty("state").GetString());
+    }
+
+    [Fact]
     public async Task Disconnecting_RevokesTheToken_AndForgetsItsQueue()
     {
         await ConnectAsync();
@@ -291,6 +304,26 @@ public sealed class TraktTests : IAsyncLifetime
         Assert.Equal(TraktOutboxKind.History, waiting.Kind);
         Assert.Equal(1, waiting.Attempts);
         Assert.True(waiting.NextAttemptAt > DateTime.UtcNow);
+    }
+
+    [Fact]
+    public async Task SlowDown_WaitsAsLongAsTraktSays_AndHoldsEverythingBack()
+    {
+        await ConnectAsync();
+        await SeedAsync(db =>
+        {
+            db.TraktOutbox.Add(new TraktOutboxEntry { ProfileId = Owner, Kind = TraktOutboxKind.History, Payload = """{"movies":[{"ids":{"tmdb":1}}]}""" });
+            db.TraktOutbox.Add(new TraktOutboxEntry { ProfileId = Owner, Kind = TraktOutboxKind.History, Payload = """{"movies":[{"ids":{"tmdb":2}}]}""" });
+        });
+        _trakt.Answers["POST /sync/history"] = new([new FakeTrakt.Answer((HttpStatusCode)429)]);
+
+        await InScopeAsync(s => TraktOutboxWorker.SendDueAsync(s, NullLogger.Instance, default, TimeSpan.Zero));
+        var left = await OutboxAsync();
+
+        // One try, then the rest wait their turn.
+        Assert.Equal(1, _trakt.Count("POST /sync/history"));
+        Assert.Equal(2, left.Count);
+        Assert.True(left[0].NextAttemptAt > DateTime.UtcNow);
     }
 
     [Fact]

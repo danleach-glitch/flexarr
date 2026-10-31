@@ -21,6 +21,8 @@ struct SettingsView: View {
     @State private var notificationsAllowed = false
     @State private var turningOnNotifications = false
     @State private var notificationProblem: String?
+    /// Nil until known, and from servers without Trakt (before 0.57) or on kids profiles.
+    @State private var trakt: TraktStatus?
 
     var body: some View {
         List {
@@ -88,6 +90,11 @@ struct SettingsView: View {
                 }
                 SettingsLink("Notifications", icon: "bell.fill", value: notifications.isOn ? "On" : "Off") { NotificationSettingsView() }
                 SettingsLink("Siri", icon: "waveform", value: siriDeviceName ?? "This \(ThisDevice.name)") { SiriSettingsView() }
+                if let trakt, trakt.available {
+                    SettingsLink("Trakt", icon: "arrow.triangle.2.circlepath", value: trakt.state == .connected ? trakt.username : trakt.state == .needsSignIn ? "Signed out" : "Off") {
+                        TraktSettingsView()
+                    }
+                }
             }
 
             Section {
@@ -129,6 +136,7 @@ struct SettingsView: View {
         .refreshable { await catchUpOnPairing() }
         .onAppear { siriDeviceName = AppModel.siriDevice == nil ? nil : AppModel.siriDeviceName }
         .task { await catchUpOnPairing() }
+        .task(id: model.currentProfile?.id) { trakt = try? await model.client?.traktStatus() }
         .task { notificationsAllowed = [.authorized, .provisional].contains(await notifications.authorization()) }
         .alert("Couldn't turn on notifications", isPresented: Binding(get: { notificationProblem != nil }, set: { if !$0 { notificationProblem = nil } })) {
             Button("OK", role: .cancel) {}

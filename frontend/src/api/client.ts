@@ -1543,3 +1543,59 @@ export async function sendClientLogs(appVersion: string, entries: ClientLogEntry
     return 0
   }
 }
+
+// ---------- Trakt (servers from 0.57)
+
+/** How a connect by code is going, or how it just ended. */
+export interface TraktPendingConnect {
+  state: 'Waiting' | 'Connected' | 'Expired' | 'Denied' | 'InUse' | 'Failed'
+  userCode: string
+  verificationUrl: string
+  qrUrl: string
+  expiresAt: string
+  error?: string | null
+}
+
+export interface TraktStatus {
+  /** The server can offer Trakt at all. */
+  available: boolean
+  state: 'disconnected' | 'connected' | 'needsSignIn'
+  username?: string | null
+  connectedAt?: string | null
+  lastSyncAt?: string | null
+  lastError?: string | null
+  watchlistFull: boolean
+  importedAt?: string | null
+  importing: boolean
+  queued: number
+  pending?: TraktPendingConnect | null
+}
+
+export interface TraktImportPreview {
+  traktFilms: number
+  traktEpisodes: number
+  inLibrary: number
+  newToFlexarr: number
+  notOnServer: number
+  unmatched: number
+  toTrakt: number
+}
+
+export interface TraktProfile {
+  profileId: string
+  profileName: string
+  state: TraktStatus['state']
+  username?: string | null
+  lastSyncAt?: string | null
+  lastError?: string | null
+}
+
+/** Null from servers without Trakt (before 0.57), and on kids profiles. */
+export const getTraktStatus = (signal?: AbortSignal) => apiGet<TraktStatus>('/trakt/status', signal).catch(() => null)
+export const connectTrakt = () => request<TraktPendingConnect>('POST', '/trakt/connect')
+export const cancelTraktConnect = () => request<void>('DELETE', '/trakt/connect')
+export const disconnectTrakt = () => request<void>('DELETE', '/trakt')
+export const previewTraktImport = () => request<TraktImportPreview>('POST', '/trakt/import')
+export const confirmTraktImport = () => request<void>('POST', '/trakt/import?confirm=true')
+export const syncTraktNow = () => request<void>('POST', '/trakt/sync')
+export const getTraktProfiles = (signal?: AbortSignal) => apiGet<TraktProfile[]>('/trakt/profiles', signal)
