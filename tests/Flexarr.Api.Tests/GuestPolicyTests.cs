@@ -210,3 +210,37 @@ public class GuestAlertTests
         Assert.Equal("access", message.Open!["settings"]);
     }
 }
+
+public class GuestLinkTests
+{
+    private sealed class StaticOptions(Flexarr.Api.Configuration.FlexarrOptions value) : Microsoft.Extensions.Options.IOptionsMonitor<Flexarr.Api.Configuration.FlexarrOptions>
+    {
+        public Flexarr.Api.Configuration.FlexarrOptions CurrentValue => value;
+        public Flexarr.Api.Configuration.FlexarrOptions Get(string? name) => value;
+        public IDisposable? OnChange(Action<Flexarr.Api.Configuration.FlexarrOptions, string?> listener) => null;
+    }
+
+    private static Task<long?> CapAsync(string peer, bool guest)
+    {
+        var http = new Microsoft.AspNetCore.Http.DefaultHttpContext();
+        http.Connection.RemoteIpAddress = System.Net.IPAddress.Parse(peer);
+        var claims = new List<System.Security.Claims.Claim> { new(FlexarrClaims.Profile, "gran") };
+        if (guest)
+        {
+            claims.Add(new(FlexarrClaims.Guest, "true"));
+        }
+
+        http.User = new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity(claims, "test"));
+        var accessor = new Microsoft.AspNetCore.Http.HttpContextAccessor { HttpContext = http };
+        var current = new Flexarr.Api.Profiles.CurrentProfile(accessor, new StaticOptions(new()));
+        return new GuestLinks(accessor, current, new FakeTailnet()).CapAsync(CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task Only_a_guest_on_tailscales_shared_relays_is_capped()
+    {
+        Assert.Equal(GuestLinks.SlowLinkBitrate, await CapAsync("100.64.0.9", guest: true)); // the fake tailnet has it on DERP
+        Assert.Null(await CapAsync("100.64.0.2", guest: true)); // direct
+        Assert.Null(await CapAsync("100.64.0.9", guest: false)); // not a guest
+    }
+}

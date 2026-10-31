@@ -21,7 +21,8 @@ public sealed class PlaybackService(
     SubtitleCache subtitleCache,
     RemuxIndex remuxIndex,
     CurrentProfile profile,
-    IOptionsMonitor<FlexarrOptions> options)
+    IOptionsMonitor<FlexarrOptions> options,
+    Security.GuestLinks guestLinks)
 {
     /// <summary>Within this distance of the end (or once the credits start) an item counts as watched.</summary>
     private const double WatchedThreshold = 0.92;
@@ -87,7 +88,9 @@ public sealed class PlaybackService(
         };
 
         var transcoding = options.CurrentValue.Transcoding;
-        var maxBitrate = new[] { request.MaxBitrate ?? 0, transcoding.MaxStreamingBitrate }.Where(b => b > 0).DefaultIfEmpty(0).Min();
+        // A family guest on Tailscale's slow shared relays is held to what fits through them.
+        var slowLink = await guestLinks.CapAsync(ct) ?? 0;
+        var maxBitrate = new[] { request.MaxBitrate ?? 0, transcoding.MaxStreamingBitrate, slowLink }.Where(b => b > 0).DefaultIfEmpty(0).Min();
         var playbackOptions = new PlaybackOptions(audioIndex, subtitleKey, maxBitrate, request.MaxHeight, request.ForceTranscode, file.AudioDelaySeconds,
             request.Sound is { } sound ? sound with { MaxChannels = sound.MaxChannels is { } max ? Math.Clamp(max, 1, 8) : null } : null);
         var decision = PlaybackDecider.Decide(file, request.Profile, subtitles, playbackOptions);
