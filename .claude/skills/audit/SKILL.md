@@ -56,4 +56,5 @@ An audit reads what the branch changed, finds what's wrong or missing, and publi
    - **Commit after each fix.** Several findings with one cause can share a commit; unrelated fixes never do. Commit early: yolo removes a branch with no commits when the session ends.
    - **Straight after that commit**, tick each id it fixes with `db_write`: `{done: true, note: "<short hash>"}` in `checks`. In the same breath, mirror it to the hub's `ticks/<artifact slug>--<id>` = `{done: true, note, at: <now, ISO>}` (pass `ifVersion` if that record already exists). Both writes or neither.
    - Never batch ticks at the end, and never tick a finding that isn't fixed and tested. A finding the user decides to leave gets `{done: false, note: "dropped: <why>"}`, mirrored to the hub too.
+   - **Keep the hub's stage current.** When a tick closes a fix-before-landing line (all its ids done or dropped), update the hub's `pages/<artifact slug>` (with `ifVersion`): `stage` = `"<n> to fix before landing"` with the new count, or `"Ready to land"` when none are left, and `updatedAt` now.
    `/land` goes ahead once the user is happy with what's left open.
