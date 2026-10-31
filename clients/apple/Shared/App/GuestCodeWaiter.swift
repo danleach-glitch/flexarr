@@ -30,7 +30,7 @@ final class GuestCodeWaiter {
             } catch GuestTvCode.Failure.codeTaken {
                 continue
             } catch {
-                problem = "Can’t reach Flexarr’s relay. Check this \(ThisDevice.name) is online."
+                problem = "Can’t get a code just now. Try again in a minute."
                 try? await Task.sleep(for: .seconds(10))
                 continue
             }

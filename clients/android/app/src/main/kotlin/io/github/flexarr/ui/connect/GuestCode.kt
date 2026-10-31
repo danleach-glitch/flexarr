@@ -40,7 +40,7 @@ fun rememberGuestCode(model: AppModel, attempt: Int): GuestCodeState {
             } catch (_: GuestTvCode.Failure.CodeTaken) {
                 continue
             } catch (e: Exception) {
-                state.problem = "Can’t reach Flexarr. Check this device’s internet."
+                state.problem = "Can’t get a code just now. Try again in a minute."
                 delay(10_000)
                 continue
             }
