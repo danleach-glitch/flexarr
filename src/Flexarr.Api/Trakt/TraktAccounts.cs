@@ -17,6 +17,15 @@ public sealed partial class TraktAccounts(FlexarrDbContext db, TraktClient trakt
 
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> Gates = new(StringComparer.Ordinal);
 
+    /// <summary>When each profile's last refresh failed (Trakt or the relay away).</summary>
+    private static readonly ConcurrentDictionary<string, DateTime> Failed = new(StringComparer.Ordinal);
+
+    /// <summary>How long after a failed refresh before trying again.</summary>
+    internal static readonly TimeSpan RetryRefreshAfter = TimeSpan.FromMinutes(5);
+
+    /// <summary>Forgets failed refreshes (tests).</summary>
+    internal static void ForgetFailures() => Failed.Clear();
+
     /// <summary>
     /// Runs <paramref name="call"/> with a working token for <paramref name="profileId"/>: refreshed first if it's
     /// close to expiring, and once more if Trakt turns it down. Null when the profile isn't connected or needs to sign
@@ -77,14 +86,22 @@ public sealed partial class TraktAccounts(FlexarrDbContext db, TraktClient trakt
                 return fresh.AccessToken;
             }
 
+            // A refresh that just failed isn't tried again for a while: the queue would otherwise try once per entry.
+            if (!force && DateTime.UtcNow - Failed.GetValueOrDefault(profileId) < RetryRefreshAfter)
+            {
+                return fresh.ExpiresAt > DateTime.UtcNow ? fresh.AccessToken : null;
+            }
+
             TraktToken? token;
             try
             {
                 token = await trakt.RefreshAsync(fresh.RefreshToken, ct);
+                Failed.TryRemove(profileId, out _);
             }
             catch (TraktException ex)
             {
-                // Trakt or the relay is away: the old token may have time left, and the next try refreshes.
+                // Trakt or the relay is away: the old token may have time left, and a later try refreshes.
+                Failed[profileId] = DateTime.UtcNow;
                 await SaveAsync(profileId, c => c.SetProperty(x => x.LastError, ex.Message), ct);
                 return fresh.ExpiresAt > DateTime.UtcNow ? fresh.AccessToken : null;
             }
@@ -116,10 +133,31 @@ public sealed partial class TraktAccounts(FlexarrDbContext db, TraktClient trakt
         CancellationToken ct)
     {
         await db.TraktConnections.Where(c => c.ProfileId == profileId).ExecuteUpdateAsync(set, ct);
-        if (db.ChangeTracker.Entries<TraktConnection>().FirstOrDefault(e => e.Entity.ProfileId == profileId) is { } tracked)
+        if (db.ChangeTracker.Entries<TraktConnection>().FirstOrDefault(e => e.Entity.ProfileId == profileId) is not { } tracked)
         {
-            await tracked.ReloadAsync(ct);
+            return;
         }
+
+        // Only what this wrote: the tracked copy may hold a sync's progress, not saved yet, which must stay.
+        var saved = await db.TraktConnections.AsNoTracking().Where(c => c.ProfileId == profileId)
+            .Select(c => new { c.AccessToken, c.RefreshToken, c.ExpiresAt, c.Status, c.LastError }).FirstOrDefaultAsync(ct);
+        if (saved is null)
+        {
+            return;
+        }
+
+        void Keep<T>(System.Linq.Expressions.Expression<Func<TraktConnection, T>> property, T value)
+        {
+            var p = tracked.Property(property);
+            p.CurrentValue = value;
+            p.OriginalValue = value;
+        }
+
+        Keep(c => c.AccessToken, saved.AccessToken);
+        Keep(c => c.RefreshToken, saved.RefreshToken);
+        Keep(c => c.ExpiresAt, saved.ExpiresAt);
+        Keep(c => c.Status, saved.Status);
+        Keep(c => c.LastError, saved.LastError);
     }
 
     internal static void Apply(TraktConnection connection, TraktToken token)

@@ -146,7 +146,7 @@ public sealed partial class TraktClient(HttpClient http, IOptionsMonitor<Flexarr
 
     public async Task<TraktDeviceCode> DeviceCodeAsync(CancellationToken ct)
     {
-        var id = await ClientIdAsync(ct) ?? throw new TraktException(null, "Trakt isn't set up on this server.");
+        var id = await ClientIdAsync(ct) ?? throw new TraktException(null, "Trakt isn’t set up on this server.");
         using var response = await SendAsync(HttpMethod.Post, Api("/oauth/device/code"), new { client_id = id }, null, id, ct);
         return await ReadAsync<TraktDeviceCode>(response, ct);
     }
@@ -189,15 +189,16 @@ public sealed partial class TraktClient(HttpClient http, IOptionsMonitor<Flexarr
             return await ReadAsync<TraktToken>(response, ct);
         }
 
-        // Only Trakt turning the refresh token down signs the profile out: a 401, or a 400 saying invalid_grant. Anything
+        // Only Trakt turning the refresh token down signs the profile out: a 400 or 401 saying invalid_grant. Anything
         // else (the relay or Trakt unwell, the relay's own checks) is tried again later.
-        if (response.StatusCode == HttpStatusCode.Unauthorized
-            || (response.StatusCode == HttpStatusCode.BadRequest && (await response.Content.ReadAsStringAsync(ct)).Contains("invalid_grant", StringComparison.Ordinal)))
+        // Not invalid_client and the like: a wrong secret on the relay must not sign every profile out.
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.BadRequest
+            && (await response.Content.ReadAsStringAsync(ct)).Contains("invalid_grant", StringComparison.Ordinal))
         {
             return null;
         }
 
-        throw new TraktException(response.StatusCode, "Couldn't refresh the Trakt sign-in.");
+        throw new TraktException(response.StatusCode, "Couldn’t refresh the Trakt sign-in.");
     }
 
     /// <summary>Tells Trakt to forget a token; best effort, as Disconnect clears it here either way.</summary>
@@ -205,9 +206,13 @@ public sealed partial class TraktClient(HttpClient http, IOptionsMonitor<Flexarr
     {
         try
         {
-            using var _ = await TokenCallAsync("revoke", "/oauth/revoke",
+            using var response = await TokenCallAsync("revoke", "/oauth/revoke",
                 own => new { token = accessToken, client_id = own.ClientId, client_secret = own.ClientSecret },
                 new { grant = "revoke", token = accessToken }, ct);
+            if (!response.IsSuccessStatusCode)
+            {
+                LogRevokeFailed($"answered {(int)response.StatusCode}");
+            }
         }
         catch (TraktException ex)
         {
@@ -227,7 +232,7 @@ public sealed partial class TraktClient(HttpClient http, IOptionsMonitor<Flexarr
 
             if (!Uri.TryCreate(o.RelayUrl, UriKind.Absolute, out var relay))
             {
-                throw new TraktException(null, "Trakt isn't set up on this server.");
+                throw new TraktException(null, "Trakt isn’t set up on this server.");
             }
 
             return await http.PostAsJsonAsync(relay, viaRelay, ct);
@@ -235,7 +240,7 @@ public sealed partial class TraktClient(HttpClient http, IOptionsMonitor<Flexarr
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !ct.IsCancellationRequested)
         {
             LogTokenUnreachable(grant, ex.Message);
-            throw new TraktException(null, "Couldn't reach Trakt.");
+            throw new TraktException(null, "Couldn’t reach Trakt.");
         }
     }
 
@@ -276,7 +281,7 @@ public sealed partial class TraktClient(HttpClient http, IOptionsMonitor<Flexarr
     /// <summary>Sends a <c>/sync</c> change ("/sync/history", "/sync/watchlist", "/sync/watchlist/remove").</summary>
     public async Task<TraktSyncResult> SyncAsync(string path, TraktSyncBody body, string token, CancellationToken ct)
     {
-        var id = await ClientIdAsync(ct) ?? throw new TraktException(null, "Trakt isn't set up on this server.");
+        var id = await ClientIdAsync(ct) ?? throw new TraktException(null, "Trakt isn’t set up on this server.");
         using var response = await SendAsync(HttpMethod.Post, Api(path), body, token, id, ct);
         return await ReadAsync<TraktSyncResult>(response, ct);
     }
@@ -284,20 +289,20 @@ public sealed partial class TraktClient(HttpClient http, IOptionsMonitor<Flexarr
     /// <param name="action">"start", "pause" or "stop".</param>
     public async Task ScrobbleAsync(string action, TraktScrobbleBody body, string token, CancellationToken ct)
     {
-        var id = await ClientIdAsync(ct) ?? throw new TraktException(null, "Trakt isn't set up on this server.");
+        var id = await ClientIdAsync(ct) ?? throw new TraktException(null, "Trakt isn’t set up on this server.");
         using var response = await SendAsync(HttpMethod.Post, Api($"/scrobble/{action}"), body, token, id, ct, okStatuses: [HttpStatusCode.Conflict]);
     }
 
     private async Task<T> GetAsync<T>(string path, string token, CancellationToken ct)
     {
-        var id = await ClientIdAsync(ct) ?? throw new TraktException(null, "Trakt isn't set up on this server.");
+        var id = await ClientIdAsync(ct) ?? throw new TraktException(null, "Trakt isn’t set up on this server.");
         using var response = await SendAsync(HttpMethod.Get, Api(path), null, token, id, ct);
         return await ReadAsync<T>(response, ct);
     }
 
     private async Task<List<T>> GetAllPagesAsync<T>(string path, string token, CancellationToken ct, int limit = 250)
     {
-        var id = await ClientIdAsync(ct) ?? throw new TraktException(null, "Trakt isn't set up on this server.");
+        var id = await ClientIdAsync(ct) ?? throw new TraktException(null, "Trakt isn’t set up on this server.");
         var all = new List<T>();
         var separator = path.Contains('?', StringComparison.Ordinal) ? '&' : '?';
         for (var page = 1; page <= 200; page++)
@@ -339,7 +344,7 @@ public sealed partial class TraktClient(HttpClient http, IOptionsMonitor<Flexarr
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !ct.IsCancellationRequested)
         {
             LogUnreachable(url.AbsolutePath, ex.Message);
-            throw new TraktException(null, "Couldn't reach Trakt.");
+            throw new TraktException(null, "Couldn’t reach Trakt.");
         }
 
         if (response.IsSuccessStatusCode || okStatuses?.Contains(response.StatusCode) == true)
@@ -353,9 +358,9 @@ public sealed partial class TraktClient(HttpClient http, IOptionsMonitor<Flexarr
         LogRefused(url.AbsolutePath, (int)status);
         throw new TraktException(status, (int)status switch
         {
-            401 => "Trakt didn't accept the sign-in.",
+            401 => "Trakt didn’t accept the sign-in.",
             403 => "Trakt refused this app.",
-            420 => "Your Trakt account's limit is reached.",
+            420 => "Your Trakt account’s limit is reached.",
             423 => "Trakt has locked this account.",
             429 => "Trakt asked Flexarr to slow down.",
             >= 500 => "Trakt is having problems.",
@@ -371,7 +376,7 @@ public sealed partial class TraktClient(HttpClient http, IOptionsMonitor<Flexarr
         }
         catch (JsonException)
         {
-            throw new TraktException(response.StatusCode, "Trakt's answer didn't make sense.");
+            throw new TraktException(response.StatusCode, "Trakt’s answer didn’t make sense.");
         }
     }
 

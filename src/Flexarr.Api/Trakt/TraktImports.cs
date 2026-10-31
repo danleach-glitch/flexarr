@@ -37,7 +37,7 @@ public sealed partial class TraktImports(IServiceScopeFactory scopes, IHostAppli
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 LogFailed(ex, profileId);
-                _errors[profileId] = "The import didn't finish. Try again.";
+                _errors[profileId] = "The import didn’t finish. Try again.";
             }
             finally
             {

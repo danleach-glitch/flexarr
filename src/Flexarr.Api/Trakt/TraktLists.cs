@@ -54,7 +54,10 @@ public sealed partial class TraktLists(FlexarrDbContext db, TraktClient trakt, T
         return new TraktListDto(id, l.Name, liked ? l.User?.Username : null, l.ItemCount, liked, selected.Contains(id));
     }
 
-    /// <summary>Chooses the lists to bring across; those no longer chosen go. False if the profile isn't connected.</summary>
+    /// <summary>
+    /// Chooses the lists to bring across; those no longer chosen go. False if the profile isn't connected, or its lists
+    /// can't be read from Trakt just now (then nothing changes).
+    /// </summary>
     public async Task<bool> ChooseAsync(string profileId, IReadOnlyList<string> ids, CancellationToken ct)
     {
         if (await db.TraktConnections.FirstOrDefaultAsync(c => c.ProfileId == profileId, ct) is not { } connection)
@@ -63,7 +66,12 @@ public sealed partial class TraktLists(FlexarrDbContext db, TraktClient trakt, T
         }
 
         // Only this profile's own lists and ones it liked, as Trakt lists them: an id is never put in a Trakt address unchecked.
-        var known = (await AvailableAsync(profileId, ct) ?? []).Select(l => l.Id).ToHashSet(StringComparer.Ordinal);
+        if (await AvailableAsync(profileId, ct) is not { } available)
+        {
+            return false;
+        }
+
+        var known = available.Select(l => l.Id).ToHashSet(StringComparer.Ordinal);
         connection.ListIds = ids.Where(i => known.Contains(i) && ListId().IsMatch(i)).Distinct().Take(MaxLists).ToList();
         connection.ListsSyncedAt = null;
         await db.Collections.Where(c => c.OwnerProfileId == profileId && c.Kind == CollectionKind.TraktList && !connection.ListIds.Contains(c.TraktListId!))

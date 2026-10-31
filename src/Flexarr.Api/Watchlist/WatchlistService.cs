@@ -200,6 +200,8 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
             entry = existing;
             entry.RemovedAt = null;
             entry.RemovedReason = null;
+            // Added again here: whether Trakt has it is for the next sync to find out afresh.
+            entry.OnTraktAt = null;
             entry.AddedAt = DateTime.UtcNow;
             entry.Source = source;
             // Already in the library: nothing to tell anyone (and nothing to request). Not yet: tell them when it comes.
@@ -290,7 +292,8 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
     {
         LookAgain();
         var removed = await Live(profileId).Where(w => w.Id == id)
-            .ExecuteUpdateAsync(u => u.SetProperty(w => w.RemovedAt, DateTime.UtcNow).SetProperty(w => w.RemovedReason, WatchlistRemoval.Removed), ct) > 0;
+            .ExecuteUpdateAsync(u => u.SetProperty(w => w.RemovedAt, DateTime.UtcNow).SetProperty(w => w.RemovedReason, WatchlistRemoval.Removed)
+                .SetProperty(w => w.OnTraktAt, (DateTime?)null), ct) > 0;
         // Removals long past go for good, so they can't pile up.
         var before = DateTime.UtcNow - RemovedKeptFor;
         await db.WatchlistEntries.Where(w => w.ProfileId == profileId && w.RemovedAt != null && w.RemovedAt < before).ExecuteDeleteAsync(ct);
@@ -339,7 +342,8 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
             if (ids.Count > 0)
             {
                 await db.WatchlistEntries.Where(w => ids.Contains(w.Id))
-                    .ExecuteUpdateAsync(u => u.SetProperty(w => w.RemovedAt, DateTime.UtcNow).SetProperty(w => w.RemovedReason, reason), ct);
+                    .ExecuteUpdateAsync(u => u.SetProperty(w => w.RemovedAt, DateTime.UtcNow).SetProperty(w => w.RemovedReason, reason)
+                        .SetProperty(w => w.OnTraktAt, (DateTime?)null), ct);
             }
         }
 

@@ -171,7 +171,9 @@ public sealed partial class TraktOutboxWorker(IServiceScopeFactory scopes, ILogg
         var trakt = services.GetRequiredService<TraktClient>();
         var accounts = services.GetRequiredService<TraktAccounts>();
         var now = DateTime.UtcNow;
-        var due = await db.TraktOutbox.Where(o => o.NextAttemptAt <= now).OrderBy(o => o.Id).Take(200).ToListAsync(ct);
+        // Scrobbles first, all of them (they go stale in minutes), then up to 200 of the rest.
+        var due = await db.TraktOutbox.Where(o => o.NextAttemptAt <= now && o.Kind == TraktOutboxKind.Scrobble).OrderBy(o => o.Id).ToListAsync(ct);
+        due.AddRange(await db.TraktOutbox.Where(o => o.NextAttemptAt <= now && o.Kind != TraktOutboxKind.Scrobble).OrderBy(o => o.Id).Take(200).ToListAsync(ct));
         if (due.Count == 0)
         {
             return 0;
@@ -238,9 +240,21 @@ public sealed partial class TraktOutboxWorker(IServiceScopeFactory scopes, ILogg
                 sent++;
                 if (entry.Kind == TraktOutboxKind.Scrobble)
                 {
-                    // Older scrobbles of this profile still waiting (a start that failed) would now arrive out of order.
+                    // Older scrobbles of this profile still waiting (a start that failed) would now arrive out of order:
+                    // the same title's go; another title's finish still counts, so it goes to history with its time.
                     var older = await db.TraktOutbox.Where(o => o.ProfileId == entry.ProfileId && o.Kind == TraktOutboxKind.Scrobble && o.Id < entry.Id).ToListAsync(ct);
-                    db.TraktOutbox.RemoveRange(older);
+                    var title = TitleOf(entry);
+                    foreach (var o in older)
+                    {
+                        if (o.Action == "stop" && TitleOf(o) != title)
+                        {
+                            Stale(db, o);
+                        }
+                        else
+                        {
+                            db.TraktOutbox.Remove(o);
+                        }
+                    }
                 }
 
                 await DoneAsync(db, entry, ct);
@@ -310,6 +324,13 @@ public sealed partial class TraktOutboxWorker(IServiceScopeFactory scopes, ILogg
     };
 
     private static TraktSyncBody Body(TraktOutboxEntry entry) => JsonSerializer.Deserialize<TraktSyncBody>(entry.Payload, TraktJson.Options)!;
+
+    /// <summary>What a scrobble is of: the film's ids, or the show's with the episode's numbers.</summary>
+    private static string TitleOf(TraktOutboxEntry entry)
+    {
+        var body = JsonSerializer.Deserialize<TraktScrobbleBody>(entry.Payload, TraktJson.Options);
+        return body?.Movie is { } m ? $"m:{m.Ids}" : $"e:{body?.Show?.Ids}:{body?.Episode?.Season}:{body?.Episode?.Number}";
+    }
 
     /// <summary>A scrobble too late to send: a finish still counts, so it goes to history with when it happened.</summary>
     private static void Stale(FlexarrDbContext db, TraktOutboxEntry entry)

@@ -124,7 +124,9 @@ public sealed partial class TraktSync(FlexarrDbContext db, TraktClient trakt, Tr
     {
         // Before fetching: plays made on Trakt while this runs come with the next sync.
         var startedAt = DateTime.UtcNow;
-        var key = $"trakt:import:{profileId}";
+        // Keyed by the connection too: a preview from before reconnecting (perhaps as someone else) isn't confirmed.
+        var connectedAt = await db.TraktConnections.AsNoTracking().Where(c => c.ProfileId == profileId).Select(c => (DateTime?)c.ConnectedAt).FirstOrDefaultAsync(ct);
+        var key = $"trakt:import:{profileId}:{connectedAt?.Ticks}";
         List<Play>? plays;
         if (apply && cache.TryGetValue(key, out (List<Play> Plays, DateTime At) kept))
         {
@@ -176,6 +178,8 @@ public sealed partial class TraktSync(FlexarrDbContext db, TraktClient trakt, Tr
         // Later syncs take plays from here on; the import has everything before.
         connection.HistoryCursor = startedAt;
         connection.ReconciledAt = startedAt;
+        // So the next sync pulls the plays since then, rather than waiting for Trakt's next watched change.
+        connection.LastActivities = null;
         await db.SaveChangesAsync(ct);
         WatchlistService.LookAgain();
         LogImported(profileId, found.Count, missing.Count);
@@ -192,7 +196,8 @@ public sealed partial class TraktSync(FlexarrDbContext db, TraktClient trakt, Tr
         }
 
         var existing = await db.TraktHistoryHolds.Where(h => h.ProfileId == profileId).ToListAsync(ct);
-        var byKey = existing.ToDictionary(h => new TitleKey(h.Kind, h.TmdbId, h.TvdbId, h.ImdbId, h.SeasonNumber, h.EpisodeNumber));
+        // Tolerant of a title held twice (it can't happen now, but a duplicate mustn't stop every later sync).
+        var byKey = existing.GroupBy(h => new TitleKey(h.Kind, h.TmdbId, h.TvdbId, h.ImdbId, h.SeasonNumber, h.EpisodeNumber)).ToDictionary(g => g.Key, g => g.First());
         foreach (var play in plays)
         {
             if (byKey.TryGetValue(play.Key, out var hold))
@@ -217,8 +222,32 @@ public sealed partial class TraktSync(FlexarrDbContext db, TraktClient trakt, Tr
 
     // ---- The regular sync ----
 
-    /// <summary>One sync of one profile: only what changed on Trakt since the last, and the watchlists.</summary>
-    public async Task SyncAsync(string profileId, CancellationToken ct)
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, SemaphoreSlim> Running = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// One sync of one profile: only what changed on Trakt since the last, and the watchlists. One at a time per
+    /// profile: with <paramref name="wait"/> false (Sync now), it doesn't run if one already is, and says so.
+    /// </summary>
+    public async Task<bool> SyncAsync(string profileId, CancellationToken ct, bool wait = true)
+    {
+        var gate = Running.GetOrAdd(profileId, _ => new SemaphoreSlim(1, 1));
+        if (!await gate.WaitAsync(wait ? Timeout.InfiniteTimeSpan : TimeSpan.Zero, ct))
+        {
+            return false;
+        }
+
+        try
+        {
+            await SyncOnceAsync(profileId, ct);
+            return true;
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    private async Task SyncOnceAsync(string profileId, CancellationToken ct)
     {
         var connection = await db.TraktConnections.FirstOrDefaultAsync(c => c.ProfileId == profileId, ct);
         if (connection is not { Status: TraktStatus.Connected })
@@ -411,7 +440,7 @@ public sealed partial class TraktSync(FlexarrDbContext db, TraktClient trakt, Tr
 
             if (entry is { RemovedAt: null })
             {
-                entry.OnTraktAt = startedAt;
+                entry.OnTraktAt = DateTime.UtcNow;
                 continue;
             }
 
@@ -431,7 +460,7 @@ public sealed partial class TraktSync(FlexarrDbContext db, TraktClient trakt, Tr
 
         foreach (var entry in entries.Where(e => e.RemovedAt is null && !matched.Contains(e.Id)))
         {
-            if (entry.OnTraktAt is not null && !first)
+            if (entry.OnTraktAt is { } onTrakt && onTrakt >= entry.AddedAt && !first)
             {
                 // It was on Trakt's list and isn't now: taken off there.
                 await watchlist.RemoveAsync(profileId, entry.Id, ct);
@@ -470,9 +499,9 @@ public sealed partial class TraktSync(FlexarrDbContext db, TraktClient trakt, Tr
         {
             if (await db.WatchlistEntries.FindAsync([added.Entry.Id], ct) is { } entry)
             {
-                // From Trakt, so known to be on it; its time on the list is Trakt's.
-                entry.OnTraktAt = seen;
-                entry.AddedAt = w.ListedAt < entry.AddedAt ? w.ListedAt : entry.AddedAt;
+                // From Trakt, so known to be on it. AddedAt stays now: a title watched before it came across mustn't be
+                // taken off as watched "since it went on".
+                entry.OnTraktAt = DateTime.UtcNow;
             }
 
             return;
@@ -486,7 +515,7 @@ public sealed partial class TraktSync(FlexarrDbContext db, TraktClient trakt, Tr
             db.WatchlistEntries.Add(new WatchlistEntry
             {
                 ProfileId = profileId, Kind = kind, TmdbId = tmdb, ImdbId = ids.Imdb, TvdbId = ids.Tvdb?.ToString(CultureInfo.InvariantCulture),
-                Title = name, Year = year, Source = WatchlistSource.Trakt, AddedAt = w.ListedAt, OnTraktAt = seen,
+                Title = name, Year = year, Source = WatchlistSource.Trakt, OnTraktAt = DateTime.UtcNow.AddSeconds(1),
             });
             await db.SaveChangesAsync(ct);
             return;
@@ -619,6 +648,11 @@ public sealed partial class TraktSyncWorker(IServiceScopeFactory scopes, ILogger
                 // Kids profiles have no Trakt: a profile made one after connecting is left alone (it's disconnected then).
                 var profiles = await db.TraktConnections.Where(c => c.Status == TraktStatus.Connected && !db.Profiles.Any(p => p.Id == c.ProfileId && p.IsKids))
                     .Select(c => c.ProfileId).ToListAsync(stoppingToken);
+                // Nudges for profiles that aren't connected (any more) would otherwise wake this every minute for ever.
+                foreach (var stray in Asked.Keys.Where(k => !profiles.Contains(k)).ToList())
+                {
+                    Asked.TryRemove(stray, out _);
+                }
                 foreach (var profile in profiles)
                 {
                     var asked = Asked.TryRemove(profile, out _);
@@ -663,7 +697,7 @@ public sealed partial class TraktSyncWorker(IServiceScopeFactory scopes, ILogger
             {
                 await using var scope = scopes.CreateAsyncScope();
                 await scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().TraktConnections.Where(c => c.ProfileId == profileId)
-                    .ExecuteUpdateAsync(u => u.SetProperty(c => c.LastError, "The last sync didn't finish. Flexarr tries again shortly."), ct);
+                    .ExecuteUpdateAsync(u => u.SetProperty(c => c.LastError, "The last sync didn’t finish. Flexarr tries again shortly."), ct);
             }
             catch (Exception inner) when (inner is not OperationCanceledException)
             {

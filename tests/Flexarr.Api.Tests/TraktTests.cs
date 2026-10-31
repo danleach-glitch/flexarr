@@ -29,6 +29,7 @@ public sealed class TraktTests : IAsyncLifetime
     public Task InitializeAsync()
     {
         TraktClient.ForgetClientId();
+        TraktAccounts.ForgetFailures();
         _server = _trakt.Serve(_factory);
         return Task.CompletedTask;
     }
@@ -779,6 +780,115 @@ public sealed class TraktTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, changed.StatusCode);
         Assert.False(await InDbAsync(db => db.TraktConnections.AnyAsync()));
         Assert.Contains(_trakt.RelayBodies, b => b.Contains("revoke", StringComparison.Ordinal));
+    }
+
+    // ---- Fixes from the follow-up audit ----
+
+    [Fact]
+    public async Task ATitleAddedBackAfterGoingOffBothLists_Stays()
+    {
+        var dune = Film("Dune", "438631");
+        await SeedAsync(db =>
+        {
+            db.AddRange(Films, dune);
+            db.WatchlistEntries.Add(new WatchlistEntry { ProfileId = Owner, Kind = MediaKind.Movie, TmdbId = 438631, MediaItemId = dune.Id, Title = "Dune", AddedAt = DateTime.UtcNow.AddDays(-5) });
+        });
+        await ConnectAsync();
+        Activities();
+        _trakt.Set("GET /sync/watchlist", $$$$"""[{"id":1,"listed_at":"{{{{DateTime.UtcNow.AddDays(-5):O}}}}","type":"movie","movie":{"ids":{"tmdb":438631}}}]""");
+        await SyncAsync();
+
+        // Taken off here; the sync takes it off Trakt.
+        await Client().DeleteAsync(Api($"/watchlist?libraryItemId={dune.Id}"));
+        Activities(watchlist: "2025-06-02T00:00:00.000Z");
+        await SyncAsync();
+        // Added back here; Trakt doesn't have it.
+        _trakt.Set("GET /sync/watchlist", "[]");
+        await Client().PostAsJsonAsync(Api("/watchlist"), new { libraryItemId = dune.Id });
+        Activities(watchlist: "2025-06-03T00:00:00.000Z");
+        await SyncAsync();
+
+        Assert.True(await InDbAsync(db => db.WatchlistEntries.AnyAsync(w => w.TmdbId == 438631 && w.RemovedAt == null)));
+        Assert.Contains("438631", _trakt.Bodies("POST /sync/watchlist").Last(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AHeldEpisode_AppliesWhenItArrives_ForAShowAlreadyHere()
+    {
+        var (library, show, episode, all) = Show("371980");
+        await SeedAsync(db => { db.Libraries.Add(library); db.MediaItems.AddRange(all); });
+        TraktHolds.LookAgain();
+        await InDbAsync(db => TraktHolds.ApplyAsync(db, default));
+        await SeedAsync(db => db.TraktHistoryHolds.Add(new TraktHistoryHold
+        {
+            ProfileId = Owner, Kind = MediaKind.Episode, TvdbId = "371980", SeasonNumber = 1, EpisodeNumber = 2, WatchedAt = DateTime.UtcNow.AddDays(-1),
+        }));
+        await InDbAsync(db => TraktHolds.ApplyAsync(db, default));
+
+        // Episode 2 arrives in the show that was already here.
+        var season = await InDbAsync(db => db.MediaItems.SingleAsync(i => i.Kind == MediaKind.Season));
+        var second = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Episode, Title = "Half Loop", SortTitle = "2", SeasonNumber = 1, EpisodeNumber = 2, ParentId = season.Id };
+        await SeedAsync(db => db.MediaItems.Add(second));
+        var applied = await InDbAsync(db => TraktHolds.ApplyAsync(db, default));
+
+        Assert.Equal(1, applied);
+        Assert.True((await InDbAsync(db => db.PlaybackStates.SingleAsync(p => p.MediaItemId == second.Id))).Watched);
+    }
+
+    [Fact]
+    public async Task ANewerScrobble_KeepsAnotherTitlesFinish_AsHistory()
+    {
+        await ConnectAsync();
+        await SeedAsync(db =>
+        {
+            db.TraktOutbox.Add(new TraktOutboxEntry
+            {
+                ProfileId = Owner, Kind = TraktOutboxKind.Scrobble, Action = "stop", NextAttemptAt = DateTime.UtcNow.AddMinutes(1),
+                Payload = """{"movie":{"ids":{"tmdb":1}},"progress":96}""",
+            });
+            db.TraktOutbox.Add(new TraktOutboxEntry { ProfileId = Owner, Kind = TraktOutboxKind.Scrobble, Action = "start", Payload = """{"movie":{"ids":{"tmdb":2}},"progress":1}""" });
+        });
+
+        await InScopeAsync(s => TraktOutboxWorker.SendDueAsync(s, NullLogger.Instance, default, TimeSpan.Zero));
+        var left = Assert.Single(await OutboxAsync());
+
+        Assert.Equal(TraktOutboxKind.History, left.Kind);
+        Assert.Contains("\"tmdb\":1", left.Payload, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ListsCantBeSaved_WhileTraktCantBeRead_AndNothingChanges()
+    {
+        await ConnectAsync();
+        await InDbAsync(db => db.TraktConnections.ExecuteUpdateAsync(u => u.SetProperty(c => c.ListIds, new List<string> { "dan/55" })));
+        _trakt.Set("GET /users/me/lists", "{}", HttpStatusCode.ServiceUnavailable);
+
+        var saved = await Client().PutAsJsonAsync(Api("/trakt/lists"), new { ids = Array.Empty<string>() });
+
+        Assert.Equal(HttpStatusCode.BadGateway, saved.StatusCode);
+        Assert.Equal(["dan/55"], (await InDbAsync(db => db.TraktConnections.SingleAsync())).ListIds);
+    }
+
+    [Fact]
+    public async Task SettingsFiles_CarryOnlyTheTraktApp_AndOlderFilesLeaveItAlone()
+    {
+        var path = Flexarr.Api.Configuration.ServerConfigStore.PathFor(_factory.DataDirectory);
+        var config = System.Text.Json.Nodes.JsonNode.Parse(File.Exists(path) ? await File.ReadAllTextAsync(path) : "{}")!.AsObject();
+        config["trakt"] = new System.Text.Json.Nodes.JsonObject { ["clientId"] = "mine", ["clientSecret"] = "secret", ["relayUrl"] = "http://elsewhere.test" };
+        config["tmdb"] = new System.Text.Json.Nodes.JsonObject { ["apiKey"] = "tmdb-key" };
+        await File.WriteAllTextAsync(path, config.ToJsonString());
+
+        System.Text.Json.Nodes.JsonObject exported = null!;
+        await InScopeAsync(async s => exported = await Flexarr.Api.Backups.SettingsTransfer.ExportAsync(_factory.DataDirectory, s.GetRequiredService<FlexarrDbContext>(), DateTime.UtcNow, default));
+        var older = System.Text.Json.Nodes.JsonNode.Parse("""{"format":"flexarr-settings","version":1,"settings":{"seerr":{"baseUrl":"http://seerr.test","apiKey":"k"}}}""")!.AsObject();
+        await InScopeAsync(s => Flexarr.Api.Backups.SettingsTransfer.ApplyAsync(older, new Flexarr.Api.Backups.SettingsImportRequest(["connections"]), _factory.DataDirectory,
+            s.GetRequiredService<FlexarrDbContext>(), _factory.ScanQueue, default));
+        var after = System.Text.Json.Nodes.JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
+
+        Assert.Equal("mine", exported["settings"]!["trakt"]!["clientId"]!.GetValue<string>());
+        Assert.Null(exported["settings"]!["trakt"]!["relayUrl"]);
+        Assert.Equal("mine", after["trakt"]!["clientId"]!.GetValue<string>());
+        Assert.Equal("tmdb-key", after["tmdb"]!["apiKey"]!.GetValue<string>());
     }
 
     [Fact]

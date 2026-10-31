@@ -220,6 +220,8 @@ public static class TraktConnections
         await db.TraktOutbox.Where(o => o.ProfileId == profileId).ExecuteDeleteAsync(ct);
         await db.TraktHistoryHolds.Where(h => h.ProfileId == profileId).ExecuteDeleteAsync(ct);
         await db.Collections.Where(c => c.OwnerProfileId == profileId && c.Kind == CollectionKind.TraktList).ExecuteDeleteAsync(ct);
+        // What was on the old account's list says nothing about the next one's.
+        await db.WatchlistEntries.Where(w => w.ProfileId == profileId && w.OnTraktAt != null).ExecuteUpdateAsync(u => u.SetProperty(w => w.OnTraktAt, (DateTime?)null), ct);
     }
 
     /// <summary>Disconnects the profile: Trakt forgets the token (best effort), and so does Flexarr, with all of the above.</summary>
@@ -231,8 +233,18 @@ public static class TraktConnections
             return;
         }
 
-        await trakt.RevokeAsync(connection.AccessToken, ct);
+        // Forgotten here first, so a slow Trakt can't leave it half done; then Trakt is told, briefly.
         await db.TraktConnections.Where(c => c.ProfileId == profileId).ExecuteDeleteAsync(ct);
         await ForgetAsync(db, profileId, ct);
+        using var brief = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        brief.CancelAfter(TimeSpan.FromSeconds(5));
+        try
+        {
+            await trakt.RevokeAsync(connection.AccessToken, brief.Token);
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            // Trakt didn't answer in time: the token expires by itself within a day.
+        }
     }
 }

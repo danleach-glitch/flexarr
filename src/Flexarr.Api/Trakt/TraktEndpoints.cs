@@ -10,6 +10,7 @@ namespace Flexarr.Api.Trakt;
 /// <param name="Pending">A connect in progress (or just ended, saying how).</param>
 /// <param name="Queued">Changes waiting to go to Trakt.</param>
 /// <param name="Importing">The history import is running.</param>
+/// <param name="ImportError">Why the last import didn't finish, for the history part of the page (absent from servers before 0.57's last builds).</param>
 public sealed record TraktStatusDto(
     bool Available,
     string State,
@@ -21,7 +22,8 @@ public sealed record TraktStatusDto(
     DateTime? ImportedAt,
     bool Importing,
     int Queued,
-    TraktPendingConnect? Pending);
+    TraktPendingConnect? Pending,
+    string? ImportError = null);
 
 /// <summary>One profile's Trakt, for the admin's overview; never the tokens.</summary>
 public sealed record TraktProfileDto(string ProfileId, string ProfileName, string State, string? Username, DateTime? LastSyncAt, string? LastError);
@@ -41,7 +43,7 @@ public static class TraktEndpoints
         {
             if (await trakt.ClientIdAsync(ct) is null)
             {
-                return Results.Problem("Trakt isn't available on this server.", statusCode: 409);
+                return Results.Problem("Trakt isn’t available on this server.", statusCode: 409);
             }
 
             try
@@ -100,7 +102,16 @@ public static class TraktEndpoints
         });
 
         group.MapPut("/lists", async (TraktListsUpdate update, CurrentProfile profile, TraktLists lists, CancellationToken ct) =>
-            await lists.ChooseAsync(profile.Id, update.Ids, ct) ? Results.NoContent() : Results.Problem("Connect to Trakt first.", statusCode: 409));
+        {
+            try
+            {
+                return await lists.ChooseAsync(profile.Id, update.Ids, ct) ? Results.NoContent() : Results.Problem("Trakt can’t be reached just now. Try again.", statusCode: 409);
+            }
+            catch (TraktException ex)
+            {
+                return Results.Problem(ex.Message, statusCode: 502);
+            }
+        });
 
         // Sync now, for this profile only: done before answering, so the app can show when it last synced. At most once
         // a minute; sooner just asks the background sync.
@@ -112,8 +123,15 @@ public static class TraktEndpoints
                 return Results.Accepted();
             }
 
-            await sync.SyncAsync(profile.Id, ct);
-            return Results.NoContent();
+            try
+            {
+                // Already syncing (the background sync got there first): that sync is the one asked for.
+                return await sync.SyncAsync(profile.Id, ct, wait: false) ? Results.NoContent() : Results.Accepted();
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                return Results.Problem("The sync didn’t finish. Flexarr tries again shortly.", statusCode: 502);
+            }
         });
 
         // The admin's overview: who's connected, and how it's going.
@@ -146,6 +164,6 @@ public static class TraktEndpoints
         var c = await db.TraktConnections.AsNoTracking().FirstOrDefaultAsync(x => x.ProfileId == profileId, ct);
         var queued = c is null ? 0 : await db.TraktOutbox.CountAsync(o => o.ProfileId == profileId, ct);
         return new TraktStatusDto(await trakt.ClientIdAsync(ct) is not null, StateOf(c), c?.Username, c?.ConnectedAt, c?.LastSyncAt,
-            c?.LastError ?? imports.Error(profileId), c?.WatchlistFull ?? false, c?.ImportedAt, imports.Running(profileId), queued, connector.Current(profileId));
+            c?.LastError, c?.WatchlistFull ?? false, c?.ImportedAt, imports.Running(profileId), queued, connector.Current(profileId), imports.Error(profileId));
     }
 }

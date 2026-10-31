@@ -144,22 +144,31 @@ public static class RequestEndpoints
             var today = DateOnly.FromDateTime(DateTime.UtcNow);
             // Trakt's picks are worked out alongside Seerr's lists (they only use Seerr and Trakt from here on).
             var picksTask = trakt.RowAsync(current.Id, instance, library, wanted, hidden, ct);
-            foreach (var (id, list, title) in Lists)
+            ExternalRowDto? picks;
+            try
             {
-                try
+                foreach (var (id, list, title) in Lists)
                 {
-                    var page = await seerr.DiscoverAsync(instance, list, 1, ct, FilterFor(id, today));
-                    rows.Add(new ExternalRowDto(id, title, page.Results.Where(r => r.MediaType is "movie" or "tv").Select(r => ToDto(r, library, wanted))
-                        .Where(t => t.LibraryItemId is not null || !hidden.Hides(KindOf(t.MediaType))).ToList()));
+                    try
+                    {
+                        var page = await seerr.DiscoverAsync(instance, list, 1, ct, FilterFor(id, today));
+                        rows.Add(new ExternalRowDto(id, title, page.Results.Where(r => r.MediaType is "movie" or "tv").Select(r => ToDto(r, library, wanted))
+                            .Where(t => t.LibraryItemId is not null || !hidden.Hides(KindOf(t.MediaType))).ToList()));
+                    }
+                    catch (HttpRequestException)
+                    {
+                        // One list failing shouldn't hide the others.
+                    }
                 }
-                catch (HttpRequestException)
-                {
-                    // One list failing shouldn't hide the others.
-                }
+            }
+            finally
+            {
+                // Never left running past the request, which owns the database context it uses.
+                picks = await picksTask;
             }
 
             // A profile connected to Trakt gets its picks, after what's trending.
-            if (await picksTask is { } picks)
+            if (picks is not null)
             {
                 rows.Insert(Math.Min(1, rows.Count), picks);
             }

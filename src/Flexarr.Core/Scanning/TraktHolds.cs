@@ -154,7 +154,7 @@ public sealed class LibraryTitles
 public static class TraktHolds
 {
     private static readonly SemaphoreSlim Gate = new(1, 1);
-    private static (int Titles, DateTime? Newest, int Holds, long LastHold)? lastLook;
+    private static (int Titles, DateTime? Newest, DateTime? Matched, int Holds, long LastHold)? lastLook;
 
     /// <summary>Forgets what was seen last time, so the next call looks (tests).</summary>
     public static void LookAgain() => lastLook = null;
@@ -174,9 +174,12 @@ public static class TraktHolds
                 return 0;
             }
 
-            var titles = db.MediaItems.IgnoreQueryFilters().Where(i => i.MissingSince == null && (i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series));
+            // Films, shows and episodes (a new episode of a show already here can be what a hold waits for), and when
+            // titles last had their ids filled in (a title can arrive first and be matched later).
+            var titles = db.MediaItems.IgnoreQueryFilters()
+                .Where(i => i.MissingSince == null && (i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series || i.Kind == MediaKind.Episode));
             var look = (await titles.CountAsync(ct).ConfigureAwait(false), await titles.MaxAsync(i => (DateTime?)i.AddedAt, ct).ConfigureAwait(false),
-                holdCount, await holds.MaxAsync(h => h.Id, ct).ConfigureAwait(false));
+                await titles.MaxAsync(i => i.MetadataUpdatedAt, ct).ConfigureAwait(false), holdCount, await holds.MaxAsync(h => h.Id, ct).ConfigureAwait(false));
             if (lastLook == look)
             {
                 return 0;
