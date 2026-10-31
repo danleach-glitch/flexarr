@@ -22,9 +22,10 @@ namespace Flexarr.Api.Devices;
 /// <param name="Sound">Its sound settings.</param>
 /// <param name="AgeSeconds">How long ago <paramref name="ReportedAt"/> was, by the server's clock, for a device whose own clock differs.</param>
 /// <param name="ProfileId">Whose it is: the profile it plays against, so a phone's remote follows only its own profile's TV.</param>
+/// <param name="Chapter">The chapter of a book playing. Absent from servers before 0.58.</param>
 public sealed record NowPlayingDto(ItemSummaryDto Item, double PositionSeconds, double DurationSeconds, bool Paused, DateTime? ReportedAt = null,
     double? Rate = null, PlayerPrompt? Prompt = null, bool? HasNext = null, PlayerTracks? Tracks = null, DeviceSound? Sound = null, double? AgeSeconds = null,
-    string? ProfileId = null);
+    string? ProfileId = null, string? Chapter = null);
 
 /// <summary>An Apple TV, iPhone, iPad or Android device signed in to this server, and whether it would take a command right now.</summary>
 /// <param name="Online">Flexarr is open on it and listening. Offline, a command waits a couple of minutes for it.</param>
@@ -342,8 +343,11 @@ public static class DeviceEndpoints
         }
 
         var remote = playing.Remote;
+        var chapter = playing.BookParts is null || item.Id == Guid.Empty ? null
+            : await db.MediaChapters.Where(c => c.MediaItemId == playing.ItemId && c.StartSeconds <= playing.LastPosition)
+                .OrderByDescending(c => c.StartSeconds).Select(c => c.Title).FirstOrDefaultAsync(ct);
         var dto = new NowPlayingDto(item, playing.LastPosition, playing.DurationSeconds, playing.Paused, playing.ReportedAt, remote?.Rate, remote?.Prompt, remote?.HasNext,
-            remote?.Tracks, remote?.Sound, playing.ReportedAt is { } at ? Math.Max(0, (now - at).TotalSeconds) : null, playing.ProfileId);
+            remote?.Tracks, remote?.Sound, playing.ReportedAt is { } at ? Math.Max(0, (now - at).TotalSeconds) : null, playing.ProfileId, chapter);
         return item.Id == Guid.Empty ? Private(dto) : dto;
     }
 
