@@ -129,11 +129,39 @@ Things to fix along the way:
 
 ## Playback
 
-- **Manifest:** `GET /items/{id}/book` returns the files with their start offsets on the timeline, the chapters, bookmarks and progress. Clients turn a timeline position into a file and an offset within it.
-- **Native apps:** play the files back to back from that manifest: `AVQueuePlayer` on Apple, `ConcatenatingMediaSource` in Media3 on Android. They play each file directly when the device can decode it. Otherwise they use the existing audio conversion to AAC (`PlaybackDecider`).
-- **Web:** gets one audio-only HLS playlist for the whole book from the server, built from the existing audio HLS path with each file a run of segments. The browser then sees a single stream it can seek anywhere in.
-- **Progress:** `PUT /items/{id}/progress` with the timeline position, the device, and the time the device recorded it. The most recent recording wins. Offline positions are sent later with their original times, so an old offline session can't overwrite newer listening.
-- **Finished:** within the last 2 minutes or past 98%, whichever comes first, or when the player reaches the end. Podcasts count as played only at the very end, so books get their own rule.
+Every client plays a book's files back to back on one timeline. There is no whole-book stream: m4b, mp3 and m4a play as they are everywhere, a single-file m4b (the common case) is one stream anyway, and conversion is needed only for the rare file a player can't decode, which the server converts to AAC once and keeps.
+
+- **Start:** `POST /playback` with the book's id, the player's `profile.audioCodecs` and an optional `deviceName`. The answer is the usual `PlaybackInfoDto` with `book` set: a `BookManifestDto` whose file addresses are the session's (`/playback/{sid}/book/{n}`, no key needed, so AirPlay and Chromecast can fetch them). `startPositionSeconds` is on the whole timeline.
+- **Timeline:** file *n* starts at `files[n].offsetSeconds`; a timeline position maps to the last file whose offset is at or before it. Chapters, bookmarks and progress are all on the timeline.
+- **Progress:** the session's `POST /playback/{sid}/progress` takes timeline positions. Without a session (offline listening, a download), `PUT /items/{id}/progress` `{positionSeconds, device, recordedAt, ended}`; the newest `recordedAt` wins.
+- **Finished:** within the last 2 minutes or past 98%, or when the player reports `ended`. Finishing counts a play and sets `finishedAt`; position goes back to 0.
+- **Elsewhere:** the manifest's `progress` carries the device that recorded it and when. A player that finds the server's place newer than its own, from another device, offers to jump there.
+
+## API
+
+All under `/api/v1`, for the current profile. Fields new to existing DTOs are optional for apps ("Absent from servers before 0.58").
+
+| Call | What |
+|---|---|
+| `GET /libraries/{id}/book-shelves` | `BookShelvesDto`: continueListening, nextInSeries, recentlyAdded, series, authors, narrators, genres, finished |
+| `GET /libraries/{id}/books?search&progress=notstarted\|inprogress\|finished&author&narrator&genre&language&abridged&minHours&maxHours&sort=title\|author\|series\|added\|released\|length\|listened&descending&skip&take` | `PagedDto<ItemSummaryDto>` |
+| `GET /libraries/{id}/book-series?search&skip&take` | `PagedDto<BookSeriesSummaryDto>` (covers of its first books, the next unfinished one) |
+| `GET /libraries/{id}/book-people?role=author\|narrator&search&skip&take` | `PagedDto<BookPersonDto>` |
+| `GET /book-series/{id}` | `BookSeriesDto`: books in reading order with their numbers, `nextId` |
+| `GET /items/{id}` | `ItemDetailDto` with `book`: `BookDetailDto` (edition, series, chapters, bookmarks, speed, moreInSeries, byAuthor, readByNarrator); credits carry `Author`/`Narrator`/`Translator` roles |
+| `GET /people/{id}` | `PersonDto` with `biography` |
+| `GET /items/{id}/book?codecs=aac,mp3` | `BookManifestDto` with the item's own file addresses (key needed), for downloads |
+| `GET /items/{id}/book/files/{n}[?convert=aac]` | the file, with byte ranges |
+| `PUT /items/{id}/progress` | `BookProgressRequest` → `BookProgressDto` |
+| `POST /items/{id}/finished` `{finished}` · `POST /items/{id}/listen-again` | mark finished or not; start over keeping `finishedAt` |
+| `GET/POST /items/{id}/bookmarks` · `PUT/DELETE /bookmarks/{id}` | `{positionSeconds, note}`, notes up to 2,000 characters |
+| `PUT /items/{id}/playback-speed` `{speed}` | a book's own speed, 0.25–4 (apps offer 0.5–3.5 in 0.05 steps) |
+| `GET/PUT /books/listening` | `BookListeningDto`: default speed, skip back/forward (10, 15, 30, 45 or 60 s), smart rewind |
+| `GET /search?q` | `books` and `bookSeries` alongside titles; books aren't in `titles` |
+| `GET /home` | rows `books-continue`, `books-next`, `books-new` (style `poster`, square covers) |
+| Smart collections | `rules.type = "book"`; manual collections take books |
+
+`ItemSummaryDto.book` (`BookSummaryDto`): authors (two at most, "A, B"), authorCount, narrator, series, sequence, durationSeconds, finishedAt. `MediaKind.Audiobook`, `LibraryType.Audiobooks`. Smart rewind is the player's: none under 10 s of pause, then growing to about 30 s after an hour.
 
 ## \*arr integration (Readarr-compatible)
 
