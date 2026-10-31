@@ -24,11 +24,14 @@ final class GuestTunnel: @unchecked Sendable {
     enum Failure: LocalizedError {
         /// The tailnet wants a key again: this device was deleted from the host's tailnet, or its key ran out.
         case needsInvite
+        /// The host's tailnet wasn't reached within a minute: no internet here, or the host's server is off.
+        case timedOut
         case failed(String)
 
         var errorDescription: String? {
             switch self {
             case .needsInvite: "You no longer have access to this Flexarr."
+            case .timedOut: "Couldn’t reach the server in time."
             case .failed(let why): "Couldn’t connect (\(why))."
             }
         }
@@ -104,7 +107,11 @@ final class GuestTunnel: @unchecked Sendable {
         guard port > 0 else {
             let why = Self.take(FlexarrTunnelLastError()) ?? "unknown error"
             log.warning("The tunnel didn't start: \(why)")
-            if Self.state() == "needs-login" { throw Failure.needsInvite }
+            // Tailscale turns a used or cancelled key away as "invalid key".
+            if Self.state() == "needs-login" || why.localizedCaseInsensitiveContains("invalid key") { throw Failure.needsInvite }
+            if why.localizedCaseInsensitiveContains("timed out") || why.localizedCaseInsensitiveContains("deadline exceeded") {
+                throw Failure.timedOut
+            }
             throw Failure.failed(why)
         }
         Self.saveIdentity(from: folder)

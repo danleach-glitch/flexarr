@@ -434,7 +434,15 @@ final class AppModel {
         case used(owner: String)
         case paused(owner: String)
         case otherServer
+        /// The host's tailnet or server couldn't be reached: the key wasn't used, so the same invite can try again.
+        case unreachable(owner: String)
         case failed(String)
+
+        /// Trying the same invite again can work.
+        var canRetry: Bool {
+            if case .unreachable = self { return true }
+            return false
+        }
 
         var errorDescription: String? {
             switch self {
@@ -442,6 +450,7 @@ final class AppModel {
             case .used(let owner): "This invite has been used, or was cancelled. Ask \(owner) for a new one."
             case .paused(let owner): "\(owner)’s server isn’t taking invites just now. Ask \(owner) to check Settings › Remote access."
             case .otherServer: "This invite led to a different server than it named. Ask for a new one."
+            case .unreachable(let owner): "Couldn’t reach \(owner)’s Flexarr. Check this device’s internet, or that \(owner)’s server is on."
             case .failed(let why): why
             }
         }
@@ -483,9 +492,18 @@ final class AppModel {
         } catch GuestTunnel.Failure.needsInvite {
             GuestTunnel.shared.stop(forget: true)
             throw JoinError.used(owner: invite.ownerName)
-        } catch {
+        } catch let failure as GuestTunnel.Failure {
+            // Said plainly; Tailscale's own words go to the log.
+            log.warning("Joining didn't reach the host: \(failure.localizedDescription)")
             GuestTunnel.shared.stop(forget: true)
-            throw JoinError.failed(error.localizedDescription)
+            throw JoinError.unreachable(owner: invite.ownerName)
+        } catch {
+            log.warning("Joining failed: \(error.localizedDescription)")
+            GuestTunnel.shared.stop(forget: true)
+            // The tunnel was up, so its key is spent: this invite can't try again.
+            throw JoinError.failed(error is URLError
+                ? "Couldn’t reach \(invite.ownerName)’s Flexarr. Ask \(invite.ownerName) for a new invite."
+                : error.localizedDescription)
         }
     }
 
