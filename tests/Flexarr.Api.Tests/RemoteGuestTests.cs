@@ -289,4 +289,44 @@ public class RemoteGuestTests(RemoteGuestFactory factory) : IClassFixture<Remote
         var response = await admin.PostAsJsonAsync("/api/v1/remote/tailscale/links", new { login = "tagged-devices", profileId = gran });
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
+
+    [Fact]
+    public async Task A_guest_device_without_a_sign_in_reaches_nothing_but_redeem_and_removing_it_shuts_it_out()
+    {
+        const string stranger = "100.64.0.20";
+        factory.Whois.Tags[stranger] = ["tag:flexarr-guest"];
+        using (var unjoined = factory.From(stranger))
+        {
+            Assert.Equal(HttpStatusCode.Forbidden, (await unjoined.GetAsync("/api/v1/setup")).StatusCode);
+            Assert.Equal(HttpStatusCode.Forbidden, (await unjoined.GetAsync("/")).StatusCode);
+            Assert.Equal(HttpStatusCode.Forbidden, (await unjoined.GetAsync("/health")).StatusCode);
+        }
+
+        var gran = await factory.AddProfileAsync("Gran11");
+        var (_, payload) = await InviteAsync(gran, "Gate test");
+        var redeemed = await RedeemAsync(stranger, payload.T);
+        Assert.Equal(HttpStatusCode.OK, redeemed.StatusCode);
+        var key = (await redeemed.Content.ReadFromJsonAsync<RedeemedInviteDto>(Web))!.ApiKey;
+        using (var joined = factory.From(stranger, key))
+        {
+            Assert.Equal(HttpStatusCode.OK, (await joined.GetAsync("/api/v1/me")).StatusCode);
+            Assert.Equal(HttpStatusCode.OK, (await joined.GetAsync("/api/v1/setup")).StatusCode);
+        }
+
+        using var admin = factory.Admin();
+        var signIns = await admin.GetFromJsonAsync<List<JsonElement>>("/api/v1/sign-ins");
+        var id = signIns!.Single(s => s.GetProperty("name").GetString() == "Gate test").GetProperty("id").GetString();
+        Assert.Equal(HttpStatusCode.NoContent, (await admin.DeleteAsync($"/api/v1/sign-ins/{id}")).StatusCode);
+
+        using var removed = factory.From(stranger, key);
+        Assert.Equal(HttpStatusCode.Forbidden, (await removed.GetAsync("/api/v1/setup")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await removed.GetAsync("/api/v1/me")).StatusCode);
+    }
+
+    [Fact]
+    public async Task The_gate_leaves_the_households_own_tailnet_devices_alone()
+    {
+        using var owner = factory.From(RemoteGuestFactory.Owner);
+        Assert.Equal(HttpStatusCode.OK, (await owner.GetAsync("/api/v1/setup")).StatusCode);
+    }
 }

@@ -337,6 +337,7 @@ app.Use((http, next) =>
     return next(http);
 });
 app.UseForwardedHeaders();
+app.UseFlexarrGuestGate();
 app.UseFlexarrLogging();
 app.UseFlexarrSecurityHeaders();
 app.UseResponseCompression();
