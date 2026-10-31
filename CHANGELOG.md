@@ -38,6 +38,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Search shows your recent searches before you type anything, on the web, iPhone, Apple TV and Android. It shows your last five searches (pressing Search keeps one, as does opening a result), plus the things you opened from them, so you can go back with one tap. They follow your profile across devices, so something you searched for on your phone is waiting on the TV. Remove a single search, or clear them all.
 - Search forgives typos, accents and punctuation: "breking bad" finds Breaking Bad, "amelie" finds Amélie and "spiderman" finds Spider-Man. This works for titles, albums, people and genres, including titles you ask for by voice with Siri or Google Assistant.
 - A genre with a slash in its name ("Action/Adventure", from a folder's own .nfo files) now opens from Discover on the web, iPhone, Apple TV and Android. Before, its page showed an error or no titles.
+- On the web, the search box in the search window no longer draws its own outline into the window's edges.
 
 ### Profiles and settings
 - Changing the server's settings now takes the admin PIN, even at home. Anyone can still watch as the main profile without it. Open **Settings** on the main profile, enter the PIN, and settings stay unlocked on that browser or device for 15 minutes after your last change, or until someone else is chosen there or you choose **Lock settings**.
