@@ -184,8 +184,8 @@ fun SettingsScreen(
                         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
                             ProfileAvatar(model, current, size = 44)
                             Text(current.name, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, modifier = Modifier.weight(1f))
-                            // Locked to one kids profile, the picker is still the way to unlock.
-                            if (model.profiles.size > 1 || model.kidsLock) {
+                            // Locked to one kids profile, the picker is still the way to unlock. A guest has the one profile.
+                            if (!model.isGuest && (model.profiles.size > 1 || model.kidsLock)) {
                                 Text("Switch", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.silver, modifier = Modifier.pressable({ choosingProfile = true }).padding(6.dp))
                             }
                         }
@@ -249,7 +249,9 @@ fun SettingsScreen(
             item {
                 Group {
                     // With an address for away from home, which of the two it's using; otherwise the server's name.
-                    val host = if (model.credentials?.remoteAddress != null) {
+                    val host = if (model.isGuest) {
+                        "By invite"
+                    } else if (model.credentials?.remoteAddress != null) {
                         if (model.client?.addresses?.isAway == true) "Away" else "At home"
                     } else {
                         model.credentials?.address?.let { FlexarrClient.normalizeAddress(it)?.host }
@@ -276,7 +278,7 @@ fun SettingsScreen(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null, tint = Flexarr.danger)
-                        Text("Sign out", fontSize = 17.sp, color = Flexarr.danger)
+                        Text(if (model.isGuest) "Leave" else "Sign out", fontSize = 17.sp, color = Flexarr.danger)
                     }
                 }
             }
@@ -284,14 +286,18 @@ fun SettingsScreen(
     }
 
     if (confirmSignOut) {
-        AlertDialog(
-            onDismissRequest = { confirmSignOut = false },
-            title = { Text("Sign out of this server?") },
-            text = { Text("This device will need to connect again to use the server, and its downloads will be deleted.") },
-            confirmButton = { TextButton(onClick = model::signOut) { Text("Sign out", color = Flexarr.danger) } },
-            dismissButton = { TextButton(onClick = { confirmSignOut = false }) { Text("Cancel", color = Flexarr.screen) } },
-            containerColor = Flexarr.seat,
-        )
+        if (model.isGuest) {
+            LeaveDialog(model, onDismiss = { confirmSignOut = false })
+        } else {
+            AlertDialog(
+                onDismissRequest = { confirmSignOut = false },
+                title = { Text("Sign out of this server?") },
+                text = { Text("This device will need to connect again to use the server, and its downloads will be deleted.") },
+                confirmButton = { TextButton(onClick = model::signOut) { Text("Sign out", color = Flexarr.danger) } },
+                dismissButton = { TextButton(onClick = { confirmSignOut = false }) { Text("Cancel", color = Flexarr.screen) } },
+                containerColor = Flexarr.seat,
+            )
+        }
     }
     if (choosingProfile) {
         ModalBottomSheet(onDismissRequest = { choosingProfile = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Flexarr.room) {
@@ -445,22 +451,50 @@ internal fun Toggle(label: String, on: Boolean, onChange: (Boolean) -> Unit, det
 /** "192.168.1.20:8383" for "http://192.168.1.20:8383/". */
 internal fun shortAddress(address: String?): String = address.orEmpty().replace(Regex("^https?://"), "").trimEnd('/')
 
-/** Address, server version and what it runs on. */
+/** Leaving someone else's Flexarr as a guest: the tunnel, sign-in and downloads go, and joining again takes a new code. */
+@Composable
+internal fun LeaveDialog(model: AppModel, onDismiss: () -> Unit) {
+    val owner = model.credentials?.guest?.ownerName?.ifEmpty { null }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (owner != null) "Leave $owner’s Flexarr?" else "Leave this Flexarr?") },
+        text = { Text("Joining again takes a new code. Downloads are deleted.") },
+        confirmButton = { TextButton(onClick = model::signOut) { Text("Leave", color = Flexarr.danger) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = Flexarr.screen) } },
+        containerColor = Flexarr.seat,
+    )
+}
+
+/** Address, server version and what it runs on; for a guest, whose it is and Leave. */
 @Composable
 fun ServerSettingsScreen(model: AppModel, onDiagnostics: () -> Unit) {
     val client = model.client ?: return
     val navigator = LocalNavigator.current
     val status = rememberLoader(model.credentials) { client.systemStatus() }
     val libraries = rememberLoader(model.credentials) { client.libraries() }
+    var confirmLeave by remember { mutableStateOf(false) }
+    val guest = model.credentials?.guest
 
     RoomBackground(ambient = null) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
             item { PageTitle("Server", onBack = { navigator.back() }) }
-            item {
+            // A guest's server is only ever reached through the tunnel: no address to show or change.
+            if (guest != null || model.isGuest) item {
+                Group {
+                    Fact("Connected by invite", guest?.ownerName?.ifEmpty { null }?.let { "$it’s Flexarr" }.orEmpty())
+                    Divider()
+                    Text(
+                        "Leave",
+                        fontSize = 17.sp,
+                        color = Flexarr.danger,
+                        modifier = Modifier.fillMaxWidth().pressable({ confirmLeave = true }).padding(horizontal = 16.dp, vertical = 14.dp),
+                    )
+                }
+            } else item {
                 val remote = model.credentials?.remoteAddress
                 Group(
                     footer = if (remote == null) {
-                        "To use Flexarr away from home, turn on remote access with Tailscale in Settings › Access on the web; this phone picks the address up by itself."
+                        "To use Flexarr away from home, turn on remote access with Tailscale in Settings › Remote access on the web; this phone picks the address up by itself."
                     } else {
                         "Away from home, this phone reaches the server over Tailscale, which needs to be connected on it."
                     },
@@ -507,6 +541,7 @@ fun ServerSettingsScreen(model: AppModel, onDiagnostics: () -> Unit) {
             }
         }
     }
+    if (confirmLeave) LeaveDialog(model, onDismiss = { confirmLeave = false })
 }
 
 /**

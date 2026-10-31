@@ -1,5 +1,6 @@
 package io.github.flexarr.audio
 
+import io.github.flexarr.player.mediaSources
 import io.github.flexarr.logging.FlexarrLog
 import android.content.Context
 import android.content.Intent
@@ -69,7 +70,19 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
     /** The music's bass, middle and treble as it plays, for the visualiser behind Now Playing. */
     val spectrum = AudioSpectrum()
 
+    /** [player] has been made (it's made on first use). */
+    private var created = false
+
+    /**
+     * Playing, or about to: a session being started, or play pressed and the music buffering (or held up, by a call
+     * say). What a guest's tunnel stays up in the background for.
+     */
+    val wantsToPlay: Boolean
+        get() = isPlaying || isLoading ||
+            (created && player.playWhenReady && player.playbackState.let { it == Player.STATE_BUFFERING || it == Player.STATE_READY })
+
     val player: ExoPlayer by lazy {
+        created = true
         // Every stretch of sound passes the spectrum on its way to the speaker.
         val renderers = object : DefaultRenderersFactory(context) {
             override fun buildAudioSink(context: Context, enableFloatOutput: Boolean, enableAudioTrackPlaybackParams: Boolean): AudioSink =
@@ -80,6 +93,7 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
                     .build()
         }
         ExoPlayer.Builder(context, renderers)
+            .setMediaSourceFactory(mediaSources(context))
             .setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).build(), true)
             .setHandleAudioBecomingNoisy(true)
             // Streamed with the screen off: the phone and its Wi-Fi stay awake while it plays.

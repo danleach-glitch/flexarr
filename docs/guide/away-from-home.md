@@ -12,23 +12,23 @@ At home, your devices find Flexarr on the Wi-Fi. Away from home, they need a saf
 ### Set it up
 
 1. **On the server**, install Tailscale from [tailscale.com/download](https://tailscale.com/download) and sign in.
-2. In Flexarr on the web, signed in as the main profile, go to **Settings › Access**. Under **Away from home**, Tailscale should say it's connected. Choose **Turn on**.
+2. In Flexarr on the web, signed in as the main profile, go to **Settings › Remote access**. Under **Away from home**, Tailscale should say it's connected. Choose **Turn on**.
 3. Flexarr shows its **Private address**, something like `https://your-server.your-tailnet.ts.net:8443`. It's HTTPS, with a real certificate from Tailscale.
 4. **On your iPhone or iPad**, install Tailscale from the App Store and sign in with the same account. Leave it connected.
 5. Open the Flexarr app once while you're at home, so it learns the private address.
 
-![Settings › Access with Tailscale on, the private address and its Copy button, and the people on the tailnet](../../site/guide/img/access.webp "Settings › Access, with Tailscale on")
+![Settings › Remote access with Tailscale on, the private address and its Copy button, and the people on the tailnet](../../site/guide/img/access.webp "Settings › Remote access, with Tailscale on")
 
 From then on, the iPhone, iPad and Apple TV apps switch by themselves. When the home address doesn't answer, they use the Tailscale one, and they go back to the home address when you're home again. There's nothing to change in the apps.
 
 In a browser away from home, open the private address instead of the usual one.
 
 > **Note**
-> Flexarr needs the `tailscale` command on the same computer it runs on to turn this on. In Docker it can't see the Tailscale installed around it, so **Settings › Access** says **Not available in Docker**. To use Flexarr away from home from Docker, put it behind an [HTTPS reverse proxy](#an-https-reverse-proxy-instead), or run Flexarr without Docker on a computer with Tailscale.
+> Flexarr needs the `tailscale` command on the same computer it runs on to turn this on. In Docker it can't see the Tailscale installed around it, so **Settings › Remote access** says **Not available in Docker**. To use Flexarr away from home from Docker, put it behind an [HTTPS reverse proxy](#an-https-reverse-proxy-instead), or run Flexarr without Docker on a computer with Tailscale.
 
 ### Who can get in
 
-When you first turn it on, your own Tailscale account is linked to the main profile. Anyone else you invite to your tailnet appears under **People on your tailnet** in **Settings › Access**. Choose a profile for each person. Anyone set to **Not allowed** is turned away, even though Tailscale lets them reach the server.
+When you first turn it on, your own Tailscale account is linked to the main profile. Anyone else you invite to your tailnet appears under **People with their own Tailscale** in **Settings › Remote access**. Choose a profile for each person. Anyone set to **Not allowed** is turned away, even though Tailscale lets them reach the server.
 
 Over Tailscale, watching works as it does at home. Changing settings is stricter: you'll be asked to choose the main profile with the admin PIN. That browser then stays signed in until it's signed out, or left unused for two weeks. See [Unlocking settings](profiles.md#unlocking-settings) for the admin PIN.
 

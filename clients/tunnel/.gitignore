@@ -1,0 +1,3 @@
+build/
+spike/app/*.xcodeproj/
+spike/media/

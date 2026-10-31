@@ -51,7 +51,7 @@ const newer = (s: SignIn, thisOne: SignIn | undefined) =>
 type Asking = { one: SignIn } | { group: SignIn[] } | { others: number }
 
 /**
- * Browsers and TVs signed in with their own token (Settings › Access). Signing one out ends just that one: a lost TV
+ * Browsers and TVs signed in with their own token (Settings › Security). Signing one out ends just that one: a lost TV
  * or a shared laptop, without changing the API key everywhere else.
  */
 export function SignIns() {

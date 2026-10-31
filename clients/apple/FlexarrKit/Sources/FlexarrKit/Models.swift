@@ -865,6 +865,9 @@ public struct SignInInfo: Decodable, Sendable, Equatable {
     /// This device is locked to kids profiles: only they're offered until the admin PIN releases it.
     /// Absent from servers before 0.56.
     public var kidsLock: Bool? = nil
+    /// A family guest's device: it stays on its profile and has none of the household's devices. Absent from
+    /// servers before 0.57.
+    public var isGuest: Bool? = nil
 }
 
 /// What `POST /admin/unlock` answers.

@@ -92,13 +92,18 @@ class Casting private constructor(private val context: Context, private val mode
         fun finished()
     }
 
-    /** The Cast framework loaded (Google Play services are there): the Cast button shows. */
-    var available by mutableStateOf(false)
-        private set
+    /** The Cast framework loaded (Google Play services are there). */
+    private var frameworkLoaded by mutableStateOf(false)
+
+    /**
+     * The Cast button shows: the framework loaded, and this isn't a family guest's phone, whose server is only reached
+     * through the tunnel inside the app, which a Chromecast can't use.
+     */
+    val available: Boolean get() = frameworkLoaded && !model.isGuest
     /** The Chromecast connected to, by name; null when none is. */
     var deviceName: String? by mutableStateOf(null)
         private set
-    val isConnected: Boolean get() = deviceName != null
+    val isConnected: Boolean get() = deviceName != null && !model.isGuest
     /** What's going to the Chromecast, from the moment it's asked for. */
     var kind: Kind? by mutableStateOf(null)
         private set
@@ -513,7 +518,7 @@ class Casting private constructor(private val context: Context, private val mode
         player = RemoteCastPlayer.Builder(context).setMediaItemConverter(Converter).build().also { it.addListener(listener) }
         cast.sessionManager.addSessionManagerListener(sessions, CastSession::class.java)
         cast.sessionManager.currentCastSession?.takeIf { it.isConnected }?.let(::connected)
-        available = true
+        frameworkLoaded = true
         // Music or a podcast playing on the phone while it's connected goes to the Chromecast (the video player hands
         // its own over).
         scope.launch {

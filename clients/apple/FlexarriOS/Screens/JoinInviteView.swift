@@ -1,0 +1,190 @@
+import FlexarrKit
+import SwiftUI
+
+extension GuestInvite: @retroactive Identifiable {
+    public var id: String { token }
+}
+
+/// "Join Dan's Flexarr?": asked before an invite link (or a pasted invite) does anything, since a link can come from
+/// any app.
+struct JoinInviteView: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
+    let invite: GuestInvite
+    @State private var joining = false
+    @State private var problem: String?
+    /// Joining didn't work, and the same invite can't work again: only Not now is left.
+    @State private var spent = false
+
+    var body: some View {
+        VStack(spacing: 22) {
+            BrandMark(size: 56)
+                .padding(.top, 8)
+            VStack(spacing: 8) {
+                Text("Join \(invite.ownerName)’s Flexarr?")
+                    .font(.title2.weight(.bold))
+                    .foregroundStyle(Color.screen)
+                    .multilineTextAlignment(.center)
+                Text("You’ll watch as \(invite.profileName).")
+                    .font(.body)
+                    .foregroundStyle(Color.usher)
+                    .multilineTextAlignment(.center)
+                if model.credentials != nil {
+                    Text("This \(ThisDevice.name) leaves the server it’s connected to now.")
+                        .font(.footnote)
+                        .foregroundStyle(Color.usher)
+                        .multilineTextAlignment(.center)
+                }
+            }
+            if let problem {
+                Text(problem)
+                    .font(.callout.weight(.medium))
+                    .foregroundStyle(Color.screen)
+                    .multilineTextAlignment(.center)
+            }
+            VStack(spacing: 10) {
+                if !spent {
+                    Button {
+                        Task { await join() }
+                    } label: {
+                        Group {
+                            if joining {
+                                HStack(spacing: 10) {
+                                    ProgressView()
+                                    Text("Joining \(invite.ownerName)’s Flexarr…")
+                                }
+                            } else {
+                                Text(problem == nil ? "Join" : "Try again")
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(ActionButtonStyle(prominent: true))
+                    .disabled(joining)
+                }
+                Button { dismiss() } label: { Text("Not now").frame(maxWidth: .infinity) }
+                    .buttonStyle(ActionButtonStyle(prominent: spent))
+                    .disabled(joining)
+            }
+        }
+        .padding(28)
+        .presentationDetents([.medium])
+        .presentationBackground(Color.room)
+        .interactiveDismissDisabled(joining)
+    }
+
+    private func join() async {
+        joining = true
+        problem = nil
+        defer { joining = false }
+        do {
+            try await model.join(invite)
+            dismiss()
+        } catch {
+            problem = error.localizedDescription
+            spent = (error as? AppModel.JoinError)?.canRetry != true
+        }
+    }
+}
+
+/// On the connect screen, for a family guest: a code to give whoever invited them.
+struct InvitedBySomeone: View {
+    let onCode: () -> Void
+
+    var body: some View {
+        Button(action: onCode) {
+            Label("Join someone’s Flexarr", systemImage: "key")
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(ActionButtonStyle(prominent: false))
+    }
+}
+
+/// "Join someone’s Flexarr": the code to read or text to whoever invited this iPhone or iPad (see `GuestCodeWaiter`).
+struct GuestCodeView: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.scenePhase) private var scenePhase
+    let onBack: () -> Void
+    @State private var waiter = GuestCodeWaiter()
+    /// VoiceOver moves to "Join Dan’s Flexarr?" when the invite arrives.
+    @AccessibilityFocusState private var titleFocused: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            if let joining = waiter.joining {
+                HStack(spacing: 12) {
+                    ProgressView()
+                    Text("Joining \(joining.ownerName)’s Flexarr…")
+                        .font(.headline)
+                        .foregroundStyle(Color.screen)
+                }
+            } else if let offer = waiter.offer {
+                // Anyone who heard the code could have sent an invite: one tap to say it's the right one.
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Join \(offer.ownerName)’s Flexarr?")
+                        .font(.title2.weight(.bold))
+                        .foregroundStyle(Color.screen)
+                        .accessibilityAddTraits(.isHeader)
+                        .accessibilityFocused($titleFocused)
+                    Text("You’ll watch as \(offer.profileName).")
+                        .foregroundStyle(Color.usher)
+                }
+                Button { Task { await waiter.join(model: model) } } label: { Text("Join").frame(maxWidth: .infinity) }
+                    .buttonStyle(ActionButtonStyle(prominent: true))
+                    .keyboardShortcut(.defaultAction)
+                Button { waiter.newCode() } label: { Text("Not now").frame(maxWidth: .infinity) }
+                    .buttonStyle(ActionButtonStyle(prominent: false))
+            } else if let problem = waiter.problem {
+                Text(problem)
+                    .font(.callout.weight(.medium))
+                    .foregroundStyle(Color.screen)
+                if waiter.canTryAgain {
+                    Button { Task { await waiter.join(model: model) } } label: { Text("Try again").frame(maxWidth: .infinity) }
+                        .buttonStyle(ActionButtonStyle(prominent: true))
+                }
+                Button { waiter.newCode() } label: {
+                    Text(waiter.noCode ? "Try again" : "New code").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(ActionButtonStyle(prominent: !waiter.canTryAgain))
+            } else if waiter.stopped {
+                Button { waiter.newCode() } label: { Text("Show a new code").frame(maxWidth: .infinity) }
+                    .buttonStyle(ActionButtonStyle(prominent: true))
+            } else {
+                Text("Give this code to the person who invited you")
+                    .font(.headline)
+                    .foregroundStyle(Color.usher)
+                Text(waiter.code?.display ?? "····-····")
+                    .font(.system(size: 46, weight: .bold, design: .monospaced))
+                    .foregroundStyle(Color.screen)
+                    .textSelection(.enabled)
+                    .accessibilityLabel(waiter.code.map { $0.code.map(String.init).joined(separator: " ") } ?? "Getting a code")
+                if let code = waiter.code {
+                    ShareLink(item: code.display, message: Text("My Flexarr code")) {
+                        Label("Send it", systemImage: "square.and.arrow.up")
+                    }
+                    .font(.body.weight(.semibold))
+                }
+                Text("They type it into Settings › Remote access in Flexarr. Keep this screen open.")
+                    .font(.footnote)
+                    .foregroundStyle(Color.usher)
+            }
+            // Not beside Join and Not now: those already say what to do.
+            if waiter.offer == nil {
+                Button("Back", action: onBack)
+                    .font(.body.weight(.semibold))
+                    .disabled(waiter.joining != nil)
+            }
+        }
+        // The invite arrived while the code showed: said aloud, and VoiceOver moves to it.
+        .onChange(of: waiter.offer?.token) { _, token in
+            guard token != nil, let offer = waiter.offer else { return }
+            AccessibilityNotification.Announcement("Join \(offer.ownerName)’s Flexarr?").post()
+            titleFocused = true
+        }
+        // Polls only while the app is in front; back in front, the same code carries on.
+        .task(id: "\(waiter.round)#\(scenePhase == .active)") {
+            guard scenePhase == .active else { return }
+            await waiter.run()
+        }
+    }
+}

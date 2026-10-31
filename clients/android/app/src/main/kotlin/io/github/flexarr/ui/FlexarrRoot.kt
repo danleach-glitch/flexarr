@@ -11,6 +11,8 @@ import androidx.compose.ui.Modifier
 import io.github.flexarr.AppModel
 import androidx.compose.animation.Crossfade
 import io.github.flexarr.ui.connect.ConnectScreen
+import io.github.flexarr.ui.connect.InviteDialog
+import io.github.flexarr.ui.connect.TunnelProblemScreen
 import io.github.flexarr.ui.connect.WelcomeScreen
 import io.github.flexarr.ui.connect.rememberWelcomed
 import io.github.flexarr.ui.profiles.ProfilesScreen
@@ -29,12 +31,15 @@ fun FlexarrRoot(model: AppModel) {
             is AppModel.Phase.SignedIn -> {
                 LoadProfiles(model, phase)
                 when {
+                    // A guest whose tunnel can't reach its host: what to do about it (Downloads among it).
+                    model.tunnelProblem != null -> TunnelProblemScreen(model)
                     !model.profilesLoaded -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
                     model.needsProfile -> ProfilesScreen(model)
                     else -> MainScreen(model)
                 }
             }
         }
+        InviteDialog(model)
     }
 }
 

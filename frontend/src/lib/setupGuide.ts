@@ -6,7 +6,7 @@ export const setupItems: { id: SetupStep; label: string; settings: string }[] = 
   { id: 'libraries', label: 'Add your libraries', settings: '/settings/libraries' },
   { id: 'profiles', label: 'Add everyone who watches', settings: '/settings/profiles' },
   { id: 'devices', label: 'Connect a TV or phone', settings: '/settings/tv' },
-  { id: 'away', label: 'Watch away from home', settings: '/settings/access' },
+  { id: 'away', label: 'Watch away from home', settings: '/settings/remote' },
 ]
 
 export const isDone = (guide: SetupGuide, id: SetupStep) => guide[id] || guide.skipped.includes(id)

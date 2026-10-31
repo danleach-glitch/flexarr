@@ -32,3 +32,8 @@ updates:
     schedule: { interval: weekly }
     groups:
       android: { patterns: ["*"] }
+  - package-ecosystem: gomod # the apps' Tailscale tunnel
+    directory: /clients/tunnel
+    schedule: { interval: weekly }
+    groups:
+      tunnel: { patterns: ["*"] }

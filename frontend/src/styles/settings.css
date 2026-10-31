@@ -57,6 +57,9 @@
 }
 
 .settings-nav a {
+  display: flex;
+  align-items: center;
+  gap: 11px;
   padding: 7px 14px;
   /* One line each, so the row of sections on phones scrolls rather than wraps. */
   white-space: nowrap;
@@ -76,6 +79,20 @@
   color: var(--screen);
   background: var(--seat-raised);
   font-weight: 600;
+}
+
+/* Each page's mark, quieter than its name until it's the page open. */
+.settings-nav-icon {
+  flex: none;
+  width: 17px;
+  height: 17px;
+  stroke-width: 1.8;
+  opacity: 0.7;
+}
+
+.settings-nav a:hover .settings-nav-icon,
+.settings-nav a.active .settings-nav-icon {
+  opacity: 1;
 }
 
 .settings-content {
@@ -1390,7 +1407,7 @@
   height: 22px;
 }
 
-/* Settings › Access › Connect a device: every device asking right now, above the code box. */
+/* Settings › Security › Connect a device: every device asking right now, above the code box. */
 .waiting-pairings {
   display: grid;
   gap: 12px;
@@ -2427,7 +2444,7 @@
   display: inline-block;
   width: 7px;
   height: 7px;
-  margin-left: 8px;
+  margin-left: -3px;
   border-radius: 50%;
   background: var(--silver);
   vertical-align: middle;
@@ -2499,6 +2516,388 @@
 .admin-unlock .field-row label {
   flex: 1;
   min-width: 140px;
+}
+
+/* Family invites (Settings › Remote access): the three setup steps, the policy snippet, and an invite's link and QR code. */
+.guest-steps {
+  margin: 0;
+  padding: 14px 0 4px 1.4em;
+  display: grid;
+  gap: 18px;
+}
+
+.guest-steps li {
+  display: grid;
+  gap: 6px;
+}
+
+/* Each step reads like the rest of Settings: its name, then help at Settings' help size. */
+.guest-steps li > .muted {
+  font-size: var(--step--1);
+}
+
+.guest-steps li > .button {
+  justify-self: start;
+}
+
+.guest-snippet {
+  margin: 4px 0 0;
+  padding: 12px 14px;
+  overflow-x: auto;
+  background: var(--seat);
+  border: 1px solid var(--aisle);
+  border-radius: 10px;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  /* Wrapped rather than cut off at the right: the comments are meant to be read. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.guest-client {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 10px;
+}
+
+.guest-client label {
+  display: grid;
+  gap: 4px;
+  flex: 1 1 200px;
+}
+
+.guest-check {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 10px 0;
+}
+
+.guest-check.ok {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+
+.guest-check ul {
+  margin: 0;
+  padding-left: 1.2em;
+  font-size: 0.9rem;
+}
+
+.guest-tv {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.guest-tv input {
+  width: 9.5em;
+  font-family: var(--mono, ui-monospace, monospace);
+  letter-spacing: 0.08em;
+}
+
+.guest-invite {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  align-items: flex-start;
+  padding: 14px 0;
+  border-top: 1px solid var(--aisle);
+}
+
+.guest-qr {
+  flex: none;
+  width: 168px;
+  height: 168px;
+  padding: 8px;
+  background: #fff;
+  border-radius: 12px;
+}
+
+.guest-qr svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.guest-invite-text {
+  flex: 1 1 240px;
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.guest-link-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.guest-link {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  padding: 8px 10px;
+  border: 1px solid var(--aisle);
+  border-radius: 8px;
+  font-size: 0.8rem;
+  color: var(--usher);
+}
+
+/* A guest and their devices: the name and Add device over its rows. */
+
+.guest-person-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 0 4px;
+}
+
+/* Adding a device: one panel that moves through its steps, Cancel in its corner. */
+/* Adding someone or a device: steps that sit in the group like its rows, Cancel at the right of the first line. */
+.guest-add {
+  position: relative;
+  padding: 16px 0 18px;
+}
+
+.guest-person .guest-add {
+  padding-top: 6px;
+}
+
+
+
+.guest-add-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.guest-add-step {
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+}
+
+.guest-add-step + .guest-add-step {
+  margin-top: 12px;
+}
+
+.guest-add-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+}
+
+.guest-code-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.guest-code {
+  width: 11em;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 1.3rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.guest-waiting {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.guest-joined {
+  color: #7fd1a0;
+}
+
+.guest-spinner {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  border: 2px solid var(--aisle);
+  border-top-color: var(--silver);
+  border-radius: 50%;
+  animation: guest-spin 0.8s linear infinite;
+}
+
+@keyframes guest-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .guest-spinner {
+    animation-duration: 2.4s;
+  }
+}
+
+.guest-new-tag {
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgb(127 209 160 / 0.16);
+  color: #7fd1a0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  vertical-align: 2px;
+}
+
+.guest-empty {
+  margin: 0;
+  padding: 14px 0;
+  font-size: var(--step--1);
+}
+
+.guest-add .field input {
+  width: min(320px, 100%);
+}
+
+.guest-add .guest-invite {
+  padding: 0;
+  border-top: 0;
+}
+
+.guest-add .field-help {
+  font-size: var(--step--1);
+}
+
+/* The name box suggests existing profiles, but is a text box, not a menu. */
+#guest-new-name::-webkit-calendar-picker-indicator {
+  display: none !important;
+}
+
+/* Guests: a card each, and one for someone being invited. */
+.guest-cards {
+  display: grid;
+  gap: 12px;
+}
+
+.guest-card .guest-person-head {
+  padding-top: 16px;
+}
+
+.guest-card .guest-empty {
+  padding: 0;
+}
+
+/* A guest's card: who on the left; their devices on the right, a row each, with Add device as the last row. */
+.guest-card.guest-person {
+  display: grid;
+  grid-template-columns: minmax(140px, 200px) 1fr;
+  gap: 4px 20px;
+  align-items: start;
+  padding: 4px 20px;
+}
+
+.guest-who {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 0;
+}
+
+.guest-name {
+  font-size: var(--step-1, 1.15rem);
+}
+
+.guest-devices {
+  display: grid;
+  min-width: 0;
+}
+
+.guest-device {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  font-size: var(--step--1);
+}
+
+.guest-device + .guest-device,
+.guest-device + .guest-add {
+  border-top: 1px solid var(--aisle);
+}
+
+.guest-device .setting-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.guest-add-row {
+  padding: 14px 0;
+}
+
+.guest-waiting-icon .guest-spinner {
+  width: 14px;
+  height: 14px;
+}
+
+.guest-person .guest-add {
+  padding: 14px 0 16px;
+}
+
+@media (max-width: 640px) {
+  .guest-card.guest-person {
+    grid-template-columns: 1fr;
+  }
+
+  .guest-who {
+    padding-bottom: 0;
+  }
+}
+
+/* Adding a guest: their picture as they type, the name, Continue and Cancel on one line; a line of help under it. */
+.guest-card.guest-new {
+  display: grid;
+  gap: 8px;
+  padding: 16px 20px;
+}
+
+.guest-new-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.guest-new-row input {
+  flex: 1 1 200px;
+  max-width: 320px;
+}
+
+.guest-new-help {
+  margin: 0;
+  padding-left: 52px;
+  font-size: var(--step--1);
+}
+
+/* Cancel in adding a guest or a device: a quiet link at the right. */
+.guest-cancel {
+  margin-left: auto;
+}
+
+/* Remove guest sits beside their name, quiet until hovered. */
+.guest-who .danger-icon {
+  margin-left: -4px;
+}
+
+.guest-no-devices {
+  margin: 0;
+  padding: 14px 0 0;
+  font-size: var(--step--1);
 }
 
 /* The code to enter at trakt.tv/activate, set like a device's pairing code. */

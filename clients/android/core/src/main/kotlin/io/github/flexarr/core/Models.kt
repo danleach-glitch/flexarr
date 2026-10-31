@@ -597,6 +597,8 @@ data class SignInInfo(
     val maxRatingAge: Int? = null,
     /** This device is locked to kids profiles until the admin PIN releases it. Absent from servers before 0.56. */
     val kidsLock: Boolean = false,
+    /** A family guest's device: it stays on its invite's profile and has no household devices. Absent from servers before 0.57. */
+    val isGuest: Boolean = false,
 ) {
     /** The main profile, unlocked or not: it's asked to let devices in (allowing takes its PIN while locked). */
     val isMainProfile: Boolean get() = isAdmin || canUnlock

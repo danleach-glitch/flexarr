@@ -10,12 +10,19 @@ public struct ServerCredentials: Sendable, Equatable {
     public var profileToken: String?
     /// The server's address for away from home (its Tailscale address), learnt from the server; nil until it has one.
     public var remoteAddress: URL?
+    /// A family guest's sign-in: how to start the tunnel into the host's tailnet. `address` is then the tunnel's own
+    /// address on this device (127.0.0.1), and there's never a home or away address: a guest's network might have
+    /// something else at the host's home address, which mustn't be sent this sign-in.
+    public var guest: GuestTunnelInfo?
 
-    public init(address: URL, apiKey: String, profileToken: String? = nil, remoteAddress: URL? = nil) {
+    public var isGuest: Bool { guest != nil }
+
+    public init(address: URL, apiKey: String, profileToken: String? = nil, remoteAddress: URL? = nil, guest: GuestTunnelInfo? = nil) {
         self.address = address
         self.apiKey = apiKey
         self.profileToken = profileToken
-        self.remoteAddress = remoteAddress == address ? nil : remoteAddress
+        self.guest = guest
+        self.remoteAddress = guest != nil || remoteAddress == address ? nil : remoteAddress
     }
 
     public var client: FlexarrClient { client() }
@@ -25,6 +32,22 @@ public struct ServerCredentials: Sendable, Equatable {
     public func client(onUnauthorized: (@Sendable () -> Void)? = nil) -> FlexarrClient {
         FlexarrClient(addresses: ServerAddresses.shared(home: address, remote: remoteAddress),
                       apiKey: apiKey.isEmpty ? nil : apiKey, profileToken: profileToken, onUnauthorized: onUnauthorized)
+    }
+}
+
+/// Where a guest's tunnel leads: the host's server on its tailnet, and this device's name there.
+public struct GuestTunnelInfo: Codable, Sendable, Equatable {
+    /// The server's tailnet address and Flexarr's port ("100.101.102.103:8383").
+    public var target: String
+    /// This device's name on the host's tailnet.
+    public var hostname: String
+    /// The host's name, for "Connected to Dan's Flexarr".
+    public var ownerName: String
+
+    public init(target: String, hostname: String, ownerName: String) {
+        self.target = target
+        self.hostname = hostname
+        self.ownerName = ownerName
     }
 }
 
@@ -47,7 +70,8 @@ public struct CredentialStore: Sendable {
         guard let text = defaults.string(forKey: addressKey), let url = URL(string: text) else { return nil }
         return ServerCredentials(address: url, apiKey: readKey(account: text) ?? "",
                                  profileToken: defaults.string(forKey: "\(addressKey).profile"),
-                                 remoteAddress: defaults.string(forKey: "\(addressKey).remote").flatMap(URL.init(string:)))
+                                 remoteAddress: defaults.string(forKey: "\(addressKey).remote").flatMap(URL.init(string:)),
+                                 guest: defaults.data(forKey: "\(addressKey).guest").flatMap { try? JSONDecoder().decode(GuestTunnelInfo.self, from: $0) })
     }
 
     /// The last address used, kept after sign-out so the connect screen can prefill it.
@@ -59,13 +83,16 @@ public struct CredentialStore: Sendable {
         let account = credentials.address.absoluteString
         try writeKey(credentials.apiKey, account: account)
         defaults.set(account, forKey: addressKey)
-        defaults.set(account, forKey: "\(addressKey).last")
+        // A guest's address is its own tunnel on this device: no use to offer as the server to connect to again.
+        if credentials.guest == nil { defaults.set(account, forKey: "\(addressKey).last") }
         saveProfile(credentials.profileToken)
         saveRemoteAddress(credentials.remoteAddress)
+        defaults.set(credentials.guest.flatMap { try? JSONEncoder().encode($0) }, forKey: "\(addressKey).guest")
     }
 
-    /// Remembers the server's address for away from home (nil forgets it).
+    /// Remembers the server's address for away from home (nil forgets it). A guest never has one.
     public func saveRemoteAddress(_ url: URL?) {
+        guard url == nil || defaults.data(forKey: "\(addressKey).guest") == nil else { return }
         defaults.set(url?.absoluteString, forKey: "\(addressKey).remote")
     }
 
@@ -79,6 +106,7 @@ public struct CredentialStore: Sendable {
         defaults.removeObject(forKey: addressKey)
         defaults.removeObject(forKey: "\(addressKey).profile")
         defaults.removeObject(forKey: "\(addressKey).remote")
+        defaults.removeObject(forKey: "\(addressKey).guest")
     }
 
     // MARK: Keychain

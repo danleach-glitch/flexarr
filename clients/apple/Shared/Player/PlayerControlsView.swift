@@ -434,6 +434,8 @@ final class PlayerControlsView: UIView {
         pictureInPictureButton.addAction(UIAction { [weak self] _ in self?.onPictureInPicture?() }, for: .primaryActionTriggered)
         let close = GlassView(cornerRadius: 20, content: closeButton, size: 40)
         let route = GlassView(cornerRadius: 20, content: routePicker, size: 40)
+        // A family guest's AirPlay receiver couldn't reach the tunnel this device plays through.
+        route.isHidden = GuestMode.isActive
         let pip = GlassView(cornerRadius: 20, content: pictureInPictureButton, size: 40)
         pictureInPictureGlass = pip
         let top = UIStackView(arrangedSubviews: [close, titles, UIView(), route, pip])

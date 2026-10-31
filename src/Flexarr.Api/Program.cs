@@ -174,6 +174,7 @@ builder.Services.AddSingleton<HealthCheck>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<Pairings>();
 builder.Services.AddSingleton<PairingAlerts>();
+builder.Services.AddSingleton<GuestAlerts>();
 builder.Services.AddSingleton<PinAlerts>();
 builder.Services.AddSingleton<FirstRun>();
 builder.Services.AddSingleton<DeviceCommands>();
@@ -267,6 +268,15 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<Flexarr.Api.Profiles.CurrentProfile>();
 builder.Services.AddSingleton<TailscaleService>();
 builder.Services.AddSingleton<ITailnetWhois>(sp => sp.GetRequiredService<TailscaleService>());
+builder.Services.AddHttpClient(TailscaleApi.HttpClientName, c => c.Timeout = TimeSpan.FromSeconds(20));
+builder.Services.AddSingleton<TailscaleApi>();
+builder.Services.AddSingleton<ITailnet>(sp => sp.GetRequiredService<TailscaleService>());
+builder.Services.AddSingleton<GuestPolicy>();
+builder.Services.AddSingleton<GuestInvites>();
+builder.Services.AddHttpClient(GuestTvCodes.HttpClientName, c => c.Timeout = TimeSpan.FromSeconds(15));
+builder.Services.AddSingleton<GuestTvCodes>();
+builder.Services.AddScoped<GuestLinks>();
+builder.Services.AddHostedService<GuestPolicyWatcher>();
 builder.Services.AddHostedService<PlaybackSweeper>();
 builder.Services.AddHostedService<MarkerDetectionWorker>();
 
@@ -287,6 +297,8 @@ builder.Services.Configure<Microsoft.AspNetCore.ResponseCompression.BrotliCompre
 builder.Services.Configure<Microsoft.AspNetCore.ResponseCompression.GzipCompressionProviderOptions>(o => o.Level = System.IO.Compression.CompressionLevel.Fastest);
 
 var app = builder.Build();
+// The Mac app's sandbox can't run other programs, Tailscale's command included.
+TailscaleService.Sandboxed = app.Services.GetRequiredService<IInstallEnvironment>().Kind == InstallKind.MacApp;
 // config.json's watcher belongs to this server: let it go when the server stops (tests start many in one process, and
 // Linux allows only so many watchers).
 app.Lifetime.ApplicationStopped.Register(() => (userConfig as IDisposable)?.Dispose());
@@ -344,6 +356,7 @@ app.Use((http, next) =>
     return next(http);
 });
 app.UseForwardedHeaders();
+app.UseFlexarrGuestGate();
 app.UseFlexarrLogging();
 app.UseFlexarrSecurityHeaders();
 app.UseResponseCompression();
@@ -417,6 +430,7 @@ app.MapGroup("/api/v1")
     .MapSubtitleSearchEndpoints()
     .MapProfileEndpoints()
     .MapRemoteAccessEndpoints()
+    .MapRemoteGuestEndpoints()
     .MapDeviceEndpoints()
     .MapNotificationEndpoints()
     .MapEventEndpoints()
@@ -427,7 +441,7 @@ app.MapGroup("/api/v1")
 app.MapMcp("/api/v1/mcp").RequireAuthorization();
 
 // Artwork and media are fetched by <img>/<video> tags and native players, which can't send the API key header.
-app.MapGroup("/api/v1").MapImageEndpoints().MapStreamEndpoints().MapLiveTvStreamEndpoints().MapProfileImageEndpoints().MapPairingDeviceEndpoints().MapFirstRunEndpoints();
+app.MapGroup("/api/v1").MapImageEndpoints().MapStreamEndpoints().MapLiveTvStreamEndpoints().MapProfileImageEndpoints().MapPairingDeviceEndpoints().MapFirstRunEndpoints().MapGuestRedeemEndpoints();
 
 // Emby/Jellyfin-compatible endpoints for the *arr apps' built-in connection.
 app.MapMediaBrowserEndpoints();

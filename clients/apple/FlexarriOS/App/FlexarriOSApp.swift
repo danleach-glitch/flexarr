@@ -260,6 +260,17 @@ struct FlexarriOSApp: App {
                 .preferredColorScheme(.dark)
                 .tint(.silver)
                 .onOpenURL { model.open(url: $0) }
+                // flexarr.io/join links (family invites) open the app straight from Messages or the Camera.
+                .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
+                    if let url = activity.webpageURL { model.open(url: url) }
+                }
+                .sheet(item: Bindable(model).pendingInvite) { JoinInviteView(invite: $0).environment(model) }
+                .alert(model.inviteNotice ?? "", isPresented: Binding(
+                    get: { model.inviteNotice != nil },
+                    set: { if !$0 { model.inviteNotice = nil } }
+                )) {
+                    Button("OK", role: .cancel) {}
+                }
                 .onAppear { delegate.model = model }
         }
     }
@@ -275,6 +286,8 @@ struct RootView: View {
     @State private var reviews = ReviewPrompt()
     /// The welcome cards have been seen or skipped. `-FlexarrWelcomed NO` shows them again.
     @AppStorage("FlexarrWelcomed") private var welcomed = false
+    /// A family guest who can't reach its host opened the downloads.
+    @State private var showsDownloads = false
 
     var body: some View {
         ZStack {
@@ -290,7 +303,11 @@ struct RootView: View {
                         .transition(.opacity)
                 }
             case .signedIn(let credentials):
-                if !model.profilesLoaded {
+                if model.tunnelProblem != nil {
+                    // Downloads play without the server, so they're a tap away while it can't be reached.
+                    TunnelProblemView(onDownloads: downloads.downloads.isEmpty ? nil : { showsDownloads = true })
+                        .transition(.opacity)
+                } else if !model.profilesLoaded {
                     ProgressView().controlSize(.large)
                 } else if model.needsProfileChoice {
                     ProfilePickerView()
@@ -303,6 +320,12 @@ struct RootView: View {
                 }
             }
         }
+        // Above the screens rather than on the problem screen: the host coming back in reach swaps that screen, and
+        // mustn't close the downloads, or a film playing from them.
+        .sheet(isPresented: $showsDownloads) {
+            NavigationStack { DownloadsView() }
+        }
+        .onChange(of: model.credentials == nil) { _, signedOut in if signedOut { showsDownloads = false } }
         .animation(.easeInOut(duration: 0.3), value: model.phase)
         .animation(.easeInOut(duration: 0.3), value: welcomed)
         .animation(.easeInOut(duration: 0.3), value: model.needsProfileChoice)
@@ -330,7 +353,8 @@ struct RootView: View {
             }
         }
         .onChange(of: model.phase) { old, new in
-            if case .signedIn = old, new == .signedOut {
+            // Joining someone's Flexarr signs out of this device's own server in the same moment: that counts too.
+            if case .signedIn(let before) = old, new == .signedOut || model.credentials?.isGuest != before.isGuest {
                 downloads.deleteAll()
                 notifications.forget()
             }
@@ -339,6 +363,8 @@ struct RootView: View {
         // for later.
         .onChange(of: scenePhase) { _, phase in
             if phase == .active, model.credentials != nil {
+                // A guest's tunnel may have stopped while the app was away: back up before anything asks.
+                Task { await model.ensureGuestTunnel() }
                 Task { await downloads.catchUp() }
                 Task { await model.loadUpNext() }
                 notifications.refresh()

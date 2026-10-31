@@ -34,6 +34,9 @@ public static class FlexarrClaims
     /// <summary>The browser or device sign-in the request used, if any.</summary>
     public const string SignIn = "flexarr:sign-in";
 
+    /// <summary>Present ("true") on a family guest's device: locked to its profile, never trusted (see docs/remote-guests.md).</summary>
+    public const string Guest = "flexarr:guest";
+
     /// <summary>The Tailscale login, for display.</summary>
     public const string TailscaleLogin = "flexarr:tailscale-login";
 

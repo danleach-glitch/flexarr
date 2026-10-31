@@ -102,7 +102,9 @@ private fun MainPage(
     val context = LocalContext.current
     var confirmSignOut by remember { mutableStateOf(false) }
     val profile = model.currentProfile
-    val switches = profile != null && model.profiles.size > 1
+    // A guest stays on its invite's profile.
+    val switches = profile != null && model.profiles.size > 1 && !model.isGuest
+    val owner = model.credentials?.guest?.ownerName?.ifEmpty { null }
     // Only from servers that keep an order with the profile (0.54 on): it's kept there, not on this TV.
     val sidebarFirst = if (profile?.libraryOrder != null) sidebarEntries(model, libraries).firstOrNull() else null
     // Coming back, the row that opened the page; otherwise the first row.
@@ -161,7 +163,9 @@ private fun MainPage(
         }
         item {
             // With an address for away from home, which of the two it's using; otherwise the server's name.
-            val connection = if (model.credentials?.remoteAddress != null) {
+            val connection = if (model.isGuest) {
+                "By invite"
+            } else if (model.credentials?.remoteAddress != null) {
                 if (model.client?.addresses?.isAway == true) "Away" else "At home"
             } else {
                 model.credentials?.address?.let { FlexarrClient.normalizeAddress(it)?.host }
@@ -173,11 +177,19 @@ private fun MainPage(
             )
         }
         item {
-            TvSettingsRow(
-                "Sign out", onClick = { confirmSignOut = true }, modifier = Modifier.padding(top = 18.dp),
-                icon = Icons.AutoMirrored.Filled.Logout, destructive = true,
-                help = "Disconnect this TV from the server. You’ll need to connect it again to watch.",
-            )
+            if (model.isGuest) {
+                TvSettingsRow(
+                    "Leave", onClick = { confirmSignOut = true }, modifier = Modifier.padding(top = 18.dp),
+                    icon = Icons.AutoMirrored.Filled.Logout, destructive = true,
+                    help = "Stop watching ${owner?.let { "$it’s" } ?: "this"} Flexarr here. Joining again takes a new code.",
+                )
+            } else {
+                TvSettingsRow(
+                    "Sign out", onClick = { confirmSignOut = true }, modifier = Modifier.padding(top = 18.dp),
+                    icon = Icons.AutoMirrored.Filled.Logout, destructive = true,
+                    help = "Disconnect this TV from the server. You’ll need to connect it again to watch.",
+                )
+            }
         }
     }
 
@@ -185,14 +197,20 @@ private fun MainPage(
         val cancel = remember { FocusRequester() }
         Dialog(onDismissRequest = { confirmSignOut = false }) {
             Column(Modifier.width(400.dp).background(Flexarr.seat, RoundedCornerShape(14.dp)).padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                Text("Sign out of this server?", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                Text("This TV will need to connect again to use the server.", fontSize = 14.sp, color = Flexarr.usher)
+                val guest = model.isGuest
+                Text(
+                    if (guest) owner?.let { "Leave $it’s Flexarr?" } ?: "Leave this Flexarr?" else "Sign out of this server?",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(if (guest) "Joining again takes a new code." else "This TV will need to connect again to use the server.", fontSize = 14.sp, color = Flexarr.usher)
+                // As the Apple TV: Cancel first, and where focus starts; Leave (or Sign out) after it.
                 Row(Modifier.fillMaxWidth().height(44.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    TvActionButton("Sign out", onClick = {
+                    TvActionButton("Cancel", onClick = { confirmSignOut = false }, prominent = true, modifier = Modifier.focusRequester(cancel))
+                    TvActionButton(if (guest) "Leave" else "Sign out", onClick = {
                         confirmSignOut = false
                         model.signOut()
-                    }, prominent = true, ambient = Flexarr.danger)
-                    TvActionButton("Cancel", onClick = { confirmSignOut = false }, modifier = Modifier.focusRequester(cancel))
+                    }, ambient = Flexarr.danger)
                 }
             }
         }

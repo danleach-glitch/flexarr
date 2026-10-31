@@ -464,17 +464,25 @@ internal fun TvServerSettings(model: AppModel, libraries: Loader<List<Library>>,
     val onDiagnosticsRow = returningFrom == TvSettingsPageId.Diagnostics
     TakeFocus(focus)
 
+    val guest = model.credentials?.guest
     TvSettingsPage(
         "Server",
-        summary = if (remote == null) {
-            "To watch away from home, turn on remote access with Tailscale in Settings › Access on the web. This TV picks the address up by itself."
+        summary = if (guest != null) {
+            null
+        } else if (remote == null) {
+            "To watch away from home, turn on remote access with Tailscale in Settings › Remote access on the web. This TV picks the address up by itself."
         } else {
             "Away from home, this TV reaches the server over Tailscale, which needs to be connected on it."
         },
     ) {
         item { TvSettingsGroupLabel("Connection") }
-        item { TvSettingsFact("Address", shortAddress(model.credentials?.address)) }
-        if (remote != null) {
+        // A guest's server is only ever reached through the tunnel: no address to show.
+        if (guest != null) {
+            item { TvSettingsFact("Connected by invite", guest.ownerName.ifEmpty { null }?.let { "$it’s Flexarr" }.orEmpty()) }
+        } else {
+            item { TvSettingsFact("Address", shortAddress(model.credentials?.address)) }
+        }
+        if (remote != null && guest == null) {
             item { TvSettingsFact("Away from home", shortAddress(remote)) }
             item { TvSettingsFact("Connected", if (client.addresses.isAway) "Away, over Tailscale" else "At home") }
         }

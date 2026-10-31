@@ -268,7 +268,7 @@ fun TvMainScreen(model: AppModel) {
             AppLink.Search -> select(TvTab.Search)
             AppLink.Home -> select(TvTab.Home)
             // Podcasts, downloads and the watchlist aren't on the TV yet, and nothing here sends it a pairing or PIN notification.
-            is AppLink.Podcast, is AppLink.PodcastEpisode, AppLink.Downloads, is AppLink.Pairing, AppLink.Watchlist, AppLink.Settings -> Unit
+            is AppLink.Podcast, is AppLink.PodcastEpisode, AppLink.Downloads, is AppLink.Pairing, AppLink.Watchlist, AppLink.Settings, is AppLink.Join -> Unit
         } }
     }
     // Words said to the Assistant ("search Flexarr for Fargo"): Search takes them in.

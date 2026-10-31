@@ -32,6 +32,16 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ### Changed
 - For scripts: `PUT /profiles/owner` sets the main profile's own PIN, and sending `currentPin` or `apiKey` there (the old way to change the admin PIN) is refused. Change the admin PIN with `POST /admin/pin` and `currentPin`. Saving `askPinForMainProfile` in `/settings` does nothing; reading it says whether the main profile has a PIN of its own.
 
+### Away from home
+- The apps now find a Mac app server over Tailscale away from home by themselves, as they do other servers.
+
+### Settings
+- Settings on the web has an icon beside each page.
+- **Settings › Access** is now **Remote access**. Old links still work.
+
+### Downloads
+- A download on the iPhone or iPad that's cut off part way (the connection drops, the phone locks) carries on from where it got to, rather than starting again.
+
 ## 0.56.0 · 31 October 2026
 
 ### Watchlist

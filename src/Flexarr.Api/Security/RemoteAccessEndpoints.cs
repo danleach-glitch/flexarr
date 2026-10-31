@@ -33,8 +33,9 @@ public sealed record TailscaleLinkRequest(string Login, string? ProfileId);
 /// <param name="IsKids">The profile is a child's: show the kids app, and leaving it takes the admin PIN. Absent from servers before 0.56.</param>
 /// <param name="MaxRatingAge">The profile's age limit (0 is U, 8 PG, then 12, 15, 18); null, none. Absent from servers before 0.56.</param>
 /// <param name="KidsLock">This browser or device is locked to kids profiles. Absent from servers before 0.56.</param>
+/// <param name="IsGuest">A family guest's device: it stays on its profile and has no household devices. Absent from servers before 0.57.</param>
 public sealed record MeDto(string ProfileId, string Method, NetworkZone Zone, bool IsAdmin, string? TailscaleLogin, bool CanUnlock = false, bool AdminPinMissing = false,
-    DateTime? UnlockedUntil = null, bool IsKids = false, int? MaxRatingAge = null, bool KidsLock = false);
+    DateTime? UnlockedUntil = null, bool IsKids = false, int? MaxRatingAge = null, bool KidsLock = false, bool IsGuest = false);
 
 public static class RemoteAccessEndpoints
 {
@@ -53,7 +54,7 @@ public static class RemoteAccessEndpoints
                 profile.CanUnlock,
                 (profile.IsAdmin || profile.CanUnlock) && await db.Profiles.AnyAsync(p => p.Id == PlaybackState.DefaultUser && p.AdminPinHash == null, ct),
                 profile.IsAdmin ? unlocks.UnlockedUntil(profile.SignInId) : null,
-                db.ServesKids, db.MaxRatingAge, signIns.ById(profile.SignInId)?.KidsLock == true);
+                db.ServesKids, db.MaxRatingAge, signIns.ById(profile.SignInId)?.KidsLock == true, profile.IsGuest);
         }).WithTags("Remote access");
 
         var group = api.MapGroup("/remote").WithTags("Remote access").RequireAuthorization(FlexarrClaims.AdminPolicy);
@@ -84,6 +85,12 @@ public static class RemoteAccessEndpoints
         group.MapPost("/tailscale/links", async (TailscaleLinkRequest request, HttpContext http, TailscaleService tailscale, FlexarrDbContext db, SignIns signIns,
             CancellationToken ct) =>
         {
+            // Tagged devices (family guests among them) all share this login: linking it would give every one a profile.
+            if (string.Equals(request.Login.Trim(), "tagged-devices", StringComparison.OrdinalIgnoreCase))
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["login"] = ["Tagged devices can't be linked to a profile. Invite guests from Family invites instead."] });
+            }
+
             // One profile per Tailscale account: unlink it wherever it was first.
             var before = await db.Profiles.AsNoTracking().Where(p => p.TailscaleLogin == request.Login).Select(p => p.Id).FirstOrDefaultAsync(ct);
             await db.Profiles.Where(p => p.TailscaleLogin == request.Login).ExecuteUpdateAsync(u => u.SetProperty(p => p.TailscaleLogin, (string?)null), ct);
@@ -131,7 +138,7 @@ public static class RemoteAccessEndpoints
     }
 
     /// <summary>This computer's address in Tailscale's range (100.64.0.0/10), read from its network interfaces.</summary>
-    private static string? TailnetIp()
+    internal static string? TailnetIp()
     {
         try
         {

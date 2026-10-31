@@ -24,6 +24,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Warning
@@ -52,11 +54,15 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -65,6 +71,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.flexarr.AppModel
+import io.github.flexarr.BuildConfig
 import io.github.flexarr.core.FlexarrClient
 import io.github.flexarr.data.DiscoveredServer
 import io.github.flexarr.data.ServerBrowser
@@ -81,6 +88,8 @@ private sealed interface Step {
     data object Choose : Step
     data class Pair(val server: DiscoveredServer) : Step
     data object Manual : Step
+    /** A family invite: this device shows a code to give whoever invited it. */
+    data object Guest : Step
 }
 
 internal const val INSTALL_URL = "https://flexarr.io/#install"
@@ -101,10 +110,16 @@ fun ConnectScreen(model: AppModel) {
     // Signed out on the server: show a code for the same server straight away.
     var step by remember {
         val last = model.store.lastAddress
-        mutableStateOf(if (model.signedOutNotice != null && last != null) Step.Pair(server(last)) else Step.Choose)
+        mutableStateOf(if (model.signedOutNotice != null && !model.signedOutAsGuest && last != null) Step.Pair(server(last)) else Step.Choose)
     }
     // Back from a code or an address goes back to the servers, as the screen's own Back does, rather than out of the app.
-    BackHandler(enabled = step != Step.Choose) { step = Step.Choose }
+    BackHandler(enabled = step != Step.Choose) {
+        if (step == Step.Guest) {
+            if (model.joining) return@BackHandler
+            model.dismissInvite()
+        }
+        step = Step.Choose
+    }
 
     RoomBackground(ambient = Flexarr.silver, intensity = 0.22f) {
         Column(
@@ -124,9 +139,15 @@ fun ConnectScreen(model: AppModel) {
             }
             AnimatedContent(step, label = "connect") { current ->
                 when (current) {
-                    Step.Choose -> ChooseServer(browser, onPick = { step = Step.Pair(it) }, onManual = { step = Step.Manual })
+                    Step.Choose -> ChooseServer(
+                        browser,
+                        onPick = { step = Step.Pair(it) },
+                        onManual = { step = Step.Manual },
+                        onGuest = { step = Step.Guest },
+                    )
                     is Step.Pair -> PairWithServer(model, current.server, onBack = { step = Step.Choose })
                     Step.Manual -> ManualConnect(model, onPair = { step = Step.Pair(it) }, onBack = { step = Step.Choose })
+                    Step.Guest -> PhoneGuestCode(model, onBack = { model.dismissInvite(); step = Step.Choose })
                 }
             }
         }
@@ -139,7 +160,12 @@ private fun server(address: String): DiscoveredServer {
 }
 
 @Composable
-private fun ChooseServer(browser: ServerBrowser, onPick: (DiscoveredServer) -> Unit, onManual: () -> Unit) {
+private fun ChooseServer(
+    browser: ServerBrowser,
+    onPick: (DiscoveredServer) -> Unit,
+    onManual: () -> Unit,
+    onGuest: () -> Unit,
+) {
     // Nothing has turned up for a while: say what to check.
     var lookingAWhile by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
@@ -147,35 +173,61 @@ private fun ChooseServer(browser: ServerBrowser, onPick: (DiscoveredServer) -> U
         lookingAWhile = true
     }
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        // In the order people come: their own server at home, an invite to someone else's, typing an address, and
+        // only then setting up a server of their own.
         Text("Servers on your network", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher)
         if (browser.servers.isEmpty()) {
-            Row(Modifier.padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = Flexarr.usher)
                 Text("Looking for Flexarr…", color = Flexarr.usher)
             }
-            if (lookingAWhile) {
-                Text(
-                    "Can’t see your server? Check it’s running and this device is on the same Wi-Fi, or enter its address.",
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = Flexarr.screen,
-                )
-            }
-            NewToFlexarr(Modifier.padding(top = 8.dp))
         } else {
             browser.servers.forEach { server ->
-                Row(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Flexarr.seat).pressable({ onPick(server) }).padding(16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(Icons.Filled.Dns, contentDescription = null, tint = Flexarr.silver)
-                    Text(server.name, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, modifier = Modifier.weight(1f))
-                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = Flexarr.usher)
-                }
+                ChoiceRow(Icons.Filled.Dns, server.name, null, onClick = { onPick(server) })
             }
         }
-        Text("Enter an address instead", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.silver, modifier = Modifier.padding(top = 6.dp).pressable(onManual).minimumInteractiveComponentSize())
+
+        // Someone else's Flexarr, from another home: a code to give whoever invited them.
+        if (BuildConfig.GUEST_INVITES) {
+            ActionButton("Join someone’s Flexarr", onClick = onGuest, icon = Icons.Filled.Key, modifier = Modifier.fillMaxWidth())
+        }
+
+        // Typing an address is for the few whose server can't be found: offered only once it hasn't been, or under
+        // the list for one that isn't in it.
+        if (browser.servers.isNotEmpty() || lookingAWhile) {
+            val lead = if (browser.servers.isEmpty()) "Can’t see your server? Check it’s on the same Wi-Fi, or " else "Not listed? "
+            val link = if (browser.servers.isEmpty()) "enter its address" else "Enter its address"
+            Text(
+                buildAnnotatedString {
+                    append(lead)
+                    withLink(LinkAnnotation.Clickable("address", TextLinkStyles(SpanStyle(color = Flexarr.silver, fontWeight = FontWeight.SemiBold))) { onManual() }) {
+                        append(link)
+                    }
+                    append(".")
+                },
+                fontSize = 15.sp,
+                color = Flexarr.usher,
+                modifier = Modifier.padding(top = 6.dp),
+            )
+        }
+        if (browser.servers.isEmpty()) NewToFlexarr(Modifier.padding(top = 10.dp))
+    }
+}
+
+/** One choice as a card row: an icon, what it is (and a line under it), and a chevron. */
+@Composable
+private fun ChoiceRow(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, detail: String?, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Flexarr.seat).pressable(onClick).padding(horizontal = 16.dp, vertical = 13.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, contentDescription = null, tint = Flexarr.silver)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(title, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen)
+            detail?.let { Text(it, fontSize = 14.sp, color = Flexarr.usher) }
+        }
+        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = Flexarr.usher)
     }
 }
 
@@ -194,7 +246,7 @@ private fun NewToFlexarr(modifier: Modifier = Modifier) {
             }
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("New to Flexarr?", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen)
-                Text("You’ll need the Flexarr server on a computer at home: a Mac, a NAS or anything with Docker.", fontSize = 15.sp, color = Flexarr.usher)
+                Text("Set up your own server at home on Mac, Docker or a NAS.", fontSize = 15.sp, color = Flexarr.usher)
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -484,4 +536,71 @@ private fun Input(
             field()
         },
     )
+}
+
+/** "Join someone’s Flexarr" on a phone or tablet: the code to read or send to whoever invited it (see [rememberGuestCode]). */
+@Composable
+private fun PhoneGuestCode(model: AppModel, onBack: () -> Unit) {
+    var attempt by remember { mutableIntStateOf(0) }
+    val guest = rememberGuestCode(model, attempt)
+    val context = LocalContext.current
+    val invite = model.offeredInvite
+    val joinProblem = model.joinProblem
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        if (invite != null && model.inviteFromCode) {
+            when {
+                model.joining -> Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = Flexarr.usher)
+                    Text("Joining ${invite.ownerName}’s Flexarr…", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Flexarr.screen)
+                }
+                joinProblem != null -> {
+                    ErrorNote(joinProblem)
+                    // Try again only when it could work (the host couldn't be reached); otherwise a new code for a new invite.
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        if (model.joinCanRetry) ActionButton("Try again", onClick = model::confirmInvite, prominent = true)
+                        ActionButton("New code", onClick = model::dismissInvite, prominent = !model.joinCanRetry)
+                    }
+                }
+                // Asked first: anyone who heard the code could have sent theirs.
+                else -> {
+                    // Said as it arrives: whoever's using TalkBack is looking at the code.
+                    Text("Join ${invite.ownerName}’s Flexarr?", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Flexarr.screen,
+                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite; heading() })
+                    Text("You’ll watch as ${invite.profileName}.", fontSize = 17.sp, color = Flexarr.usher)
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        ActionButton("Join", onClick = model::confirmInvite, prominent = true)
+                        ActionButton("Not now", onClick = model::dismissInvite)
+                    }
+                }
+            }
+        } else if (guest.code == null && guest.problem != null && !guest.stopped) {
+            // No code to be had (the relay can't be reached): just that, and a way to try again.
+            Text(guest.problem!!, fontSize = 15.sp, color = Flexarr.screen)
+            ActionButton(if (guest.badInvite) "New code" else "Try again", onClick = { attempt++ }, prominent = true)
+        } else {
+            // Not once codes have stopped: there's none to give.
+            if (!guest.stopped) Text("Give this code to the person who invited you", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher)
+            val shown = guest.code
+            if (shown != null) {
+                Text(shown.display, fontSize = 44.sp, fontWeight = FontWeight.Black, letterSpacing = 3.sp, color = Flexarr.screen,
+                    modifier = Modifier.semantics { contentDescription = shown.spoken })
+                ActionButton("Send it", icon = Icons.Filled.Share, onClick = {
+                    val send = android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain")
+                        .putExtra(android.content.Intent.EXTRA_TEXT, shown.display)
+                    context.startActivity(android.content.Intent.createChooser(send, null))
+                })
+                Text("They type it into Settings › Remote access in Flexarr. Keep this screen open.", fontSize = 13.sp, color = Flexarr.usher)
+            } else if (guest.stopped) {
+                ActionButton("Show a new code", onClick = { attempt++ }, prominent = true)
+            } else if (guest.problem == null) {
+                CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = Flexarr.usher)
+            }
+            guest.problem?.let { Text(it, fontSize = 15.sp, color = Flexarr.screen) }
+        }
+        // Not beside Join and Not now: those already say what to do.
+        if (!(invite != null && model.inviteFromCode && joinProblem == null && !model.joining)) {
+            Text("Back", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.silver,
+                modifier = Modifier.padding(top = 6.dp).pressable({ if (!model.joining) onBack() }).minimumInteractiveComponentSize())
+        }
+    }
 }

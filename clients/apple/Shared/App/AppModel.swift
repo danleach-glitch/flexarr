@@ -18,6 +18,7 @@ final class AppModel {
         // Warnings and errors go to the server signed in to, and its sign-in is kept out of the log.
         didSet {
             guard phase != oldValue else { return }
+            GuestMode.isActive = credentials?.isGuest == true
             LogHub.shared.signedIn(client)
             // Error reports follow the server signed in to: none signed out, the last answer for a new one.
             if credentials?.address != Self.credentials(in: oldValue)?.address {
@@ -87,6 +88,16 @@ final class AppModel {
     private(set) var errorReports: ErrorReportSetting?
     /// Why the connect screen is showing when nobody asked for it: the server stopped accepting this device.
     private(set) var signedOutNotice: String?
+    /// The notice is for a guest its host removed: there's no server of its own to show a code for.
+    private(set) var signedOutAsGuest = false
+    /// A family guest's tunnel to its host's server didn't start: why, shown with Try again and Leave.
+    private(set) var tunnelProblem: String?
+    /// An invite link was opened (or pasted): the app asks "Join Dan's Flexarr?" before anything happens, since a
+    /// link can come from anywhere.
+    var pendingInvite: GuestInvite?
+    /// An invite link this app can't take now (it predates invites, or this device is signed in to its own server):
+    /// what to do instead.
+    var inviteNotice: String?
     /// "Now playing on iPhone": a title moved to a phone with Continue on iPhone (the Apple TV shows it a moment).
     var handOffNotice: String?
 
@@ -134,6 +145,9 @@ final class AppModel {
             skipsProfileChoice = true
         }
         #endif
+        // A family guest reaches its host only through the tunnel: start it before anything asks the server.
+        GuestMode.isActive = credentials?.isGuest == true
+        if credentials?.isGuest == true { Task { await ensureGuestTunnel() } }
         LogHub.shared.signedIn(client)
         // Before anything else can crash: the server's answer comes later (see `refreshErrorReports`).
         ErrorReports.resume(server: credentials?.address)
@@ -142,6 +156,12 @@ final class AppModel {
         // `-FlexarrOpen flexarr://item/<id>` opens a screen as the app starts, as a link would, without the simulator
         // asking first (used for checking a screen in the simulator).
         if let link = defaults.string(forKey: "FlexarrOpen").flatMap(URL.init(string:)) { open(url: link) }
+        // `-FlexarrJoin <invite link>` joins as a family guest straight away, without "Join?" (end-to-end runs).
+        if let link = defaults.string(forKey: "FlexarrJoin"), let invite = GuestInvite.parse(link) {
+            Task {
+                do { try await join(invite) } catch { log.warning("Joining failed: \(error.localizedDescription)") }
+            }
+        }
         #endif
         // Searching for subtitles is a parent's job, not a child's.
         player.offersSubtitleSearch = { [weak self] in self?.isKids != true }
@@ -238,7 +258,7 @@ final class AppModel {
     /// "Lock to kids profiles" is offered: a grown-up watching, a kids profile to lock to, and this app's own sign-in
     /// (the server keeps the lock on a device's sign-in, which the server's key or a Tailscale address doesn't have).
     var offersKidsLock: Bool {
-        signInMethod == "device" && !kidsLock && !isKids && profiles.contains(where: \.isKidsProfile)
+        signInMethod == "device" && credentials?.isGuest != true && !kidsLock && !isKids && profiles.contains(where: \.isKidsProfile)
     }
 
     /// The picker's padlock over kids profiles: whenever child lock is on, or could be turned on here. On a kids
@@ -283,19 +303,46 @@ final class AppModel {
 
     func signOut() {
         // Tell the server too, so this device's token stops working; best effort, it's forgotten here either way.
+        let guest = credentials?.isGuest == true
+        var told: Task<Void, Never>?
         if let client = credentials?.client {
             let leaving = onSignOut
-            Task {
+            told = Task {
                 await leaving?(client)
                 try? await client.signOut()
             }
         }
-        forget()
+        forget(stoppingTunnel: !guest)
+        // A guest's sign-out goes through the tunnel: it stops once that's sent (or after a few seconds).
+        if guest {
+            guestLeaving = Task {
+                await Self.wait(for: told, atMost: .seconds(5))
+                await GuestTunnel.shared.stop(forget: true).value
+            }
+        }
     }
 
-    private func forget() {
+    /// A guest's sign-out on its way to the host, with the tunnel to stop after it. Joining again waits for it.
+    @ObservationIgnored private var guestLeaving: Task<Void, Never>?
+
+    /// Waits for `task`, but no longer than `limit` (then cancels it).
+    private static func wait(for task: Task<Void, Never>?, atMost limit: Duration) async {
+        guard let task else { return }
+        let timer = Task {
+            try? await Task.sleep(for: limit)
+            task.cancel()
+        }
+        await task.value
+        timer.cancel()
+    }
+
+    /// `stoppingTunnel`: false only for a guest's sign-out, which stops the tunnel itself once the server has heard.
+    private func forget(stoppingTunnel: Bool = true) {
         player.stop()
         music.stop()
+        // A guest leaving leaves its host's tailnet too: nothing of the tunnel stays on the device.
+        if stoppingTunnel, credentials?.isGuest == true { GuestTunnel.shared.stop(forget: true) }
+        tunnelProblem = nil
         store.clear()
         libraries = []
         resetProfiles()
@@ -327,12 +374,18 @@ final class AppModel {
                 return // Accepted after all.
             } catch FlexarrClientError.unauthorized {
                 // Refused again: signed out.
+            } catch FlexarrClientError.guestRemoved where refused.isGuest {
+                // A guest's device its host removed: refused everything, not just the sign-in.
+                guard credentials == refused else { return }
+                removedAsGuest(refused.guest)
+                return
             } catch {
                 return // Unreachable or restarting: no reason to forget the sign-in.
             }
             // Not if it's been replaced meanwhile (another profile chosen, or connected again).
             guard credentials == refused else { return }
             signedOutNotice = "This \(ThisDevice.name) was signed out."
+            signedOutAsGuest = false
             forget()
         }
     }
@@ -345,7 +398,8 @@ final class AppModel {
     /// Keeps the saved address for away from home in step with the server's (remote access turned on or off since,
     /// or a sign-in from before the app kept one). Best effort, once per launch, after the profiles are up.
     private func refreshRemoteAddress() async {
-        guard !remoteChecked, let credentials else { return }
+        // A guest only ever reaches its host through the tunnel.
+        guard !remoteChecked, let credentials, !credentials.isGuest else { return }
         remoteChecked = true
         guard let status = try? await credentials.client.systemStatus() else { return }
         let remote = await Self.remoteAddress(for: status, address: credentials.address, kept: credentials.remoteAddress)
@@ -376,7 +430,200 @@ final class AppModel {
         return own
     }
 
+    /// Starts a family guest's tunnel, or finds it running (cheap), and keeps the sign-in's address in step with the
+    /// tunnel's port. False, with `tunnelProblem` saying why, when it can't. True for everyone else.
+    @discardableResult
+    func ensureGuestTunnel() async -> Bool {
+        guard let credentials, let guest = credentials.guest else { return true }
+        let network = NetworkWatch.shared
+        network.onReturn = { [weak self] in
+            guard let self, self.tunnelProblem != nil else { return }
+            Task { await self.ensureGuestTunnel() }
+        }
+        // The tunnel tries for up to a minute: with no network, or still nothing after a while, the problem shows
+        // now (Downloads are there on iPhone) while it carries on trying.
+        let early = Task { @MainActor [weak self] in
+            for second in 1...15 {
+                guard (try? await Task.sleep(for: .seconds(1))) != nil, let self, self.credentials?.guest == guest else { return }
+                if network.isOffline || second == 15 {
+                    if self.tunnelProblem == nil { self.tunnelProblem = network.isOffline ? "No network" : "Still connecting" }
+                    return
+                }
+            }
+        }
+        defer { early.cancel() }
+        do {
+            let address = try await GuestTunnel.shared.start(guest)
+            early.cancel()
+            let recovered = tunnelProblem != nil
+            tunnelProblem = nil
+            // The port it asked for was taken: the sign-in moves to the one it got.
+            if let now = self.credentials, now.guest == guest, now.address != address {
+                var moved = now
+                moved.address = address
+                store.clear()
+                try? store.save(moved)
+                phase = .signedIn(moved)
+            }
+            // Back after the problem showed: whatever gave up waiting for the tunnel (the profiles) goes again.
+            if recovered, profilesLoad == nil { Task { await loadProfiles() } }
+            return true
+        } catch GuestTunnel.Failure.needsInvite {
+            // Deleted from the host's tailnet (or its key ran out): Try again can't help, so it's as if removed.
+            guard self.credentials?.guest == guest else { return false }
+            removedAsGuest(guest)
+            return false
+        } catch {
+            guard self.credentials?.guest == guest else { return false }
+            log.warning("The guest tunnel didn't start: \(error.localizedDescription)")
+            tunnelProblem = error.localizedDescription
+            return false
+        }
+    }
+
+    /// The host removed this device (or deleted it from their tailnet): signed out, back to joining, saying why.
+    private func removedAsGuest(_ guest: GuestTunnelInfo?) {
+        let owner = guest.map(\.ownerName).flatMap { $0.trimmingCharacters(in: .whitespaces).isEmpty ? nil : "\($0)’s Flexarr" }
+        signedOutNotice = "You no longer have access to \(owner ?? "this Flexarr")."
+        forget()
+        signedOutAsGuest = true
+    }
+
+    enum JoinError: LocalizedError {
+        /// Run out, used, or cancelled: the same invite can't work again.
+        case usedUp
+        case paused(owner: String)
+        case otherServer
+        /// The host's tailnet or server couldn't be reached: the same invite can try again (the key, if used, is
+        /// kept as this device's identity, and the server lets the same device redeem the same invite again).
+        case unreachable(owner: String)
+        case failed(String)
+
+        /// Trying the same invite again can work.
+        var canRetry: Bool {
+            if case .unreachable = self { return true }
+            return false
+        }
+
+        var errorDescription: String? {
+            switch self {
+            case .usedUp: "That invite has run out or been used."
+            case .paused(let owner): "\(owner)’s Flexarr isn’t taking guests just now."
+            case .otherServer: "This invite led to a different server than it named. Ask for a new one."
+            case .unreachable(let owner): "Can’t reach \(owner)’s Flexarr. Check this device’s internet."
+            case .failed(let why): why
+            }
+        }
+    }
+
+    /// Joins as a family guest with `invite`: Tailscale joins the host's tailnet with its one-use key, the invite's
+    /// token is swapped for this device's own sign-in through the tunnel, and that's saved in place of any other.
+    func join(_ invite: GuestInvite) async throws {
+        // The invite is checked before anything is left behind.
+        guard !invite.isExpired() else { throw JoinError.usedUp }
+        // Signed in to a server of its own, it stays there: an invite is opened after signing out (see openURL).
+        // One tunnel, one host: a guest leaves its last host first (its sign-out goes through that tunnel).
+        if credentials?.isGuest == true { signOut() }
+        await guestLeaving?.value
+        let info = GuestTunnelInfo(target: invite.tailnetTarget, hostname: invite.hostname, ownerName: invite.ownerName)
+        // Trying this invite again after its sign-in didn't go through: the node joined with its key already (spent
+        // now), so it starts as that identity. Otherwise afresh: an identity left from an earlier invite would keep
+        // the node on that tailnet and ignore this key.
+        let joinedBefore = GuestTunnel.hasIdentity(for: info)
+        await GuestTunnel.shared.stop(forget: !joinedBefore).value
+        let address: URL
+        do {
+            address = try await GuestTunnel.shared.start(info, authKey: joinedBefore ? nil : invite.authKey)
+        } catch GuestTunnel.Failure.needsInvite {
+            // The key (or the identity it made) was refused: no use again.
+            GuestTunnel.shared.stop(forget: true)
+            throw JoinError.usedUp
+        } catch {
+            // Said plainly; Tailscale's own words go to the log. The network: left for Try again.
+            log.warning("Joining didn't reach the host: \(error.localizedDescription)")
+            GuestTunnel.shared.stop()
+            throw JoinError.unreachable(owner: invite.ownerName)
+        }
+        let redeemed: RedeemedInvite
+        do {
+            redeemed = try await FlexarrClient(baseURL: address).redeemInvite(token: invite.token)
+        } catch {
+            // The node stays known to the tailnet (its key is spent), so the same invite can try again.
+            GuestTunnel.shared.stop()
+            switch error {
+            case FlexarrClientError.http(410, _): throw JoinError.usedUp
+            case FlexarrClientError.http(503, _): throw JoinError.paused(owner: invite.ownerName)
+            case FlexarrClientError.http(_, let message): throw JoinError.failed(message ?? "The server refused the invite.")
+            default:
+                log.warning("Redeeming the invite failed: \(error.localizedDescription)")
+                throw JoinError.unreachable(owner: invite.ownerName)
+            }
+        }
+        if !invite.serverId.isEmpty, redeemed.serverId != invite.serverId {
+            // Not kept, so its sign-in goes again rather than stay in that server's list.
+            try? await FlexarrClient(baseURL: address, apiKey: redeemed.apiKey).signOut()
+            GuestTunnel.shared.stop(forget: true)
+            throw JoinError.otherServer
+        }
+        if credentials != nil { signOut() }
+        let credentials = ServerCredentials(address: address, apiKey: redeemed.apiKey, guest: info)
+        do {
+            try store.save(credentials)
+        } catch {
+            GuestTunnel.shared.stop()
+            throw JoinError.failed(error.localizedDescription)
+        }
+        signedOutNotice = nil
+        signedOutAsGuest = false
+        tunnelProblem = nil
+        upgradeChecked = true
+        remoteChecked = true
+        phase = .signedIn(credentials)
+        log.info("Joined as a family guest")
+    }
+
+    /// The error `work` throws, if any.
+    private static func failure(of work: () async throws -> Any?) async -> Error? {
+        do {
+            _ = try await work()
+            return nil
+        } catch {
+            return error
+        }
+    }
+
+    /// Try again, after the tunnel didn't start: joins the load still under way ("Still connecting") rather than
+    /// start a second.
+    func retryGuestTunnel() async {
+        tunnelProblem = nil
+        await reloadProfiles()
+    }
+
+    /// The `loadProfiles` under way, which Try again and a tunnel that comes back join rather than start another.
+    @ObservationIgnored private var profilesLoad: Task<Void, Never>?
+
+    /// Loads the profiles, or joins the load already under way.
+    private func reloadProfiles() async {
+        if let profilesLoad { await profilesLoad.value } else { await loadProfiles() }
+    }
+
     func loadProfiles() async {
+        let load = Task { await self.loadProfilesNow() }
+        profilesLoad = load
+        await withTaskCancellationHandler { await load.value } onCancel: { load.cancel() }
+        if profilesLoad == load { profilesLoad = nil }
+    }
+
+    private func loadProfilesNow() async {
+        if let guest = credentials?.guest {
+            guard await ensureGuestTunnel() else { return }
+            upgradeChecked = true // a guest's sign-in is its own already
+            // Removed by its host: the server refuses everything from this device (403), not just the sign-in.
+            if case FlexarrClientError.guestRemoved? = await Self.failure(of: { try await self.client?.me() }) {
+                removedAsGuest(guest)
+                return
+            }
+        }
         if !upgradeChecked, let credentials {
             upgradeChecked = true
             let own = await withOwnToken(credentials)
@@ -400,7 +647,7 @@ final class AppModel {
             credentials.profileToken = nil
             store.saveProfile(nil)
             phase = .signedIn(credentials)
-            return await loadProfiles()
+            return await loadProfilesNow()
         }
         profiles = list
         let me = await signIn
@@ -815,9 +1062,10 @@ final class AppModel {
 
     // MARK: Commands from other devices
 
-    /// Listens for commands while the app is in front and signed in (with a profile chosen); stops otherwise.
+    /// Listens for commands while the app is in front and signed in (with a profile chosen); stops otherwise. Not for a
+    /// family guest: its host's devices and assistants have no business playing things on it.
     func listenForCommands(_ inFront: Bool) {
-        guard inFront, let client, profilesLoaded, !needsProfileChoice else {
+        guard inFront, let client, profilesLoaded, !needsProfileChoice, credentials?.isGuest != true else {
             commands.stop()
             return
         }
@@ -923,7 +1171,24 @@ final class AppModel {
     /// next), with `t=<seconds>`, `s=<subtitle key>` and `shuffle=1`; `flexarr://live/<channel id>` puts a channel on;
     /// `flexarr://watchlist` opens the watchlist. Any of them can add `profile=<id or name>` to switch to that profile first, asking for its PIN if it has one.
     func open(url: URL) {
+        // https://flexarr.io/join#… or flexarr://join#…: a family invite, asked about first.
+        if let invite = GuestInvite.parse(url.absoluteString) {
+            if !GuestInvite.guestInvitesOffered {
+                inviteNotice = "Update Flexarr to join."
+            } else if credentials != nil, credentials?.isGuest != true {
+                // Its own server isn't left behind by a link: signing out is a choice made in Settings.
+                inviteNotice = "Sign out in Settings first, then open the invite again."
+            } else {
+                pendingInvite = invite
+            }
+            return
+        }
         guard url.scheme == "flexarr", let host = url.host() else { return }
+        // A guest's link at launch (Siri, a widget) waits for the tunnel, or it would find no server.
+        if credentials?.isGuest == true, GuestTunnel.shared.address == nil {
+            Task { if await ensureGuestTunnel() { open(url: url) } }
+            return
+        }
         let id = url.pathComponents.dropFirst().first ?? ""
         // flexarr://watchlist (the profile's watchlist) has no id; the rest need one.
         guard !id.isEmpty || host == "watchlist" else { return }

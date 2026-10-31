@@ -596,10 +596,10 @@ describe('Settings', () => {
   it('sends old links to where their pages moved', async () => {
     mockApi({ '/libraries': [], '/settings': { authenticationRequired: 'Enabled', transcoding: {}, availableHardwareAcceleration: [], pathMappings: [], arr: [], seerr: null }, '/sign-ins': [] })
 
-    renderAt('/settings/server')
+    renderAt('/settings/access')
 
-    expect(await screen.findByRole('heading', { level: 2, name: 'Access' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Access' })).toHaveClass('active')
+    expect(await screen.findByRole('heading', { level: 2, name: 'Remote access' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Remote access' })).toHaveClass('active')
   })
 
   it('a server without an admin PIN asks for one before anything in its settings', async () => {
@@ -685,7 +685,7 @@ describe('Settings', () => {
       },
     })
 
-    renderAt('/settings/access')
+    renderAt('/settings/remote')
 
     expect(await screen.findByText('Not available in Docker')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Watch away from home' })).toHaveAttribute('href', 'https://flexarr.io/guide/away-from-home')
@@ -708,7 +708,7 @@ describe('Settings', () => {
       },
     })
 
-    renderAt('/settings/access')
+    renderAt('/settings/remote')
 
     expect(await screen.findByText('This Mac is on your tailnet')).toBeInTheDocument()
     expect(screen.getByText('http://100.64.1.2:8383')).toBeInTheDocument()

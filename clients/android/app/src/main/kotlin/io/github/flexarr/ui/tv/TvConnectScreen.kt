@@ -40,6 +40,11 @@ import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -55,11 +60,17 @@ import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
 import io.github.flexarr.AppModel
+import io.github.flexarr.BuildConfig
 import io.github.flexarr.core.FlexarrClient
+import io.github.flexarr.core.GuestTvCode
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import io.github.flexarr.data.DiscoveredServer
 import io.github.flexarr.data.ServerBrowser
 import io.github.flexarr.ui.components.BrandMark
 import io.github.flexarr.ui.connect.PairingSession
+import io.github.flexarr.ui.connect.rememberGuestCode
 import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.RoomBackground
 import io.github.flexarr.ui.theme.marquee
@@ -70,6 +81,8 @@ private sealed interface Step {
     data object Choose : Step
     data class Pair(val server: DiscoveredServer) : Step
     data object Manual : Step
+    /** Someone else's Flexarr, from another home: a code to read to them. */
+    data object Guest : Step
 }
 
 /**
@@ -89,7 +102,7 @@ fun TvConnectScreen(model: AppModel) {
     // Signed out on the server: show a code for the same server straight away.
     var step by remember {
         val last = model.store.lastAddress
-        mutableStateOf(if (model.signedOutNotice != null && last != null) Step.Pair(server(last)) else Step.Choose)
+        mutableStateOf(if (model.signedOutNotice != null && !model.signedOutAsGuest && last != null) Step.Pair(server(last)) else Step.Choose)
     }
     BackHandler(enabled = step != Step.Choose) { step = Step.Choose }
 
@@ -111,9 +124,10 @@ fun TvConnectScreen(model: AppModel) {
             }
             Box(Modifier.width(410.dp)) {
                 when (val current = step) {
-                    Step.Choose -> ChooseServer(browser, onPick = { step = Step.Pair(it) }, onManual = { step = Step.Manual })
+                    Step.Choose -> ChooseServer(browser, onPick = { step = Step.Pair(it) }, onManual = { step = Step.Manual }, onGuest = { step = Step.Guest })
                     is Step.Pair -> PairWithServer(model, current.server, onBack = { step = Step.Choose })
                     Step.Manual -> ManualConnect(model, onPair = { step = Step.Pair(it) }, onBack = { step = Step.Choose })
+                    Step.Guest -> GuestCode(model, onBack = { step = Step.Choose })
                 }
             }
         }
@@ -126,7 +140,7 @@ private fun server(address: String): DiscoveredServer {
 }
 
 @Composable
-private fun ChooseServer(browser: ServerBrowser, onPick: (DiscoveredServer) -> Unit, onManual: () -> Unit) {
+private fun ChooseServer(browser: ServerBrowser, onPick: (DiscoveredServer) -> Unit, onManual: () -> Unit, onGuest: () -> Unit) {
     // Nothing has turned up for a while: say what to check.
     var lookingAWhile by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
@@ -135,9 +149,11 @@ private fun ChooseServer(browser: ServerBrowser, onPick: (DiscoveredServer) -> U
     }
     val first = remember { FocusRequester() }
     val manual = remember { FocusRequester() }
-    // The first server found takes focus, so one click of the remote picks it; until then, typing an address has it.
+    val guest = remember { FocusRequester() }
+    // The first server found takes focus, so one click of the remote picks it; until then (and in a home with no
+    // server, a guest's), joining someone's Flexarr has it.
     val firstServer = browser.servers.firstOrNull()?.address
-    LaunchedEffect(firstServer) { runCatching { if (firstServer != null) first.requestFocus() else manual.requestFocus() } }
+    LaunchedEffect(firstServer) { runCatching { if (firstServer != null) first.requestFocus() else if (BuildConfig.GUEST_INVITES) guest.requestFocus() else manual.requestFocus() } }
     Column(verticalArrangement = Arrangement.spacedBy(15.dp)) {
         Text("Servers on your network", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher)
         if (browser.servers.isEmpty()) {
@@ -159,7 +175,103 @@ private fun ChooseServer(browser: ServerBrowser, onPick: (DiscoveredServer) -> U
                 )
             }
         }
-        TvActionButton("Enter an address instead", onClick = onManual, modifier = Modifier.padding(top = 5.dp).focusRequester(manual))
+        // With no server found (a guest's home), joining someone's comes first, as on the Apple TV.
+        val joinFirst = BuildConfig.GUEST_INVITES && browser.servers.isEmpty()
+        val join = @Composable { modifier: Modifier ->
+            if (BuildConfig.GUEST_INVITES) TvActionButton("Join someone’s Flexarr", onClick = onGuest, modifier = modifier.focusRequester(guest))
+        }
+        if (joinFirst) join(Modifier.padding(top = 5.dp))
+        TvActionButton("Enter an address instead", onClick = onManual, modifier = Modifier.padding(top = if (joinFirst) 0.dp else 5.dp).focusRequester(manual))
+        if (!joinFirst) join(Modifier)
+    }
+}
+
+/**
+ * A family invite for this TV: a code to read out to whoever invited it, who types it into their Flexarr. The code
+ * meets their server's invite at Flexarr's relay, sealed so only this TV can open it; the TV asks "Join Dan’s Flexarr?"
+ * and then joins as a phone does with a link (the tunnel, then a sign-in of its own). See [rememberGuestCode].
+ */
+@Composable
+private fun GuestCode(model: AppModel, onBack: () -> Unit) {
+    var attempt by remember { mutableIntStateOf(0) }
+    val guest = rememberGuestCode(model, attempt)
+    val code = guest.code
+    val problem = guest.problem
+    val back = remember { FocusRequester() }
+    val retry = remember { FocusRequester() }
+    val join = remember { FocusRequester() }
+    val newCode = remember { FocusRequester() }
+    val invite = model.offeredInvite?.takeIf { model.inviteFromCode }
+    val joinProblem = model.joinProblem
+    // On Join when an invite arrives (one click for whoever's holding the remote), on Try again (or New code, when
+    // trying again can't work) after a problem.
+    val asking = invite != null && joinProblem == null && !model.joining
+    LaunchedEffect(asking, joinProblem != null, model.joinCanRetry, guest.stopped, code == null && problem != null) {
+        runCatching {
+            when {
+                asking -> join.requestFocus()
+                guest.stopped && invite == null -> newCode.requestFocus()
+                invite != null && joinProblem != null -> if (model.joinCanRetry) retry.requestFocus() else newCode.requestFocus()
+                invite == null && code == null && problem != null -> retry.requestFocus()
+                else -> back.requestFocus()
+            }
+        }
+    }
+    BackHandler { if (!model.joining) { model.dismissInvite(); onBack() } }
+
+    Column(verticalArrangement = Arrangement.spacedBy(15.dp)) {
+        if (invite != null) {
+            when {
+                model.joining -> Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = Flexarr.usher)
+                    Text("Joining ${invite.ownerName}’s Flexarr…", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                }
+                joinProblem != null -> {
+                    ErrorNote(joinProblem)
+                    // Try again only when it could work (the host couldn't be reached); otherwise a new code for a new invite.
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        if (model.joinCanRetry) TvActionButton("Try again", onClick = model::confirmInvite, prominent = true, modifier = Modifier.focusRequester(retry))
+                        TvActionButton("New code", onClick = model::dismissInvite, prominent = !model.joinCanRetry,
+                            modifier = if (model.joinCanRetry) Modifier else Modifier.focusRequester(newCode))
+                    }
+                }
+                // Asked first: anyone who heard the code could have sent theirs.
+                else -> {
+                    // Said as it arrives: whoever's using TalkBack is looking at the code.
+                    Text("Join ${invite.ownerName}’s Flexarr?", fontSize = 22.sp, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite; heading() })
+                    Text("You’ll watch as ${invite.profileName}.", fontSize = 16.sp, color = Flexarr.usher)
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        TvActionButton("Join", onClick = model::confirmInvite, prominent = true, modifier = Modifier.focusRequester(join))
+                        TvActionButton("Not now", onClick = model::dismissInvite)
+                    }
+                }
+            }
+        } else if (code == null && problem != null && !guest.stopped) {
+            // No code to be had (the relay can't be reached): just that, and a way to try again.
+            ErrorNote(problem)
+            TvActionButton(if (guest.badInvite) "New code" else "Try again", onClick = { attempt++ }, prominent = true, modifier = Modifier.focusRequester(retry))
+        } else {
+            // Not once codes have stopped: there's none to read.
+            if (!guest.stopped) Text("Read this code to the person who invited you", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            val shown = code
+            if (shown != null) {
+                Text(shown.display, fontSize = 56.sp, fontWeight = FontWeight.Black, letterSpacing = 4.sp, modifier = Modifier.semantics { contentDescription = shown.spoken })
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = Flexarr.usher)
+                    Text("They type it into Settings › Remote access in Flexarr.", fontSize = 13.sp, color = Flexarr.usher)
+                }
+            } else if (guest.stopped) {
+                TvActionButton("Show a new code", onClick = { attempt++ }, prominent = true, modifier = Modifier.focusRequester(newCode))
+            } else if (problem == null) {
+                CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = Flexarr.usher)
+            }
+            problem?.let { ErrorNote(it) }
+        }
+        if (!asking) {
+            // Focusable while joining (focus has to rest somewhere), but does nothing until it's done.
+            TvActionButton("Back", onClick = { if (!model.joining) { model.dismissInvite(); onBack() } }, modifier = Modifier.focusRequester(back))
+        }
     }
 }
 

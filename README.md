@@ -64,7 +64,7 @@ Flexarr is a media server you run at home. It organises your library, takes artw
 
 Every app, its status and version are on [flexarr.io/apps](https://flexarr.io/apps).
 
-Each app connects with a short code you approve on your phone, or in **Settings › Access › Connect a device** on the web; see [Connect your devices](https://flexarr.io/guide/connect-devices).
+Each app connects with a short code you approve on your phone, or in **Settings › Security › Connect a device** on the web; see [Connect your devices](https://flexarr.io/guide/connect-devices).
 
 ## 🚀 Quick start
 
