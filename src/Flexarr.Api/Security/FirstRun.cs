@@ -217,7 +217,7 @@ public static class FirstRunEndpoints
                 {
                     if (main is not null)
                     {
-                        main.SetPin(claim!.Pin);
+                        main.SetAdminPin(claim!.Pin);
                         db.SaveChanges();
                     }
 

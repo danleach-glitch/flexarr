@@ -12,8 +12,8 @@ namespace Flexarr.Api.Security;
 /// <summary>The admin PIN, or (if it's forgotten) the server's API key.</summary>
 public sealed record AdminUnlockRequest(string? Pin, string? ApiKey = null);
 
-/// <param name="Pin">The main profile's new PIN, 4 to 8 digits.</param>
-/// <param name="ApiKey">Needed when the main profile has a PIN already (it's been forgotten).</param>
+/// <param name="Pin">The new admin PIN, 4 to 8 digits.</param>
+/// <param name="ApiKey">Needed when there's an admin PIN already (it's been forgotten).</param>
 public sealed record AdminPinRequest(string Pin, string? ApiKey = null);
 
 /// <param name="UnlockedUntil">When managing the server takes the PIN again; null for the API key, which always may.</param>
@@ -43,7 +43,7 @@ public static class AdminEndpoints
                 return Results.Problem("Choose the main profile to manage the server.", statusCode: 403);
             }
 
-            if (await db.Profiles.FindAsync([PlaybackState.DefaultUser], ct) is not { PinHash: not null } main)
+            if (await db.Profiles.FindAsync([PlaybackState.DefaultUser], ct) is not { AdminPinHash: not null } main)
             {
                 return PinMissing();
             }
@@ -59,7 +59,7 @@ public static class AdminEndpoints
             {
                 // A locked main profile doesn't count as already managing the server, so it gets the stricter count.
                 var (callers, browser) = ProfileEndpoints.PinCaller(http, current);
-                var (result, retryAfter) = await guard.CheckAsync(main.Id, callers, () => main.CheckPin(request.Pin), ct, mayManage: current.IsAdmin, browser);
+                var (result, retryAfter) = await guard.CheckAsync(PinGuard.AdminKey, callers, () => main.CheckAdminPin(request.Pin), ct, mayManage: current.IsAdmin, browser);
                 if (result == PinCheck.LockedOut)
                 {
                     return ProfileEndpoints.TooManyPins(http, retryAfter);
@@ -111,16 +111,16 @@ public static class AdminEndpoints
 
             // A first PIN takes a browser or device the owner signed in: a Tailscale identity alone can be posed as by
             // another program on this machine, and the home-network rule lets in anyone at home.
-            var first = main.PinHash is null && current.Id == PlaybackState.DefaultUser && current.SignInId is not null && current.IsTrusted;
+            var first = main.AdminPinHash is null && current.Id == PlaybackState.DefaultUser && current.SignInId is not null && current.IsTrusted;
             if (!withKey && !first)
             {
-                return Results.Problem(main.PinHash is null
-                    ? "Give the main profile a PIN from a browser or device you signed in, or with the API key."
+                return Results.Problem(main.AdminPinHash is null
+                    ? "Choose an admin PIN from a browser or device you signed in, or with the API key."
                     : "Enter the server's API key to set a new PIN. It's in config.json in the server's data folder.", statusCode: 403);
             }
 
-            var replacing = main.PinHash is not null;
-            main.SetPin(request.Pin);
+            var replacing = main.AdminPinHash is not null;
+            main.SetAdminPin(request.Pin);
             await db.SaveChangesAsync(ct);
             if (replacing)
             {
@@ -161,7 +161,7 @@ public static class AdminEndpoints
     internal static bool IsPin(string? pin) => pin is { Length: >= 4 and <= 8 } && pin.All(char.IsAsciiDigit);
 
     /// <summary>409 with <c>pinMissing</c>, so apps know to offer setting one rather than asking for it.</summary>
-    internal static IResult PinMissing() => Results.Problem("The main profile needs a PIN before the server's settings can be unlocked.", statusCode: 409,
+    internal static IResult PinMissing() => Results.Problem("The server needs an admin PIN before its settings can be unlocked.", statusCode: 409,
         extensions: new Dictionary<string, object?> { ["pinMissing"] = true });
 
     private static bool IsApiKey(string provided, string? key) =>

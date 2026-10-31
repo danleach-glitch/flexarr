@@ -490,7 +490,7 @@ public static class SettingsEndpoints
         }
 
         var main = await db.Profiles.AsNoTracking().FirstOrDefaultAsync(p => p.Id == PlaybackState.DefaultUser, ct);
-        if (main?.PinHash is null)
+        if (main?.AdminPinHash is null)
         {
             return request?.Confirm == true ? null : Results.Problem($"Confirm that you want to {action}.", statusCode: 400);
         }
@@ -501,7 +501,7 @@ public static class SettingsEndpoints
         }
 
         var (callers, browser) = ProfileEndpoints.PinCaller(http, current);
-        var (result, retryAfter) = await guard.CheckAsync(main.Id, callers, () => main.CheckPin(request.Pin), ct, mayManage: true, browser);
+        var (result, retryAfter) = await guard.CheckAsync(PinGuard.AdminKey, callers, () => main.CheckAdminPin(request.Pin), ct, mayManage: true, browser);
         return result switch
         {
             PinCheck.Right => null,

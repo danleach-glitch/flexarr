@@ -597,9 +597,9 @@ public static partial class ProfileEndpoints
             return Results.Problem("The main profile can't have an age limit: it manages the server.", statusCode: 409);
         }
 
-        if (request.IsKids && await db.Profiles.AnyAsync(p => p.Id == PlaybackState.DefaultUser && p.PinHash == null, ct))
+        if (request.IsKids && await db.Profiles.AnyAsync(p => p.Id == PlaybackState.DefaultUser && p.AdminPinHash == null, ct))
         {
-            return Results.Problem("Give the main profile a PIN first: it's what keeps children in their profiles.", statusCode: 409);
+            return Results.Problem("Choose an admin PIN first: it's what keeps children in their profiles.", statusCode: 409);
         }
 
         return null;
@@ -613,7 +613,7 @@ public static partial class ProfileEndpoints
     {
         ArgumentNullException.ThrowIfNull(http);
         ArgumentNullException.ThrowIfNull(db);
-        if (current.IsAdmin || await db.Profiles.AsNoTracking().FirstOrDefaultAsync(p => p.Id == PlaybackState.DefaultUser, ct) is not { PinHash: not null } main)
+        if (current.IsAdmin || await db.Profiles.AsNoTracking().FirstOrDefaultAsync(p => p.Id == PlaybackState.DefaultUser, ct) is not { AdminPinHash: not null } main)
         {
             return null;
         }
@@ -622,11 +622,11 @@ public static partial class ProfileEndpoints
         if (string.IsNullOrEmpty(pin))
         {
             // Apps from before kids profiles show this as it is: they can choose the main profile and give its PIN.
-            return Results.Problem("Choose the main profile and enter its PIN.", statusCode: 403, extensions: parent);
+            return Results.Problem("Choose the main profile and enter the admin PIN.", statusCode: 403, extensions: parent);
         }
 
         var (callers, browser) = PinCaller(http, current);
-        var (result, retryAfter) = await guard.CheckAsync(main.Id, callers, () => main.CheckPin(pin), ct, mayManage: false, browser);
+        var (result, retryAfter) = await guard.CheckAsync(PinGuard.AdminKey, callers, () => main.CheckAdminPin(pin), ct, mayManage: false, browser);
         return result switch
         {
             PinCheck.Right => null,
