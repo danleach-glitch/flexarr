@@ -200,6 +200,18 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
         return (signIn, token);
     }
 
+    /// <summary>Whether any family guest is signed in (so the guest gate has someone to keep out once removed).</summary>
+    public bool HasAnyGuest
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return Loaded().Values.Any(s => s.Guest);
+            }
+        }
+    }
+
     /// <summary>Whether a family guest's device at <paramref name="address"/> is signed in (not removed or expired).</summary>
     public bool HasGuestAt(string address)
     {

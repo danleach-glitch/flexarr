@@ -367,7 +367,8 @@ public static class PairingEndpoints
             }
 
             // A family guest's device joins with its invite, never with a code it could ask the household to approve.
-            if (zone == NetworkZone.Tailnet && await GuestDevices.AddressOfAsync(http, whois, options.CurrentValue.RemoteGuests) is not null)
+            // A device Tailscale can't identify just now could be a guest's: it asks again later rather than slipping through.
+            if (zone == NetworkZone.Tailnet && (await GuestDevices.LookUpAsync(http, whois, options.CurrentValue.RemoteGuests)).Kind != GuestLookup.NotGuest)
             {
                 return Results.Problem("Guests join with an invite from the server's owner.", statusCode: 403);
             }

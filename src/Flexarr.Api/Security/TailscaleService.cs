@@ -26,8 +26,11 @@ public interface ITailnetWhois
     /// <summary>The Tailscale login of the person whose device has <paramref name="address"/>, or null if unknown.</summary>
     Task<string?> LoginAsync(IPAddress address, CancellationToken ct);
 
-    /// <summary>The tags of the device with <paramref name="address"/> (a tagged device's login is "tagged-devices").</summary>
-    Task<IReadOnlyList<string>> TagsAsync(IPAddress address, CancellationToken ct) => Task.FromResult<IReadOnlyList<string>>([]);
+    /// <summary>
+    /// The tags of the device with <paramref name="address"/> (a tagged device's login is "tagged-devices"); null
+    /// when Tailscale couldn't say just now (it timed out or failed), which is never the same as "no tags".
+    /// </summary>
+    Task<IReadOnlyList<string>?> TagsAsync(IPAddress address, CancellationToken ct) => Task.FromResult<IReadOnlyList<string>?>([]);
 }
 
 /// <summary>How a tailnet device's traffic reaches this server.</summary>
@@ -96,7 +99,13 @@ public sealed partial class TailscaleService(ILogger<TailscaleService> logger, T
         @"C:\Program Files\Tailscale\tailscale.exe",
     ];
 
-    public static string? Cli => Candidates.FirstOrDefault(File.Exists);
+    /// <summary>
+    /// Set at startup in the Mac app, whose sandbox forbids running other programs: there's never a tailscale command
+    /// to run, even with Tailscale's app installed.
+    /// </summary>
+    public static bool Sandboxed { get; set; }
+
+    public static string? Cli => Sandboxed ? null : Candidates.FirstOrDefault(File.Exists);
 
     public async Task<TailscaleState> StateAsync(int flexarrPort, CancellationToken ct)
     {
@@ -245,7 +254,8 @@ public sealed partial class TailscaleService(ILogger<TailscaleService> logger, T
     /// </summary>
     public Task<string?> LoginAsync(IPAddress address, CancellationToken ct) => _whois.LoginAsync(address, ct);
 
-    public async Task<IReadOnlyList<string>> TagsAsync(IPAddress address, CancellationToken ct) => (await _whois.AnswerAsync(address, ct))?.Tags ?? [];
+    public async Task<IReadOnlyList<string>?> TagsAsync(IPAddress address, CancellationToken ct) =>
+        await _whois.AnswerAsync(address, ct) is { Definite: true } answer ? answer.Tags ?? [] : null;
 
     public Task<TailnetSnapshot?> SnapshotAsync(CancellationToken ct)
     {
@@ -491,9 +501,12 @@ public sealed class WhoisCache(Func<IPAddress, Task<WhoisAnswer>> lookup, TimePr
     private readonly Lock _lock = new();
     private readonly Dictionary<IPAddress, Entry> _entries = [];
 
-    private sealed class Entry(Task<WhoisAnswer> lookup)
+    private sealed class Entry(Task<WhoisAnswer> lookup, WhoisAnswer? stale = null)
     {
         public Task<WhoisAnswer> Lookup { get; } = lookup;
+
+        /// <summary>The answer before this lookup, given to requests while it runs, so a refresh never holds one up.</summary>
+        public WhoisAnswer? Stale { get; } = stale;
 
         /// <summary>When the answer goes stale; set once the lookup finishes.</summary>
         public DateTime? KeepUntil { get; set; }
@@ -520,7 +533,10 @@ public sealed class WhoisCache(Func<IPAddress, Task<WhoisAnswer>> lookup, TimePr
                     }
                 }
 
-                entry = started = new Entry(Task.Run(() => lookup(address), CancellationToken.None));
+                // A device's answer that's gone stale is still given out while the new one is fetched ("nobody" isn't:
+                // that's asked again, so a device just linked or joined is seen at once).
+                var previous = entry is { KeepUntil: not null, Lookup.IsCompletedSuccessfully: true } && entry.Lookup.Result.Login is not null ? entry.Lookup.Result : null;
+                entry = started = new Entry(Task.Run(() => lookup(address), CancellationToken.None), previous);
                 _entries[address] = entry;
             }
         }
@@ -528,6 +544,11 @@ public sealed class WhoisCache(Func<IPAddress, Task<WhoisAnswer>> lookup, TimePr
         if (started is not null)
         {
             _ = started.Lookup.ContinueWith(done => Settle(address, started, done), CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+        }
+
+        if (entry.Stale is { } kept && !entry.Lookup.IsCompleted)
+        {
+            return kept;
         }
 
         try
@@ -547,10 +568,17 @@ public sealed class WhoisCache(Func<IPAddress, Task<WhoisAnswer>> lookup, TimePr
             var answer = done.IsCompletedSuccessfully ? done.Result : null;
             if (answer is not { Definite: true })
             {
-                // Timed out or failed: the next request asks again.
+                // Timed out or failed: the next request asks again (with the answer before this one, if there was one).
                 if (_entries.TryGetValue(address, out var current) && ReferenceEquals(current, entry))
                 {
-                    _entries.Remove(address);
+                    if (entry.Stale is { } previous)
+                    {
+                        _entries[address] = new Entry(Task.FromResult(previous)) { KeepUntil = clock.GetUtcNow().UtcDateTime };
+                    }
+                    else
+                    {
+                        _entries.Remove(address);
+                    }
                 }
 
                 return;

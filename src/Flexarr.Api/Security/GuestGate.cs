@@ -23,13 +23,33 @@ public static class GuestGate
             return;
         }
 
+        // Nothing to guard on a server that has never had family invites set up: no lookup for the household's own
+        // devices. Once they have been, the gate stays, so a removed guest is shut out even after invites are switched off.
         var settings = http.RequestServices.GetRequiredService<IOptionsMonitor<FlexarrOptions>>().CurrentValue.RemoteGuests;
-        var whois = http.RequestServices.GetRequiredService<ITailnetWhois>();
-        if (await GuestDevices.AddressOfAsync(http, whois, settings) is not { } address
-            || http.RequestServices.GetRequiredService<SignIns>().HasGuestAt(address)
-            || HttpMethods.IsPost(http.Request.Method) && http.Request.Path.Equals(RedeemPath, StringComparison.OrdinalIgnoreCase))
+        var signIns = http.RequestServices.GetRequiredService<SignIns>();
+        if (!settings.Enabled && !settings.HasClient && !signIns.HasAnyGuest)
         {
             await next(http);
+            return;
+        }
+
+        var whois = http.RequestServices.GetRequiredService<ITailnetWhois>();
+        var (kind, address) = await GuestDevices.LookUpAsync(http, whois, settings);
+        if (kind == GuestLookup.NotGuest
+            || signIns.HasGuestAt(address!)
+            || kind == GuestLookup.Guest && HttpMethods.IsPost(http.Request.Method) && http.Request.Path.Equals(RedeemPath, StringComparison.OrdinalIgnoreCase))
+        {
+            await next(http);
+            return;
+        }
+
+        if (kind == GuestLookup.Unknown)
+        {
+            // Tailscale couldn't say whose device this is (it's slow or restarting). It might be a removed guest's, so
+            // it waits rather than being let in; answers are kept, so this only happens before the first one.
+            http.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+            http.Response.Headers.RetryAfter = "5";
+            await http.Response.WriteAsJsonAsync(new { title = "Flexarr couldn't check this device just now. Try again in a moment.", status = 503 }, http.RequestAborted);
             return;
         }
 

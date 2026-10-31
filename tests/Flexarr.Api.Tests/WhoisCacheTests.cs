@@ -65,4 +65,25 @@ public class WhoisCacheTests
         Assert.Null(soon);
         Assert.Equal("sam@example.com", later);
     }
+
+    [Fact]
+    public async Task AStaleAnswer_IsGivenOutWhileANewOneIsFetched_AndKeptIfTheRefreshFails()
+    {
+        var clock = new ManualClock();
+        var refresh = new TaskCompletionSource<WhoisAnswer>();
+        var calls = 0;
+        var cache = new WhoisCache(_ => ++calls == 1 ? Task.FromResult(new WhoisAnswer("tagged-devices", Definite: true, ["tag:flexarr-guest"])) : refresh.Task, clock);
+
+        await cache.AnswerAsync(Address, CancellationToken.None);
+        await Task.Delay(50);
+        clock.Now += WhoisCache.LoginLifetime + TimeSpan.FromSeconds(1);
+
+        // The refresh hasn't answered: the stale answer comes straight back rather than waiting on it.
+        var stale = await cache.AnswerAsync(Address, CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(1));
+        Assert.Equal("tagged-devices", stale!.Login);
+
+        refresh.SetResult(new WhoisAnswer(null, Definite: false));
+        await Task.Delay(50);
+        Assert.Equal("tagged-devices", (await cache.AnswerAsync(Address, CancellationToken.None))!.Login);
+    }
 }

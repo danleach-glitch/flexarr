@@ -329,6 +329,19 @@ public class RemoteGuestTests(RemoteGuestFactory factory) : IClassFixture<Remote
     }
 
     [Fact]
+    public async Task A_device_tailscale_cant_identify_just_now_waits_and_cant_ask_for_a_pairing_code()
+    {
+        const string unidentified = "100.64.0.31";
+        factory.Whois.Unknown[unidentified] = true;
+        using var device = factory.From(unidentified);
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, (await device.GetAsync("/api/v1/setup")).StatusCode);
+        Assert.NotEqual(HttpStatusCode.OK, (await device.PostAsJsonAsync("/api/v1/pairing", new { deviceName = "Living Room TV" })).StatusCode);
+        factory.Whois.Unknown.TryRemove(unidentified, out _);
+        Assert.Equal(HttpStatusCode.OK, (await device.GetAsync("/api/v1/setup")).StatusCode);
+    }
+
+    [Fact]
     public async Task The_gate_leaves_the_households_own_tailnet_devices_alone()
     {
         using var owner = factory.From(RemoteGuestFactory.Owner);
