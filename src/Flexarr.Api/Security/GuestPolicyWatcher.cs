@@ -8,7 +8,7 @@ namespace Flexarr.Api.Security;
 /// Checks the tailnet policy every hour while family invites are set up, so a policy widened later pauses invites
 /// (and the guests' redeeming) and tells the owner once, rather than waiting for the next invite to notice.
 /// </summary>
-public sealed partial class GuestPolicyWatcher(GuestPolicy policy, GuestAlerts alerts, IOptionsMonitor<FlexarrOptions> options, TimeProvider clock, ILogger<GuestPolicyWatcher> logger) : BackgroundService
+public sealed partial class GuestPolicyWatcher(GuestPolicy policy, GuestInvites invites, GuestAlerts alerts, IOptionsMonitor<FlexarrOptions> options, TimeProvider clock, ILogger<GuestPolicyWatcher> logger) : BackgroundService
 {
     public static readonly TimeSpan Interval = TimeSpan.FromHours(1);
 
@@ -43,7 +43,9 @@ public sealed partial class GuestPolicyWatcher(GuestPolicy policy, GuestAlerts a
                 continue;
             }
 
-            if (wasSafe == true && !check.Safe)
+            // Became unsafe; or is unsafe at the first check (after a restart, or invites switched back on) on a server
+            // that has guests, who'd otherwise not be told.
+            if (!check.Safe && (wasSafe == true || wasSafe is null && invites.HasHadGuests))
             {
                 alerts.Paused();
             }
