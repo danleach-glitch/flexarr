@@ -148,4 +148,7 @@ public sealed class MediaItem
 
     /// <summary>Where a <see cref="MediaKind.PodcastEpisode"/>'s sound is, and what its feed says about it.</summary>
     public Podcasts.PodcastEpisode? Enclosure { get; set; }
+
+    /// <summary>What an <see cref="MediaKind.Audiobook"/>'s edition says about it.</summary>
+    public Books.BookDetails? Book { get; set; }
 }
