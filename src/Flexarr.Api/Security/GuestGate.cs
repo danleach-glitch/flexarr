@@ -35,6 +35,15 @@ public static class GuestGate
 
         var whois = http.RequestServices.GetRequiredService<ITailnetWhois>();
         var (kind, address) = await GuestDevices.LookUpAsync(http, whois, settings);
+        if (kind != GuestLookup.NotGuest)
+        {
+            // A guest's device is never a proxy: whatever X-Forwarded-For says (even with the tailnet in
+            // trustedProxies), it's the address that connected, so it can't pass for a device at home.
+            http.Connection.RemoteIpAddress = RequestPeer.Of(http);
+            http.Request.Host = RequestPeer.HostOf(http);
+            http.Request.Scheme = "http";
+        }
+
         if (kind == GuestLookup.NotGuest
             || signIns.HasGuestAt(address!)
             || kind == GuestLookup.Guest && HttpMethods.IsPost(http.Request.Method) && http.Request.Path.Equals(RedeemPath, StringComparison.OrdinalIgnoreCase))
