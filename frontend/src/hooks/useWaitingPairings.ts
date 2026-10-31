@@ -15,7 +15,7 @@ interface Waiting {
   listsShowing: number
 }
 
-// One list for the app-wide prompt and Settings › Access › Connect a device, so they look together and an answer in one
+// One list for the app-wide prompt and Settings › Devices › Connect a device, so they look together and an answer in one
 // takes the device out of both.
 let state: Waiting = { list: [], loaded: false, unavailable: false, listsShowing: 0 }
 let users = 0

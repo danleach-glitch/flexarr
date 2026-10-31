@@ -440,7 +440,7 @@ final class AppModel {
             switch self {
             case .expired(let owner): "This invite has run out. Ask \(owner) for a new one."
             case .used(let owner): "This invite has been used, or was cancelled. Ask \(owner) for a new one."
-            case .paused(let owner): "\(owner)’s server isn’t taking invites just now. Ask \(owner) to check Settings › Access."
+            case .paused(let owner): "\(owner)’s server isn’t taking invites just now. Ask \(owner) to check Settings › Remote access."
             case .otherServer: "This invite led to a different server than it named. Ask for a new one."
             case .failed(let why): why
             }

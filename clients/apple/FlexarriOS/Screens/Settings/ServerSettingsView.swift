@@ -33,7 +33,7 @@ struct ServerSettingsView: View {
                 }
             } footer: {
                 Text(model.credentials?.remoteAddress == nil
-                     ? "To use Flexarr away from home, turn on remote access with Tailscale in Settings › Access on the web; this \(ThisDevice.name) picks the address up by itself."
+                     ? "To use Flexarr away from home, turn on remote access with Tailscale in Settings › Remote access on the web; this \(ThisDevice.name) picks the address up by itself."
                      : "Away from home, this \(ThisDevice.name) reaches the server over Tailscale, which needs to be connected on it.")
             }
             }

@@ -1,15 +1,16 @@
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, type ComponentType, type ReactNode, type SVGProps } from 'react'
 import { Navigate, NavLink, useParams } from 'react-router'
 import { clearApiCache, getMe, getRequestDestinations, getUpdates, lockAdmin } from '../../api/client'
 import { useSession } from '../../hooks/sessionContext'
 import { useApi } from '../../hooks/useApi'
+import { Antenna, Download, Film, Gauge, Globe, Inbox, Info, LayoutGrid, Lock, Microphone, Monitor, Notes, PanelLeft, PlayCircle, Plug, Restore, Stack, Users } from '../../components/icons'
 import { hasRequestChoice } from '../../lib/requestLibraries'
 import { AboutSection } from './AboutSection'
-import { AccessSection } from './AccessSection'
 import { AdminUnlock } from './AdminUnlock'
 import { BackupSection } from './BackupSection'
 import { ConnectionsSection } from './ConnectionsSection'
 import { ConnectTvSection } from './ConnectTvSection'
+import { DevicesSection } from './DevicesSection'
 import { HealthSection } from './HealthSection'
 import { ImportSection } from './ImportSection'
 import { LayoutSection } from './LayoutSection'
@@ -19,6 +20,7 @@ import { OverviewSection } from './OverviewSection'
 import { PlaybackSection } from './PlaybackSection'
 import { PodcastsSection } from './PodcastsSection'
 import { ProfilesSection } from './ProfilesSection'
+import { RemoteAccessSection } from './RemoteAccessSection'
 import { RequestsSection } from './RequestsSection'
 import { LiveTvSection } from './LiveTvSection'
 import { StreamingSection } from './StreamingSection'
@@ -28,6 +30,8 @@ import { UpdatesSection } from './UpdatesSection'
 interface Page {
   id: string
   label: string
+  /** Its mark in the list. Pages reached from another one have none: they're never listed. */
+  icon?: ComponentType<SVGProps<SVGSVGElement>>
   render: () => ReactNode
   /** A page reached from another one, which stays lit in the list while it's open. */
   under?: string
@@ -35,35 +39,36 @@ interface Page {
 
 /** Every profile's own: how it watches and listens, and this browser's music. */
 const profilePages: Page[] = [
-  { id: 'playback', label: 'Playback', render: () => <PlaybackSection /> },
-  { id: 'podcasts', label: 'Podcasts', render: () => <PodcastsSection /> },
-  { id: 'sidebar', label: 'Sidebar', render: () => <SidebarSection /> },
+  { id: 'playback', label: 'Playback', icon: PlayCircle, render: () => <PlaybackSection /> },
+  { id: 'podcasts', label: 'Podcasts', icon: Microphone, render: () => <PodcastsSection /> },
+  { id: 'sidebar', label: 'Sidebar', icon: PanelLeft, render: () => <SidebarSection /> },
 ]
 
 /** Listed only when there's a choice to make: two TV or film libraries Seerr can add requests to. */
-const requestsPage: Page = { id: 'requests', label: 'Requests', render: () => <RequestsSection /> }
+const requestsPage: Page = { id: 'requests', label: 'Requests', icon: Inbox, render: () => <RequestsSection /> }
 
 /** The server's, for the main profile only. */
 const serverPages: Page[] = [
-  { id: 'overview', label: 'Overview', render: () => <OverviewSection /> },
-  { id: 'libraries', label: 'Libraries', render: () => <LibrariesSection /> },
+  { id: 'overview', label: 'Overview', icon: Gauge, render: () => <OverviewSection /> },
+  { id: 'libraries', label: 'Libraries', icon: Stack, render: () => <LibrariesSection /> },
   { id: 'health', label: 'Library health', render: () => <HealthSection />, under: 'libraries' },
   { id: 'import', label: 'Bring over from Plex', render: () => <ImportSection />, under: 'libraries' },
-  { id: 'profiles', label: 'Profiles', render: () => <ProfilesSection /> },
-  { id: 'layout', label: 'Home and Browse', render: () => <LayoutSection /> },
-  { id: 'streaming', label: 'Streaming', render: () => <StreamingSection /> },
-  { id: 'livetv', label: 'Live TV', render: () => <LiveTvSection /> },
-  { id: 'connections', label: 'Connections', render: () => <ConnectionsSection /> },
-  { id: 'access', label: 'Access', render: () => <AccessSection /> },
-  { id: 'tv', label: 'Connect a device', render: () => <ConnectTvSection />, under: 'access' },
-  { id: 'backups', label: 'Backup and restore', render: () => <BackupSection /> },
-  { id: 'updates', label: 'Updates', render: () => <UpdatesSection /> },
-  { id: 'logs', label: 'Logs', render: () => <LogsSection /> },
-  { id: 'about', label: 'About', render: () => <AboutSection /> },
+  { id: 'profiles', label: 'Profiles', icon: Users, render: () => <ProfilesSection /> },
+  { id: 'layout', label: 'Home and Browse', icon: LayoutGrid, render: () => <LayoutSection /> },
+  { id: 'streaming', label: 'Streaming', icon: Film, render: () => <StreamingSection /> },
+  { id: 'livetv', label: 'Live TV', icon: Antenna, render: () => <LiveTvSection /> },
+  { id: 'connections', label: 'Connections', icon: Plug, render: () => <ConnectionsSection /> },
+  { id: 'devices', label: 'Devices', icon: Monitor, render: () => <DevicesSection /> },
+  { id: 'tv', label: 'Connect a device', render: () => <ConnectTvSection />, under: 'devices' },
+  { id: 'remote', label: 'Remote access', icon: Globe, render: () => <RemoteAccessSection /> },
+  { id: 'backups', label: 'Backup and restore', icon: Restore, render: () => <BackupSection /> },
+  { id: 'updates', label: 'Updates', icon: Download, render: () => <UpdatesSection /> },
+  { id: 'logs', label: 'Logs', icon: Notes, render: () => <LogsSection /> },
+  { id: 'about', label: 'About', icon: Info, render: () => <AboutSection /> },
 ]
 
 /** Pages that moved, so old links and bookmarks still land somewhere sensible. */
-const moved: Record<string, string> = { activity: 'overview', server: 'access', remote: 'access', changelog: 'about' }
+const moved: Record<string, string> = { activity: 'overview', server: 'remote', access: 'remote', changelog: 'about' }
 
 export function SettingsPage() {
   const { section } = useParams()
@@ -111,6 +116,7 @@ export function SettingsPage() {
 
   const link = (p: Page) => (
     <NavLink key={p.id} to={`/settings/${p.id}`} className={() => (p.id === lit ? 'active' : undefined)}>
+      {p.icon && <p.icon className="settings-nav-icon" />}
       {p.label}
       {badges[p.id] && <span className="settings-nav-badge" role="img" aria-label={badges[p.id]} title={badges[p.id]} />}
     </NavLink>
@@ -128,7 +134,7 @@ export function SettingsPage() {
           {(isAdmin || locked) && (
             <div className="settings-nav-group">
               <h2>Server</h2>
-              {isAdmin && !pinMissing ? serverPages.filter((p) => !p.under).map(link) : link({ id: 'overview', label: locked ? 'Unlock settings' : 'Set a PIN', render: () => null })}
+              {isAdmin && !pinMissing ? serverPages.filter((p) => !p.under).map(link) : link({ id: 'overview', label: locked ? 'Unlock settings' : 'Set a PIN', icon: Lock, render: () => null })}
               {isAdmin && unlockedUntil && (
                 <button type="button" className="text-button settings-lock" onClick={() => void lockAdmin().then(() => window.location.reload())}>
                   Lock settings

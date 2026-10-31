@@ -281,7 +281,7 @@ private fun PairWithServer(model: AppModel, server: DiscoveredServer, onBack: ()
                             append("Or on a computer, open ")
                             bold(server.address)
                             append(", go to ")
-                            bold("Settings › Access › Connect a device")
+                            bold("Settings › Devices › Connect a device")
                             append(" and type in the code.")
                         },
                         fontSize = 13.sp,

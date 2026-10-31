@@ -12,7 +12,7 @@ Their app has Tailscale built in and joins your tailnet as a **Flexarr guest**. 
 
 ## Set it up, once
 
-In Flexarr on the web, signed in as the main profile, go to **Settings › Access**. **Family invites** walks you through three steps, and checks each one.
+In Flexarr on the web, signed in as the main profile, go to **Settings › Remote access**. **Family invites** walks you through three steps, and checks each one.
 
 1. **Paste the policy.** Flexarr shows a few lines with your server's tailnet address filled in. Copy them into your tailnet policy in Tailscale's admin console (**Access controls**). They create the `tag:flexarr-guest` tag and let guests reach Flexarr's port on your server, and nothing else.
 2. **Create an OAuth client.** In Tailscale's admin console, under **Settings › Trust credentials**, make an OAuth client with two scopes: **Auth Keys** (write, with the tag `tag:flexarr-guest`) and **Policy File** (read). Nothing else.
@@ -34,7 +34,7 @@ Flexarr checks your policy again every hour. If it's ever changed so guests coul
 
 ## Invite someone
 
-Under **Guests** in **Settings › Access**, choose **Add new guest** and type their name ("Dad"). Flexarr makes them a profile of their own, which they watch as and can't leave. You can set its age limit or hidden libraries later in [Profiles](profiles.md). Someone who already has a profile, type their name and it's used.
+Under **Guests** in **Settings › Remote access**, choose **Add new guest** and type their name ("Dad"). Flexarr makes them a profile of their own, which they watch as and can't leave. You can set its age limit or hidden libraries later in [Profiles](profiles.md). Someone who already has a profile, type their name and it's used.
 
 1. On their phone, tablet or Apple TV, they install Flexarr, open it and choose **Join someone’s Flexarr**. It shows a code like `H42K-FM5W`.
 2. They read it to you over the phone, or send it.

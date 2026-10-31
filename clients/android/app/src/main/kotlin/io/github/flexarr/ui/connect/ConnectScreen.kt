@@ -261,7 +261,7 @@ private fun Badge(title: String, icon: androidx.compose.ui.graphics.vector.Image
 
 /**
  * Connecting by code: the server hands out a short code, someone approves it (a phone signed in as the main profile is
- * asked; on a computer, Settings › Access › Connect a device), and this device gets a sign-in of its own. Codes that run
+ * asked; on a computer, Settings › Devices › Connect a device), and this device gets a sign-in of its own. Codes that run
  * out are replaced.
  */
 @Composable
@@ -349,7 +349,7 @@ private fun PairWithServer(model: AppModel, server: DiscoveredServer, onBack: ()
                         append("Or on a computer, open ")
                         withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(server.address) }
                         append(", go to ")
-                        withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append("Settings › Access › Connect a device") }
+                        withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append("Settings › Devices › Connect a device") }
                         append(" and type the code.")
                     },
                     fontSize = 15.sp,
@@ -559,7 +559,7 @@ private fun PhoneGuestCode(model: AppModel, onBack: () -> Unit) {
                         .putExtra(android.content.Intent.EXTRA_TEXT, shown.display)
                     context.startActivity(android.content.Intent.createChooser(send, null))
                 })
-                Text("They type it into Settings › Access in Flexarr. Keep this screen open.", fontSize = 13.sp, color = Flexarr.usher)
+                Text("They type it into Settings › Remote access in Flexarr. Keep this screen open.", fontSize = 13.sp, color = Flexarr.usher)
             } else if (guest.problem == null) {
                 CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = Flexarr.usher)
             }

@@ -29,7 +29,7 @@ describe('Setup checklist', () => {
     )
     expect(screen.getByText('2 of 5')).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Continue' }).getAttribute('href')).toBe('/settings/libraries')
-    expect(screen.getByRole('link', { name: 'Watch away from home' }).getAttribute('href')).toBe('/settings/access')
+    expect(screen.getByRole('link', { name: 'Watch away from home' }).getAttribute('href')).toBe('/settings/remote')
   })
 
   it('hides for good', () => {

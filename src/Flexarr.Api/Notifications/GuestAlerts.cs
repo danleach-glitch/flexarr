@@ -11,7 +11,7 @@ public sealed partial class GuestAlerts(IServiceScopeFactory scopes, ILogger<Gue
 
     /// <summary>The tailnet policy stopped confining guests to Flexarr, so invites are paused.</summary>
     public void Paused() => Send(new PushMessage("Family invites paused",
-        "Your Tailscale policy now lets guests reach more than Flexarr. Open Settings › Access to fix it.", Category, Thread: Category,
+        "Your Tailscale policy now lets guests reach more than Flexarr. Open Settings › Remote access to fix it.", Category, Thread: Category,
         Open: new Dictionary<string, string> { ["settings"] = "access" }), "guests-paused");
 
     /// <summary>
@@ -26,7 +26,7 @@ public sealed partial class GuestAlerts(IServiceScopeFactory scopes, ILogger<Gue
     }, $"guest-joined-{deviceName}");
 
     public static PushMessage JoinedMessage(string deviceName, string? profileName) => new($"{deviceName} joined",
-        profileName is null ? "Someone used your invite. Not expected? Remove the device in Settings › Access." : $"Watching as {profileName}. Not expected? Remove it in Settings › Access.",
+        profileName is null ? "Someone used your invite. Not expected? Remove the device in Settings › Remote access." : $"Watching as {profileName}. Not expected? Remove it in Settings › Remote access.",
         Category, Thread: Category, Open: new Dictionary<string, string> { ["settings"] = "access" });
 
     private void Send(PushMessage message, string collapseId) => Send((_, _) => Task.FromResult(message), collapseId);

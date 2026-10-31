@@ -49,7 +49,7 @@ const device = (overrides: Partial<GuestDevice> = {}): GuestDevice => ({
   ...overrides,
 })
 
-describe('Settings › Access › Family invites', () => {
+describe('Settings › Remote access › Family invites', () => {
   it('stays hidden while the server has them turned off', async () => {
     const fetch = mockApi({ '/remote/guests': setup({ enabled: false }) })
     const { container } = render(<FamilyInvites />)

@@ -239,7 +239,7 @@ private struct PairWithServer: View {
                             .foregroundStyle(Color.screen)
                             .fixedSize(horizontal: false, vertical: true)
                         code(start, renewed: pairing.renewedAt != nil)
-                        Text("Or on a computer, open **\(server.address.absoluteString)**, go to **Settings › Access › Connect a device** and type in the code.")
+                        Text("Or on a computer, open **\(server.address.absoluteString)**, go to **Settings › Devices › Connect a device** and type in the code.")
                             .font(.subheadline)
                             .foregroundStyle(Color.usher)
                             .fixedSize(horizontal: false, vertical: true)

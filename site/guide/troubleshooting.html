@@ -141,14 +141,14 @@
 <ol>
 <li>On a computer on your home network, open the server&#39;s address (the app shows it) in a web browser.</li>
 <li>Enter the server&#39;s setup code (it&#39;s in the server&#39;s log; <a href="/guide/first-setup#enter-the-setup-code">First setup</a> says where for your install) and choose <strong>Set up Flexarr</strong>. That browser becomes the server&#39;s owner, with no key needed.</li>
-<li>Go to <strong>Settings › Access › Connect a device</strong> and type in the code the app is showing.</li>
+<li>Go to <strong>Settings › Devices › Connect a device</strong> and type in the code the app is showing.</li>
 </ol>
 <p>The app moves on by itself once you have. See <a href="/guide/first-setup">First setup</a>.</p>
 <p><strong>Set up Flexarr</strong> only appears to a browser on your home network, using the server&#39;s own name or IP address. It won&#39;t appear over the internet, or once someone has set the server up. If someone else in the house set it up, ask them to approve your code from their browser.</p>
 <h3 id="i-can-t-connect-away-from-home"><a class="anchor" href="#i-can-t-connect-away-from-home" aria-hidden="true" tabindex="-1">#</a>I can&#39;t connect away from home</h3>
 <p>Flexarr isn&#39;t on the public internet. Away from home, the apps reach it over Tailscale. Check each of these:</p>
 <ol>
-<li><strong>Remote access is on.</strong> In the web app, <strong>Settings › Access › Away from home</strong> should say <strong>On: Flexarr is available on your tailnet</strong>. If it says Tailscale isn&#39;t installed or isn&#39;t connected, install Tailscale on the server and sign in first.</li>
+<li><strong>Remote access is on.</strong> In the web app, <strong>Settings › Remote access › Away from home</strong> should say <strong>On: Flexarr is available on your tailnet</strong>. If it says Tailscale isn&#39;t installed or isn&#39;t connected, install Tailscale on the server and sign in first.</li>
 <li><strong>Tailscale is connected on your phone or tablet</strong>, signed in to the same tailnet.</li>
 <li><strong>You have a profile.</strong> Under <strong>People on your tailnet</strong>, each Tailscale account must be linked to a profile. Anyone without one is turned away.</li>
 <li><strong>The app has picked up the address.</strong> It learns the Tailscale address from the server and uses it when the home address can&#39;t be reached. If remote access was turned on after the app connected, close and reopen the app at home once. In the app, <strong>Settings › Server</strong> shows both addresses and which one it&#39;s using.</li>

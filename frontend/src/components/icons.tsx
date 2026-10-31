@@ -419,3 +419,63 @@ export const AppleLogo = (p: IconProps) => (
     <path d="M16.4 12.6c0-2.4 2-3.6 2.1-3.7a4.5 4.5 0 0 0-3.5-1.9c-1.5-.2-2.9.9-3.7.9-.8 0-1.9-.9-3.2-.8a4.7 4.7 0 0 0-4 2.4c-1.7 3-.4 7.4 1.2 9.8.8 1.2 1.8 2.5 3 2.4 1.2 0 1.7-.8 3.1-.8 1.5 0 1.9.8 3.2.8 1.3 0 2.2-1.2 3-2.4a10 10 0 0 0 1.4-2.8 4.3 4.3 0 0 1-2.6-3.9ZM14 5.4a4.3 4.3 0 0 0 1-3.1 4.4 4.4 0 0 0-2.9 1.5 4.1 4.1 0 0 0-1 3 3.6 3.6 0 0 0 2.9-1.4Z" />
   </svg>
 )
+export const PlayCircle = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M10 8.5v7l5.5-3.5L10 8.5Z" />
+  </svg>
+)
+export const PanelLeft = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <rect x="3.5" y="4.5" width="17" height="15" rx="2" />
+    <path d="M9.5 4.5v15" />
+  </svg>
+)
+export const Inbox = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="M3.5 13.5h5l1.5 2.5h4l1.5-2.5h5" />
+    <path d="M6 5.5h12l2.5 8v4.5a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5v-4.5L6 5.5Z" />
+  </svg>
+)
+export const Gauge = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="M4.5 17.5a8.5 8.5 0 1 1 15 0" />
+    <path d="m12 14 3.5-4.5" />
+    <circle cx="12" cy="14" r="1" />
+  </svg>
+)
+export const Users = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <circle cx="9" cy="8.5" r="3.5" />
+    <path d="M2.5 19.5a6.5 6.5 0 0 1 13 0" />
+    <path d="M16 5.2a3.5 3.5 0 0 1 0 6.6M18.5 14a6.5 6.5 0 0 1 3 5.5" />
+  </svg>
+)
+export const LayoutGrid = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <rect x="3.5" y="3.5" width="7" height="7" rx="1.5" />
+    <rect x="13.5" y="3.5" width="7" height="7" rx="1.5" />
+    <rect x="3.5" y="13.5" width="7" height="7" rx="1.5" />
+    <rect x="13.5" y="13.5" width="7" height="7" rx="1.5" />
+  </svg>
+)
+export const Plug = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="M9 3v4M15 3v4" />
+    <path d="M6.5 7h11v3.5a5.5 5.5 0 0 1-11 0V7Z" />
+    <path d="M12 16v5" />
+  </svg>
+)
+export const Globe = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M3 12h18" />
+    <path d="M12 3a13.5 13.5 0 0 1 0 18a13.5 13.5 0 0 1 0-18Z" />
+  </svg>
+)
+export const Lock = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <rect x="4.5" y="10.5" width="15" height="10" rx="2" />
+    <path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" />
+  </svg>
+)

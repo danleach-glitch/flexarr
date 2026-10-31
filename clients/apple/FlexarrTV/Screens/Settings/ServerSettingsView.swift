@@ -67,7 +67,7 @@ struct ServerSettingsView: View {
 
     private var summary: String {
         model.credentials?.remoteAddress == nil
-            ? "To watch away from home, turn on remote access with Tailscale in Settings › Access on the web. This Apple TV picks the address up by itself."
+            ? "To watch away from home, turn on remote access with Tailscale in Settings › Remote access on the web. This Apple TV picks the address up by itself."
             : "Away from home, this Apple TV reaches the server over Tailscale, which needs to be connected on it."
     }
 

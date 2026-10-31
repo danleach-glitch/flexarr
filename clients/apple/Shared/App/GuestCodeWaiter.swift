@@ -3,7 +3,7 @@ import Foundation
 import Observation
 
 /// "Join someone’s Flexarr": this device shows a code to read (or text) to whoever invited it, who types it into
-/// Settings › Access. The invite comes back through Flexarr's relay, sealed so only this device can open it, and it
+/// Settings › Remote access. The invite comes back through Flexarr's relay, sealed so only this device can open it, and it
 /// joins (see `GuestTvCode`, docs/remote-guests.md). A code lasts ten minutes; a new one replaces it. Shared by the
 /// iPhone's and the Apple TV's code screens.
 @MainActor

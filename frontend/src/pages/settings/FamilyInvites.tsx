@@ -36,7 +36,7 @@ const POLICY_URL = 'https://login.tailscale.com/admin/acls/file'
 const CLIENTS_URL = 'https://login.tailscale.com/admin/settings/trust-credentials'
 
 /**
- * Family invites (Settings › Access): set up once with Tailscale, then invite someone's phone with a link, or their TV
+ * Family invites (Settings › Remote access): set up once with Tailscale, then invite someone's phone with a link, or their TV
  * with the code it shows. Guests' apps join your tailnet with Tailscale built in, and reach Flexarr and nothing else.
  */
 export function FamilyInvites() {

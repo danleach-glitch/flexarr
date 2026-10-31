@@ -596,10 +596,10 @@ describe('Settings', () => {
   it('sends old links to where their pages moved', async () => {
     mockApi({ '/libraries': [], '/settings': { authenticationRequired: 'Enabled', transcoding: {}, availableHardwareAcceleration: [], pathMappings: [], arr: [], seerr: null }, '/sign-ins': [] })
 
-    renderAt('/settings/server')
+    renderAt('/settings/access')
 
-    expect(await screen.findByRole('heading', { level: 2, name: 'Access' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Access' })).toHaveClass('active')
+    expect(await screen.findByRole('heading', { level: 2, name: 'Remote access' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Remote access' })).toHaveClass('active')
   })
 
   it('a main profile without a PIN is asked for one before anything in the server’s settings', async () => {
@@ -648,7 +648,7 @@ describe('Settings', () => {
       'DELETE /sign-ins/s1': undefined,
     })
 
-    renderAt('/settings/access')
+    renderAt('/settings/devices')
 
     // Hidden behind dots; with no PIN on the main profile, the eye shows it straight away.
     expect(await screen.findByLabelText('API key, hidden')).toBeInTheDocument()
@@ -683,7 +683,7 @@ describe('Settings', () => {
       },
     })
 
-    renderAt('/settings/access')
+    renderAt('/settings/remote')
 
     expect(await screen.findByText('Not available in Docker')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Watch away from home' })).toHaveAttribute('href', 'https://flexarr.io/guide/away-from-home')
@@ -706,7 +706,7 @@ describe('Settings', () => {
       },
     })
 
-    renderAt('/settings/access')
+    renderAt('/settings/remote')
 
     expect(await screen.findByText('This Mac is on your tailnet')).toBeInTheDocument()
     expect(screen.getByText('http://100.64.1.2:8383')).toBeInTheDocument()
@@ -723,7 +723,7 @@ describe('Settings', () => {
       '/sign-ins': [],
     })
 
-    renderAt('/settings/access')
+    renderAt('/settings/devices')
 
     // With a PIN on the main profile, the eye asks for it before showing the key.
     fireEvent.click(await screen.findByRole('button', { name: 'Show the API key' }))
@@ -820,7 +820,7 @@ describe('Settings', () => {
       },
     })
 
-    renderAt('/settings/server')
+    renderAt('/settings/devices')
 
     expect(await screen.findByText('2 sign-ins')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Sign out all 2 sign-ins of Chrome on Mac' })).toBeInTheDocument()

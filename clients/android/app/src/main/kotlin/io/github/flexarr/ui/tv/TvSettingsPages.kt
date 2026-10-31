@@ -470,7 +470,7 @@ internal fun TvServerSettings(model: AppModel, libraries: Loader<List<Library>>,
         summary = if (guest != null) {
             null
         } else if (remote == null) {
-            "To watch away from home, turn on remote access with Tailscale in Settings › Access on the web. This TV picks the address up by itself."
+            "To watch away from home, turn on remote access with Tailscale in Settings › Remote access on the web. This TV picks the address up by itself."
         } else {
             "Away from home, this TV reaches the server over Tailscale, which needs to be connected on it."
         },

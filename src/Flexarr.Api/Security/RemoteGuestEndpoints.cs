@@ -18,14 +18,14 @@ public sealed record CreateInviteRequest(string? Name, string ProfileId);
 
 public sealed record RedeemInviteRequest(string Token);
 
-/// <summary>A guest's device, as Settings › Access lists it.</summary>
+/// <summary>A guest's device, as Settings › Remote access lists it.</summary>
 /// <param name="Path">How it reaches this server right now: Direct, PeerRelay (through this server's relay), Derp
 /// (Tailscale's shared relays, about 2 Mbps), or Unknown (not connected lately).</param>
 /// <param name="TailscaleAdminUrl">Where the owner deletes the device from the tailnet.</param>
 public sealed record GuestDeviceDto(string Id, string Name, string? ProfileId, string? ProfileName, Authentication.DeviceType? DeviceType, DateTime CreatedAt,
     DateTime LastUsedAt, string? Address, bool Online, TailnetPath Path, DateTime? LastSeen, string TailscaleAdminUrl);
 
-/// <summary>Family invites' setup, as Settings › Access shows it.</summary>
+/// <summary>Family invites' setup, as Settings › Remote access shows it.</summary>
 /// <param name="Enabled">Family invites are turned on for this server (hidden until the apps that carry Tailscale are out).</param>
 /// <param name="Available">This server can do them: Tailscale is installed here (not Docker or the Mac app, yet).</param>
 /// <param name="ClientId">The OAuth client's id; its secret is never sent, only <paramref name="HasClient"/>.</param>
@@ -254,7 +254,7 @@ public static class RemoteGuestEndpoints
 
             if (!(await policy.CheckAsync(ct)).Safe)
             {
-                return Results.Problem("Family invites are paused on this server. Ask its owner to check Settings › Access.", statusCode: 503);
+                return Results.Problem("Family invites are paused on this server. Ask its owner to check Settings › Remote access.", statusCode: 503);
             }
 
             try

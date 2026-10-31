@@ -57,6 +57,9 @@
 }
 
 .settings-nav a {
+  display: flex;
+  align-items: center;
+  gap: 11px;
   padding: 7px 14px;
   /* One line each, so the row of sections on phones scrolls rather than wraps. */
   white-space: nowrap;
@@ -76,6 +79,20 @@
   color: var(--screen);
   background: var(--seat-raised);
   font-weight: 600;
+}
+
+/* Each page's mark, quieter than its name until it's the page open. */
+.settings-nav-icon {
+  flex: none;
+  width: 17px;
+  height: 17px;
+  stroke-width: 1.8;
+  opacity: 0.7;
+}
+
+.settings-nav a:hover .settings-nav-icon,
+.settings-nav a.active .settings-nav-icon {
+  opacity: 1;
 }
 
 .settings-content {
@@ -1375,7 +1392,7 @@
   height: 22px;
 }
 
-/* Settings › Access › Connect a device: every device asking right now, above the code box. */
+/* Settings › Devices › Connect a device: every device asking right now, above the code box. */
 .waiting-pairings {
   display: grid;
   gap: 12px;
@@ -2412,7 +2429,7 @@
   display: inline-block;
   width: 7px;
   height: 7px;
-  margin-left: 8px;
+  margin-left: -3px;
   border-radius: 50%;
   background: var(--silver);
   vertical-align: middle;
@@ -2486,7 +2503,7 @@
   min-width: 140px;
 }
 
-/* Family invites (Settings › Access): the three setup steps, the policy snippet, and an invite's link and QR code. */
+/* Family invites (Settings › Remote access): the three setup steps, the policy snippet, and an invite's link and QR code. */
 .guest-steps {
   margin: 0;
   padding: 14px 0 4px 1.4em;

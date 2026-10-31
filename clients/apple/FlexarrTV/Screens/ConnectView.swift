@@ -189,7 +189,7 @@ private struct PairWithServer: View {
                             .foregroundStyle(Color.screen)
                             .fixedSize(horizontal: false, vertical: true)
                         code(start, renewed: pairing.renewedAt != nil)
-                        Text("Or on a computer, open **\(server.address.absoluteString)**, go to **Settings › Access › Connect a device** and type in the code.")
+                        Text("Or on a computer, open **\(server.address.absoluteString)**, go to **Settings › Devices › Connect a device** and type in the code.")
                             .font(.system(size: 26))
                             .foregroundStyle(Color.usher)
                             .fixedSize(horizontal: false, vertical: true)
@@ -445,7 +445,7 @@ private struct GuestCode: View {
                     .font(.system(size: 110, weight: .bold, design: .monospaced))
                     .foregroundStyle(Color.screen)
                     .accessibilityLabel(waiter.code.map { $0.code.map(String.init).joined(separator: " ") } ?? "Getting a code")
-                Text("They type it into Settings › Access in Flexarr.")
+                Text("They type it into Settings › Remote access in Flexarr.")
                     .font(.system(size: 26))
                     .foregroundStyle(Color.usher)
             }

@@ -13,7 +13,7 @@ Decided:
 - **Invites** work once and last 3 days.
 - **Hidden** behind `RemoteGuests:Enabled` (off) until the iPhone app that carries the tunnel is on the App Store.
 
-## The owner's setup, once (web Settings › Access › Family away from home)
+## The owner's setup, once (web Settings › Remote access › Family away from home)
 
 1. **Paste the policy snippet** into the tailnet policy file. Flexarr fills in the server's tailnet address:
 
@@ -131,7 +131,7 @@ Store. When they're turned on by default:
 - add `share-with-family` to `docs/guide/index.json` (after `away-from-home`), link it from `away-from-home.md` and the
   FAQ, and run `make guide`;
 - add `ANDROID_CERT_SHA256` to the relay's environment, and Upstash, if they aren't there yet;
-- add the changelog entry (Settings › Access › Family invites; Join someone’s Flexarr with a code on every app; Paste link);
+- add the changelog entry (Settings › Remote access › Family invites; Join someone’s Flexarr with a code on every app; Paste link);
 - settle the apps' export compliance answer and set `ITSAppUsesNonExemptEncryption` in `clients/apple/project.yml`.
 
 ## Later

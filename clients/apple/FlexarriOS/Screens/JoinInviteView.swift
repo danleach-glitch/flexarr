@@ -118,7 +118,7 @@ struct GuestCodeView: View {
                     }
                     .font(.body.weight(.semibold))
                 }
-                Text("They type it into Settings › Access in Flexarr. Keep this screen open.")
+                Text("They type it into Settings › Remote access in Flexarr. Keep this screen open.")
                     .font(.footnote)
                     .foregroundStyle(Color.usher)
             }

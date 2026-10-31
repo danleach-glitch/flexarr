@@ -7,6 +7,10 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ### Away from home
 - The apps now find a Mac app server over Tailscale away from home by themselves, as they do other servers.
 
+### Settings
+- Settings on the web has an icon beside each page.
+- **Access** is now **Remote access**, for Tailscale and family invites. Signed-in browsers and TVs, **Connect a device** and the API key have their own page, **Devices**. Old links still work.
+
 ## 0.56.0 · 31 October 2026
 
 ### Watchlist

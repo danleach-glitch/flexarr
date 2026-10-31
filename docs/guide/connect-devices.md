@@ -11,7 +11,7 @@ When a device asks to connect, every iPhone and Android phone signed in as the m
 
 The phone asks while Flexarr is open on it. When it isn't, a notification says the device wants to connect, if notifications are turned on for that phone. Choose **Allow** or **Don't allow** on the notification itself (the phone asks to be unlocked first), or tap it to get the same question in the app. The web app asks too, when it's open on the main profile.
 
-To see every device waiting, open **Settings** in the app, or **Settings › Access › Connect a device** on the web. Each one has **Allow** and **Don't allow**.
+To see every device waiting, open **Settings** in the app, or **Settings › Devices › Connect a device** on the web. Each one has **Allow** and **Don't allow**.
 
 Turned a device away by mistake? Choose **Try again** on the device, and allow it this time. (An app from before version 0.56 shows a new code by itself instead; you aren't asked about that one, but it's listed in Settings as turned away, with **Allow**.)
 
@@ -24,14 +24,14 @@ The first time you open it, three short cards explain what Flexarr is, that it p
 1. When iOS asks whether Flexarr can find devices on your local network, choose **Allow**. Without it, the app can't see your server.
 2. Under **Servers on your network**, choose your server.
 3. The app shows **Connect this iPhone** (or iPad) with a code like `ABC-123`.
-4. On another phone signed in to Flexarr, tap **Allow** when it asks (see [Allow it from your phone](#allow-it-from-your-phone)). Or, on your computer, open the server's address in a browser, go to **Settings › Access › Connect a device**, type in the code and choose **Continue**.
+4. On another phone signed in to Flexarr, tap **Allow** when it asks (see [Allow it from your phone](#allow-it-from-your-phone)). Or, on your computer, open the server's address in a browser, go to **Settings › Devices › Connect a device**, type in the code and choose **Continue**.
 5. Check that the code matches the one on your phone, and choose **Allow**.
 
 The app moves on by itself a moment later. If your household has several profiles, it asks who's watching.
 
 If Safari on the same phone is already signed in to Flexarr, **Approve in Safari instead** opens the approval page there, so you don't need the computer.
 
-![The Connect a device page with a box for the code shown on the TV, iPhone or iPad](../../site/guide/img/connect-device.webp "Settings › Access › Connect a device, where you type the code")
+![The Connect a device page with a box for the code shown on the TV, iPhone or iPad](../../site/guide/img/connect-device.webp "Settings › Devices › Connect a device, where you type the code")
 
 ## Apple TV
 
@@ -39,7 +39,7 @@ The Apple TV app isn't on the App Store yet. Until it is, [install it with Xcode
 
 1. Open Flexarr on the Apple TV. It lists **Servers on your network**; choose yours.
 2. The TV shows **Connect this Apple TV** and a code.
-3. On your phone, tap **Allow** when it asks, checking the code matches. Or, on your computer, go to **Settings › Access › Connect a device**, type in the code, then choose **Continue** and **Allow**.
+3. On your phone, tap **Allow** when it asks, checking the code matches. Or, on your computer, go to **Settings › Devices › Connect a device**, type in the code, then choose **Continue** and **Allow**.
 
 The TV also shows a QR code. Scan it with a phone that's already signed in to Flexarr in its browser, and the approval page opens with the code filled in.
 
@@ -47,7 +47,7 @@ The TV also shows a QR code. Scan it with a phone that's already signed in to Fl
 
 ## Other browsers
 
-Browsers don't get a code. Open the server's address in the new browser and it asks for the **API key**: type it in once, and the browser gets a sign-in of its own, so it doesn't keep the key. The key is in **Settings › Access** on the browser you set up with (see [The API key](first-setup.md#the-api-key)).
+Browsers don't get a code. Open the server's address in the new browser and it asks for the **API key**: type it in once, and the browser gets a sign-in of its own, so it doesn't keep the key. The key is in **Settings › Devices** on the browser you set up with (see [The API key](first-setup.md#the-api-key)).
 
 Over [Tailscale](away-from-home.md), browsers sign in by your Tailscale account instead, with no key.
 
@@ -90,7 +90,7 @@ Use the server's IP address and port. You'll find the IP address in your router'
 
 ## Manage and remove devices
 
-Signed in as the main profile, go to **Settings › Access**. Under **Signed-in browsers and TVs** you'll see every browser, iPhone, iPad and Apple TV with a sign-in of its own, and when it was last used.
+Signed in as the main profile, go to **Settings › Devices**. Under **Signed-in browsers and TVs** you'll see every browser, iPhone, iPad and Apple TV with a sign-in of its own, and when it was last used.
 
 - **Rename** gives a device a name you'll recognise.
 - **Sign out** signs out one device. It'll need a new code to come back.
