@@ -558,6 +558,9 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     private var heldParentPin: String? = null
     private var heldParentPinUntil = 0L
 
+    /** The main profile's PIN given here in the last minute (turning child lock off), if any. */
+    val recentParentPin: String? get() = heldParentPin?.takeIf { System.currentTimeMillis() < heldParentPinUntil }
+
     /** Whether child lock is still on here: it can be turned off from the web's Devices page while the app's open. */
     suspend fun refreshKidsLock() {
         val client = client ?: return

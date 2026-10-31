@@ -240,7 +240,16 @@ fun ProfilePicker(
                                 enabled = switching == null && (!current || padlock),
                                 onClick = {
                                     error = null
-                                    if (current) Unit else if (profile.takesPin) asking = profile else scope.launch { choose(profile, null) }
+                                    // The main profile's PIN just given here (child lock off) goes with this choice, rather
+                                    // than the keypad again; a profile with its own PIN still asks for that.
+                                    val held = unlockedWith ?: model.recentParentPin
+                                    when {
+                                        current -> Unit
+                                        profile.takesPin && held != null && (profile.isMain || !profile.hasPin) ->
+                                            scope.launch { choose(profile, if (profile.isMain) held else null, held) }
+                                        profile.takesPin -> asking = profile
+                                        else -> scope.launch { choose(profile, null) }
+                                    }
                                 },
                                 onLongClick = if (padlock) toggleLock else null,
                                 onLongClickLabel = if (model.kidsLock) "Turn off child lock" else "Child lock",

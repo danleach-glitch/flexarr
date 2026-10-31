@@ -57,6 +57,7 @@ import io.github.flexarr.AppModel
 import io.github.flexarr.core.FlexarrClient
 import io.github.flexarr.core.FlexarrException
 import io.github.flexarr.core.WaitingDevice
+import io.github.flexarr.core.waitingDevices
 import io.github.flexarr.ui.components.ActionButton
 import io.github.flexarr.ui.theme.Flexarr
 import kotlinx.coroutines.CancellationException
@@ -181,6 +182,14 @@ private fun PairingSheet(model: AppModel, client: FlexarrClient, device: Waiting
     // Locked here: Allow asks for the main profile's PIN, then allows with it (as on iPhone).
     var asksPin by remember { mutableStateOf(false) }
 
+    // Allowed from the notification while the app came up (or anywhere else): checked with the server as it shows, so
+    // a device that's already in doesn't ask again.
+    LaunchedEffect(device.code) {
+        delay(1_500)
+        if (answer != Answer.Asking) return@LaunchedEffect
+        val still = runCatching { client.waitingDevices().any { it.code == device.code } }.getOrNull() ?: return@LaunchedEffect
+        if (!still && answer == Answer.Asking) model.pairing.finished(device.code)
+    }
     // Its code runs out (the device shows a new one, which asks again).
     LaunchedEffect(device.expiresAt) {
         delay(Duration.between(Instant.now(), device.expiresAt).toMillis().coerceAtLeast(0))

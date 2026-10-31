@@ -201,6 +201,12 @@ struct ProfilePickerView: View {
         // The one watching now: nothing to switch to (its padlock is held, not tapped).
         if marksCurrent && profile.isCurrent { return }
         if profile.needsPinToChoose {
+            // The main profile's PIN was just given here (child lock off): it goes with this choice, rather than the
+            // keypad again. A profile with a PIN of its own (other than the main profile) still asks for that.
+            if let held = knownParentPin ?? model.recentParentPin, profile.isMain || !profile.hasPin {
+                await choose(profile, pin: profile.isMain ? held : nil, parentPin: held)
+                return
+            }
             asking = profile
             return
         }
