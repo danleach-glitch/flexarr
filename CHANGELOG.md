@@ -2,7 +2,7 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
-## Unreleased
+## 0.56.0 · 31 October 2026
 
 ### Watchlist
 - Each profile now has a **Watchlist** of films and shows to watch later, whether you have them yet or not. Add titles from their pages, from posters' menus, from Discover and search (on iPhone and Android, Search now finds films and shows you don't have yet, to add or request), with Siri ("Save Severance in Flexarr" for one in your library, or "Add to my watchlist in Flexarr" and then any title), or through an assistant. It's in the web sidebar, at the top of **Libraries** on iPhone, iPad and Android, and in the Apple TV's sidebar.
