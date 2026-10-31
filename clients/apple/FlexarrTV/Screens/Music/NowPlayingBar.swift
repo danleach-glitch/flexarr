@@ -43,7 +43,7 @@ struct NowPlayingBar: View {
                         .font(.system(size: 25, weight: .semibold))
                         .foregroundStyle(Color.screen)
                         .lineLimit(1)
-                    if let artist = track.artistName {
+                    if let artist = model.music.isBook ? model.music.chapter?.title ?? track.bookAuthors : track.artistName {
                         Text(artist)
                             .font(.system(size: 21))
                             .foregroundStyle(Color.usher)

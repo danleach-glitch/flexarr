@@ -30,7 +30,9 @@ struct NowPlayingView: View {
                 RoomBackground(ambient: music.current?.glowColor, intensity: 0.5)
             }
             if let track = music.current {
-                if showingLyrics, let found = lyrics.lyrics {
+                if music.isBook {
+                    BookNowPlaying(track: track) { size in cover(track, size: size) }
+                } else if showingLyrics, let found = lyrics.lyrics {
                     lyricsPage(track, found)
                 } else {
                     HStack(alignment: .center, spacing: 100) {
@@ -52,7 +54,7 @@ struct NowPlayingView: View {
             }
         }
         .defaultFocus($focusedControl, .playPause)
-        .task(id: music.current?.id) { await lyrics.load(music.current, client: model.client) }
+        .task(id: music.current?.id) { await lyrics.load(music.isBook ? nil : music.current, client: model.client) }
         .task(id: PaletteSource(track: music.current?.id, hasArtwork: music.artwork != nil)) { readPalette() }
         .onAppear {
             visualiser = AudioSpectrum.isOn

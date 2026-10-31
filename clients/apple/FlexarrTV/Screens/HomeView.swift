@@ -53,8 +53,7 @@ struct HomeView: View {
                     EmptyHome(message: message)
                 }
                 // A row with nothing in it (a kind this app doesn't show yet, say) would be a bare heading.
-                // Audiobooks are the phones' and the web's for now: their rows aren't the Apple TV's.
-                ForEach(home.rows.filter { $0.hasContent && !$0.id.hasPrefix("books-") }) { row in
+                ForEach(home.rows.filter(\.hasContent)) { row in
                     HomeRowView(row: row)
                 }
             }
@@ -350,6 +349,9 @@ struct HomeRowView: View {
                         case .tracks:
                             // A row of tracks plays: the one pressed first, the rest of the row after it.
                             TrackCard(item: item) { model.playTracks(row.items, from: index) }
+                        case _ where item.kind == .audiobook:
+                            // Books (Continue listening, Next in series, New audiobooks): square covers that open the book.
+                            BookCard(item: item, focus: $focusedCard) { router.push(.item(item)) }
                         default:
                             PosterCard(item: item, focus: $focusedCard) { router.push(.item(item)) }
                         }

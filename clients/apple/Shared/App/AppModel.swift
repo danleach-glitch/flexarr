@@ -934,9 +934,7 @@ final class AppModel {
         guard let client else { return }
         // A book plays in the audio player, never as a video.
         if item.kind == .audiobook {
-            #if os(iOS)
             playBook(item, at: fromBeginning ? 0 : nil)
-            #endif
             return
         }
         player.play(itemId: item.id, preview: item, startAt: fromBeginning ? 0 : nil, client: client)
@@ -975,7 +973,12 @@ final class AppModel {
     /// Plays a book from where this profile is in it, or from `position` (a chapter, a bookmark).
     func playBook(_ book: ItemSummary, at position: Double? = nil) {
         guard let client else { return }
+        let starting = music.current?.id != book.id
         music.playBook(book, at: position, client: client)
+        #if os(tvOS)
+        // The Apple TV shows Now Playing over everything as a book starts, as it does for music.
+        if starting { nowPlayingRequests += 1 }
+        #endif
     }
 
     /// What was listened to last, book or podcast episode (the newest of the two "continue listening" lists), for
