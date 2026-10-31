@@ -9,7 +9,7 @@ namespace Flexarr.Api.Collections;
 /// What a smart collection holds, worked out whenever it's opened (so it keeps itself up to date). Every rule is
 /// optional; the ones given all apply.
 /// </summary>
-/// <param name="Type">"movie", "series", or null for both.</param>
+/// <param name="Type">"movie", "series", or null for both; "book" for audiobooks (never mixed with films and shows).</param>
 /// <param name="ThisYear">Films released this year, and shows with episodes out this year.</param>
 /// <param name="Watched">"unwatched" or "watched", for whoever is looking; null for either. A show counts as watched once every episode is.</param>
 /// <param name="AddedWithinDays">Added recently (for a show: a new episode).</param>
@@ -35,7 +35,10 @@ public sealed record SmartRules(
     /// <summary>The titles matching, best first, at most <see cref="Limit"/>.</summary>
     public IQueryable<MediaItem> Query(FlexarrDbContext db, string profileId, DateTime now)
     {
-        var q = db.MediaItems.Where(i => i.ParentId == null && (i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series));
+        var books = Type == "book";
+        var q = books
+            ? db.MediaItems.Where(i => i.Kind == MediaKind.Audiobook && i.MissingSince == null)
+            : db.MediaItems.Where(i => i.ParentId == null && (i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series));
 
         if (LibraryIds is { Count: > 0 } libraries)
         {
@@ -68,7 +71,7 @@ public sealed record SmartRules(
         {
             var first = new DateOnly(now.Year, 1, 1);
             var last = new DateOnly(now.Year, 12, 31);
-            q = q.Where(i => i.Kind == MediaKind.Movie
+            q = q.Where(i => i.Kind == MediaKind.Movie || i.Kind == MediaKind.Audiobook
                 ? i.Year == now.Year
                 : i.Children.SelectMany(s => s.Children).Any(e => (e.ReleaseDate ?? e.AirDate) >= first && (e.ReleaseDate ?? e.AirDate) <= last));
         }
@@ -80,11 +83,11 @@ public sealed record SmartRules(
 
         q = Watched switch
         {
-            "unwatched" => q.Where(i => i.Kind == MediaKind.Movie
-                ? !i.PlaybackStates.Any(p => p.UserId == profileId && p.Watched)
+            "unwatched" => q.Where(i => i.Kind == MediaKind.Movie || i.Kind == MediaKind.Audiobook
+                ? !i.PlaybackStates.Any(p => p.UserId == profileId && (p.Watched || p.FinishedAt != null))
                 : i.Children.SelectMany(s => s.Children).Any(e => !e.PlaybackStates.Any(p => p.UserId == profileId && p.Watched))),
-            "watched" => q.Where(i => i.Kind == MediaKind.Movie
-                ? i.PlaybackStates.Any(p => p.UserId == profileId && p.Watched)
+            "watched" => q.Where(i => i.Kind == MediaKind.Movie || i.Kind == MediaKind.Audiobook
+                ? i.PlaybackStates.Any(p => p.UserId == profileId && (p.Watched || p.FinishedAt != null))
                 : i.Children.SelectMany(s => s.Children).Any() && i.Children.SelectMany(s => s.Children).All(e => e.PlaybackStates.Any(p => p.UserId == profileId && p.Watched))),
             _ => q,
         };

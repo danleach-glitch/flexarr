@@ -133,6 +133,7 @@ builder.Services.AddHttpClient(CommunityLogoIndex.ClientName, c =>
 });
 builder.Services.AddSingleton<CommunityLogoIndex>();
 builder.Services.AddSingleton<SearchIndex>();
+builder.Services.AddSingleton<BookFileConverter>();
 builder.Services.AddSingleton<LiveTvStatus>();
 builder.Services.AddSingleton<LiveTvRefreshSignal>();
 builder.Services.AddSingleton<LiveTvViewers>();

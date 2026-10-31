@@ -114,3 +114,6 @@ public sealed record BookShelvesDto(
     IReadOnlyList<BookPersonDto> Narrators,
     IReadOnlyList<GenreCountDto> Genres,
     IReadOnlyList<ItemSummaryDto> Finished);
+
+/// <summary>A series a search found, with how many of its books this profile can see.</summary>
+public sealed record BookSeriesSearchDto(Guid Id, string Name, int BookCount);

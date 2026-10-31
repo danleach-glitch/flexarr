@@ -111,6 +111,53 @@ public class AudiobookApiTests(FlexarrApiFactory factory) : IClassFixture<Flexar
     }
 
     [Fact]
+    public async Task Home_HasContinueListening_NextInSeries_AndNewAudiobooks()
+    {
+        var lib = await SeedAsync();
+
+        var home = await GetAsync<JsonElement>("/api/v1/home");
+        var rows = home.GetProperty("rows").EnumerateArray().ToDictionary(r => r.GetProperty("id").GetString()!, r => r.GetProperty("items").EnumerateArray().Select(i => i.GetProperty("id").GetGuid()).ToList());
+
+        Assert.Contains(lib.Books["The Man Who Died Twice"], rows[BookRows.ContinueRowId]);
+        Assert.Contains(lib.Books["Guards! Guards!"], rows[BookRows.NextRowId]);
+        Assert.Contains(lib.Books["Project Hail Mary"], rows[BookRows.NewRowId]);
+        Assert.DoesNotContain(lib.Books["The Man Who Died Twice"], rows.GetValueOrDefault("continue") ?? []);
+
+        var layout = await GetAsync<JsonElement>("/api/v1/settings/layout");
+        Assert.Contains(layout.GetProperty("home").EnumerateArray(), r => r.GetProperty("id").GetString() == BookRows.NewRowId);
+    }
+
+    [Fact]
+    public async Task Search_FindsBooksAndSeries_ApartFromFilmsAndShows()
+    {
+        var lib = await SeedAsync();
+
+        var results = await GetAsync<SearchResultsDto>("/api/v1/search?q=Guards");
+        var series = await GetAsync<SearchResultsDto>("/api/v1/search?q=Discworld");
+
+        // Other tests' libraries have their own copies, so by title and kind rather than id.
+        _ = lib;
+        Assert.Contains(results.Books!, b => b.Title == "Guards! Guards!");
+        Assert.DoesNotContain(results.Titles, t => t.Kind == MediaKind.Audiobook);
+        Assert.Contains(series.BookSeries!, s => s.Name == "Discworld" && s.BookCount == 2);
+    }
+
+    [Fact]
+    public async Task ASmartCollection_OfFinishedBooks()
+    {
+        var lib = await SeedAsync();
+        var created = await Client().PostAsJsonAsync(new Uri("/api/v1/collections", UriKind.Relative),
+            new { name = $"Finished {Guid.NewGuid():N}", rules = new { type = "book", watched = "watched", libraryIds = new[] { lib.Library } } });
+        Assert.True(created.IsSuccessStatusCode, await created.Content.ReadAsStringAsync());
+        var id = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        var collection = await GetAsync<JsonElement>($"/api/v1/collections/{id}");
+
+        Assert.Equal(new[] { lib.Books["The Colour of Magic"], lib.Books["The Thursday Murder Club"] }.Order(),
+            collection.GetProperty("items").EnumerateArray().Select(i => i.GetProperty("id").GetGuid()).Order());
+    }
+
+    [Fact]
     public async Task OtherLibraries_AreNotBookLibraries()
     {
         using var scope = factory.Services.CreateScope();

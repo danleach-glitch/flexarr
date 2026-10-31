@@ -23,7 +23,9 @@ public sealed record PlaybackRequest(
     bool Prepare = false,
     // The listener's dialogue boost and night mode, applied by the server when it converts the sound (the player can't
     // shape a stream it doesn't decode itself). Left out, the sound is as the file has it.
-    SoundShaping? Sound = null);
+    SoundShaping? Sound = null,
+    // A name for the device ("Dan's iPhone"), for a book's "Jump to where you were on …". Absent from apps before 0.58.
+    string? DeviceName = null);
 
 public sealed record AudioTrackDto(int Index, string Label, string Codec, string? Language, int? Channels, bool IsDefault);
 
@@ -67,7 +69,9 @@ public sealed record PlaybackInfoDto(
     double? Speed = null,
     bool CanSearchSubtitles = false,
     string? FontsUrl = null,
-    bool SoundShaped = false)
+    bool SoundShaped = false,
+    // A book's files on its timeline, chapters, bookmarks and place. Absent from servers before 0.58.
+    Books.BookManifestDto? Book = null)
 {
     /// <summary>
     /// Names this playback in logs without giving away <see cref="SessionId"/>, which works as a password for the
