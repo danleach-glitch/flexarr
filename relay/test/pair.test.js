@@ -75,6 +75,17 @@ test('codes last ten minutes', async () => {
   assert.equal((await call({ url: '/api/pair?code=TUVWXYZ2' })).status, 404);
 });
 
+test('an invite left in a code\'s last seconds keeps the code alive until it\'s collected', async () => {
+  pair._memory.clear();
+  // Registered nine minutes and fifty-five seconds ago: five seconds left.
+  await pair._store.add('pair:EEEEFFFF', JSON.stringify({ publicKey: publicKey(), secretHash: crypto.createHash('sha256').update(secret).digest('hex') }), Date.now() - 595_000);
+  const invite = { serverKey: publicKey(), sealed: Buffer.from('late invite').toString('base64') };
+  assert.equal((await call({ method: 'POST', url: '/api/pair?code=EEEEFFFF&action=invite', body: invite })).status, 201);
+  assert.ok(pair._memory.get('pair:EEEEFFFF').until > Date.now() + 590_000);
+  const collected = await call({ url: `/api/pair?code=EEEEFFFF&secret=${secret}` });
+  assert.equal(collected.status, 200);
+});
+
 test('bad codes, keys, secrets and invites are refused', async () => {
   pair._memory.clear();
   assert.equal((await call({ method: 'POST', body: { code: 'O0O0O0O0', publicKey: publicKey(), secret } })).status, 400);

@@ -72,6 +72,20 @@ const store = {
     if (kvConfigured()) return (await kv([['GET', key]]))[0];
     return memoryGet(key, now);
   },
+  /** Several keys in one round trip. */
+  async getMany(keys, now = Date.now()) {
+    if (kvConfigured()) return kv(keys.map((key) => ['GET', key]));
+    return keys.map((key) => memoryGet(key, now));
+  },
+  /** Gives key a fresh TTL_SECONDS. */
+  async touch(key, now = Date.now()) {
+    if (kvConfigured()) {
+      await kv([['EXPIRE', key, String(TTL_SECONDS)]]);
+      return;
+    }
+    const entry = memory.get(key);
+    if (entry) entry.until = now + TTL_SECONDS * 1000;
+  },
   async remove(...keys) {
     if (kvConfigured()) {
       await kv([['DEL', ...keys]]);
@@ -181,7 +195,11 @@ module.exports = async (req, res) => {
     }
 
     if (typeof code !== 'string' || !CODE.test(code)) return reply(res, 400, { reason: 'BadCode' });
-    const registered = await store.get(`pair:${code}`);
+    const secret = req.method === 'GET' ? query.get('secret') : null;
+    // A TV's poll (every few seconds) reads its code and any invite together, in one round trip to the store.
+    const [registered, invite] = secret !== null
+      ? await store.getMany([`pair:${code}`, `pair:${code}:invite`])
+      : [await store.get(`pair:${code}`), null];
     const entry = registered ? JSON.parse(registered) : null;
 
     // The server leaves the sealed invite, once.
@@ -193,17 +211,18 @@ module.exports = async (req, res) => {
       if (!isPublicKey(serverKey)) return reply(res, 400, { reason: 'BadServerKey' });
       if (!isSealed(sealed)) return reply(res, 400, { reason: 'BadSealed' });
       const added = await store.add(`pair:${code}:invite`, JSON.stringify({ serverKey, sealed }));
-      return added ? reply(res, 201, {}) : reply(res, 409, { reason: 'AlreadyInvited' });
+      if (!added) return reply(res, 409, { reason: 'AlreadyInvited' });
+      // The code lives as long as its invite, so one left in the code's last seconds is still collected.
+      await store.touch(`pair:${code}`);
+      return reply(res, 201, {});
     }
 
     if (req.method === 'POST') return reply(res, 400, { reason: 'BadAction' });
 
     // The TV collects its invite with its secret.
-    const secret = query.get('secret');
     if (secret !== null) {
       if (!entry) return reply(res, 404, { reason: 'UnknownCode' });
       if (!SECRET.test(secret) || !sameHash(hash(secret), entry.secretHash)) return reply(res, 403, { reason: 'WrongSecret' });
-      const invite = await store.get(`pair:${code}:invite`);
       if (!invite) return reply(res, 204);
       await store.remove(`pair:${code}`, `pair:${code}:invite`);
       return reply(res, 200, JSON.parse(invite));
