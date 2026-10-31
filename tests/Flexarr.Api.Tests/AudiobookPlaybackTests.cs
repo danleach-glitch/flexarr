@@ -60,6 +60,23 @@ public class AudiobookPlaybackTests(FlexarrApiFactory factory) : IClassFixture<F
     }
 
     [Fact]
+    public async Task ADownload_GetsEachFile_AndCanResumePartWay()
+    {
+        var book = await SeedAsync(("01.mp3", "mp3", 600), ("02.mp3", "mp3", 600));
+        var manifest = await GetAsync<BookManifestDto>($"/api/v1/items/{book}/book?codecs=aac,mp3");
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, Url(manifest.Files[1].Url));
+        request.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(2, null);
+        var rest = await Client().SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.PartialContent, rest.StatusCode);
+        Assert.Equal(".mp3", await rest.Content.ReadAsStringAsync());
+        Assert.Equal(HttpStatusCode.NotFound, (await Client().GetAsync(Url($"/api/v1/items/{book}/book/files/2"))).StatusCode);
+        // Without a key, the item's files are refused: only a session's address is its own credential.
+        Assert.Equal(HttpStatusCode.Unauthorized, (await factory.CreateClient().GetAsync(Url(manifest.Files[0].Url))).StatusCode);
+    }
+
+    [Fact]
     public async Task Progress_TheNewestRecordingWins()
     {
         var book = await SeedAsync(("book.m4b", "aac", 36000));
