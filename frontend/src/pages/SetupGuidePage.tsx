@@ -26,7 +26,7 @@ import {
 } from '../api/client'
 import { AsyncButton } from '../components/AsyncButton'
 import { FolderPicker } from '../components/FolderPicker'
-import { Antenna, AppleLogo, Check, Close, External, Film, Home, Monitor, Music, Pencil, Phone, Stack, Tv } from '../components/icons'
+import { Antenna, AppleLogo, Book, Check, Close, External, Film, Home, Monitor, Music, Pencil, Phone, Stack, Tv } from '../components/icons'
 import { PairingPrompt } from '../components/PairingPrompt'
 import { UnlockPrompt } from '../components/UnlockDialog'
 import { Avatar } from '../components/ProfilePicker'
@@ -263,8 +263,8 @@ function NameStep({ nav }: { nav: StepNav }) {
 }
 
 const arrKinds: ArrKind[] = ['Sonarr', 'Radarr', 'Lidarr']
-const arrPurpose: Record<ArrKind, string> = { Sonarr: 'TV shows', Radarr: 'Films', Lidarr: 'Music' }
-const usualUrl: Record<ArrKind, string> = { Sonarr: 'http://localhost:8989', Radarr: 'http://localhost:7878', Lidarr: 'http://localhost:8686' }
+const arrPurpose: Record<ArrKind, string> = { Sonarr: 'TV shows', Radarr: 'Films', Lidarr: 'Music', Readarr: 'Audiobooks' }
+const usualUrl: Record<ArrKind, string> = { Sonarr: 'http://localhost:8989', Radarr: 'http://localhost:7878', Lidarr: 'http://localhost:8686', Readarr: 'http://localhost:8787' }
 
 function AppsStep({ nav }: { nav: StepNav }) {
   const settings = useApi(getSettings, [])
@@ -424,8 +424,8 @@ function ArrTile(props: { kind: ArrKind; settings: Settings; found?: string; ope
   )
 }
 
-const folderKind: Record<ArrKind, LibraryType> = { Sonarr: 'TvShows', Radarr: 'Movies', Lidarr: 'Music' }
-const kindIcon: Record<LibraryType, ReactNode> = { Movies: <Film />, TvShows: <Tv />, Music: <Music />, HomeVideos: <Home />, Podcasts: <Antenna /> }
+const folderKind: Record<ArrKind, LibraryType> = { Sonarr: 'TvShows', Radarr: 'Movies', Lidarr: 'Music', Readarr: 'Audiobooks' }
+const kindIcon: Record<LibraryType, ReactNode> = { Movies: <Film />, TvShows: <Tv />, Music: <Music />, HomeVideos: <Home />, Podcasts: <Antenna />, Audiobooks: <Book /> }
 /** The guide makes one library of each of these; more, and home videos, are in Settings › Libraries. */
 const kinds: LibraryType[] = ['Movies', 'TvShows', 'Music']
 

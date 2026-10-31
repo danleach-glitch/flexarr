@@ -33,6 +33,7 @@ import { useAgeLimits, useSession } from '../hooks/sessionContext'
 import { announceWatched } from '../hooks/watched'
 import { useApi } from '../hooks/useApi'
 import { AlbumPage, ArtistPage } from './MusicPages'
+import { BookPage } from './BookPage'
 import {
   episodeHeading,
   formatBitrate,
@@ -63,6 +64,7 @@ export function ItemPage() {
   }
   if (data.item.kind === 'Album') return <AlbumPage detail={data} />
   if (data.item.kind === 'Artist') return <ArtistPage detail={data} />
+  if (data.item.kind === 'Audiobook') return <BookPage key={id} detail={data} onChange={() => setVersion((v) => v + 1)} />
 
   return <Detail key={id} detail={data} onChange={() => setVersion((v) => v + 1)} />
 }
@@ -82,7 +84,7 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
   const { kids } = useAgeLimits()
   // The main profile, locked or not: deleting and fixing a match don't take its PIN (only the server's settings do).
   const mainProfile = me?.isAdmin === true || me?.canUnlock === true
-  const canDelete = mainProfile && (item.kind === 'Movie' || item.kind === 'Series' || item.kind === 'Episode')
+  const canDelete = mainProfile && (item.kind === 'Movie' || item.kind === 'Series' || item.kind === 'Episode' || item.kind === 'Audiobook')
   const canFixMatch = mainProfile && (item.kind === 'Movie' || item.kind === 'Series')
   const nextUp = detail.nextUp ?? undefined
   const similar = useApi((signal) => (item.kind === 'Movie' || item.kind === 'Series' ? getSimilar(item.id, signal) : Promise.resolve([])), [item.id])

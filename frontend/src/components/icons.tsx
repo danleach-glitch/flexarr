@@ -128,6 +128,21 @@ export const Forward30 = (p: IconProps) => (
     <text x="12" y="15.5" fontSize="7" textAnchor="middle" fill="currentColor" stroke="none" fontWeight="700">30</text>
   </svg>
 )
+/** Back so many seconds: the circling arrow with the number in it. */
+export const SkipBack = ({ seconds, ...p }: IconProps & { seconds: number }) => (
+  <svg {...base} {...p}>
+    <path d="M4 12a8 8 0 1 0 2.4-5.7L4 8.5" />
+    <path d="M4 4v4.5h4.5" />
+    <text x="12" y="15.5" fontSize="7" textAnchor="middle" fill="currentColor" stroke="none" fontWeight="700">{seconds}</text>
+  </svg>
+)
+export const SkipForward = ({ seconds, ...p }: IconProps & { seconds: number }) => (
+  <svg {...base} {...p}>
+    <path d="M20 12a8 8 0 1 1-2.4-5.7L20 8.5" />
+    <path d="M20 4v4.5h-4.5" />
+    <text x="12" y="15.5" fontSize="7" textAnchor="middle" fill="currentColor" stroke="none" fontWeight="700">{seconds}</text>
+  </svg>
+)
 export const Microphone = (p: IconProps) => (
   <svg {...base} {...p}>
     <rect x="9" y="2.5" width="6" height="11" rx="3" />
@@ -216,6 +231,13 @@ export const Tablet = (p: IconProps) => (
   <svg {...base} {...p}>
     <rect x="4" y="2" width="16" height="20" rx="2.5" />
     <path d="M11 18h2" />
+  </svg>
+)
+/** An open book: audiobooks. */
+export const Book = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="M12 6.5C10 5 7 4.5 3.5 4.5v14c3.5 0 6.5.5 8.5 2 2-1.5 5-2 8.5-2v-14c-3.5 0-6.5.5-8.5 2Z" />
+    <path d="M12 6.5v14" />
   </svg>
 )
 export const Music = (p: IconProps) => (

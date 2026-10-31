@@ -1,5 +1,7 @@
 import { useState, type FormEvent } from 'react'
-import { ApiError, fixMatch, getItem, imageUrl, resetMatch, searchMatches, type MatchCandidate } from '../api/client'
+import { ApiError, fixBookMatch, fixMatch, getItem, imageUrl, resetMatch, searchBookMatches, searchMatches, type BookMatch, type MatchCandidate, type MediaKind } from '../api/client'
+import { formatDuration } from '../lib/format'
+import { arrFor } from '../lib/apps'
 import { useApi } from '../hooks/useApi'
 import { AsyncButton } from './AsyncButton'
 import { Search } from './icons'
@@ -16,9 +18,14 @@ interface Props {
  * yet are added to them from the folder, unmonitored and with no search, so nothing is downloaded. Without them, the
  * search is TMDB's (films) or TVmaze's (shows), and the choice is only kept in Flexarr.
  */
-export function FixMatchDialog({ item, onFixed, onClose }: Props) {
-  const arr = item.kind === 'Movie' ? 'Radarr' : 'Sonarr'
-  const noun = item.kind === 'Movie' ? 'film' : 'show'
+export function FixMatchDialog(props: Props) {
+  return props.item.kind === 'Audiobook' ? <BookMatchDialog {...props} /> : <TitleMatchDialog {...props} />
+}
+
+function TitleMatchDialog({ item, onFixed, onClose }: Props) {
+  // Whose title it is: films are Radarr's and shows Sonarr's.
+  const arr = arrFor(item.kind as MediaKind)
+  const noun = item.kind === 'Movie' ? 'film' : item.kind === 'Audiobook' ? 'book' : 'show'
   const [draft, setDraft] = useState(item.title)
   const [query, setQuery] = useState(item.title)
   const [chosen, setChosen] = useState<MatchCandidate>()
@@ -144,3 +151,96 @@ export function FixMatchDialog({ item, onFixed, onClose }: Props) {
     </div>
   )
 }
+
+/**
+ * Which book this is, from the online providers (Audible, Open Library, Google Books, Hardcover): searched by title and
+ * author, and the one chosen stays matched, its details taking the place of what was found before.
+ */
+function BookMatchDialog({ item, onFixed, onClose }: Props) {
+  const [draft, setDraft] = useState(item.title)
+  const [author, setAuthor] = useState('')
+  const [query, setQuery] = useState({ q: item.title, author: '' })
+  const [chosen, setChosen] = useState<BookMatch>()
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string>()
+  const results = useApi((signal) => searchBookMatches(item.id, query.q, query.author || undefined, signal), [item.id, query])
+  const dialog = useModal<HTMLDivElement>(onClose, !busy)
+  const key = (m: BookMatch) => `${m.provider}:${m.id}`
+
+  function search(e: FormEvent) {
+    e.preventDefault()
+    if (!draft.trim()) return
+    setChosen(undefined)
+    setQuery({ q: draft.trim(), author: author.trim() })
+  }
+
+  async function use(match: BookMatch) {
+    setBusy(true)
+    setError(undefined)
+    try {
+      await fixBookMatch(item.id, { provider: match.provider, id: match.id, query: query.q, author: query.author || undefined })
+      onFixed()
+      onClose()
+    } catch (e) {
+      setError(e instanceof ApiError && e.messages[0] ? e.messages[0] : String(e))
+      setBusy(false)
+    }
+  }
+
+  const searchError = results.error instanceof ApiError && results.error.messages[0] ? results.error.messages[0] : results.error?.message
+  return (
+    <div className="dialog-backdrop" onClick={() => !busy && onClose()}>
+      <div className="panel fix-match" ref={dialog} role="dialog" aria-modal="true" aria-labelledby="fix-match-title" onClick={(e) => e.stopPropagation()}>
+        <h2 id="fix-match-title">Fix match</h2>
+        <p className="muted">Which book is this? The one you choose stays matched.</p>
+        <form className="fix-match-search" onSubmit={search} role="search">
+          <input type="search" value={draft} onChange={(e) => setDraft(e.target.value)} aria-label="Title" placeholder="Title" autoFocus disabled={busy} />
+          <input type="search" value={author} onChange={(e) => setAuthor(e.target.value)} aria-label="Author" placeholder="Author" disabled={busy} />
+          <AsyncButton className="button quiet" type="submit" disabled={busy} busy={results.loading}>
+            <Search /> Search
+          </AsyncButton>
+        </form>
+        <div className="fix-match-results" aria-busy={results.loading}>
+          {results.loading && !results.data && <p className="muted">Searching…</p>}
+          {searchError && <p className="error">{searchError}</p>}
+          {results.data?.length === 0 && <p className="muted">Nothing found. Try fewer words, or the author.</p>}
+          <ul role="listbox" aria-label="Results">
+            {results.data?.map((m) => (
+              <li key={key(m)}>
+                <button type="button" role="option" aria-selected={chosen && key(chosen) === key(m)} className="fix-match-result" disabled={busy} onClick={() => setChosen(m)}>
+                  {m.cover ? <img src={m.cover} alt="" loading="lazy" referrerPolicy="no-referrer" /> : <span className="fix-match-noposter" aria-hidden="true" />}
+                  <span className="fix-match-text">
+                    <strong>
+                      {m.title}
+                      {m.year && <span className="muted"> ({m.year})</span>}
+                    </strong>
+                    {m.subtitle && <span className="muted">{m.subtitle}</span>}
+                    <span className="muted">
+                      {[m.authors.join(', '), m.narrators.length ? `read by ${m.narrators.join(', ')}` : null, m.series, formatDuration(m.durationSeconds)].filter(Boolean).join(' · ')}
+                    </span>
+                  </span>
+                  <span className="tag">{providerName[m.provider] ?? m.provider}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
+        <div className="form-actions">
+          <button className="button quiet" onClick={onClose} disabled={busy}>
+            Cancel
+          </button>
+          <AsyncButton className="button" disabled={!chosen || busy} onClick={() => chosen && use(chosen)}>
+            {chosen ? `Use ${chosen.title}` : 'Choose one'}
+          </AsyncButton>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const providerName: Record<string, string> = { audible: 'Audible', openlibrary: 'Open Library', google: 'Google Books', hardcover: 'Hardcover' }

@@ -10,6 +10,7 @@ import { useMusicPage } from '../hooks/audioPlayerContext'
 import { useLibraries } from '../hooks/librariesContext'
 import { useApi } from '../hooks/useApi'
 import { useWatchedChanges, watchedSince } from '../hooks/watched'
+import { BooksLibrary } from './BooksLibrary'
 
 const PAGE_SIZE = 200
 const LETTERS = ['#', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ']
@@ -36,6 +37,8 @@ export function LibraryPage() {
   if (!library) return <p className="page-message muted">{libraries.length ? 'This library no longer exists.' : 'Loading…'}</p>
   // Podcasts have pages of their own: what you follow, and Apple's directory to find more.
   if (library.type === 'Podcasts') return <Navigate to="/podcasts" replace />
+  // Books have shelves, series, authors and narrators of their own.
+  if (library.type === 'Audiobooks') return <BooksLibrary library={library} />
 
   const all = params.get('view') === 'all' || params.has('sort') || params.has('genre')
   if (all) return <LibraryAll key={id} />
@@ -53,7 +56,7 @@ function ViewSwitch({ library, view }: { library: Library; view: 'browse' | 'all
         Browse
       </Link>
       <Link to={`/library/${library.id}?view=all`} aria-current={current('all')}>
-        {{ Movies: 'All films', TvShows: 'All shows', Music: 'All artists', Podcasts: 'All podcasts', HomeVideos: 'All folders' }[library.type]}
+        {{ Movies: 'All films', TvShows: 'All shows', Music: 'All artists', Podcasts: 'All podcasts', HomeVideos: 'All folders', Audiobooks: 'All books' }[library.type]}
       </Link>
       {hasGenres(library) && (
         <Link to={`/library/${library.id}?view=genres`} aria-current={current('genres')}>
@@ -519,7 +522,7 @@ function LibraryAll() {
             <ViewSwitch library={library} view="all" />
           </div>
           <p className="muted">
-            {(total ?? library.itemCount).toLocaleString()} {query || genre ? 'matching' : { Movies: 'films', TvShows: 'shows', Music: 'artists', Podcasts: 'podcasts', HomeVideos: 'folders' }[library.type]}
+            {(total ?? library.itemCount).toLocaleString()} {query || genre ? 'matching' : { Movies: 'films', TvShows: 'shows', Music: 'artists', Podcasts: 'podcasts', HomeVideos: 'folders', Audiobooks: 'books' }[library.type]}
           </p>
         </div>
         <div className="library-tools">
@@ -588,7 +591,7 @@ function LibraryAll() {
           </label>
         )}
         <div
-          className={library.type === 'Music' ? 'poster-grid square' : 'poster-grid'}
+          className={library.type === 'Music' || library.type === 'Audiobooks' ? 'poster-grid square' : 'poster-grid'}
           ref={grid}
           onClick={(e) => {
             const card = e.target instanceof Element ? e.target.closest('a')?.closest<HTMLElement>('[data-id]') : undefined

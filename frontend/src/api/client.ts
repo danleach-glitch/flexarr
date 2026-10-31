@@ -11,6 +11,13 @@ import type {
   ArrFolder,
   ArrKind,
   ArrStatus,
+  BookChapter,
+  BookListening,
+  Bookmark,
+  BookPerson,
+  BookSeries,
+  BookSeriesSummary,
+  BookShelves,
   DirectoryListing,
   DirectoryPodcast,
   Download,
@@ -459,6 +466,94 @@ export function getLibraryItems(
   return (options.take ?? 0) > 200 ? timedGet<Paged<ItemSummary>>(path, signal) : cachedGet<Paged<ItemSummary>>(path, signal)
 }
 
+// ---------- Audiobooks
+
+/** What an audiobooks library's All view can filter and sort by; everything left out is "any". */
+export interface BookFilters {
+  search?: string
+  progress?: 'notstarted' | 'inprogress' | 'finished'
+  author?: string
+  narrator?: string
+  genre?: string
+  language?: string
+  abridged?: boolean
+  minHours?: number
+  maxHours?: number
+  sort?: 'title' | 'author' | 'series' | 'added' | 'released' | 'length' | 'listened'
+  descending?: boolean
+  skip?: number
+  take?: number
+}
+
+const queryString = (options: object) => {
+  const params = new URLSearchParams()
+  for (const [key, value] of Object.entries(options)) if (value !== undefined && value !== '' && value !== null) params.set(key, String(value))
+  return params.size ? `?${params}` : ''
+}
+
+export const getBookShelves = (libraryId: string, signal?: AbortSignal) => cachedGet<BookShelves>(`/libraries/${libraryId}/book-shelves`, signal)
+export const getLibraryBooks = (libraryId: string, filters: BookFilters, signal?: AbortSignal) =>
+  cachedGet<Paged<ItemSummary>>(`/libraries/${libraryId}/books${queryString(filters)}`, signal)
+export const getBookSeriesList = (libraryId: string, options: { search?: string; skip?: number; take?: number }, signal?: AbortSignal) =>
+  cachedGet<Paged<BookSeriesSummary>>(`/libraries/${libraryId}/book-series${queryString(options)}`, signal)
+export const getBookPeople = (libraryId: string, options: { role: 'author' | 'narrator'; search?: string; skip?: number; take?: number }, signal?: AbortSignal) =>
+  cachedGet<Paged<BookPerson>>(`/libraries/${libraryId}/book-people${queryString(options)}`, signal)
+export const getBookSeries = (id: string, signal?: AbortSignal) => cachedGet<BookSeries>(`/book-series/${id}`, signal)
+/** "Listen again": back to the start, no longer finished (when it was finished is kept). */
+export const listenAgain = (id: string) => request<void>('POST', `/items/${id}/listen-again`)
+export const getBookmarks = (id: string, signal?: AbortSignal) => apiGet<Bookmark[]>(`/items/${id}/bookmarks`, signal)
+export const addBookmark = (id: string, positionSeconds: number, note?: string) => request<Bookmark>('POST', `/items/${id}/bookmarks`, { positionSeconds, note })
+export const saveBookmarkNote = (bookmarkId: string, note: string | null) => request<Bookmark>('PUT', `/bookmarks/${bookmarkId}`, { note })
+export const deleteBookmark = (bookmarkId: string) => request<void>('DELETE', `/bookmarks/${bookmarkId}`)
+/** Settings › Audiobooks: default speed, skip steps and smart rewind. */
+export const BOOK_LISTENING_CHANGED = 'flexarr:book-listening'
+/** Chapter tools (main profile only): each chapter runs to the next one's start. */
+export const saveChapters = (id: string, chapters: { title: string; startSeconds: number }[]) =>
+  request<BookChapter[]>('PUT', `/items/${id}/chapters`, { chapters })
+/** Moves every chapter but the first by `seconds` (up to ten minutes either way). */
+export const shiftChapters = (id: string, seconds: number) => request<BookChapter[]>('POST', `/items/${id}/chapters/shift`, { seconds })
+/** Audible's chapters for the book (it needs an ASIN), moved by `shiftSeconds`. */
+export const takeAudibleChapters = (id: string, shiftSeconds = 0) => request<BookChapter[]>('POST', `/items/${id}/chapters/audible`, { shiftSeconds })
+
+/** A result of a book search for Fix match. */
+export interface BookMatch {
+  provider: string
+  id: string
+  title: string
+  subtitle: string | null
+  authors: string[]
+  narrators: string[]
+  series: string | null
+  year: number | null
+  cover: string | null
+  durationSeconds: number | null
+}
+export const searchBookMatches = (id: string, q: string, author?: string, signal?: AbortSignal) =>
+  apiGet<BookMatch[]>(`/items/${id}/book-match${queryString({ q, author })}`, signal)
+export const fixBookMatch = (id: string, match: { provider: string; id: string; query: string; author?: string }) =>
+  request<void>('POST', `/items/${id}/book-match`, match)
+
+/** How the server looks books up online (main profile only); keys are never sent back, only whether there is one. */
+export interface BookMetadataSettings {
+  region: string
+  /** In order of trust, from the ones in `allProviders`. */
+  providers: string[]
+  hasGoogleBooksKey: boolean
+  hasHardcoverToken: boolean
+  regions: string[]
+  allProviders: string[]
+}
+export const getBookMetadataSettings = (signal?: AbortSignal) => apiGet<BookMetadataSettings>('/settings/book-metadata', signal)
+/** An empty key removes it. */
+export const saveBookMetadataSettings = (changes: { region?: string; providers?: string[]; googleBooksKey?: string; hardcoverToken?: string }) =>
+  request<BookMetadataSettings>('PUT', '/settings/book-metadata', changes)
+export const getBookListening = (signal?: AbortSignal) => cachedGet<BookListening>('/books/listening', signal)
+export async function saveBookListening(changes: Partial<BookListening>) {
+  const saved = await request<BookListening>('PUT', '/books/listening', changes)
+  window.dispatchEvent(new Event(BOOK_LISTENING_CHANGED))
+  return saved
+}
+
 /** A library's genres, biggest first; `backdrop` (from one of its titles) is absent from servers before 0.54. */
 export const getLibraryGenres = (id: string, signal?: AbortSignal) =>
   cachedGet<{ name: string; count: number; backdrop?: string | null }[]>(`/libraries/${id}/genres`, signal)
@@ -522,6 +617,8 @@ export const getLoudness = (id: string, signal?: AbortSignal) =>
 export const getRadio = (id: string, signal?: AbortSignal) => apiGet<ItemSummary[]>(`/items/${id}/radio`, signal)
 export const getNextUp = (id: string, signal?: AbortSignal) => cachedGet<ItemSummary | undefined>(`/items/${id}/next-up`, signal)
 export const setWatched = (id: string, watched: boolean) => request<void>('POST', `/items/${id}/watched`, { watched })
+/** Marks a book finished (now) or not; not finished forgets the place too. */
+export const setBookFinished = (id: string, finished: boolean) => request<void>('POST', `/items/${id}/finished`, { finished })
 /** Takes a title out of Continue Watching without marking it watched; for an episode, its show stays out until another is played. */
 export const removeFromContinueWatching = (id: string) => request<void>('DELETE', `/home/continue/${id}`)
 const deleted = new Set<string>()
@@ -556,7 +653,8 @@ export type CollectionKind = 'Manual' | 'Smart' | 'Franchise' | 'TraktList'
 /** What a smart collection holds; every rule is optional. */
 export interface SmartRules {
   libraryIds?: string[] | null
-  type?: 'movie' | 'series' | null
+  /** "book" is audiobooks, never mixed with films and shows. */
+  type?: 'movie' | 'series' | 'book' | null
   genres?: string[] | null
   yearFrom?: number | null
   yearTo?: number | null
