@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { renderSVG } from 'uqr'
 import {
   cancelGuestInvite,
@@ -197,14 +197,16 @@ export function GuestsGroup({ onChange }: { onChange: () => void }) {
   const [removed, setRemoved] = useState<GuestDevice>()
   const [newPerson, setNewPerson] = useState('')
   const [inviteError, setInviteError] = useState<string>()
+  /** Devices that joined while this page was open, marked New. */
+  const [joined, setJoined] = useState<string[]>([])
 
   const refresh = () => {
     devices.reload()
     waiting.reload()
     onChange()
   }
-  // While anything is on its way (a link sent, a TV's code typed in), see it arrive.
-  usePolling(refresh, waiting.data?.length || adding ? 4000 : null)
+  // While a device is being added, see it arrive quickly; while invites wait, now and then.
+  usePolling(refresh, adding ? 2000 : waiting.data?.length ? 8000 : null)
 
   const guestProfiles = profiles.data?.filter((p) => !p.isMain) ?? []
   const people = guestProfiles.filter(
@@ -255,18 +257,40 @@ export function GuestsGroup({ onChange }: { onChange: () => void }) {
               </button>
             )}
           </div>
-          {adding === person.id && <AddDevice profileId={person.id} name={person.name} onDone={() => setAdding(undefined)} onChange={refresh} />}
+          {adding === person.id && (
+            <AddDevice
+              name={person.name}
+              profileId={person.id}
+              devices={devices.data?.filter((d) => d.profileId === person.id) ?? []}
+              onClose={() => setAdding(undefined)}
+              onChange={refresh}
+              onJoined={(deviceId) => {
+                setJoined((ids) => [...ids, deviceId])
+                setAdding(undefined)
+              }}
+            />
+          )}
           {devices.data
             ?.filter((d) => d.profileId === person.id)
             .map((d) => (
-              <SettingRow key={d.id} as="div" label={d.name} help={describeGuest(d, false)}>
+              <SettingRow
+                key={d.id}
+                as="div"
+                label={
+                  <>
+                    {d.name}
+                    {joined.includes(d.id) && <span className="guest-new-tag">New</span>}
+                  </>
+                }
+                help={describeGuest(d, false)}
+              >
                 <AsyncButton className="button danger small" aria-label={`Remove ${d.name}`} onClick={() => remove(d)}>
                   Remove
                 </AsyncButton>
               </SettingRow>
             ))}
           {waiting.data
-            ?.filter((w) => w.profileId === person.id)
+            ?.filter((w) => w.profileId === person.id && adding !== person.id)
             .map((w) => (
               <SettingRow
                 key={w.id}
@@ -318,32 +342,68 @@ export function GuestsGroup({ onChange }: { onChange: () => void }) {
   )
 }
 
-/**
- * Adding a device for a guest: on that device they choose Invited by someone? and read (or send) you the code it
- * shows, which you type in here. Any device can, phone or TV. A link (and its QR code) is there too, to message them.
- */
-export function AddDevice({ profileId, name, onDone, onChange }: { profileId: string; name: string; onDone: () => void; onChange: () => void }) {
-  const [link, setLink] = useState<string>()
-  const [code, setCode] = useState('')
-  const [sent, setSent] = useState(false)
-  const [error, setError] = useState<string>()
+type AddPhase = 'code' | 'link' | 'waiting'
 
-  async function makeLink() {
+/**
+ * Adding a device for a guest, as one panel that moves through its steps: type the code their device shows (any
+ * device: phone, tablet or TV, under Invited by someone?) or send a link instead; then wait, saying so, until the
+ * device appears; then say it joined and close. Nothing resets in between.
+ */
+export function AddDevice({
+  name,
+  profileId,
+  devices,
+  onClose,
+  onChange,
+  onJoined,
+}: {
+  name: string
+  profileId: string
+  devices: GuestDevice[]
+  onClose: () => void
+  onChange: () => void
+  onJoined: (deviceId: string) => void
+}) {
+  const [phase, setPhase] = useState<AddPhase>('code')
+  const [code, setCode] = useState('')
+  const [link, setLink] = useState<string>()
+  const [error, setError] = useState<string>()
+  // The devices there before, so the one that joins is the one not among them.
+  const [before, setBefore] = useState(() => devices.map((d) => d.id))
+  const arrived = phase !== 'code' ? devices.find((d) => !before.includes(d.id)) : undefined
+
+  // Joined: say so a moment, then the panel closes and the new device is marked in the list. Keyed on which device
+  // joined, so the list refreshing meanwhile doesn't start the moment again.
+  const joinedLatest = useRef(onJoined)
+  useEffect(() => {
+    joinedLatest.current = onJoined
+  })
+  const arrivedId = arrived?.id
+  useEffect(() => {
+    if (!arrivedId) return
+    const timer = window.setTimeout(() => joinedLatest.current(arrivedId), 2500)
+    return () => window.clearTimeout(timer)
+  }, [arrivedId])
+
+  async function connect(e: FormEvent) {
+    e.preventDefault()
     setError(undefined)
+    setBefore(devices.map((d) => d.id))
     try {
-      setLink((await createGuestInvite(null, profileId)).link)
+      await inviteGuestTv(code, null, profileId)
+      setPhase('waiting')
       onChange()
     } catch (err) {
       setError(errorText(err))
     }
   }
 
-  async function connect() {
+  async function makeLink() {
     setError(undefined)
+    setBefore(devices.map((d) => d.id))
     try {
-      await inviteGuestTv(code, null, profileId)
-      setSent(true)
-      setCode('')
+      setLink((await createGuestInvite(null, profileId)).link)
+      setPhase('link')
       onChange()
     } catch (err) {
       setError(errorText(err))
@@ -351,46 +411,76 @@ export function AddDevice({ profileId, name, onDone, onChange }: { profileId: st
   }
 
   return (
-    <div className="guest-add" aria-label={`Add a device for ${name}`}>
-      <div className="guest-add-step">
-        <span className="muted">
-          On {name}’s phone, tablet or TV, they open Flexarr and choose <strong>Invited by someone?</strong>. Type in the code it shows.
-        </span>
-        <span className="guest-tv">
-          <input
-            id="guest-code"
-            value={code}
-            onChange={(e) => setCode(e.target.value.toUpperCase())}
-            placeholder="ABCD-EFGH"
-            maxLength={9}
-            autoComplete="off"
-            spellCheck={false}
-            aria-label="Their code"
-          />
-          <AsyncButton className="button small" disabled={code.replace(/[^A-Za-z0-9]/g, '').length !== 8} onClick={() => connect()}>
-            Connect
-          </AsyncButton>
-          <button type="button" className="button quiet small" onClick={onDone}>
-            Done
-          </button>
-        </span>
-        {sent && (
-          <span className="muted" role="status">
-            Sent. Their device joins in a moment.
-          </span>
-        )}
-      </div>
-      {link ? (
-        <InviteLink link={link} name={name} />
-      ) : (
-        <button type="button" className="button quiet small guest-add-link" onClick={() => void makeLink()}>
-          Or send them a link instead
+    <div className="guest-add" role="group" aria-label={`Add a device for ${name}`}>
+      {!arrived && (
+        <button type="button" className="guest-add-close button quiet small" onClick={onClose}>
+          Cancel
         </button>
       )}
+
+      {arrived ? (
+        <div className="guest-add-step" role="status">
+          <span className="guest-add-title guest-joined">✓ {arrived.name} joined</span>
+        </div>
+      ) : phase === 'code' ? (
+        <form className="guest-add-step" onSubmit={(e) => void connect(e)}>
+          <label htmlFor="guest-code" className="guest-add-title">
+            Type the code on {name}’s screen
+          </label>
+          <span className="muted">
+            On their phone, tablet or TV, they open Flexarr and choose <strong>Invited by someone?</strong>
+          </span>
+          <span className="guest-code-row">
+            <input
+              id="guest-code"
+              className="guest-code"
+              value={code}
+              onChange={(e) => setCode(e.target.value.toUpperCase())}
+              placeholder="ABCD-EFGH"
+              maxLength={9}
+              autoComplete="off"
+              autoFocus
+              spellCheck={false}
+            />
+            <AsyncButton type="submit" className="button" disabled={code.replace(/[^A-Za-z0-9]/g, '').length !== 8}>
+              Connect
+            </AsyncButton>
+          </span>
+          <button type="button" className="text-button" onClick={() => void makeLink()}>
+            No code? Send a link instead
+          </button>
+        </form>
+      ) : phase === 'link' && link ? (
+        <div className="guest-add-step">
+          <span className="guest-add-title">Send {name} this link</span>
+          <InviteLink link={link} name={name} />
+          <span className="guest-waiting muted">
+            <span className="guest-spinner" aria-hidden="true" /> Waiting for {name} to open it…
+          </span>
+          <button type="button" className="text-button" onClick={() => setPhase('code')}>
+            Use a code instead
+          </button>
+        </div>
+      ) : (
+        <div className="guest-add-step" role="status">
+          <span className="guest-add-title">
+            <span className="guest-spinner" aria-hidden="true" /> Waiting for {name}’s device to join…
+          </span>
+          <span className="muted">It takes a few seconds. Their screen moves on by itself.</span>
+        </div>
+      )}
+
       {error && (
-        <p className="error" role="alert">
-          {error}
-        </p>
+        <div className="guest-add-step">
+          <p className="error" role="alert">
+            {error}
+          </p>
+          {phase !== 'code' && (
+            <button type="button" className="button quiet small" onClick={() => setPhase('code')}>
+              Try again
+            </button>
+          )}
+        </div>
       )}
     </div>
   )
@@ -403,8 +493,7 @@ export function InviteLink({ link, name }: { link: string; name: string }) {
       {/* uqr draws plain SVG from the link: nothing in it comes from elsewhere. */}
       <div className="guest-qr" role="img" aria-label="QR code of the invite" dangerouslySetInnerHTML={{ __html: renderSVG(link, { border: 2 }) }} />
       <div className="guest-invite-text">
-        <strong>Send this to {name}</strong>
-        <span className="muted">Message it, or scan the code with their phone. It’s shown only now.</span>
+        <span className="muted">Message it to them, or scan the code with their phone’s camera. It’s shown only now.</span>
         <code className="remote-address guest-link">{link}</code>
         <span className="connection-actions">
           <CopyButton text={link} what="the invite" />

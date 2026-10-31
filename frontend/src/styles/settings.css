@@ -2607,23 +2607,20 @@
   padding: 14px 0 4px;
 }
 
+/* Adding a device: one panel that moves through its steps, Cancel in its corner. */
 .guest-add {
-  display: grid;
-  gap: 12px;
+  position: relative;
   margin: 8px 0 14px;
-  padding: 14px;
+  padding: 18px 20px;
   border: 1px solid var(--aisle);
-  border-radius: 12px;
-}
-
-.guest-kinds {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  border-radius: 14px;
+  background: var(--seat-raised, rgb(255 255 255 / 0.03));
 }
 
 .guest-add-close {
-  margin-left: auto;
+  position: absolute;
+  top: 12px;
+  right: 12px;
 }
 
 .guest-add-step {
@@ -2632,9 +2629,85 @@
   justify-items: start;
 }
 
+.guest-add-step + .guest-add-step {
+  margin-top: 12px;
+}
+
+.guest-add-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding-right: 90px;
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+.guest-code-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.guest-code {
+  width: 11em;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 1.3rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.guest-waiting {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.guest-joined {
+  color: #7fd1a0;
+}
+
+.guest-spinner {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  border: 2px solid var(--aisle);
+  border-top-color: var(--silver);
+  border-radius: 50%;
+  animation: guest-spin 0.8s linear infinite;
+}
+
+@keyframes guest-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .guest-spinner {
+    animation-duration: 2.4s;
+  }
+}
+
+.guest-new-tag {
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgb(127 209 160 / 0.16);
+  color: #7fd1a0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  vertical-align: 2px;
+}
+
 .guest-new {
   display: flex;
   gap: 8px;
   padding: 14px 0;
   border-top: 1px solid var(--aisle);
+}
+
+.guest-add .guest-invite {
+  padding: 0;
+  border-top: 0;
 }

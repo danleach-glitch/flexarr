@@ -68,6 +68,8 @@ struct ConnectView: View {
             if let server = UserDefaults.standard.string(forKey: "FlexarrPairWith").flatMap(FlexarrClient.normalizeAddress) {
                 step = .pair(DiscoveredServer(name: server.host() ?? "Flexarr", address: server))
             }
+            // `-FlexarrGuestCode YES` opens "Invited by someone?"'s code directly.
+            if UserDefaults.standard.bool(forKey: "FlexarrGuestCode") { step = .guest }
             #endif
         }
         .onDisappear { browser.stop() }
