@@ -227,6 +227,9 @@ export function GuestsGroup({ onChange }: { onChange: () => void }) {
     (p) => p.id === adding || devices.data?.some((d) => d.profileId === p.id) || waiting.data?.some((w) => w.profileId === p.id),
   )
   const people: { id: string; name: string; color?: string }[] = addingFor && !listed.some((p) => p.id === addingFor.id) ? [addingFor, ...listed] : listed
+  // The colour a new profile would get, or theirs if the name is someone who has one.
+  const named = guestProfiles.find((p) => p.name.trim().toLowerCase() === newPerson.trim().toLowerCase())
+  const newGuestColour = named?.color ?? freeColour(profiles.data ?? [])
   const others = guestProfiles.filter((p) => !people.some((person) => person.id === p.id))
 
   async function remove(device: GuestDevice) {
@@ -273,39 +276,40 @@ export function GuestsGroup({ onChange }: { onChange: () => void }) {
       </div>
       <div className="guest-cards">
       {naming && (
-        <form className="panel guest-card guest-add" ref={namingPanel} onSubmit={(e) => void invite(e)}>
-          <div className="guest-add-head">
-            <span className="guest-add-title">New guest</span>
-            <button type="button" className="button quiet small" onClick={() => setNaming(false)}>
-              Cancel
-            </button>
+        <form className="panel guest-card guest-new" ref={namingPanel} onSubmit={(e) => void invite(e)}>
+          <div className="guest-new-row">
+          {/* Their picture as it will be: the initial, on the colour their new profile gets, as they type. */}
+          <Avatar profile={{ name: newPerson.trim() || ' ', color: newGuestColour }} size={40} />
+          <input
+            id="guest-new-name"
+            type="text"
+            placeholder="Name"
+            aria-label="Name"
+            aria-describedby="guest-new-help"
+            value={newPerson}
+            onChange={(e) => setNewPerson(e.target.value)}
+            list="guest-profiles"
+            maxLength={40}
+            autoComplete="off"
+            autoFocus
+          />
+          <datalist id="guest-profiles">
+            {others.map((p) => (
+              <option key={p.id} value={p.name} />
+            ))}
+          </datalist>
+          <AsyncButton type="submit" className="button" disabled={!newPerson.trim()}>
+            Continue
+          </AsyncButton>
+          <button type="button" className="button quiet" onClick={() => setNaming(false)}>
+            Cancel
+          </button>
           </div>
-          <div className="guest-add-step">
-            <label className="field">
-              <span className="field-label">Name</span>
-              <input
-                id="guest-new-name"
-                type="text"
-                value={newPerson}
-                onChange={(e) => setNewPerson(e.target.value)}
-                list="guest-profiles"
-                maxLength={40}
-                autoComplete="off"
-                autoFocus
-              />
-              <span className="field-help">They get a profile of their own, or the one they already have.</span>
-            </label>
-            <datalist id="guest-profiles">
-              {others.map((p) => (
-                <option key={p.id} value={p.name} />
-              ))}
-            </datalist>
-            <AsyncButton type="submit" className="button" disabled={!newPerson.trim()}>
-              Continue
-            </AsyncButton>
-          </div>
+          <span id="guest-new-help" className="field-help guest-new-help">
+            They get a profile of their own, or the one they already have.
+          </span>
           {inviteError && (
-            <p className="error" role="alert">
+            <p className="error guest-new-help" role="alert">
               {inviteError}
             </p>
           )}

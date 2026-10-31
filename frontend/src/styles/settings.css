@@ -2818,3 +2818,28 @@
     padding-bottom: 0;
   }
 }
+
+/* Adding a guest: their picture as they type, the name, Continue and Cancel on one line; a line of help under it. */
+.guest-card.guest-new {
+  display: grid;
+  gap: 8px;
+  padding: 16px 20px;
+}
+
+.guest-new-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.guest-new-row input {
+  flex: 1 1 200px;
+  max-width: 320px;
+}
+
+.guest-new-help {
+  margin: 0;
+  padding-left: 52px;
+  font-size: var(--step--1);
+}

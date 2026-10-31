@@ -216,7 +216,7 @@ describe('Settings › Access › Family invites', () => {
     render(<FamilyInvites />)
 
     fireEvent.click(await screen.findByRole('button', { name: 'Add new guest' }))
-    fireEvent.change(screen.getByLabelText(/^Name/), { target: { value: ' Dad ' } })
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: ' Dad ' } })
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
 
     await waitFor(() => expect(made).toMatchObject({ name: 'Dad' }))
