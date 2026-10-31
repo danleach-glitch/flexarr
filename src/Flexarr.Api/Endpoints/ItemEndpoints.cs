@@ -151,7 +151,7 @@ public static class ItemEndpoints
             await db.SaveChangesAsync(ct);
             LibraryVisibility.KidsSettingsChanged();
             return Results.NoContent();
-        }).WithTags("Items").RequireAuthorization(Security.FlexarrClaims.AdminPolicy);
+        }).WithTags("Items").RequireAuthorization(Security.FlexarrClaims.MainProfilePolicy);
 
         return api;
     }

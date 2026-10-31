@@ -137,24 +137,58 @@ public class AdminLockTests
     }
 
     [Fact]
-    public async Task TheHouseholdsCollections_ShowAsTheMainProfiles_AndChangingThemTakesThePin()
+    public async Task TheHouseholdsCollections_AreTheMainProfiles_WithoutItsPin()
     {
         using var server = new FlexarrApiFactory();
         await server.SetMainPinAsync("2580");
         var created = await (await Admin(server).PostAsJsonAsync(Api("/collections"), new { name = "Family films", personal = false })).Content.ReadFromJsonAsync<JsonElement>();
         var id = created.GetProperty("id").GetString();
         var tv = await LockedTvAsync(server);
+        var mum = (await (await Admin(server).PostAsJsonAsync(Api("/profiles"), new { name = "Mum" })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString();
+        var phone = await LockedTvAsync(server, "Mum's phone");
+        await phone.PostAsJsonAsync(Api($"/profiles/{mum}/select"), new { pin = (string?)null });
 
         var listed = (await tv.GetFromJsonAsync<JsonElement>(Api("/collections"))).EnumerateArray().Single(c => c.GetProperty("id").GetString() == id);
-        var renamedLocked = await tv.PutAsJsonAsync(Api($"/collections/{id}"), new { name = "Films" });
-        var madeLocked = await tv.PostAsJsonAsync(Api("/collections"), new { name = "Ours" });
-        await tv.PostAsJsonAsync(Api("/admin/unlock"), new { pin = "2580" });
         var renamed = await tv.PutAsJsonAsync(Api($"/collections/{id}"), new { name = "Films" });
+        var made = await (await tv.PostAsJsonAsync(Api("/collections"), new { name = "Ours" })).Content.ReadFromJsonAsync<JsonElement>();
+        var renamedByMum = await phone.PutAsJsonAsync(Api($"/collections/{id}"), new { name = "Mum's" });
+        var madeByMum = await phone.PostAsJsonAsync(Api("/collections"), new { name = "Everyone's", personal = false });
 
         Assert.True(listed.GetProperty("canEdit").GetBoolean());
-        Assert.Equal(HttpStatusCode.Forbidden, renamedLocked.StatusCode); // a 403 the apps answer with the PIN
-        Assert.Equal(HttpStatusCode.Forbidden, madeLocked.StatusCode); // the household's by default, as before
         Assert.Equal(HttpStatusCode.OK, renamed.StatusCode);
+        Assert.False(made.GetProperty("personal").GetBoolean()); // the household's by default, as before
+        Assert.Equal(HttpStatusCode.NotFound, renamedByMum.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, madeByMum.StatusCode);
+    }
+
+    [Fact]
+    public async Task TidyingTheLibrary_IsTheMainProfiles_WithoutItsPin()
+    {
+        using var server = new FlexarrApiFactory();
+        await server.SetMainPinAsync("2580");
+        var tv = await LockedTvAsync(server);
+        var mum = (await (await Admin(server).PostAsJsonAsync(Api("/profiles"), new { name = "Mum" })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString();
+        var phone = await LockedTvAsync(server, "Mum's phone");
+        await phone.PostAsJsonAsync(Api($"/profiles/{mum}/select"), new { pin = (string?)null });
+        var missing = Guid.NewGuid();
+
+        // Delete, Fix match, Allow or Block for kids, Analyse and Scan for changes: past the lock (to a 404 here), but not for Mum.
+        Func<HttpClient, Task<HttpResponseMessage>>[] actions =
+        [
+            c => c.GetAsync(Api($"/items/{missing}/deletion")),
+            c => c.DeleteAsync(Api($"/items/{missing}")),
+            c => c.DeleteAsync(Api($"/items/{missing}/match")),
+            c => c.PutAsJsonAsync(Api($"/items/{missing}/kids"), new { @override = "Allow" }),
+            c => c.PostAsJsonAsync(Api($"/items/{missing}/analyze"), new { }),
+            c => c.PostAsJsonAsync(Api($"/libraries/{missing}/scan"), new { }),
+        ];
+        foreach (var action in actions)
+        {
+            Assert.Equal(HttpStatusCode.NotFound, (await action(tv)).StatusCode);
+            Assert.Equal(HttpStatusCode.Forbidden, (await action(phone)).StatusCode);
+        }
+
+        Assert.Equal(HttpStatusCode.Forbidden, (await tv.GetAsync(Api("/settings"))).StatusCode); // the server's settings still take it
     }
 
     [Fact]

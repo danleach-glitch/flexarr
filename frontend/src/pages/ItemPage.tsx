@@ -79,7 +79,7 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
   const { me, profiles } = useSession()
   // A child's page leaves out watch state and trailers (a YouTube page away from anything rated).
   const { kids } = useAgeLimits()
-  // The main profile, locked or not: deleting asks for the PIN when it's locked (see UnlockPrompt).
+  // The main profile, locked or not: deleting and fixing a match don't take its PIN (only the server's settings do).
   const mainProfile = me?.isAdmin === true || me?.canUnlock === true
   const canDelete = mainProfile && (item.kind === 'Movie' || item.kind === 'Series' || item.kind === 'Episode')
   const canFixMatch = mainProfile && (item.kind === 'Movie' || item.kind === 'Series')

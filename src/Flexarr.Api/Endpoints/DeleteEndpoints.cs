@@ -33,7 +33,7 @@ public static partial class DeleteEndpoints
 
             var (instance, _) = Manager(item, options.CurrentValue);
             return Results.Ok(new DeletionDto(instance?.Name, instance is null ? await FilesAsync(db, item, ct) : []));
-        }).WithTags("Items").RequireAuthorization(FlexarrClaims.AdminPolicy);
+        }).WithTags("Items").RequireAuthorization(FlexarrClaims.MainProfilePolicy);
 
         api.MapDelete("/items/{id:guid}", async (Guid id, FlexarrDbContext db, IOptionsMonitor<FlexarrOptions> options, ArrClient arr, ILoggerFactory logs, CancellationToken ct) =>
         {
@@ -84,7 +84,7 @@ public static partial class DeleteEndpoints
             await RemoveFromLibraryAsync(db, item, ct);
             LogDeleted(logs.CreateLogger("Flexarr.Delete"), item.Kind, Name(item), instance.Name);
             return Results.NoContent();
-        }).WithTags("Items").RequireAuthorization(FlexarrClaims.AdminPolicy);
+        }).WithTags("Items").RequireAuthorization(FlexarrClaims.MainProfilePolicy);
 
         return api;
     }

@@ -139,7 +139,7 @@ public static class LibraryEndpoints
 
             await EnqueueAsync(library, queue, refreshMetadata == true ? "Metadata refresh" : "Manual scan", ct, refreshMetadata == true);
             return Results.Accepted();
-        }).RequireAuthorization(FlexarrClaims.AdminPolicy);
+        }).RequireAuthorization(FlexarrClaims.MainProfilePolicy);
 
         return api;
     }

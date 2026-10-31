@@ -30,12 +30,14 @@ Only the main profile can:
 - add, edit and remove profiles
 - connect new devices, and see or replace the API key
 - fix a wrong match, or delete a title through Sonarr or Radarr
+- make and change the household's collections
+- allow or block a title for kids, analyse a title, or scan a library for changes
 
 Every other profile can browse, watch, listen, make requests through Seerr, and open **Settings** to change its own playback and podcast settings.
 
 ### Unlocking settings
 
-The main profile always has a PIN: you choose it when you set Flexarr up. Watching as the main profile doesn't need it, but doing any of the things above does. Open **Settings** on the main profile and the server's pages say **Settings are locked**: enter the PIN and choose **Unlock**.
+The main profile always has a PIN: you choose it when you set Flexarr up. Watching as the main profile doesn't need it, and nor does tidying the library from a title's or library's page (the last three things above). Changing the server's settings, profiles and devices does. Open **Settings** on the main profile and the server's pages say **Settings are locked**: enter the PIN and choose **Unlock**.
 
 Settings stay unlocked on that browser or device for 15 minutes after your last change. They lock again sooner if someone else is chosen there, if you choose **Lock settings** at the bottom of the list, or if the server restarts. Being on your home network doesn't skip the PIN.
 
