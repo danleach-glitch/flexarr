@@ -1292,43 +1292,64 @@
   text-transform: uppercase;
 }
 
-/* A device asking to connect, on whatever page an admin has open: a card under the top bar, clear of the now-playing
-   bar, below dialogs. */
+/* A device asking to connect, on whatever page an admin has open: a banner across the top of the page, under the top
+   bar and above the page's own title, staying in view as the page scrolls. */
 .pairing-prompt {
-  position: fixed;
+  position: sticky;
   top: calc(var(--nav-height) + 8px + env(safe-area-inset-top));
-  right: 16px;
   z-index: 58;
   display: grid;
-  gap: 8px;
-  width: min(380px, calc(100vw - 32px));
+  grid-template-columns: auto 1fr auto auto;
+  align-items: start;
+  gap: 8px 16px;
+  margin: calc(var(--nav-height) + 8px + env(safe-area-inset-top)) var(--edge) 0;
   padding: 16px 18px;
-  border: 1px solid var(--aisle);
+  border: 1px solid color-mix(in srgb, var(--silver) 45%, var(--aisle));
   border-radius: var(--radius-panel);
   background: color-mix(in srgb, var(--seat) 96%, transparent);
   backdrop-filter: blur(20px);
-  box-shadow: 0 20px 60px rgb(0 0 0 / 0.5);
+  box-shadow: 0 12px 40px rgb(0 0 0 / 0.35);
+}
+
+/* The page's own top space allows for the top bar, which the banner already has. */
+.page > .pairing-prompt + * {
+  margin-top: calc(-1 * var(--nav-height));
 }
 
 .pairing-prompt p {
   margin: 0;
 }
 
-.pairing-prompt-head {
-  display: flex;
-  align-items: start;
-  gap: 8px;
+.pairing-prompt-body {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.pairing-prompt-body .field {
+  max-width: 16rem;
 }
 
 .pairing-prompt-title {
-  flex: 1;
   font-size: var(--step-1);
   font-weight: 700;
   overflow-wrap: anywhere;
 }
 
+/* Allow and Don't allow side by side, the same width. */
+.pairing-prompt-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  align-self: center;
+}
+
 .pairing-prompt-close {
   margin: -10px -10px 0 0;
+}
+
+.pairing-prompt-done {
+  grid-template-columns: 1fr;
 }
 
 /* The code in the device's own face, as on Connect a device. */
@@ -1339,18 +1360,14 @@
   white-space: nowrap;
 }
 
-.pairing-prompt .form-actions {
-  margin-top: 4px;
+.pairing-prompt > .sign-in-icon {
+  width: 40px;
+  height: 40px;
 }
 
-.pairing-prompt-head .sign-in-icon {
-  width: 32px;
-  height: 32px;
-}
-
-.pairing-prompt-head .sign-in-icon svg {
-  width: 18px;
-  height: 18px;
+.pairing-prompt > .sign-in-icon svg {
+  width: 22px;
+  height: 22px;
 }
 
 /* Settings › Access › Connect a device: every device asking right now, above the code box. */
@@ -1367,10 +1384,15 @@
   margin: 0;
 }
 
+/* A phone: the buttons go under the words, across the banner. */
 @media (max-width: 600px) {
   .pairing-prompt {
-    left: 16px;
-    width: auto;
+    grid-template-columns: auto 1fr auto;
+  }
+
+  .pairing-prompt-actions {
+    grid-column: 1 / -1;
+    grid-row: 2;
   }
 }
 

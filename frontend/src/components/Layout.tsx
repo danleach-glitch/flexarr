@@ -320,13 +320,13 @@ export function Layout() {
         </aside>
       )}
       <main id="main" className="page">
+        <PairingPrompt />
         <Outlet />
         <NoticeHost />
         <AddToCollectionHost />
         <AddToPlaylistHost />
       </main>
       <NowPlaying />
-      <PairingPrompt />
       <UnlockPrompt />
       {searching && <SearchPalette onClose={() => setSearching(false)} />}
     </div>
