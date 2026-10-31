@@ -31,7 +31,7 @@ struct HomeView: View {
             if model.offersProfilePicker, let current = model.currentProfile {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { choosingProfile = true } label: {
-                        ProfileAvatar(profile: current, size: 56)
+                        ProfileAvatar(profile: current, size: 44)
                     }
                     .accessibilityLabel("Profile: \(current.name)")
                 }
@@ -88,6 +88,7 @@ struct HomeView: View {
         }
         // The hero runs up under the status bar; without one (a server of only podcasts, say) the rows start below it.
         .ignoresSafeArea(edges: home.featured.isEmpty ? [] : .top)
+        .withoutTopEdgeEffect()
         .refreshable { await load() }
     }
 
@@ -336,6 +337,18 @@ private struct EmptyHome: View {
         .padding(.horizontal, 24)
         .frame(maxWidth: 520, alignment: .leading)
         .frame(maxWidth: .infinity)
+    }
+}
+
+private extension View {
+    /// No iOS 26 blur across the top: the hero's artwork runs clear up to the status bar.
+    @ViewBuilder
+    func withoutTopEdgeEffect() -> some View {
+        if #available(iOS 26, *) {
+            scrollEdgeEffectHidden(true, for: .top)
+        } else {
+            self
+        }
     }
 }
 

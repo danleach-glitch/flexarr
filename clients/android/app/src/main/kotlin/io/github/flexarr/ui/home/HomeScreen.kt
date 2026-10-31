@@ -196,7 +196,7 @@ fun HomeScreen(model: AppModel) {
                         .semantics { contentDescription = "Profile: ${current.name}" },
                     contentAlignment = Alignment.Center,
                 ) {
-                    ProfileAvatar(model, current, size = 56)
+                    ProfileAvatar(model, current, size = 44)
                 }
             }
         }
