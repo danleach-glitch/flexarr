@@ -1128,6 +1128,8 @@ final class PlayerViewController: UIViewController {
                 return false
             }
             asking = position >= min(question, stop - 10)
+        case .endOfChapter:
+            return false // a book's, never offered for a video
         }
         if asking {
             if sleepPhase == .off { beginAsking() }

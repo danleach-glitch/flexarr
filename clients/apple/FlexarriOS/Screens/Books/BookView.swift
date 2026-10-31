@@ -354,6 +354,13 @@ struct BookView: View {
 
     /// A bookmark where the player is (playing this book) or where this profile got to.
     private func addBookmark() {
+        if model.music.current?.id == id, model.music.book != nil {
+            Task {
+                await model.music.addBookmark()
+                await load()
+            }
+            return
+        }
         guard let client = model.client else { return }
         Task {
             _ = try? await client.addBookmark(id, positionSeconds: position)

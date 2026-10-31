@@ -84,6 +84,8 @@ final class AppModel {
     var pendingSettings = false
     /// A podcast episode was heard to the end: the phone's downloads send the play and drop its file (see RootView).
     @ObservationIgnored var onPodcastHeard: (() -> Void)?
+    /// A book was heard to the end (its id), for the downloads to act on.
+    @ObservationIgnored var onBookHeard: ((String) -> Void)?
     /// Bumped when Play or Shuffle starts music on Apple TV, which then goes to its Now Playing tab.
     var nowPlayingRequests = 0
     /// The server's error-report switch, as it last said (nil until asked, and from servers before it).
@@ -184,6 +186,15 @@ final class AppModel {
                 guard let self else { return }
                 self.invalidate()
                 self.onPodcastHeard?()
+            }
+        }
+        // A book heard to the end leaves Continue listening at once (the server has it as finished).
+        music.onBookFinished = { [weak self] id in
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .seconds(1.5))
+                guard let self else { return }
+                self.watchStateChanged()
+                self.onBookHeard?(id)
             }
         }
         music.onPodcastStarted = { [weak self] in
@@ -921,6 +932,13 @@ final class AppModel {
 
     func play(_ item: ItemSummary, fromBeginning: Bool = false) {
         guard let client else { return }
+        // A book plays in the audio player, never as a video.
+        if item.kind == .audiobook {
+            #if os(iOS)
+            playBook(item, at: fromBeginning ? 0 : nil)
+            #endif
+            return
+        }
         player.play(itemId: item.id, preview: item, startAt: fromBeginning ? 0 : nil, client: client)
     }
 
@@ -956,7 +974,8 @@ final class AppModel {
 
     /// Plays a book from where this profile is in it, or from `position` (a chapter, a bookmark).
     func playBook(_ book: ItemSummary, at position: Double? = nil) {
-        // The player's book mode comes with the next change.
+        guard let client else { return }
+        music.playBook(book, at: position, client: client)
     }
 
     /// Marks a book finished (it leaves Continue listening) or not.
