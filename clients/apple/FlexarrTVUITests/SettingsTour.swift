@@ -27,6 +27,22 @@ final class SettingsTour: XCTestCase {
         pause(6)
     }
 
+    /// Settings › Trakt, against a server that offers Trakt (a stand-in Trakt is enough): the page as it is, without
+    /// connecting, importing or disconnecting anything.
+    func testTraktPage() throws {
+        openSettings()
+        guard row("Trakt").exists else { throw XCTSkip("This server doesn't offer Trakt.") }
+        focus("Trakt")
+        shot("40-settings-trakt-focused")
+        press(.select, wait: 3)
+        shot("41-trakt")
+        if row("Sync now").exists {
+            focus("Sync now")
+            shot("42-trakt-sync-focused")
+        }
+        press(.menu, wait: 2)
+    }
+
     func testSettingsPages() throws {
         openSettings()
         shot("30-settings")
