@@ -45,7 +45,7 @@ import kotlin.coroutines.resumeWithException
 sealed class FlexarrException(message: String) : Exception(message) {
     /** The server rejected the sign-in (or one is required and none was sent). */
     class Unauthorized : FlexarrException(
-        "The server didn’t accept this device’s sign-in. Connect it again with a code, or if you typed an API key, check it against Settings › Access on the web.",
+        "The server didn’t accept this device’s sign-in. Connect it again with a code, or if you typed an API key, check it against Settings › Security on the web.",
     )
 
     /** [detail]: the server's own words for what went wrong (its problem details' `detail`), when it gave some. */
