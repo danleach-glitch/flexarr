@@ -31,7 +31,8 @@ class FlexarrApplication : Application(), SingletonImageLoader.Factory {
         // Before anything else can crash: on if this server had reports on last time.
         ErrorReports.resume(this, signIn?.address)
         model = AppModel(this, signIn)
-        Casting.start(this, model)
+        // A TV is what's cast to, not from; and on a slow box Cast's route scan at launch stalls the app into an ANR.
+        if (!isTelevision) Casting.start(this, model)
         FlexarrMessagingService.createChannels(this)
         ReviewPrompt.start(this)
         // Commands from other devices are taken while the app is in front.

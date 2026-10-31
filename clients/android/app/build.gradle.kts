@@ -141,6 +141,9 @@ androidComponents {
         if (variant.name == "nonMinifiedRelease" || variant.name == "benchmarkRelease") {
             variant.buildConfigFields?.put("LAUNCH_ARGUMENTS", com.android.build.api.variant.BuildConfigField("boolean", "true", null))
             variant.buildConfigFields?.put("TV_UI", com.android.build.api.variant.BuildConfigField("boolean", "true", null))
+            // And debug's TV launcher entry and banner, so a stick shows it among its apps.
+            variant.sources.manifests.addStaticManifestFile("src/debug/AndroidManifest.xml")
+            variant.sources.res?.addStaticSourceDirectory("src/debug/res")
         }
     }
 }
