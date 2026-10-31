@@ -20,6 +20,7 @@ public sealed class RemoteGuestFactory : WebApplicationFactory<Program>
     public FakeWhois Whois { get; } = new();
     public FakeTailscale Tailscale { get; } = new();
     public FakeTailnet Tailnet { get; } = new();
+    public FakePairRelay PairRelay { get; } = new();
     public TestClock Clock { get; } = new(new DateTimeOffset(2026, 10, 31, 12, 0, 0, TimeSpan.Zero));
 
     public const string Guest = "100.64.0.9";
@@ -44,6 +45,7 @@ public sealed class RemoteGuestFactory : WebApplicationFactory<Program>
             services.AddSingleton<ITailnet>(Tailnet);
             services.AddSingleton<TimeProvider>(Clock);
             services.AddHttpClient(TailscaleApi.HttpClientName).ConfigurePrimaryHttpMessageHandler(() => Tailscale);
+            services.AddHttpClient(GuestTvCodes.HttpClientName).ConfigurePrimaryHttpMessageHandler(() => PairRelay);
         });
         Whois.Tags[Guest] = ["tag:flexarr-guest"];
         Whois.Owners[Owner] = "dan@example.com";
@@ -328,5 +330,37 @@ public class RemoteGuestTests(RemoteGuestFactory factory) : IClassFixture<Remote
     {
         using var owner = factory.From(RemoteGuestFactory.Owner);
         Assert.Equal(HttpStatusCode.OK, (await owner.GetAsync("/api/v1/setup")).StatusCode);
+    }
+
+    [Fact]
+    public async Task A_tv_code_gets_an_invite_only_that_tv_can_open()
+    {
+        var gran = await factory.AddProfileAsync("Gran12");
+        using var tv = System.Security.Cryptography.ECDiffieHellman.Create(System.Security.Cryptography.ECCurve.NamedCurves.nistP256);
+        factory.PairRelay.Keys["ABCDEFGH"] = Convert.ToBase64String(GuestTvCodes.Uncompressed(tv.ExportParameters(false)));
+        using var admin = factory.Admin();
+
+        var response = await admin.PostAsJsonAsync("/api/v1/remote/guests/tv-code", new { code = "abcd-efgh", name = "Gran's TV", profileId = gran });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var left = factory.PairRelay.Invites["ABCDEFGH"];
+        var opened = GuestTvCodes.Open(tv, Convert.FromBase64String(left["serverKey"]!.GetValue<string>()), Convert.FromBase64String(left["sealed"]!.GetValue<string>()));
+        var payload = GuestInvites.Decode(System.Text.Encoding.UTF8.GetString(opened))!;
+        Assert.Equal("Gran12", payload.P);
+        Assert.Equal("Gran's TV", payload.G);
+        Assert.StartsWith("tskey-auth-", payload.K, StringComparison.Ordinal);
+        Assert.Equal(HttpStatusCode.OK, (await RedeemAsync(RemoteGuestFactory.Guest, payload.T)).StatusCode);
+    }
+
+    [Fact]
+    public async Task An_unknown_or_malformed_tv_code_says_so_and_makes_no_invite()
+    {
+        var gran = await factory.AddProfileAsync("Gran13");
+        using var admin = factory.Admin();
+        var before = (await admin.GetFromJsonAsync<List<GuestInviteDto>>("/api/v1/remote/guests/invites", Web))!.Count;
+
+        Assert.Equal(HttpStatusCode.NotFound, (await admin.PostAsJsonAsync("/api/v1/remote/guests/tv-code", new { code = "ZZZZ-ZZZZ", name = "x", profileId = gran })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await admin.PostAsJsonAsync("/api/v1/remote/guests/tv-code", new { code = "O0O0", name = "x", profileId = gran })).StatusCode);
+        Assert.Equal(before, (await admin.GetFromJsonAsync<List<GuestInviteDto>>("/api/v1/remote/guests/invites", Web))!.Count);
     }
 }

@@ -17,6 +17,9 @@ public sealed record CreateInviteRequest(string Name, string ProfileId);
 
 public sealed record RedeemInviteRequest(string Token);
 
+/// <param name="Code">The code the guest's TV shows (8 letters and digits; spaces and dashes are fine).</param>
+public sealed record TvCodeRequest(string Code, string Name, string ProfileId);
+
 /// <param name="ApiKey">The guest device's own sign-in, sent as X-Api-Key.</param>
 public sealed record RedeemedInviteDto(string ApiKey, string ProfileId, string ServerId, string Name);
 
@@ -50,6 +53,52 @@ public static class RemoteGuestEndpoints
             catch (InviteException ex)
             {
                 return Results.Problem(ex.Message, statusCode: ex.Status);
+            }
+        });
+
+        // A guest's TV: the code it shows reaches this server through Flexarr's relay (GuestTvCodes).
+        group.MapPost("/tv-code", async (TvCodeRequest request, GuestInvites invites, GuestTvCodes tvCodes, FlexarrDbContext db, CancellationToken ct) =>
+        {
+            if (GuestTvCodes.Normalize(request.Code) is not { } code)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["code"] = ["Type the 8 letters and numbers the TV shows."] });
+            }
+
+            var (profile, owner, problem) = await ProfileForInviteAsync(db, request.ProfileId, ct);
+            if (problem is not null)
+            {
+                return problem;
+            }
+
+            GuestInvite? invite = null;
+            try
+            {
+                if (await tvCodes.TvKeyAsync(code, ct) is not { } tvKey)
+                {
+                    return Results.Problem("No TV is showing that code. Check it, or ask for the new one if it changed.", statusCode: 404);
+                }
+
+                (invite, var payload) = await invites.CreateAsync(request.Name, profile!.Id, profile.Name, owner, InviteVia.TvCode, ct);
+                await tvCodes.DeliverAsync(code, tvKey, GuestInvites.Encode(payload), ct);
+                return Results.Ok(ToDto(invite, new Dictionary<string, string> { [profile.Id] = profile.Name }));
+            }
+            catch (InviteException ex)
+            {
+                if (invite is not null)
+                {
+                    await invites.CancelAsync(invite.Id, CancellationToken.None);
+                }
+
+                return Results.Problem(ex.Message, statusCode: ex.Status);
+            }
+            catch (HttpRequestException)
+            {
+                if (invite is not null)
+                {
+                    await invites.CancelAsync(invite.Id, CancellationToken.None);
+                }
+
+                return Results.Problem("Couldn't reach Flexarr's relay. Try again in a minute.", statusCode: 502);
             }
         });
 

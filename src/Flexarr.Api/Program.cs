@@ -261,6 +261,8 @@ builder.Services.AddSingleton<TailscaleApi>();
 builder.Services.AddSingleton<ITailnet>(sp => sp.GetRequiredService<TailscaleService>());
 builder.Services.AddSingleton<GuestPolicy>();
 builder.Services.AddSingleton<GuestInvites>();
+builder.Services.AddHttpClient(GuestTvCodes.HttpClientName, c => c.Timeout = TimeSpan.FromSeconds(15));
+builder.Services.AddSingleton<GuestTvCodes>();
 builder.Services.AddHostedService<GuestPolicyWatcher>();
 builder.Services.AddHostedService<PlaybackSweeper>();
 builder.Services.AddHostedService<MarkerDetectionWorker>();
