@@ -6,6 +6,8 @@ import Foundation
 public struct RequestStatus: Codable, Sendable, Hashable {
     public let configured: Bool
     public let reachable: Bool
+    /// Books can be requested (through a Readarr-compatible app). Absent from servers before 0.58.
+    public var books: Bool? = nil
 }
 
 /// Where a title from outside the library stands.

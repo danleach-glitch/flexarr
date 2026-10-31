@@ -450,7 +450,7 @@ struct TabStack<Content: View>: View {
             PlaylistView(playlist: playlist)
         case .liveTv:
             LiveTvView()
-        case .podcasts, .podcastBrowse:
+        case .podcasts, .podcastBrowse, .bookSeries:
             // Podcasts are on iPhone, iPad and the web; nothing on the Apple TV goes here.
             EmptyView()
         case .external(let title):

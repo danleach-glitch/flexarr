@@ -10,12 +10,15 @@ final class SleepTimer {
     enum Setting: Hashable {
         case minutes(Int)
         case endOfEpisode
+        /// A book's: the end of the chapter playing when it was set (the player notices it, as for an episode).
+        case endOfChapter
 
         /// "15 minutes", "End of episode".
         var label: String {
             switch self {
             case .minutes(let minutes): "\(minutes) minutes"
             case .endOfEpisode: "End of episode"
+            case .endOfChapter: "End of chapter"
             }
         }
     }

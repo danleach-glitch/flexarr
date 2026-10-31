@@ -338,6 +338,7 @@ public struct EmptyHomeMessage: Sendable, Hashable {
         case .music: "music"
         case .podcasts: "podcasts"
         case .homeVideos: "home videos"
+        case .audiobooks: "audiobooks"
         case .unknown: "titles"
         }
     }

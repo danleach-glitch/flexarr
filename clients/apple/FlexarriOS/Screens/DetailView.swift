@@ -46,6 +46,9 @@ struct DetailView: View {
             if let item, item.kind.isMusic {
                 // Opened by id (a deep link, say) and turned out to be music: its own screen takes over.
                 MusicDestination(item: item)
+            } else if let item, item.kind == .audiobook {
+                // Opened by id and turned out to be a book: its own page.
+                BookView(id: item.id, preview: item)
             } else if let item {
                 ScrollView(.vertical) {
                     VStack(alignment: .leading, spacing: 28) {

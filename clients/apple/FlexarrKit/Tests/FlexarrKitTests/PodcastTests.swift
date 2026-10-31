@@ -48,7 +48,7 @@ struct PodcastTests {
     }
 
     @Test func newKindsAndUnknownOnes() throws {
-        let kinds = try FlexarrClient.decoder.decode([MediaKind].self, from: Data(#"["Podcast","PodcastEpisode","Audiobook"]"#.utf8))
+        let kinds = try FlexarrClient.decoder.decode([MediaKind].self, from: Data(#"["Podcast","PodcastEpisode","Ebook"]"#.utf8))
         #expect(kinds == [.podcast, .podcastEpisode, .unknown])
         #expect(kinds[1].isPodcast && !kinds[1].isMusic)
         #expect(try FlexarrClient.decoder.decode(LibraryType.self, from: Data(#""Podcasts""#.utf8)) == .podcasts)

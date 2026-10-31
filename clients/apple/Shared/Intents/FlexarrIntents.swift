@@ -67,7 +67,8 @@ struct TitleQuery: EntityStringQuery {
     @MainActor
     func entities(matching string: String) async throws -> [TitleEntity] {
         guard let client = model.client else { throw FlexarrIntentError.notConnected }
-        let titles = try await client.search(string).titles.map(TitleEntity.init)
+        // Kinds this app doesn't know (from a newer server) can't be played from here.
+        let titles = try await client.search(string).titles.filter { $0.kind != .unknown }.map(TitleEntity.init)
         return titles + Podcasts.matching(string, in: (try? await client.podcasts()) ?? []).map(TitleEntity.init)
     }
 
@@ -78,7 +79,7 @@ struct TitleQuery: EntityStringQuery {
         guard let client = model.client else { return [] }
         var titles: [ItemSummary] = []
         let libraries = model.libraries.isEmpty ? ((try? await client.libraries()) ?? []) : model.libraries
-        for library in libraries.sorted(by: { $0.type == .tvShows && $1.type != .tvShows }) where library.type != .music && library.type != .podcasts {
+        for library in libraries.sorted(by: { $0.type == .tvShows && $1.type != .tvShows }) where [.movies, .tvShows, .homeVideos].contains(library.type) {
             if let page = try? await client.libraryItems(library.id, sort: .added, take: 300) { titles.append(contentsOf: page.items) }
             if titles.count >= 600 { break }
         }
@@ -1091,14 +1092,19 @@ struct FlexarrShortcuts: AppShortcutsProvider {
             shortTitle: "Add to Up Next",
             systemImageName: "text.line.last.and.arrowtriangle.forward"
         )
+        // Books and podcast episodes share this one (Apple allows ten): whichever played last. Play Up Next stays in the
+        // Shortcuts app, as do Play a book and Sleep at the end of the chapter.
         AppShortcut(
-            intent: PlayUpNextIntent(),
+            intent: ResumeListeningIntent(),
             phrases: [
-                "Play my Up Next in \(.applicationName)",
-                "Play Up Next in \(.applicationName)",
+                "Resume listening in \(.applicationName)",
+                "Continue listening in \(.applicationName)",
+                "Resume my audiobook in \(.applicationName)",
+                "Resume my book in \(.applicationName)",
+                "Resume my podcast in \(.applicationName)",
             ],
-            shortTitle: "Play Up Next",
-            systemImageName: "list.bullet"
+            shortTitle: "Resume listening",
+            systemImageName: "headphones"
         )
         AppShortcut(
             intent: ControlPlaybackIntent(),

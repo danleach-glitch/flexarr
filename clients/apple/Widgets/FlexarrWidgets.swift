@@ -97,7 +97,7 @@ struct ContinueListeningWidget: Widget {
                 .containerBackground(for: .widget) { Palette.room }
         }
         .configurationDisplayName("Continue listening")
-        .description("The podcast episode you're on, to carry on with.")
+        .description("The book or podcast episode you're on, to carry on with.")
         .supportedFamilies([.systemSmall, .systemMedium, .accessoryRectangular])
     }
 }

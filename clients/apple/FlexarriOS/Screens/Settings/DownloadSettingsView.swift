@@ -23,6 +23,10 @@ struct DownloadSettingsView: View {
             Section {
                 Toggle("Download the next episode", isOn: Binding(get: { downloads.downloadsNext }, set: { downloads.downloadsNext = $0 }))
                     .settingsRow()
+                Toggle("Download the next book in a series", isOn: Binding(get: { downloads.downloadsNextBook }, set: { downloads.downloadsNextBook = $0 }))
+                    .settingsRow()
+                Toggle("Remove books once finished", isOn: Binding(get: { downloads.removesFinishedBooks }, set: { downloads.removesFinishedBooks = $0 }))
+                    .settingsRow()
                 Toggle("Automatic downloads on Wi-Fi only", isOn: Binding(get: { downloads.autoDownloadsOnWiFiOnly }, set: { downloads.autoDownloadsOnWiFiOnly = $0 }))
                     .settingsRow()
             } header: {
