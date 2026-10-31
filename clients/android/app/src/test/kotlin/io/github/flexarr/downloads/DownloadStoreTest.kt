@@ -65,7 +65,7 @@ class DownloadStoreTest {
     @Test
     fun `a kind a newer app saved is kept, as unknown`() {
         val newer = element(download("a")).let { entry ->
-            JsonObject(entry + ("item" to JsonObject(entry["item"]!!.jsonObject + ("kind" to JsonPrimitive("Audiobook")))))
+            JsonObject(entry + ("item" to JsonObject(entry["item"]!!.jsonObject + ("kind" to JsonPrimitive("Hologram")))))
         }
         manifest.writeText(JsonArray(listOf(newer)).toString())
 
