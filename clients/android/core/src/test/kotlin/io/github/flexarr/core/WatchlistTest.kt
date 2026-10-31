@@ -171,7 +171,7 @@ class WatchlistTest {
             entry("yearOnly", "Ready", null, year = 2020),
             entry("early", "Ready", null, release = "2019-06-01"),
         )
-        assertEquals(listOf("early", "yearOnly", "late", "none"), WatchlistSort.ReleaseDate.sorted(entries).map { it.id })
+        assertEquals(listOf("late", "yearOnly", "early", "none"), WatchlistSort.ReleaseDate.sorted(entries).map { it.id })
         val titled = listOf(entry("b", "Ready", null, title = "‘Blade Runner’"), entry("a", "Ready", null, title = "alien"), entry("c", "Ready", null, title = "Casablanca"))
         assertEquals(listOf("a", "b", "c"), WatchlistSort.Title.sorted(titled).map { it.id })
     }

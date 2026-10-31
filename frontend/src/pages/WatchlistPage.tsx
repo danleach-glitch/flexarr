@@ -19,12 +19,13 @@ type Sort = 'status' | 'added' | 'release' | 'title'
 /** Ready first, then what's on its way, then what's coming, then the rest. */
 const statusOrder: Record<WatchlistStatus, number> = { Ready: 0, OnItsWay: 1, Coming: 2, NotAvailable: 3 }
 
-const releaseOf = (e: WatchlistEntry) => e.item?.releaseDate ?? e.releaseDate ?? (e.year ? `${e.year}-01-01` : '9999')
+const releaseOf = (e: WatchlistEntry) => e.item?.releaseDate ?? e.releaseDate ?? (e.year ? `${e.year}-01-01` : '')
 
 const sorters: Record<Sort, (a: WatchlistEntry, b: WatchlistEntry) => number> = {
   status: (a, b) => (statusOrder[a.status] ?? 4) - (statusOrder[b.status] ?? 4) || b.addedAt.localeCompare(a.addedAt),
   added: (a, b) => b.addedAt.localeCompare(a.addedAt),
-  release: (a, b) => releaseOf(a).localeCompare(releaseOf(b)),
+  // Newest first, so what's just out or coming is at the top; titles with no date last.
+  release: (a, b) => releaseOf(b).localeCompare(releaseOf(a)),
   title: (a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base', ignorePunctuation: true }),
 }
 
