@@ -91,26 +91,29 @@ describe('Profile form', () => {
     await vi.waitFor(() => expect(created).toMatchObject({ name: 'Sam', pin: '2468', color: '#9fd8b9' }))
   })
 
-  it('keeps the admin PIN: it can be changed, not taken off', async () => {
-    let saved: unknown
+  it('gives the main profile a PIN of its own that comes off like anyone’s, apart from the admin PIN', async () => {
+    let sent: Record<string, unknown> | undefined
     mockApi({
       '/libraries': [],
       '/me': adminHere,
       '/profiles': [main, kids],
-      '/settings': { askPinForMainProfile: false },
-      'PUT /settings': (init?: RequestInit) => {
-        saved = JSON.parse(String(init?.body))
-        return { askPinForMainProfile: true }
+      'PUT /profiles/owner': (init?: RequestInit) => {
+        sent = JSON.parse(String(init?.body))
+        return { ...main, hasPin: false }
       },
     })
     renderAt('/settings/profiles')
-    fireEvent.click(await screen.findByRole('switch', { name: /Ask for the PIN when someone chooses the main profile/ }))
-    await vi.waitFor(() => expect(saved).toEqual({ askPinForMainProfile: true }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit Dan' }))
+    const form = await screen.findByRole('form', { name: 'Edit Dan' })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Edit Dan' }))
-    expect(screen.getByText('Asked for before the server’s settings change. It can be changed, not taken off.')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Change' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Remove' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('switch', { name: /Ask for the PIN/ })).not.toBeInTheDocument()
+    expect(within(form).getByRole('link', { name: 'Security' })).toHaveAttribute('href', '/settings/security')
+    fireEvent.click(within(form).getByRole('button', { name: 'Remove' }))
+    fireEvent.click(within(form).getByRole('button', { name: 'Save profile' }))
+
+    await vi.waitFor(() => expect(sent).toBeDefined())
+    expect(sent).toMatchObject({ removePin: true })
+    expect(sent).not.toHaveProperty('currentPin')
   })
 })
 
