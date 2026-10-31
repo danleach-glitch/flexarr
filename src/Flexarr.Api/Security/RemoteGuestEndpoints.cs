@@ -114,6 +114,14 @@ public static class RemoteGuestEndpoints
         group.MapDelete("/devices/{id}", (string id, SignIns signIns) =>
             signIns.ById(id) is { Guest: true } && signIns.Revoke(id) ? Results.NoContent() : Results.NotFound());
 
+        // Every guest, devices or not: their profile stays (with what they've watched) until the guest is removed.
+        group.MapGet("/people", async (GuestInvites invites, FlexarrDbContext db, CancellationToken ct) =>
+        {
+            var ids = invites.GuestProfiles();
+            var present = await db.Profiles.AsNoTracking().Where(p => ids.Contains(p.Id) && p.Id != PlaybackState.DefaultUser).Select(p => p.Id).ToListAsync(ct);
+            return Results.Ok(present);
+        });
+
         group.MapGet("/invites", async (GuestInvites invites, FlexarrDbContext db, CancellationToken ct) =>
         {
             var names = await db.Profiles.AsNoTracking().ToDictionaryAsync(p => p.Id, p => p.Name, ct);

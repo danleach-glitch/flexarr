@@ -66,6 +66,9 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
 {
     public const string FileName = "invites.json";
 
+    /// <summary>The profiles that are guests: anyone ever invited, kept until their profile goes (see <see cref="GuestProfiles"/>).</summary>
+    public const string GuestsFileName = "guests.json";
+
     /// <summary>How long an unused invite lasts.</summary>
     public static readonly TimeSpan Lifetime = TimeSpan.FromDays(3);
 
@@ -86,6 +89,63 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
     private string FilePath => Path.Combine(options.CurrentValue.DataDirectory, FileName);
 
     /// <summary>Invites still waiting, newest first.</summary>
+    /// <summary>
+    /// The profiles that are guests, so Settings lists one even after their last device is removed (their profile, and
+    /// what they've watched, stay until the owner removes the guest). Profiles since removed are left to the caller to
+    /// skip; ids of guests whose devices are still signed in are included whether or not they were recorded.
+    /// </summary>
+    public IReadOnlyList<string> GuestProfiles()
+    {
+        lock (_lock)
+        {
+            var ids = new HashSet<string>(LoadedGuests(), StringComparer.Ordinal);
+            ids.UnionWith(Loaded().Select(i => i.ProfileId));
+            ids.UnionWith(signIns.List().Where(s => s.Guest && s.ProfileId is not null).Select(s => s.ProfileId!));
+            return ids.ToList();
+        }
+    }
+
+    /// <summary>Notes that <paramref name="profileId"/> is a guest's.</summary>
+    private void MarkGuest(string profileId)
+    {
+        var guests = LoadedGuests();
+        if (guests.Contains(profileId))
+        {
+            return;
+        }
+
+        guests.Add(profileId);
+        try
+        {
+            ServerConfigStore.WritePrivately(Path.Combine(options.CurrentValue.DataDirectory, GuestsFileName), JsonSerializer.Serialize(guests, Json));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            LogUnwritable(GuestsFileName, ex.Message);
+        }
+    }
+
+    private List<string>? _guests;
+
+    private List<string> LoadedGuests()
+    {
+        if (_guests is null)
+        {
+            var path = Path.Combine(options.CurrentValue.DataDirectory, GuestsFileName);
+            try
+            {
+                _guests = File.Exists(path) ? JsonSerializer.Deserialize<List<string>>(File.ReadAllText(path), Json) ?? [] : [];
+            }
+            catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException or NotSupportedException)
+            {
+                LogUnreadable(path, ex.Message);
+                _guests = [];
+            }
+        }
+
+        return _guests;
+    }
+
     public IReadOnlyList<GuestInvite> Waiting()
     {
         lock (_lock)
@@ -159,6 +219,7 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
         lock (_lock)
         {
             Loaded().Add(invite);
+            MarkGuest(profileId);
             SaveLocked();
         }
 

@@ -291,6 +291,22 @@ describe('Settings › Access › Family invites', () => {
     await waitFor(() => expect(gone).toEqual(['device', 'profile']))
   })
 
+  it('a guest with no devices left stays listed, to add one or remove them', async () => {
+    mockApi({
+      '/remote/guests': setup({ clientId: 'abc', hasClient: true, check: safe }),
+      '/profiles': [main, gran],
+      '/remote/guests/invites': [],
+      '/remote/guests/devices': [],
+      '/remote/guests/people': ['gran'],
+    })
+    render(<FamilyInvites />)
+
+    expect(await screen.findByText('Gran')).toBeVisible()
+    expect(screen.getByText('No devices')).toBeVisible()
+    expect(screen.getByRole('button', { name: '+ Add device' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Remove Gran' })).toBeVisible()
+  })
+
   it('names each connection plainly', () => {
     expect(describeGuest(device({ path: 'Direct' }))).toMatch(/^Gran · Direct · last used/)
     expect(describeGuest(device({ path: 'PeerRelay' }))).toMatch(/Through your relay/)

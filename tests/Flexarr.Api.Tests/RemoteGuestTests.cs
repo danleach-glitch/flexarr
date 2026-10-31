@@ -472,4 +472,22 @@ public class RemoteGuestTests(RemoteGuestFactory factory) : IClassFixture<Remote
 
         Assert.Equal("Aunt Sue’s iPad", redeemed!.Name);
     }
+
+    [Fact]
+    public async Task A_guest_stays_a_guest_after_their_last_device_is_removed()
+    {
+        var (dad, _) = await JoinAsync("Dad16");
+        using var admin = factory.Admin();
+        foreach (var d in (await admin.GetFromJsonAsync<List<GuestDeviceDto>>("/api/v1/remote/guests/devices", Web))!.Where(d => d.ProfileId == dad))
+        {
+            await admin.DeleteAsync($"/api/v1/remote/guests/devices/{d.Id}");
+        }
+
+        var people = await admin.GetFromJsonAsync<List<string>>("/api/v1/remote/guests/people");
+        Assert.Contains(dad, people!);
+
+        // Removed as a profile: no longer a guest.
+        await admin.DeleteAsync($"/api/v1/profiles/{dad}");
+        Assert.DoesNotContain(dad, (await admin.GetFromJsonAsync<List<string>>("/api/v1/remote/guests/people"))!);
+    }
 }

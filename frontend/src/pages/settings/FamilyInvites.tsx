@@ -6,6 +6,7 @@ import {
   freshly,
   checkGuestPolicy,
   getGuestDevices,
+  getGuestPeople,
   getGuestInvites,
   getProfiles,
   getRemoteGuests,
@@ -198,6 +199,7 @@ export function SetupGroup({ setup, onChange, collapsed = false }: { setup: Remo
 export function GuestsGroup({ onChange }: { onChange: () => void }) {
   const profiles = useApi(getProfiles, [])
   const devices = useApi(getGuestDevices, [])
+  const guestIds = useApi(getGuestPeople, [])
   const waiting = useApi(getGuestInvites, [])
   /** Who a device is being added for: kept here, so a profile made a moment ago shows before the list catches up. */
   /** `made`: the profile was made a moment ago for this guest, so giving up before a device joins removes it again. */
@@ -221,6 +223,7 @@ export function GuestsGroup({ onChange }: { onChange: () => void }) {
   const refresh = () => {
     devices.reload()
     waiting.reload()
+    guestIds.reload()
     onChange()
   }
   // While a device is being added, see it arrive quickly; while invites wait, now and then.
@@ -229,7 +232,11 @@ export function GuestsGroup({ onChange }: { onChange: () => void }) {
   const guestProfiles = profiles.data?.filter((p) => !p.isMain) ?? []
   // Newest first, so someone just invited is at the top, where their card was made.
   const listed = [...guestProfiles].reverse().filter(
-    (p) => p.id === adding || devices.data?.some((d) => d.profileId === p.id) || waiting.data?.some((w) => w.profileId === p.id),
+    (p) =>
+      p.id === adding ||
+      guestIds.data?.includes(p.id) ||
+      devices.data?.some((d) => d.profileId === p.id) ||
+      waiting.data?.some((w) => w.profileId === p.id),
   )
   const people: { id: string; name: string; color?: string }[] = addingFor && !listed.some((p) => p.id === addingFor.id) ? [addingFor, ...listed] : listed
   // The colour their new profile will get, or, once the name is someone's, theirs.
@@ -437,6 +444,9 @@ export function GuestsGroup({ onChange }: { onChange: () => void }) {
                   </AsyncButton>
                 </div>
               ))}
+            {!devices.data?.some((d) => d.profileId === person.id) &&
+              !waiting.data?.some((w) => w.profileId === person.id) &&
+              adding !== person.id && <p className="muted guest-no-devices">No devices</p>}
             {adding === person.id ? (
               <AddDevice
                 name={person.name}

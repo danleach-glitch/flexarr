@@ -1529,6 +1529,8 @@ export const getGuestInvites = (signal?: AbortSignal) => apiGet<GuestInvite[]>('
 export const createGuestInvite = (name: string | null, profileId: string) => request<{ invite: GuestInvite; link: string }>('POST', '/remote/guests/invites', { name, profileId })
 export const inviteGuestTv = (code: string, name: string | null, profileId: string) => request<GuestInvite>('POST', '/remote/guests/tv-code', { code, name, profileId })
 export const cancelGuestInvite = (id: string) => request<void>('DELETE', `/remote/guests/invites/${encodeURIComponent(id)}`)
+/** Every guest's profile id, devices or not (servers from 0.57). */
+export const getGuestPeople = (signal?: AbortSignal) => apiGet<string[]>('/remote/guests/people', signal)
 export const getGuestDevices = (signal?: AbortSignal) => apiGet<GuestDevice[]>('/remote/guests/devices', signal)
 export const removeGuestDevice = (id: string) => request<void>('DELETE', `/remote/guests/devices/${encodeURIComponent(id)}`)
 

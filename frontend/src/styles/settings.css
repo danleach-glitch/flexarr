@@ -2853,3 +2853,9 @@
 .guest-who .danger-icon {
   margin-left: -4px;
 }
+
+.guest-no-devices {
+  margin: 0;
+  padding: 14px 0 0;
+  font-size: var(--step--1);
+}
