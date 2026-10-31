@@ -44,8 +44,8 @@ struct RootView: View {
                 ConnectView()
                     .transition(.opacity)
             case .signedIn(let credentials):
-                if let problem = model.tunnelProblem {
-                    TunnelProblemView(problem: problem)
+                if model.tunnelProblem != nil {
+                    TunnelProblemView()
                         .transition(.opacity)
                 } else if !model.profilesLoaded {
                     ProgressView().scaleEffect(1.4)

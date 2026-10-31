@@ -280,6 +280,8 @@ struct RootView: View {
     @State private var reviews = ReviewPrompt()
     /// The welcome cards have been seen or skipped. `-FlexarrWelcomed NO` shows them again.
     @AppStorage("FlexarrWelcomed") private var welcomed = false
+    /// A family guest who can't reach its host opened the downloads.
+    @State private var showsDownloads = false
 
     var body: some View {
         ZStack {
@@ -295,9 +297,13 @@ struct RootView: View {
                         .transition(.opacity)
                 }
             case .signedIn(let credentials):
-                if let problem = model.tunnelProblem {
-                    TunnelProblemView(problem: problem)
+                if model.tunnelProblem != nil {
+                    // Downloads play without the server, so they're a tap away while it can't be reached.
+                    TunnelProblemView(onDownloads: downloads.downloads.isEmpty ? nil : { showsDownloads = true })
                         .transition(.opacity)
+                        .sheet(isPresented: $showsDownloads) {
+                            NavigationStack { DownloadsView() }
+                        }
                 } else if !model.profilesLoaded {
                     ProgressView().controlSize(.large)
                 } else if model.needsProfileChoice {

@@ -7,6 +7,7 @@ struct ServerSettingsView: View {
     @State private var status: SystemStatus?
     @State private var error: String?
     @State private var checking = false
+    @State private var confirmLeave = false
 
     var body: some View {
         SettingsPage(title: "Server", summary: summary) {
@@ -16,8 +17,9 @@ struct ServerSettingsView: View {
                 SettingsFact("Connected by invite", "\(guest.ownerName)’s Flexarr")
                 SettingsRow(title: "Leave", symbol: "rectangle.portrait.and.arrow.right",
                             help: "Sign this Apple TV out. Joining again takes a new code.") {
-                    model.signOut()
+                    confirmLeave = true
                 }
+                .leaveGuestConfirmation(isPresented: $confirmLeave, owner: guest.ownerName) { model.signOut() }
             } else {
             SettingsFact("Address", address(model.credentials?.address))
             }

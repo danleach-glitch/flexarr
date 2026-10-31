@@ -20,12 +20,8 @@ struct ServerSettingsView: View {
                         .listRowBackground(Color.seat)
                 } header: {
                     Text("Connected by invite")
-                } footer: {
-                    Text("Leaving signs this \(ThisDevice.name) out. Joining again takes a new invite.")
                 }
-                .confirmationDialog("Leave \(guest.ownerName)’s Flexarr?", isPresented: $confirmLeave, titleVisibility: .visible) {
-                    Button("Leave", role: .destructive) { model.signOut() }
-                }
+                .leaveGuestConfirmation(isPresented: $confirmLeave, owner: guest.ownerName) { model.signOut() }
             } else {
             Section {
                 address("Address", model.credentials?.address)
