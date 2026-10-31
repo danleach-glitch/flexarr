@@ -181,7 +181,7 @@ private fun MainPage(
                 TvSettingsRow(
                     "Leave", onClick = { confirmSignOut = true }, modifier = Modifier.padding(top = 18.dp),
                     icon = Icons.AutoMirrored.Filled.Logout, destructive = true,
-                    help = "Stop watching ${owner?.let { "$it’s" } ?: "this"} Flexarr on this TV. Joining again takes a new code.",
+                    help = "Stop watching ${owner?.let { "$it’s" } ?: "this"} Flexarr here. Joining again takes a new code.",
                 )
             } else {
                 TvSettingsRow(
