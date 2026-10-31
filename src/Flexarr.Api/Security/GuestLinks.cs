@@ -21,7 +21,18 @@ public sealed class GuestLinks(IHttpContextAccessor http, CurrentProfile current
         }
 
         var address = (peer.IsIPv4MappedToIPv6 ? peer.MapToIPv4() : peer).ToString();
-        var snapshot = await tailnet.SnapshotAsync(ct);
+        TailnetSnapshot? snapshot;
+        try
+        {
+            // Playback never waits long on Tailscale for this: no answer in two seconds, no cap (the snapshot carries
+            // on in the background and is kept for the next request).
+            snapshot = await tailnet.SnapshotAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(2), ct);
+        }
+        catch (TimeoutException)
+        {
+            return null;
+        }
+
         return snapshot?.Peers.FirstOrDefault(p => p.Address == address)?.Path == TailnetPath.Derp ? SlowLinkBitrate : null;
     }
 }
