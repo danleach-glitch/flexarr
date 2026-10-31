@@ -1,5 +1,6 @@
 package io.github.flexarr.audio
 
+import io.github.flexarr.player.mediaSources
 import io.github.flexarr.logging.FlexarrLog
 import android.content.Context
 import android.content.Intent
@@ -80,6 +81,7 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
                     .build()
         }
         ExoPlayer.Builder(context, renderers)
+            .setMediaSourceFactory(mediaSources(context))
             .setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).build(), true)
             .setHandleAudioBecomingNoisy(true)
             // Streamed with the screen off: the phone and its Wi-Fi stay awake while it plays.

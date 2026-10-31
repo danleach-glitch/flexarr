@@ -1,5 +1,6 @@
 package io.github.flexarr.audio
 
+import io.github.flexarr.player.mediaSources
 import io.github.flexarr.logging.FlexarrLog
 import android.content.Context
 import android.net.Uri
@@ -42,6 +43,7 @@ private val flexarrLog = FlexarrLog("podcasts")
 class PodcastPlayer(private val context: Context, private val model: AppModel) {
     val player: ExoPlayer by lazy {
         ExoPlayer.Builder(context)
+            .setMediaSourceFactory(mediaSources(context))
             .setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_SPEECH).build(), true)
             .setHandleAudioBecomingNoisy(true)
             .setSeekBackIncrementMs(BACK_MS)

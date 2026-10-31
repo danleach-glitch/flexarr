@@ -57,6 +57,7 @@ class LiveTvController(context: Context, private val model: AppModel, val client
     private val shaper = SoundShaper()
 
     val player: ExoPlayer = ExoPlayer.Builder(context, shaper.renderers(context))
+        .setMediaSourceFactory(mediaSources(context))
         .setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(), true)
         .setHandleAudioBecomingNoisy(true)
         .setSeekBackIncrementMs(skipSeconds * 1000L)

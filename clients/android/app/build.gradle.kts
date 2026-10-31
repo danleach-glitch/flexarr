@@ -226,6 +226,7 @@ dependencies {
     implementation(libs.media3.ui)
     implementation(libs.media3.session)
     implementation(libs.media3.cast)
+    implementation(libs.media3.datasource.okhttp)
     implementation(libs.androidx.work.runtime)
     implementation(libs.sentry.android)
     implementation(libs.glance.appwidget)
