@@ -13,6 +13,7 @@ import io.github.flexarr.core.LiveChannel
 import io.github.flexarr.player.LivePlayerActivity
 import io.github.flexarr.core.LibraryType
 import io.github.flexarr.core.MediaKind
+import io.github.flexarr.core.setBookFinished
 import io.github.flexarr.player.PlayerActivity
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -33,7 +34,38 @@ class Navigator(private val nav: NavHostController, private val model: AppModel,
         MediaKind.Artist -> nav.navigate("artist/${item.id}")
         MediaKind.Album -> nav.navigate("album/${item.id}")
         MediaKind.Track -> item.parentId?.let { nav.navigate("album/$it") } ?: Unit
+        MediaKind.Audiobook -> openBook(item.id)
         else -> openItem(item.id)
+    }
+
+    fun openBook(id: String) = nav.navigate("book/$id")
+
+    fun openBookSeries(id: String) = nav.navigate("book-series/$id")
+
+    /**
+     * Plays a book from where this profile left it, or from [from] on its timeline (a chapter, a bookmark), and opens
+     * its player.
+     */
+    fun playBook(item: ItemSummary, from: Double? = null) {
+        model.books.play(item, from)
+        model.showsBookPlayer = true
+    }
+
+    /** Marks a book finished or not; Continue listening follows. */
+    fun setBookFinished(item: ItemSummary, finished: Boolean) =
+        changeWatchState(if (finished) "Couldn’t mark this as finished" else "Couldn’t mark this as not finished") { it.setBookFinished(item.id, finished) }
+
+    /** Downloads a whole book, saying so if it didn't work. */
+    fun downloadBook(item: ItemSummary) {
+        model.scope.launch {
+            try {
+                model.bookDownloads.download(item)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                tell("Couldn’t download this", e)
+            }
+        }
     }
 
     /**
@@ -42,6 +74,7 @@ class Navigator(private val nav: NavHostController, private val model: AppModel,
      */
     fun openLibrary(library: Library) = when (library.type) {
         LibraryType.Music -> nav.navigate("music/${library.id}")
+        LibraryType.Audiobooks -> nav.navigate("books/${library.id}?view=")
         LibraryType.Unknown -> Unit
         else -> openLibrary(library.id)
     }
@@ -82,6 +115,7 @@ class Navigator(private val nav: NavHostController, private val model: AppModel,
 
     /** A film plays; a show or season plays the episode it's up to, or opens when everything's watched. */
     fun playBest(item: ItemSummary) {
+        if (item.kind == MediaKind.Audiobook) return playBook(item)
         if (item.kind.isPlayable) return play(item)
         val client = model.client ?: return
         model.scope.launch {
@@ -186,6 +220,11 @@ class Navigator(private val nav: NavHostController, private val model: AppModel,
         val segments = uri.pathSegments
         if (segments == listOf("watchlist")) return { openWatchlist() }
         if (segments.size != 2 || segments[0] != "library") return null
+        // An audiobooks library's rows open its own screen: "?view=all&sort=added" its every book, newest first.
+        if (model.audiobookLibraries.any { it.id == segments[1] }) {
+            val all = uri.getQueryParameter("view") == "all"
+            return { nav.navigate("books/${segments[1]}?view=${if (all) uri.getQueryParameter("sort").orEmpty().ifEmpty { "title" } else ""}") }
+        }
         val sort = LibrarySort.entries.firstOrNull { it.raw == uri.getQueryParameter("sort") } ?: LibrarySort.Title
         val genre = uri.getQueryParameter("genre")?.takeIf { it.isNotEmpty() }
         return { openLibrary(segments[1], sort, genre) }

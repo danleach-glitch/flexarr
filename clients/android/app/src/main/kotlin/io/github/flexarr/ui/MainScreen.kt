@@ -55,6 +55,10 @@ import io.github.flexarr.R
 import io.github.flexarr.core.LibrarySort
 import io.github.flexarr.ui.components.LocalClient
 import io.github.flexarr.ui.components.LocalNavigator
+import io.github.flexarr.ui.books.BookLibraryScreen
+import io.github.flexarr.ui.books.BookNowPlayingBar
+import io.github.flexarr.ui.books.BookScreen
+import io.github.flexarr.ui.books.BookSeriesScreen
 import io.github.flexarr.ui.detail.DetailScreen
 import io.github.flexarr.ui.downloads.DownloadsScreen
 import io.github.flexarr.ui.home.HomeScreen
@@ -118,6 +122,8 @@ fun MainScreen(model: AppModel) {
     LaunchedEffect(model.credentials, model.isKids) { model.loadPodcastStatus() }
     // Whether the server has Live TV (Libraries lists it).
     LaunchedEffect(model.credentials, model.isKids) { model.loadLiveTvStatus() }
+    // Whether this profile has audiobooks (Settings, the car).
+    LaunchedEffect(model.credentials, model.isKids, model.librariesVersion) { model.loadAudiobooks() }
     // Signed in (or as someone else): commands for this device come to this sign-in.
     LaunchedEffect(model.credentials) { model.listenForCommands() }
     // Whether this profile may manage the server, and so is asked to let devices in.
@@ -252,7 +258,11 @@ fun MainScreen(model: AppModel) {
             bottomBar = {
               Column {
                 // Music or a podcast carries on under every screen; the bar sits above the tabs and opens Now Playing.
-                if (model.music.current != null) MusicNowPlayingBar(model) else NowPlayingBar(model)
+                when {
+                    model.music.current != null -> MusicNowPlayingBar(model)
+                    model.books.current != null -> BookNowPlayingBar(model)
+                    else -> NowPlayingBar(model)
+                }
                 if (!rail) {
                     NavigationBar(containerColor = Flexarr.room.copy(alpha = 0.96f)) {
                         Tab.entries.filter { it != Tab.Settings || !model.isKids }.forEach { tab ->
@@ -340,6 +350,12 @@ fun MainScreen(model: AppModel) {
                 composable("artist/{id}") { ArtistScreen(model, it.arguments?.getString("id")!!) }
                 composable("album/{id}") { AlbumScreen(model, it.arguments?.getString("id")!!) }
                 composable("playlist/{id}") { PlaylistScreen(model, it.arguments?.getString("id")!!) }
+                composable(
+                    "books/{id}?view={view}",
+                    arguments = listOf(navArgument("view") { type = NavType.StringType; defaultValue = "" }),
+                ) { entry -> BookLibraryScreen(model, entry.arguments?.getString("id")!!, entry.arguments?.getString("view").orEmpty()) }
+                composable("book/{id}") { BookScreen(model, it.arguments?.getString("id")!!) }
+                composable("book-series/{id}") { BookSeriesScreen(model, it.arguments?.getString("id")!!) }
                 composable("podcasts") { PodcastsScreen(model) }
                 composable("podcasts/browse") { PodcastBrowseScreen(model) }
                 composable("podcast/{id}") { PodcastScreen(model, it.arguments?.getString("id")!!) }

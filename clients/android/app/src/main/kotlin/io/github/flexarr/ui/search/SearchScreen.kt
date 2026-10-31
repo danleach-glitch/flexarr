@@ -91,6 +91,7 @@ import io.github.flexarr.ui.components.LocalNavigator
 import io.github.flexarr.ui.components.Loaded
 import io.github.flexarr.ui.components.PageTitle
 import io.github.flexarr.ui.components.PersonCard
+import io.github.flexarr.ui.components.PillButton
 import io.github.flexarr.ui.components.PosterCard
 import io.github.flexarr.ui.components.RemoteImage
 import io.github.flexarr.ui.components.RowSpacing
@@ -281,6 +282,26 @@ private fun LazyListScope.results(
             Section("Movies and shows") {
                 LazyRow(contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(RowSpacing)) {
                     items(results.titles, key = { it.id }) { PosterCard(it, onOpen = { onPick(it) }) }
+                }
+            }
+        }
+    }
+    if (results.books.isNotEmpty() || results.bookSeries.isNotEmpty()) {
+        item(key = "books") {
+            Section("Audiobooks") {
+                val navigator = LocalNavigator.current
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    if (results.books.isNotEmpty()) {
+                        LazyRow(contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(RowSpacing)) {
+                            items(results.books, key = { it.id }) { PosterCard(it, onOpen = { onPick(it) }) }
+                        }
+                    }
+                    // Series by name, each opening its books in order.
+                    LazyRow(contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(results.bookSeries, key = { it.id }) { series ->
+                            PillButton(series.name, false, { onPick(null); navigator.openBookSeries(series.id) })
+                        }
+                    }
                 }
             }
         }
@@ -532,10 +553,23 @@ fun PersonScreen(model: AppModel, id: String, name: String) {
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(name, style = marquee(34).copy(fontWeight = FontWeight.ExtraBold), maxLines = 2)
                             person?.let {
-                                val count = it.credits.size
-                                Text(if (count == 1) "1 title in your library" else "$count titles in your library", fontSize = 15.sp, color = Flexarr.usher)
+                                val count = it.credits.distinctBy { credit -> credit.item.id }.size
+                                val books = it.credits.all { credit -> credit.item.kind == io.github.flexarr.core.MediaKind.Audiobook }
+                                val noun = if (books) "book" else "title"
+                                Text(if (count == 1) "1 $noun in your library" else "$count ${noun}s in your library", fontSize = 15.sp, color = Flexarr.usher)
                             }
                         }
+                    }
+                }
+                // An author's or narrator's life, cut short until it's tapped.
+                person?.biography?.takeIf { it.isNotBlank() }?.let { biography ->
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        var open by remember { mutableStateOf(false) }
+                        Text(
+                            biography, fontSize = 15.sp, color = Flexarr.screen.copy(alpha = 0.85f),
+                            maxLines = if (open) Int.MAX_VALUE else 5, overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.pressable({ open = !open }, role = null),
+                        )
                     }
                 }
                 if (person == null) {
