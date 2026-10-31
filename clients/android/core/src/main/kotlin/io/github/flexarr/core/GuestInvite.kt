@@ -216,6 +216,9 @@ class GuestTvCode(
     /** "ABCD-EFGH", as the TV shows it. */
     val display: String get() = "${code.take(4)}-${code.takeLast(4)}"
 
+    /** [display] for a screen reader, a character at a time ("H 4 2 K, F M 5 W"), which it would read as one word. */
+    val spoken: String get() = "${code.take(4).toList().joinToString(" ")}, ${code.takeLast(4).toList().joinToString(" ")}"
+
     /** The public key as the relay and server take it: X9.63 uncompressed (65 bytes), base64. */
     val publicKey: String get() = Base64.getEncoder().encodeToString(encode(publicKeyValue))
 

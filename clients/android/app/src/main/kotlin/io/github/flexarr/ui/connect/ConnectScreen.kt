@@ -570,7 +570,8 @@ private fun PhoneGuestCode(model: AppModel, onBack: () -> Unit) {
             Text("Give this code to the person who invited you", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher)
             val shown = guest.code
             if (shown != null) {
-                Text(shown.display, fontSize = 44.sp, fontWeight = FontWeight.Black, letterSpacing = 3.sp, color = Flexarr.screen)
+                Text(shown.display, fontSize = 44.sp, fontWeight = FontWeight.Black, letterSpacing = 3.sp, color = Flexarr.screen,
+                    modifier = Modifier.semantics { contentDescription = shown.spoken })
                 ActionButton("Send it", icon = Icons.Filled.Share, onClick = {
                     val send = android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain")
                         .putExtra(android.content.Intent.EXTRA_TEXT, shown.display)

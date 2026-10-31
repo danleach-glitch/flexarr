@@ -148,6 +148,7 @@ class GuestInviteTest {
         assertEquals(8, tv.code.length)
         assertTrue(tv.code.all { it in GuestTvCode.ALPHABET })
         assertEquals("${tv.code.take(4)}-${tv.code.takeLast(4)}", tv.display)
+        assertEquals(tv.code.take(4).toList().joinToString(" ") + ", " + tv.code.takeLast(4).toList().joinToString(" "), tv.spoken)
         assertTrue(tv.secret.matches(Regex("^[A-Za-z0-9_-]{32,128}$")))
         assertEquals(65, Base64.getDecoder().decode(tv.publicKey).size)
     }
