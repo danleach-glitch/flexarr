@@ -6,6 +6,7 @@ import { useApi } from '../../hooks/useApi'
 import { hasRequestChoice } from '../../lib/requestLibraries'
 import { AboutSection } from './AboutSection'
 import { AccessSection } from './AccessSection'
+import { SecuritySection } from './SecuritySection'
 import { AdminUnlock } from './AdminUnlock'
 import { BackupSection } from './BackupSection'
 import { ConnectionsSection } from './ConnectionsSection'
@@ -55,7 +56,8 @@ const serverPages: Page[] = [
   { id: 'livetv', label: 'Live TV', render: () => <LiveTvSection /> },
   { id: 'connections', label: 'Connections', render: () => <ConnectionsSection /> },
   { id: 'access', label: 'Access', render: () => <AccessSection /> },
-  { id: 'tv', label: 'Connect a device', render: () => <ConnectTvSection />, under: 'access' },
+  { id: 'security', label: 'Security', render: () => <SecuritySection /> },
+  { id: 'tv', label: 'Connect a device', render: () => <ConnectTvSection />, under: 'security' },
   { id: 'backups', label: 'Backup and restore', render: () => <BackupSection /> },
   { id: 'updates', label: 'Updates', render: () => <UpdatesSection /> },
   { id: 'logs', label: 'Logs', render: () => <LogsSection /> },
@@ -73,7 +75,7 @@ export function SettingsPage() {
   const name = current?.name
   const destinations = useApi(getRequestDestinations, [])
   const ownPages = destinations.data && hasRequestChoice(destinations.data, current?.hiddenLibraryIds ?? []) ? [...profilePages, requestsPage] : profilePages
-  // Settings for the server are the main profile's, and changing them takes its PIN (given lately on this browser):
+  // Settings for the server are the main profile's, and changing them takes the admin PIN (given lately on this browser):
   // locked, the server's pages ask for it. Another profile chosen here has only its own pages. Older servers have no
   // /me: everything, as before.
   const isAdmin = me.data?.isAdmin ?? true
@@ -128,7 +130,7 @@ export function SettingsPage() {
           {(isAdmin || locked) && (
             <div className="settings-nav-group">
               <h2>Server</h2>
-              {isAdmin && !pinMissing ? serverPages.filter((p) => !p.under).map(link) : link({ id: 'overview', label: locked ? 'Unlock settings' : 'Set a PIN', render: () => null })}
+              {isAdmin && !pinMissing ? serverPages.filter((p) => !p.under).map(link) : link({ id: 'overview', label: locked ? 'Unlock settings' : 'Choose an admin PIN', render: () => null })}
               {isAdmin && unlockedUntil && (
                 <button type="button" className="text-button settings-lock" onClick={() => void lockAdmin().then(() => window.location.reload())}>
                   Lock settings

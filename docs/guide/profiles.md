@@ -37,15 +37,15 @@ Every other profile can browse, watch, listen, make requests through Seerr, and 
 
 ### Unlocking settings
 
-The main profile always has a PIN: you choose it when you set Flexarr up. Watching as the main profile doesn't need it, and nor does tidying the library from a title's or library's page (the last three things above). Changing the server's settings, profiles and devices does. Open **Settings** on the main profile and the server's pages say **Settings are locked**: enter the PIN and choose **Unlock**.
+Flexarr has an **admin PIN**: you choose it when you set Flexarr up. It belongs to the server, apart from the main profile's own PIN (see [PINs](#pins)). Watching as the main profile doesn't need it, and nor does tidying the library from a title's or library's page (the last three things above). Changing the server's settings, profiles and devices does. Open **Settings** on the main profile and the server's pages say **Settings are locked**: enter the admin PIN and choose **Unlock**.
 
-Settings stay unlocked on that browser or device for 15 minutes after your last change. They lock again sooner if someone else is chosen there, if you choose **Lock settings** at the bottom of the list, or if the server restarts. Being on your home network doesn't skip the PIN.
+Settings stay unlocked on that browser or device for 15 minutes after your last change. They lock again sooner if someone else is chosen there, if you choose **Lock settings** at the bottom of the list, or if the server restarts. Being on your home network doesn't skip the admin PIN.
 
-A device asking to connect still shows up on the main profile while settings are locked. Choosing **Allow** asks for the PIN first.
+A device asking to connect still shows up on the main profile while settings are locked. Choosing **Allow** asks for the admin PIN first.
 
-If the main profile has no PIN yet (a server set up before Flexarr asked for one), **Settings** asks you to give it one before anything else.
+If there's no admin PIN yet (a server set up before Flexarr asked for one), **Settings** asks you to choose one before anything else.
 
-To have Flexarr ask for the PIN whenever someone chooses the main profile too, keeping its watch history private, turn on **Ask for the PIN when someone chooses the main profile** in **Settings › Profiles**. Someone coming in over Tailscale with their own account is always asked.
+To keep the main profile's watch history private, give it a PIN of its own in **Settings › Profiles**, as for anyone. Choosing it then asks for that PIN; the admin PIN works there too.
 
 ## Adding a profile
 
@@ -65,9 +65,13 @@ If you bring your history over from Plex, your Plex Home profile pictures can co
 
 A PIN is 4 to 8 digits. Without one, anyone can switch to that profile. With one, Flexarr asks for it whenever someone chooses the profile.
 
-- The admin PIN can be changed but not removed. Changing it takes the current one. If you've forgotten it, see [I forgot a profile's PIN](troubleshooting.md#i-forgot-a-profiles-pin).
+- The main profile's PIN works like anyone's: add it, change it or remove it in **Settings › Profiles**. It can be the same as the admin PIN or different.
+- The admin PIN is in **Settings › Security**. It can be changed but not removed, and changing it takes the current one. If you've forgotten it, see [I forgot a profile's PIN](troubleshooting.md#i-forgot-a-profiles-pin).
+- Without a PIN of its own, the main profile is chosen freely on browsers and devices you signed in. Someone coming in over Tailscale with their own account, or a browser at home that isn't signed in while there are kids profiles, is asked for the admin PIN instead, even when the main profile has a PIN of its own.
+- Forgotten a profile's PIN? Choose **Forgot PIN?** under its PIN pad and enter the admin PIN: the PIN comes off, and you can give it a new one in **Settings › Profiles**.
+- On a server from before the two were apart, the PIN you had became the admin PIN. The main profile kept it as its own too only if **Ask for the PIN when someone chooses the main profile** was on. Changing the admin PIN later doesn't change that one: change it in **Settings › Profiles** too.
 - Wrong guesses lock out the device doing the guessing for a while, longer each time. Someone else guessing can't lock you out of your own profile.
-- When wrong guesses at the admin PIN lock someone out, Flexarr notes it in its log and tells the main profile's phones (with notifications on), naming the device.
+- When wrong guesses at the admin PIN, or at the main profile's own, lock someone out, Flexarr notes it in its log and tells the main profile's phones (with notifications on), naming the device.
 
 ## Choosing which libraries a profile sees
 
@@ -104,7 +108,7 @@ Switch on **Kids profile** for a child's profile (it comes on by itself for a ne
 - has no scores, no score-ranked rows such as Top 10, and a **Watch again** row on Home for the films and shows they've finished; on the web, bigger artwork too
 - can't mark things watched, and has no trailers
 
-Setting one up needs the main profile to have a PIN.
+Setting one up needs an admin PIN.
 
 ### Child lock
 
@@ -114,12 +118,12 @@ For the playroom TV or a child's tablet, turn on **Child lock**, so only kids pr
 - **Apple TV:** **Settings › Profiles**, or press and hold a kids profile in the profile picker.
 - **iPhone, iPad and Android:** **Settings**, under **Watching as**, or hold the padlock on a kids profile's picture in the profile picker: child lock goes on with that profile.
 
-Turning it on from the main profile takes no PIN (from any other profile, the admin PIN). To turn it off, hold the padlock in the profile picker (on Apple TV, press and hold the kids profile), or choose **Turn off child lock** in the web's profile menu, and enter the admin PIN. You can also turn it off for any device from **Settings › Devices** on the web, which marks those with **Child lock on**.
+Turning it on from the main profile takes no PIN (from any other profile, the admin PIN). To turn it off, hold the padlock in the profile picker (on Apple TV, press and hold the kids profile), or choose **Turn off child lock** in the web's profile menu, and enter the admin PIN. You can also turn it off for any device from **Settings › Security** on the web, which marks those with **Child lock on**.
 
 Deleting the kids profile a device with child lock is on moves it to another kids profile. If it was the last one, turn off child lock first.
 
 > **Note**
-> Child lock needs the device's own sign-in: a browser signed in with the API key once, or an app connected with a code. An app still connected with the API key itself is the server, so kids profiles can't hold a child there at all: connect it again with a code. With **Only away from home** in **Settings › Access**, a browser at home that hasn't chosen a profile starts on a kids profile, and choosing the main profile there takes its PIN.
+> Child lock needs the device's own sign-in: a browser signed in with the API key once, or an app connected with a code. An app still connected with the API key itself is the server, so kids profiles can't hold a child there at all: connect it again with a code. With **Only away from home** in **Settings › Security**, a browser at home that hasn't chosen a profile starts on a kids profile, and choosing the main profile there takes the admin PIN. Giving it signs that browser in, so it doesn't ask again: turn on Child lock on a browser children share.
 
 ## Who's watching when Flexarr opens
 

@@ -169,7 +169,7 @@ private struct PairWithServer: View {
                                     ? "Type in the setup code from the server's log, then click **Set up Flexarr**."
                                     : "Click **Set up Flexarr**.")
                             }
-                            NumberedStep(3) { Text("Go to **Settings**, then **Access**, then **Connect a device**.") }
+                            NumberedStep(3) { Text("Go to **Settings**, then **Security**, then **Connect a device**.") }
                             NumberedStep(4) { Text("Type in this code:") }
                         }
                         code(start, renewed: pairing.renewedAt != nil)
@@ -179,7 +179,7 @@ private struct PairWithServer: View {
                             .foregroundStyle(Color.screen)
                             .fixedSize(horizontal: false, vertical: true)
                         code(start, renewed: pairing.renewedAt != nil)
-                        Text("Or on a computer, open **\(server.address.absoluteString)**, go to **Settings › Access › Connect a device** and type in the code.")
+                        Text("Or on a computer, open **\(server.address.appending(path: "settings/tv").absoluteString)** and type in the code.")
                             .font(.system(size: 26))
                             .foregroundStyle(Color.usher)
                             .fixedSize(horizontal: false, vertical: true)

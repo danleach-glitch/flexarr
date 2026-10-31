@@ -117,16 +117,16 @@ public class PinTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFacto
     {
         var clock = new ManualClock();
         var guard = new PinGuard(clock);
-        await guard.CheckAsync("owner", "address:10.0.0.2", () => true, CancellationToken.None, browser: "owners-laptop");
+        await guard.CheckAsync(PinGuard.AdminKey, "address:10.0.0.2", () => true, CancellationToken.None, browser: "owners-laptop");
         for (var i = 0; i < 4; i++)
         {
-            await guard.CheckAsync("owner", "address:10.0.0.2", () => false, CancellationToken.None, browser: $"kids-tablet-{i}");
+            await guard.CheckAsync(PinGuard.AdminKey, "address:10.0.0.2", () => false, CancellationToken.None, browser: $"kids-tablet-{i}");
         }
 
         clock.Now += PinGuard.ProfileThrottle + TimeSpan.FromSeconds(1);
-        var owner = await guard.CheckAsync("owner", "address:10.0.0.2", () => true, CancellationToken.None, browser: "owners-laptop");
+        var owner = await guard.CheckAsync(PinGuard.AdminKey, "address:10.0.0.2", () => true, CancellationToken.None, browser: "owners-laptop");
         // A new cookie doesn't buy the guesser fresh attempts.
-        var freshCookie = await guard.CheckAsync("owner", "address:10.0.0.2", () => true, CancellationToken.None, browser: "kids-tablet-new");
+        var freshCookie = await guard.CheckAsync(PinGuard.AdminKey, "address:10.0.0.2", () => true, CancellationToken.None, browser: "kids-tablet-new");
 
         Assert.Equal(PinCheck.Right, owner.Result);
         Assert.Equal(PinCheck.LockedOut, freshCookie.Result);
@@ -139,7 +139,7 @@ public class PinTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFacto
         using var server = new FlexarrApiFactory();
         var admin = server.CreateClient();
         admin.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
-        await admin.PutAsJsonAsync(Api("/profiles/owner"), new { name = "Owner", pin = "5319" });
+        await admin.PostAsJsonAsync(Api("/admin/pin"), new { pin = "5319" });
         var statuses = new List<HttpStatusCode>();
         HttpResponseMessage? last = null;
         for (var i = 0; i < 20; i++)
@@ -187,7 +187,7 @@ public class PinTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFacto
     {
         var clock = new ManualClock();
         var guard = new PinGuard(clock);
-        await guard.CheckAsync("owner", "address:10.0.0.3", () => true, CancellationToken.None, browser: "owners-laptop");
+        await guard.CheckAsync(PinGuard.AdminKey, "address:10.0.0.3", () => true, CancellationToken.None, browser: "owners-laptop");
         // A kid throws away their cookie and picks their own profile, over and over.
         for (var i = 0; i < 10_001; i++)
         {
@@ -196,11 +196,11 @@ public class PinTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFacto
 
         for (var i = 0; i < 4; i++)
         {
-            await guard.CheckAsync("owner", "address:10.0.0.3", () => false, CancellationToken.None, browser: $"kid-guess-{i}");
+            await guard.CheckAsync(PinGuard.AdminKey, "address:10.0.0.3", () => false, CancellationToken.None, browser: $"kid-guess-{i}");
         }
 
         clock.Now += PinGuard.ProfileThrottle + TimeSpan.FromSeconds(1);
-        var owner = await guard.CheckAsync("owner", "address:10.0.0.3", () => true, CancellationToken.None, browser: "owners-laptop");
+        var owner = await guard.CheckAsync(PinGuard.AdminKey, "address:10.0.0.3", () => true, CancellationToken.None, browser: "owners-laptop");
 
         Assert.Equal(PinCheck.Right, owner.Result);
     }
@@ -227,7 +227,7 @@ public class PinTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFacto
     }
 
     [Fact]
-    public async Task ChangingTheMainPin_TakesTheCurrentOne_OrTheApiKey()
+    public async Task ChangingTheAdminPin_TakesTheCurrentOne_OrTheApiKey_ButTheMainProfilesOwnPinDoesnt()
     {
         var browser = factory.CreateClient();
         using (var signIn = new HttpRequestMessage(HttpMethod.Post, Api("/session")))
@@ -237,26 +237,27 @@ public class PinTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFacto
             browser.DefaultRequestHeaders.Add("X-Requested-With", "flexarr");
         }
 
-        var first = await browser.PutAsJsonAsync(Api("/profiles/owner"), new { name = "Owner", pin = "13579" });
-        var removedWithout = await browser.PutAsJsonAsync(Api("/profiles/owner"), new { name = "Owner", removePin = true });
-        var changedWithout = await browser.PutAsJsonAsync(Api("/profiles/owner"), new { name = "Owner", pin = "0000" });
-        var wrong = await browser.PutAsJsonAsync(Api("/profiles/owner"), new { name = "Owner", pin = "0000", currentPin = "1111" });
+        var first = await browser.PostAsJsonAsync(Api("/admin/pin"), new { pin = "13579" });
+        var changedWithout = await browser.PostAsJsonAsync(Api("/admin/pin"), new { pin = "0000" });
+        var wrong = await browser.PostAsJsonAsync(Api("/admin/pin"), new { pin = "0000", currentPin = "1111" });
         var revealed = await browser.PostAsJsonAsync(Api("/settings/api-key/reveal"), new { confirm = true });
-        var renamed = await browser.PutAsJsonAsync(Api("/profiles/owner"), new { name = "Owner" });
-        var changed = await browser.PutAsJsonAsync(Api("/profiles/owner"), new { name = "Owner", pin = "24680", currentPin = "13579" });
-        var wrongKey = await browser.PutAsJsonAsync(Api("/profiles/owner"), new { name = "Owner", pin = "1111", apiKey = "not-the-key" });
-        var forgotten = await browser.PutAsJsonAsync(Api("/profiles/owner"), new { name = "Owner", pin = "1111", apiKey = FlexarrApiFactory.ApiKey });
+        var changed = await browser.PostAsJsonAsync(Api("/admin/pin"), new { pin = "24680", currentPin = "13579" });
+        var wrongKey = await browser.PostAsJsonAsync(Api("/admin/pin"), new { pin = "1111", apiKey = "not-the-key" });
+        var forgotten = await browser.PostAsJsonAsync(Api("/admin/pin"), new { pin = "1111", apiKey = FlexarrApiFactory.ApiKey });
+        // The main profile's own PIN is apart: changing or taking it off asks for nothing more.
+        var ownPin = await browser.PutAsJsonAsync(Api("/profiles/owner"), new { name = "Owner", pin = "2222" });
+        var ownPinOff = await browser.PutAsJsonAsync(Api("/profiles/owner"), new { name = "Owner", removePin = true });
 
         Assert.Equal(HttpStatusCode.OK, first.StatusCode); // a first PIN needs nothing more
-        Assert.Equal(HttpStatusCode.Conflict, removedWithout.StatusCode); // it guards the server's settings: changed, never taken off
         Assert.Equal(HttpStatusCode.Forbidden, changedWithout.StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, wrong.StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, revealed.StatusCode); // the PIN is still there, still guarding the key
-        Assert.Equal(HttpStatusCode.OK, renamed.StatusCode); // other changes don't ask
         Assert.Equal(HttpStatusCode.OK, changed.StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, wrongKey.StatusCode);
         Assert.Equal(HttpStatusCode.OK, forgotten.StatusCode);
-        Assert.True((await forgotten.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("hasPin").GetBoolean());
+        Assert.True((await ownPin.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("hasPin").GetBoolean());
+        Assert.False((await ownPinOff.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("hasPin").GetBoolean());
+        Assert.Equal(HttpStatusCode.OK, (await browser.PostAsJsonAsync(Api("/admin/unlock"), new { pin = "1111" })).StatusCode); // the admin PIN stayed
         await factory.SetMainPinAsync(null);
     }
 

@@ -17,15 +17,16 @@ namespace Flexarr.Api.Profiles;
 /// <param name="RequestFilmsLibraryId">The library its film requests go to; null, Seerr's default.</param>
 /// <param name="LibraryOrder">The order of the libraries in the menu (ids, and "live-tv"); empty, by name.</param>
 /// <param name="AsksPin">
-/// Choosing it here asks for its PIN. The admin PIN guards managing the server, so on a browser or device the
-/// owner signed in, choosing it only asks if the owner wants it to (absent from servers before 0.56: there, HasPin).
+/// Choosing it here asks for a PIN (absent from servers before 0.56: there, HasPin). For the main profile, that's its
+/// own PIN, or where the owner didn't sign in (a Tailscale guest), the admin PIN: see <paramref name="AsksAdminPin"/>.
 /// </param>
 /// <param name="AutoRequestWatchlist">Titles it adds to its watchlist that aren't in the library are requested (absent from servers before 0.56).</param>
 /// <param name="MaxRatingAge">Its age limit, on the UK's steps (0 is U, 8 PG, then 12, 15, 18); null, none. Absent from servers before 0.56.</param>
 /// <param name="IsKids">A child's profile: the simpler app, and leaving it takes the admin PIN. Absent from servers before 0.56.</param>
+/// <param name="AsksAdminPin">The PIN choosing it here asks for is the admin PIN, not its own. Absent from servers before 0.57.</param>
 public sealed record ProfileDto(string Id, string Name, string Color, bool HasPin, bool IsMain, bool IsCurrent, IReadOnlyList<Guid> HiddenLibraryIds, string? Image,
     Guid? RequestShowsLibraryId = null, Guid? RequestFilmsLibraryId = null, IReadOnlyList<string>? LibraryOrder = null, bool AsksPin = false,
-    bool AutoRequestWatchlist = false, int? MaxRatingAge = null, bool IsKids = false);
+    bool AutoRequestWatchlist = false, int? MaxRatingAge = null, bool IsKids = false, bool AsksAdminPin = false);
 
 /// <param name="MaxRatingAge">The age limit: 0 (U), 8 (PG), 12, 15 or 18; null for none.</param>
 /// <param name="IsKids">A child's profile; it needs an age limit.</param>
@@ -45,8 +46,8 @@ public sealed record RequestLibrariesRequest(Guid? ShowsLibraryId, Guid? FilmsLi
 public sealed record WatchlistRequestsRequest(bool AutoRequest);
 
 /// <param name="HiddenLibraryIds">Libraries the profile can't see; null leaves them as they are.</param>
-/// <param name="CurrentPin">Changing or removing the admin PIN takes the one it has now...</param>
-/// <param name="ApiKey">...or, if that's forgotten, the server's API key.</param>
+/// <param name="CurrentPin">No longer needed: the main profile's PIN is its own, and the admin PIN changes through /admin/pin.</param>
+/// <param name="ApiKey">No longer needed, as <paramref name="CurrentPin"/>.</param>
 /// <param name="MaxRatingAge">Making a profile: its age limit (see <see cref="AgeLimitRequest"/>). Changing one goes through /age-limit.</param>
 /// <param name="IsKids">Making a profile: a child's.</param>
 public sealed record ProfileRequest(string Name, string? Color, string? Pin, bool? RemovePin, IReadOnlyList<Guid>? HiddenLibraryIds = null, string? CurrentPin = null,
@@ -55,6 +56,9 @@ public sealed record ProfileRequest(string Name, string? Color, string? Pin, boo
 /// <param name="Pin">The chosen profile's PIN, if it asks for one.</param>
 /// <param name="ParentPin">Leaving a kids profile for one that isn't: the admin PIN (choosing the main profile, <paramref name="Pin"/> does).</param>
 public sealed record SelectProfileRequest(string? Pin, string? ParentPin = null);
+
+/// <param name="AdminPin">The admin PIN, which takes a forgotten PIN off any profile.</param>
+public sealed record ForgotPinRequest(string? AdminPin);
 
 public static partial class ProfileEndpoints
 {
@@ -93,8 +97,7 @@ public static partial class ProfileEndpoints
             return Results.Created($"/api/v1/profiles/{profile.Id}", ToDto(profile, current));
         }).RequireAuthorization(FlexarrClaims.AdminPolicy);
 
-        group.MapPut("/{id}", async (string id, ProfileRequest request, HttpContext http, FlexarrDbContext db, CurrentProfile current, PinGuard guard, SignIns signIns,
-            AdminUnlocks unlocks, IOptionsMonitor<FlexarrOptions> options, CancellationToken ct) =>
+        group.MapPut("/{id}", async (string id, ProfileRequest request, FlexarrDbContext db, CurrentProfile current, CancellationToken ct) =>
         {
             if (Validate(request) is { } problem)
             {
@@ -106,18 +109,12 @@ public static partial class ProfileEndpoints
                 return Results.NotFound();
             }
 
-            // The admin PIN guards showing the API key, so a script in the page mustn't be able to take it
-            // off (or swap it) first: that takes the PIN it has now, or the key itself.
-            // It guards managing the server too, so it can be changed but not taken off.
-            if (profile.IsMain && request.RemovePin == true)
+            // Before 0.57 this changed the admin PIN (taking the current one or the key). A caller still doing that
+            // mustn't quietly change the main profile's own PIN instead.
+            if (profile.IsMain && (!string.IsNullOrEmpty(request.CurrentPin) || !string.IsNullOrEmpty(request.ApiKey)))
             {
-                return Results.Problem("The main profile needs a PIN: it's what keeps the server's settings to you. You can change it.", statusCode: 409);
-            }
-
-            var changesMainPin = profile.IsMain && profile.PinHash is not null && !string.IsNullOrEmpty(request.Pin);
-            if (changesMainPin && await ConfirmMainPinChangeAsync(request, profile, http, current, guard, options.CurrentValue.ApiKey, ct) is { } refused)
-            {
-                return refused;
+                return Results.Problem("The admin PIN is changed with POST /admin/pin now (Settings › Security). The main profile's PIN here is its own.",
+                    statusCode: 409, extensions: new Dictionary<string, object?> { ["adminPinMoved"] = true });
             }
 
             profile.Name = request.Name.Trim();
@@ -137,14 +134,8 @@ public static partial class ProfileEndpoints
                 profile.SetPin(request.Pin);
             }
 
+            // The main profile's PIN is its own, like anyone's: the admin PIN is apart (see /admin/pin).
             await db.SaveChangesAsync(ct);
-            if (changesMainPin)
-            {
-                // Browsers that signed in with the old PIN have to give the new one, and so does anywhere it unlocked.
-                signIns.RevokePinVerifiedExcept(current.SignInId);
-                unlocks.LockAllExcept(current.SignInId);
-            }
-
             return Results.Ok(ToDto(profile, current));
         }).RequireAuthorization(FlexarrClaims.AdminPolicy);
 
@@ -206,6 +197,38 @@ public static partial class ProfileEndpoints
             // A phone handed down keeps telling of new titles for the profile it was set up as: it hears the child's now.
             await db.NotificationDevices.Where(d => d.SignInId == signInId).ExecuteUpdateAsync(u => u.SetProperty(d => d.ProfileId, chosen.Id), ct);
             return Results.Ok(new { token = current.TokenFor(chosen), profile = ToDto(chosen, current) with { IsCurrent = true } });
+        });
+
+        // A forgotten PIN, from the profile picker: the admin PIN takes it off, so the profile can be chosen and given a new
+        // one. Whoever knows the admin PIN could do that in Settings anyway. Available from 0.57.
+        group.MapPost("/{id}/forgot-pin", async (string id, ForgotPinRequest request, HttpContext http, FlexarrDbContext db, CurrentProfile current, PinGuard guard,
+            CancellationToken ct) =>
+        {
+            if (await db.Profiles.FindAsync([id], ct) is not { } profile)
+            {
+                return Results.NotFound();
+            }
+
+            if (await db.Profiles.FirstOrDefaultAsync(p => p.Id == PlaybackState.DefaultUser, ct) is not { AdminPinHash: not null } main)
+            {
+                return AdminEndpoints.PinMissing();
+            }
+
+            var (callers, browser) = PinCaller(http, current);
+            var (result, retryAfter) = await guard.CheckAsync(PinGuard.AdminKey, callers, () => main.CheckAdminPin(request.AdminPin), ct, mayManage: current.IsAdmin, browser);
+            if (result == PinCheck.LockedOut)
+            {
+                return TooManyPins(http, retryAfter);
+            }
+
+            if (result == PinCheck.Wrong)
+            {
+                return Results.Problem("That isn't the admin PIN.", statusCode: 403, extensions: new Dictionary<string, object?> { ["parentPin"] = true });
+            }
+
+            profile.SetPin(null);
+            await db.SaveChangesAsync(ct);
+            return Results.Ok(ToDto(profile, current));
         });
 
         group.MapPost("/kids-lock/release", async (KidsLockRequest request, HttpContext http, FlexarrDbContext db, CurrentProfile current, PinGuard guard, SignIns signIns,
@@ -377,21 +400,45 @@ public static partial class ProfileEndpoints
                 return Results.Problem("Child lock is on for this device.", statusCode: 403, extensions: new Dictionary<string, object?> { ["kidsLock"] = true });
             }
 
-            // Without a PIN on the main profile, choosing it would make anyone the server's admin. A browser or device
-            // the main profile signed in may (the household chose not to protect it); a Tailscale guest may not.
-            if (profile.IsMain && profile.PinHash is null && !current.IsTrusted)
+            // Choosing the main profile asks for its own PIN, if it has one; the admin PIN does too (it can change the
+            // main profile's anyway), and unlocks the server's settings here. Where the owner didn't sign in (a Tailscale
+            // guest, a browser at home with no sign-in and kids in the house), only the admin PIN chooses it: its own PIN
+            // keeps watching private, but mustn't hand out what the main profile may do to whoever learns it.
+            var adminPinOnly = profile.IsMain && current.TakesAdminPinForMain;
+            if (adminPinOnly && profile.AdminPinHash is null)
             {
-                return Results.Problem("The main profile can only be chosen here once it has a PIN.", statusCode: 403);
+                return Results.Problem("The main profile can only be chosen here once there's an admin PIN.", statusCode: 403);
             }
 
-            // The admin PIN guards managing the server, not watching as it: on a browser or device the owner
-            // signed in, choosing it only asks if the owner wants it to. A PIN given anyway is checked, and unlocks.
-            var askPin = current.AsksPinFor(profile) || profile.PinHash is not null && !string.IsNullOrEmpty(request.Pin);
-            if (askPin)
+            var pinGiven = !string.IsNullOrEmpty(request.Pin);
+            var mainPinGiven = false;
+            var hasAdminPin = profile.IsMain && profile.AdminPinHash is not null;
+            if (current.AsksPinFor(profile) || pinGiven && (profile.PinHash is not null || hasAdminPin))
             {
                 var (callers, browser) = PinCaller(http, current);
+                // Each PIN is counted on its own, so a right one never clears the other's wrong guesses: knowing the main
+                // profile's own PIN mustn't buy fresh tries at the admin PIN. Its own first; if that's wrong, the admin
+                // PIN, and when that's right the wrong guess it caused at the own PIN is taken back, so choosing the
+                // main profile with the admin PIN again and again never locks anyone out.
                 // Someone who may already manage the server could change the PIN anyway, so others' guesses don't hold them up.
-                var (result, retryAfter) = await guard.CheckAsync(profile.Id, callers, () => profile.CheckPin(request.Pin), ct, mayManage: current.IsAdmin, browser);
+                var result = PinCheck.Wrong;
+                var retryAfter = TimeSpan.Zero;
+                var ownTried = !adminPinOnly && profile.PinHash is not null;
+                if (ownTried)
+                {
+                    (result, retryAfter) = await guard.CheckAsync(profile.Id, callers, () => profile.CheckPin(request.Pin), ct, mayManage: current.IsAdmin, browser);
+                }
+
+                if (result == PinCheck.Wrong && hasAdminPin)
+                {
+                    (result, retryAfter) = await guard.CheckAsync(PinGuard.AdminKey, callers, () => profile.CheckAdminPin(request.Pin), ct, mayManage: current.IsAdmin,
+                        browser);
+                    if (result == PinCheck.Right && ownTried)
+                    {
+                        guard.Forgive(profile.Id, callers, current.IsAdmin);
+                    }
+                }
+
                 if (result == PinCheck.LockedOut)
                 {
                     return TooManyPins(http, retryAfter);
@@ -399,13 +446,15 @@ public static partial class ProfileEndpoints
 
                 if (result == PinCheck.Wrong)
                 {
-                    // `ownPin`: this profile's own PIN was the wrong one (apps from before also sent a parent's).
+                    // `ownPin`: the PIN for this choice was the wrong one (apps from before also sent a parent's).
                     return Results.Problem("That PIN isn't right.", statusCode: 403, extensions: new Dictionary<string, object?> { ["ownPin"] = true });
                 }
+
+                // The same digits may be both PINs (as they are on a server upgraded with the PIN asked for).
+                mainPinGiven = hasAdminPin && (adminPinOnly || profile.CheckAdminPin(request.Pin));
             }
 
             // The admin PIN was given (checked above): it unlocks the server's settings here too.
-            var mainPinGiven = profile.IsMain && askPin;
             var signInId = current.SignInId;
             if (signInId is not null)
             {
@@ -491,37 +540,6 @@ public static partial class ProfileEndpoints
         return (http.User.FindFirst(FlexarrClaims.TailscaleLogin)?.Value is { } login ? [$"tailscale:{login.ToLowerInvariant()}", address] : [address], browser);
     }
 
-    /// <summary>Null when the request may change the admin PIN: it holds the API key, or gives the current PIN.</summary>
-    private static async Task<IResult?> ConfirmMainPinChangeAsync(ProfileRequest request, Profile main, HttpContext http, CurrentProfile current, PinGuard guard,
-        string? apiKey, CancellationToken ct)
-    {
-        if (http.User.FindFirst(FlexarrClaims.Method)?.Value == ApiKeyAuthenticationHandler.Methods.ApiKey
-            || !string.IsNullOrEmpty(request.ApiKey) && !string.IsNullOrEmpty(apiKey)
-            && CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(request.ApiKey), Encoding.UTF8.GetBytes(apiKey)))
-        {
-            return null;
-        }
-
-        if (!string.IsNullOrEmpty(request.ApiKey))
-        {
-            return Results.Problem("That isn't the right API key.", statusCode: 403);
-        }
-
-        if (string.IsNullOrEmpty(request.CurrentPin))
-        {
-            return Results.Problem("Enter the main profile's current PIN to change it.", statusCode: 403);
-        }
-
-        var (callers, browser) = PinCaller(http, current);
-        var (result, retryAfter) = await guard.CheckAsync(main.Id, callers, () => main.CheckPin(request.CurrentPin), ct, mayManage: true, browser);
-        return result switch
-        {
-            PinCheck.Right => null,
-            PinCheck.LockedOut => TooManyPins(http, retryAfter),
-            _ => Results.Problem("That isn't the main profile's current PIN.", statusCode: 403),
-        };
-    }
-
     /// <summary>A 429 saying how long to wait, with Retry-After.</summary>
     internal static IResult TooManyPins(HttpContext http, TimeSpan retryAfter) =>
         TryAgainLater(http, retryAfter, when => $"Too many wrong PINs. Try again in {when}.");
@@ -544,7 +562,7 @@ public static partial class ProfileEndpoints
     internal static ProfileDto ToDto(Profile p, CurrentProfile current) =>
         new(p.Id, p.Name, p.Color, p.PinHash is not null, p.IsMain, p.Id == current.Id, p.HiddenLibraryIds, current.ImageUrlFor(p), p.RequestShowsLibraryId,
             p.RequestFilmsLibraryId, p.LibraryOrder, current.AsksPinFor(p), p.AutoRequestWatchlist, p.MaxRatingAge,
-            p.IsKids);
+            p.IsKids, current.AsksAdminPinFor(p));
 
 
     /// <summary>
@@ -597,9 +615,9 @@ public static partial class ProfileEndpoints
             return Results.Problem("The main profile can't have an age limit: it manages the server.", statusCode: 409);
         }
 
-        if (request.IsKids && await db.Profiles.AnyAsync(p => p.Id == PlaybackState.DefaultUser && p.PinHash == null, ct))
+        if (request.IsKids && await db.Profiles.AnyAsync(p => p.Id == PlaybackState.DefaultUser && p.AdminPinHash == null, ct))
         {
-            return Results.Problem("Give the main profile a PIN first: it's what keeps children in their profiles.", statusCode: 409);
+            return Results.Problem("Choose an admin PIN first: it's what keeps children in their profiles.", statusCode: 409);
         }
 
         return null;
@@ -613,7 +631,7 @@ public static partial class ProfileEndpoints
     {
         ArgumentNullException.ThrowIfNull(http);
         ArgumentNullException.ThrowIfNull(db);
-        if (current.IsAdmin || await db.Profiles.AsNoTracking().FirstOrDefaultAsync(p => p.Id == PlaybackState.DefaultUser, ct) is not { PinHash: not null } main)
+        if (current.IsAdmin || await db.Profiles.AsNoTracking().FirstOrDefaultAsync(p => p.Id == PlaybackState.DefaultUser, ct) is not { AdminPinHash: not null } main)
         {
             return null;
         }
@@ -622,11 +640,11 @@ public static partial class ProfileEndpoints
         if (string.IsNullOrEmpty(pin))
         {
             // Apps from before kids profiles show this as it is: they can choose the main profile and give its PIN.
-            return Results.Problem("Choose the main profile and enter its PIN.", statusCode: 403, extensions: parent);
+            return Results.Problem("Choose the main profile and enter the admin PIN.", statusCode: 403, extensions: parent);
         }
 
         var (callers, browser) = PinCaller(http, current);
-        var (result, retryAfter) = await guard.CheckAsync(main.Id, callers, () => main.CheckPin(pin), ct, mayManage: false, browser);
+        var (result, retryAfter) = await guard.CheckAsync(PinGuard.AdminKey, callers, () => main.CheckAdminPin(pin), ct, mayManage: false, browser);
         return result switch
         {
             PinCheck.Right => null,

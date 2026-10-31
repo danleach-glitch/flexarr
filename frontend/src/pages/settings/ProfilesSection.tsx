@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { Link } from 'react-router'
 import {
   ApiError,
   createProfile,
   deleteProfile,
   getAllLibraries,
+  getMe,
   getRequestDestinations,
   removeProfileImage,
   setAgeLimit,
@@ -25,7 +27,6 @@ import { ageLimitText, ratingSteps } from '../../lib/ratings'
 import { requestChoices, requestRows } from '../../lib/requestLibraries'
 import { RequestLibrarySelect } from './RequestsSection'
 import { SettingsHeader } from './shared'
-import { useSettings } from './useSettings'
 
 export function ProfilesSection() {
   const [version, setVersion] = useState(0)
@@ -35,7 +36,9 @@ export function ProfilesSection() {
   const destinations = useApi(getRequestDestinations, []).data ?? []
   const [editing, setEditing] = useState<Profile | 'new'>()
   // A kids profile is only as safe as the admin PIN, which is what it takes to leave one.
-  const mainHasPin = data?.find((p) => p.isMain)?.hasPin ?? false
+  const me = useApi(getMe, [])
+  // Until /me answers, assume there is one, so the Kids switch isn't disabled for a moment.
+  const mainHasPin = me.data?.adminPinMissing !== true
   const reload = () => {
     setEditing(undefined)
     setVersion((v) => v + 1)
@@ -55,7 +58,6 @@ export function ProfilesSection() {
       >
         Everyone gets their own Continue Watching, history and Up Next. A PIN keeps a profile private.
       </SettingsHeader>
-      <MainPinChoice />
       <div className="panel profile-list">
         {editing === 'new' && (
           <ProfileForm
@@ -118,37 +120,6 @@ export function ProfilesSection() {
   )
 }
 
-/**
- * The admin PIN always guards the server's settings. Whether choosing the main profile to watch asks for it
- * too is the owner's choice (a Tailscale guest is always asked).
- */
-function MainPinChoice() {
-  const { settings, save, saveError } = useSettings()
-  if (!settings) return null
-  return (
-    <div className="panel">
-      <label className="setting-row">
-        <span className="setting-text">
-          <strong>Ask for the PIN when someone chooses the main profile</strong>
-          <span className="muted">Changing the server’s settings always asks for it. This keeps the main profile’s watch history private too.</span>
-        </span>
-        <input
-          type="checkbox"
-          role="switch"
-          className="switch"
-          checked={settings.askPinForMainProfile ?? false}
-          onChange={(e) => void save({ askPinForMainProfile: e.target.checked })}
-        />
-      </label>
-      {saveError && (
-        <p className="error" role="alert">
-          {saveError}
-        </p>
-      )}
-    </div>
-  )
-}
-
 /** An object URL for previewing a chosen file, released when it changes. */
 function usePreviewUrl(file: File | null | undefined) {
   const url = useMemo(() => (file ? URL.createObjectURL(file) : undefined), [file])
@@ -196,10 +167,6 @@ function ProfileForm({
   const [removePin, setRemovePin] = useState(false)
   // The PIN fields wait until a PIN is being added or changed.
   const [choosingPin, setChoosingPin] = useState(false)
-  // Changing the admin PIN takes the one it has now (it guards the API key), or the key if it's forgotten.
-  const [currentPin, setCurrentPin] = useState('')
-  const [apiKey, setApiKey] = useState<string>()
-  const asksForCurrentPin = profile?.isMain === true && profile.hasPin && (choosingPin || removePin)
   const [maxRatingAge, setMaxRatingAge] = useState<number | null>(profile?.maxRatingAge ?? null)
   const [isKids, setIsKids] = useState(profile?.isKids ?? false)
   const [errors, setErrors] = useState<string[]>([])
@@ -213,12 +180,11 @@ function ProfileForm({
     }
     setSaving(true)
     try {
-      const confirmation = asksForCurrentPin ? (apiKey !== undefined ? { apiKey: apiKey.trim() } : { currentPin }) : {}
       // The age limit first: if the server refuses it, nothing else has changed.
       if (profile && (maxRatingAge !== (profile.maxRatingAge ?? null) || isKids !== (profile.isKids ?? false)))
         await setAgeLimit(profile.id, { maxRatingAge, isKids })
       const saved = profile
-        ? await updateProfile(profile.id, { name, color, pin: pin || undefined, removePin, hiddenLibraryIds: hidden, ...confirmation })
+        ? await updateProfile(profile.id, { name, color, pin: pin || undefined, removePin, hiddenLibraryIds: hidden })
         : await createProfile({ name, color, pin: pin || undefined, hiddenLibraryIds: hidden, maxRatingAge, isKids })
       const { requestShowsLibraryId: showsLibraryId, requestFilmsLibraryId: filmsLibraryId } = requestLibraries
       if (showsLibraryId !== (profile?.requestShowsLibraryId ?? null) || filmsLibraryId !== (profile?.requestFilmsLibraryId ?? null))
@@ -234,13 +200,11 @@ function ProfileForm({
     }
   }
 
-  const pinHelp = profile?.isMain
-    ? 'Asked for before the server’s settings change. It can be changed, not taken off.'
-    : removePin
-      ? 'The PIN goes when you save.'
-      : profile?.hasPin
-        ? `Asked for when someone switches to ${profile.name}.`
-        : 'Anyone can switch to this profile. A PIN keeps it private.'
+  const pinHelp = removePin
+    ? 'The PIN goes when you save.'
+    : profile?.hasPin
+      ? `Asked for when someone switches to ${profile.name}.`
+      : 'Anyone can switch to this profile. A PIN keeps it private.'
 
   return (
     <form className="profile-form" onSubmit={submit} aria-label={profile ? `Edit ${profile.name}` : 'New profile'}>
@@ -297,7 +261,7 @@ function ProfileForm({
               <button type="button" className="button quiet small" onClick={() => setChoosingPin(true)}>
                 {profile?.hasPin ? 'Change' : 'Add a PIN'}
               </button>
-              {profile?.hasPin && !profile.isMain && (
+              {profile?.hasPin && (
                 <button type="button" className="text-button danger-text" onClick={() => setRemovePin(true)}>
                   Remove
                 </button>
@@ -319,57 +283,37 @@ function ProfileForm({
             </button>
           )}
         </div>
-        {(choosingPin || asksForCurrentPin) && (
+        {choosingPin && (
           <div className="field-row">
-            {choosingPin && (
-              <>
-                <label>
-                  {profile?.hasPin ? 'New PIN' : 'PIN'}
-                  <input
-                    type="password"
-                    inputMode="numeric"
-                    autoComplete="new-password"
-                    value={pin}
-                    required
-                    autoFocus
-                    onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 8))}
-                    placeholder="4 to 8 digits"
-                  />
-                </label>
-                <label>
-                  {profile?.hasPin ? 'Confirm new PIN' : 'Confirm PIN'}
-                  <input
-                    type="password"
-                    inputMode="numeric"
-                    autoComplete="new-password"
-                    value={confirmPin}
-                    required
-                    onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, '').slice(0, 8))}
-                  />
-                </label>
-              </>
-            )}
-            {asksForCurrentPin && apiKey === undefined && (
-              <label>
-                Current PIN
-                <input type="password" inputMode="numeric" autoComplete="off" required value={currentPin} onChange={(e) => setCurrentPin(e.target.value.replace(/\D/g, '').slice(0, 8))} />
-              </label>
-            )}
-            {asksForCurrentPin && apiKey !== undefined && (
-              <label>
-                API key
-                <input type="password" autoComplete="off" required value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
-              </label>
-            )}
+            <label>
+              {profile?.hasPin ? 'New PIN' : 'PIN'}
+              <input
+                type="password"
+                inputMode="numeric"
+                autoComplete="new-password"
+                value={pin}
+                required
+                autoFocus
+                onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 8))}
+                placeholder="4 to 8 digits"
+              />
+            </label>
+            <label>
+              {profile?.hasPin ? 'Confirm new PIN' : 'Confirm PIN'}
+              <input
+                type="password"
+                inputMode="numeric"
+                autoComplete="new-password"
+                value={confirmPin}
+                required
+                onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, '').slice(0, 8))}
+              />
+            </label>
           </div>
         )}
-        {asksForCurrentPin && apiKey === undefined && (
+        {profile?.isMain && (
           <span className="field-help">
-            Changing it takes the current PIN. Forgotten it?{' '}
-            <button type="button" className="text-button" onClick={() => setApiKey('')}>
-              Use the API key instead
-            </button>{' '}
-            (it’s in config.json in the server’s data folder).
+            The admin PIN, for the server’s settings, is separate: it’s in <Link to="/settings/security">Security</Link>.
           </span>
         )}
       </fieldset>
@@ -405,7 +349,7 @@ function ProfileForm({
             <label className="profile-library">
               <span className="setting-text">
                 <span>Kids profile</span>
-                <span className="muted">{mainHasPin ? 'No Settings. Leaving takes the admin PIN.' : 'Needs a main profile PIN first.'}</span>
+                <span className="muted">{mainHasPin ? 'No Settings. Leaving takes the admin PIN.' : 'Needs an admin PIN first.'}</span>
               </span>
               <input
                 type="checkbox"

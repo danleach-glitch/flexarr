@@ -322,6 +322,8 @@ using (var scope = app.Services.CreateScope())
         flexarr.AskPinForMainProfile = askPin;
         ServerConfigStore.Update(flexarr.DataDirectory, config => config["askPinForMainProfile"] = askPin);
     }
+
+    await Flexarr.Api.Profiles.PinSplit.SettleAsync(db, flexarr.AskPinForMainProfile == true, CancellationToken.None);
 }
 
 app.Use((http, next) =>

@@ -1,5 +1,7 @@
 package io.github.flexarr.ui.tv
 
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material3.Icon
 import android.view.KeyEvent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
@@ -45,6 +47,7 @@ import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import io.github.flexarr.AppModel
+import io.github.flexarr.core.FlexarrException
 import io.github.flexarr.core.Profile
 import io.github.flexarr.ui.profiles.ProfileAvatar
 import io.github.flexarr.ui.theme.Flexarr
@@ -63,6 +66,8 @@ fun TvProfilePicker(model: AppModel, marksCurrent: Boolean = false, onDone: () -
     var asking by remember { mutableStateOf<Profile?>(null) }
     var switching by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
+    // Its PIN is forgotten: the pad asks for the admin PIN, which takes it off.
+    var forgetting by remember { mutableStateOf<Profile?>(null) }
     val requesters = remember(model.profiles.map { it.id }) { model.profiles.associate { it.id to FocusRequester() } }
     val startOn = (if (marksCurrent) model.profiles.firstOrNull { !it.isCurrent } else null) ?: model.profiles.firstOrNull()
 
@@ -81,14 +86,45 @@ fun TvProfilePicker(model: AppModel, marksCurrent: Boolean = false, onDone: () -
         }
     }
 
-    BackHandler(enabled = marksCurrent && asking == null, onBack = onDone)
+    /** The admin PIN takes a forgotten PIN off, and the profile is chosen. */
+    fun forget(profile: Profile, adminPin: String) {
+        val client = model.client ?: return
+        switching = profile.id
+        scope.launch {
+            try {
+                val cleared = client.forgetPin(profile.id, adminPin)
+                forgetting = null
+                choose(cleared, null)
+            } catch (e: FlexarrException.ParentPinNeeded) {
+                error = e.message ?: "That isn’t the admin PIN."
+            } catch (e: FlexarrException.Http) {
+                error = if (e.status == 404) "Take the PIN off in Settings › Profiles on the web." else e.message
+            } catch (e: Exception) {
+                error = e.message
+            } finally {
+                if (forgetting != null) switching = null
+            }
+        }
+    }
+
+    BackHandler(enabled = marksCurrent && asking == null && forgetting == null, onBack = onDone)
     RoomBackground(ambient = null) {
         val pinFor = asking
-        if (pinFor != null) {
+        val forgot = forgetting
+        if (forgot != null) {
+            PinPad(model, forgot, error, checking = switching != null, onEdit = { error = null }, onCancel = {
+                forgetting = null
+                error = null
+            }, adminPin = true, note = "It takes ${forgot.name}’s PIN off.") { pin -> forget(forgot, pin) }
+        } else if (pinFor != null) {
             PinPad(model, pinFor, error, checking = switching != null, onEdit = { error = null }, onCancel = {
                 asking = null
                 error = null
-            }) { pin -> choose(pinFor, pin) }
+            }, onForgot = if (pinFor.isMain || pinFor.takesAdminPin) null else ({
+                forgetting = pinFor
+                asking = null
+                error = null
+            })) { pin -> choose(pinFor, pin) }
         } else {
             Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(35.dp, Alignment.CenterVertically)) {
                 Text("Who’s watching?", style = marquee(38).copy(fontWeight = FontWeight.ExtraBold))
@@ -152,7 +188,18 @@ private fun ProfileChoice(model: AppModel, profile: Profile, caption: String?, b
 
 /** A 4 to 8 digit PIN entered with the remote: a keypad, for remotes without number keys. Number keys work too. */
 @Composable
-private fun PinPad(model: AppModel, profile: Profile, error: String?, checking: Boolean, onEdit: () -> Unit, onCancel: () -> Unit, onSubmit: (String) -> Unit) {
+private fun PinPad(
+    model: AppModel,
+    profile: Profile,
+    error: String?,
+    checking: Boolean,
+    onEdit: () -> Unit,
+    onCancel: () -> Unit,
+    adminPin: Boolean = profile.takesAdminPin,
+    note: String? = null,
+    onForgot: (() -> Unit)? = null,
+    onSubmit: (String) -> Unit,
+) {
     var pin by remember { mutableStateOf("") }
     var shortPin by remember { mutableStateOf(false) }
     val first = remember { FocusRequester() }
@@ -181,8 +228,15 @@ private fun PinPad(model: AppModel, profile: Profile, error: String?, checking: 
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.width(320.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(15.dp)) {
-            ProfileAvatar(model, profile, size = 90)
-            Text("Enter ${profile.name}’s PIN", style = marquee(28).copy(fontWeight = FontWeight.ExtraBold))
+            // The admin PIN is the server's, not the main profile's own: a padlock rather than its picture.
+            if (adminPin) {
+                Icon(Icons.Filled.Lock, contentDescription = null, tint = Flexarr.usher, modifier = Modifier.size(80.dp))
+            } else {
+                ProfileAvatar(model, profile, size = 90)
+            }
+            Text(if (adminPin) "Enter the admin PIN" else "Enter ${profile.name}’s PIN",
+                style = marquee(28).copy(fontWeight = FontWeight.ExtraBold))
+            note?.let { Text(it, fontSize = 14.sp, color = Flexarr.usher) }
             Row(Modifier.height(20.dp), horizontalArrangement = Arrangement.spacedBy(11.dp), verticalAlignment = Alignment.CenterVertically) {
                 repeat(maxOf(4, pin.length)) { index ->
                     Box(Modifier.size(15.dp).background(if (index < pin.length) Flexarr.screen else Color.Transparent, CircleShape).border(1.5.dp, Flexarr.usher, CircleShape))
@@ -195,6 +249,7 @@ private fun PinPad(model: AppModel, profile: Profile, error: String?, checking: 
                 else -> " "
             }
             Text(message, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = if (error != null || shortPin) Flexarr.danger else Flexarr.screen)
+            onForgot?.let { TvActionButton("Forgot PIN?", onClick = it) }
         }
         Column(verticalArrangement = Arrangement.spacedBy(13.dp)) {
             listOf(listOf("1", "2", "3"), listOf("4", "5", "6"), listOf("7", "8", "9"), listOf("delete", "0", "ok")).forEach { row ->

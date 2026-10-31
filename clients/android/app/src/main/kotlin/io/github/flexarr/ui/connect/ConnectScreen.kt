@@ -219,7 +219,7 @@ private fun Badge(title: String, icon: androidx.compose.ui.graphics.vector.Image
 
 /**
  * Connecting by code: the server hands out a short code, someone approves it (a phone signed in as the main profile is
- * asked; on a computer, Settings › Access › Connect a device), and this device gets a sign-in of its own. Codes that run
+ * asked; on a computer, Settings › Security › Connect a device), and this device gets a sign-in of its own. Codes that run
  * out are replaced.
  */
 @Composable
@@ -273,7 +273,7 @@ private fun PairWithServer(model: AppModel, server: DiscoveredServer, onBack: ()
                             append("Go to ")
                             withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append("Settings") }
                             append(", then ")
-                            withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append("Access") }
+                            withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append("Security") }
                             append(", then ")
                             withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append("Connect a device") }
                             append(".")
@@ -305,9 +305,8 @@ private fun PairWithServer(model: AppModel, server: DiscoveredServer, onBack: ()
                 Text(
                     buildAnnotatedString {
                         append("Or on a computer, open ")
-                        withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(server.address) }
-                        append(", go to ")
-                        withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append("Settings › Access › Connect a device") }
+                        // The page's own address works on servers before and after Connect a device moved to Security.
+                        withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(server.address.trimEnd('/') + "/settings/tv") }
                         append(" and type the code.")
                     },
                     fontSize = 15.sp,

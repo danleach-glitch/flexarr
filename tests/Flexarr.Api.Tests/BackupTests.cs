@@ -562,7 +562,7 @@ public class BackupTests
     {
         await using var factory = new FlexarrApiFactory();
         var admin = Client(factory);
-        await admin.PutAsJsonAsync(Api("/profiles/owner"), new { name = "Owner", pin = "4826" });
+        await admin.PostAsJsonAsync(Api("/admin/pin"), new { pin = "4826" });
         var token = (await (await admin.PostAsJsonAsync(Api("/session/device"), new { deviceName = "Laptop" })).Content.ReadFromJsonAsync<JsonElement>())
             .GetProperty("token").GetString();
         var browser = factory.CreateClient();

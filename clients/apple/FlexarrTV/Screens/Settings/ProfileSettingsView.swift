@@ -29,7 +29,7 @@ struct ProfileSettingsView: View {
             }
         }
         .fullScreenCover(isPresented: $askingPin) {
-            PinPad(profile: model.profiles.first(where: \.isMain), title: "Enter the admin PIN", error: $error,
+            PinPad(profile: nil, title: "Enter the admin PIN", error: $error,
                    onCancel: { askingPin = false; error = nil }) { pin in
                 await lock(pin: pin)
             }

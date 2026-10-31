@@ -27,7 +27,7 @@ public sealed partial class PinAlerts(IServiceScopeFactory scopes, SignIns signI
         ArgumentNullException.ThrowIfNull(guard);
         guard.CallerLockedOut += (profileId, callers) =>
         {
-            if (profileId != PlaybackState.DefaultUser)
+            if (profileId != PinGuard.AdminKey && profileId != PlaybackState.DefaultUser)
             {
                 return;
             }
@@ -79,7 +79,7 @@ public sealed partial class PinAlerts(IServiceScopeFactory scopes, SignIns signI
     }
 
     public static PushMessage Message(string who) =>
-        new("Someone's guessing your PIN", $"{who} got the admin PIN wrong too many times and has to wait. If it wasn't you, change the PIN in a browser, in Settings › Profiles.",
+        new("Someone's guessing your PIN", $"{who} got the admin PIN or your profile's PIN wrong too many times and has to wait. If it wasn't you, change them on the web, in Settings.",
             Category, Thread: Category);
 
     /// <summary>"Living Room TV", "the Tailscale account sam@example.com", or "a device at 192.168.1.20".</summary>
@@ -103,7 +103,7 @@ public sealed partial class PinAlerts(IServiceScopeFactory scopes, SignIns signI
             : "Someone";
     }
 
-    [LoggerMessage(Level = LogLevel.Warning, Message = "{Who} got the admin PIN wrong too many times and is locked out for a while")]
+    [LoggerMessage(Level = LogLevel.Warning, Message = "{Who} got the admin PIN (or the main profile's own) wrong too many times and is locked out for a while")]
     private partial void LogLockedOut(string who);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Couldn't tell the main profile's phones about wrong PINs")]

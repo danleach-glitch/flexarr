@@ -106,7 +106,7 @@ Flexarr still has an API key. You won't need it for everyday use at home, but it
 - scripts, [Home Assistant](home-assistant.md) and [assistants](assistant-mcp.md)
 - getting back in if you've lost every signed-in browser
 
-Signed in as the main profile, you can see it in **Settings › Access** under **API key**: choose the eye to show it (with the admin PIN, if it has one). **Make a new key** replaces it if it's ever got out.
+Signed in as the main profile, you can see it in **Settings › Security** under **API key**: choose the eye to show it (with the admin PIN). **Make a new key** replaces it if it's ever got out.
 
 It's also in the server's settings file, `config.json`, as `apiKey`:
 

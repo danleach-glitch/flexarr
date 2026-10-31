@@ -38,6 +38,7 @@ public sealed record SettingsDto(
     string? HostName = null,
     bool HasTmdbKey = false,
     BazarrConnectionDto? Bazarr = null,
+    // Whether choosing the main profile asks for a PIN: since 0.57, whether it has a PIN of its own.
     bool AskPinForMainProfile = false);
 
 /// <summary>The Live TV source; the password is never sent back, only whether there is one.</summary>
@@ -74,6 +75,7 @@ public sealed record SettingsUpdate(
     LiveTvSettingsUpdate? LiveTv = null,
     TmdbKeyUpdate? Tmdb = null,
     BazarrConnectionUpdate? Bazarr = null,
+    // Ignored since 0.57: the main profile has a PIN of its own, set in Profiles like anyone's.
     bool? AskPinForMainProfile = null);
 
 /// <param name="ApiKey">TMDB's API key or read access token; empty to remove it.</param>
@@ -111,7 +113,8 @@ public static class SettingsEndpoints
         var group = api.MapGroup("/settings").WithTags("Settings").RequireAuthorization(FlexarrClaims.AdminPolicy);
 
         group.MapGet("/", async (IOptionsMonitor<FlexarrOptions> options, FlexarrDbContext db, CancellationToken ct) =>
-            ToDto(options.CurrentValue, await AvailableAsync(options.CurrentValue, ct), await LiveTv.DvrFolders.ResolveAsync(db, options.CurrentValue, ct)));
+            ToDto(options.CurrentValue, await AvailableAsync(options.CurrentValue, ct), await LiveTv.DvrFolders.ResolveAsync(db, options.CurrentValue, ct),
+                await MainHasOwnPinAsync(db, ct)));
 
         group.MapPut("/", async (SettingsUpdate update, IOptionsMonitor<FlexarrOptions> options, LiveTv.LiveTvRefreshSignal liveTvRefresh, FlexarrDbContext db,
             ILibraryScanQueue scans, CancellationToken ct) =>
@@ -161,11 +164,6 @@ public static class SettingsEndpoints
                 if (update.AuthenticationRequired is { } auth)
                 {
                     config["authenticationRequired"] = auth.ToString();
-                }
-
-                if (update.AskPinForMainProfile is { } askPin)
-                {
-                    config["askPinForMainProfile"] = askPin;
                 }
 
                 if (update.PathMappings is { } mappings)
@@ -279,7 +277,8 @@ public static class SettingsEndpoints
                 }
             }
 
-            return Results.Ok(ToDto(options.CurrentValue, await AvailableAsync(options.CurrentValue, ct), await LiveTv.DvrFolders.ResolveAsync(db, options.CurrentValue, ct)));
+            return Results.Ok(ToDto(options.CurrentValue, await AvailableAsync(options.CurrentValue, ct), await LiveTv.DvrFolders.ResolveAsync(db, options.CurrentValue, ct),
+                await MainHasOwnPinAsync(db, ct)));
         });
 
         // Showing the key is a POST, so it needs the web app's own header (see RequestForgery) and can't be read by a
@@ -435,7 +434,10 @@ public static class SettingsEndpoints
         return api;
     }
 
-    private static SettingsDto ToDto(FlexarrOptions o, IReadOnlyList<HardwareAcceleration> available, string dvrFolder) => new(
+    private static Task<bool> MainHasOwnPinAsync(FlexarrDbContext db, CancellationToken ct) =>
+        db.Profiles.AsNoTracking().AnyAsync(p => p.Id == PlaybackState.DefaultUser && p.PinHash != null, ct);
+
+    private static SettingsDto ToDto(FlexarrOptions o, IReadOnlyList<HardwareAcceleration> available, string dvrFolder, bool mainHasOwnPin) => new(
         o.Transcoding,
         available,
         o.AuthenticationRequired,
@@ -454,7 +456,7 @@ public static class SettingsEndpoints
         HostName(),
         o.Tmdb?.ApiKey is { Length: > 0 },
         o.Bazarr is { BaseUrl.Length: > 0 } b ? new BazarrConnectionDto(b.BaseUrl, b.ApiKey.Length > 0) : null,
-        o.AskPinForMainProfile == true);
+        mainHasOwnPin);
 
     /// <summary>
     /// This machine's name on the network ("Dans-Mac-Mini"), which the web app puts in place of localhost in links to
@@ -490,7 +492,7 @@ public static class SettingsEndpoints
         }
 
         var main = await db.Profiles.AsNoTracking().FirstOrDefaultAsync(p => p.Id == PlaybackState.DefaultUser, ct);
-        if (main?.PinHash is null)
+        if (main?.AdminPinHash is null)
         {
             return request?.Confirm == true ? null : Results.Problem($"Confirm that you want to {action}.", statusCode: 400);
         }
@@ -501,7 +503,7 @@ public static class SettingsEndpoints
         }
 
         var (callers, browser) = ProfileEndpoints.PinCaller(http, current);
-        var (result, retryAfter) = await guard.CheckAsync(main.Id, callers, () => main.CheckPin(request.Pin), ct, mayManage: true, browser);
+        var (result, retryAfter) = await guard.CheckAsync(PinGuard.AdminKey, callers, () => main.CheckAdminPin(request.Pin), ct, mayManage: true, browser);
         return result switch
         {
             PinCheck.Right => null,

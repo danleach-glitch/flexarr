@@ -1012,6 +1012,9 @@ namespace Flexarr.Core.Data.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("AdminPinHash")
+                        .HasColumnType("TEXT");
+
                     b.Property<bool>("AutoPlayNext")
                         .HasColumnType("INTEGER");
 

@@ -7,6 +7,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.Icon
+import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.Icons
@@ -103,7 +104,8 @@ fun ProfilePicker(
     var unlockedWith by remember { mutableStateOf<String?>(null) }
     var switching by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
-    val main = model.profiles.firstOrNull { it.isMain }
+    // Its PIN is forgotten: the admin PIN is asked for, which takes it off.
+    var forgetting by remember { mutableStateOf<Profile?>(null) }
     // Child lock can be turned off from the web while the app's open: what it says now.
     LaunchedEffect(Unit) { model.refreshKidsLock() }
 
@@ -176,13 +178,44 @@ fun ProfilePicker(
         asking = null
         parent = null
         locking = null
+        forgetting = null
         error = null
     }
 
-    AnimatedContent(Triple(asking, parent, locking), label = "profiles") { (pinFor, parentFor, lockStep) ->
-        if (lockStep != null) {
+    /** The admin PIN takes a forgotten PIN off, and the profile is chosen. */
+    suspend fun forget(profile: Profile, adminPin: String): Boolean {
+        val client = model.client ?: return false
+        return try {
+            val cleared = client.forgetPin(profile.id, adminPin)
+            forgetting = null
+            choose(cleared, null)
+        } catch (e: FlexarrException.ParentPinNeeded) {
+            error = e.message ?: "That isn’t the admin PIN."
+            false
+        } catch (e: FlexarrException.Http) {
+            error = if (e.status == 404) "Take the PIN off in Settings › Profiles on the web." else e.message
+            false
+        } catch (e: Exception) {
+            error = e.message
+            false
+        }
+    }
+
+    AnimatedContent(PickerStep(asking, parent, locking, forgetting), label = "profiles") { (pinFor, parentFor, lockStep, forgot) ->
+        if (forgot != null) {
             PinEntry(
-                profile = main,
+                profile = null,
+                title = "Enter the admin PIN",
+                note = "It takes ${forgot.name}’s PIN off.",
+                model = model,
+                error = error,
+                onEdit = { error = null },
+                onCancel = cancel,
+                onSubmit = { pin -> forget(forgot, pin) },
+            )
+        } else if (lockStep != null) {
+            PinEntry(
+                profile = null,
                 title = "Enter the admin PIN",
                 model = model,
                 error = error,
@@ -191,12 +224,20 @@ fun ProfilePicker(
                 onSubmit = { pin -> kidsLock(lockStep, pin) },
             )
         } else if (pinFor != null) {
+            // The admin PIN is the server's, not the main profile's own: a padlock rather than its picture. Where the
+            // server says choosing the main profile takes it (a guest), the same.
+            val adminPin = parentFor != null || pinFor.takesAdminPin
             PinEntry(
-                profile = if (parentFor == null) pinFor else main,
-                title = if (parentFor == null) null else "Enter the admin PIN",
+                profile = if (adminPin) null else pinFor,
+                title = if (adminPin) "Enter the admin PIN" else null,
                 model = model,
                 error = error,
                 onEdit = { error = null },
+                onForgot = if (adminPin || pinFor.isMain) null else ({
+                    forgetting = pinFor
+                    asking = null
+                    error = null
+                }),
                 onCancel = cancel,
                 onSubmit = { pin -> if (parentFor != null) choose(pinFor, parentFor.ownPin, pin) else choose(pinFor, pin) },
             )
@@ -303,19 +344,24 @@ fun ProfilePicker(
 
 private data class ParentPin(val ownPin: String?)
 
+/** What the picker shows: the profiles, or a PIN for one of them, child lock, or a forgotten PIN. */
+private data class PickerStep(val asking: Profile?, val parent: ParentPin?, val locking: KidsLockStep?, val forgetting: Profile?)
+
 private enum class KidsLockStep { Lock, Release }
 
 /**
- * A 4 to 8 digit PIN, on the number pad: [profile]'s by default; with a [title], whatever that says (the main profile's,
- * for a parent), under [profile]'s picture if there is one.
+ * A 4 to 8 digit PIN, on the number pad: [profile]'s by default; with a [title], whatever that says (the admin PIN, for
+ * a parent), under [profile]'s picture, or a padlock without one.
  */
 @Composable
 private fun PinEntry(
     profile: Profile?,
     model: AppModel,
     title: String? = null,
+    note: String? = null,
     error: String?,
     onEdit: () -> Unit,
+    onForgot: (() -> Unit)? = null,
     onCancel: () -> Unit,
     onSubmit: suspend (String) -> Boolean,
 ) {
@@ -338,8 +384,13 @@ private fun PinEntry(
     }
 
     Column(Modifier.fillMaxWidth().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(22.dp)) {
-        profile?.let { ProfileAvatar(model, it, size = 84) }
+        if (profile != null) {
+            ProfileAvatar(model, profile, size = 84)
+        } else {
+            Icon(Icons.Filled.Lock, contentDescription = null, tint = Flexarr.usher, modifier = Modifier.size(72.dp))
+        }
         Text(title ?: "Enter ${profile?.name}’s PIN", style = marquee(32), textAlign = TextAlign.Center)
+        note?.let { Text(it, fontSize = 15.sp, color = Flexarr.usher, textAlign = TextAlign.Center) }
         BasicTextField(
             value = pin,
             onValueChange = {
@@ -368,6 +419,7 @@ private fun PinEntry(
             ActionButton("Cancel", onClick = onCancel)
             ActionButton("Continue", onClick = ::submit, prominent = true, enabled = pin.length >= 4 && !checking)
         }
+        onForgot?.let { TextButton(onClick = it) { Text("Forgot PIN?", fontSize = 15.sp, color = Flexarr.usher) } }
     }
 }
 

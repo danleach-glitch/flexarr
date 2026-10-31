@@ -15,8 +15,15 @@ public sealed class Profile
     /// <summary>Avatar colour, #rrggbb.</summary>
     public string Color { get; set; } = "#a9c2ec";
 
-    /// <summary>PBKDF2 hash of an optional PIN, as "iterations.salt.hash" (base64).</summary>
+    /// <summary>PBKDF2 hash of an optional PIN, as "iterations.salt.hash" (base64). Asked for when someone chooses the profile.</summary>
     public string? PinHash { get; set; }
+
+    /// <summary>
+    /// The main profile only: the admin PIN, hashed like <see cref="PinHash"/>. It guards managing the server and lets a
+    /// child off a kids profile; the main profile's own <see cref="PinHash"/> only guards watching as it. Kept on the
+    /// main profile's row so backups and restores carry it with the profiles.
+    /// </summary>
+    public string? AdminPinHash { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
@@ -82,42 +89,56 @@ public sealed class Profile
     public int? MaxRatingAge { get; set; }
 
     /// <summary>
-    /// A child's profile: the simpler app, no requests, and leaving it (choosing another profile) takes the main
-    /// profile's PIN. Always has an age limit.
+    /// A child's profile: the simpler app, no requests, and leaving it (choosing another profile) takes the admin
+    /// PIN. Always has an age limit.
     /// </summary>
     public bool IsKids { get; set; }
 
     public bool IsMain => Id == PlaybackState.DefaultUser;
 
+    /// <summary>
+    /// The PIN a profile token is bound to, so changing it retires tokens handed out before: the profile's own, or for a
+    /// main profile without one, the admin PIN (which it had as its one PIN before they were split).
+    /// </summary>
+    public string? TokenPinHash => TokenPinHashOf(Id, PinHash, AdminPinHash);
+
+    /// <inheritdoc cref="TokenPinHash"/>
+    public static string? TokenPinHashOf(string id, string? pinHash, string? adminPinHash) =>
+        id == PlaybackState.DefaultUser ? pinHash ?? adminPinHash : pinHash;
+
     public static string NewId() => Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(8));
 
-    public void SetPin(string? pin)
+    public void SetPin(string? pin) => PinHash = Hash(pin);
+
+    public bool CheckPin(string? pin) => PinHash is null || Matches(PinHash, pin);
+
+    /// <summary>Sets the admin PIN (the main profile's): see <see cref="AdminPinHash"/>.</summary>
+    public void SetAdminPin(string? pin) => AdminPinHash = Hash(pin);
+
+    /// <summary>Whether <paramref name="pin"/> is the admin PIN. False when there isn't one.</summary>
+    public bool CheckAdminPin(string? pin) => AdminPinHash is not null && Matches(AdminPinHash, pin);
+
+    private static string? Hash(string? pin)
     {
         if (string.IsNullOrEmpty(pin))
         {
-            PinHash = null;
-            return;
+            return null;
         }
 
         const int iterations = 100_000;
         var salt = RandomNumberGenerator.GetBytes(16);
         var hash = Rfc2898DeriveBytes.Pbkdf2(pin, salt, iterations, HashAlgorithmName.SHA256, 32);
-        PinHash = string.Create(CultureInfo.InvariantCulture, $"{iterations}.{Convert.ToBase64String(salt)}.{Convert.ToBase64String(hash)}");
+        return string.Create(CultureInfo.InvariantCulture, $"{iterations}.{Convert.ToBase64String(salt)}.{Convert.ToBase64String(hash)}");
     }
 
-    public bool CheckPin(string? pin)
+    private static bool Matches(string pinHash, string? pin)
     {
-        if (PinHash is null)
-        {
-            return true;
-        }
-
         if (string.IsNullOrEmpty(pin))
         {
             return false;
         }
 
-        var parts = PinHash.Split('.');
+        var parts = pinHash.Split('.');
         var iterations = int.Parse(parts[0], CultureInfo.InvariantCulture);
         var expected = Convert.FromBase64String(parts[2]);
         var actual = Rfc2898DeriveBytes.Pbkdf2(pin, Convert.FromBase64String(parts[1]), iterations, HashAlgorithmName.SHA256, expected.Length);

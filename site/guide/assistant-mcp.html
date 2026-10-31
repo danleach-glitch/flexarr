@@ -225,7 +225,7 @@
 <h2 id="what-you-ll-need"><a class="anchor" href="#what-you-ll-need" aria-hidden="true" tabindex="-1">#</a>What you&#39;ll need</h2>
 <ul>
 <li>Your server&#39;s address, such as <code>http://mini.local:8383</code> or <code>http://192.168.1.20:8383</code>. The MCP address is that with <code>/api/v1/mcp</code> on the end.</li>
-<li>The API key, from <strong>Settings › Access</strong> in Flexarr, signed in as the main profile. Showing it asks for the admin PIN.</li>
+<li>The API key, from <strong>Settings › Security</strong> in Flexarr, signed in as the main profile. Showing it asks for the admin PIN.</li>
 </ul>
 <h2 id="claude-code"><a class="anchor" href="#claude-code" aria-hidden="true" tabindex="-1">#</a>Claude Code</h2>
 <p>In a terminal, run:</p>
@@ -249,7 +249,7 @@
 <li><strong>Keep the assistant on your network.</strong> Use Flexarr&#39;s home address, or its Tailscale address away from home (see <a href="/guide/away-from-home">Watch away from home</a>). Never put Flexarr on the internet over plain <code>http://</code> to reach it from an assistant.</li>
 <li><strong>Don&#39;t share configuration files</strong> that contain the key, or commit them to a code repository.</li>
 <li><strong>Prefer the header.</strong> Flexarr also accepts the key in the address as <code>?apikey=</code>, for tools that can&#39;t send headers, but addresses end up in logs and histories more easily.</li>
-<li><strong>If the key leaks</strong>, choose <strong>Make a new key</strong> in <strong>Settings › Access</strong>. Everything using the old key stops working until you give it the new one.</li>
+<li><strong>If the key leaks</strong>, choose <strong>Make a new key</strong> in <strong>Settings › Security</strong>. Everything using the old key stops working until you give it the new one.</li>
 <li><strong>Check before it acts.</strong> An assistant can play, stop, mark things watched and set recordings. Most assistant apps ask before using a tool; leave that on if you&#39;d rather approve each one.</li>
 </ul>
 

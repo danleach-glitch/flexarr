@@ -440,7 +440,7 @@ public class KidsProfileTests
         using (var scope = server.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
-            (await db.Profiles.FindAsync(PlaybackState.DefaultUser))!.SetPin(MainPin);
+            (await db.Profiles.FindAsync(PlaybackState.DefaultUser))!.SetAdminPin(MainPin);
             await db.SaveChangesAsync();
         }
 

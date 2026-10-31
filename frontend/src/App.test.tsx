@@ -602,7 +602,7 @@ describe('Settings', () => {
     expect(screen.getByRole('link', { name: 'Access' })).toHaveClass('active')
   })
 
-  it('a main profile without a PIN is asked for one before anything in the server’s settings', async () => {
+  it('a server without an admin PIN asks for one before anything in its settings', async () => {
     let sent: unknown
     mockApi({
       '/libraries': [],
@@ -616,7 +616,7 @@ describe('Settings', () => {
     vi.stubGlobal('location', { ...window.location, reload })
 
     renderAt('/settings/overview')
-    expect(await screen.findByRole('heading', { name: 'Give the main profile a PIN' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Choose an admin PIN' })).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('PIN'), { target: { value: '2468' } })
     fireEvent.change(screen.getByLabelText('Confirm PIN'), { target: { value: '2468' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save PIN' }))
@@ -648,14 +648,16 @@ describe('Settings', () => {
       'DELETE /sign-ins/s1': undefined,
     })
 
-    renderAt('/settings/access')
+    renderAt('/settings/security')
 
-    // Hidden behind dots; with no PIN on the main profile, the eye shows it straight away.
+    // Hidden behind dots; the eye asks for the admin PIN first (assumed until /me says there's none).
     expect(await screen.findByLabelText('API key, hidden')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Show the API key' }))
+    fireEvent.change(await screen.findByLabelText('Admin PIN'), { target: { value: '2580' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Show the key' }))
     expect(await screen.findByText('the-key')).toBeInTheDocument()
     const reveal = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/settings/api-key/reveal'))
-    expect(JSON.parse(String(reveal?.[1]?.body))).toMatchObject({ confirm: true })
+    expect(JSON.parse(String(reveal?.[1]?.body))).toMatchObject({ pin: '2580', confirm: true })
     expect(screen.getByRole('button', { name: 'Copy the API key' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Hide the API key' }))
     expect(screen.queryByText('the-key')).not.toBeInTheDocument()
@@ -718,27 +720,27 @@ describe('Settings', () => {
     const fetchMock = mockApi({
       '/libraries': [],
       '/settings': { authenticationRequired: 'Enabled', transcoding: {}, availableHardwareAcceleration: [], pathMappings: [], arr: [], seerr: null, dataDirectory: '/data', ffmpegPath: 'ffmpeg', ffprobePath: 'ffprobe', webhookSecret: 'hook-secret' },
-      '/profiles': [{ id: 'owner', name: 'Dan', isMain: true, hasPin: true, isCurrent: true }],
+      '/me': { profileId: 'owner', method: 'session', zone: 'Local', isAdmin: true, tailscaleLogin: null, adminPinMissing: false },
       'POST /settings/api-key/rotate': { apiKey: 'new-key', signedOut: 3 },
       '/sign-ins': [],
     })
 
-    renderAt('/settings/access')
+    renderAt('/settings/security')
 
-    // With a PIN on the main profile, the eye asks for it before showing the key.
+    // With an admin PIN, the eye asks for it before showing the key.
     fireEvent.click(await screen.findByRole('button', { name: 'Show the API key' }))
     expect(await screen.findByRole('form', { name: 'Show the API key' })).toBeInTheDocument()
     expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/api-key/reveal'))).toBe(false)
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
 
     fireEvent.click(await screen.findByRole('button', { name: 'Make a new key' }))
-    // With a PIN on the main profile, the PIN field takes the focus.
+    // With an admin PIN, the PIN field takes the focus.
     const pin = await screen.findByLabelText('Admin PIN')
     await vi.waitFor(() => expect(pin).toHaveFocus())
     fireEvent.change(pin, { target: { value: '1234' } })
     fireEvent.click(screen.getByRole('checkbox'))
     fireEvent.click(screen.getByRole('button', { name: 'Replace the key' }))
-    expect(await screen.findByRole('status')).toHaveTextContent('New key made. The old one stopped working. 3 browsers and TVs were signed out.')
+    expect(await screen.findByText(/^New key made/)).toHaveTextContent('New key made. The old one stopped working. 3 browsers and TVs were signed out.')
     expect(screen.getByText('new-key')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Copy the API key' })).toBeInTheDocument()
   })
@@ -820,7 +822,7 @@ describe('Settings', () => {
       },
     })
 
-    renderAt('/settings/server')
+    renderAt('/settings/security')
 
     expect(await screen.findByText('2 sign-ins')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Sign out all 2 sign-ins of Chrome on Mac' })).toBeInTheDocument()
@@ -1371,28 +1373,31 @@ describe('Profiles', () => {
     vi.unstubAllGlobals()
   })
 
-  it('changing the admin PIN asks for the current one', async () => {
+  it('changing the admin PIN asks for the current one, in Security', async () => {
     let sent: Record<string, unknown> = {}
     mockApi({
       '/libraries': [],
       '/libraries/all': [],
       '/me': { profileId: 'owner', method: 'session', zone: 'Local', isAdmin: true, tailscaleLogin: null },
       '/profiles': [pinnedMain],
-      'PUT /profiles/owner': (init?: RequestInit) => {
+      '/settings': { authenticationRequired: 'Enabled' },
+      '/sign-ins': [],
+      'POST /admin/pin': (init?: RequestInit) => {
         sent = JSON.parse(String(init?.body))
-        return pinnedMain
+        return { unlockedUntil: null }
       },
     })
 
-    renderAt('/settings/profiles')
-    fireEvent.click(await screen.findByRole('button', { name: /Edit/ }))
-    fireEvent.click(screen.getByRole('button', { name: 'Change' }))
-    fireEvent.change(screen.getByPlaceholderText('4 to 8 digits'), { target: { value: '97531' } })
-    fireEvent.change(screen.getByLabelText('Confirm new PIN'), { target: { value: '97531' } })
-    fireEvent.change(screen.getByLabelText('Current PIN'), { target: { value: '1234' } })
-    fireEvent.click(screen.getByRole('button', { name: /Save/ }))
+    renderAt('/settings/security')
+    fireEvent.click(await screen.findByRole('button', { name: 'Change' }))
+    const form = screen.getByRole('form', { name: 'Change the admin PIN' })
+    fireEvent.change(within(form).getByLabelText('Current PIN'), { target: { value: '1234' } })
+    fireEvent.change(within(form).getByLabelText('New PIN'), { target: { value: '97531' } })
+    fireEvent.change(within(form).getByLabelText('Confirm new PIN'), { target: { value: '97531' } })
+    fireEvent.click(within(form).getByRole('button', { name: 'Change PIN' }))
 
     await vi.waitFor(() => expect(sent).toMatchObject({ pin: '97531', currentPin: '1234' }))
+    expect(await screen.findByText(/PIN changed/)).toBeInTheDocument()
   })
 })
 

@@ -2,6 +2,22 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### Profiles
+- The main profile can have a PIN of its own, apart from the admin PIN. Choosing your profile then asks for it on every device. Add, change or remove it in **Settings › Profiles**, like anyone's. The admin PIN still guards the server's settings and lets a child off a kids profile, and it opens the main profile too.
+- Someone on your tailnet with their own account chooses the main profile with the admin PIN only. So does a browser at home that isn't signed in, when there are kids profiles.
+- **Forgot PIN?** on a profile's PIN pad takes the PIN off with the admin PIN, on the web, iPhone, iPad, Apple TV and Android.
+- PIN pads that want the admin PIN show a padlock, not the main profile's picture.
+- Upgrading turns the PIN you had into the admin PIN, and nobody is signed out. Your profile keeps it as its own too only if **Ask for the PIN when someone chooses the main profile** was on (that switch is gone): change it in **Settings › Profiles** if you change the admin PIN.
+- Going back to an earlier version after this one needs the backup from before the upgrade. Earlier versions don't know the admin PIN.
+
+### Security
+- A new **Settings › Security** page holds the admin PIN, the API key with **Ask for it**, and the signed-in browsers and TVs. Change the admin PIN there with the current one, or with the API key if it's forgotten. **Settings › Access** keeps watching away from home.
+
+### Changed
+- For scripts: `PUT /profiles/owner` sets the main profile's own PIN, and sending `currentPin` or `apiKey` there (the old way to change the admin PIN) is refused. Change the admin PIN with `POST /admin/pin` and `currentPin`. Saving `askPinForMainProfile` in `/settings` does nothing; reading it says whether the main profile has a PIN of its own.
+
 ## 0.56.0 · 31 October 2026
 
 ### Watchlist

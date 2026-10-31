@@ -141,7 +141,7 @@
 <ol>
 <li>On a computer on your home network, open the server&#39;s address (the app shows it) in a web browser.</li>
 <li>Enter the server&#39;s setup code (it&#39;s in the server&#39;s log; <a href="/guide/first-setup#enter-the-setup-code">First setup</a> says where for your install) and choose <strong>Set up Flexarr</strong>. That browser becomes the server&#39;s owner, with no key needed.</li>
-<li>Go to <strong>Settings › Access › Connect a device</strong> and type in the code the app is showing.</li>
+<li>Go to <strong>Settings › Security › Connect a device</strong> and type in the code the app is showing.</li>
 </ol>
 <p>The app moves on by itself once you have. See <a href="/guide/first-setup">First setup</a>.</p>
 <p><strong>Set up Flexarr</strong> only appears to a browser on your home network, using the server&#39;s own name or IP address. It won&#39;t appear over the internet, or once someone has set the server up. If someone else in the house set it up, ask them to approve your code from their browser.</p>
@@ -207,8 +207,9 @@
 <p>With a paid Apple Developer account, an install lasts a year instead. See <a href="/guide/apple-tv-xcode">Apple TV with Xcode</a>.</p>
 <h3 id="i-forgot-a-profile-s-pin"><a class="anchor" href="#i-forgot-a-profile-s-pin" aria-hidden="true" tabindex="-1">#</a>I forgot a profile&#39;s PIN</h3>
 <ul>
-<li><strong>Someone else&#39;s profile:</strong> sign in as the main profile, open <strong>Settings › Profiles</strong>, edit their profile, and set a new PIN or remove it. You don&#39;t need the old one.</li>
-<li><strong>The main profile:</strong> in a browser, open <strong>Settings</strong>, choose <strong>Forgotten it?</strong> under the PIN, and enter the server&#39;s API key with a new PIN. That browser is unlocked, and anywhere the old PIN was given is locked again. The Apple TV and phone apps send you to a browser for this.</li>
+<li><strong>Someone else&#39;s profile:</strong> choose <strong>Forgot PIN?</strong> under its PIN pad and enter the admin PIN, which takes the PIN off. Or sign in as the main profile, open <strong>Settings › Profiles</strong>, edit their profile, and set a new PIN or remove it. You don&#39;t need the old one.</li>
+<li><strong>The main profile&#39;s own PIN:</strong> the admin PIN opens the main profile too. Then set a new one or remove it in <strong>Settings › Profiles</strong>, as for anyone.</li>
+<li><strong>The admin PIN:</strong> in a browser, open <strong>Settings</strong>, choose <strong>Forgotten it?</strong> under the PIN (or <strong>Change</strong> then <strong>Use the API key instead</strong> in <strong>Settings › Security</strong>), and enter the server&#39;s API key with a new PIN. That browser is unlocked, and anywhere the old PIN was given is locked again. The Apple TV and phone apps send you to a browser for this.</li>
 <li><strong>The Mac app:</strong> choose <strong>Reset Admin PIN…</strong> from Flexarr&#39;s menu bar icon and type a new PIN. Being at the Mac is enough; no key is needed.</li>
 </ul>
 <p>The API key is in Flexarr&#39;s <code>config.json</code>: <code>~/.flexarr/data/config.json</code> on a Mac, or <code>/config/config.json</code> in Docker.</p>
