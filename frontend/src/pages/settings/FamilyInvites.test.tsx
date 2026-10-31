@@ -108,11 +108,38 @@ describe('Settings › Remote access › Family invites', () => {
         hasClient: true,
         check: { safe: false, problems: ['Guests could reach more than Flexarr.', 'address "100.64.0.2:22": want: Drop, got: Accept'], checkedAt: '', validated: true },
       }),
+      '/profiles': [main, gran],
+      '/remote/guests/invites': [],
+      '/remote/guests/devices': [device()],
     })
     render(<FamilyInvites />)
-    expect(await screen.findByRole('alert')).toHaveTextContent('Guests could reach more than Flexarr.')
+    expect(await screen.findByText('Guests could reach more than Flexarr.')).toBeVisible()
     expect(screen.getByRole('button', { name: 'Check again' })).toBeVisible()
-    expect(screen.queryByText('Invite someone')).not.toBeInTheDocument()
+    // Guests stay listed, to remove someone; only adding waits.
+    expect(await screen.findByText('Gran')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Remove Gran' })).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Add new guest' })).not.toBeInTheDocument()
+    expect(screen.queryByText('+ Add device')).not.toBeInTheDocument()
+  })
+
+  it('cancelling a new guest leaves the row empty for next time, and Escape closes it', async () => {
+    mockApi({
+      '/remote/guests': setup({ clientId: 'abc', hasClient: true, check: safe }),
+      '/profiles': [main, gran],
+      '/remote/guests/invites': [],
+      '/remote/guests/devices': [device()],
+    })
+    render(<FamilyInvites />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Add new guest' }))
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Gran' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
+    expect(await screen.findByText(/There’s already a profile called/)).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Add new guest' }))
+    expect(screen.getByLabelText('Name')).toHaveValue('')
+    expect(screen.queryByText(/There’s already a profile called/)).not.toBeInTheDocument()
+    fireEvent.keyDown(screen.getByLabelText('Name'), { key: 'Escape' })
+    expect(screen.queryByLabelText('Name')).not.toBeInTheDocument()
   })
 
   it('adds a device by its code: waiting, then joined, then the panel closes and the device is New', async () => {

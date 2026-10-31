@@ -25,6 +25,7 @@ import { useApi } from '../../hooks/useApi'
 import { freeColour } from '../../lib/profileColours'
 import { usePolling } from '../../hooks/usePolling'
 import { describeGuest } from '../../lib/guests'
+import { relativeTime } from '../../lib/format'
 import { deviceTypeName } from '../../lib/deviceTypes'
 import { Avatar } from '../../components/ProfilePicker'
 import { DeviceTypeIcon } from '../../components/DeviceTypeIcon'
@@ -54,10 +55,11 @@ export function FamilyInvites() {
         <SettingsGroup title="Family invites">
           <p className="muted">{setup.problem}</p>
         </SettingsGroup>
-      ) : ready ? (
+      ) : setup.hasClient ? (
         <>
-          <GuestsGroup onChange={refresh} />
-          <SetupGroup setup={setup} onChange={refresh} collapsed />
+          {/* Guests stay listed while the check fails (that's when someone may want removing); only adding waits. */}
+          <GuestsGroup onChange={refresh} canAdd={ready} />
+          <SetupGroup setup={setup} onChange={refresh} collapsed={ready} />
         </>
       ) : (
         <SetupGroup setup={setup} onChange={refresh} />
@@ -136,7 +138,7 @@ export function SetupGroup({ setup, onChange, collapsed = false }: { setup: Remo
         <li>
           <strong>Paste this into your tailnet policy</strong>
           <span className="muted">
-            In <a href={POLICY_URL}>Access controls</a>. A rule from <code>*</code> lets guests reach everything: change it to <code>autogroup:member</code>.
+            In <a href={POLICY_URL}>Access controls</a>.
           </span>
           {setup.snippet && (
             <>
@@ -196,7 +198,7 @@ export function SetupGroup({ setup, onChange, collapsed = false }: { setup: Remo
  * and Add device. A device joins with a one-use invite: a phone or tablet by a link (or its QR code), a TV by typing
  * in the code it shows, since a TV can't open a link.
  */
-export function GuestsGroup({ onChange }: { onChange: () => void }) {
+export function GuestsGroup({ onChange, canAdd = true }: { onChange: () => void; canAdd?: boolean }) {
   const profiles = useApi(getProfiles, [])
   const devices = useApi(getGuestDevices, [])
   const guestIds = useApi(getGuestPeople, [])
@@ -217,6 +219,17 @@ export function GuestsGroup({ onChange }: { onChange: () => void }) {
   const [inviteError, setInviteError] = useState<string>()
   /** The profile already called what was typed, refused as a new guest's name. */
   const [nameTaken, setNameTaken] = useState<Profile>()
+  const addGuestButton = useRef<HTMLButtonElement>(null)
+  /** Closing the new-guest row: it starts empty next time, and focus goes back to what opened it. */
+  function stopNaming() {
+    setNaming(false)
+    setNewPerson('')
+    setNameTaken(undefined)
+    setInviteError(undefined)
+    requestAnimationFrame(() => addGuestButton.current?.focus())
+  }
+  /** After adding a device ends (joined or cancelled), focus goes back to that guest's Add device. */
+  const focusAddDevice = (id: string | undefined) => requestAnimationFrame(() => document.getElementById(`guest-add-${id}`)?.focus())
   /** Devices that joined while this page was open, marked New. */
   const [joined, setJoined] = useState<string[]>([])
 
@@ -245,6 +258,7 @@ export function GuestsGroup({ onChange }: { onChange: () => void }) {
   async function stopAdding() {
     const giving = addingFor
     setAddingFor(undefined)
+    focusAddDevice(giving?.id)
     const anything = devices.data?.some((d) => d.profileId === giving?.id) || waiting.data?.some((w) => w.profileId === giving?.id)
     if (giving?.made && !anything) {
       await deleteProfile(giving.id).catch(() => undefined)
@@ -320,15 +334,22 @@ export function GuestsGroup({ onChange }: { onChange: () => void }) {
     <div className="settings-group">
       <div className="settings-group-head">
         <h3 className="settings-subhead">Guests</h3>
-        {!naming && !adding && (
-          <button type="button" className="button small" onClick={() => setNaming(true)}>
+        {canAdd && !naming && !adding && (
+          <button type="button" className="button small" ref={addGuestButton} onClick={() => setNaming(true)}>
             Add new guest
           </button>
         )}
       </div>
       <div className="guest-cards">
       {naming && (
-        <form className="panel guest-card guest-new" ref={namingPanel} onSubmit={(e) => void invite(e)}>
+        <form
+          className="panel guest-card guest-new"
+          ref={namingPanel}
+          onSubmit={(e) => void invite(e)}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') stopNaming()
+          }}
+        >
           <div className="guest-new-row">
           {/* Their picture as it will be: the initial, on the colour their new profile gets, as they type. */}
           <Avatar profile={{ name: newPerson.trim() || ' ', color: newGuestColour }} size={40} />
@@ -351,7 +372,7 @@ export function GuestsGroup({ onChange }: { onChange: () => void }) {
           <AsyncButton type="submit" className="button" disabled={!newPerson.trim()}>
             Continue
           </AsyncButton>
-          <button type="button" className="text-button guest-cancel" onClick={() => setNaming(false)}>
+          <button type="button" className="text-button guest-cancel" onClick={stopNaming}>
             Cancel
           </button>
           </div>
@@ -438,10 +459,8 @@ export function GuestsGroup({ onChange }: { onChange: () => void }) {
                     <span className="guest-spinner" aria-hidden="true" />
                   </span>
                   <span className="setting-text">
-                    <strong>{w.via === 'TvCode' ? 'Joining' : 'Invite link, not used yet'}</strong>
-                    <span className="muted">
-                      Works until {new Date(w.expiresAt).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })}
-                    </span>
+                    <strong>Waiting for their device</strong>
+                    <span className="muted">Invited {relativeTime(w.createdAt)}</span>
                   </span>
                   <AsyncButton className="button quiet small" aria-label={`Cancel the invite for ${person.name}`} onClick={() => cancel(w.id)}>
                     Cancel
@@ -461,15 +480,16 @@ export function GuestsGroup({ onChange }: { onChange: () => void }) {
                 onJoined={(deviceId) => {
                   setJoined((ids) => [...ids, deviceId])
                   setAddingFor(undefined)
+                  focusAddDevice(person.id)
                 }}
               />
-            ) : (
+            ) : canAdd ? (
               <div className="guest-device guest-add-row">
-                <button type="button" className="text-button" onClick={() => setAddingFor(person)}>
+                <button type="button" id={`guest-add-${person.id}`} className="text-button" onClick={() => setAddingFor(person)}>
                   + Add device
                 </button>
               </div>
-            )}
+            ) : null}
           </div>
         </div>
       ))}
@@ -553,6 +573,7 @@ export function AddDevice({
   async function connect(e: FormEvent) {
     e.preventDefault()
     setError(undefined)
+    setOverdue(false)
     setBefore(devices.map((d) => d.id))
     try {
       await inviteGuestTv(code, null, profileId)
@@ -563,10 +584,30 @@ export function AddDevice({
     }
   }
 
+  // Their device hasn't come in a minute and a half (its join failed, or the app was closed): say so, and offer the
+  // code box again rather than waiting for ever.
+  const [overdue, setOverdue] = useState(false)
+  useEffect(() => {
+    if (!waiting || arrivedId) return
+    const timer = window.setTimeout(() => {
+      setWaiting(false)
+      setOverdue(true)
+      setCode('')
+    }, 90_000)
+    return () => window.clearTimeout(timer)
+  }, [waiting, arrivedId])
+
   const title = arrived ? `✓ ${arrived.name} joined` : waiting ? 'Waiting for their device to join…' : 'Type the code their device shows'
 
   return (
-    <div className="guest-add" role="group" aria-label="Add a device">
+    <div
+      className="guest-add"
+      role="group"
+      aria-label="Add a device"
+      onKeyDown={(e) => {
+        if (e.key === 'Escape' && !arrived) onClose()
+      }}
+    >
       <div className="guest-add-head">
         {!waiting ? (
           <label htmlFor="guest-code" className="guest-add-title">
@@ -587,9 +628,15 @@ export function AddDevice({
 
       {arrived ? null : !waiting ? (
         <form className="guest-add-step" onSubmit={(e) => void connect(e)}>
-          <span className="field-help">
-            On their phone, tablet or TV, they open Flexarr and choose <strong>Join someone’s Flexarr</strong>
-          </span>
+          {overdue ? (
+            <span className="error" role="alert">
+              Their device hasn’t joined. Ask them to check their screen, then type the code it shows now.
+            </span>
+          ) : (
+            <span className="field-help">
+              On their phone, tablet or TV, they open Flexarr and choose <strong>Join someone’s Flexarr</strong>
+            </span>
+          )}
           <span className="guest-code-row">
             <input
               id="guest-code"

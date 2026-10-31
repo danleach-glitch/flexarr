@@ -2531,6 +2531,11 @@
   gap: 6px;
 }
 
+/* Each step reads like the rest of Settings: its name, then help at Settings' help size. */
+.guest-steps li > .muted {
+  font-size: var(--step--1);
+}
+
 .guest-steps li > .button {
   justify-self: start;
 }
@@ -2544,6 +2549,9 @@
   border-radius: 10px;
   font-size: 0.82rem;
   line-height: 1.5;
+  /* Wrapped rather than cut off at the right: the comments are meant to be read. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .guest-client {
