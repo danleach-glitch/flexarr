@@ -39,8 +39,9 @@ struct TVPlayingLiveActivity: Widget {
                     .padding(.horizontal, 4)
                 }
             } compactLeading: {
-                TVIcon(isAppleTV: context.attributes.isAppleTV)
-                    .foregroundStyle(TVPalette.screen)
+                // Flexarr's mark, so the island says which app it is (Apple's TV symbol read as Apple's own).
+                FlexarrMark()
+                    .frame(width: 22, height: 22)
             } compactTrailing: {
                 // What it's doing, not a button: a pause sign while paused, the waveform while it plays.
                 Image(systemName: context.state.paused ? "pause.fill" : "waveform")
@@ -104,6 +105,29 @@ private struct TVLabel: View {
             .font(.caption.weight(.semibold))
             .foregroundStyle(TVPalette.usher)
             .lineLimit(1)
+    }
+}
+
+/// The Flexarr mark (the app's BrandMark: three stacked bars on a 64-unit square), drawn with shapes for the island.
+private struct FlexarrMark: View {
+    var body: some View {
+        GeometryReader { proxy in
+            let unit = proxy.size.width / 64
+            ZStack(alignment: .topLeading) {
+                bar(x: 14, y: 15, width: 36, color: Color(red: 0.95, green: 0.93, blue: 0.91), tilt: -5, unit: unit)
+                bar(x: 14, y: 28.5, width: 30, color: Color(red: 0.66, green: 0.76, blue: 0.93), tilt: 0, unit: unit)
+                bar(x: 14, y: 42, width: 23, color: Color(red: 0.91, green: 0.63, blue: 0.75), tilt: 0, unit: unit)
+            }
+        }
+        .accessibilityLabel("Flexarr")
+    }
+
+    private func bar(x: CGFloat, y: CGFloat, width: CGFloat, color: Color, tilt: Double, unit: CGFloat) -> some View {
+        RoundedRectangle(cornerRadius: 5 * unit, style: .continuous)
+            .fill(color)
+            .frame(width: width * unit, height: 10 * unit)
+            .rotationEffect(.degrees(tilt), anchor: UnitPoint(x: 0, y: (20 - y) / 10))
+            .offset(x: x * unit, y: y * unit)
     }
 }
 

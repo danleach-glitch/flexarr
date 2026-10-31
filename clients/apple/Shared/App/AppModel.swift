@@ -73,6 +73,8 @@ final class AppModel {
     var pendingSearch: String?
     /// Set to open the Settings tab (iPhone and iPad), as "Someone's guessing your PIN" does; the tabs clear it.
     var pendingSettings = false
+    /// A podcast episode was heard to the end: the phone's downloads send the play and drop its file (see RootView).
+    @ObservationIgnored var onPodcastHeard: (() -> Void)?
     /// Bumped when Play or Shuffle starts music on Apple TV, which then goes to its Now Playing tab.
     var nowPlayingRequests = 0
     /// The server's error-report switch, as it last said (nil until asked, and from servers before it).
@@ -137,6 +139,16 @@ final class AppModel {
         liveTv.onWillStart = { [weak self] in self?.music.yieldToVideo() }
         liveTv.onEnded = { [weak self] in self?.music.videoEnded() }
         // A speed picked in the player is the profile's speed from then on, everywhere.
+        // Heard to the end: Home's new episodes and the downloads drop it now, not at the next catch-up. A moment later,
+        // once the server has the play and the player has moved off its file.
+        music.onPodcastEnded = { [weak self] _ in
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .seconds(1.5))
+                guard let self else { return }
+                self.invalidate()
+                self.onPodcastHeard?()
+            }
+        }
         music.onPodcastStarted = { [weak self] in
             guard let self else { return }
             Task { await self.loadUpNext() }

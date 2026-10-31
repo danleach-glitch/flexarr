@@ -60,7 +60,7 @@ sealed class FlexarrException(message: String) : Exception(message) {
     class OwnPinWrong(message: String?) : FlexarrException(message ?: "That PIN isn’t right.")
 
     /** This device is locked to kids profiles, so only they can be chosen. */
-    class KidsLocked(message: String?) : FlexarrException(message ?: "This device is locked to kids profiles.")
+    class KidsLocked(message: String?) : FlexarrException(message ?: "Child lock is on for this device.")
 
     /** A live channel can't be watched: every stream is recording, [recording] among them. */
     class RecordingInTheWayException(val recording: RecordingInTheWay) : FlexarrException(recording.message)

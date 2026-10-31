@@ -111,14 +111,14 @@ enum class WatchlistSort(val label: String) {
     /** Ready, then on its way, coming, not available; newest added first within each. */
     ReadyFirst("Ready first"),
     RecentlyAdded("Recently added"),
-    /** Soonest (oldest) first; titles with no date last. */
+    /** Newest first, so what's just out or coming is at the top; titles with no date last. */
     ReleaseDate("Release date"),
     Title("Title");
 
     fun sorted(entries: List<WatchlistEntry>): List<WatchlistEntry> = when (this) {
         ReadyFirst -> entries.sortedWith(compareBy<WatchlistEntry> { rank(it.status) }.then(newestAdded))
         RecentlyAdded -> entries.sortedWith(newestAdded)
-        ReleaseDate -> entries.sortedBy { releaseKey(it) }
+        ReleaseDate -> entries.sortedByDescending { releaseKey(it) }
         Title -> entries.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { titleKey(it) })
     }
 
@@ -134,7 +134,7 @@ enum class WatchlistSort(val label: String) {
         }
 
         fun releaseKey(entry: WatchlistEntry): String =
-            entry.item?.releaseDate ?: entry.releaseDate ?: entry.year?.let { "$it-01-01" } ?: "9999"
+            entry.item?.releaseDate ?: entry.releaseDate ?: entry.year?.let { "$it-01-01" } ?: ""
 
         /** Letters, digits and spaces only, as the web sorts ignoring punctuation. */
         fun titleKey(entry: WatchlistEntry): String = entry.title.filter { it.isLetterOrDigit() || it.isWhitespace() }.trim()

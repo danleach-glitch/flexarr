@@ -48,7 +48,7 @@ public static class SessionEndpoints
             // Signed out, a browser at home with "only away from home" would be let in again unlocked.
             if (signIns.ById(profile.SignInId)?.KidsLock == true)
             {
-                return Results.Problem("This device is locked to kids profiles. Unlock it first.", statusCode: 409,
+                return Results.Problem("Child lock is on for this device. Turn it off first.", statusCode: 409,
                     extensions: new Dictionary<string, object?> { ["kidsLock"] = true });
             }
 

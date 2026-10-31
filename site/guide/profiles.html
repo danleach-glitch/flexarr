@@ -207,16 +207,16 @@
 <li>can move to another kids profile with the same limit or a stricter one, but leaving for any other profile takes the main profile&#39;s PIN</li>
 </ul>
 <p>Setting one up needs the main profile to have a PIN.</p>
-<h3 id="locking-a-device-to-kids-profiles"><a class="anchor" href="#locking-a-device-to-kids-profiles" aria-hidden="true" tabindex="-1">#</a>Locking a device to kids profiles</h3>
-<p>For the playroom TV or a child&#39;s tablet, lock the device so only kids profiles can be chosen on it:</p>
+<h3 id="child-lock"><a class="anchor" href="#child-lock" aria-hidden="true" tabindex="-1">#</a>Child lock</h3>
+<p>For the playroom TV or a child&#39;s tablet, turn on <strong>Child lock</strong>, so only kids profiles can be chosen on that device:</p>
 <ul>
-<li><strong>Web:</strong> the profile menu, then <strong>Lock to kids profiles</strong>.</li>
+<li><strong>Web:</strong> the profile menu, then <strong>Child lock</strong>.</li>
 <li><strong>Apple TV:</strong> <strong>Settings › Profiles</strong>, or the profile picker.</li>
 <li><strong>iPhone, iPad and Android:</strong> <strong>Settings</strong>, under <strong>Watching as</strong>, or the profile picker.</li>
 </ul>
-<p>It takes the main profile&#39;s PIN (unless the main profile has settings unlocked there). To unlock it, choose <strong>Unlock</strong> in the profile picker or the web&#39;s profile menu, and enter the PIN. You can also unlock any device from <strong>Settings › Devices</strong> on the web, where locked ones are marked.</p>
-<p>Deleting the kids profile a locked device is on moves it to another kids profile. If it was the last one, unlock the device first.</p>
-<blockquote class="callout note"><p><strong>Note</strong> A device needs its own sign-in to be locked: a browser signed in with the API key once, or an app connected with a code. An app still connected with the API key itself is the server, so kids profiles can&#39;t hold a child there at all: connect it again with a code. With <strong>Only away from home</strong> in <strong>Settings › Access</strong>, a browser at home that hasn&#39;t chosen a profile starts on a kids profile, and choosing the main profile there takes its PIN.</p>
+<p>It takes the main profile&#39;s PIN (unless the main profile has settings unlocked there). To turn it off, choose <strong>Turn off child lock</strong> in the profile picker or the web&#39;s profile menu, and enter the PIN. You can also turn it off for any device from <strong>Settings › Devices</strong> on the web, which marks those with <strong>Child lock on</strong>.</p>
+<p>Deleting the kids profile a device with child lock is on moves it to another kids profile. If it was the last one, turn off child lock first.</p>
+<blockquote class="callout note"><p><strong>Note</strong> Child lock needs the device&#39;s own sign-in: a browser signed in with the API key once, or an app connected with a code. An app still connected with the API key itself is the server, so kids profiles can&#39;t hold a child there at all: connect it again with a code. With <strong>Only away from home</strong> in <strong>Settings › Access</strong>, a browser at home that hasn&#39;t chosen a profile starts on a kids profile, and choosing the main profile there takes its PIN.</p>
 </blockquote>
 <h2 id="who-s-watching-when-flexarr-opens"><a class="anchor" href="#who-s-watching-when-flexarr-opens" aria-hidden="true" tabindex="-1">#</a>Who&#39;s watching when Flexarr opens</h2>
 <p>When a household has more than one profile, Flexarr asks who&#39;s watching the first time a browser or device connects, and remembers the answer.</p>

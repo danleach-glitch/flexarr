@@ -454,8 +454,9 @@ struct TVRemoteView: View {
             defer { continuing = false }
             guard await remote.stop(offeringUndo: false) else { return }
             dismiss()
-            // Once the sheet has gone: the player can't come up over it.
-            try? await Task.sleep(for: .milliseconds(450))
+            // Once the sheet has gone: the player can't come up over it, or over one still closing.
+            try? await Task.sleep(for: .milliseconds(100))
+            await PlaybackController.sheetsSettled()
             player.play(itemId: item.id, preview: item, startAt: position, client: client)
         }
     }

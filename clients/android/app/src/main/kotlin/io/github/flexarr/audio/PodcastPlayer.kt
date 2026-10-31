@@ -316,6 +316,13 @@ class PodcastPlayer(private val context: Context, private val model: AppModel) {
         report(paused = true, ended = true)
         endSession()
         position = 0.0
+        // Home's new episodes and the downloads drop it now, not at the next catch-up: a moment later, once the server
+        // has the play and the player has moved off its file.
+        scope.launch {
+            delay(1_500)
+            model.watchStateChanged()
+            model.downloads.catchUp()
+        }
         if (sleep.setting == SleepTimer.Setting.EndOfEpisode) {
             sleep.set(null)
             return

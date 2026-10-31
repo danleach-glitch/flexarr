@@ -189,7 +189,7 @@ fun SettingsScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Icon(Icons.Filled.Lock, contentDescription = null, tint = Flexarr.silver)
-                                Text("Lock to kids profiles", fontSize = 17.sp, color = Flexarr.silver)
+                                Text("Child lock", fontSize = 17.sp, color = Flexarr.silver)
                             }
                         }
                     }

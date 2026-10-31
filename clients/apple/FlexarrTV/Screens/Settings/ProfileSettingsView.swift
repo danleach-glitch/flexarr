@@ -23,7 +23,7 @@ struct ProfileSettingsView: View {
                         accessory: asksWhoIsWatching ? .checkmark : .none) { choose(true) }
             if model.offersKidsLock {
                 SettingsGroupLabel("Kids")
-                SettingsRow(title: "Lock to kids profiles", symbol: "lock", value: locking ? "Locking" : nil,
+                SettingsRow(title: "Child lock", symbol: "lock", value: locking ? "Locking" : nil,
                             help: error ?? "Only kids profiles can be chosen on this Apple TV until the main profile’s PIN unlocks it.",
                             accessory: .none) { Task { await lock(pin: nil) } }
             }

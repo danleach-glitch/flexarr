@@ -317,6 +317,7 @@ struct RootView: View {
             model.onWatchlistForgotten = { WidgetBridge.forgetWatchlist() }
             model.music.offlineLibrary = downloads
             downloads.isPlaying = { [weak model] id in model?.music.isPlayingFile(of: id) == true }
+            model.onPodcastHeard = { [downloads] in Task { await downloads.catchUp() } }
             downloads.attach(client: model.client, profileId: model.currentProfile?.id)
             if model.client != nil { notifications.refresh() }
         }

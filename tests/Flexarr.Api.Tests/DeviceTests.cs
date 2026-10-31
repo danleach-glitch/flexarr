@@ -297,6 +297,8 @@ public class DeviceTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
         var started = await NextNowPlayingAsync(reader, tvId);
         Assert.Equal(tvId, started.GetProperty("deviceId").GetString());
         Assert.Equal("S01E01", started.GetProperty("nowPlaying").GetProperty("item").GetProperty("title").GetString());
+        // Whose it is, so a phone's remote follows only its own profile's TV.
+        Assert.Equal(PlaybackState.DefaultUser, started.GetProperty("nowPlaying").GetProperty("profileId").GetString());
 
         var report = new
         {

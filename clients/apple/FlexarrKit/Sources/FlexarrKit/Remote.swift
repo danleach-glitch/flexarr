@@ -6,10 +6,12 @@ import Foundation
 extension Array where Element == Device {
     /// The TVs playing something (not this device, not phones or tablets), the one used last first. A TV playing but
     /// silent for `silence` seconds has gone (its app killed, the TV asleep); one paused that has closed Flexarr for a
-    /// minute too. Paused and open, it stays until the server lets it go.
-    public func playingTVs(at now: Date = Date(), silence: TimeInterval = 45) -> [Device] {
+    /// minute too. Paused and open, it stays until the server lets it go. Given `profileId`, only that profile's.
+    public func playingTVs(at now: Date = Date(), silence: TimeInterval = 45, for profileId: String? = nil) -> [Device] {
         filter { device in
             guard !device.isThisOne, device.isTV, let playing = device.nowPlaying else { return false }
+            // Only what the phone's own profile is watching: Claire's film isn't on Dan's phone.
+            if let profileId, (playing.profileId ?? device.profileId) != profileId { return false }
             guard let reportedAt = playing.reportedAt else { return true }
             let quiet = now.timeIntervalSince(reportedAt)
             return playing.paused ? device.online || quiet < 60 : quiet < silence

@@ -6,16 +6,29 @@ struct RemoteTests {
     private let now = Date(timeIntervalSince1970: 10_000)
 
     private func device(_ id: String, type: DeviceType?, paused: Bool = false, reportedAgo: TimeInterval? = 5, online: Bool = true, thisOne: Bool = false,
-                        playing: Bool = true, used: TimeInterval = 0) -> Device {
+                        playing: Bool = true, used: TimeInterval = 0, profile: String = "owner", playingFor: String? = nil) -> Device {
         let item = ItemSummary(id: "e-\(id)", libraryId: "", parentId: nil, kind: .episode, title: "Pilot", year: nil, seasonNumber: 1, episodeNumber: 1,
                                episodeNumberEnd: nil, airDate: nil, childCount: 0, durationSeconds: 600, resolution: nil, addedAt: now,
                                artwork: Artwork(), accentColor: nil, communityRating: nil, criticRating: nil, contentRating: nil, runtimeMinutes: nil,
                                releaseDate: nil, userData: UserData(positionSeconds: 0, watched: false, playCount: 0, lastPlayedAt: nil, unwatchedCount: nil),
                                seriesTitle: "Show")
         let nowPlaying = playing ? NowPlaying(item: item, positionSeconds: 10, durationSeconds: 600, paused: paused,
-                                              reportedAt: reportedAgo.map { now.addingTimeInterval(-$0) }) : nil
-        return Device(id: id, name: id, online: online, lastUsedAt: now.addingTimeInterval(-used), profileId: "owner", profileName: nil, isThisOne: thisOne,
+                                              reportedAt: reportedAgo.map { now.addingTimeInterval(-$0) }, profileId: playingFor) : nil
+        return Device(id: id, name: id, online: online, lastUsedAt: now.addingTimeInterval(-used), profileId: profile, profileName: nil, isThisOne: thisOne,
                       nowPlaying: nowPlaying, deviceType: type)
+    }
+
+    @Test func playingTVs_forAProfile_areOnlyItsOwn() {
+        let list = [
+            device("lounge", type: .appleTv, profile: "dan", playingFor: "dan"),
+            device("bedroom", type: .appleTv, profile: "claire", playingFor: "claire"),
+            // Switched to Claire since the list came: what it's playing says whose it is.
+            device("den", type: .appleTv, profile: "dan", playingFor: "claire"),
+            // A server before 0.56 doesn't say: the TV's own profile stands in.
+            device("old-server", type: .appleTv, profile: "dan"),
+        ]
+        #expect(Set(list.playingTVs(at: now, for: "dan").map(\.id)) == ["lounge", "old-server"])
+        #expect(Set(list.playingTVs(at: now).map(\.id)) == ["lounge", "bedroom", "den", "old-server"])
     }
 
     @Test func playingTVs_areTVsThatArePlaying_lastUsedFirst() {

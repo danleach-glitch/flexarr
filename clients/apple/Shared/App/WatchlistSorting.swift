@@ -18,7 +18,8 @@ enum WatchlistSort: String, CaseIterable {
         switch self {
         case .status: entries.sorted { ($0.status.rank, $1.addedAt) < ($1.status.rank, $0.addedAt) }
         case .added: entries.sorted { $0.addedAt > $1.addedAt }
-        case .release: entries.sorted { $0.releaseKey < $1.releaseKey }
+        // Newest first, so what's just out or coming is at the top; titles with no date last.
+        case .release: entries.sorted { ($0.releaseKey ?? "") > ($1.releaseKey ?? "") }
         case .title: entries.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
         }
     }
@@ -38,8 +39,8 @@ extension WatchlistStatus {
 }
 
 extension WatchlistEntry {
-    /// For sorting by release: the library title's date, the date Seerr gave, or the year.
-    var releaseKey: String { item?.releaseDate ?? releaseDate ?? year.map { "\($0)-01-01" } ?? "9999" }
+    /// For sorting by release: the library title's date, the date Seerr gave, or the year; nil with none.
+    var releaseKey: String? { item?.releaseDate ?? releaseDate ?? year.map { "\($0)-01-01" } }
 
     /// "On Netflix", or the services it's on; nil when none are known.
     var streamingLabel: String? {
