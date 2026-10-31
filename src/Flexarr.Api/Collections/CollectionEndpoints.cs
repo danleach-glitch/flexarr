@@ -98,11 +98,9 @@ public static class CollectionEndpoints
             }
 
             var personal = request.Personal ?? !profile.IsMainProfile;
-            if (!personal && !profile.IsAdmin)
+            if (!personal && !profile.IsMainProfile)
             {
-                return Results.Problem(profile.CanUnlock
-                    ? "Making the household's collections takes the main profile's PIN."
-                    : "Only the main profile can make collections for the whole household.", statusCode: 403);
+                return Results.Problem("Only the main profile can make collections for the whole household.", statusCode: 403);
             }
 
             var collection = new Collection
@@ -123,7 +121,7 @@ public static class CollectionEndpoints
         {
             if (await Editable(db, profile, id, ct) is not { } collection)
             {
-                return NotEditable(profile);
+                return Results.NotFound();
             }
 
             // Franchises follow Radarr: their name and films aren't edited here.
@@ -154,7 +152,7 @@ public static class CollectionEndpoints
         {
             if (await Editable(db, profile, id, ct) is not { } collection)
             {
-                return NotEditable(profile);
+                return Results.NotFound();
             }
 
             if (collection.Kind == CollectionKind.Franchise)
@@ -174,7 +172,7 @@ public static class CollectionEndpoints
         {
             if (await Editable(db, profile, id, ct) is not { Kind: CollectionKind.Manual } collection)
             {
-                return NotEditable(profile);
+                return Results.NotFound();
             }
 
             if (!await db.MediaItems.AnyAsync(i => i.Id == request.ItemId && (i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series), ct))
@@ -197,7 +195,7 @@ public static class CollectionEndpoints
         {
             if (await Editable(db, profile, id, ct) is not { Kind: CollectionKind.Manual })
             {
-                return NotEditable(profile);
+                return Results.NotFound();
             }
 
             await db.CollectionItems.Where(i => i.CollectionId == id && i.MediaItemId == itemId).ExecuteDeleteAsync(ct);
@@ -208,7 +206,7 @@ public static class CollectionEndpoints
         {
             if (await Editable(db, profile, id, ct) is not { Kind: CollectionKind.Manual })
             {
-                return NotEditable(profile);
+                return Results.NotFound();
             }
 
             var items = await db.CollectionItems.Where(i => i.CollectionId == id).ToListAsync(ct);
@@ -271,15 +269,11 @@ public static class CollectionEndpoints
         await Visible(db, profile).FirstOrDefaultAsync(c => c.Id == id, ct) is { } c && CanEdit(profile, c) ? c : null;
 
     /// <summary>
-    /// Whether <paramref name="profile"/> may change it: its owner, or the main profile for the household's. Changing
-    /// those takes the main profile's PIN too (see <see cref="NotEditable"/>), so listing says so before it's given.
+    /// Whether <paramref name="profile"/> may change it: its owner, or the main profile for the household's, without
+    /// its PIN (the household's collections are everyday tidying, not managing the server).
     /// </summary>
-    private static bool CanEdit(CurrentProfile profile, Collection c, bool unlocked = true) =>
-        c.OwnerProfileId == profile.Id || c.OwnerProfileId == null && (unlocked ? profile.IsAdmin : profile.IsMainProfile);
-
-    /// <summary>Not one this profile may change; for the main profile before its PIN, a 403 apps answer by asking for it.</summary>
-    private static IResult NotEditable(CurrentProfile profile) =>
-        profile.CanUnlock ? Results.Problem("Changing the household's collections takes the main profile's PIN.", statusCode: 403) : Results.NotFound();
+    private static bool CanEdit(CurrentProfile profile, Collection c) =>
+        c.OwnerProfileId == profile.Id || c.OwnerProfileId == null && profile.IsMainProfile;
 
     private static Task<List<ItemSummaryDto>> ItemsAsync(FlexarrDbContext db, CurrentProfile profile, Collection c, CancellationToken ct) =>
         ItemsAsync(db, profile, c, int.MaxValue, ct);
@@ -363,7 +357,7 @@ public static class CollectionEndpoints
         Summary(profile, c, items.Count, items.Count(i => i.UserData.Watched), items.Select(i => i.Artwork.Poster).OfType<string>().Take(4).ToList(), missing);
 
     private static CollectionSummaryDto Summary(CurrentProfile profile, Collection c, int count, int watched, IReadOnlyList<string> posters, int missing) => new(
-        c.Id, c.Name, c.Description, c.Kind, c.OwnerProfileId != null, CanEdit(profile, c, unlocked: false), count, watched, missing,
+        c.Id, c.Name, c.Description, c.Kind, c.OwnerProfileId != null, CanEdit(profile, c), count, watched, missing,
         posters, Remote(c.PosterUrl), c.ShowOnHome, c.Hidden);
 
 

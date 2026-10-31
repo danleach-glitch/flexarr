@@ -44,7 +44,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - The main profile's PIN can be changed but no longer removed. Forgotten it? Choose **Forgotten it?** in Settings and enter the API key with a new PIN. The Mac app has **Reset Admin PIN…** in its menu, which needs no key.
 - Choosing the main profile no longer asks for its PIN on browsers and devices you signed in, unless you turn on **Ask for the PIN when someone chooses the main profile** in **Settings › Profiles**. Servers whose main profile already had a PIN keep asking, as before.
 - When a device asks to connect, the main profile still hears about it while settings are locked, and **Allow** asks for the PIN first.
-- On the web, **Delete**, **Fix match** and the household's collections stay where they were on the main profile while settings are locked; using one asks for the PIN, then carries on.
+- Tidying the library doesn't take the PIN: on the main profile, **Delete**, **Fix match**, **Allow for kids** and **Block for kids**, analysing a title, **Scan for changes** and the household's collections work while settings are locked.
 - When someone gets the main profile's PIN wrong too many times, Flexarr notes it in its log and tells the main profile's phones which device it was.
 - Switching to another profile on Android stops the music or podcast that was playing, as on iPhone, and clears Up Next, so what you play next counts for the right person.
 

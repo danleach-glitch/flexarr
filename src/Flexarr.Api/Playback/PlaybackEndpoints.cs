@@ -197,7 +197,7 @@ public static partial class PlaybackEndpoints
             }
 
             return Results.Accepted();
-        }).WithTags("Playback").RequireAuthorization(FlexarrClaims.AdminPolicy);
+        }).WithTags("Playback").RequireAuthorization(FlexarrClaims.MainProfilePolicy);
 
         api.MapPost("/items/{id:guid}/watched", async (Guid id, WatchedRequest request, PlaybackService playback, CancellationToken ct) =>
             await playback.SetWatchedAsync(id, request.Watched, ct) ? Results.NoContent() : Results.NotFound())

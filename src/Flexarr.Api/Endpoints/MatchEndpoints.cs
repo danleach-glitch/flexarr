@@ -78,7 +78,7 @@ public static partial class MatchEndpoints
             {
                 return Results.Problem($"{instances[0].Name} didn't answer the search ({(int?)ex.StatusCode ?? 0}).", statusCode: 502);
             }
-        }).WithTags("Match").RequireAuthorization(FlexarrClaims.AdminPolicy);
+        }).WithTags("Match").RequireAuthorization(FlexarrClaims.MainProfilePolicy);
 
         api.MapPost("/items/{id:guid}/match", async (Guid id, FixMatchRequest request, FlexarrDbContext db, IOptionsMonitor<FlexarrOptions> options, ArrClient arr,
             MetadataRefresher refresher, ILoggerFactory logs, CancellationToken ct) =>
@@ -187,7 +187,7 @@ public static partial class MatchEndpoints
             await db.SaveChangesAsync(ct);
             LogFixed(logs.CreateLogger("Flexarr.Match"), item.Path ?? item.Title, item.Title, item.Year, instance.Name, added);
             return Results.Ok(new FixMatchResultDto(instance.Name, added, complete));
-        }).WithTags("Match").RequireAuthorization(FlexarrClaims.AdminPolicy);
+        }).WithTags("Match").RequireAuthorization(FlexarrClaims.MainProfilePolicy);
 
         // Back to automatic matching (by folder, then by title).
         api.MapDelete("/items/{id:guid}/match", async (Guid id, FlexarrDbContext db, MetadataRefresher refresher, CancellationToken ct) =>
@@ -203,7 +203,7 @@ public static partial class MatchEndpoints
             await refresher.RefreshItemAsync(item, ct);
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
-        }).WithTags("Match").RequireAuthorization(FlexarrClaims.AdminPolicy);
+        }).WithTags("Match").RequireAuthorization(FlexarrClaims.MainProfilePolicy);
 
         // Ignore in Library health: the match a title search found is right. Locked as it is, refreshes keep it (by its
         // id, so Radarr or Sonarr taking it on later still links it) and it leaves Check these matches.

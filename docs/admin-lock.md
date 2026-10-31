@@ -24,6 +24,7 @@ Decided so far:
 - **Callers without a sign-in** (Tailscale, the home-network rule) get a browser sign-in when they unlock, as choosing the main profile over Tailscale does now, and the unlock is kept on it.
 - **`/me`** gains `canUnlock` (the main profile is chosen but not unlocked), `adminPinMissing` (the main profile has no PIN yet) and `unlockedUntil`.
 - **Endpoints:** `POST /admin/unlock` (`pin`, or `apiKey`), `POST /admin/lock`, `POST /admin/pin` (sets the main profile's PIN: the first one, by a trusted main-profile caller; or a new one with the API key, which is the recovery path), `POST /setup/claim` takes `pin`.
+- **Tidying the library isn't managing the server.** Delete, Fix match, Allow/Block for kids, Analyse, Scan for changes and the household's collections take the main profile (`MainProfilePolicy`: chosen, locked or not), not the unlock. A main profile that's chosen without its PIN can use them, as it could before the lock.
 - **Lapsing:** an admin-only request that changes something (not a GET) pushes the 15 minutes on. Playback and other everyday requests don't.
 
 ## Order

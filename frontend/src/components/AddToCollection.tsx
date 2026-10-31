@@ -64,7 +64,7 @@ function AddToCollectionDialog({ item, onClose }: { item: { id: string; title: s
     if (!name.trim()) return
     setCreating(true)
     void run(async () => {
-      const created = await createCollection({ name: name.trim(), personal: !(me?.isAdmin ?? false) })
+      const created = await createCollection({ name: name.trim(), personal: !(me?.isAdmin || me?.canUnlock) })
       await addToCollection(created.id, item.id)
       setName('')
     }).finally(() => setCreating(false))
