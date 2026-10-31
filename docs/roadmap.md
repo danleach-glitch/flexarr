@@ -16,38 +16,15 @@ Sizes are rough: **S** a day or two, **M** about a week, **L** several weeks.
 | Tracker sync | Trakt is built (on its way in the next release). Still to come: ratings, then Simkl, MyAnimeList and AniList. M. [#128](https://github.com/danleach-glitch/flexarr/discussions/128) | 🚧 |
 | Invite family to watch from afar | A link or code connects their apps, with Tailscale built in: no account, sign-in or setup for them. M–L. [#146](https://github.com/danleach-glitch/flexarr/discussions/146) | 🚧 |
 | Flexarr in your language | Translated apps, a language per profile. M, then ongoing. [#126](https://github.com/danleach-glitch/flexarr/discussions/126) | 🕐 1 |
-| Cast and trivia | Who's on screen and facts about the title while you watch. M. [#43](https://github.com/danleach-glitch/flexarr/discussions/43) | 🕐 2 |
-| Family filter | Mute language and skip scenes. Kids profiles with age ratings are built. M. [#44](https://github.com/danleach-glitch/flexarr/discussions/44) | 🕐 2 |
 | TrueHD Atmos with height channels | Object audio kept for receivers that decode it. M. [#45](https://github.com/danleach-glitch/flexarr/discussions/45) | 🕐 2 |
 | Multiview | Up to four live channels at once. M. [#38](https://github.com/danleach-glitch/flexarr/discussions/38) | 🕐 3 |
 | Mixes and radio by sound | Built from how songs sound, not just their tags. L. [#47](https://github.com/danleach-glitch/flexarr/discussions/47) | 🕐 4 |
-| Photo libraries | [#48](https://github.com/danleach-glitch/flexarr/discussions/48) | 🗓️ |
 | Audiobooks | A library for audiobooks with Readarr, Bookshelf or Chaptarr: chapters, series, narrators, bookmarks, offline listening, requests and an import from Audiobookshelf. L. [Plan](audiobooks.md), [#144](https://github.com/danleach-glitch/flexarr/discussions/144) | 🗓️ |
-| PostgreSQL | As an alternative to SQLite. [#14](https://github.com/danleach-glitch/flexarr/issues/14) | 🗓️ |
 | New files noticed at once | In libraries the \*arr apps don't manage, rather than at the next scan. [#3](https://github.com/danleach-glitch/flexarr/issues/3) | 🗓️ |
-| Subtitles made on the device | For titles that have none. [#111](https://github.com/danleach-glitch/flexarr/discussions/111) | 💡 |
-| "What did they say?" | Replay the last few seconds with subtitles. [#112](https://github.com/danleach-glitch/flexarr/discussions/112) | 💡 |
-| Watching together | Shared progress for the people in the room. [#20](https://github.com/danleach-glitch/flexarr/discussions/20) | 💡 |
-| "Tonight" picker | One button for what to watch now. [#21](https://github.com/danleach-glitch/flexarr/discussions/21) | 💡 |
-| Search what people say | Find a scene by its dialogue. [#24](https://github.com/danleach-glitch/flexarr/discussions/24) | 💡 |
 | Skip more than intros | Recaps, "Previously on" and post-credits flags. [#25](https://github.com/danleach-glitch/flexarr/discussions/25) | 💡 |
-| Ready for a trip | Get films ready to take away, and smooth Up Next on weak Wi-Fi. [#26](https://github.com/danleach-glitch/flexarr/discussions/26) | 💡 |
-| New-episode notifications | For the shows you follow. [#27](https://github.com/danleach-glitch/flexarr/discussions/27) | 💡 |
-| Your year in review | [#29](https://github.com/danleach-glitch/flexarr/discussions/29) | 💡 |
-| "Still watching?" | Stop autoplay after a few episodes in a row. [#113](https://github.com/danleach-glitch/flexarr/discussions/113) | 💡 |
 | A calm pause screen | With the title's artwork. [#114](https://github.com/danleach-glitch/flexarr/discussions/114) | 💡 |
-| Chapters in the player | With a picture for each. [#115](https://github.com/danleach-glitch/flexarr/discussions/115) | 💡 |
-| Resume or start over | Ask which, when a title is part-watched. [#116](https://github.com/danleach-glitch/flexarr/discussions/116) | 💡 |
-| Shared intro markers | Fill in missing intros from a shared marker database. [#118](https://github.com/danleach-glitch/flexarr/discussions/118) | 💡 |
-| Films in several parts | Play as one. [#119](https://github.com/danleach-glitch/flexarr/discussions/119) | 💡 |
 | Storage manager | Free up space together with Sonarr and Radarr. [#22](https://github.com/danleach-glitch/flexarr/discussions/22) | 💡 |
-| Top Shelf: what's new | When nothing's in progress. [#117](https://github.com/danleach-glitch/flexarr/discussions/117) | 💡 |
 | Podcast chapters | [#30](https://github.com/danleach-glitch/flexarr/discussions/30) | 💡 |
-| Skip podcast intros and outros | [#31](https://github.com/danleach-glitch/flexarr/discussions/31) | 💡 |
-| Podcast transcripts | That follow along. [#32](https://github.com/danleach-glitch/flexarr/discussions/32) | 💡 |
-| Voice boost and silence trimming | For podcasts. [#33](https://github.com/danleach-glitch/flexarr/discussions/33) | 💡 |
-| AirPlay from the web | From the web app's music bar. [#34](https://github.com/danleach-glitch/flexarr/discussions/34) | 💡 |
-| Podcasts on Apple TV | [#35](https://github.com/danleach-glitch/flexarr/discussions/35) | 💡 |
 
 ## Done
 
