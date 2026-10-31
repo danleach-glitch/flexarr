@@ -32,7 +32,7 @@ import kotlin.math.sin
 /**
  * Shapes a film's sound for the room as it plays, the way the Apple apps' engine and the web's Web Audio chain do: the
  * dialogue lifted (the centre channel raised, and the speech band of every channel by half as much), the channels folded
- * down to the speakers, and night mode's compression (above -30 dB squeezed 4:1, then lifted 10 dB), with a limiter
+ * down to the speakers, and night mode's compression (above -40 dB squeezed 8:1, then lifted 14 dB), with a limiter
  * just under full scale so none of it clips.
  *
  * It keeps the track's channel count, so [shaping] can change mid-film without rebuilding the sink: folding to stereo
@@ -229,9 +229,9 @@ class SoundShaper : BaseAudioProcessor() {
 
     companion object {
         private const val SPEECH_HZ = 2500.0
-        private const val NIGHT_THRESHOLD_DB = -30.0
-        private const val NIGHT_RATIO = 4.0
-        private const val NIGHT_MAKEUP_DB = 10.0
+        private const val NIGHT_THRESHOLD_DB = -40.0
+        private const val NIGHT_RATIO = 8.0
+        private const val NIGHT_MAKEUP_DB = 14.0
         private const val KNEE_DB = 6.0
         /** -1 dBFS. */
         private const val LIMIT = 0.891

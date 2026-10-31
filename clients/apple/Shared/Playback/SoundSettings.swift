@@ -1,12 +1,13 @@
 import Foundation
+import FlexarrKit
 #if canImport(AetherEngine)
 import AetherEngine
 #endif
 
 /// How films and episodes sound on this device: the speakers, a lift for the dialogue and night mode. Kept on the
 /// device (it's about the room), with the same choices and values as the web and Android apps. Settings › Playback and
-/// the player's audio menu both change it; the engine shapes the sound (`AudioShaping`), so it needs Play files
-/// directly, and AirPlay leaves it out.
+/// the player's audio menu both change it; the engine shapes the sound (`AudioShaping`), and AirPlay leaves it out.
+/// A stream the server converts has it shaped by the server (`PlaybackRequest.sound`).
 struct SoundSettings: Codable, Equatable {
     var speakers: Speakers = .auto
     var dialogueBoost: DialogueBoost = .off
@@ -86,6 +87,14 @@ struct SoundSettings: Codable, Equatable {
 
     static func clock(_ minutes: Int) -> String { String(format: "%02d:%02d", minutes / 60, minutes % 60) }
 
+    /// What the server is asked for, for a stream it converts (the engine isn't decoding it, so it can't shape it):
+    /// nil when there's nothing to shape.
+    func requested(at date: Date) -> PlaybackSound? {
+        let night = isNight(at: date)
+        guard dialogueBoost != .off || night else { return nil }
+        return PlaybackSound(maxChannels: speakers.channels, dialogueBoostDb: dialogueBoost.decibels, night: night)
+    }
+
     #if canImport(AetherEngine)
     /// What the engine is asked for at `date`, for a track of `sourceChannels`. A cap the track already fits under is
     /// left off: it would change nothing but still cost passthrough (5.1 for a 5.1 film, Stereo for a stereo one).
@@ -93,8 +102,14 @@ struct SoundSettings: Codable, Equatable {
         var cap = speakers.channels
         if let cap0 = cap, let sourceChannels, sourceChannels > 0, sourceChannels <= cap0 { cap = nil }
         return AudioShaping(maxChannels: cap, dialogueGainDB: dialogueBoost.decibels,
-                            compressor: isNight(at: date) ? .night : nil)
+                            compressor: isNight(at: date) ? Self.night : nil)
     }
+
+    /// Night mode, the same in every app and the server: everything above -40 dBFS compressed 8:1 and lifted 14 dB,
+    /// so whispers come up and explosions come down far enough to hear on a phone's speaker. (The engine's own `.night`
+    /// was too gentle to notice.)
+    static let night = AudioShaping.Compressor(thresholdDB: -40, ratio: 8, makeupGainDB: 14,
+                                               attackMilliseconds: 5, releaseMilliseconds: 250, kneeDB: 6)
     #endif
 
     // MARK: Kept on the device

@@ -29,6 +29,9 @@ final class AVPlayerTransport: NSObject, PlayerTransport {
     }
     private(set) var rate: Float = 1
     var maxRate: Float { 2 }
+    /// The server shapes the sound of a stream it converts (servers from 0.56); the original file or a download plays
+    /// as it comes.
+    var soundReach: SoundReach { !info.isOffline && info.method == .transcode && info.soundShaped != nil ? .applied : .unsupported }
 
     init(url: URL, info: PlaybackInfo, startAt: Double, subtitleKey: String??) {
         self.info = info

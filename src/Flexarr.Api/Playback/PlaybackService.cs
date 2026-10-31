@@ -88,7 +88,8 @@ public sealed class PlaybackService(
 
         var transcoding = options.CurrentValue.Transcoding;
         var maxBitrate = new[] { request.MaxBitrate ?? 0, transcoding.MaxStreamingBitrate }.Where(b => b > 0).DefaultIfEmpty(0).Min();
-        var playbackOptions = new PlaybackOptions(audioIndex, subtitleKey, maxBitrate, request.MaxHeight, request.ForceTranscode, file.AudioDelaySeconds);
+        var playbackOptions = new PlaybackOptions(audioIndex, subtitleKey, maxBitrate, request.MaxHeight, request.ForceTranscode, file.AudioDelaySeconds,
+            request.Sound is { } sound ? sound with { MaxChannels = sound.MaxChannels is { } max ? Math.Clamp(max, 1, 8) : null } : null);
         var decision = PlaybackDecider.Decide(file, request.Profile, subtitles, playbackOptions);
 
         // A player that takes fragmented MP4 (Apple's) gets the video as it is when only the container or the sound was
@@ -243,7 +244,8 @@ public sealed class PlaybackService(
             speed,
             // Bazarr finds subtitles for what Sonarr and Radarr manage.
             options.CurrentValue.Bazarr?.Instance is not null && item.Kind is (MediaKind.Movie or MediaKind.Episode) && item.ArrId is not null,
-            subtitles.Any(s => s.IsStyled && s.ExternalPath is null) ? $"{basePath}/fonts.json" : null);
+            subtitles.Any(s => s.IsStyled && s.ExternalPath is null) ? $"{basePath}/fonts.json" : null,
+            decision.Transcode is { Sound: not null });
     }
 
     /// <summary>

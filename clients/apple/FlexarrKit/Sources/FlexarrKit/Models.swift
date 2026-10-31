@@ -527,6 +527,9 @@ public struct PlaybackRequest: Codable, Sendable, Hashable {
     public var shuffle: Bool?
     /// Getting the next episode ready during the credits: conversion starts now, and it never ends another screen.
     public var prepare: Bool?
+    /// The listener's dialogue boost and night mode, for the server to apply when it converts the sound (the player
+    /// can't shape a stream it doesn't decode). Servers before 0.56 ignore it.
+    public var sound: PlaybackSound?
 
     public init(itemId: String, profile: DeviceProfile, fileId: String? = nil, audioStreamIndex: Int? = nil,
                 subtitleKey: String? = nil, maxBitrate: Int? = nil, maxHeight: Int? = nil,
@@ -543,6 +546,20 @@ public struct PlaybackRequest: Codable, Sendable, Hashable {
         self.startPositionSeconds = startPositionSeconds
         self.forceTranscode = forceTranscode
         self.replacesSessionId = replacesSessionId
+    }
+}
+
+/// How the listener wants the sound shaped: what the server does to a stream it converts.
+public struct PlaybackSound: Codable, Sendable, Hashable {
+    /// Surround folded down to this many channels (the speakers in the room); nil leaves it as it is.
+    public var maxChannels: Int?
+    public var dialogueBoostDb: Double
+    public var night: Bool
+
+    public init(maxChannels: Int? = nil, dialogueBoostDb: Double, night: Bool) {
+        self.maxChannels = maxChannels
+        self.dialogueBoostDb = dialogueBoostDb
+        self.night = night
     }
 }
 
@@ -627,6 +644,9 @@ public struct PlaybackInfo: Codable, Sendable {
     /// The server can find subtitles for this title (through Bazarr), and re-sync the ones beside its file. Absent from
     /// servers before 0.53.
     public var canSearchSubtitles: Bool? = nil
+    /// The server shaped this stream's sound as `PlaybackRequest.sound` asked (dialogue boost, night mode). Absent
+    /// from servers before 0.56, which can't.
+    public var soundShaped: Bool? = nil
 }
 
 /// A file's scrubbing previews: sheets of `columns` × `rows` thumbnails, one every `interval` seconds.

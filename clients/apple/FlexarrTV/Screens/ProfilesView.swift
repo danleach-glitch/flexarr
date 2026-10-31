@@ -141,7 +141,7 @@ struct ProfilePickerView: View {
     private func lockBadge(for profile: Profile) -> Bool {
         guard profile.isKidsProfile else { return false }
         // In the picker at launch too, not only when it's opened to switch.
-        return model.kidsLock || model.offersKidsLock
+        return model.showsKidsPadlock
     }
 
     private func toggleChildLock(on profile: Profile) {

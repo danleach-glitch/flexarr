@@ -20,7 +20,10 @@ public sealed record PlaybackRequest(
     bool Shuffle = false,
     // Getting the next episode ready while this one's credits play: conversion starts now, so it opens at once. It
     // never takes another screen's place; with the server full, it's refused (503) and the player starts normally.
-    bool Prepare = false);
+    bool Prepare = false,
+    // The listener's dialogue boost and night mode, applied by the server when it converts the sound (the player can't
+    // shape a stream it doesn't decode itself). Left out, the sound is as the file has it.
+    SoundShaping? Sound = null);
 
 public sealed record AudioTrackDto(int Index, string Label, string Codec, string? Language, int? Channels, bool IsDefault);
 
@@ -63,7 +66,8 @@ public sealed record PlaybackInfoDto(
     bool AudioDelayInStream = false,
     double? Speed = null,
     bool CanSearchSubtitles = false,
-    string? FontsUrl = null)
+    string? FontsUrl = null,
+    bool SoundShaped = false)
 {
     /// <summary>
     /// Names this playback in logs without giving away <see cref="SessionId"/>, which works as a password for the

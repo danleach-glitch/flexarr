@@ -79,6 +79,8 @@ final class PlaybackController: NSObject {
     /// The speed the title was playing at when its stream was opened again (another audio track, moved sound, a
     /// recovery), to carry on at.
     @ObservationIgnored private var carriedRate: Float?
+    /// Follows the sound settings, to open a server-shaped stream again when they change.
+    @ObservationIgnored private var soundObserver: NSObjectProtocol?
 
     /// The file played as it is on the device (AetherEngine demuxes it, the device decodes it): the normal way files
     /// play. Off (Settings, or the launch argument `-FlexarrEngine NO`), the server sends a stream instead. Both
@@ -208,6 +210,7 @@ final class PlaybackController: NSObject {
 
     private func request(for itemId: String, startAt: Double?) -> PlaybackRequest {
         var request = PlaybackRequest(itemId: itemId, profile: Self.deviceProfile, startPositionSeconds: startAt, shuffle: shuffling ? true : nil)
+        request.sound = SoundSettings.current.requested(at: Date())
         #if canImport(AetherEngine)
         if Self.usesEngine, engineSuppressedItem != itemId {
             request.profile = Self.engineProfile
@@ -285,6 +288,11 @@ final class PlaybackController: NSObject {
         log.info("Playing \(info.item.title): \(info.method.rawValue) from \(Int(info.startPositionSeconds))s",
                  ["playbackId": info.playbackId, "reasons": info.reasons.isEmpty ? nil : info.reasons.joined(separator: "; ")])
         self.info = info
+        if soundObserver == nil {
+            soundObserver = NotificationCenter.default.addObserver(forName: SoundSettings.changed, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.soundSettingsChanged() }
+            }
+        }
         hasPlayed = false
         lastPosition = info.startPositionSeconds
         prompt = .none
@@ -434,6 +442,17 @@ final class PlaybackController: NSObject {
             log.info("Opening the stream again with the sound moved \(seconds)s", ["playbackId": now.playbackId])
             reopen(reopenRequest(now), replacing: now)
         }
+    }
+
+    /// The server shapes the sound of a stream it converts: with other settings, it's opened again where it is. The
+    /// engine shapes what it plays itself, at once.
+    private func soundSettingsChanged() {
+        guard let current = info, transport is AVPlayerTransport, current.method == .transcode, current.soundShaped != nil,
+              !isRecovering else { return }
+        let wanted = SoundSettings.current.requested(at: Date())
+        guard current.soundShaped == true || wanted != nil else { return }
+        log.info("Opening the stream again with the sound settings changed", ["playbackId": current.playbackId])
+        reopen(reopenRequest(current), replacing: current)
     }
 
     /// Opens the current title again with `request` (another audio track, moved subtitles) in the same screen.

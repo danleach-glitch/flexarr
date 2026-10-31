@@ -61,6 +61,28 @@ public class PlaybackDeciderTests
     }
 
     [Fact]
+    public void SoundShaping_ConvertsTheSound_OnlyInAStreamThatsConvertedAnyway()
+    {
+        var night = new SoundShaping(MaxChannels: 2, DialogueBoostDb: 6, Night: true);
+
+        // Played as it is, the player shapes it (or can't): shaping never forces a conversion.
+        Assert.Equal(PlaybackMethod.DirectPlay, PlaybackDecider.Decide(File("mp4", "h264", "eac3", 6), AppleTvFmp4, [], new PlaybackOptions(Sound: night)).Method);
+
+        // Converted, a track that would have been copied (or sent lossless) is re-encoded with the speakers' channels.
+        var converted = PlaybackDecider.Decide(File("mkv", "h264", "eac3", 6), AppleTvFmp4, [], new PlaybackOptions(ForceTranscode: true, Sound: night)).Transcode!;
+        Assert.False(converted.CopyAudio);
+        Assert.False(converted.LosslessAudio);
+        Assert.Equal(2, converted.AudioChannels);
+        Assert.Equal(6, converted.SourceAudioChannels);
+        Assert.Equal(night, converted.Sound);
+
+        // Settings that shape nothing (speakers alone) leave the track as it was.
+        var plain = PlaybackDecider.Decide(File("mkv", "h264", "eac3", 6), AppleTvFmp4, [], new PlaybackOptions(ForceTranscode: true, Sound: new SoundShaping(MaxChannels: 2))).Transcode!;
+        Assert.True(plain.CopyAudio);
+        Assert.Null(plain.Sound);
+    }
+
+    [Fact]
     public void SoundOutOfSync_IsMovedByThePlayer_WhenItCan_AndInTheServersStreamWhenItCant()
     {
         var file = File("mp4", "h264", "aac", 2);
