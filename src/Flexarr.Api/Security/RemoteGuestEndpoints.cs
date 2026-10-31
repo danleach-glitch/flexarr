@@ -260,8 +260,14 @@ public static class RemoteGuestEndpoints
             try
             {
                 var names = await db.Profiles.AsNoTracking().ToDictionaryAsync(p => p.Id, p => p.Name, ct);
-                var (signIn, token, invite) = invites.Redeem(request.Token, address, DeviceTypes.Of(http.Request), names.GetValueOrDefault, names.ContainsKey);
-                alerts.Joined(signIn.Name, invite.ProfileId);
+                var (signIn, token, invite, retry) = invites.Redeem(request.Token, address, DeviceTypes.Of(http.Request), names.GetValueOrDefault, names.ContainsKey);
+                if (!retry)
+                {
+                    alerts.Joined(signIn.Name, invite.ProfileId);
+                    // In the background: the device is waiting for its sign-in, not for this.
+                    _ = Task.Run(() => invites.DeleteUsedKeyAsync(invite, CancellationToken.None), CancellationToken.None);
+                }
+
                 return Results.Ok(new RedeemedInviteDto(token, signIn.ProfileId!, options.CurrentValue.ServerId ?? "", signIn.Name));
             }
             catch (InviteException ex)

@@ -86,6 +86,12 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
     private readonly Lock _lock = new();
     private List<GuestInvite>? _invites;
 
+    /// <summary>How long a redeemed invite can be redeemed again from the same device, in case its answer was lost.</summary>
+    public static readonly TimeSpan RetryWindow = TimeSpan.FromMinutes(10);
+
+    /// <summary>Invites redeemed lately, by token hash: the device that redeemed it may ask again (in memory only).</summary>
+    private readonly Dictionary<string, (GuestInvite Invite, string Address, DateTime Until)> _redeemed = [];
+
     private string FilePath => Path.Combine(options.CurrentValue.DataDirectory, FileName);
 
     /// <summary>Invites still waiting, newest first.</summary>
@@ -291,7 +297,7 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
     /// Swaps an invite's token for a guest sign-in on the device at <paramref name="address"/> (a guest device on the
     /// tailnet, checked by the caller). Works once.
     /// </summary>
-    public (SignIn SignIn, string Token, GuestInvite Invite) Redeem(string token, string address, DeviceType? deviceType,
+    public (SignIn SignIn, string Token, GuestInvite Invite, bool Retry) Redeem(string token, string address, DeviceType? deviceType,
         Func<string, string?>? profileNameFor = null, Func<string, bool>? profileExists = null)
     {
         if (string.IsNullOrEmpty(token) || token.Length > 128)
@@ -301,16 +307,36 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
 
         var hash = Hash(token);
         GuestInvite? invite;
+        var retry = false;
         lock (_lock)
         {
+            var now = clock.GetUtcNow().UtcDateTime;
+            foreach (var old in _redeemed.Where(r => r.Value.Until <= now).Select(r => r.Key).ToList())
+            {
+                _redeemed.Remove(old);
+            }
+
             invite = Loaded().FirstOrDefault(i => CryptographicOperations.FixedTimeEquals(Encoding.ASCII.GetBytes(i.TokenHash), Encoding.ASCII.GetBytes(hash)));
             if (invite is null)
             {
-                throw new InviteException("This invite has been used, cancelled or has expired. Ask for a new one.", StatusCodes.Status410Gone);
+                // Redeemed a moment ago by this same device, whose answer never arrived (a slow relayed link, the app
+                // put away): it gets a fresh sign-in, which replaces the one it never received. Any other device can't.
+                if (_redeemed.TryGetValue(hash, out var earlier) && earlier.Address == address)
+                {
+                    retry = true;
+                    invite = earlier.Invite;
+                }
+                else
+                {
+                    throw new InviteException("This invite has been used, cancelled or has expired. Ask for a new one.", StatusCodes.Status410Gone);
+                }
             }
-
-            Loaded().Remove(invite);
-            SaveLocked();
+            else
+            {
+                Loaded().Remove(invite);
+                SaveLocked();
+                _redeemed[hash] = (invite, address, now + RetryWindow);
+            }
         }
 
         // The guest's profile was removed while the invite waited (ForgetProfileAsync cancels them, but not one
@@ -323,7 +349,7 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
         var name = invite.Name.Length > 0 ? invite.Name : DeviceName(profileNameFor?.Invoke(invite.ProfileId), deviceType);
         var (signIn, signInToken) = signIns.IssueGuest(name, invite.ProfileId, address, deviceType);
         LogRedeemed(PathComparison.Printable(name), address);
-        return (signIn, signInToken, invite);
+        return (signIn, signInToken, invite, retry);
     }
 
     /// <summary>"Gran's iPhone": a guest's device as lists show it, from its profile and what its app says it is.</summary>
@@ -360,6 +386,12 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
     }
 
     public const string LinkBase = "https://flexarr.io/join#";
+
+    /// <summary>
+    /// Deletes a redeemed invite's Tailscale key. It worked once already, but a device that was on the tailnet before
+    /// (and redeemed through its old node) leaves it unused, valid for days and no longer listed anywhere.
+    /// </summary>
+    public Task DeleteUsedKeyAsync(GuestInvite invite, CancellationToken ct) => DeleteKeyQuietlyAsync(invite?.KeyId, ct);
 
     private async Task DeleteKeyQuietlyAsync(string? keyId, CancellationToken ct)
     {

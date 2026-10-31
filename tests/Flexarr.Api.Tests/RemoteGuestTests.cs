@@ -164,12 +164,27 @@ public class RemoteGuestTests(RemoteGuestFactory factory) : IClassFixture<Remote
         var body = (await redeemed.Content.ReadFromJsonAsync<RedeemedInviteDto>(Web))!;
         Assert.Equal(gran, body.ProfileId);
 
-        Assert.Equal(HttpStatusCode.Gone, (await RedeemAsync(RemoteGuestFactory.Guest, payload.T)).StatusCode);
-
         // The guest's sign-in works, as its profile.
-        using var guest = factory.From(RemoteGuestFactory.Guest, body.ApiKey);
-        var me = await guest.GetFromJsonAsync<JsonElement>("/api/v1/me");
-        Assert.Equal(gran, me.GetProperty("profileId").GetString());
+        using (var guest = factory.From(RemoteGuestFactory.Guest, body.ApiKey))
+        {
+            var me = await guest.GetFromJsonAsync<JsonElement>("/api/v1/me");
+            Assert.Equal(gran, me.GetProperty("profileId").GetString());
+        }
+
+        // Used: another guest device can't redeem it. Its own key was deleted once used.
+        factory.Whois.Tags["100.64.0.43"] = ["tag:flexarr-guest"];
+        Assert.Equal(HttpStatusCode.Gone, (await RedeemAsync("100.64.0.43", payload.T)).StatusCode);
+        await Task.Delay(200);
+        Assert.Contains(payload.K["tskey-auth-".Length..^"-secret".Length], factory.Tailscale.DeletedKeys);
+
+        // The same device asking again (its answer was lost) gets a fresh sign-in that replaces the first.
+        var again = await RedeemAsync(RemoteGuestFactory.Guest, payload.T);
+        Assert.Equal(HttpStatusCode.OK, again.StatusCode);
+        var second = (await again.Content.ReadFromJsonAsync<RedeemedInviteDto>(Web))!;
+        using var first = factory.From(RemoteGuestFactory.Guest, body.ApiKey);
+        Assert.NotEqual(HttpStatusCode.OK, (await first.GetAsync("/api/v1/me")).StatusCode);
+        using var retried = factory.From(RemoteGuestFactory.Guest, second.ApiKey);
+        Assert.Equal(HttpStatusCode.OK, (await retried.GetAsync("/api/v1/me")).StatusCode);
     }
 
     [Fact]
