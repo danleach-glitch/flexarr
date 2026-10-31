@@ -14,6 +14,12 @@ public enum LibraryType
     /// folders in it as its seasons, and the videos as episodes named after their files. Nothing is looked up online.
     /// </summary>
     HomeVideos,
+
+    /// <summary>
+    /// Audiobooks: each folder of audio files (with its CD or Disc folders) is one book, played as one timeline. Kids
+    /// profiles never see these libraries.
+    /// </summary>
+    Audiobooks,
 }
 
 /// <summary>A named collection of root folders that share a media type, e.g. "Movies" at /data/movies.</summary>

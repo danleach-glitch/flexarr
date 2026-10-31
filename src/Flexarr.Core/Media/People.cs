@@ -14,6 +14,15 @@ public enum CreditRole
     Writer,
     Producer,
     Creator,
+
+    /// <summary>Wrote a book.</summary>
+    Author,
+
+    /// <summary>Reads an audiobook aloud.</summary>
+    Narrator,
+
+    /// <summary>Translated a book.</summary>
+    Translator,
 }
 
 public sealed class Person

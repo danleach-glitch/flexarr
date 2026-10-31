@@ -90,9 +90,10 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
             e.Property(l => l.Name).HasMaxLength(200);
             e.HasMany(l => l.Folders).WithOne().HasForeignKey(f => f.LibraryId).OnDelete(DeleteBehavior.Cascade);
             e.HasMany<MediaItem>().WithOne().HasForeignKey(i => i.LibraryId).OnDelete(DeleteBehavior.Cascade);
-            // Music and home videos have no ratings, so to a profile with an age limit they'd only ever be empty.
+            // Music, home videos and audiobooks have no ratings, so to a profile with an age limit they'd only ever be empty.
             e.HasQueryFilter(l => !HiddenLibraryIds.Contains(l.Id)
-                && (MaxRatingAge == null || l.FineForKids || l.Type != LibraryType.Music && l.Type != LibraryType.HomeVideos));
+                && (MaxRatingAge == null || l.FineForKids
+                    || l.Type != LibraryType.Music && l.Type != LibraryType.HomeVideos && l.Type != LibraryType.Audiobooks));
         });
 
         modelBuilder.Entity<LibraryFolder>().HasIndex(f => f.Path).IsUnique();

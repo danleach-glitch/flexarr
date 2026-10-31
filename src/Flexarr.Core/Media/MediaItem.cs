@@ -11,6 +11,9 @@ public enum MediaKind
     Track,
     Podcast,
     PodcastEpisode,
+
+    /// <summary>A book in an audiobooks library: a top-level item whose files play back to back as one timeline.</summary>
+    Audiobook,
 }
 
 /// <summary>
