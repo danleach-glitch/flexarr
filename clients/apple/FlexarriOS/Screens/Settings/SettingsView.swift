@@ -11,7 +11,7 @@ struct SettingsView: View {
     @Environment(PairingPrompts.self) private var pairing
     @State private var confirmSignOut = false
     @State private var choosingProfile = false
-    /// Locking to kids profiles: the main profile's PIN is being asked for.
+    /// Locking to kids profiles: the admin PIN is being asked for.
     @State private var askingParentPin = false
     /// A lock is on its way to the server, so another tap doesn't send a second.
     @State private var locking = false
@@ -120,7 +120,7 @@ struct SettingsView: View {
         .sheet(isPresented: $askingParentPin) {
             ZStack {
                 RoomBackground(ambient: nil)
-                PinEntry(profile: model.profiles.first(where: \.isMain), title: "Enter the main profile’s PIN", error: $lockError,
+                PinEntry(profile: model.profiles.first(where: \.isMain), title: "Enter the admin PIN", error: $lockError,
                          onCancel: { askingParentPin = false; lockError = nil }) { pin in
                     await lockToKids(pin: pin)
                 }

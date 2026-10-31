@@ -92,7 +92,7 @@ Devices normally connect with a code you approve in **Settings › Access › Co
 - **iPhone and iPad:** on the connect screen, choose **Enter an address instead**, then **Connecting from outside your home? Use an API key**.
 - **Apple TV:** the same: **Enter an address instead**, then **Connecting from outside your home? Use an API key**.
 
-The API key is in **Settings › Access** under **API key**. Showing it asks for the main profile's PIN. It's also in `config.json`.
+The API key is in **Settings › Access** under **API key**. Showing it asks for the admin PIN. It's also in `config.json`.
 
 > **Important**
 > The API key gives full control of your server. Don't paste it anywhere you wouldn't paste a password. If it leaks, **Make a new key** in **Settings › Access** replaces it, and can sign out every other browser and device at the same time.

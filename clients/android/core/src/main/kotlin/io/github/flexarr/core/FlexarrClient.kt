@@ -51,12 +51,12 @@ sealed class FlexarrException(message: String) : Exception(message) {
     class Http(val status: Int, message: String?) : FlexarrException(message ?: "The server answered with an error (HTTP $status).")
 
     /**
-     * This takes the main profile's PIN (leaving a kids profile, locking or releasing a device), which wasn't given or
+     * This takes the admin PIN (leaving a kids profile, locking or releasing a device), which wasn't given or
      * wasn't right. The message is the server's.
      */
-    class ParentPinNeeded(message: String?) : FlexarrException(message ?: "Enter the main profile’s PIN.")
+    class ParentPinNeeded(message: String?) : FlexarrException(message ?: "Enter the admin PIN.")
 
-    /** The main profile's PIN was right but the chosen profile's own PIN wasn't. The message is the server's. */
+    /** The admin PIN was right but the chosen profile's own PIN wasn't. The message is the server's. */
     class OwnPinWrong(message: String?) : FlexarrException(message ?: "That PIN isn’t right.")
 
     /** This device is locked to kids profiles, so only they can be chosen. */
@@ -223,7 +223,7 @@ class FlexarrClient(
 
     /**
      * Checks the PIN (if the profile has one) and returns the token for [profileToken]. A wrong PIN is a 403 saying so.
-     * Leaving a kids profile takes the main profile's PIN as [parentPin]: without it, [FlexarrException.ParentPinNeeded].
+     * Leaving a kids profile takes the admin PIN as [parentPin]: without it, [FlexarrException.ParentPinNeeded].
      * With it right but [pin] wrong, [FlexarrException.OwnPinWrong].
      */
     suspend fun selectProfile(id: String, pin: String? = null, parentPin: String? = null): ProfileSelection =
@@ -236,7 +236,7 @@ class FlexarrClient(
     suspend fun lockToKids(pin: String?, profileId: String? = null): ProfileSelection =
         decodeText(serializer(), send("POST", "profiles/kids-lock", body = json.encodeToString(KidsLockRequest(pin, profileId))))
 
-    /** Releases this device from kids profiles with the main profile's PIN ([FlexarrException.ParentPinNeeded] if it's wrong). */
+    /** Releases this device from kids profiles with the admin PIN ([FlexarrException.ParentPinNeeded] if it's wrong). */
     suspend fun releaseKidsLock(pin: String) {
         send("POST", "profiles/kids-lock/release", body = json.encodeToString(KidsLockRequest(pin)))
     }
@@ -270,7 +270,7 @@ class FlexarrClient(
     suspend fun me(): SignInInfo = get("me")
 
     /**
-     * Unlocks managing the server on this sign-in for a while, with the main profile's PIN. A wrong one is a 403 saying
+     * Unlocks managing the server on this sign-in for a while, with the admin PIN. A wrong one is a 403 saying
      * so; too many, 429 saying how long to wait; and 409 when the main profile has no PIN yet.
      */
     suspend fun unlockAdmin(pin: String): AdminUnlock = sendDecoding("POST", "admin/unlock", AdminUnlockRequest(pin))

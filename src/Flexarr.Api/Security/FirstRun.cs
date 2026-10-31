@@ -16,7 +16,7 @@ namespace Flexarr.Api.Security;
 /// <param name="Install">How the server was installed, so the welcome page can say where its code is (absent before 0.56).</param>
 public sealed record SetupStatusDto(bool Open, bool CodeRequired = true, string? ServerId = null, Updates.InstallKind? Install = null);
 
-/// <summary>What a browser sends to set the server up: the setup code, and the main profile's PIN (it guards the server's settings).</summary>
+/// <summary>What a browser sends to set the server up: the setup code, and the admin PIN (it guards the server's settings).</summary>
 public sealed record SetupClaimDto(string? Code, string? Pin = null);
 
 /// <summary>

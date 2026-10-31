@@ -91,7 +91,7 @@ describe('Profile form', () => {
     await vi.waitFor(() => expect(created).toMatchObject({ name: 'Sam', pin: '2468', color: '#9fd8b9' }))
   })
 
-  it('keeps the main profile’s PIN: it can be changed, not taken off', async () => {
+  it('keeps the admin PIN: it can be changed, not taken off', async () => {
     let saved: unknown
     mockApi({
       '/libraries': [],
@@ -133,7 +133,7 @@ describe('Settings for another profile', () => {
     })
 
     render(<App />)
-    // Straight to the main profile's PIN, not the list.
+    // Straight to the admin PIN, not the list.
     fireEvent.change(await screen.findByLabelText('PIN'), { target: { value: '1357' } })
     fireEvent.click(screen.getByRole('button', { name: 'Go' }))
 

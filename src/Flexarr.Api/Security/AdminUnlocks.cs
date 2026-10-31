@@ -3,7 +3,7 @@ using System.Collections.Concurrent;
 namespace Flexarr.Api.Security;
 
 /// <summary>
-/// Browsers and devices where the main profile's PIN has been given lately, so they may manage the server. Choosing
+/// Browsers and devices where the admin PIN has been given lately, so they may manage the server. Choosing
 /// the main profile lets you watch as it; managing the server takes the PIN as well. An unlock lasts
 /// <see cref="Lasts"/> after it was given or after the last change made with it (see <see cref="AdminHandler"/>), until
 /// another profile is chosen there or Lock is pressed. It's kept in memory, so restarting the server locks everything.

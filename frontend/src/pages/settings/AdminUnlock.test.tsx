@@ -10,7 +10,7 @@ describe('Settings are locked', () => {
     vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] })
     mockApi({ 'POST /admin/unlock': () => new Response(JSON.stringify({ detail: 'Too many wrong PINs. Try again in 3 seconds.' }), { status: 429, headers: { 'Retry-After': '3' } }) })
     render(<AdminUnlock pinMissing={false} onUnlocked={() => {}} />)
-    fireEvent.change(screen.getByLabelText('Main profile’s PIN'), { target: { value: '1234' } })
+    fireEvent.change(screen.getByLabelText('Admin PIN'), { target: { value: '1234' } })
     await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Unlock' })))
 
     expect(await screen.findByText('Too many wrong PINs. Try again in 3 seconds.')).toBeInTheDocument()

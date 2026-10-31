@@ -160,7 +160,7 @@ export async function setupStatus(): Promise<{ open: boolean; install?: InstallK
 
 /**
  * Sets up a new server from this browser, which becomes its owner and is signed in. `code` is the setup code from the
- * server's log, and `pin` the main profile's PIN, which guards the server's settings; either being wrong is an ApiError
+ * server's log, and `pin` the admin PIN, which guards the server's settings; either being wrong is an ApiError
  * with status 400.
  */
 export async function claimSetup(code: string, pin: string) {
@@ -197,7 +197,7 @@ export function authHeaders(): Record<string, string> {
   return headers
 }
 
-/** Asks for the main profile's PIN (see UnlockPrompt); resolves true once it's given. */
+/** Asks for the admin PIN (see UnlockPrompt); resolves true once it's given. */
 let askToUnlock: (() => Promise<boolean>) | undefined
 
 /** Where a change refused only because settings are locked asks for the PIN, then goes ahead. */
@@ -787,7 +787,7 @@ export function stopPlayback(sessionId: string) {
 export const getSettings = (signal?: AbortSignal) => cachedGet<Settings>('/settings', signal)
 export const saveSettings = (update: SettingsUpdate) => request<Settings>('PUT', '/settings', update)
 /** Shows the server's API key (main profile only). A POST, so only Flexarr's own pages can ask. */
-/** The server asks again: the main profile's PIN when it has one, otherwise `confirm`. */
+/** The server asks again: the admin PIN when it has one, otherwise `confirm`. */
 export interface KeyConfirmation {
   pin?: string
   confirm?: boolean
@@ -1295,14 +1295,14 @@ export interface Profile {
   autoRequestWatchlist?: boolean
   /** Its age limit on the UK's steps (0 is U, 8 PG, then 12, 15, 18); null, none. Absent from servers before 0.56. */
   maxRatingAge?: number | null
-  /** A child's profile: the kids app, and leaving it takes the main profile's PIN. Absent from servers before 0.56. */
+  /** A child's profile: the kids app, and leaving it takes the admin PIN. Absent from servers before 0.56. */
   isKids?: boolean
 }
 
 /** Whether choosing a profile here asks for its PIN. */
 export const asksPin = (profile: Profile) => profile.asksPin ?? profile.hasPin
 
-/** Changing or removing the main profile's PIN takes `currentPin`, or `apiKey` if it's forgotten. */
+/** Changing or removing the admin PIN takes `currentPin`, or `apiKey` if it's forgotten. */
 type ProfileChanges = { name: string; color: string; pin?: string; removePin?: boolean; hiddenLibraryIds?: string[]; currentPin?: string; apiKey?: string }
 
 /** A profile's age limit (null for none) and whether it's a child's; a kids profile always has a limit. */
@@ -1338,7 +1338,7 @@ export async function selectProfile(id: string, pin?: string, parentPin?: string
   return result.profile
 }
 
-/** The server wants the main profile's PIN for this: leaving a kids profile, or locking or releasing a device. */
+/** The server wants the admin PIN for this: leaving a kids profile, or locking or releasing a device. */
 export const wantsParentPin = (err: unknown) => err instanceof ApiError && err.problem?.parentPin === true
 
 /** The parent's PIN was right, but the chosen profile's own wasn't. */
@@ -1347,7 +1347,7 @@ export const ownPinWrong = (err: unknown) => err instanceof ApiError && err.prob
 /** Asks the app to show who's watching again, now, without loading the page again (see askForProfile). */
 export const PICK_PROFILE_EVENT = 'flexarr:pick-profile'
 
-// The main profile's PIN, just given to unlock or lock this browser, for the profile chosen straight after: in memory
+// The admin PIN, just given to unlock or lock this browser, for the profile chosen straight after: in memory
 // only, and taken once, so it isn't asked for twice in a row.
 let parentPinForNextChoice: string | undefined
 
@@ -1373,7 +1373,7 @@ export async function lockToKids(pin?: string, profileId?: string) {
   return result.profile
 }
 
-/** Releases this browser from kids profiles, with the main profile's PIN. */
+/** Releases this browser from kids profiles, with the admin PIN. */
 export async function releaseKidsLock(pin: string) {
   await request<void>('POST', '/profiles/kids-lock/release', { pin })
   clearApiCache()
@@ -1430,7 +1430,7 @@ export interface RemoteAccess {
 export const getMe = (signal?: AbortSignal) => cachedGet<Me>('/me', signal, 5 * 60_000)
 
 /**
- * Unlocks managing the server on this browser for a while, with the main profile's PIN (or, forgotten, the API key).
+ * Unlocks managing the server on this browser for a while, with the admin PIN (or, forgotten, the API key).
  * The browser may be signed in by it (over Tailscale, or at home without a sign-in), so everything is asked afresh.
  */
 export async function unlockAdmin(proof: { pin: string } | { apiKey: string }) {

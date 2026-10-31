@@ -126,7 +126,7 @@ describe('PIN pad', () => {
 })
 
 describe('Leaving a kids profile', () => {
-  it('asks for the main profile’s PIN when the server wants it, and tries again with it', async () => {
+  it('asks for the admin PIN when the server wants it, and tries again with it', async () => {
     const mum = { ...kids, id: 'p2', name: 'Mum', hasPin: false }
     const sent: Record<string, unknown>[] = []
     mockApi({
@@ -135,14 +135,14 @@ describe('Leaving a kids profile', () => {
         sent.push(body)
         return body.parentPin
           ? { token: 'p2.sig', profile: { ...mum, isCurrent: true } }
-          : new Response(JSON.stringify({ detail: 'Enter the main profile’s PIN.', parentPin: true }), { status: 403 })
+          : new Response(JSON.stringify({ detail: 'Enter the admin PIN.', parentPin: true }), { status: 403 })
       },
     })
     const chosen = vi.fn()
     render(<ProfilePicker profiles={[main, mum]} onChosen={chosen} />)
 
     fireEvent.click(screen.getByRole('button', { name: /Mum/ }))
-    expect(await screen.findByRole('heading', { name: 'Enter the main profile’s PIN' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Enter the admin PIN' })).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('PIN'), { target: { value: '2580' } })
     fireEvent.click(screen.getByRole('button', { name: 'Go' }))
 
@@ -168,7 +168,7 @@ describe('Leaving a kids profile', () => {
     fireEvent.click(screen.getByRole('button', { name: /Dad/ }))
     fireEvent.change(screen.getByLabelText('PIN'), { target: { value: '9999' } })
     fireEvent.click(screen.getByRole('button', { name: 'Go' }))
-    expect(await screen.findByRole('heading', { name: 'Enter the main profile’s PIN' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Enter the admin PIN' })).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('PIN'), { target: { value: '2580' } })
     fireEvent.click(screen.getByRole('button', { name: 'Go' }))
 

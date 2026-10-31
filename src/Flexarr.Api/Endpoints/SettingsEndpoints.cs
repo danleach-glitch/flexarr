@@ -84,7 +84,7 @@ public sealed record TmdbTestDto(bool Ok, string? Error);
 /// <param name="Country">A two-letter country code; empty for the server's region.</param>
 public sealed record PodcastSettingsUpdate(string? Country);
 
-/// <param name="Pin">The main profile's PIN, when it has one.</param>
+/// <param name="Pin">The admin PIN, when it has one.</param>
 /// <param name="Confirm">The person said yes, when the main profile has no PIN.</param>
 /// <param name="SignOutOthers">On rotating: sign out every other browser and device too.</param>
 public sealed record KeyRequest(string? Pin = null, bool Confirm = false, bool SignOutOthers = false);
@@ -474,11 +474,11 @@ public static class SettingsEndpoints
 
     /// <summary>
     /// Showing or replacing the API key asks again, so a script that found its way into the page can't just take it:
-    /// the main profile's PIN when it has one (a script can't know it), otherwise an explicit "yes" from the web app
+    /// the admin PIN when it has one (a script can't know it), otherwise an explicit "yes" from the web app
     /// (which only stops a page that wasn't written for this). Callers holding the key already needn't.
     /// </summary>
     /// <summary>
-    /// Asks again before something sensitive (the API key, a restore): the main profile's PIN when it has one, or a yes.
+    /// Asks again before something sensitive (the API key, a restore): the admin PIN when it has one, or a yes.
     /// Null when that's given; otherwise the refusal. Signing in with the key itself is enough.
     /// </summary>
     internal static async Task<IResult?> ConfirmKeyAsync(KeyRequest? request, HttpContext http, FlexarrDbContext db, CurrentProfile current, PinGuard guard,
@@ -497,7 +497,7 @@ public static class SettingsEndpoints
 
         if (string.IsNullOrEmpty(request?.Pin))
         {
-            return Results.Problem($"Enter the main profile's PIN to {action}.", statusCode: 403);
+            return Results.Problem($"Enter the admin PIN to {action}.", statusCode: 403);
         }
 
         var (callers, browser) = ProfileEndpoints.PinCaller(http, current);

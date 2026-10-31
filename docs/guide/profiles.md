@@ -65,9 +65,9 @@ If you bring your history over from Plex, your Plex Home profile pictures can co
 
 A PIN is 4 to 8 digits. Without one, anyone can switch to that profile. With one, Flexarr asks for it whenever someone chooses the profile.
 
-- The main profile's PIN can be changed but not removed. Changing it takes the current one. If you've forgotten it, see [I forgot a profile's PIN](troubleshooting.md#i-forgot-a-profiles-pin).
+- The admin PIN can be changed but not removed. Changing it takes the current one. If you've forgotten it, see [I forgot a profile's PIN](troubleshooting.md#i-forgot-a-profiles-pin).
 - Wrong guesses lock out the device doing the guessing for a while, longer each time. Someone else guessing can't lock you out of your own profile.
-- When wrong guesses at the main profile's PIN lock someone out, Flexarr notes it in its log and tells the main profile's phones (with notifications on), naming the device.
+- When wrong guesses at the admin PIN lock someone out, Flexarr notes it in its log and tells the main profile's phones (with notifications on), naming the device.
 
 ## Choosing which libraries a profile sees
 
@@ -81,7 +81,7 @@ Any profile except the main one can have an age limit, in **Settings › Profile
 
 Ratings from any country count. An age is rounded up to the next UK step, so Germany's 16 counts as 18, and a few have a UK equivalent: PG-13 is 12, TV-14 is 15, and R and TV-MA are 18. A rating with its reasons ("Rated R for violence") counts by its first word. A show's seasons and episodes follow the show.
 
-Moving to another profile with the same limit or a stricter one is free. Leaving for a profile with a looser limit, or none, takes the main profile's PIN.
+An age limit decides what a profile sees, not who can leave it: anyone can switch to another profile, with no PIN but that profile's own. To keep a child on kids profiles, turn on [Child lock](#child-lock).
 
 A profile with an age limit:
 
@@ -103,7 +103,6 @@ Switch on **Kids profile** for a child's profile (it comes on by itself for a ne
 - has no Settings, and no signing out on the web
 - has no scores, no score-ranked rows such as Top 10, and a **Watch again** row on Home for the films and shows they've finished; on the web, bigger artwork too
 - can't mark things watched, and has no trailers
-- can move to another kids profile with the same limit or a stricter one, but leaving for any other profile takes the main profile's PIN
 
 Setting one up needs the main profile to have a PIN.
 
@@ -115,7 +114,7 @@ For the playroom TV or a child's tablet, turn on **Child lock**, so only kids pr
 - **Apple TV:** **Settings › Profiles**, or press and hold a kids profile in the profile picker.
 - **iPhone, iPad and Android:** **Settings**, under **Watching as**, or hold the padlock on a kids profile's picture in the profile picker: child lock goes on with that profile.
 
-It takes the main profile's PIN (unless the main profile has settings unlocked there). To turn it off, hold the padlock in the profile picker (on the phones), or choose **Turn off child lock** in the web's profile menu or on Apple TV, and enter the PIN. You can also turn it off for any device from **Settings › Devices** on the web, which marks those with **Child lock on**.
+Turning it on from the main profile takes no PIN (from any other profile, the admin PIN). To turn it off, hold the padlock in the profile picker (on Apple TV, press and hold the kids profile), or choose **Turn off child lock** in the web's profile menu, and enter the admin PIN. You can also turn it off for any device from **Settings › Devices** on the web, which marks those with **Child lock on**.
 
 Deleting the kids profile a device with child lock is on moves it to another kids profile. If it was the last one, turn off child lock first.
 

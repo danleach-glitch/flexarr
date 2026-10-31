@@ -43,10 +43,10 @@ describe('A change refused because settings are locked', () => {
     )
 
     const deleting = deleteItem('f1')
-    fireEvent.change(await screen.findByLabelText('Main profile’s PIN'), { target: { value: '1111' } })
+    fireEvent.change(await screen.findByLabelText('Admin PIN'), { target: { value: '1111' } })
     fireEvent.click(screen.getByRole('button', { name: 'Unlock' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('That PIN isn’t right.')
-    fireEvent.change(screen.getByLabelText('Main profile’s PIN'), { target: { value: '2468' } })
+    fireEvent.change(screen.getByLabelText('Admin PIN'), { target: { value: '2468' } })
     fireEvent.click(screen.getByRole('button', { name: 'Unlock' }))
 
     await deleting

@@ -72,7 +72,7 @@ function Prompt({
   onConnected,
 }: {
   details: PairingDetails
-  /** Settings aren't unlocked here, so allowing takes the main profile's PIN. */
+  /** Settings aren't unlocked here, so allowing takes the admin PIN. */
   locked: boolean
   onFinished: (code: string) => void
   onConnected: (details: PairingDetails) => void
@@ -81,7 +81,7 @@ function Prompt({
   const [error, setError] = useState<string>()
   const [pin, setPin] = useState('')
   const [unlocked, setUnlocked] = useState(false)
-  // Locked here: Allow asks for the main profile's PIN, then allows with it (as on the phones).
+  // Locked here: Allow asks for the admin PIN, then allows with it (as on the phones).
   const [asksPin, setAsksPin] = useState(false)
   const needsPin = locked && !unlocked
 
@@ -132,7 +132,7 @@ function Prompt({
         </p>
         {needsPin && asksPin && (
           <label className="field">
-            <span className="field-label">Main profile’s PIN</span>
+            <span className="field-label">Admin PIN</span>
             <input
               type="password"
               inputMode="numeric"

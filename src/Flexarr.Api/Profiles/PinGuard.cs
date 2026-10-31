@@ -20,7 +20,7 @@ public enum PinCheck
 /// <para>
 /// Callers that may manage the server do share one count per profile, which a right PIN doesn't clear: more of them
 /// can be made at will (each TV paired is a new sign-in), so a script that got into the admin's page mustn't earn
-/// fresh guesses at the main profile's PIN (which guards the API key) by pairing more. The owner rarely mistypes it, so
+/// fresh guesses at the admin PIN (which guards the API key) by pairing more. The owner rarely mistypes it, so
 /// this count allows a few more slips than a caller's own.
 /// </para>
 /// <para>
@@ -140,7 +140,7 @@ public sealed class PinGuard(TimeProvider clock)
         }
     }
 
-    /// <summary>Notes that a browser gave the main profile's PIN. When the list is full, the one longest unseen goes.</summary>
+    /// <summary>Notes that a browser gave the admin PIN. When the list is full, the one longest unseen goes.</summary>
     private void Remember(string browser, DateTime now)
     {
         lock (_knownBrowsers)

@@ -13,7 +13,7 @@ public static class FlexarrClaims
     public const string Admin = "flexarr:admin";
 
     /// <summary>
-    /// Present ("true") when the main profile is chosen but the server isn't unlocked: the main profile's PIN would let
+    /// Present ("true") when the main profile is chosen but the server isn't unlocked: the admin PIN would let
     /// the request manage it (see <see cref="AdminUnlocks"/>).
     /// </summary>
     public const string CanUnlock = "flexarr:can-unlock";

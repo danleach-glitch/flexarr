@@ -6,7 +6,7 @@ import SwiftUI
 struct ProfileSettingsView: View {
     @Environment(AppModel.self) private var model
     @State private var asksWhoIsWatching = AppModel.asksWhoIsWatching
-    /// Locking to kids profiles: the main profile's PIN is being asked for.
+    /// Locking to kids profiles: the admin PIN is being asked for.
     @State private var askingPin = false
     /// A lock is on its way to the server, so another press doesn't send a second.
     @State private var locking = false
@@ -24,12 +24,12 @@ struct ProfileSettingsView: View {
             if model.offersKidsLock {
                 SettingsGroupLabel("Kids")
                 SettingsRow(title: "Child lock", symbol: "lock", value: locking ? "Locking" : nil,
-                            help: error ?? "Only kids profiles can be chosen on this Apple TV until the main profile’s PIN unlocks it.",
+                            help: error ?? "Only kids profiles can be chosen on this Apple TV until the admin PIN unlocks it.",
                             accessory: .none) { Task { await lock(pin: nil) } }
             }
         }
         .fullScreenCover(isPresented: $askingPin) {
-            PinPad(profile: model.profiles.first(where: \.isMain), title: "Enter the main profile’s PIN", error: $error,
+            PinPad(profile: model.profiles.first(where: \.isMain), title: "Enter the admin PIN", error: $error,
                    onCancel: { askingPin = false; error = nil }) { pin in
                 await lock(pin: pin)
             }

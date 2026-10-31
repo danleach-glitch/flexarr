@@ -44,8 +44,8 @@ const sections: { id: string; label: string; help: string; off?: boolean }[] = [
   { id: 'layout', label: 'Home and Browse', help: 'Which rows show, in what order.' },
   { id: 'podcasts', label: 'Podcasts', help: 'The country for charts.' },
   { id: 'notifications', label: 'Notifications', help: 'Push notifications to phones.' },
-  { id: 'access', label: 'Access', help: 'Who has to sign in, and trusted proxies. Asks for the main profile’s PIN.' },
-  { id: 'machine', label: 'This machine’s paths', help: 'ffmpeg, the cache and backups folders. Usually wrong on another machine, and it asks for the main profile’s PIN.', off: true },
+  { id: 'access', label: 'Access', help: 'Who has to sign in, and trusted proxies. Asks for the admin PIN.' },
+  { id: 'machine', label: 'This machine’s paths', help: 'ffmpeg, the cache and backups folders. Usually wrong on another machine, and it asks for the admin PIN.', off: true },
   {
     id: 'keys',
     label: 'Server keys',
@@ -287,7 +287,7 @@ function PassphraseDialog({ title, onSave, onClose }: { title: string; onSave: (
   )
 }
 
-/** The last word before a restore: what goes, and the main profile's PIN when it has one. */
+/** The last word before a restore: what goes, and the admin PIN when it has one. */
 function RestoreDialog({
   createdAt,
   mainHasPin,
@@ -305,7 +305,7 @@ function RestoreDialog({
   const [error, setError] = useState<string>()
 
   async function restore() {
-    if (mainHasPin && !pin) return setError('Enter the main profile’s PIN.')
+    if (mainHasPin && !pin) return setError('Enter the admin PIN.')
     setError(undefined)
     try {
       await onRestore({ pin: pin || undefined, confirm: true })
@@ -323,7 +323,7 @@ function RestoreDialog({
       </p>
       {mainHasPin && (
         <label className="field">
-          <span className="field-label">Main profile’s PIN</span>
+          <span className="field-label">Admin PIN</span>
           <input type="password" inputMode="numeric" autoComplete="off" value={pin} onChange={(e) => setPin(e.target.value)} />
         </label>
       )}
@@ -556,7 +556,7 @@ function UploadedSettings({ id, file, mainHasPin, onCancel }: { id: string; file
       ))}
       {(chosen.has('keys') || chosen.has('machine') || chosen.has('access')) && mainHasPin && (
         <label className="field">
-          <span className="field-label">Main profile’s PIN</span>
+          <span className="field-label">Admin PIN</span>
           <input type="password" inputMode="numeric" autoComplete="off" value={pin} onChange={(e) => setPin(e.target.value)} />
         </label>
       )}

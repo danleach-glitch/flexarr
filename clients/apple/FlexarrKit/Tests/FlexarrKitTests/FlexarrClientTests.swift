@@ -191,10 +191,10 @@ struct FlexarrClientTests {
     }
 
     @Test func leavingAKidsProfileAsksForTheMainProfilesPin() async throws {
-        let wanted = #"{"title":"Enter the main profile’s PIN.","status":403,"parentPin":true}"#
+        let wanted = #"{"title":"Enter the admin PIN.","status":403,"parentPin":true}"#
         let (client, host) = stubbedClient(.init(status: 403, body: Data(wanted.utf8)))
 
-        await #expect(throws: FlexarrClientError.parentPinNeeded(message: "Enter the main profile’s PIN.")) {
+        await #expect(throws: FlexarrClientError.parentPinNeeded(message: "Enter the admin PIN.")) {
             try await client.selectProfile("mum", parentPin: "2580")
         }
         let request = try #require(StubProtocol.recorded(host: host).first)

@@ -98,7 +98,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
             return
         case PushNotifications.allowPairingAction:
             // Opens the app (the action's in front) on that device's prompt and allows it there, which asks for the
-            // main profile's PIN when it's locked here.
+            // admin PIN when it's locked here.
             guard let code = info["pairing"], let model = await appModel() else { return }
             pairing.use(model.client)
             await pairing.open(code: code)

@@ -7,7 +7,7 @@ import SwiftUI
 struct PairingPromptView: View {
     @Environment(PairingPrompts.self) private var prompts
     let request: PairingRequest
-    /// The main profile's PIN, once allowing it has turned out to take one.
+    /// The admin PIN, once allowing it has turned out to take one.
     @State private var pin = ""
     @State private var asksPin = false
 
@@ -141,7 +141,7 @@ extension View {
 }
 
 extension PairingPrompts.Step {
-    /// Allowing it waits for the main profile's PIN.
+    /// Allowing it waits for the admin PIN.
     var asksForPin: Bool {
         if case .needsPin = self { true } else { false }
     }
@@ -152,7 +152,7 @@ extension PairingPrompts.Step {
     }
 }
 
-/// The main profile's PIN, for allowing a device while the main profile is locked here (managing the server takes the
+/// The admin PIN, for allowing a device while the main profile is locked here (managing the server takes the
 /// PIN, given lately, from Flexarr 0.56). 4 to 8 digits, on the number pad.
 struct MainProfilePinField: View {
     @Binding var pin: String
@@ -166,7 +166,7 @@ struct MainProfilePinField: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Allowing it takes the main profile’s PIN.")
+            Text("Allowing it takes the admin PIN.")
                 .font(.subheadline)
                 .foregroundStyle(Color.screen)
             SecureField("PIN", text: $pin)

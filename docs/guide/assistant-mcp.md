@@ -40,7 +40,7 @@ The assistant acts as the main profile, since it signs in with the API key. Its 
 ## What you'll need
 
 - Your server's address, such as `http://mini.local:8383` or `http://192.168.1.20:8383`. The MCP address is that with `/api/v1/mcp` on the end.
-- The API key, from **Settings › Access** in Flexarr, signed in as the main profile. Showing it asks for the main profile's PIN.
+- The API key, from **Settings › Access** in Flexarr, signed in as the main profile. Showing it asks for the admin PIN.
 
 ## Claude Code
 

@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Flexarr.Api.Notifications;
 
 /// <summary>
-/// When wrong guesses at the main profile's PIN lock someone out, says so in the log and on the main profile's phones:
+/// When wrong guesses at the admin PIN lock someone out, says so in the log and on the main profile's phones:
 /// that PIN guards the server's settings, and guessing it quietly is the danger. Like <see cref="PairingAlerts"/>, every
 /// phone on the main profile hears it, whatever news it's chosen.
 /// </summary>
@@ -79,7 +79,7 @@ public sealed partial class PinAlerts(IServiceScopeFactory scopes, SignIns signI
     }
 
     public static PushMessage Message(string who) =>
-        new("Someone's guessing your PIN", $"{who} got the main profile's PIN wrong too many times and has to wait. If it wasn't you, change the PIN in a browser, in Settings › Profiles.",
+        new("Someone's guessing your PIN", $"{who} got the admin PIN wrong too many times and has to wait. If it wasn't you, change the PIN in a browser, in Settings › Profiles.",
             Category, Thread: Category);
 
     /// <summary>"Living Room TV", "the Tailscale account sam@example.com", or "a device at 192.168.1.20".</summary>
@@ -103,7 +103,7 @@ public sealed partial class PinAlerts(IServiceScopeFactory scopes, SignIns signI
             : "Someone";
     }
 
-    [LoggerMessage(Level = LogLevel.Warning, Message = "{Who} got the main profile's PIN wrong too many times and is locked out for a while")]
+    [LoggerMessage(Level = LogLevel.Warning, Message = "{Who} got the admin PIN wrong too many times and is locked out for a while")]
     private partial void LogLockedOut(string who);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Couldn't tell the main profile's phones about wrong PINs")]

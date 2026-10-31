@@ -55,13 +55,13 @@ final class AppModel {
     private(set) var profilesLoaded = false
     /// The household has several profiles and nobody has chosen one on this device yet.
     private(set) var needsProfileChoice = false
-    /// This device is locked to kids profiles: the picker offers only them, until the main profile's PIN releases it.
+    /// This device is locked to kids profiles: the picker offers only them, until the admin PIN releases it.
     private(set) var kidsLock = false
-    /// The main profile's PIN, just given to turn child lock off: the next profile chosen within a minute takes it, so
+    /// The admin PIN, just given to turn child lock off: the next profile chosen within a minute takes it, so
     /// leaving the kids profile doesn't ask for it again.
     @ObservationIgnored private var heldParentPin: (pin: String, until: Date)?
 
-    /// The main profile's PIN given here in the last minute (turning child lock off), if any.
+    /// The admin PIN given here in the last minute (turning child lock off), if any.
     var recentParentPin: String? { heldParentPin.flatMap { $0.until > Date() ? $0.pin : nil } }
     /// How this app is signed in ("device" for its own sign-in; see `SignInInfo.method`), as the server last said.
     private(set) var signInMethod: String?
@@ -432,7 +432,7 @@ final class AppModel {
 
     /// Makes `profile` the one watching on this device (remembered across launches). A wrong
     /// PIN throws the server's message. Every screen reloads, since history and libraries differ. Leaving a kids
-    /// profile takes the main profile's PIN as `parentPin`: without it, `FlexarrClientError.parentPinNeeded` comes back
+    /// profile takes the admin PIN as `parentPin`: without it, `FlexarrClientError.parentPinNeeded` comes back
     /// as it is, so the picker can ask; so does `.ownPinWrong`, a right `parentPin` with a wrong `pin`.
     func switchProfile(to profile: Profile, pin: String? = nil, parentPin: String? = nil) async throws {
         guard let credentials else { return }
@@ -452,7 +452,7 @@ final class AppModel {
         chose(selection, among: profiles)
     }
 
-    /// Locks this device to kids profiles, choosing one: the main profile's PIN unless it's unlocked here. With several
+    /// Locks this device to kids profiles, choosing one: the admin PIN unless it's unlocked here. With several
     /// kids profiles, "Who's watching?" then asks which one this device stays on.
     func lockToKids(pin: String?) async throws {
         guard let credentials else { return }
@@ -470,7 +470,7 @@ final class AppModel {
         if profiles.count > 1 { needsProfileChoice = true }
     }
 
-    /// Releases this device from kids profiles with the main profile's PIN; every profile is offered again.
+    /// Releases this device from kids profiles with the admin PIN; every profile is offered again.
     func releaseKidsLock(pin: String) async throws {
         guard let client else { return }
         do {

@@ -95,7 +95,7 @@ fun pairingProblem(e: Exception, outside: Boolean = false): String = if (e is Pi
 /** Said while the main profile has no PIN yet, so allowing can't be unlocked from here. */
 const val PIN_MISSING = "Give the main profile a PIN in Flexarr in a browser first."
 
-/** The main profile's PIN didn't unlock: wrong, too many tries (the server says how long to wait), or none set yet. */
+/** The admin PIN didn't unlock: wrong, too many tries (the server says how long to wait), or none set yet. */
 class PinProblem(message: String) : Exception(message)
 
 /**
@@ -117,14 +117,14 @@ suspend fun allowAsMainProfile(model: AppModel, client: FlexarrClient, code: Str
         // Unlocked when last asked, but its 15 minutes have run out since: the PIN again.
         if (e.status == 403 && model.isAdmin) {
             model.locked()
-            if (model.canUnlock) throw PinProblem("Enter the main profile’s PIN to allow it.")
+            if (model.canUnlock) throw PinProblem("Enter the admin PIN to allow it.")
         }
         throw e
     }
 }
 
 /**
- * The main profile's PIN, asked for on Allow while managing the server is locked here: 4 to 8 digits on the number pad,
+ * The admin PIN, asked for on Allow while managing the server is locked here: 4 to 8 digits on the number pad,
  * hidden. Without a PIN yet, says to give it one in a browser.
  */
 @Composable
@@ -152,11 +152,11 @@ fun MainPinField(
             cursorBrush = SolidColor(Flexarr.screen),
             decorationBox = { field ->
                 Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(fieldColor).padding(horizontal = 16.dp, vertical = 12.dp)) {
-                    if (pin.isEmpty()) Text("Main profile’s PIN", fontSize = 17.sp, color = Flexarr.usher)
+                    if (pin.isEmpty()) Text("Admin PIN", fontSize = 17.sp, color = Flexarr.usher)
                     field()
                 }
             },
-            modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Main profile’s PIN" },
+            modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Admin PIN" },
         )
         Text("Forgotten it? Reset it from Flexarr in a browser.", fontSize = 13.sp, color = Flexarr.usher)
     }
@@ -179,7 +179,7 @@ private fun PairingSheet(model: AppModel, client: FlexarrClient, device: Waiting
     val scope = rememberCoroutineScope()
     var answer by remember { mutableStateOf<Answer>(Answer.Asking) }
     var pin by remember { mutableStateOf("") }
-    // Locked here: Allow asks for the main profile's PIN, then allows with it (as on iPhone).
+    // Locked here: Allow asks for the admin PIN, then allows with it (as on iPhone).
     var asksPin by remember { mutableStateOf(false) }
 
     // Allowed from the notification while the app came up (or anywhere else): checked with the server as it shows, so
@@ -293,7 +293,7 @@ private fun PairingSheet(model: AppModel, client: FlexarrClient, device: Waiting
                 answer is Answer.Failed && (answer as Answer.Failed).gone -> ActionButton("OK", ::close, Modifier.fillMaxWidth())
                 else -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     val sending = answer == Answer.Sending
-                    // Locked here: allowing takes the main profile's PIN.
+                    // Locked here: allowing takes the admin PIN.
                     if (asksPin && !model.isAdmin) MainPinField(model, pin, onPin = { pin = it }, onDone = ::allow, Modifier.padding(bottom = 6.dp))
                     if (sending) {
                         Row(Modifier.fillMaxWidth().padding(vertical = 13.dp), horizontalArrangement = Arrangement.Center) {

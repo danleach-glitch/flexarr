@@ -36,7 +36,7 @@ sealed interface AppLink {
     data object Home : AppLink
     /** The profile's watchlist (the watchlist widget's heading). */
     data object Watchlist : AppLink
-    /** Settings (a notification that someone's guessing the main profile's PIN). */
+    /** Settings (a notification that someone's guessing the admin PIN). */
     data object Settings : AppLink
     /** Asks whether to let in the device showing [code] (a notification that it's asking to connect). */
     data class Pairing(val code: String) : AppLink

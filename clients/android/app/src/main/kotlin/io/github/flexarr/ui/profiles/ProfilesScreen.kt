@@ -79,7 +79,7 @@ fun ProfilesScreen(model: AppModel) {
 /**
  * "Who's watching?": avatars to tap, then a PIN for a protected profile. Full screen on first launch, and a sheet from
  * the avatar on Home or from Settings afterwards ([marksCurrent]: the one watching now is marked, and can't be chosen
- * again). With [asksLockPin], it opens on the main profile's PIN to lock this device to kids profiles (Settings' row,
+ * again). With [asksLockPin], it opens on the admin PIN to lock this device to kids profiles (Settings' row,
  * when the server asked for it), and cancelling that is [onCancelled].
  */
 @Composable
@@ -92,14 +92,14 @@ fun ProfilePicker(
 ) {
     val scope = rememberCoroutineScope()
     var asking by remember { mutableStateOf<Profile?>(null) }
-    // Leaving a kids profile: the main profile's PIN is asked for, keeping the chosen profile's own if it had one.
+    // Leaving a kids profile: the admin PIN is asked for, keeping the chosen profile's own if it had one.
     var parent by remember { mutableStateOf<ParentPin?>(null) }
-    // Locking this device to kids profiles, or unlocking it, with the main profile's PIN.
+    // Locking this device to kids profiles, or unlocking it, with the admin PIN.
     var locking by remember { mutableStateOf<KidsLockStep?>(if (asksLockPin) KidsLockStep.Lock else null) }
     var lockingBusy by remember { mutableStateOf(false) }
     // The kids profile whose padlock was held: child lock goes on with it.
     var lockTarget by remember { mutableStateOf<Profile?>(null) }
-    // Unlocked here, the main profile's PIN just given goes with the next choice rather than being asked for again.
+    // Unlocked here, the admin PIN just given goes with the next choice rather than being asked for again.
     var unlockedWith by remember { mutableStateOf<String?>(null) }
     var switching by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -123,7 +123,7 @@ fun ProfilePicker(
             }
             return false
         } catch (e: FlexarrException.OwnPinWrong) {
-            // The main profile's PIN was right: back to the chosen profile's own.
+            // The admin PIN was right: back to the chosen profile's own.
             asking = profile
             parent = null
             error = "That isn’t ${profile.name}’s PIN."
@@ -183,7 +183,7 @@ fun ProfilePicker(
         if (lockStep != null) {
             PinEntry(
                 profile = main,
-                title = "Enter the main profile’s PIN",
+                title = "Enter the admin PIN",
                 model = model,
                 error = error,
                 onEdit = { error = null },
@@ -193,7 +193,7 @@ fun ProfilePicker(
         } else if (pinFor != null) {
             PinEntry(
                 profile = if (parentFor == null) pinFor else main,
-                title = if (parentFor == null) null else "Enter the main profile’s PIN",
+                title = if (parentFor == null) null else "Enter the admin PIN",
                 model = model,
                 error = error,
                 onEdit = { error = null },
@@ -218,7 +218,7 @@ fun ProfilePicker(
                         val current = marksCurrent && profile.isCurrent
                         // The padlock over each kids profile's picture: open while child lock can be turned on (holding
                         // it locks to that profile), closed while it's on (holding it turns it off, with the PIN).
-                        val padlock = profile.isKids && (model.kidsLock || (marksCurrent && model.canLockToKids))
+                        val padlock = profile.isKids && (model.kidsLock || model.canLockToKids) // at launch too, not only when switching
                         val toggleLock = {
                             error = null
                             if (model.kidsLock) {
@@ -240,7 +240,7 @@ fun ProfilePicker(
                                 enabled = switching == null && (!current || padlock),
                                 onClick = {
                                     error = null
-                                    // The main profile's PIN just given here (child lock off) goes with this choice, rather
+                                    // The admin PIN just given here (child lock off) goes with this choice, rather
                                     // than the keypad again; a profile with its own PIN still asks for that.
                                     val held = unlockedWith ?: model.recentParentPin
                                     when {

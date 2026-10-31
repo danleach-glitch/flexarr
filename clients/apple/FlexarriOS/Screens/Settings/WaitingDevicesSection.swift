@@ -38,7 +38,7 @@ private struct WaitingDeviceRow: View {
     @Environment(PairingPrompts.self) private var pairing
     let request: PairingRequest
     let step: PairingPrompts.Step
-    /// The main profile's PIN, once allowing it has turned out to take one.
+    /// The admin PIN, once allowing it has turned out to take one.
     @State private var pin = ""
     @State private var asksPin = false
 

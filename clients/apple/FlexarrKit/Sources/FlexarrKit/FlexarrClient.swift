@@ -12,10 +12,10 @@ public enum FlexarrClientError: Error, Equatable, LocalizedError {
     case unreachable
     /// A channel couldn't be watched: every stream is recording. Says what, so the player can offer it instead.
     case recordingInTheWay(RecordingInTheWay)
-    /// This takes the main profile's PIN (leaving a kids profile, locking or releasing a device), which wasn't
+    /// This takes the admin PIN (leaving a kids profile, locking or releasing a device), which wasn't
     /// given or wasn't right. The message is the server's.
     case parentPinNeeded(message: String?)
-    /// The main profile's PIN was right but the chosen profile's own PIN wasn't. The message is the server's.
+    /// The admin PIN was right but the chosen profile's own PIN wasn't. The message is the server's.
     case ownPinWrong(message: String?)
     /// This device is locked to kids profiles, so only they can be chosen.
     case kidsLocked(message: String?)
@@ -27,7 +27,7 @@ public enum FlexarrClientError: Error, Equatable, LocalizedError {
         case .recordingInTheWay(let recording):
             recording.message
         case .parentPinNeeded(let message):
-            message ?? "Enter the main profile’s PIN."
+            message ?? "Enter the admin PIN."
         case .ownPinWrong(let message):
             message ?? "That PIN isn’t right."
         case .kidsLocked(let message):
@@ -364,13 +364,13 @@ public struct FlexarrClient: Sendable {
     }
 
     /// Locks this device to kids profiles, choosing `profileId` (else the one chosen here, or the first). Takes the
-    /// main profile's PIN unless it's unlocked here; `parentPinNeeded` otherwise. Servers before 0.56 answer 404.
+    /// admin PIN unless it's unlocked here; `parentPinNeeded` otherwise. Servers before 0.56 answer 404.
     public func lockToKids(pin: String?, profileId: String? = nil) async throws -> ProfileSelection {
         let data = try await send("POST", "profiles/kids-lock", body: KidsLockRequest(pin: pin, profileId: profileId))
         return try decode(ProfileSelection.self, from: data)
     }
 
-    /// Releases this device from kids profiles, with the main profile's PIN (`parentPinNeeded` if it's wrong).
+    /// Releases this device from kids profiles, with the admin PIN (`parentPinNeeded` if it's wrong).
     public func releaseKidsLock(pin: String) async throws {
         _ = try await send("POST", "profiles/kids-lock/release", body: KidsLockRequest(pin: pin))
     }
@@ -602,7 +602,7 @@ public struct FlexarrClient: Sendable {
         try await get("me")
     }
 
-    /// Unlocks managing the server for this sign-in with the main profile's PIN, for a while (servers from 0.56, where
+    /// Unlocks managing the server for this sign-in with the admin PIN, for a while (servers from 0.56, where
     /// choosing the main profile isn't enough by itself). 403: not the right PIN; 429: too many wrong ones, with the
     /// server's message; 409: the main profile has no PIN yet. Returns when it locks again.
     @discardableResult
