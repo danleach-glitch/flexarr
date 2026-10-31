@@ -124,8 +124,8 @@ public static class CollectionEndpoints
                 return Results.NotFound();
             }
 
-            // Franchises follow Radarr: their name and films aren't edited here.
-            if (collection.Kind != CollectionKind.Franchise && !string.IsNullOrWhiteSpace(request.Name))
+            // Franchises follow Radarr, and Trakt lists Trakt: their names and titles aren't edited here.
+            if (collection.Kind is not (CollectionKind.Franchise or CollectionKind.TraktList) && !string.IsNullOrWhiteSpace(request.Name))
             {
                 collection.Name = request.Name.Trim()[..Math.Min(request.Name.Trim().Length, 120)];
             }
@@ -162,6 +162,13 @@ public static class CollectionEndpoints
             else
             {
                 db.Collections.Remove(collection);
+            }
+
+            // A Trakt list deleted here stops being brought across, or the next sync would bring it back.
+            if (collection is { Kind: CollectionKind.TraktList, TraktListId: { } listId, OwnerProfileId: { } owner }
+                && await db.TraktConnections.FirstOrDefaultAsync(c => c.ProfileId == owner, ct) is { } connection)
+            {
+                connection.ListIds = connection.ListIds.Where(l => l != listId).ToList();
             }
 
             await db.SaveChangesAsync(ct);

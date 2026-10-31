@@ -1,6 +1,6 @@
 import { useEffect, type ReactNode } from 'react'
 import { Navigate, NavLink, useParams } from 'react-router'
-import { clearApiCache, getMe, getRequestDestinations, getUpdates, lockAdmin } from '../../api/client'
+import { clearApiCache, getMe, getRequestDestinations, getTraktStatus, getUpdates, lockAdmin } from '../../api/client'
 import { useSession } from '../../hooks/sessionContext'
 import { useApi } from '../../hooks/useApi'
 import { hasRequestChoice } from '../../lib/requestLibraries'
@@ -9,7 +9,7 @@ import { AccessSection } from './AccessSection'
 import { SecuritySection } from './SecuritySection'
 import { AdminUnlock } from './AdminUnlock'
 import { BackupSection } from './BackupSection'
-import { ConnectionsSection } from './ConnectionsSection'
+import { ConnectionsSection, TRAKT_CHANGED } from './ConnectionsSection'
 import { ConnectTvSection } from './ConnectTvSection'
 import { HealthSection } from './HealthSection'
 import { ImportSection } from './ImportSection'
@@ -24,6 +24,7 @@ import { RequestsSection } from './RequestsSection'
 import { LiveTvSection } from './LiveTvSection'
 import { StreamingSection } from './StreamingSection'
 import { SidebarSection } from './SidebarSection'
+import { TraktSection } from './TraktSection'
 import { UpdatesSection } from './UpdatesSection'
 
 interface Page {
@@ -40,6 +41,9 @@ const profilePages: Page[] = [
   { id: 'podcasts', label: 'Podcasts', render: () => <PodcastsSection /> },
   { id: 'sidebar', label: 'Sidebar', render: () => <SidebarSection /> },
 ]
+
+/** Listed when the server offers Trakt (from 0.57). */
+const traktPage: Page = { id: 'trakt', label: 'Trakt', render: () => <TraktSection /> }
 
 /** Listed only when there's a choice to make: two TV or film libraries Seerr can add requests to. */
 const requestsPage: Page = { id: 'requests', label: 'Requests', render: () => <RequestsSection /> }
@@ -74,7 +78,14 @@ export function SettingsPage() {
   const current = profiles?.find((p) => p.isCurrent)
   const name = current?.name
   const destinations = useApi(getRequestDestinations, [])
-  const ownPages = destinations.data && hasRequestChoice(destinations.data, current?.hiddenLibraryIds ?? []) ? [...profilePages, requestsPage] : profilePages
+  const trakt = useApi((signal) => getTraktStatus(signal), [])
+  const reloadTrakt = trakt.reload
+  useEffect(() => {
+    window.addEventListener(TRAKT_CHANGED, reloadTrakt)
+    return () => window.removeEventListener(TRAKT_CHANGED, reloadTrakt)
+  }, [reloadTrakt])
+  const withTrakt = trakt.data?.available ? [...profilePages, traktPage] : profilePages
+  const ownPages = destinations.data && hasRequestChoice(destinations.data, current?.hiddenLibraryIds ?? []) ? [...withTrakt, requestsPage] : withTrakt
   // Settings for the server are the main profile's, and changing them takes the admin PIN (given lately on this browser):
   // locked, the server's pages ask for it. Another profile chosen here has only its own pages. Older servers have no
   // /me: everything, as before.
@@ -104,7 +115,7 @@ export function SettingsPage() {
   if (!section) return me.loading ? null : <Navigate to={`/settings/${isAdmin ? 'overview' : 'playback'}`} replace />
   if (moved[section]) return <Navigate to={`/settings/${moved[section]}`} replace />
 
-  const profilePage = [...profilePages, requestsPage].find((p) => p.id === section)
+  const profilePage = [...profilePages, traktPage, requestsPage].find((p) => p.id === section)
   const serverPage = serverPages.find((p) => p.id === section)
   // A server page (an old link, say) waits to know whose profile this is, and sends anyone else to their own pages.
   if (!profilePage && me.loading) return null

@@ -2500,3 +2500,12 @@
   flex: 1;
   min-width: 140px;
 }
+
+/* The code to enter at trakt.tv/activate, set like a device's pairing code. */
+.trakt-code {
+  font-family: var(--code-face);
+  font-size: 1.6em;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}

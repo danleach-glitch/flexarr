@@ -52,6 +52,10 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.SwapVert
+import androidx.compose.material.icons.filled.Sync
+import androidx.compose.runtime.LaunchedEffect
+import io.github.flexarr.core.TraktStatus
+import io.github.flexarr.core.traktStatus
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -119,6 +123,7 @@ fun SettingsScreen(
     onDownloads: () -> Unit,
     onPodcasts: () -> Unit,
     onNotifications: () -> Unit,
+    onTrakt: () -> Unit,
 ) {
     var confirmSignOut by remember { mutableStateOf(false) }
     var choosingProfile by remember { mutableStateOf(false) }
@@ -135,6 +140,9 @@ fun SettingsScreen(
     var turningOnNotifications by remember { mutableStateOf(false) }
     var notificationProblem by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+    // Null until known, and from servers without Trakt (before 0.57) or on kids profiles: then there's no row.
+    var trakt by remember { mutableStateOf<TraktStatus?>(null) }
+    LaunchedEffect(model.credentials, model.currentProfile?.id) { trakt = runCatching { model.client?.traktStatus() }.getOrNull() }
 
     fun lockToKids() {
         lockingToKids = true
@@ -228,6 +236,10 @@ fun SettingsScreen(
                     }
                     Divider()
                     SettingsLink("Notifications", Icons.Filled.Notifications, value = if (model.notifications.isOn) "On" else "Off", onClick = onNotifications)
+                    trakt?.takeIf { it.available }?.let { status ->
+                        Divider()
+                        SettingsLink("Trakt", Icons.Filled.Sync, value = status.settingsValue, onClick = onTrakt)
+                    }
                 }
             }
             // The main profile lets in TVs, phones and tablets showing a code, right here (as on iPhone).
@@ -419,7 +431,13 @@ internal fun Toggle(label: String, on: Boolean, onChange: (Boolean) -> Unit, det
         Switch(
             checked = on,
             onCheckedChange = null,
-            colors = SwitchDefaults.colors(checkedTrackColor = Flexarr.downloaded, checkedThumbColor = Flexarr.screen, uncheckedTrackColor = Flexarr.aisle, uncheckedThumbColor = Flexarr.usher, uncheckedBorderColor = Flexarr.aisle),
+            enabled = enabled,
+            colors = SwitchDefaults.colors(
+                checkedTrackColor = Flexarr.downloaded, checkedThumbColor = Flexarr.screen, uncheckedTrackColor = Flexarr.aisle, uncheckedThumbColor = Flexarr.usher, uncheckedBorderColor = Flexarr.aisle,
+                disabledCheckedTrackColor = Flexarr.downloaded.copy(alpha = 0.38f), disabledCheckedThumbColor = Flexarr.screen.copy(alpha = 0.6f),
+                disabledUncheckedTrackColor = Flexarr.aisle.copy(alpha = 0.38f), disabledUncheckedThumbColor = Flexarr.usher.copy(alpha = 0.38f),
+                disabledUncheckedBorderColor = Flexarr.aisle.copy(alpha = 0.38f),
+            ),
         )
     }
 }

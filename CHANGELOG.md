@@ -4,6 +4,20 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ## Unreleased
 
+### Trakt
+- Connect a profile to your **Trakt** account in **Settings › Trakt**, on the web, iPhone, iPad, Android and the Apple TV: enter the code Flexarr shows at trakt.tv/activate (or scan the QR code on a TV). Each profile connects its own account. Kids profiles don't have Trakt.
+- **Bring your Trakt history across** shows what would change before anything does, then marks watched here what you've watched on Trakt, and sends Trakt what you've watched here. Titles you've watched that aren't on your server yet arrive already marked watched. Nothing is ever marked unwatched.
+- From then on, what you watch shows on Trakt as you watch it, and counts there when it counts here. **Mark as watched** and downloads watched away from home go to Trakt too, and plays in other apps connected to Trakt come back within a few minutes.
+- Stop part way and pick up in another app connected to Trakt, or the other way round.
+- Your watchlist stays in step with Trakt's, both ways. Titles from Trakt are never requested by themselves.
+- Choose Trakt lists, your own or ones you've liked, to show in **Collections**, just for you, with films you don't have yet ready to request. Choose them in any app; they show in Collections on the web.
+- Discover has a new row, **For you, from Trakt**, with Trakt's picks for you (web, Apple TV and Android TV).
+- Settings says plainly if Trakt has signed Flexarr out, if a free account's watchlist is full, or if changes are waiting to send. **Disconnect** makes Trakt forget Flexarr; what you've watched stays.
+- The main profile can use its own Trakt app instead of Flexarr's, in **Settings › Connections › Trakt**.
+
+### Backups
+- Restoring a backup now keeps your TMDB key, and a settings file you export includes it (and your own Trakt app, if you set one up).
+
 ### Profiles
 - The main profile can have a PIN of its own, apart from the admin PIN. Choosing your profile then asks for it on every device. Add, change or remove it in **Settings › Profiles**, like anyone's. The admin PIN still guards the server's settings and lets a child off a kids profile, and it opens the main profile too.
 - Someone on your tailnet with their own account chooses the main profile with the admin PIN only. So does a browser at home that isn't signed in, when there are kids profiles.

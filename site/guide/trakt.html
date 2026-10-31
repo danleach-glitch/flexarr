@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Trakt · Flexarr guide</title>
+  <meta name="description" content="Keep what you watch, where you&#39;re up to and your watchlist in step with Trakt, both ways.">
+  <meta name="theme-color" content="#1b1720">
+  <meta name="color-scheme" content="dark">
+  <meta name="apple-itunes-app" content="app-id=6826618084">
+  <link rel="canonical" href="https://flexarr.io/guide/trakt">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta property="og:title" content="Trakt · Flexarr guide">
+  <meta property="og:description" content="Keep what you watch, where you&#39;re up to and your watchlist in step with Trakt, both ways.">
+  <meta property="og:image" content="https://flexarr.io/shots/og.jpg">
+  <meta property="og:url" content="https://flexarr.io/guide/trakt">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;700&family=Big+Shoulders+Display:wght@700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/base.css">
+  <link rel="stylesheet" href="/guide/guide.css">
+</head>
+<body class="guide">
+  <a class="skip" href="#main">Skip to the article</a>
+  <div class="glow" aria-hidden="true"></div>
+  <header class="site-header">
+    <div class="wrap bar">
+      <a class="wordmark" href="/" aria-label="Flexarr home"><img src="/logo-mark.svg" alt="">flexarr</a>
+      <nav class="site-nav" aria-label="Main">
+        <a href="/#features">Features</a>
+        <a class="keep" href="/apps">The Apps</a>
+        <a class="keep" href="/guide" aria-current="page">Guide</a>
+        <a class="github keep" href="https://github.com/danleach-glitch/flexarr" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.8 1.19 1.83 1.19 3.09 0 4.42-2.69 5.39-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></svg>GitHub</a>
+      </nav>
+    </div>
+  </header>
+  <div class="wrap layout">
+    <aside class="sidebar" aria-label="Guide">
+        <div class="search" role="search">
+          <label class="visually-hidden" for="guide-search">Search the guide</label>
+          <input id="guide-search" type="search" placeholder="Search the guide" autocomplete="off" spellcheck="false" aria-controls="guide-results">
+          <ol id="guide-results" class="results" hidden></ol>
+        </div>
+        <details class="contents">
+          <summary>Guide contents</summary>
+          <nav>
+            <details class="section">
+            <summary>Getting started</summary>
+            <ul>
+              <li><a href="/guide/what-you-need">What you need</a></li>
+              <li><a href="/guide/install-macos">Install on a Mac</a></li>
+              <li><a href="/guide/install-synology">Install on a Synology NAS</a></li>
+              <li><a href="/guide/install-unraid">Install on Unraid</a></li>
+              <li><a href="/guide/install-docker">Install with Docker on Linux or Windows</a></li>
+              <li><a href="/guide/first-setup">First setup</a></li>
+              <li><a href="/guide/without-arrs">Without Sonarr and Radarr</a></li>
+              <li><a href="/guide/connect-devices">Connect your devices</a></li>
+              <li><a href="/guide/apple-tv-xcode">Install the Apple TV app with Xcode</a></li>
+              <li><a href="/guide/updating">Updating Flexarr</a></li>
+            </ul>
+            </details>
+            <details class="section">
+            <summary>Your *arrs</summary>
+            <ul>
+              <li><a href="/guide/connect-arrs">Connect Sonarr, Radarr, Lidarr and Seerr</a></li>
+              <li><a href="/guide/media-paths">Media paths</a></li>
+              <li><a href="/guide/requests">Requests</a></li>
+            </ul>
+            </details>
+            <details class="section" open>
+            <summary>Watching and listening</summary>
+            <ul>
+              <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
+              <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
+              <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
+              <li><a href="/guide/music">Music</a></li>
+              <li><a href="/guide/podcasts">Podcasts</a></li>
+              <li><a href="/guide/watchlist">Watchlist</a></li>
+              <li><a href="/guide/trakt" aria-current="page">Trakt</a></li>
+              <li><a href="/guide/downloads">Downloads</a></li>
+              <li><a href="/guide/iphone-remote">Your iPhone as a remote</a></li>
+              <li><a href="/guide/live-tv">Live TV and recording</a></li>
+            </ul>
+            </details>
+            <details class="section">
+            <summary>Around the house</summary>
+            <ul>
+              <li><a href="/guide/profiles">Profiles</a></li>
+              <li><a href="/guide/away-from-home">Watch away from home</a></li>
+              <li><a href="/guide/siri-and-shortcuts">Siri and Shortcuts</a></li>
+              <li><a href="/guide/notifications-and-widgets">Notifications and widgets</a></li>
+              <li><a href="/guide/home-assistant">Home Assistant</a></li>
+              <li><a href="/guide/assistant-mcp">Use an AI assistant</a></li>
+            </ul>
+            </details>
+            <details class="section">
+            <summary>Looking after it</summary>
+            <ul>
+              <li><a href="/guide/import-from-plex">Bring your history over from Plex</a></li>
+              <li><a href="/guide/library-health">Library health</a></li>
+              <li><a href="/guide/backups">Backups</a></li>
+              <li><a href="/guide/logs-and-diagnostics">Logs and diagnostics</a></li>
+              <li><a href="/guide/troubleshooting">Troubleshooting</a></li>
+              <li><a href="/guide/faq">Frequently asked questions</a></li>
+            </ul>
+            </details>
+          </nav>
+        </details>
+      </aside>
+    <main id="main">
+      <article>
+        <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Watching and listening</p>
+        <h1>Trakt</h1>
+        <p class="lede">Keep what you watch, where you&#39;re up to and your watchlist in step with Trakt, both ways.</p>
+        <p class="meta">4 min read</p>
+        <nav class="toc" aria-label="On this page">
+          <p>On this page</p>
+          <ol>
+            <li><a href="#connecting">Connecting</a></li>
+            <li><a href="#bringing-your-history-across">Bringing your history across</a></li>
+            <li><a href="#staying-in-step">Staying in step</a></li>
+            <li><a href="#lists-and-picks">Lists and picks</a></li>
+            <li><a href="#if-something-s-wrong">If something&#39;s wrong</a></li>
+            <li><a href="#your-own-trakt-app">Your own Trakt app</a></li>
+          </ol>
+        </nav>
+        <div class="prose">
+<p>Connect a profile to your <a href="https://trakt.tv" rel="noopener">Trakt</a> account and Flexarr keeps the two in step: what you watch, where you&#39;re up to, and your <a href="/guide/watchlist">watchlist</a>. Each profile connects its own account, and nothing is shared until that person connects.</p>
+<h2 id="connecting"><a class="anchor" href="#connecting" aria-hidden="true" tabindex="-1">#</a>Connecting</h2>
+<ol>
+<li>Open <strong>Settings › Trakt</strong> in the web app, on iPhone, iPad or Android, or on the Apple TV or Android TV.</li>
+<li>Choose <strong>Connect</strong>. Flexarr shows a code.</li>
+<li>On any phone or computer, go to <strong>trakt.tv/activate</strong> and enter the code. On a TV, scan the QR code to open that page on your phone. On iPhone and Android, <strong>Copy code and open Trakt</strong> copies the code and opens the page; on the web, <strong>Copy code</strong>.</li>
+</ol>
+<p>You don&#39;t need to wait on that screen: your server waits for the code for 10 minutes. Once you&#39;ve entered it, Settings › Trakt shows your Trakt name.</p>
+<p>A Trakt account can be connected to one profile only, so nothing is counted twice.</p>
+<h2 id="bringing-your-history-across"><a class="anchor" href="#bringing-your-history-across" aria-hidden="true" tabindex="-1">#</a>Bringing your history across</h2>
+<p>Once you&#39;re connected, <strong>Bring your Trakt history across</strong> shows you what would change before anything does (<strong>See what changes</strong> on the web). For example: <em>Trakt has 12 films and 340 episodes. 200 are here, 41 not yet watched in Flexarr</em>. Choose <strong>Bring across</strong> to go ahead.</p>
+<ul>
+<li>Anything watched on Trakt is marked watched in Flexarr, with the date you watched it.</li>
+<li>Anything watched in Flexarr that Trakt doesn&#39;t have goes to Trakt.</li>
+<li>Titles you&#39;ve watched that aren&#39;t on your server yet are remembered. When one arrives, it&#39;s already marked watched.</li>
+<li>Nothing is ever marked unwatched, on either side.</li>
+</ul>
+<p>It&#39;s offered once. When it&#39;s done, Settings says <strong>History brought across</strong>; after that, everything stays in step by itself. To bring it across again, disconnect and connect again.</p>
+<h2 id="staying-in-step"><a class="anchor" href="#staying-in-step" aria-hidden="true" tabindex="-1">#</a>Staying in step</h2>
+<p>After that, it all happens by itself:</p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>What</th>
+<th>How</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Watching</td>
+<td>Trakt shows what you&#39;re watching while it plays. When Flexarr counts a film or episode as watched (near the end, or once the end credits start), so does Trakt.</td>
+</tr>
+<tr>
+<td>Marking watched</td>
+<td><strong>Mark as watched</strong> in Flexarr goes to Trakt, and so does anything you watched on a download away from the server.</td>
+</tr>
+<tr>
+<td>Watched elsewhere</td>
+<td>Plays in other apps connected to Trakt come to Flexarr within a few minutes.</td>
+</tr>
+<tr>
+<td>Where you&#39;re up to</td>
+<td>Stop part way and Trakt keeps your place. Stop in another app connected to Trakt, and Flexarr picks up from there.</td>
+</tr>
+<tr>
+<td>Your watchlist</td>
+<td>Add or remove a title in either place, and it&#39;s added or removed in the other. Titles that come from Trakt are never requested by themselves; they show <strong>Request</strong> if they&#39;re not here.</td>
+</tr>
+</tbody></table></div>
+<p><strong>Marking something unwatched</strong> in Flexarr leaves Trakt as it is: your Trakt history stays true, and Flexarr won&#39;t mark it watched again.</p>
+<p><strong>Sync now</strong> in <strong>Settings › Trakt</strong> checks straight away rather than waiting (once a minute at most).</p>
+<p>Everything a connected profile watches goes to Trakt, whichever library it&#39;s in, and Trakt profiles are public unless you make yours private on trakt.tv.</p>
+<h2 id="lists-and-picks"><a class="anchor" href="#lists-and-picks" aria-hidden="true" tabindex="-1">#</a>Lists and picks</h2>
+<ul>
+<li><strong>Lists</strong>: in <strong>Settings › Trakt</strong>, choose any of your Trakt lists, or ones you&#39;ve liked, and each shows up in <strong>Collections</strong> on the web, just for you, kept in step with Trakt. Titles on the list that are here show as usual. Films that aren&#39;t here show with <strong>Request</strong>.</li>
+<li><strong>For you, from Trakt</strong>: once you&#39;re connected, Discover on the web, Apple TV and Android TV has a row of Trakt&#39;s picks for you, with titles you have first and ones you&#39;ve watched left out.</li>
+</ul>
+<h2 id="if-something-s-wrong"><a class="anchor" href="#if-something-s-wrong" aria-hidden="true" tabindex="-1">#</a>If something&#39;s wrong</h2>
+<div class="table"><table>
+<thead>
+<tr>
+<th>You see</th>
+<th>What to do</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Trakt signed Flexarr out</strong></td>
+<td>You revoked Flexarr on trakt.tv, or it wasn&#39;t used for months. Choose <strong>Connect</strong> again; your history stays.</td>
+</tr>
+<tr>
+<td><strong>Trakt&#39;s watchlist is full</strong></td>
+<td>A free Trakt account holds a limited number of titles. New titles stay on Flexarr&#39;s watchlist; make room on Trakt and they&#39;ll go across.</td>
+</tr>
+<tr>
+<td><strong>Waiting to send</strong></td>
+<td>Trakt or your internet is down. Flexarr keeps the changes and sends them when it can.</td>
+</tr>
+<tr>
+<td>No <strong>Trakt</strong> in Settings</td>
+<td>Kids profiles don&#39;t have Trakt. Otherwise, your server can&#39;t reach Flexarr&#39;s Trakt service. Check it can reach the internet.</td>
+</tr>
+</tbody></table></div>
+<p><strong>Disconnect</strong> in <strong>Settings › Trakt</strong> stops it all and makes Trakt forget Flexarr. What you&#39;ve watched stays as it is, in both places. Making a profile a kids profile, or removing it, disconnects it too.</p>
+<p><a href="/guide/backups">Backups</a> include each profile&#39;s Trakt sign-in. Restoring an older backup may mean connecting again, as Trakt replaces a sign-in each time it&#39;s renewed.</p>
+<h2 id="your-own-trakt-app"><a class="anchor" href="#your-own-trakt-app" aria-hidden="true" tabindex="-1">#</a>Your own Trakt app</h2>
+<p>Flexarr uses its own Trakt app, so there&#39;s nothing to set up. If you&#39;d rather use your own (Trakt only lets VIP members create one), the main profile can enter its <strong>Client ID</strong> and <strong>Client secret</strong> in <strong>Settings › Connections › Trakt</strong>. Everyone then connects again, as sign-ins belong to the app that gave them.</p>
+
+        </div>
+        <nav class="pager" aria-label="More of the guide">
+          <a class="prev" href="/guide/watchlist"><span>Previous</span>Watchlist</a>
+          <a class="next" href="/guide/downloads"><span>Next</span>Downloads</a>
+        </nav>
+        <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/trakt.md">Edit this page on GitHub</a> <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20Trakt">Report something wrong or missing</a></p>
+      </article>
+    </main>
+  </div>
+  <footer class="site-footer">
+    <div class="wrap bar">
+      <span>Flexarr is free for noncommercial use under the PolyForm Noncommercial License.<br>Not affiliated with the *arr projects.</span>
+      <nav aria-label="Project">
+        <a href="/guide">Guide</a>
+        <a href="/apps">Apps</a>
+        <a href="https://github.com/danleach-glitch/flexarr" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/danleach-glitch/flexarr/releases" target="_blank" rel="noopener">Releases</a>
+        <a href="https://github.com/danleach-glitch/flexarr/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a>
+        <a href="https://github.com/danleach-glitch/flexarr/issues" target="_blank" rel="noopener">Report a problem</a>
+        <a href="/donate">Donate</a>
+        <a href="/privacy">Privacy</a>
+      </nav>
+    </div>
+  </footer>
+  <script src="/guide/guide.js" defer></script>
+</body>
+</html>

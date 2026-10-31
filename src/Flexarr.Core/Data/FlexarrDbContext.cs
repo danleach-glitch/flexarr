@@ -44,6 +44,9 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
     public DbSet<NotificationCursor> NotificationCursors => Set<NotificationCursor>();
     public DbSet<RecentSearch> RecentSearches => Set<RecentSearch>();
     public DbSet<WatchlistEntry> WatchlistEntries => Set<WatchlistEntry>();
+    public DbSet<TraktConnection> TraktConnections => Set<TraktConnection>();
+    public DbSet<TraktOutboxEntry> TraktOutbox => Set<TraktOutboxEntry>();
+    public DbSet<TraktHistoryHold> TraktHistoryHolds => Set<TraktHistoryHold>();
 
     /// <summary>
     /// Libraries hidden from the profile this context serves. Libraries and their items in them are filtered out of
@@ -149,6 +152,7 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
             e.HasOne<Profile>().WithMany().HasForeignKey(c => c.OwnerProfileId).OnDelete(DeleteBehavior.Cascade);
             e.HasMany(c => c.Items).WithOne().HasForeignKey(i => i.CollectionId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(c => c.TmdbCollectionId);
+            e.Property(c => c.TraktListId).HasMaxLength(160);
         });
 
         modelBuilder.Entity<Download>(e =>
@@ -328,6 +332,38 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
             e.Property(r => r.ProfileId).HasMaxLength(64);
             e.HasOne<Profile>().WithMany().HasForeignKey(r => r.ProfileId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(r => new { r.FulfilledAt, r.Kind, r.TmdbId });
+        });
+
+        modelBuilder.Entity<TraktConnection>(e =>
+        {
+            e.HasKey(c => c.ProfileId);
+            e.Property(c => c.ProfileId).HasMaxLength(64);
+            e.Property(c => c.AccessToken).HasMaxLength(512);
+            e.Property(c => c.RefreshToken).HasMaxLength(512);
+            e.Property(c => c.UserSlug).HasMaxLength(128);
+            e.Property(c => c.Username).HasMaxLength(128);
+            e.Property(c => c.LastError).HasMaxLength(500);
+            e.HasOne<Profile>().WithMany().HasForeignKey(c => c.ProfileId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(c => c.UserSlug).IsUnique();
+        });
+
+        modelBuilder.Entity<TraktOutboxEntry>(e =>
+        {
+            e.Property(o => o.ProfileId).HasMaxLength(64);
+            e.Property(o => o.Action).HasMaxLength(16);
+            e.Property(o => o.LastError).HasMaxLength(500);
+            e.HasOne<Profile>().WithMany().HasForeignKey(o => o.ProfileId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(o => o.NextAttemptAt);
+        });
+
+        modelBuilder.Entity<TraktHistoryHold>(e =>
+        {
+            e.Property(h => h.ProfileId).HasMaxLength(64);
+            e.Property(h => h.TmdbId).HasMaxLength(32);
+            e.Property(h => h.TvdbId).HasMaxLength(32);
+            e.Property(h => h.ImdbId).HasMaxLength(32);
+            // Read in id order, in pages (see TraktHolds); nothing looks them up by title id.
+            e.HasOne<Profile>().WithMany().HasForeignKey(h => h.ProfileId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<WatchlistEntry>(e =>
