@@ -36,13 +36,27 @@ public sealed class CurrentProfile(IHttpContextAccessor http, IOptionsMonitor<Fl
     public bool IsTrusted => http.HttpContext?.User.HasClaim(FlexarrClaims.Trusted, "true") == true;
 
     /// <summary>
-    /// Whether choosing <paramref name="profile"/> here takes a PIN: its own, if it has one. The main profile without
-    /// one asks for the admin PIN anywhere but a browser or device the owner signed in.
+    /// Choosing the main profile here takes the admin PIN, not its own: a Tailscale guest, or a browser at home with no
+    /// sign-in in a household with kids profiles. Its own PIN keeps watching private; it doesn't hand out what the main
+    /// profile may do (deleting titles, letting them through to kids) to whoever learns it.
+    /// </summary>
+    public bool TakesAdminPinForMain => !IsTrusted || http.HttpContext?.User.HasClaim(FlexarrClaims.KidsHome, "true") == true;
+
+    /// <summary>
+    /// Whether choosing <paramref name="profile"/> here takes a PIN: its own, if it has one, or for the main profile
+    /// where <see cref="TakesAdminPinForMain"/>, the admin PIN.
     /// </summary>
     public bool AsksPinFor(Profile profile)
     {
         ArgumentNullException.ThrowIfNull(profile);
-        return profile.PinHash is not null || profile.IsMain && !IsTrusted;
+        return profile.PinHash is not null || profile.IsMain && TakesAdminPinForMain;
+    }
+
+    /// <summary>Whether the PIN choosing <paramref name="profile"/> here asks for is the admin PIN.</summary>
+    public bool AsksAdminPinFor(Profile profile)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        return profile.IsMain && profile.AdminPinHash is not null && TakesAdminPinForMain;
     }
 
     /// <summary>The browser or device sign-in this request used, if any.</summary>
