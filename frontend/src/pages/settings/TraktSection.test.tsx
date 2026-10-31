@@ -71,4 +71,25 @@ describe('Settings › Trakt', () => {
     expect(await screen.findByText('Trakt signed Flexarr out.')).toBeVisible()
     expect(screen.getByText('Connect Dan again')).toBeVisible()
   })
+
+  it('brings chosen Trakt lists across as collections', async () => {
+    let saved: unknown
+    open({
+      '/trakt/status': { ...base, state: 'connected', username: 'Dan', importedAt: new Date().toISOString() },
+      '/trakt/lists': [
+        { id: 'dan/55', name: 'Sci-fi night', itemCount: 12, liked: false, selected: false },
+        { id: 'sam/77', name: 'Best of 2024', owner: 'Sam', itemCount: 1, liked: true, selected: true },
+      ],
+      'PUT /trakt/lists': (init?: RequestInit) => {
+        saved = JSON.parse(String(init?.body))
+        return undefined
+      },
+    })
+
+    const toggle = await screen.findByRole('switch', { name: /Sci-fi night/ })
+    expect(screen.getByText('Sam · 1 title')).toBeVisible()
+    fireEvent.click(toggle)
+
+    await vi.waitFor(() => expect(saved).toEqual({ ids: ['sam/77', 'dan/55'] }))
+  })
 })

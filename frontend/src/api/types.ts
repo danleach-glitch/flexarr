@@ -526,6 +526,8 @@ export interface Settings {
   bazarr?: { baseUrl: string; hasApiKey: boolean } | null
   /** Whether the main profile has a PIN of its own (from 0.57; saving it does nothing there). */
   askPinForMainProfile?: boolean
+  /** The admin's own Trakt app, if one replaces Flexarr's. Absent from servers before 0.57. */
+  traktApp?: { clientId: string; hasSecret: boolean } | null
 }
 
 export interface SettingsUpdate {
@@ -543,6 +545,8 @@ export interface SettingsUpdate {
   /** An empty address removes Bazarr; an omitted key keeps the saved one (for the same server). */
   bazarr?: { baseUrl: string; apiKey?: string }
   askPinForMainProfile?: boolean
+  /** An empty client id goes back to Flexarr's own app; a blank secret keeps the saved one. */
+  traktApp?: { clientId: string; clientSecret?: string }
 }
 
 export interface ArrStatus {

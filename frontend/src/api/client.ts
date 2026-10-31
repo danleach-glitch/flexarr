@@ -551,7 +551,7 @@ export const getGenres = (signal?: AbortSignal) => cachedGet<Genre[]>('/genres',
 
 // ---------- Collections
 
-export type CollectionKind = 'Manual' | 'Smart' | 'Franchise'
+export type CollectionKind = 'Manual' | 'Smart' | 'Franchise' | 'TraktList'
 
 /** What a smart collection holds; every rule is optional. */
 export interface SmartRules {
@@ -1599,3 +1599,17 @@ export const previewTraktImport = () => request<TraktImportPreview>('POST', '/tr
 export const confirmTraktImport = () => request<void>('POST', '/trakt/import?confirm=true')
 export const syncTraktNow = () => request<void>('POST', '/trakt/sync')
 export const getTraktProfiles = (signal?: AbortSignal) => apiGet<TraktProfile[]>('/trakt/profiles', signal)
+
+export interface TraktList {
+  /** "{user}/{list}": what saving the choice takes. */
+  id: string
+  name: string
+  /** Whose it is, for a list liked on Trakt; null for the profile's own. */
+  owner?: string | null
+  itemCount: number
+  liked: boolean
+  selected: boolean
+}
+
+export const getTraktLists = (signal?: AbortSignal) => apiGet<TraktList[]>('/trakt/lists', signal)
+export const saveTraktLists = (ids: string[]) => request<void>('PUT', '/trakt/lists', { ids })

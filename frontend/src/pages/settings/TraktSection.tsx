@@ -4,9 +4,11 @@ import {
   confirmTraktImport,
   connectTrakt,
   disconnectTrakt,
+  getTraktLists,
   getTraktProfiles,
   getTraktStatus,
   previewTraktImport,
+  saveTraktLists,
   syncTraktNow,
   type TraktImportPreview,
   type TraktPendingConnect,
@@ -17,7 +19,7 @@ import { useSession } from '../../hooks/sessionContext'
 import { useApi } from '../../hooks/useApi'
 import { usePolling } from '../../hooks/usePolling'
 import { relativeTime } from '../../lib/format'
-import { SaveStatus, SettingRow, SettingsGroup, SettingsHeader } from './shared'
+import { SaveStatus, SettingRow, SettingsGroup, SettingsHeader, ToggleRow } from './shared'
 
 const ended: Record<Exclude<TraktPendingConnect['state'], 'Waiting' | 'Connected'>, string> = {
   Expired: 'The code ran out. Try again.',
@@ -56,6 +58,7 @@ export function TraktSection() {
       {s && !s.available && <p className="muted">Trakt isn’t available on this server.</p>}
       {s?.available && (s.state === 'connected' ? <Connected status={s} act={act} /> : <Connect status={s} act={act} />)}
       {s?.available && s.state === 'connected' && !s.importedAt && <Import importing={s.importing} act={act} />}
+      {s?.available && s.state === 'connected' && <Lists />}
       {s?.available && me?.isAdmin && <Profiles version={version} />}
       {error && <SaveStatus error={error} />}
     </section>
@@ -150,6 +153,41 @@ function details(p: TraktImportPreview) {
   if (p.notOnServer > 0) parts.push(`${p.notOnServer.toLocaleString()} will show as watched if they arrive`)
   if (p.toTrakt > 0) parts.push(`${n(p.toTrakt, 'play')} from Flexarr ${p.toTrakt === 1 ? 'goes' : 'go'} to Trakt`)
   return parts.join('. ') + '.'
+}
+
+/** Trakt lists (this profile's own, and ones it liked) to show as its collections, kept in step. */
+function Lists() {
+  const lists = useApi((signal) => getTraktLists(signal).catch(() => null), [])
+  const [chosen, setChosen] = useState<string[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  if (!lists.data || lists.data.length === 0) return null
+  const selected = chosen ?? lists.data.filter((l) => l.selected).map((l) => l.id)
+
+  async function toggle(id: string, on: boolean) {
+    const next = on ? [...selected, id] : selected.filter((x) => x !== id)
+    setChosen(next)
+    setError(null)
+    try {
+      await saveTraktLists(next)
+    } catch {
+      setChosen(null)
+      setError('That didn’t save. Try again.')
+    }
+  }
+
+  return (
+    <SettingsGroup title="Lists" note={error ? <SaveStatus error={error} /> : 'Chosen lists show in Collections, just for you.'}>
+      {lists.data.map((l) => (
+        <ToggleRow
+          key={l.id}
+          label={l.name}
+          help={l.owner ? `${l.owner} · ${n(l.itemCount, 'title')}` : n(l.itemCount, 'title')}
+          checked={selected.includes(l.id)}
+          onChange={(on) => void toggle(l.id, on)}
+        />
+      ))}
+    </SettingsGroup>
+  )
 }
 
 /** The admin's view: which profiles are connected, and any trouble. */

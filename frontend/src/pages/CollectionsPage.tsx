@@ -182,7 +182,7 @@ export function CollectionPage() {
   const items = order ?? data.items
   const manual = c.kind === 'Manual' && c.canEdit
   const next = items.find((i) => !i.userData.watched) ?? items[0]
-  const kindLabel = { Manual: 'Collection', Smart: 'Smart collection', Franchise: 'Film series' }[c.kind]
+  const kindLabel = { Manual: 'Collection', Smart: 'Smart collection', Franchise: 'Film series', TraktList: 'Trakt list' }[c.kind]
 
   async function act(work: () => Promise<unknown>) {
     try {
@@ -230,7 +230,7 @@ export function CollectionPage() {
             </span>
             {c.watchedCount > 0 && <span>{c.watchedCount} watched</span>}
             {data.missing.length > 0 && <span>{data.missing.length} not in your library</span>}
-            {c.personal && <span>Just for you</span>}
+            {c.kind === 'TraktList' ? <span>From Trakt</span> : c.personal && <span>Just for you</span>}
           </p>
           {c.description && <p className="detail-overview">{c.description}</p>}
           <div className="detail-actions">
@@ -257,7 +257,7 @@ export function CollectionPage() {
                 {c.showOnHome ? 'On Home' : 'Show on Home'}
               </AsyncButton>
             )}
-            {c.canEdit && c.kind !== 'Franchise' && (
+            {c.canEdit && c.kind !== 'Franchise' && c.kind !== 'TraktList' && (
               <IconButton label="Edit" icon={<Pencil />} className="button quiet icon" onClick={() => setEditing(true)} />
             )}
             {c.canEdit && (
@@ -266,7 +266,7 @@ export function CollectionPage() {
                 icon={c.kind === 'Franchise' ? <EyeOff /> : <Trash />}
                 className="button quiet icon danger-icon"
                 onClick={() => {
-                  if (!confirm(c.kind === 'Franchise' ? `Hide ${c.name}? It won’t come back with the next sync.` : `Delete ${c.name}? The titles stay in your library.`)) return
+                  if (!confirm(c.kind === 'Franchise' ? `Hide ${c.name}? It won’t come back with the next sync.` : c.kind === 'TraktList' ? `Stop showing ${c.name}? It stays on Trakt.` : `Delete ${c.name}? The titles stay in your library.`)) return
                   return deleteCollection(c.id).then(() => navigate('/collections', { replace: true }))
                 }}
               />
@@ -282,7 +282,7 @@ export function CollectionPage() {
 
       {items.length === 0 && (
         <p className="muted collection-empty">
-          {c.kind === 'Smart' ? 'Nothing matches its rules yet.' : 'Nothing in it yet. Add titles from their ⋯ menu or their page: Add to collection.'}
+          {c.kind === 'Smart' ? 'Nothing matches its rules yet.' : c.kind === 'TraktList' ? 'Nothing on this list is here yet.' : 'Nothing in it yet. Add titles from their ⋯ menu or their page: Add to collection.'}
         </p>
       )}
       {manual && items.length > 1 && <p className="muted collection-hint">Drag posters to reorder.</p>}
