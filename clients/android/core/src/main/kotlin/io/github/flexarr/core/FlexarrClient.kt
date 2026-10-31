@@ -236,6 +236,13 @@ class FlexarrClient(
     suspend fun lockToKids(pin: String?, profileId: String? = null): ProfileSelection =
         decodeText(serializer(), send("POST", "profiles/kids-lock", body = json.encodeToString(KidsLockRequest(pin, profileId))))
 
+    /**
+     * Takes a forgotten PIN off a profile with the admin PIN, from the profile picker ([FlexarrException.ParentPinNeeded]
+     * if it's wrong). Returns the profile, now without one. Servers before 0.57 answer 404.
+     */
+    suspend fun forgetPin(id: String, adminPin: String): Profile =
+        sendDecoding("POST", "profiles/$id/forgot-pin", ForgotPinRequest(adminPin))
+
     /** Releases this device from kids profiles with the admin PIN ([FlexarrException.ParentPinNeeded] if it's wrong). */
     suspend fun releaseKidsLock(pin: String) {
         send("POST", "profiles/kids-lock/release", body = json.encodeToString(KidsLockRequest(pin)))

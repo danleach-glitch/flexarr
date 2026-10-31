@@ -12,7 +12,7 @@ import kotlinx.coroutines.delay
 
 /**
  * Connecting by code: the server hands out a short code, someone approves it (a phone signed in as the main profile is
- * asked; on a computer, Settings › Access › Connect a device), and this device gets a sign-in of its own. Codes that run
+ * asked; on a computer, Settings › Security › Connect a device), and this device gets a sign-in of its own. Codes that run
  * out are replaced. One per attempt: Try again after "Don't allow" starts a new one. The phone's and the TV's connect
  * screens show it.
  */

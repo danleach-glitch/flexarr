@@ -1,5 +1,7 @@
 package io.github.flexarr.ui.tv
 
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material3.Icon
 import android.view.KeyEvent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
@@ -181,9 +183,13 @@ private fun PinPad(model: AppModel, profile: Profile, error: String?, checking: 
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.width(320.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(15.dp)) {
-            ProfileAvatar(model, profile, size = 90)
-            // A main profile with no PIN of its own asks a guest for the admin PIN.
-            Text(if (profile.isMain && !profile.hasPin) "Enter the admin PIN" else "Enter ${profile.name}’s PIN",
+            // The admin PIN is the server's, not the main profile's own: a padlock rather than its picture.
+            if (profile.takesAdminPin) {
+                Icon(Icons.Filled.Lock, contentDescription = null, tint = Flexarr.usher, modifier = Modifier.size(80.dp))
+            } else {
+                ProfileAvatar(model, profile, size = 90)
+            }
+            Text(if (profile.takesAdminPin) "Enter the admin PIN" else "Enter ${profile.name}’s PIN",
                 style = marquee(28).copy(fontWeight = FontWeight.ExtraBold))
             Row(Modifier.height(20.dp), horizontalArrangement = Arrangement.spacedBy(11.dp), verticalAlignment = Alignment.CenterVertically) {
                 repeat(maxOf(4, pin.length)) { index ->

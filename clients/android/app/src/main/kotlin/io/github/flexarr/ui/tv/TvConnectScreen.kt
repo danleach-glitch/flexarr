@@ -202,7 +202,7 @@ private fun PairWithServer(model: AppModel, server: DiscoveredServer, onBack: ()
                             append("Go to ")
                             bold("Settings")
                             append(", then ")
-                            bold("Access")
+                            bold("Security")
                             append(", then ")
                             bold("Connect a device")
                             append(".")
@@ -223,9 +223,8 @@ private fun PairWithServer(model: AppModel, server: DiscoveredServer, onBack: ()
                     Text(
                         buildAnnotatedString {
                             append("Or on a computer, open ")
-                            bold(server.address)
-                            append(", go to ")
-                            bold("Settings › Access › Connect a device")
+                            // The page's own address works on servers before and after Connect a device moved to Security.
+                            bold(server.address.trimEnd('/') + "/settings/tv")
                             append(" and type in the code.")
                         },
                         fontSize = 13.sp,

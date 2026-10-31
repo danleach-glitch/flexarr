@@ -93,7 +93,7 @@ fun pairingProblem(e: Exception, outside: Boolean = false): String = if (e is Pi
 }
 
 /** Said while the main profile has no PIN yet, so allowing can't be unlocked from here. */
-const val PIN_MISSING = "Give the main profile a PIN in Flexarr in a browser first."
+const val PIN_MISSING = "Choose an admin PIN in Flexarr in a browser first."
 
 /** The admin PIN didn't unlock: wrong, too many tries (the server says how long to wait), or none set yet. */
 class PinProblem(message: String) : Exception(message)
