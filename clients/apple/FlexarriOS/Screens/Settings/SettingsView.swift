@@ -41,7 +41,7 @@ struct SettingsView: View {
                         Button {
                             Task { await lockToKids(pin: nil) }
                         } label: {
-                            Label("Lock to kids profiles", systemImage: "lock")
+                            Label("Child lock", systemImage: "lock")
                         }
                         .disabled(locking)
                         .listRowBackground(Color.seat)

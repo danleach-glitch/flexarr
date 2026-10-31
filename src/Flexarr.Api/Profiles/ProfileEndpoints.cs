@@ -178,7 +178,7 @@ public static partial class ProfileEndpoints
         {
             if (current.SignInId is not { } signInId)
             {
-                return Results.Problem("Only a browser or device that's signed in can be locked to kids profiles.", statusCode: 409);
+                return Results.Problem("Child lock needs a browser or device that's signed in.", statusCode: 409);
             }
 
             var kids = await db.Profiles.AsNoTracking().Where(p => p.IsKids).OrderBy(p => p.CreatedAt).ToListAsync(ct);
@@ -370,7 +370,7 @@ public static partial class ProfileEndpoints
             // doesn't.) Choosing the main profile, its own PIN is that PIN.
             if (!profile.IsKids && signIns.ById(current.SignInId)?.KidsLock == true)
             {
-                return Results.Problem("This device is locked to kids profiles.", statusCode: 403, extensions: new Dictionary<string, object?> { ["kidsLock"] = true });
+                return Results.Problem("Child lock is on for this device.", statusCode: 403, extensions: new Dictionary<string, object?> { ["kidsLock"] = true });
             }
 
             var from = await db.Profiles.AsNoTracking().Where(p => p.Id == current.Id).Select(p => new { p.IsKids, p.MaxRatingAge }).FirstOrDefaultAsync(ct);

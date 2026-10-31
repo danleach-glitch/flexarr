@@ -242,12 +242,12 @@ fun ProfilePicker(
                 }
                 // Locked, the other profiles wait behind the main profile's PIN; unlocked, a parent can lock it here.
                 if (model.kidsLock) {
-                    ActionButton("Unlock", onClick = {
+                    ActionButton("Turn off child lock", onClick = {
                         error = null
                         locking = KidsLockStep.Release
                     })
                 } else if (marksCurrent && model.canLockToKids) {
-                    ActionButton("Lock to kids profiles", enabled = !lockingBusy, onClick = {
+                    ActionButton("Child lock", enabled = !lockingBusy, onClick = {
                         error = null
                         lockingBusy = true
                         scope.launch {

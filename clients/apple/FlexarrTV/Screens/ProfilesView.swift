@@ -127,7 +127,7 @@ struct ProfilePickerView: View {
                     error = nil
                     kidsLockPin = .unlock
                 } label: {
-                    Label("Unlock", systemImage: "lock.open")
+                    Label("Turn off child lock", systemImage: "lock.open")
                 }
                 .buttonStyle(ActionButtonStyle())
                 .focused($focused, equals: Self.unlockFocus)
@@ -136,7 +136,7 @@ struct ProfilePickerView: View {
                 Button {
                     Task { await lock(pin: nil) }
                 } label: {
-                    Label(locking ? "Locking" : "Lock to kids profiles", systemImage: "lock")
+                    Label(locking ? "Locking" : "Child lock", systemImage: "lock")
                 }
                 .buttonStyle(ActionButtonStyle())
                 .focused($focused, equals: Self.lockFocus)

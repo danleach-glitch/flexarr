@@ -144,7 +144,7 @@ export function SignIns() {
             <span className="sign-in-name">
               <strong>{s.name}</strong>
               {s.isThisOne && <span className="pill">This browser</span>}
-              {s.kidsLock && <span className="pill">Locked to kids</span>}
+              {s.kidsLock && <span className="pill">Child lock on</span>}
               {isNew(s) && (
                 <span className="pill new" title="Signed in recently. If you don’t recognise it, sign it out.">
                   New
@@ -160,8 +160,8 @@ export function SignIns() {
       {editing !== s.id && (
         <span className="sign-in-actions">
           {s.kidsLock && (
-            <AsyncButton className="button quiet small" aria-label={`Unlock ${describe(s)} from kids profiles`} onClick={() => releaseSignInKidsLock(s.id).then(list.reload)}>
-              Unlock
+            <AsyncButton className="button quiet small" aria-label={`Turn off child lock on ${describe(s)}`} onClick={() => releaseSignInKidsLock(s.id).then(list.reload)}>
+              Turn off child lock
             </AsyncButton>
           )}
           <button className="button quiet small" data-rename={s.id} aria-label={`Rename ${describe(s)}`} onClick={() => setEditing(s.id)}>

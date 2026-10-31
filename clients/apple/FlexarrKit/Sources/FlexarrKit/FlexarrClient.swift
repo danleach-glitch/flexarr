@@ -31,7 +31,7 @@ public enum FlexarrClientError: Error, Equatable, LocalizedError {
         case .ownPinWrong(let message):
             message ?? "That PIN isn’t right."
         case .kidsLocked(let message):
-            message ?? "This device is locked to kids profiles."
+            message ?? "Child lock is on for this device."
         case .http(let status, let message):
             message ?? "The server answered with an error (HTTP \(status))."
         case .unexpectedResponse:

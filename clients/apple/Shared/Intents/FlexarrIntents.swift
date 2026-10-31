@@ -1016,6 +1016,11 @@ struct FlexarrShortcuts: AppShortcutsProvider {
                 "\(\.$action) \(.applicationName)",
                 "\(\.$action) in \(.applicationName)",
                 "\(\.$action) playback in \(.applicationName)",
+                // The app's name first: Siri answers "Turn on subtitles …" itself, as a command of its own for
+                // whatever's playing, before Flexarr hears it.
+                "\(.applicationName) \(\.$action)",
+                "Ask \(.applicationName) to \(\.$action)",
+                "Use \(.applicationName) to \(\.$action)",
             ],
             shortTitle: "Control playback",
             systemImageName: "playpause.fill"

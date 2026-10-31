@@ -140,14 +140,14 @@ struct ProfilePickerView: View {
                         error = nil
                         kidsLockPin = .unlock
                     } label: {
-                        Label("Unlock", systemImage: "lock.open")
+                        Label("Turn off child lock", systemImage: "lock.open")
                     }
                     .buttonStyle(ActionButtonStyle())
                 } else if marksCurrent && model.offersKidsLock {
                     Button {
                         Task { await lock(pin: nil) }
                     } label: {
-                        Label("Lock to kids profiles", systemImage: "lock")
+                        Label("Child lock", systemImage: "lock")
                     }
                     .buttonStyle(ActionButtonStyle())
                     .disabled(locking || switching != nil)

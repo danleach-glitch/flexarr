@@ -55,7 +55,7 @@ function ParentPinDialog({ title, action, onDone, onCancel }: { title: string; a
 }
 
 /**
- * The profile menu's Lock to kids profiles (for a browser signed in with its own sign-in, once there's a kids
+ * The profile menu's Child lock (for a browser signed in with its own sign-in, once there's a kids
  * profile) and, once locked, Unlock. Either starts the app again, for the profiles that are left.
  */
 export function KidsLockMenuItems({ access, profiles, onClose }: { access: Me | undefined; profiles: Profile[]; onClose: () => void }) {
@@ -93,7 +93,7 @@ export function KidsLockMenuItems({ access, profiles, onClose }: { access: Me | 
           } else setAsking(locked ? 'release' : 'lock')
         }}
       >
-        {locked ? 'Unlock' : 'Lock to kids profiles'}
+        {locked ? 'Turn off child lock' : 'Child lock'}
       </button>
       {error && (
         <p className="error" role="alert">
@@ -102,8 +102,8 @@ export function KidsLockMenuItems({ access, profiles, onClose }: { access: Me | 
       )}
       {asking && (
         <ParentPinDialog
-          title={asking === 'lock' ? 'Lock this browser to kids profiles' : 'Unlock this browser'}
-          action={asking === 'lock' ? 'Lock' : 'Unlock'}
+          title={asking === 'lock' ? 'Turn on child lock' : 'Turn off child lock'}
+          action={asking === 'lock' ? 'Turn on' : 'Turn off'}
           onCancel={() => {
             setAsking(undefined)
             onClose()

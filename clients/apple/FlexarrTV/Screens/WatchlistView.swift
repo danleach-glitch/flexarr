@@ -157,12 +157,13 @@ struct WatchlistView: View {
         }
     }
 
-    /// Where it's got to, then where it streams: "On its way · On Netflix".
+    /// Where it's got to, then where it streams: "On its way · On Netflix", "Request · On Prime Video".
     private func note(_ entry: WatchlistEntry) -> String {
         let status: String? = switch entry.status {
         case .onItsWay: "On its way"
         case .coming: entry.releaseDate.flatMap(Self.out) ?? "Coming"
-        case .notAvailable: entry.year.map(String.init)
+        // As the other apps' Request button: pressing the card opens its page, where Request is.
+        case .notAvailable: "Request"
         default: nil
         }
         return [status, entry.streamingLabel].compactMap { $0 }.joined(separator: " · ")
