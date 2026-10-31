@@ -46,7 +46,8 @@ final class AVPlayerTransport: NSObject, PlayerTransport {
         // device's language, turning subtitles back on after the viewer turned them off.
         player.appliesMediaSelectionCriteriaAutomatically = false
         #if os(iOS)
-        player.allowsExternalPlayback = true
+        // Not for a family guest: an AirPlay receiver can't reach the tunnel inside this device.
+        player.allowsExternalPlayback = !GuestMode.isActive
         player.usesExternalPlaybackWhileExternalScreenIsActive = true
         #endif
         view = layerView

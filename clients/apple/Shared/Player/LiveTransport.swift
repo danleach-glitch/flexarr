@@ -31,7 +31,8 @@ final class LiveTransport: NSObject, PlayerTransport {
         item.automaticallyPreservesTimeOffsetFromLive = false
         player = AVPlayer(playerItem: item)
         #if os(iOS)
-        player.allowsExternalPlayback = true
+        // Not for a family guest: an AirPlay receiver can't reach the tunnel inside this device.
+        player.allowsExternalPlayback = !GuestMode.isActive
         player.usesExternalPlaybackWhileExternalScreenIsActive = true
         #endif
         view = layerView
