@@ -460,7 +460,7 @@ private struct GuestCode: View {
                     Button("Join") { Task { await waiter.join(model: model) } }
                         .buttonStyle(ActionButtonStyle(prominent: true))
                         .focused($focus, equals: .main)
-                    Button("Not Now") { waiter.newCode() }
+                    Button("Not now") { waiter.newCode() }
                         .buttonStyle(ActionButtonStyle(prominent: false))
                 }
             } else if let problem = waiter.problem {
@@ -470,16 +470,16 @@ private struct GuestCode: View {
                     .fixedSize(horizontal: false, vertical: true)
                 HStack(spacing: 30) {
                     if waiter.canTryAgain {
-                        Button("Try Again") { Task { await waiter.join(model: model) } }
+                        Button("Try again") { Task { await waiter.join(model: model) } }
                             .buttonStyle(ActionButtonStyle(prominent: true))
                             .focused($focus, equals: .main)
                     }
-                    Button(waiter.noCode ? "Try Again" : "New Code") { waiter.newCode() }
+                    Button(waiter.noCode ? "Try again" : "New code") { waiter.newCode() }
                         .buttonStyle(ActionButtonStyle(prominent: !waiter.canTryAgain))
                         .focused($focus, equals: waiter.canTryAgain ? nil : .main)
                 }
             } else if waiter.stopped {
-                Button("Show a New Code") { waiter.newCode() }
+                Button("Show a new code") { waiter.newCode() }
                     .buttonStyle(ActionButtonStyle(prominent: true))
                     .focused($focus, equals: .main)
             } else {

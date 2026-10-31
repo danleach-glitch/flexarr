@@ -22,7 +22,7 @@ struct TunnelProblemView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
             HStack(spacing: 16) {
-                Button("Try Again") { Task { await model.retryGuestTunnel() } }
+                Button("Try again") { Task { await model.retryGuestTunnel() } }
                     .buttonStyle(.borderedProminent)
                 if let onDownloads {
                     Button("Downloads", action: onDownloads)
