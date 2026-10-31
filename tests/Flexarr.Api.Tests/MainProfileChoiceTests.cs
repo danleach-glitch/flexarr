@@ -214,4 +214,23 @@ public class MainProfileChoiceTests
         Assert.Equal(HttpStatusCode.OK, ownPin.StatusCode);
         Assert.Equal(HttpStatusCode.TooManyRequests, rightAfter.StatusCode);
     }
+
+    [Fact]
+    public async Task WithNoAdminPinYet_AGuestIsToldTheMainProfileTakesIt_NotAskedForItsOwn()
+    {
+        using var server = new RemoteAccessFactory();
+        using (var scope = server.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            (await db.Profiles.FindAsync(PlaybackState.DefaultUser))!.SetPin(OwnPin);
+            db.Profiles.Add(new Profile { Id = Profile.NewId(), Name = "Teen", TailscaleLogin = "teen3@example.com" });
+            await db.SaveChangesAsync();
+        }
+
+        var guest = Guest(server, "100.70.2.12", "teen3@example.com");
+        var main = (await guest.GetFromJsonAsync<JsonElement>(Api("/profiles"))).EnumerateArray().Single(p => p.GetProperty("isMain").GetBoolean());
+
+        Assert.True(main.GetProperty("asksAdminPin").GetBoolean());
+        Assert.Equal(HttpStatusCode.Forbidden, (await ChooseMainAsync(guest, OwnPin)).StatusCode);
+    }
 }

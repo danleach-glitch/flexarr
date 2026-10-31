@@ -52,11 +52,14 @@ public sealed class CurrentProfile(IHttpContextAccessor http, IOptionsMonitor<Fl
         return profile.PinHash is not null || profile.IsMain && TakesAdminPinForMain;
     }
 
-    /// <summary>Whether the PIN choosing <paramref name="profile"/> here asks for is the admin PIN.</summary>
+    /// <summary>
+    /// Whether the PIN choosing <paramref name="profile"/> here asks for is the admin PIN (where there isn't one yet,
+    /// nothing chooses it here, and apps say so rather than ask for the profile's own).
+    /// </summary>
     public bool AsksAdminPinFor(Profile profile)
     {
         ArgumentNullException.ThrowIfNull(profile);
-        return profile.IsMain && profile.AdminPinHash is not null && TakesAdminPinForMain;
+        return profile.IsMain && TakesAdminPinForMain;
     }
 
     /// <summary>The browser or device sign-in this request used, if any.</summary>
