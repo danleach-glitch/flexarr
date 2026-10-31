@@ -91,7 +91,7 @@ New endpoints only; nothing changes shape.
 - **Rate limits:** about 1 write per second and 1,000 reads per 5 minutes. History goes in batches.
 - **Free accounts:** the watchlist is capped (100 in 2025; reportedly 250 since 2026). When Trakt says the list is full, that title stays in Flexarr, and Settings shows it plainly.
 - **Matching:** films by TMDB id, then IMDb. Episodes by show (TVDB, TMDB, then IMDb) plus season and episode number. Specials and absolute numbering can disagree; anything unmatched is counted in the preview, never guessed at.
-- **Credentials:** the public client id is built into the server. The secret lives only in the relay's Vercel environment, which adds it to `/oauth/device/token` and `/oauth/token` (refresh) calls and passes them on. A setting overrides both with your own app. Flexarr's app is registered under Dan's Trakt account, which needs VIP.
+- **Credentials:** the server asks the relay for the public client id (`GET`), so nothing is in the repo and a new app needs no release. The secret lives only in the relay's Vercel environment, which adds it to `/oauth/device/token` and `/oauth/token` (refresh) calls and passes them on. A setting overrides both with your own app. Flexarr's app is registered under Dan's Trakt account, which needs VIP.
 - **Scrobble stop vs pause:** Trakt counts a stop at 80% or more as watched. Flexarr sends stop only when it has counted the play as finished (92% or the end credits), and pause otherwise, so the two never disagree.
 
 ## Apps

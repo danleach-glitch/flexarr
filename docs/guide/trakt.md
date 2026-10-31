@@ -7,22 +7,24 @@ Connect a profile to your [Trakt](https://trakt.tv) account and Flexarr keeps th
 
 ## Connecting
 
-1. Open **Settings › Trakt** in the web app, on iPhone, iPad or Android, or on the Apple TV.
+1. Open **Settings › Trakt** in the web app, on iPhone, iPad or Android, or on the Apple TV or Android TV.
 2. Choose **Connect**. Flexarr shows a code.
-3. On any phone or computer, go to **trakt.tv/activate** and enter the code. On the Apple TV you can scan the QR code instead. On iPhone and Android, **Copy code and open Trakt** does both for you.
+3. On any phone or computer, go to **trakt.tv/activate** and enter the code. On a TV, scan the QR code to open that page on your phone. On iPhone and Android, **Copy code and open Trakt** copies the code and opens the page; on the web, **Copy code**.
 
-You don't need to wait on that screen: your server waits for the code for 10 minutes, and it says **Connected** the next time you look.
+You don't need to wait on that screen: your server waits for the code for 10 minutes. Once you've entered it, Settings › Trakt shows your Trakt name.
 
 A Trakt account can be connected to one profile only, so nothing is counted twice.
 
 ## Bringing your history across
 
-Once you're connected, **Bring your Trakt history across** shows you what would change before anything does. For example: *Trakt has 12 films and 340 episodes. 200 are here, 41 not yet watched in Flexarr*. Choose **Bring across** to go ahead.
+Once you're connected, **Bring your Trakt history across** shows you what would change before anything does (**See what changes** on the web). For example: *Trakt has 12 films and 340 episodes. 200 are here, 41 not yet watched in Flexarr*. Choose **Bring across** to go ahead.
 
 - Anything watched on Trakt is marked watched in Flexarr, with the date you watched it.
 - Anything watched in Flexarr that Trakt doesn't have goes to Trakt.
 - Titles you've watched that aren't on your server yet are remembered. When one arrives, it's already marked watched.
 - Nothing is ever marked unwatched, on either side.
+
+It's offered once. When it's done, Settings says **History brought across**; after that, everything stays in step by itself. To bring it across again, disconnect and connect again.
 
 ## Staying in step
 
@@ -38,11 +40,13 @@ After that, it all happens by itself:
 
 **Marking something unwatched** in Flexarr leaves Trakt as it is: your Trakt history stays true, and Flexarr won't mark it watched again.
 
-**Sync now** in **Settings › Trakt** checks straight away rather than waiting.
+**Sync now** in **Settings › Trakt** checks straight away rather than waiting (once a minute at most).
+
+Everything a connected profile watches goes to Trakt, whichever library it's in, and Trakt profiles are public unless you make yours private on trakt.tv.
 
 ## Lists and picks
 
-- **Lists**: in **Settings › Trakt** on the web or Android, choose any of your Trakt lists, or ones you've liked, and each shows up in **Collections**, just for you, kept in step with Trakt. Titles on the list that are here show as usual. Films that aren't here show with **Request**.
+- **Lists**: in **Settings › Trakt**, choose any of your Trakt lists, or ones you've liked, and each shows up in **Collections** on the web, just for you, kept in step with Trakt. Titles on the list that are here show as usual. Films that aren't here show with **Request**.
 - **For you, from Trakt**: once you're connected, Discover on the web, Apple TV and Android TV has a row of Trakt's picks for you, with titles you have first and ones you've watched left out.
 
 ## If something's wrong
@@ -54,8 +58,10 @@ After that, it all happens by itself:
 | **Waiting to send** | Trakt or your internet is down. Flexarr keeps the changes and sends them when it can. |
 | No **Trakt** in Settings | Kids profiles don't have Trakt. Otherwise, your server can't reach Flexarr's Trakt service. Check it can reach the internet. |
 
-**Disconnect** in **Settings › Trakt** stops it all and makes Trakt forget Flexarr. What you've watched stays as it is, in both places.
+**Disconnect** in **Settings › Trakt** stops it all and makes Trakt forget Flexarr. What you've watched stays as it is, in both places. Making a profile a kids profile, or removing it, disconnects it too.
+
+[Backups](backups.md) include each profile's Trakt sign-in. Restoring an older backup may mean connecting again, as Trakt replaces a sign-in each time it's renewed.
 
 ## Your own Trakt app
 
-Flexarr uses its own Trakt app, so there's nothing to set up. If you'd rather use your own (Trakt only lets VIP members create one), the main profile can enter its **Client ID** and **Client secret** in **Settings › Connections › Trakt**. Everyone then connects again.
+Flexarr uses its own Trakt app, so there's nothing to set up. If you'd rather use your own (Trakt only lets VIP members create one), the main profile can enter its **Client ID** and **Client secret** in **Settings › Connections › Trakt**. Everyone then connects again, as sign-ins belong to the app that gave them.
