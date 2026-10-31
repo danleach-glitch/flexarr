@@ -129,7 +129,9 @@ fun HomeScreen(model: AppModel) {
     val loader = rememberLoader(model.credentials, model.watchStateVersion, model.homeWatchlistVersion) {
         coroutineScope {
             // Empty without podcasts (none followed, no library, a server from before them: an error, also nothing).
-            val episodes = async { runCatching { client.newPodcastEpisodes(unplayed = true, take = 20) }.getOrDefault(emptyList()) }
+            val episodes = async {
+                if (model.isKids) emptyList() else runCatching { client.newPodcastEpisodes(unplayed = true, take = 20) }.getOrDefault(emptyList())
+            }
             val home = client.home()
             val newEpisodes = episodes.await()
             // Nothing at all yet: the libraries say whether a scan is under way or their folders hold nothing. Not to a

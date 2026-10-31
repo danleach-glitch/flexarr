@@ -46,7 +46,7 @@ public static class CollectionEndpoints
 {
     public static RouteGroupBuilder MapCollectionEndpoints(this RouteGroupBuilder api)
     {
-        var group = api.MapGroup("/collections").WithTags("Collections");
+        var group = api.MapGroup("/collections").WithTags("Collections").NotForKids();
 
         group.MapGet("/", async (bool? hidden, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
         {

@@ -119,10 +119,64 @@ public class KidsProfileTests
         Assert.Equal((true, 8), (me.GetProperty("isKids").GetBoolean(), me.GetProperty("maxRatingAge").GetInt32()));
         Assert.False(requests.GetProperty("configured").GetBoolean());
         Assert.Equal(HttpStatusCode.Forbidden, (await tv.PostAsJsonAsync(Api("/requests"), new { mediaType = "movie", tmdbId = 603 })).StatusCode);
-        // What Flexarr can't check the age of is empty rather than refused, so screens a child opens don't show errors.
+    }
+
+    [Fact]
+    public async Task ATeensAgeLimit_LeavesWhatFlexarrCantCheckEmpty_RatherThanRefused()
+    {
+        using var server = new FlexarrApiFactory();
+        var sam = await CreateAsync(server, "Sam", 15);
+        var tv = await TvAsync(server);
+        await SelectAsync(tv, sam);
+
+        // What Flexarr can't check the age of is empty rather than refused, so screens a teen opens don't show errors.
         Assert.Equal(0, (await tv.GetFromJsonAsync<JsonElement>(Api("/podcasts/search?q=news"))).GetArrayLength());
         Assert.Equal(0, (await tv.GetFromJsonAsync<JsonElement>(Api("/livetv/recordings"))).GetProperty("recent").GetArrayLength());
         Assert.Equal(HttpStatusCode.Forbidden, (await tv.PostAsJsonAsync(Api("/livetv/recordings"), new { programmeId = 1 })).StatusCode);
+    }
+
+    [Fact]
+    public async Task AKidsProfile_HasNoPodcastsWatchlistCollectionsOrLiveTv()
+    {
+        using var server = new FlexarrApiFactory();
+        await server.SetMainPinAsync(MainPin);
+        var items = await SeedAsync(server);
+        using (var scope = server.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            db.Libraries.Add(new Library { Name = "Podcasts", Type = LibraryType.Podcasts });
+            var recordings = new Library { Name = RecordingsLibrary.Name, Type = LibraryType.TvShows };
+            db.AddRange(recordings, new MediaItem { LibraryId = recordings.Id, Kind = MediaKind.Series, Title = "Kids Recorded", SortTitle = "kids recorded", ContentRating = "U" });
+            await db.SaveChangesAsync();
+        }
+
+        var ada = await CreateAsync(server, "Ada", 8, isKids: true);
+        var tv = await TvAsync(server);
+        await SelectAsync(tv, ada);
+
+        foreach (var path in new[] { "/watchlist", "/watchlist/keys", "/podcasts", "/podcasts/search?q=news", "/collections", "/livetv/channels", "/livetv/guide",
+                     "/livetv/recordings", $"/items/{items["paddington"]}/subtitles/search", $"/items/{items["paddington"]}/subtitles/sync" })
+        {
+            Assert.True((await tv.GetAsync(Api(path))).StatusCode == HttpStatusCode.Forbidden, path);
+        }
+
+        Assert.Equal(HttpStatusCode.Forbidden, (await tv.PostAsJsonAsync(Api($"/items/{items["paddington"]}/subtitles/download"), new { })).StatusCode);
+        Assert.False((await tv.GetFromJsonAsync<JsonElement>(Api("/subtitles/status"))).GetProperty("configured").GetBoolean());
+        // The DVR's recordings aren't a library to a kids profile, even ones rated for it.
+        var found = (await tv.GetFromJsonAsync<JsonElement>(Api("/search?q=Kids"))).GetProperty("titles").EnumerateArray().Select(t => t.GetProperty("title").GetString());
+        Assert.DoesNotContain("Kids Recorded", found);
+        Assert.Contains("Kids Paddington", found);
+
+        // What apps ask before showing these says they aren't there, rather than refusing.
+        Assert.False((await tv.GetFromJsonAsync<JsonElement>(Api("/podcasts/status"))).GetProperty("available").GetBoolean());
+        Assert.False((await tv.GetFromJsonAsync<JsonElement>(Api("/livetv/status"))).GetProperty("configured").GetBoolean());
+        var libraries = (await tv.GetFromJsonAsync<JsonElement>(Api("/libraries"))).EnumerateArray().Select(l => l.GetProperty("name").GetString()).ToList();
+        Assert.DoesNotContain("Podcasts", libraries);
+        Assert.DoesNotContain(RecordingsLibrary.Name, libraries);
+        var rows = (await tv.GetFromJsonAsync<JsonElement>(Api("/home"))).GetProperty("rows").EnumerateArray().Select(r => r.GetProperty("id").GetString()).ToList();
+        Assert.DoesNotContain("watchlist", rows);
+        var detail = await tv.GetFromJsonAsync<JsonElement>(Api($"/items/{items["paddington"]}"));
+        Assert.True(!detail.TryGetProperty("onWatchlist", out var on) || on.ValueKind == JsonValueKind.Null);
     }
 
     [Fact]

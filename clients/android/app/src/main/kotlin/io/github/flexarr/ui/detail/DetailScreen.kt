@@ -305,8 +305,8 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
             if (item.kind == MediaKind.Movie || item.kind == MediaKind.Episode) {
                 DownloadAction(model, item, slot)
             }
-            // Servers before 0.56 don't say, and have no watchlist.
-            if (item.kind == MediaKind.Movie || item.kind == MediaKind.Series) {
+            // Servers before 0.56 don't say, and have no watchlist; nor does a kids profile.
+            if (!model.isKids && (item.kind == MediaKind.Movie || item.kind == MediaKind.Series)) {
                 detail.onWatchlist?.let { saved -> WatchlistAction(item, saved, detail, slot) }
             }
             if (item.kind == MediaKind.Episode && series != null) {
@@ -317,7 +317,7 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
                 LabeledAction("Play on", Icons.Filled.Cast, { choosingScreen = true }, slot)
             }
             val file = detail.files.firstOrNull()
-            if (detail.canSearchSubtitles == true && file != null) {
+            if (detail.canSearchSubtitles == true && file != null && !model.isKids) {
                 LabeledAction("Subtitles", Icons.Filled.ClosedCaption, { searchingSubtitlesFor = file.id }, slot.semantics { contentDescription = "Search for subtitles" })
             }
         }

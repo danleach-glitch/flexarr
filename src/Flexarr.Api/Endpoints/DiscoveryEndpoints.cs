@@ -68,8 +68,8 @@ public static partial class DiscoveryEndpoints
                 rows.Add(new HomeRowDto("continue", "Continue watching", "wide", continueWatching));
             }
 
-            // Titles from this profile's watchlist it can play now; nothing until something on the list is in.
-            if (LayoutEndpoints.IsOn(options.Layout.Home, Watchlist.WatchlistService.HomeRowId))
+            // Titles from this profile's watchlist it can play now; nothing until something on the list is in. A kids profile has none.
+            if (!db.ServesKids && LayoutEndpoints.IsOn(options.Layout.Home, Watchlist.WatchlistService.HomeRowId))
             {
                 var ready = await services.GetRequiredService<Watchlist.WatchlistService>().ReadyAsync(me, RowSize, ct);
                 rows.Add(new HomeRowDto(Watchlist.WatchlistService.HomeRowId, "Ready from your watchlist", "poster", ready, "/watchlist"));
@@ -83,7 +83,7 @@ public static partial class DiscoveryEndpoints
             }
 
             // The channel watched last, then the profile's favourites, with what's on them; nothing until there's one.
-            if (options.LiveTv?.Account is not null && LayoutEndpoints.IsOn(options.Layout.Home, "live-tv"))
+            if (options.LiveTv?.Account is not null && !db.ServesKids && LayoutEndpoints.IsOn(options.Layout.Home, "live-tv"))
             {
                 var channels = await LiveTv.LiveTvEndpoints.HomeChannelsAsync(db, me, DateTime.UtcNow, ct);
                 rows.Add(new HomeRowDto("live-tv", "Live TV", "live", [], "/livetv", Channels: channels));
@@ -180,8 +180,11 @@ public static partial class DiscoveryEndpoints
                 }
             }
 
-            // Collections chosen for Home (household ones and this profile's own).
-            rows.AddRange(await Collections.CollectionEndpoints.HomeRowsAsync(db, profile, RowSize, ct));
+            // Collections chosen for Home (household ones and this profile's own); a kids profile has none.
+            if (!db.ServesKids)
+            {
+                rows.AddRange(await Collections.CollectionEndpoints.HomeRowsAsync(db, profile, RowSize, ct));
+            }
 
             // Coming soon is a row like the others (its titles travel in Upcoming), so it can be moved or switched off.
             rows.Add(new HomeRowDto("upcoming", "Coming soon", "upcoming", []));

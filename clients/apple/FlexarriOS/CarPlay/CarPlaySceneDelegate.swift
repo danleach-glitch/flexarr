@@ -39,6 +39,14 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
             for list in [upNext, fresh, podcasts] { list.emptyViewSubtitleVariants = ["Open Flexarr on your iPhone to sign in."] }
             return
         }
+        // A kids profile has no podcasts.
+        guard !model.isKids else {
+            for list in [upNext, fresh, podcasts] {
+                list.emptyViewSubtitleVariants = ["Podcasts aren't on kids profiles."]
+                list.updateSections([])
+            }
+            return
+        }
         await model.loadUpNext()
         upNext.updateSections([CPListSection(items: await items(model.upNext, client: client))])
         let new = (try? await client.newPodcastEpisodes(unplayed: true, take: 25)) ?? []

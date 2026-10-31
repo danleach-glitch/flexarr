@@ -165,7 +165,7 @@ fun TvMainScreen(model: AppModel) {
     // Signed in (or as someone else): commands for this device ("play on the living room TV") come to this sign-in.
     LaunchedEffect(model.credentials) { model.listenForCommands() }
     // Whether the server has Live TV, for its place in the sidebar.
-    LaunchedEffect(model.credentials) { model.loadLiveTvStatus() }
+    LaunchedEffect(model.credentials, model.isKids) { model.loadLiveTvStatus() }
 
     fun closeSidebar() {
         sidebarOpen = false

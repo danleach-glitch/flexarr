@@ -95,8 +95,9 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
   if (progress !== null) more.push({ label: 'Play from the start', run: () => navigate(`/play/${item.id}?t=0`) })
   // Part way through: forget the place without marking it watched, which also takes it out of Continue Watching.
   if (progress !== null && !item.userData.watched && !kids) more.push({ label: 'Mark as unwatched', run: () => markUnwatched() })
-  if (item.kind === 'Movie' || item.kind === 'Series') more.push({ label: 'Add to collection…', run: () => openAddToCollection(item) })
-  if (detail.canSearchSubtitles) more.push({ label: 'Search for subtitles…', run: () => setFindingSubtitles(true) })
+  // A child's profile has no collections and doesn't find subtitles.
+  if ((item.kind === 'Movie' || item.kind === 'Series') && !kids) more.push({ label: 'Add to collection…', run: () => openAddToCollection(item) })
+  if (detail.canSearchSubtitles && !kids) more.push({ label: 'Search for subtitles…', run: () => setFindingSubtitles(true) })
   if (canFixMatch) more.push({ label: 'Fix match…', run: () => setMatching(true) })
   // A parent's say over the title for profiles with an age limit, once any has one; its episodes follow it.
   const override = detail.kidsOverride
@@ -187,7 +188,7 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
                 <Check /> {item.userData.watched ? 'Watched' : 'Mark as watched'}
               </AsyncButton>
             )}
-            {detail.onWatchlist != null && <WatchlistButton titleKey={{ libraryItemId: item.id }} title={item.title} on={detail.onWatchlist} />}
+            {detail.onWatchlist != null && !kids && <WatchlistButton titleKey={{ libraryItemId: item.id }} title={item.title} on={detail.onWatchlist} />}
             {more.length > 0 && (
               <button
                 className="button quiet icon"

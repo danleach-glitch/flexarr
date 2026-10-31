@@ -114,15 +114,15 @@ fun MainScreen(model: AppModel) {
     var currentTab by rememberSaveable { mutableStateOf(Tab.Home) }
 
     // Whether this profile has podcasts (Libraries lists them) and how it listens to them.
-    LaunchedEffect(model.credentials) { model.loadPodcastStatus() }
+    LaunchedEffect(model.credentials, model.isKids) { model.loadPodcastStatus() }
     // Whether the server has Live TV (Libraries lists it).
-    LaunchedEffect(model.credentials) { model.loadLiveTvStatus() }
+    LaunchedEffect(model.credentials, model.isKids) { model.loadLiveTvStatus() }
     // Signed in (or as someone else): commands for this device come to this sign-in.
     LaunchedEffect(model.credentials) { model.listenForCommands() }
     // Whether this profile may manage the server, and so is asked to let devices in.
     LaunchedEffect(model.credentials) { model.loadSignIn() }
     // Whether the server keeps watchlists, and what's on this profile's (cards' menus offer it).
-    LaunchedEffect(model.credentials) { model.refreshWatchlist() }
+    LaunchedEffect(model.credentials, model.isKids) { model.refreshWatchlist() }
     // Downloads follow the server and profile signed in.
     LaunchedEffect(model.credentials, model.currentProfile?.id) { model.downloads.attach(client, model.currentProfile?.id) }
     // Google Play's rating prompt, once the player has closed and the app is back in front (ReviewPrompt says when).
@@ -170,7 +170,12 @@ fun MainScreen(model: AppModel) {
             val link = model.pendingLink ?: return@LaunchedEffect
             // Cleared at once, which restarts this effect: what it does runs on in a scope of its own.
             model.pendingLink = null
-            linkScope.launch { when (link) {
+            // A kids profile has no podcasts, watchlist or Live TV: links to them open Home.
+            val notForKids = link is AppLink.Podcast || link is AppLink.PodcastEpisode || link == AppLink.Watchlist ||
+                link is AppLink.Live || link == AppLink.LiveTv
+            linkScope.launch { when {
+                model.isKids && notForKids -> select(Tab.Home)
+                else -> when (link) {
                 is AppLink.Item -> navigator.openItem(link.id)
                 is AppLink.Play -> {
                     val item = if (link.shuffle) null else runCatching { client.item(link.id) }.getOrNull()
@@ -228,7 +233,7 @@ fun MainScreen(model: AppModel) {
                     PairingPrompts.Opened.Gone -> navigator.notices.showSnackbar("That device isn’t waiting any more. If it shows a new code, it asks again.")
                     PairingPrompts.Opened.NotMainProfile -> navigator.notices.showSnackbar("Switch to the main profile to allow it.")
                 }
-            } }
+            } } }
         }
         // With no connection to the server, the app opens on what's downloaded.
         LaunchedEffect(model.serverUnreachable) {

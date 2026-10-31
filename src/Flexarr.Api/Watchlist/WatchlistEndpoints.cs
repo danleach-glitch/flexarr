@@ -8,7 +8,7 @@ public static class WatchlistEndpoints
 {
     public static RouteGroupBuilder MapWatchlistEndpoints(this RouteGroupBuilder api)
     {
-        var group = api.MapGroup("/watchlist").WithTags("Watchlist");
+        var group = api.MapGroup("/watchlist").WithTags("Watchlist").NotForKids();
 
         group.MapGet("/", (WatchlistService watchlist, CurrentProfile profile, CancellationToken ct) => watchlist.ListAsync(profile.Id, ct));
 

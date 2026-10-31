@@ -96,7 +96,9 @@ struct HomeView: View {
         let token = model.refreshToken
         do {
             // Empty without podcasts (none followed, no library, a server from before them: an error, also nothing).
-            async let episodes = client.newPodcastEpisodes(unplayed: true, take: 20)
+            // None on a kids profile, which has no podcasts.
+            let kids = model.isKids
+            async let episodes = kids ? [] : client.newPodcastEpisodes(unplayed: true, take: 20)
             let loaded = try await client.home()
             // Nothing yet: the libraries say whether a scan is under way or their folders hold nothing.
             if loaded.featured.isEmpty { await model.loadLibraries() }

@@ -104,6 +104,11 @@ class WatchlistWidget : GlanceAppWidget() {
                 return@withContext State.ChooseProfile
             }
         }
+        // A kids profile has no watchlist: nothing to show, and nothing kept from whoever was watching before.
+        if (model.isKids) {
+            folder.deleteRecursively()
+            return@withContext State.Titles(emptyList())
+        }
         val fresh = runCatching {
             val client = credentials.client()
             client.readyFromWatchlist(MAX).map { item ->

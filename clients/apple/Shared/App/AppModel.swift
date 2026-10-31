@@ -143,6 +143,8 @@ final class AppModel {
         // asking first (used for checking a screen in the simulator).
         if let link = defaults.string(forKey: "FlexarrOpen").flatMap(URL.init(string:)) { open(url: link) }
         #endif
+        // Searching for subtitles is a parent's job, not a child's.
+        player.offersSubtitleSearch = { [weak self] in self?.isKids != true }
         player.onSessionEnded = { [weak self] in
             self?.watchStateChanged()
             self?.music.videoEnded()
@@ -544,9 +546,11 @@ final class AppModel {
         } catch {
             librariesError = ConnectionError(error).message
         }
-        podcastStatus = try? await client.podcastStatus()
+        // A kids profile has no podcasts: with no status, nothing offers them.
+        podcastStatus = isKids ? nil : try? await client.podcastStatus()
         if podcastStatus?.available == true { podcastPreferences = try? await client.podcastPreferences() }
-        liveTvStatus = try? await client.liveTvStatus()
+        // Nor Live TV.
+        liveTvStatus = isKids ? nil : try? await client.liveTvStatus()
         await refreshWatchlist()
     }
 
@@ -572,6 +576,15 @@ final class AppModel {
     /// the watchlist doesn't vanish while offline; an older server, which has none, hides it.
     func refreshWatchlist() async {
         guard let client else { return }
+        // A kids profile has no watchlist.
+        if isKids {
+            if hasWatchlist || !watchlistItems.isEmpty {
+                hasWatchlist = false
+                watchlistItems = []
+                onWatchlistChange?()
+            }
+            return
+        }
         do {
             let keys = try await client.watchlistKeys()
             let items = Set(keys?.libraryItemIds ?? [])
@@ -702,7 +715,7 @@ final class AppModel {
     }
 
     func loadUpNext() async {
-        guard let client, podcastStatus?.available != false else { return }
+        guard let client, !isKids, podcastStatus?.available != false else { return }
         if let queue = try? await client.upNext() { upNext = queue }
     }
 
@@ -890,7 +903,7 @@ final class AppModel {
     /// Puts a Live TV channel on here (Siri, or another device asked), with every channel to change through,
     /// favourites first.
     func watchChannel(id: String) async {
-        guard let client, let channels = try? await client.liveChannels(), let channel = channels.first(where: { $0.id == id }) else { return }
+        guard let client, !isKids, let channels = try? await client.liveChannels(), let channel = channels.first(where: { $0.id == id }) else { return }
         watch(channel, among: channels.filter(\.isFavourite) + channels.filter { !$0.isFavourite })
     }
 

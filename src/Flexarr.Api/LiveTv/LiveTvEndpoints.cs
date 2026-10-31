@@ -55,16 +55,18 @@ public static partial class LiveTvEndpoints
 
     public static RouteGroupBuilder MapLiveTvEndpoints(this RouteGroupBuilder api)
     {
-        var group = api.MapGroup("/livetv").WithTags("Live TV");
+        // A kids profile has no Live TV (its status says it isn't there).
+        var group = api.MapGroup("/livetv").WithTags("Live TV").NotForKids();
 
-        group.MapGet("/status", async (IOptionsMonitor<FlexarrOptions> options, LiveTvStatus status, FlexarrDbContext db, CancellationToken ct) =>
+        api.MapGet("/livetv/status", async (IOptionsMonitor<FlexarrOptions> options, LiveTvStatus status, FlexarrDbContext db, CancellationToken ct) =>
         {
             var o = options.CurrentValue.LiveTv;
             var channels = await db.LiveChannels.CountAsync(ct);
             var refreshed = status.RefreshedAt ?? await db.LiveChannels.MaxAsync(c => (DateTime?)c.UpdatedAt, ct);
-            // To a profile with an age limit, Live TV is only there once a parent has picked channels for it.
-            return new LiveTvStatusDto(o?.Account is not null && (channels > 0 || !db.IsLimited()), channels, status.Refreshing, refreshed, status.Error, o?.RewindMinutes ?? 60);
-        });
+            // To a profile with an age limit, Live TV is only there once a parent has picked channels for it; to a kids profile, never.
+            var available = o?.Account is not null && !db.ServesKids && (channels > 0 || !db.IsLimited());
+            return new LiveTvStatusDto(available, channels, status.Refreshing, refreshed, status.Error, o?.RewindMinutes ?? 60);
+        }).WithTags("Live TV");
 
         group.MapGet("/channels", async (FlexarrDbContext db, CurrentProfile profile, TimeProvider clock, CancellationToken ct) =>
         {

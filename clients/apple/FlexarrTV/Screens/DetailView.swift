@@ -198,7 +198,7 @@ struct DetailView: View {
                 }
             }
 
-            if item.kind == .movie || item.kind == .series, let onList = detail?.onWatchlist {
+            if model.hasWatchlist, item.kind == .movie || item.kind == .series, let onList = detail?.onWatchlist {
                 WatchlistActionButton(key: .library(item.id), on: onList, ambient: ambient)
             }
 
@@ -210,7 +210,7 @@ struct DetailView: View {
             }
 
             // Things done now and then, out of the way of the row above.
-            if detail?.canSearchSubtitles == true, let file = detail?.files.first {
+            if !model.isKids, detail?.canSearchSubtitles == true, let file = detail?.files.first {
                 Button { showingMore = true } label: {
                     Image(systemName: "ellipsis")
                 }

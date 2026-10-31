@@ -104,14 +104,15 @@ public static class PodcastEndpoints
 
     public static RouteGroupBuilder MapPodcastEndpoints(this RouteGroupBuilder api)
     {
-        var group = api.MapGroup("/podcasts").WithTags("Podcasts");
+        // A kids profile has no podcasts (its status says they aren't available: see LibraryVisibility).
+        var group = api.MapGroup("/podcasts").WithTags("Podcasts").NotForKids();
 
-        group.MapGet("/status", async (FlexarrDbContext db, IOptionsMonitor<FlexarrOptions> options, CancellationToken ct) =>
+        api.MapGet("/podcasts/status", async (FlexarrDbContext db, IOptionsMonitor<FlexarrOptions> options, CancellationToken ct) =>
         {
             var visible = await db.Libraries.AnyAsync(l => l.Type == LibraryType.Podcasts, ct);
             var any = visible || await db.Libraries.IgnoreQueryFilters().AnyAsync(l => l.Type == LibraryType.Podcasts, ct);
             return new PodcastStatusDto(visible, !any, options.CurrentValue.Podcasts.ResolvedCountry);
-        });
+        }).WithTags("Podcasts");
 
         // The shows this profile follows, the most recently updated first.
         group.MapGet("/", async (FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>

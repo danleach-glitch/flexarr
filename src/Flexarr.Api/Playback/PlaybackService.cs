@@ -242,8 +242,8 @@ public sealed class PlaybackService(
             file.AudioDelaySeconds,
             decision.Transcode?.AudioDelaySeconds is not (null or 0),
             speed,
-            // Bazarr finds subtitles for what Sonarr and Radarr manage.
-            options.CurrentValue.Bazarr?.Instance is not null && item.Kind is (MediaKind.Movie or MediaKind.Episode) && item.ArrId is not null,
+            // Bazarr finds subtitles for what Sonarr and Radarr manage; not for a kids profile.
+            options.CurrentValue.Bazarr?.Instance is not null && !db.ServesKids && item.Kind is (MediaKind.Movie or MediaKind.Episode) && item.ArrId is not null,
             subtitles.Any(s => s.IsStyled && s.ExternalPath is null) ? $"{basePath}/fonts.json" : null,
             decision.Transcode is { Sound: not null });
     }

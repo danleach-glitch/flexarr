@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Text;
 using System.Text.Json;
 using Flexarr.Api.Configuration;
+using Flexarr.Api.Profiles;
 using Flexarr.Core.Data;
 using Flexarr.Core.Media;
 using Flexarr.Integrations.Arr;
@@ -45,13 +46,14 @@ public static partial class SubtitleSearchEndpoints
     public static RouteGroupBuilder MapSubtitleSearchEndpoints(this RouteGroupBuilder api)
     {
         // Whether Bazarr is set up, so clients can hide "Search for subtitles…" otherwise.
-        api.MapGet("/subtitles/status", async (IOptionsMonitor<FlexarrOptions> options, BazarrClient bazarr, CancellationToken ct) =>
+        api.MapGet("/subtitles/status", async (IOptionsMonitor<FlexarrOptions> options, BazarrClient bazarr, FlexarrDbContext db, CancellationToken ct) =>
         {
-            var instance = options.CurrentValue.Bazarr?.Instance;
+            // A kids profile doesn't find subtitles: to it, Bazarr isn't set up.
+            var instance = db.ServesKids ? null : options.CurrentValue.Bazarr?.Instance;
             return new { configured = instance is not null, reachable = instance is not null && await SafePingAsync(bazarr, instance, ct) };
         }).WithTags("Subtitles");
 
-        var group = api.MapGroup("/items/{id:guid}/subtitles").WithTags("Subtitles");
+        var group = api.MapGroup("/items/{id:guid}/subtitles").WithTags("Subtitles").NotForKids();
 
         group.MapGet("/search", async (Guid id, Guid? fileId, IOptionsMonitor<FlexarrOptions> options, BazarrClient bazarr, FlexarrDbContext db, CancellationToken ct) =>
         {

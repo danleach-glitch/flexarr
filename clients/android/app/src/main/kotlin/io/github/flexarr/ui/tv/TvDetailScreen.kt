@@ -34,6 +34,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import io.github.flexarr.appModel
 import io.github.flexarr.core.displayTitle
 import io.github.flexarr.ui.components.MenuAction
 import io.github.flexarr.ui.components.LocalClient
@@ -199,8 +201,9 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, detail: ItemDetail,
     val scope = rememberCoroutineScope()
     var more by remember { mutableStateOf(false) }
     var searchingSubtitlesFor by remember { mutableStateOf<String?>(null) }
-    // Bazarr can look for subtitles for the file (the first, as on the Apple TV).
-    val subtitleFile = detail.files.firstOrNull()?.takeIf { detail.canSearchSubtitles == true }
+    // Bazarr can look for subtitles for the file (the first, as on the Apple TV), but not for a kids profile.
+    val kids = LocalContext.current.appModel.isKids
+    val subtitleFile = detail.files.firstOrNull()?.takeIf { detail.canSearchSubtitles == true && !kids }
     // What Play starts: the film or episode itself, or for a show the episode it's up to (else the season's first).
     val target = when (item.kind) {
         MediaKind.Movie, MediaKind.Episode -> item

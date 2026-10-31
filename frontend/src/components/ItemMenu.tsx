@@ -46,9 +46,9 @@ export function ItemMenu({ item, at, onClose, continueWatching = false }: { item
   const showId = item.kind === 'Series' ? item.id : (item.seriesId ?? (item.kind === 'Season' ? item.parentId : null))
   const show = item.seriesTitle ?? 'the show'
   // Add or Remove, once it's known which (and not at all on a server without a watchlist).
-  const watchlist = useWatchlistKeys()
+  const watchlist = useWatchlistKeys(!kids)
   const watchlistAction = (): MenuAction[] => {
-    if (!watchlist) return []
+    if (!watchlist || kids) return []
     const key = { libraryItemId: item.id }
     const failed = (e: unknown) => showNotice(e instanceof ApiError && e.messages[0] ? e.messages[0] : 'That didn’t work. Try again.')
     return watchlist.libraryItemIds.includes(item.id)
@@ -71,7 +71,7 @@ export function ItemMenu({ item, at, onClose, continueWatching = false }: { item
       actions.push({ label: item.userData.watched ? 'Mark as unwatched' : 'Mark as watched', run: mark(item, !item.userData.watched) })
       if (started) actions.push({ label: 'Mark as unwatched', run: mark(item, false) })
       actions.push(...watchlistAction())
-      actions.push({ label: 'Add to collection…', run: () => openAddToCollection(item) })
+      if (!kids) actions.push({ label: 'Add to collection…', run: () => openAddToCollection(item) })
       break
     case 'Episode':
       actions.push({ label: [resumable ? 'Resume' : 'Play', episodeCode(item)].filter(Boolean).join(' '), run: go(`/play/${item.id}`) })
@@ -89,7 +89,7 @@ export function ItemMenu({ item, at, onClose, continueWatching = false }: { item
       actions.push({ label: 'Play next episode', run: () => play(item) }, 'divider')
       actions.push({ label: item.userData.watched ? 'Mark show as unwatched' : 'Mark show as watched', run: mark(item, !item.userData.watched) })
       actions.push(...watchlistAction())
-      actions.push({ label: 'Add to collection…', run: () => openAddToCollection(item) })
+      if (!kids) actions.push({ label: 'Add to collection…', run: () => openAddToCollection(item) })
       break
     case 'Album':
       // The album's tracks are fetched when asked for (the card only has the album).
