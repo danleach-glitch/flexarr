@@ -424,8 +424,12 @@ private struct ManualConnect: View {
 /// "Join someone’s Flexarr": the code to read to whoever invited this Apple TV (see `GuestCodeWaiter`).
 private struct GuestCode: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.scenePhase) private var scenePhase
     let onBack: () -> Void
     @State private var waiter = GuestCodeWaiter()
+    @FocusState private var focus: Choice?
+
+    private enum Choice { case main, back }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 30) {
@@ -436,6 +440,41 @@ private struct GuestCode: View {
                         .font(.system(size: 32, weight: .semibold))
                         .foregroundStyle(Color.screen)
                 }
+            } else if let offer = waiter.offer {
+                // Anyone who heard the code could have sent an invite: one click to say it's the right one.
+                Text("Join \(offer.ownerName)’s Flexarr?")
+                    .font(.system(size: 44, weight: .bold))
+                    .foregroundStyle(Color.screen)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("You’ll watch as \(offer.profileName).")
+                    .font(.system(size: 30))
+                    .foregroundStyle(Color.usher)
+                HStack(spacing: 30) {
+                    Button("Join") { Task { await waiter.join(model: model) } }
+                        .buttonStyle(ActionButtonStyle(prominent: true))
+                        .focused($focus, equals: .main)
+                    Button("Not Now") { waiter.newCode() }
+                        .buttonStyle(ActionButtonStyle(prominent: false))
+                }
+            } else if let problem = waiter.problem {
+                Text(problem)
+                    .font(.system(size: 28, weight: .medium))
+                    .foregroundStyle(Color.screen)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 30) {
+                    if waiter.canTryAgain {
+                        Button("Try Again") { Task { await waiter.join(model: model) } }
+                            .buttonStyle(ActionButtonStyle(prominent: true))
+                            .focused($focus, equals: .main)
+                    }
+                    Button(waiter.noCode ? "Try Again" : "New Code") { waiter.newCode() }
+                        .buttonStyle(ActionButtonStyle(prominent: !waiter.canTryAgain))
+                        .focused($focus, equals: waiter.canTryAgain ? nil : .main)
+                }
+            } else if waiter.stopped {
+                Button("Show a New Code") { waiter.newCode() }
+                    .buttonStyle(ActionButtonStyle(prominent: true))
+                    .focused($focus, equals: .main)
             } else {
                 Text("Read this code to the person who invited you")
                     .font(.system(size: 32, weight: .semibold))
@@ -449,16 +488,19 @@ private struct GuestCode: View {
                     .font(.system(size: 26))
                     .foregroundStyle(Color.usher)
             }
-            if let problem = waiter.problem {
-                Text(problem)
-                    .font(.system(size: 28, weight: .medium))
-                    .foregroundStyle(Color.screen)
-                    .fixedSize(horizontal: false, vertical: true)
+            if waiter.offer == nil {
+                Button("Back", action: onBack)
+                    .buttonStyle(ActionButtonStyle(prominent: false))
+                    .focused($focus, equals: .back)
+                    .disabled(waiter.joining != nil)
             }
-            Button("Back", action: onBack)
-                .buttonStyle(ActionButtonStyle(prominent: false))
-                .disabled(waiter.joining != nil)
         }
-        .task { await waiter.run(model: model) }
+        // Join (or the way on) takes the focus as it appears, so one click does it.
+        .onChange(of: "\(waiter.offer != nil)#\(waiter.problem ?? "")#\(waiter.stopped)") { focus = .main }
+        // Polls only while the app is in front; back in front, the same code carries on.
+        .task(id: "\(waiter.round)#\(scenePhase == .active)") {
+            guard scenePhase == .active else { return }
+            await waiter.run()
+        }
     }
 }

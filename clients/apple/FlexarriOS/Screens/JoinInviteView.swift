@@ -91,6 +91,7 @@ struct InvitedBySomeone: View {
 /// "Join someone’s Flexarr": the code to read or text to whoever invited this iPhone or iPad (see `GuestCodeWaiter`).
 struct GuestCodeView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.scenePhase) private var scenePhase
     let onBack: () -> Void
     @State private var waiter = GuestCodeWaiter()
 
@@ -103,6 +104,35 @@ struct GuestCodeView: View {
                         .font(.headline)
                         .foregroundStyle(Color.screen)
                 }
+            } else if let offer = waiter.offer {
+                // Anyone who heard the code could have sent an invite: one tap to say it's the right one.
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Join \(offer.ownerName)’s Flexarr?")
+                        .font(.title2.weight(.bold))
+                        .foregroundStyle(Color.screen)
+                    Text("You’ll watch as \(offer.profileName).")
+                        .foregroundStyle(Color.usher)
+                }
+                Button { Task { await waiter.join(model: model) } } label: { Text("Join").frame(maxWidth: .infinity) }
+                    .buttonStyle(ActionButtonStyle(prominent: true))
+                    .keyboardShortcut(.defaultAction)
+                Button { waiter.newCode() } label: { Text("Not Now").frame(maxWidth: .infinity) }
+                    .buttonStyle(ActionButtonStyle(prominent: false))
+            } else if let problem = waiter.problem {
+                Text(problem)
+                    .font(.callout.weight(.medium))
+                    .foregroundStyle(Color.screen)
+                if waiter.canTryAgain {
+                    Button { Task { await waiter.join(model: model) } } label: { Text("Try Again").frame(maxWidth: .infinity) }
+                        .buttonStyle(ActionButtonStyle(prominent: true))
+                }
+                Button { waiter.newCode() } label: {
+                    Text(waiter.noCode ? "Try Again" : "New Code").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(ActionButtonStyle(prominent: !waiter.canTryAgain))
+            } else if waiter.stopped {
+                Button { waiter.newCode() } label: { Text("Show a New Code").frame(maxWidth: .infinity) }
+                    .buttonStyle(ActionButtonStyle(prominent: true))
             } else {
                 Text("Give this code to the person who invited you")
                     .font(.headline)
@@ -122,15 +152,14 @@ struct GuestCodeView: View {
                     .font(.footnote)
                     .foregroundStyle(Color.usher)
             }
-            if let problem = waiter.problem {
-                Text(problem)
-                    .font(.callout.weight(.medium))
-                    .foregroundStyle(Color.screen)
-            }
             Button("Back", action: onBack)
                 .font(.body.weight(.semibold))
                 .disabled(waiter.joining != nil)
         }
-        .task { await waiter.run(model: model) }
+        // Polls only while the app is in front; back in front, the same code carries on.
+        .task(id: "\(waiter.round)#\(scenePhase == .active)") {
+            guard scenePhase == .active else { return }
+            await waiter.run()
+        }
     }
 }
