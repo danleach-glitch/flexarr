@@ -265,6 +265,12 @@ struct FlexarriOSApp: App {
                     if let url = activity.webpageURL { model.open(url: url) }
                 }
                 .sheet(item: Bindable(model).pendingInvite) { JoinInviteView(invite: $0).environment(model) }
+                .alert(model.inviteNotice ?? "", isPresented: Binding(
+                    get: { model.inviteNotice != nil },
+                    set: { if !$0 { model.inviteNotice = nil } }
+                )) {
+                    Button("OK", role: .cancel) {}
+                }
                 .onAppear { delegate.model = model }
         }
     }

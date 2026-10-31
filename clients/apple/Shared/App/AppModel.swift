@@ -95,6 +95,9 @@ final class AppModel {
     /// An invite link was opened (or pasted): the app asks "Join Dan's Flexarr?" before anything happens, since a
     /// link can come from anywhere.
     var pendingInvite: GuestInvite?
+    /// An invite link this app can't take now (it predates invites, or this device is signed in to its own server):
+    /// what to do instead.
+    var inviteNotice: String?
     /// "Now playing on iPhone": a title moved to a phone with Continue on iPhone (the Apple TV shows it a moment).
     var handOffNotice: String?
 
@@ -1163,8 +1166,15 @@ final class AppModel {
     /// `flexarr://watchlist` opens the watchlist. Any of them can add `profile=<id or name>` to switch to that profile first, asking for its PIN if it has one.
     func open(url: URL) {
         // https://flexarr.io/join#… or flexarr://join#…: a family invite, asked about first.
-        if GuestInvite.guestInvitesOffered, let invite = GuestInvite.parse(url.absoluteString) {
-            pendingInvite = invite
+        if let invite = GuestInvite.parse(url.absoluteString) {
+            if !GuestInvite.guestInvitesOffered {
+                inviteNotice = "Update Flexarr to join."
+            } else if credentials != nil, credentials?.isGuest != true {
+                // Its own server isn't left behind by a link: signing out is a choice made in Settings.
+                inviteNotice = "Sign out in Settings first, then open the invite again."
+            } else {
+                pendingInvite = invite
+            }
             return
         }
         guard url.scheme == "flexarr", let host = url.host() else { return }
