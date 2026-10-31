@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>You're invited to watch on Flexarr</title>
+  <meta name="description" content="Someone has invited you to watch their Flexarr. Get the app, then open the invite.">
+  <meta name="theme-color" content="#1b1720">
+  <meta name="color-scheme" content="dark">
+  <meta name="robots" content="noindex">
+  <meta name="referrer" content="no-referrer">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta name="apple-itunes-app" content="app-id=6826618084">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;700&family=Big+Shoulders+Display:wght@700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/base.css">
+  <style>
+    main .wrap { width: min(560px, 100% - 2 * var(--edge)); padding: clamp(40px, 8vw, 96px) 0 clamp(64px, 9vw, 112px); }
+    .kicker { color: var(--silver); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.8rem; margin: 0 0 14px; }
+    h1 { font-size: clamp(2.6rem, 10vw, 4.4rem); font-weight: 900; }
+    .lede { margin: 18px 0 0; font-size: clamp(1.1rem, 2.6vw, 1.3rem); color: #d9d3e0; }
+    ol.steps { list-style: none; counter-reset: step; padding: 0; margin: clamp(32px, 5vw, 44px) 0 0; display: grid; gap: 14px; }
+    ol.steps li { counter-increment: step; background: var(--seat); border: 1px solid var(--aisle); border-radius: 16px; padding: 18px 20px; display: grid; gap: 12px; }
+    ol.steps li::before { content: counter(step); font-family: var(--display); font-weight: 900; font-size: 1.6rem; color: var(--silver); line-height: 1; }
+    ol.steps h2 { font-family: var(--text); font-size: 1.15rem; font-weight: 700; letter-spacing: 0; }
+    ol.steps p { margin: 0; color: var(--usher); }
+    .row { display: flex; flex-wrap: wrap; gap: 10px; }
+    .row .button { flex: 1 1 200px; justify-content: center; }
+    .note { margin: 22px 0 0; color: var(--usher); font-size: 0.95rem; }
+    .copied { color: var(--amber); font-size: 0.95rem; min-height: 1.4em; margin: 0; }
+    button.button { font: inherit; font-weight: 700; cursor: pointer; }
+    [hidden] { display: none !important; }
+  </style>
+  <script src="/join.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to the content</a>
+  <div class="glow" aria-hidden="true"></div>
+  <header class="site-header">
+    <div class="wrap bar">
+      <a class="wordmark" href="/" aria-label="Flexarr home"><img src="/logo-mark.svg" alt="">flexarr</a>
+    </div>
+  </header>
+
+  <main id="main">
+    <div class="wrap">
+      <div id="invite">
+        <p class="kicker">Invitation</p>
+        <h1 id="title">You're invited to watch.</h1>
+        <p class="lede" id="lede">Watch films and shows from home on your iPhone, iPad or Apple TV.</p>
+
+        <ol class="steps">
+          <li>
+            <h2>Get Flexarr</h2>
+            <div class="row">
+              <a class="button primary" id="app-store" href="https://apps.apple.com/app/flexarr/id6826618084">App Store</a>
+              <a class="button quiet" id="android" href="/apps#android">Android</a>
+            </div>
+          </li>
+          <li>
+            <h2>Open your invite</h2>
+            <p>Back here once Flexarr is on this device.</p>
+            <div class="row">
+              <a class="button primary" id="open" href="flexarr://join">Open in Flexarr</a>
+              <button class="button quiet" id="copy" type="button">Copy invite</button>
+            </div>
+            <p class="copied" id="copied" role="status"></p>
+          </li>
+        </ol>
+        <p class="note" id="desktop" hidden>Open this link on the phone, tablet or Apple TV you'll watch on.</p>
+        <p class="note">Your invite works once. It never leaves this page: it's after the # in the link, which browsers don't send to us.</p>
+      </div>
+
+      <div id="expired" hidden>
+        <p class="kicker">Invitation</p>
+        <h1>This invite has run out.</h1>
+        <p class="lede" id="expired-lede">Ask for a new one.</p>
+      </div>
+
+      <div id="missing" hidden>
+        <p class="kicker">Invitation</p>
+        <h1>Something's missing.</h1>
+        <p class="lede">This link isn't a whole invite. Open it straight from the message it came in, or ask for a new one.</p>
+      </div>
+    </div>
+  </main>
+</body>
+</html>
