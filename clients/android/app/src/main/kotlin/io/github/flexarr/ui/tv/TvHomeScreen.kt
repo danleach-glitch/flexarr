@@ -160,8 +160,9 @@ private val HomeRow.shows: Boolean
     }
 
 /**
- * Full-bleed featured hero: backdrop, clear logo, facts, two lines of overview, Play and More info. Left on Play or
- * right on More info moves between the featured titles; while it has focus it also moves on by itself.
+ * Full-bleed featured hero: backdrop, clear logo, facts, two lines of overview, Play and More info. Right on More info
+ * moves on to the next featured title, and while it has focus it also moves on by itself; left on Play goes to the
+ * sidebar, as left from the screen's left edge does everywhere else.
  */
 @Composable
 private fun HomeHero(home: Home, index: Int, onIndex: (Int) -> Unit, takeFocus: Boolean, onFocusTaken: () -> Unit) {
@@ -220,9 +221,7 @@ private fun HomeHero(home: Home, index: Int, onIndex: (Int) -> Unit, takeFocus: 
                     icon = Icons.Filled.PlayArrow,
                     prominent = true,
                     ambient = glow,
-                    modifier = Modifier.focusRequester(play).onPreviewKeyEvent { event ->
-                        (event.type == KeyEventType.KeyDown && event.key == Key.DirectionLeft && items.size > 1).also { if (it) step(-1) }
-                    },
+                    modifier = Modifier.focusRequester(play),
                 )
                 TvActionButton(
                     "More info",
