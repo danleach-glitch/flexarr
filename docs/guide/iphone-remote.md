@@ -3,7 +3,7 @@ title: Your iPhone as a remote
 description: Control what's playing on your Apple TV from your iPhone or iPad: pause, scrub, skip the intro, change subtitles and sound, pick another episode, and carry on watching on the phone.
 ---
 
-When an Apple TV in your home is playing something from Flexarr, the iPhone and iPad apps show a **Playing on TV** bar above the tabs. It works for everyone in the house, on any TV, whichever profile each is on. There's nothing to set up: the TV and the phone only need to be signed in to the same server, with the TV's Flexarr app open.
+When an Apple TV in your home is playing something from Flexarr, the iPhone and iPad apps show a **Playing on TV** bar above the tabs. It shows the TVs playing for the profile chosen on the phone, so each person sees their own: Claire's film on the bedroom TV doesn't show on Dan's phone. There's nothing to set up: the TV and the phone only need to be signed in to the same server, with the TV's Flexarr app open.
 
 The bar has play/pause. Tap it for the remote. The **×** hides the bar until that TV plays a different show or film; it doesn't stop anything, so it's safe while someone else is watching.
 

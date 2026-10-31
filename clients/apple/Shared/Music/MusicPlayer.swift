@@ -72,6 +72,8 @@ final class MusicPlayer {
     @ObservationIgnored var onSpeedChange: ((Double) -> Void)?
     /// A podcast episode has started on the server (which takes it off Up Next).
     @ObservationIgnored var onPodcastStarted: (() -> Void)?
+    /// A podcast episode was heard to the end (its id): its download goes, and screens listing it look again.
+    @ObservationIgnored var onPodcastEnded: ((String) -> Void)?
     /// What's playing, or whether it is, changed (for the iPhone's widgets).
     @ObservationIgnored var onChange: (() -> Void)?
 
@@ -465,6 +467,7 @@ final class MusicPlayer {
             offlineLibrary?.record(itemId: track.id, position: 0, finished: true)
         }
         report(paused: true, ended: true)
+        if isPodcast, let track = current { onPodcastEnded?(track.id) }
         if sleep.setting == .endOfEpisode {
             sleep.set(nil)
             endSession()

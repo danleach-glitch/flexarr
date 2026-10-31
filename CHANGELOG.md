@@ -6,7 +6,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Watchlist
 - Each profile now has a **Watchlist** of films and shows to watch later, whether you have them yet or not. Add titles from their pages, from posters' menus, from Discover and search (on iPhone and Android, Search now finds films and shows you don't have yet, to add or request), with Siri ("Add Severance to my watchlist in Flexarr"), or through an assistant. It's in the web sidebar, at the top of **Libraries** on iPhone, iPad and Android, and in the Apple TV's sidebar.
-- Each title says where it's got to: ready to play, on its way, out on a date, or ready to request, and which streaming services have the ones you don't. Ones you can play now come first, wait on Home under **Ready from your watchlist** and in a new **Watchlist** widget on iPhone and Android, and your phone tells you **From your watchlist** when one arrives.
+- Each title says where it's got to: ready to play, on its way, out on a date, or **Request** (on Apple TV too), and which streaming services have the ones you don't. Ones you can play now come first, wait on Home under **Ready from your watchlist** and in a new **Watchlist** widget on iPhone and Android, and your phone tells you **From your watchlist** when one arrives.
 - Show only one kind, only films or only shows, and sort by when you added them, when they came out, or by title, in every app.
 - Titles leave by themselves once you've watched the film or started the show.
 - The main profile can have a profile request what it adds to its watchlist, in **Settings › Profiles**. It's off to start with.
@@ -67,19 +67,19 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On Apple TV, the now-playing bar along the bottom goes away a few seconds after the music is paused or finishes, and comes back when you press play. Now Playing has a new **Stop** button, which ends the music and takes the bar and the Now Playing tab away until you play something else.
 
 ### Podcasts
-- On the iPhone and Android apps, a downloaded episode is deleted as soon as you've heard it to the end, rather than a day later. Downloads you made yourself go too, not only ones the app fetched by itself. With no connection, it goes once the phone is back online and has told the server.
+- On the iPhone and Android apps, a downloaded episode is deleted as soon as you've heard it to the end, rather than a day later, and leaves Downloads and Home's new episodes there and then, without a refresh. Downloads you made yourself go too, not only ones the app fetched by itself. With no connection, it goes once the phone is back online and has told the server.
 - Marking a downloaded episode as played on the phone (or **Mark all as played** on its show) deletes the download straight away. An episode finished or marked played somewhere else, such as on the web, is deleted from the phone the next time the app catches up with the server. An episode you download again after hearing it stays until you've heard it again.
 
 ### iPhone remote
 - When an Apple TV in the house is playing something from Flexarr, the iPhone app shows a **Playing on TV** bar above the tabs, with play/pause. Tap it for a remote: a scrubber you can drag, back and forward 10 seconds, previous and next episode, and **Skip Intro** or **Next Episode** when the TV offers them.
 - From the remote you can also change the TV's soundtrack, subtitles and speed, and its dialogue boost, night mode and speakers. Below are the season's other episodes: tap one to play it on the TV.
 - **Continue on iPhone** stops the film or episode on the TV and carries on from the same moment on the phone.
-- While the remote is following a TV, the phone shows what's playing on the Lock Screen and in the Dynamic Island, with back 10 seconds, play/pause and forward 10. Tap it to open the remote. It keeps up while the phone is locked, as long as notifications are on for your server. The title and picture never leave your server: only play/pause and the time pass through Flexarr's notification service.
-- With more than one TV playing, switch between them at the top of the remote. Everyone in the house can control any TV. For menus and volume, use the Remote in Control Centre as before.
+- While the remote is following a TV, the phone shows what's playing on the Lock Screen and in the Dynamic Island (with Flexarr's mark), with back 10 seconds, play/pause and forward 10. Tap it to open the remote. It keeps up while the phone is locked, as long as notifications are on for your server. The title and picture never leave your server: only play/pause and the time pass through Flexarr's notification service.
+- The bar and the remote follow the TVs playing for the profile chosen on the phone: Claire's film on the bedroom TV doesn't show on Dan's phone. With more than one of yours playing, switch between them at the top of the remote. For menus and volume, use the Remote in Control Centre as before.
 - **Stop** offers **Undo** for a few seconds. The **×** on the bar hides it until that TV plays a different show or film, without stopping anything.
 
 ### Siri
-- New things to ask on iPhone and iPad: "Skip intro in Flexarr", "Next episode in Flexarr", "Skip back in Flexarr", "Skip forward in Flexarr", and "Turn on subtitles in Flexarr" or "Turn off subtitles in Flexarr". They work on the phone or on the Apple TV that Siri plays on. Skips are 10 seconds, as on the remote, and subtitles come on in your language where there are some.
+- New things to ask on iPhone and iPad: "Skip intro in Flexarr", "Next episode in Flexarr", "Skip back in Flexarr", "Skip forward in Flexarr", and "Flexarr, turn on subtitles" or "Flexarr, turn off subtitles" (said that way round, as Siri answers "Turn on subtitles" itself). They work on the phone or on the Apple TV that Siri plays on. Skips are 10 seconds, as on the remote, and subtitles come on in your language where there are some.
 
 ### Android
 - The buttons at the bottom of the welcome pages are their proper size on Samsung phones, with a soft glow as on iPhone, rather than sitting on a large pale block.
