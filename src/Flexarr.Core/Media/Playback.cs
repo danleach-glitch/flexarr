@@ -22,6 +22,9 @@ public sealed class PlaybackState
     /// </summary>
     public DateTime? FinishedAt { get; set; }
 
+    /// <summary>The device that last recorded a place in a book, so another can offer to jump there. Books only.</summary>
+    public string? Device { get; set; }
+
     /// <summary>Preferred audio/subtitle languages carry over between episodes of a series.</summary>
     public string? AudioLanguage { get; set; }
     public string? SubtitleLanguage { get; set; }

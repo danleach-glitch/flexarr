@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using Flexarr.Api.Authentication;
 using Flexarr.Api.Backups;
+using Flexarr.Api.Books;
 using Flexarr.Api.Collections;
 using Flexarr.Api.Configuration;
 using Flexarr.Api.Devices;
@@ -421,6 +422,7 @@ app.MapGroup("/api/v1")
     .MapCollectionEndpoints()
     .MapPlaylistEndpoints()
     .MapPodcastEndpoints()
+    .MapBookEndpoints()
     .MapLiveTvEndpoints()
     .MapDvrEndpoints()
     .MapMusicMixEndpoints()

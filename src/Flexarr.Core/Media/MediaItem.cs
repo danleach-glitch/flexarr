@@ -151,4 +151,7 @@ public sealed class MediaItem
 
     /// <summary>What an <see cref="MediaKind.Audiobook"/>'s edition says about it.</summary>
     public Books.BookDetails? Book { get; set; }
+
+    /// <summary>The series a book is in, with its number in each.</summary>
+    public List<Books.BookSeriesEntry> SeriesEntries { get; set; } = [];
 }

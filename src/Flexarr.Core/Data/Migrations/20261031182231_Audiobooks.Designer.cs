@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Flexarr.Core.Data.Migrations
 {
     [DbContext(typeof(FlexarrDbContext))]
-    [Migration("20261031180135_Audiobooks")]
+    [Migration("20261031182231_Audiobooks")]
     partial class Audiobooks
     {
         /// <inheritdoc />
@@ -1099,6 +1099,10 @@ namespace Flexarr.Core.Data.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("AudioLanguage")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Device")
+                        .HasMaxLength(100)
                         .HasColumnType("TEXT");
 
                     b.Property<double?>("DurationSeconds")

@@ -1098,6 +1098,10 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<string>("AudioLanguage")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("Device")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
                     b.Property<double?>("DurationSeconds")
                         .HasColumnType("REAL");
 

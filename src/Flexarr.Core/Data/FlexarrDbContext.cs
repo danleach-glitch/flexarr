@@ -253,7 +253,7 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
         modelBuilder.Entity<Books.BookSeriesEntry>(e =>
         {
             e.HasKey(x => new { x.SeriesId, x.BookId });
-            e.HasOne(x => x.Book).WithMany().HasForeignKey(x => x.BookId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Book).WithMany(i => i.SeriesEntries).HasForeignKey(x => x.BookId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(x => x.BookId);
         });
 
@@ -436,6 +436,7 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
         {
             e.HasKey(p => new { p.UserId, p.MediaItemId });
             e.Property(p => p.UserId).HasMaxLength(64);
+            e.Property(p => p.Device).HasMaxLength(100);
             e.HasOne(p => p.MediaItem).WithMany(i => i.PlaybackStates).HasForeignKey(p => p.MediaItemId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne<Profile>().WithMany().HasForeignKey(p => p.UserId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(p => new { p.UserId, p.LastPlayedAt });

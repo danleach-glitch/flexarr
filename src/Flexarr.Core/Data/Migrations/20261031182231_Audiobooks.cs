@@ -39,6 +39,13 @@ namespace Flexarr.Core.Data.Migrations
                 nullable: false,
                 defaultValue: 0.0);
 
+            migrationBuilder.AddColumn<string>(
+                name: "Device",
+                table: "PlaybackStates",
+                type: "TEXT",
+                maxLength: 100,
+                nullable: true);
+
             migrationBuilder.AddColumn<DateTime>(
                 name: "FinishedAt",
                 table: "PlaybackStates",
@@ -272,6 +279,10 @@ namespace Flexarr.Core.Data.Migrations
             migrationBuilder.DropColumn(
                 name: "AudiobookSpeed",
                 table: "Profiles");
+
+            migrationBuilder.DropColumn(
+                name: "Device",
+                table: "PlaybackStates");
 
             migrationBuilder.DropColumn(
                 name: "FinishedAt",
