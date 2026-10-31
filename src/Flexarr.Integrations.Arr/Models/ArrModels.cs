@@ -134,6 +134,12 @@ public sealed record ArrQueueItem
     public SonarrSeries? Series { get; init; }
     public SonarrEpisode? Episode { get; init; }
 
+    /// <summary>The book on its way (Readarr, Bookshelf, Chaptarr).</summary>
+    public ReadarrBook? Book { get; init; }
+
+    [System.Text.Json.Serialization.JsonConverter(typeof(FlexibleIdConverter))]
+    public string? BookId { get; init; }
+
     [JsonIgnore]
     public double Progress => Size > 0 ? 1 - Sizeleft / Size : 0;
 }

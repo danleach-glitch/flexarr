@@ -232,6 +232,9 @@ builder.Services.AddHostedService<BonjourAdvertiser>();
 builder.Services.AddSingleton<FranchiseSync>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<FranchiseSync>());
 builder.Services.AddSingleton<IMetadataSettings, MetadataSettings>();
+builder.Services.AddHttpClient("books", c => c.Timeout = TimeSpan.FromSeconds(20));
+builder.Services.AddScoped(sp => new Flexarr.Metadata.Books.BookProviders(
+    sp.GetRequiredService<IHttpClientFactory>().CreateClient("books"), sp.GetRequiredService<IMetadataSettings>));
 builder.Services.AddScoped<MetadataRefresher>();
 builder.Services.AddScoped<PathMappingFinder>();
 
@@ -424,6 +427,8 @@ app.MapGroup("/api/v1")
     .MapPlaylistEndpoints()
     .MapPodcastEndpoints()
     .MapBookEndpoints()
+    .MapBookMatchEndpoints()
+    .MapBookRequestEndpoints()
     .MapLiveTvEndpoints()
     .MapDvrEndpoints()
     .MapMusicMixEndpoints()

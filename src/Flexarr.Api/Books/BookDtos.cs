@@ -117,3 +117,10 @@ public sealed record BookShelvesDto(
 
 /// <summary>A series a search found, with how many of its books this profile can see.</summary>
 public sealed record BookSeriesSearchDto(Guid Id, string Name, int BookCount);
+
+/// <summary>How the server looks books up online. Keys aren't sent back: only whether there is one.</summary>
+public sealed record BookMetadataSettingsDto(string Region, IReadOnlyList<string> Providers, bool HasGoogleBooksKey, bool HasHardcoverToken,
+    IReadOnlyList<string> Regions, IReadOnlyList<string> AllProviders);
+
+/// <summary>Each field left out keeps what's set; an empty key removes it.</summary>
+public sealed record BookMetadataSettingsRequest(string? Region = null, IReadOnlyList<string>? Providers = null, string? GoogleBooksKey = null, string? HardcoverToken = null);

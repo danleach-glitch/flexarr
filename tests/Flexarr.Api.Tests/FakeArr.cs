@@ -33,7 +33,9 @@ public sealed class FakeArr : HttpMessageHandler
     }
 
     /// <summary>The test server, with a Sonarr and a Radarr (both named after their kind) answered by this.</summary>
-    public WebApplicationFactory<Program> Serve(FlexarrApiFactory factory) => factory.WithWebHostBuilder(builder =>
+    /// <param name="factory">The server under test.</param>
+    /// <param name="bookshelf">Add a Readarr-family instance named "Bookshelf" at bookshelf.test.</param>
+    public WebApplicationFactory<Program> Serve(FlexarrApiFactory factory, bool bookshelf = false) => factory.WithWebHostBuilder(builder =>
     {
         foreach (var (kind, i) in new[] { (ArrKind.Sonarr, 0), (ArrKind.Radarr, 1) })
         {
@@ -41,6 +43,14 @@ public sealed class FakeArr : HttpMessageHandler
             builder.UseSetting($"Flexarr:Arr:{i}:Kind", kind.ToString());
             builder.UseSetting($"Flexarr:Arr:{i}:BaseUrl", $"http://{kind.ToString().ToLowerInvariant()}.test");
             builder.UseSetting($"Flexarr:Arr:{i}:ApiKey", "key");
+        }
+
+        if (bookshelf)
+        {
+            builder.UseSetting("Flexarr:Arr:2:Name", "Bookshelf");
+            builder.UseSetting("Flexarr:Arr:2:Kind", nameof(ArrKind.Readarr));
+            builder.UseSetting("Flexarr:Arr:2:BaseUrl", "http://bookshelf.test");
+            builder.UseSetting("Flexarr:Arr:2:ApiKey", "key");
         }
 
         builder.ConfigureTestServices(services => services.AddHttpClient<ArrClient>().ConfigurePrimaryHttpMessageHandler(() => this));

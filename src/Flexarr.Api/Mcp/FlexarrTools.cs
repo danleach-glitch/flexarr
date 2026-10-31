@@ -187,7 +187,37 @@ public static class FlexarrTools
         return $"“{episode.Title}” is {(next ? "next" : $"number {queue.Count}")} in Up Next.";
     }
 
-    [McpServerTool(Name = "play_on_device"), Description("Plays a title on a device. Give a film's, episode's, track's or podcast episode's id to play that; a show's or season's id plays the episode that device's profile is up to; an album's plays its first track; a podcast's plays the episode to hear next. The result says what will play, and whether the device took it (Flexarr must be open on it; otherwise the command waits two minutes).")]
+    [McpServerTool(Name = "audiobooks_in_progress", ReadOnly = true), Description("The audiobooks this profile is part way through, most recently heard first, with how far in. A book's id with play_on_device resumes it.")]
+    public static async Task<IReadOnlyList<McpTitle>> AudiobooksInProgressAsync(FlexarrDbContext db, CurrentProfile profile, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        var books = db.MediaItems.Where(i => i.Kind == MediaKind.Audiobook && i.MissingSince == null);
+        return [.. (await Books.BookQueries.InProgress(books, profile.Id)
+            .OrderByDescending(i => i.PlaybackStates.Where(p => p.UserId == profile.Id).Select(p => p.LastPlayedAt).FirstOrDefault())
+            .Take(10).Summaries(profile.Id).ToListAsync(ct)).Select(McpTitle.From)];
+    }
+
+    [McpServerTool(Name = "set_sleep_timer"), Description("Sets the sleep timer on a device that's playing: stop after some minutes, or at the end of the audiobook's chapter. Neither turns it off. Flexarr must be open on the device.")]
+    public static McpCommandResult SetSleepTimer([Description("The device's id, from list_devices")] string deviceId, SignIns signIns, DeviceCommands commands, CurrentProfile profile,
+        [Description("Minutes from now, 1 to 600")] double? minutes = null, [Description("Stop at the end of the chapter instead")] bool endOfChapter = false)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        if (!profile.IsTrusted)
+        {
+            throw new InvalidOperationException("This sign-in may not control other devices.");
+        }
+
+        var result = DeviceEndpoints.Sleep(deviceId, new DeviceSleepRequest(minutes, endOfChapter), signIns, commands, profile);
+        if (result is not Microsoft.AspNetCore.Http.HttpResults.Ok<DeviceCommandResultDto> { Value: { } sent })
+        {
+            throw new InvalidOperationException(result is Microsoft.AspNetCore.Http.HttpResults.ProblemHttpResult problem ? problem.ProblemDetails.Detail : "No device with that id is signed in.");
+        }
+
+        var what = endOfChapter ? "at the end of the chapter" : minutes is { } m ? $"in {m:0} minutes" : null;
+        return new McpCommandResult(true, sent.DeviceName, null, what is null ? $"Turned off the sleep timer on {sent.DeviceName}." : $"{sent.DeviceName} will stop {what}.");
+    }
+
+    [McpServerTool(Name = "play_on_device"), Description("Plays a title on a device. Give a film's, episode's, track's, podcast episode's or audiobook's id to play that (a book carries on from where it was left); a show's or season's id plays the episode that device's profile is up to; an album's plays its first track; a podcast's plays the episode to hear next. The result says what will play, and whether the device took it (Flexarr must be open on it; otherwise the command waits two minutes).")]
     public static async Task<McpCommandResult> PlayOnDeviceAsync([Description("The device's id, from list_devices")] string deviceId, [Description("The title's id, from search_library or continue_watching")] Guid itemId,
         [Description("Start from the beginning rather than carry on from where it was left")] bool fromBeginning,
         SignIns signIns, DeviceCommands commands, FlexarrDbContext db, PlaybackService playback, CurrentProfile profile, CancellationToken ct,

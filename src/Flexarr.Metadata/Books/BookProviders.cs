@@ -1,0 +1,350 @@
+using System.Globalization;
+using System.Net.Http.Json;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using Flexarr.Core.Books;
+
+namespace Flexarr.Metadata.Books;
+
+/// <summary>How the server looks books up online. Admins set the order and Audible's region; keys are optional.</summary>
+/// <param name="Region">Audible's store: "us", "uk", "ca", "au", "de", "fr", "it", "es", "in", "jp".</param>
+/// <param name="Providers">The providers to ask, in order: "audible", "openlibrary", "google", "hardcover".</param>
+public sealed record BookMetadataSettings(string Region, IReadOnlyList<string> Providers, string? GoogleBooksKey = null, string? HardcoverToken = null)
+{
+    public static readonly IReadOnlyList<string> AllProviders = ["audible", "openlibrary", "google", "hardcover"];
+
+    public static BookMetadataSettings Default { get; } = new("us", AllProviders);
+
+    public static readonly IReadOnlyList<string> Regions = ["us", "uk", "ca", "au", "de", "fr", "it", "es", "in", "jp"];
+}
+
+/// <summary>A book as an online provider describes it.</summary>
+/// <param name="Provider">"audible", "openlibrary", "google" or "hardcover".</param>
+/// <param name="Id">Its id there (an ASIN for Audible).</param>
+public sealed record BookMatch(
+    string Provider, string Id, string Title, string? Subtitle, IReadOnlyList<string> Authors, IReadOnlyList<string> Narrators,
+    IReadOnlyList<SeriesPart> Series, string? Description, string? Publisher, DateOnly? ReleaseDate, string? Language, string? Isbn, string? Asin,
+    string? Cover, IReadOnlyList<string> Genres, double? DurationSeconds, bool? Abridged = null, IReadOnlyList<string>? AuthorAsins = null)
+{
+    public BookInfo ToInfo() => new()
+    {
+        Title = Title, Subtitle = Subtitle, Authors = Authors, Narrators = Narrators, Series = Series, Description = Description,
+        Publisher = Publisher, ReleaseDate = ReleaseDate, Year = ReleaseDate?.Year, Language = Language, Isbn = Isbn, Asin = Asin,
+        Genres = Genres, Abridged = Abridged,
+    };
+}
+
+/// <summary>An author's photo and biography.</summary>
+public sealed record BookAuthorInfo(string Name, string? Biography, string? Image);
+
+/// <summary>Audible's chapters for an edition, with how long its opening and closing branding run.</summary>
+public sealed record AudibleChapters(IReadOnlyList<BookChapter> Chapters, double RuntimeSeconds, bool Accurate, double IntroSeconds);
+
+/// <summary>
+/// Looks books up online: Audible (through Audnexus, and Audible's own catalogue for searching), Open Library, Google
+/// Books and Hardcover. All of them are someone else's service, Audnexus and the catalogue unofficially so, so answers
+/// are kept on disk for a month and nothing depends on any of them staying up: a provider that fails is skipped.
+/// </summary>
+public sealed class BookProviders(HttpClient http, Func<IMetadataSettings> settings)
+{
+    private static readonly TimeSpan CacheFor = TimeSpan.FromDays(30);
+    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
+
+    private BookMetadataSettings Options => settings().Books;
+
+    private IEnumerable<string> Enabled => Options.Providers.Where(p => p switch
+    {
+        "google" => Options.GoogleBooksKey is { Length: > 0 },
+        "hardcover" => Options.HardcoverToken is { Length: > 0 },
+        _ => BookMetadataSettings.AllProviders.Contains(p),
+    });
+
+    /// <summary>The first provider's answer for a book by its ids: an ASIN through Audible, an ISBN through the rest.</summary>
+    public async Task<BookMatch?> LookupAsync(string? asin, string? isbn, CancellationToken ct)
+    {
+        foreach (var provider in Enabled)
+        {
+            var match = provider switch
+            {
+                "audible" when asin is { Length: > 0 } => await TryAsync(() => AudibleBookAsync(asin, ct)).ConfigureAwait(false),
+                "openlibrary" when isbn is { Length: > 0 } => await TryAsync(() => OpenLibraryIsbnAsync(isbn, ct)).ConfigureAwait(false),
+                "google" when isbn is { Length: > 0 } => (await TryListAsync(() => GoogleSearchAsync($"isbn:{isbn}", ct)).ConfigureAwait(false)).FirstOrDefault(),
+                _ => null,
+            };
+            if (match is not null)
+            {
+                return match;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>Every provider's results for a title and author, in the admin's order: for matching and Fix match.</summary>
+    public async Task<List<BookMatch>> SearchAsync(string title, string? author, CancellationToken ct)
+    {
+        var results = new List<BookMatch>();
+        foreach (var provider in Enabled)
+        {
+            results.AddRange(await TryListAsync(() => provider switch
+            {
+                "audible" => AudibleSearchAsync(title, author, ct),
+                "openlibrary" => OpenLibrarySearchAsync(title, author, ct),
+                "google" => GoogleSearchAsync($"intitle:{title}" + (author is null ? "" : $"+inauthor:{author}"), ct),
+                "hardcover" => HardcoverSearchAsync(title, author, ct),
+                _ => Task.FromResult(new List<BookMatch>()),
+            }).ConfigureAwait(false));
+        }
+
+        return results;
+    }
+
+    /// <summary>The best of <see cref="SearchAsync"/> for a book we have: the same title (ignoring case and punctuation) by one of its authors.</summary>
+    public async Task<BookMatch?> FindAsync(string title, IReadOnlyList<string> authors, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(authors);
+        var wanted = Fold(title);
+        var names = authors.Select(Fold).ToHashSet(StringComparer.Ordinal);
+        foreach (var match in await SearchAsync(title, authors.Count > 0 ? authors[0] : null, ct).ConfigureAwait(false))
+        {
+            if (Fold(match.Title) == wanted && (names.Count == 0 || match.Authors.Any(a => names.Contains(Fold(a)))))
+            {
+                return match;
+            }
+        }
+
+        return null;
+    }
+
+    // ---- Audible, through Audnexus and Audible's catalogue ----
+
+    private string AudibleHost => Options.Region switch
+    {
+        "uk" => "api.audible.co.uk", "ca" => "api.audible.ca", "au" => "api.audible.com.au", "de" => "api.audible.de", "fr" => "api.audible.fr",
+        "it" => "api.audible.it", "es" => "api.audible.es", "in" => "api.audible.in", "jp" => "api.audible.co.jp", _ => "api.audible.com",
+    };
+
+    private async Task<BookMatch?> AudibleBookAsync(string asin, CancellationToken ct)
+    {
+        var book = await GetAsync($"https://api.audnex.us/books/{Uri.EscapeDataString(asin)}?region={Options.Region}", ct).ConfigureAwait(false);
+        if (book is null || book["asin"] is null)
+        {
+            return null;
+        }
+
+        var series = new List<SeriesPart>();
+        foreach (var key in new[] { "seriesPrimary", "seriesSecondary" })
+        {
+            if (book[key] is JsonObject s && Text(s, "name") is { } name)
+            {
+                series.Add(new SeriesPart(name, Text(s, "position")));
+            }
+        }
+
+        return new BookMatch("audible", asin, Text(book, "title") ?? asin, Text(book, "subtitle"), Names(book["authors"]), Names(book["narrators"]), series,
+            Text(book, "summary") is { } summary ? BookSidecars.PlainText(summary) : Text(book, "description"), Text(book, "publisherName"),
+            Date(Text(book, "releaseDate")), Language(Text(book, "language")), Text(book, "isbn"), asin, Text(book, "image"),
+            [.. (book["genres"] as JsonArray ?? []).OfType<JsonObject>().Where(g => Text(g, "type") == "genre").Select(g => Text(g, "name")).OfType<string>()],
+            book["runtimeLengthMin"]?.GetValue<double>() * 60, Text(book, "formatType") is { } format ? format == "abridged" : null,
+            [.. (book["authors"] as JsonArray ?? []).OfType<JsonObject>().Select(a => Text(a, "asin")).OfType<string>()]);
+    }
+
+    private async Task<List<BookMatch>> AudibleSearchAsync(string title, string? author, CancellationToken ct)
+    {
+        var url = $"https://{AudibleHost}/1.0/catalog/products?title={Uri.EscapeDataString(title)}"
+            + (author is null ? "" : $"&author={Uri.EscapeDataString(author)}")
+            + "&num_results=10&products_sort_by=Relevance&response_groups=contributors,series,media,product_attrs,product_desc";
+        var found = await GetAsync(url, ct).ConfigureAwait(false);
+        return [.. (found?["products"] as JsonArray ?? []).OfType<JsonObject>().Where(p => Text(p, "asin") is not null).Select(p => new BookMatch(
+            "audible", Text(p, "asin")!, Text(p, "title") ?? "", Text(p, "subtitle"), Names(p["authors"]), Names(p["narrators"]),
+            [.. (p["series"] as JsonArray ?? []).OfType<JsonObject>().Where(s => Text(s, "title") is not null).Select(s => new SeriesPart(Text(s, "title")!, Text(s, "sequence")))],
+            Text(p, "merchandising_summary") is { } m ? BookSidecars.PlainText(m) : null, Text(p, "publisher_name"), Date(Text(p, "release_date")),
+            Language(Text(p, "language")), null, Text(p, "asin"),
+            p["product_images"] is JsonObject images ? images.Select(i => i.Value?.GetValue<string>()).LastOrDefault(i => i is not null) : null,
+            [], p["runtime_length_min"]?.GetValue<double>() * 60, Text(p, "format_type") is { } f ? f == "abridged" : null))];
+    }
+
+    /// <summary>Audible's chapters for an ASIN; null when Audnexus has none.</summary>
+    public async Task<AudibleChapters?> ChaptersAsync(string asin, CancellationToken ct)
+    {
+        var found = await TryAsync(() => GetAsync($"https://api.audnex.us/books/{Uri.EscapeDataString(asin)}/chapters?region={Options.Region}", ct)).ConfigureAwait(false);
+        if (found?["chapters"] is not JsonArray list || list.Count == 0)
+        {
+            return null;
+        }
+
+        var chapters = list.OfType<JsonObject>().Select((c, i) =>
+        {
+            var start = (c["startOffsetMs"]?.GetValue<double>() ?? 0) / 1000;
+            return new BookChapter(Text(c, "title") ?? $"Chapter {i + 1}", start, start + ((c["lengthMs"]?.GetValue<double>() ?? 0) / 1000));
+        }).ToList();
+        return new AudibleChapters(chapters, (found["runtimeLengthMs"]?.GetValue<double>() ?? 0) / 1000, found["isAccurate"]?.GetValue<bool>() ?? false,
+            (found["brandIntroDurationMs"]?.GetValue<double>() ?? 0) / 1000);
+    }
+
+    /// <summary>An author's photo and biography from Audible, by their ASIN.</summary>
+    public async Task<BookAuthorInfo?> AuthorAsync(string asin, CancellationToken ct)
+    {
+        var author = await TryAsync(() => GetAsync($"https://api.audnex.us/authors/{Uri.EscapeDataString(asin)}?region={Options.Region}", ct)).ConfigureAwait(false);
+        return author is null || Text(author, "name") is not { } name ? null
+            : new BookAuthorInfo(name, Text(author, "description"), Text(author, "image"));
+    }
+
+    // ---- Open Library ----
+
+    private async Task<BookMatch?> OpenLibraryIsbnAsync(string isbn, CancellationToken ct)
+    {
+        var edition = await GetAsync($"https://openlibrary.org/isbn/{Uri.EscapeDataString(isbn)}.json", ct).ConfigureAwait(false);
+        if (edition is null || Text(edition, "title") is not { } title)
+        {
+            return null;
+        }
+
+        var cover = (edition["covers"] as JsonArray)?.FirstOrDefault()?.GetValue<long>();
+        return new BookMatch("openlibrary", Text(edition, "key") ?? isbn, title, Text(edition, "subtitle"), [], [], [],
+            edition["description"] is JsonObject d ? Text(d, "value") : Text(edition, "description"),
+            (edition["publishers"] as JsonArray)?.FirstOrDefault()?.GetValue<string>(), Date(Text(edition, "publish_date")), null, isbn, null,
+            cover is { } c ? $"https://covers.openlibrary.org/b/id/{c}-L.jpg" : null, [], null);
+    }
+
+    private async Task<List<BookMatch>> OpenLibrarySearchAsync(string title, string? author, CancellationToken ct)
+    {
+        var url = $"https://openlibrary.org/search.json?title={Uri.EscapeDataString(title)}" + (author is null ? "" : $"&author={Uri.EscapeDataString(author)}")
+            + "&limit=5&fields=key,title,subtitle,author_name,first_publish_year,isbn,cover_i,publisher,language,subject";
+        var found = await GetAsync(url, ct).ConfigureAwait(false);
+        return [.. (found?["docs"] as JsonArray ?? []).OfType<JsonObject>().Where(d => Text(d, "title") is not null).Select(d => new BookMatch(
+            "openlibrary", Text(d, "key") ?? "", Text(d, "title")!, Text(d, "subtitle"), Strings(d["author_name"]), [], [], null,
+            Strings(d["publisher"]).FirstOrDefault(), d["first_publish_year"] is { } y ? new DateOnly(y.GetValue<int>(), 1, 1) : null, null,
+            Strings(d["isbn"]).FirstOrDefault(i => i.Length == 13), null,
+            d["cover_i"] is { } c ? $"https://covers.openlibrary.org/b/id/{c.GetValue<long>()}-L.jpg" : null, [.. Strings(d["subject"]).Take(5)], null))];
+    }
+
+    // ---- Google Books (with a key) ----
+
+    private async Task<List<BookMatch>> GoogleSearchAsync(string query, CancellationToken ct)
+    {
+        var url = $"https://www.googleapis.com/books/v1/volumes?q={Uri.EscapeDataString(query)}&maxResults=5&key={Uri.EscapeDataString(Options.GoogleBooksKey ?? "")}";
+        var found = await GetAsync(url, ct, cacheKey: $"google:{query}").ConfigureAwait(false);
+        return [.. (found?["items"] as JsonArray ?? []).OfType<JsonObject>().Select(i => (Id: Text(i, "id"), Info: i["volumeInfo"] as JsonObject))
+            .Where(v => v.Id is not null && v.Info is not null && Text(v.Info, "title") is not null).Select(v => new BookMatch(
+                "google", v.Id!, Text(v.Info!, "title")!, Text(v.Info!, "subtitle"), Strings(v.Info!["authors"]), [], [],
+                Text(v.Info!, "description") is { } desc ? BookSidecars.PlainText(desc) : null, Text(v.Info!, "publisher"), Date(Text(v.Info!, "publishedDate")),
+                Text(v.Info!, "language"),
+                (v.Info!["industryIdentifiers"] as JsonArray ?? []).OfType<JsonObject>().Where(x => Text(x, "type") == "ISBN_13").Select(x => Text(x, "identifier")).FirstOrDefault(),
+                null, (v.Info!["imageLinks"] as JsonObject) is { } links ? Text(links, "thumbnail")?.Replace("http://", "https://", StringComparison.Ordinal) : null,
+                [.. Strings(v.Info!["categories"]).SelectMany(c => c.Split('/', StringSplitOptions.TrimEntries)).Distinct().Take(5)], null))];
+    }
+
+    // ---- Hardcover (with a token) ----
+
+    private async Task<List<BookMatch>> HardcoverSearchAsync(string title, string? author, CancellationToken ct)
+    {
+        const string Query = "query($q: String!) { search(query: $q, query_type: \"Book\", per_page: 5) { results } }";
+        var q = author is null ? title : $"{title} {author}";
+        var key = $"hardcover:{q}";
+        var found = await CachedAsync(key, async () =>
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Post, "https://api.hardcover.app/v1/graphql")
+            {
+                Content = JsonContent.Create(new { query = Query, variables = new { q } }),
+            };
+            request.Headers.TryAddWithoutValidation("authorization", Options.HardcoverToken!.StartsWith("Bearer ", StringComparison.Ordinal) ? Options.HardcoverToken : $"Bearer {Options.HardcoverToken}");
+            using var response = await http.SendAsync(request, ct).ConfigureAwait(false);
+            return response.IsSuccessStatusCode ? await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false) : null;
+        }).ConfigureAwait(false);
+        var hits = found?["data"]?["search"]?["results"]?["hits"] as JsonArray ?? [];
+        return [.. hits.OfType<JsonObject>().Select(h => h["document"] as JsonObject).OfType<JsonObject>().Where(d => Text(d, "title") is not null).Select(d => new BookMatch(
+            "hardcover", Text(d, "id") ?? Text(d, "slug") ?? "", Text(d, "title")!, Text(d, "subtitle"), Strings(d["author_names"]), [],
+            d["featured_series"] is JsonObject fs && fs["series"] is JsonObject s && Text(s, "name") is { } sn ? [new SeriesPart(sn, Text(fs, "position"))] : [],
+            Text(d, "description"), null, d["release_year"] is { } ry && ry.GetValueKind() == JsonValueKind.Number ? new DateOnly(ry.GetValue<int>(), 1, 1) : null, null,
+            Strings(d["isbns"]).FirstOrDefault(i => i.Length == 13), null, d["image"] is JsonObject img ? Text(img, "url") : null, [.. Strings(d["genres"]).Take(5)], null))];
+    }
+
+    // ---- Plumbing ----
+
+    private Task<JsonNode?> GetAsync(string url, CancellationToken ct, string? cacheKey = null) => CachedAsync(cacheKey ?? url, async () =>
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        request.Headers.UserAgent.ParseAdd("Flexarr/1.0 (+https://flexarr.io)");
+        using var response = await http.SendAsync(request, ct).ConfigureAwait(false);
+        // A book a provider doesn't have is an answer worth keeping; a provider that's struggling isn't.
+        if (response.StatusCode is System.Net.HttpStatusCode.NotFound or System.Net.HttpStatusCode.BadRequest)
+        {
+            return "null";
+        }
+
+        return response.IsSuccessStatusCode ? await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false) : null;
+    });
+
+    /// <summary>An answer from the disk cache, or fetched and kept; null (not kept) when fetching failed.</summary>
+    private async Task<JsonNode?> CachedAsync(string key, Func<Task<string?>> fetch)
+    {
+        var directory = Path.Combine(settings().CacheDirectory, "book-metadata");
+        var file = Path.Combine(directory, Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(key)))[..32] + ".json");
+        if (File.Exists(file) && File.GetLastWriteTimeUtc(file) > DateTime.UtcNow - CacheFor)
+        {
+            return JsonNode.Parse(await File.ReadAllTextAsync(file).ConfigureAwait(false));
+        }
+
+        var body = await fetch().ConfigureAwait(false);
+        if (body is null)
+        {
+            return null;
+        }
+
+        Directory.CreateDirectory(directory);
+        await File.WriteAllTextAsync(file, body).ConfigureAwait(false);
+        return JsonNode.Parse(body);
+    }
+
+    private static async Task<T?> TryAsync<T>(Func<Task<T?>> call) where T : class
+    {
+        try
+        {
+            return await call().ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or InvalidOperationException or FormatException)
+        {
+            return null;
+        }
+    }
+
+    private static async Task<List<BookMatch>> TryListAsync(Func<Task<List<BookMatch>>> call) =>
+        await TryAsync(async () => (List<BookMatch>?)await call().ConfigureAwait(false)).ConfigureAwait(false) ?? [];
+
+    private static string? Text(JsonNode? node, string name) =>
+        node?[name] is JsonValue v && v.GetValueKind() is JsonValueKind.String or JsonValueKind.Number
+            ? v.ToString() is { Length: > 0 } s ? s.Trim() : null
+            : null;
+
+    private static List<string> Names(JsonNode? array) =>
+        [.. (array as JsonArray ?? []).OfType<JsonObject>().Select(a => Text(a, "name")).OfType<string>()];
+
+    private static List<string> Strings(JsonNode? array) =>
+        [.. (array as JsonArray ?? []).OfType<JsonValue>().Select(v => v.ToString()).Where(s => s.Length > 0)];
+
+    /// <summary>"2020-09-03T00:00:00.000Z", "2021-05-04", "May 04, 2021" or "2004".</summary>
+    private static DateOnly? Date(string? value)
+    {
+        if (value is null)
+        {
+            return null;
+        }
+
+        if (DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var date))
+        {
+            return DateOnly.FromDateTime(date);
+        }
+
+        return value.Length >= 4 && int.TryParse(value[..4], NumberStyles.Integer, CultureInfo.InvariantCulture, out var year) && year > 1000 ? new DateOnly(year, 1, 1) : null;
+    }
+
+    /// <summary>"english" → "English".</summary>
+    private static string? Language(string? value) =>
+        value is { Length: > 1 } ? char.ToUpperInvariant(value[0]) + value[1..] : value;
+
+    private static string Fold(string value) =>
+        new([.. value.Normalize(NormalizationForm.FormC).ToLowerInvariant().Where(char.IsLetterOrDigit)]);
+}

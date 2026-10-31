@@ -297,6 +297,22 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
         var open = await db.MediaRequests.Where(r => r.FulfilledAt == null).ToListAsync(ct);
         foreach (var request in open)
         {
+            if (request.Kind == MediaKind.Audiobook)
+            {
+                // In once the library has it under the id the app gave it, which the metadata refresh learns.
+                var book = request.BookArrId is not { } arrId ? null : await db.MediaItems.AsNoTracking()
+                    .Where(i => i.Kind == MediaKind.Audiobook && i.MissingSince == null && i.Book!.ArrBookId == arrId && i.AddedAt <= settled)
+                    .Select(i => new { i.Id, i.Title, i.PosterUrl }).FirstOrDefaultAsync(ct);
+                if (book is not null)
+                {
+                    request.FulfilledAt = now;
+                    answered.Add(new Answered(request.ProfileId, new PushMessage("Your request is ready", $"{book.Title} is ready to listen.",
+                        "flexarr.video", $"item:{book.Id}", Artwork(book.PosterUrl), new Dictionary<string, string> { ["item"] = book.Id.ToString() }), [book.Id]));
+                }
+
+                continue;
+            }
+
             var tmdb = request.TmdbId.ToString(CultureInfo.InvariantCulture);
             if (request.Kind == MediaKind.Movie)
             {

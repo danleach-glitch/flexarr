@@ -292,6 +292,30 @@ public class DeviceTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
     }
 
     [Fact]
+    public async Task ASleepTimer_ReachesAPhoneThatTakesIt_AndNotOneThatDoesnt()
+    {
+        var (id, phone) = await DeviceAsync("Bedside phone");
+        var (response, reader) = await ListenAsync(phone, "?accepts=Sleep,Rate");
+
+        Assert.Equal(HttpStatusCode.OK, (await Admin().PostAsJsonAsync(Api($"/devices/{id}/sleep"), new { minutes = 20 })).StatusCode);
+        var timed = await NextCommandAsync(reader);
+        Assert.Equal(("Sleep", 1200.0), (timed.GetProperty("kind").GetString(), timed.GetProperty("seconds").GetDouble()));
+
+        Assert.Equal(HttpStatusCode.OK, (await Admin().PostAsJsonAsync(Api($"/devices/{id}/sleep"), new { endOfChapter = true })).StatusCode);
+        Assert.True((await NextCommandAsync(reader)).GetProperty("endOfChapter").GetBoolean());
+
+        // A book's speed goes past 2×.
+        Assert.Equal(HttpStatusCode.OK, (await Admin().PostAsJsonAsync(Api($"/devices/{id}/rate"), new { rate = 2.5 })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await Admin().PostAsJsonAsync(Api($"/devices/{id}/sleep"), new { minutes = 0 })).StatusCode);
+        response.Dispose();
+
+        var (old, oldTv) = await DeviceAsync("Old TV");
+        var (oldResponse, _) = await ListenAsync(oldTv, "?accepts=Seek");
+        Assert.Equal(HttpStatusCode.Conflict, (await Admin().PostAsJsonAsync(Api($"/devices/{old}/sleep"), new { minutes = 20 })).StatusCode);
+        oldResponse.Dispose();
+    }
+
+    [Fact]
     public async Task APhoneAskingForNowPlaying_HearsWhatATvIsPlaying_AsItChanges()
     {
         var show = await SeedAsync("Bluey", ("S01E01", 1, 1));
