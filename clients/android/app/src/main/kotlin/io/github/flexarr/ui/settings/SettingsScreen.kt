@@ -451,14 +451,14 @@ internal fun Toggle(label: String, on: Boolean, onChange: (Boolean) -> Unit, det
 /** "192.168.1.20:8383" for "http://192.168.1.20:8383/". */
 internal fun shortAddress(address: String?): String = address.orEmpty().replace(Regex("^https?://"), "").trimEnd('/')
 
-/** Leaving someone else's Flexarr as a guest: the tunnel, sign-in and downloads go, and coming back takes a new invite. */
+/** Leaving someone else's Flexarr as a guest: the tunnel, sign-in and downloads go, and joining again takes a new code. */
 @Composable
 internal fun LeaveDialog(model: AppModel, onDismiss: () -> Unit) {
     val owner = model.credentials?.guest?.ownerName?.ifEmpty { null }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (owner != null) "Leave $owner’s Flexarr?" else "Leave this Flexarr?") },
-        text = { Text("Coming back takes a new invite. Downloads are deleted.") },
+        text = { Text("Joining again takes a new code. Downloads are deleted.") },
         confirmButton = { TextButton(onClick = model::signOut) { Text("Leave", color = Flexarr.danger) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = Flexarr.screen) } },
         containerColor = Flexarr.seat,

@@ -181,7 +181,7 @@ private fun MainPage(
                 TvSettingsRow(
                     "Leave", onClick = { confirmSignOut = true }, modifier = Modifier.padding(top = 18.dp),
                     icon = Icons.AutoMirrored.Filled.Logout, destructive = true,
-                    help = "Stop watching ${owner?.let { "$it’s" } ?: "this"} Flexarr on this TV. Coming back takes a new invite.",
+                    help = "Stop watching ${owner?.let { "$it’s" } ?: "this"} Flexarr on this TV. Joining again takes a new code.",
                 )
             } else {
                 TvSettingsRow(
@@ -203,7 +203,7 @@ private fun MainPage(
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                 )
-                Text(if (guest) "Coming back takes a new invite." else "This TV will need to connect again to use the server.", fontSize = 14.sp, color = Flexarr.usher)
+                Text(if (guest) "Joining again takes a new code." else "This TV will need to connect again to use the server.", fontSize = 14.sp, color = Flexarr.usher)
                 Row(Modifier.fillMaxWidth().height(44.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     TvActionButton(if (guest) "Leave" else "Sign out", onClick = {
                         confirmSignOut = false
