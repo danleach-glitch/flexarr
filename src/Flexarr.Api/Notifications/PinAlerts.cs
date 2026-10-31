@@ -69,7 +69,7 @@ public sealed partial class PinAlerts(IServiceScopeFactory scopes, SignIns signI
         }
 
         var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
-        var phones = await db.NotificationDevices.Where(d => d.ProfileId == PlaybackState.DefaultUser).ToListAsync(ct);
+        var phones = await PairingAlerts.MainProfilePhonesAsync(db, scope.ServiceProvider.GetRequiredService<SignIns>(), ct);
         if (phones.Count == 0)
         {
             return 0;

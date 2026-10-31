@@ -1,6 +1,8 @@
+using Flexarr.Api.Authentication;
 using Flexarr.Api.Security;
 using Flexarr.Core.Data;
 using Flexarr.Core.Media;
+using Flexarr.Core.Notifications;
 using Microsoft.EntityFrameworkCore;
 
 namespace Flexarr.Api.Notifications;
@@ -15,6 +17,19 @@ namespace Flexarr.Api.Notifications;
 public sealed partial class PairingAlerts(IServiceScopeFactory scopes, ILogger<PairingAlerts> logger)
 {
     public const string Category = "flexarr.pairing";
+
+    /// <summary>
+    /// The phones the main profile hears on: those whose notifications are for it, and those on it now whatever profile
+    /// their notifications follow (a parent's phone whose notifications were turned on on a kids profile still asks).
+    /// </summary>
+    public static async Task<List<NotificationDevice>> MainProfilePhonesAsync(FlexarrDbContext db, SignIns signIns, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(db);
+        ArgumentNullException.ThrowIfNull(signIns);
+        var all = await db.NotificationDevices.ToListAsync(ct);
+        return all.Where(d => d.ProfileId == PlaybackState.DefaultUser
+            || d.SignInId is { } signIn && signIns.ById(signIn) is { } device && (device.ProfileId ?? PlaybackState.DefaultUser) == PlaybackState.DefaultUser).ToList();
+    }
 
     /// <summary>Sent in the background: the device asking shouldn't wait on Apple or Google to see its code.</summary>
     public void Send(PairingDetailsDto pairing)
@@ -44,7 +59,7 @@ public sealed partial class PairingAlerts(IServiceScopeFactory scopes, ILogger<P
         }
 
         var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
-        var phones = await db.NotificationDevices.Where(d => d.ProfileId == PlaybackState.DefaultUser).ToListAsync(ct);
+        var phones = await PairingAlerts.MainProfilePhonesAsync(db, scope.ServiceProvider.GetRequiredService<SignIns>(), ct);
         if (phones.Count == 0)
         {
             return 0;

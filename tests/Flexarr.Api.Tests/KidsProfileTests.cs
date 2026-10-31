@@ -217,6 +217,87 @@ public class KidsProfileTests
     }
 
     [Fact]
+    public async Task TheMainProfile_TurnsChildLockOn_WithoutItsPin_ButAnotherProfileNeedsIt()
+    {
+        using var server = new FlexarrApiFactory();
+        await server.SetMainPinAsync(MainPin);
+        await CreateAsync(server, "Ada", 8, isKids: true);
+        var mum = await CreateAsync(server, "Mum");
+        var tv = await TvAsync(server);
+        await tv.PostAsJsonAsync(Api("/admin/lock"), new { }); // settings locked here, as they usually are
+        var phone = await TvAsync(server);
+        await SelectAsync(phone, mum);
+
+        Assert.Equal(HttpStatusCode.OK, (await tv.PostAsJsonAsync(Api("/profiles/kids-lock"), new { })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await phone.PostAsJsonAsync(Api("/profiles/kids-lock"), new { })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await phone.PostAsJsonAsync(Api("/profiles/kids-lock"), new { pin = MainPin })).StatusCode);
+    }
+
+    [Fact]
+    public async Task TurningChildLockOff_GivesTheDevicesNotificationsBackToTheMainProfile()
+    {
+        using var server = new FlexarrApiFactory();
+        await server.SetMainPinAsync(MainPin);
+        var ada = await CreateAsync(server, "Ada", 8, isKids: true);
+        var tv = await TvAsync(server);
+        var signIn = (await Admin(server).GetFromJsonAsync<JsonElement>(Api("/sign-ins"))).EnumerateArray()
+            .First(d => d.GetProperty("name").GetString() == "Playroom TV").GetProperty("id").GetString()!;
+        using (var scope = server.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            db.NotificationDevices.Add(new Flexarr.Core.Notifications.NotificationDevice
+            {
+                Id = "phone", SignInId = signIn, ProfileId = PlaybackState.DefaultUser, Token = "t", Environment = "sandbox", Key = new byte[32],
+            });
+            await db.SaveChangesAsync();
+        }
+
+        string ProfileOfNotifications()
+        {
+            using var scope = server.Services.CreateScope();
+            return scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().NotificationDevices.Single(d => d.Id == "phone").ProfileId;
+        }
+
+        await tv.PostAsJsonAsync(Api("/profiles/kids-lock"), new { });
+        var whileLocked = ProfileOfNotifications();
+        await tv.PostAsJsonAsync(Api("/profiles/kids-lock/release"), new { pin = MainPin });
+        var afterRelease = ProfileOfNotifications();
+        await tv.PostAsJsonAsync(Api("/profiles/kids-lock"), new { pin = MainPin });
+        await Admin(server).PostAsJsonAsync(Api($"/sign-ins/{signIn}/release-kids-lock"), new { });
+
+        Assert.Equal(ada, whileLocked);
+        Assert.Equal(PlaybackState.DefaultUser, afterRelease);
+        Assert.Equal(PlaybackState.DefaultUser, ProfileOfNotifications());
+    }
+
+    [Fact]
+    public async Task APhoneOnTheMainProfile_HearsDevicesAskingToConnect_WhateverProfileItsNotificationsFollow()
+    {
+        using var server = new FlexarrApiFactory();
+        await server.SetMainPinAsync(MainPin);
+        var ada = await CreateAsync(server, "Ada", 8, isKids: true);
+        var phone = await TvAsync(server);
+        var other = await TvAsync(server);
+        await SelectAsync(other, ada);
+        var signIns = server.Services.GetRequiredService<Flexarr.Api.Authentication.SignIns>();
+        var list = (await Admin(server).GetFromJsonAsync<JsonElement>(Api("/sign-ins"))).EnumerateArray().Select(d => d.GetProperty("id").GetString()!).ToList();
+        var onMain = list.First(id => signIns.ById(id)?.ProfileId is null && signIns.ById(id)?.Kind == Flexarr.Api.Authentication.SignInKind.Device);
+        var onAda = list.First(id => signIns.ById(id)?.ProfileId == ada);
+        using var scope = server.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        foreach (var (id, signIn) in new[] { ("main-now", onMain), ("ada-now", onAda) })
+        {
+            db.NotificationDevices.Add(new Flexarr.Core.Notifications.NotificationDevice { Id = id, SignInId = signIn, ProfileId = ada, Token = id, Environment = "sandbox", Key = new byte[32] });
+        }
+
+        await db.SaveChangesAsync();
+        var phones = await Flexarr.Api.Notifications.PairingAlerts.MainProfilePhonesAsync(db, signIns, CancellationToken.None);
+
+        Assert.Equal(["main-now"], phones.Select(p => p.Id));
+        Assert.NotNull(phone);
+    }
+
+    [Fact]
     public async Task TheMainProfile_CanReleaseALockedDevice_FromSettings()
     {
         using var server = new FlexarrApiFactory();

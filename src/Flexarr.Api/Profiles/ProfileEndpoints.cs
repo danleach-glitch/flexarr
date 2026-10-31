@@ -195,7 +195,9 @@ public static partial class ProfileEndpoints
                 return Results.Problem($"Choose {chosen.Name} in Who’s watching.", statusCode: 409);
             }
 
-            if (!alreadyLocked && await ParentPinAsync(http, db, current, guard, request.Pin, ct) is { } refused)
+            // The main profile turns it on without its PIN (turning it off takes it); anyone else needs it, so nobody
+            // can lock the household's TV to kids profiles behind the parent's back.
+            if (!alreadyLocked && !current.IsMainProfile && await ParentPinAsync(http, db, current, guard, request.Pin, ct) is { } refused)
             {
                 return refused;
             }
@@ -221,6 +223,9 @@ public static partial class ProfileEndpoints
             }
 
             signIns.SetKidsLock(signIn.Id, false);
+            // Its notifications went to the kids profile with the lock: they come back to the main profile, whose PIN
+            // just released it (else the parent's own phone stops hearing about devices asking to connect).
+            await db.NotificationDevices.Where(d => d.SignInId == signIn.Id).ExecuteUpdateAsync(u => u.SetProperty(d => d.ProfileId, PlaybackState.DefaultUser), ct);
             return Results.NoContent();
         });
 

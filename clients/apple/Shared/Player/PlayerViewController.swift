@@ -326,10 +326,7 @@ final class PlayerViewController: UIViewController {
         controls.setPrompt(title, countingDown: countingDown)
         countingDownToNext = countingDown
         updateIdleTimer()
-        if title != nil, !controlsVisible {
-            // The pill shows on its own, without the rest of the controls.
-            controls.promptButton.superview?.alpha = 1
-        }
+
     }
 
     /// The file's audio offset for the audio menu's Audio sync (nil: not adjustable here, as for a download or an older
@@ -544,7 +541,7 @@ final class PlayerViewController: UIViewController {
         hideTask?.cancel()
         if !controlsVisible {
             controlsVisible = true
-            UIView.animate(withDuration: 0.2) { self.controls.alpha = 1 }
+            UIView.animate(withDuration: 0.2) { self.controls.setChromeVisible(true) }
             #if os(tvOS)
             rootView.takesFocus = false
             setNeedsFocusUpdate()
@@ -558,7 +555,7 @@ final class PlayerViewController: UIViewController {
         guard controlsVisible else { return }
         controlsVisible = false
         hideTask?.cancel()
-        UIView.animate(withDuration: 0.25) { self.controls.alpha = 0 }
+        UIView.animate(withDuration: 0.25) { self.controls.setChromeVisible(false) }
         #if os(tvOS)
         rootView.takesFocus = true
         setNeedsFocusUpdate()
