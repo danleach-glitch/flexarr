@@ -221,3 +221,106 @@
   filter: brightness(0.5);
   z-index: -2;
 }
+
+/* ---------- Audiobooks: a series in reading order ---------- */
+
+.book-series-header {
+  max-width: 900px;
+  margin-bottom: 32px;
+}
+
+.book-series-header h1 {
+  font-size: clamp(var(--step-4), 4vw, 4rem);
+  font-weight: 800;
+  line-height: 0.95;
+  text-wrap: balance;
+}
+
+.book-series-header .facts {
+  margin: 12px 0;
+}
+
+.series-books {
+  list-style: none;
+  max-width: 900px;
+  margin: 0;
+  padding: 0 0 48px;
+}
+
+.series-book {
+  display: grid;
+  grid-template-columns: 2.5rem 64px minmax(0, 1fr) auto auto;
+  gap: 16px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: var(--radius-control);
+}
+
+.series-book:hover,
+.series-book:focus-within {
+  background: var(--seat);
+}
+
+.series-book.next {
+  background: color-mix(in srgb, var(--ambient) 12%, transparent);
+}
+
+.series-book-number {
+  color: var(--usher);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.series-book-cover {
+  display: block;
+  border-radius: var(--radius-art);
+  overflow: hidden;
+}
+
+.series-book-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.series-book-title {
+  color: var(--screen);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.series-book-title:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.series-book .detail-progress {
+  width: min(200px, 100%);
+  margin-top: 6px;
+}
+
+.series-book.finished .series-book-title {
+  color: var(--usher);
+}
+
+.series-book-done {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.series-book-done svg {
+  width: 16px;
+  height: 16px;
+}
+
+.series-book-next {
+  color: var(--ambient);
+  font-weight: 700;
+}
+
+.person-biography {
+  max-width: 44rem;
+  margin-top: 12px;
+}
