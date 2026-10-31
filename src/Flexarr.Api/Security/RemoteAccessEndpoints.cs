@@ -138,7 +138,7 @@ public static class RemoteAccessEndpoints
     }
 
     /// <summary>This computer's address in Tailscale's range (100.64.0.0/10), read from its network interfaces.</summary>
-    private static string? TailnetIp()
+    internal static string? TailnetIp()
     {
         try
         {

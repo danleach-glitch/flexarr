@@ -2,6 +2,11 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### Away from home
+- The apps now find a Mac app server over Tailscale away from home by themselves, as they do other servers.
+
 ## 0.56.0 · 31 October 2026
 
 ### Watchlist

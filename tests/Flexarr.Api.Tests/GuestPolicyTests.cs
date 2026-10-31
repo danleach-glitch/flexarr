@@ -244,3 +244,15 @@ public class GuestLinkTests
         Assert.Null(await CapAsync("100.64.0.9", guest: false)); // not a guest
     }
 }
+
+public class MacAppRemoteUrlTests
+{
+    [Fact]
+    public void A_mac_app_server_tells_the_apps_its_tailnet_address()
+    {
+        Assert.Equal("http://100.64.0.5:8383", Flexarr.Api.Endpoints.SystemEndpoints.RemoteUrl(Flexarr.Api.Updates.InstallKind.MacApp, null, () => "100.64.0.5", 8383));
+        Assert.Null(Flexarr.Api.Endpoints.SystemEndpoints.RemoteUrl(Flexarr.Api.Updates.InstallKind.MacApp, null, () => null, 8383));
+        Assert.Null(Flexarr.Api.Endpoints.SystemEndpoints.RemoteUrl(Flexarr.Api.Updates.InstallKind.Docker, null, () => "100.64.0.5", 8383));
+        Assert.Equal("https://mini.ts.net:8443", Flexarr.Api.Endpoints.SystemEndpoints.RemoteUrl(Flexarr.Api.Updates.InstallKind.Other, "https://mini.ts.net:8443", () => "100.64.0.5", 8383));
+    }
+}
