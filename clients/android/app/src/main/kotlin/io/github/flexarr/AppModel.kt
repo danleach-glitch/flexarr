@@ -575,12 +575,24 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
             val joinedBefore = tunnel.hasIdentityFor(info)
             if (!joinedBefore) tunnel.forget()
             tunnel.use(info)
-            try {
-                tunnel.start(if (joinedBefore) "" else invite.authKey)
-            } catch (e: TunnelException) {
+            fun failed(e: TunnelException): Nothing {
                 // A refused identity or key is no use again; anything else (the network) leaves it for Try again.
                 if (e.needsLogin) tunnel.forget() else tunnel.use(null)
                 throw GuestJoinException(guestJoinProblem(e, owner, keyRefused = e.needsLogin))
+            }
+            try {
+                tunnel.start(if (joinedBefore) "" else invite.authKey)
+            } catch (e: TunnelException) {
+                if (!joinedBefore || !e.needsLogin) failed(e)
+                // The tailnet refuses the identity this invite made (the host removed it there): afresh, with the key,
+                // once, in case it wasn't spent after all.
+                tunnel.forget()
+                tunnel.use(info)
+                try {
+                    tunnel.start(invite.authKey)
+                } catch (again: TunnelException) {
+                    failed(again)
+                }
             }
         }
         val address = "http://127.0.0.1:$port/"
