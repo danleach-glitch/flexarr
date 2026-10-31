@@ -1,6 +1,6 @@
 import { useEffect, type ComponentType, type ReactNode, type SVGProps } from 'react'
 import { Navigate, NavLink, useParams } from 'react-router'
-import { clearApiCache, getMe, getRequestDestinations, getTraktStatus, getUpdates, lockAdmin } from '../../api/client'
+import { clearApiCache, getMe, getRequestDestinations, getRequestStatus, getTraktStatus, getUpdates, lockAdmin } from '../../api/client'
 import { useLibraries } from '../../hooks/librariesContext'
 import { useSession } from '../../hooks/sessionContext'
 import { useApi } from '../../hooks/useApi'
@@ -86,6 +86,7 @@ export function SettingsPage() {
   const current = profiles?.find((p) => p.isCurrent)
   const name = current?.name
   const destinations = useApi(getRequestDestinations, [])
+  const requestStatus = useApi((signal) => getRequestStatus(signal).catch(() => undefined), [])
   const trakt = useApi((signal) => getTraktStatus(signal), [])
   const reloadTrakt = trakt.reload
   useEffect(() => {
@@ -96,7 +97,9 @@ export function SettingsPage() {
   const books = libraries.some((l) => l.type === 'Audiobooks')
   const listed = books ? [...profilePages.slice(0, 2), audiobooksPage, ...profilePages.slice(2)] : profilePages
   const withTrakt = trakt.data?.available ? [...listed, traktPage] : listed
-  const ownPages = destinations.data && hasRequestChoice(destinations.data, current?.hiddenLibraryIds ?? []) ? [...withTrakt, requestsPage] : withTrakt
+  // Book requests have a setup of their own (and a library to choose, with two), so they list the page too.
+  const requestsListed = (destinations.data && hasRequestChoice(destinations.data, current?.hiddenLibraryIds ?? [])) || requestStatus.data?.books === true
+  const ownPages = requestsListed ? [...withTrakt, requestsPage] : withTrakt
   // Settings for the server are the main profile's, and changing them takes the admin PIN (given lately on this browser):
   // locked, the server's pages ask for it. Another profile chosen here has only its own pages. Older servers have no
   // /me: everything, as before.
