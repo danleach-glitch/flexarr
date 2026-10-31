@@ -142,6 +142,8 @@ public static class RequestEndpoints
             var wanted = await watchlist.KeysAsync(current.Id, ct);
             var rows = new List<ExternalRowDto>();
             var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            // Trakt's picks are worked out alongside Seerr's lists (they only use Seerr and Trakt from here on).
+            var picksTask = trakt.RowAsync(current.Id, instance, library, wanted, hidden, ct);
             foreach (var (id, list, title) in Lists)
             {
                 try
@@ -157,7 +159,7 @@ public static class RequestEndpoints
             }
 
             // A profile connected to Trakt gets its picks, after what's trending.
-            if (await trakt.RowAsync(current.Id, instance, library, wanted, hidden, ct) is { } picks)
+            if (await picksTask is { } picks)
             {
                 rows.Insert(Math.Min(1, rows.Count), picks);
             }

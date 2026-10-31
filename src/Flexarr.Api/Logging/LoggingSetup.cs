@@ -70,6 +70,7 @@ public static class LoggingSetup
             errorReports.Apply(current.Logs);
             Redactor.UseSecrets([
                 current.ApiKey, current.WebhookSecret, current.ImageSecret, current.Seerr?.ApiKey, current.Bazarr?.ApiKey, current.LiveTv?.Password,
+                current.Trakt.ClientSecret, current.Tmdb?.ApiKey,
                 .. current.Arr.Select(a => a.ApiKey),
             ]);
         }

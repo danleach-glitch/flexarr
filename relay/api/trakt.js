@@ -10,6 +10,8 @@
 // POST { grant: "refresh_token", refreshToken } → /oauth/token (refresh)
 // POST { grant: "revoke", token }              → /oauth/revoke
 
+const crypto = require('node:crypto');
+
 const TRAKT = 'https://api.trakt.tv';
 const TIMEOUT_MS = 10_000;
 // A connect polls every 5 seconds for up to 10 minutes; a household refreshes once a day per profile. Generous, as a
@@ -17,17 +19,55 @@ const TIMEOUT_MS = 10_000;
 const RATE_LIMIT = 120; // requests per minute per IP
 const TOKEN_SHAPE = /^[A-Za-z0-9_-]{16,256}$/;
 
+// --- Limits. Anyone can reach this, and it holds Flexarr's Trakt secret, so each kind of call has a ceiling: per
+// address, per device code (a connect polls every 5 s for 10 minutes) and per refresh or revoked token (a server
+// refreshes once a day). Counted across every instance in the Upstash store when there is one (as push.js does);
+// otherwise each warm instance counts on its own. A store that's down falls back to this instance's count.
+
+const LIMITS = {
+  ip: { max: RATE_LIMIT, seconds: 60 },
+  device_token: { max: 200, seconds: 3600 },
+  refresh_token: { max: 10, seconds: 3600 },
+  revoke: { max: 10, seconds: 3600 },
+};
+const KV_TIMEOUT_MS = 1500;
 const hits = new Map();
 
-function limited(ip, now = Date.now()) {
-  const minute = Math.floor(now / 60_000);
-  const entry = hits.get(ip);
-  if (!entry || entry.minute !== minute) {
-    if (hits.size > 10_000) hits.clear();
-    hits.set(ip, { minute, count: 1 });
-    return false;
+function localCount(key, seconds, now) {
+  const window = Math.floor(now / 1000 / seconds);
+  const entry = hits.get(key);
+  if (!entry || entry.window !== window) {
+    // Oldest first: a flood of new keys drops the stalest, never everyone's counts at once.
+    if (hits.size >= 10_000) for (const old of [...hits.keys()].slice(0, 1000)) hits.delete(old);
+    hits.set(key, { window, count: 1 });
+    return 1;
   }
-  return ++entry.count > RATE_LIMIT;
+  return ++entry.count;
+}
+
+async function count(kind, value, now = Date.now()) {
+  const { max, seconds } = LIMITS[kind];
+  const key = `trakt:${kind}:${crypto.createHash('sha256').update(String(value)).digest('hex').slice(0, 32)}:${Math.floor(now / 1000 / seconds)}`;
+  const { KV_REST_API_URL, KV_REST_API_TOKEN } = process.env;
+  if (KV_REST_API_URL && KV_REST_API_TOKEN) {
+    try {
+      const response = await fetch(`${KV_REST_API_URL}/pipeline`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${KV_REST_API_TOKEN}`, 'content-type': 'application/json' },
+        body: JSON.stringify([['INCR', key], ['EXPIRE', key, String(seconds * 2)]]),
+        signal: AbortSignal.timeout(KV_TIMEOUT_MS),
+      });
+      const [incr] = await response.json();
+      if (response.ok && typeof incr?.result === 'number') return incr.result > max;
+    } catch {
+      // Fall back to this instance's own count.
+    }
+  }
+  return localCount(key, seconds, now) > max;
+}
+
+function limited(ip, now = Date.now()) {
+  return localCount(`ip:${ip}`, 60, now) > RATE_LIMIT;
 }
 
 function reply(res, status, body) {
@@ -79,7 +119,8 @@ const TOKEN_FIELDS = ['access_token', 'refresh_token', 'expires_in', 'created_at
 module.exports = async (req, res) => {
   if (req.method === 'GET') {
     // Public: Trakt shows it to anyone who looks. Kept here so a new app needs no new release.
-    if (!process.env.TRAKT_CLIENT_ID) return reply(res, 503, { reason: 'NotConfigured' });
+    // Only once the secret is there too: offering Trakt before it is would send people to codes that never connect.
+    if (!process.env.TRAKT_CLIENT_ID || !process.env.TRAKT_CLIENT_SECRET) return reply(res, 503, { reason: 'NotConfigured' });
     res.setHeader('cache-control', 'public, max-age=3600');
     res.statusCode = 200;
     res.setHeader('content-type', 'application/json');
@@ -94,19 +135,26 @@ module.exports = async (req, res) => {
   }
 
   const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim();
-  if (limited(ip)) {
+  if (limited(ip) || await count('ip', ip)) {
     console.log('trakt: address limit reached');
     return reply(res, 429, { reason: 'TooManyRequests' });
   }
 
+  // The relay's own refusals are 422, never 400: servers read Trakt's 400 (with invalid_grant) as "connect again".
   let input;
-  try { input = await readBody(req); } catch { return reply(res, 400, { reason: 'BadRequest' }); }
+  try { input = await readBody(req); } catch { return reply(res, 422, { reason: 'BadRequest' }); }
 
   const { TRAKT_CLIENT_ID, TRAKT_CLIENT_SECRET } = process.env;
   if (!TRAKT_CLIENT_ID || !TRAKT_CLIENT_SECRET) return reply(res, 503, { reason: 'NotConfigured' });
 
   const call = traktCall(input, TRAKT_CLIENT_ID, TRAKT_CLIENT_SECRET);
-  if (!call) return reply(res, 400, { reason: 'BadRequest' });
+  if (!call) return reply(res, 422, { reason: 'BadRequest' });
+
+  const limitedBy = { device_token: input.code, refresh_token: input.refreshToken, revoke: input.token }[input.grant];
+  if (await count(input.grant, limitedBy)) {
+    console.log(`trakt: ${input.grant} limit reached`);
+    return reply(res, 429, { reason: 'TooManyRequests' });
+  }
 
   let response;
   try {
@@ -132,3 +180,4 @@ module.exports = async (req, res) => {
 
 module.exports._traktCall = traktCall;
 module.exports._limited = limited;
+module.exports._count = count;

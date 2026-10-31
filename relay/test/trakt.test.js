@@ -40,6 +40,27 @@ test('refuses anything but JSON', async () => {
   assert.equal((await call({ contentType: 'text/plain' })).status, 415);
 });
 
+test('answers its own refusals with 422, so servers never read them as Trakt signing someone out', () =>
+  withTrakt({ status: 200, body: {} }, async () => {
+    assert.equal((await call({ body: { grant: 'password' } })).status, 422);
+  }));
+
+test('a refresh token can be refreshed only so often', () =>
+  withTrakt({ status: 200, body: {} }, async () => {
+    const refreshToken = 'q'.repeat(64);
+    for (let i = 0; i < 10; i++) assert.equal((await call({ body: { grant: 'refresh_token', refreshToken }, ip: `203.0.113.${100 + i}` })).status, 200);
+    assert.equal((await call({ body: { grant: 'refresh_token', refreshToken }, ip: '203.0.113.200' })).status, 429);
+  }));
+
+test('offers no client id until the secret is there too', async () => {
+  process.env.TRAKT_CLIENT_ID = 'id';
+  try {
+    assert.equal((await call({ method: 'GET' })).status, 503);
+  } finally {
+    delete process.env.TRAKT_CLIENT_ID;
+  }
+});
+
 test('says so when it has no Trakt app', async () => {
   assert.equal((await call({ body: { grant: 'device_token', code } })).status, 503);
 });
@@ -74,6 +95,7 @@ test('passes on only the three grants, with token-shaped values', () => {
   assert.equal(trakt._traktCall({ grant: 'device_token', code: '../../x'.repeat(4) }, 'i', 's'), null);
   assert.equal(trakt._traktCall(null, 'i', 's'), null);
 });
+
 
 test('an address gets at most 120 calls a minute', () => {
   const now = Date.UTC(2026, 9, 31, 12, 0, 30);

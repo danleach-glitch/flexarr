@@ -29,6 +29,21 @@ public sealed partial class TraktRecommendations(FlexarrDbContext db, TraktClien
     internal async Task<ExternalRowDto?> RowAsync(string profileId, SeerrInstance instance, Dictionary<string, Guid> library, IReadOnlySet<string> watchlist,
         IReadOnlySet<Flexarr.Core.Libraries.LibraryType> hidden, CancellationToken ct)
     {
+        // Trakt's picks are a bonus: nothing about them may break Discover.
+        try
+        {
+            return await BuildAsync(profileId, instance, library, watchlist, hidden, ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
+        {
+            LogPicksFailed(ex.Message);
+            return null;
+        }
+    }
+
+    private async Task<ExternalRowDto?> BuildAsync(string profileId, SeerrInstance instance, Dictionary<string, Guid> library, IReadOnlySet<string> watchlist,
+        IReadOnlySet<Flexarr.Core.Libraries.LibraryType> hidden, CancellationToken ct)
+    {
         if (!await TraktOutbox.ConnectedAsync(db, profileId, ct))
         {
             return null;
@@ -68,8 +83,9 @@ public sealed partial class TraktRecommendations(FlexarrDbContext db, TraktClien
         {
             var (ok, picks) = await accounts.WithTokenAsync(profileId, async token =>
             {
-                var movies = await trakt.RecommendationsAsync(token, "movies", ct);
+                var moviesTask = trakt.RecommendationsAsync(token, "movies", ct);
                 var shows = await trakt.RecommendationsAsync(token, "shows", ct);
+                var movies = await moviesTask;
                 var list = new List<Pick>();
                 for (var i = 0; i < Math.Max(movies.Count, shows.Count); i++)
                 {
@@ -100,6 +116,7 @@ public sealed partial class TraktRecommendations(FlexarrDbContext db, TraktClien
         }
 
         SeerrResult? result = null;
+        await Lookups.WaitAsync(ct);
         try
         {
             if (await seerr.GetAsync(instance, $"{pick.MediaType}/{pick.TmdbId.ToString(CultureInfo.InvariantCulture)}", ct) is { } json)
@@ -109,7 +126,13 @@ public sealed partial class TraktRecommendations(FlexarrDbContext db, TraktClien
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException && !ct.IsCancellationRequested)
         {
+            // Not asked again on every visit: tried after a few minutes.
+            cache.Set(key, (SeerrResult?)null, TimeSpan.FromMinutes(10));
             return null;
+        }
+        finally
+        {
+            Lookups.Release();
         }
 
         cache.Set(key, result, TitleFor);
@@ -117,6 +140,9 @@ public sealed partial class TraktRecommendations(FlexarrDbContext db, TraktClien
     }
 
     private static readonly JsonSerializerOptions Web = new(JsonSerializerDefaults.Web);
+
+    /// <summary>At most this many title lookups at Seerr at once, across every profile.</summary>
+    private static readonly SemaphoreSlim Lookups = new(8, 8);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Couldn't get Trakt's recommendations: {Reason}")]
     private partial void LogPicksFailed(string reason);

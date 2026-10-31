@@ -48,7 +48,7 @@ public static class SettingsTransfer
     /// <summary>The settings in each section, as config.json names them.</summary>
     public static readonly IReadOnlyDictionary<string, string[]> Sections = new Dictionary<string, string[]>
     {
-        ["connections"] = ["arr", "seerr", "bazarr", "pathMappings"],
+        ["connections"] = ["arr", "seerr", "bazarr", "tmdb", "trakt", "pathMappings"],
         ["liveTv"] = ["liveTv"],
         ["streaming"] = ["transcoding"],
         ["layout"] = ["layout"],

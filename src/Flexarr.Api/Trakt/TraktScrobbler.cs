@@ -3,6 +3,7 @@ using Flexarr.Api.Events;
 using Flexarr.Api.Playback;
 using Flexarr.Core.Data;
 using Flexarr.Core.Media;
+using Microsoft.EntityFrameworkCore;
 
 namespace Flexarr.Api.Trakt;
 
@@ -15,7 +16,7 @@ namespace Flexarr.Api.Trakt;
 public sealed partial class TraktScrobbler(PlaybackEvents events, IServiceScopeFactory scopes, ILogger<TraktScrobbler> logger) : BackgroundService
 {
     /// <summary>Playbacks already sent a stop, so the stop that follows the end (closing the player) sends nothing more.</summary>
-    private readonly ConcurrentDictionary<string, byte> _finished = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, DateTime> _finished = new(StringComparer.Ordinal);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -49,7 +50,13 @@ public sealed partial class TraktScrobbler(PlaybackEvents events, IServiceScopeF
             case PlaybackEventKind.Paused:
                 return _finished.ContainsKey(sessionId) ? null : "pause";
             case PlaybackEventKind.Credits or PlaybackEventKind.Ended:
-                return _finished.TryAdd(sessionId, 0) ? "stop" : null;
+                // A playback ended without a Stopped after it (rare) mustn't be remembered for ever.
+                foreach (var old in _finished.Where(f => DateTime.UtcNow - f.Value > TimeSpan.FromDays(1)).Select(f => f.Key).ToList())
+                {
+                    _finished.TryRemove(old, out _);
+                }
+
+                return _finished.TryAdd(sessionId, DateTime.UtcNow) ? "stop" : null;
             case PlaybackEventKind.Stopped:
                 if (_finished.TryRemove(sessionId, out _))
                 {
@@ -88,6 +95,19 @@ public sealed partial class TraktScrobbler(PlaybackEvents events, IServiceScopeF
             ? new TraktScrobbleBody(new TraktSyncMovie(title.Ids), null, null, Math.Round(progress, 2))
             : new TraktScrobbleBody(null, new TraktSyncShow(title.Ids), new TraktEpisode(title.Season!.Value, title.Number!.Value), Math.Round(progress, 2));
         await TraktOutbox.QueueScrobbleAsync(db, profileId, action, body, ct);
+        if (action == "stop" && title.Kind == MediaKind.Episode
+            && await db.MediaItems.IgnoreQueryFilters().Where(i => i.Id == itemId).Select(i => i.EpisodeNumberEnd).FirstOrDefaultAsync(ct) is { } end && end > title.Number)
+        {
+            // A file holding two (or more) episodes: the scrobble counts the first, history gets the rest.
+            var rest = Enumerable.Range(title.Number!.Value + 1, Math.Min(end - title.Number.Value, 10))
+                .Select(n => (new TraktTitle(MediaKind.Episode, title.Ids, title.Season, n), (DateTime?)DateTime.UtcNow));
+            db.TraktOutbox.Add(new TraktOutboxEntry
+            {
+                ProfileId = profileId, Kind = TraktOutboxKind.History, Payload = System.Text.Json.JsonSerializer.Serialize(TraktOutbox.Body(rest), TraktJson.Options),
+            });
+            await db.SaveChangesAsync(ct);
+        }
+
         if (action == "stop")
         {
             // Trakt's history has a new play: worth a sync soon, so Up next and the watchlist follow.

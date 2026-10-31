@@ -144,6 +144,12 @@ public static class SettingsEndpoints
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["seerr"] = [$"“{badSeerr.BaseUrl}” isn't a valid http or https address."] });
             }
 
+            if (update.TraktApp is { } traktApp && traktApp.ClientId.Trim() is { Length: > 0 } traktId
+                && (traktId.Length > 128 || !traktId.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_')))
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["traktApp"] = ["That doesn't look like a Trakt client ID."] });
+            }
+
             if (update.Bazarr is { BaseUrl.Length: > 0 } badBazarr && WebAddress(badBazarr.BaseUrl) is null)
             {
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["bazarr"] = [$"“{badBazarr.BaseUrl}” isn't a valid http or https address."] });
@@ -205,11 +211,20 @@ public static class SettingsEndpoints
                 {
                     var id = app.ClientId.Trim();
                     var savedSecret = current.Trakt.ClientId == id ? current.Trakt.ClientSecret : "";
-                    config["trakt"] = id.Length == 0 ? null : new JsonObject
+                    // Only the app's two keys change: a relay or API address set in config.json stays.
+                    var trakt = config["trakt"] as JsonObject ?? [];
+                    if (id.Length == 0)
                     {
-                        ["clientId"] = id,
-                        ["clientSecret"] = string.IsNullOrWhiteSpace(app.ClientSecret) ? savedSecret : app.ClientSecret.Trim(),
-                    };
+                        trakt.Remove("clientId");
+                        trakt.Remove("clientSecret");
+                    }
+                    else
+                    {
+                        trakt["clientId"] = id;
+                        trakt["clientSecret"] = string.IsNullOrWhiteSpace(app.ClientSecret) ? savedSecret : app.ClientSecret.Trim();
+                    }
+
+                    config["trakt"] = trakt.Count == 0 ? null : trakt;
                 }
 
                 if (update.Tmdb is { } tmdb)
