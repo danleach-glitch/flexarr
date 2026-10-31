@@ -130,8 +130,8 @@ class GuestTunnel(context: Context) : LoopbackTunnel {
         return runCatching { FlexarrClient.json.decodeFromString(Status.serializer(), Tunnel.status()) }.getOrElse { Status("unknown") }
     }
 
-    /** Stops the node. Its identity stays, for starting again. */
-    fun stop() {
+    /** Stops the node, once any start under way has finished. Its identity stays, for starting again. Off the main thread. */
+    fun stop() = synchronized(lock) {
         listening = null
         if (loaded) runCatching { Tunnel.stop() }
     }

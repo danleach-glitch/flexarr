@@ -127,7 +127,6 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
 
     /** Listens for commands while the app is in front (any of its screens, the players included), and signed in. */
     fun listenForCommands() {
-        val inFront = ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
         // A guest's device isn't one of the household's: nothing sends it commands.
         val client = client?.takeIf { !isGuest }
         if (inFront && client != null) commands.start(client) else commands.stop()
@@ -604,6 +603,8 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     /** The tunnel came up on [port]: a guest's sign-in follows it there, if it had to move from the one it had. */
     private fun tunnelMoved(port: Int) {
         scope.launch {
+            // Started again in the background (music, a download, a widget): it stops again once that's done with it.
+            if (!inFront && tunnelIdle?.isActive != true) wentToBackground()
             val now = credentials?.takeIf { it.isGuest } ?: return@launch
             val address = "http://127.0.0.1:$port/"
             if (now.address == address) return@launch
@@ -1063,10 +1064,14 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         tunnelIdle?.cancel()
         tunnelIdle = scope.launch {
             delay(TUNNEL_IDLE_MS)
-            while (music.isPlaying || podcasts.isPlaying || downloads.isTransferring) delay(TUNNEL_IDLE_MS)
+            while (music.wantsToPlay || podcasts.wantsToPlay || downloads.isTransferring) delay(TUNNEL_IDLE_MS)
+            // Back in front meanwhile (cameToFront cancels this, but it may not have run yet).
+            if (inFront) return@launch
             withContext(Dispatchers.IO) { tunnel.stop() }
         }
     }
+
+    private val inFront: Boolean get() = ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
 
     companion object {
         /** How long [refreshWatchlistSoon] waits for changes to stop coming. */

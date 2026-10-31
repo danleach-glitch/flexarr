@@ -41,7 +41,19 @@ private val flexarrLog = FlexarrLog("podcasts")
  * on the lock screen and in the notification shade.
  */
 class PodcastPlayer(private val context: Context, private val model: AppModel) {
+    /** [player] has been made (it's made on first use). */
+    private var created = false
+
+    /**
+     * Playing, or about to: a session being started, or play pressed and the episode buffering (or held up, by a call
+     * say). What a guest's tunnel stays up in the background for.
+     */
+    val wantsToPlay: Boolean
+        get() = isPlaying || isLoading ||
+            (created && player.playWhenReady && player.playbackState.let { it == Player.STATE_BUFFERING || it == Player.STATE_READY })
+
     val player: ExoPlayer by lazy {
+        created = true
         ExoPlayer.Builder(context)
             .setMediaSourceFactory(mediaSources(context))
             .setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_SPEECH).build(), true)
