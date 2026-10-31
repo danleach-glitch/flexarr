@@ -213,12 +213,22 @@ jobs:
             -destination 'generic/platform=${{ matrix.name }}' -derivedDataPath build/DerivedData \
             CODE_SIGNING_ALLOWED=NO COMPILER_INDEX_STORE_ENABLE=NO build
 
-  # The Android app (clients/android, in development): the core's and the app's unit tests, the app built (debug and release), and lint.
+  # The Android app (clients/android, in development), as two jobs side by side: the core's and the app's unit tests
+  # with the debug build, and the release build as Google Play gets it, minified but unsigned (the upload key isn't
+  # here) and with no Sentry upload (no token), with lint on it: errors not in app/lint-baseline.xml fail.
   android:
-    name: Android
+    name: Android (${{ matrix.name }})
     needs: changes
     if: needs.changes.outputs.android == 'true'
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: tests
+            tasks: ":core:test :app:testDebugUnitTest :app:assembleDebug"
+          - name: release
+            tasks: ":app:assembleRelease :app:lintRelease"
     defaults:
       run:
         working-directory: clients/android
@@ -245,10 +255,7 @@ jobs:
       - name: Build the tunnel
         if: steps.tunnel.outputs.cache-hit != 'true'
         run: ./gradlew :app:buildTunnel
-      - run: ./gradlew :core:test :app:testDebugUnitTest :app:assembleDebug
-      # The release build as Google Play gets it, minified but unsigned (the upload key isn't here) and with no Sentry
-      # upload (no token), and lint on it: errors not in app/lint-baseline.xml fail.
-      - run: ./gradlew :app:assembleRelease :app:lintRelease
+      - run: ./gradlew ${{ matrix.tasks }}
 
   # The one check main's ruleset requires: the jobs above are skipped when a commit doesn't touch their part, and a
   # skipped matrix job never reports under its real name, so requiring them directly would block every merge.
