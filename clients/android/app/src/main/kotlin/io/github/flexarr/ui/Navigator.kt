@@ -14,6 +14,7 @@ import io.github.flexarr.player.LivePlayerActivity
 import io.github.flexarr.core.LibraryType
 import io.github.flexarr.core.MediaKind
 import io.github.flexarr.core.setBookFinished
+import io.github.flexarr.usesTvInterface
 import io.github.flexarr.player.PlayerActivity
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -34,7 +35,8 @@ class Navigator(private val nav: NavHostController, private val model: AppModel,
         MediaKind.Artist -> nav.navigate("artist/${item.id}")
         MediaKind.Album -> nav.navigate("album/${item.id}")
         MediaKind.Track -> item.parentId?.let { nav.navigate("album/$it") } ?: Unit
-        MediaKind.Audiobook -> openBook(item.id)
+        // The TV has no book screens yet: its title page says so rather than showing a film.
+        MediaKind.Audiobook -> if (context.usesTvInterface) openItem(item.id) else openBook(item.id)
         else -> openItem(item.id)
     }
 
@@ -115,7 +117,7 @@ class Navigator(private val nav: NavHostController, private val model: AppModel,
 
     /** A film plays; a show or season plays the episode it's up to, or opens when everything's watched. */
     fun playBest(item: ItemSummary) {
-        if (item.kind == MediaKind.Audiobook) return playBook(item)
+        if (item.kind == MediaKind.Audiobook) return if (context.usesTvInterface) openItem(item.id) else playBook(item)
         if (item.kind.isPlayable) return play(item)
         val client = model.client ?: return
         model.scope.launch {

@@ -259,6 +259,9 @@ fun TvItemMenu(title: String, actions: List<MenuAction>, onDismiss: () -> Unit) 
     LaunchedEffect(Unit) { runCatching { first.requestFocus() } }
 }
 
-/** Whether the TV has a screen for it: everything but podcasts, which stay on the phone and the web. */
+/**
+ * Whether the TV has a screen for it: everything but podcasts and audiobooks, which stay on the phone and the web (so
+ * Home's book rows, made only of books, don't show either).
+ */
 internal val ItemSummary.showsOnTv: Boolean
-    get() = kind != MediaKind.Podcast && kind != MediaKind.PodcastEpisode
+    get() = kind != MediaKind.Podcast && kind != MediaKind.PodcastEpisode && kind != MediaKind.Audiobook
