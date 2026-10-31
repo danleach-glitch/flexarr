@@ -125,13 +125,20 @@ What guests lose:
 
 ## Turning it on
 
-Family invites stay hidden (`RemoteGuests:Enabled` false) until the iPhone app that carries the tunnel is on the App
-Store. When they're turned on by default:
+Family invites stay hidden until the apps that carry the tunnel are in the stores: on the server
+(`RemoteGuests:Enabled` false) and in the apps' release builds (the Join button and invite links: debug builds always
+have them). When they're turned on by default:
+
+- the server: `RemoteGuests.Enabled` defaults to true in `FlexarrOptions`;
+- the Apple apps: `FLEXARR_GUEST_INVITES` defaults to `YES` in `clients/apple/project.yml` (or build with
+  `FLEXARR_GUEST_INVITES=YES`, or launch with `-FlexarrGuestInvites YES` to try one);
+- Android: `flexarr.guestInvites` defaults to true in `clients/android/app/build.gradle.kts` (or build with
+  `-Pflexarr.guestInvites=true`);
 
 - add `share-with-family` to `docs/guide/index.json` (after `away-from-home`), link it from `away-from-home.md` and the
   FAQ, and run `make guide`;
 - add `ANDROID_CERT_SHA256` to the relay's environment, and Upstash, if they aren't there yet;
-- add the changelog entry (Settings › Remote access › Family invites; Join someone’s Flexarr with a code on every app; Paste link);
+- add the changelog entry (Settings › Remote access › Guests; Join someone’s Flexarr with a code on every app);
 - answer App Store Connect's export compliance question once (standard encryption algorithms, no documents) and add
   the `ITSEncryptionExportComplianceCode` it gives beside `ITSAppUsesNonExemptEncryption` in `clients/apple/project.yml`.
 
