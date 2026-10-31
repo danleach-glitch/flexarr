@@ -256,7 +256,7 @@ class DownloadReceiver : BroadcastReceiver() {
  * A pairing notification's Allow and Don't allow: answered with this phone's sign-in without opening the app, as on
  * iPhone. On Android 12 and later a locked phone asks to be unlocked first. Allow says what came of it in the
  * notification's place; Don't allow just takes it away. While managing the server is locked here, Allow can't be
- * answered from outside (the main profile's PIN has to be typed), so it says to open the prompt, which asks for it.
+ * answered from outside (the admin PIN has to be typed), so it says to open the prompt, which asks for it.
  */
 class PairingReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -293,7 +293,7 @@ class PairingReceiver : BroadcastReceiver() {
                     // Gone or not this profile's to allow: the app, rather than the prompt for a code that's no use.
                     val retry = needsPin || status !in setOf(403, 404)
                     val title = name?.let { "Couldn’t allow “$it”" } ?: "Couldn’t allow it"
-                    val text = if (needsPin) "Open Flexarr to allow it with the main profile’s PIN." else pairingProblem(e, outside = true)
+                    val text = if (needsPin) "Open Flexarr to allow it with the admin PIN." else pairingProblem(e, outside = true)
                     FlexarrMessagingService.showPairingAnswer(context, code, title, text, if (retry) AppLink.Pairing(code) else AppLink.Home)
                 }
             } finally {

@@ -15,7 +15,7 @@ final class PushNotifications {
     nonisolated static let podcastCategory = "flexarr.podcast"
     nonisolated static let recordingCategory = "flexarr.recording"
     /// "Living room wants to connect": opening it asks to allow the device (see `PairingPrompts`). Allow opens the app
-    /// to allow it there, since that can take the main profile's PIN; Don't allow answers without opening it.
+    /// to allow it there, since that can take the admin PIN; Don't allow answers without opening it.
     nonisolated static let pairingCategory = "flexarr.pairing"
     /// "Someone's guessing your PIN": opening it goes to Settings, with the devices waiting to connect.
     nonisolated static let pinCategory = "flexarr.pin"
@@ -95,7 +95,7 @@ final class PushNotifications {
         let playOnTv = UNNotificationAction(identifier: playOnTvAction, title: "Play on Apple TV", options: [],
                                             icon: UNNotificationActionIcon(systemImageName: "appletv.fill"))
         // The phone has to be unlocked to answer, and the code to check is in the notification. Allowing opens the app:
-        // from 0.56 it takes the main profile's PIN when the main profile is locked here, and only the app can ask.
+        // from 0.56 it takes the admin PIN when the main profile is locked here, and only the app can ask.
         let allow = UNNotificationAction(identifier: allowPairingAction, title: "Allow", options: [.foreground],
                                          icon: UNNotificationActionIcon(systemImageName: "checkmark"))
         let decline = UNNotificationAction(identifier: declinePairingAction, title: "Don't allow",

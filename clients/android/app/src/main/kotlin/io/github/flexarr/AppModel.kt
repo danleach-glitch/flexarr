@@ -135,7 +135,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     /** The main profile is watching, unlocked or not: it's asked to let devices in. */
     val isMainProfile: Boolean get() = isAdmin || canUnlock
 
-    /** This device is locked to kids profiles: the picker offers only them, until the main profile's PIN releases it. */
+    /** This device is locked to kids profiles: the picker offers only them, until the admin PIN releases it. */
     var kidsLock by mutableStateOf(false)
         private set
 
@@ -163,7 +163,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         if (me.isMainProfile) pairing.refresh(client) else pairing.clear()
     }
 
-    /** Unlocks managing the server with the main profile's PIN. Throws as [FlexarrClient.unlockAdmin] does. */
+    /** Unlocks managing the server with the admin PIN. Throws as [FlexarrClient.unlockAdmin] does. */
     suspend fun unlock(pin: String) {
         val client = client ?: return
         client.unlockAdmin(pin)
@@ -543,7 +543,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
 
     /**
      * Checks the PIN (if any) and makes [profile] the one watching on this device. A wrong PIN throws, saying so.
-     * Leaving a kids profile takes the main profile's PIN as [parentPin]; without it, [FlexarrException.ParentPinNeeded].
+     * Leaving a kids profile takes the admin PIN as [parentPin]; without it, [FlexarrException.ParentPinNeeded].
      */
     suspend fun chooseProfile(profile: Profile, pin: String? = null, parentPin: String? = null) {
         val credentials = credentials ?: return
@@ -552,13 +552,13 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     }
 
     /**
-     * The main profile's PIN, just given to turn child lock off: the next profile chosen within a minute takes it, so
+     * The admin PIN, just given to turn child lock off: the next profile chosen within a minute takes it, so
      * leaving the kids profile doesn't ask for it again.
      */
     private var heldParentPin: String? = null
     private var heldParentPinUntil = 0L
 
-    /** The main profile's PIN given here in the last minute (turning child lock off), if any. */
+    /** The admin PIN given here in the last minute (turning child lock off), if any. */
     val recentParentPin: String? get() = heldParentPin?.takeIf { System.currentTimeMillis() < heldParentPinUntil }
 
     /** Whether child lock is still on here: it can be turned off from the web's Devices page while the app's open. */
@@ -574,7 +574,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     }
 
     /**
-     * Locks this device to kids profiles, choosing one: the main profile's PIN unless it's unlocked here. Returns whether
+     * Locks this device to kids profiles, choosing one: the admin PIN unless it's unlocked here. Returns whether
      * there's more than one kids profile, so the parent should choose which one this device stays on.
      */
     suspend fun lockToKids(pin: String?): Boolean {
@@ -585,7 +585,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         return profiles.size > 1
     }
 
-    /** Releases this device from kids profiles with the main profile's PIN; every profile is offered again. */
+    /** Releases this device from kids profiles with the admin PIN; every profile is offered again. */
     suspend fun releaseKidsLock(pin: String) {
         val client = client ?: return
         client.releaseKidsLock(pin)

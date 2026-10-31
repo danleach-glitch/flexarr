@@ -179,7 +179,7 @@ export function RemoteAccessGroups() {
   )
 }
 
-/** When to ask for the API key, and the key itself: shown (after the main profile's PIN, if it has one) or replaced. */
+/** When to ask for the API key, and the key itself: shown (after the admin PIN, if it has one) or replaced. */
 function ApiKeyGroup({ onSignedOut }: { onSignedOut: () => void }) {
   const { settings, save, saved, saveError, waiting } = useSettings()
   const [key, setKey] = useState<string>()
@@ -240,7 +240,7 @@ function ApiKeyGroup({ onSignedOut }: { onSignedOut: () => void }) {
     }
   }
 
-  /** The eye: shows the key straight away, unless the main profile's PIN is needed first. */
+  /** The eye: shows the key straight away, unless the admin PIN is needed first. */
   async function toggleKey(button: HTMLButtonElement) {
     if (key) return hideKey()
     if (mainHasPin) return open('reveal', button)
@@ -336,7 +336,7 @@ function ApiKeyGroup({ onSignedOut }: { onSignedOut: () => void }) {
           >
             {ask === 'reveal' ? (
               <p className="field-help" id="key-confirm-help">
-                Anyone who sees the key can manage this server. Enter the main profile’s PIN to show it.
+                Anyone who sees the key can manage this server. Enter the admin PIN to show it.
               </p>
             ) : (
               <>
@@ -352,7 +352,7 @@ function ApiKeyGroup({ onSignedOut }: { onSignedOut: () => void }) {
             )}
             {mainHasPin && (
               <label className="field">
-                <span className="field-label">Main profile’s PIN</span>
+                <span className="field-label">Admin PIN</span>
                 <input name="pin" type="password" inputMode="numeric" autoComplete="off" required aria-describedby="key-confirm-help" />
               </label>
             )}

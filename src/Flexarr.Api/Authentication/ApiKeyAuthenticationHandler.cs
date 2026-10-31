@@ -95,7 +95,7 @@ public sealed class ApiKeyAuthenticationHandler(
                     return await SucceedAsync(Methods.Session, browser);
                 }
 
-                // Earned with the main profile's PIN at home, where the home network signs people in: only there, and
+                // Earned with the admin PIN at home, where the home network signs people in: only there, and
                 // only while it still does. Taken anywhere else, it's ignored.
                 if (browser.TailscaleLogin is null)
                 {
@@ -107,7 +107,7 @@ public sealed class ApiKeyAuthenticationHandler(
                 else
                 {
 
-                // Earned with the main profile's PIN over Tailscale: only for that login, while it's linked to a profile
+                // Earned with the admin PIN over Tailscale: only for that login, while it's linked to a profile
                 // (unlinking it signs these out too). Copied to another device or used from home, it's just ignored.
                 (tailscaleLogin, askedTailscale) = (await TrustedTailscaleLoginAsync(Context, whois, options), true);
                 if (tailscaleLogin is not null && string.Equals(tailscaleLogin, browser.TailscaleLogin, StringComparison.OrdinalIgnoreCase)
@@ -303,7 +303,7 @@ public sealed class ApiKeyAuthenticationHandler(
             {
                 profile = kids;
             }
-            // Without a sign-in, only the key itself. The main profile's PIN gives a browser at home or on the tailnet
+            // Without a sign-in, only the key itself. The admin PIN gives a browser at home or on the tailnet
             // a sign-in of its own, unlocked (see AdminEndpoints). Over Tailscale that matters doubly: another program
             // on this machine can pose as a tailnet user (it only needs one of their devices' addresses).
             admin = method == Methods.ApiKey;

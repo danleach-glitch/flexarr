@@ -232,7 +232,7 @@ describe('App', () => {
     })
 
     render(<App />)
-    // The main profile's PIN comes with the code, so setup happens all at once.
+    // The admin PIN comes with the code, so setup happens all at once.
     const fill = (code: string, pin: string, again = pin) => {
       fireEvent.change(screen.getByLabelText('Setup code'), { target: { value: code } })
       fireEvent.change(screen.getByLabelText('PIN (required)'), { target: { value: pin } })
@@ -733,7 +733,7 @@ describe('Settings', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Make a new key' }))
     // With a PIN on the main profile, the PIN field takes the focus.
-    const pin = await screen.findByLabelText('Main profile’s PIN')
+    const pin = await screen.findByLabelText('Admin PIN')
     await vi.waitFor(() => expect(pin).toHaveFocus())
     fireEvent.change(pin, { target: { value: '1234' } })
     fireEvent.click(screen.getByRole('checkbox'))
@@ -1335,7 +1335,7 @@ describe('Profiles', () => {
     sessionStorage.clear()
   })
 
-  it('locked, the server’s settings ask for the main profile’s PIN, or the API key when it’s forgotten', async () => {
+  it('locked, the server’s settings ask for the admin PIN, or the API key when it’s forgotten', async () => {
     const sent: unknown[] = []
     mockApi({
       '/libraries': [],
@@ -1356,7 +1356,7 @@ describe('Profiles', () => {
     renderAt('/settings/libraries')
     expect(await screen.findByRole('heading', { name: 'Settings are locked' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Unlock settings' })).toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText('Main profile’s PIN'), { target: { value: '1111' } })
+    fireEvent.change(screen.getByLabelText('Admin PIN'), { target: { value: '1111' } })
     fireEvent.click(screen.getByRole('button', { name: 'Unlock' }))
     expect(await screen.findByRole('alert')).toBeInTheDocument()
 
@@ -1371,7 +1371,7 @@ describe('Profiles', () => {
     vi.unstubAllGlobals()
   })
 
-  it('changing the main profile’s PIN asks for the current one', async () => {
+  it('changing the admin PIN asks for the current one', async () => {
     let sent: Record<string, unknown> = {}
     mockApi({
       '/libraries': [],

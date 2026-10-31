@@ -7,7 +7,7 @@ import { errorText } from '../pages/settings/useSettings'
 import { AsyncButton } from './AsyncButton'
 
 /**
- * The main profile's PIN, asked for when a change it makes (deleting a film, a household collection) is refused only
+ * The admin PIN, asked for when a change it makes (deleting a film, a household collection) is refused only
  * because settings are locked here. Given, the change goes ahead; cancelled, it fails as it would have.
  */
 export function UnlockPrompt() {
@@ -56,7 +56,7 @@ function UnlockDialog({ onDone }: { onDone: (unlocked: boolean) => void }) {
       <form ref={dialog} className="panel confirm-dialog" role="dialog" aria-modal="true" aria-labelledby={`${id}-title`} onSubmit={submit} onClick={(e) => e.stopPropagation()}>
         <h2 id={`${id}-title`}>Enter the PIN</h2>
         <label className="field">
-          <span className="field-label">Main profile’s PIN</span>
+          <span className="field-label">Admin PIN</span>
           <input type="password" inputMode="numeric" autoComplete="off" required minLength={4} autoFocus value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 8))} />
         </label>
         {(lockout.message ?? error) && (

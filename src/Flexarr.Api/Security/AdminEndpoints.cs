@@ -9,7 +9,7 @@ using Microsoft.Extensions.Options;
 
 namespace Flexarr.Api.Security;
 
-/// <summary>The main profile's PIN, or (if it's forgotten) the server's API key.</summary>
+/// <summary>The admin PIN, or (if it's forgotten) the server's API key.</summary>
 public sealed record AdminUnlockRequest(string? Pin, string? ApiKey = null);
 
 /// <param name="Pin">The main profile's new PIN, 4 to 8 digits.</param>
@@ -144,7 +144,7 @@ public static class AdminEndpoints
 
     /// <summary>
     /// A request without a sign-in of its own (over Tailscale, or at home with "only away from home") that gave the
-    /// main profile's PIN: signs the browser in as the main profile, so the unlock has somewhere to live. It only works
+    /// admin PIN: signs the browser in as the main profile, so the unlock has somewhere to live. It only works
     /// the way it was earned (with that Tailscale login, or from home while home signs people in; see
     /// <see cref="ApiKeyAuthenticationHandler"/>), and is signed out sooner when left unused, or when the PIN changes.
     /// </summary>

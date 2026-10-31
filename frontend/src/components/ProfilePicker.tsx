@@ -47,11 +47,11 @@ export function ProfilePicker({
   const [error, setError] = useState<string>()
   const [checking, setChecking] = useState(false)
   const [usingKey, setUsingKey] = useState(false)
-  /** Leaving a kids profile: the pad asks for the main profile's PIN, keeping the chosen profile's own (if it has one). */
+  /** Leaving a kids profile: the pad asks for the admin PIN, keeping the chosen profile's own (if it has one). */
   const [parent, setParent] = useState<{ ownPin?: string }>()
   const field = useRef<HTMLInputElement>(null)
   const main = profiles.find((p) => p.isMain)
-  // The main profile's PIN, given just now (to unlock this browser, or before a wrong own PIN): not asked for again.
+  // The admin PIN, given just now (to unlock this browser, or before a wrong own PIN): not asked for again.
   const knownParentPin = useRef(takeParentPin())
 
   // When a lockout is over the keys come back and the field takes focus again.
@@ -197,7 +197,7 @@ export function ProfilePicker({
           }}
         >
           <Avatar profile={parent && main ? main : asking} size={88} />
-          <h1>{parent ? 'Enter the main profile’s PIN' : `Enter ${asking.name}’s PIN`}</h1>
+          <h1>{parent ? 'Enter the admin PIN' : `Enter ${asking.name}’s PIN`}</h1>
           <input
             ref={field}
             className="pin-display"

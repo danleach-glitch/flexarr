@@ -135,7 +135,7 @@ data class PushPayload(
         const val UPCOMING = "flexarr.upcoming"
         /** A device asking to connect (to the main profile's phones); `pairing` in [info] is the code it shows. */
         const val PAIRING = "flexarr.pairing"
-        /** Someone got the main profile's PIN wrong too many times (to the main profile's phones). */
+        /** Someone got the admin PIN wrong too many times (to the main profile's phones). */
         const val PIN = "flexarr.pin"
 
         private const val NONCE = 12

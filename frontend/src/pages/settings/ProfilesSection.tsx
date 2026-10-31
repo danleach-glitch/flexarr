@@ -34,7 +34,7 @@ export function ProfilesSection() {
   // Seerr being away only takes the request choices out of the form.
   const destinations = useApi(getRequestDestinations, []).data ?? []
   const [editing, setEditing] = useState<Profile | 'new'>()
-  // A kids profile is only as safe as the main profile's PIN, which is what it takes to leave one.
+  // A kids profile is only as safe as the admin PIN, which is what it takes to leave one.
   const mainHasPin = data?.find((p) => p.isMain)?.hasPin ?? false
   const reload = () => {
     setEditing(undefined)
@@ -119,7 +119,7 @@ export function ProfilesSection() {
 }
 
 /**
- * The main profile's PIN always guards the server's settings. Whether choosing the main profile to watch asks for it
+ * The admin PIN always guards the server's settings. Whether choosing the main profile to watch asks for it
  * too is the owner's choice (a Tailscale guest is always asked).
  */
 function MainPinChoice() {
@@ -196,7 +196,7 @@ function ProfileForm({
   const [removePin, setRemovePin] = useState(false)
   // The PIN fields wait until a PIN is being added or changed.
   const [choosingPin, setChoosingPin] = useState(false)
-  // Changing the main profile's PIN takes the one it has now (it guards the API key), or the key if it's forgotten.
+  // Changing the admin PIN takes the one it has now (it guards the API key), or the key if it's forgotten.
   const [currentPin, setCurrentPin] = useState('')
   const [apiKey, setApiKey] = useState<string>()
   const asksForCurrentPin = profile?.isMain === true && profile.hasPin && (choosingPin || removePin)
@@ -405,7 +405,7 @@ function ProfileForm({
             <label className="profile-library">
               <span className="setting-text">
                 <span>Kids profile</span>
-                <span className="muted">{mainHasPin ? 'No Settings. Leaving takes the main profile’s PIN.' : 'Needs a main profile PIN first.'}</span>
+                <span className="muted">{mainHasPin ? 'No Settings. Leaving takes the admin PIN.' : 'Needs a main profile PIN first.'}</span>
               </span>
               <input
                 type="checkbox"

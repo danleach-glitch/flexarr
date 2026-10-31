@@ -21,7 +21,7 @@ public sealed record SettingsFileDto(DateTime? ExportedAt, string? FlexarrVersio
 /// <param name="Folders">Where the library's folders are on this server (changed from the file's when they moved).</param>
 public sealed record SettingsLibraryImport(string Name, IReadOnlyList<string> Folders);
 
-/// <param name="Pin">The main profile's PIN, for the server keys section.</param>
+/// <param name="Pin">The admin PIN, for the server keys section.</param>
 /// <param name="Confirm">The person said yes, for the server keys section when the main profile has no PIN.</param>
 public sealed record SettingsImportRequest(IReadOnlyList<string> Sections, IReadOnlyList<SettingsLibraryImport>? Libraries = null, string? Pin = null,
     bool Confirm = false);
@@ -68,7 +68,7 @@ public static class SettingsTransfer
 
     /// <summary>
     /// Sections whose settings decide who gets in, or what the server runs and where it writes (ffmpeg's path): taking
-    /// them from a file asks for the main profile's PIN, as showing the API key does.
+    /// them from a file asks for the admin PIN, as showing the API key does.
     /// </summary>
     public static bool NeedsConfirmation(IEnumerable<string> sections) => sections.Any(s => s is KeysSection or MachineSection or AccessSection);
 

@@ -59,13 +59,13 @@ export function AdminUnlock({ pinMissing, onUnlocked }: { pinMissing: boolean; o
     <section>
       <SettingsHeader title={mode === 'new' ? 'Give the main profile a PIN' : 'Settings are locked'}>
         {mode === 'new'
-          ? 'Before anything else: the main profile’s PIN keeps the server’s settings to you. Choosing the main profile to watch doesn’t need it.'
-          : 'Changing the server takes the main profile’s PIN. It stays unlocked on this browser for 15 minutes after your last change.'}
+          ? 'Before anything else: the admin PIN keeps the server’s settings to you. Choosing the main profile to watch doesn’t need it.'
+          : 'Changing the server takes the admin PIN. It stays unlocked on this browser for 15 minutes after your last change.'}
       </SettingsHeader>
-      <form className="panel admin-unlock" onSubmit={submit} aria-label={mode === 'pin' ? 'Unlock settings' : 'Set the main profile’s PIN'}>
+      <form className="panel admin-unlock" onSubmit={submit} aria-label={mode === 'pin' ? 'Unlock settings' : 'Set the admin PIN'}>
         {mode === 'pin' && (
           <label className="field">
-            <span className="field-label">Main profile’s PIN</span>
+            <span className="field-label">Admin PIN</span>
             <input type="password" inputMode="numeric" autoComplete="off" required autoFocus value={pin} onChange={(e) => setPin(digits(e.target.value))} />
           </label>
         )}

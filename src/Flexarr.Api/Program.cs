@@ -313,7 +313,7 @@ using (var scope = app.Services.CreateScope())
         ServerConfigStore.Update(started.DataDirectory, config => config["ratingAges"] = Flexarr.Core.Media.RatingAges.Version);
     }
 
-    // Managing the server now takes the main profile's PIN, and choosing the main profile doesn't by default. A server
+    // Managing the server now takes the admin PIN, and choosing the main profile doesn't by default. A server
     // whose owner had already given it a PIN goes on asking for it when it's chosen, as before.
     var flexarr = app.Services.GetRequiredService<IOptions<FlexarrOptions>>().Value;
     if (flexarr.AskPinForMainProfile is null)

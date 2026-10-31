@@ -81,7 +81,7 @@ fun WaitingDevicesSection(model: AppModel, header: String? = "Devices waiting to
     var sending by remember { mutableStateOf<String?>(null) }
     /** What came of the last answer: "“Living room” is connected." */
     var outcome by remember { mutableStateOf<String?>(null) }
-    /** The main profile's PIN, while allowing takes it here. */
+    /** The admin PIN, while allowing takes it here. */
     var pin by remember { mutableStateOf("") }
     /** Locked here, Allow asks for the PIN first (as on iPhone), once for any of them. */
     var asksPin by remember { mutableStateOf(false) }
@@ -154,7 +154,7 @@ fun WaitingDevicesSection(model: AppModel, header: String? = "Devices waiting to
                 "Turn on Notifications to be asked when Flexarr isn't open.".takeIf { !model.notifications.isOn },
             ).joinToString(" ").ifEmpty { null },
         ) {
-            // Locked here: allowing takes the main profile's PIN, given once for any of them.
+            // Locked here: allowing takes the admin PIN, given once for any of them.
             if (asksPin && !model.isAdmin && waiting.isNotEmpty()) {
                 MainPinField(model, pin, onPin = { pin = it }, onDone = {}, Modifier.padding(horizontal = 16.dp, vertical = 14.dp), fieldColor = Flexarr.aisle)
                 Divider()

@@ -17,12 +17,12 @@ namespace Flexarr.Api.Profiles;
 /// <param name="RequestFilmsLibraryId">The library its film requests go to; null, Seerr's default.</param>
 /// <param name="LibraryOrder">The order of the libraries in the menu (ids, and "live-tv"); empty, by name.</param>
 /// <param name="AsksPin">
-/// Choosing it here asks for its PIN. The main profile's PIN guards managing the server, so on a browser or device the
+/// Choosing it here asks for its PIN. The admin PIN guards managing the server, so on a browser or device the
 /// owner signed in, choosing it only asks if the owner wants it to (absent from servers before 0.56: there, HasPin).
 /// </param>
 /// <param name="AutoRequestWatchlist">Titles it adds to its watchlist that aren't in the library are requested (absent from servers before 0.56).</param>
 /// <param name="MaxRatingAge">Its age limit, on the UK's steps (0 is U, 8 PG, then 12, 15, 18); null, none. Absent from servers before 0.56.</param>
-/// <param name="IsKids">A child's profile: the simpler app, and leaving it takes the main profile's PIN. Absent from servers before 0.56.</param>
+/// <param name="IsKids">A child's profile: the simpler app, and leaving it takes the admin PIN. Absent from servers before 0.56.</param>
 public sealed record ProfileDto(string Id, string Name, string Color, bool HasPin, bool IsMain, bool IsCurrent, IReadOnlyList<Guid> HiddenLibraryIds, string? Image,
     Guid? RequestShowsLibraryId = null, Guid? RequestFilmsLibraryId = null, IReadOnlyList<string>? LibraryOrder = null, bool AsksPin = false,
     bool AutoRequestWatchlist = false, int? MaxRatingAge = null, bool IsKids = false);
@@ -31,7 +31,7 @@ public sealed record ProfileDto(string Id, string Name, string Color, bool HasPi
 /// <param name="IsKids">A child's profile; it needs an age limit.</param>
 public sealed record AgeLimitRequest(int? MaxRatingAge, bool IsKids = false);
 
-/// <param name="Pin">The main profile's PIN.</param>
+/// <param name="Pin">The admin PIN.</param>
 /// <param name="ProfileId">Locking: the kids profile to choose here (else the one chosen already, or the first).</param>
 public sealed record KidsLockRequest(string? Pin, string? ProfileId = null);
 
@@ -45,7 +45,7 @@ public sealed record RequestLibrariesRequest(Guid? ShowsLibraryId, Guid? FilmsLi
 public sealed record WatchlistRequestsRequest(bool AutoRequest);
 
 /// <param name="HiddenLibraryIds">Libraries the profile can't see; null leaves them as they are.</param>
-/// <param name="CurrentPin">Changing or removing the main profile's PIN takes the one it has now...</param>
+/// <param name="CurrentPin">Changing or removing the admin PIN takes the one it has now...</param>
 /// <param name="ApiKey">...or, if that's forgotten, the server's API key.</param>
 /// <param name="MaxRatingAge">Making a profile: its age limit (see <see cref="AgeLimitRequest"/>). Changing one goes through /age-limit.</param>
 /// <param name="IsKids">Making a profile: a child's.</param>
@@ -53,7 +53,7 @@ public sealed record ProfileRequest(string Name, string? Color, string? Pin, boo
     string? ApiKey = null, int? MaxRatingAge = null, bool IsKids = false);
 
 /// <param name="Pin">The chosen profile's PIN, if it asks for one.</param>
-/// <param name="ParentPin">Leaving a kids profile for one that isn't: the main profile's PIN (choosing the main profile, <paramref name="Pin"/> does).</param>
+/// <param name="ParentPin">Leaving a kids profile for one that isn't: the admin PIN (choosing the main profile, <paramref name="Pin"/> does).</param>
 public sealed record SelectProfileRequest(string? Pin, string? ParentPin = null);
 
 public static partial class ProfileEndpoints
@@ -106,7 +106,7 @@ public static partial class ProfileEndpoints
                 return Results.NotFound();
             }
 
-            // The main profile's PIN guards showing the API key, so a script in the page mustn't be able to take it
+            // The admin PIN guards showing the API key, so a script in the page mustn't be able to take it
             // off (or swap it) first: that takes the PIN it has now, or the key itself.
             // It guards managing the server too, so it can be changed but not taken off.
             if (profile.IsMain && request.RemovePin == true)
@@ -384,7 +384,7 @@ public static partial class ProfileEndpoints
                 return Results.Problem("The main profile can only be chosen here once it has a PIN.", statusCode: 403);
             }
 
-            // The main profile's PIN guards managing the server, not watching as it: on a browser or device the owner
+            // The admin PIN guards managing the server, not watching as it: on a browser or device the owner
             // signed in, choosing it only asks if the owner wants it to. A PIN given anyway is checked, and unlocks.
             var askPin = current.AsksPinFor(profile) || profile.PinHash is not null && !string.IsNullOrEmpty(request.Pin);
             if (askPin)
@@ -404,7 +404,7 @@ public static partial class ProfileEndpoints
                 }
             }
 
-            // The main profile's PIN was given (checked above): it unlocks the server's settings here too.
+            // The admin PIN was given (checked above): it unlocks the server's settings here too.
             var mainPinGiven = profile.IsMain && askPin;
             var signInId = current.SignInId;
             if (signInId is not null)
@@ -491,7 +491,7 @@ public static partial class ProfileEndpoints
         return (http.User.FindFirst(FlexarrClaims.TailscaleLogin)?.Value is { } login ? [$"tailscale:{login.ToLowerInvariant()}", address] : [address], browser);
     }
 
-    /// <summary>Null when the request may change the main profile's PIN: it holds the API key, or gives the current PIN.</summary>
+    /// <summary>Null when the request may change the admin PIN: it holds the API key, or gives the current PIN.</summary>
     private static async Task<IResult?> ConfirmMainPinChangeAsync(ProfileRequest request, Profile main, HttpContext http, CurrentProfile current, PinGuard guard,
         string? apiKey, CancellationToken ct)
     {
@@ -606,7 +606,7 @@ public static partial class ProfileEndpoints
     }
 
     /// <summary>
-    /// Null when the request may do what takes a parent: it gives the main profile's PIN (or holds the API key, or the
+    /// Null when the request may do what takes a parent: it gives the admin PIN (or holds the API key, or the
     /// main profile has no PIN to give). The answer carries <c>parentPin</c>, so apps know which PIN to ask for.
     /// </summary>
     internal static async Task<IResult?> ParentPinAsync(HttpContext http, FlexarrDbContext db, CurrentProfile current, PinGuard guard, string? pin, CancellationToken ct)

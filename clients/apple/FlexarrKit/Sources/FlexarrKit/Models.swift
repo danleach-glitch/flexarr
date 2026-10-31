@@ -842,7 +842,7 @@ public struct SignInInfo: Decodable, Sendable, Equatable {
     /// The profile's age limit on the UK's steps (0 is U, 8 PG, then 12, 15, 18); nil, none. Absent from servers
     /// before 0.56.
     public var maxRatingAge: Int? = nil
-    /// This device is locked to kids profiles: only they're offered until the main profile's PIN releases it.
+    /// This device is locked to kids profiles: only they're offered until the admin PIN releases it.
     /// Absent from servers before 0.56.
     public var kidsLock: Bool? = nil
 }
@@ -879,7 +879,7 @@ public struct Profile: Codable, Sendable, Hashable, Identifiable {
     public var asksPin: Bool? = nil
     /// Its age limit on the UK's steps (0 is U, 8 PG, then 12, 15, 18); nil, none. Absent from servers before 0.56.
     public var maxRatingAge: Int? = nil
-    /// A child's profile: the kids app, and leaving it takes the main profile's PIN. Absent from servers before 0.56.
+    /// A child's profile: the kids app, and leaving it takes the admin PIN. Absent from servers before 0.56.
     public var isKids: Bool? = nil
 
     public init(id: String, name: String, color: String, hasPin: Bool = false, isMain: Bool = false,
@@ -945,7 +945,7 @@ public struct ProfileSelection: Decodable, Sendable, Equatable {
 
 struct SelectProfileRequest: Codable, Sendable {
     let pin: String?
-    /// Leaving a kids profile: the main profile's PIN.
+    /// Leaving a kids profile: the admin PIN.
     var parentPin: String? = nil
 }
 

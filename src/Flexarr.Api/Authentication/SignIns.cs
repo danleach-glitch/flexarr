@@ -64,8 +64,8 @@ public sealed class SignIn
     public DeviceType? DeviceType { get; set; }
 
     /// <summary>
-    /// A browser that signed in by giving the main profile's PIN (over Tailscale, or at home with "only away from
-    /// home") rather than with the API key. It's signed out sooner when left unused, and when the main profile's PIN changes.
+    /// A browser that signed in by giving the admin PIN (over Tailscale, or at home with "only away from
+    /// home") rather than with the API key. It's signed out sooner when left unused, and when the admin PIN changes.
     /// </summary>
     public bool PinVerified { get; init; }
 
@@ -77,7 +77,7 @@ public sealed class SignIn
     public string? TailscaleLogin { get; init; }
 
     /// <summary>
-    /// Locked to kids profiles: only they can be chosen on it, until the main profile's PIN releases it (there, or
+    /// Locked to kids profiles: only they can be chosen on it, until the admin PIN releases it (there, or
     /// from Settings › Devices).
     /// </summary>
     public bool KidsLock { get; set; }
@@ -94,7 +94,7 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
     /// <summary>Browsers that haven't been used for this long are signed out.</summary>
     public static readonly TimeSpan BrowserIdleLimit = TimeSpan.FromDays(180);
 
-    /// <summary>Browsers signed in with the main profile's PIN are signed out after this long unused.</summary>
+    /// <summary>Browsers signed in with the admin PIN are signed out after this long unused.</summary>
     public static readonly TimeSpan PinSignInIdleLimit = TimeSpan.FromDays(14);
 
     /// <summary>
@@ -281,7 +281,7 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
         }
     }
 
-    /// <summary>Signs out every browser that signed in with the main profile's PIN, except <paramref name="keepId"/>.</summary>
+    /// <summary>Signs out every browser that signed in with the admin PIN, except <paramref name="keepId"/>.</summary>
     public int RevokePinVerifiedExcept(string? keepId)
     {
         lock (_lock)
@@ -302,7 +302,7 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
         }
     }
 
-    /// <summary>Signs out every browser that signed in with the main profile's PIN using the Tailscale login <paramref name="login"/>.</summary>
+    /// <summary>Signs out every browser that signed in with the admin PIN using the Tailscale login <paramref name="login"/>.</summary>
     public int RevokeEarnedBy(string login)
     {
         lock (_lock)

@@ -122,7 +122,7 @@ fun SettingsScreen(
 ) {
     var confirmSignOut by remember { mutableStateOf(false) }
     var choosingProfile by remember { mutableStateOf(false) }
-    // Locking this device to kids profiles: the main profile's PIN, when the server asks for it, in the picker's sheet.
+    // Locking this device to kids profiles: the admin PIN, when the server asks for it, in the picker's sheet.
     var lockingToKids by remember { mutableStateOf(false) }
     var asksLockPin by remember { mutableStateOf(false) }
     var lockProblem by remember { mutableStateOf<String?>(null) }

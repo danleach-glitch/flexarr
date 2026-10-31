@@ -595,7 +595,7 @@ data class SignInInfo(
     val isKids: Boolean = false,
     /** The profile's age limit on the UK's steps (0 is U, 8 PG, then 12, 15, 18); null, none. Absent from servers before 0.56. */
     val maxRatingAge: Int? = null,
-    /** This device is locked to kids profiles until the main profile's PIN releases it. Absent from servers before 0.56. */
+    /** This device is locked to kids profiles until the admin PIN releases it. Absent from servers before 0.56. */
     val kidsLock: Boolean = false,
 ) {
     /** The main profile, unlocked or not: it's asked to let devices in (allowing takes its PIN while locked). */
@@ -639,7 +639,7 @@ data class Profile(
     val libraryOrder: List<String>? = null,
     /** Its age limit on the UK's steps (0 is U, 8 PG, then 12, 15, 18); null, none. Absent from servers before 0.56. */
     val maxRatingAge: Int? = null,
-    /** A child's profile: the kids app, and leaving it takes the main profile's PIN. Absent from servers before 0.56. */
+    /** A child's profile: the kids app, and leaving it takes the admin PIN. Absent from servers before 0.56. */
     val isKids: Boolean = false,
 ) {
     val initial: String get() = name.trim().firstOrNull()?.uppercase() ?: "?"

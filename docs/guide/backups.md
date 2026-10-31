@@ -55,7 +55,7 @@ Use the **Download** icon on a backup to save a copy to your computer. You can p
 Restoring puts the whole server back to how it was when the backup was made: profiles, what's been watched, settings, keys and sign-ins. Anything since is lost.
 
 1. Find the backup in the list and use its **Restore** icon. To restore a file you downloaded, use **From a file** further down the page instead (below).
-2. Read the warning, and enter the main profile's PIN if it has one.
+2. Read the warning, and enter the admin PIN if it has one.
 3. Choose **Restore and restart**.
 
 Flexarr first makes a copy of the server as it is now (it appears in the list as **Before a restore**), so you can change your mind. It then restarts to put the backup in place. Anyone watching is stopped. The page reloads when Flexarr is back.
@@ -82,6 +82,6 @@ Two ways, depending on what you want to take:
 - **Everything, history included:** download a backup on the old server and restore it on the new one with **From a file**. Mount your media at the same paths on the new machine, or fix up the library folders afterwards in **Settings › Libraries**.
 - **Settings only:** use **Settings file › Export…** on the old server, then **From a file** on the new one. A settings file holds libraries and the server's settings, without profiles or watch history.
 
-When you import a settings file, you choose which parts to take: **Libraries**, **Connections**, **Live TV**, **Streaming**, **Home and Browse**, **Podcasts**, **Notifications**, **Access**, **This machine's paths** and **Server keys**. Each library's folders can be changed to where they are on the new machine. **This machine's paths** and **Server keys** start unticked, and taking either of them, or **Access**, asks for the main profile's PIN.
+When you import a settings file, you choose which parts to take: **Libraries**, **Connections**, **Live TV**, **Streaming**, **Home and Browse**, **Podcasts**, **Notifications**, **Access**, **This machine's paths** and **Server keys**. Each library's folders can be changed to where they are on the new machine. **This machine's paths** and **Server keys** start unticked, and taking either of them, or **Access**, asks for the admin PIN.
 
 See also [Updating](updating.md), which makes its own backup before any upgrade that changes the database.

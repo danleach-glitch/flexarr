@@ -35,12 +35,12 @@ struct ProfilePickerView: View {
     var marksCurrent = false
 
     @State private var asking: Profile?
-    /// Leaving a kids profile: the pad asks for the main profile's PIN, keeping the chosen profile's own if it had one.
+    /// Leaving a kids profile: the pad asks for the admin PIN, keeping the chosen profile's own if it had one.
     @State private var parent: ParentPin?
-    /// The main profile's PIN, once it's been given right here (to unlock, or before a wrong PIN of the chosen
+    /// The admin PIN, once it's been given right here (to unlock, or before a wrong PIN of the chosen
     /// profile's own): sent with the next choice, so it isn't asked for twice. Forgotten when the picker closes.
     @State private var knownParentPin: String?
-    /// Locking this Apple TV to kids profiles, or unlocking it: the pad asks for the main profile's PIN.
+    /// Locking this Apple TV to kids profiles, or unlocking it: the pad asks for the admin PIN.
     @State private var kidsLockPin: KidsLockStep?
     /// Lock to kids profiles is on its way to the server, so another press doesn't send a second.
     @State private var locking = false
@@ -61,7 +61,7 @@ struct ProfilePickerView: View {
     var body: some View {
         VStack(spacing: 70) {
             if let step = kidsLockPin {
-                PinPad(profile: nil, title: "Enter the main profile’s PIN", error: $error, onCancel: cancelKidsLockPin) { pin in
+                PinPad(profile: nil, title: "Enter the admin PIN", error: $error, onCancel: cancelKidsLockPin) { pin in
                     switch step {
                     case .unlock: await release(pin)
                     case .lock: await lock(pin: pin)
@@ -69,7 +69,7 @@ struct ProfilePickerView: View {
                 }
                 .transition(.opacity)
             } else if let asking {
-                PinPad(profile: parent == nil ? asking : mainProfile, title: parent == nil ? nil : "Enter the main profile’s PIN", error: $error,
+                PinPad(profile: parent == nil ? asking : mainProfile, title: parent == nil ? nil : "Enter the admin PIN", error: $error,
                        onCancel: { cancelPin(asking) }) { pin in
                     if let parent {
                         await choose(asking, pin: parent.ownPin, parentPin: pin)
@@ -174,7 +174,7 @@ struct ProfilePickerView: View {
             return
         }
         if profile.needsPinToChoose {
-            // The main profile's PIN was just given here (child lock off): it goes with this choice, rather than the
+            // The admin PIN was just given here (child lock off): it goes with this choice, rather than the
             // keypad again. A profile with a PIN of its own (other than the main profile) still asks for that.
             if let held = knownParentPin ?? model.recentParentPin, profile.isMain || !profile.hasPin {
                 await choose(profile, pin: profile.isMain ? held : nil, parentPin: held)
@@ -206,7 +206,7 @@ struct ProfilePickerView: View {
             try await model.switchProfile(to: profile, pin: pin, parentPin: sentParentPin)
         } catch FlexarrClientError.parentPinNeeded(let message) {
             if parentPin == nil {
-                // Leaving a kids profile (or the PIN given earlier no longer works): ask for the main profile's PIN,
+                // Leaving a kids profile (or the PIN given earlier no longer works): ask for the admin PIN,
                 // then try again with both.
                 knownParentPin = nil
                 asking = profile
@@ -215,7 +215,7 @@ struct ProfilePickerView: View {
                 self.error = message ?? "That PIN isn’t right."
             }
         } catch FlexarrClientError.ownPinWrong {
-            // The main profile's PIN was right, so it's kept; back to the chosen profile's own.
+            // The admin PIN was right, so it's kept; back to the chosen profile's own.
             knownParentPin = sentParentPin
             asking = profile
             parent = nil
