@@ -57,6 +57,9 @@ final class AppModel {
     private(set) var needsProfileChoice = false
     /// This device is locked to kids profiles: the picker offers only them, until the main profile's PIN releases it.
     private(set) var kidsLock = false
+    /// The main profile's PIN, just given to turn child lock off: the next profile chosen within a minute takes it, so
+    /// leaving the kids profile doesn't ask for it again.
+    @ObservationIgnored private var heldParentPin: (pin: String, until: Date)?
     /// How this app is signed in ("device" for its own sign-in; see `SignInInfo.method`), as the server last said.
     private(set) var signInMethod: String?
     /// A link (or another device) asked to play as this profile, which has a PIN: "Who's watching?" opens on its PIN.
@@ -428,9 +431,10 @@ final class AppModel {
     /// as it is, so the picker can ask; so does `.ownPinWrong`, a right `parentPin` with a wrong `pin`.
     func switchProfile(to profile: Profile, pin: String? = nil, parentPin: String? = nil) async throws {
         guard let credentials else { return }
+        let held = heldParentPin.flatMap { $0.until > Date() ? $0.pin : nil }
         let selection: ProfileSelection
         do {
-            selection = try await credentials.client.selectProfile(profile.id, pin: pin, parentPin: parentPin)
+            selection = try await credentials.client.selectProfile(profile.id, pin: pin, parentPin: parentPin ?? held)
         } catch let error as FlexarrClientError {
             switch error {
             case .parentPinNeeded, .ownPinWrong: throw error
@@ -470,7 +474,19 @@ final class AppModel {
             throw ConnectionError(error)
         }
         kidsLock = false
+        heldParentPin = (pin, Date().addingTimeInterval(60))
         await loadProfiles()
+    }
+
+    /// Whether child lock is still on here: it can be turned off from the web's Devices page while the app's open.
+    func refreshKidsLock() async {
+        guard let client, let me = try? await client.me() else { return }
+        if kidsLock, me.kidsLock != true {
+            kidsLock = false
+            await loadProfiles()
+        } else {
+            kidsLock = me.kidsLock == true
+        }
     }
 
     /// Takes on the profile the server chose: its token, and every screen afresh.

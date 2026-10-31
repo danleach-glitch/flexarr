@@ -6,6 +6,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.filled.LockOpen
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -98,6 +103,8 @@ fun ProfilePicker(
     var switching by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     val main = model.profiles.firstOrNull { it.isMain }
+    // Child lock can be turned off from the web while the app's open: what it says now.
+    LaunchedEffect(Unit) { model.refreshKidsLock() }
 
     suspend fun choose(profile: Profile, pin: String?, parentPin: String? = null): Boolean {
         switching = profile.id
@@ -199,13 +206,33 @@ fun ProfilePicker(
                 ) {
                     items(model.profiles, key = { it.id }) { profile ->
                         val current = marksCurrent && profile.isCurrent
+                        // The padlock on the profile watching here: open while child lock can be turned on, closed
+                        // while it's on. Holding the picture turns it on, or off with the PIN.
+                        val padlock = profile.isCurrent && (model.kidsLock || (marksCurrent && model.canLockToKids))
+                        val toggleLock = {
+                            error = null
+                            if (model.kidsLock) {
+                                locking = KidsLockStep.Release
+                            } else if (!lockingBusy) {
+                                lockingBusy = true
+                                scope.launch {
+                                    try {
+                                        kidsLock(KidsLockStep.Lock, null)
+                                    } finally {
+                                        lockingBusy = false
+                                    }
+                                }
+                            }
+                        }
                         Column(
                             Modifier.pressable(
-                                enabled = switching == null && !current,
+                                enabled = switching == null && (!current || padlock),
                                 onClick = {
                                     error = null
-                                    if (profile.takesPin) asking = profile else scope.launch { choose(profile, null) }
+                                    if (current) Unit else if (profile.takesPin) asking = profile else scope.launch { choose(profile, null) }
                                 },
+                                onLongClick = if (padlock) toggleLock else null,
+                                onLongClickLabel = if (model.kidsLock) "Turn off child lock" else "Child lock",
                             ),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -217,6 +244,18 @@ fun ProfilePicker(
                                     CircularProgressIndicator(color = Flexarr.screen)
                                 }
                                 if (current) Box(Modifier.size(108.dp).border(3.dp, Flexarr.screen, CircleShape))
+                                if (padlock) {
+                                    Box(
+                                        Modifier.align(Alignment.BottomEnd).offset(x = 4.dp, y = 4.dp).size(32.dp).clip(CircleShape).background(Flexarr.screen),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        if (lockingBusy) {
+                                            CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = Flexarr.room)
+                                        } else {
+                                            Icon(if (model.kidsLock) Icons.Filled.Lock else Icons.Filled.LockOpen, contentDescription = null, tint = Flexarr.room, modifier = Modifier.size(18.dp))
+                                        }
+                                    }
+                                }
                             }
                             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Text(profile.name, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, maxLines = 1)
@@ -239,25 +278,6 @@ fun ProfilePicker(
                         textAlign = TextAlign.Center,
                         modifier = Modifier.padding(horizontal = 32.dp).semantics { liveRegion = LiveRegionMode.Polite },
                     )
-                }
-                // Locked, the other profiles wait behind the main profile's PIN; unlocked, a parent can lock it here.
-                if (model.kidsLock) {
-                    ActionButton("Turn off child lock", onClick = {
-                        error = null
-                        locking = KidsLockStep.Release
-                    })
-                } else if (marksCurrent && model.canLockToKids) {
-                    ActionButton("Child lock", enabled = !lockingBusy, onClick = {
-                        error = null
-                        lockingBusy = true
-                        scope.launch {
-                            try {
-                                kidsLock(KidsLockStep.Lock, null)
-                            } finally {
-                                lockingBusy = false
-                            }
-                        }
-                    })
                 }
             }
         }

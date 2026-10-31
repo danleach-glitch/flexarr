@@ -88,6 +88,73 @@ struct TitleQuery: EntityStringQuery {
     }
 }
 
+/// A film or show for the watchlist: one in the library, or one Flexarr can find that you don't have yet ("Add
+/// Severance to my watchlist" for a show not in the library). Play keeps to `TitleEntity`, the library's.
+struct WatchlistTitleEntity: AppEntity {
+    static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Film or show")
+    static let defaultQuery = WatchlistTitleQuery()
+    static let outsidePrefix = "tmdb:"
+
+    let id: String
+    let title: String
+    let year: Int?
+    let kind: MediaKind
+
+    init(_ item: ItemSummary) {
+        id = item.id
+        title = item.title
+        year = item.releaseYear
+        kind = item.kind
+    }
+
+    init(_ outside: ExternalTitle) {
+        id = "\(Self.outsidePrefix)\(outside.mediaType):\(outside.tmdbId)"
+        title = outside.title
+        year = outside.year
+        kind = outside.mediaType == "tv" ? .series : .movie
+    }
+
+    /// What adding it sends: the library title, or the outside one by its TMDB id.
+    var key: WatchlistKey? {
+        guard id.hasPrefix(Self.outsidePrefix) else { return .library(id) }
+        let parts = id.dropFirst(Self.outsidePrefix.count).split(separator: ":")
+        guard parts.count == 2, let tmdbId = Int(parts[1]) else { return nil }
+        return .tmdb(mediaType: String(parts[0]), id: tmdbId)
+    }
+
+    var displayRepresentation: DisplayRepresentation {
+        let what = kind == .series ? "Show" : "Film"
+        return DisplayRepresentation(title: "\(title)", subtitle: "\([year.map(String.init), what].compactMap { $0 }.joined(separator: " · "))")
+    }
+}
+
+struct WatchlistTitleQuery: EntityStringQuery {
+    @Dependency private var model: AppModel
+
+    @MainActor
+    func entities(for identifiers: [String]) async throws -> [WatchlistTitleEntity] {
+        guard let client = model.client else { return [] }
+        var found: [WatchlistTitleEntity] = []
+        for id in identifiers where !id.hasPrefix(WatchlistTitleEntity.outsidePrefix) {
+            if let detail = try? await client.item(id) { found.append(WatchlistTitleEntity(detail.item)) }
+        }
+        return found
+    }
+
+    /// The library's matches first, then titles you don't have (when Flexarr can look beyond the library).
+    @MainActor
+    func entities(matching string: String) async throws -> [WatchlistTitleEntity] {
+        guard let client = model.client else { throw FlexarrIntentError.notConnected }
+        let library = ((try? await client.search(string).titles) ?? []).filter { $0.kind == .movie || $0.kind == .series }
+        let have = Set(library.map(\.id))
+        let outside = ((try? await client.searchEverything(string)) ?? []).filter { $0.libraryItemId.map { !have.contains($0) } ?? true }
+        return library.map(WatchlistTitleEntity.init) + outside.prefix(10).map(WatchlistTitleEntity.init)
+    }
+
+    @MainActor
+    func suggestedEntities() async throws -> [WatchlistTitleEntity] { [] }
+}
+
 /// A podcast this profile follows.
 struct PodcastEntity: AppEntity {
     static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Podcast")
@@ -454,10 +521,10 @@ struct AddToUpNextIntent: AppIntent {
 /// "Add Severance to my watchlist in Flexarr": a film or show from the library, for this profile to watch later.
 struct AddToWatchlistIntent: AppIntent {
     static let title: LocalizedStringResource = "Add to watchlist"
-    static let description = IntentDescription("Puts a film or show from your library on your watchlist, to watch later.", categoryName: "Watchlist")
+    static let description = IntentDescription("Puts a film or show on your watchlist, to watch later, whether you have it yet or not.", categoryName: "Watchlist")
 
     @Parameter(title: "Film or show", requestValueDialog: "What would you like to add?")
-    var title: TitleEntity
+    var title: WatchlistTitleEntity
 
     @Dependency private var model: AppModel
 
@@ -468,11 +535,11 @@ struct AddToWatchlistIntent: AppIntent {
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog {
         guard let client = model.client else { throw FlexarrIntentError.notConnected }
-        guard title.kind == .movie || title.kind == .series else { throw FlexarrIntentError.noSuchTitle(title.title) }
+        guard title.kind == .movie || title.kind == .series, let key = title.key else { throw FlexarrIntentError.noSuchTitle(title.title) }
         if !model.hasWatchlist { await model.refreshWatchlist() }
         guard model.hasWatchlist else { throw FlexarrIntentError.noWatchlist }
         do {
-            try await client.addToWatchlist(.library(title.id))
+            _ = try await client.addToWatchlist(key)
         } catch FlexarrClientError.http(status: 404, _) {
             throw FlexarrIntentError.noSuchTitle(title.title)
         }
@@ -570,8 +637,10 @@ enum PlaybackAction: String, AppEnum {
         .next: DisplayRepresentation(title: "Next episode", synonyms: ["Play the next episode", "Skip to the next episode"]),
         .back: DisplayRepresentation(title: "Skip back", synonyms: ["Go back", "Rewind"]),
         .forward: DisplayRepresentation(title: "Skip forward", synonyms: ["Skip ahead", "Fast forward"]),
-        .subtitlesOn: DisplayRepresentation(title: "Turn on subtitles", synonyms: ["Subtitles on", "Show subtitles"]),
-        .subtitlesOff: DisplayRepresentation(title: "Turn off subtitles", synonyms: ["Subtitles off", "Hide subtitles"]),
+        .subtitlesOn: DisplayRepresentation(title: "Turn on subtitles", synonyms: ["Turn subtitles on", "Subtitles on", "Show subtitles", "Switch on subtitles"]),
+        // Every way of saying it names subtitles: Siri otherwise heard "turn off …" as Pause.
+        .subtitlesOff: DisplayRepresentation(title: "Turn off subtitles", synonyms: ["Turn subtitles off", "Subtitles off", "Hide subtitles",
+                                                                                     "Switch off subtitles", "Switch subtitles off", "No subtitles"]),
     ]
 
     /// The command it is, as another device takes it.
@@ -957,6 +1026,7 @@ struct FlexarrShortcuts: AppShortcutsProvider {
                 "Add \(\.$title) to my watchlist in \(.applicationName)",
                 "Add \(\.$title) to my \(.applicationName) watchlist",
                 "Put \(\.$title) on my watchlist in \(.applicationName)",
+                "Ask \(.applicationName) to add \(\.$title) to my watchlist",
             ],
             shortTitle: "Add to watchlist",
             systemImageName: "bookmark"

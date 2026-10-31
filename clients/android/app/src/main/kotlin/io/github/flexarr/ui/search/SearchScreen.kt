@@ -189,7 +189,7 @@ fun SearchScreen(model: AppModel) {
         }
     }
 
-    // A pick from the results is remembered (not what's typed on the way), with the words that found it; one from the
+    // A pick from the results is remembered (not what's typed on the way, but pressing Search too), with the words that found it; one from the
     // recents themselves is just the title, moved to the front. On the app's own scope, as opening it leaves Search.
     // Debug runs without history remember nothing.
     fun record(text: String?, itemId: String?) {
@@ -223,6 +223,12 @@ fun SearchScreen(model: AppModel) {
             PageTitle("Search")
             SearchField(query, onChange = { query = it }, modifier = Modifier.padding(horizontal = Edge).padding(bottom = 8.dp).focusRequester(focus)) {
                 keyboard?.hide()
+                // Pressing Search keeps the words as a recent search, as picking a result does, shown at once.
+                val words = query.trim()
+                if (words.isNotEmpty() && model.recordsHistory) {
+                    record(words, null)
+                    recents = recents.copy(queries = (listOf(words) + recents.queries.filterNot { it.equals(words, ignoreCase = true) }).take(5))
+                }
             }
             val shown = results
             LazyColumn(
