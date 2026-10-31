@@ -58,8 +58,9 @@ class MainActivity : ComponentActivity() {
         when (val link = AppLink.received(this, intent)) {
             null -> Unit
             // Asked about first ("Join Dan's Flexarr as Gran?"): it could have come from any app or web page.
-            // Not in builds without family invites yet (BuildConfig.GUEST_INVITES).
-            is AppLink.Join -> if (BuildConfig.GUEST_INVITES) appModel.offerInvite(GuestInvite.decode(link.payload))
+            // Not in builds without family invites yet (BuildConfig.GUEST_INVITES), which say so.
+            is AppLink.Join ->
+                if (BuildConfig.GUEST_INVITES) appModel.offerInvite(GuestInvite.decode(link.payload)) else appModel.inviteProblem = "Update Flexarr to join."
             else -> appModel.pendingLink = link
         }
     }
