@@ -1146,9 +1146,11 @@ public struct NowPlaying: Codable, Sendable, Hashable {
     public var sound: DeviceSound? = nil
     /// Whose it is: the profile it plays against. Absent from servers before 0.56 (the device's own profile stands in).
     public var profileId: String? = nil
+    /// The chapter of a book playing. Absent from servers before 0.58.
+    public var chapter: String? = nil
 
     enum CodingKeys: String, CodingKey {
-        case item, positionSeconds, durationSeconds, paused, reportedAt, rate, prompt, hasNext, tracks, sound, profileId
+        case item, positionSeconds, durationSeconds, paused, reportedAt, rate, prompt, hasNext, tracks, sound, profileId, chapter
         /// How long ago the report was by the server's clock (servers from 0.56): `reportedAt` is worked out from it on
         /// this device's clock, so a server whose clock is off doesn't throw the times out.
         case ageSeconds
@@ -1173,6 +1175,7 @@ public struct NowPlaying: Codable, Sendable, Hashable {
         tracks = (try? c.decodeIfPresent(PlayerTracks.self, forKey: .tracks)) ?? nil
         sound = (try? c.decodeIfPresent(DeviceSound.self, forKey: .sound)) ?? nil
         profileId = (try? c.decodeIfPresent(String.self, forKey: .profileId)) ?? nil
+        chapter = (try? c.decodeIfPresent(String.self, forKey: .chapter)) ?? nil
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -1188,6 +1191,7 @@ public struct NowPlaying: Codable, Sendable, Hashable {
         try c.encodeIfPresent(tracks, forKey: .tracks)
         try c.encodeIfPresent(sound, forKey: .sound)
         try c.encodeIfPresent(profileId, forKey: .profileId)
+        try c.encodeIfPresent(chapter, forKey: .chapter)
     }
 
     public init(item: ItemSummary, positionSeconds: Double, durationSeconds: Double, paused: Bool, reportedAt: Date? = nil, rate: Double? = nil,
@@ -1264,6 +1268,9 @@ public enum DeviceCommandKind: String, ForwardCompatibleEnum {
     /// intro or recap, change soundtrack or subtitles (`trackId`), change speed (`rate`).
     case seek = "Seek", skip = "Skip", next = "Next", previous = "Previous", skipSegment = "SkipSegment"
     case audioTrack = "AudioTrack", subtitleTrack = "SubtitleTrack", rate = "Rate"
+    /// The sleep timer: stop after `seconds`, or at the end of the book's chapter (`endOfChapter`); neither turns it
+    /// off. Sent only to devices that list it in `accepts`. Absent from servers before 0.58.
+    case sleep = "Sleep"
     case unknown
 }
 
@@ -1308,6 +1315,8 @@ public struct DeviceCommand: Codable, Sendable, Hashable, Identifiable {
     public var rate: Double? = nil
     /// With `stop`: it's carrying on on `sentBy` (Continue on iPhone), so the TV says so. Absent from servers before 0.56.
     public var handOff: Bool? = nil
+    /// With `sleep`: stop at the end of the book's chapter. Absent from servers before 0.58.
+    public var endOfChapter: Bool? = nil
 
     public init(id: String, kind: DeviceCommandKind, itemId: String?, fromBeginning: Bool, sentBy: String?, sentAt: Date, shuffle: Bool = false,
                 channelId: String? = nil, profileId: String? = nil, sound: DeviceSound? = nil, seconds: Double? = nil, trackId: String? = nil,
@@ -1343,6 +1352,7 @@ public struct DeviceCommand: Codable, Sendable, Hashable, Identifiable {
         trackId = try container.decodeIfPresent(String.self, forKey: .trackId)
         rate = try container.decodeIfPresent(Double.self, forKey: .rate)
         handOff = try? container.decodeIfPresent(Bool.self, forKey: .handOff)
+        endOfChapter = try? container.decodeIfPresent(Bool.self, forKey: .endOfChapter)
     }
 }
 

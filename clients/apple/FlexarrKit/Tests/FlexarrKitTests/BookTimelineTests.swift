@@ -126,6 +126,17 @@ struct UnknownTypeTests {
         #expect(try FlexarrClient.decoder.decode(ChapterSource.self, from: Data(#""Audible""#.utf8)) == .unknown)
     }
 
+    @Test func sleepCommandsAndChapters() throws {
+        let json = ##"{"id":"c","kind":"Sleep","itemId":null,"fromBeginning":false,"sentBy":"Web","sentAt":"2026-10-31T10:00:00Z","endOfChapter":true}"##
+        let command = try FlexarrClient.decoder.decode(DeviceCommand.self, from: Data(json.utf8))
+        #expect(command.kind == .sleep)
+        #expect(command.endOfChapter == true)
+        let older = ##"{"id":"c","kind":"Pause","itemId":null,"fromBeginning":false,"sentBy":null,"sentAt":"2026-10-31T10:00:00Z"}"##
+        #expect(try FlexarrClient.decoder.decode(DeviceCommand.self, from: Data(older.utf8)).endOfChapter == nil)
+        let playing = ##"{"item":\##(BookJSON.summary),"positionSeconds":10,"durationSeconds":300,"paused":false,"chapter":"Two"}"##
+        #expect(try FlexarrClient.decoder.decode(NowPlaying.self, from: Data(playing.utf8)).chapter == "Two")
+    }
+
     @Test func anEmptyHomeCountsAudiobooks() throws {
         let json = ##"[{"id":"a","name":"Books","type":"Audiobooks","folders":["/b"],"itemCount":0,"lastScannedAt":null,"scan":null}]"##
         let message = EmptyHomeMessage(libraries: try FlexarrClient.decoder.decode([Library].self, from: Data(json.utf8)))

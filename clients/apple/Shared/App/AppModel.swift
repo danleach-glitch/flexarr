@@ -1171,6 +1171,9 @@ final class AppModel {
             Task {
                 if let episode = try? await client.podcastEpisode(id) {
                     playEpisode(episode.summary)
+                } else if let book = try? await client.item(id).item, book.kind == .audiobook {
+                    // A book plays in the audio player.
+                    playBook(book, at: command.fromBeginning ? 0 : command.seconds)
                 } else {
                     // From where it was asked to start (Undo after Stop), else from the beginning or where it was left.
                     player.play(itemId: id, preview: nil, startAt: command.fromBeginning ? 0 : command.seconds, client: client, shuffle: command.shuffle)
@@ -1200,6 +1203,15 @@ final class AppModel {
             case .previous: music.previous()
             case .rate: if let rate = command.rate { music.setSpeed(rate) }
             default: break
+            }
+        case .sleep:
+            // The audio player's sleep timer: minutes, the end of the chapter, or off.
+            if command.endOfChapter == true, music.isBook {
+                music.sleep.set(.endOfChapter)
+            } else if let seconds = command.seconds, seconds > 0 {
+                music.sleep.set(.minutes(max(1, Int((seconds / 60).rounded()))))
+            } else {
+                music.sleep.set(nil)
             }
         case .sound:
             // A player that's open follows the change, as it does one made in Settings.
