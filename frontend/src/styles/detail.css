@@ -13,7 +13,13 @@
 }
 
 .detail-hero-content {
-  max-width: min(44rem, 94vw);
+  /* Wide enough for the whole action row on one line; the text keeps its own narrower measure. */
+  max-width: min(64rem, 94vw);
+}
+
+.detail-kicker,
+.detail-title {
+  max-width: 44rem;
 }
 
 .detail-kicker {
@@ -54,6 +60,17 @@
   flex-wrap: wrap;
   gap: 12px;
   margin-top: 26px;
+}
+
+/* Tighter on narrower windows so the row still fits on one line. */
+@media (max-width: 1200px) {
+  .detail-actions {
+    gap: 10px;
+  }
+
+  .detail-actions .button:not(.icon) {
+    padding: 0 16px;
+  }
 }
 
 .detail-actions [aria-pressed='true'] svg {
