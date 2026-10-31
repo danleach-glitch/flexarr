@@ -32,7 +32,8 @@ public static class BookMatchEndpoints
     {
         var item = api.MapGroup("/items/{id:guid}").WithTags("Audiobooks").RequireAuthorization(FlexarrClaims.AdminPolicy);
 
-        item.MapGet("/book-match", async (Guid id, string? q, string? author, FlexarrDbContext db, BookProviders providers, CancellationToken ct) =>
+        // Searching is a read: the main profile may look with settings locked, and unlocks to choose.
+        api.MapGroup("/items/{id:guid}").WithTags("Audiobooks").RequireAuthorization(FlexarrClaims.MainProfilePolicy).MapGet("/book-match", async (Guid id, string? q, string? author, FlexarrDbContext db, BookProviders providers, CancellationToken ct) =>
         {
             if (await db.MediaItems.AsNoTracking().FirstOrDefaultAsync(i => i.Id == id && i.Kind == MediaKind.Audiobook, ct) is not { } book)
             {

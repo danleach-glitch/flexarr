@@ -43,7 +43,7 @@ public static partial class BookTags
             Publisher = Get("publisher", "label", "organization"),
             Year = date is not null && YearPart().Match(date) is { Success: true } y ? int.Parse(y.Value, CultureInfo.InvariantCulture) : null,
             ReleaseDate = date is not null && DateOnly.TryParseExact(date.Length >= 10 ? date[..10] : date, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var d) ? d : null,
-            Language = Get("language", "lang"),
+            Language = Get("language", "lang") is { } language && !Undetermined(language) ? language : null,
             Asin = Get("asin", "audible_asin", "audibleasin", "audible-asin")?.ToUpperInvariant(),
             Isbn = Get("isbn", "isbn13", "isbn10")?.Replace("-", "", StringComparison.Ordinal),
             Explicit = Get("itunesadvisory", "rtng", "explicit") is { } e ? e is "1" or "true" or "explicit" : null,
@@ -84,6 +84,9 @@ public static partial class BookTags
 
     [GeneratedRegex(@"\s{2,}")]
     private static partial Regex Spaces();
+
+    /// <summary>The codes taggers write for "no idea": ISO 639's "und" and friends.</summary>
+    public static bool Undetermined(string language) => language.Trim().ToLowerInvariant() is "und" or "unk" or "xx" or "zxx" or "mul" or "";
 
     /// <summary>"3", "Book 3", "#3", "3.5" → "3", "3.5".</summary>
     internal static string Sequence(string value) =>

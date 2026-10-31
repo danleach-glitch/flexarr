@@ -216,7 +216,7 @@ public sealed partial class BookAssembler(FlexarrDbContext db, IMediaProbe probe
 
         details.Subtitle = info.Subtitle ?? details.Subtitle;
         details.Publisher = info.Publisher ?? details.Publisher;
-        details.Language = info.Language ?? details.Language;
+        details.Language = info.Language is { } language && !BookTags.Undetermined(language) ? language : details.Language is { } kept && BookTags.Undetermined(kept) ? null : details.Language;
         details.Asin = info.Asin ?? details.Asin;
         details.Isbn = info.Isbn ?? details.Isbn;
         details.Abridged = info.Abridged ?? details.Abridged;

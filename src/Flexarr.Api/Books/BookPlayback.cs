@@ -19,8 +19,10 @@ public static class BookPlayback
     /// <summary>The sound a player that says nothing of its own can play: every browser and phone plays these.</summary>
     public static readonly IReadOnlyList<string> BasicCodecs = ["aac", "mp3"];
 
+    /// <summary>Near the end: past 98%, or (for a book long enough that it isn't most of it) in its last two minutes.</summary>
     public static bool IsFinished(double position, double duration, bool ended) =>
-        ended || (duration > 0 && (position >= duration - FinishedWithinSeconds || position >= duration * FinishedFraction));
+        ended || (duration > 0 && (position >= duration * FinishedFraction
+            || (duration >= FinishedWithinSeconds * 10 && position >= duration - FinishedWithinSeconds)));
 
     /// <summary>A book's playable files in order, each converted when <paramref name="codecs"/> doesn't include its sound.</summary>
     public static async Task<List<BookPart>> PartsAsync(FlexarrDbContext db, Guid bookId, IReadOnlyCollection<string> codecs, CancellationToken ct)
