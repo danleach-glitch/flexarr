@@ -50,4 +50,10 @@ An audit reads what the branch changed, finds what's wrong or missing, and publi
 
 9. **Remember it.** Save a project memory `audit-<branch>` with the artifact link, the collection and id scheme, the commit audited, the ids of High items and of the fix-before-landing list (`/land` checks these), and the counts, and add it to MEMORY.md. A follow-up updates the same memory.
 
-10. **Report**, briefly: the link, counts by section, and the fix-before-landing list. Then ask which ones to fix. As each fix is committed, tick its id with `db_write` and a note. Mirror each tick to the hub's `ticks/<artifact slug>--<id>` in the same go. `/land` goes ahead once the user is happy with what's left open.
+10. **Report**, briefly: the link, counts by section, and the fix-before-landing list. Then ask which ones to fix.
+
+11. **Fix, commit, tick, one at a time.** Work through the picked findings one fix at a time:
+   - **Commit after each fix.** Several findings with one cause can share a commit; unrelated fixes never do. Commit early: yolo removes a branch with no commits when the session ends.
+   - **Straight after that commit**, tick each id it fixes with `db_write`: `{done: true, note: "<short hash>"}` in `checks`. In the same breath, mirror it to the hub's `ticks/<artifact slug>--<id>` = `{done: true, note, at: <now, ISO>}` (pass `ifVersion` if that record already exists). Both writes or neither.
+   - Never batch ticks at the end, and never tick a finding that isn't fixed and tested. A finding the user decides to leave gets `{done: false, note: "dropped: <why>"}`, mirrored to the hub too.
+   `/land` goes ahead once the user is happy with what's left open.
