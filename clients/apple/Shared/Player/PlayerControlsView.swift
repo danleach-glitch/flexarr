@@ -38,6 +38,8 @@ final class PlayerControlsView: UIView {
     let channelsButton: UIButton
     let guideButton: UIButton
     let promptButton: UIButton
+    /// Skip Intro or Next Episode, with its Cancel: stays when the rest of the controls fade (see `setChromeVisible`).
+    private var promptRow: UIView?
     let cancelButton: UIButton
     #if os(iOS)
     let closeButton: UIButton
@@ -196,6 +198,15 @@ final class PlayerControlsView: UIView {
 
     var promptShown: Bool { promptButton.alpha > 0 }
 
+    /// Shows or fades everything but the Skip Intro / Next Episode pill, which shows whenever it's offered: fading this
+    /// whole view took the pill with it, so Next Episode only appeared with the controls.
+    func setChromeVisible(_ visible: Bool) {
+        // The HUD (the skip and seek flash) fades by itself; hiding takes it too.
+        for view in subviews where view !== promptRow && (view !== hud || !visible) {
+            view.alpha = visible ? 1 : 0
+        }
+    }
+
     /// "1.25×" beside the speed button's gauge while it isn't playing at normal speed.
     func setSpeedBadge(_ text: String?) {
         guard speedButton.configuration?.title != text else { return }
@@ -280,6 +291,7 @@ final class PlayerControlsView: UIView {
         titles.axis = .vertical
         titles.spacing = 3
         let prompts = UIStackView(arrangedSubviews: [cancelButton, promptButton])
+        promptRow = prompts
         prompts.axis = .horizontal
         prompts.alignment = .center
         prompts.spacing = 10

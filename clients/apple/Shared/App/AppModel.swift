@@ -848,7 +848,8 @@ final class AppModel {
             let title = player.showingItem
             player.closePlayer()
             if command.handOff == true {
-                if let title { pendingRoute = .item(title) }
+                // An episode's show, as the TV is usually browsed; a film's own page.
+                if let title { pendingRoute = title.kind == .episode ? title.seriesId.map(Route.itemID) ?? .item(title) : .item(title) }
                 handOffNotice = "Now playing on \(command.sentBy ?? "your phone")"
             }
         case .seek, .skip, .next, .previous, .skipSegment, .audioTrack, .subtitleTrack, .rate:

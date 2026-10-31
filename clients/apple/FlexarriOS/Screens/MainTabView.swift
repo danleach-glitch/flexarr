@@ -115,6 +115,8 @@ struct TabStack<Content: View>: View {
         model.pendingRoute = nil
         // A server without a watchlist (before 0.56) has nothing to open.
         if case .watchlist = route, !model.hasWatchlist { return }
+        // Already showing it (the widget tapped while its page is open): not a second copy for Back to land on.
+        if router.path.last == route { return }
         router.push(route)
     }
 
