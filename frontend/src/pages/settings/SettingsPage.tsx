@@ -9,7 +9,7 @@ import { AccessSection } from './AccessSection'
 import { SecuritySection } from './SecuritySection'
 import { AdminUnlock } from './AdminUnlock'
 import { BackupSection } from './BackupSection'
-import { ConnectionsSection } from './ConnectionsSection'
+import { ConnectionsSection, TRAKT_CHANGED } from './ConnectionsSection'
 import { ConnectTvSection } from './ConnectTvSection'
 import { HealthSection } from './HealthSection'
 import { ImportSection } from './ImportSection'
@@ -79,6 +79,11 @@ export function SettingsPage() {
   const name = current?.name
   const destinations = useApi(getRequestDestinations, [])
   const trakt = useApi((signal) => getTraktStatus(signal), [])
+  const reloadTrakt = trakt.reload
+  useEffect(() => {
+    window.addEventListener(TRAKT_CHANGED, reloadTrakt)
+    return () => window.removeEventListener(TRAKT_CHANGED, reloadTrakt)
+  }, [reloadTrakt])
   const withTrakt = trakt.data?.available ? [...profilePages, traktPage] : profilePages
   const ownPages = destinations.data && hasRequestChoice(destinations.data, current?.hiddenLibraryIds ?? []) ? [...withTrakt, requestsPage] : withTrakt
   // Settings for the server are the main profile's, and changing them takes the admin PIN (given lately on this browser):

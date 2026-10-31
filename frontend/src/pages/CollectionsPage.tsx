@@ -262,7 +262,7 @@ export function CollectionPage() {
             )}
             {c.canEdit && (
               <IconButton
-                label={c.kind === 'Franchise' ? 'Hide' : 'Delete'}
+                label={c.kind === 'Franchise' ? 'Hide' : c.kind === 'TraktList' ? 'Remove' : 'Delete'}
                 icon={c.kind === 'Franchise' ? <EyeOff /> : <Trash />}
                 className="button quiet icon danger-icon"
                 onClick={() => {

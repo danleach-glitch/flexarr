@@ -56,7 +56,7 @@ describe('Settings › Trakt', () => {
       },
     })
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Look' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'See what changes' }))
 
     expect(await screen.findByText('Trakt has 12 films and 340 episodes')).toBeVisible()
     expect(screen.getByText(/41 not yet watched in Flexarr/)).toBeVisible()
@@ -91,5 +91,36 @@ describe('Settings › Trakt', () => {
     fireEvent.click(toggle)
 
     await vi.waitFor(() => expect(saved).toEqual({ ids: ['sam/77', 'dan/55'] }))
+  })
+
+  it('says when the history has come across', async () => {
+    open({ '/trakt/status': { ...base, state: 'connected', username: 'Dan', importedAt: new Date().toISOString() } })
+
+    expect(await screen.findByText('History brought across')).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'See what changes' })).toBeNull()
+  })
+
+  it('asks before disconnecting', async () => {
+    let disconnected = false
+    const ask = vi.fn(() => false)
+    vi.stubGlobal('confirm', ask)
+    open({
+      '/trakt/status': { ...base, state: 'connected', username: 'Dan', importedAt: new Date().toISOString() },
+      'DELETE /trakt': () => {
+        disconnected = true
+        return undefined
+      },
+    })
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Disconnect' }))
+
+    expect(ask).toHaveBeenCalled()
+    expect(disconnected).toBe(false)
+  })
+
+  it('says so when the server doesn’t answer, rather than showing nothing', async () => {
+    open({ '/trakt/status': () => Promise.reject(new TypeError('Failed to fetch')) })
+
+    expect(await screen.findByText(/Couldn’t reach the server/)).toBeVisible()
   })
 })

@@ -30,6 +30,9 @@ import { appLogos } from '../../lib/apps'
 import { OpenApp, SaveStatus, SettingsGroup, SettingsHeader } from './shared'
 import { errorText, useSettings } from './useSettings'
 
+/** Settings › Trakt may have come or gone: the Settings page looks again. */
+export const TRAKT_CHANGED = 'flexarr:trakt'
+
 /** The connections with a form of their own, by the name the open row goes by. */
 type OtherService = 'seerr' | 'bazarr' | 'tmdb' | 'livetv' | 'trakt'
 
@@ -199,7 +202,11 @@ export function ConnectionsSection() {
             onOpen={() => setOpen('trakt')}
             onClose={() => setOpen(undefined)}
             onSave={async (traktApp) => {
-              if (await save({ traktApp })) setOpen(undefined)
+              // Trakt's sign-ins belong to the app that gave them: everyone connects again after a switch.
+              if (!confirm('Change the Trakt app? Everyone who connected to Trakt will need to connect again.')) return
+              if (!(await save({ traktApp }))) return
+              setOpen(undefined)
+              window.dispatchEvent(new Event(TRAKT_CHANGED))
             }}
           />
           <DispatcharrRow

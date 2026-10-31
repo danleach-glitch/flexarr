@@ -1591,7 +1591,12 @@ export interface TraktProfile {
 }
 
 /** Null from servers without Trakt (before 0.57), and on kids profiles. */
-export const getTraktStatus = (signal?: AbortSignal) => apiGet<TraktStatus>('/trakt/status', signal).catch(() => null)
+export const getTraktStatus = (signal?: AbortSignal) =>
+  apiGet<TraktStatus>('/trakt/status', signal).catch((e: unknown) => {
+    // No Trakt here (a server before 0.57, or a kids profile): null. The server not answering is an error, said as one.
+    if ((e instanceof ApiError && (e.status === 404 || e.status === 403)) || e instanceof SyntaxError) return null
+    throw e
+  })
 export const connectTrakt = () => request<TraktPendingConnect>('POST', '/trakt/connect')
 export const cancelTraktConnect = () => request<void>('DELETE', '/trakt/connect')
 export const disconnectTrakt = () => request<void>('DELETE', '/trakt')
