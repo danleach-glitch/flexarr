@@ -7,26 +7,31 @@ import SwiftUI
 struct ActionButtonStyle: ButtonStyle {
     var ambient: Color = .silver
     var prominent = false
+    /// A round button showing only the label's icon; the title still names it for VoiceOver.
+    var iconOnly = false
 
     func makeBody(configuration: Configuration) -> some View {
-        ActionButtonBody(configuration: configuration, ambient: ambient, prominent: prominent)
+        ActionButtonBody(configuration: configuration, ambient: ambient, prominent: prominent, iconOnly: iconOnly)
     }
 
     private struct ActionButtonBody: View {
         let configuration: Configuration
         let ambient: Color
         let prominent: Bool
+        let iconOnly: Bool
         @Environment(\.isFocused) private var isFocused
 
         var body: some View {
             configuration.label
                 .font(.system(size: 29, weight: .semibold))
-                .labelStyle(ActionLabelStyle())
-                .padding(.horizontal, 36)
-                .frame(height: 76)
+                .labelStyle(ActionLabelStyle(iconOnly: iconOnly))
+                .lineLimit(1)
+                .fixedSize()
+                .padding(.horizontal, iconOnly ? 0 : 36)
+                .frame(width: iconOnly ? 76 : nil, height: 76)
                 .foregroundStyle(isFocused ? Color.room : Color.screen)
                 .background {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    RoundedRectangle(cornerRadius: iconOnly ? 38 : 14, style: .continuous)
                         .fill(isFocused ? AnyShapeStyle(Color.screen) : AnyShapeStyle(prominent ? ambient.opacity(0.42) : Color.screen.opacity(0.14)))
                 }
                 .shadow(color: isFocused ? ambient.opacity(0.65) : .clear, radius: 28)
@@ -37,10 +42,16 @@ struct ActionButtonStyle: ButtonStyle {
     }
 
     private struct ActionLabelStyle: LabelStyle {
+        let iconOnly: Bool
+
         func makeBody(configuration: Configuration) -> some View {
-            HStack(spacing: 14) {
-                configuration.icon.font(.system(size: 26, weight: .bold))
-                configuration.title
+            if iconOnly {
+                configuration.icon.font(.system(size: 28, weight: .bold))
+            } else {
+                HStack(spacing: 14) {
+                    configuration.icon.font(.system(size: 26, weight: .bold))
+                    configuration.title
+                }
             }
         }
     }
