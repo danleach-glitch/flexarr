@@ -151,6 +151,12 @@ final class AppModel {
         // `-FlexarrOpen flexarr://item/<id>` opens a screen as the app starts, as a link would, without the simulator
         // asking first (used for checking a screen in the simulator).
         if let link = defaults.string(forKey: "FlexarrOpen").flatMap(URL.init(string:)) { open(url: link) }
+        // `-FlexarrJoin <invite link>` joins as a family guest straight away, without "Join?" (end-to-end runs).
+        if let link = defaults.string(forKey: "FlexarrJoin"), let invite = GuestInvite.parse(link) {
+            Task {
+                do { try await join(invite) } catch { log.warning("Joining failed: \(error.localizedDescription)") }
+            }
+        }
         #endif
         // Searching for subtitles is a parent's job, not a child's.
         player.offersSubtitleSearch = { [weak self] in self?.isKids != true }
@@ -1051,6 +1057,11 @@ final class AppModel {
             return
         }
         guard url.scheme == "flexarr", let host = url.host() else { return }
+        // A guest's link at launch (Siri, a widget) waits for the tunnel, or it would find no server.
+        if credentials?.isGuest == true, GuestTunnel.shared.address == nil {
+            Task { if await ensureGuestTunnel() { open(url: url) } }
+            return
+        }
         let id = url.pathComponents.dropFirst().first ?? ""
         // flexarr://watchlist (the profile's watchlist) has no id; the rest need one.
         guard !id.isEmpty || host == "watchlist" else { return }

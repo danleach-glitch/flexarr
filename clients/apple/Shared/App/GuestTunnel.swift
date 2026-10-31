@@ -52,10 +52,29 @@ final class GuestTunnel: @unchecked Sendable {
     /// a moment the first time; `authKey` is needed only then, to join. Runs off the main thread: the Go side blocks
     /// for up to a minute.
     func start(_ info: GuestTunnelInfo, authKey: String? = nil) async throws -> URL {
-        try await Task.detached(priority: .userInitiated) { [self] in
-            try startBlocking(info, authKey: authKey)
-        }.value
+        // Launch, loading the profiles and coming to the front all ask at once: they share one start, since a second
+        // start while the first is connecting would stop it, and two nodes can't share the state folder.
+        let task: Task<URL, Error> = lock.withLock {
+            if let starting, startingTarget == info.target { return starting }
+            if let running, running.target == info.target, status()?.state == "running",
+               let url = URL(string: "http://127.0.0.1:\(running.port)") {
+                return Task { url }
+            }
+            let made = Task.detached(priority: .userInitiated) { [self] in try startBlocking(info, authKey: authKey) }
+            starting = made
+            startingTarget = info.target
+            return made
+        }
+        defer {
+            lock.withLock {
+                if startingTarget == info.target { starting = nil; startingTarget = nil }
+            }
+        }
+        return try await task.value
     }
+
+    private var starting: Task<URL, Error>?
+    private var startingTarget: String?
 
     private func startBlocking(_ info: GuestTunnelInfo, authKey: String?) throws -> URL {
         let folder = Self.stateFolder
