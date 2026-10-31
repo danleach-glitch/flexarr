@@ -175,8 +175,14 @@ private fun ChooseServer(browser: ServerBrowser, onPick: (DiscoveredServer) -> U
                 )
             }
         }
-        TvActionButton("Enter an address instead", onClick = onManual, modifier = Modifier.padding(top = 5.dp).focusRequester(manual))
-        if (BuildConfig.GUEST_INVITES) TvActionButton("Join someone’s Flexarr", onClick = onGuest, modifier = Modifier.focusRequester(guest))
+        // With no server found (a guest's home), joining someone's comes first, as on the Apple TV.
+        val joinFirst = BuildConfig.GUEST_INVITES && browser.servers.isEmpty()
+        val join = @Composable { modifier: Modifier ->
+            if (BuildConfig.GUEST_INVITES) TvActionButton("Join someone’s Flexarr", onClick = onGuest, modifier = modifier.focusRequester(guest))
+        }
+        if (joinFirst) join(Modifier.padding(top = 5.dp))
+        TvActionButton("Enter an address instead", onClick = onManual, modifier = Modifier.padding(top = if (joinFirst) 0.dp else 5.dp).focusRequester(manual))
+        if (!joinFirst) join(Modifier)
     }
 }
 
