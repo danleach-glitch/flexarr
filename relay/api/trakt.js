@@ -5,6 +5,7 @@
 //
 // Environment: TRAKT_CLIENT_ID and TRAKT_CLIENT_SECRET, Flexarr's Trakt app.
 //
+// GET                                         → { clientId }: the app's public id, for every other call
 // POST { grant: "device_token", code }        → Trakt's /oauth/device/token, answered as Trakt answers it
 // POST { grant: "refresh_token", refreshToken } → /oauth/token (refresh)
 // POST { grant: "revoke", token }              → /oauth/revoke
@@ -76,8 +77,16 @@ function traktCall(input, id, secret) {
 const TOKEN_FIELDS = ['access_token', 'refresh_token', 'expires_in', 'created_at', 'token_type', 'scope', 'error', 'error_description'];
 
 module.exports = async (req, res) => {
+  if (req.method === 'GET') {
+    // Public: Trakt shows it to anyone who looks. Kept here so a new app needs no new release.
+    if (!process.env.TRAKT_CLIENT_ID) return reply(res, 503, { reason: 'NotConfigured' });
+    res.setHeader('cache-control', 'public, max-age=3600');
+    res.statusCode = 200;
+    res.setHeader('content-type', 'application/json');
+    return res.end(JSON.stringify({ clientId: process.env.TRAKT_CLIENT_ID }));
+  }
   if (req.method !== 'POST') {
-    res.setHeader('allow', 'POST');
+    res.setHeader('allow', 'GET, POST');
     return reply(res, 405, { reason: 'MethodNotAllowed' });
   }
   if (!String(req.headers['content-type'] || '').toLowerCase().startsWith('application/json')) {

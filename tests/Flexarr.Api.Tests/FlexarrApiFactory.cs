@@ -54,6 +54,8 @@ public sealed class FlexarrApiFactory : WebApplicationFactory<Program>
             services.AddHttpClient<Flexarr.Metadata.TvMazeClient>().ConfigurePrimaryHttpMessageHandler(() => new Offline());
             services.AddHttpClient<Flexarr.Metadata.TmdbClient>().ConfigurePrimaryHttpMessageHandler(() => new Offline());
             services.AddHttpClient<Flexarr.Api.Logging.ErrorReportTunnel>().ConfigurePrimaryHttpMessageHandler(() => new Offline());
+            // Nor Trakt, or its relay: Trakt isn't available unless a test stands one in (see FakeTrakt).
+            services.AddHttpClient<Flexarr.Api.Trakt.TraktClient>().ConfigurePrimaryHttpMessageHandler(() => new Offline());
         });
     }
 

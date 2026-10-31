@@ -4,9 +4,9 @@ const assert = require('node:assert');
 const { Readable } = require('node:stream');
 const trakt = require('../api/trakt.js');
 
-function call({ contentType = 'application/json', body = {}, ip = '203.0.113.20' } = {}) {
+function call({ contentType = 'application/json', body = {}, ip = '203.0.113.20', method = 'POST' } = {}) {
   const req = Readable.from([JSON.stringify(body)]);
-  req.method = 'POST';
+  req.method = method;
   req.headers = { 'content-type': contentType, 'x-forwarded-for': ip };
   return new Promise((resolve) => {
     const res = {
@@ -81,3 +81,10 @@ test('an address gets at most 120 calls a minute', () => {
   assert.equal(trakt._limited('198.51.100.1', now), true);
   assert.equal(trakt._limited('198.51.100.1', now + 60_000), false);
 });
+
+test('gives out the public client id, never the secret', () =>
+  withTrakt({ status: 200, body: {} }, async () => {
+    const answer = await call({ method: 'GET' });
+    assert.equal(answer.status, 200);
+    assert.deepEqual(answer.body, { clientId: 'id' });
+  }));

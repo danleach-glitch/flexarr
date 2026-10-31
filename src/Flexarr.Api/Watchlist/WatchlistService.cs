@@ -272,6 +272,11 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
                 : (null, new WatchlistRefusal(409, "That couldn't be added. Try again."));
         }
 
+        if (source == WatchlistSource.Flexarr)
+        {
+            Trakt.TraktSyncWorker.Nudge();
+        }
+
         // In the library already (even held by another of its entries): nothing to request.
         var requested = mayRequest && source == WatchlistSource.Flexarr && item is null && await AutoRequestAsync(profileId, entry, ct);
         return (new WatchlistAdded(await DtoAsync(profileId, entry, ct), requested), null);
@@ -289,6 +294,11 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
         // Removals long past go for good, so they can't pile up.
         var before = DateTime.UtcNow - RemovedKeptFor;
         await db.WatchlistEntries.Where(w => w.ProfileId == profileId && w.RemovedAt != null && w.RemovedAt < before).ExecuteDeleteAsync(ct);
+        if (removed)
+        {
+            Trakt.TraktSyncWorker.Nudge();
+        }
+
         return removed;
     }
 
