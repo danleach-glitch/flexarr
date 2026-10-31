@@ -411,7 +411,8 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
         }
     }
 
-    public const string LinkBase = "https://flexarr.io/join#";
+    /// <remarks>www: flexarr.io redirects there, and Apple and Android won't open an app from a link behind a redirect.</remarks>
+    public const string LinkBase = "https://www.flexarr.io/join#";
 
     /// <summary>
     /// Deletes a redeemed invite's Tailscale key. It worked once already, but a device that was on the tailnet before

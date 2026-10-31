@@ -156,7 +156,7 @@ sealed interface AppLink {
         /** flexarr://join, or https://flexarr.io/join (the App Link, and what a QR code holds). */
         private fun isJoin(uri: Uri): Boolean = when (uri.scheme) {
             "flexarr" -> uri.host == "join"
-            "https" -> uri.host == "flexarr.io" && uri.path?.trimEnd('/') == "/join"
+            "https" -> (uri.host == "flexarr.io" || uri.host == "www.flexarr.io") && uri.path?.trimEnd('/') == "/join"
             else -> false
         }
 

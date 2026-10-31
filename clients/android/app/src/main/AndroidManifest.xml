@@ -67,6 +67,7 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https" />
                 <data android:host="flexarr.io" />
+                <data android:host="www.flexarr.io" />
                 <data android:path="/join" />
             </intent-filter>
             <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
