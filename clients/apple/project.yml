@@ -62,11 +62,12 @@ targets:
       path: FlexarrTV/Info.plist
       properties:
         CFBundleDisplayName: Flexarr
-        # Export compliance: the apps carry Tailscale for family guests (WireGuard: Go's own ChaCha20-Poly1305 and
-        # Curve25519, standard algorithms, from open-source code), so they do use encryption beyond the system's. In
-        # App Store Connect that's "standard encryption algorithms", which needs no documents. Once answered there,
-        # add the ITSEncryptionExportComplianceCode it gives beside this, and uploads stop asking.
-        ITSAppUsesNonExemptEncryption: true
+        # Export compliance: exempt. Besides Apple's own HTTPS and CryptoKit, the apps carry Tailscale for family
+        # guests (WireGuard: standard ChaCha20-Poly1305 and Curve25519, from open-source code). Flexarr's primary
+        # function is playing the user's own media, not information security, so under Category 5 Part 2's Note 4
+        # the encryption that serves it isn't controlled. Revisit if the apps ever ship encryption of their own design
+        # or whose main purpose is security.
+        ITSAppUsesNonExemptEncryption: false
         # Where the sign-in is shared with the Top Shelf extension.
         FlexarrKeychainGroup: $(AppIdentifierPrefix)io.github.flexarr.shared
         FlexarrGuestInvites: $(FLEXARR_GUEST_INVITES)
@@ -178,11 +179,12 @@ targets:
         CFBundleURLTypes:
           - CFBundleURLName: io.github.flexarr.ios
             CFBundleURLSchemes: [flexarr]
-        # Export compliance: the apps carry Tailscale for family guests (WireGuard: Go's own ChaCha20-Poly1305 and
-        # Curve25519, standard algorithms, from open-source code), so they do use encryption beyond the system's. In
-        # App Store Connect that's "standard encryption algorithms", which needs no documents. Once answered there,
-        # add the ITSEncryptionExportComplianceCode it gives beside this, and uploads stop asking.
-        ITSAppUsesNonExemptEncryption: true
+        # Export compliance: exempt. Besides Apple's own HTTPS and CryptoKit, the apps carry Tailscale for family
+        # guests (WireGuard: standard ChaCha20-Poly1305 and Curve25519, from open-source code). Flexarr's primary
+        # function is playing the user's own media, not information security, so under Category 5 Part 2's Note 4
+        # the encryption that serves it isn't controlled. Revisit if the apps ever ship encryption of their own design
+        # or whose main purpose is security.
+        ITSAppUsesNonExemptEncryption: false
         # How "Flexarr" tends to come out of speech recognition, so Siri still knows which app is meant.
         # App Store Connect rejects more than three per language (ITMS-90626).
         INAlternativeAppNames:
