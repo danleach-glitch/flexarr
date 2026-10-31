@@ -514,7 +514,7 @@ export function AddDevice({
       {arrived ? null : !waiting ? (
         <form className="guest-add-step" onSubmit={(e) => void connect(e)}>
           <span className="field-help">
-            On their phone, tablet or TV, they open Flexarr and choose <strong>Invited by someone?</strong>
+            On their phone, tablet or TV, they open Flexarr and choose <strong>Join someone’s Flexarr</strong>
           </span>
           <span className="guest-code-row">
             <input

@@ -20,7 +20,7 @@ class GuestCodeState {
 }
 
 /**
- * "Invited by someone?": this device shows a code to read (or send) to whoever invited it, who types it into their
+ * "Join someone’s Flexarr": this device shows a code to read (or send) to whoever invited it, who types it into their
  * Flexarr. The code meets their server's invite at Flexarr's relay, sealed so only this device can open it, and the
  * device then joins as with a link (the tunnel, then a sign-in of its own). A code lasts ten minutes; a new one
  * replaces it. A new [attempt] starts again with a new code. Shared by the phone's and the TV's code screens.

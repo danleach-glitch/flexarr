@@ -68,7 +68,7 @@ struct ConnectView: View {
             if let server = UserDefaults.standard.string(forKey: "FlexarrPairWith").flatMap(FlexarrClient.normalizeAddress) {
                 step = .pair(DiscoveredServer(name: server.host() ?? "Flexarr", address: server))
             }
-            // `-FlexarrGuestCode YES` opens "Invited by someone?"'s code directly.
+            // `-FlexarrGuestCode YES` opens "Join someone’s Flexarr"'s code directly.
             if UserDefaults.standard.bool(forKey: "FlexarrGuestCode") { step = .guest }
             #endif
         }
@@ -149,7 +149,7 @@ private struct NewToFlexarr: View {
                     Text("New to Flexarr?")
                         .font(.headline)
                         .foregroundStyle(Color.screen)
-                    Text("You’ll need the Flexarr server on a computer at home: a Mac, a NAS or anything with Docker.")
+                    Text("Set up your own server at home on Mac, Docker or a NAS.")
                         .font(.subheadline)
                         .foregroundStyle(Color.usher)
                         .fixedSize(horizontal: false, vertical: true)

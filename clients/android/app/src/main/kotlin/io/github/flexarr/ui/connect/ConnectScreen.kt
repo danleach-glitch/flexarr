@@ -180,8 +180,7 @@ private fun ChooseServer(
         }
 
         // Someone else's Flexarr, from another home: a code to give whoever invited them.
-        Text("Invited by someone?", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, modifier = Modifier.padding(top = 10.dp))
-        ChoiceRow(Icons.Filled.Key, "Get a code", null, onClick = onGuest)
+        ActionButton("Join someone’s Flexarr", onClick = onGuest, icon = Icons.Filled.Key, modifier = Modifier.fillMaxWidth())
 
         // Typing an address is for the few whose server can't be found: offered only once it hasn't been, or under
         // the list for one that isn't in it.
@@ -237,7 +236,7 @@ private fun NewToFlexarr(modifier: Modifier = Modifier) {
             }
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("New to Flexarr?", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen)
-                Text("You’ll need the Flexarr server on a computer at home: a Mac, a NAS or anything with Docker.", fontSize = 15.sp, color = Flexarr.usher)
+                Text("Set up your own server at home on Mac, Docker or a NAS.", fontSize = 15.sp, color = Flexarr.usher)
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -530,7 +529,7 @@ private fun Input(
     )
 }
 
-/** "Invited by someone?" on a phone or tablet: the code to read or send to whoever invited it (see [rememberGuestCode]). */
+/** "Join someone’s Flexarr" on a phone or tablet: the code to read or send to whoever invited it (see [rememberGuestCode]). */
 @Composable
 private fun PhoneGuestCode(model: AppModel, onBack: () -> Unit) {
     var attempt by remember { mutableIntStateOf(0) }

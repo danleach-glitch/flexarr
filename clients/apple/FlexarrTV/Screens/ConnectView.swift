@@ -70,7 +70,7 @@ struct ConnectView: View {
             if let server = UserDefaults.standard.string(forKey: "FlexarrPairWith").flatMap(FlexarrClient.normalizeAddress) {
                 step = .pair(DiscoveredServer(name: server.host() ?? "Flexarr", address: server))
             }
-            // `-FlexarrGuestCode YES` opens "Invited by someone?" directly.
+            // `-FlexarrGuestCode YES` opens "Join someone’s Flexarr" directly.
             if UserDefaults.standard.bool(forKey: "FlexarrGuestCode") { step = .guest }
             #endif
         }
@@ -123,7 +123,7 @@ private struct ChooseServer: View {
             Button("Enter an address instead", action: onManual)
                 .buttonStyle(ActionButtonStyle(prominent: false))
                 .padding(.top, 10)
-            Button("Invited by someone?", action: onGuest)
+            Button("Join someone’s Flexarr", action: onGuest)
                 .buttonStyle(ActionButtonStyle(prominent: false))
         }
         // The first server found takes focus, so one click of the remote picks it.
@@ -420,7 +420,7 @@ private struct ManualConnect: View {
 
 // MARK: - A family invite, by code
 
-/// "Invited by someone?": the code to read to whoever invited this Apple TV (see `GuestCodeWaiter`).
+/// "Join someone’s Flexarr": the code to read to whoever invited this Apple TV (see `GuestCodeWaiter`).
 private struct GuestCode: View {
     @Environment(AppModel.self) private var model
     let onBack: () -> Void

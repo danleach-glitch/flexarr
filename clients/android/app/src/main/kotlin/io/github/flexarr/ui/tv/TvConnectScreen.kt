@@ -167,7 +167,7 @@ private fun ChooseServer(browser: ServerBrowser, onPick: (DiscoveredServer) -> U
             }
         }
         TvActionButton("Enter an address instead", onClick = onManual, modifier = Modifier.padding(top = 5.dp).focusRequester(manual))
-        TvActionButton("Invited by someone?", onClick = onGuest)
+        TvActionButton("Join someone’s Flexarr", onClick = onGuest)
     }
 }
 

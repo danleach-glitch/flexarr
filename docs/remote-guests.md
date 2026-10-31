@@ -131,7 +131,7 @@ Store. When they're turned on by default:
 - add `share-with-family` to `docs/guide/index.json` (after `away-from-home`), link it from `away-from-home.md` and the
   FAQ, and run `make guide`;
 - add `ANDROID_CERT_SHA256` to the relay's environment, and Upstash, if they aren't there yet;
-- add the changelog entry (Settings › Access › Family invites; Invited by someone? with a code on every app; Paste link);
+- add the changelog entry (Settings › Access › Family invites; Join someone’s Flexarr with a code on every app; Paste link);
 - settle the apps' export compliance answer and set `ITSAppUsesNonExemptEncryption` in `clients/apple/project.yml`.
 
 ## Later

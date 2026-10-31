@@ -80,16 +80,15 @@ struct InvitedBySomeone: View {
     let onCode: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Invited by someone?")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Color.usher)
-            ChoiceRow(systemImage: "key", title: "Get a code", action: onCode)
+        Button(action: onCode) {
+            Label("Join someone’s Flexarr", systemImage: "key")
+                .frame(maxWidth: .infinity)
         }
+        .buttonStyle(ActionButtonStyle(prominent: false))
     }
 }
 
-/// "Invited by someone?": the code to read or text to whoever invited this iPhone or iPad (see `GuestCodeWaiter`).
+/// "Join someone’s Flexarr": the code to read or text to whoever invited this iPhone or iPad (see `GuestCodeWaiter`).
 struct GuestCodeView: View {
     @Environment(AppModel.self) private var model
     let onBack: () -> Void
