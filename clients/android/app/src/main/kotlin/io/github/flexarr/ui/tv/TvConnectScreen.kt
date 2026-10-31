@@ -186,14 +186,16 @@ private fun GuestCode(model: AppModel, onBack: () -> Unit) {
     val back = remember { FocusRequester() }
     val retry = remember { FocusRequester() }
     val join = remember { FocusRequester() }
+    val newCode = remember { FocusRequester() }
     val invite = model.offeredInvite?.takeIf { model.inviteFromCode }
     val joinProblem = model.joinProblem
     // On Join when an invite arrives (one click for whoever's holding the remote), on Try again after a problem.
     val asking = invite != null && joinProblem == null && !model.joining
-    LaunchedEffect(asking, joinProblem != null) {
+    LaunchedEffect(asking, joinProblem != null, guest.stopped) {
         runCatching {
             when {
                 asking -> join.requestFocus()
+                guest.stopped && invite == null -> newCode.requestFocus()
                 invite != null && joinProblem != null -> retry.requestFocus()
                 else -> back.requestFocus()
             }
@@ -234,6 +236,8 @@ private fun GuestCode(model: AppModel, onBack: () -> Unit) {
                     CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = Flexarr.usher)
                     Text("This screen moves on by itself.", fontSize = 13.sp, color = Flexarr.usher)
                 }
+            } else if (guest.stopped) {
+                TvActionButton("Show a new code", onClick = { attempt++ }, prominent = true, modifier = Modifier.focusRequester(newCode))
             } else if (problem == null) {
                 CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = Flexarr.usher)
             }

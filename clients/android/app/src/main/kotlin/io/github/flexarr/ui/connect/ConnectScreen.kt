@@ -577,6 +577,8 @@ private fun PhoneGuestCode(model: AppModel, onBack: () -> Unit) {
                     context.startActivity(android.content.Intent.createChooser(send, null))
                 })
                 Text("They type it into Settings › Remote access in Flexarr. Keep this screen open.", fontSize = 13.sp, color = Flexarr.usher)
+            } else if (guest.stopped) {
+                ActionButton("Show a new code", onClick = { attempt++ }, prominent = true)
             } else if (guest.problem == null) {
                 CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = Flexarr.usher)
             }
