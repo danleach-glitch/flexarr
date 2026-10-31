@@ -138,6 +138,40 @@ func TestTunnel(t *testing.T) {
 	if st.State != stateRunning {
 		t.Fatalf("state = %q", st.State)
 	}
+	if State() != stateRunning {
+		t.Fatalf("State() = %q", State())
+	}
+
+	// A web page reaching 127.0.0.1 by DNS rebinding names its own host: turned away.
+	req, _ := http.NewRequest("GET", fmt.Sprintf("http://127.0.0.1:%d/", port), nil)
+	req.Host = "evil.example"
+	fresh := &http.Client{Transport: &http.Transport{DisableKeepAlives: true}} // a connection of its own, as a browser's for another origin
+	if res, err := fresh.Do(req); err != nil || res.StatusCode != http.StatusMisdirectedRequest {
+		t.Fatalf("rebinding request: %v %v", res, err)
+	}
+
+	// Asking again while it runs (the app asked twice) gives the same port, at once.
+	if again, err := Start(stateDir, "guest-phone", "", target, controlURL); err != nil || again != port {
+		t.Fatalf("second Start = %d, %v", again, err)
+	}
+
+	// The system takes the listening socket away (iOS, after a long suspension): the
+	// tunnel listens again on the same port, so the app's address keeps working.
+	mu.Lock()
+	ln.Close()
+	mu.Unlock()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		res, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/", port))
+		if err == nil {
+			res.Body.Close()
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("not listening again: %v", err)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
 	if st.Path != "direct" && st.Path != "derp" {
 		t.Fatalf("path = %q", st.Path)
 	}

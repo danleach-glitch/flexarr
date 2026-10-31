@@ -10,6 +10,8 @@
 package tunnel
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -20,6 +22,7 @@ import (
 	"net/netip"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -63,6 +66,9 @@ var (
 	gen      int // bumped by every Start/Stop so stale goroutines can tell
 	verbose  atomic.Bool
 	startKey string // stateDir|hostname|target|controlURL of the running tunnel
+	// starting is closed when the Start in flight finishes, so a second Start with the
+	// same arguments waits for it rather than stopping it.
+	starting chan struct{}
 )
 
 // preferredPort is the loopback port Start tries first (0: any free port).
@@ -101,16 +107,35 @@ func Start(stateDir, hostname, authKey, targetAddr, controlURL string) (int, err
 	key := stateDir + "|" + hostname + "|" + targetAddr + "|" + controlURL
 
 	mu.Lock()
-	if srv != nil && state == stateRunning && startKey == key && ln != nil {
-		port := ln.Addr().(*net.TCPAddr).Port
+	for {
+		if srv != nil && state == stateRunning && startKey == key && ln != nil {
+			port := ln.Addr().(*net.TCPAddr).Port
+			mu.Unlock()
+			return port, nil
+		}
+		if state != stateStarting || startKey != key || starting == nil {
+			break
+		}
+		// The same tunnel is already on its way up (the app asked twice): wait for it.
+		wait := starting
 		mu.Unlock()
-		return port, nil
+		<-wait
+		mu.Lock()
+		if state != stateRunning && startKey != key {
+			// It failed: say why rather than trying again with a key that may be spent.
+			err := errors.New(lastErr)
+			mu.Unlock()
+			return 0, err
+		}
 	}
 	stopLocked()
 	gen++
 	myGen := gen
 	state = stateStarting
 	lastErr = ""
+	done := make(chan struct{})
+	starting = done
+	defer close(done)
 	if err := os.MkdirAll(stateDir, 0o700); err != nil {
 		failLocked(err)
 		mu.Unlock()
@@ -167,7 +192,7 @@ func Start(stateDir, hostname, authKey, targetAddr, controlURL string) (int, err
 	}
 	ln = l
 	state = stateRunning
-	go serve(l, s, targetAddr)
+	go serve(l, s, targetAddr, myGen)
 	return l.Addr().(*net.TCPAddr).Port, nil
 }
 
@@ -217,18 +242,89 @@ func up(ctx context.Context, s *tsnet.Server, haveKey bool) error {
 	}
 }
 
-func serve(l net.Listener, s *tsnet.Server, targetAddr string) {
+func serve(l net.Listener, s *tsnet.Server, targetAddr string, myGen int) {
 	for {
 		c, err := l.Accept()
-		if err != nil {
+		if err == nil {
+			go forward(c, s, targetAddr)
+			continue
+		}
+		// Closed by Stop (or a new Start): done. Otherwise the system took the socket
+		// away (iOS does, from an app suspended for a while): listen again on the same
+		// port, so the address the app holds keeps working.
+		mu.Lock()
+		if gen != myGen || ln != l {
+			mu.Unlock()
 			return
 		}
-		go forward(c, s, targetAddr)
+		port := l.Addr().(*net.TCPAddr).Port
+		l2, lerr := listenLoopback(port)
+		if lerr != nil || l2.Addr().(*net.TCPAddr).Port != port {
+			if l2 != nil {
+				l2.Close()
+			}
+			ln = nil
+			failLocked(fmt.Errorf("tunnel: lost the local port: %v", err))
+			mu.Unlock()
+			return
+		}
+		ln, l = l2, l2
+		mu.Unlock()
 	}
+}
+
+// maxHeader is how much of a request's start is read to find its Host.
+const maxHeader = 16 << 10
+
+// localHost reports whether an HTTP request's Host names this loopback port: the
+// app's own requests do; a web page reaching 127.0.0.1 by DNS rebinding names its
+// own host, and is turned away.
+func localHost(host string, port int) bool {
+	p := fmt.Sprint(port)
+	return host == "127.0.0.1:"+p || host == "localhost:"+p || host == "[::1]:"+p
+}
+
+// hostOf finds the Host header in the start of an HTTP request.
+func hostOf(head []byte) (string, bool) {
+	end := bytes.Index(head, []byte("\r\n\r\n"))
+	if end < 0 {
+		return "", false
+	}
+	for _, line := range bytes.Split(head[:end], []byte("\r\n"))[1:] {
+		name, value, ok := bytes.Cut(line, []byte(":"))
+		if ok && strings.EqualFold(string(bytes.TrimSpace(name)), "host") {
+			return string(bytes.TrimSpace(value)), true
+		}
+	}
+	return "", false
 }
 
 func forward(c net.Conn, s *tsnet.Server, targetAddr string) {
 	defer c.Close()
+	// Only the app's own requests go through: the first request on each connection
+	// must name 127.0.0.1:<port> as its Host.
+	port := c.LocalAddr().(*net.TCPAddr).Port
+	br := bufio.NewReaderSize(c, maxHeader)
+	c.SetReadDeadline(time.Now().Add(30 * time.Second))
+	var head []byte
+	if _, err := br.Peek(1); err == nil {
+		for {
+			// What's arrived so far; wait for more only while the headers aren't all here.
+			head, _ = br.Peek(br.Buffered())
+			if bytes.Contains(head, []byte("\r\n\r\n")) || len(head) >= maxHeader {
+				break
+			}
+			if _, err := br.Peek(br.Buffered() + 1); err != nil {
+				head, _ = br.Peek(br.Buffered())
+				break
+			}
+		}
+	}
+	c.SetReadDeadline(time.Time{})
+	if host, ok := hostOf(head); !ok || !localHost(host, port) {
+		io.WriteString(c, "HTTP/1.1 421 Misdirected Request\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+		return
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	rc, err := s.Dial(ctx, "tcp", targetAddr)
 	cancel()
@@ -240,7 +336,7 @@ func forward(c net.Conn, s *tsnet.Server, targetAddr string) {
 	}
 	defer rc.Close()
 	done := make(chan struct{}, 2)
-	go func() { io.Copy(rc, c); closeWrite(rc); done <- struct{}{} }()
+	go func() { io.Copy(rc, br); closeWrite(rc); done <- struct{}{} }()
 	go func() { io.Copy(c, rc); closeWrite(c); done <- struct{}{} }()
 	<-done
 	<-done
@@ -271,11 +367,31 @@ func failLocked(err error) {
 // stateDir for the next Start.
 func Stop() {
 	mu.Lock()
-	defer mu.Unlock()
 	gen++
+	// Shut down outside the lock: Close can take a few seconds, and State and Status
+	// shouldn't wait on it.
+	old := srv
+	srv = nil
 	stopLocked()
 	state = stateStopped
 	lastErr = ""
+	mu.Unlock()
+	if old != nil {
+		done := make(chan struct{})
+		go func() { old.Close(); close(done) }()
+		select {
+		case <-done:
+		case <-time.After(3 * time.Second):
+		}
+	}
+}
+
+// State reports just the tunnel's state ("running", "starting", "stopped",
+// "needs-login" or "error"), at once: unlike Status, it never asks the node anything.
+func State() string {
+	mu.Lock()
+	defer mu.Unlock()
+	return state
 }
 
 func stopLocked() {

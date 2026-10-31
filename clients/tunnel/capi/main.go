@@ -56,6 +56,12 @@ func FlexarrTunnelLastError() *C.char {
 //export FlexarrTunnelStatus
 func FlexarrTunnelStatus() *C.char { return C.CString(tunnel.Status()) }
 
+// FlexarrTunnelState returns just the state ("running", …), without asking the node
+// anything, so it's cheap enough for the main thread.
+//
+//export FlexarrTunnelState
+func FlexarrTunnelState() *C.char { return C.CString(tunnel.State()) }
+
 // FlexarrTunnelStop stops the tunnel. The node's identity stays in stateDir.
 //
 //export FlexarrTunnelStop
