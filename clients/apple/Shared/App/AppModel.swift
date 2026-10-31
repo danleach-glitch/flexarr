@@ -463,7 +463,7 @@ final class AppModel {
                 phase = .signedIn(moved)
             }
             // Back after the problem showed: whatever gave up waiting for the tunnel (the profiles) goes again.
-            if recovered, !loadingProfiles { Task { await loadProfiles() } }
+            if recovered, profilesLoad == nil { Task { await loadProfiles() } }
             return true
         } catch GuestTunnel.Failure.needsInvite {
             // Deleted from the host's tailnet (or its key ran out): Try again can't help, so it's as if removed.
@@ -583,18 +583,29 @@ final class AppModel {
         }
     }
 
-    /// Try again, after the tunnel didn't start.
+    /// Try again, after the tunnel didn't start: joins the load still under way ("Still connecting") rather than
+    /// start a second.
     func retryGuestTunnel() async {
         tunnelProblem = nil
-        await loadProfiles()
+        await reloadProfiles()
     }
 
-    /// `loadProfiles` is under way (a tunnel that comes back doesn't start another).
-    @ObservationIgnored private var loadingProfiles = false
+    /// The `loadProfiles` under way, which Try again and a tunnel that comes back join rather than start another.
+    @ObservationIgnored private var profilesLoad: Task<Void, Never>?
+
+    /// Loads the profiles, or joins the load already under way.
+    private func reloadProfiles() async {
+        if let profilesLoad { await profilesLoad.value } else { await loadProfiles() }
+    }
 
     func loadProfiles() async {
-        loadingProfiles = true
-        defer { loadingProfiles = false }
+        let load = Task { await self.loadProfilesNow() }
+        profilesLoad = load
+        await withTaskCancellationHandler { await load.value } onCancel: { load.cancel() }
+        if profilesLoad == load { profilesLoad = nil }
+    }
+
+    private func loadProfilesNow() async {
         if let guest = credentials?.guest {
             guard await ensureGuestTunnel() else { return }
             upgradeChecked = true // a guest's sign-in is its own already
@@ -627,7 +638,7 @@ final class AppModel {
             credentials.profileToken = nil
             store.saveProfile(nil)
             phase = .signedIn(credentials)
-            return await loadProfiles()
+            return await loadProfilesNow()
         }
         profiles = list
         let me = await signIn
