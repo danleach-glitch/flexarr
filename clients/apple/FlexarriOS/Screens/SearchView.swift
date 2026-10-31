@@ -4,6 +4,7 @@ import SwiftUI
 struct SearchView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(Router.self) private var router
     @State private var query = ""
     @FocusState private var typing: Bool
     @State private var results: SearchResults?
@@ -28,6 +29,35 @@ struct SearchView: View {
                                 PosterCard(item: item, width: Layout.posterWidth(sizeClass)) {
                                     model.recordSearch(query: query, item: item)
                                 }
+                            }
+                        }
+                    }
+                    if let books = results.books, !books.isEmpty {
+                        section("Audiobooks") {
+                            ForEach(books) { item in
+                                BookCard(item: item, width: Layout.posterWidth(sizeClass) * 1.15) {
+                                    model.recordSearch(query: query, item: item)
+                                }
+                            }
+                        }
+                    }
+                    if let series = results.bookSeries, !series.isEmpty {
+                        section("Series") {
+                            ForEach(series) { found in
+                                Button {
+                                    model.recordSearch(query: query)
+                                    router.push(.bookSeries(id: found.id, name: found.name))
+                                } label: {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(found.name).font(.subheadline.weight(.semibold)).foregroundStyle(Color.screen)
+                                        Text(found.bookCount == 1 ? "1 book" : "\(found.bookCount) books").font(.caption).foregroundStyle(Color.usher)
+                                    }
+                                    .lineLimit(1)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 12)
+                                    .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.seat))
+                                }
+                                .buttonStyle(CardButtonStyle())
                             }
                         }
                     }
@@ -224,6 +254,21 @@ struct PersonView: View {
     let name: String
     @State private var person: Person?
     @State private var error: String?
+    @State private var biographyExpanded = false
+
+    private func unique(_ credits: [PersonCredit]) -> [PersonCredit] {
+        var seen: Set<String> = []
+        return credits.filter { seen.insert($0.item.id).inserted }
+    }
+
+    /// "12 titles in your library", or "3 books" for an author or narrator.
+    private func countLine(_ person: Person) -> String {
+        let count = unique(person.credits).count
+        if !person.credits.isEmpty, person.credits.allSatisfy({ $0.item.kind == .audiobook }) {
+            return count == 1 ? "1 book" : "\(count) books"
+        }
+        return count == 1 ? "1 title in your library" : "\(count) titles in your library"
+    }
 
     private var columns: [GridItem] {
         let minimum: CGFloat = sizeClass == .regular ? 140 : 100
@@ -241,16 +286,32 @@ struct PersonView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(name).font(.marquee(34, weight: .heavy)).foregroundStyle(Color.screen)
                         if let person {
-                            Text(person.credits.count == 1 ? "1 title in your library" : "\(person.credits.count) titles in your library")
+                            Text(countLine(person))
                                 .font(.subheadline).foregroundStyle(Color.usher)
                         }
                     }
                 }
                 .padding(.horizontal, Layout.edge)
                 if let person {
+                    if let biography = person.biography, !biography.isEmpty {
+                        Text(biography)
+                            .font(.subheadline)
+                            .lineSpacing(3)
+                            .foregroundStyle(Color.screen.opacity(0.88))
+                            .lineLimit(biographyExpanded ? nil : 5)
+                            .padding(.horizontal, Layout.edge)
+                            .contentShape(Rectangle())
+                            .onTapGesture { withAnimation(.easeInOut(duration: 0.2)) { biographyExpanded.toggle() } }
+                            .accessibilityAddTraits(.isButton)
+                    }
                     LazyVGrid(columns: columns, alignment: .leading, spacing: 20) {
-                        ForEach(person.credits, id: \.item.id) { credit in
-                            PosterCard(item: credit.item)
+                        // An author's books and the ones they read are listed once each.
+                        ForEach(unique(person.credits), id: \.item.id) { credit in
+                            if credit.item.kind == .audiobook {
+                                BookCard(item: credit.item)
+                            } else {
+                                PosterCard(item: credit.item)
+                            }
                         }
                     }
                     .padding(.horizontal, Layout.edge)

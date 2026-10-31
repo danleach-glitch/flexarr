@@ -26,7 +26,14 @@ enum LibraryMenuEntry: Identifiable, Hashable {
 
     var symbol: String {
         switch self {
-        case .library(let library): library.type == .tvShows ? "tv" : library.type == .music ? "music.note" : library.type == .homeVideos ? "folder" : "film"
+        case .library(let library):
+            switch library.type {
+            case .tvShows: "tv"
+            case .music: "music.note"
+            case .audiobooks: "headphones"
+            case .homeVideos: "folder"
+            default: "film"
+            }
         case .podcasts: "mic.fill"
         case .liveTv: "antenna.radiowaves.left.and.right"
         }

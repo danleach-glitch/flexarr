@@ -53,7 +53,8 @@ struct HomeView: View {
                     EmptyHome(message: message)
                 }
                 // A row with nothing in it (a kind this app doesn't show yet, say) would be a bare heading.
-                ForEach(home.rows.filter(\.hasContent)) { row in
+                // Audiobooks are the phones' and the web's for now: their rows aren't the Apple TV's.
+                ForEach(home.rows.filter { $0.hasContent && !$0.id.hasPrefix("books-") }) { row in
                     HomeRowView(row: row)
                 }
             }

@@ -36,6 +36,8 @@ final class AppModel {
     private(set) var liveTvStatus: LiveTvStatus?
     /// How this profile listens to podcasts (auto-download, how many to keep, speed); nil until loaded.
     private(set) var podcastPreferences: PodcastPreferences?
+    /// How this profile listens to books (default speed, skip steps, smart rewind); nil without an audiobooks library.
+    private(set) var bookListening: BookListening?
     /// The podcast episodes to hear next, as the server keeps them for this profile (every device sees the same).
     private(set) var upNext: [PodcastEpisode] = [] {
         didSet { if upNext != oldValue { onPodcastsChange?() } }
@@ -798,6 +800,9 @@ final class AppModel {
         if podcastStatus?.available == true { podcastPreferences = try? await client.podcastPreferences() }
         // Nor Live TV.
         liveTvStatus = isKids ? nil : try? await client.liveTvStatus()
+        if libraries.contains(where: { $0.type == .audiobooks }), let listening = try? await client.bookListening() {
+            bookListening = listening
+        }
         await refreshWatchlist()
     }
 
@@ -945,6 +950,34 @@ final class AppModel {
         default:
             play(item)
         }
+    }
+
+    // MARK: Books
+
+    /// Plays a book from where this profile is in it, or from `position` (a chapter, a bookmark).
+    func playBook(_ book: ItemSummary, at position: Double? = nil) {
+        // The player's book mode comes with the next change.
+    }
+
+    /// Marks a book finished (it leaves Continue listening) or not.
+    func setBookFinished(_ book: ItemSummary, _ finished: Bool) async {
+        guard let client else { return }
+        try? await client.setBookFinished(book.id, finished: finished)
+        watchStateChanged()
+    }
+
+    /// Starts a book over from the beginning, keeping when it was finished.
+    func listenAgain(_ book: ItemSummary) async {
+        guard let client else { return }
+        try? await client.listenAgain(book.id)
+        watchStateChanged()
+        playBook(book, at: 0)
+    }
+
+    /// Saves how this profile listens to books, on every device.
+    func updateBookListening(_ update: BookListeningUpdate) async {
+        guard let client else { return }
+        if let saved = try? await client.setBookListening(update) { bookListening = saved }
     }
 
     // MARK: Podcasts
@@ -1338,6 +1371,8 @@ enum Route: Hashable {
     case genre(String)
     /// The profile's watchlist.
     case watchlist
+    /// An audiobook series in reading order (iPhone and iPad).
+    case bookSeries(id: String, name: String)
 }
 
 /// One navigation stack per tab.

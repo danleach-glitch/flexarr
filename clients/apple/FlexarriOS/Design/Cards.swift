@@ -36,6 +36,7 @@ struct PosterCard: View {
     }
 
     private var subtitle: String? {
+        if item.kind == .audiobook { return item.bookAuthors }
         if item.kind == .series, let count = item.userData.unwatchedCount, count > 0 {
             return [item.releaseYear.map(String.init), "\(count) new"].compactMap { $0 }.joined(separator: "  ")
         }
@@ -51,7 +52,7 @@ struct PosterArtwork: View {
     var body: some View {
         Color.seat
             // Album covers and artist pictures are square; everything else is a 2:3 poster.
-            .aspectRatio(item.kind.isMusic ? 1 : 2 / 3, contentMode: .fit)
+            .aspectRatio(item.kind.isMusic || item.kind == .audiobook ? 1 : 2 / 3, contentMode: .fit)
             .overlay {
                 RemoteImage(url: model.client?.imageURL(item.artwork.poster, width: 342)) {
                     ZStack {
@@ -241,6 +242,15 @@ struct ItemContextMenu: View {
     var showsDetails = false
 
     var body: some View {
+        if item.kind == .audiobook {
+            BookContextMenu(item: item)
+        } else {
+            menu
+        }
+    }
+
+    @ViewBuilder
+    private var menu: some View {
         if item.kind == .movie || item.kind == .episode {
             Button { model.play(item) } label: {
                 Label(item.isResumable ? "Resume" : "Play", systemImage: "play.fill")
