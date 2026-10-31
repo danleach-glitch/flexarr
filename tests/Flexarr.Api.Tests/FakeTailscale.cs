@@ -22,6 +22,9 @@ public sealed class FakeTailscale : HttpMessageHandler
 
     public List<string> DeletedKeys { get; } = [];
 
+    /// <summary>Set to make every call go wrong the way a bad network does: "timeout", or "html" (a captive portal's page).</summary>
+    public string? Broken { get; set; }
+
     private int _keys;
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
@@ -29,6 +32,16 @@ public sealed class FakeTailscale : HttpMessageHandler
         var body = request.Content is null ? "" : await request.Content.ReadAsStringAsync(cancellationToken);
         var path = request.RequestUri!.AbsolutePath;
         Calls.Enqueue(new ApiCall(request.Method, path, request.Headers.Authorization?.ToString(), body));
+        if (Broken == "timeout")
+        {
+            // What HttpClient throws when its own timeout runs out.
+            throw new TaskCanceledException("The request was canceled due to the configured HttpClient.Timeout.");
+        }
+
+        if (Broken == "html")
+        {
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("<html>Sign in to the Wi-Fi</html>", Encoding.UTF8, "text/html") };
+        }
 
         if (path == "/api/v2/oauth/token")
         {

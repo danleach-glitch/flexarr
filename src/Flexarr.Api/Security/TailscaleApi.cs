@@ -50,7 +50,9 @@ public sealed partial class TailscaleApi(IHttpClientFactory clients, IOptionsMon
     /// Mints a key that works once, is approved already, carries only the guest tag and expires at
     /// <paramref name="expiresAt"/>. The device it adds stays until the owner deletes it.
     /// </summary>
-    public async Task<TailscaleKey> CreateGuestKeyAsync(DateTime expiresAt, CancellationToken ct)
+    public Task<TailscaleKey> CreateGuestKeyAsync(DateTime expiresAt, CancellationToken ct) => GuardAsync(() => CreateGuestKeyCoreAsync(expiresAt, ct), ct);
+
+    private async Task<TailscaleKey> CreateGuestKeyCoreAsync(DateTime expiresAt, CancellationToken ct)
     {
         var seconds = (long)Math.Clamp((expiresAt - clock.GetUtcNow().UtcDateTime).TotalSeconds, 60, TimeSpan.FromDays(90).TotalSeconds);
         var body = new
@@ -73,7 +75,13 @@ public sealed partial class TailscaleApi(IHttpClientFactory clients, IOptionsMon
     }
 
     /// <summary>Deletes an unused key (a cancelled invite). A key that's gone already is fine.</summary>
-    public async Task DeleteKeyAsync(string id, CancellationToken ct)
+    public Task DeleteKeyAsync(string id, CancellationToken ct) => GuardAsync(async () =>
+    {
+        await DeleteKeyCoreAsync(id, ct);
+        return true;
+    }, ct);
+
+    private async Task DeleteKeyCoreAsync(string id, CancellationToken ct)
     {
         using var request = new HttpRequestMessage(HttpMethod.Delete, Url($"api/v2/tailnet/-/keys/{Uri.EscapeDataString(id)}"));
         try
@@ -86,7 +94,9 @@ public sealed partial class TailscaleApi(IHttpClientFactory clients, IOptionsMon
     }
 
     /// <summary>The tailnet policy, as JSON (comments dropped).</summary>
-    public async Task<JsonObject> GetPolicyAsync(CancellationToken ct)
+    public Task<JsonObject> GetPolicyAsync(CancellationToken ct) => GuardAsync(() => GetPolicyCoreAsync(ct), ct);
+
+    private async Task<JsonObject> GetPolicyCoreAsync(CancellationToken ct)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, Url("api/v2/tailnet/-/acl"));
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
@@ -104,9 +114,14 @@ public sealed partial class TailscaleApi(IHttpClientFactory clients, IOptionsMon
     }
 
     /// <summary>Asks Tailscale whether a policy is valid and its tests pass, without saving it.</summary>
-    public async Task<PolicyValidation> ValidateAsync(JsonObject policy, CancellationToken ct)
+    public Task<PolicyValidation> ValidateAsync(JsonObject policy, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(policy);
+        return GuardAsync(() => ValidateCoreAsync(policy, ct), ct);
+    }
+
+    private async Task<PolicyValidation> ValidateCoreAsync(JsonObject policy, CancellationToken ct)
+    {
         using var request = new HttpRequestMessage(HttpMethod.Post, Url("api/v2/tailnet/-/acl/validate"))
         {
             Content = new StringContent(policy.ToJsonString(), Encoding.UTF8, "application/json"),
@@ -166,16 +181,42 @@ public sealed partial class TailscaleApi(IHttpClientFactory clients, IOptionsMon
     {
         try
         {
-            await TokenAsync(ct, forceNew: true);
+            await GuardAsync(() => TokenAsync(ct, forceNew: true), ct);
             return null;
         }
         catch (TailscaleApiException ex)
         {
             return ex.Message;
         }
+    }
+
+    /// <summary>
+    /// Runs a call to Tailscale's API, turning everything that can go wrong on the way (no connection, a timeout, an
+    /// answer that isn't JSON, a proxy's page) into a <see cref="TailscaleApiException"/>, so callers have one thing
+    /// to catch and nothing escapes to stop the server. Cancelling <paramref name="ct"/> still cancels.
+    /// </summary>
+    private static async Task<T> GuardAsync<T>(Func<Task<T>> call, CancellationToken ct)
+    {
+        try
+        {
+            return await call();
+        }
         catch (HttpRequestException ex)
         {
-            return $"Couldn't reach Tailscale ({ex.Message}).";
+            throw new TailscaleApiException($"Couldn't reach Tailscale ({ex.Message}).");
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            throw new TailscaleApiException("Tailscale didn't answer in time. Try again in a minute.");
+        }
+        catch (JsonException)
+        {
+            throw new TailscaleApiException("Tailscale's answer couldn't be read. Is something between this server and Tailscale?");
+        }
+        catch (NotSupportedException)
+        {
+            // ReadFromJsonAsync on an answer that isn't JSON at all (a captive portal's HTML page).
+            throw new TailscaleApiException("Tailscale's answer couldn't be read. Is something between this server and Tailscale?");
         }
     }
 
