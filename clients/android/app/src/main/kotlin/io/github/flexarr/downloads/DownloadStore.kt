@@ -423,6 +423,8 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         all.filter { it.isPending }.forEach { enqueue(it, replace = false) }
         downloads.forEach { fetchNext(after = it) }
         reconcilePodcasts()
+        // Whole books are kept apart, and catch up with the rest.
+        model.bookDownloads.catchUp()
     }
 
     // Downloading
@@ -743,6 +745,7 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
 
     /** Every download goes (Settings' Delete all). What was watched offline is sent first, while it can be. */
     fun deleteAll() {
+        model.bookDownloads.deleteAll()
         if (!loaded) clearedBeforeLoad = true
         val client = currentClient
         val pending = all.mapNotNull { download -> download.unsent?.let { download.item.id to it } }

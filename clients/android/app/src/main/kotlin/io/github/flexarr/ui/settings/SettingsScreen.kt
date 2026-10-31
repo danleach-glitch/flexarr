@@ -382,10 +382,20 @@ fun DownloadSettingsScreen(model: AppModel) {
                     Toggle("Automatic downloads on Wi-Fi only", downloads.automaticOnWiFiOnly, downloads::changeAutomaticOnWiFiOnly)
                 }
             }
+            if (model.hasAudiobooks || model.bookDownloads.books.isNotEmpty()) {
+                item {
+                    Group(header = "Audiobooks") {
+                        Toggle("Download the next in a series", model.bookDownloads.downloadsNextInSeries, model.bookDownloads::changeDownloadsNextInSeries)
+                        Divider()
+                        Toggle("Remove finished books", model.bookDownloads.removesFinished, model.bookDownloads::changeRemovesFinished)
+                    }
+                }
+            }
             item {
+                val used = downloads.bytesUsed + model.bookDownloads.bytesUsed
                 Group(header = "Storage", footer = "Episodes are deleted a day after you finish them, and podcast episodes once they’re played.") {
-                    Fact("Space used", if (downloads.bytesUsed == 0L) "None" else Format.bytes(downloads.bytesUsed))
-                    if (downloads.downloads.isNotEmpty()) {
+                    Fact("Space used", if (used == 0L) "None" else Format.bytes(used))
+                    if (downloads.downloads.isNotEmpty() || model.bookDownloads.books.isNotEmpty()) {
                         Divider()
                         Text(
                             "Delete all downloads",
