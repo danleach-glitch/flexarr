@@ -19,8 +19,10 @@ public static class BookEndpoints
         library.MapGet("/book-shelves", async (Guid id, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
             await IsBooksAsync(db, id, ct) ? Results.Ok(await BookQueries.ShelvesAsync(db, id, profile.Id, ct)) : Results.NotFound());
 
-        library.MapGet("/books", async (Guid id, [AsParameters] BookFilter filter, int? skip, int? take, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
+        library.MapGet("/books", async (Guid id, string? search, string? progress, Guid? author, Guid? narrator, string? genre, string? language, bool? abridged,
+            double? minHours, double? maxHours, string? sort, bool? descending, int? skip, int? take, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
         {
+            var filter = new BookFilter(search, progress, author, narrator, genre, language, abridged, minHours, maxHours, sort, descending);
             if (!await IsBooksAsync(db, id, ct))
             {
                 return Results.NotFound();
@@ -215,7 +217,8 @@ public static class BookEndpoints
 
     private static string ContentType(string path) => Path.GetExtension(path).ToLowerInvariant() switch
     {
-        ".m4b" or ".m4a" or ".mp4" or ".aac" => "audio/mp4",
+        ".m4b" or ".m4a" or ".mp4" => "audio/mp4",
+        ".aac" => "audio/aac",
         ".mp3" => "audio/mpeg",
         ".flac" => "audio/flac",
         ".ogg" or ".opus" => "audio/ogg",
