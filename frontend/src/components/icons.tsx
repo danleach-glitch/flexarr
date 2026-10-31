@@ -218,6 +218,13 @@ export const Tablet = (p: IconProps) => (
     <path d="M11 18h2" />
   </svg>
 )
+/** An open book: audiobooks. */
+export const Book = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="M12 6.5C10 5 7 4.5 3.5 4.5v14c3.5 0 6.5.5 8.5 2 2-1.5 5-2 8.5-2v-14c-3.5 0-6.5.5-8.5 2Z" />
+    <path d="M12 6.5v14" />
+  </svg>
+)
 export const Music = (p: IconProps) => (
   <svg {...base} {...p}>
     <path d="M9 18V5l11-2v13" />

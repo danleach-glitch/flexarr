@@ -82,7 +82,7 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
   const { kids } = useAgeLimits()
   // The main profile, locked or not: deleting and fixing a match don't take its PIN (only the server's settings do).
   const mainProfile = me?.isAdmin === true || me?.canUnlock === true
-  const canDelete = mainProfile && (item.kind === 'Movie' || item.kind === 'Series' || item.kind === 'Episode')
+  const canDelete = mainProfile && (item.kind === 'Movie' || item.kind === 'Series' || item.kind === 'Episode' || item.kind === 'Audiobook')
   const canFixMatch = mainProfile && (item.kind === 'Movie' || item.kind === 'Series')
   const nextUp = detail.nextUp ?? undefined
   const similar = useApi((signal) => (item.kind === 'Movie' || item.kind === 'Series' ? getSimilar(item.id, signal) : Promise.resolve([])), [item.id])

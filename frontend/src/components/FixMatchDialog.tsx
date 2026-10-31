@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
-import { ApiError, fixMatch, getItem, imageUrl, resetMatch, searchMatches, type MatchCandidate } from '../api/client'
+import { ApiError, fixMatch, getItem, imageUrl, resetMatch, searchMatches, type MatchCandidate, type MediaKind } from '../api/client'
+import { arrFor } from '../lib/apps'
 import { useApi } from '../hooks/useApi'
 import { AsyncButton } from './AsyncButton'
 import { Search } from './icons'
@@ -17,8 +18,9 @@ interface Props {
  * search is TMDB's (films) or TVmaze's (shows), and the choice is only kept in Flexarr.
  */
 export function FixMatchDialog({ item, onFixed, onClose }: Props) {
-  const arr = item.kind === 'Movie' ? 'Radarr' : 'Sonarr'
-  const noun = item.kind === 'Movie' ? 'film' : 'show'
+  // Whose title it is: films are Radarr's and shows Sonarr's (books have no Fix match yet, and aren't offered it).
+  const arr = arrFor(item.kind as MediaKind)
+  const noun = item.kind === 'Movie' ? 'film' : item.kind === 'Audiobook' ? 'book' : 'show'
   const [draft, setDraft] = useState(item.title)
   const [query, setQuery] = useState(item.title)
   const [chosen, setChosen] = useState<MatchCandidate>()

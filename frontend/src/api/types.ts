@@ -1,12 +1,13 @@
-export type LibraryType = 'Movies' | 'TvShows' | 'Music' | 'Podcasts' | 'HomeVideos'
-export type MediaKind = 'Movie' | 'Series' | 'Season' | 'Episode' | 'Artist' | 'Album' | 'Track' | 'Podcast' | 'PodcastEpisode'
+export type LibraryType = 'Movies' | 'TvShows' | 'Music' | 'Podcasts' | 'HomeVideos' | 'Audiobooks'
+export type MediaKind = 'Movie' | 'Series' | 'Season' | 'Episode' | 'Artist' | 'Album' | 'Track' | 'Podcast' | 'PodcastEpisode' | 'Audiobook'
 export type VideoRange = 'Sdr' | 'Hdr10' | 'Hlg' | 'DolbyVision'
 export type StreamType = 'Video' | 'Audio' | 'Subtitle'
-export type CreditRole = 'Actor' | 'Director' | 'Writer' | 'Producer' | 'Creator'
+export type CreditRole = 'Actor' | 'Director' | 'Writer' | 'Producer' | 'Creator' | 'Author' | 'Narrator' | 'Translator'
 export type PlaybackMethod = 'DirectPlay' | 'Transcode'
 export type MarkerType = 'Intro' | 'Recap' | 'Credits'
 export type HardwareAcceleration = 'Auto' | 'None' | 'VideoToolbox' | 'Vaapi' | 'Qsv' | 'Nvenc'
-export type ArrKind = 'Sonarr' | 'Radarr' | 'Lidarr'
+/** Readarr stands for any Readarr-compatible app (Readarr, Bookshelf, Chaptarr). */
+export type ArrKind = 'Sonarr' | 'Radarr' | 'Lidarr' | 'Readarr'
 
 export interface SystemStatus {
   appName: string
@@ -103,6 +104,8 @@ export interface ItemSummary {
   trackArtist?: string | null
   /** In a home video library: a "show" is a folder, its "seasons" folders in it, and its "episodes" videos, all shown by name. */
   homeVideo?: boolean
+  /** A book's authors, narrator, series and length. Absent from servers before 0.58. */
+  book?: BookSummary | null
   /**
    * Not from the server: where the player starts this queue entry, for a podcast episode played from the start rather
    * than from where it was left.
@@ -187,6 +190,8 @@ export interface ItemDetail {
   ratingAge?: number | null
   /** A parent's say for profiles with an age limit; only sent to the main profile. Absent from servers before 0.56. */
   kidsOverride?: KidsOverride | null
+  /** A book's edition, series, chapters and bookmarks. Absent from servers before 0.58. */
+  book?: BookDetail | null
 }
 
 export type KidsOverride = 'None' | 'Allow' | 'Block'
@@ -196,6 +201,8 @@ export interface Person {
   name: string
   image: string | null
   credits: { item: ItemSummary; role: CreditRole; character: string | null }[]
+  /** An author's or narrator's biography. Absent from servers before 0.58. */
+  biography?: string | null
 }
 
 export interface HomeRow {
@@ -320,6 +327,9 @@ export interface SearchResults {
   genres: string[]
   albums: ItemSummary[]
   tracks: { item: ItemSummary; album: string | null }[]
+  /** Audiobooks, apart from titles. Absent from servers before 0.58. */
+  books?: ItemSummary[] | null
+  bookSeries?: BookSeriesSearch[] | null
 }
 
 /** The profile's last few searches and what they opened from them, newest first, on every device (absent before 0.56). */
@@ -376,6 +386,8 @@ export interface PlaybackRequest {
   shuffle?: boolean
   /** Getting the next episode ready during the credits: conversion starts now, and it never ends another screen. */
   prepare?: boolean
+  /** A name for this device ("Safari on Mac"), for a book's "Jump to where you were on …". */
+  deviceName?: string
 }
 
 export interface AudioTrack {
@@ -442,6 +454,8 @@ export interface PlaybackInfo {
   canSearchSubtitles?: boolean
   /** The fonts attached to the file for its styled subtitles. Absent from servers before 0.53. */
   fontsUrl?: string | null
+  /** A book's files on its timeline, chapters, bookmarks and place. Absent from servers before 0.58. */
+  book?: BookManifest | null
 }
 
 export interface SubtitleFont {
@@ -936,4 +950,156 @@ export interface ClientLogEntry {
   message: string
   error?: string
   properties?: Record<string, string>
+}
+
+// ---------- Audiobooks (absent from servers before 0.58)
+
+/** What a list shows about a book. */
+export interface BookSummary {
+  /** Up to two authors' names, "Lee Child, Andrew Child". */
+  authors: string | null
+  authorCount: number
+  narrator: string | null
+  series: string | null
+  /** Its number in `series` ("3", "1.5"). */
+  sequence: string | null
+  durationSeconds: number
+  finishedAt: string | null
+}
+
+export interface BookChapter {
+  index: number
+  title: string
+  startSeconds: number
+  endSeconds: number
+}
+
+export interface Bookmark {
+  id: string
+  positionSeconds: number
+  note: string | null
+  createdAt: string
+}
+
+/** A series a book is in, its number there, and how many books of it the library has. */
+export interface BookSeriesRef {
+  id: string
+  name: string
+  sequence: string | null
+  bookCount: number
+}
+
+export type ChapterSource = 'None' | 'Embedded' | 'Cue' | 'Files' | 'Even' | 'Audible' | 'Edited'
+
+/** A book's own page. */
+export interface BookDetail {
+  subtitle: string | null
+  asin: string | null
+  isbn: string | null
+  publisher: string | null
+  language: string | null
+  abridged: boolean
+  explicit: boolean
+  durationSeconds: number
+  chapterSource: ChapterSource
+  finishedAt: string | null
+  /** This profile's speed for the book; null, its default. */
+  speed: number | null
+  series: BookSeriesRef[]
+  chapters: BookChapter[]
+  bookmarks: Bookmark[]
+  moreInSeries: ItemSummary[]
+  byAuthor: ItemSummary[]
+  readByNarrator: ItemSummary[]
+}
+
+/** One of a book's files on its timeline. */
+export interface BookFile {
+  index: number
+  fileId: string
+  offsetSeconds: number
+  durationSeconds: number
+  container: string | null
+  audioCodec: string | null
+  size: number
+  url: string
+  converted: boolean
+}
+
+/** Where this profile is in a book, and which device put it there. */
+export interface BookProgress {
+  positionSeconds: number
+  finished: boolean
+  finishedAt: string | null
+  updatedAt: string | null
+  device: string | null
+}
+
+/** How this profile listens to books. */
+export interface BookListening {
+  speed: number
+  skipBackSeconds: number
+  skipForwardSeconds: number
+  smartRewind: boolean
+}
+
+/** Everything a player needs to play a book. */
+export interface BookManifest {
+  itemId: string
+  durationSeconds: number
+  files: BookFile[]
+  chapters: BookChapter[]
+  bookmarks: Bookmark[]
+  progress: BookProgress
+  speed: number
+  listening: BookListening
+  nextInSeries: ItemSummary | null
+}
+
+/** A series in a library's list of them. */
+export interface BookSeriesSummary {
+  id: string
+  name: string
+  bookCount: number
+  finishedCount: number
+  /** Its first few books' artwork, for a stacked cover. */
+  covers: Artwork[]
+  /** The next book in it this profile hasn't finished. */
+  next: ItemSummary | null
+}
+
+/** A series in reading order. */
+export interface BookSeries {
+  id: string
+  libraryId: string
+  name: string
+  description: string | null
+  books: { book: ItemSummary; sequence: string | null }[]
+  nextId: string | null
+}
+
+/** An author or narrator in a library's list of them. */
+export interface BookPerson {
+  id: string
+  name: string
+  image: string | null
+  bookCount: number
+}
+
+/** An audiobooks library's front page. */
+export interface BookShelves {
+  continueListening: ItemSummary[]
+  nextInSeries: ItemSummary[]
+  recentlyAdded: ItemSummary[]
+  series: BookSeriesSummary[]
+  authors: BookPerson[]
+  narrators: BookPerson[]
+  genres: { name: string; count: number }[]
+  finished: ItemSummary[]
+}
+
+export interface BookSeriesSearch {
+  id: string
+  name: string
+  bookCount: number
 }

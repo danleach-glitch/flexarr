@@ -2,6 +2,7 @@ import { memo, useState, type CSSProperties, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import type { ItemSummary } from '../api/types'
 import { episodeCode, episodeHeading, episodeName, progressOf, year } from '../lib/format'
+import { authorsLine, isBook } from '../lib/books'
 import { itemLink } from '../lib/links'
 import { getTracks } from '../api/client'
 import { useAudioPlayer } from '../hooks/audioPlayerContext'
@@ -16,13 +17,14 @@ function Progress({ item }: { item: ItemSummary }) {
   const progress = progressOf(item)
   if (progress === null) return null
   return (
-    <span className="progress" aria-label={`${Math.round(progress * 100)}% watched`}>
+    <span className="progress" aria-label={`${Math.round(progress * 100)}% ${isBook(item) ? 'listened' : 'watched'}`}>
       <span style={{ width: `${progress * 100}%` }} />
     </span>
   )
 }
 
-const toggles = (item: ItemSummary) => item.kind === 'Movie' || item.kind === 'Episode'
+/** Films, episodes and books get a tick of their own (a book's says finished). */
+const toggles = (item: ItemSummary) => item.kind === 'Movie' || item.kind === 'Episode' || item.kind === 'Audiobook'
 
 /** Watched state for shows and seasons (films and episodes get a WatchedToggle instead). */
 function WatchState({ item }: { item: ItemSummary }) {
@@ -54,6 +56,8 @@ function subtitle(item: ItemSummary): string | null {
       return item.childCount === 1 ? '1 album' : `${item.childCount} albums`
     case 'Album':
       return [item.seriesTitle, item.year].filter(Boolean).join(', ')
+    case 'Audiobook':
+      return authorsLine(item) ?? year(item)?.toString() ?? null
     default:
       return year(item)?.toString() ?? null
   }
@@ -150,6 +154,7 @@ export const PosterCard = memo(function PosterCard({ item, playLoneEpisode = fal
   const player = useAudioPlayer()
   const lone = playLoneEpisode && item.kind === 'Series' && item.userData.unwatchedCount === 1
   const music = item.kind === 'Artist' || item.kind === 'Album'
+  const book = isBook(item)
   return (
     <CardShell
       item={item}
@@ -158,7 +163,11 @@ export const PosterCard = memo(function PosterCard({ item, playLoneEpisode = fal
       playLabel={lone ? `Play the new episode of ${item.title}` : undefined}
       className="poster-card"
       overlay={
-        music ? (
+        book ? (
+          <button className="card-play" aria-label={`${progressOf(item) !== null ? 'Resume' : 'Play'} ${item.title}`} onClick={() => player.play([item])}>
+            <Play />
+          </button>
+        ) : music ? (
           // Hovering the artwork shows a play button, as on Spotify; the artwork itself still opens the page.
           <AsyncButton
             className="card-play"
@@ -175,7 +184,7 @@ export const PosterCard = memo(function PosterCard({ item, playLoneEpisode = fal
       }
       art={
         <div className="card-frame">
-          <Artwork src={item.artwork.poster} title={item.title} width={342} accent={item.accentColor} shape={item.kind === 'Artist' || item.kind === 'Album' ? 'square' : 'poster'} />
+          <Artwork src={item.artwork.poster} title={item.title} width={342} accent={item.accentColor} shape={music || book ? 'square' : 'poster'} />
           <WatchState item={item} />
           <Progress item={item} />
         </div>

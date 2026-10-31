@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router'
-import { addToWatchlist, ApiError, getTracks, watchlistChanged, removeFromContinueWatching, removeFromWatchlist, setWatched, type ItemSummary } from '../api/client'
+import { addToWatchlist, ApiError, getTracks, watchlistChanged, removeFromContinueWatching, removeFromWatchlist, setBookFinished, setWatched, type ItemSummary } from '../api/client'
 import { openAddToCollection } from './AddToCollection'
 import { openAddToPlaylist } from './AddToPlaylist'
 import { useAgeLimits } from '../hooks/sessionContext'
@@ -17,8 +17,8 @@ export interface MenuPoint {
   y: number
 }
 
-/** Films, TV and albums get menus; artists and tracks have their own pages. */
-export const hasMenu = (item: ItemSummary) => ['Movie', 'Episode', 'Season', 'Series', 'Album'].includes(item.kind)
+/** Films, TV, albums and books get menus; artists and tracks have their own pages. */
+export const hasMenu = (item: ItemSummary) => ['Movie', 'Episode', 'Season', 'Series', 'Album', 'Audiobook'].includes(item.kind)
 
 export type MenuAction = { label: string; run: () => void | Promise<void>; danger?: boolean } | 'divider'
 
@@ -100,6 +100,19 @@ export function ItemMenu({ item, at, onClose, continueWatching = false }: { item
         { label: 'Add to playlist…', run: () => openAddToPlaylist(item) },
       )
       break
+    case 'Audiobook': {
+      const finished = item.userData.watched
+      actions.push({ label: resumable && !finished ? 'Resume' : 'Play', run: () => music.play([item]) }, 'divider')
+      actions.push({
+        label: finished ? 'Mark not finished' : 'Mark finished',
+        run: async () => {
+          await setBookFinished(item.id, !finished)
+          announceWatched(item)
+        },
+      })
+      if (!kids) actions.push({ label: 'Add to collection…', run: () => openAddToCollection(item) })
+      break
+    }
   }
 
   return <Menu label={item.title} at={at} actions={kids ? withoutWatched(actions) : actions} onClose={onClose} />

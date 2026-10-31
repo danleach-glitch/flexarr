@@ -53,7 +53,7 @@ function ViewSwitch({ library, view }: { library: Library; view: 'browse' | 'all
         Browse
       </Link>
       <Link to={`/library/${library.id}?view=all`} aria-current={current('all')}>
-        {{ Movies: 'All films', TvShows: 'All shows', Music: 'All artists', Podcasts: 'All podcasts', HomeVideos: 'All folders' }[library.type]}
+        {{ Movies: 'All films', TvShows: 'All shows', Music: 'All artists', Podcasts: 'All podcasts', HomeVideos: 'All folders', Audiobooks: 'All books' }[library.type]}
       </Link>
       {hasGenres(library) && (
         <Link to={`/library/${library.id}?view=genres`} aria-current={current('genres')}>
@@ -519,7 +519,7 @@ function LibraryAll() {
             <ViewSwitch library={library} view="all" />
           </div>
           <p className="muted">
-            {(total ?? library.itemCount).toLocaleString()} {query || genre ? 'matching' : { Movies: 'films', TvShows: 'shows', Music: 'artists', Podcasts: 'podcasts', HomeVideos: 'folders' }[library.type]}
+            {(total ?? library.itemCount).toLocaleString()} {query || genre ? 'matching' : { Movies: 'films', TvShows: 'shows', Music: 'artists', Podcasts: 'podcasts', HomeVideos: 'folders', Audiobooks: 'books' }[library.type]}
           </p>
         </div>
         <div className="library-tools">
@@ -588,7 +588,7 @@ function LibraryAll() {
           </label>
         )}
         <div
-          className={library.type === 'Music' ? 'poster-grid square' : 'poster-grid'}
+          className={library.type === 'Music' || library.type === 'Audiobooks' ? 'poster-grid square' : 'poster-grid'}
           ref={grid}
           onClick={(e) => {
             const card = e.target instanceof Element ? e.target.closest('a')?.closest<HTMLElement>('[data-id]') : undefined

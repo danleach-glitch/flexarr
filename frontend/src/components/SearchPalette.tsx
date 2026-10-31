@@ -13,6 +13,7 @@ import {
   type SearchResults,
 } from '../api/client'
 import { useAudioPlayer } from '../hooks/audioPlayerContext'
+import { authorsLine, isBook } from '../lib/books'
 import { episodeCode, year } from '../lib/format'
 import { itemLink } from '../lib/links'
 import { Close, History, Play, Search } from './icons'
@@ -38,6 +39,7 @@ interface Result {
 
 function titleDetail(t: ItemSummary): string {
   if (t.kind === 'Artist') return t.childCount === 1 ? '1 album' : `${t.childCount} albums`
+  if (t.kind === 'Audiobook') return authorsLine(t) ?? 'Audiobook'
   return [t.kind === 'Series' ? 'Series' : 'Film', year(t)].filter(Boolean).join(', ')
 }
 
@@ -116,14 +118,15 @@ function recentResults(recent: RecentSearches | null): Result[] {
     ...recent.queries.map((q) => ({ key: `q-${q}`, group: 'Recent searches', title: q, detail: null, image: undefined, href: '', thumb: 'recent', itemId: null, recentQuery: q })),
     ...recent.items.map((item) => {
       const episode = item.kind === 'Episode'
-      const square = item.kind === 'Album' || item.kind === 'Track'
+      const book = isBook(item)
+      const square = item.kind === 'Album' || item.kind === 'Track' || book
       return {
         key: `i-${item.id}`,
         group: 'Recently opened',
         title: item.title,
         detail: episode
           ? [item.seriesTitle, episodeCode(item)].filter(Boolean).join(', ')
-          : square
+          : square && !book
             ? [item.seriesTitle, item.year].filter(Boolean).join(', ')
             : titleDetail(item),
         image: episode ? imageUrl(item.artwork.thumb ?? item.artwork.poster, 185) : imageUrl(item.artwork.poster, 92),

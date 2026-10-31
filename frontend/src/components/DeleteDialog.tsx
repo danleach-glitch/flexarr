@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { ApiError, deleteItem, getDeletion, type ItemSummary } from '../api/client'
 import { useApi } from '../hooks/useApi'
 import { AsyncButton } from './AsyncButton'
+import { arrFor } from '../lib/apps'
 import { episodeCode } from '../lib/format'
 import { useModal } from '../hooks/useModal'
 
@@ -16,9 +17,12 @@ export function DeleteDialog({ item, onDeleted, onClose }: { item: ItemSummary; 
 
   const dialog = useModal<HTMLDivElement>(onClose, !busy)
 
+  const app = arrFor(item.kind)
   const what =
     item.kind === 'Movie'
       ? { name: item.title, noun: 'film', detail: 'Radarr deletes the film’s files from disk and stops tracking it.' }
+      : item.kind === 'Audiobook'
+        ? { name: item.title, noun: 'book', detail: 'Readarr (or Bookshelf, Chaptarr) deletes the book’s files from disk and stops tracking it.' }
       : item.kind === 'Series'
         ? { name: item.title, noun: 'show', detail: 'Sonarr deletes the files of every episode from disk and stops tracking the show.' }
         : {
@@ -50,7 +54,7 @@ export function DeleteDialog({ item, onDeleted, onClose }: { item: ItemSummary; 
           {plan.data && !plan.data.managedBy && (
             <>
               <p>
-                {item.kind === 'Movie' ? 'Radarr' : 'Sonarr'} doesn’t manage this {what.noun}, so Flexarr deletes{' '}
+                {app} doesn’t manage this {what.noun}, so Flexarr deletes{' '}
                 {plan.data.files.length === 0 ? 'it from the library: there are no files on disk.' : plan.data.files.length === 1 ? 'its file from disk:' : `its ${plan.data.files.length} files from disk:`}
               </p>
               {plan.data.files.length > 0 && (

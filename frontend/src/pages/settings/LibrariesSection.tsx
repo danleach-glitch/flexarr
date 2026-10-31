@@ -212,14 +212,15 @@ function LibraryRow({ library, onChange }: { library: Library; onChange: () => v
           </h3>
         )}
         <p className="muted">
-          {libraryTypeLabel[library.type]} · {library.itemCount.toLocaleString()} {library.itemCount === 1 ? 'title' : 'titles'} · scanned {relativeTime(library.lastScannedAt)}
+          {libraryTypeLabel[library.type]} · {library.itemCount.toLocaleString()} {library.type === 'Audiobooks' ? (library.itemCount === 1 ? 'book' : 'books') : library.itemCount === 1 ? 'title' : 'titles'} · scanned {relativeTime(library.lastScannedAt)}
         </p>
         {library.folders.map((f) => (
           <code key={f} className="folder">
             {f}
           </code>
         ))}
-        {limits && library.fineForKids !== undefined && (
+        {/* Kids profiles never see audiobooks, so there's nothing to allow. */}
+        {limits && library.fineForKids !== undefined && library.type !== 'Audiobooks' && (
           <label className="library-kids">
             <span>Fine for kids, rated or not</span>
             <input
@@ -333,6 +334,7 @@ function AddLibraryForm({ onDone, onCancel }: { onDone: () => void; onCancel: ()
             <option value="TvShows">TV shows</option>
             <option value="Music">Music</option>
             <option value="HomeVideos">Home videos</option>
+            <option value="Audiobooks">Audiobooks</option>
           </select>
         </label>
         <label>
