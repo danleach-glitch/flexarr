@@ -15,6 +15,8 @@ struct ConnectView: View {
         case choose
         case pair(DiscoveredServer)
         case manual
+        /// A family invite: this TV shows a code to read to whoever invited it.
+        case guest
     }
 
     var body: some View {
@@ -42,11 +44,13 @@ struct ConnectView: View {
             Group {
                 switch step {
                 case .choose:
-                    ChooseServer(browser: browser, onPick: { step = .pair($0) }, onManual: { step = .manual })
+                    ChooseServer(browser: browser, onPick: { step = .pair($0) }, onManual: { step = .manual }, onGuest: { step = .guest })
                 case .pair(let server):
                     PairWithServer(server: server, onBack: { step = .choose })
                 case .manual:
                     ManualConnect(onPair: { step = .pair($0) }, onBack: { step = .choose })
+                case .guest:
+                    GuestCode(onBack: { step = .choose })
                 }
             }
             .frame(width: 820)
@@ -66,6 +70,8 @@ struct ConnectView: View {
             if let server = UserDefaults.standard.string(forKey: "FlexarrPairWith").flatMap(FlexarrClient.normalizeAddress) {
                 step = .pair(DiscoveredServer(name: server.host() ?? "Flexarr", address: server))
             }
+            // `-FlexarrGuestCode YES` opens "Watching from another home?" directly.
+            if UserDefaults.standard.bool(forKey: "FlexarrGuestCode") { step = .guest }
             #endif
         }
         .onDisappear { browser.stop() }
@@ -78,6 +84,7 @@ private struct ChooseServer: View {
     let browser: ServerBrowser
     let onPick: (DiscoveredServer) -> Void
     let onManual: () -> Void
+    let onGuest: () -> Void
     @FocusState private var focused: String?
     /// Nothing has turned up for a while: say what to check.
     @State private var lookingAWhile = false
@@ -116,6 +123,8 @@ private struct ChooseServer: View {
             Button("Enter an address instead", action: onManual)
                 .buttonStyle(ActionButtonStyle(prominent: false))
                 .padding(.top, 10)
+            Button("Watching from another home?", action: onGuest)
+                .buttonStyle(ActionButtonStyle(prominent: false))
         }
         // The first server found takes focus, so one click of the remote picks it.
         .onChange(of: browser.servers.first?.id, initial: true) { _, first in
@@ -404,6 +413,99 @@ private struct ManualConnect: View {
                 try await model.connect(address: address, apiKey: apiKey)
             } catch {
                 self.error = ConnectionError(error).message
+            }
+        }
+    }
+}
+
+// MARK: - A family invite, by code
+
+/// "Watching from another home?": the TV shows a code to read to whoever invited it, who types it into their
+/// Settings. The invite comes back through Flexarr's relay, sealed so only this TV can open it, and the TV joins
+/// (see `GuestTvCode`, docs/remote-guests.md). A code lasts ten minutes; a new one replaces it.
+private struct GuestCode: View {
+    @Environment(AppModel.self) private var model
+    let onBack: () -> Void
+    @State private var code: GuestTvCode?
+    @State private var joining: GuestInvite?
+    @State private var problem: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 30) {
+            if let joining {
+                HStack(spacing: 20) {
+                    ProgressView()
+                    Text("Joining \(joining.ownerName)’s Flexarr…")
+                        .font(.system(size: 32, weight: .semibold))
+                        .foregroundStyle(Color.screen)
+                }
+            } else {
+                Text("Read this code to the person who invited you")
+                    .font(.system(size: 32, weight: .semibold))
+                    .foregroundStyle(Color.usher)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(code?.display ?? "····-····")
+                    .font(.system(size: 110, weight: .bold, design: .monospaced))
+                    .foregroundStyle(Color.screen)
+                    .accessibilityLabel(code.map { $0.code.map(String.init).joined(separator: " ") } ?? "Getting a code")
+                Text("They type it into Settings › Access in Flexarr.")
+                    .font(.system(size: 26))
+                    .foregroundStyle(Color.usher)
+            }
+            if let problem {
+                Text(problem)
+                    .font(.system(size: 28, weight: .medium))
+                    .foregroundStyle(Color.screen)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Button("Back", action: onBack)
+                .buttonStyle(ActionButtonStyle(prominent: false))
+                .disabled(joining != nil)
+        }
+        .task { await waitForInvite() }
+    }
+
+    /// Flexarr's relay; `-FlexarrPairRelay <url>` points a debug build at a local one (relay/api/pair.js).
+    private var relay: URL {
+        #if DEBUG
+        if let url = UserDefaults.standard.string(forKey: "FlexarrPairRelay").flatMap(URL.init(string:)) { return url }
+        #endif
+        return GuestTvCode.relay
+    }
+
+    private func waitForInvite() async {
+        while !Task.isCancelled {
+            let tv = GuestTvCode()
+            do {
+                try await tv.register(relay: relay)
+            } catch GuestTvCode.Failure.codeTaken {
+                continue
+            } catch {
+                problem = "Can’t reach Flexarr’s relay. Check this Apple TV is online."
+                try? await Task.sleep(for: .seconds(10))
+                continue
+            }
+            code = tv
+            problem = nil
+            // Collect the invite once it's there; a code that runs out gets a new one.
+            polling: while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(3))
+                switch try? await tv.poll(relay: relay) {
+                case .waiting?, nil:
+                    continue
+                case .expired?:
+                    break polling
+                case .invite(let invite)?:
+                    joining = invite
+                    do {
+                        try await model.join(invite)
+                        return
+                    } catch {
+                        joining = nil
+                        problem = error.localizedDescription
+                        break polling
+                    }
+                }
             }
         }
     }
