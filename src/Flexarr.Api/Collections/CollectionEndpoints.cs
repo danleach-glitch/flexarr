@@ -182,7 +182,7 @@ public static class CollectionEndpoints
                 return Results.NotFound();
             }
 
-            if (!await db.MediaItems.AnyAsync(i => i.Id == request.ItemId && (i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series), ct))
+            if (!await db.MediaItems.AnyAsync(i => i.Id == request.ItemId && (i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series || i.Kind == MediaKind.Audiobook), ct))
             {
                 return Results.Problem("Only films and shows can be added to a collection.", statusCode: 400);
             }

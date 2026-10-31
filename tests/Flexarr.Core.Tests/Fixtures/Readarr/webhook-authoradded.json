@@ -1,0 +1,10 @@
+{
+  "author": {
+    "id": 3,
+    "name": "Richard Osman",
+    "path": "/data/audiobooks/Richard Osman",
+    "goodreadsId": "6914939"
+  },
+  "eventType": "AuthorAdded",
+  "instanceName": "Readarr"
+}

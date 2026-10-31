@@ -50,7 +50,7 @@ public static class LayoutEndpoints
         var collections = await db.Collections.Where(c => c.ShowOnHome && !c.Hidden && (c.OwnerProfileId == null || c.OwnerProfileId == me))
             .OrderBy(c => c.Name).Select(c => new RowChoiceDto($"collection-{c.Id}", $"Collection: {c.Name}", true)).ToListAsync(ct);
         var home = WithWatchlistRow(ForCombining(layout.Home, libraries, layout.CombineLibraries));
-        return new LayoutDto(Merge([.. HomeRows(libraries, layout.CombineLibraries, all.Any(l => l.Type == LibraryType.Music)), .. collections], home),
+        return new LayoutDto(Merge([.. HomeRows(libraries, layout.CombineLibraries, all.Any(l => l.Type == LibraryType.Music), all.Any(l => l.Type == LibraryType.Audiobooks)), .. collections], home),
             Merge(BrowseRows(movies: true), layout.Movies), Merge(BrowseRows(movies: false), layout.Shows),
             layout.CombineLibraries, libraries.GroupBy(l => l.Type).Any(g => g.Count() > 1));
     }
@@ -124,7 +124,7 @@ public static class LayoutEndpoints
     private static string Key(string rowId) => rowId.StartsWith("genre-", StringComparison.Ordinal) ? "genres" : rowId;
 
     /// <param name="music">Whether there's a music library: its rows are only offered when there's one to fill them.</param>
-    private static List<RowChoiceDto> HomeRows(IEnumerable<Library> libraries, bool combine, bool music) =>
+    private static List<RowChoiceDto> HomeRows(IEnumerable<Library> libraries, bool combine, bool music, bool books) =>
     [
         new("continue", "Continue watching", true),
         new(Watchlist.WatchlistService.HomeRowId, "Ready from your watchlist", true),
@@ -133,6 +133,7 @@ public static class LayoutEndpoints
         new("top-movies", "Top 10 films", true),
         new("top-shows", "Top 10 shows", true),
         .. music ? MusicRows : Array.Empty<RowChoiceDto>(),
+        .. books ? BookRows : Array.Empty<RowChoiceDto>(),
         new("because", "Because you watched…", true),
         new("genres", "Genre rows (three, changing daily)", true),
         new("gems", "Highly rated films, not yet watched", true),
@@ -153,6 +154,13 @@ public static class LayoutEndpoints
                 };
             return new RowChoiceDto(combine ? CombinedRowId(first.Type) : $"recent-{first.Id}", label, true);
         });
+
+    private static readonly RowChoiceDto[] BookRows =
+    [
+        new(Books.BookRows.ContinueRowId, "Continue listening (audiobooks)", true),
+        new(Books.BookRows.NextRowId, "Next in series (audiobooks)", true),
+        new(Books.BookRows.NewRowId, "New audiobooks", true),
+    ];
 
     private static readonly RowChoiceDto[] MusicRows =
     [

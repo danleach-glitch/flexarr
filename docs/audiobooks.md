@@ -1,13 +1,18 @@
 # Audiobooks: plan
 
-A plan, not built yet. Audiobooks become a library type like films, TV and music: the \*arr app finds and organises the books, Flexarr plays them, and it works without an \*arr too. It's built to stand beside the best dedicated audiobook apps, not to be music with longer tracks.
+Being built on `library/audiobooks`. Audiobooks become a library type like films, TV and music: the \*arr app finds and organises the books, Flexarr plays them, and it works without an \*arr too. It's built to stand beside the best dedicated audiobook apps, not to be music with longer tracks.
 
 Decided so far:
 
 - **\*arr:** any Readarr-compatible app (Readarr, Bookshelf, Chaptarr) through one connection type. Readarr itself was retired in June 2025; the forks keep its `/api/v1` and webhooks.
 - **Ebooks:** audiobooks first. The data model leaves room for an ebook edition of the same book later.
-- **First apps:** web, iPhone and iPad, Android. Apple TV follows.
-- **Included:** Audible-quality metadata, requests from inside Flexarr, and an import from Audiobookshelf.
+- **First release:** phases 1–5 below plus Android: library and web, the Readarr-compatible connection, online metadata, the iPhone and iPad app, requests, and the Android app. Chapter tools, Apple TV listening, and Home Assistant and MCP come with it. The branch lands whole, so there's no preview setting.
+- **Later:** the Audiobookshelf import, listening stats, voice boost and silence trimming, the automatic sleep timer, Android TV, ebooks.
+- **Kids profiles** never see audiobooks, like podcasts.
+- **The end of a book in a series** offers the next book with a Play button; it never starts by itself. A finished book leaves Continue listening straight away.
+- **Siri:** the iPhone is at Apple's limit of 10 phrases, so the podcast resume phrase becomes one *Resume listening* for books and episodes. The other book actions live in the Shortcuts app.
+- **Widget:** the existing *Continue listening* widget shows whatever played last, book or podcast.
+- **Every app skips library types it doesn't know.** Released apps before this show an unknown library as a film grid; that's accepted while few people use them.
 
 ## What people get
 
@@ -69,6 +74,10 @@ Author/Series/1 - Title/…                        series and order from the pat
 Author/Series/Vol. 1.5 - 2004 - Title {Narrator}/
 Author/Title/CD1/…, CD2/…                        disc folders are one book
 Author/Title.m4b                                 single file directly in an author folder
+Author/Series/Title/Author - TMC1 Title.m4b      series folder without numbers, order in the file name
+Author/Book 1/Book 2/…                           a book folder inside another book's folder
+Author A, Author B/Title/…                       several authors in one folder name
+Author - Title [B0DPXK6Y7B].m4b                  an Audible ASIN in the file name
 ```
 
 - **Files:** m4b, m4a, mp3, aac, flac, ogg/opus, wma. A folder of audio files is one book, and disc-like subfolders (CD1, Disc 2, Part 3) are parts of it. Files are ordered by disc and track tag, then natural sort of the name.
@@ -113,15 +122,46 @@ Things to fix along the way:
 
 - `LibraryVisibility.Hides` sends any unknown kind to Music. Give books their own case.
 - The web's `Record<LibraryType, …>` maps (`libraryIcons.ts`, `format.ts`) need the new value.
-- Check that the released iPhone and Apple TV apps hide a library whose type decodes as `unknown`, rather than showing it as a music library.
+- The released apps don't hide a library whose type decodes as `unknown`: iPhone, Apple TV, Android and Android TV show it as a film grid and open its items as videos. Every app now skips unknown library types.
+- `ArrId` and `MediaRequest.TmdbId` are numbers, but Chaptarr's IDs are text (`hc:`, `gr:`), so books get new text columns.
+- `ShowPlaybackSpeed` deletes a 1× row as "use the default". With a profile default other than 1×, books store an explicit 1×.
+- `ArrInstance.ApiVersion` gives every kind but Lidarr v3; Readarr needs v1.
 
 ## Playback
 
-- **Manifest:** `GET /items/{id}/book` returns the files with their start offsets on the timeline, the chapters, bookmarks and progress. Clients turn a timeline position into a file and an offset within it.
-- **Native apps:** play the files back to back from that manifest: `AVQueuePlayer` on Apple, `ConcatenatingMediaSource` in Media3 on Android. They play each file directly when the device can decode it. Otherwise they use the existing audio conversion to AAC (`PlaybackDecider`).
-- **Web:** gets one audio-only HLS playlist for the whole book from the server, built from the existing audio HLS path with each file a run of segments. The browser then sees a single stream it can seek anywhere in.
-- **Progress:** `PUT /items/{id}/progress` with the timeline position, the device, and the time the device recorded it. The most recent recording wins. Offline positions are sent later with their original times, so an old offline session can't overwrite newer listening.
-- **Finished:** within the last 2 minutes or past 98%, whichever comes first, or when the player reaches the end. Podcasts count as played only at the very end, so books get their own rule.
+Every client plays a book's files back to back on one timeline. There is no whole-book stream: m4b, mp3 and m4a play as they are everywhere, a single-file m4b (the common case) is one stream anyway, and conversion is needed only for the rare file a player can't decode, which the server converts to AAC once and keeps.
+
+- **Start:** `POST /playback` with the book's id, the player's `profile.audioCodecs` and an optional `deviceName`. The answer is the usual `PlaybackInfoDto` with `book` set: a `BookManifestDto` whose file addresses are the session's (`/playback/{sid}/book/{n}`, no key needed, so AirPlay and Chromecast can fetch them). `startPositionSeconds` is on the whole timeline.
+- **Timeline:** file *n* starts at `files[n].offsetSeconds`; a timeline position maps to the last file whose offset is at or before it. Chapters, bookmarks and progress are all on the timeline.
+- **Progress:** the session's `POST /playback/{sid}/progress` takes timeline positions. Without a session (offline listening, a download), `PUT /items/{id}/progress` `{positionSeconds, device, recordedAt, ended}`; the newest `recordedAt` wins.
+- **Finished:** within the last 2 minutes or past 98%, or when the player reports `ended`. Finishing counts a play and sets `finishedAt`; position goes back to 0.
+- **Elsewhere:** the manifest's `progress` carries the device that recorded it and when. A player that finds the server's place newer than its own, from another device, offers to jump there.
+
+## API
+
+All under `/api/v1`, for the current profile. Fields new to existing DTOs are optional for apps ("Absent from servers before 0.58").
+
+| Call | What |
+|---|---|
+| `GET /libraries/{id}/book-shelves` | `BookShelvesDto`: continueListening, nextInSeries, recentlyAdded, series, authors, narrators, genres, finished |
+| `GET /libraries/{id}/books?search&progress=notstarted\|inprogress\|finished&author&narrator&genre&language&abridged&minHours&maxHours&sort=title\|author\|series\|added\|released\|length\|listened&descending&skip&take` | `PagedDto<ItemSummaryDto>` |
+| `GET /libraries/{id}/book-series?search&skip&take` | `PagedDto<BookSeriesSummaryDto>` (covers of its first books, the next unfinished one) |
+| `GET /libraries/{id}/book-people?role=author\|narrator&search&skip&take` | `PagedDto<BookPersonDto>` |
+| `GET /book-series/{id}` | `BookSeriesDto`: books in reading order with their numbers, `nextId` |
+| `GET /items/{id}` | `ItemDetailDto` with `book`: `BookDetailDto` (edition, series, chapters, bookmarks, speed, moreInSeries, byAuthor, readByNarrator); credits carry `Author`/`Narrator`/`Translator` roles |
+| `GET /people/{id}` | `PersonDto` with `biography` |
+| `GET /items/{id}/book?codecs=aac,mp3` | `BookManifestDto` with the item's own file addresses (key needed), for downloads |
+| `GET /items/{id}/book/files/{n}[?convert=aac]` | the file, with byte ranges |
+| `PUT /items/{id}/progress` | `BookProgressRequest` → `BookProgressDto` |
+| `POST /items/{id}/finished` `{finished}` · `POST /items/{id}/listen-again` | mark finished or not; start over keeping `finishedAt` |
+| `GET/POST /items/{id}/bookmarks` · `PUT/DELETE /bookmarks/{id}` | `{positionSeconds, note}`, notes up to 2,000 characters |
+| `PUT /items/{id}/playback-speed` `{speed}` | a book's own speed, 0.25–4 (apps offer 0.5–3.5 in 0.05 steps) |
+| `GET/PUT /books/listening` | `BookListeningDto`: default speed, skip back/forward (10, 15, 30, 45 or 60 s), smart rewind |
+| `GET /search?q` | `books` and `bookSeries` alongside titles; books aren't in `titles` |
+| `GET /home` | rows `books-continue`, `books-next`, `books-new` (style `poster`, square covers) |
+| Smart collections | `rules.type = "book"`; manual collections take books |
+
+`ItemSummaryDto.book` (`BookSummaryDto`): authors (two at most, "A, B"), authorCount, narrator, series, sequence, durationSeconds, finishedAt. `MediaKind.Audiobook`, `LibraryType.Audiobooks`. Smart rewind is the player's: none under 10 s of pause, then growing to about 30 s after an hour.
 
 ## \*arr integration (Readarr-compatible)
 
@@ -181,12 +221,12 @@ Built the way the Plex history import is (`PlexImporter`):
   - **Screens:** a Books tab, which appears when an audiobook library exists, plus book, series and author screens.
   - **Player:** `MusicPlayer` gains a book mode, much as podcasts did, with `NowPlaying` covering lock screen chapters and skips.
   - **Everything else:** `DownloadStore` support, CarPlay sections, a widget and App Intents. In FlexarrKit, new fields are optional and marked "Absent from servers before …".
-- **Android** (phase 7): once the Android app has its audio player, which it doesn't yet: a Media3 session, Android Auto and downloads.
-- **Apple TV** (later): Continue listening and a big-screen Now Playing using the music visualiser's look.
+- **Android:** the app already has a Media3 audio service (`AudioService`, `PodcastPlayer`, `CarLibrary` for Android Auto, a sleep timer with shake). Books add a book player on that service, downloads, Android Auto tabs, the shared widget and Cast.
+- **Apple TV:** Continue listening, book pages and a big-screen Now Playing using the music visualiser's look.
 
 ## Phases
 
-The work sits behind an **Audiobooks (preview)** setting until phase 4, so main stays releasable.
+The first release covers phases 0–5 and 7, plus chapter tools, Apple TV listening and Home Assistant/MCP from phase 8. It lands as one branch, so main never has it half-built.
 
 | # | Phase | Size |
 |:-:|---|:-:|
@@ -214,6 +254,3 @@ The work sits behind an **Audiobooks (preview)** setting until phase 4, so main 
 - **Audnexus and Audible's catalogue are unofficial.** The cache, local chapters and other providers keep the library working if they change or go away.
 - **The Mac app's sandbox:** nothing here runs another program apart from ffprobe/ffmpeg, and library folders are chosen with `FolderPicker`, so it fits.
 - **Big libraries** (10,000+ books): browse queries page, and series and author pages are indexed like music's.
-- **Still to decide:**
-  - whether **"Next in series"** stays a shelf or also auto-plays the next book (iPhone)
-  - whether **finished books** should drop out of Continue listening at once or after a day
