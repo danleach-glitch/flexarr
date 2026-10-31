@@ -25,9 +25,25 @@ public sealed record ProbeResult(
     public bool? ClosedCaptions { get; init; }
 }
 
+/// <summary>A chapter inside one file, on that file's own timeline.</summary>
+public sealed record ProbedChapter(double StartSeconds, double EndSeconds, string? Title);
+
+/// <summary>What a book's file says about the book: its length, tags, chapters and whether it carries a cover.</summary>
+public sealed record BookFileProbe(double? DurationSeconds, IReadOnlyDictionary<string, string> Tags, IReadOnlyList<ProbedChapter> Chapters, bool HasCoverArt);
+
 public interface IMediaProbe
 {
     Task<ProbeResult> ProbeAsync(string path, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Reads an audiobook file's tags and chapters. Only books need chapters, so only they pay for reading them. Probes
+    /// that can't read chapters give none.
+    /// </summary>
+    async Task<BookFileProbe> ProbeBookFileAsync(string path, CancellationToken cancellationToken)
+    {
+        var result = await ProbeAsync(path, cancellationToken).ConfigureAwait(false);
+        return new BookFileProbe(result.DurationSeconds, result.Tags, [], result.HasCoverArt);
+    }
 }
 
 public sealed class MediaProbeException(string message) : Exception(message);
@@ -41,6 +57,7 @@ public sealed class FfprobeMediaProbe(string ffprobePath = "ffprobe") : IMediaPr
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(60);
     private static readonly string[] Output = ["-v", "error", "-protocol_whitelist", "file", "-print_format", "json"];
     private static readonly string[] Streams = ["-show_format", "-show_streams"];
+    private static readonly string[] BookFile = ["-show_format", "-show_streams", "-show_chapters"];
     private static readonly string[] FirstFrames = ["-select_streams", "v:0", "-read_intervals", "%+#5", "-show_frames"];
 
     public async Task<ProbeResult> ProbeAsync(string path, CancellationToken cancellationToken)
@@ -69,6 +86,52 @@ public sealed class FfprobeMediaProbe(string ffprobePath = "ffprobe") : IMediaPr
             // Still plays as HDR10; the label is all that's missing. Captions are taken as absent, not checked again.
             return result with { ClosedCaptions = captions ? false : null };
         }
+    }
+
+    public async Task<BookFileProbe> ProbeBookFileAsync(string path, CancellationToken cancellationToken)
+    {
+        var json = await RunAsync(BookFile, path, cancellationToken).ConfigureAwait(false);
+        var result = Parse(json);
+        return new BookFileProbe(result.DurationSeconds, result.Tags, ParseChapters(json), result.HasCoverArt);
+    }
+
+    /// <summary>The <c>chapters</c> of <c>-show_chapters</c> output, in order, with blank titles as null.</summary>
+    internal static IReadOnlyList<ProbedChapter> ParseChapters(string json)
+    {
+        using var doc = JsonDocument.Parse(json);
+        if (!doc.RootElement.TryGetProperty("chapters", out var chapters) || chapters.ValueKind != JsonValueKind.Array)
+        {
+            return [];
+        }
+
+        var list = new List<ProbedChapter>();
+        foreach (var chapter in chapters.EnumerateArray())
+        {
+            if (Seconds(chapter, "start_time") is not { } start || Seconds(chapter, "end_time") is not { } end || end <= start)
+            {
+                continue;
+            }
+
+            string? title = null;
+            if (chapter.TryGetProperty("tags", out var tags) && tags.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var tag in tags.EnumerateObject())
+                {
+                    if (tag.Name.Equals("title", StringComparison.OrdinalIgnoreCase) && tag.Value.GetString() is { } t && !string.IsNullOrWhiteSpace(t))
+                    {
+                        title = t.Trim();
+                    }
+                }
+            }
+
+            list.Add(new ProbedChapter(start, end, title));
+        }
+
+        return [.. list.OrderBy(c => c.StartSeconds)];
+
+        static double? Seconds(JsonElement element, string name) =>
+            element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String
+            && double.TryParse(value.GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var seconds) ? seconds : null;
     }
 
     /// <summary>The video codecs whose frames carry broadcast closed captions (ATSC A/53).</summary>
