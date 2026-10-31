@@ -28,8 +28,14 @@ TUNNEL_SRC := $(shell find clients/tunnel -name '*.go' -not -path '*/spike/*') c
 GO_PATH_ADD = PATH="$$PATH:/opt/homebrew/bin:/usr/local/go/bin"
 clients/tunnel/build/apple.stamp: $(TUNNEL_SRC) clients/tunnel/build-apple.sh
 	$(GO_PATH_ADD) clients/tunnel/build-apple.sh && touch $@
+# Also writes the sources' hash the Android build compares (buildTunnel in clients/android/app/build.gradle.kts: the
+# package's Go files but its tests, go.mod, go.sum, tags.sh and build-android.sh, each as name NUL content NUL, sorted
+# by name), so Gradle doesn't build the AAR again.
 clients/tunnel/build/android.stamp: $(TUNNEL_SRC) clients/tunnel/build-android.sh
-	$(GO_PATH_ADD) clients/tunnel/build-android.sh && touch $@
+	$(GO_PATH_ADD) clients/tunnel/build-android.sh
+	cd clients/tunnel && for f in $$(ls | LC_ALL=C sort); do case "$$f" in *_test.go) ;; *.go|go.mod|go.sum|tags.sh|build-android.sh) \
+	  [ -f "$$f" ] && { printf '%s\0' "$$f"; cat "$$f"; printf '\0'; } ;; esac; done | shasum -a 256 | cut -d' ' -f1 >build/flexarr-tunnel.aar.hash
+	touch $@
 tunnel-test: ## Test the apps' Tailscale tunnel
 	cd clients/tunnel && $(GO_PATH_ADD) go test ./...
 tunnel-apple: clients/tunnel/build/apple.stamp ## Build the tunnel for the Apple apps (xcframework)
