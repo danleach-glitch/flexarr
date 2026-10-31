@@ -27,7 +27,8 @@ public static class GuestGate
         // devices. Once they have been, the gate stays, so a removed guest is shut out even after invites are switched off.
         var settings = http.RequestServices.GetRequiredService<IOptionsMonitor<FlexarrOptions>>().CurrentValue.RemoteGuests;
         var signIns = http.RequestServices.GetRequiredService<SignIns>();
-        if (!settings.Enabled && !settings.HasClient && !signIns.HasAnyGuest)
+        var invites = http.RequestServices.GetRequiredService<GuestInvites>();
+        if (!settings.Enabled && !settings.HasClient && !signIns.HasAnyGuest && !invites.HasHadGuests)
         {
             await next(http);
             return;
@@ -48,6 +49,13 @@ public static class GuestGate
             || signIns.HasGuestAt(address!)
             || kind == GuestLookup.Guest && HttpMethods.IsPost(http.Request.Method) && http.Request.Path.Equals(RedeemPath, StringComparison.OrdinalIgnoreCase))
         {
+            await next(http);
+            return;
+        }
+
+        if (kind == GuestLookup.Unknown && !invites.IsGuestAddress(address!))
+        {
+            // Not an address a guest has ever joined from: a household device, which carries on.
             await next(http);
             return;
         }

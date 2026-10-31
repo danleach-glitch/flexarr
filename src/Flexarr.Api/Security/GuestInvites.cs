@@ -72,6 +72,9 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
     /// <summary>The profiles that are guests: anyone ever invited, kept until their profile goes (see <see cref="GuestProfiles"/>).</summary>
     public const string GuestsFileName = "guests.json";
 
+    /// <summary>The tailnet addresses guest devices have redeemed invites from, kept for good (see <see cref="IsGuestAddress"/>).</summary>
+    public const string AddressesFileName = "guest-addresses.json";
+
     /// <summary>How long an unused invite lasts.</summary>
     public static readonly TimeSpan Lifetime = TimeSpan.FromDays(3);
 
@@ -147,6 +150,71 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
         foreach (var invite in cancelled)
         {
             await DeleteKeyQuietlyAsync(invite.KeyId, ct);
+        }
+    }
+
+    /// <summary>
+    /// Whether a guest device ever redeemed an invite from <paramref name="address"/>. When Tailscale can't say whose
+    /// an address is just now, these wait (the gate answers 503) while every other device carries on.
+    /// </summary>
+    public bool IsGuestAddress(string address)
+    {
+        lock (_lock)
+        {
+            return LoadedAddresses().Contains(address);
+        }
+    }
+
+    /// <summary>Whether this server has ever had a guest: someone listed as one, or a device that redeemed an invite.</summary>
+    public bool HasHadGuests
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return LoadedGuests().Count > 0 || LoadedAddresses().Count > 0;
+            }
+        }
+    }
+
+    private HashSet<string>? _addresses;
+
+    private HashSet<string> LoadedAddresses()
+    {
+        if (_addresses is null)
+        {
+            var path = Path.Combine(options.CurrentValue.DataDirectory, AddressesFileName);
+            try
+            {
+                _addresses = File.Exists(path) ? JsonSerializer.Deserialize<HashSet<string>>(File.ReadAllText(path), Json) ?? [] : [];
+            }
+            catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException or NotSupportedException)
+            {
+                LogUnreadable(path, ex.Message);
+                _addresses = [];
+            }
+        }
+
+        return _addresses;
+    }
+
+    private void RememberAddress(string address)
+    {
+        lock (_lock)
+        {
+            if (!LoadedAddresses().Add(address))
+            {
+                return;
+            }
+
+            try
+            {
+                ServerConfigStore.WritePrivately(Path.Combine(options.CurrentValue.DataDirectory, AddressesFileName), JsonSerializer.Serialize(_addresses, Json));
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                LogUnwritable(AddressesFileName, ex.Message);
+            }
         }
     }
 
@@ -387,6 +455,7 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
             }
         }
 
+        RememberAddress(address);
         LogRedeemed(PathComparison.Printable(name), address);
         return (signIn, signInToken, invite, retry);
     }

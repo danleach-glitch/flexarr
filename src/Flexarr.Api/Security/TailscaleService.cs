@@ -379,14 +379,18 @@ public sealed partial class TailscaleService(ILogger<TailscaleService> logger, T
     {
         if (Cli is null)
         {
-            return new WhoisAnswer(null, Definite: true);
+            // No Tailscale here at all (or the Mac app, which can't run it): nobody is on a tailnet through it. A
+            // command that has gone missing from a server that had one is something else: not an answer.
+            return new WhoisAnswer(null, Definite: Sandboxed || !_hadCli);
         }
 
+        _hadCli = true;
         var (ok, json, error) = await RunAsync(TimeSpan.FromSeconds(5), CancellationToken.None, "whois", "--json", address.ToString());
         if (!ok)
         {
-            // Didn't answer in time: worth asking again straight away. Anything else (not a peer) is an answer.
-            return new WhoisAnswer(null, Definite: error != TimedOut);
+            // Only "that address isn't a peer" is an answer. A timeout, tailscaled restarting, the command refusing
+            // to run: unknown, so a removed guest's device is never taken for a household one meanwhile.
+            return new WhoisAnswer(null, Definite: NotAPeer(error));
         }
 
         try
@@ -400,10 +404,18 @@ public sealed partial class TailscaleService(ILogger<TailscaleService> logger, T
         }
         catch (JsonException)
         {
-            // Not what whois normally prints: treat the address as unknown.
-            return new WhoisAnswer(null, Definite: true);
+            // Not what whois normally prints: unknown.
+            return new WhoisAnswer(null, Definite: false);
         }
     }
+
+    /// <summary>Whether the tailscale command ever existed on this server (see <see cref="WhoisAsync"/>).</summary>
+    private static bool _hadCli;
+
+    /// <summary>What <c>tailscale whois</c> says when the address belongs to no peer (as opposed to failing).</summary>
+    internal static bool NotAPeer(string error) =>
+        error.Contains("no match", StringComparison.OrdinalIgnoreCase) || error.Contains("not found", StringComparison.OrdinalIgnoreCase)
+        || error.Contains("unknown peer", StringComparison.OrdinalIgnoreCase);
 
     /// <summary><c>tailscale status --json</c>'s answer, or null when it's something else.</summary>
     internal static JsonDocument? ParseStatus(string output)

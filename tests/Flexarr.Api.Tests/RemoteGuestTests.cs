@@ -420,16 +420,39 @@ public class RemoteGuestTests(RemoteGuestFactory factory) : IClassFixture<Remote
     }
 
     [Fact]
-    public async Task A_device_tailscale_cant_identify_just_now_waits_and_cant_ask_for_a_pairing_code()
+    public async Task A_device_tailscale_cant_identify_just_now_waits_if_a_guest_ever_joined_from_it()
     {
-        const string unidentified = "100.64.0.31";
-        factory.Whois.Unknown[unidentified] = true;
-        using var device = factory.From(unidentified);
+        // A household device: carries on (pairing still waits, as it could be a guest that never joined).
+        const string household = "100.64.0.31";
+        factory.Whois.Unknown[household] = true;
+        using (var device = factory.From(household))
+        {
+            Assert.Equal(HttpStatusCode.OK, (await device.GetAsync("/api/v1/setup")).StatusCode);
+            Assert.NotEqual(HttpStatusCode.OK, (await device.PostAsJsonAsync("/api/v1/pairing", new { deviceName = "Living Room TV" })).StatusCode);
+        }
 
-        Assert.Equal(HttpStatusCode.ServiceUnavailable, (await device.GetAsync("/api/v1/setup")).StatusCode);
-        Assert.NotEqual(HttpStatusCode.OK, (await device.PostAsJsonAsync("/api/v1/pairing", new { deviceName = "Living Room TV" })).StatusCode);
-        factory.Whois.Unknown.TryRemove(unidentified, out _);
-        Assert.Equal(HttpStatusCode.OK, (await device.GetAsync("/api/v1/setup")).StatusCode);
+        factory.Whois.Unknown.TryRemove(household, out _);
+
+        // A device a guest joined from, now removed: while Tailscale can't say, it waits rather than being let in.
+        var gran = await factory.AddProfileAsync("Gran46");
+        var (_, payload) = await InviteAsync(gran, "Unknown test");
+        const string guest = "100.64.0.46";
+        factory.Whois.Tags[guest] = ["tag:flexarr-guest"];
+        Assert.Equal(HttpStatusCode.OK, (await RedeemAsync(guest, payload.T)).StatusCode);
+        using var admin = factory.Admin();
+        var devices = await admin.GetFromJsonAsync<List<JsonElement>>("/api/v1/remote/guests/devices");
+        var id = devices!.Single(d => d.GetProperty("name").GetString() == "Unknown test").GetProperty("id").GetString();
+        await admin.DeleteAsync($"/api/v1/remote/guests/devices/{id}");
+        factory.Whois.Unknown[guest] = true;
+        try
+        {
+            using var removed = factory.From(guest);
+            Assert.Equal(HttpStatusCode.ServiceUnavailable, (await removed.GetAsync("/api/v1/setup")).StatusCode);
+        }
+        finally
+        {
+            factory.Whois.Unknown.TryRemove(guest, out _);
+        }
     }
 
     [Fact]

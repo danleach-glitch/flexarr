@@ -97,7 +97,7 @@ A guest sign-in is a device sign-in with `Guest = true`, a fixed `ProfileId` and
 
 Linking `tagged-devices` to a profile under "People on your tailnet" is refused.
 
-**The gate:** a request from a guest-tagged tailnet address that doesn't carry that device's own live guest sign-in gets 403, whatever it asks for. The redeem endpoint is the one exception. So Remove (revoking the sign-in) blocks the device outright, including pages that need no sign-in.
+**The gate:** a request from a guest-tagged tailnet address that doesn't carry that device's own live guest sign-in gets 403, whatever it asks for. The redeem endpoint is the one exception. So Remove (revoking the sign-in) blocks the device outright, including pages that need no sign-in. If `tailscale whois` can't answer (it timed out, or tailscaled is restarting) and a guest has ever redeemed an invite from that address, the request gets 503 with `Retry-After` rather than being let in; any other tailnet device carries on. Pairing refuses a device whois can't identify. The gate does nothing on a server that has never had family invites set up or a guest.
 
 **Connection check:** `tailscale status --json` says, for each guest device, whether it's direct (`CurAddr`), through the server's peer relay (`PeerRelay`) or through Tailscale's shared relay (`Relay` only). It's shown in Settings. A guest on the shared relay, which slows to about 2 Mbps, gets a bitrate cap.
 

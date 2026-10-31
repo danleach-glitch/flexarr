@@ -37,7 +37,7 @@ public static class BackupArchive
 
     /// <summary>The files beside the database a backup carries, all from the top of the data folder.</summary>
     /// <remarks>Family invites' guests.json (who is a guest) goes too; invites.json doesn't: its keys work once or have run out.</remarks>
-    public static readonly string[] Files = [ServerConfigStore.FileName, SignIns.FileName, Security.GuestInvites.GuestsFileName];
+    public static readonly string[] Files = [ServerConfigStore.FileName, SignIns.FileName, Security.GuestInvites.GuestsFileName, Security.GuestInvites.AddressesFileName];
 
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
     {
