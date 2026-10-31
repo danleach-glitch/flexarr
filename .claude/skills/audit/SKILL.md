@@ -11,6 +11,7 @@ An audit reads what the branch changed, finds what's wrong or missing, and publi
    - **Open items** whose code the delta touched: check the fix against the source and tick them (`{done: true, note: "<commit>"}`).
    - **Ticked items** whose code changed again: check they're still fixed; if not, untick (`{done: false, note: "reopened: <why>"}`).
    - **New findings** go after the existing ones with the next free id in their section; never renumber or reuse an id.
+   - Every tick, untick and reopen above is mirrored to the hub's `ticks/<artifact slug>--<id>` (`{done, note, at}`).
    - Update `commit` and `date`, add a `history` entry saying what the follow-up covered, re-render and republish to the same url (the ticks live in the db, so they survive). A page from before the template has no data block: rebuild its data from the page, keeping every id.
    Report what got ticked, reopened and added.
 
@@ -44,8 +45,9 @@ An audit reads what the branch changed, finds what's wrong or missing, and publi
    - **Screenshots are assets**, never inline images. Publish the page first with no screenshots, `declare_capabilities` `{db: {}, user: {}, assets: {}}`, upload the shrunk images with `upload_asset`, then put their urls in `src` and republish.
    - **Render** with `python3 scripts/claude/checklist/render.py audit <data.json> <scratchpad>/audit/index.html`. It refuses bad data (an id outside its section, an unknown severity, an id used twice, a gap in the numbering, a fix-before-landing id that isn't a finding); fix the data, never the check.
    - **Publish** the file with `publish_files` (title = the data's `title`, icon `checklist`).
+   - **Register it on the checklist hub** (slug in CLAUDE.local.md, records in the `/hub` skill): the hub's `pages/<artifact slug>` = `{title, url, kind: "audit", branch, total: <every finding, ideas included>, stage: "<n> to fix before landing", registeredAt, updatedAt}`. A follow-up updates that record (`total`, `stage`, `updatedAt`).
    Ticks live in the db collection `checks`: doc id = item id, body `{done: true, note: "<commit or PR>"}`. The header's stage pill shows how many fix-before-landing lines are open, or *Ready to land*; a `_stage` doc (`{label, kind, note}`) overrides it.
 
 9. **Remember it.** Save a project memory `audit-<branch>` with the artifact link, the collection and id scheme, the commit audited, the ids of High items and of the fix-before-landing list (`/land` checks these), and the counts, and add it to MEMORY.md. A follow-up updates the same memory.
 
-10. **Report**, briefly: the link, counts by section, and the fix-before-landing list. Then ask which ones to fix. As each fix is committed, tick its id with `db_write` and a note. `/land` goes ahead once the user is happy with what's left open.
+10. **Report**, briefly: the link, counts by section, and the fix-before-landing list. Then ask which ones to fix. As each fix is committed, tick its id with `db_write` and a note. Mirror each tick to the hub's `ticks/<artifact slug>--<id>` in the same go. `/land` goes ahead once the user is happy with what's left open.
