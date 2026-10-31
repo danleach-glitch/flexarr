@@ -1,4 +1,5 @@
 import com.github.triplet.gradle.androidpublisher.ResolutionStrategy
+import java.security.MessageDigest
 import java.util.Properties
 
 plugins {
@@ -162,25 +163,43 @@ play {
 }
 
 // The Tailscale tunnel family guests reach their host's server through (clients/tunnel, Go, built by gomobile into an
-// AAR). Built here when it's missing or older than its sources, as `make tunnel-android` would; CI builds it first.
-// Needs Go, the NDK and a JDK (clients/tunnel/README.md). Google Play's bundles give each phone just its own ABI's library.
+// AAR). Built here when it's missing or its sources have changed since, as `make tunnel-android` would. "Changed" is by
+// their content, kept in a .hash file beside the AAR when it's built here, not by their dates: a checkout (CI's above
+// all, with the AAR restored from its cache) makes every source newer than an AAR built from the same code. Needs Go,
+// the NDK and a JDK (clients/tunnel/README.md). Google Play's bundles give each phone just its own ABI's library.
 val tunnelDir: File = rootDir.resolve("../tunnel")
 val tunnelAar: File = tunnelDir.resolve("build/flexarr-tunnel.aar")
 val buildTunnel by tasks.registering(Exec::class) {
-    description = "Builds the guest tunnel's AAR (clients/tunnel/build-android.sh) when it's missing or stale."
+    description = "Builds the guest tunnel's AAR (clients/tunnel/build-android.sh) when it's missing or its sources changed."
     workingDir = tunnelDir
     commandLine("./build-android.sh")
     // Go is often only on the shell's PATH (Homebrew's), which Android Studio doesn't read.
     environment("PATH", listOf(System.getenv("PATH").orEmpty(), "/opt/homebrew/bin", "/usr/local/go/bin", "/usr/local/bin").joinToString(File.pathSeparator))
     // Locals, so the configuration cache doesn't have to keep the build script.
     val aar = tunnelAar
-    val sources = tunnelDir.listFiles { file -> file.extension == "go" || file.name in setOf("go.mod", "go.sum", "tags.sh", "build-android.sh") }.orEmpty().toList()
-    onlyIf("the tunnel's AAR is missing or older than its sources") {
-        !aar.exists() || sources.any { it.lastModified() > aar.lastModified() }
+    val hashFile = File(aar.path + ".hash")
+    val dir = tunnelDir
+    // What goes into the AAR: the package's Go files (not its tests), its modules, and the scripts that build it.
+    val sourcesHash = {
+        val files = dir.listFiles { file ->
+            (file.extension == "go" && !file.name.endsWith("_test.go")) || file.name in setOf("go.mod", "go.sum", "tags.sh", "build-android.sh")
+        }.orEmpty().sortedBy { it.name }
+        val digest = MessageDigest.getInstance("SHA-256")
+        files.forEach { file ->
+            digest.update(file.name.toByteArray())
+            digest.update(0)
+            digest.update(file.readBytes())
+            digest.update(0)
+        }
+        digest.digest().joinToString("") { "%02x".format(it) }
+    }
+    onlyIf("the tunnel's AAR is missing or its sources changed since it was built") {
+        !aar.exists() || !hashFile.exists() || hashFile.readText().trim() != sourcesHash()
     }
     doFirst {
         logger.lifecycle("Building the guest tunnel (clients/tunnel/build-android.sh); this takes a few minutes the first time.")
     }
+    doLast { hashFile.writeText(sourcesHash() + "\n") }
 }
 tasks.named("preBuild") { dependsOn(buildTunnel) }
 
