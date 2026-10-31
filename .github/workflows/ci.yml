@@ -213,9 +213,10 @@ jobs:
             -destination 'generic/platform=${{ matrix.name }}' -derivedDataPath build/DerivedData \
             CODE_SIGNING_ALLOWED=NO COMPILER_INDEX_STORE_ENABLE=NO build
 
-  # The Android app (clients/android, in development), as two jobs side by side: the core's and the app's unit tests
-  # with the debug build, and the release build as Google Play gets it, minified but unsigned (the upload key isn't
-  # here) and with no Sentry upload (no token), with lint on it: errors not in app/lint-baseline.xml fail.
+  # The Android app (clients/android, in development), as three jobs side by side: the core's and the app's unit tests
+  # with the debug build; the release build as Google Play gets it, minified but unsigned (the upload key isn't here)
+  # and with no Sentry upload (no token); and lint on the release build: errors not in app/lint-baseline.xml fail. The
+  # release build skips its own lint pass (lintVital), a subset of the full lint the third job runs.
   android:
     name: Android (${{ matrix.name }})
     needs: changes
@@ -228,7 +229,9 @@ jobs:
           - name: tests
             tasks: ":core:test :app:testDebugUnitTest :app:assembleDebug"
           - name: release
-            tasks: ":app:assembleRelease :app:lintRelease"
+            tasks: ":app:assembleRelease -x lintVitalRelease"
+          - name: lint
+            tasks: ":app:lintRelease"
     defaults:
       run:
         working-directory: clients/android
