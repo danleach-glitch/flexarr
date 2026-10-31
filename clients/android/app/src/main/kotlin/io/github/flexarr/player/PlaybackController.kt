@@ -318,6 +318,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         // Music or a podcast playing stops for the video.
         model.podcasts.pause()
         model.music.pause()
+        model.books.pause()
         forcedTranscode = false
         viewerChoseSubtitle = debugSubtitleKey != null || subtitlesOff
         viewerSubtitleKey = debugSubtitleKey

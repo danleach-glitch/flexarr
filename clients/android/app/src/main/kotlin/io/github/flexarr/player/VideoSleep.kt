@@ -59,6 +59,8 @@ class VideoSleep(scope: CoroutineScope, private val player: Player, private val 
         val (left, asking) = when (setting) {
             is SleepTimer.Setting.Minutes -> (timer.remaining ?: 0.0).let { it to (it <= 60) }
             SleepTimer.Setting.EndOfEpisode -> endOfEpisode() ?: return
+            // A book's; never set for a video.
+            SleepTimer.Setting.EndOfChapter -> return
         }
         if (setting == SleepTimer.Setting.EndOfEpisode && left <= 0.3) return fallAsleep()
         if (asking) {
