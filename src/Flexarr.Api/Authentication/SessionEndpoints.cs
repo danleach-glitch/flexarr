@@ -93,7 +93,17 @@ public static class SessionEndpoints
         });
 
         // The main profile releasing a browser or device locked to kids profiles, from Settings › Devices.
-        group.MapPost("/{id}/release-kids-lock", (string id, SignIns signIns) => signIns.SetKidsLock(id, false) ? Results.NoContent() : Results.NotFound());
+        // As the device's own release: its notifications, moved to the kids profile with the lock, come back to the main profile.
+        group.MapPost("/{id}/release-kids-lock", async (string id, SignIns signIns, FlexarrDbContext db, CancellationToken ct) =>
+        {
+            if (!signIns.SetKidsLock(id, false))
+            {
+                return Results.NotFound();
+            }
+
+            await db.NotificationDevices.Where(d => d.SignInId == id).ExecuteUpdateAsync(u => u.SetProperty(d => d.ProfileId, PlaybackState.DefaultUser), ct);
+            return Results.NoContent();
+        });
 
         group.MapDelete("/{id}", (string id, SignIns signIns) => signIns.Revoke(id) ? Results.NoContent() : Results.NotFound());
 
