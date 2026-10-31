@@ -1528,6 +1528,8 @@ export interface GuestDevice {
   path: TailnetPath
   lastSeen: string | null
   tailscaleAdminUrl: string
+  /** The server's tailnet address or port changed since it joined, so it can't reach the server. Absent before 0.57. */
+  serverMoved?: boolean
 }
 
 export const getRemoteGuests = (signal?: AbortSignal) => apiGet<RemoteGuests>('/remote/guests', signal)

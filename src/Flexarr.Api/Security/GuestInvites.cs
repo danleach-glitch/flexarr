@@ -37,6 +37,9 @@ public sealed class GuestInvite
 
     /// <summary>The Tailscale auth key's id, so a cancelled invite's key can be deleted.</summary>
     public string? KeyId { get; init; }
+
+    /// <summary>Where the guest's app reaches Flexarr: this server's tailnet address and port when the invite was made.</summary>
+    public string? Target { get; init; }
 }
 
 /// <summary>What the guest's app needs, carried in the invite link (base64url JSON after the #).</summary>
@@ -280,6 +283,7 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
             CreatedAt = now,
             ExpiresAt = expires, // the key was asked to expire with it
             KeyId = key.Id,
+            Target = $"{address}:{policy.FlexarrPort.ToString(CultureInfo.InvariantCulture)}",
         };
 
         lock (_lock)
@@ -369,7 +373,7 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
         }
 
         var name = invite.Name.Length > 0 ? invite.Name : DeviceName(profileNameFor?.Invoke(invite.ProfileId), deviceType);
-        var (signIn, signInToken) = signIns.IssueGuest(name, invite.ProfileId, address, deviceType);
+        var (signIn, signInToken) = signIns.IssueGuest(name, invite.ProfileId, address, deviceType, invite.Target);
         LogRedeemed(PathComparison.Printable(name), address);
         return (signIn, signInToken, invite, retry);
     }

@@ -415,7 +415,11 @@ export function GuestsGroup({ onChange }: { onChange: () => void }) {
                       {deviceLabel(d, person.name)}
                       {joined.includes(d.id) && <span className="guest-new-tag">New</span>}
                     </strong>
-                    <span className="muted">{describeGuest(d, false)}</span>
+                    {d.serverMoved ? (
+                      <span className="error">Can’t reach your server since its address changed. Remove it and add it again.</span>
+                    ) : (
+                      <span className="muted">{describeGuest(d, false)}</span>
+                    )}
                   </span>
                   <IconButton
                     label="Remove"

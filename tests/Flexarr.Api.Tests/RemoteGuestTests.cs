@@ -293,6 +293,32 @@ public class RemoteGuestTests(RemoteGuestFactory factory) : IClassFixture<Remote
     }
 
     [Fact]
+    public async Task A_device_that_joined_before_the_servers_address_changed_says_so()
+    {
+        var gran = await factory.AddProfileAsync("Gran45");
+        var (_, payload) = await InviteAsync(gran, "Moved test");
+        const string device = "100.64.0.45";
+        factory.Whois.Tags[device] = ["tag:flexarr-guest"];
+        Assert.Equal(HttpStatusCode.OK, (await RedeemAsync(device, payload.T)).StatusCode);
+        using var admin = factory.Admin();
+
+        async Task<bool> Moved() => (await admin.GetFromJsonAsync<List<JsonElement>>("/api/v1/remote/guests/devices"))!
+            .Single(d => d.GetProperty("name").GetString() == "Moved test").GetProperty("serverMoved").GetBoolean();
+
+        Assert.False(await Moved());
+        var before = factory.Tailnet.Snapshot;
+        factory.Tailnet.Snapshot = before! with { Address = "100.64.0.99" };
+        try
+        {
+            Assert.True(await Moved());
+        }
+        finally
+        {
+            factory.Tailnet.Snapshot = before;
+        }
+    }
+
+    [Fact]
     public async Task A_guest_sign_in_is_kept_where_an_older_server_never_finds_it()
     {
         var gran = await factory.AddProfileAsync("Gran40");

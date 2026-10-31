@@ -22,8 +22,10 @@ public sealed record RedeemInviteRequest(string Token);
 /// <param name="Path">How it reaches this server right now: Direct, PeerRelay (through this server's relay), Derp
 /// (Tailscale's shared relays, about 2 Mbps), or Unknown (not connected lately).</param>
 /// <param name="TailscaleAdminUrl">Where the owner deletes the device from the tailnet.</param>
+/// <param name="ServerMoved">This server's tailnet address or Flexarr's port has changed since the device joined, so
+/// its app can't reach the server any more: it needs adding again.</param>
 public sealed record GuestDeviceDto(string Id, string Name, string? ProfileId, string? ProfileName, Authentication.DeviceType? DeviceType, DateTime CreatedAt,
-    DateTime LastUsedAt, string? Address, bool Online, TailnetPath Path, DateTime? LastSeen, string TailscaleAdminUrl);
+    DateTime LastUsedAt, string? Address, bool Online, TailnetPath Path, DateTime? LastSeen, string TailscaleAdminUrl, bool ServerMoved = false);
 
 /// <summary>Family invites' setup, as Settings › Remote access shows it.</summary>
 /// <param name="Enabled">Family invites are turned on for this server (hidden until the apps that carry Tailscale are out).</param>
@@ -202,11 +204,11 @@ public static class RemoteGuestEndpoints
             }
         });
 
-        group.MapGet("/devices", async (SignIns signIns, ITailnet tailnet, FlexarrDbContext db, CancellationToken ct) =>
+        group.MapGet("/devices", async (SignIns signIns, ITailnet tailnet, GuestPolicy policy, FlexarrDbContext db, CancellationToken ct) =>
         {
             var names = await db.Profiles.AsNoTracking().ToDictionaryAsync(p => p.Id, p => p.Name, ct);
             var snapshot = await tailnet.SnapshotAsync(ct);
-            return Results.Ok(Describe(signIns.List().Where(s => s.Guest), snapshot, names));
+            return Results.Ok(Describe(signIns.List().Where(s => s.Guest), snapshot, names, policy.FlexarrPort));
         });
 
         // The faster relay: this server becomes a Tailscale peer relay, so guests whose networks can't connect
@@ -331,15 +333,16 @@ public static class RemoteGuestEndpoints
             port is not null && snapshot is not null && snapshot.RelayPort != port ? "Tailscale on the server isn't relaying yet. It needs Tailscale 1.86 or newer." : null);
 
     /// <summary>Guests' devices with how each reaches this server now, matched to the tailnet by address.</summary>
-    internal static List<GuestDeviceDto> Describe(IEnumerable<SignIn> guests, TailnetSnapshot? snapshot, IReadOnlyDictionary<string, string> profileNames)
+    internal static List<GuestDeviceDto> Describe(IEnumerable<SignIn> guests, TailnetSnapshot? snapshot, IReadOnlyDictionary<string, string> profileNames, int flexarrPort = 0)
     {
+        var here = snapshot?.Address is { } self && flexarrPort > 0 ? $"{self}:{flexarrPort.ToString(System.Globalization.CultureInfo.InvariantCulture)}" : null;
         var peers = (snapshot?.Peers ?? []).Where(p => p.Address is not null).GroupBy(p => p.Address!).ToDictionary(g => g.Key, g => g.First());
         return guests.Select(g =>
         {
             var peer = g.GuestAddress is { } address ? peers.GetValueOrDefault(address) : null;
             return new GuestDeviceDto(g.Id, g.Name, g.ProfileId, g.ProfileId is { } id ? profileNames.GetValueOrDefault(id) : null, g.DeviceType, g.CreatedAt,
                 g.LastUsedAt, g.GuestAddress, peer?.Online == true, peer?.Online == true ? peer.Path : TailnetPath.Unknown, peer?.LastSeen,
-                "https://login.tailscale.com/admin/machines");
+                "https://login.tailscale.com/admin/machines", here is not null && g.GuestServer is { } joined && joined != here);
         }).OrderByDescending(d => d.Online).ThenByDescending(d => d.LastUsedAt).ToList();
     }
 

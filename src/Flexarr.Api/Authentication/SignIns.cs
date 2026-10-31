@@ -90,6 +90,9 @@ public sealed class SignIn
 
     /// <summary>For a guest, the tailnet address of the device that redeemed the invite.</summary>
     public string? GuestAddress { get; init; }
+
+    /// <summary>Where a guest's app reaches this server (its tailnet address and Flexarr's port when invited).</summary>
+    public string? GuestServer { get; init; }
 }
 
 /// <summary>
@@ -165,7 +168,7 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
     /// <paramref name="profileId"/>. Another guest sign-in for the same address (the device used a second invite) is
     /// replaced.
     /// </summary>
-    public (SignIn SignIn, string Token) IssueGuest(string name, string profileId, string address, DeviceType? deviceType)
+    public (SignIn SignIn, string Token) IssueGuest(string name, string profileId, string address, DeviceType? deviceType, string? server = null)
     {
         var token = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32));
         var now = clock.GetUtcNow().UtcDateTime;
@@ -185,6 +188,7 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
             DeviceType = deviceType,
             Guest = true,
             GuestAddress = address,
+            GuestServer = server,
         };
 
         lock (_lock)
