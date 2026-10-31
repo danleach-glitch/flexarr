@@ -123,7 +123,7 @@ Turning it on from the main profile takes no PIN (from any other profile, the ad
 Deleting the kids profile a device with child lock is on moves it to another kids profile. If it was the last one, turn off child lock first.
 
 > **Note**
-> Child lock needs the device's own sign-in: a browser signed in with the API key once, or an app connected with a code. An app still connected with the API key itself is the server, so kids profiles can't hold a child there at all: connect it again with a code. With **Only away from home** in **Settings › Security**, a browser at home that hasn't chosen a profile starts on a kids profile, and choosing the main profile there takes a PIN.
+> Child lock needs the device's own sign-in: a browser signed in with the API key once, or an app connected with a code. An app still connected with the API key itself is the server, so kids profiles can't hold a child there at all: connect it again with a code. With **Only away from home** in **Settings › Security**, a browser at home that hasn't chosen a profile starts on a kids profile, and choosing the main profile there takes the admin PIN. Giving it signs that browser in, so it doesn't ask again: turn on Child lock on a browser children share.
 
 ## Who's watching when Flexarr opens
 
