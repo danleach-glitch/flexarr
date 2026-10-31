@@ -6,6 +6,7 @@ import { useApi } from '../../hooks/useApi'
 import { hasRequestChoice } from '../../lib/requestLibraries'
 import { AboutSection } from './AboutSection'
 import { AccessSection } from './AccessSection'
+import { SecuritySection } from './SecuritySection'
 import { AdminUnlock } from './AdminUnlock'
 import { BackupSection } from './BackupSection'
 import { ConnectionsSection } from './ConnectionsSection'
@@ -55,7 +56,8 @@ const serverPages: Page[] = [
   { id: 'livetv', label: 'Live TV', render: () => <LiveTvSection /> },
   { id: 'connections', label: 'Connections', render: () => <ConnectionsSection /> },
   { id: 'access', label: 'Access', render: () => <AccessSection /> },
-  { id: 'tv', label: 'Connect a device', render: () => <ConnectTvSection />, under: 'access' },
+  { id: 'security', label: 'Security', render: () => <SecuritySection /> },
+  { id: 'tv', label: 'Connect a device', render: () => <ConnectTvSection />, under: 'security' },
   { id: 'backups', label: 'Backup and restore', render: () => <BackupSection /> },
   { id: 'updates', label: 'Updates', render: () => <UpdatesSection /> },
   { id: 'logs', label: 'Logs', render: () => <LogsSection /> },

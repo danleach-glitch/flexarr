@@ -6,7 +6,7 @@ import {
   exportSettings,
   forgetBackupFile,
   getBackups,
-  getProfiles,
+  getMe,
   importSettingsFile,
   openBackupFile,
   restoreBackup,
@@ -70,8 +70,9 @@ type Dialog =
 
 export function BackupSection() {
   const backups = useApi(getBackups, [])
-  const profiles = useApi(getProfiles, [])
-  const mainHasPin = profiles.data?.find((p) => p.isMain)?.hasPin ?? false
+  // Restoring keys and access settings asks for the admin PIN, when there is one.
+  const me = useApi(getMe, [])
+  const mainHasPin = me.data !== undefined && me.data.adminPinMissing !== true
   const [dialog, setDialog] = useState<Dialog>()
   const [error, setError] = useState<string>()
   const [restarting, setRestarting] = useState(false)

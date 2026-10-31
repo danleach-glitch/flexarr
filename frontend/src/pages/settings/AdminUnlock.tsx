@@ -33,7 +33,7 @@ export function AdminUnlock({ pinMissing, onUnlocked }: { pinMissing: boolean; o
     setBusy(true)
     try {
       if (mode === 'pin') await unlockAdmin({ pin })
-      else await setAdminPin(newPin, mode === 'forgotten' ? apiKey.trim() : undefined)
+      else await setAdminPin(newPin, mode === 'forgotten' ? { apiKey: apiKey.trim() } : {})
       onUnlocked()
     } catch (e) {
       setError(lockout.lockFrom(e) ? undefined : errorText(e))

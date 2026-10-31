@@ -1390,7 +1390,7 @@ export interface Me {
   tailscaleLogin: string | null
   /** The main profile is chosen, but managing the server takes its PIN first (unlockAdmin). Absent before 0.56. */
   canUnlock?: boolean
-  /** The main profile has no PIN yet, so the server's settings can't be unlocked until it's given one (setAdminPin). */
+  /** There's no admin PIN yet, so the server's settings can't be unlocked until one is chosen (setAdminPin). */
   adminPinMissing?: boolean
   /** When managing the server takes the PIN again here; null for the API key, which always may. */
   unlockedUntil?: string | null
@@ -1418,6 +1418,7 @@ export interface RemoteAccess {
   }
   links: { login: string; name: string; profileId: string | null }[]
   cloudflareTunnelRunning: boolean
+  /** There's an admin PIN (the name is from before the main profile had a PIN of its own). */
   mainProfileHasPin: boolean
   /** Flexarr runs in a container (Docker), which can't reach the host's Tailscale. */
   inContainer: boolean
@@ -1446,11 +1447,11 @@ export async function lockAdmin() {
 }
 
 /**
- * Gives the main profile a PIN: its first (on a server set up before setup asked for one), or a new one with the API
- * key when it's been forgotten. Unlocks this browser, and anywhere else the old one was given locks.
+ * Sets the admin PIN: the first (on a server set up before setup asked for one), a new one knowing the current one, or
+ * a new one with the API key when it's been forgotten. Unlocks this browser, and anywhere else the old one was given locks.
  */
-export async function setAdminPin(pin: string, apiKey?: string) {
-  const result = await request<{ unlockedUntil: string | null }>('POST', '/admin/pin', { pin, apiKey })
+export async function setAdminPin(pin: string, proof: { apiKey?: string; currentPin?: string } = {}) {
+  const result = await request<{ unlockedUntil: string | null }>('POST', '/admin/pin', { pin, ...proof })
   clearApiCache()
   return result
 }
