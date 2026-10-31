@@ -262,7 +262,8 @@ private fun GuestCode(model: AppModel, onBack: () -> Unit) {
             problem?.let { ErrorNote(it) }
         }
         if (!asking) {
-            TvActionButton("Back", onClick = { model.dismissInvite(); onBack() }, modifier = Modifier.focusRequester(back), enabled = !model.joining)
+            // Focusable while joining (focus has to rest somewhere), but does nothing until it's done.
+            TvActionButton("Back", onClick = { if (!model.joining) { model.dismissInvite(); onBack() } }, modifier = Modifier.focusRequester(back))
         }
     }
 }
