@@ -96,7 +96,7 @@ fun TvProfilePicker(model: AppModel, marksCurrent: Boolean = false, onDone: () -
                     model.profiles.forEach { profile ->
                         val caption = when {
                             marksCurrent && profile.isCurrent -> "Watching now"
-                            profile.hasPin -> "PIN"
+                            profile.takesPin -> "PIN"
                             else -> null
                         }
                         ProfileChoice(model, profile, caption, busy = switching == profile.id, modifier = Modifier.focusRequester(requesters.getValue(profile.id))) {
@@ -105,7 +105,7 @@ fun TvProfilePicker(model: AppModel, marksCurrent: Boolean = false, onDone: () -
                                 switching != null -> Unit
                                 // Already watching: nothing to switch, so this is the same as backing out.
                                 marksCurrent && profile.isCurrent -> onDone()
-                                profile.hasPin -> asking = profile
+                                profile.takesPin -> asking = profile
                                 else -> choose(profile, null)
                             }
                         }
