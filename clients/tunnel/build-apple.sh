@@ -42,14 +42,16 @@ build_slice() {
     CGO_CFLAGS="$flags -O2" CGO_LDFLAGS="$flags" \
     go build -trimpath -buildmode=c-archive -tags "ios,$TAGS" -ldflags="-s -w" \
       -o "$dir/libflexarrtunnel.a" ./capi
-  mkdir -p "$dir/include"
-  mv "$dir/libflexarrtunnel.h" "$dir/include/FlexarrTunnel.h"
+  # In a folder of its own: Xcode copies every xcframework's headers into one include/, where another package's
+  # module.modulemap would collide with ours.
+  mkdir -p "$dir/include/FlexarrTunnel"
+  mv "$dir/libflexarrtunnel.h" "$dir/include/FlexarrTunnel/FlexarrTunnel.h"
 }
 
 # Module map for Swift (import FlexarrTunnel). It autolinks the system frameworks
 # Go's runtime and crypto/x509 call, so apps need no extra linker settings.
 write_modulemap() {
-  cat > "$WORK/$1/include/module.modulemap" <<'MAP'
+  cat > "$WORK/$1/include/FlexarrTunnel/module.modulemap" <<'MAP'
 module FlexarrTunnel {
     header "FlexarrTunnel.h"
     link framework "Security"

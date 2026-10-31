@@ -87,6 +87,8 @@ final class AppModel {
     private(set) var errorReports: ErrorReportSetting?
     /// Why the connect screen is showing when nobody asked for it: the server stopped accepting this device.
     private(set) var signedOutNotice: String?
+    /// A family guest's tunnel to its host's server didn't start: why, shown with Try again and Leave.
+    private(set) var tunnelProblem: String?
     /// "Now playing on iPhone": a title moved to a phone with Continue on iPhone (the Apple TV shows it a moment).
     var handOffNotice: String?
 
@@ -134,6 +136,8 @@ final class AppModel {
             skipsProfileChoice = true
         }
         #endif
+        // A family guest reaches its host only through the tunnel: start it before anything asks the server.
+        if credentials?.isGuest == true { Task { await ensureGuestTunnel() } }
         LogHub.shared.signedIn(client)
         // Before anything else can crash: the server's answer comes later (see `refreshErrorReports`).
         ErrorReports.resume(server: credentials?.address)
@@ -296,6 +300,9 @@ final class AppModel {
     private func forget() {
         player.stop()
         music.stop()
+        // A guest leaving leaves its host's tailnet too: nothing of the tunnel stays on the device.
+        if credentials?.isGuest == true { GuestTunnel.shared.stop(forget: true) }
+        tunnelProblem = nil
         store.clear()
         libraries = []
         resetProfiles()
@@ -345,7 +352,8 @@ final class AppModel {
     /// Keeps the saved address for away from home in step with the server's (remote access turned on or off since,
     /// or a sign-in from before the app kept one). Best effort, once per launch, after the profiles are up.
     private func refreshRemoteAddress() async {
-        guard !remoteChecked, let credentials else { return }
+        // A guest only ever reaches its host through the tunnel.
+        guard !remoteChecked, let credentials, !credentials.isGuest else { return }
         remoteChecked = true
         guard let status = try? await credentials.client.systemStatus() else { return }
         let remote = await Self.remoteAddress(for: status, address: credentials.address, kept: credentials.remoteAddress)
@@ -376,7 +384,41 @@ final class AppModel {
         return own
     }
 
+    /// Starts a family guest's tunnel, or finds it running (cheap), and keeps the sign-in's address in step with the
+    /// tunnel's port. False, with `tunnelProblem` saying why, when it can't. True for everyone else.
+    @discardableResult
+    func ensureGuestTunnel() async -> Bool {
+        guard let credentials, let guest = credentials.guest else { return true }
+        do {
+            let address = try await GuestTunnel.shared.start(guest)
+            tunnelProblem = nil
+            // The port it asked for was taken: the sign-in moves to the one it got.
+            if let now = self.credentials, now.guest == guest, now.address != address {
+                var moved = now
+                moved.address = address
+                store.clear()
+                try? store.save(moved)
+                phase = .signedIn(moved)
+            }
+            return true
+        } catch {
+            guard self.credentials?.guest == guest else { return false }
+            tunnelProblem = error.localizedDescription
+            return false
+        }
+    }
+
+    /// Try again, after the tunnel didn't start.
+    func retryGuestTunnel() async {
+        tunnelProblem = nil
+        await loadProfiles()
+    }
+
     func loadProfiles() async {
+        if credentials?.isGuest == true {
+            guard await ensureGuestTunnel() else { return }
+            upgradeChecked = true // a guest's sign-in is its own already
+        }
         if !upgradeChecked, let credentials {
             upgradeChecked = true
             let own = await withOwnToken(credentials)

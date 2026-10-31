@@ -44,7 +44,10 @@ struct RootView: View {
                 ConnectView()
                     .transition(.opacity)
             case .signedIn(let credentials):
-                if !model.profilesLoaded {
+                if let problem = model.tunnelProblem {
+                    TunnelProblemView(problem: problem)
+                        .transition(.opacity)
+                } else if !model.profilesLoaded {
                     ProgressView().scaleEffect(1.4)
                 } else if model.needsProfileChoice {
                     ProfilePickerView()
@@ -71,7 +74,11 @@ struct RootView: View {
             model.listenForCommands(scenePhase == .active)
         }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { Task { await model.refreshErrorReports() } }
+            if phase == .active {
+                // A guest's tunnel may have stopped while the app was away: back up before anything asks.
+                Task { await model.ensureGuestTunnel() }
+                Task { await model.refreshErrorReports() }
+            }
         }
         .overlay {
             if model.player.isStarting || model.liveTv.isStarting {

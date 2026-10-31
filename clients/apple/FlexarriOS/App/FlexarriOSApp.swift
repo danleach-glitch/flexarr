@@ -290,7 +290,10 @@ struct RootView: View {
                         .transition(.opacity)
                 }
             case .signedIn(let credentials):
-                if !model.profilesLoaded {
+                if let problem = model.tunnelProblem {
+                    TunnelProblemView(problem: problem)
+                        .transition(.opacity)
+                } else if !model.profilesLoaded {
                     ProgressView().controlSize(.large)
                 } else if model.needsProfileChoice {
                     ProfilePickerView()
@@ -339,6 +342,8 @@ struct RootView: View {
         // for later.
         .onChange(of: scenePhase) { _, phase in
             if phase == .active, model.credentials != nil {
+                // A guest's tunnel may have stopped while the app was away: back up before anything asks.
+                Task { await model.ensureGuestTunnel() }
                 Task { await downloads.catchUp() }
                 Task { await model.loadUpNext() }
                 notifications.refresh()

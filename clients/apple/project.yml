@@ -33,6 +33,12 @@ targets:
   FlexarrTV:
     type: application
     platform: tvOS
+    preBuildScripts:
+      # The tunnel's library, built once if it isn't there (make tunnel-apple rebuilds it when its sources change).
+      - name: Build the tunnel if missing
+        basedOnDependencyAnalysis: false
+        script: |
+          [ -d "$SRCROOT/../tunnel/build/FlexarrTunnel.xcframework" ] || PATH="$PATH:/opt/homebrew/bin:/usr/local/go/bin" make -C "$SRCROOT/../.." tunnel-apple
     # Shared/ is the app model, player and design tokens both apps use.
     sources: [Shared, FlexarrTV]
     dependencies:
@@ -41,6 +47,9 @@ targets:
       - package: Sentry
         product: Sentry
       - target: FlexarrTopShelf
+      # Tailscale built in, for family guests (clients/tunnel, a static library built by make tunnel-apple).
+      - framework: ../tunnel/build/FlexarrTunnel.xcframework
+        embed: false
     entitlements:
       path: FlexarrTV/FlexarrTV.entitlements
       properties:
@@ -107,6 +116,12 @@ targets:
   FlexarriOS:
     type: application
     platform: iOS
+    preBuildScripts:
+      # The tunnel's library, built once if it isn't there (make tunnel-apple rebuilds it when its sources change).
+      - name: Build the tunnel if missing
+        basedOnDependencyAnalysis: false
+        script: |
+          [ -d "$SRCROOT/../tunnel/build/FlexarrTunnel.xcframework" ] || PATH="$PATH:/opt/homebrew/bin:/usr/local/go/bin" make -C "$SRCROOT/../.." tunnel-apple
     # WidgetShared is what the app and its widgets both know: the snapshot it writes for them, the Play/Pause intent.
     sources: [Shared, FlexarriOS, WidgetShared]
     dependencies:
@@ -116,6 +131,9 @@ targets:
         product: Sentry
       - target: FlexarrWidgets
       - target: FlexarrNotificationService
+      # Tailscale built in, for family guests (clients/tunnel, a static library built by make tunnel-apple).
+      - framework: ../tunnel/build/FlexarrTunnel.xcframework
+        embed: false
     info:
       path: FlexarriOS/Info.plist
       properties:
