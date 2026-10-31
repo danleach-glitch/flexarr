@@ -1,13 +1,18 @@
 # Audiobooks: plan
 
-A plan, not built yet. Audiobooks become a library type like films, TV and music: the \*arr app finds and organises the books, Flexarr plays them, and it works without an \*arr too. It's built to stand beside the best dedicated audiobook apps, not to be music with longer tracks.
+Being built on `library/audiobooks`. Audiobooks become a library type like films, TV and music: the \*arr app finds and organises the books, Flexarr plays them, and it works without an \*arr too. It's built to stand beside the best dedicated audiobook apps, not to be music with longer tracks.
 
 Decided so far:
 
 - **\*arr:** any Readarr-compatible app (Readarr, Bookshelf, Chaptarr) through one connection type. Readarr itself was retired in June 2025; the forks keep its `/api/v1` and webhooks.
 - **Ebooks:** audiobooks first. The data model leaves room for an ebook edition of the same book later.
-- **First apps:** web, iPhone and iPad, Android. Apple TV follows.
-- **Included:** Audible-quality metadata, requests from inside Flexarr, and an import from Audiobookshelf.
+- **First release:** phases 1–5 below plus Android: library and web, the Readarr-compatible connection, online metadata, the iPhone and iPad app, requests, and the Android app. Chapter tools, Apple TV listening, and Home Assistant and MCP come with it. The branch lands whole, so there's no preview setting.
+- **Later:** the Audiobookshelf import, listening stats, voice boost and silence trimming, the automatic sleep timer, Android TV, ebooks.
+- **Kids profiles** never see audiobooks, like podcasts.
+- **The end of a book in a series** offers the next book with a Play button; it never starts by itself. A finished book leaves Continue listening straight away.
+- **Siri:** the iPhone is at Apple's limit of 10 phrases, so the podcast resume phrase becomes one *Resume listening* for books and episodes. The other book actions live in the Shortcuts app.
+- **Widget:** the existing *Continue listening* widget shows whatever played last, book or podcast.
+- **Every app skips library types it doesn't know.** Released apps before this show an unknown library as a film grid; that's accepted while few people use them.
 
 ## What people get
 
@@ -69,6 +74,10 @@ Author/Series/1 - Title/…                        series and order from the pat
 Author/Series/Vol. 1.5 - 2004 - Title {Narrator}/
 Author/Title/CD1/…, CD2/…                        disc folders are one book
 Author/Title.m4b                                 single file directly in an author folder
+Author/Series/Title/Author - TMC1 Title.m4b      series folder without numbers, order in the file name
+Author/Book 1/Book 2/…                           a book folder inside another book's folder
+Author A, Author B/Title/…                       several authors in one folder name
+Author - Title [B0DPXK6Y7B].m4b                  an Audible ASIN in the file name
 ```
 
 - **Files:** m4b, m4a, mp3, aac, flac, ogg/opus, wma. A folder of audio files is one book, and disc-like subfolders (CD1, Disc 2, Part 3) are parts of it. Files are ordered by disc and track tag, then natural sort of the name.
@@ -113,7 +122,10 @@ Things to fix along the way:
 
 - `LibraryVisibility.Hides` sends any unknown kind to Music. Give books their own case.
 - The web's `Record<LibraryType, …>` maps (`libraryIcons.ts`, `format.ts`) need the new value.
-- Check that the released iPhone and Apple TV apps hide a library whose type decodes as `unknown`, rather than showing it as a music library.
+- The released apps don't hide a library whose type decodes as `unknown`: iPhone, Apple TV, Android and Android TV show it as a film grid and open its items as videos. Every app now skips unknown library types.
+- `ArrId` and `MediaRequest.TmdbId` are numbers, but Chaptarr's IDs are text (`hc:`, `gr:`), so books get new text columns.
+- `ShowPlaybackSpeed` deletes a 1× row as "use the default". With a profile default other than 1×, books store an explicit 1×.
+- `ArrInstance.ApiVersion` gives every kind but Lidarr v3; Readarr needs v1.
 
 ## Playback
 
@@ -181,12 +193,12 @@ Built the way the Plex history import is (`PlexImporter`):
   - **Screens:** a Books tab, which appears when an audiobook library exists, plus book, series and author screens.
   - **Player:** `MusicPlayer` gains a book mode, much as podcasts did, with `NowPlaying` covering lock screen chapters and skips.
   - **Everything else:** `DownloadStore` support, CarPlay sections, a widget and App Intents. In FlexarrKit, new fields are optional and marked "Absent from servers before …".
-- **Android** (phase 7): once the Android app has its audio player, which it doesn't yet: a Media3 session, Android Auto and downloads.
-- **Apple TV** (later): Continue listening and a big-screen Now Playing using the music visualiser's look.
+- **Android:** the app already has a Media3 audio service (`AudioService`, `PodcastPlayer`, `CarLibrary` for Android Auto, a sleep timer with shake). Books add a book player on that service, downloads, Android Auto tabs, the shared widget and Cast.
+- **Apple TV:** Continue listening, book pages and a big-screen Now Playing using the music visualiser's look.
 
 ## Phases
 
-The work sits behind an **Audiobooks (preview)** setting until phase 4, so main stays releasable.
+The first release covers phases 0–5 and 7, plus chapter tools, Apple TV listening and Home Assistant/MCP from phase 8. It lands as one branch, so main never has it half-built.
 
 | # | Phase | Size |
 |:-:|---|:-:|
@@ -214,6 +226,3 @@ The work sits behind an **Audiobooks (preview)** setting until phase 4, so main 
 - **Audnexus and Audible's catalogue are unofficial.** The cache, local chapters and other providers keep the library working if they change or go away.
 - **The Mac app's sandbox:** nothing here runs another program apart from ffprobe/ffmpeg, and library folders are chosen with `FolderPicker`, so it fits.
 - **Big libraries** (10,000+ books): browse queries page, and series and author pages are indexed like music's.
-- **Still to decide:**
-  - whether **"Next in series"** stays a shelf or also auto-plays the next book (iPhone)
-  - whether **finished books** should drop out of Continue listening at once or after a day
