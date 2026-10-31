@@ -174,7 +174,9 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
             Id = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(8)),
             Kind = SignInKind.Device,
             Name = name.Trim() is { Length: > 0 } trimmed ? trimmed[..Math.Min(trimmed.Length, 80)] : "A guest",
-            TokenHash = Hash(token),
+            // Kept under a prefix an older server never looks up: rolled back to a version without family invites,
+            // a guest's token matches nothing, rather than passing for a trusted household device.
+            TokenHash = GuestHashPrefix + Hash(token),
             CreatedAt = now,
             LastUsedAt = now,
             Zone = NetworkZone.Tailnet,
@@ -230,11 +232,21 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
             return null;
         }
 
-        var hash = Hash(token);
         var now = clock.GetUtcNow().UtcDateTime;
         lock (_lock)
         {
-            if (!Loaded().TryGetValue(hash, out var signIn) || signIn.Kind != kind)
+            // A household sign-in, or a guest's under its prefix (only ever a guest's).
+            var hash = Hash(token);
+            if (!Loaded().TryGetValue(hash, out var signIn) || signIn.Guest)
+            {
+                hash = GuestHashPrefix + hash;
+                if (!Loaded().TryGetValue(hash, out signIn) || !signIn.Guest)
+                {
+                    return null;
+                }
+            }
+
+            if (signIn.Kind != kind)
             {
                 return null;
             }
@@ -444,6 +456,9 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
             }
         }
     }
+
+    /// <summary>What a guest sign-in's token hash starts with (see <see cref="IssueGuest"/>).</summary>
+    public const string GuestHashPrefix = "guest:";
 
     private static string Hash(string token) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
 

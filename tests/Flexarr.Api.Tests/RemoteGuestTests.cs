@@ -1,3 +1,4 @@
+using Flexarr.Api.Authentication;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -250,6 +251,24 @@ public class RemoteGuestTests(RemoteGuestFactory factory) : IClassFixture<Remote
         Assert.Equal(HttpStatusCode.Forbidden, (await guest.PostAsJsonAsync($"/api/v1/profiles/{PlaybackState.DefaultUser}/select", new { })).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await guest.PostAsJsonAsync("/api/v1/profiles/kids-lock", new { })).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await guest.GetAsync("/api/v1/remote/guests/invites")).StatusCode);
+    }
+
+    [Fact]
+    public async Task A_guest_sign_in_is_kept_where_an_older_server_never_finds_it()
+    {
+        var gran = await factory.AddProfileAsync("Gran40");
+        var (_, payload) = await InviteAsync(gran, "Rollback test");
+        const string device = "100.64.0.40";
+        factory.Whois.Tags[device] = ["tag:flexarr-guest"];
+        var key = (await (await RedeemAsync(device, payload.T)).Content.ReadFromJsonAsync<RedeemedInviteDto>(Web))!.ApiKey;
+
+        // Older servers look a token up by its plain hash; a guest's is stored under a prefix they never ask for.
+        var plain = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(key)));
+        var file = await File.ReadAllTextAsync(Path.Combine(factory.DataDirectory, SignIns.FileName));
+        Assert.Contains($"\"{SignIns.GuestHashPrefix}{plain}\"", file, StringComparison.Ordinal);
+        Assert.DoesNotContain($"\"{plain}\"", file, StringComparison.Ordinal);
+        using var joined = factory.From(device, key);
+        Assert.Equal(HttpStatusCode.OK, (await joined.GetAsync("/api/v1/me")).StatusCode);
     }
 
     [Fact]
