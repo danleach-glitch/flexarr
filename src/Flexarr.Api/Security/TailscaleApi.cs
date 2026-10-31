@@ -190,10 +190,24 @@ public sealed partial class TailscaleApi(IHttpClientFactory clients, IOptionsMon
             await GuardAsync(() => TokenAsync(ct, forceNew: true), ct);
             // Tailscale says what the client may do. Anything beyond making guest keys and reading the policy is more
             // than Flexarr should hold: a leaked secret could then change the policy or the owner's devices.
-            var extra = (_scope ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries).Where(s => !AllowedScopes.Contains(s)).ToList();
-            return extra.Count == 0
-                ? null
-                : $"This OAuth client can do more than Flexarr needs ({string.Join(", ", extra)}). Make one with only Auth Keys (write) and Policy File (read).";
+            const string tooMuch = "This OAuth client can do more than Flexarr needs{0}. Make one with only Auth Keys (write) and Policy File (read).";
+            if (_scope is null)
+            {
+                // Tailscale didn't say: ask for something only a wider client may see (the tailnet's devices).
+                using var request = new HttpRequestMessage(HttpMethod.Get, Url("api/v2/tailnet/-/devices"));
+                try
+                {
+                    using var _ = await GuardAsync(() => SendAsync(request, ct), ct);
+                    return string.Format(System.Globalization.CultureInfo.InvariantCulture, tooMuch, " (it can see your devices)");
+                }
+                catch (TailscaleApiException ex) when (ex.Status is HttpStatusCode.Forbidden or HttpStatusCode.Unauthorized or HttpStatusCode.NotFound)
+                {
+                    return null;
+                }
+            }
+
+            var extra = _scope.Split(' ', StringSplitOptions.RemoveEmptyEntries).Where(s => !AllowedScopes.Contains(s)).ToList();
+            return extra.Count == 0 ? null : string.Format(System.Globalization.CultureInfo.InvariantCulture, tooMuch, $" ({string.Join(", ", extra)})");
         }
         catch (TailscaleApiException ex)
         {

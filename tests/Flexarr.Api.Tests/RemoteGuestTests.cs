@@ -598,10 +598,18 @@ public class RemoteGuestTests(RemoteGuestFactory factory) : IClassFixture<Remote
             var tooMuch = await admin.PutAsJsonAsync("/api/v1/remote/guests/client", new { clientId = "client", clientSecret = "secret" });
             Assert.Equal(HttpStatusCode.BadRequest, tooMuch.StatusCode);
             Assert.Contains("policy_file, devices:core", await tooMuch.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+            // A token that doesn't say: a client that can list devices is still refused, and isn't kept.
+            factory.Tailscale.Scope = "";
+            factory.Tailscale.WideWithoutScope = true;
+            Assert.Equal(HttpStatusCode.BadRequest, (await admin.PutAsJsonAsync("/api/v1/remote/guests/client", new { clientId = "wide", clientSecret = "secret" })).StatusCode);
+            Assert.Equal("client", (await admin.GetFromJsonAsync<JsonElement>("/api/v1/remote/guests")).GetProperty("clientId").GetString());
+            factory.Tailscale.WideWithoutScope = false;
+            Assert.Equal(HttpStatusCode.OK, (await admin.PutAsJsonAsync("/api/v1/remote/guests/client", new { clientId = "client", clientSecret = "secret" })).StatusCode);
         }
         finally
         {
             factory.Tailscale.Scope = "auth_keys policy_file:read";
+            factory.Tailscale.WideWithoutScope = false;
             factory.Tailscale.AcceptClient = true;
             await admin.PutAsJsonAsync("/api/v1/remote/guests/client", new { clientId = "client", clientSecret = "secret" });
         }

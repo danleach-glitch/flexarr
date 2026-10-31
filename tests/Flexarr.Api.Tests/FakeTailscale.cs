@@ -23,6 +23,9 @@ public sealed class FakeTailscale : HttpMessageHandler
     /// <summary>The scopes the token says the client has.</summary>
     public string Scope { get; set; } = "auth_keys policy_file:read";
 
+    /// <summary>With an empty <see cref="Scope"/> (the token says nothing): whether the client can do more anyway.</summary>
+    public bool WideWithoutScope { get; set; }
+
     public List<string> DeletedKeys { get; } = [];
 
     /// <summary>Set to make every call go wrong the way a bad network does: "timeout", or "html" (a captive portal's page).</summary>
@@ -49,7 +52,7 @@ public sealed class FakeTailscale : HttpMessageHandler
         if (path == "/api/v2/oauth/token")
         {
             return AcceptClient
-                ? Json($$"""{"access_token":"tskey-api-test","token_type":"Bearer","expires_in":3600,"scope":"{{Scope}}"}""")
+                ? Json(Scope.Length == 0 ? """{"access_token":"tskey-api-test","token_type":"Bearer","expires_in":3600}""" : $$"""{"access_token":"tskey-api-test","token_type":"Bearer","expires_in":3600,"scope":"{{Scope}}"}""")
                 : new HttpResponseMessage(HttpStatusCode.Unauthorized);
         }
 
@@ -72,6 +75,13 @@ public sealed class FakeTailscale : HttpMessageHandler
             }
 
             return new HttpResponseMessage(HttpStatusCode.OK);
+        }
+
+        if (path == "/api/v2/tailnet/-/devices")
+        {
+            // Only a client with more than auth_keys and policy_file:read may list devices.
+            return Scope.Contains("devices", StringComparison.Ordinal) || Scope.Length == 0 && WideWithoutScope
+                ? Json("{\"devices\":[]}") : new HttpResponseMessage(HttpStatusCode.Forbidden);
         }
 
         if (path == "/api/v2/tailnet/-/acl" && request.Method == HttpMethod.Get)

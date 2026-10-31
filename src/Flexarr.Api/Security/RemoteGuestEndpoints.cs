@@ -79,8 +79,19 @@ public static class RemoteGuestEndpoints
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["clientSecret"] = ["Paste the client's secret too."] });
             }
 
+            // Tried before it's kept: a client Tailscale refuses, or one that can do more than Flexarr needs, never stays.
+            var (oldId, oldSecret) = (settings.RemoteGuests.ClientId, settings.RemoteGuests.ClientSecret);
             settings.RemoteGuests.ClientId = id;
             settings.RemoteGuests.ClientSecret = id.Length == 0 ? "" : secret;
+            api.Forget();
+            policy.Forget();
+            if (id.Length > 0 && await api.CheckClientAsync(ct) is { } refused)
+            {
+                (settings.RemoteGuests.ClientId, settings.RemoteGuests.ClientSecret) = (oldId, oldSecret);
+                api.Forget();
+                return Results.Problem(refused, statusCode: 400);
+            }
+
             ServerConfigStore.Update(settings.DataDirectory, config =>
             {
                 var section = config["remoteGuests"] as System.Text.Json.Nodes.JsonObject ?? [];
@@ -88,13 +99,6 @@ public static class RemoteGuestEndpoints
                 section["clientSecret"] = settings.RemoteGuests.ClientSecret;
                 config["remoteGuests"] = section;
             });
-            api.Forget();
-            policy.Forget();
-            if (id.Length > 0 && await api.CheckClientAsync(ct) is { } problem)
-            {
-                return Results.Problem(problem, statusCode: 400);
-            }
-
             if (id.Length > 0)
             {
                 await policy.CheckAsync(ct, fresh: true);
