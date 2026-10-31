@@ -500,6 +500,12 @@ final class AppModel {
         credentials.profileToken = selection.token
         store.saveProfile(selection.token)
         profiles = list.map { $0.marked(current: $0.id == profile.id) }
+        // Which profiles ask for a PIN depends on who's watching (leaving a kids profile takes the main profile's), so the
+        // list is read again as the new profile.
+        Task { [weak self] in
+            guard let self, let client = self.client, let fresh = try? await client.profiles() else { return }
+            if fresh.contains(where: { $0.isCurrent && $0.id == profile.id }) { self.profiles = fresh }
+        }
         needsProfileChoice = false
         libraries = []
         forgetWatchlist()

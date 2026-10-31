@@ -343,6 +343,8 @@ struct RootView: View {
                 Task { await model.loadUpNext() }
                 notifications.refresh()
                 Task { await model.refreshErrorReports() }
+                // A Watchlist widget placed since the watchlist last changed has nothing yet: what's ready now.
+                WidgetBridge.publishWatchlist(model)
             }
             if phase == .background, model.credentials != nil {
                 AppDelegate.schedulePodcastRefresh()

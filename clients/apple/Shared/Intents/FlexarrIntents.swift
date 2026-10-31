@@ -1022,11 +1022,14 @@ struct FlexarrShortcuts: AppShortcutsProvider {
         )
         AppShortcut(
             intent: AddToWatchlistIntent(),
+            // Not "… to my watchlist in Flexarr": iOS keeps that sentence for its own media request, which Flexarr doesn't
+            // answer, so Siri says it can't. These are Flexarr's own.
             phrases: [
-                "Add \(\.$title) to my watchlist in \(.applicationName)",
-                "Add \(\.$title) to my \(.applicationName) watchlist",
-                "Put \(\.$title) on my watchlist in \(.applicationName)",
-                "Ask \(.applicationName) to add \(\.$title) to my watchlist",
+                "Save \(\.$title) in \(.applicationName)",
+                "Save \(\.$title) for later in \(.applicationName)",
+                "Add \(\.$title) to \(.applicationName)",
+                "\(.applicationName) save \(\.$title)",
+                "\(.applicationName) save \(\.$title) for later",
             ],
             shortTitle: "Add to watchlist",
             systemImageName: "bookmark"
