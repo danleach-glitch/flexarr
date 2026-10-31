@@ -82,6 +82,8 @@ struct ProfilePickerView: View {
         .onAppear { if let profile = model.linkProfile, !marksCurrent { asking = profile } }
         .onChange(of: model.linkProfile) { _, profile in if let profile, !marksCurrent { asking = profile } }
         .onDisappear { knownParentPin = nil }
+        // Child lock can be turned off from the web while the app's open: what it says now.
+        .task { await model.refreshKidsLock() }
     }
 
     private var choices: some View {
@@ -108,6 +110,9 @@ struct ProfilePickerView: View {
                                             Circle().strokeBorder(Color.screen, lineWidth: 3).padding(-6)
                                         }
                                     }
+                                    .overlay(alignment: .bottomTrailing) {
+                                        if lockBadge(for: profile) { padlock }
+                                    }
                                 VStack(spacing: 2) {
                                     Text(profile.name)
                                         .font(.body.weight(.semibold))
@@ -120,8 +125,17 @@ struct ProfilePickerView: View {
                             }
                         }
                         .buttonStyle(CardButtonStyle())
-                        .disabled(switching != nil || (marksCurrent && profile.isCurrent))
+                        .disabled(switching != nil)
+                        // Holding the padlock (or the picture it's on) turns child lock on, or off with the PIN.
+                        .simultaneousGesture(LongPressGesture(minimumDuration: 0.6).onEnded { _ in
+                            if lockBadge(for: profile) { toggleChildLock() }
+                        })
                         .accessibilityLabel([profile.name, caption(for: profile)].compactMap { $0 }.joined(separator: ", "))
+                        .accessibilityActions {
+                            if lockBadge(for: profile) {
+                                Button(model.kidsLock ? "Turn off child lock" : "Child lock") { toggleChildLock() }
+                            }
+                        }
                     }
                 }
                 .padding(.horizontal, 32)
@@ -134,27 +148,32 @@ struct ProfilePickerView: View {
                         .padding(.horizontal, 32)
                 }
 
-                // Locked to kids profiles, the others wait behind the main profile's PIN.
-                if model.kidsLock {
-                    Button {
-                        error = nil
-                        kidsLockPin = .unlock
-                    } label: {
-                        Label("Turn off child lock", systemImage: "lock.open")
-                    }
-                    .buttonStyle(ActionButtonStyle())
-                } else if marksCurrent && model.offersKidsLock {
-                    Button {
-                        Task { await lock(pin: nil) }
-                    } label: {
-                        Label("Child lock", systemImage: "lock")
-                    }
-                    .buttonStyle(ActionButtonStyle())
-                    .disabled(locking || switching != nil)
-                }
             }
             .frame(maxWidth: .infinity)
         }
+    }
+
+    /// The padlock on the profile watching here: open while child lock can be turned on, closed while it's on.
+    private func lockBadge(for profile: Profile) -> Bool {
+        guard profile.isCurrent else { return false }
+        return model.kidsLock || (marksCurrent && model.offersKidsLock)
+    }
+
+    private var padlock: some View {
+        Image(systemName: model.kidsLock ? "lock.fill" : "lock.open.fill")
+            .font(.system(size: 15, weight: .bold))
+            .foregroundStyle(Color.room)
+            .frame(width: 32, height: 32)
+            .background(Circle().fill(Color.screen))
+            .overlay { if locking { ProgressView().controlSize(.small).tint(Color.room) } }
+            .offset(x: 4, y: 4)
+            .accessibilityHidden(true)
+    }
+
+    private func toggleChildLock() {
+        guard switching == nil, !locking else { return }
+        error = nil
+        if model.kidsLock { kidsLockPin = .unlock } else { Task { await lock(pin: nil) } }
     }
 
     private func caption(for profile: Profile) -> String? {
@@ -165,6 +184,8 @@ struct ProfilePickerView: View {
 
     private func press(_ profile: Profile) async {
         error = nil
+        // The one watching now: nothing to switch to (its padlock is held, not tapped).
+        if marksCurrent && profile.isCurrent { return }
         if profile.needsPinToChoose {
             asking = profile
             return
