@@ -25,6 +25,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"tailscale.com/envknob"
@@ -123,11 +124,19 @@ func Start(stateDir, hostname, authKey, targetAddr, controlURL string) (int, err
 		mu.Lock()
 		if state != stateRunning && startKey != key {
 			// It failed: say why rather than trying again with a key that may be spent.
-			err := errors.New(lastErr)
+			why := lastErr
+			if why == "" {
+				why = "tunnel: stopped while starting"
+			}
+			err := errors.New(why)
 			mu.Unlock()
 			return 0, err
 		}
 	}
+	// The old node shuts down once the lock is let go (below), so State and Status
+	// never wait on it.
+	old := srv
+	srv = nil
 	stopLocked()
 	gen++
 	myGen := gen
@@ -166,6 +175,8 @@ func Start(stateDir, hostname, authKey, targetAddr, controlURL string) (int, err
 	target = targetAddr
 	startKey = key
 	mu.Unlock()
+	// The new node shares the old one's folder: it starts once the old one has gone.
+	closeWithin(old, 3*time.Second)
 
 	// Bring it up without holding the lock, so Status and Stop stay responsive.
 	ctx, cancel := context.WithTimeout(context.Background(), StartTimeout)
@@ -249,15 +260,22 @@ func serve(l net.Listener, s *tsnet.Server, targetAddr string, myGen int) {
 			go forward(c, s, targetAddr)
 			continue
 		}
-		// Closed by Stop (or a new Start): done. Otherwise the system took the socket
-		// away (iOS does, from an app suspended for a while): listen again on the same
-		// port, so the address the app holds keeps working.
+		// Closed by Stop (or a new Start): done. A passing problem (too many open
+		// files): wait a moment and carry on with the same socket. Otherwise the system
+		// took the socket away (iOS does, from an app suspended for a while): listen
+		// again on the same port, so the address the app holds keeps working.
 		mu.Lock()
 		if gen != myGen || ln != l {
 			mu.Unlock()
 			return
 		}
+		if temporary(err) {
+			mu.Unlock()
+			time.Sleep(100 * time.Millisecond)
+			continue
+		}
 		port := l.Addr().(*net.TCPAddr).Port
+		l.Close()
 		l2, lerr := listenLoopback(port)
 		if lerr != nil || l2.Addr().(*net.TCPAddr).Port != port {
 			if l2 != nil {
@@ -271,6 +289,13 @@ func serve(l net.Listener, s *tsnet.Server, targetAddr string, myGen int) {
 		ln, l = l2, l2
 		mu.Unlock()
 	}
+}
+
+// temporary reports whether an Accept error will pass by itself.
+func temporary(err error) bool {
+	var ne net.Error
+	return errors.As(err, &ne) && ne.Timeout() || errors.Is(err, syscall.EMFILE) || errors.Is(err, syscall.ENFILE) ||
+		errors.Is(err, syscall.ECONNABORTED)
 }
 
 // maxHeader is how much of a request's start is read to find its Host.
@@ -376,13 +401,20 @@ func Stop() {
 	state = stateStopped
 	lastErr = ""
 	mu.Unlock()
-	if old != nil {
-		done := make(chan struct{})
-		go func() { old.Close(); close(done) }()
-		select {
-		case <-done:
-		case <-time.After(3 * time.Second):
-		}
+	closeWithin(old, 3*time.Second)
+}
+
+// closeWithin shuts a node down, waiting at most limit (Close says goodbye to DERP,
+// which can take a moment).
+func closeWithin(s *tsnet.Server, limit time.Duration) {
+	if s == nil {
+		return
+	}
+	done := make(chan struct{})
+	go func() { s.Close(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(limit):
 	}
 }
 
@@ -400,15 +432,10 @@ func stopLocked() {
 		ln = nil
 	}
 	if srv != nil {
-		s := srv
+		// Callers take the node out first and close it without the lock; this is
+		// only reached for one that wasn't, and doesn't wait for it.
+		go srv.Close()
 		srv = nil
-		// Close can take a moment (it says goodbye to DERP); don't block callers.
-		done := make(chan struct{})
-		go func() { s.Close(); close(done) }()
-		select {
-		case <-done:
-		case <-time.After(3 * time.Second):
-		}
 	}
 	startKey = ""
 }
