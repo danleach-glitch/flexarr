@@ -1225,7 +1225,40 @@ export interface ExternalTitle {
   onWatchlist?: boolean | null
 }
 
-export const getRequestStatus = (signal?: AbortSignal) => apiGet<{ configured: boolean; reachable: boolean }>('/requests/status', signal)
+/** `books`: audiobooks can be requested (from Readarr, Bookshelf or Chaptarr); absent from servers before 0.58. */
+export const getRequestStatus = (signal?: AbortSignal) => apiGet<{ configured: boolean; reachable: boolean; books?: boolean }>('/requests/status', signal)
+
+/** A book a request search found, and whether it can be requested. */
+export interface BookRequestResult {
+  foreignBookId: string
+  title: string
+  author: string | null
+  year: number | null
+  cover: string | null
+  overview: string | null
+  availability: 'Available' | 'Requested' | 'InLibrary'
+  /** The book in the library, when it's there. */
+  itemId: string | null
+}
+export const searchBookRequests = (q: string, signal?: AbortSignal) => apiGet<BookRequestResult[]>(`/requests/books/search?q=${encodeURIComponent(q)}`, signal)
+/** `query` is the search it was found with, so the server can find it again. */
+export const requestBook = (foreignBookId: string, query: string) => request<void>('POST', '/requests/books', { foreignBookId, query })
+
+/** Where requested books go (main profile only): the app's profiles and root folders, and the ones chosen. */
+export interface BookRequestSetup {
+  configured: boolean
+  instance: string | null
+  qualityProfiles: { id: number; name: string }[]
+  metadataProfiles: { id: number; name: string }[]
+  /** `libraryId`: the audiobooks library the folder is, when Flexarr has it. */
+  rootFolders: { path: string; libraryId: string | null }[]
+  qualityProfileId: number | null
+  metadataProfileId: number | null
+  rootFolderPath: string | null
+}
+export const getBookRequestSetup = (signal?: AbortSignal) => apiGet<BookRequestSetup>('/requests/books/setup', signal)
+export const saveBookRequestSetup = (setup: { qualityProfileId?: number | null; metadataProfileId?: number | null; rootFolderPath?: string | null }) =>
+  request<BookRequestSetup>('PUT', '/requests/books/setup', setup)
 export const getExternalDiscover = (signal?: AbortSignal) =>
   apiGet<{ id: string; title: string; items: ExternalTitle[] }[]>('/requests/discover', signal)
 /** Every film and show TMDB knows (through Seerr), marked when you already have them. */
@@ -1382,6 +1415,8 @@ export interface Profile {
   requestShowsLibraryId?: string | null
   /** The library its film requests go to; null is Seerr's default. */
   requestFilmsLibraryId?: string | null
+  /** The audiobooks library its book requests go to; null is the request setup's. Absent from servers before 0.58. */
+  requestAudiobooksLibraryId?: string | null
   /** The order of the libraries in the menu on every device: library ids, and "live-tv". Absent from servers before 0.54. */
   libraryOrder?: string[]
   /**
@@ -1422,6 +1457,8 @@ export const updateProfile = (id: string, profile: ProfileChanges) =>
 /** Where a profile's requests go; null is wherever Seerr adds them by default. */
 export const setRequestLibraries = (id: string, libraries: { showsLibraryId: string | null; filmsLibraryId: string | null }) =>
   request<Profile>('PUT', `/profiles/${id}/request-libraries`, libraries)
+/** Where a profile's book requests go; null is the request setup's root folder. */
+export const setBookRequestLibrary = (id: string, libraryId: string | null) => request<Profile>('PUT', `/profiles/${id}/book-requests`, { libraryId })
 /** Whether a profile's watchlist requests what it adds (main profile only). */
 export const setWatchlistRequests = (id: string, autoRequest: boolean) => request<Profile>('PUT', `/profiles/${id}/watchlist-requests`, { autoRequest })
 /** The order of a profile's libraries in every app's menu; /libraries lists them in it. */
