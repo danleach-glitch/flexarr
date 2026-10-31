@@ -55,7 +55,8 @@ struct ProfilePickerView: View {
     private enum KidsLockStep { case lock, unlock }
 
     /// Focus ids for the buttons under the profiles (profiles go by their ids).
-    private static let unlockFocus = "kids-unlock", lockFocus = "kids-lock"
+    /// The kids profile held: child lock goes on with it.
+    @State private var lockTarget: Profile?
 
     var body: some View {
         VStack(spacing: 70) {
@@ -103,10 +104,19 @@ struct ProfilePickerView: View {
                         Task { await press(profile) }
                     } label: {
                         ProfileChoice(profile: profile, caption: caption(for: profile),
-                                      busy: switching == profile.id, isFocused: focused == profile.id)
+                                      busy: switching == profile.id || (locking && lockTarget?.id == profile.id), isFocused: focused == profile.id,
+                                      padlock: lockBadge(for: profile) ? model.kidsLock : nil)
                     }
                     .buttonStyle(ProfileButtonStyle())
                     .focused($focused, equals: profile.id)
+                    // Press and hold, as holding the padlock on the phones: child lock on with this kids profile, or off.
+                    .contextMenu {
+                        if lockBadge(for: profile) {
+                            Button(model.kidsLock ? "Turn off child lock" : "Child lock", systemImage: model.kidsLock ? "lock.open" : "lock") {
+                                toggleChildLock(on: profile)
+                            }
+                        }
+                    }
                     // Whoever's watching stays a stop for the remote (disabling it left a two-profile
                     // household with nowhere to move); choosing them again just closes the picker.
                     // Focus starts on someone else, so with two profiles one press switches.
@@ -121,30 +131,28 @@ struct ProfilePickerView: View {
                     .foregroundStyle(Color.screen)
             }
 
-            // Locked to kids profiles, the others wait behind the main profile's PIN.
-            if model.kidsLock {
-                Button {
-                    error = nil
-                    kidsLockPin = .unlock
-                } label: {
-                    Label("Turn off child lock", systemImage: "lock.open")
-                }
-                .buttonStyle(ActionButtonStyle())
-                .focused($focused, equals: Self.unlockFocus)
-            } else if marksCurrent && model.offersKidsLock {
-                // Not disabled while it's busy: tvOS doesn't reliably move focus back onto a button that was.
-                Button {
-                    Task { await lock(pin: nil) }
-                } label: {
-                    Label(locking ? "Locking" : "Child lock", systemImage: "lock")
-                }
-                .buttonStyle(ActionButtonStyle())
-                .focused($focused, equals: Self.lockFocus)
-            }
         }
     }
 
     private var mainProfile: Profile? { model.profiles.first(where: \.isMain) }
+
+    /// The padlock over each kids profile: open while child lock can be turned on (it locks to that profile), closed
+    /// while it's on. As on the phones.
+    private func lockBadge(for profile: Profile) -> Bool {
+        guard profile.isKidsProfile else { return false }
+        return model.kidsLock || (marksCurrent && model.offersKidsLock)
+    }
+
+    private func toggleChildLock(on profile: Profile) {
+        guard switching == nil, !locking else { return }
+        error = nil
+        if model.kidsLock {
+            kidsLockPin = .unlock
+        } else {
+            lockTarget = profile
+            Task { await lock(pin: nil) }
+        }
+    }
 
     private var defaultFocus: String? {
         guard marksCurrent else { return model.profiles.first?.id }
@@ -166,6 +174,12 @@ struct ProfilePickerView: View {
             return
         }
         if profile.needsPinToChoose {
+            // The main profile's PIN was just given here (child lock off): it goes with this choice, rather than the
+            // keypad again. A profile with a PIN of its own (other than the main profile) still asks for that.
+            if let held = knownParentPin ?? model.recentParentPin, profile.isMain || !profile.hasPin {
+                await choose(profile, pin: profile.isMain ? held : nil, parentPin: held)
+                return
+            }
             asking = profile
             return
         }
@@ -220,8 +234,8 @@ struct ProfilePickerView: View {
         Task {
             try? await Task.sleep(for: .milliseconds(50))
             switch step {
-            case .unlock: focused = model.kidsLock ? Self.unlockFocus : model.profiles.first?.id
-            case .lock: focused = Self.lockFocus
+            case .unlock: focused = model.profiles.first(where: \.isKidsProfile)?.id ?? model.profiles.first?.id
+            case .lock: focused = lockTarget?.id ?? model.profiles.first(where: \.isKidsProfile)?.id
             case nil: break
             }
         }
@@ -246,6 +260,11 @@ struct ProfilePickerView: View {
         do {
             try await model.lockToKids(pin: pin)
             kidsLockPin = nil
+            // The server chose a kids profile: the one held, if it's another.
+            if let target = lockTarget, model.currentProfile?.id != target.id {
+                try? await model.switchProfile(to: target)
+            }
+            lockTarget = nil
         } catch FlexarrClientError.parentPinNeeded(let message) {
             if pin == nil { kidsLockPin = .lock } else { error = message ?? "That PIN isn’t right." }
         } catch {
@@ -259,6 +278,8 @@ private struct ProfileChoice: View {
     let caption: String?
     let busy: Bool
     let isFocused: Bool
+    /// Child lock's padlock over a kids profile: closed (true) while it's on, open (false) while it can be; nil, none.
+    var padlock: Bool? = nil
 
     var body: some View {
         VStack(spacing: 28) {
@@ -267,6 +288,12 @@ private struct ProfileChoice: View {
                     if busy {
                         Circle().fill(Color.black.opacity(0.45))
                         ProgressView()
+                    } else if let closed = padlock {
+                        Circle().fill(Color.black.opacity(0.35))
+                        Image(systemName: closed ? "lock.fill" : "lock.open.fill")
+                            .font(.system(size: 64, weight: .bold))
+                            .foregroundStyle(Color.screen)
+                            .shadow(color: .black.opacity(0.4), radius: 6)
                     }
                 }
             VStack(spacing: 8) {
