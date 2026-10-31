@@ -18,6 +18,7 @@ final class AppModel {
         // Warnings and errors go to the server signed in to, and its sign-in is kept out of the log.
         didSet {
             guard phase != oldValue else { return }
+            GuestMode.isActive = credentials?.isGuest == true
             LogHub.shared.signedIn(client)
             // Error reports follow the server signed in to: none signed out, the last answer for a new one.
             if credentials?.address != Self.credentials(in: oldValue)?.address {
@@ -140,6 +141,7 @@ final class AppModel {
         }
         #endif
         // A family guest reaches its host only through the tunnel: start it before anything asks the server.
+        GuestMode.isActive = credentials?.isGuest == true
         if credentials?.isGuest == true { Task { await ensureGuestTunnel() } }
         LogHub.shared.signedIn(client)
         // Before anything else can crash: the server's answer comes later (see `refreshErrorReports`).
@@ -245,7 +247,7 @@ final class AppModel {
     /// "Lock to kids profiles" is offered: a grown-up watching, a kids profile to lock to, and this app's own sign-in
     /// (the server keeps the lock on a device's sign-in, which the server's key or a Tailscale address doesn't have).
     var offersKidsLock: Bool {
-        signInMethod == "device" && !kidsLock && !isKids && profiles.contains(where: \.isKidsProfile)
+        signInMethod == "device" && credentials?.isGuest != true && !kidsLock && !isKids && profiles.contains(where: \.isKidsProfile)
     }
 
     /// The picker's padlock over kids profiles: whenever child lock is on, or could be turned on here. On a kids

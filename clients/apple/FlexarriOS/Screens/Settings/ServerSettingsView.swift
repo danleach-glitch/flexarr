@@ -6,8 +6,25 @@ struct ServerSettingsView: View {
     @State private var status: SystemStatus?
     @State private var error: String?
 
+    @State private var confirmLeave = false
+
     var body: some View {
         List {
+            if let guest = model.credentials?.guest {
+                Section {
+                    row("Server", "\(guest.ownerName)’s Flexarr")
+                    row("Connection", connection)
+                    Button("Leave", role: .destructive) { confirmLeave = true }
+                        .listRowBackground(Color.seat)
+                } header: {
+                    Text("Connected by invite")
+                } footer: {
+                    Text("Leaving signs this \(ThisDevice.name) out. Joining again takes a new invite.")
+                }
+                .confirmationDialog("Leave \(guest.ownerName)’s Flexarr?", isPresented: $confirmLeave, titleVisibility: .visible) {
+                    Button("Leave", role: .destructive) { model.signOut() }
+                }
+            } else {
             Section {
                 address("Address", model.credentials?.address)
                 if let remote = model.credentials?.remoteAddress {
@@ -18,6 +35,7 @@ struct ServerSettingsView: View {
                 Text(model.credentials?.remoteAddress == nil
                      ? "To use Flexarr away from home, turn on remote access with Tailscale in Settings › Access on the web; this \(ThisDevice.name) picks the address up by itself."
                      : "Away from home, this \(ThisDevice.name) reaches the server over Tailscale, which needs to be connected on it.")
+            }
             }
 
             Section {
@@ -48,6 +66,16 @@ struct ServerSettingsView: View {
         .settingsPage("Server")
         .task { await load() }
         .refreshable { await load() }
+    }
+
+    /// A guest's tunnel right now: straight to the host's server, or through a relay.
+    private var connection: String {
+        switch GuestTunnel.shared.status()?.path {
+        case "direct": "Direct"
+        case "peer-relay": "Through the server’s relay"
+        case "derp": "Through a relay (slower)"
+        default: "Connecting"
+        }
     }
 
     /// As the server says now, or as this device last heard while it can't be asked.

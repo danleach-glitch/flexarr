@@ -5,6 +5,12 @@ import Security
 
 private let log = FlexarrLog("tunnel")
 
+/// This app is a family guest's (signed in through the tunnel): AirPlay is left out, since an AirPlay receiver
+/// can't reach a tunnel inside this device. Set as the sign-in changes (`AppModel.phase`).
+enum GuestMode {
+    nonisolated(unsafe) static var isActive = false
+}
+
 /// The tunnel a family guest's app reaches its host's server through: Tailscale built in (clients/tunnel), joined to
 /// the host's tailnet with the invite's one-use key, and opened here as a port on 127.0.0.1 that every request,
 /// artwork fetch and player uses as the server's address. See docs/remote-guests.md.

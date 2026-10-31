@@ -351,7 +351,7 @@ struct NowPlayingView: View {
     private var musicExtras: some View {
         HStack(spacing: 36) {
             Spacer()
-            RoutePicker().frame(width: 44, height: 44)
+            if !GuestMode.isActive { RoutePicker().frame(width: 44, height: 44) }
             if lyrics.lyrics != nil {
                 Button { showingLyrics.toggle() } label: { Label("Lyrics", systemImage: "quote.bubble") }
                     .buttonStyle(TransportStyle(size: 44, active: showingLyrics))
@@ -375,7 +375,7 @@ struct NowPlayingView: View {
             .buttonStyle(.plain)
             .accessibilityLabel(showingDetails ? "Hide notes" : "Notes")
             .frame(maxWidth: .infinity)
-            RoutePicker().frame(width: 44, height: 44).frame(maxWidth: .infinity)
+            if !GuestMode.isActive { RoutePicker().frame(width: 44, height: 44).frame(maxWidth: .infinity) }
             episodeMenu.frame(maxWidth: .infinity)
         }
     }
