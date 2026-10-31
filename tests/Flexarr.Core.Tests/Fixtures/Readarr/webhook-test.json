@@ -1,0 +1,16 @@
+{
+  "author": {
+    "id": 1,
+    "name": "Test Name",
+    "path": "C:\\testpath",
+    "goodreadsId": "aaaaa-aaa-aaaa-aaaaaa"
+  },
+  "books": [
+    {
+      "id": 123,
+      "title": "Test title"
+    }
+  ],
+  "eventType": "Test",
+  "instanceName": "Readarr"
+}

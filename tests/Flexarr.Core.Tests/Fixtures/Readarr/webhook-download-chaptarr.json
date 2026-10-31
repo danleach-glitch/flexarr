@@ -1,0 +1,46 @@
+{
+  "author": {
+    "id": 3,
+    "name": "Richard Osman",
+    "path": "/data/audiobooks/Richard Osman",
+    "goodreadsId": "hc:204214"
+  },
+  "book": {
+    "id": 12,
+    "goodreadsId": "hc:428812",
+    "title": "The Thursday Murder Club",
+    "edition": {
+      "title": "The Thursday Murder Club",
+      "goodreadsId": "hc:30110566",
+      "asin": "B07QL7C4NL",
+      "isbn13": "9780241992302"
+    },
+    "releaseDate": "2020-09-03T00:00:00Z"
+  },
+  "bookFiles": [
+    {
+      "id": 40,
+      "path": "/data/audiobooks/Richard Osman/A Thursday Murder Club Mystery/The Thursday Murder Club/Richard Osman - TMC1 The Thursday Murder Club.m4b",
+      "quality": "M4B",
+      "qualityVersion": 1,
+      "releaseGroup": null,
+      "sceneName": null,
+      "size": 322417211,
+      "dateAdded": "2026-10-31T18:20:11Z"
+    },
+    {
+      "id": 41,
+      "path": "/data/books/Richard Osman/The Thursday Murder Club/The Thursday Murder Club.epub",
+      "quality": "EPUB",
+      "qualityVersion": 1,
+      "releaseGroup": null,
+      "sceneName": null,
+      "size": 2048311,
+      "dateAdded": "2026-10-31T18:20:11Z"
+    }
+  ],
+  "deletedFiles": [],
+  "isUpgrade": false,
+  "eventType": "Download",
+  "instanceName": "Chaptarr"
+}
