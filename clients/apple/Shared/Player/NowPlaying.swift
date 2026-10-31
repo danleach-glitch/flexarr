@@ -77,6 +77,43 @@ final class NowPlaying {
         }))
     }
 
+    /// For a book: the listener's skip steps (the same on the lock screen, headphones and in the car), next and
+    /// previous chapter, and the speed. `speeds` are the rates the lock screen offers.
+    func activateForBook(back: Double, forward: Double, speeds: [Double]) {
+        activate(skipSeconds: forward)
+        let center = MPRemoteCommandCenter.shared()
+        center.skipBackwardCommand.preferredIntervals = [NSNumber(value: back)]
+        center.skipForwardCommand.preferredIntervals = [NSNumber(value: forward)]
+        // Chapters on the track buttons (headphones' double and triple press, a car's arrows).
+        center.nextTrackCommand.isEnabled = true
+        center.previousTrackCommand.isEnabled = true
+        center.changePlaybackRateCommand.supportedPlaybackRates = speeds.map { NSNumber(value: $0) }
+        center.changePlaybackRateCommand.isEnabled = true
+        targets.append((center.changePlaybackRateCommand, center.changePlaybackRateCommand.addTarget { [weak self] event in
+            if let rate = (event as? MPChangePlaybackRateCommandEvent)?.playbackRate {
+                MainActor.assumeIsolated { self?.onRate?(Double(rate)) }
+            }
+            return .success
+        }))
+    }
+
+    /// A book: the chapter as the title, the book and its author beneath, and where it is in the chapter list.
+    func setBook(title: String, chapter: String?, author: String?, artwork: UIImage?, chapterIndex: Int?, chapterCount: Int) {
+        info[MPMediaItemPropertyTitle] = chapter ?? title
+        info[MPMediaItemPropertyArtist] = author
+        info[MPMediaItemPropertyAlbumTitle] = title
+        info[MPNowPlayingInfoPropertyMediaType] = MPNowPlayingInfoMediaType.audio.rawValue
+        info[MPMediaItemPropertyArtwork] = artwork.map(Self.artwork)
+        if let chapterIndex, chapterCount > 1 {
+            info[MPNowPlayingInfoPropertyChapterNumber] = chapterIndex
+            info[MPNowPlayingInfoPropertyChapterCount] = chapterCount
+        } else {
+            info[MPNowPlayingInfoPropertyChapterNumber] = nil
+            info[MPNowPlayingInfoPropertyChapterCount] = nil
+        }
+        push()
+    }
+
     func deactivate() {
         for (command, target) in targets { command.removeTarget(target) }
         targets = []

@@ -1280,7 +1280,13 @@ final class AppModel {
                     return
                 }
                 // A show or season (a link made before the profile was chosen) plays the episode this profile is up to.
-                if !shuffle, let item = try? await client.item(id).item, item.kind == .series || item.kind == .season {
+                let found = shuffle ? nil : try? await client.item(id).item
+                // A book goes to the audio player.
+                if let found, found.kind == .audiobook {
+                    playBook(found, at: start)
+                    return
+                }
+                if let item = found, item.kind == .series || item.kind == .season {
                     if let next = try? await client.nextUp(id) {
                         player.play(itemId: next.id, preview: next, startAt: start, client: client, subtitleKey: subtitles)
                     } else {

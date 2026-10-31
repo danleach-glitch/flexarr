@@ -139,6 +139,10 @@ final class MusicPlayer {
     @ObservationIgnored private var fade: Task<Void, Never>?
     /// The chapter the lock screen names.
     @ObservationIgnored private var nowPlayingChapter: Int?
+    /// The book commands the lock screen was given (its skip steps), so new steps take effect.
+    @ObservationIgnored private var nowPlayingCommands: String?
+    /// The speeds the lock screen and a car offer for a book.
+    static let bookLockScreenSpeeds: [Double] = [0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3]
     #if os(iOS)
     @ObservationIgnored private let shake = ShakeDetector()
     #endif
@@ -1059,8 +1063,25 @@ final class MusicPlayer {
 
     private func pushNowPlaying() {
         guard let track = current else { return }
-        let podcast = isPodcast || isBook
         nowPlayingChapter = chapterIndex
+        if isBook {
+            // A book: the listener's skips, chapters on the track buttons, the speed; the chapter named as the title.
+            let commands = "book#\(skipBack)#\(skipForward)"
+            if nowPlayingIsIdle || nowPlayingCommands != commands {
+                nowPlaying.activateForBook(back: skipBack, forward: skipForward, speeds: Self.bookLockScreenSpeeds)
+                nowPlayingCommands = commands
+                nowPlayingIsPodcast = nil
+            }
+            nowPlaying.setBook(title: track.title, chapter: chapter?.title, author: track.bookAuthors, artwork: artwork,
+                               chapterIndex: chapterIndex, chapterCount: chapters.count)
+            let index = chapterIndex ?? 0
+            nowPlaying.setEpisodeNavigation(hasPrevious: chapters.count > 1, hasNext: index + 1 < chapters.count)
+            nowPlaying.setTime(position: position, duration: duration, rate: isPlaying ? playRate : 0, defaultRate: playRate)
+            onChange?()
+            return
+        }
+        nowPlayingCommands = nil
+        let podcast = isPodcast
         if nowPlayingIsIdle || nowPlayingIsPodcast != podcast {
             if podcast { nowPlaying.activateForPodcast() } else { nowPlaying.activateForMusic() }
             nowPlayingIsPodcast = podcast
