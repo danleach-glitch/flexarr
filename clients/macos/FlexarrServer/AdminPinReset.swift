@@ -11,7 +11,7 @@ struct AdminPinReset {
         guard let pin = askForPin() else { return }
         do {
             try await send(pin)
-            tell("The main profile has a new PIN", "Use it to unlock Flexarr’s settings. Anywhere the old one was given is locked again.")
+            tell("Flexarr has a new admin PIN", "Use it to unlock Flexarr’s settings. Anywhere the old one was given is locked again.")
         } catch {
             tell("Couldn’t set the PIN", error.localizedDescription)
         }
@@ -21,7 +21,7 @@ struct AdminPinReset {
     private func askForPin(problem: String? = nil) -> String? {
         let alert = NSAlert()
         alert.messageText = "Reset Admin PIN"
-        alert.informativeText = problem ?? "Choose a new PIN for the main profile: 4 to 8 digits. It’s asked for before Flexarr’s settings change."
+        alert.informativeText = problem ?? "Choose a new admin PIN: 4 to 8 digits. It’s asked for before Flexarr’s settings change. The main profile’s own PIN stays as it is."
         alert.addButton(withTitle: "Set PIN")
         alert.addButton(withTitle: "Cancel")
         let pin = NSSecureTextField(frame: NSRect(x: 0, y: 30, width: 220, height: 24))

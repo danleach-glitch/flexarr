@@ -155,7 +155,7 @@ final class PairingPrompts {
         }
     }
 
-    static let pinMissing = "Give the main profile a PIN in Flexarr in a browser first."
+    static let pinMissing = "Choose an admin PIN in Flexarr in a browser first."
 
     /// Turns the device away (the one on screen, or the one with `code`).
     func decline(_ code: String? = nil) async {
