@@ -296,7 +296,8 @@ public class RemoteGuestTests(RemoteGuestFactory factory) : IClassFixture<Remote
         Assert.True((await refused.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("guestRemoved").GetBoolean());
         factory.Whois.Tags["100.64.0.42"] = ["tag:flexarr-guest"];
         Assert.Equal(HttpStatusCode.Gone, (await RedeemAsync("100.64.0.42", waitingPayload.T)).StatusCode);
-        // The fake's keys are "tskey-auth-<id>-secret".
+        // The fake's keys are "tskey-auth-<id>-secret"; deleted in the background.
+        await Task.Delay(300);
         Assert.Contains(waitingPayload.K["tskey-auth-".Length..^"-secret".Length], factory.Tailscale.DeletedKeys);
     }
 

@@ -150,10 +150,19 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
             signIns.Revoke(signIn.Id);
         }
 
-        foreach (var invite in cancelled)
+        // In the background: removing the profile needn't wait on Tailscale, once per invite.
+        if (cancelled.Count > 0)
         {
-            await DeleteKeyQuietlyAsync(invite.KeyId, ct);
+            _ = Task.Run(async () =>
+            {
+                foreach (var invite in cancelled)
+                {
+                    await DeleteKeyQuietlyAsync(invite.KeyId, CancellationToken.None);
+                }
+            }, CancellationToken.None);
         }
+
+        await Task.CompletedTask;
     }
 
     /// <summary>
