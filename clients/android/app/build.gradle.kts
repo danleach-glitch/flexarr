@@ -48,6 +48,9 @@ android {
         // The TV interface (ui/tv), while it's being built: debug builds only, and only debug's manifest offers the app
         // to TVs (src/debug/AndroidManifest.xml). docs/android-tv.md.
         buildConfigField("boolean", "TV_UI", "false")
+        // Family invites ("Join someone’s Flexarr", invite links): debug builds, and release builds given
+        // -Pflexarr.guestInvites=true, until servers have them on (docs/remote-guests.md).
+        buildConfigField("boolean", "GUEST_INVITES", (providers.gradleProperty("flexarr.guestInvites").orNull == "true").toString())
     }
 
     signingConfigs {
@@ -63,6 +66,7 @@ android {
         debug {
             buildConfigField("boolean", "LAUNCH_ARGUMENTS", "true")
             buildConfigField("boolean", "TV_UI", "true")
+            buildConfigField("boolean", "GUEST_INVITES", "true")
         }
         // The baseline profile plugin's builds of release, made only to profile on a device: signed with the debug key.
         configureEach {

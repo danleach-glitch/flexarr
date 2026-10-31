@@ -70,6 +70,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.flexarr.AppModel
+import io.github.flexarr.BuildConfig
 import io.github.flexarr.core.FlexarrClient
 import io.github.flexarr.data.DiscoveredServer
 import io.github.flexarr.data.ServerBrowser
@@ -186,7 +187,9 @@ private fun ChooseServer(
         }
 
         // Someone else's Flexarr, from another home: a code to give whoever invited them.
-        ActionButton("Join someone’s Flexarr", onClick = onGuest, icon = Icons.Filled.Key, modifier = Modifier.fillMaxWidth())
+        if (BuildConfig.GUEST_INVITES) {
+            ActionButton("Join someone’s Flexarr", onClick = onGuest, icon = Icons.Filled.Key, modifier = Modifier.fillMaxWidth())
+        }
 
         // Typing an address is for the few whose server can't be found: offered only once it hasn't been, or under
         // the list for one that isn't in it.
