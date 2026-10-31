@@ -6,7 +6,8 @@ using Flexarr.Integrations.Arr.Models;
 
 namespace Flexarr.Integrations.Arr;
 
-public sealed record ArrSystemStatus(string AppName, string Version, string? InstanceName);
+/// <param name="PackageAuthor">Who built the package: tells Bookshelf ("pennydreadful") from Readarr, whose name it keeps.</param>
+public sealed record ArrSystemStatus(string AppName, string Version, string? InstanceName, string? PackageAuthor = null);
 
 /// <summary>Client for the Sonarr/Radarr/Lidarr REST APIs.</summary>
 public sealed class ArrClient(HttpClient httpClient)
@@ -105,6 +106,29 @@ public sealed class ArrClient(HttpClient httpClient)
             addOptions = new { monitor = "none", searchForMovie = false },
         }, ct);
 
+    // Readarr, Bookshelf, Chaptarr
+    public Task<IReadOnlyList<ReadarrAuthor>> GetAuthorsAsync(ArrInstance readarr, CancellationToken ct = default) =>
+        GetAsync<IReadOnlyList<ReadarrAuthor>>(readarr, "author", ct);
+
+    public Task<IReadOnlyList<ReadarrBook>> GetBooksAsync(ArrInstance readarr, CancellationToken ct = default) =>
+        GetAsync<IReadOnlyList<ReadarrBook>>(readarr, "book", ct);
+
+    /// <summary>The files an author's books have, by book.</summary>
+    public Task<IReadOnlyList<ReadarrBookFile>> GetBookFilesAsync(ArrInstance readarr, string authorId, CancellationToken ct = default) =>
+        GetAsync<IReadOnlyList<ReadarrBookFile>>(readarr, $"bookfile?authorId={Uri.EscapeDataString(authorId)}", ct);
+
+    /// <summary>An author's series, each with its books' places in it.</summary>
+    public Task<IReadOnlyList<ReadarrSeries>> GetBookSeriesAsync(ArrInstance readarr, string authorId, CancellationToken ct = default) =>
+        GetAsync<IReadOnlyList<ReadarrSeries>>(readarr, $"series?authorId={Uri.EscapeDataString(authorId)}", ct);
+
+    /// <summary>Books coming out between two dates by authors it follows.</summary>
+    public Task<IReadOnlyList<ReadarrBook>> GetBookCalendarAsync(ArrInstance readarr, DateTime start, DateTime end, CancellationToken ct = default) =>
+        GetAsync<IReadOnlyList<ReadarrBook>>(readarr, $"calendar?start={start:yyyy-MM-dd}&end={end:yyyy-MM-dd}&includeAuthor=true&unmonitored=false", ct);
+
+    /// <summary>Books it knows of matching the words, owned or not: for requests and Fix match.</summary>
+    public Task<IReadOnlyList<ReadarrBook>> LookupBooksAsync(ArrInstance readarr, string term, CancellationToken ct = default) =>
+        GetAsync<IReadOnlyList<ReadarrBook>>(readarr, $"book/lookup?term={Uri.EscapeDataString(term)}", ct);
+
     // Lidarr
     public Task<IReadOnlyList<LidarrArtist>> GetArtistsAsync(ArrInstance lidarr, CancellationToken ct = default) =>
         GetAsync<IReadOnlyList<LidarrArtist>>(lidarr, "artist", ct);
@@ -130,7 +154,13 @@ public sealed class ArrClient(HttpClient httpClient)
 
     public async Task<IReadOnlyList<ArrQueueItem>> GetQueueAsync(ArrInstance instance, CancellationToken ct = default)
     {
-        var include = instance.Kind == ArrKind.Radarr ? "includeMovie=true" : "includeSeries=true&includeEpisode=true";
+        var include = instance.Kind switch
+        {
+            ArrKind.Radarr => "includeMovie=true",
+            ArrKind.Readarr => "includeAuthor=true&includeBook=true",
+            ArrKind.Lidarr => "includeArtist=true&includeAlbum=true",
+            _ => "includeSeries=true&includeEpisode=true",
+        };
         // A page at a time, up to a sane cap: a big backlog would otherwise lose everything past the first page.
         const int PageSize = 200, MaxPages = 10;
         var records = new List<ArrQueueItem>();
