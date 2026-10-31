@@ -13,6 +13,8 @@ struct JoinInviteView: View {
     let invite: GuestInvite
     @State private var joining = false
     @State private var problem: String?
+    /// Joining didn't work, and the same invite can't work again: only Not now is left.
+    @State private var spent = false
 
     var body: some View {
         VStack(spacing: 22) {
@@ -41,25 +43,27 @@ struct JoinInviteView: View {
                     .multilineTextAlignment(.center)
             }
             VStack(spacing: 10) {
-                Button {
-                    Task { await join() }
-                } label: {
-                    Group {
-                        if joining {
-                            HStack(spacing: 10) {
-                                ProgressView()
-                                Text("Joining \(invite.ownerName)’s Flexarr…")
+                if !spent {
+                    Button {
+                        Task { await join() }
+                    } label: {
+                        Group {
+                            if joining {
+                                HStack(spacing: 10) {
+                                    ProgressView()
+                                    Text("Joining \(invite.ownerName)’s Flexarr…")
+                                }
+                            } else {
+                                Text(problem == nil ? "Join" : "Try again")
                             }
-                        } else {
-                            Text("Join")
                         }
+                        .frame(maxWidth: .infinity)
                     }
-                    .frame(maxWidth: .infinity)
+                    .buttonStyle(ActionButtonStyle(prominent: true))
+                    .disabled(joining)
                 }
-                .buttonStyle(ActionButtonStyle(prominent: true))
-                .disabled(joining)
                 Button { dismiss() } label: { Text("Not now").frame(maxWidth: .infinity) }
-                    .buttonStyle(ActionButtonStyle(prominent: false))
+                    .buttonStyle(ActionButtonStyle(prominent: spent))
                     .disabled(joining)
             }
         }
@@ -78,6 +82,7 @@ struct JoinInviteView: View {
             dismiss()
         } catch {
             problem = error.localizedDescription
+            spent = (error as? AppModel.JoinError)?.canRetry != true
         }
     }
 }

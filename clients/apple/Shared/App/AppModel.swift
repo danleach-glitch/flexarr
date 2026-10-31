@@ -490,11 +490,12 @@ final class AppModel {
     }
 
     enum JoinError: LocalizedError {
-        case expired(owner: String)
-        case used(owner: String)
+        /// Run out, used, or cancelled: the same invite can't work again.
+        case usedUp
         case paused(owner: String)
         case otherServer
-        /// The host's tailnet or server couldn't be reached: the key wasn't used, so the same invite can try again.
+        /// The host's tailnet or server couldn't be reached: the same invite can try again (the key, if used, is
+        /// kept as this device's identity, and the server lets the same device redeem the same invite again).
         case unreachable(owner: String)
         case failed(String)
 
@@ -506,11 +507,10 @@ final class AppModel {
 
         var errorDescription: String? {
             switch self {
-            case .expired(let owner): "This invite has run out. Ask \(owner) for a new one."
-            case .used(let owner): "This invite has been used, or was cancelled. Ask \(owner) for a new one."
-            case .paused(let owner): "\(owner)’s server isn’t taking invites just now. Ask \(owner) to check Settings › Remote access."
+            case .usedUp: "That invite has run out or been used."
+            case .paused(let owner): "\(owner)’s Flexarr isn’t taking guests just now."
             case .otherServer: "This invite led to a different server than it named. Ask for a new one."
-            case .unreachable(let owner): "Couldn’t reach \(owner)’s Flexarr. Check this device’s internet, or that \(owner)’s server is on."
+            case .unreachable(let owner): "Can’t reach \(owner)’s Flexarr. Check this device’s internet."
             case .failed(let why): why
             }
         }
@@ -520,60 +520,66 @@ final class AppModel {
     /// token is swapped for this device's own sign-in through the tunnel, and that's saved in place of any other.
     func join(_ invite: GuestInvite) async throws {
         // The invite is checked before anything is left behind.
-        guard !invite.isExpired() else { throw JoinError.expired(owner: invite.ownerName) }
-        // One tunnel, one host: a guest leaves its last host first (its sign-out goes through that tunnel), and an
-        // identity from an earlier invite goes. Signed in to a server of its own, it stays until the invite has worked.
+        guard !invite.isExpired() else { throw JoinError.usedUp }
+        // Signed in to a server of its own, it stays there: an invite is opened after signing out (see openURL).
+        // One tunnel, one host: a guest leaves its last host first (its sign-out goes through that tunnel).
         if credentials?.isGuest == true { signOut() }
         await guestLeaving?.value
-        await GuestTunnel.shared.stop(forget: true).value
         let info = GuestTunnelInfo(target: invite.tailnetTarget, hostname: invite.hostname, ownerName: invite.ownerName)
+        // Trying this invite again after its sign-in didn't go through: the node joined with its key already (spent
+        // now), so it starts as that identity. Otherwise afresh: an identity left from an earlier invite would keep
+        // the node on that tailnet and ignore this key.
+        let joinedBefore = GuestTunnel.hasIdentity(for: info)
+        await GuestTunnel.shared.stop(forget: !joinedBefore).value
+        let address: URL
         do {
-            let address = try await GuestTunnel.shared.start(info, authKey: invite.authKey)
-            let redeemed: RedeemedInvite
-            do {
-                redeemed = try await FlexarrClient(baseURL: address).redeemInvite(token: invite.token)
-            } catch FlexarrClientError.http(let status, let message) {
-                switch status {
-                case 410: throw JoinError.used(owner: invite.ownerName)
-                case 503: throw JoinError.paused(owner: invite.ownerName)
-                default: throw JoinError.failed(message ?? "The server refused the invite.")
-                }
-            }
-            if !invite.serverId.isEmpty, redeemed.serverId != invite.serverId {
-                // Not kept, so its sign-in goes again rather than stay in that server's list.
-                try? await FlexarrClient(baseURL: address, apiKey: redeemed.apiKey).signOut()
-                throw JoinError.otherServer
-            }
-            // Now the invite has worked, the server this device was signed in to is left.
-            if credentials != nil { signOut() }
-            let credentials = ServerCredentials(address: address, apiKey: redeemed.apiKey, guest: info)
-            try store.save(credentials)
-            signedOutNotice = nil
-            signedOutAsGuest = false
-            tunnelProblem = nil
-            upgradeChecked = true
-            remoteChecked = true
-            phase = .signedIn(credentials)
-            log.info("Joined as a family guest")
-        } catch let error as JoinError {
-            GuestTunnel.shared.stop(forget: true)
-            throw error
+            address = try await GuestTunnel.shared.start(info, authKey: joinedBefore ? nil : invite.authKey)
         } catch GuestTunnel.Failure.needsInvite {
+            // The key (or the identity it made) was refused: no use again.
             GuestTunnel.shared.stop(forget: true)
-            throw JoinError.used(owner: invite.ownerName)
-        } catch let failure as GuestTunnel.Failure {
-            // Said plainly; Tailscale's own words go to the log.
-            log.warning("Joining didn't reach the host: \(failure.localizedDescription)")
-            GuestTunnel.shared.stop(forget: true)
-            throw JoinError.unreachable(owner: invite.ownerName)
+            throw JoinError.usedUp
         } catch {
-            log.warning("Joining failed: \(error.localizedDescription)")
-            GuestTunnel.shared.stop(forget: true)
-            // The tunnel was up, so its key is spent: this invite can't try again.
-            throw JoinError.failed(error is URLError
-                ? "Couldn’t reach \(invite.ownerName)’s Flexarr. Ask \(invite.ownerName) for a new invite."
-                : error.localizedDescription)
+            // Said plainly; Tailscale's own words go to the log. The network: left for Try again.
+            log.warning("Joining didn't reach the host: \(error.localizedDescription)")
+            GuestTunnel.shared.stop()
+            throw JoinError.unreachable(owner: invite.ownerName)
         }
+        let redeemed: RedeemedInvite
+        do {
+            redeemed = try await FlexarrClient(baseURL: address).redeemInvite(token: invite.token)
+        } catch {
+            // The node stays known to the tailnet (its key is spent), so the same invite can try again.
+            GuestTunnel.shared.stop()
+            switch error {
+            case FlexarrClientError.http(410, _): throw JoinError.usedUp
+            case FlexarrClientError.http(503, _): throw JoinError.paused(owner: invite.ownerName)
+            case FlexarrClientError.http(_, let message): throw JoinError.failed(message ?? "The server refused the invite.")
+            default:
+                log.warning("Redeeming the invite failed: \(error.localizedDescription)")
+                throw JoinError.unreachable(owner: invite.ownerName)
+            }
+        }
+        if !invite.serverId.isEmpty, redeemed.serverId != invite.serverId {
+            // Not kept, so its sign-in goes again rather than stay in that server's list.
+            try? await FlexarrClient(baseURL: address, apiKey: redeemed.apiKey).signOut()
+            GuestTunnel.shared.stop(forget: true)
+            throw JoinError.otherServer
+        }
+        if credentials != nil { signOut() }
+        let credentials = ServerCredentials(address: address, apiKey: redeemed.apiKey, guest: info)
+        do {
+            try store.save(credentials)
+        } catch {
+            GuestTunnel.shared.stop()
+            throw JoinError.failed(error.localizedDescription)
+        }
+        signedOutNotice = nil
+        signedOutAsGuest = false
+        tunnelProblem = nil
+        upgradeChecked = true
+        remoteChecked = true
+        phase = .signedIn(credentials)
+        log.info("Joined as a family guest")
     }
 
     /// The error `work` throws, if any.

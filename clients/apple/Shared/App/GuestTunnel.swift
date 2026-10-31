@@ -141,9 +141,19 @@ final class GuestTunnel: @unchecked Sendable {
             throw Failure.failed(why)
         }
         Self.saveIdentity(from: folder)
+        // Its key is spent now: trying the same invite again (a sign-in that didn't go through) uses this identity.
+        if authKey?.isEmpty == false { UserDefaults.standard.set(Self.identity(info), forKey: Self.identityKey) }
         lock.withLock { running = (info.target, Int(port)) }
         return URL(string: "http://127.0.0.1:\(port)")!
     }
+
+    /// This device already joined `info`'s tailnet with an invite's key (spent now), and still has that identity.
+    static func hasIdentity(for info: GuestTunnelInfo) -> Bool {
+        UserDefaults.standard.string(forKey: identityKey) == identity(info)
+    }
+
+    private static let identityKey = "FlexarrTunnelIdentity"
+    private static func identity(_ info: GuestTunnelInfo) -> String { "\(info.target)|\(info.hostname)" }
 
     /// How it's going: running, and whether directly or through a relay. Asks the Go side, which can take a moment:
     /// call it off the main thread (`connectionPath`).
@@ -180,6 +190,7 @@ final class GuestTunnel: @unchecked Sendable {
                 if forget {
                     try? FileManager.default.removeItem(at: Self.stateFolder)
                     Self.deleteIdentity()
+                    UserDefaults.standard.removeObject(forKey: Self.identityKey)
                 }
             }
             stopping = task
