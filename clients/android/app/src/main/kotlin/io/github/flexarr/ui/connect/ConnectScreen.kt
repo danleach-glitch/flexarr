@@ -165,41 +165,53 @@ private fun ChooseServer(
         lookingAWhile = true
     }
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        // In the order people come: their own server at home, an invite to someone else's, typing an address, and
+        // only then setting up a server of their own.
         Text("Servers on your network", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher)
         if (browser.servers.isEmpty()) {
-            Row(Modifier.padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = Flexarr.usher)
                 Text("Looking for Flexarr…", color = Flexarr.usher)
             }
-            if (lookingAWhile) {
-                Text(
-                    "Can’t see your server? Check it’s running and this device is on the same Wi-Fi, or enter its address.",
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = Flexarr.screen,
-                )
-            }
-            NewToFlexarr(Modifier.padding(top = 8.dp))
         } else {
             browser.servers.forEach { server ->
-                Row(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Flexarr.seat).pressable({ onPick(server) }).padding(16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(Icons.Filled.Dns, contentDescription = null, tint = Flexarr.silver)
-                    Text(server.name, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, modifier = Modifier.weight(1f))
-                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = Flexarr.usher)
-                }
+                ChoiceRow(Icons.Filled.Dns, server.name, null, onClick = { onPick(server) })
             }
         }
-        Text("Enter an address instead", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.silver, modifier = Modifier.padding(top = 6.dp).pressable(onManual).minimumInteractiveComponentSize())
+
         // Someone else's Flexarr, from another home: a code to give them (the usual way), or a link they sent.
-        Text("Invited by someone?", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, modifier = Modifier.padding(top = 14.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            ActionButton("Get a code", onClick = onGuest, icon = Icons.Filled.Key)
-            ActionButton("Paste link", onClick = onPasteInvite, icon = Icons.Filled.ContentPaste)
+        Text("Invited by someone?", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, modifier = Modifier.padding(top = 10.dp))
+        ChoiceRow(Icons.Filled.Key, "Get a code", "For the person who invited you", onClick = onGuest)
+        Text("Sent a link? Paste it", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.silver,
+            modifier = Modifier.pressable(onPasteInvite).minimumInteractiveComponentSize())
+
+        if (browser.servers.isEmpty() && lookingAWhile) {
+            Text(
+                "Can’t see your server? Check it’s running and this device is on the same Wi-Fi, or enter its address.",
+                fontSize = 15.sp,
+                color = Flexarr.usher,
+                modifier = Modifier.padding(top = 10.dp),
+            )
         }
+        Text("Enter an address instead", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.silver, modifier = Modifier.pressable(onManual).minimumInteractiveComponentSize())
+        if (browser.servers.isEmpty()) NewToFlexarr(Modifier.padding(top = 10.dp))
+    }
+}
+
+/** One choice as a card row: an icon, what it is (and a line under it), and a chevron. */
+@Composable
+private fun ChoiceRow(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, detail: String?, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Flexarr.seat).pressable(onClick).padding(16.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, contentDescription = null, tint = Flexarr.silver)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(title, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen)
+            detail?.let { Text(it, fontSize = 14.sp, color = Flexarr.usher) }
+        }
+        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = Flexarr.usher)
     }
 }
 

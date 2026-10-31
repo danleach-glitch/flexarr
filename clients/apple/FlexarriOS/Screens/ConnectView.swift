@@ -87,6 +87,8 @@ private struct ChooseServer: View {
     @State private var lookingAWhile = false
 
     var body: some View {
+        // In the order people come: their own server at home, an invite to someone else's, typing an address, and
+        // only then setting up a server of their own.
         VStack(alignment: .leading, spacing: 14) {
             Text("Servers on your network")
                 .font(.subheadline.weight(.semibold))
@@ -96,35 +98,28 @@ private struct ChooseServer: View {
                     ProgressView()
                     Text("Looking for Flexarr…").foregroundStyle(Color.usher)
                 }
-                .padding(.vertical, 8)
-                if lookingAWhile {
-                    Text("Can’t see your server? Check it’s running and this \(ThisDevice.name) is on the same Wi-Fi, or enter its address.")
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(Color.screen)
-                }
-                NewToFlexarr()
-                    .padding(.top, 8)
+                .padding(.vertical, 4)
             } else {
                 ForEach(browser.servers) { server in
-                    Button { onPick(server) } label: {
-                        HStack(spacing: 12) {
-                            Image(systemName: "server.rack").foregroundStyle(Color.silver)
-                            Text(server.name).font(.body.weight(.semibold)).foregroundStyle(Color.screen)
-                            Spacer()
-                            Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(Color.usher)
-                        }
-                        .padding(16)
-                        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.seat))
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(CardButtonStyle())
+                    ChoiceRow(systemImage: "server.rack", title: server.name, action: { onPick(server) })
                 }
+            }
+
+            PasteInvite(onCode: onGuest)
+                .padding(.top, 10)
+
+            if browser.servers.isEmpty, lookingAWhile {
+                Text("Can’t see your server? Check it’s running and this \(ThisDevice.name) is on the same Wi-Fi, or enter its address.")
+                    .font(.subheadline)
+                    .foregroundStyle(Color.usher)
+                    .padding(.top, 10)
             }
             Button("Enter an address instead", action: onManual)
                 .font(.body.weight(.semibold))
-                .padding(.top, 6)
-            PasteInvite(onCode: onGuest)
-                .padding(.top, 18)
+            if browser.servers.isEmpty {
+                NewToFlexarr()
+                    .padding(.top, 10)
+            }
         }
         .task {
             guard (try? await Task.sleep(for: .seconds(6))) != nil else { return }
@@ -434,5 +429,33 @@ private struct ManualConnect: View {
                 self.error = ConnectionError(error).message
             }
         }
+    }
+}
+
+/** One choice as a card row: an icon, what it is (and a line under it), and a chevron. */
+struct ChoiceRow: View {
+    let systemImage: String
+    let title: String
+    var detail: String?
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: systemImage).foregroundStyle(Color.silver)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title).font(.body.weight(.semibold)).foregroundStyle(Color.screen)
+                    if let detail {
+                        Text(detail).font(.subheadline).foregroundStyle(Color.usher)
+                    }
+                }
+                Spacer()
+                Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(Color.usher)
+            }
+            .padding(16)
+            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.seat))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(CardButtonStyle())
     }
 }

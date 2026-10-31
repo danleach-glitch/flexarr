@@ -87,14 +87,10 @@ struct PasteInvite: View {
             Text("Invited by someone?")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(Color.usher)
-            Button(action: onCode) {
-                Label("Get a code", systemImage: "person.badge.key")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(ActionButtonStyle(prominent: false))
+            ChoiceRow(systemImage: "key", title: "Get a code", detail: "For the person who invited you", action: onCode)
             HStack(spacing: 10) {
-                Text(notAnInvite ? "That isn’t an invite." : "Sent a link instead?")
-                    .font(.footnote)
+                Text(notAnInvite ? "That isn’t an invite." : "Sent a link?")
+                    .font(.subheadline)
                     .foregroundStyle(notAnInvite ? Color.screen : Color.usher)
                 PasteButton(payloadType: String.self) { texts in
                     if let invite = texts.lazy.compactMap(GuestInvite.parse).first {
