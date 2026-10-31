@@ -276,9 +276,9 @@ private fun NumberedStep(number: Int, text: androidx.compose.ui.text.AnnotatedSt
     }
 }
 
-/** A QR code, drawn crisp at any size on a white tile. */
+/** A QR code, drawn crisp at any size on a white tile (here, and for Trakt's activation page). */
 @Composable
-private fun QrCode(text: String, modifier: Modifier = Modifier) {
+internal fun QrCode(text: String, modifier: Modifier = Modifier) {
     val bitmap = remember(text) { qrBitmap(text) }
     Box(modifier.background(Color.White, RoundedCornerShape(9.dp)).padding(9.dp)) {
         Image(bitmap, contentDescription = "QR code", filterQuality = FilterQuality.None, modifier = Modifier.fillMaxSize())
