@@ -237,6 +237,9 @@ public class PairingTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiF
         var listed = (await Admin().GetFromJsonAsync<JsonElement>(Api("/pairing/waiting"))).EnumerateArray()
             .Single(p => p.GetProperty("code").GetString() == again.GetProperty("code").GetString());
         Assert.False(listed.GetProperty("turnedAway").GetBoolean());
+        // With the code it had: the one on its screen stays the one on the phones.
+        Assert.Equal(first.GetProperty("code").GetString(), again.GetProperty("code").GetString());
+        Assert.NotEqual(first.GetProperty("id").GetString(), again.GetProperty("id").GetString());
         await Admin().PostAsJsonAsync(Api($"/pairing/code/{again.GetProperty("code").GetString()}/decline"), new { }); // frees its place for the other tests
     }
 

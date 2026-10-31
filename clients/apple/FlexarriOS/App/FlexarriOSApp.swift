@@ -58,7 +58,8 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
 
     /// In front: notifications still show, as a banner. Except a device asking to connect, which the app asks about
     /// itself (the command stream has usually said already; the list is fetched in case it hasn't).
-    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
+    @MainActor
+    func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
         if notification.request.content.categoryIdentifier == PushNotifications.pairingCategory,
            await catchUpOnPairing() {
             return []
@@ -75,8 +76,11 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         return true
     }
 
-    /// A button on a notification, or a tap on it (which opens what it's about: the title, or the podcast).
-    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
+    /// A button on a notification, or a tap on it (which opens what it's about: the title, or the podcast). On the main
+    /// actor, so it returns there: iOS calls its completion where it returns, and off the main thread that crashed the app
+    /// (UIKit updates the app's snapshot when it's called).
+    @MainActor
+    func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
         let content = response.notification.request.content
         var info: [String: String] = [:]
         for case let (key as String, value as String) in content.userInfo { info[key] = value }
