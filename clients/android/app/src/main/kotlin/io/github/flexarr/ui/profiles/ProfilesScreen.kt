@@ -218,7 +218,7 @@ fun ProfilePicker(
                         val current = marksCurrent && profile.isCurrent
                         // The padlock over each kids profile's picture: open while child lock can be turned on (holding
                         // it locks to that profile), closed while it's on (holding it turns it off, with the PIN).
-                        val padlock = profile.isKids && (model.kidsLock || (marksCurrent && model.canLockToKids))
+                        val padlock = profile.isKids && (model.kidsLock || model.canLockToKids) // at launch too, not only when switching
                         val toggleLock = {
                             error = null
                             if (model.kidsLock) {

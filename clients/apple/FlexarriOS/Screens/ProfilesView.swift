@@ -159,7 +159,8 @@ struct ProfilePickerView: View {
     /// profile), closed while it's on.
     private func lockBadge(for profile: Profile) -> Bool {
         guard profile.isKidsProfile else { return false }
-        return model.kidsLock || (marksCurrent && model.offersKidsLock)
+        // In the picker at launch too, not only when it's opened to switch.
+        return model.kidsLock || model.offersKidsLock
     }
 
     private var padlock: some View {
