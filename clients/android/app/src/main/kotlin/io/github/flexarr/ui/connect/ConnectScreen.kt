@@ -111,7 +111,13 @@ fun ConnectScreen(model: AppModel) {
         mutableStateOf(if (model.signedOutNotice != null && !model.signedOutAsGuest && last != null) Step.Pair(server(last)) else Step.Choose)
     }
     // Back from a code or an address goes back to the servers, as the screen's own Back does, rather than out of the app.
-    BackHandler(enabled = step != Step.Choose) { step = Step.Choose }
+    BackHandler(enabled = step != Step.Choose) {
+        if (step == Step.Guest) {
+            if (model.joining) return@BackHandler
+            model.dismissInvite()
+        }
+        step = Step.Choose
+    }
 
     RoomBackground(ambient = Flexarr.silver, intensity = 0.22f) {
         Column(
@@ -537,15 +543,27 @@ private fun PhoneGuestCode(model: AppModel, onBack: () -> Unit) {
     val invite = model.offeredInvite
     val joinProblem = model.joinProblem
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        if (invite != null) {
-            Text("Joining ${invite.ownerName}’s Flexarr as ${invite.profileName}", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Flexarr.screen)
-            if (joinProblem == null) {
-                CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = Flexarr.usher)
-            } else {
-                Text(joinProblem, fontSize = 15.sp, color = Flexarr.screen)
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    ActionButton("Try again", onClick = model::confirmInvite)
-                    ActionButton("New code", onClick = { model.dismissInvite(); attempt++ })
+        if (invite != null && model.inviteFromCode) {
+            when {
+                model.joining -> Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = Flexarr.usher)
+                    Text("Joining ${invite.ownerName}’s Flexarr…", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Flexarr.screen)
+                }
+                joinProblem != null -> {
+                    ErrorNote(joinProblem)
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        ActionButton("Try again", onClick = model::confirmInvite, prominent = true)
+                        ActionButton("New code", onClick = model::dismissInvite)
+                    }
+                }
+                // Asked first: anyone who heard the code could have sent theirs.
+                else -> {
+                    Text("Join ${invite.ownerName}’s Flexarr?", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Flexarr.screen)
+                    Text("You’ll watch as ${invite.profileName}.", fontSize = 17.sp, color = Flexarr.usher)
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        ActionButton("Join", onClick = model::confirmInvite, prominent = true)
+                        ActionButton("Not now", onClick = model::dismissInvite)
+                    }
                 }
             }
         } else {
@@ -565,6 +583,6 @@ private fun PhoneGuestCode(model: AppModel, onBack: () -> Unit) {
             guest.problem?.let { Text(it, fontSize = 15.sp, color = Flexarr.screen) }
         }
         Text("Back", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.silver,
-            modifier = Modifier.padding(top = 6.dp).pressable(onBack).minimumInteractiveComponentSize())
+            modifier = Modifier.padding(top = 6.dp).pressable({ if (!model.joining) onBack() }).minimumInteractiveComponentSize())
     }
 }

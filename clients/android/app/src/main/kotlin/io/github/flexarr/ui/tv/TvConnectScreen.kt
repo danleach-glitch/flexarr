@@ -64,6 +64,7 @@ import io.github.flexarr.data.DiscoveredServer
 import io.github.flexarr.data.ServerBrowser
 import io.github.flexarr.ui.components.BrandMark
 import io.github.flexarr.ui.connect.PairingSession
+import io.github.flexarr.ui.connect.rememberGuestCode
 import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.RoomBackground
 import io.github.flexarr.ui.theme.marquee
@@ -173,32 +174,55 @@ private fun ChooseServer(browser: ServerBrowser, onPick: (DiscoveredServer) -> U
 
 /**
  * A family invite for this TV: a code to read out to whoever invited it, who types it into their Flexarr. The code
- * meets their server's invite at Flexarr's relay, sealed so only this TV can open it, and the TV then joins as a phone
- * does with a link (the tunnel, then a sign-in of its own). A code lasts ten minutes; a new one replaces it.
+ * meets their server's invite at Flexarr's relay, sealed so only this TV can open it; the TV asks "Join Dan’s Flexarr?"
+ * and then joins as a phone does with a link (the tunnel, then a sign-in of its own). See [rememberGuestCode].
  */
 @Composable
 private fun GuestCode(model: AppModel, onBack: () -> Unit) {
     var attempt by remember { mutableIntStateOf(0) }
-    val guest = io.github.flexarr.ui.connect.rememberGuestCode(model, attempt)
+    val guest = rememberGuestCode(model, attempt)
     val code = guest.code
     val problem = guest.problem
     val back = remember { FocusRequester() }
     val retry = remember { FocusRequester() }
-    val invite = model.offeredInvite
+    val join = remember { FocusRequester() }
+    val invite = model.offeredInvite?.takeIf { model.inviteFromCode }
     val joinProblem = model.joinProblem
-    LaunchedEffect(joinProblem != null) { runCatching { if (joinProblem != null) retry.requestFocus() else back.requestFocus() } }
-    BackHandler { model.dismissInvite(); onBack() }
+    // On Join when an invite arrives (one click for whoever's holding the remote), on Try again after a problem.
+    val asking = invite != null && joinProblem == null && !model.joining
+    LaunchedEffect(asking, joinProblem != null) {
+        runCatching {
+            when {
+                asking -> join.requestFocus()
+                invite != null && joinProblem != null -> retry.requestFocus()
+                else -> back.requestFocus()
+            }
+        }
+    }
+    BackHandler { if (!model.joining) { model.dismissInvite(); onBack() } }
 
     Column(verticalArrangement = Arrangement.spacedBy(15.dp)) {
         if (invite != null) {
-            Text("Joining ${invite.ownerName}’s Flexarr as ${invite.profileName}", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            if (joinProblem == null) {
-                CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = Flexarr.usher)
-            } else {
-                ErrorNote(joinProblem)
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    TvActionButton("Try again", onClick = model::confirmInvite, prominent = true, modifier = Modifier.focusRequester(retry))
-                    TvActionButton("New code", onClick = { model.dismissInvite(); attempt++ })
+            when {
+                model.joining -> Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = Flexarr.usher)
+                    Text("Joining ${invite.ownerName}’s Flexarr…", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                }
+                joinProblem != null -> {
+                    ErrorNote(joinProblem)
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        TvActionButton("Try again", onClick = model::confirmInvite, prominent = true, modifier = Modifier.focusRequester(retry))
+                        TvActionButton("New code", onClick = model::dismissInvite)
+                    }
+                }
+                // Asked first: anyone who heard the code could have sent theirs.
+                else -> {
+                    Text("Join ${invite.ownerName}’s Flexarr?", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                    Text("You’ll watch as ${invite.profileName}.", fontSize = 16.sp, color = Flexarr.usher)
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        TvActionButton("Join", onClick = model::confirmInvite, prominent = true, modifier = Modifier.focusRequester(join))
+                        TvActionButton("Not now", onClick = model::dismissInvite)
+                    }
                 }
             }
         } else {

@@ -17,7 +17,8 @@ import io.github.flexarr.ui.theme.Flexarr
 
 /**
  * "Join Dan's Flexarr as Gran?": a family invite from a link, a paste or a scan, asked about before anything happens
- * (a link could have come from any app or web page). Over every screen, signed in or not.
+ * (a link could have come from any app or web page). Over every screen, signed in or not; not for one that came to
+ * the code this device showed, which that screen asks about.
  */
 @Composable
 fun InviteDialog(model: AppModel) {
@@ -30,7 +31,8 @@ fun InviteDialog(model: AppModel) {
         )
         return
     }
-    val invite = model.offeredInvite ?: return
+    // One that came to the code this device showed is asked about on that screen.
+    val invite = model.offeredInvite?.takeIf { !model.inviteFromCode } ?: return
     val problem = model.joinProblem
     val body: (@Composable () -> Unit)? = when {
         model.joining -> {

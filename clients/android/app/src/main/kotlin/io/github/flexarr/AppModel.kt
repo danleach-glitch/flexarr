@@ -490,13 +490,24 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     /** Said instead when what was opened isn't a whole invite, or this device is signed in already. */
     var inviteProblem: String? by mutableStateOf(null)
 
-    /** Offers [invite] to join (null: a link that isn't a whole invite). Nothing happens until it's confirmed. */
-    fun offerInvite(invite: GuestInvite?) {
+    /**
+     * [offeredInvite] came to the code this device showed ("Join someone’s Flexarr"): that screen asks about it, in
+     * place of the dialog over every screen.
+     */
+    var inviteFromCode by mutableStateOf(false)
+        private set
+
+    /**
+     * Offers [invite] to join (null: a link that isn't a whole invite), [fromCode] when it came to the code this device
+     * showed. Nothing happens until it's confirmed: anyone who heard the code could have sent theirs.
+     */
+    fun offerInvite(invite: GuestInvite?, fromCode: Boolean = false) {
         when {
             invite == null -> inviteProblem = "That invite isn’t complete. Ask for the link again."
             phase is Phase.SignedIn -> inviteProblem = "Sign out in Settings first, then open the invite again."
             else -> {
                 offeredInvite = invite
+                inviteFromCode = fromCode
                 joinProblem = null
             }
         }
@@ -520,6 +531,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
             try {
                 join(invite)
                 offeredInvite = null
+                inviteFromCode = false
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -534,6 +546,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     fun dismissInvite() {
         if (joining) return
         offeredInvite = null
+        inviteFromCode = false
         joinProblem = null
         inviteProblem = null
     }

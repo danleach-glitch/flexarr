@@ -6,11 +6,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import io.github.flexarr.AppModel
 import io.github.flexarr.core.GuestTvCode
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 
 /** The code this device shows for a family invite, and what's gone wrong getting one. */
@@ -22,8 +24,9 @@ class GuestCodeState {
 /**
  * "Join someone’s Flexarr": this device shows a code to read (or send) to whoever invited it, who types it into their
  * Flexarr. The code meets their server's invite at Flexarr's relay, sealed so only this device can open it, and the
- * device then joins as with a link (the tunnel, then a sign-in of its own). A code lasts ten minutes; a new one
- * replaces it. A new [attempt] starts again with a new code. Shared by the phone's and the TV's code screens.
+ * screen asks "Join Dan’s Flexarr?" ([AppModel.inviteFromCode]); joining is then as with a link (the tunnel, then a
+ * sign-in of its own). A code lasts ten minutes; a new one replaces it, and one follows an invite let go without
+ * joining. A new [attempt] starts again with a new code. Shared by the phone's and the TV's code screens.
  */
 @Composable
 fun rememberGuestCode(model: AppModel, attempt: Int): GuestCodeState {
@@ -64,9 +67,13 @@ fun rememberGuestCode(model: AppModel, attempt: Int): GuestCodeState {
                     GuestTvCode.Answer.Waiting -> continue
                     GuestTvCode.Answer.Expired -> break
                     is GuestTvCode.Answer.Invite -> {
-                        model.offerInvite(answer.invite)
-                        model.confirmInvite()
-                        return@LaunchedEffect
+                        // Asked about on the code screen ("Join Dan’s Flexarr?"), not joined straight away: anyone who
+                        // heard the code could have sent theirs.
+                        model.offerInvite(answer.invite, fromCode = true)
+                        snapshotFlow { model.offeredInvite }.first { it == null }
+                        // Joined; or let go without joining ("Not now", "New code"), when this code is used up: a new one.
+                        if (model.phase is AppModel.Phase.SignedIn) return@LaunchedEffect
+                        break
                     }
                 }
             }
