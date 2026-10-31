@@ -237,11 +237,14 @@ jobs:
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         id: tunnel
         with:
-          path: clients/tunnel/build/flexarr-tunnel.aar
-          key: tunnel-android-${{ hashFiles('clients/tunnel/**/*.go', 'clients/tunnel/go.sum', 'clients/tunnel/*.sh') }}
+          # With the hash of its sources Gradle compares, so a restored AAR isn't built again.
+          path: |
+            clients/tunnel/build/flexarr-tunnel.aar
+            clients/tunnel/build/flexarr-tunnel.aar.hash
+          key: tunnel-android-v2-${{ hashFiles('clients/tunnel/*.go', 'clients/tunnel/go.mod', 'clients/tunnel/go.sum', 'clients/tunnel/tags.sh', 'clients/tunnel/build-android.sh') }}
       - name: Build the tunnel
         if: steps.tunnel.outputs.cache-hit != 'true'
-        run: ../tunnel/build-android.sh
+        run: ./gradlew :app:buildTunnel
       - run: ./gradlew :core:test :app:testDebugUnitTest :app:assembleDebug
       # The release build as Google Play gets it, minified but unsigned (the upload key isn't here) and with no Sentry
       # upload (no token), and lint on it: errors not in app/lint-baseline.xml fail.
