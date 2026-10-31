@@ -75,6 +75,9 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
     /// <summary>How long an unused invite lasts.</summary>
     public static readonly TimeSpan Lifetime = TimeSpan.FromDays(3);
 
+    /// <summary>How long an invite left for a TV code can still be collected (the relay keeps it ten minutes).</summary>
+    public static readonly TimeSpan CodeLifetime = TimeSpan.FromMinutes(12);
+
     /// <summary>The most invites waiting at once.</summary>
     public const int MaxWaiting = 20;
 
@@ -457,11 +460,18 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
             }
         }
 
-        // Expired invites go; their keys have expired with them.
+        // Expired invites go; their keys have expired with them. So does one left for a TV code nobody collected
+        // in time: the relay holds it ten minutes, after which it can never arrive (its key is deleted).
         var now = clock.GetUtcNow().UtcDateTime;
-        if (_invites.RemoveAll(i => i.ExpiresAt <= now) > 0)
+        var undeliverable = _invites.Where(i => i.Via == InviteVia.TvCode && i.CreatedAt + CodeLifetime <= now).ToList();
+        if (_invites.RemoveAll(i => i.ExpiresAt <= now || undeliverable.Contains(i)) > 0)
         {
             SaveLocked();
+        }
+
+        foreach (var invite in undeliverable)
+        {
+            _ = Task.Run(() => DeleteKeyQuietlyAsync(invite.KeyId, CancellationToken.None), CancellationToken.None);
         }
 
         return _invites;
