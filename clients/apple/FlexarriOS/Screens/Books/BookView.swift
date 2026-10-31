@@ -177,6 +177,7 @@ struct BookView: View {
             .monospacedDigit()
 
             HStack(alignment: .top, spacing: 8) {
+                BookDownloadButton(item: item)
                 if !model.isKids {
                     Button { Task { await setFinished(!item.isFinishedBook) } } label: {
                         Label(item.isFinishedBook ? "Not finished" : "Finished", systemImage: item.isFinishedBook ? "arrow.uturn.backward" : "checkmark")
