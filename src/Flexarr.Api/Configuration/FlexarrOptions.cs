@@ -140,6 +140,9 @@ public sealed class FlexarrOptions
 
     /// <summary>Where the main profile is in the first-run setup guide (see <see cref="Endpoints.SetupGuideEndpoints"/>).</summary>
     public SetupGuideOptions SetupGuide { get; set; } = new();
+
+    /// <summary>Family invites: guests watching from their own homes through Tailscale built into the apps.</summary>
+    public RemoteGuestOptions RemoteGuests { get; set; } = new();
 }
 
 /// <summary>The first-run setup guide: whether it's been opened, put away, and which of its steps were passed over.</summary>
@@ -284,4 +287,34 @@ public sealed class BazarrOptions
     public string ApiKey { get; set; } = "";
 
     public BazarrInstance? Instance => Uri.TryCreate(BaseUrl, UriKind.Absolute, out var url) && ApiKey.Length > 0 ? new BazarrInstance(url, ApiKey) : null;
+}
+
+/// <summary>
+/// Family invites: guests whose apps join the owner's tailnet (Tailscale built into the apps) as
+/// <see cref="Tag"/>, which the tailnet's policy confines to Flexarr's port. See docs/remote-guests.md.
+/// </summary>
+public sealed class RemoteGuestOptions
+{
+    /// <summary>Shows family invites in Settings. Off until the apps that carry Tailscale are in the stores.</summary>
+    public bool Enabled { get; set; }
+
+    /// <summary>A Tailscale OAuth client limited to <c>auth_keys</c> for <see cref="Tag"/> and <c>policy_file:read</c>.</summary>
+    public string ClientId { get; set; } = "";
+
+    /// <summary>The OAuth client's secret. Never sent back by the API, only whether there is one.</summary>
+    public string ClientSecret { get; set; } = "";
+
+    /// <summary>The tag guest devices join with.</summary>
+    public string Tag { get; set; } = "tag:flexarr-guest";
+
+    /// <summary>The UDP port of Tailscale's peer relay on this server, when the faster relay is on; null when off.</summary>
+    public int? RelayPort { get; set; }
+
+    /// <summary>Tailscale's API; changed only by tests.</summary>
+    public string ApiUrl { get; set; } = "https://api.tailscale.com";
+
+    /// <summary>The relay TV codes meet at.</summary>
+    public string PairUrl { get; set; } = "https://push.flexarr.io/api/pair";
+
+    public bool HasClient => ClientId.Length > 0 && ClientSecret.Length > 0;
 }

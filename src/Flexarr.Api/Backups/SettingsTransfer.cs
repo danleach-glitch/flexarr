@@ -54,7 +54,7 @@ public static class SettingsTransfer
         ["layout"] = ["layout"],
         ["podcasts"] = ["podcasts"],
         ["notifications"] = ["notifications"],
-        [AccessSection] = ["authenticationRequired", "trustedProxies", "knownHosts", "loopbackNeedsForwarding"],
+        [AccessSection] = ["authenticationRequired", "trustedProxies", "knownHosts", "loopbackNeedsForwarding", "remoteGuests"],
         // Where things are on this machine: rarely right on another.
         [MachineSection] = ["ffmpegPath", "ffprobePath", "cacheDirectory", "backups"],
         [KeysSection] = ["apiKey", "webhookSecret", "imageSecret"],
