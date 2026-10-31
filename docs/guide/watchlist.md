@@ -13,7 +13,7 @@ Each profile has its own watchlist: films and shows you want to watch later, whe
 | iPhone and iPad | **Watchlist** on a film's or show's page, **Add to watchlist** when you press and hold a poster, or tap a title under **Not in your library** in Search. |
 | Apple TV | **Watchlist** on a title's page (Discover's too), or **Add to watchlist** when you press and hold a poster. |
 | Android | **Watchlist** on a film's or show's page, **Add to watchlist** when you press and hold a poster, or tap a title under **Not in your library** in Search. |
-| Siri | "Add Severance to my watchlist in Flexarr", for a film or show in your library. |
+| Siri | "Save Severance in Flexarr" or "Add Severance to Flexarr", whether you have it yet or not. |
 | Assistants | Ask an assistant connected over [MCP](assistant-mcp.md) to add or remove a title, even one you don't have yet. |
 
 Choose **On watchlist** on its page to take a title off again, or **Remove from watchlist** when you press and hold its poster (on the web, the bookmark on its card). Adding a title twice keeps one, and adding one you took off brings it back.

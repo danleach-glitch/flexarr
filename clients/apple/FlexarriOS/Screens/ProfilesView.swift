@@ -41,6 +41,8 @@ struct ProfilePickerView: View {
     @State private var kidsLockPin: KidsLockStep?
     /// Lock to kids profiles is on its way to the server, so another tap doesn't send a second.
     @State private var locking = false
+    /// The kids profile whose padlock was held: child lock goes on with it.
+    @State private var lockTarget: Profile?
     @State private var switching: String?
     @State private var error: String?
 
@@ -110,7 +112,7 @@ struct ProfilePickerView: View {
                                             Circle().strokeBorder(Color.screen, lineWidth: 3).padding(-6)
                                         }
                                     }
-                                    .overlay(alignment: .bottomTrailing) {
+                                    .overlay {
                                         if lockBadge(for: profile) { padlock }
                                     }
                                 VStack(spacing: 2) {
@@ -126,14 +128,14 @@ struct ProfilePickerView: View {
                         }
                         .buttonStyle(CardButtonStyle())
                         .disabled(switching != nil)
-                        // Holding the padlock (or the picture it's on) turns child lock on, or off with the PIN.
+                        // Holding a kids profile's padlock turns child lock on with it, or off with the PIN.
                         .simultaneousGesture(LongPressGesture(minimumDuration: 0.6).onEnded { _ in
-                            if lockBadge(for: profile) { toggleChildLock() }
+                            if lockBadge(for: profile) { toggleChildLock(on: profile) }
                         })
                         .accessibilityLabel([profile.name, caption(for: profile)].compactMap { $0 }.joined(separator: ", "))
                         .accessibilityActions {
                             if lockBadge(for: profile) {
-                                Button(model.kidsLock ? "Turn off child lock" : "Child lock") { toggleChildLock() }
+                                Button(model.kidsLock ? "Turn off child lock" : "Child lock") { toggleChildLock(on: profile) }
                             }
                         }
                     }
@@ -153,27 +155,37 @@ struct ProfilePickerView: View {
         }
     }
 
-    /// The padlock on the profile watching here: open while child lock can be turned on, closed while it's on.
+    /// The padlock over each kids profile's picture: open while child lock can be turned on (it locks to that
+    /// profile), closed while it's on.
     private func lockBadge(for profile: Profile) -> Bool {
-        guard profile.isCurrent else { return false }
+        guard profile.isKidsProfile else { return false }
         return model.kidsLock || (marksCurrent && model.offersKidsLock)
     }
 
     private var padlock: some View {
-        Image(systemName: model.kidsLock ? "lock.fill" : "lock.open.fill")
-            .font(.system(size: 15, weight: .bold))
-            .foregroundStyle(Color.room)
-            .frame(width: 32, height: 32)
-            .background(Circle().fill(Color.screen))
-            .overlay { if locking { ProgressView().controlSize(.small).tint(Color.room) } }
-            .offset(x: 4, y: 4)
-            .accessibilityHidden(true)
+        ZStack {
+            Circle().fill(Color.black.opacity(0.35))
+            if locking {
+                ProgressView().tint(Color.screen)
+            } else {
+                Image(systemName: model.kidsLock ? "lock.fill" : "lock.open.fill")
+                    .font(.system(size: 30, weight: .bold))
+                    .foregroundStyle(Color.screen)
+                    .shadow(color: .black.opacity(0.4), radius: 4)
+            }
+        }
+        .accessibilityHidden(true)
     }
 
-    private func toggleChildLock() {
+    private func toggleChildLock(on profile: Profile) {
         guard switching == nil, !locking else { return }
         error = nil
-        if model.kidsLock { kidsLockPin = .unlock } else { Task { await lock(pin: nil) } }
+        if model.kidsLock {
+            kidsLockPin = .unlock
+        } else {
+            lockTarget = profile
+            Task { await lock(pin: nil) }
+        }
     }
 
     private func caption(for profile: Profile) -> String? {
@@ -241,6 +253,11 @@ struct ProfilePickerView: View {
         do {
             try await model.lockToKids(pin: pin)
             kidsLockPin = nil
+            // The server chose a kids profile: the one whose padlock was held, if it's another.
+            if let target = lockTarget, model.currentProfile?.id != target.id {
+                try? await model.switchProfile(to: target)
+            }
+            lockTarget = nil
             if marksCurrent { dismiss() }
         } catch FlexarrClientError.parentPinNeeded(let message) {
             if pin == nil { kidsLockPin = .lock } else { error = message ?? "That PIN isn’t right." }
