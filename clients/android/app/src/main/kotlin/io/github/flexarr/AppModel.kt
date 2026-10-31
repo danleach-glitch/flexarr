@@ -616,6 +616,8 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
 
     private fun signedIn(credentials: ServerCredentials) {
         forgetSignIn()
+        tunnelProblem = null
+        offlineAsGuest = false
         profiles = emptyList()
         profilesLoaded = false
         signedOutNotice = null
@@ -670,6 +672,8 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         }
         commands.stop()
         forgetSignIn()
+        tunnelProblem = null
+        offlineAsGuest = false
         music.stop()
         podcasts.stop()
         podcastStatus = null
@@ -686,8 +690,62 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         }
     }
 
+    /**
+     * A guest's tunnel didn't start (or is still trying after a while): its problem screen shows in place of the app,
+     * with Try again, Leave and (on a phone) Downloads. Null when it's up, and for everyone who isn't a guest.
+     */
+    var tunnelProblem: String? by mutableStateOf(null)
+        private set
+
+    /** The guest chose Downloads on the tunnel's problem screen: the app opens offline until the tunnel is up again. */
+    private var offlineAsGuest = false
+
+    /** "Try again" on the tunnel's problem screen. */
+    fun retryGuestTunnel() {
+        tunnelProblem = null
+        scope.launch { loadProfiles() }
+    }
+
+    /** "Downloads" on the tunnel's problem screen: the app, opening on Downloads, which play without the server. */
+    fun browseOfflineAsGuest() {
+        offlineAsGuest = true
+        tunnelProblem = null
+        serverUnreachable = true
+        profilesLoaded = true
+    }
+
+    /**
+     * Starts a guest's tunnel, or finds it up: true once it is (and for everyone who isn't a guest). False when it
+     * can't, with [tunnelProblem] set (unless the guest chose to stay offline), or the tailnet refused this device
+     * ([GuestTunnel.onRefused] signs it out). Waits up to a minute; the problem shows after 15 seconds of trying.
+     */
+    private suspend fun ensureGuestTunnel(): Boolean {
+        val guest = credentials?.guest ?: return true
+        val early = scope.launch {
+            delay(15_000)
+            if (tunnelProblem == null && !offlineAsGuest && credentials?.guest == guest) tunnelProblem = "Still connecting"
+        }
+        try {
+            withContext(Dispatchers.IO) { tunnel.port() }
+            if (credentials?.guest == guest) {
+                tunnelProblem = null
+                offlineAsGuest = false
+            }
+            return true
+        } catch (e: TunnelException) {
+            if (credentials?.guest != guest || e.needsLogin) return false
+            flexarrLog.warning("The guest tunnel didn't start: ${e.message}")
+            if (offlineAsGuest) serverUnreachable = true else tunnelProblem = e.message ?: "The tunnel didn't start"
+            return false
+        } finally {
+            early.cancel()
+        }
+    }
+
     suspend fun loadProfiles() {
         val client = client ?: return
+        // A guest reaches the server only through its tunnel: if that can't start, its problem screen says so.
+        if (!ensureGuestTunnel()) return
         try {
             val list = client.profiles()
             // A token for a profile that's since been removed acts as nobody: forget it and ask again.
