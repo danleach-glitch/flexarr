@@ -84,6 +84,10 @@ class TraktTest {
         val ended = TraktStatus(available = true, state = TraktAccountState.Disconnected, pending = TraktPendingConnect(state = TraktConnectState.InUse))
         assertEquals("That Trakt account is connected to another profile.", ended.connectNote)
         assertEquals("Each profile connects its own account.", ended.copy(pending = null).connectNote)
+        val named = ended.copy(pending = TraktPendingConnect(state = TraktConnectState.InUse, error = "Dan is already connected to another profile."))
+        assertEquals("Dan is already connected to another profile.", named.connectNote)
+        val waiting = ended.copy(pending = TraktPendingConnect(state = TraktConnectState.Waiting, error = "ignored"))
+        assertEquals("Each profile connects its own account.", waiting.connectNote)
         assertEquals("The code ran out. Try again.", TraktConnectState.Expired.problem)
         assertNull(TraktConnectState.Waiting.problem)
         val signedOut = TraktStatus(available = true, state = TraktAccountState.NeedsSignIn, username = "dan")
@@ -112,7 +116,33 @@ class TraktTest {
         )
         val small = TraktImportPreview(traktFilms = 1, traktEpisodes = 0, inLibrary = 1, newToFlexarr = 0, toTrakt = 3)
         assertEquals("Trakt has 1 film and 0 episodes", small.summary(Locale.UK))
-        assertEquals("1 are here, 0 not yet watched in Flexarr. 3 plays from Flexarr go to Trakt.", small.details(Locale.UK))
+        assertEquals("1 are here. 3 plays from Flexarr go to Trakt.", small.details(Locale.UK))
+        val none = TraktImportPreview(traktFilms = 200, traktEpisodes = 54, inLibrary = 0, newToFlexarr = 0, notOnServer = 254)
+        assertEquals("None are here yet. 254 will show as watched if they arrive.", none.details(Locale.UK))
+        assertEquals("None are here yet.", TraktImportPreview().details(Locale.UK))
+    }
+
+    @Test
+    fun `says when it synced and when the history came across`() {
+        val now = Instant.parse("2026-10-31T12:00:00Z")
+        val status = TraktStatus(available = true, state = TraktAccountState.Connected, lastSyncAt = "2026-10-31T11:55:00Z", importedAt = "2026-10-30T09:00:00Z")
+        assertEquals("Synced 5 minutes ago", status.syncedText(now))
+        assertEquals("Synced just now", status.copy(lastSyncAt = "2026-10-31T11:59:50Z").syncedText(now))
+        assertEquals("Not synced yet", status.copy(lastSyncAt = null).syncedText(now))
+        assertEquals(Instant.parse("2026-10-30T09:00:00Z"), status.imported)
+        assertNull(status.copy(importedAt = null).imported)
+    }
+
+    @Test
+    fun `a failed call shows the server's words, or the general ones`() = runTest {
+        server.enqueue(json("""{"type":"about:blank","title":"Conflict","status":409,"detail":"The import is already running."}""", code = 409))
+        val running = runCatching { client().confirmTraktImport() }.exceptionOrNull()!!
+        assertEquals("The import is already running.", TraktWords.problem(running))
+        server.enqueue(json("""{"title":"Internal Server Error","status":500}""", code = 500))
+        val broke = runCatching { client().syncTraktNow() }.exceptionOrNull()!!
+        assertEquals("That didn’t work. Try again.", TraktWords.problem(broke))
+        assertEquals("That didn’t work. Try again.", TraktWords.problem(IllegalStateException()))
+        assertEquals("A B 1 2", TraktWords.spelled("AB12"))
     }
 
     @Test
@@ -159,7 +189,7 @@ class TraktTest {
         val lists = client().traktLists()
         assertEquals(listOf("dan/1", "someone/2"), lists.map { it.id })
         assertEquals("24 titles", lists[0].detail)
-        assertEquals("1 title · by Someone", lists[1].detail)
+        assertEquals("Someone · 1 title", lists[1].detail)
         server.takeRequest()
 
         server.enqueue(MockResponse.Builder().code(204).build())

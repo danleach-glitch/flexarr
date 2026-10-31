@@ -2,6 +2,7 @@ package io.github.flexarr.core
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
+import okhttp3.RequestBody.Companion.toRequestBody
 import java.text.NumberFormat
 import java.time.Duration
 import java.time.Instant
@@ -89,6 +90,13 @@ data class TraktStatus(
 
     val lastSync: Instant? get() = lastSyncAt?.let { runCatching { InstantSerializer.parseInstant(it) }.getOrNull() }
 
+    /** When the history came across, once it has. */
+    val imported: Instant? get() = importedAt?.let { runCatching { InstantSerializer.parseInstant(it) }.getOrNull() }
+
+    /** "Synced 5 minutes ago", or "Not synced yet". */
+    fun syncedText(now: Instant = Instant.now()): String =
+        lastSync?.let { "Synced " + relativeTime(it, now).replaceFirstChar(Char::lowercaseChar) } ?: "Not synced yet"
+
     /** What Settings' Trakt row says: the account, "Signed out", or "Off". */
     val settingsValue: String
         get() = when (state) {
@@ -102,7 +110,11 @@ data class TraktStatus(
 
     /** The line under the connect button: why it's needed again, how the last try ended, or what it does. */
     val connectNote: String
-        get() = if (state == TraktAccountState.NeedsSignIn) "Trakt signed Flexarr out." else pending?.state?.problem ?: "Each profile connects its own account."
+        get() = when {
+            state == TraktAccountState.NeedsSignIn -> "Trakt signed Flexarr out."
+            else -> pending?.takeIf { it.state.problem != null }?.let { it.error?.takeIf(String::isNotBlank) ?: it.state.problem }
+                ?: "Each profile connects its own account."
+        }
 
     /** Something to say about how syncing is going, if anything. */
     val syncNote: String? get() = lastError ?: if (watchlistFull) "Trakt’s watchlist is full. New titles stay on Flexarr’s list." else null
@@ -126,7 +138,8 @@ data class TraktImportPreview(
     /** What changes, in a line or two. */
     fun details(locale: Locale = Locale.getDefault()): String {
         val n = { value: Int -> NumberFormat.getIntegerInstance(locale).format(value) }
-        val parts = mutableListOf("${n(inLibrary)} are here, ${n(newToFlexarr)} not yet watched in Flexarr")
+        val here = if (inLibrary == 0) "None are here yet" else "${n(inLibrary)} are here" + if (newToFlexarr > 0) ", ${n(newToFlexarr)} not yet watched in Flexarr" else ""
+        val parts = mutableListOf(here)
         if (notOnServer > 0) parts += "${n(notOnServer)} will show as watched if they arrive"
         if (toTrakt > 0) parts += "${count(toTrakt, "play", locale)} from Flexarr ${if (toTrakt == 1) "goes" else "go"} to Trakt"
         return parts.joinToString(". ") + "."
@@ -147,9 +160,9 @@ data class TraktList(
     val liked: Boolean = false,
     val selected: Boolean = false,
 ) {
-    /** "24 titles", or "24 titles · by Someone" for a liked list. */
+    /** "24 titles", or "Someone · 24 titles" for a liked list (owner first, as on the web). */
     val detail: String
-        get() = listOfNotNull("$itemCount ${if (itemCount == 1) "title" else "titles"}", owner?.takeIf { liked }?.let { "by $it" }).joinToString(" · ")
+        get() = listOfNotNull(owner?.takeIf { liked && it.isNotBlank() }, "$itemCount ${if (itemCount == 1) "title" else "titles"}").joinToString(" · ")
 }
 
 @Serializable
@@ -165,6 +178,29 @@ fun relativeTime(then: Instant, now: Instant = Instant.now()): String {
         ago.toDays() < 2 -> "Yesterday"
         else -> "${ago.toDays()} days ago"
     }
+}
+
+/** The words the phone and TV Trakt pages share, so both (and the web and Apple apps) say the same thing. */
+object TraktWords {
+    const val GENERIC_ERROR = "That didn’t work. Try again."
+    const val UNAVAILABLE = "Trakt isn’t available on this server."
+    const val UNREACHABLE = "Couldn’t reach the server."
+    const val ENTER_CODE = "Enter this code at trakt.tv/activate."
+    const val WAITS = "Flexarr waits, so you can leave this."
+    const val IMPORT = "Bring your Trakt history across"
+    const val IMPORT_CONFIRM = "Bring across"
+    const val IMPORTING = "Bringing your history across…"
+    const val IMPORTED = "History brought across"
+    const val LISTS_NOTE = "Chosen lists show in Collections, just for you."
+    const val DISCONNECT_TITLE = "Disconnect Trakt?"
+    const val DISCONNECT_TEXT = "What you’ve watched stays as it is, here and on Trakt."
+    const val SYNCING = "Syncing…"
+
+    /** The server's own words for a call that failed ("Couldn't reach Trakt."), or [GENERIC_ERROR]. */
+    fun problem(error: Throwable): String = (error as? FlexarrException.Http)?.detail ?: GENERIC_ERROR
+
+    /** "A B 1 2 C D": a code read out a character at a time. */
+    fun spelled(code: String): String = code.toList().joinToString(" ")
 }
 
 // Client
@@ -205,8 +241,10 @@ suspend fun FlexarrClient.confirmTraktImport() {
     send("POST", "trakt/import", mapOf("confirm" to "true"))
 }
 
+/** Syncs now: the server answers once it's done (204), or at once (202) when asked again within a minute. */
 suspend fun FlexarrClient.syncTraktNow() {
-    send("POST", "trakt/sync")
+    // A whole sync round can take longer than an ordinary call's 20 seconds.
+    sendBody("POST", "trakt/sync", emptyMap(), ByteArray(0).toRequestBody(null), timeoutSeconds = 90)
 }
 
 /** The profile's Trakt lists, its own and liked ones, saying which come across as collections. */

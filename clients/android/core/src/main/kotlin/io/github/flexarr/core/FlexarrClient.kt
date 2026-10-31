@@ -48,7 +48,8 @@ sealed class FlexarrException(message: String) : Exception(message) {
         "The server didn’t accept this device’s sign-in. Connect it again with a code, or if you typed an API key, check it against Settings › Access on the web.",
     )
 
-    class Http(val status: Int, message: String?) : FlexarrException(message ?: "The server answered with an error (HTTP $status).")
+    /** [detail]: the server's own words for what went wrong (its problem details' `detail`), when it gave some. */
+    class Http(val status: Int, message: String?, val detail: String? = null) : FlexarrException(message ?: "The server answered with an error (HTTP $status).")
 
     /**
      * This takes the admin PIN (leaving a kids profile, locking or releasing a device), which wasn't given or
@@ -390,7 +391,7 @@ class FlexarrClient(
                 it.code == 403 && problemFlag(text, "parentPin") -> throw FlexarrException.ParentPinNeeded(problemMessage(text))
                 it.code == 403 && problemFlag(text, "ownPin") -> throw FlexarrException.OwnPinWrong(problemMessage(text))
                 it.code == 403 && problemFlag(text, "kidsLock") -> throw FlexarrException.KidsLocked(problemMessage(text))
-                else -> throw FlexarrException.Http(it.code, problemMessage(text))
+                else -> throw FlexarrException.Http(it.code, problemMessage(text), problemDetail(text))
             }
         }
     }
@@ -634,6 +635,10 @@ class FlexarrClient(
         /** Whether the server's problem details carry [name] as true (`parentPin`, `kidsLock`). */
         internal fun problemFlag(text: String, name: String): Boolean =
             runCatching { (json.parseToJsonElement(text).jsonObject[name] as? JsonPrimitive)?.content == "true" }.getOrDefault(false)
+
+        /** The `detail` of RFC 7807 problem details, alone: what the server says went wrong, in its words. */
+        internal fun problemDetail(text: String): String? =
+            runCatching { (json.parseToJsonElement(text).jsonObject["detail"] as? JsonPrimitive)?.takeIf { it.isString }?.content }.getOrNull()?.takeIf { it.isNotBlank() }
 
         /** Reads ASP.NET problem details (`errors`, `detail` or `title`), or a plain `reason`, into one message. */
         internal fun problemMessage(text: String): String? {

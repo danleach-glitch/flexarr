@@ -37,6 +37,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.TextAutoSize
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.text.TextStyle
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
+import io.github.flexarr.core.TraktWords
+import io.github.flexarr.ui.components.Edge
 import io.github.flexarr.AppModel
 import io.github.flexarr.core.FlexarrClient
 import io.github.flexarr.core.TraktImportPreview
@@ -78,33 +90,59 @@ fun TraktSettingsScreen(model: AppModel) {
     RoomBackground(ambient = null) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
             item { PageTitle("Trakt", onBack = { navigator.back() }) }
-            if (status != null) {
-                val code = status.waitingCode
-                when {
-                    status.isConnected -> {
-                        item {
+            when {
+                trakt.unreachable -> item {
+                    Group {
+                        Line(TraktWords.UNREACHABLE)
+                        Divider()
+                        ActionRow("Retry", icon = Icons.Filled.Refresh) { trakt.retry() }
+                    }
+                }
+                !trakt.loaded -> item {
+                    Group {
+                        Box(Modifier.fillMaxWidth().padding(vertical = 16.dp), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(Modifier.size(22.dp), color = Flexarr.usher, strokeWidth = 2.dp)
+                        }
+                    }
+                }
+                status == null || !status.available -> item { Group { Line(TraktWords.UNAVAILABLE) } }
+                status.isConnected -> {
+                    item {
+                        WithProblem(trakt.problemAt(TraktSpot.Account)) {
                             Group(footer = status.syncNote) {
                                 Fact("Account", status.username ?: "Connected")
                                 Divider()
-                                Fact("Synced", status.lastSync?.let(::relativeTime) ?: "Not yet")
+                                Line(status.syncedText())
                                 if (status.queued > 0) {
                                     Divider()
                                     Fact("Waiting to send", "${status.queued}")
                                 }
                                 Divider()
-                                ActionRow("Sync now", enabled = !trakt.working) { trakt.run { it.syncTraktNow() } }
+                                ActionRow(if (trakt.syncing) TraktWords.SYNCING else "Sync now", busy = trakt.syncing, enabled = !trakt.working) { trakt.sync() }
                                 Divider()
-                                ActionRow("Disconnect", color = Flexarr.danger) { confirmDisconnect = true }
+                                ActionRow("Disconnect", color = Flexarr.danger, enabled = !trakt.working) { confirmDisconnect = true }
                             }
                         }
-                        if (status.importedAt == null) item { HistoryImport(trakt, status) }
-                        trakt.lists?.takeIf { it.isNotEmpty() }?.let { lists -> item { Lists(trakt, lists) } }
                     }
-                    code != null -> item {
-                        Group(footer = "Enter the code at ${code.shortVerificationUrl}. Flexarr waits, so you can leave this.") {
-                            Text(
-                                code.userCode, fontSize = 34.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace, letterSpacing = 4.sp,
-                                color = Flexarr.screen, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(vertical = 18.dp),
+                    item { WithProblem(trakt.problemAt(TraktSpot.History)) { HistoryImport(trakt, status) } }
+                    trakt.lists?.takeIf { it.isNotEmpty() }?.let { lists -> item { WithProblem(trakt.problemAt(TraktSpot.Lists)) { Lists(trakt, lists) } } }
+                }
+                status.waitingCode != null -> item {
+                    val code = status.waitingCode!!
+                    WithProblem(trakt.problemAt(TraktSpot.Account)) {
+                        Group(footer = "${TraktWords.ENTER_CODE} ${TraktWords.WAITS}") {
+                            BasicText(
+                                code.userCode,
+                                style = TextStyle(
+                                    color = Flexarr.screen, fontSize = 34.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace,
+                                    letterSpacing = 4.sp, textAlign = TextAlign.Center,
+                                ),
+                                maxLines = 1,
+                                softWrap = false,
+                                // Stays on one line at the largest font sizes, shrinking to fit.
+                                autoSize = TextAutoSize.StepBased(minFontSize = 12.sp, maxFontSize = 34.sp),
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 18.dp)
+                                    .clearAndSetSemantics { contentDescription = "Code ${TraktWords.spelled(code.userCode)}" },
                             )
                             Divider()
                             ActionRow("Copy code and open Trakt", icon = Icons.AutoMirrored.Filled.OpenInNew) {
@@ -112,18 +150,17 @@ fun TraktSettingsScreen(model: AppModel) {
                                 runCatching { uri.openUri(code.verificationUrl) }
                             }
                             Divider()
-                            ActionRow("Cancel", color = Flexarr.screen) { trakt.run { it.cancelTraktConnect() } }
-                        }
-                    }
-                    else -> item {
-                        Group(footer = status.connectNote) {
-                            ActionRow(status.connectLabel, icon = Icons.Filled.Link, enabled = !trakt.working) { trakt.run { it.connectTrakt() } }
+                            ActionRow("Cancel", color = Flexarr.screen, enabled = !trakt.working) { trakt.run(TraktSpot.Account) { it.cancelTraktConnect() } }
                         }
                     }
                 }
-            }
-            trakt.problem?.let { problem ->
-                item { Text(problem, fontSize = 15.sp, color = Flexarr.danger, modifier = Modifier.padding(horizontal = 32.dp)) }
+                else -> item {
+                    WithProblem(trakt.problemAt(TraktSpot.Account)) {
+                        Group(footer = status.connectNote) {
+                            ActionRow(status.connectLabel, icon = Icons.Filled.Link, enabled = !trakt.working) { trakt.run(TraktSpot.Account) { it.connectTrakt() } }
+                        }
+                    }
+                }
             }
         }
     }
@@ -131,12 +168,12 @@ fun TraktSettingsScreen(model: AppModel) {
     if (confirmDisconnect) {
         AlertDialog(
             onDismissRequest = { confirmDisconnect = false },
-            title = { Text("Disconnect Trakt?") },
-            text = { Text("What you’ve watched stays as it is, here and on Trakt.") },
+            title = { Text(TraktWords.DISCONNECT_TITLE) },
+            text = { Text(TraktWords.DISCONNECT_TEXT) },
             confirmButton = {
                 TextButton(onClick = {
                     confirmDisconnect = false
-                    trakt.run { it.disconnectTrakt() }
+                    trakt.run(TraktSpot.Account) { it.disconnectTrakt() }
                 }) { Text("Disconnect", color = Flexarr.danger) }
             },
             dismissButton = { TextButton(onClick = { confirmDisconnect = false }) { Text("Cancel", color = Flexarr.screen) } },
@@ -148,28 +185,34 @@ fun TraktSettingsScreen(model: AppModel) {
 @Composable
 private fun HistoryImport(trakt: TraktState, status: TraktStatus) {
     val preview = trakt.preview
-    Group(header = "Your history", footer = if (status.importing) null else if (preview == null) "See what changes first." else "Nothing is marked unwatched, on either side.") {
+    val footer = when {
+        status.importing || status.importedAt != null -> null
+        preview == null -> "See what changes first."
+        else -> "Nothing is marked unwatched, on either side."
+    }
+    Group(header = "Your history", footer = footer) {
         when {
             status.importing -> Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 CircularProgressIndicator(Modifier.size(18.dp), color = Flexarr.usher, strokeWidth = 2.dp)
-                Text("Bringing your history across…", fontSize = 17.sp, color = Flexarr.usher)
+                Text(TraktWords.IMPORTING, fontSize = 17.sp, color = Flexarr.usher)
             }
+            status.importedAt != null -> Fact(TraktWords.IMPORTED, status.imported?.let(::relativeTime).orEmpty())
             preview != null -> {
                 Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(preview.summary(), fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen)
                     Text(preview.details(), fontSize = 13.sp, color = Flexarr.usher)
                 }
                 Divider()
-                ActionRow("Bring across", enabled = !trakt.working) { trakt.run { it.confirmTraktImport() } }
+                ActionRow(TraktWords.IMPORT_CONFIRM, enabled = !trakt.working) { trakt.run(TraktSpot.History) { it.confirmTraktImport() } }
             }
-            else -> ActionRow("Bring your Trakt history across", enabled = !trakt.working) { trakt.run { client -> trakt.preview = client.previewTraktImport() } }
+            else -> ActionRow(TraktWords.IMPORT, enabled = !trakt.working) { trakt.run(TraktSpot.History) { client -> trakt.preview = client.previewTraktImport() } }
         }
     }
 }
 
 @Composable
 private fun Lists(trakt: TraktState, lists: List<TraktList>) {
-    Group(header = "Lists", footer = "Chosen lists show as collections.") {
+    Group(header = "Lists", footer = TraktWords.LISTS_NOTE) {
         lists.forEachIndexed { index, list ->
             if (index > 0) Divider()
             Toggle(list.name, on = list.selected, onChange = { trakt.choose(list, it) }, detail = list.detail, enabled = !trakt.savingLists)
@@ -177,15 +220,40 @@ private fun Lists(trakt: TraktState, lists: List<TraktList>) {
     }
 }
 
-/** A row that does something when pressed, in the accent colour (or [color]), with an optional icon before it. */
+/** [content], with what went wrong there (if anything) right under it. */
 @Composable
-private fun ActionRow(title: String, icon: ImageVector? = null, color: androidx.compose.ui.graphics.Color = Flexarr.silver, enabled: Boolean = true, onClick: () -> Unit) {
+private fun WithProblem(problem: String?, content: @Composable () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        content()
+        problem?.let { Text(it, fontSize = 15.sp, color = Flexarr.danger, modifier = Modifier.padding(horizontal = Edge + 16.dp)) }
+    }
+}
+
+/** A line of plain words in a group. */
+@Composable
+private fun Line(text: String) {
+    Text(text, fontSize = 17.sp, color = Flexarr.screen, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp))
+}
+
+/** A row that does something when pressed, in the accent colour (or [color]), with an optional icon (or a spinner, [busy]) before it. */
+@Composable
+private fun ActionRow(
+    title: String,
+    icon: ImageVector? = null,
+    color: androidx.compose.ui.graphics.Color = Flexarr.silver,
+    enabled: Boolean = true,
+    busy: Boolean = false,
+    onClick: () -> Unit,
+) {
     Row(
         Modifier.fillMaxWidth().pressable(onClick, enabled = enabled).padding(horizontal = 16.dp, vertical = 14.dp),
         horizontalArrangement = Arrangement.spacedBy(14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        icon?.let { Icon(it, contentDescription = null, tint = if (enabled) color else Flexarr.usher) }
+        when {
+            busy -> CircularProgressIndicator(Modifier.size(18.dp), color = Flexarr.usher, strokeWidth = 2.dp)
+            icon != null -> Icon(icon, contentDescription = null, tint = if (enabled) color else Flexarr.usher)
+        }
         Text(title, fontSize = 17.sp, color = if (enabled) color else Flexarr.usher)
     }
 }
@@ -195,27 +263,47 @@ private fun copy(context: Context, text: String) {
     clipboard.setPrimaryClip(ClipData.newPlainText("Trakt code", text))
 }
 
+/** Where on the page a failed call says so: under the account (or connect) part, the history, or the lists. */
+internal enum class TraktSpot { Account, History, Lists }
+
 /**
- * What the phone and TV Trakt pages share: the status (asked again every 2 s while a code waits or the import runs), the
- * import's preview, the lists once connected, and running one thing at a time.
+ * What the phone and TV Trakt pages share: the status (asked again every 2 s while a code waits or the import runs,
+ * and only while the page is showing), the import's preview, the lists once connected, and running one thing at a time.
  */
 internal class TraktState(private val model: AppModel, private val scope: kotlinx.coroutines.CoroutineScope) {
     var status by mutableStateOf<TraktStatus?>(null)
     var preview by mutableStateOf<TraktImportPreview?>(null)
     var lists by mutableStateOf<List<TraktList>?>(null)
+
+    /** The server has answered once (with no Trakt at all, perhaps). */
+    var loaded by mutableStateOf(false)
+
+    /** The first look didn't get an answer. */
+    var unreachable by mutableStateOf(false)
     var working by mutableStateOf(false)
+    var syncing by mutableStateOf(false)
     var savingLists by mutableStateOf(false)
-    var problem by mutableStateOf<String?>(null)
+    private var problem by mutableStateOf<Pair<TraktSpot, String>?>(null)
+
+    fun problemAt(spot: TraktSpot): String? = problem?.takeIf { it.first == spot }?.second
 
     suspend fun load() {
         val client = model.client ?: return
         try {
-            client.traktStatus()?.let { status = it }
+            status = client.traktStatus()
+            loaded = true
+            unreachable = false
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
-            // Keeps what it had; the next look may do better.
+            // Once there's a page, it stays; the next look may do better.
+            if (!loaded) unreachable = true
         }
+    }
+
+    fun retry() {
+        unreachable = false
+        scope.launch { load() }
     }
 
     suspend fun loadLists() {
@@ -229,7 +317,8 @@ internal class TraktState(private val model: AppModel, private val scope: kotlin
         }
     }
 
-    fun run(work: suspend (FlexarrClient) -> Unit) {
+    /** Runs [work], then looks at the status again; a failure shows at [spot], in the server's words if it gave some. */
+    fun run(spot: TraktSpot, work: suspend (FlexarrClient) -> Unit) {
         val client = model.client ?: return
         if (working) return
         working = true
@@ -239,12 +328,23 @@ internal class TraktState(private val model: AppModel, private val scope: kotlin
                 work(client)
             } catch (e: CancellationException) {
                 throw e
-            } catch (_: Exception) {
-                problem = "That didn’t work. Try again."
+            } catch (e: Exception) {
+                problem = spot to TraktWords.problem(e)
             }
-            load()
-            working = false
+            try {
+                load()
+            } finally {
+                working = false
+                syncing = false
+            }
         }
+    }
+
+    /** Syncs now: the server answers once the sync is done, so the button stays busy until then. */
+    fun sync() {
+        if (working || model.client == null) return
+        syncing = true
+        run(TraktSpot.Account) { it.syncTraktNow() }
     }
 
     /** Turns a list on or off at once, and saves the whole choice; turned back if it doesn't save. */
@@ -260,9 +360,9 @@ internal class TraktState(private val model: AppModel, private val scope: kotlin
                 client.saveTraktLists(after.filter { it.selected }.map { it.id })
             } catch (e: CancellationException) {
                 throw e
-            } catch (_: Exception) {
+            } catch (e: Exception) {
                 lists = before
-                problem = "That didn’t save. Try again."
+                problem = TraktSpot.Lists to TraktWords.problem(e)
             } finally {
                 savingLists = false
             }
@@ -275,12 +375,16 @@ internal fun rememberTrakt(model: AppModel): TraktState {
     val scope = rememberCoroutineScope()
     val state = remember(model.currentProfile?.id) { TraktState(model, scope) }
     LaunchedEffect(state) { state.load() }
-    // While a code waits, or the import runs, keep looking.
+    // While a code waits, or the import runs, keep looking: only while the page is showing, not from the background.
     val busy = state.status?.isBusy == true
-    LaunchedEffect(state, busy) {
-        while (busy) {
-            delay(2_000)
-            state.load()
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(state, busy, lifecycle) {
+        if (!busy) return@LaunchedEffect
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (true) {
+                delay(2_000)
+                state.load()
+            }
         }
     }
     // The lists, once connected (and again on connecting as someone else).
