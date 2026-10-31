@@ -8,7 +8,7 @@
 
 <p align="center">
   Your own streaming service for the films, TV, music and podcasts you already have.<br>
-  Apple TV, iPhone, iPad and the web. Built for <a href="https://sonarr.tv">Sonarr</a>, <a href="https://radarr.video">Radarr</a> and <a href="https://lidarr.audio">Lidarr</a>, and happy with plain folders too. No ads, no account, no subscription.
+  Apple TV, iPhone, iPad and the web, with Android on the way. Built for <a href="https://sonarr.tv">Sonarr</a>, <a href="https://radarr.video">Radarr</a> and <a href="https://lidarr.audio">Lidarr</a>, and happy with plain folders too. No ads, no account, no subscription.
 </p>
 
 <p align="center">
@@ -37,13 +37,16 @@ Flexarr is a media server you run at home. It organises your library, takes artw
 
 | | |
 | --- | --- |
-| 🎬 **Its own player** on Apple TV, iPhone and iPad: skip intro and credits, Up Next, scrubbing previews | 🌈 **HDR10, HLG and Dolby Vision** reach the TV untouched; **Dolby Atmos** passes through intact |
+| 🎬 **Its own player** on Apple TV, iPhone and iPad: skip intro and credits, Up Next, scrubbing previews | 🌈 **HDR10, HDR10+, HLG and Dolby Vision** reach the TV untouched; **Dolby Atmos** passes through intact |
 | ⚡ **Plays files as they are** (AV1, VC-1, XviD and all), converting on the server only when it must | 📺 **Live TV and recording** with a full guide, pause and rewind, from your own tuner or IPTV service through Dispatcharr |
-| 🎵 **Music** with synced lyrics, playlists, daily mixes, artist radio, gapless and crossfade | 🎙️ **Podcasts built in**: Apple's directory or any feed, Up Next across devices, OPML import |
+| 🎵 **Music** with synced lyrics, playlists, daily mixes, artist radio, gapless and crossfade | 🎙️ **Podcasts built in**: Apple's directory or any feed, chapters, Up Next across devices, OPML import |
+| 👨‍👩‍👧 **Profiles** with their own history, libraries, watchlist and PINs | 🧒 **Kids profiles** with UK age limits (U to 18), any country's ratings counted, and a **child lock** that keeps them there |
+| 🔖 **A watchlist** of films and shows to watch later, whether you have them yet or not | 🔊 **Dialogue boost and night mode**, on by themselves at night if you like, and stereo or 5.1 for your speakers |
+| 💬 **Subtitles your way**: styled ones as made, placed where you like, and found through Bazarr when a file has none | 📱 **Your iPhone as the Apple TV's remote**, on the Lock Screen too, and **Continue on iPhone** to carry on from the sofa |
 | 📥 **Downloads** of films, episodes, albums, playlists and podcasts on iPhone and iPad | 🌍 **Away from home over Tailscale**, no ports opened; the apps switch by themselves |
-| 👨‍👩‍👧 **Profiles** with their own history, libraries and PINs | 🗣️ **Siri and Shortcuts**: "Play the next episode of *Ted Lasso* in Flexarr" |
-| 🔔 **Notifications**, widgets and the Apple TV Top Shelf | 🏠 **[Home Assistant](https://github.com/danleach-glitch/flexarr-home-assistant)** and an **MCP server** for Claude or any assistant |
+| 🗣️ **Siri and Shortcuts**: "Play the next episode of *Ted Lasso* in Flexarr", "Skip intro in Flexarr" | 🔔 **Notifications**, widgets and the Apple TV Top Shelf |
 | 🔌 **Built on your \*arrs**: metadata from Sonarr, Radarr and Lidarr, requests through Seerr, no TMDB keys | 📁 **Or without them**: `.nfo` files and artwork from Kodi, Jellyfin or Plex folders, TVmaze for shows, TMDB with a free key |
+| 🧭 **A setup guide** that finds the \*arrs on your network, adds their webhooks and turns their folders into libraries | 🏠 **[Home Assistant](https://github.com/danleach-glitch/flexarr-home-assistant)** and an **MCP server** for Claude or any assistant |
 | 📼 **Home videos**: your own videos, arranged by folder and never looked up online | 🧰 **Looks after itself**: library health, Plex history import, backups, readable logs, one-click updates on a Mac |
 
 <p align="center">
@@ -57,11 +60,11 @@ Flexarr is a media server you run at home. It organises your library, takes artw
 - **Apple TV:** with Apple for review. Until it's on the App Store, [install it from Xcode](https://flexarr.io/guide/apple-tv-xcode).
 - **Web:** built into the server. Open its address in any browser, phones included.
 - **Home Assistant:** [through HACS](https://github.com/danleach-glitch/flexarr-home-assistant).
-- **In development:** Flexarr Server for Mac, a menu bar app for the Mac App Store, and an Android app, with Android TV after it.
+- **In development:** Flexarr Server for Mac, a menu bar app for the Mac App Store; an app for Android phones and tablets (until then, the web works in your phone's browser); and one for Android TV and Google TV, laid out like the Apple TV app.
 
 Every app, its status and version are on [flexarr.io/apps](https://flexarr.io/apps).
 
-Each app connects with a short code you approve in **Settings › Access › Connect a device**; see [Connect your devices](https://flexarr.io/guide/connect-devices).
+Each app connects with a short code you approve on your phone, or in **Settings › Access › Connect a device** on the web; see [Connect your devices](https://flexarr.io/guide/connect-devices).
 
 ## 🚀 Quick start
 
@@ -73,7 +76,7 @@ docker run -d --name flexarr --restart unless-stopped \
   ghcr.io/danleach-glitch/flexarr:latest
 ```
 
-Open `http://<your-server>:8383` on your home network and choose **Set up Flexarr**: the first browser to reach a new server becomes its owner, no key needed. Then add your folders in **Settings › Libraries** and, if you have them, your \*arrs in **Settings › Connections**. Flexarr usually works out where the \*arrs' folders are on its side by itself; if not, **Settings › Connections › Media folders** lets you choose them.
+Open the link in the server's log (`docker logs flexarr`): it has the setup code filled in, so you only choose a PIN to protect the server's settings. A short guide then walks you through connecting Sonarr, Radarr and Lidarr (it finds them on your network and adds their webhooks), adding your libraries, everyone who watches, and your devices. Skip any of it and find it later in **Settings**. Flexarr usually works out where the \*arrs' folders are on its side by itself; if not, **Settings › Connections › Media folders** lets you choose them.
 
 Step-by-step guides on [flexarr.io/guide](https://flexarr.io/guide):
 
@@ -85,7 +88,7 @@ The guide's source is in [docs/guide](docs/guide); corrections are welcome.
 
 ## 🛠️ Development
 
-Prerequisites: [.NET 10 SDK](https://dotnet.microsoft.com/download), Node.js 24+, FFmpeg 7+, and for the Apple clients Xcode 26+ with [XcodeGen](https://github.com/yonaskolb/XcodeGen).
+Prerequisites: [.NET 10 SDK](https://dotnet.microsoft.com/download), Node.js 24+, FFmpeg 7+; for the Apple clients Xcode 26+ with [XcodeGen](https://github.com/yonaskolb/XcodeGen); for the Android app [Android Studio](https://developer.android.com/studio) (its JDK 17 and SDK).
 
 ```bash
 make setup     # restore .NET + npm dependencies
@@ -106,6 +109,7 @@ make apps      # rebuild flexarr.io/apps from site/apps.json
 | `src/Flexarr.Integrations.Arr` | Sonarr, Radarr, Lidarr and Seerr clients and webhooks |
 | `frontend/` | Web client (React, TypeScript, Vite) |
 | `clients/apple/` | `FlexarrKit`, shared app code, and the tvOS and iOS apps |
+| `clients/android/` | The Android app, for phones, tablets and Android TV (in development) |
 | `clients/macos/` | Flexarr Server for Mac (in development): the server and web app as a sandboxed menu bar app |
 | `site/` | flexarr.io, with the guide built into `site/guide` and the apps page into `site/apps.html` |
 | `relay/` | The iPhone app's notification relay (push.flexarr.io) |
