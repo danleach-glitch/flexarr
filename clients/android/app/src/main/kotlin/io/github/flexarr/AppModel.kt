@@ -946,6 +946,8 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     init {
         signInChanged()
         tunnel.onPort = ::tunnelMoved
+        // The host deleted this device from its tailnet: as good as removing it from Flexarr.
+        tunnel.onRefused = { scope.launch { if (credentials?.isGuest == true) removedAsGuest() } }
         // A guest's tunnel starts now, off the main thread, so it's up (or on its way) before the first request, which
         // waits for it either way.
         savedSignIn?.guest?.let { guest ->

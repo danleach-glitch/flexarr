@@ -38,6 +38,13 @@ class GuestTunnel(context: Context) : LoopbackTunnel {
     @Volatile
     var onPort: ((Int) -> Unit)? = null
 
+    /**
+     * Told when the tailnet refuses the node's saved identity (the host deleted this device there): the guest no longer
+     * has access, as when the server says so. Not for a key refused while joining, which the join says itself.
+     */
+    @Volatile
+    var onRefused: (() -> Unit)? = null
+
     /** The node's identity, out of backups (a restored copy on another phone would be the same node twice). */
     val stateDir: File get() = File(context.noBackupFilesDir, "tailscale")
 
@@ -89,6 +96,7 @@ class GuestTunnel(context: Context) : LoopbackTunnel {
             val message = status.error ?: e.message ?: "The tunnel didn't start"
             // Tailscale refuses a used or run-out key as "invalid key", which is the same to the guest as needing one.
             val refused = status.state == "needs-login" || message.contains("invalid key", ignoreCase = true)
+            if (refused && authKey.isEmpty()) onRefused?.invoke()
             throw TunnelException(message, needsLogin = refused, e)
         }
         listening = port
