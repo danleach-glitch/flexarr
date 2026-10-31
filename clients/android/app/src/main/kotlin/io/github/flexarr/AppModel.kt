@@ -55,6 +55,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ProcessLifecycleOwner
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.async
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -703,9 +705,10 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     /** The guest chose Downloads on the tunnel's problem screen: the app opens offline until the tunnel is up again. */
     private var offlineAsGuest = false
 
-    /** "Try again" on the tunnel's problem screen. */
+    /** "Try again" on the tunnel's problem screen: the start still under way ("Still connecting") goes on, or another. */
     fun retryGuestTunnel() {
         tunnelProblem = null
+        if (tunnelStart?.isActive == true) return
         scope.launch { loadProfiles() }
     }
 
@@ -723,6 +726,16 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
      * ([GuestTunnel.onRefused] signs it out). Waits up to a minute; the problem shows after 15 seconds of trying.
      */
     private suspend fun ensureGuestTunnel(): Boolean {
+        credentials?.guest ?: return true
+        // One start at a time: whoever else asks meanwhile (Try again, the profile list asked again) waits for it.
+        val start = tunnelStart?.takeIf { it.isActive } ?: scope.async { startGuestTunnel() }.also { tunnelStart = it }
+        return start.await()
+    }
+
+    /** The guest tunnel's start under way, if any ([ensureGuestTunnel]). */
+    private var tunnelStart: Deferred<Boolean>? = null
+
+    private suspend fun startGuestTunnel(): Boolean {
         val guest = credentials?.guest ?: return true
         val early = scope.launch {
             delay(15_000)
