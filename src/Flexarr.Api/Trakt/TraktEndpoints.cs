@@ -94,6 +94,22 @@ public static class TraktEndpoints
             }
         });
 
+        // The profile's Trakt lists (its own and liked ones), and which come across as collections.
+        group.MapGet("/lists", async (CurrentProfile profile, TraktLists lists, CancellationToken ct) =>
+        {
+            try
+            {
+                return await lists.AvailableAsync(profile.Id, ct) is { } found ? Results.Ok(found) : Results.Problem("Connect to Trakt first.", statusCode: 409);
+            }
+            catch (TraktException ex)
+            {
+                return Results.Problem(ex.Message, statusCode: 502);
+            }
+        });
+
+        group.MapPut("/lists", async (TraktListsUpdate update, CurrentProfile profile, TraktLists lists, CancellationToken ct) =>
+            await lists.ChooseAsync(profile.Id, update.Ids, ct) ? Results.NoContent() : Results.Problem("Connect to Trakt first.", statusCode: 409));
+
         group.MapPost("/sync", () =>
         {
             TraktSyncWorker.Nudge();

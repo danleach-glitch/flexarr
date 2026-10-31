@@ -7,7 +7,9 @@ using Flexarr.Core.Data;
 using Flexarr.Core.Libraries;
 using Flexarr.Core.Media;
 using Flexarr.Core.Scanning;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -105,6 +107,28 @@ public sealed class TraktTests : IAsyncLifetime
 
         Assert.False(status.GetProperty("available").GetBoolean());
         Assert.Equal(HttpStatusCode.Conflict, connect.StatusCode);
+    }
+
+    [Fact]
+    public async Task TheAdminsOwnApp_GoesStraightToTrakt_WithItsSecret()
+    {
+        TraktClient.ForgetClientId();
+        _trakt.Set("GET /api/trakt", "{}", HttpStatusCode.ServiceUnavailable);
+        _server.Services.GetRequiredService<TraktConnector>().MinimumInterval = TimeSpan.FromMilliseconds(20);
+        _trakt.Set("POST /oauth/device/token", FakeTrakt.Token());
+
+        var saved = await Client().PutAsJsonAsync(Api("/settings"), new { traktApp = new { clientId = "my-own-id", clientSecret = "my-own-secret" } });
+        var settings = await Client().GetFromJsonAsync<JsonElement>(Api("/settings"));
+        await Client().PostAsync(Api("/trakt/connect"), null);
+        var status = await WaitForAsync(s => s.GetProperty("state").GetString() == "connected");
+
+        Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
+        Assert.Equal("my-own-id", settings.GetProperty("traktApp").GetProperty("clientId").GetString());
+        Assert.True(settings.GetProperty("traktApp").GetProperty("hasSecret").GetBoolean());
+        Assert.DoesNotContain("my-own-secret", settings.GetRawText(), StringComparison.Ordinal);
+        Assert.True(status.GetProperty("available").GetBoolean());
+        Assert.Contains("my-own-secret", _trakt.Bodies("POST /oauth/device/token").First(), StringComparison.Ordinal);
+        Assert.DoesNotContain(_trakt.Requests, r => r.Key == "POST /api/trakt");
     }
 
     [Fact]
@@ -565,6 +589,85 @@ public sealed class TraktTests : IAsyncLifetime
         Assert.True((await StatusAsync()).GetProperty("watchlistFull").GetBoolean());
         // Still on Flexarr's list.
         Assert.True(await InDbAsync(db => db.WatchlistEntries.AnyAsync(w => w.RemovedAt == null)));
+    }
+
+    // ---- Lists, recommendations, the admin's view ----
+
+    [Fact]
+    public async Task ChosenTraktLists_BecomePersonalCollections_KeptInStep()
+    {
+        var dune = Film("Dune", "438631");
+        await SeedAsync(db => db.AddRange(Films, dune));
+        await ConnectAsync();
+        Activities();
+        _trakt.Set("GET /users/me/lists", """[{"name":"Sci-fi night","item_count":2,"ids":{"trakt":55,"slug":"sci-fi-night"}}]""");
+        _trakt.Set("GET /users/likes/lists", """[{"liked_at":"2025-01-01T00:00:00.000Z","list":{"name":"Best of 2024","item_count":9,"ids":{"trakt":77},"user":{"username":"Sam","ids":{"slug":"sam"}}}}]""");
+        _trakt.Set("GET /users/dan/lists/55/items", """
+            [{"rank":2,"listed_at":"2025-01-01T00:00:00.000Z","type":"movie","movie":{"title":"Arrival","year":2016,"ids":{"tmdb":329865}}},
+             {"rank":1,"listed_at":"2025-01-01T00:00:00.000Z","type":"movie","movie":{"title":"Dune","year":2021,"ids":{"tmdb":438631}}}]
+            """);
+
+        var lists = await Client().GetFromJsonAsync<List<TraktListDto>>(Api("/trakt/lists"));
+        var chose = await Client().PutAsJsonAsync(Api("/trakt/lists"), new { ids = new[] { "dan/55" } });
+        await SyncAsync();
+        var collection = await InDbAsync(db => db.Collections.Include(c => c.Items).SingleAsync());
+        var deleted = await Client().DeleteAsync(Api($"/collections/{collection.Id}"));
+
+        Assert.Equal(["dan/55", "sam/77"], lists!.Select(l => l.Id));
+        Assert.True(lists![1].Liked);
+        Assert.Equal(HttpStatusCode.NoContent, chose.StatusCode);
+        Assert.Equal("Sci-fi night", collection.Name);
+        Assert.Equal(CollectionKind.TraktList, collection.Kind);
+        Assert.Equal(Owner, collection.OwnerProfileId);
+        Assert.Equal(dune.Id, Assert.Single(collection.Items).MediaItemId);
+        Assert.Contains("329865", collection.MissingJson, StringComparison.Ordinal);
+        Assert.Equal(HttpStatusCode.NoContent, deleted.StatusCode);
+        // Deleted here, it isn't brought back.
+        Assert.Empty((await InDbAsync(db => db.TraktConnections.SingleAsync())).ListIds);
+    }
+
+    [Fact]
+    public async Task TraktsPicks_AreARowOnDiscover_TitlesHereFirst()
+    {
+        var seerr = new FakeArr();
+        var server = _server.WithWebHostBuilder(b =>
+        {
+            b.UseSetting("Flexarr:Seerr:BaseUrl", "http://seerr.test");
+            b.UseSetting("Flexarr:Seerr:ApiKey", "key");
+            b.ConfigureTestServices(s => s.AddHttpClient<Flexarr.Integrations.Arr.SeerrClient>().ConfigurePrimaryHttpMessageHandler(() => seerr));
+        });
+        var dune = Film("Dune", "438631");
+        await SeedAsync(db => db.AddRange(Films, dune));
+        await ConnectAsync();
+        _trakt.Set("GET /recommendations/movies", """[{"title":"Arrival","ids":{"tmdb":329865}},{"title":"Dune","ids":{"tmdb":438631}}]""");
+        _trakt.Set("GET /recommendations/shows", "[]");
+        seerr.Responses["GET /api/v1/movie/329865"] = """{"id":329865,"title":"Arrival","releaseDate":"2016-11-11","posterPath":"/a.jpg","voteAverage":7.6}""";
+        seerr.Responses["GET /api/v1/movie/438631"] = """{"id":438631,"title":"Dune","releaseDate":"2021-10-22","posterPath":"/d.jpg","voteAverage":7.8}""";
+        var client = server.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+
+        var rows = await client.GetFromJsonAsync<JsonElement>(Api("/requests/discover"));
+        var row = rows.EnumerateArray().Single(r => r.GetProperty("id").GetString() == "trakt");
+
+        Assert.Equal("For you, from Trakt", row.GetProperty("title").GetString());
+        Assert.Equal(["Dune", "Arrival"], row.GetProperty("items").EnumerateArray().Select(i => i.GetProperty("title").GetString()));
+        Assert.Equal(dune.Id, row.GetProperty("items")[0].GetProperty("libraryItemId").GetGuid());
+        await server.DisposeAsync();
+        seerr.Dispose();
+    }
+
+    [Fact]
+    public async Task TheAdmin_SeesWhoIsConnected_NeverTheirTokens()
+    {
+        await SeedAsync(db => db.Profiles.Add(new Profile { Id = "sam", Name = "Sam" }));
+        await ConnectAsync("sam", slug: "sam");
+
+        var text = await Client().GetStringAsync(Api("/trakt/profiles"));
+        var profiles = JsonDocument.Parse(text).RootElement.EnumerateArray().ToList();
+
+        Assert.Equal("connected", profiles.Single(p => p.GetProperty("profileId").GetString() == "sam").GetProperty("state").GetString());
+        Assert.Equal("disconnected", profiles.Single(p => p.GetProperty("profileId").GetString() == Owner).GetProperty("state").GetString());
+        Assert.DoesNotContain("token", text, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

@@ -23,7 +23,7 @@ public sealed record TraktImportPreview(int TraktFilms, int TraktEpisodes, int I
 /// whatever changed on Trakt since (<c>/sync/last_activities</c> says what), and the watchlists both ways. Watched
 /// always wins and nothing is ever marked unwatched; see <see cref="TraktMerge"/>.
 /// </summary>
-public sealed partial class TraktSync(FlexarrDbContext db, TraktClient trakt, TraktAccounts accounts, WatchlistService watchlist, ILogger<TraktSync> logger)
+public sealed partial class TraktSync(FlexarrDbContext db, TraktClient trakt, TraktAccounts accounts, WatchlistService watchlist, TraktLists lists, ILogger<TraktSync> logger)
 {
     /// <summary>A Trakt resume point this close to Flexarr's own last play is that play's own pause coming back.</summary>
     private static readonly TimeSpan EchoWindow = TimeSpan.FromMinutes(2);
@@ -197,6 +197,11 @@ public sealed partial class TraktSync(FlexarrDbContext db, TraktClient trakt, Tr
             if (connection.WatchlistSyncedAt is null || activities.Watchlist?.UpdatedAt != before?.Watchlist?.UpdatedAt || localChange > connection.WatchlistSyncedAt)
             {
                 await SyncWatchlistAsync(connection, token, ct);
+            }
+
+            if (TraktLists.Due(connection, activities, before))
+            {
+                await lists.SyncAsync(connection, token, ct);
             }
 
             connection.LastActivities = JsonSerializer.Serialize(activities, TraktJson.Options);

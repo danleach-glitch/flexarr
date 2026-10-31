@@ -396,6 +396,10 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<int?>("TmdbCollectionId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("TraktListId")
+                        .HasMaxLength(160)
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("TEXT");
 
@@ -1212,6 +1216,9 @@ namespace Flexarr.Core.Data.Migrations
 
                     b.PrimitiveCollection<string>("ListIds")
                         .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("ListsSyncedAt")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("RefreshToken")

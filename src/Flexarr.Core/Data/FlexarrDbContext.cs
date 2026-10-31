@@ -152,6 +152,7 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
             e.HasOne<Profile>().WithMany().HasForeignKey(c => c.OwnerProfileId).OnDelete(DeleteBehavior.Cascade);
             e.HasMany(c => c.Items).WithOne().HasForeignKey(i => i.CollectionId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(c => c.TmdbCollectionId);
+            e.Property(c => c.TraktListId).HasMaxLength(160);
         });
 
         modelBuilder.Entity<Download>(e =>

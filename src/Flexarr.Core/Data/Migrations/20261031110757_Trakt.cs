@@ -11,6 +11,13 @@ namespace Flexarr.Core.Data.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.AddColumn<string>(
+                name: "TraktListId",
+                table: "Collections",
+                type: "TEXT",
+                maxLength: 160,
+                nullable: true);
+
             migrationBuilder.CreateTable(
                 name: "TraktConnections",
                 columns: table => new
@@ -30,7 +37,8 @@ namespace Flexarr.Core.Data.Migrations
                     HistoryCursor = table.Column<DateTime>(type: "TEXT", nullable: true),
                     WatchlistSyncedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
                     ImportedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    ListIds = table.Column<string>(type: "TEXT", nullable: false)
+                    ListIds = table.Column<string>(type: "TEXT", nullable: false),
+                    ListsSyncedAt = table.Column<DateTime>(type: "TEXT", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -143,6 +151,10 @@ namespace Flexarr.Core.Data.Migrations
 
             migrationBuilder.DropTable(
                 name: "TraktOutbox");
+
+            migrationBuilder.DropColumn(
+                name: "TraktListId",
+                table: "Collections");
         }
     }
 }

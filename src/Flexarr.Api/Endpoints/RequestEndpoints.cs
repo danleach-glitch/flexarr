@@ -130,7 +130,7 @@ public static class RequestEndpoints
         });
 
         group.MapGet("/discover", async (IOptionsMonitor<FlexarrOptions> options, SeerrClient seerr, FlexarrDbContext db, Watchlist.WatchlistService watchlist,
-            CurrentProfile current, CancellationToken ct) =>
+            Trakt.TraktRecommendations trakt, CurrentProfile current, CancellationToken ct) =>
         {
             if (options.CurrentValue.Seerr?.Instance is not { } instance)
             {
@@ -154,6 +154,12 @@ public static class RequestEndpoints
                 {
                     // One list failing shouldn't hide the others.
                 }
+            }
+
+            // A profile connected to Trakt gets its picks, after what's trending.
+            if (await trakt.RowAsync(current.Id, instance, library, wanted, hidden, ct) is { } picks)
+            {
+                rows.Insert(Math.Min(1, rows.Count), picks);
             }
 
             return Results.Ok(rows);
@@ -356,10 +362,10 @@ public static class RequestEndpoints
 
     private static string? NullIfEmpty(string? s) => string.IsNullOrWhiteSpace(s) ? null : s;
 
-    private static MediaKind KindOf(string mediaType) => mediaType == "movie" ? MediaKind.Movie : MediaKind.Series;
+    internal static MediaKind KindOf(string mediaType) => mediaType == "movie" ? MediaKind.Movie : MediaKind.Series;
 
     /// <param name="watchlist">The profile's watchlist ("movie:123", "tv:456"), to mark titles on it; null leaves that out.</param>
-    private static ExternalTitleDto ToDto(SeerrResult r, Dictionary<string, Guid> library, IReadOnlySet<string>? watchlist = null)
+    internal static ExternalTitleDto ToDto(SeerrResult r, Dictionary<string, Guid> library, IReadOnlySet<string>? watchlist = null)
     {
         var key = $"{r.MediaType}:{r.Id.ToString(CultureInfo.InvariantCulture)}";
         var inLibrary = library.TryGetValue(key, out var itemId);
@@ -381,7 +387,7 @@ public static class RequestEndpoints
         path is null ? null : ImageEndpoints.RemoteUrl($"https://image.tmdb.org/t/p/{size}{path}");
 
     /// <summary>"movie:123" / "tv:456" (TMDB ids) → library item.</summary>
-    private static async Task<Dictionary<string, Guid>> LibraryIndexAsync(FlexarrDbContext db, CancellationToken ct)
+    internal static async Task<Dictionary<string, Guid>> LibraryIndexAsync(FlexarrDbContext db, CancellationToken ct)
     {
         var map = new Dictionary<string, Guid>(StringComparer.Ordinal);
         foreach (var i in await db.MediaItems.Where(i => i.TmdbId != null && (i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series))

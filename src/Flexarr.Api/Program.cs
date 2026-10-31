@@ -191,6 +191,8 @@ builder.Services.AddHostedService<PlaybackEventPublisher>();
 builder.Services.AddHttpClient<TraktClient>(c => c.Timeout = TimeSpan.FromSeconds(30));
 builder.Services.AddScoped<TraktAccounts>();
 builder.Services.AddScoped<TraktSync>();
+builder.Services.AddScoped<TraktLists>();
+builder.Services.AddScoped<TraktRecommendations>();
 builder.Services.AddSingleton<TraktConnector>();
 builder.Services.AddSingleton<TraktImports>();
 builder.Services.AddHostedService<TraktScrobbler>();

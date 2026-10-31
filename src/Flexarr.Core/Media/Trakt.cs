@@ -55,8 +55,11 @@ public sealed class TraktConnection
     /// <summary>When the history import (preview, then confirm) finished; null until it has.</summary>
     public DateTime? ImportedAt { get; set; }
 
-    /// <summary>Trakt list ids (numbers, as text) shown as collections for this profile.</summary>
+    /// <summary>The Trakt lists shown as collections for this profile: "{user slug}/{list id}".</summary>
     public List<string> ListIds { get; set; } = [];
+
+    /// <summary>When the chosen lists were last brought across; they're looked at again after a few hours.</summary>
+    public DateTime? ListsSyncedAt { get; set; }
 }
 
 public enum TraktStatus

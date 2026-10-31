@@ -39,7 +39,15 @@ public sealed record SettingsDto(
     bool HasTmdbKey = false,
     BazarrConnectionDto? Bazarr = null,
     // Whether choosing the main profile asks for a PIN: since 0.57, whether it has a PIN of its own.
-    bool AskPinForMainProfile = false);
+    bool AskPinForMainProfile = false,
+    TraktAppDto? TraktApp = null);
+
+/// <summary>The admin's own Trakt app, used instead of Flexarr's; the secret is never sent back, only whether there is one.</summary>
+public sealed record TraktAppDto(string ClientId, bool HasSecret);
+
+/// <param name="ClientId">Empty to go back to Flexarr's own app.</param>
+/// <param name="ClientSecret">Omitted to keep the saved one, which is only kept for the same client id.</param>
+public sealed record TraktAppUpdate(string ClientId, string? ClientSecret);
 
 /// <summary>The Live TV source; the password is never sent back, only whether there is one.</summary>
 public sealed record LiveTvSettingsDto(string BaseUrl, string Username, bool HasPassword, int RewindMinutes, string? DvrFolder = null,
@@ -76,7 +84,8 @@ public sealed record SettingsUpdate(
     TmdbKeyUpdate? Tmdb = null,
     BazarrConnectionUpdate? Bazarr = null,
     // Ignored since 0.57: the main profile has a PIN of its own, set in Profiles like anyone's.
-    bool? AskPinForMainProfile = null);
+    bool? AskPinForMainProfile = null,
+    TraktAppUpdate? TraktApp = null);
 
 /// <param name="ApiKey">TMDB's API key or read access token; empty to remove it.</param>
 public sealed record TmdbKeyUpdate(string ApiKey);
@@ -189,6 +198,17 @@ public static class SettingsEndpoints
                     {
                         ["baseUrl"] = bazarr.BaseUrl.Trim(),
                         ["apiKey"] = string.IsNullOrWhiteSpace(bazarr.ApiKey) ? savedKey : bazarr.ApiKey.Trim(),
+                    };
+                }
+
+                if (update.TraktApp is { } app)
+                {
+                    var id = app.ClientId.Trim();
+                    var savedSecret = current.Trakt.ClientId == id ? current.Trakt.ClientSecret : "";
+                    config["trakt"] = id.Length == 0 ? null : new JsonObject
+                    {
+                        ["clientId"] = id,
+                        ["clientSecret"] = string.IsNullOrWhiteSpace(app.ClientSecret) ? savedSecret : app.ClientSecret.Trim(),
                     };
                 }
 
@@ -456,7 +476,8 @@ public static class SettingsEndpoints
         HostName(),
         o.Tmdb?.ApiKey is { Length: > 0 },
         o.Bazarr is { BaseUrl.Length: > 0 } b ? new BazarrConnectionDto(b.BaseUrl, b.ApiKey.Length > 0) : null,
-        mainHasOwnPin);
+        mainHasOwnPin,
+        o.Trakt.ClientId.Length > 0 ? new TraktAppDto(o.Trakt.ClientId, o.Trakt.ClientSecret.Length > 0) : null);
 
     /// <summary>
     /// This machine's name on the network ("Dans-Mac-Mini"), which the web app puts in place of localhost in links to

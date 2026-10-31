@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Flexarr.Core.Data.Migrations
 {
     [DbContext(typeof(FlexarrDbContext))]
-    [Migration("20261031105154_Trakt")]
+    [Migration("20261031110757_Trakt")]
     partial class Trakt
     {
         /// <inheritdoc />
@@ -398,6 +398,10 @@ namespace Flexarr.Core.Data.Migrations
 
                     b.Property<int?>("TmdbCollectionId")
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("TraktListId")
+                        .HasMaxLength(160)
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("TEXT");
@@ -1212,6 +1216,9 @@ namespace Flexarr.Core.Data.Migrations
 
                     b.PrimitiveCollection<string>("ListIds")
                         .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("ListsSyncedAt")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("RefreshToken")

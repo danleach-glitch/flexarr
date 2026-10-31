@@ -10,6 +10,9 @@ public enum CollectionKind
 
     /// <summary>A film series from Radarr (TMDB collections), kept in step automatically.</summary>
     Franchise,
+
+    /// <summary>One of a profile's Trakt lists (its own or one it liked), kept in step with Trakt; always personal.</summary>
+    TraktList,
 }
 
 /// <summary>
@@ -28,6 +31,9 @@ public sealed class Collection
 
     /// <summary>For smart collections: their rules, as JSON (the API owns the shape).</summary>
     public string? RulesJson { get; set; }
+
+    /// <summary>For Trakt lists: "{user slug}/{list id}", as <see cref="TraktConnection.ListIds"/> holds it.</summary>
+    public string? TraktListId { get; set; }
 
     /// <summary>For franchises: TMDB's collection id, as Radarr reports it.</summary>
     public int? TmdbCollectionId { get; set; }
