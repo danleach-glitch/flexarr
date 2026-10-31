@@ -2,7 +2,7 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
-## Unreleased
+## 0.57.0 · 31 October 2026
 
 ### Trakt
 - Connect a profile to your **Trakt** account in **Settings › Trakt**, on the web, iPhone, iPad, Android and the Apple TV: enter the code Flexarr shows at trakt.tv/activate (or scan the QR code on a TV). Each profile connects its own account. Kids profiles don't have Trakt.
