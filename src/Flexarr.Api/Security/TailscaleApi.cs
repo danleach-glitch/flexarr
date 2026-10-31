@@ -39,7 +39,13 @@ public sealed partial class TailscaleApi(IHttpClientFactory clients, IOptionsMon
 
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull };
 
+    /// <summary>What the client may do, as Tailscale's tokens list it: making keys and reading the policy, nothing else.</summary>
+    private static readonly HashSet<string> AllowedScopes = new(StringComparer.OrdinalIgnoreCase) { "auth_keys", "auth_keys:read", "policy_file:read" };
+
     private readonly SemaphoreSlim _tokenLock = new(1, 1);
+
+    /// <summary>The scopes of the last token Tailscale gave (null when it didn't say).</summary>
+    private string? _scope;
     private (string ClientId, string Token, DateTimeOffset Until)? _token;
 
     private RemoteGuestOptions Settings => options.CurrentValue.RemoteGuests;
@@ -182,7 +188,12 @@ public sealed partial class TailscaleApi(IHttpClientFactory clients, IOptionsMon
         try
         {
             await GuardAsync(() => TokenAsync(ct, forceNew: true), ct);
-            return null;
+            // Tailscale says what the client may do. Anything beyond making guest keys and reading the policy is more
+            // than Flexarr should hold: a leaked secret could then change the policy or the owner's devices.
+            var extra = (_scope ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries).Where(s => !AllowedScopes.Contains(s)).ToList();
+            return extra.Count == 0
+                ? null
+                : $"This OAuth client can do more than Flexarr needs ({string.Join(", ", extra)}). Make one with only Auth Keys (write) and Policy File (read).";
         }
         catch (TailscaleApiException ex)
         {
@@ -309,6 +320,7 @@ public sealed partial class TailscaleApi(IHttpClientFactory clients, IOptionsMon
             // Tokens last an hour; renew a little early.
             var lifetime = TimeSpan.FromSeconds(Math.Max(60, (token.ExpiresIn ?? 3600) - 120));
             _token = (settings.ClientId, token.AccessToken, now + lifetime);
+            _scope = token.Scope;
             return token.AccessToken;
         }
         finally
@@ -317,7 +329,8 @@ public sealed partial class TailscaleApi(IHttpClientFactory clients, IOptionsMon
         }
     }
 
-    private sealed record TokenResponse([property: JsonPropertyName("access_token")] string? AccessToken, [property: JsonPropertyName("expires_in")] int? ExpiresIn);
+    private sealed record TokenResponse([property: JsonPropertyName("access_token")] string? AccessToken, [property: JsonPropertyName("expires_in")] int? ExpiresIn,
+        [property: JsonPropertyName("scope")] string? Scope = null);
 
     private sealed record CreatedKey(string? Id, string? Key, DateTimeOffset? Expires);
 

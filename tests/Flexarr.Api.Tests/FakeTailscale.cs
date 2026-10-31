@@ -20,6 +20,9 @@ public sealed class FakeTailscale : HttpMessageHandler
 
     public bool AcceptClient { get; set; } = true;
 
+    /// <summary>The scopes the token says the client has.</summary>
+    public string Scope { get; set; } = "auth_keys policy_file:read";
+
     public List<string> DeletedKeys { get; } = [];
 
     /// <summary>Set to make every call go wrong the way a bad network does: "timeout", or "html" (a captive portal's page).</summary>
@@ -46,7 +49,7 @@ public sealed class FakeTailscale : HttpMessageHandler
         if (path == "/api/v2/oauth/token")
         {
             return AcceptClient
-                ? Json("""{"access_token":"tskey-api-test","token_type":"Bearer","expires_in":3600,"scope":"auth_keys policy_file:read"}""")
+                ? Json($$"""{"access_token":"tskey-api-test","token_type":"Bearer","expires_in":3600,"scope":"{{Scope}}"}""")
                 : new HttpResponseMessage(HttpStatusCode.Unauthorized);
         }
 
