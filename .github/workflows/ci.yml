@@ -30,6 +30,7 @@ jobs:
       guide: ${{ steps.diff.outputs.guide }}
       apps: ${{ steps.diff.outputs.apps }}
       relay: ${{ steps.diff.outputs.relay }}
+      tunnel: ${{ steps.diff.outputs.tunnel }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -47,12 +48,14 @@ jobs:
           # The server embeds the changelog, and its version test reads the web and Apple apps' versions.
           echo "server=$(has '^(src/|tests/|Directory\.|global\.json|dotnet-tools\.json|Flexarr\.slnx|\.editorconfig|CHANGELOG\.md|frontend/package\.json|clients/apple/project\.yml)')" >>"$GITHUB_OUTPUT"
           echo "web=$(has '^(frontend/|\.nvmrc)')" >>"$GITHUB_OUTPUT"
-          echo "apple=$(has '^clients/apple/')" >>"$GITHUB_OUTPUT"
+          # The apps carry the tunnel (clients/tunnel), so a change to it builds them too.
+          echo "apple=$(has '^clients/(apple|tunnel)/')" >>"$GITHUB_OUTPUT"
           # The Android app's version is the server's, and its tests read FlexarrKit's fixtures.
-          echo "android=$(has '^(clients/android/|Directory\.Build\.props|clients/apple/FlexarrKit/Tests/FlexarrKitTests/Fixtures/)')" >>"$GITHUB_OUTPUT"
+          echo "android=$(has '^(clients/android/|clients/tunnel/|Directory\.Build\.props|clients/apple/FlexarrKit/Tests/FlexarrKitTests/Fixtures/)')" >>"$GITHUB_OUTPUT"
           echo "guide=$(has '^(docs/guide/|scripts/guide/|site/guide/)')" >>"$GITHUB_OUTPUT"
           echo "apps=$(has '^(site/apps\.|scripts/apps/)')" >>"$GITHUB_OUTPUT"
           echo "relay=$(has '^relay/')" >>"$GITHUB_OUTPUT"
+          echo "tunnel=$(has '^clients/tunnel/')" >>"$GITHUB_OUTPUT"
           cat "$GITHUB_OUTPUT"
 
   server:
@@ -134,6 +137,24 @@ jobs:
           node-version-file: .nvmrc
       - run: node --test relay/test/*.test.js
 
+  # The Tailscale tunnel the apps carry for family guests (clients/tunnel, Go).
+  tunnel:
+    name: Tunnel (Go)
+    needs: changes
+    if: needs.changes.outputs.tunnel == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: clients/tunnel
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: clients/tunnel/go.mod
+          cache-dependency-path: clients/tunnel/go.sum
+      - run: go vet ./...
+      - run: go test ./...
+
   apple:
     name: Apple (${{ matrix.name }})
     needs: changes
@@ -168,6 +189,21 @@ jobs:
           path: clients/apple/build/DerivedData
           key: apple-${{ matrix.scheme }}-${{ hashFiles('clients/apple/project.yml', 'clients/apple/FlexarrKit/Package.swift') }}
           restore-keys: apple-${{ matrix.scheme }}-
+      # The tunnel's xcframework, built once per change to its sources.
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        if: matrix.scheme != ''
+        with:
+          go-version-file: clients/tunnel/go.mod
+          cache-dependency-path: clients/tunnel/go.sum
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: matrix.scheme != ''
+        id: tunnel
+        with:
+          path: clients/tunnel/build/FlexarrTunnel.xcframework
+          key: tunnel-apple-${{ matrix.scheme }}-${{ hashFiles('clients/tunnel/**/*.go', 'clients/tunnel/go.sum', 'clients/tunnel/*.sh') }}
+      - name: Build the tunnel
+        if: matrix.scheme != '' && steps.tunnel.outputs.cache-hit != 'true'
+        run: ../tunnel/build-apple.sh ${{ matrix.scheme == 'FlexarrTV' && 'tvos' || 'ios' }}
       - name: Build ${{ matrix.name }} app
         if: matrix.scheme != ''
         run: |
@@ -193,6 +229,19 @@ jobs:
           distribution: temurin
           java-version: 21
       - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+      # The tunnel's AAR, built once per change to its sources.
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: clients/tunnel/go.mod
+          cache-dependency-path: clients/tunnel/go.sum
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: tunnel
+        with:
+          path: clients/tunnel/build/flexarr-tunnel.aar
+          key: tunnel-android-${{ hashFiles('clients/tunnel/**/*.go', 'clients/tunnel/go.sum', 'clients/tunnel/*.sh') }}
+      - name: Build the tunnel
+        if: steps.tunnel.outputs.cache-hit != 'true'
+        run: ../tunnel/build-android.sh
       - run: ./gradlew :core:test :app:testDebugUnitTest :app:assembleDebug
       # The release build as Google Play gets it, minified but unsigned (the upload key isn't here) and with no Sentry
       # upload (no token), and lint on it: errors not in app/lint-baseline.xml fail.
@@ -202,7 +251,7 @@ jobs:
   # skipped matrix job never reports under its real name, so requiring them directly would block every merge.
   passed:
     name: CI passed
-    needs: [changes, server, web, guide, apps, relay, apple, android]
+    needs: [changes, server, web, guide, apps, relay, tunnel, apple, android]
     if: always()
     runs-on: ubuntu-latest
     steps:
