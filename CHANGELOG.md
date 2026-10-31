@@ -57,6 +57,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On Android, the player's buttons light up as you reach them with a keyboard's arrow keys or Tab, so you can see where you are.
 - Films whose sound starts a little after the picture, with a silent opening, now play on Apple TV and iPhone with **Play files directly** off. Before, the player refused them straight away. Their Dolby Digital Plus is converted for these films only, so they play without Atmos.
 
+### Film and show pages
+- On the web, Play, Trailer, Watched, Watchlist and **⋯** sit on one row, rather than wrapping onto a second.
+
 ### Connecting devices
 - When a new Apple TV, iPhone or Android phone asks to connect, any iPhone or Android phone on the main profile asks "Connect Living room?", with what kind of device it is and its code. Check the code matches the one on the device's screen and tap **Allow**, with no need to go to a computer. It shows while Flexarr is open, and as a notification when it isn't, on phones with notifications turned on. The notification has **Allow** and **Don't allow** buttons of its own (the phone asks to be unlocked first); on Android they show on the lock screen too, and on iPhone press and hold the notification. The web app asks the same when it's open on the main profile, in a banner across the top of the page. While settings are locked, **Allow** asks for the admin PIN, then connects it, the same way on iPhone, Android and the web.
 - Settings on the iPhone and Android apps (right on the Settings page), and **Settings › Access › Connect a device** on the web, list the devices waiting to connect, each with **Allow** and **Don't allow**.
@@ -66,6 +69,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Music
 - On Apple TV, the now-playing bar along the bottom goes away a few seconds after the music is paused or finishes, and comes back when you press play. Now Playing has a new **Stop** button, which ends the music and takes the bar and the Now Playing tab away until you play something else.
+- On the web, **Made for you** mixes are cards the size of albums again, not one blurry mix filling the width of the page.
 
 ### Podcasts
 - On the iPhone and Android apps, a downloaded episode is deleted as soon as you've heard it to the end, rather than a day later, and leaves Downloads and Home's new episodes there and then, without a refresh. Downloads you made yourself go too, not only ones the app fetched by itself. With no connection, it goes once the phone is back online and has told the server.

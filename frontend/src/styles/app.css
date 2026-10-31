@@ -850,7 +850,8 @@ kbd {
 
 /* Tracks are album covers: square, the same width as posters. */
 .row-tracks .row-track,
-.row-playlists .row-track {
+.row-playlists .row-track,
+.row-mixes .row-track {
   grid-auto-columns: clamp(128px, 12vw, 196px);
 }
 
