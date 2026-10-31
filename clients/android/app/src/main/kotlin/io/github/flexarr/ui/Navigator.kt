@@ -36,8 +36,15 @@ class Navigator(private val nav: NavHostController, private val model: AppModel,
         else -> openItem(item.id)
     }
 
-    /** A library from the Libraries tab: music has its own screen (artists, new albums, playlists), the rest a poster grid. */
-    fun openLibrary(library: Library) = if (library.type == LibraryType.Music) nav.navigate("music/${library.id}") else openLibrary(library.id)
+    /**
+     * A library from the Libraries tab: music has its own screen (artists, new albums, playlists), the rest a poster
+     * grid. A type this app doesn't know opens nothing (it isn't listed either).
+     */
+    fun openLibrary(library: Library) = when (library.type) {
+        LibraryType.Music -> nav.navigate("music/${library.id}")
+        LibraryType.Unknown -> Unit
+        else -> openLibrary(library.id)
+    }
 
     fun openPlaylist(id: String) = nav.navigate("playlist/$id")
 

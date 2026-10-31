@@ -165,6 +165,7 @@ data class EmptyHomeMessage(val title: String, val body: String, val folders: Li
             LibraryType.Music -> "music"
             LibraryType.Podcasts -> "podcasts"
             LibraryType.HomeVideos -> "home videos"
+            LibraryType.Audiobooks -> "audiobooks"
             LibraryType.Unknown -> "titles"
         }
 

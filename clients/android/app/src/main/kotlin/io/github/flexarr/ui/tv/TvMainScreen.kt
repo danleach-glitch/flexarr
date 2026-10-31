@@ -37,6 +37,7 @@ import io.github.flexarr.ui.components.Load
 import io.github.flexarr.ui.components.rememberLoader
 import io.github.flexarr.ui.library.LibraryMenuEntry
 import io.github.flexarr.ui.library.icon
+import io.github.flexarr.ui.library.onTv
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Home
@@ -134,7 +135,7 @@ fun TvMainScreen(model: AppModel) {
     // library has no tab of its own once Live TV has one (Live TV › Recordings).
     val libraryTabs = LibraryMenuEntry.ordered(model, libraryList).mapNotNull { entry ->
         when (entry) {
-            is LibraryMenuEntry.Shelf -> entry.library.takeIf { !(model.hasLiveTv && it.isRecordings) }?.let(TvTab::library)
+            is LibraryMenuEntry.Shelf -> entry.library.takeIf { it.onTv && !(model.hasLiveTv && it.isRecordings) }?.let(TvTab::library)
             LibraryMenuEntry.LiveTv -> TvTab.LiveTv
             is LibraryMenuEntry.Podcasts -> null
         }
@@ -312,7 +313,8 @@ fun TvMainScreen(model: AppModel) {
                     composable("tab/library/{id}") { entry ->
                         val id = entry.arguments?.getString("id")
                         val route = "tab/library/$id"
-                        when (val library = libraryList.firstOrNull { it.id == id }) {
+                        // A type the TV doesn't show (one it doesn't know, or audiobooks) is never a film grid.
+                        when (val library = libraryList.firstOrNull { it.id == id && it.onTv }) {
                             null -> MissingLibrary()
                             // Music has a screen of its own: artists, new albums and playlists.
                             else -> if (library.type == LibraryType.Music) {
@@ -338,7 +340,7 @@ fun TvMainScreen(model: AppModel) {
                         val id = entry.arguments?.getString("id")
                         val sort = LibrarySort.entries.firstOrNull { it.raw == entry.arguments?.getString("sort") } ?: LibrarySort.Title
                         val genre = entry.arguments?.getString("genre")?.takeIf { it.isNotEmpty() }
-                        libraryList.firstOrNull { it.id == id }?.let { TvLibraryGrid(model, it, initialSort = sort, initialGenre = genre) } ?: MissingLibrary()
+                        libraryList.firstOrNull { it.id == id && it.onTv }?.let { TvLibraryGrid(model, it, initialSort = sort, initialGenre = genre) } ?: MissingLibrary()
                     }
                 }
             }

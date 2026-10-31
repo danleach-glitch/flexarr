@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.SettingsInputAntenna
 import androidx.compose.material.icons.filled.Movie
@@ -150,8 +151,14 @@ private fun LibraryRow(name: String, icon: ImageVector, onClick: () -> Unit) {
     }
 }
 
-/** The libraries the Libraries tab lists. Podcasts are one place of their own (see [LibraryMenuEntry.Podcasts]). */
-internal val Library.inMenu get() = type != LibraryType.Podcasts
+/**
+ * The libraries the Libraries tab lists. Podcasts are one place of their own (see [LibraryMenuEntry.Podcasts]), and a
+ * library of a type this app doesn't know (from a newer server) isn't listed: it can't be shown as anything.
+ */
+internal val Library.inMenu get() = type != LibraryType.Podcasts && type != LibraryType.Unknown
+
+/** The libraries Android TV lists: audiobooks stay on the phone and the web for now. */
+internal val Library.onTv get() = inMenu && type != LibraryType.Audiobooks
 
 /** A place in the Libraries tab: a library, Podcasts or Live TV, in the order the profile chose. As on iPhone. */
 internal sealed interface LibraryMenuEntry {
@@ -198,10 +205,14 @@ internal sealed interface LibraryMenuEntry {
 
 internal val Library.icon
     get() = when (type) {
+        LibraryType.Movies -> Icons.Filled.Movie
         LibraryType.TvShows -> Icons.Filled.Tv
         LibraryType.Music -> Icons.Filled.MusicNote
+        LibraryType.Podcasts -> Icons.Filled.Mic
         LibraryType.HomeVideos -> Icons.Filled.Folder
-        else -> Icons.Filled.Movie
+        LibraryType.Audiobooks -> Icons.Filled.Headphones
+        // Never listed (see [inMenu]).
+        LibraryType.Unknown -> Icons.Filled.Folder
     }
 
 private const val PAGE_SIZE = 60

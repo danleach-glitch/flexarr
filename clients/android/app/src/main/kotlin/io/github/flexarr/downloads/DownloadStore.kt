@@ -191,7 +191,8 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
     /** This profile's downloads, newest first. */
     val downloads: List<LocalDownload> get() = all.filter { it.profileId == profileId }.sortedByDescending { it.createdAtMillis }
 
-    val films: List<LocalDownload> get() = downloads.filter { it.item.kind != MediaKind.Episode && !it.isPodcastEpisode && it.item.kind != MediaKind.Track }
+    /** Films only: a kind this app doesn't know (from a newer server) isn't filed under them. */
+    val films: List<LocalDownload> get() = downloads.filter { it.item.kind == MediaKind.Movie }
 
     /** Episodes by show, in episode order; the shows by name. */
     val shows: List<Pair<String, List<LocalDownload>>>
