@@ -147,7 +147,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                 released = true;
             }
 
-            var onDisk = MediaFileEnumerator.Enumerate(root, target, audio: library.Type is LibraryType.Music or LibraryType.Audiobooks, everything: library.Type == LibraryType.HomeVideos)
+            var onDisk = MediaFileEnumerator.Enumerate(root, target, audio: library.Type == LibraryType.Music, books: library.Type == LibraryType.Audiobooks, everything: library.Type == LibraryType.HomeVideos)
                 .Where(f => PathComparison.IsUnder(f.FullName, root))
                 .ToList();
             var seen = new HashSet<string>(StringComparer.Ordinal);
@@ -189,6 +189,12 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                 var probes = new ConcurrentDictionary<string, (ProbeResult? Result, string? Error)>(StringComparer.Ordinal);
                 await Parallel.ForEachAsync(batch, new ParallelOptions { MaxDegreeOfParallelism = ProbeConcurrency, CancellationToken = cancellationToken }, async (w, ct) =>
                 {
+                    if (MediaFileEnumerator.ProtectedBookExtensions.Contains(w.File.Extension))
+                    {
+                        probes[w.File.FullName] = (null, MediaFileEnumerator.ProtectedBookError);
+                        return;
+                    }
+
                     try
                     {
                         probes[w.File.FullName] = (await probe.ProbeAsync(w.File.FullName, ct).ConfigureAwait(false), null);
@@ -209,7 +215,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                 foreach (var (file, match) in batch)
                 {
                     var (result, error) = probes[file.FullName];
-                    if (error is not null)
+                    if (error is not null && error != MediaFileEnumerator.ProtectedBookError)
                     {
                         failures++;
                         LogProbeFailed(PathComparison.Printable(file.FullName), PathComparison.Printable(error));
@@ -293,9 +299,14 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
             await NumberHomeVideosAsync(library.Id, cancellationToken).ConfigureAwait(false);
         }
 
-        if (library.Type == LibraryType.Audiobooks && state.ChangedBooks.Count > 0)
+        if (library.Type == LibraryType.Audiobooks)
         {
-            await new BookAssembler(db, probe, logger).AssembleAsync(state.ChangedBooks, cancellationToken).ConfigureAwait(false);
+            if (state.ChangedBooks.Count > 0)
+            {
+                await new BookAssembler(db, probe, logger).AssembleAsync(state.ChangedBooks, cancellationToken).ConfigureAwait(false);
+            }
+
+            await BookCarryOver.CarryOverAsync(db, library.Id, cancellationToken).ConfigureAwait(false);
         }
 
         // Ids from folder names are known now; those from Radarr/Sonarr after the metadata refresh, which does this again.
@@ -788,7 +799,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
         {
             if (!_audioFiles.TryGetValue(directory, out var files))
             {
-                files = MediaFileEnumerator.Enumerate(directory, directory, audio: true, everything: true)
+                files = MediaFileEnumerator.Enumerate(directory, directory, everything: true, books: true)
                     .Where(f => Path.GetDirectoryName(f.FullName) == directory).Select(f => f.Name).ToList();
                 _audioFiles[directory] = files;
             }

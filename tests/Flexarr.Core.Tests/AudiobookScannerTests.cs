@@ -279,6 +279,76 @@ public sealed class AudiobookScannerTests : IAsyncLifetime
         Assert.Equal("Renamed by hand", (await _db.MediaChapters.SingleAsync()).Title);
     }
 
+    [Fact]
+    public async Task AReEncodeInTheSameFolder_IsTheSameBook()
+    {
+        Touch("A/Book/01.mp3", "A/Book/02.mp3");
+        await ScanAsync();
+        var id = (await _db.MediaItems.SingleAsync()).Id;
+        File.Delete(Path.Combine(Books, "A/Book/01.mp3"));
+        File.Delete(Path.Combine(Books, "A/Book/02.mp3"));
+        Touch("A/Book/Book.m4b");
+
+        await ScanAsync();
+
+        var book = await _db.MediaItems.Include(i => i.Files).SingleAsync();
+        Assert.Equal(id, book.Id);
+        Assert.Null(book.MissingSince);
+        Assert.Equal(0, book.Files.Single(f => f.MissingSince == null).BookOrder);
+    }
+
+    [Fact]
+    public async Task ARenamedFolder_KeepsProgressBookmarksAndSpeed()
+    {
+        Touch("Andy Weir/Project Hail Mary/a.m4b");
+        _probe.Tags["a.m4b"] = new() { ["album"] = "Project Hail Mary", ["artist"] = "Andy Weir", ["asin"] = "B08G9PRS1K" };
+        await ScanAsync();
+        var old = await _db.MediaItems.SingleAsync();
+        _db.PlaybackStates.Add(new PlaybackState { MediaItemId = old.Id, PositionSeconds = 321 });
+        _db.Bookmarks.Add(new Bookmark { MediaItemId = old.Id, PositionSeconds = 100, Note = "the beetles" });
+        _db.ShowPlaybackSpeeds.Add(new ShowPlaybackSpeed { SeriesId = old.Id, Speed = 1.35 });
+        await _db.SaveChangesAsync();
+        Directory.Move(Path.Combine(Books, "Andy Weir/Project Hail Mary"), Path.Combine(Books, "Andy Weir/Project Hail Mary (2021)"));
+
+        await ScanAsync();
+
+        var book = await _db.MediaItems.SingleAsync(i => i.MissingSince == null);
+        Assert.NotEqual(old.Id, book.Id);
+        Assert.Equal(321, (await _db.PlaybackStates.SingleAsync(p => p.MediaItemId == book.Id)).PositionSeconds);
+        Assert.Equal("the beetles", (await _db.Bookmarks.SingleAsync()).Note);
+        Assert.Equal(book.Id, (await _db.Bookmarks.AsNoTracking().SingleAsync()).MediaItemId);
+        Assert.Equal(1.35, (await _db.ShowPlaybackSpeeds.SingleAsync(s => s.SeriesId == book.Id)).Speed);
+    }
+
+    [Fact]
+    public async Task ARenamedFolderWithoutIds_IsMatchedByTitleAndAuthor()
+    {
+        Touch("Kurt Vonnegut/Cat's Cradle/a.mp3");
+        await ScanAsync();
+        var old = await _db.MediaItems.SingleAsync();
+        _db.PlaybackStates.Add(new PlaybackState { MediaItemId = old.Id, PositionSeconds = 42 });
+        await _db.SaveChangesAsync();
+        Directory.Move(Path.Combine(Books, "Kurt Vonnegut/Cat's Cradle"), Path.Combine(Books, "Kurt Vonnegut/Cats Cradle"));
+
+        await ScanAsync();
+
+        var book = await _db.MediaItems.SingleAsync(i => i.MissingSince == null);
+        Assert.Equal(42, (await _db.PlaybackStates.SingleAsync(p => p.MediaItemId == book.Id)).PositionSeconds);
+    }
+
+    [Fact]
+    public async Task ProtectedAudibleFiles_AreListedAsUnplayable_AndNeverProbed()
+    {
+        Touch("A/Book/Book.aax");
+
+        await ScanAsync();
+
+        var file = await _db.MediaFiles.SingleAsync();
+        Assert.Equal(MediaFileEnumerator.ProtectedBookError, file.ProbeError);
+        Assert.Null(file.BookOrder);
+        Assert.Equal(0, _probe.BookCalls);
+    }
+
     private async Task<List<string>> NarratorsAsync(Guid bookId) =>
         await _db.Credits.Where(c => c.MediaItemId == bookId && c.Role == CreditRole.Narrator).OrderBy(c => c.Order).Select(c => c.Person!.Name).ToListAsync();
 

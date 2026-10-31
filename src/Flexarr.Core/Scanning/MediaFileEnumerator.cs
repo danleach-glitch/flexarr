@@ -15,6 +15,16 @@ public static partial class MediaFileEnumerator
         ".mp3", ".flac", ".m4a", ".m4b", ".aac", ".ogg", ".opus", ".wav", ".aiff", ".aif", ".wma", ".alac", ".ape", ".wv",
     };
 
+    /// <summary>
+    /// Audible's DRM-protected books. Found so library health can say why they don't play, never probed or played.
+    /// </summary>
+    public static readonly IReadOnlySet<string> ProtectedBookExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".aax", ".aaxc" };
+
+    /// <summary>What library health says about a protected book file.</summary>
+    public const string ProtectedBookError = "Protected by Audible's DRM, so it can't be played";
+
+    private static readonly IReadOnlySet<string> BookExtensions = new HashSet<string>(AudioExtensions.Concat(ProtectedBookExtensions), StringComparer.OrdinalIgnoreCase);
+
     private static readonly EnumerationOptions Options = new()
     {
         RecurseSubdirectories = false,
@@ -29,10 +39,11 @@ public static partial class MediaFileEnumerator
     /// Keep samples, trailers and extras folders too: in home videos, "Trailer.mp4" or a folder called Bonus is just
     /// what someone called their own video.
     /// </param>
-    public static IEnumerable<FileInfo> Enumerate(string root, string? scope = null, bool audio = false, bool everything = false)
+    /// <param name="books">Audiobooks: audio files and Audible's protected ones.</param>
+    public static IEnumerable<FileInfo> Enumerate(string root, string? scope = null, bool audio = false, bool everything = false, bool books = false)
     {
         scope ??= root;
-        var extensions = audio ? AudioExtensions : VideoExtensions;
+        var extensions = books ? BookExtensions : audio ? AudioExtensions : VideoExtensions;
         if (File.Exists(scope))
         {
             return IsMedia(scope, extensions) ? [new FileInfo(scope)] : [];

@@ -50,7 +50,13 @@ public sealed partial class BookAssembler(FlexarrDbContext db, IMediaProbe probe
 
     private async Task AssembleAsync(MediaItem book, string root, CancellationToken ct)
     {
-        var files = book.Files.Where(f => f.MissingSince is null).ToList();
+        // Protected files are listed in library health, but have no place on the timeline.
+        foreach (var file in book.Files.Where(f => Scanning.MediaFileEnumerator.ProtectedBookExtensions.Contains(Path.GetExtension(f.Path))))
+        {
+            file.BookOrder = null;
+        }
+
+        var files = book.Files.Where(f => f.MissingSince is null && !Scanning.MediaFileEnumerator.ProtectedBookExtensions.Contains(Path.GetExtension(f.Path))).ToList();
         if (files.Count == 0)
         {
             return; // Held as missing by the scanner; its order and chapters stay as they were.
