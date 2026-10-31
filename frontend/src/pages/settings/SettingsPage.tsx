@@ -75,7 +75,7 @@ export function SettingsPage() {
   const name = current?.name
   const destinations = useApi(getRequestDestinations, [])
   const ownPages = destinations.data && hasRequestChoice(destinations.data, current?.hiddenLibraryIds ?? []) ? [...profilePages, requestsPage] : profilePages
-  // Settings for the server are the main profile's, and changing them takes its PIN (given lately on this browser):
+  // Settings for the server are the main profile's, and changing them takes the admin PIN (given lately on this browser):
   // locked, the server's pages ask for it. Another profile chosen here has only its own pages. Older servers have no
   // /me: everything, as before.
   const isAdmin = me.data?.isAdmin ?? true

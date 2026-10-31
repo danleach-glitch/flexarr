@@ -1287,8 +1287,8 @@ export interface Profile {
   /** The order of the libraries in the menu on every device: library ids, and "live-tv". Absent from servers before 0.54. */
   libraryOrder?: string[]
   /**
-   * Choosing it here asks for its PIN. The main profile's guards the server's settings, so on a browser the owner signed
-   * in it's only asked for if the owner wants it to be. Absent from servers before 0.56, where `hasPin` says.
+   * Choosing it here asks for a PIN: its own, or for a main profile without one, the admin PIN (asked only of a guest,
+   * not a browser the owner signed in). Absent from servers before 0.56, where `hasPin` says.
    */
   asksPin?: boolean
   /** Titles it adds to its watchlist that aren't in the library are requested. Absent from servers before 0.56. */
@@ -1325,8 +1325,8 @@ export const uploadProfileImage = (id: string, image: Blob) => request<Profile>(
 export const removeProfileImage = (id: string) => request<Profile>('DELETE', `/profiles/${id}/image`)
 
 /**
- * Switches to a profile (checking its PIN) and remembers it on this device. Leaving a kids profile takes the main
- * profile's PIN as `parentPin`; without it the server says so (an ApiError whose problem has `parentPin`).
+ * Switches to a profile (checking its PIN) and remembers it on this device. Leaving a kids profile takes the admin
+ * PIN as `parentPin`; without it the server says so (an ApiError whose problem has `parentPin`).
  */
 export async function selectProfile(id: string, pin?: string, parentPin?: string) {
   const result = await request<{ token: string; profile: Profile }>('POST', `/profiles/${id}/select`, { pin, parentPin })
@@ -1388,7 +1388,7 @@ export interface Me {
   zone: NetworkZone
   isAdmin: boolean
   tailscaleLogin: string | null
-  /** The main profile is chosen, but managing the server takes its PIN first (unlockAdmin). Absent before 0.56. */
+  /** The main profile is chosen, but managing the server takes the admin PIN first (unlockAdmin). Absent before 0.56. */
   canUnlock?: boolean
   /** There's no admin PIN yet, so the server's settings can't be unlocked until one is chosen (setAdminPin). */
   adminPinMissing?: boolean

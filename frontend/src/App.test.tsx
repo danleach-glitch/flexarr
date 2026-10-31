@@ -602,7 +602,7 @@ describe('Settings', () => {
     expect(screen.getByRole('link', { name: 'Access' })).toHaveClass('active')
   })
 
-  it('a main profile without a PIN is asked for one before anything in the server’s settings', async () => {
+  it('a server without an admin PIN asks for one before anything in its settings', async () => {
     let sent: unknown
     mockApi({
       '/libraries': [],
@@ -616,7 +616,7 @@ describe('Settings', () => {
     vi.stubGlobal('location', { ...window.location, reload })
 
     renderAt('/settings/overview')
-    expect(await screen.findByRole('heading', { name: 'Give the main profile a PIN' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Choose an admin PIN' })).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('PIN'), { target: { value: '2468' } })
     fireEvent.change(screen.getByLabelText('Confirm PIN'), { target: { value: '2468' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save PIN' }))

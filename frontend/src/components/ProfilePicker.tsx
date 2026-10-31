@@ -197,7 +197,8 @@ export function ProfilePicker({
           }}
         >
           <Avatar profile={parent && main ? main : asking} size={88} />
-          <h1>{parent ? 'Enter the admin PIN' : `Enter ${asking.name}’s PIN`}</h1>
+          {/* The main profile with no PIN of its own asks a guest for the admin PIN. */}
+          <h1>{parent || (asking.isMain && !asking.hasPin) ? 'Enter the admin PIN' : `Enter ${asking.name}’s PIN`}</h1>
           <input
             ref={field}
             className="pin-display"

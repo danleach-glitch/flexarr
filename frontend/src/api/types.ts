@@ -524,7 +524,7 @@ export interface Settings {
   hostName?: string | null
   /** Bazarr, for finding subtitles; the API key is never sent back. */
   bazarr?: { baseUrl: string; hasApiKey: boolean } | null
-  /** Choosing the main profile asks for its PIN on every browser and device, not only managing the server. */
+  /** Whether the main profile has a PIN of its own (from 0.57; saving it does nothing there). */
   askPinForMainProfile?: boolean
 }
 
