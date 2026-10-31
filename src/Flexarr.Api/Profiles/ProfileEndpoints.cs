@@ -218,6 +218,12 @@ public static partial class ProfileEndpoints
         group.MapPost("/{id}/forgot-pin", async (string id, ForgotPinRequest request, HttpContext http, FlexarrDbContext db, CurrentProfile current, PinGuard guard,
             CancellationToken ct) =>
         {
+            // A family guest has no say over anyone's PIN, and no tries at the admin PIN to spend.
+            if (current.IsGuest)
+            {
+                return Results.Problem("Guests can't change PINs.", statusCode: 403);
+            }
+
             if (await db.Profiles.FindAsync([id], ct) is not { } profile)
             {
                 return Results.NotFound();

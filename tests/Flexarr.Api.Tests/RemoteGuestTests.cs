@@ -273,6 +273,7 @@ public class RemoteGuestTests(RemoteGuestFactory factory) : IClassFixture<Remote
         Assert.Equal(HttpStatusCode.Forbidden, (await guest.PostAsJsonAsync($"/api/v1/profiles/{PlaybackState.DefaultUser}/select", new { })).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await guest.PostAsJsonAsync("/api/v1/profiles/kids-lock", new { })).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await guest.GetAsync("/api/v1/remote/guests/invites")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await guest.PostAsJsonAsync($"/api/v1/profiles/{PlaybackState.DefaultUser}/forgot-pin", new { adminPin = "1234" })).StatusCode);
     }
 
     [Fact]
