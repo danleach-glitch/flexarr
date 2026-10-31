@@ -22,7 +22,8 @@ public sealed class PlaybackService(
     RemuxIndex remuxIndex,
     CurrentProfile profile,
     IOptionsMonitor<FlexarrOptions> options,
-    Security.GuestLinks guestLinks)
+    Security.GuestLinks guestLinks,
+    Authentication.SignIns? signIns = null)
 {
     /// <summary>Within this distance of the end (or once the credits start) an item counts as watched.</summary>
     internal const double WatchedThreshold = 0.92;
@@ -339,7 +340,8 @@ public sealed class PlaybackService(
             Subtitles = [],
             CreditsStart = null,
             BookParts = parts,
-            DeviceName = request.DeviceName,
+            // The name the device was given when it signed in ("Dan's iPhone") says which one better than its model.
+            DeviceName = (profile.SignInId is { } signIn ? signIns?.List().FirstOrDefault(s => s.Id == signIn)?.Name : null) ?? request.DeviceName,
         });
 
         var basePath = $"/api/v1/playback/{id}";
