@@ -338,7 +338,8 @@ struct RootView: View {
             }
         }
         .onChange(of: model.phase) { old, new in
-            if case .signedIn = old, new == .signedOut {
+            // Joining someone's Flexarr signs out of this device's own server in the same moment: that counts too.
+            if case .signedIn(let before) = old, new == .signedOut || model.credentials?.isGuest != before.isGuest {
                 downloads.deleteAll()
                 notifications.forget()
             }

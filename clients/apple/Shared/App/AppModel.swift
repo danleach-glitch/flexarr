@@ -300,21 +300,45 @@ final class AppModel {
 
     func signOut() {
         // Tell the server too, so this device's token stops working; best effort, it's forgotten here either way.
+        let guest = credentials?.isGuest == true
+        var told: Task<Void, Never>?
         if let client = credentials?.client {
             let leaving = onSignOut
-            Task {
+            told = Task {
                 await leaving?(client)
                 try? await client.signOut()
             }
         }
-        forget()
+        forget(stoppingTunnel: !guest)
+        // A guest's sign-out goes through the tunnel: it stops once that's sent (or after a few seconds).
+        if guest {
+            guestLeaving = Task {
+                await Self.wait(for: told, atMost: .seconds(5))
+                await GuestTunnel.shared.stop(forget: true).value
+            }
+        }
     }
 
-    private func forget() {
+    /// A guest's sign-out on its way to the host, with the tunnel to stop after it. Joining again waits for it.
+    @ObservationIgnored private var guestLeaving: Task<Void, Never>?
+
+    /// Waits for `task`, but no longer than `limit` (then cancels it).
+    private static func wait(for task: Task<Void, Never>?, atMost limit: Duration) async {
+        guard let task else { return }
+        let timer = Task {
+            try? await Task.sleep(for: limit)
+            task.cancel()
+        }
+        await task.value
+        timer.cancel()
+    }
+
+    /// `stoppingTunnel`: false only for a guest's sign-out, which stops the tunnel itself once the server has heard.
+    private func forget(stoppingTunnel: Bool = true) {
         player.stop()
         music.stop()
         // A guest leaving leaves its host's tailnet too: nothing of the tunnel stays on the device.
-        if credentials?.isGuest == true { GuestTunnel.shared.stop(forget: true) }
+        if stoppingTunnel, credentials?.isGuest == true { GuestTunnel.shared.stop(forget: true) }
         tunnelProblem = nil
         store.clear()
         libraries = []
@@ -459,10 +483,13 @@ final class AppModel {
     /// Joins as a family guest with `invite`: Tailscale joins the host's tailnet with its one-use key, the invite's
     /// token is swapped for this device's own sign-in through the tunnel, and that's saved in place of any other.
     func join(_ invite: GuestInvite) async throws {
+        // The invite is checked before anything is left behind.
         guard !invite.isExpired() else { throw JoinError.expired(owner: invite.ownerName) }
-        if credentials != nil { signOut() }
-        // One tunnel, one host: an identity from an earlier invite goes.
-        GuestTunnel.shared.stop(forget: true)
+        // One tunnel, one host: a guest leaves its last host first (its sign-out goes through that tunnel), and an
+        // identity from an earlier invite goes. Signed in to a server of its own, it stays until the invite has worked.
+        if credentials?.isGuest == true { signOut() }
+        await guestLeaving?.value
+        await GuestTunnel.shared.stop(forget: true).value
         let info = GuestTunnelInfo(target: invite.tailnetTarget, hostname: invite.hostname, ownerName: invite.ownerName)
         do {
             let address = try await GuestTunnel.shared.start(info, authKey: invite.authKey)
@@ -476,7 +503,13 @@ final class AppModel {
                 default: throw JoinError.failed(message ?? "The server refused the invite.")
                 }
             }
-            if !invite.serverId.isEmpty, redeemed.serverId != invite.serverId { throw JoinError.otherServer }
+            if !invite.serverId.isEmpty, redeemed.serverId != invite.serverId {
+                // Not kept, so its sign-in goes again rather than stay in that server's list.
+                try? await FlexarrClient(baseURL: address, apiKey: redeemed.apiKey).signOut()
+                throw JoinError.otherServer
+            }
+            // Now the invite has worked, the server this device was signed in to is left.
+            if credentials != nil { signOut() }
             let credentials = ServerCredentials(address: address, apiKey: redeemed.apiKey, guest: info)
             try store.save(credentials)
             signedOutNotice = nil
