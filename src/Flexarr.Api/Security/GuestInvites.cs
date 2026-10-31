@@ -79,7 +79,10 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
     public static readonly TimeSpan Lifetime = TimeSpan.FromDays(3);
 
     /// <summary>How long an invite left for a TV code can still be collected (the relay keeps it ten minutes).</summary>
-    public static readonly TimeSpan CodeLifetime = TimeSpan.FromMinutes(12);
+    /// <remarks>
+    /// Long enough for a guest who has the invite but hasn't pressed Join yet (the server can't tell collected from not).
+    /// </remarks>
+    public static readonly TimeSpan CodeLifetime = TimeSpan.FromHours(1);
 
     /// <summary>The most invites waiting at once.</summary>
     public const int MaxWaiting = 20;
