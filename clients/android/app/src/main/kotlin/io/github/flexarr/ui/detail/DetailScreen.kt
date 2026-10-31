@@ -345,7 +345,7 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
     }
 }
 
-/** "Watchlist", or "On watchlist" once it's there; tapping puts it on or takes it off. */
+/** "Watchlist", its bookmark filled once it's there; tapping puts it on or takes it off. */
 @Composable
 private fun WatchlistAction(item: ItemSummary, saved: Boolean, detail: ItemDetail, modifier: Modifier) {
     val navigator = LocalNavigator.current
@@ -353,7 +353,7 @@ private fun WatchlistAction(item: ItemSummary, saved: Boolean, detail: ItemDetai
     var changed by remember(detail) { mutableStateOf<Boolean?>(null) }
     val on = changed ?: saved
     LabeledAction(
-        if (on) "On watchlist" else "Watchlist",
+        "Watchlist",
         if (on) Icons.Filled.Bookmark else Icons.Filled.BookmarkBorder,
         {
             changed = !on

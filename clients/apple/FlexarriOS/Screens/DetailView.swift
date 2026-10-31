@@ -215,7 +215,7 @@ struct DetailView: View {
                     Button {
                         Task { if await model.setOnWatchlist(.library(item.id), !onList) != nil { onWatchlist = !onList } }
                     } label: {
-                        Label(onList ? "On watchlist" : "Watchlist", systemImage: onList ? "bookmark.fill" : "bookmark")
+                        Label("Watchlist", systemImage: onList ? "bookmark.fill" : "bookmark")
                     }
                     .accessibilityLabel(onList ? "Remove from watchlist" : "Add to watchlist")
                 }

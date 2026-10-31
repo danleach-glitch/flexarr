@@ -209,7 +209,7 @@ struct WatchlistActionButton: View {
                 if requested { onRequested() }
             }
         } label: {
-            Label(onList ? "On watchlist" : "Watchlist", systemImage: onList ? "bookmark.fill" : "bookmark")
+            Label("Watchlist", systemImage: onList ? "bookmark.fill" : "bookmark")
         }
         .buttonStyle(ActionButtonStyle(ambient: ambient))
         .accessibilityLabel(onList ? "Remove from watchlist" : "Add to watchlist")
