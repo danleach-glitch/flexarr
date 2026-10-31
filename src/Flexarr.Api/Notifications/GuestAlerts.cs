@@ -11,7 +11,7 @@ public sealed partial class GuestAlerts(IServiceScopeFactory scopes, ILogger<Gue
 
     /// <summary>The tailnet policy stopped confining guests to Flexarr, so invites are paused.</summary>
     public void Paused() => Send(new PushMessage("Family invites paused",
-        "Your Tailscale policy now lets guests reach more than Flexarr. Open Settings › Remote access to fix it.", Category, Thread: Category,
+        "Your Tailscale policy now lets guests reach more than Flexarr, and guests who've joined can too. Open Settings › Remote access to fix it.", Category, Thread: Category,
         Open: new Dictionary<string, string> { ["settings"] = "access" }), "guests-paused");
 
     /// <summary>
