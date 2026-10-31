@@ -113,9 +113,9 @@ For the playroom TV or a child's tablet, turn on **Child lock**, so only kids pr
 
 - **Web:** the profile menu, then **Child lock**.
 - **Apple TV:** **Settings › Profiles**, or the profile picker.
-- **iPhone, iPad and Android:** **Settings**, under **Watching as**, or the profile picker.
+- **iPhone, iPad and Android:** **Settings**, under **Watching as**, or hold the padlock on your picture in the profile picker.
 
-It takes the main profile's PIN (unless the main profile has settings unlocked there). To turn it off, choose **Turn off child lock** in the profile picker or the web's profile menu, and enter the PIN. You can also turn it off for any device from **Settings › Devices** on the web, which marks those with **Child lock on**.
+It takes the main profile's PIN (unless the main profile has settings unlocked there). To turn it off, hold the padlock in the profile picker (on the phones), or choose **Turn off child lock** in the web's profile menu or on Apple TV, and enter the PIN. You can also turn it off for any device from **Settings › Devices** on the web, which marks those with **Child lock on**.
 
 Deleting the kids profile a device with child lock is on moves it to another kids profile. If it was the last one, turn off child lock first.
 

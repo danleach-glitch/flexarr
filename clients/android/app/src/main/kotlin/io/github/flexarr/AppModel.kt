@@ -547,7 +547,27 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
      */
     suspend fun chooseProfile(profile: Profile, pin: String? = null, parentPin: String? = null) {
         val credentials = credentials ?: return
-        chose(credentials.client().selectProfile(profile.id, pin, parentPin), profiles)
+        val held = heldParentPin?.takeIf { System.currentTimeMillis() < heldParentPinUntil }
+        chose(credentials.client().selectProfile(profile.id, pin, parentPin ?: held), profiles)
+    }
+
+    /**
+     * The main profile's PIN, just given to turn child lock off: the next profile chosen within a minute takes it, so
+     * leaving the kids profile doesn't ask for it again.
+     */
+    private var heldParentPin: String? = null
+    private var heldParentPinUntil = 0L
+
+    /** Whether child lock is still on here: it can be turned off from the web's Devices page while the app's open. */
+    suspend fun refreshKidsLock() {
+        val client = client ?: return
+        val locked = runCatching { client.me().kidsLock }.getOrNull() ?: return
+        if (kidsLock && !locked) {
+            kidsLock = false
+            loadProfiles()
+        } else {
+            kidsLock = locked
+        }
     }
 
     /**
@@ -567,6 +587,8 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         val client = client ?: return
         client.releaseKidsLock(pin)
         kidsLock = false
+        heldParentPin = pin
+        heldParentPinUntil = System.currentTimeMillis() + 60_000
         loadProfiles()
     }
 
