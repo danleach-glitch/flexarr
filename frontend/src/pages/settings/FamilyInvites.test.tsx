@@ -207,7 +207,11 @@ describe('Settings › Access › Family invites', () => {
 
     expect(await screen.findByText(/^Slow relay · last used/)).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: 'Remove Gran’s iPad' }))
-    expect(await screen.findByText(/can’t reach Flexarr any more/)).toBeVisible()
+    // Asked first.
+    expect(await screen.findByText('Remove Gran’s iPad?')).toBeVisible()
+    expect(removed).toBe(false)
+    fireEvent.click(screen.getByRole('button', { name: 'Remove' }))
+    expect(await screen.findByText(/can’t reach Flexarr any more. To free/)).toBeVisible()
     expect(screen.getByRole('link', { name: 'Tailscale’s Machines' })).toHaveAttribute('href', 'https://login.tailscale.com/admin/machines')
   })
 
@@ -256,6 +260,35 @@ describe('Settings › Access › Family invites', () => {
     expect(await screen.findByLabelText('Type the code their device shows')).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     await waitFor(() => expect(removed).toBe('mum'))
+  })
+
+  it('removing a guest, once confirmed, removes their devices and their profile', async () => {
+    const gone: string[] = []
+    mockApi({
+      '/remote/guests': setup({ clientId: 'abc', hasClient: true, check: safe }),
+      '/profiles': [main, gran],
+      '/remote/guests/invites': [],
+      '/remote/guests/devices': [device()],
+      'DELETE /remote/guests/devices/d1': () => {
+        gone.push('device')
+        return undefined
+      },
+      'DELETE /profiles/gran': () => {
+        gone.push('profile')
+        return undefined
+      },
+    })
+    render(<FamilyInvites />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove Gran' }))
+    expect(await screen.findByText('Remove Gran?')).toBeVisible()
+    expect(screen.getByText(/their profile and its watch history go/)).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Keep' }))
+    expect(gone).toEqual([])
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Gran' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove' }))
+    await waitFor(() => expect(gone).toEqual(['device', 'profile']))
   })
 
   it('names each connection plainly', () => {

@@ -27,6 +27,7 @@ import { describeGuest } from '../../lib/guests'
 import { deviceTypeName } from '../../lib/deviceTypes'
 import { Avatar } from '../../components/ProfilePicker'
 import { DeviceTypeIcon } from '../../components/DeviceTypeIcon'
+import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { SettingsGroup, ToggleRow } from './shared'
 import { errorText } from './useSettings'
 
@@ -244,10 +245,35 @@ export function GuestsGroup({ onChange }: { onChange: () => void }) {
     }
   }
 
-  async function remove(device: GuestDevice) {
-    await removeGuestDevice(device.id)
-    setRemoved(device)
-    refresh()
+  /** What Remove is asking about: one device, or a whole guest (their devices, invites and profile). */
+  const [confirming, setConfirming] = useState<{ device: GuestDevice; label: string } | { person: { id: string; name: string } }>()
+  const [removing, setRemoving] = useState(false)
+  const [removeError, setRemoveError] = useState<string>()
+
+  async function confirmRemove() {
+    if (!confirming) return
+    setRemoving(true)
+    setRemoveError(undefined)
+    try {
+      if ('device' in confirming) {
+        await removeGuestDevice(confirming.device.id)
+        setRemoved(confirming.device)
+      } else {
+        const id = confirming.person.id
+        const theirs = devices.data?.filter((d) => d.profileId === id) ?? []
+        for (const d of theirs) await removeGuestDevice(d.id)
+        for (const w of waiting.data?.filter((w) => w.profileId === id) ?? []) await cancelGuestInvite(w.id)
+        await deleteProfile(id)
+        profiles.reload()
+        setRemoved(theirs[0])
+      }
+      setConfirming(undefined)
+      refresh()
+    } catch (err) {
+      setRemoveError(errorText(err))
+    } finally {
+      setRemoving(false)
+    }
   }
 
   async function cancel(id: string) {
@@ -361,6 +387,13 @@ export function GuestsGroup({ onChange }: { onChange: () => void }) {
           <span className="guest-who">
             <Avatar profile={{ name: person.name, color: person.color ?? guestProfiles.find((p) => p.id === person.id)?.color ?? '#a9c2ec' }} size={40} />
             <strong className="guest-name">{person.name}</strong>
+            <IconButton
+              label="Remove guest"
+              aria-label={`Remove ${person.name}`}
+              icon={<Trash />}
+              className="button quiet small icon danger-icon"
+              onClick={() => setConfirming({ person })}
+            />
           </span>
           <div className="guest-devices">
             {devices.data
@@ -377,7 +410,13 @@ export function GuestsGroup({ onChange }: { onChange: () => void }) {
                     </strong>
                     <span className="muted">{describeGuest(d, false)}</span>
                   </span>
-                  <IconButton label="Remove" aria-label={`Remove ${d.name}`} icon={<Trash />} className="button quiet small icon danger-icon" onClick={() => remove(d)} />
+                  <IconButton
+                    label="Remove"
+                    aria-label={`Remove ${d.name}`}
+                    icon={<Trash />}
+                    className="button quiet small icon danger-icon"
+                    onClick={() => setConfirming({ device: d, label: `${person.name}’s ${deviceLabel(d, person.name)}` })}
+                  />
                 </div>
               ))}
             {waiting.data
@@ -426,6 +465,27 @@ export function GuestsGroup({ onChange }: { onChange: () => void }) {
           {removed.name} can’t reach Flexarr any more. To free its place on your tailnet, delete it in{' '}
           <a href={removed.tailscaleAdminUrl}>Tailscale’s Machines</a>.
         </p>
+      )}
+      {confirming && (
+        <ConfirmDialog
+          title={'device' in confirming ? `Remove ${confirming.label}?` : `Remove ${confirming.person.name}?`}
+          confirmLabel="Remove"
+          cancelLabel="Keep"
+          danger
+          busy={removing}
+          error={removeError}
+          onConfirm={() => void confirmRemove()}
+          onClose={() => {
+            setConfirming(undefined)
+            setRemoveError(undefined)
+          }}
+        >
+          <p>
+            {'device' in confirming
+              ? 'It can’t reach Flexarr any more. Joining again takes a new code.'
+              : 'Their devices are signed out, and their profile and its watch history go.'}
+          </p>
+        </ConfirmDialog>
       )}
       <p className="settings-note">Each guest watches as a profile of their own, and can’t switch to another. Each device joins with a code that works once.</p>
     </div>

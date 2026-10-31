@@ -2848,3 +2848,8 @@
 .guest-cancel {
   margin-left: auto;
 }
+
+/* Remove guest sits beside their name, quiet until hovered. */
+.guest-who .danger-icon {
+  margin-left: -4px;
+}
