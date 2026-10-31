@@ -116,6 +116,8 @@ private struct ChooseServer: View {
             Button("Enter an address instead", action: onManual)
                 .font(.body.weight(.semibold))
                 .padding(.top, 6)
+            PasteInvite()
+                .padding(.top, 18)
         }
         .task {
             guard (try? await Task.sleep(for: .seconds(6))) != nil else { return }

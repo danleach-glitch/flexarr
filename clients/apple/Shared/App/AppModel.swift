@@ -89,6 +89,9 @@ final class AppModel {
     private(set) var signedOutNotice: String?
     /// A family guest's tunnel to its host's server didn't start: why, shown with Try again and Leave.
     private(set) var tunnelProblem: String?
+    /// An invite link was opened (or pasted): the app asks "Join Dan's Flexarr?" before anything happens, since a
+    /// link can come from anywhere.
+    var pendingInvite: GuestInvite?
     /// "Now playing on iPhone": a title moved to a phone with Continue on iPhone (the Apple TV shows it a moment).
     var handOffNotice: String?
 
@@ -405,6 +408,65 @@ final class AppModel {
             guard self.credentials?.guest == guest else { return false }
             tunnelProblem = error.localizedDescription
             return false
+        }
+    }
+
+    enum JoinError: LocalizedError {
+        case expired(owner: String)
+        case used(owner: String)
+        case paused(owner: String)
+        case otherServer
+        case failed(String)
+
+        var errorDescription: String? {
+            switch self {
+            case .expired(let owner): "This invite has run out. Ask \(owner) for a new one."
+            case .used(let owner): "This invite has been used, or was cancelled. Ask \(owner) for a new one."
+            case .paused(let owner): "\(owner)’s server isn’t taking invites just now. Ask \(owner) to check Settings › Access."
+            case .otherServer: "This invite led to a different server than it named. Ask for a new one."
+            case .failed(let why): why
+            }
+        }
+    }
+
+    /// Joins as a family guest with `invite`: Tailscale joins the host's tailnet with its one-use key, the invite's
+    /// token is swapped for this device's own sign-in through the tunnel, and that's saved in place of any other.
+    func join(_ invite: GuestInvite) async throws {
+        guard !invite.isExpired() else { throw JoinError.expired(owner: invite.ownerName) }
+        if credentials != nil { signOut() }
+        // One tunnel, one host: an identity from an earlier invite goes.
+        GuestTunnel.shared.stop(forget: true)
+        let info = GuestTunnelInfo(target: invite.tailnetTarget, hostname: invite.hostname, ownerName: invite.ownerName)
+        do {
+            let address = try await GuestTunnel.shared.start(info, authKey: invite.authKey)
+            let redeemed: RedeemedInvite
+            do {
+                redeemed = try await FlexarrClient(baseURL: address).redeemInvite(token: invite.token)
+            } catch FlexarrClientError.http(let status, let message) {
+                switch status {
+                case 410: throw JoinError.used(owner: invite.ownerName)
+                case 503: throw JoinError.paused(owner: invite.ownerName)
+                default: throw JoinError.failed(message ?? "The server refused the invite.")
+                }
+            }
+            if !invite.serverId.isEmpty, redeemed.serverId != invite.serverId { throw JoinError.otherServer }
+            let credentials = ServerCredentials(address: address, apiKey: redeemed.apiKey, guest: info)
+            try store.save(credentials)
+            signedOutNotice = nil
+            tunnelProblem = nil
+            upgradeChecked = true
+            remoteChecked = true
+            phase = .signedIn(credentials)
+            log.info("Joined as a family guest")
+        } catch let error as JoinError {
+            GuestTunnel.shared.stop(forget: true)
+            throw error
+        } catch GuestTunnel.Failure.needsInvite {
+            GuestTunnel.shared.stop(forget: true)
+            throw JoinError.used(owner: invite.ownerName)
+        } catch {
+            GuestTunnel.shared.stop(forget: true)
+            throw JoinError.failed(error.localizedDescription)
         }
     }
 
@@ -965,6 +1027,11 @@ final class AppModel {
     /// next), with `t=<seconds>`, `s=<subtitle key>` and `shuffle=1`; `flexarr://live/<channel id>` puts a channel on;
     /// `flexarr://watchlist` opens the watchlist. Any of them can add `profile=<id or name>` to switch to that profile first, asking for its PIN if it has one.
     func open(url: URL) {
+        // https://flexarr.io/join#… or flexarr://join#…: a family invite, asked about first.
+        if let invite = GuestInvite.parse(url.absoluteString) {
+            pendingInvite = invite
+            return
+        }
         guard url.scheme == "flexarr", let host = url.host() else { return }
         let id = url.pathComponents.dropFirst().first ?? ""
         // flexarr://watchlist (the profile's watchlist) has no id; the rest need one.

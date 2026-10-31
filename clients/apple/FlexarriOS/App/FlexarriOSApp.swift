@@ -260,6 +260,11 @@ struct FlexarriOSApp: App {
                 .preferredColorScheme(.dark)
                 .tint(.silver)
                 .onOpenURL { model.open(url: $0) }
+                // flexarr.io/join links (family invites) open the app straight from Messages or the Camera.
+                .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
+                    if let url = activity.webpageURL { model.open(url: url) }
+                }
+                .sheet(item: Bindable(model).pendingInvite) { JoinInviteView(invite: $0).environment(model) }
                 .onAppear { delegate.model = model }
         }
     }
