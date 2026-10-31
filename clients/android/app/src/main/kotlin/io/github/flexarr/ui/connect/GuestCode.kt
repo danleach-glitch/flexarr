@@ -25,6 +25,9 @@ class GuestCodeState {
 
     /** Codes ran out [MAX_CODES] times with nothing arriving: no more until "Show a new code" (a new attempt). */
     var stopped by mutableStateOf(false)
+
+    /** What came to the code couldn't be opened: [problem] says so until "New code" (a new attempt). */
+    var badInvite by mutableStateOf(false)
 }
 
 /** Codes that run out with nothing arriving before the screen stops making new ones (half an hour). */
@@ -40,7 +43,7 @@ private const val SLOW_POLL_MS = 10_000L
  * Flexarr. The code meets their server's invite at Flexarr's relay, sealed so only this device can open it, and the
  * screen asks "Join Dan’s Flexarr?" ([AppModel.inviteFromCode]); joining is then as with a link (the tunnel, then a
  * sign-in of its own). A code lasts ten minutes; a new one replaces it, and one follows an invite let go without
- * joining. The relay is asked only while the app is in front: every 3 seconds for the first 2 minutes, then every 10;
+ * joining. The relay is asked only while the app is in front: every 3 seconds for a code's first 2 minutes, then every 10;
  * after [MAX_CODES] codes with nothing arriving it stops ([GuestCodeState.stopped]). A new [attempt] starts again with
  * a new code. Shared by the phone's and the TV's code screens.
  */
@@ -52,9 +55,9 @@ fun rememberGuestCode(model: AppModel, attempt: Int): GuestCodeState {
         state.code = null
         state.problem = null
         state.stopped = false
+        state.badInvite = false
         // Waits while the app is in the background: nobody's there to read the code.
         suspend fun inFront() = lifecycle.currentStateFlow.first { it.isAtLeast(Lifecycle.State.STARTED) }
-        var shownAt = SystemClock.elapsedRealtime()
         var ranOut = 0
         while (true) {
             if (ranOut >= MAX_CODES) {
@@ -77,6 +80,8 @@ fun rememberGuestCode(model: AppModel, attempt: Int): GuestCodeState {
             }
             state.code = tv
             state.problem = null
+            // Every code is asked about quickly at first.
+            val shownAt = SystemClock.elapsedRealtime()
             // Until it runs out (then a new one), or the invite arrives.
             while (true) {
                 delay(if (SystemClock.elapsedRealtime() - shownAt < FAST_FOR_MS) FAST_POLL_MS else SLOW_POLL_MS)
@@ -86,8 +91,11 @@ fun rememberGuestCode(model: AppModel, attempt: Int): GuestCodeState {
                 } catch (e: CancellationException) {
                     throw e
                 } catch (_: GuestTvCode.Failure.BadInvite) {
+                    // Said until the guest asks for a new code: one shown straight away would clear it unread.
+                    state.code = null
                     state.problem = "That invite couldn’t be opened. Ask for another."
-                    break
+                    state.badInvite = true
+                    return@LaunchedEffect
                 } catch (_: Exception) {
                     // The network dropped for a moment: the code stands, so keep asking.
                     continue
@@ -107,7 +115,6 @@ fun rememberGuestCode(model: AppModel, attempt: Int): GuestCodeState {
                         // one, asked about quickly again, as someone's there.
                         if (model.phase is AppModel.Phase.SignedIn) return@LaunchedEffect
                         ranOut = 0
-                        shownAt = SystemClock.elapsedRealtime()
                         break
                     }
                 }

@@ -239,7 +239,7 @@ private fun GuestCode(model: AppModel, onBack: () -> Unit) {
         } else if (code == null && problem != null && !guest.stopped) {
             // No code to be had (the relay can't be reached): just that, and a way to try again.
             ErrorNote(problem)
-            TvActionButton("Try again", onClick = { attempt++ }, prominent = true, modifier = Modifier.focusRequester(retry))
+            TvActionButton(if (guest.badInvite) "New code" else "Try again", onClick = { attempt++ }, prominent = true, modifier = Modifier.focusRequester(retry))
         } else {
             Text("Read this code to the person who invited you", fontSize = 20.sp, fontWeight = FontWeight.Bold)
             val shown = code

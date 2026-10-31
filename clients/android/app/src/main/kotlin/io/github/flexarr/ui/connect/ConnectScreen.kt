@@ -573,7 +573,7 @@ private fun PhoneGuestCode(model: AppModel, onBack: () -> Unit) {
         } else if (guest.code == null && guest.problem != null && !guest.stopped) {
             // No code to be had (the relay can't be reached): just that, and a way to try again.
             Text(guest.problem!!, fontSize = 15.sp, color = Flexarr.screen)
-            ActionButton("Try again", onClick = { attempt++ }, prominent = true)
+            ActionButton(if (guest.badInvite) "New code" else "Try again", onClick = { attempt++ }, prominent = true)
         } else {
             Text("Give this code to the person who invited you", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher)
             val shown = guest.code
