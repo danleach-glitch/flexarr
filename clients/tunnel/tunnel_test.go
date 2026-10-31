@@ -196,3 +196,31 @@ func TestBadTarget(t *testing.T) {
 		t.Fatal("want error")
 	}
 }
+
+func TestListenLoopbackPrefersItsPort(t *testing.T) {
+	probe, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	free := probe.Addr().(*net.TCPAddr).Port
+	probe.Close()
+
+	l, err := listenLoopback(free)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	if got := l.Addr().(*net.TCPAddr).Port; got != free {
+		t.Fatalf("port = %d, want the preferred %d", got, free)
+	}
+
+	// Busy: any other free port.
+	other, err := listenLoopback(free)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer other.Close()
+	if got := other.Addr().(*net.TCPAddr).Port; got == free || got == 0 {
+		t.Fatalf("busy preferred port gave %d", got)
+	}
+}

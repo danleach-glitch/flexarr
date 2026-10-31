@@ -64,6 +64,19 @@ var (
 	startKey string // stateDir|hostname|target|controlURL of the running tunnel
 )
 
+// preferredPort is the loopback port Start tries first (0: any free port).
+var preferredPort atomic.Int32
+
+// SetPreferredPort makes Start listen on 127.0.0.1:port when it's free, so the app's
+// address for the server stays the same from one launch to the next (caches keyed by
+// URL keep working). A busy port falls back to any free one. 0 means any free port.
+func SetPreferredPort(port int) {
+	if port < 0 || port > 65535 {
+		port = 0
+	}
+	preferredPort.Store(int32(port))
+}
+
 // SetVerbose turns tsnet's own logging (to stderr / logcat) on or off. Off by default.
 // Takes effect for the next Start.
 func SetVerbose(on bool) { verbose.Store(on) }
@@ -138,7 +151,7 @@ func Start(stateDir, hostname, authKey, targetAddr, controlURL string) (int, err
 		failLocked(err)
 		return 0, err
 	}
-	l, err := net.Listen("tcp", "127.0.0.1:0")
+	l, err := listenLoopback(int(preferredPort.Load()))
 	if err != nil {
 		failLocked(err)
 		return 0, err
@@ -333,4 +346,14 @@ func pathTo(s *tsnet.Server, targetAddr string) string {
 		}
 	}
 	return "unknown"
+}
+
+// listenLoopback listens on 127.0.0.1:preferred, or on any free port when that's 0 or busy.
+func listenLoopback(preferred int) (net.Listener, error) {
+	if preferred > 0 {
+		if l, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", preferred)); err == nil {
+			return l, nil
+		}
+	}
+	return net.Listen("tcp", "127.0.0.1:0")
 }
