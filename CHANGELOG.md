@@ -10,8 +10,8 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - From then on, what you watch shows on Trakt as you watch it, and counts there when it counts here. **Mark as watched** and downloads watched away from home go to Trakt too, and plays in other apps connected to Trakt come back within a few minutes.
 - Stop part way and pick up in another app connected to Trakt, or the other way round.
 - Your watchlist stays in step with Trakt's, both ways. Titles from Trakt are never requested by themselves.
-- Choose Trakt lists, your own or ones you've liked, to show in **Collections**, just for you, with films you don't have yet ready to request (web).
-- Discover has a new row, **For you, from Trakt**, with Trakt's picks for you (web and Apple TV).
+- Choose Trakt lists, your own or ones you've liked, to show in **Collections**, just for you, with films you don't have yet ready to request. Choose them on the web or Android; they show in Collections on the web.
+- Discover has a new row, **For you, from Trakt**, with Trakt's picks for you (web, Apple TV and Android TV).
 - Settings says plainly if Trakt has signed Flexarr out, if a free account's watchlist is full, or if changes are waiting to send. **Disconnect** makes Trakt forget Flexarr; what you've watched stays.
 - The main profile can use its own Trakt app instead of Flexarr's, in **Settings › Connections › Trakt**.
 

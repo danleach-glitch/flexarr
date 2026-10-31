@@ -42,8 +42,8 @@ After that, it all happens by itself:
 
 ## Lists and picks
 
-- **Lists**: in **Settings › Trakt** on the web, choose any of your Trakt lists, or ones you've liked, and each shows up in **Collections**, just for you, kept in step with Trakt. Titles on the list that are here show as usual. Films that aren't here show with **Request**.
-- **For you, from Trakt**: once you're connected, Discover on the web and the Apple TV has a row of Trakt's picks for you, with titles you have first and ones you've watched left out.
+- **Lists**: in **Settings › Trakt** on the web or Android, choose any of your Trakt lists, or ones you've liked, and each shows up in **Collections**, just for you, kept in step with Trakt. Titles on the list that are here show as usual. Films that aren't here show with **Request**.
+- **For you, from Trakt**: once you're connected, Discover on the web, Apple TV and Android TV has a row of Trakt's picks for you, with titles you have first and ones you've watched left out.
 
 ## If something's wrong
 
