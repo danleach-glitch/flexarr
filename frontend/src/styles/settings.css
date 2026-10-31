@@ -2589,9 +2589,24 @@
   gap: 8px;
 }
 
+.guest-link-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
 .guest-link {
-  overflow-wrap: anywhere;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  padding: 8px 10px;
+  border: 1px solid var(--aisle);
+  border-radius: 8px;
   font-size: 0.8rem;
+  color: var(--usher);
 }
 
 /* A guest and their devices: the name and Add device over its rows. */
@@ -2608,19 +2623,27 @@
 }
 
 /* Adding a device: one panel that moves through its steps, Cancel in its corner. */
+/* Adding someone or a device: steps that sit in the group like its rows, Cancel at the right of the first line. */
 .guest-add {
   position: relative;
-  margin: 8px 0 14px;
-  padding: 18px 20px;
-  border: 1px solid var(--aisle);
-  border-radius: 14px;
-  background: var(--seat-raised, rgb(255 255 255 / 0.03));
+  padding: 16px 0 18px;
 }
 
-.guest-add-close {
-  position: absolute;
-  top: 12px;
-  right: 12px;
+.guest-person .guest-add {
+  padding-top: 6px;
+}
+
+.guest-add + .guest-person,
+.guest-add + .guest-empty {
+  border-top: 1px solid var(--aisle);
+}
+
+.guest-add-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
 }
 
 .guest-add-step {
@@ -2637,9 +2660,7 @@
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  padding-right: 90px;
   font-weight: 700;
-  font-size: 1.05rem;
 }
 
 .guest-code-row {
@@ -2700,14 +2721,21 @@
   vertical-align: 2px;
 }
 
-.guest-new {
-  display: flex;
-  gap: 8px;
+.guest-empty {
+  margin: 0;
   padding: 14px 0;
-  border-top: 1px solid var(--aisle);
+  font-size: var(--step--1);
+}
+
+.guest-add .field input {
+  width: min(320px, 100%);
 }
 
 .guest-add .guest-invite {
   padding: 0;
   border-top: 0;
+}
+
+.guest-add .field-help {
+  font-size: var(--step--1);
 }

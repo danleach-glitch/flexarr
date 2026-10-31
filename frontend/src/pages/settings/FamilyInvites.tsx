@@ -3,6 +3,7 @@ import { renderSVG } from 'uqr'
 import {
   cancelGuestInvite,
   createProfile,
+  freshly,
   checkGuestPolicy,
   createGuestInvite,
   getGuestDevices,
@@ -50,7 +51,6 @@ export function FamilyInvites() {
       ) : ready ? (
         <>
           <GuestsGroup onChange={refresh} />
-          <RelayGroup setup={setup} onChange={refresh} />
           <SetupGroup setup={setup} onChange={refresh} collapsed />
         </>
       ) : (
@@ -150,7 +150,7 @@ export function SetupGroup({ setup, onChange, collapsed = false }: { setup: Remo
           <form className="guest-client" onSubmit={(e) => void save(e)}>
             <label>
               <span className="muted">Client ID</span>
-              <input id="guest-client-id" value={clientId} onChange={(e) => setClientId(e.target.value)} autoComplete="off" spellCheck={false} />
+              <input id="guest-client-id" type="text" value={clientId} onChange={(e) => setClientId(e.target.value)} autoComplete="off" spellCheck={false} />
             </label>
             <label>
               <span className="muted">Secret</span>
@@ -169,6 +169,7 @@ export function SetupGroup({ setup, onChange, collapsed = false }: { setup: Remo
           </form>
         </li>
       </ol>
+      {setup.check?.safe && <RelayGroup setup={setup} onChange={onChange} />}
       {status}
       {setup.hasClient && !setup.check?.safe && (
         <AsyncButton className="button quiet small" onClick={() => check()}>
@@ -193,9 +194,13 @@ export function GuestsGroup({ onChange }: { onChange: () => void }) {
   const profiles = useApi(getProfiles, [])
   const devices = useApi(getGuestDevices, [])
   const waiting = useApi(getGuestInvites, [])
-  const [adding, setAdding] = useState<string>()
+  /** Who a device is being added for: kept here, so a profile made a moment ago shows before the list catches up. */
+  const [addingFor, setAddingFor] = useState<{ id: string; name: string }>()
+  const adding = addingFor?.id
   const [removed, setRemoved] = useState<GuestDevice>()
   const [newPerson, setNewPerson] = useState('')
+  /** Asking who's being invited, before their device. */
+  const [naming, setNaming] = useState(false)
   const [inviteError, setInviteError] = useState<string>()
   /** Devices that joined while this page was open, marked New. */
   const [joined, setJoined] = useState<string[]>([])
@@ -209,10 +214,11 @@ export function GuestsGroup({ onChange }: { onChange: () => void }) {
   usePolling(refresh, adding ? 2000 : waiting.data?.length ? 8000 : null)
 
   const guestProfiles = profiles.data?.filter((p) => !p.isMain) ?? []
-  const people = guestProfiles.filter(
+  const listed = guestProfiles.filter(
     (p) => p.id === adding || devices.data?.some((d) => d.profileId === p.id) || waiting.data?.some((w) => w.profileId === p.id),
   )
-  const others = guestProfiles.filter((p) => !people.includes(p))
+  const people: { id: string; name: string }[] = addingFor && !listed.some((p) => p.id === addingFor.id) ? [addingFor, ...listed] : listed
+  const others = guestProfiles.filter((p) => !people.some((person) => person.id === p.id))
 
   async function remove(device: GuestDevice) {
     await removeGuestDevice(device.id)
@@ -232,11 +238,14 @@ export function GuestsGroup({ onChange }: { onChange: () => void }) {
     if (!name) return
     setInviteError(undefined)
     try {
-      const existing = guestProfiles.find((p) => p.name.trim().toLowerCase() === name.toLowerCase())
-      const profile = existing ?? (await createProfile({ name, color: freeColour(profiles.data ?? []) }))
+      // Asked afresh (the list is kept a few minutes), so a profile just made isn't made twice.
+      const current = await freshly(() => getProfiles())
+      const existing = current.find((p) => !p.isMain && p.name.trim().toLowerCase() === name.toLowerCase())
+      const profile = existing ?? (await createProfile({ name, color: freeColour(current) }))
       if (!existing) profiles.reload()
-      setAdding(profile.id)
+      setAddingFor({ id: profile.id, name: profile.name })
       setNewPerson('')
+      setNaming(false)
     } catch (err) {
       setInviteError(errorText(err))
     }
@@ -245,14 +254,63 @@ export function GuestsGroup({ onChange }: { onChange: () => void }) {
   return (
     <SettingsGroup
       title="Guests"
-      note="Each guest gets a profile of their own, made here, which they watch as and can’t leave. Each device joins with its own code or link, which works once and lasts 3 days."
+      action={
+        !naming &&
+        !adding && (
+          <button type="button" className="button small" onClick={() => setNaming(true)}>
+            Invite someone
+          </button>
+        )
+      }
+      note="Each guest watches as a profile of their own, and can’t switch to another. Each device joins with a code that works once."
     >
+      {naming && (
+        <form className="guest-add" onSubmit={(e) => void invite(e)}>
+          <div className="guest-add-head">
+            <label htmlFor="guest-new-name" className="guest-add-title">
+              Who are you inviting?
+            </label>
+            <button type="button" className="button quiet small" onClick={() => setNaming(false)}>
+              Cancel
+            </button>
+          </div>
+          <div className="guest-add-step">
+            <label className="field">
+              <input
+                id="guest-new-name"
+                type="text"
+                value={newPerson}
+                onChange={(e) => setNewPerson(e.target.value)}
+                list="guest-profiles"
+                maxLength={40}
+                autoComplete="off"
+                autoFocus
+              />
+              <span className="field-help">Their name. They get a profile of their own, or the one they already have.</span>
+            </label>
+            <datalist id="guest-profiles">
+              {others.map((p) => (
+                <option key={p.id} value={p.name} />
+              ))}
+            </datalist>
+            <AsyncButton type="submit" className="button" disabled={!newPerson.trim()}>
+              Continue
+            </AsyncButton>
+          </div>
+          {inviteError && (
+            <p className="error" role="alert">
+              {inviteError}
+            </p>
+          )}
+        </form>
+      )}
+      {people.length === 0 && !naming && <p className="muted guest-empty">No guests yet.</p>}
       {people.map((person) => (
         <div key={person.id} className="guest-person">
           <div className="guest-person-head">
             <strong>{person.name}</strong>
             {adding !== person.id && (
-              <button type="button" className="button small" onClick={() => setAdding(person.id)}>
+              <button type="button" className="button small" onClick={() => setAddingFor(person)}>
                 Add device
               </button>
             )}
@@ -262,11 +320,11 @@ export function GuestsGroup({ onChange }: { onChange: () => void }) {
               name={person.name}
               profileId={person.id}
               devices={devices.data?.filter((d) => d.profileId === person.id) ?? []}
-              onClose={() => setAdding(undefined)}
+              onClose={() => setAddingFor(undefined)}
               onChange={refresh}
               onJoined={(deviceId) => {
                 setJoined((ids) => [...ids, deviceId])
-                setAdding(undefined)
+                setAddingFor(undefined)
               }}
             />
           )}
@@ -309,33 +367,6 @@ export function GuestsGroup({ onChange }: { onChange: () => void }) {
         <p className="muted" role="status">
           {removed.name} can’t reach Flexarr any more. To free its place on your tailnet, delete it in{' '}
           <a href={removed.tailscaleAdminUrl}>Tailscale’s Machines</a>.
-        </p>
-      )}
-      {!adding && (
-        <form className="guest-new" onSubmit={(e) => void invite(e)}>
-          <input
-            id="guest-new-name"
-            aria-label="Their name"
-            placeholder="Their name, e.g. Dad"
-            value={newPerson}
-            onChange={(e) => setNewPerson(e.target.value)}
-            list="guest-profiles"
-            maxLength={40}
-            autoComplete="off"
-          />
-          <datalist id="guest-profiles">
-            {others.map((p) => (
-              <option key={p.id} value={p.name} />
-            ))}
-          </datalist>
-          <AsyncButton type="submit" className="button small" disabled={!newPerson.trim()}>
-            Invite someone
-          </AsyncButton>
-        </form>
-      )}
-      {inviteError && (
-        <p className="error" role="alert">
-          {inviteError}
         </p>
       )}
     </SettingsGroup>
@@ -410,29 +441,43 @@ export function AddDevice({
     }
   }
 
+  const title = arrived
+    ? `✓ ${arrived.name} joined`
+    : phase === 'code'
+      ? 'Type the code their device shows'
+      : phase === 'link'
+        ? 'Send them this link'
+        : 'Waiting for their device to join…'
+
   return (
     <div className="guest-add" role="group" aria-label={`Add a device for ${name}`}>
-      {!arrived && (
-        <button type="button" className="guest-add-close button quiet small" onClick={onClose}>
-          Cancel
-        </button>
-      )}
-
-      {arrived ? (
-        <div className="guest-add-step" role="status">
-          <span className="guest-add-title guest-joined">✓ {arrived.name} joined</span>
-        </div>
-      ) : phase === 'code' ? (
-        <form className="guest-add-step" onSubmit={(e) => void connect(e)}>
+      <div className="guest-add-head">
+        {phase === 'code' && !arrived ? (
           <label htmlFor="guest-code" className="guest-add-title">
-            Type the code on {name}’s screen
+            {title}
           </label>
-          <span className="muted">
+        ) : (
+          <span className={arrived ? 'guest-add-title guest-joined' : 'guest-add-title'} role="status">
+            {phase === 'waiting' && !arrived && <span className="guest-spinner" aria-hidden="true" />}
+            {title}
+          </span>
+        )}
+        {!arrived && (
+          <button type="button" className="button quiet small" onClick={onClose}>
+            Cancel
+          </button>
+        )}
+      </div>
+
+      {arrived ? null : phase === 'code' ? (
+        <form className="guest-add-step" onSubmit={(e) => void connect(e)}>
+          <span className="field-help">
             On their phone, tablet or TV, they open Flexarr and choose <strong>Invited by someone?</strong>
           </span>
           <span className="guest-code-row">
             <input
               id="guest-code"
+              type="text"
               className="guest-code"
               value={code}
               onChange={(e) => setCode(e.target.value.toUpperCase())}
@@ -452,35 +497,24 @@ export function AddDevice({
         </form>
       ) : phase === 'link' && link ? (
         <div className="guest-add-step">
-          <span className="guest-add-title">Send {name} this link</span>
           <InviteLink link={link} name={name} />
-          <span className="guest-waiting muted">
-            <span className="guest-spinner" aria-hidden="true" /> Waiting for {name} to open it…
+          <span className="guest-waiting field-help">
+            <span className="guest-spinner" aria-hidden="true" /> Waiting for them to open it…
           </span>
           <button type="button" className="text-button" onClick={() => setPhase('code')}>
             Use a code instead
           </button>
         </div>
       ) : (
-        <div className="guest-add-step" role="status">
-          <span className="guest-add-title">
-            <span className="guest-spinner" aria-hidden="true" /> Waiting for {name}’s device to join…
-          </span>
-          <span className="muted">It takes a few seconds. Their screen moves on by itself.</span>
+        <div className="guest-add-step">
+          <span className="field-help">It takes a few seconds. Their screen moves on by itself.</span>
         </div>
       )}
 
       {error && (
-        <div className="guest-add-step">
-          <p className="error" role="alert">
-            {error}
-          </p>
-          {phase !== 'code' && (
-            <button type="button" className="button quiet small" onClick={() => setPhase('code')}>
-              Try again
-            </button>
-          )}
-        </div>
+        <p className="error" role="alert">
+          {error}
+        </p>
       )}
     </div>
   )
@@ -493,9 +527,11 @@ export function InviteLink({ link, name }: { link: string; name: string }) {
       {/* uqr draws plain SVG from the link: nothing in it comes from elsewhere. */}
       <div className="guest-qr" role="img" aria-label="QR code of the invite" dangerouslySetInnerHTML={{ __html: renderSVG(link, { border: 2 }) }} />
       <div className="guest-invite-text">
-        <span className="muted">Message it to them, or scan the code with their phone’s camera. It’s shown only now.</span>
-        <code className="remote-address guest-link">{link}</code>
-        <span className="connection-actions">
+        <span className="field-help">Message it to them, or scan this code with their phone’s camera. It’s shown only now.</span>
+        <span className="guest-link-row">
+          <code className="guest-link" title={link}>
+            {link}
+          </code>
           <CopyButton text={link} what="the invite" />
         </span>
       </div>
@@ -519,7 +555,7 @@ export function RelayGroup({ setup, onChange }: { setup: RemoteGuests; onChange:
   }
 
   return (
-    <SettingsGroup>
+    <>
       <ToggleRow
         label="Faster relay"
         help={
@@ -536,6 +572,6 @@ export function RelayGroup({ setup, onChange }: { setup: RemoteGuests; onChange:
           {error}
         </p>
       )}
-    </SettingsGroup>
+    </>
   )
 }

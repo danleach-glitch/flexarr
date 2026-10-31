@@ -73,7 +73,7 @@ export function RemoteAccessGroups() {
           ts.publicAccess ? undefined : (
             <>
               Tailscale lets your devices reach Flexarr from anywhere, privately, with nothing opened on your router. The apps switch to it by
-              themselves. To share Flexarr, invite someone to your tailnet and give them a profile.
+              themselves.
               {remote.data.cloudflareTunnelRunning && ' A Cloudflare Tunnel runs on this server, but it doesn’t route to Flexarr.'} {you}
             </>
           )

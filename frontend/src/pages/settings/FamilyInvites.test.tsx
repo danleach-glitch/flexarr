@@ -132,18 +132,20 @@ describe('Settings › Access › Family invites', () => {
 
     // Gran has a device; Aunt Sue, with a profile but no devices yet, is suggested by name; the main profile never is.
     expect(await screen.findByText('Gran’s iPad')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Invite someone' }))
     const suggestions = document.querySelectorAll('#guest-profiles option')
     expect(Array.from(suggestions).map((o) => o.getAttribute('value'))).toEqual(['Aunt Sue'])
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
 
     fireEvent.click(screen.getByRole('button', { name: 'Add device' }))
     const connect = screen.getByRole('button', { name: 'Connect' })
     expect(connect).toBeDisabled()
-    fireEvent.change(screen.getByLabelText('Type the code on Gran’s screen'), { target: { value: 'abcd-efgh' } })
+    fireEvent.change(screen.getByLabelText('Type the code their device shows'), { target: { value: 'abcd-efgh' } })
     fireEvent.click(connect)
     await waitFor(() => expect(tv).toEqual({ code: 'ABCD-EFGH', name: null, profileId: 'gran' }))
 
     // Waiting: the code box is gone, so nothing looks like it wants the code again.
-    expect(await screen.findByText('Waiting for Gran’s device to join…')).toBeVisible()
+    expect(await screen.findByText('Waiting for their device to join…')).toBeVisible()
     expect(screen.queryByRole('button', { name: 'Connect' })).not.toBeInTheDocument()
 
     joined = true
@@ -171,12 +173,12 @@ describe('Settings › Access › Family invites', () => {
     expect(await screen.findByText('https://flexarr.io/join#abc')).toBeVisible()
     expect(link).toEqual({ name: null, profileId: 'gran' })
     expect(screen.getByRole('img', { name: 'QR code of the invite' }).querySelector('svg')).not.toBeNull()
-    expect(screen.getByText('Waiting for Gran to open it…')).toBeVisible()
+    expect(screen.getByText('Waiting for them to open it…')).toBeVisible()
 
     fireEvent.click(screen.getByRole('button', { name: 'Use a code instead' }))
-    expect(screen.getByLabelText('Type the code on Gran’s screen')).toBeVisible()
+    expect(screen.getByLabelText('Type the code their device shows')).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
-    expect(screen.queryByLabelText('Type the code on Gran’s screen')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Type the code their device shows')).not.toBeInTheDocument()
   })
 
   it('shows how each guest is connected, and removing one points to Tailscale', async () => {
@@ -213,10 +215,14 @@ describe('Settings › Access › Family invites', () => {
     })
     render(<FamilyInvites />)
 
-    fireEvent.change(await screen.findByLabelText('Their name'), { target: { value: ' Dad ' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Invite someone' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Invite someone' }))
+    fireEvent.change(screen.getByLabelText('Who are you inviting?'), { target: { value: ' Dad ' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
 
     await waitFor(() => expect(made).toMatchObject({ name: 'Dad' }))
+    // Straight on to their device, under their name, before the profile list has caught up.
+    expect(await screen.findByLabelText('Type the code their device shows')).toBeVisible()
+    expect(screen.getByText('Dad')).toBeVisible()
   })
 
   it('names each connection plainly', () => {
