@@ -21,20 +21,26 @@ struct TunnelProblemView: View {
             Text("Check this device’s internet, or that \(owner)’s server is on.")
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-            HStack(spacing: 16) {
-                Button("Try again") { Task { await model.retryGuestTunnel() } }
-                    .buttonStyle(.borderedProminent)
-                if let onDownloads {
-                    Button("Downloads", action: onDownloads)
-                        .buttonStyle(.bordered)
-                }
-                Button("Leave", role: .destructive) { confirmLeave = true }
-                    .buttonStyle(.bordered)
+            // Side by side while they fit, one above another at larger text sizes.
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 16) { buttons }
+                VStack(spacing: 12) { buttons }
             }
         }
         .padding(40)
         .frame(maxWidth: 560)
         .leaveGuestConfirmation(isPresented: $confirmLeave, owner: owner) { model.signOut() }
+    }
+
+    @ViewBuilder private var buttons: some View {
+        Button("Try again") { Task { await model.retryGuestTunnel() } }
+            .buttonStyle(ActionButtonStyle(prominent: true))
+        if let onDownloads {
+            Button("Downloads", action: onDownloads)
+                .buttonStyle(ActionButtonStyle())
+        }
+        Button("Leave", role: .destructive) { confirmLeave = true }
+            .buttonStyle(ActionButtonStyle())
     }
 }
 
