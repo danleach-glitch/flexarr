@@ -301,9 +301,6 @@ struct RootView: View {
                     // Downloads play without the server, so they're a tap away while it can't be reached.
                     TunnelProblemView(onDownloads: downloads.downloads.isEmpty ? nil : { showsDownloads = true })
                         .transition(.opacity)
-                        .sheet(isPresented: $showsDownloads) {
-                            NavigationStack { DownloadsView() }
-                        }
                 } else if !model.profilesLoaded {
                     ProgressView().controlSize(.large)
                 } else if model.needsProfileChoice {
@@ -317,6 +314,12 @@ struct RootView: View {
                 }
             }
         }
+        // Above the screens rather than on the problem screen: the host coming back in reach swaps that screen, and
+        // mustn't close the downloads, or a film playing from them.
+        .sheet(isPresented: $showsDownloads) {
+            NavigationStack { DownloadsView() }
+        }
+        .onChange(of: model.credentials == nil) { _, signedOut in if signedOut { showsDownloads = false } }
         .animation(.easeInOut(duration: 0.3), value: model.phase)
         .animation(.easeInOut(duration: 0.3), value: welcomed)
         .animation(.easeInOut(duration: 0.3), value: model.needsProfileChoice)
