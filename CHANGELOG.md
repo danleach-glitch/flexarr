@@ -2,6 +2,19 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### Audiobooks
+- A new kind of library: **Audiobooks**. Add one in **Settings › Libraries** and point it at your books. A folder of files is one book, disc folders are parts of it, and the files play back to back as one book. Series and their numbers, authors and narrators come from the folders, the files' tags, and files beside them (`metadata.opf`, Audiobookshelf's `metadata.json`, `desc.txt`, `reader.txt`, a cover).
+- Chapters come from the files, a `.cue` sheet, or one per file. Audible's replace guessed ones when they match, and the main profile can rename, move or replace a book's chapters.
+- Details your files leave out come from Audible, Open Library, and with your own keys Google Books and Hardcover. **Fix match** finds the right book when the wrong one was picked.
+- On the web, iPhone, iPad, Android and the Apple TV: shelves for **Continue listening**, **Next in series**, series, authors, narrators and genres; book, series and author pages; and **Continue listening**, **Next in series** and **New audiobooks** rows on Home.
+- The player: speed from 0.5× to 3.5× remembered for each book, skips of your choosing, smart rewind after a pause, a sleep timer that can stop at the end of the chapter and fade out (shake your phone for more), bookmarks with notes, and **Mark finished** and **Listen again**. Your place follows you between devices, and the player offers to jump to where another device got to. At the end of a book in a series, the next one is offered.
+- On iPhone, iPad and Android: download books to listen offline, with the lock screen showing the chapter, CarPlay and Android Auto, the **Continue listening** widget, and on iPhone, **Resume listening** with Siri. Choose your default speed, skips and smart rewind in **Settings › Audiobooks**.
+- Connect **Readarr, Bookshelf or Chaptarr** in **Settings › Connections**: new books appear as they're imported, upcoming books show in **Coming soon**, and deleting a book in Flexarr deletes it there without it being fetched again. The setup guide finds them for you.
+- **Request books** from Discover's search when one of them is connected. Whoever asked hears when it's ready to listen.
+- Kids profiles don't see audiobooks. Audible-protected `.aax` files are listed in **Library health**, as they can't be played.
+
 ## 0.57.0 · 31 October 2026
 
 ### Trakt
