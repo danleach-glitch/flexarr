@@ -254,6 +254,30 @@ public class RemoteGuestTests(RemoteGuestFactory factory) : IClassFixture<Remote
     }
 
     [Fact]
+    public async Task Removing_a_guests_profile_in_profiles_signs_their_devices_out_and_cancels_their_invites()
+    {
+        var gran = await factory.AddProfileAsync("Gran41");
+        var (_, joinedPayload) = await InviteAsync(gran, "Removed with profile");
+        const string device = "100.64.0.41";
+        factory.Whois.Tags[device] = ["tag:flexarr-guest"];
+        var key = (await (await RedeemAsync(device, joinedPayload.T)).Content.ReadFromJsonAsync<RedeemedInviteDto>(Web))!.ApiKey;
+        var (_, waitingPayload) = await InviteAsync(gran, "Still waiting");
+
+        using var admin = factory.Admin();
+        Assert.Equal(HttpStatusCode.NoContent, (await admin.DeleteAsync($"/api/v1/profiles/{gran}")).StatusCode);
+
+        // The app is told it was removed (not a plain 401), and the waiting invite can't be used.
+        using var removed = factory.From(device, key);
+        var refused = await removed.GetAsync("/api/v1/me");
+        Assert.Equal(HttpStatusCode.Forbidden, refused.StatusCode);
+        Assert.True((await refused.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("guestRemoved").GetBoolean());
+        factory.Whois.Tags["100.64.0.42"] = ["tag:flexarr-guest"];
+        Assert.Equal(HttpStatusCode.Gone, (await RedeemAsync("100.64.0.42", waitingPayload.T)).StatusCode);
+        // The fake's keys are "tskey-auth-<id>-secret".
+        Assert.Contains(waitingPayload.K["tskey-auth-".Length..^"-secret".Length], factory.Tailscale.DeletedKeys);
+    }
+
+    [Fact]
     public async Task A_guest_sign_in_is_kept_where_an_older_server_never_finds_it()
     {
         var gran = await factory.AddProfileAsync("Gran40");

@@ -338,7 +338,7 @@ public static partial class ProfileEndpoints
         });
 
         group.MapDelete("/{id}", async (string id, FlexarrDbContext db, ProfileImages images, SignIns signIns, Trakt.TraktClient trakt,
-            Trakt.TraktConnector connector, CancellationToken ct) =>
+            Trakt.TraktConnector connector, Security.GuestInvites guests, CancellationToken ct) =>
         {
             if (id == PlaybackState.DefaultUser)
             {
@@ -361,6 +361,8 @@ public static partial class ProfileEndpoints
             }
 
             images.Delete(id);
+            // A guest's profile: their devices are signed out and their invites cancelled, as Remove guest does.
+            await guests.ForgetProfileAsync(id, ct);
             return Results.NoContent();
         }).RequireAuthorization(FlexarrClaims.AdminPolicy);
 

@@ -105,6 +105,39 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
         }
     }
 
+    /// <summary>
+    /// Everything left of a guest whose profile is being removed, wherever that's done (Settings › Profiles too):
+    /// their devices are signed out, waiting invites cancelled (with their Tailscale keys) and they stop being a guest.
+    /// </summary>
+    public async Task ForgetProfileAsync(string profileId, CancellationToken ct)
+    {
+        List<GuestInvite> cancelled;
+        lock (_lock)
+        {
+            cancelled = Loaded().Where(i => i.ProfileId == profileId).ToList();
+            if (cancelled.Count > 0)
+            {
+                Loaded().RemoveAll(i => i.ProfileId == profileId);
+                SaveLocked();
+            }
+
+            if (LoadedGuests().Remove(profileId))
+            {
+                SaveGuestsLocked();
+            }
+        }
+
+        foreach (var signIn in signIns.List().Where(s => s.Guest && s.ProfileId == profileId))
+        {
+            signIns.Revoke(signIn.Id);
+        }
+
+        foreach (var invite in cancelled)
+        {
+            await DeleteKeyQuietlyAsync(invite.KeyId, ct);
+        }
+    }
+
     /// <summary>Notes that <paramref name="profileId"/> is a guest's.</summary>
     private void MarkGuest(string profileId)
     {
@@ -115,9 +148,14 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
         }
 
         guests.Add(profileId);
+        SaveGuestsLocked();
+    }
+
+    private void SaveGuestsLocked()
+    {
         try
         {
-            ServerConfigStore.WritePrivately(Path.Combine(options.CurrentValue.DataDirectory, GuestsFileName), JsonSerializer.Serialize(guests, Json));
+            ServerConfigStore.WritePrivately(Path.Combine(options.CurrentValue.DataDirectory, GuestsFileName), JsonSerializer.Serialize(LoadedGuests(), Json));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -254,7 +292,7 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
     /// tailnet, checked by the caller). Works once.
     /// </summary>
     public (SignIn SignIn, string Token, GuestInvite Invite) Redeem(string token, string address, DeviceType? deviceType,
-        Func<string, string?>? profileNameFor = null)
+        Func<string, string?>? profileNameFor = null, Func<string, bool>? profileExists = null)
     {
         if (string.IsNullOrEmpty(token) || token.Length > 128)
         {
@@ -273,6 +311,13 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
 
             Loaded().Remove(invite);
             SaveLocked();
+        }
+
+        // The guest's profile was removed while the invite waited (ForgetProfileAsync cancels them, but not one
+        // redeemed in the same moment): nothing to sign in as.
+        if (profileExists is not null && !profileExists(invite.ProfileId))
+        {
+            throw new InviteException("This invite has been used, cancelled or has expired. Ask for a new one.", StatusCodes.Status410Gone);
         }
 
         var name = invite.Name.Length > 0 ? invite.Name : DeviceName(profileNameFor?.Invoke(invite.ProfileId), deviceType);
