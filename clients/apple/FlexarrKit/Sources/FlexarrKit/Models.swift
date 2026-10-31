@@ -1253,6 +1253,8 @@ public struct DeviceCommand: Codable, Sendable, Hashable, Identifiable {
     public var trackId: String? = nil
     /// With `rate`, the speed.
     public var rate: Double? = nil
+    /// With `stop`: it's carrying on on `sentBy` (Continue on iPhone), so the TV says so. Absent from servers before 0.56.
+    public var handOff: Bool? = nil
 
     public init(id: String, kind: DeviceCommandKind, itemId: String?, fromBeginning: Bool, sentBy: String?, sentAt: Date, shuffle: Bool = false,
                 channelId: String? = nil, profileId: String? = nil, sound: DeviceSound? = nil, seconds: Double? = nil, trackId: String? = nil,
@@ -1287,6 +1289,7 @@ public struct DeviceCommand: Codable, Sendable, Hashable, Identifiable {
         seconds = try container.decodeIfPresent(Double.self, forKey: .seconds)
         trackId = try container.decodeIfPresent(String.self, forKey: .trackId)
         rate = try container.decodeIfPresent(Double.self, forKey: .rate)
+        handOff = try? container.decodeIfPresent(Bool.self, forKey: .handOff)
     }
 }
 

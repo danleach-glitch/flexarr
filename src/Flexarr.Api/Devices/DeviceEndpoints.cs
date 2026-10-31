@@ -135,14 +135,15 @@ public static class DeviceEndpoints
 
         foreach (var (path, kind) in new[] { ("pause", DeviceCommandKind.Pause), ("resume", DeviceCommandKind.Resume), ("stop", DeviceCommandKind.Stop) })
         {
-            group.MapPost($"/{{id}}/{path}", (string id, SignIns signIns, DeviceCommands commands, CurrentProfile current) =>
+            // `?handOff=true` with stop: Continue on iPhone, so the TV says where it went (apps that don't know it just stop).
+            group.MapPost($"/{{id}}/{path}", (string id, bool? handOff, SignIns signIns, DeviceCommands commands, CurrentProfile current) =>
             {
                 if (!current.IsTrusted)
                 {
                     return Forbidden();
                 }
 
-                return Control(id, kind, signIns, commands, current) is { } result
+                return Control(id, kind, signIns, commands, current, handOff: kind == DeviceCommandKind.Stop && handOff == true) is { } result
                     ? result.Delivered ? Results.Ok(result) : Results.Accepted(null as string, result)
                     : Results.NotFound();
             });
@@ -412,7 +413,8 @@ public static class DeviceEndpoints
         return new PlayOutcome(new DeviceCommandResultDto(delivered, device.Name, null, channel.Name), delivered, null, StatusCodes.Status200OK);
     }
 
-    public static DeviceCommandResultDto? Control(string deviceId, DeviceCommandKind kind, SignIns signIns, DeviceCommands commands, CurrentProfile current)
+    public static DeviceCommandResultDto? Control(string deviceId, DeviceCommandKind kind, SignIns signIns, DeviceCommands commands, CurrentProfile current,
+        bool handOff = false)
     {
         ArgumentNullException.ThrowIfNull(signIns);
         ArgumentNullException.ThrowIfNull(commands);
@@ -422,7 +424,8 @@ public static class DeviceEndpoints
             return null;
         }
 
-        var delivered = commands.Send(device.Id, new DeviceCommand(DeviceCommand.NewId(), kind, null, false, SenderName(signIns, current), DateTime.UtcNow));
+        var delivered = commands.Send(device.Id, new DeviceCommand(DeviceCommand.NewId(), kind, null, false, SenderName(signIns, current), DateTime.UtcNow,
+            HandOff: handOff ? true : null));
         return new DeviceCommandResultDto(delivered, device.Name, null);
     }
 

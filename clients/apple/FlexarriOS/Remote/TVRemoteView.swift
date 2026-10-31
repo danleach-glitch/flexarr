@@ -452,7 +452,7 @@ struct TVRemoteView: View {
         continuing = true
         Task {
             defer { continuing = false }
-            guard await remote.stop(offeringUndo: false) else { return }
+            guard await remote.stop(offeringUndo: false, handOff: true) else { return }
             dismiss()
             // Once the sheet has gone: the player can't come up over it, or over one still closing.
             try? await Task.sleep(for: .milliseconds(100))

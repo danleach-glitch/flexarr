@@ -124,6 +124,27 @@ public class DeviceTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
     }
 
     [Fact]
+    public async Task ContinueOnIPhone_StopsTheTv_SayingItWasHandedOff_AndAPlainStopDoesnt()
+    {
+        var (id, tv) = await DeviceAsync("Den");
+        var (response, reader) = await ListenAsync(tv);
+
+        Assert.Equal(HttpStatusCode.OK, (await Admin().PostAsJsonAsync(Api($"/devices/{id}/stop?handOff=true"), new { })).StatusCode);
+        var handedOff = await NextCommandAsync(reader);
+        Assert.Equal("Stop", handedOff.GetProperty("kind").GetString());
+        Assert.True(handedOff.GetProperty("handOff").GetBoolean());
+
+        Assert.Equal(HttpStatusCode.OK, (await Admin().PostAsJsonAsync(Api($"/devices/{id}/stop"), new { })).StatusCode);
+        var stopped = await NextCommandAsync(reader);
+        Assert.False(stopped.TryGetProperty("handOff", out var flag) && flag.ValueKind == JsonValueKind.True);
+        // Only Stop carries it: a pause asked to "hand off" is just a pause.
+        Assert.Equal(HttpStatusCode.OK, (await Admin().PostAsJsonAsync(Api($"/devices/{id}/pause?handOff=true"), new { })).StatusCode);
+        var paused = await NextCommandAsync(reader);
+        Assert.False(paused.TryGetProperty("handOff", out var pauseFlag) && pauseFlag.ValueKind == JsonValueKind.True);
+        response.Dispose();
+    }
+
+    [Fact]
     public async Task ChangingADevicesSound_ReachesItOnlyWhileFlexarrIsOpen_AndLeavesAWaitingPlayAlone()
     {
         var show = await SeedAsync("Slow Horses", ("S01E01", 1, 1));

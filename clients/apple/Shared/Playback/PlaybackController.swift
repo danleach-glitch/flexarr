@@ -1061,6 +1061,9 @@ final class PlaybackController: NSObject {
     /// A title is up in the player.
     var isShowingTitle: Bool { screen != nil && info != nil }
 
+    /// The title up in the player, if there is one (its page is where Continue on iPhone leaves the TV).
+    var showingItem: ItemSummary? { screen != nil ? info?.item : nil }
+
     /// The title up is showing Skip Intro (or Skip Recap).
     var canSkipSegment: Bool {
         if case .skip = prompt { return true }

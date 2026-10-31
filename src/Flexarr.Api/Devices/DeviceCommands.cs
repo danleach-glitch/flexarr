@@ -88,7 +88,8 @@ public sealed record DeviceSound(DialogueBoost? DialogueBoost = null, NightMode?
 /// <param name="TrackId">With <see cref="DeviceCommandKind.AudioTrack"/> or <see cref="DeviceCommandKind.SubtitleTrack"/>, the player's id for the track.</param>
 /// <param name="Rate">With <see cref="DeviceCommandKind.Rate"/>, the speed.</param>
 public sealed record DeviceCommand(string Id, DeviceCommandKind Kind, Guid? ItemId, bool FromBeginning, string? SentBy, DateTime SentAt, bool Shuffle = false,
-    Guid? ChannelId = null, string? ProfileId = null, DeviceSound? Sound = null, double? Seconds = null, string? TrackId = null, double? Rate = null)
+    Guid? ChannelId = null, string? ProfileId = null, DeviceSound? Sound = null, double? Seconds = null, string? TrackId = null, double? Rate = null,
+    bool? HandOff = null)
 {
     /// <summary>
     /// What every device that listens has always taken (apps from 0.55); the rest, Sound included, only a device that

@@ -325,14 +325,14 @@ final class TVRemote {
     /// Stops playing on the TV; true when the TV took it. The bar goes at once, and comes back if it didn't. With
     /// `offeringUndo`, says "Stopped" with Undo for a few seconds.
     @discardableResult
-    func stop(offeringUndo: Bool = true) async -> Bool {
+    func stop(offeringUndo: Bool = true, handOff: Bool = false) async -> Bool {
         guard let device = current, let client, let index = devices.firstIndex(where: { $0.id == device.id }) else { return false }
         let before = devices[index].nowPlaying
         devices[index].nowPlaying = nil
         hold(device.id, until: Date().addingTimeInterval(Self.hold))
         taps += 1
         do {
-            let result = try await client.control(device: device.id, .stop)
+            let result = try await client.control(device: device.id, .stop, handOff: handOff)
             guard result.delivered else { throw FlexarrClientError.http(status: 409, message: "Flexarr isn't open on \(device.name).") }
             // Undo only for a title it can play again (a private one has no id to play).
             if offeringUndo, let before, !before.item.isPrivate {

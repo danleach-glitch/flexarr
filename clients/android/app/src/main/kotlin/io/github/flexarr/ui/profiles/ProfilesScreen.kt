@@ -10,7 +10,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.Icons
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -98,6 +97,8 @@ fun ProfilePicker(
     // Locking this device to kids profiles, or unlocking it, with the main profile's PIN.
     var locking by remember { mutableStateOf<KidsLockStep?>(if (asksLockPin) KidsLockStep.Lock else null) }
     var lockingBusy by remember { mutableStateOf(false) }
+    // The kids profile whose padlock was held: child lock goes on with it.
+    var lockTarget by remember { mutableStateOf<Profile?>(null) }
     // Unlocked here, the main profile's PIN just given goes with the next choice rather than being asked for again.
     var unlockedWith by remember { mutableStateOf<String?>(null) }
     var switching by remember { mutableStateOf<String?>(null) }
@@ -144,7 +145,16 @@ fun ProfilePicker(
             if (step == KidsLockStep.Lock) {
                 val choosing = model.lockToKids(pin)
                 locking = null
-                if (!choosing) onChosen()
+                // The server chose a kids profile: the one whose padlock was held, if it's another. Without one (Settings'
+                // row), several kids profiles keep the picker open to choose which this device stays on.
+                val target = lockTarget
+                lockTarget = null
+                if (target != null) {
+                    if (model.currentProfile?.id != target.id) runCatching { model.chooseProfile(target) }
+                    onChosen()
+                } else if (!choosing) {
+                    onChosen()
+                }
             } else {
                 model.releaseKidsLock(pin ?: return false)
                 unlockedWith = pin
@@ -206,15 +216,16 @@ fun ProfilePicker(
                 ) {
                     items(model.profiles, key = { it.id }) { profile ->
                         val current = marksCurrent && profile.isCurrent
-                        // The padlock on the profile watching here: open while child lock can be turned on, closed
-                        // while it's on. Holding the picture turns it on, or off with the PIN.
-                        val padlock = profile.isCurrent && (model.kidsLock || (marksCurrent && model.canLockToKids))
+                        // The padlock over each kids profile's picture: open while child lock can be turned on (holding
+                        // it locks to that profile), closed while it's on (holding it turns it off, with the PIN).
+                        val padlock = profile.isKids && (model.kidsLock || (marksCurrent && model.canLockToKids))
                         val toggleLock = {
                             error = null
                             if (model.kidsLock) {
                                 locking = KidsLockStep.Release
                             } else if (!lockingBusy) {
                                 lockingBusy = true
+                                lockTarget = profile
                                 scope.launch {
                                     try {
                                         kidsLock(KidsLockStep.Lock, null)
@@ -245,14 +256,11 @@ fun ProfilePicker(
                                 }
                                 if (current) Box(Modifier.size(108.dp).border(3.dp, Flexarr.screen, CircleShape))
                                 if (padlock) {
-                                    Box(
-                                        Modifier.align(Alignment.BottomEnd).offset(x = 4.dp, y = 4.dp).size(32.dp).clip(CircleShape).background(Flexarr.screen),
-                                        contentAlignment = Alignment.Center,
-                                    ) {
-                                        if (lockingBusy) {
-                                            CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = Flexarr.room)
+                                    Box(Modifier.size(96.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.35f)), contentAlignment = Alignment.Center) {
+                                        if (lockingBusy && lockTarget?.id == profile.id) {
+                                            CircularProgressIndicator(Modifier.size(28.dp), strokeWidth = 3.dp, color = Flexarr.screen)
                                         } else {
-                                            Icon(if (model.kidsLock) Icons.Filled.Lock else Icons.Filled.LockOpen, contentDescription = null, tint = Flexarr.room, modifier = Modifier.size(18.dp))
+                                            Icon(if (model.kidsLock) Icons.Filled.Lock else Icons.Filled.LockOpen, contentDescription = null, tint = Flexarr.screen, modifier = Modifier.size(36.dp))
                                         }
                                     }
                                 }

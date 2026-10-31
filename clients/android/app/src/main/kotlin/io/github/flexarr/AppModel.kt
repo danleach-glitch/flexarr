@@ -607,6 +607,12 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         if (saved) store.saveProfile(selection.token)
         phase = Phase.SignedIn(updated)
         profiles = list.map { it.copy(isCurrent = it.id == selection.profile.id) }
+        // Which profiles ask for a PIN depends on who's watching (leaving a kids profile takes the main profile's), so the
+        // list is read again as the new profile.
+        scope.launch {
+            val fresh = runCatching { updated.client().profiles() }.getOrNull() ?: return@launch
+            if (fresh.any { it.isCurrent && it.id == selection.profile.id }) profiles = fresh
+        }
         watchStateChanged()
     }
 

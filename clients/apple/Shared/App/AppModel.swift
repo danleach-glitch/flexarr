@@ -84,6 +84,8 @@ final class AppModel {
     private(set) var errorReports: ErrorReportSetting?
     /// Why the connect screen is showing when nobody asked for it: the server stopped accepting this device.
     private(set) var signedOutNotice: String?
+    /// "Now playing on iPhone": a title moved to a phone with Continue on iPhone (the Apple TV shows it a moment).
+    var handOffNotice: String?
 
     let store = CredentialStore()
     let player = PlaybackController()
@@ -498,6 +500,12 @@ final class AppModel {
         credentials.profileToken = selection.token
         store.saveProfile(selection.token)
         profiles = list.map { $0.marked(current: $0.id == profile.id) }
+        // Which profiles ask for a PIN depends on who's watching (leaving a kids profile takes the main profile's), so the
+        // list is read again as the new profile.
+        Task { [weak self] in
+            guard let self, let client = self.client, let fresh = try? await client.profiles() else { return }
+            if fresh.contains(where: { $0.isCurrent && $0.id == profile.id }) { self.profiles = fresh }
+        }
         needsProfileChoice = false
         libraries = []
         forgetWatchlist()
@@ -835,7 +843,14 @@ final class AppModel {
         // A title in the player takes them; otherwise the music (or podcast) playing here.
         case .pause: if player.isShowingTitle { player.pause() } else { music.pause() }
         case .resume: if player.isShowingTitle { player.resume() } else { music.resume() }
-        case .stop: player.closePlayer()
+        case .stop:
+            // Continued on a phone: the title's page, saying where it went, rather than wherever the player was opened from.
+            let title = player.showingItem
+            player.closePlayer()
+            if command.handOff == true {
+                if let title { pendingRoute = .item(title) }
+                handOffNotice = "Now playing on \(command.sentBy ?? "your phone")"
+            }
         case .seek, .skip, .next, .previous, .skipSegment, .audioTrack, .subtitleTrack, .rate:
             if player.remote(command) { return }
             guard music.current != nil else { return }
