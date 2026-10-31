@@ -59,9 +59,11 @@ targets:
       path: FlexarrTV/Info.plist
       properties:
         CFBundleDisplayName: Flexarr
-        # Export compliance: no ITSAppUsesNonExemptEncryption here since the apps carry Tailscale (WireGuard: Go's
-        # own ChaCha20-Poly1305 and Curve25519, not the operating system's) for family guests, so App Store Connect
-        # asks at each upload until the answer is settled (see docs/remote-guests.md). Then set it here again.
+        # Export compliance: the apps carry Tailscale for family guests (WireGuard: Go's own ChaCha20-Poly1305 and
+        # Curve25519, standard algorithms, from open-source code), so they do use encryption beyond the system's. In
+        # App Store Connect that's "standard encryption algorithms", which needs no documents. Once answered there,
+        # add the ITSEncryptionExportComplianceCode it gives beside this, and uploads stop asking.
+        ITSAppUsesNonExemptEncryption: true
         # Where the sign-in is shared with the Top Shelf extension.
         FlexarrKeychainGroup: $(AppIdentifierPrefix)io.github.flexarr.shared
         CFBundleShortVersionString: $(MARKETING_VERSION)
@@ -171,9 +173,11 @@ targets:
         CFBundleURLTypes:
           - CFBundleURLName: io.github.flexarr.ios
             CFBundleURLSchemes: [flexarr]
-        # Export compliance: no ITSAppUsesNonExemptEncryption here since the apps carry Tailscale (WireGuard: Go's
-        # own ChaCha20-Poly1305 and Curve25519, not the operating system's) for family guests, so App Store Connect
-        # asks at each upload until the answer is settled (see docs/remote-guests.md). Then set it here again.
+        # Export compliance: the apps carry Tailscale for family guests (WireGuard: Go's own ChaCha20-Poly1305 and
+        # Curve25519, standard algorithms, from open-source code), so they do use encryption beyond the system's. In
+        # App Store Connect that's "standard encryption algorithms", which needs no documents. Once answered there,
+        # add the ITSEncryptionExportComplianceCode it gives beside this, and uploads stop asking.
+        ITSAppUsesNonExemptEncryption: true
         # How "Flexarr" tends to come out of speech recognition, so Siri still knows which app is meant.
         # App Store Connect rejects more than three per language (ITMS-90626).
         INAlternativeAppNames:
