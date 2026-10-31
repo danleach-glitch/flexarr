@@ -70,12 +70,12 @@ public sealed partial class GuestTvCodes(IHttpClientFactory clients, IOptionsMon
             new SealedInvite(Convert.ToBase64String(serverKey), Convert.ToBase64String(sealedBox)), ct);
         if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Gone)
         {
-            throw new InviteException("That TV stopped showing its code. Ask for the new one.", StatusCodes.Status410Gone);
+            throw new InviteException("Their device stopped showing that code. Check the one on their screen now.", StatusCodes.Status410Gone);
         }
 
         if (response.StatusCode == HttpStatusCode.Conflict)
         {
-            throw new InviteException("That code has been used already. Ask for the new one.", StatusCodes.Status409Conflict);
+            throw new InviteException("That code has been used. Check the one on their screen now.", StatusCodes.Status409Conflict);
         }
 
         if (!response.IsSuccessStatusCode)
@@ -136,6 +136,6 @@ public sealed partial class GuestTvCodes(IHttpClientFactory clients, IOptionsMon
 
     private sealed record SealedInvite([property: JsonPropertyName("serverKey")] string ServerKey, [property: JsonPropertyName("sealed")] string Sealed);
 
-    [LoggerMessage(Level = LogLevel.Information, Message = "Left a sealed invite at the relay for a TV")]
+    [LoggerMessage(Level = LogLevel.Information, Message = "Left a sealed invite at the relay for a device")]
     private partial void LogDelivered();
 }

@@ -145,7 +145,7 @@ public static class RemoteGuestEndpoints
         {
             if (GuestTvCodes.Normalize(request.Code) is not { } code)
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["code"] = ["Type the 8 letters and numbers the TV shows."] });
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["code"] = ["Type the 8 letters and numbers their device shows."] });
             }
 
             var (profile, owner, problem) = await ProfileForInviteAsync(db, request.ProfileId, ct);
@@ -159,7 +159,7 @@ public static class RemoteGuestEndpoints
             {
                 if (await tvCodes.TvKeyAsync(code, ct) is not { } tvKey)
                 {
-                    return Results.Problem("No TV is showing that code. Check it, or ask for the new one if it changed.", statusCode: 404);
+                    return Results.Problem("That code isn’t showing on any device. Codes change every 10 minutes: check the one on their screen now.", statusCode: 404);
                 }
 
                 (invite, var payload) = await invites.CreateAsync(request.Name, profile!.Id, profile.Name, owner, InviteVia.TvCode, ct);
