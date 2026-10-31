@@ -15,7 +15,9 @@ import { Artwork } from '../components/Artwork'
 import { BookmarkList } from '../components/BookmarkList'
 import { AsyncButton } from '../components/AsyncButton'
 import { PosterCard } from '../components/Cards'
+import { ChapterEditor } from '../components/ChapterEditor'
 import { DeleteDialog } from '../components/DeleteDialog'
+import { FixMatchDialog } from '../components/FixMatchDialog'
 import { Bookmark as BookmarkIcon, Check, Play } from '../components/icons'
 import type { MenuAction } from '../components/ItemMenu'
 import { Overview } from '../components/Overview'
@@ -42,6 +44,7 @@ export function BookPage({ detail, onChange }: { detail: ItemDetail; onChange: (
   const listening = useApi(getBookListening, [])
   const [showBookmarks, setShowBookmarks] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [editing, setEditing] = useState<'chapters' | 'match' | null>(null)
 
   if (!book) return <p className="page-message muted">This book can’t be shown by this version of the app.</p>
 
@@ -82,7 +85,12 @@ export function BookPage({ detail, onChange }: { detail: ItemDetail; onChange: (
 
   const more: MenuAction[] = [{ label: 'Add to collection…', run: () => openAddToCollection(item) }]
   if (started && !finished) more.push({ label: 'Play from the start', run: () => playAt(0) })
-  if (mainProfile) more.push('divider', { label: 'Delete…', run: () => setDeleting(true), danger: true })
+  if (mainProfile) {
+    more.push({ label: 'Edit chapters…', run: () => setEditing('chapters') })
+    // Its search is a read the server keeps to the unlocked main profile, so a locked one doesn't get to ask for the PIN.
+    if (me?.isAdmin === true) more.push({ label: 'Fix match…', run: () => setEditing('match') })
+    more.push('divider', { label: 'Delete…', run: () => setDeleting(true), danger: true })
+  }
 
   const facts = [
     item.year?.toString(),
@@ -190,6 +198,8 @@ export function BookPage({ detail, onChange }: { detail: ItemDetail; onChange: (
         <BookRow title={narrators[0] ? `Read by ${narrators[0].name}` : 'Read by the narrator'} items={book.readByNarrator} link={narrators[0] ? `/person/${narrators[0].personId}` : undefined} />
       </div>
 
+      {editing === 'chapters' && <ChapterEditor bookId={item.id} chapters={book.chapters} hasAsin={!!book.asin} onSaved={onChange} onClose={() => setEditing(null)} />}
+      {editing === 'match' && <FixMatchDialog item={item} onFixed={onChange} onClose={() => setEditing(null)} />}
       {deleting && <DeleteDialog item={item} onClose={() => setDeleting(false)} onDeleted={() => navigate(`/library/${item.libraryId}`, { replace: true })} />}
     </article>
   )

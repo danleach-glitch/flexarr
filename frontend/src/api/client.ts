@@ -11,6 +11,7 @@ import type {
   ArrFolder,
   ArrKind,
   ArrStatus,
+  BookChapter,
   BookListening,
   Bookmark,
   BookPerson,
@@ -506,6 +507,32 @@ export const saveBookmarkNote = (bookmarkId: string, note: string | null) => req
 export const deleteBookmark = (bookmarkId: string) => request<void>('DELETE', `/bookmarks/${bookmarkId}`)
 /** Settings › Audiobooks: default speed, skip steps and smart rewind. */
 export const BOOK_LISTENING_CHANGED = 'flexarr:book-listening'
+/** Chapter tools (main profile only): each chapter runs to the next one's start. */
+export const saveChapters = (id: string, chapters: { title: string; startSeconds: number }[]) =>
+  request<BookChapter[]>('PUT', `/items/${id}/chapters`, { chapters })
+/** Moves every chapter but the first by `seconds` (up to ten minutes either way). */
+export const shiftChapters = (id: string, seconds: number) => request<BookChapter[]>('POST', `/items/${id}/chapters/shift`, { seconds })
+/** Audible's chapters for the book (it needs an ASIN), moved by `shiftSeconds`. */
+export const takeAudibleChapters = (id: string, shiftSeconds = 0) => request<BookChapter[]>('POST', `/items/${id}/chapters/audible`, { shiftSeconds })
+
+/** A result of a book search for Fix match. */
+export interface BookMatch {
+  provider: string
+  id: string
+  title: string
+  subtitle: string | null
+  authors: string[]
+  narrators: string[]
+  series: string | null
+  year: number | null
+  cover: string | null
+  durationSeconds: number | null
+}
+export const searchBookMatches = (id: string, q: string, author?: string, signal?: AbortSignal) =>
+  apiGet<BookMatch[]>(`/items/${id}/book-match${queryString({ q, author })}`, signal)
+export const fixBookMatch = (id: string, match: { provider: string; id: string; query: string; author?: string }) =>
+  request<void>('POST', `/items/${id}/book-match`, match)
+
 /** How the server looks books up online (main profile only); keys are never sent back, only whether there is one. */
 export interface BookMetadataSettings {
   region: string

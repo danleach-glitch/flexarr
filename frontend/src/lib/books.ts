@@ -90,6 +90,13 @@ export function nextChapterStart(chapters: BookChapter[], position: number): num
   return next ? next.startSeconds : null
 }
 
+/** Reads a time typed as "1:02:03", "2:03", "123" or "12.5" (seconds); null when it isn't one. */
+export function parseClock(text: string): number | null {
+  const parts = text.trim().split(':')
+  if (parts.length === 0 || parts.length > 3 || parts.some((p) => !/^\d+(\.\d+)?$/.test(p))) return null
+  return parts.reduce((total, part) => total * 60 + Number(part), 0)
+}
+
 // ---------- Smart rewind
 
 /** Pauses shorter than this resume where they left off. */

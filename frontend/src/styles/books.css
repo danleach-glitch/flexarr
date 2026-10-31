@@ -52,6 +52,78 @@
   height: 20px;
 }
 
+/* ---------- Audiobooks: chapter editor ---------- */
+
+.chapter-editor {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto auto auto auto;
+  gap: 12px;
+  width: min(640px, 100%);
+  max-height: 84vh;
+}
+
+.chapter-editor h2 {
+  font-size: var(--step-3);
+}
+
+.chapter-edit-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.chapter-edit-list li {
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr) 7rem auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.chapter-edit-number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.chapter-edit-start {
+  font-variant-numeric: tabular-nums;
+}
+
+.chapter-edit-start[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+
+.chapter-editor .text-button {
+  justify-self: start;
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.chapter-editor .text-button svg {
+  width: 16px;
+  height: 16px;
+}
+
+.chapter-edit-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.chapter-edit-tools label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.chapter-edit-tools input {
+  width: 7rem;
+}
+
 /* ---------- Settings › Audiobooks ---------- */
 
 .key-row {
