@@ -185,6 +185,13 @@ public class RemoteGuestTests(RemoteGuestFactory factory) : IClassFixture<Remote
         Assert.NotEqual(HttpStatusCode.OK, (await first.GetAsync("/api/v1/me")).StatusCode);
         using var retried = factory.From(RemoteGuestFactory.Guest, second.ApiKey);
         Assert.Equal(HttpStatusCode.OK, (await retried.GetAsync("/api/v1/me")).StatusCode);
+
+        // Once the owner removes the device, asking again doesn't bring it back.
+        using var admin = factory.Admin();
+        var devices = await admin.GetFromJsonAsync<List<JsonElement>>("/api/v1/remote/guests/devices");
+        var id = devices!.Single(d => d.GetProperty("profileId").GetString() == gran).GetProperty("id").GetString();
+        Assert.Equal(HttpStatusCode.NoContent, (await admin.DeleteAsync($"/api/v1/remote/guests/devices/{id}")).StatusCode);
+        Assert.Equal(HttpStatusCode.Gone, (await RedeemAsync(RemoteGuestFactory.Guest, payload.T)).StatusCode);
     }
 
     [Fact]

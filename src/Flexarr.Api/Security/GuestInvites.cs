@@ -96,7 +96,8 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
     public static readonly TimeSpan RetryWindow = TimeSpan.FromMinutes(10);
 
     /// <summary>Invites redeemed lately, by token hash: the device that redeemed it may ask again (in memory only).</summary>
-    private readonly Dictionary<string, (GuestInvite Invite, string Address, DateTime Until)> _redeemed = [];
+    /// <remarks>With the sign-in it gave, so removing that device (or the guest) ends the retry too.</remarks>
+    private readonly Dictionary<string, (GuestInvite Invite, string Address, DateTime Until, string? SignInId)> _redeemed = [];
 
     private string FilePath => Path.Combine(options.CurrentValue.DataDirectory, FileName);
 
@@ -350,7 +351,8 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
             {
                 // Redeemed a moment ago by this same device, whose answer never arrived (a slow relayed link, the app
                 // put away): it gets a fresh sign-in, which replaces the one it never received. Any other device can't.
-                if (_redeemed.TryGetValue(hash, out var earlier) && earlier.Address == address)
+                // Only while the sign-in it gave still stands: a device the owner has removed stays removed.
+                if (_redeemed.TryGetValue(hash, out var earlier) && earlier.Address == address && earlier.SignInId is { } given && signIns.ById(given) is not null)
                 {
                     retry = true;
                     invite = earlier.Invite;
@@ -364,7 +366,7 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
             {
                 Loaded().Remove(invite);
                 SaveLocked();
-                _redeemed[hash] = (invite, address, now + RetryWindow);
+                _redeemed[hash] = (invite, address, now + RetryWindow, null);
             }
         }
 
@@ -377,6 +379,14 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
 
         var name = invite.Name.Length > 0 ? invite.Name : DeviceName(profileNameFor?.Invoke(invite.ProfileId), deviceType);
         var (signIn, signInToken) = signIns.IssueGuest(name, invite.ProfileId, address, deviceType, invite.Target);
+        lock (_lock)
+        {
+            if (_redeemed.TryGetValue(hash, out var entry))
+            {
+                _redeemed[hash] = entry with { SignInId = signIn.Id };
+            }
+        }
+
         LogRedeemed(PathComparison.Printable(name), address);
         return (signIn, signInToken, invite, retry);
     }
