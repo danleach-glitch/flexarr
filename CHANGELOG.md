@@ -60,6 +60,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ### Film and show pages
 - On the web, Play, Trailer, Watched, Watchlist and **⋯** sit on one row, rather than wrapping onto a second.
 
+### iPhone
+- **Sign out** in Settings asks in a normal dialog in the middle of the screen, rather than a bubble pointing at the wrong row.
+
 ### Connecting devices
 - When a new Apple TV, iPhone or Android phone asks to connect, any iPhone or Android phone on the main profile asks "Connect Living room?", with what kind of device it is and its code. Check the code matches the one on the device's screen and tap **Allow**, with no need to go to a computer. It shows while Flexarr is open, and as a notification when it isn't, on phones with notifications turned on. The notification has **Allow** and **Don't allow** buttons of its own (the phone asks to be unlocked first); on Android they show on the lock screen too, and on iPhone press and hold the notification. The web app asks the same when it's open on the main profile, in a banner across the top of the page. While settings are locked, **Allow** asks for the admin PIN, then connects it, the same way on iPhone, Android and the web.
 - Settings on the iPhone and Android apps (right on the Settings page), and **Settings › Access › Connect a device** on the web, list the devices waiting to connect, each with **Allow** and **Don't allow**.
