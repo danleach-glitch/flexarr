@@ -59,10 +59,9 @@ targets:
       path: FlexarrTV/Info.plist
       properties:
         CFBundleDisplayName: Flexarr
-        # HTTPS, and CryptoKit's AES-GCM for notification content: only encryption that comes with Apple's operating
-        # system, which is exempt. Answers App Store Connect's export compliance question for each build; confirm it
-        # against the questionnaire if the app ever ships its own encryption.
-        ITSAppUsesNonExemptEncryption: false
+        # Export compliance: no ITSAppUsesNonExemptEncryption here since the apps carry Tailscale (WireGuard: Go's
+        # own ChaCha20-Poly1305 and Curve25519, not the operating system's) for family guests, so App Store Connect
+        # asks at each upload until the answer is settled (see docs/remote-guests.md). Then set it here again.
         # Where the sign-in is shared with the Top Shelf extension.
         FlexarrKeychainGroup: $(AppIdentifierPrefix)io.github.flexarr.shared
         CFBundleShortVersionString: $(MARKETING_VERSION)
@@ -172,8 +171,9 @@ targets:
         CFBundleURLTypes:
           - CFBundleURLName: io.github.flexarr.ios
             CFBundleURLSchemes: [flexarr]
-        # HTTPS and CryptoKit (notification content), both Apple's own, which is exempt from export documentation.
-        ITSAppUsesNonExemptEncryption: false
+        # Export compliance: no ITSAppUsesNonExemptEncryption here since the apps carry Tailscale (WireGuard: Go's
+        # own ChaCha20-Poly1305 and Curve25519, not the operating system's) for family guests, so App Store Connect
+        # asks at each upload until the answer is settled (see docs/remote-guests.md). Then set it here again.
         # How "Flexarr" tends to come out of speech recognition, so Siri still knows which app is meant.
         # App Store Connect rejects more than three per language (ITMS-90626).
         INAlternativeAppNames:
