@@ -1,8 +1,8 @@
 /**
  * The sleep timer the podcast player and the video player share: in so many minutes, or when what's playing ends.
- * `until` is a Date.now() time.
+ * `until` is a Date.now() time. A book's can stop at the end of the chapter: `at` is where that is on its timeline.
  */
-export type SleepTimer = { until: number } | { endOfEpisode: true }
+export type SleepTimer = { until: number } | { endOfEpisode: true } | { endOfChapter: true; at: number }
 
 /** The timer's choices, in minutes. */
 export const sleepMinutes = [15, 30, 45, 60] as const
@@ -21,6 +21,14 @@ export function sleepChoices(end: string): { label: string; start: () => SleepTi
   return [
     ...sleepMinutes.map((minutes) => ({ label: `In ${minutes} minutes`, start: () => ({ until: Date.now() + minutes * 60_000 }) })),
     { label: `At the end of this ${end}`, start: () => ({ endOfEpisode: true }) as const },
+  ]
+}
+
+/** A book's choices: the minutes, or the end of the chapter, which ends at `chapterEnd` on the book's timeline. */
+export function bookSleepChoices(chapterEnd: number | null): { label: string; start: () => SleepTimer }[] {
+  return [
+    ...sleepMinutes.map((minutes) => ({ label: `In ${minutes} minutes`, start: () => ({ until: Date.now() + minutes * 60_000 }) })),
+    ...(chapterEnd !== null ? [{ label: 'At the end of this chapter', start: () => ({ endOfChapter: true, at: chapterEnd }) as const }] : []),
   ]
 }
 

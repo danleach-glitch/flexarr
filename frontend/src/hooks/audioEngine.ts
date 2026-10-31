@@ -1,5 +1,6 @@
 import type Hls from 'hls.js'
-import { getLoudness, reportProgress, startPlayback, stopPlayback, type ItemSummary } from '../api/client'
+import { beaconProgress, getLoudness, reportProgress, startPlayback, stopPlayback, type BookManifest, type ItemSummary } from '../api/client'
+import { deviceName, fileAt, isBook, readLocalPlace, saveLocalPlace, smartRewindSeconds, startDecision, timelineAt, type StartDecision } from '../lib/books'
 import { heardAsAlbum, replayGainScale } from '../lib/loudness'
 import type { MusicSettings } from '../lib/musicSettings'
 import { detectProfile } from '../lib/profile'
@@ -15,8 +16,22 @@ export const PRELOAD_SECONDS = 10
 /** How often a podcast episode's place is sent to the server while it plays, so it resumes there anywhere. */
 export const PODCAST_PROGRESS_SECONDS = 10
 
+/** How often a book's place is sent to the server while it plays (and on every pause). */
+export const BOOK_PROGRESS_SECONDS = 15
+
 /** A podcast episode rather than a track: it resumes, reports where it got to, and plays at the chosen speed. */
 export const isPodcast = (track: ItemSummary | undefined) => track?.kind === 'PodcastEpisode'
+
+/** A book being played: its session (one for the whole book), its files on one timeline, and where it was paused. */
+interface BookPlay {
+  track: ItemSummary
+  session: string
+  manifest: BookManifest
+  /** When it was last paused (a Date.now() time), for smart rewind; null while playing. */
+  pausedAt: number | null
+  /** When its place was last sent to the server, as a performance.now() time. */
+  reportedAt: number
+}
 
 /** One <audio> element and what's in it. Two take turns: one plays while the other gets the next track ready. */
 interface Slot {
@@ -37,6 +52,10 @@ interface Slot {
   outgoing: boolean
   /** When its place was last sent to the server (podcast episodes only), as a performance.now() time. */
   reportedAt: number
+  /** For a book: which of its files the element holds. The session is the book's, not the slot's. */
+  file: number | undefined
+  /** Counts the files opened in it, so a late `loadedmetadata` from an earlier one doesn't move the new one. */
+  opened: number
 }
 
 /** What the engine needs from the provider: the live queue and settings, and somewhere to report what happened. */
@@ -59,6 +78,15 @@ export interface EngineHost {
   stoppedAtEnd(): void
   /** The current track couldn't be played, even after trying it again once: the queue decides what happens. */
   failed(track: ItemSummary): void
+  /**
+   * A book started (with where it started, and a place on another device to offer), or stopped (null). Optional, for
+   * hosts that play no books.
+   */
+  book?(book: { manifest: BookManifest; session: string; decision: StartDecision } | null): void
+  /** The book reached its end (and was reported finished). */
+  bookEnded?(book: BookManifest): void
+  /** Whether smart rewind is on: after a pause, a book starts a little earlier. */
+  smartRewind?(): boolean
 }
 
 export interface AudioEngine {
@@ -83,6 +111,10 @@ export interface AudioEngine {
   stop(): void
   /** The mix, for the visualiser: null before anything has played, or without Web Audio. */
   analyser(): AnalyserNode | null
+  /** Sets how loud the current book plays, from 1 (as it is) to 0, for the sleep timer's fade. */
+  volume(level: number): void
+  /** Sends the book's place without waiting (the page is going). */
+  beacon(): void
 }
 
 /**
@@ -103,7 +135,11 @@ export function createEngine(host: EngineHost): AudioEngine {
   const current = () => slots[active]
   const other = () => slots[1 - active]
   const channel = (s: Slot) => (s.channel ??= mixer.channel(s.el))
-  const level = (s: Slot) => (host.settings().normalise ? s.gain : 1)
+  // The sleep timer's fade, over whatever the level would be.
+  let fade = 1
+  const level = (s: Slot) => (host.settings().normalise ? s.gain : 1) * fade
+  // A book plays its files back to back through both elements on one session; null when no book is playing.
+  let book: BookPlay | null = null
 
   /** Seconds left in the slot's track, trusting the element once it knows its length; Infinity when nobody knows yet. */
   const remaining = (s: Slot) => {
@@ -133,11 +169,157 @@ export function createEngine(host: EngineHost): AudioEngine {
     }
     s.session = undefined
     s.track = undefined
+    s.file = undefined
     s.ready = false
     s.outgoing = false
     s.el.pause()
     s.el.removeAttribute('src')
   }
+
+  // ---------- Books
+
+  /** Where the book is on its whole timeline. */
+  const bookTime = () => {
+    const c = current()
+    return book && c?.file !== undefined ? timelineAt(book.manifest.files, c.file, c.el.currentTime) : 0
+  }
+
+  /** Sends the book's place (or that it ended), and keeps it here too, for "Jump to … from …" on the next start. */
+  function reportBook(paused: boolean, ended = false) {
+    if (!book) return
+    const at = ended ? book.manifest.durationSeconds : bookTime()
+    book.reportedAt = performance.now()
+    saveLocalPlace(book.track.id, ended ? 0 : at)
+    void reportProgress(book.session, at, paused, ended).catch(() => undefined)
+  }
+
+  /** Lets go of the book: its place is sent (unless it ended, which said so already) and its session ended. */
+  function endBook(report = true) {
+    if (!book) return
+    if (report && current()?.file !== undefined) reportBook(true)
+    const session = book.session
+    book = null
+    void stopPlayback(session)
+    host.book?.(null)
+  }
+
+  /** Points a slot at one of the book's files, `offset` seconds in. */
+  function openFile(s: Slot, index: number, offset: number) {
+    const b = book!
+    const file = b.manifest.files[index]
+    s.hls?.destroy()
+    s.hls = null
+    s.track = b.track
+    s.session = undefined
+    s.file = index
+    s.ready = true
+    s.outgoing = false
+    s.duration = file.durationSeconds
+    s.gain = 1
+    const opened = ++s.opened
+    s.el.src = file.url
+    if (offset > 0) {
+      s.el.addEventListener(
+        'loadedmetadata',
+        () => {
+          if (s.opened === opened) s.el.currentTime = offset
+        },
+        { once: true },
+      )
+    }
+    applyRate(s)
+  }
+
+  /**
+   * Starts a book's session and opens the file its first place is in: a place asked for (a chapter, or where a reload
+   * left it), else where the server says, unless another device got somewhere else since this browser last played it
+   * (that place is offered instead). False when something overtook it.
+   */
+  async function loadBook(c: Slot, track: ItemSummary, startAt: number): Promise<boolean> {
+    const mine = ++loadCount
+    c.track = track
+    c.ready = false
+    const info = await startPlayback({ itemId: track.id, profile: detectProfile(), deviceName: deviceName() })
+    if (mine !== loadCount) {
+      void stopPlayback(info.sessionId)
+      return false
+    }
+    const manifest = info.book
+    if (!manifest || manifest.files.length === 0) {
+      void stopPlayback(info.sessionId)
+      throw new Error('Not a book this player can play')
+    }
+    const decision = startDecision(manifest.progress, readLocalPlace(track.id), startAt > 0 ? startAt : track.playFrom)
+    book = { track, session: info.sessionId, manifest, pausedAt: null, reportedAt: performance.now() }
+    host.book?.({ manifest, session: info.sessionId, decision })
+    host.duration(manifest.durationSeconds)
+    const place = fileAt(manifest.files, decision.start)
+    openFile(c, place.index, place.offset)
+    host.time(decision.start)
+    return true
+  }
+
+  /** Moves to a place on the book's timeline: in the file playing, the one waiting in the spare element, or another. */
+  function seekBook(position: number) {
+    if (!book) return
+    const c = current()
+    const playing = !c.el.paused
+    const place = fileAt(book.manifest.files, Math.min(Math.max(0, position), book.manifest.durationSeconds))
+    host.time(timelineAt(book.manifest.files, place.index, place.offset))
+    if (c.file === place.index) {
+      c.el.currentTime = place.offset
+      return
+    }
+    const o = other()
+    if (o.file === place.index && o.ready && !o.outgoing) {
+      active = 1 - active
+      channel(o).set(level(o))
+      o.el.currentTime = place.offset
+      if (playing) void o.el.play().catch(() => host.playing(false))
+      release(c)
+      return
+    }
+    openFile(c, place.index, place.offset)
+    if (playing) void c.el.play().catch(() => host.playing(false))
+  }
+
+  /** Near the end of a file, the next one loads into the spare element, so the switch has no gap. */
+  function prepareNextFile(s: Slot) {
+    const next = (s.file ?? 0) + 1
+    if (!book || next >= book.manifest.files.length) return
+    const o = other()
+    if (o.file === next || o.outgoing || remaining(s) > PRELOAD_SECONDS) return
+    openFile(o, next, 0)
+  }
+
+  /** A book's file ended: on to the next (ready in the spare element, ideally), or the book is done. */
+  function bookFileEnded(s: Slot) {
+    const b = book!
+    const next = (s.file ?? 0) + 1
+    if (next < b.manifest.files.length) {
+      const o = other()
+      if (o.file === next && o.ready && !o.outgoing) {
+        active = 1 - active
+        channel(o).set(level(o))
+        void o.el.play().catch(() => host.playing(false))
+        release(s)
+      } else {
+        openFile(s, next, 0)
+        void s.el.play().catch(() => host.playing(false))
+      }
+      return
+    }
+    // The end: it counts as finished, and the player stops (the next in the series is only ever offered).
+    reportBook(true, true)
+    endBook(false)
+    slots.forEach((slot) => release(slot))
+    isLoaded = false
+    host.playing(false)
+    host.time(0)
+    host.bookEnded?.(b.manifest)
+    if (host.stopAtEnd()) host.stoppedAtEnd()
+  }
+
 
   /** Starts a session for `track` and points the slot's element at its stream. False when something overtook it. */
   async function fill(s: Slot, track: ItemSummary, index: number, startAt: number): Promise<boolean> {
@@ -231,7 +413,7 @@ export function createEngine(host: EngineHost): AudioEngine {
    * queue starts that track the ordinary way when it's due. The current one is tried again once from where it was,
    * then given up on.
    */
-  function fail(s: Slot, at = s.el.currentTime) {
+  function fail(s: Slot, at = s.file !== undefined ? bookTime() : s.el.currentTime) {
     const track = s.track
     if (!track) return
     if (s !== current()) {
@@ -244,6 +426,7 @@ export function createEngine(host: EngineHost): AudioEngine {
       return
     }
     retried = undefined
+    endBook()
     release(s)
     host.playing(false)
     host.failed(track)
@@ -266,6 +449,8 @@ export function createEngine(host: EngineHost): AudioEngine {
 
   /** On every tick of the current track: time to get the next ready, or to start the crossfade into it? */
   function lookAhead(s: Slot) {
+    // A book is its own queue: it gets its next file ready, not the next entry.
+    if (book) return
     const { tracks, index } = host.queue()
     const next = tracks[index + 1]
     if (!next) return
@@ -287,6 +472,12 @@ export function createEngine(host: EngineHost): AudioEngine {
     },
     timeupdate: () => {
       if (s !== current()) return
+      if (book && s.file !== undefined) {
+        host.time(timelineAt(book.manifest.files, s.file, s.el.currentTime))
+        if (!s.el.paused && performance.now() - book.reportedAt > BOOK_PROGRESS_SECONDS * 1000) reportBook(false)
+        prepareNextFile(s)
+        return
+      }
       host.time(s.el.currentTime)
       if (isPodcast(s.track) && s.session && !s.el.paused && performance.now() - s.reportedAt > PODCAST_PROGRESS_SECONDS * 1000) {
         s.reportedAt = performance.now()
@@ -302,6 +493,11 @@ export function createEngine(host: EngineHost): AudioEngine {
     pause: () => {
       if (s !== current()) return
       host.playing(false)
+      // A book's place, on every pause (not the one at the end of each file).
+      if (book && s.file !== undefined) {
+        if (!s.el.ended) reportBook(true)
+        return
+      }
       // Paused part way through an episode: the place is kept, for picking it up on another device.
       if (isPodcast(s.track) && s.session && !s.el.ended) {
         s.reportedAt = performance.now()
@@ -311,6 +507,10 @@ export function createEngine(host: EngineHost): AudioEngine {
     ended: () => {
       if (s !== current()) {
         release(s, true) // The outgoing track's tail, after a crossfade.
+        return
+      }
+      if (book && s.file !== undefined) {
+        bookFileEnded(s)
         return
       }
       const { tracks, index } = host.queue()
@@ -342,6 +542,8 @@ export function createEngine(host: EngineHost): AudioEngine {
         gain: 1,
         outgoing: false,
         reportedAt: 0,
+        file: undefined,
+        opened: 0,
       }))
       const detach = slots.map((s) => {
         const on = handlers(s)
@@ -358,6 +560,23 @@ export function createEngine(host: EngineHost): AudioEngine {
       if (retried !== track) retried = undefined
       isLoaded = true
       mixer.resume()
+      // A book playing is let go first, its place sent while its element still has it.
+      endBook()
+      if (isBook(track)) {
+        release(o)
+        release(c)
+        host.time(startAt)
+        host.duration(track.durationSeconds ?? 0)
+        try {
+          if (!(await loadBook(c, track, startAt))) return
+        } catch {
+          fail(c, startAt)
+          return
+        }
+        channel(c).set(level(c))
+        await c.el.play().catch(() => host.playing(false))
+        return
+      }
       // Next pressed while the next track was ready (or a skip to it): it's already there to play.
       if (startAt === 0 && o.ready && o.track === track && !o.outgoing) {
         switchTo(0, { advance: false, ended: false })
@@ -384,26 +603,35 @@ export function createEngine(host: EngineHost): AudioEngine {
 
     play() {
       mixer.resume()
+      // Smart rewind: back a little after a pause, more the longer it was.
+      if (book && book.pausedAt !== null) {
+        const back = host.smartRewind?.() ? smartRewindSeconds((Date.now() - book.pausedAt) / 1000) : 0
+        book.pausedAt = null
+        if (back > 0) seekBook(bookTime() - back)
+      }
       void current()?.el.play().catch(() => host.playing(false))
       // A track still fading out resumes with it, so the crossfade finishes as it would have.
       if (other()?.outgoing) void other().el.play().catch(() => undefined)
     },
 
     pause() {
+      if (book && !current()?.el.paused) book.pausedAt = Date.now()
       current()?.el.pause()
       if (other()?.outgoing) other().el.pause()
     },
 
     seek(seconds) {
+      if (book) return seekBook(seconds)
       const c = current()
       if (c) c.el.currentTime = seconds
     },
 
-    currentTime: () => current()?.el.currentTime ?? 0,
+    currentTime: () => (book ? bookTime() : (current()?.el.currentTime ?? 0)),
 
     queueChanged() {
       const o = other()
-      if (!o?.track || o.outgoing) return
+      // A book's spare element holds its next file, whatever the queue says.
+      if (!o?.track || o.outgoing || o.file !== undefined) return
       const { tracks, index } = host.queue()
       if (o.track !== tracks[index + 1]) release(o)
     },
@@ -419,6 +647,7 @@ export function createEngine(host: EngineHost): AudioEngine {
     },
 
     stop() {
+      endBook()
       slots.forEach((s) => release(s))
       isLoaded = false
       host.time(0)
@@ -427,6 +656,18 @@ export function createEngine(host: EngineHost): AudioEngine {
     },
 
     analyser: () => mixer.analyser(),
+
+    volume(next) {
+      fade = Math.min(1, Math.max(0, next))
+      const c = current()
+      if (c?.track && !other().outgoing) channel(c).set(level(c))
+    },
+
+    beacon() {
+      if (!book) return
+      saveLocalPlace(book.track.id, bookTime())
+      beaconProgress(book.session, bookTime())
+    },
   }
   return engine
 }

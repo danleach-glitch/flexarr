@@ -1,7 +1,23 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react'
-import { getItem, getNextEpisode, getPodcastPreferences, imageUrl, savePodcastPreferences, type ItemSummary } from '../api/client'
+import {
+  addBookmark as saveBookmark,
+  BOOK_LISTENING_CHANGED,
+  deleteBookmark,
+  getBookListening,
+  getItem,
+  getNextEpisode,
+  getPodcastPreferences,
+  imageUrl,
+  savePodcastPreferences,
+  setPlaybackSpeed,
+  type BookListening,
+  type BookManifest,
+  type ItemSummary,
+} from '../api/client'
+import { authorsLine, chapterIndexAt, clampSpeed, fadeLevel, isBook, nextChapterStart, previousChapterStart } from '../lib/books'
 import { episodeAsTrack, PODCAST_PREFERENCES_CHANGED } from '../lib/podcasts'
 import { useMusicSettings } from '../lib/musicSettings'
+import { FADE_SECONDS } from '../lib/sleepTimer'
 import { createEngine, isPodcast, type AudioEngine } from './audioEngine'
 import { AudioPlayerContext, AudioTimeContext, MusicPagesContext, type AudioPlayer, type SleepTimer } from './audioPlayerContext'
 import { emptyQueue, queueReducer, queueStorageKey, readStoredQueue, rebuildQueue, serializeQueue, type StoredQueue } from './queue'
@@ -10,6 +26,9 @@ const speedKey = 'flexarr.podcastSpeed'
 
 /** How long the bar says a track couldn't be played, in milliseconds. */
 const FAILURE_SHOWN_FOR = 8000
+
+/** A podcast's skip buttons, as in every podcast app. */
+const PODCAST_STEPS = { back: 15, forward: 30 }
 
 function storedSpeed(): number {
   try {
@@ -23,7 +42,8 @@ function storedSpeed(): number {
 /**
  * Music playback that survives navigation: two <audio> elements for the whole app (one plays while the next track gets
  * ready in the other, so tracks follow each other without a gap, or crossfade), a queue, and Media Session integration
- * so keyboard media keys and the OS "now playing" controls work.
+ * so keyboard media keys and the OS "now playing" controls work. A book plays its files back to back the same way, on
+ * one timeline, with chapters, its own speed, smart rewind and bookmarks.
  *
  * The queue is also kept in sessionStorage (as ids), so a reload brings it back paused where it was.
  */
@@ -53,7 +73,18 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   // Podcasts' speed, one for every show: the profile's (kept on the server, so the phone plays at it too), with the
   // last one seen here to start with.
   const [usualSpeed, setUsualSpeed] = useState(storedSpeed)
-  const speedFor = useCallback((track: ItemSummary | undefined) => (isPodcast(track) ? usualSpeed : 1), [usualSpeed])
+  // The book playing: its manifest (bookmarks kept current), its own speed, and how this profile listens.
+  const [book, setBook] = useState<BookManifest | null>(null)
+  const [bookSpeed, setBookSpeed] = useState(1)
+  const bookSpeedRef = useRef(1)
+  const [listening, setListening] = useState<BookListening | null>(null)
+  const listeningRef = useRef<BookListening | null>(null)
+  const [bookOffer, setBookOffer] = useState<AudioPlayer['bookOffer']>(null)
+  const [nextBook, setNextBook] = useState<ItemSummary | null>(null)
+  const speedFor = useCallback(
+    (track: ItemSummary | undefined) => (isBook(track) ? bookSpeed : isPodcast(track) ? usualSpeed : 1),
+    [usualSpeed, bookSpeed],
+  )
   const speedForRef = useRef(speedFor)
   const [sleep, setSleep] = useState<SleepTimer | null>(null)
   const sleepRef = useRef(sleep)
@@ -67,6 +98,9 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     sleepRef.current = sleep
   }, [sleep])
+  useEffect(() => {
+    listeningRef.current = listening
+  }, [listening])
 
   const persist = useCallback((at: number) => {
     const s = stateRef.current
@@ -115,7 +149,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
             () => undefined,
           )
         },
-        rate: (track) => speedForRef.current(track),
+        rate: (track) => (isBook(track) ? bookSpeedRef.current : speedForRef.current(track)),
         stopAtEnd: () => sleepRef.current !== null && 'endOfEpisode' in sleepRef.current,
         stoppedAtEnd: () => setSleep(null),
         failed: (track) => {
@@ -127,6 +161,27 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
           const { tracks, index } = stateRef.current
           if (index + 1 < tracks.length) dispatch({ type: 'next' })
         },
+        book: (started) => {
+          if (!started) {
+            setBook(null)
+            setBookOffer(null)
+            return
+          }
+          const { manifest, decision } = started
+          // The book's own speed, ready before its first file opens (the engine asks for it straight away).
+          bookSpeedRef.current = clampSpeed(manifest.speed)
+          setBookSpeed(bookSpeedRef.current)
+          setListening(manifest.listening)
+          listeningRef.current = manifest.listening
+          setBook(manifest)
+          setBookOffer(decision.offer)
+          setNextBook(null)
+        },
+        bookEnded: (manifest) => {
+          setSleep((s) => (s && 'endOfChapter' in s ? null : s))
+          setNextBook(manifest.nextInSeries)
+        },
+        smartRewind: () => listeningRef.current?.smartRewind ?? true,
       })),
     [persist],
   )
@@ -172,22 +227,45 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     }
   }, [podcastPlaying])
 
-  // The sleep timer, checked every few seconds while it's set.
+  // How this profile listens to books, again when Settings › Audiobooks changes it.
+  const bookPlaying = isBook(current)
   useEffect(() => {
-    if (!sleep || !('until' in sleep)) return
-    const timer = window.setInterval(() => {
-      if (Date.now() < sleep.until) return
-      engine().pause()
-      setSleep(null)
-    }, 1000)
-    return () => window.clearInterval(timer)
+    if (!bookPlaying) return
+    const controller = new AbortController()
+    const load = () => getBookListening(controller.signal).then(setListening, () => undefined)
+    window.addEventListener(BOOK_LISTENING_CHANGED, load)
+    return () => {
+      controller.abort()
+      window.removeEventListener(BOOK_LISTENING_CHANGED, load)
+    }
+  }, [bookPlaying])
+
+  // The sleep timer, checked every second while it's set: the sound fades over its last seconds, then stops.
+  useEffect(() => {
+    if (!sleep || 'endOfEpisode' in sleep) return
+    const check = () => {
+      const left = 'until' in sleep ? (sleep.until - Date.now()) / 1000 : (sleep.at - position.current) / (bookSpeedRef.current || 1)
+      if (left <= 0) {
+        engine().pause()
+        engine().volume(1)
+        setSleep(null)
+      } else engine().volume(fadeLevel(left, FADE_SECONDS))
+    }
+    const timer = window.setInterval(check, 250)
+    return () => {
+      window.clearInterval(timer)
+      engine().volume(1)
+    }
   }, [sleep, engine])
 
   useEffect(() => {
-    const save = () => persist(position.current)
+    const save = () => {
+      persist(position.current)
+      engine().beacon()
+    }
     window.addEventListener('pagehide', save)
     return () => window.removeEventListener('pagehide', save)
-  }, [persist])
+  }, [persist, engine])
 
   // Bring back the queue a reload interrupted, paused: tracks are fetched by album (one request each).
   useEffect(() => {
@@ -223,6 +301,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   const [nowPlayingOpen, setNowPlayingOpen] = useState(false)
   const play = useCallback((tracks: ItemSummary[], start = 0, options?: { openNowPlaying?: boolean }) => {
     dispatch({ type: 'play', tracks, index: start })
+    setNextBook(null)
     if (options?.openNowPlaying && tracks.length > 0) setNowPlayingOpen(true)
   }, [])
   const enqueue = useCallback((tracks: ItemSummary[]) => dispatch({ type: 'enqueue', tracks }), [])
@@ -233,56 +312,120 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   const skipTo = useCallback((at: number) => dispatch({ type: 'skipTo', index: at }), [])
   const toggle = useCallback(() => {
     if (!engine().loaded()) {
-      // Restored after a reload and not yet started: load it from where it was.
+      // Restored after a reload (or a book heard to its end) and not yet started: load it from where it was.
       if (current) void engine().load(current, index, resumeAt.current)
       return
     }
     if (engine().paused()) engine().play()
     else engine().pause()
   }, [current, index, engine])
-  const next = useCallback(() => dispatch({ type: 'next' }), [])
+  const seek = useCallback(
+    (seconds: number) => {
+      if (engine().loaded()) engine().seek(seconds)
+      else {
+        resumeAt.current = seconds
+        position.current = seconds
+        setTime(Math.floor(seconds))
+      }
+    },
+    [engine],
+  )
+  const chapters = book?.chapters
+  // A book's Next and Previous go by chapter.
+  const next = useCallback(() => {
+    if (chapters) {
+      const at = nextChapterStart(chapters, engine().currentTime())
+      if (at !== null) seek(at)
+      return
+    }
+    dispatch({ type: 'next' })
+  }, [chapters, engine, seek])
   const previous = useCallback(() => {
+    if (chapters) {
+      seek(previousChapterStart(chapters, engine().currentTime()))
+      return
+    }
     // Like every music player: back restarts the track unless you're at its very start.
     if (engine().loaded() && engine().currentTime() > 3) engine().seek(0)
     else dispatch({ type: 'previous' })
-  }, [engine])
-  const seek = useCallback((seconds: number) => {
-    if (engine().loaded()) engine().seek(seconds)
-    else {
-      resumeAt.current = seconds
-      position.current = seconds
-      setTime(Math.floor(seconds))
-    }
-  }, [engine])
-  const skipBy = useCallback((seconds: number) => {
-    const at = engine().loaded() ? engine().currentTime() : position.current
-    seek(Math.max(0, at + seconds))
-  }, [engine, seek])
+  }, [chapters, engine, seek])
+  const skipBy = useCallback(
+    (seconds: number) => {
+      const at = engine().loaded() ? engine().currentTime() : position.current
+      seek(Math.max(0, at + seconds))
+    },
+    [engine, seek],
+  )
   const stop = useCallback(() => {
     engine().stop()
     dispatch({ type: 'stop' })
     setSleep(null)
+    setNextBook(null)
   }, [engine])
-  const speed = usualSpeed
-  const setSpeed = useCallback((next: number) => {
-    setUsualSpeed(next)
-    void savePodcastPreferences({ speed: next }).catch(() => undefined)
-    try {
-      localStorage.setItem(speedKey, String(next))
-    } catch {
-      // Not remembered here, which is fine: the server has it.
-    }
+  const speed = bookPlaying ? bookSpeed : usualSpeed
+  const currentId = current?.id
+  const setSpeed = useCallback(
+    (wanted: number) => {
+      if (bookPlaying && currentId) {
+        // The book's own, kept on the server for every device.
+        const next = clampSpeed(wanted)
+        bookSpeedRef.current = next
+        setBookSpeed(next)
+        void setPlaybackSpeed(currentId, next).catch(() => undefined)
+        return
+      }
+      setUsualSpeed(wanted)
+      void savePodcastPreferences({ speed: wanted }).catch(() => undefined)
+      try {
+        localStorage.setItem(speedKey, String(wanted))
+      } catch {
+        // Not remembered here, which is fine: the server has it.
+      }
+    },
+    [bookPlaying, currentId],
+  )
+  const skipSteps = useMemo(
+    () => (bookPlaying && listening ? { back: listening.skipBackSeconds, forward: listening.skipForwardSeconds } : PODCAST_STEPS),
+    [bookPlaying, listening],
+  )
+  const acceptBookOffer = useCallback(() => {
+    if (bookOffer) seek(bookOffer.position)
+    setBookOffer(null)
+  }, [bookOffer, seek])
+  const dismissBookOffer = useCallback(() => setBookOffer(null), [])
+  const playNextBook = useCallback(() => {
+    if (nextBook) dispatch({ type: 'play', tracks: [nextBook] })
+    setNextBook(null)
+  }, [nextBook])
+  const dismissNextBook = useCallback(() => setNextBook(null), [])
+  const addBookmark = useCallback(
+    async (note?: string) => {
+      if (!book) return
+      const added = await saveBookmark(book.itemId, Math.floor(engine().currentTime()), note?.trim() || undefined)
+      setBook((b) => (b && b.itemId === book.itemId ? { ...b, bookmarks: [...b.bookmarks, added] } : b))
+    },
+    [book, engine],
+  )
+  const removeBookmark = useCallback(async (id: string) => {
+    await deleteBookmark(id)
+    setBook((b) => (b ? { ...b, bookmarks: b.bookmarks.filter((m) => m.id !== id) } : b))
   }, [])
   const countMusicPage = useCallback((delta: 1 | -1) => setMusicPages((n) => n + delta), [])
 
   // Operating-system media controls.
+  const chapterTitle = chapters ? chapters[chapterIndexAt(chapters, time)]?.title : undefined
   useEffect(() => {
     if (!('mediaSession' in navigator) || !current) return
+    const bookTrack = isBook(current)
     navigator.mediaSession.metadata = new MediaMetadata({
       title: current.title,
-      artist: current.trackArtist ?? current.seriesTitle ?? undefined,
+      artist: (bookTrack ? authorsLine(current) : (current.trackArtist ?? current.seriesTitle)) ?? undefined,
+      album: bookTrack ? chapterTitle : undefined,
       artwork: current.artwork.poster ? [{ src: imageUrl(current.artwork.poster, 500)!, sizes: '500x500', type: 'image/jpeg' }] : [],
     })
+  }, [current, chapterTitle])
+  useEffect(() => {
+    if (!('mediaSession' in navigator) || !current) return
     navigator.mediaSession.setActionHandler('play', toggle)
     navigator.mediaSession.setActionHandler('pause', toggle)
     navigator.mediaSession.setActionHandler('nexttrack', next)
@@ -290,15 +433,15 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     navigator.mediaSession.setActionHandler('seekto', (details) => {
       if (details.seekTime !== undefined) seek(details.seekTime)
     })
-    // Podcasts: the system's skip buttons go back 15 seconds and on 30, as in every podcast app.
-    const podcast = isPodcast(current)
+    // Podcasts and books: the system's skip buttons go back and on by the steps the player shows.
+    const skips = isPodcast(current) || isBook(current)
     try {
-      navigator.mediaSession.setActionHandler('seekbackward', podcast ? (d) => skipBy(-(d.seekOffset ?? 15)) : null)
-      navigator.mediaSession.setActionHandler('seekforward', podcast ? (d) => skipBy(d.seekOffset ?? 30) : null)
+      navigator.mediaSession.setActionHandler('seekbackward', skips ? () => skipBy(-skipSteps.back) : null)
+      navigator.mediaSession.setActionHandler('seekforward', skips ? () => skipBy(skipSteps.forward) : null)
     } catch {
       // A browser without these actions.
     }
-  }, [current, toggle, next, previous, seek, skipBy])
+  }, [current, toggle, next, previous, seek, skipBy, skipSteps])
 
   const analyser = useCallback(() => engineRef.current?.analyser() ?? null, [])
 
@@ -331,6 +474,16 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       sleep,
       setSleep,
       analyser,
+      book: bookPlaying ? book : null,
+      skipSteps,
+      bookOffer,
+      acceptBookOffer,
+      dismissBookOffer,
+      nextBook,
+      playNextBook,
+      dismissNextBook,
+      addBookmark,
+      removeBookmark,
     }),
     [
       queue,
@@ -358,6 +511,17 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       setSpeed,
       sleep,
       analyser,
+      bookPlaying,
+      book,
+      skipSteps,
+      bookOffer,
+      acceptBookOffer,
+      dismissBookOffer,
+      nextBook,
+      playNextBook,
+      dismissNextBook,
+      addBookmark,
+      removeBookmark,
     ],
   )
   return (

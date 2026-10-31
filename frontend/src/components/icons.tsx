@@ -128,6 +128,21 @@ export const Forward30 = (p: IconProps) => (
     <text x="12" y="15.5" fontSize="7" textAnchor="middle" fill="currentColor" stroke="none" fontWeight="700">30</text>
   </svg>
 )
+/** Back so many seconds: the circling arrow with the number in it. */
+export const SkipBack = ({ seconds, ...p }: IconProps & { seconds: number }) => (
+  <svg {...base} {...p}>
+    <path d="M4 12a8 8 0 1 0 2.4-5.7L4 8.5" />
+    <path d="M4 4v4.5h4.5" />
+    <text x="12" y="15.5" fontSize="7" textAnchor="middle" fill="currentColor" stroke="none" fontWeight="700">{seconds}</text>
+  </svg>
+)
+export const SkipForward = ({ seconds, ...p }: IconProps & { seconds: number }) => (
+  <svg {...base} {...p}>
+    <path d="M20 12a8 8 0 1 1-2.4-5.7L20 8.5" />
+    <path d="M20 4v4.5h-4.5" />
+    <text x="12" y="15.5" fontSize="7" textAnchor="middle" fill="currentColor" stroke="none" fontWeight="700">{seconds}</text>
+  </svg>
+)
 export const Microphone = (p: IconProps) => (
   <svg {...base} {...p}>
     <rect x="9" y="2.5" width="6" height="11" rx="3" />

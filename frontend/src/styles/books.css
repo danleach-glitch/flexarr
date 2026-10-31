@@ -1,3 +1,40 @@
+/* ---------- Audiobooks: the player ---------- */
+
+/* An offer just above the bar: another device's place, or the next book in the series. */
+.book-offer {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--now-playing-height, 88px) + 28px);
+  z-index: 56;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  max-width: calc(100vw - 32px);
+  padding: 8px 8px 8px 18px;
+  border: 1px solid var(--aisle);
+  border-radius: var(--radius-panel);
+  background: color-mix(in srgb, var(--seat) 96%, transparent);
+  backdrop-filter: blur(20px);
+  box-shadow: 0 12px 40px rgb(0 0 0 / 0.45);
+  transform: translateX(-50%);
+}
+
+.book-offer span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.book-offer .button svg {
+  width: 14px;
+  height: 14px;
+}
+
+.now-playing-bookmark svg {
+  width: 20px;
+  height: 20px;
+}
+
 /* ---------- Audiobooks: library ---------- */
 
 .books-library {
