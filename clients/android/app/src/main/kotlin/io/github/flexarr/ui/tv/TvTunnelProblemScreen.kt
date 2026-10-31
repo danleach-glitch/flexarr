@@ -64,12 +64,13 @@ fun TvTunnelProblemScreen(model: AppModel) {
             Column(Modifier.width(400.dp).background(Flexarr.seat, RoundedCornerShape(14.dp)).padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Text(owner?.let { "Leave $it’s Flexarr?" } ?: "Leave this Flexarr?", fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 Text("Joining again takes a new code.", fontSize = 14.sp, color = Flexarr.usher)
+                // As the Apple TV: Cancel first, and where focus starts; Leave after it.
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    TvActionButton("Cancel", onClick = { confirmLeave = false }, prominent = true, modifier = Modifier.focusRequester(cancel))
                     TvActionButton("Leave", onClick = {
                         confirmLeave = false
                         model.signOut()
-                    }, prominent = true, ambient = Flexarr.danger)
-                    TvActionButton("Cancel", onClick = { confirmLeave = false }, modifier = Modifier.focusRequester(cancel))
+                    }, ambient = Flexarr.danger)
                 }
             }
         }

@@ -204,12 +204,13 @@ private fun MainPage(
                     fontWeight = FontWeight.Bold,
                 )
                 Text(if (guest) "Joining again takes a new code." else "This TV will need to connect again to use the server.", fontSize = 14.sp, color = Flexarr.usher)
+                // As the Apple TV: Cancel first, and where focus starts; Leave (or Sign out) after it.
                 Row(Modifier.fillMaxWidth().height(44.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    TvActionButton("Cancel", onClick = { confirmSignOut = false }, prominent = true, modifier = Modifier.focusRequester(cancel))
                     TvActionButton(if (guest) "Leave" else "Sign out", onClick = {
                         confirmSignOut = false
                         model.signOut()
-                    }, prominent = true, ambient = Flexarr.danger)
-                    TvActionButton("Cancel", onClick = { confirmSignOut = false }, modifier = Modifier.focusRequester(cancel))
+                    }, ambient = Flexarr.danger)
                 }
             }
         }
