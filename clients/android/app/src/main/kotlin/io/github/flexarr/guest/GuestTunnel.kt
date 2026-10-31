@@ -19,9 +19,9 @@ private val flexarrLog = FlexarrLog("tunnel")
  * docs/remote-guests.md). It listens on 127.0.0.1 and forwards each connection to the server on the host's tailnet, so
  * the API, artwork, ExoPlayer and downloads all just use `http://127.0.0.1:<port>`.
  *
- * It runs in the app's process, so it lives as long as the process does: the playback and download foreground services
- * keep it going with them. Requests made before it's up wait for it ([FlexarrClient.loopbackTunnel]), and one that finds
- * nothing listening starts it again. The node's identity is kept in a folder that isn't backed up; the invite's auth key
+ * It runs in the app's process. A minute after the app goes to the background it stops, unless music, a podcast or a
+ * download is still using it ([io.github.flexarr.AppModel.wentToBackground]). Requests made before it's up wait for it
+ * ([FlexarrClient.loopbackTunnel]), and one that finds nothing listening starts it again. The node's identity is kept in a folder that isn't backed up; the invite's auth key
  * is used once, so losing that folder means needing a new invite.
  */
 class GuestTunnel(context: Context) : LoopbackTunnel {
@@ -85,7 +85,7 @@ class GuestTunnel(context: Context) : LoopbackTunnel {
      */
     fun start(authKey: String = ""): Int = synchronized(lock) {
         val info = info ?: throw TunnelException("No guest sign-in", needsLogin = false)
-        listening?.let { port -> if (status().state == "running") return port }
+        listening?.let { port -> if (state() == "running") return port }
         loadLibrary()
         Tunnel.setPreferredPort(preferredPort.toLong())
         val port = try {
@@ -118,8 +118,11 @@ class GuestTunnel(context: Context) : LoopbackTunnel {
     /** Back in front: starts it again if it stopped while the app was away (the network changed, say). Off the main thread. */
     fun ensureRunning() {
         if (info == null) return
-        if (listening == null || status().state != "running") runCatching { restart(listening ?: 0) }
+        if (listening == null || state() != "running") runCatching { restart(listening ?: 0) }
     }
+
+    /** What the node is doing ([Status.state]), without asking how it reaches the server: cheap, and never waits. */
+    fun state(): String = if (loaded) runCatching { Tunnel.state() }.getOrDefault("unknown") else "stopped"
 
     /** What the node is doing and how it reaches the server. */
     fun status(): Status {

@@ -974,12 +974,32 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
 
     /** Back in front: a guest's tunnel is started again if it stopped while the app was away. */
     fun cameToFront() {
+        tunnelIdle?.cancel()
         if (credentials?.isGuest == true) scope.launch(Dispatchers.IO) { tunnel.ensureRunning() }
+    }
+
+    private var tunnelIdle: Job? = null
+
+    /**
+     * In the background: a guest's tunnel stops after a minute, once nothing's using it (music or a podcast playing, a
+     * download coming in), so it doesn't keep the phone's radio busy. Anything that needs it later starts it again.
+     */
+    fun wentToBackground() {
+        if (!tunnel.isInUse) return
+        tunnelIdle?.cancel()
+        tunnelIdle = scope.launch {
+            delay(TUNNEL_IDLE_MS)
+            while (music.isPlaying || podcasts.isPlaying || downloads.isTransferring) delay(TUNNEL_IDLE_MS)
+            withContext(Dispatchers.IO) { tunnel.stop() }
+        }
     }
 
     companion object {
         /** How long [refreshWatchlistSoon] waits for changes to stop coming. */
         private const val WATCHLIST_SETTLE_MS = 750L
+
+        /** How long a guest's tunnel stays up with the app in the background and nothing using it. */
+        private const val TUNNEL_IDLE_MS = 60_000L
 
         /**
          * The server's address for away from home, from its [status], as a base URL: every request there carries this

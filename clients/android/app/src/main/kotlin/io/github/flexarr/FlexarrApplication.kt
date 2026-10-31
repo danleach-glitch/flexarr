@@ -35,14 +35,18 @@ class FlexarrApplication : Application(), SingletonImageLoader.Factory {
         if (!isTelevision) Casting.start(this, model)
         FlexarrMessagingService.createChannels(this)
         ReviewPrompt.start(this)
-        // Commands from other devices are taken while the app is in front, and a guest's tunnel is checked on coming back.
+        // Commands from other devices are taken while the app is in front; a guest's tunnel is checked on coming back, and
+        // stops a while after going.
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onStart(owner: LifecycleOwner) {
                 model.cameToFront()
                 model.listenForCommands()
             }
 
-            override fun onStop(owner: LifecycleOwner) = model.commands.stop()
+            override fun onStop(owner: LifecycleOwner) {
+                model.commands.stop()
+                model.wentToBackground()
+            }
         })
     }
 
