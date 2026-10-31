@@ -1,0 +1,33 @@
+name: TunnelSpike
+options:
+  bundleIdPrefix: io.flexarr.spike
+  deploymentTarget:
+    tvOS: "18.2"
+    iOS: "18.2"
+settings:
+  CODE_SIGNING_ALLOWED: NO
+  SWIFT_VERSION: "5.0"
+targetTemplates:
+  Spike:
+    type: application
+    sources: [Sources]
+    dependencies:
+      - framework: ../../build/FlexarrTunnel.xcframework
+        embed: false
+    info:
+      path: Sources/Info.plist
+      properties:
+        UILaunchScreen: {}
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+targets:
+  TunnelSpikeTV:
+    templates: [Spike]
+    platform: tvOS
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: io.flexarr.spike.tv
+  TunnelSpikeiOS:
+    templates: [Spike]
+    platform: iOS
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: io.flexarr.spike.ios
