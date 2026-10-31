@@ -12,7 +12,7 @@ namespace Flexarr.Api.Search;
 /// </summary>
 public sealed class SearchIndex : IDisposable
 {
-    public enum Group { Title, Album, Person, Genre }
+    public enum Group { Title, Album, Person, Genre, Book }
 
     /// <param name="Rank">Breaks ties between equally close matches: popularity for titles, credits for people.</param>
     private sealed record Entry(Group Group, Guid Id, string Name, SearchText.Candidate[] Texts, double Rank);
@@ -121,7 +121,7 @@ public sealed class SearchIndex : IDisposable
 
         return
         [
-            .. items.Select(i => new Entry(i.Kind == MediaKind.Album ? Group.Album : Group.Title, i.Id, i.Title,
+            .. items.Select(i => new Entry(i.Kind switch { MediaKind.Album => Group.Album, MediaKind.Audiobook => Group.Book, _ => Group.Title }, i.Id, i.Title,
                 i.OriginalTitle is { } original && original != i.Title ? [SearchText.Candidate.Of(i.Title), SearchText.Candidate.Of(original)] : [SearchText.Candidate.Of(i.Title)],
                 i.Rank)),
             .. people.Select(p => new Entry(Group.Person, p.Id, p.Name, [SearchText.Candidate.Of(p.Name)], p.Credits)),

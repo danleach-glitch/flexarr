@@ -11,6 +11,12 @@ public sealed class PlaybackSession
     public required string Id { get; init; }
     public required Guid ItemId { get; init; }
 
+    /// <summary>A book's files, in order on its timeline, served at <c>/playback/{sid}/book/{index}</c>. Null for anything else.</summary>
+    public IReadOnlyList<Books.BookPart>? BookParts { get; init; }
+
+    /// <summary>The device's name, for a book's "Jump to where you were on …".</summary>
+    public string? DeviceName { get; init; }
+
     /// <summary>Whose history progress is recorded against (stream requests carry no profile of their own).</summary>
     public required string ProfileId { get; init; }
 

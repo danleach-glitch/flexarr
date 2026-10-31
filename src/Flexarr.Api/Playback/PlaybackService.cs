@@ -41,6 +41,11 @@ public sealed class PlaybackService(
             request = request with { StartPositionSeconds = request.StartPositionSeconds ?? 0 };
         }
 
+        if (item is { Kind: MediaKind.Audiobook })
+        {
+            return await StartBookAsync(item, request, ct);
+        }
+
         if (item is null || item.Kind is not (MediaKind.Movie or MediaKind.Episode or MediaKind.Track or MediaKind.PodcastEpisode))
         {
             return null;
@@ -301,8 +306,60 @@ public sealed class PlaybackService(
             [], null, [], null, false, [], summary, ancestors, null, null, false, watching);
     }
 
+    /// <summary>
+    /// A book: its files played back to back on one timeline, each as it is or converted for a player that can't decode
+    /// it. The player gets the files' addresses with the session's id in them, so AirPlay and Chromecast can fetch them.
+    /// </summary>
+    private async Task<PlaybackInfoDto?> StartBookAsync(MediaItem book, PlaybackRequest request, CancellationToken ct)
+    {
+        var parts = await Books.BookPlayback.PartsAsync(db, book.Id, request.Profile.AudioCodecs, ct);
+        if (parts.Count == 0)
+        {
+            return null;
+        }
+
+        if (request.ReplacesSessionId is { } replaces && sessions.Get(replaces) is { } previous && previous.ProfileId == profile.Id)
+        {
+            await sessions.RemoveAsync(previous.Id);
+        }
+
+        var id = TranscodeManager.NewId();
+        var duration = parts.Sum(p => p.DurationSeconds);
+        sessions.Add(new PlaybackSession
+        {
+            Id = id,
+            ItemId = book.Id,
+            ProfileId = profile.Id,
+            SignInId = profile.SignInId,
+            FileId = parts[0].FileId,
+            FilePath = parts[0].Path,
+            Container = parts[0].Container,
+            DurationSeconds = duration,
+            Method = PlaybackMethod.DirectPlay,
+            Subtitles = [],
+            CreditsStart = null,
+            BookParts = parts,
+            DeviceName = request.DeviceName,
+        });
+
+        var basePath = $"/api/v1/playback/{id}";
+        var manifest = await Books.BookPlayback.ManifestAsync(db, book, profile.Id, parts, p => $"{basePath}/book/{p.Index}", ct);
+        var start = request.StartPositionSeconds ?? (manifest.Progress.Finished ? 0 : manifest.Progress.PositionSeconds);
+        var summary = await db.MediaItems.Where(i => i.Id == book.Id).Summaries(profile.Id).FirstAsync(ct);
+        return new PlaybackInfoDto(id, PlaybackMethod.DirectPlay, manifest.Files[0].Url, [], duration, Math.Clamp(start, 0, duration), parts[0].FileId,
+            [], null, [], null, false, [], summary, [], manifest.NextInSeries, null, Speed: manifest.Speed, Book: manifest);
+    }
+
     public async Task ReportProgressAsync(PlaybackSession session, ProgressRequest progress, CancellationToken ct)
     {
+        if (session.BookParts is not null)
+        {
+            // A book's place is on its whole timeline, and kept by its own rules (see BookPlayback).
+            await Books.BookPlayback.RecordAsync(db, session.ItemId, session.ProfileId,
+                new Books.BookProgressRequest(progress.PositionSeconds, session.DeviceName, DateTime.UtcNow, progress.Ended), ct);
+            return;
+        }
+
         for (var attempt = 0; ; attempt++)
         {
             var state = await db.PlaybackStates.FirstOrDefaultAsync(p => p.UserId == session.ProfileId && p.MediaItemId == session.ItemId, ct);

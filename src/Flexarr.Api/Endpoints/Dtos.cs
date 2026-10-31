@@ -52,7 +52,9 @@ public sealed record ItemSummaryDto(
     Guid? SeriesId = null,
     string? AlbumType = null,
     string? TrackArtist = null,
-    bool HomeVideo = false);
+    bool HomeVideo = false,
+    // A book's authors, narrator, series and length. Absent from servers before 0.58.
+    Books.BookSummaryDto? Book = null);
 
 /// <summary>The viewer's state for an item. UnwatchedCount is set for series and seasons.</summary>
 public sealed record UserDataDto(double PositionSeconds, bool Watched, int PlayCount, DateTime? LastPlayedAt, int? UnwatchedCount);
@@ -94,14 +96,18 @@ public sealed record ItemDetailDto(
     // The age it's suitable from, on the UK's steps (0 is U, 8 PG); null, unrated. Absent from servers before 0.56.
     int? RatingAge = null,
     // A parent's Allow or Block for profiles with an age limit; only for the main profile. Absent from servers before 0.56.
-    KidsOverride? KidsOverride = null);
+    KidsOverride? KidsOverride = null,
+    // A book's edition, series, chapters and bookmarks. Absent from servers before 0.58.
+    Books.BookDetailDto? Book = null);
 
 /// <summary>A parent's say over a title for profiles with an age limit.</summary>
 public sealed record KidsOverrideRequest(KidsOverride Override);
 
 public sealed record PersonCreditDto(ItemSummaryDto Item, CreditRole Role, string? Character);
 
-public sealed record PersonDto(Guid Id, string Name, string? Image, IReadOnlyList<PersonCreditDto> Credits);
+public sealed record PersonDto(Guid Id, string Name, string? Image, IReadOnlyList<PersonCreditDto> Credits,
+    // An author's or narrator's biography. Absent from servers before 0.58.
+    string? Biography = null);
 
 public static class ArtworkUrls
 {

@@ -43,6 +43,9 @@ public sealed class MediaFile
     /// </summary>
     public bool? ClosedCaptions { get; set; }
 
+    /// <summary>A book file's place in its book, from 0: the files play back to back in this order. Null for anything else.</summary>
+    public int? BookOrder { get; set; }
+
     public string? AudioCodec { get; set; }
     public int? AudioChannels { get; set; }
 
