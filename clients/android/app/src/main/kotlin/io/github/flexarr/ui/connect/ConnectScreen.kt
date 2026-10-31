@@ -569,6 +569,10 @@ private fun PhoneGuestCode(model: AppModel, onBack: () -> Unit) {
                     }
                 }
             }
+        } else if (guest.code == null && guest.problem != null && !guest.stopped) {
+            // No code to be had (the relay can't be reached): just that, and a way to try again.
+            Text(guest.problem!!, fontSize = 15.sp, color = Flexarr.screen)
+            ActionButton("Try again", onClick = { attempt++ }, prominent = true)
         } else {
             Text("Give this code to the person who invited you", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher)
             val shown = guest.code
@@ -588,7 +592,10 @@ private fun PhoneGuestCode(model: AppModel, onBack: () -> Unit) {
             }
             guest.problem?.let { Text(it, fontSize = 15.sp, color = Flexarr.screen) }
         }
-        Text("Back", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.silver,
-            modifier = Modifier.padding(top = 6.dp).pressable({ if (!model.joining) onBack() }).minimumInteractiveComponentSize())
+        // Not beside Join and Not now: those already say what to do.
+        if (!(invite != null && model.inviteFromCode && joinProblem == null && !model.joining)) {
+            Text("Back", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.silver,
+                modifier = Modifier.padding(top = 6.dp).pressable({ if (!model.joining) onBack() }).minimumInteractiveComponentSize())
+        }
     }
 }

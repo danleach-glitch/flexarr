@@ -65,7 +65,7 @@ fun rememberGuestCode(model: AppModel, attempt: Int): GuestCodeState {
             inFront()
             val tv = withContext(Dispatchers.Default) { GuestTvCode.create() }
             try {
-                tv.register()
+                tv.register(relay = model.pairRelay)
             } catch (e: CancellationException) {
                 throw e
             } catch (_: GuestTvCode.Failure.CodeTaken) {
@@ -82,7 +82,7 @@ fun rememberGuestCode(model: AppModel, attempt: Int): GuestCodeState {
                 delay(if (SystemClock.elapsedRealtime() - shownAt < FAST_FOR_MS) FAST_POLL_MS else SLOW_POLL_MS)
                 inFront()
                 val answer = try {
-                    tv.poll()
+                    tv.poll(relay = model.pairRelay)
                 } catch (e: CancellationException) {
                     throw e
                 } catch (_: GuestTvCode.Failure.BadInvite) {

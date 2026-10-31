@@ -110,6 +110,9 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
      */
     var recordsHistory = true
 
+    /** Where "Join someone’s Flexarr" meets its invite: Flexarr's relay, or a local one in debug builds (`--es pairRelay`). */
+    var pairRelay: okhttp3.HttpUrl = io.github.flexarr.core.GuestTvCode.RELAY
+
     /** Goes up whenever something may have changed what's watched (the player closed, say): screens load again. */
     var watchStateVersion by mutableIntStateOf(0)
         private set

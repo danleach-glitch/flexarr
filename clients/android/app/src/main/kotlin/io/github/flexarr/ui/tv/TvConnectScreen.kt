@@ -196,12 +196,13 @@ private fun GuestCode(model: AppModel, onBack: () -> Unit) {
     val joinProblem = model.joinProblem
     // On Join when an invite arrives (one click for whoever's holding the remote), on Try again after a problem.
     val asking = invite != null && joinProblem == null && !model.joining
-    LaunchedEffect(asking, joinProblem != null, guest.stopped) {
+    LaunchedEffect(asking, joinProblem != null, guest.stopped, code == null && problem != null) {
         runCatching {
             when {
                 asking -> join.requestFocus()
                 guest.stopped && invite == null -> newCode.requestFocus()
                 invite != null && joinProblem != null -> retry.requestFocus()
+                invite == null && code == null && problem != null -> retry.requestFocus()
                 else -> back.requestFocus()
             }
         }
@@ -232,6 +233,10 @@ private fun GuestCode(model: AppModel, onBack: () -> Unit) {
                     }
                 }
             }
+        } else if (code == null && problem != null && !guest.stopped) {
+            // No code to be had (the relay can't be reached): just that, and a way to try again.
+            ErrorNote(problem)
+            TvActionButton("Try again", onClick = { attempt++ }, prominent = true, modifier = Modifier.focusRequester(retry))
         } else {
             Text("Read this code to the person who invited you", fontSize = 20.sp, fontWeight = FontWeight.Bold)
             val shown = code
@@ -248,7 +253,9 @@ private fun GuestCode(model: AppModel, onBack: () -> Unit) {
             }
             problem?.let { ErrorNote(it) }
         }
-        TvActionButton("Back", onClick = { model.dismissInvite(); onBack() }, modifier = Modifier.focusRequester(back), enabled = !model.joining)
+        if (!asking) {
+            TvActionButton("Back", onClick = { model.dismissInvite(); onBack() }, modifier = Modifier.focusRequester(back), enabled = !model.joining)
+        }
     }
 }
 

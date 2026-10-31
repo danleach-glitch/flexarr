@@ -1,5 +1,6 @@
 package io.github.flexarr
 
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import io.github.flexarr.logging.FlexarrLog
 import android.content.Intent
 import android.content.pm.ActivityInfo
@@ -77,6 +78,8 @@ class MainActivity : ComponentActivity() {
         if (!BuildConfig.LAUNCH_ARGUMENTS) return
         val model = appModel
         if (intent.hasExtra("noHistory")) model.recordsHistory = !intent.getBooleanExtra("noHistory", false)
+        // Debug builds only: `--es pairRelay http://10.0.2.2:8795/api/pair` points "Join someone’s Flexarr" at a local relay.
+        intent.getStringExtra("pairRelay")?.toHttpUrlOrNull()?.let { model.pairRelay = it }
         val server = intent.getStringExtra("server")
         val key = intent.getStringExtra("apiKey")
         if (server != null && key != null) model.signInForThisLaunch(server, key, remote = intent.getStringExtra("remote"))
