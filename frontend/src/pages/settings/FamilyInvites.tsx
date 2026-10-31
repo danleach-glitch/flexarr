@@ -232,8 +232,8 @@ export function GuestsGroup({ onChange }: { onChange: () => void }) {
     (p) => p.id === adding || devices.data?.some((d) => d.profileId === p.id) || waiting.data?.some((w) => w.profileId === p.id),
   )
   const people: { id: string; name: string; color?: string }[] = addingFor && !listed.some((p) => p.id === addingFor.id) ? [addingFor, ...listed] : listed
-  // The colour their new profile will get.
-  const newGuestColour = freeColour(profiles.data ?? [])
+  // The colour their new profile will get, or, once the name is someone's, theirs.
+  const newGuestColour = nameTaken?.color ?? freeColour(profiles.data ?? [])
   /** Gives up adding a device; a profile made for this a moment ago, with nothing joined, goes with it. */
   async function stopAdding() {
     const giving = addingFor
