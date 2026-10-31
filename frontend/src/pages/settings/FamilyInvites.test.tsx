@@ -119,6 +119,7 @@ describe('Settings › Remote access › Family invites', () => {
     expect(await screen.findByText('Gran')).toBeVisible()
     expect(screen.getByRole('button', { name: 'Remove Gran' })).toBeVisible()
     expect(screen.queryByRole('button', { name: 'Add new guest' })).not.toBeInTheDocument()
+    expect(screen.getByText('Adding guests waits for Tailscale setup, below.')).toBeVisible()
     expect(screen.queryByText('+ Add device')).not.toBeInTheDocument()
   })
 

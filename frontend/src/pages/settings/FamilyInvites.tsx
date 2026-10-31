@@ -405,6 +405,7 @@ export function GuestsGroup({ onChange, canAdd = true }: { onChange: () => void;
           )}
         </form>
       )}
+      {!canAdd && <p className="settings-note">Adding guests waits for Tailscale setup, below.</p>}
       {people.length === 0 && !naming && (
         <div className="panel guest-card">
           <p className="muted guest-empty">No guests yet.</p>
@@ -551,11 +552,13 @@ export function AddDevice({
   onJoined: (deviceId: string) => void
 }) {
   const [waiting, setWaiting] = useState(false)
+  /** A code was sent: from then on, the device that joins is looked for, even once the panel has stopped waiting. */
+  const [sent, setSent] = useState(false)
   const [code, setCode] = useState('')
   const [error, setError] = useState<string>()
   // The devices there before, so the one that joins is the one not among them.
   const [before, setBefore] = useState(() => devices.map((d) => d.id))
-  const arrived = waiting ? devices.find((d) => !before.includes(d.id)) : undefined
+  const arrived = sent ? devices.find((d) => !before.includes(d.id)) : undefined
 
   // Joined: say so a moment, then the panel closes and the new device is marked in the list. Keyed on which device
   // joined, so the list refreshing meanwhile doesn't start the moment again.
@@ -578,13 +581,14 @@ export function AddDevice({
     try {
       await inviteGuestTv(code, null, profileId)
       setWaiting(true)
+      setSent(true)
       onChange()
     } catch (err) {
       setError(errorText(err))
     }
   }
 
-  // Their device hasn't come in a minute and a half (its join failed, or the app was closed): say so, and offer the
+  // Their device hasn't come in three minutes (its join failed, or the app was closed): say so, and offer the
   // code box again rather than waiting for ever.
   const [overdue, setOverdue] = useState(false)
   useEffect(() => {
@@ -593,7 +597,7 @@ export function AddDevice({
       setWaiting(false)
       setOverdue(true)
       setCode('')
-    }, 90_000)
+    }, 180_000)
     return () => window.clearTimeout(timer)
   }, [waiting, arrivedId])
 
@@ -630,7 +634,7 @@ export function AddDevice({
         <form className="guest-add-step" onSubmit={(e) => void connect(e)}>
           {overdue ? (
             <span className="error" role="alert">
-              Their device hasn’t joined. Ask them to check their screen, then type the code it shows now.
+              Their device hasn’t joined yet. Ask them to choose Join, or type the new code it shows.
             </span>
           ) : (
             <span className="field-help">
@@ -657,7 +661,7 @@ export function AddDevice({
         </form>
       ) : (
         <div className="guest-add-step">
-          <span className="field-help">It takes a few seconds. Their screen moves on by itself.</span>
+          <span className="field-help">They choose Join on their screen.</span>
         </div>
       )}
 
