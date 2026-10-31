@@ -177,7 +177,18 @@ public static class RemoteGuestEndpoints
                 }
 
                 (invite, var payload) = await invites.CreateAsync(request.Name, profile!.Id, profile.Name, owner, InviteVia.TvCode, ct);
-                await tvCodes.DeliverAsync(code, tvKey, GuestInvites.Encode(payload), ct);
+                try
+                {
+                    await tvCodes.DeliverAsync(code, tvKey, GuestInvites.Encode(payload), ct);
+                }
+                catch (Exception ex) when (ex is GuestTvCodes.MaybeDeliveredException || ex is TaskCanceledException && !ct.IsCancellationRequested)
+                {
+                    // It may have reached the relay (and the TV): kept, so its key still works; it goes by itself after
+                    // GuestInvites.CodeLifetime if nobody uses it.
+                    return Results.Problem("Flexarr's relay was slow to answer. If their screen asks to join, that's it; if not, try again.",
+                        statusCode: 502);
+                }
+
                 return Results.Ok(ToDto(invite, new Dictionary<string, string> { [profile.Id] = profile.Name }));
             }
             catch (InviteException ex)

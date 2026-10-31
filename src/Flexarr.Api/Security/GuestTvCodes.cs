@@ -46,6 +46,12 @@ public sealed partial class GuestTvCodes(IHttpClientFactory clients, IOptionsMon
             return null;
         }
 
+        if ((int)response.StatusCode >= 500)
+        {
+            // The relay had a problem part way: it may have kept the invite all the same.
+            throw new MaybeDeliveredException($"Flexarr's relay answered {(int)response.StatusCode}.");
+        }
+
         if (!response.IsSuccessStatusCode)
         {
             throw new InviteException($"Flexarr's relay answered {(int)response.StatusCode}. Try again in a minute.", StatusCodes.Status502BadGateway);
@@ -139,6 +145,9 @@ public sealed partial class GuestTvCodes(IHttpClientFactory clients, IOptionsMon
 
         return new ECParameters { Curve = ECCurve.NamedCurves.nistP256, Q = new ECPoint { X = uncompressed[1..33], Y = uncompressed[33..] } };
     }
+
+    /// <summary>Sending the invite went wrong in a way that may have left it at the relay all the same.</summary>
+    public sealed class MaybeDeliveredException(string message) : Exception(message);
 
     private sealed record TvKey([property: JsonPropertyName("publicKey")] string? PublicKey);
 

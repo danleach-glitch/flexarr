@@ -212,8 +212,9 @@ module.exports = async (req, res) => {
       if (!isSealed(sealed)) return reply(res, 400, { reason: 'BadSealed' });
       const added = await store.add(`pair:${code}:invite`, JSON.stringify({ serverKey, sealed }));
       if (!added) return reply(res, 409, { reason: 'AlreadyInvited' });
-      // The code lives as long as its invite, so one left in the code's last seconds is still collected.
-      await store.touch(`pair:${code}`);
+      // The code lives as long as its invite, so one left in the code's last seconds is still collected. The invite
+      // is stored either way: a failure here mustn't tell the server it wasn't.
+      try { await store.touch(`pair:${code}`); } catch (error) { console.log(`pair: couldn't extend a code (${error.message})`); }
       return reply(res, 201, {});
     }
 

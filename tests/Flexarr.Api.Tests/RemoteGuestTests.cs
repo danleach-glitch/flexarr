@@ -496,7 +496,7 @@ public class RemoteGuestTests(RemoteGuestFactory factory) : IClassFixture<Remote
     }
 
     [Fact]
-    public async Task A_relay_that_times_out_or_a_key_off_the_curve_leaves_no_invite_behind()
+    public async Task A_key_off_the_curve_makes_no_invite_and_a_relay_timeout_keeps_the_one_it_may_have_delivered()
     {
         var gran = await factory.AddProfileAsync("Gran44");
         using var admin = factory.Admin();
@@ -522,6 +522,10 @@ public class RemoteGuestTests(RemoteGuestFactory factory) : IClassFixture<Remote
             factory.PairRelay.DeliveryTimesOut = false;
         }
 
+        // A timeout may still have reached the TV, so that invite is kept (and goes by itself after an hour).
+        var kept = (await admin.GetFromJsonAsync<List<GuestInviteDto>>("/api/v1/remote/guests/invites", Web))!;
+        Assert.Equal(before + 1, kept.Count);
+        await admin.DeleteAsync($"/api/v1/remote/guests/invites/{kept.Single(i => i.ProfileId == gran).Id}");
         Assert.Equal(before, (await admin.GetFromJsonAsync<List<GuestInviteDto>>("/api/v1/remote/guests/invites", Web))!.Count);
     }
 
