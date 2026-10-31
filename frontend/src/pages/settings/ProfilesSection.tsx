@@ -442,7 +442,8 @@ function ProfileForm({
           </div>
         </fieldset>
       )}
-      {requestFields.length > 0 && (
+      {/* A profile with an age limit doesn't request: Seerr's titles have no ages Flexarr can check. */}
+      {requestFields.length > 0 && maxRatingAge === null && (
         <fieldset className="profile-section profile-libraries">
           <legend className="visually-hidden">Requests</legend>
           <span className="setting-text">
@@ -459,7 +460,7 @@ function ProfileForm({
           </div>
         </fieldset>
       )}
-      {destinations.length > 0 && (
+      {destinations.length > 0 && maxRatingAge === null && !isKids && (
         <fieldset className="profile-section">
           <legend className="visually-hidden">Watchlist</legend>
           <label className="profile-section-head">

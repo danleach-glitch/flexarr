@@ -58,7 +58,7 @@ struct MusicDownloadButton: View {
         .buttonStyle(RoundActionStyle())
         .disabled(source.tracks.isEmpty)
         .accessibilityLabel(label(status))
-        .confirmationDialog(status == .downloaded ? "Remove this download?" : "Stop this download?", isPresented: $removing, titleVisibility: .visible) {
+        .alert(status == .downloaded ? "Remove this download?" : "Stop this download?", isPresented: $removing) {
             Button(status == .downloaded ? "Remove download" : "Stop download", role: .destructive) { store.remove(collectionId: source.id) }
             Button("Cancel", role: .cancel) {}
         } message: {
@@ -267,7 +267,7 @@ struct OfflineCollectionView: View {
                 Button { removing = true } label: { Label("Remove download", systemImage: "trash") }
             }
         }
-        .confirmationDialog("Remove this download?", isPresented: $removing, titleVisibility: .visible) {
+        .alert("Remove this download?", isPresented: $removing) {
             Button("Remove download", role: .destructive) {
                 store.remove(collectionId: collectionId)
                 dismiss()

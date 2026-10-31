@@ -38,6 +38,15 @@ public static class LibraryVisibility
         db.HiddenLibraryIds = profile?.HiddenLibraryIds ?? [];
         db.MaxRatingAge = profile?.MaxRatingAge;
         db.ServesKids = profile?.IsKids == true;
+        if (db.ServesKids)
+        {
+            // A kids profile has no podcasts or Live TV: their libraries (podcasts, and the DVR's recordings) are hidden
+            // from it like any it's kept out of.
+            var kept = await db.Libraries.IgnoreQueryFilters()
+                .Where(l => l.Type == LibraryType.Podcasts || (l.Type == LibraryType.TvShows && l.Name == RecordingsLibrary.Name))
+                .Select(l => l.Id).ToListAsync(ct);
+            db.HiddenLibraryIds = [.. db.HiddenLibraryIds.Union(kept)];
+        }
         db.KidsLibraryIds = db.MaxRatingAge is null ? [] : await db.Libraries.IgnoreQueryFilters().Where(l => l.FineForKids).Select(l => l.Id).ToListAsync(ct);
     }
 
@@ -50,6 +59,19 @@ public static class LibraryVisibility
         builder.AddEndpointFilter(async (context, next) =>
             context.HttpContext.RequestServices.GetRequiredService<FlexarrDbContext>().IsLimited()
                 ? Results.Problem("That isn't available on a profile with an age limit.", statusCode: 403)
+                : await next(context));
+        return builder;
+    }
+
+    /// <summary>
+    /// Turns away kids profiles: a child's app has no podcasts, watchlist or collections. Needs
+    /// <see cref="ApplyLibraryVisibility"/> on an outer group.
+    /// </summary>
+    public static TBuilder NotForKids<TBuilder>(this TBuilder builder) where TBuilder : IEndpointConventionBuilder
+    {
+        builder.AddEndpointFilter(async (context, next) =>
+            context.HttpContext.RequestServices.GetRequiredService<FlexarrDbContext>().ServesKids
+                ? Results.Problem("That isn't available on a kids profile.", statusCode: 403)
                 : await next(context));
         return builder;
     }

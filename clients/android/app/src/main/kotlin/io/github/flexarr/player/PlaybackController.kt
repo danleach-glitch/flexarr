@@ -904,8 +904,8 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
 
     // Finding and re-syncing subtitles
 
-    /** The menu offers Search for subtitles: a server with Bazarr, for a title it manages. */
-    val canSearchSubtitles: Boolean get() = info?.canSearchSubtitles == true && info?.fileId != null
+    /** The menu offers Search for subtitles: a server with Bazarr, for a title it manages, not to a kids profile. */
+    val canSearchSubtitles: Boolean get() = info?.canSearchSubtitles == true && info?.fileId != null && !model.isKids
 
     /** The subtitle file beside the video that's showing, which Re-sync to audio lines up; null for one inside it. */
     val resyncableSubtitle: String?

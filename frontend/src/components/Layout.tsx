@@ -72,6 +72,7 @@ export function Layout() {
   // of Discover and Coming soon, whose titles Flexarr hasn't got and so can't tell the age of.
   const kids = access?.isKids === true
   const limited = access?.maxRatingAge != null
+  const hasMusic = libraries.some((l) => l.type === 'Music')
   // Signed in with the API key (a cookie of this browser's own): any profile may end that, say on a shared laptop.
   const canSignOut = access?.method === 'session' && !kids
   const location = useLocation()
@@ -277,18 +278,25 @@ export function Layout() {
                 })}
               </>
             )}
-            <h2 className="sidebar-heading">
-              <span className="sidebar-label">Browse</span>
-            </h2>
-            <NavLink to="/watchlist" className="sidebar-link" title={tip('Watchlist')}>
-              <Bookmark />
-              <span className="sidebar-label">Watchlist</span>
-            </NavLink>
-            <NavLink to="/collections" className="sidebar-link" title={tip('Collections')}>
-              <Stack />
-              <span className="sidebar-label">Collections</span>
-            </NavLink>
-            {libraries.some((l) => l.type === 'Music') && (
+            {(!kids || hasMusic || liveTv || !limited) && (
+              <h2 className="sidebar-heading">
+                <span className="sidebar-label">Browse</span>
+              </h2>
+            )}
+            {/* A child's profile has no watchlist or collections. */}
+            {!kids && (
+              <>
+                <NavLink to="/watchlist" className="sidebar-link" title={tip('Watchlist')}>
+                  <Bookmark />
+                  <span className="sidebar-label">Watchlist</span>
+                </NavLink>
+                <NavLink to="/collections" className="sidebar-link" title={tip('Collections')}>
+                  <Stack />
+                  <span className="sidebar-label">Collections</span>
+                </NavLink>
+              </>
+            )}
+            {hasMusic && (
               <NavLink to="/playlists" className="sidebar-link" title={tip('Playlists')}>
                 <Playlist />
                 <span className="sidebar-label">Playlists</span>

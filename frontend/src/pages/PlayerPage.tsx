@@ -39,6 +39,7 @@ import {
 import { SubtitleSearchDialog } from '../components/SubtitleSearchDialog'
 import { usePolling } from '../hooks/usePolling'
 import { hasSoundGraph, MAX_AUDIO_DELAY_SECONDS, useSoundChain } from '../hooks/soundChain'
+import { useAgeLimits } from '../hooks/sessionContext'
 import { announceWatched } from '../hooks/watched'
 import { episodeCode, formatClock } from '../lib/format'
 import { belongsToFocused } from '../lib/focusedKeys'
@@ -237,6 +238,8 @@ export function PlayerPage() {
   // Searching Bazarr for subtitles (a dialog over the player), and re-syncing a subtitle file to the audio.
   const [findingSubtitles, setFindingSubtitles] = useState(false)
   const [resync, setResync] = useState<{ state: 'running' | 'failed'; error?: string }>()
+  // A kids profile doesn't find or re-sync subtitles.
+  const { kids } = useAgeLimits()
   // Bumped when a subtitle file changes on the server (a re-sync), so the track is fetched again.
   const [subtitleVersion, setSubtitleVersion] = useState(0)
   const scale = subtitleScale[preferences.subtitleSize ?? 'Standard']
@@ -1323,12 +1326,12 @@ export function PlayerPage() {
                       {!s.isText && <span className="muted"> (burned in)</span>}
                     </MenuItem>
                   ))}
-                  {info.canSearchSubtitles && (
+                  {info.canSearchSubtitles && !kids && (
                     <button className="player-menu-item" onClick={searchForSubtitles}>
                       Search for subtitles…
                     </button>
                   )}
-                  {info.canSearchSubtitles && selectedTrack?.isExternal && (
+                  {info.canSearchSubtitles && !kids && selectedTrack?.isExternal && (
                     <button className="player-menu-item" disabled={resync?.state === 'running'} onClick={() => void resyncSubtitles()}>
                       {resync?.state === 'running' ? 'Re-syncing…' : 'Re-sync to audio'}
                     </button>

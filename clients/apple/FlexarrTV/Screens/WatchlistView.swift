@@ -196,6 +196,7 @@ struct WatchlistActionButton: View {
     let key: WatchlistKey
     let on: Bool
     var ambient: Color = .silver
+    var iconOnly = false
     var onRequested: () -> Void = {}
     /// What was pressed here, until the page's own value changes (it reloads after something is watched, say).
     @State private var changed: Bool?
@@ -209,9 +210,9 @@ struct WatchlistActionButton: View {
                 if requested { onRequested() }
             }
         } label: {
-            Label(onList ? "On watchlist" : "Watchlist", systemImage: onList ? "bookmark.fill" : "bookmark")
+            Label("Watchlist", systemImage: onList ? "bookmark.fill" : "bookmark")
         }
-        .buttonStyle(ActionButtonStyle(ambient: ambient))
+        .buttonStyle(ActionButtonStyle(ambient: ambient, iconOnly: iconOnly))
         .accessibilityLabel(onList ? "Remove from watchlist" : "Add to watchlist")
         .onChange(of: on) { _, _ in changed = nil }
         // Watching something can take it off while the page keeps the same value: the next refresh tells.

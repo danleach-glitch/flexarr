@@ -13,7 +13,13 @@
 }
 
 .detail-hero-content {
-  max-width: min(44rem, 94vw);
+  /* Wide enough for the whole action row on one line; the text keeps its own narrower measure. */
+  max-width: min(64rem, 94vw);
+}
+
+.detail-kicker,
+.detail-title {
+  max-width: 44rem;
 }
 
 .detail-kicker {
@@ -49,11 +55,47 @@
   text-shadow: 0 1px 12px rgb(0 0 0 / 0.5);
 }
 
+.detail-overview.clamped {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.detail-overview-block .detail-overview {
+  margin-bottom: 0;
+}
+
+.overview-toggle {
+  margin-top: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--screen);
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  text-shadow: 0 1px 12px rgb(0 0 0 / 0.5);
+  cursor: pointer;
+}
+
 .detail-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
   margin-top: 26px;
+}
+
+/* Tighter on narrower windows so the row still fits on one line. */
+@media (max-width: 1200px) {
+  .detail-actions {
+    gap: 10px;
+  }
+
+  .detail-actions .button:not(.icon) {
+    padding: 0 16px;
+  }
 }
 
 .detail-actions [aria-pressed='true'] svg {

@@ -82,14 +82,16 @@ public static class ItemEndpoints
         api.MapGet("/items/{id:guid}", async (Guid id, bool? includeSeason, int? season, FlexarrDbContext db, PlaybackService playback,
             CurrentProfile profile, IOptionsMonitor<FlexarrOptions> options, Watchlist.WatchlistService watchlist, CancellationToken ct) =>
         {
-            var bazarr = options.CurrentValue.Bazarr?.Instance is not null;
+            // A kids profile doesn't find subtitles.
+            var bazarr = options.CurrentValue.Bazarr?.Instance is not null && !db.ServesKids;
             var detail = await DetailAsync(id, db, profile, bazarr, ct);
             if (detail is null)
             {
                 return Results.NotFound();
             }
 
-            if (detail.Item.Kind is MediaKind.Movie or MediaKind.Series)
+            // Null to a kids profile, which has no watchlist.
+            if (detail.Item.Kind is MediaKind.Movie or MediaKind.Series && !db.ServesKids)
             {
                 detail = detail with { OnWatchlist = await watchlist.ContainsItemAsync(profile.Id, id, ct) };
             }

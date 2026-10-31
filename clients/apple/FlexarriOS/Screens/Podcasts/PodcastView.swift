@@ -78,7 +78,7 @@ struct PodcastView: View {
                 Text("All \(podcast.episodeCount.formatted()) episodes of \(podcast.title) will be marked as played.")
             }
         }
-        .confirmationDialog("Stop following this show?", isPresented: $unfollowing, titleVisibility: .visible) {
+        .alert("Stop following this show?", isPresented: $unfollowing) {
             Button("Stop following", role: .destructive) {
                 Task {
                     await page.follow(false, model: model)

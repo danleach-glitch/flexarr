@@ -19,6 +19,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Films Flexarr looks up on TMDB itself (not through Radarr) now show the age rating of your server's country, falling back to the UK's.
 - Make it a **Kids profile** for a child: no Settings, no scores or score-ranked rows, no marking things watched and no trailers, with a **Watch again** row on Home for their favourites. On the web, the artwork is bigger too. A child with nothing to watch yet sees one line, not the setup screen.
 - **Child lock** keeps a TV, phone or browser on kids profiles until the admin PIN turns it off: in the web's profile menu, in Settings on Apple TV, iPhone and Android, and in the profile picker, where each kids profile shows a padlock (even while a kids profile is watching): hold it on the phones, or press and hold the profile on Apple TV. **Settings › Devices** on the web marks devices with **Child lock on**, and **Turn off child lock** there turns it off from afar, which the phone notices the next time its profile picker opens. Turning it on from the main profile takes no PIN; turning it off takes the **admin PIN**, the PIN that also protects the server's settings. A phone's notifications follow it to the kids profile while child lock is on, and come back to the main profile when it's turned off.
+- Kids profiles no longer have Podcasts, the Watchlist, Collections, Live TV or subtitle search, in every app. Settings › Profiles no longer shows request settings for a profile with an age limit, since it can't request.
 
 ### Getting started
 - A new server now welcomes you with a short setup guide after you choose its PIN, one card at a time. It asks your name, then walks you through connecting Sonarr, Radarr and Lidarr, adding your libraries, adding everyone who watches, getting Flexarr on all your devices, and watching away from home. You can skip any step after your name, or choose **Set up later** to leave the guide.
@@ -37,6 +38,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Search shows your recent searches before you type anything, on the web, iPhone, Apple TV and Android. It shows your last five searches (pressing Search keeps one, as does opening a result), plus the things you opened from them, so you can go back with one tap. They follow your profile across devices, so something you searched for on your phone is waiting on the TV. Remove a single search, or clear them all.
 - Search forgives typos, accents and punctuation: "breking bad" finds Breaking Bad, "amelie" finds Amélie and "spiderman" finds Spider-Man. This works for titles, albums, people and genres, including titles you ask for by voice with Siri or Google Assistant.
 - A genre with a slash in its name ("Action/Adventure", from a folder's own .nfo files) now opens from Discover on the web, iPhone, Apple TV and Android. Before, its page showed an error or no titles.
+- On the web, the search box in the search window no longer draws its own outline into the window's edges.
 
 ### Profiles and settings
 - Changing the server's settings now takes the admin PIN, even at home. Anyone can still watch as the main profile without it. Open **Settings** on the main profile, enter the PIN, and settings stay unlocked on that browser or device for 15 minutes after your last change, or until someone else is chosen there or you choose **Lock settings**.
@@ -47,8 +49,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Tidying the library doesn't take the PIN: on the main profile, **Delete**, **Fix match**, **Allow for kids** and **Block for kids**, analysing a title, **Scan for changes** and the household's collections work while settings are locked.
 - When someone gets the admin PIN wrong too many times, Flexarr notes it in its log and tells the main profile's phones which device it was. Tapping the notification opens Settings in the app.
 - After too many wrong PINs, the web's **Settings are locked** page and PIN prompt count the wait down, and **Unlock** comes back when it's over.
-- The profile picture at the top of Home on iPhone and Android is bigger, so it's easier to find and tap.
+- The profile picture at the top of Home on iPhone and Android is bigger, so it's easier to find and tap. On iPhone it scrolls away with the page rather than staying pinned over it.
 - Switching to another profile on Android stops the music or podcast that was playing, as on iPhone, and clears Up Next, so what you play next counts for the right person.
+- On the web, **Test** in **Settings › Connections** shows a red cross when the test fails, as well as a green tick when it works.
 
 ### Playback
 - Auto-play now moves on to the next episode even if you've left the Apple TV alone for hours. Before, it could go to sleep during the countdown and stop on the credits.
@@ -56,6 +59,14 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - The first time a film is played, it starts as quickly as any other time. Its scrubbing previews are now made a minute later, and in the background, rather than while the player waits for its first seconds.
 - On Android, the player's buttons light up as you reach them with a keyboard's arrow keys or Tab, so you can see where you are.
 - Films whose sound starts a little after the picture, with a silent opening, now play on Apple TV and iPhone with **Play files directly** off. Before, the player refused them straight away. Their Dolby Digital Plus is converted for these films only, so they play without Atmos.
+
+### Film and show pages
+- On the web, Play, Trailer, Watched, Watchlist and **⋯** sit on one row, rather than wrapping onto a second.
+- On the web, a long description is cut to four lines, with **More** to read the rest.
+- On Apple TV, a title's buttons sit on one tidy row: Play and Start over spelled out, then round buttons for Watched, Watchlist, Go to show and **⋯**, each named underneath as you move onto it. Forgetting your place in something half-watched moved into **⋯**.
+
+### iPhone
+- **Sign out**, **Delete all downloads**, removing a download and unfollowing a podcast ask in a normal dialog in the middle of the screen, rather than a bubble pointing at the wrong row.
 
 ### Connecting devices
 - When a new Apple TV, iPhone or Android phone asks to connect, any iPhone or Android phone on the main profile asks "Connect Living room?", with what kind of device it is and its code. Check the code matches the one on the device's screen and tap **Allow**, with no need to go to a computer. It shows while Flexarr is open, and as a notification when it isn't, on phones with notifications turned on. The notification has **Allow** and **Don't allow** buttons of its own (the phone asks to be unlocked first); on Android they show on the lock screen too, and on iPhone press and hold the notification. The web app asks the same when it's open on the main profile, in a banner across the top of the page. While settings are locked, **Allow** asks for the admin PIN, then connects it, the same way on iPhone, Android and the web.
@@ -66,10 +77,13 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Music
 - On Apple TV, the now-playing bar along the bottom goes away a few seconds after the music is paused or finishes, and comes back when you press play. Now Playing has a new **Stop** button, which ends the music and takes the bar and the Now Playing tab away until you play something else.
+- On Apple TV, album, artist and playlist pages fill the screen, without the grey strip down the left.
+- On the web, **Made for you** mixes are cards the size of albums again, not one blurry mix filling the width of the page.
 
 ### Podcasts
 - On the iPhone and Android apps, a downloaded episode is deleted as soon as you've heard it to the end, rather than a day later, and leaves Downloads and Home's new episodes there and then, without a refresh. Downloads you made yourself go too, not only ones the app fetched by itself. With no connection, it goes once the phone is back online and has told the server.
 - Marking a downloaded episode as played on the phone (or **Mark all as played** on its show) deletes the download straight away. An episode finished or marked played somewhere else, such as on the web, is deleted from the phone the next time the app catches up with the server. An episode you download again after hearing it stays until you've heard it again.
+- On the iPhone and Android apps, an episode's download button shows a ring that fills as it downloads, from the moment you tap it, instead of an hourglass while the server fetches it.
 
 ### iPhone remote
 - When an Apple TV in the house is playing something from Flexarr, the iPhone app shows a **Playing on TV** bar above the tabs, with play/pause. Tap it for a remote: a scrubber you can drag, back and forward 10 seconds, previous and next episode, and **Skip Intro** or **Next Episode** when the TV offers them.

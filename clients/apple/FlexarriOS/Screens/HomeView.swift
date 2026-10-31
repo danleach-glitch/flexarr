@@ -27,17 +27,6 @@ struct HomeView: View {
                 StatusView(state: .loading)
             }
         }
-        .toolbar {
-            if model.offersProfilePicker, let current = model.currentProfile {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { choosingProfile = true } label: {
-                        ProfileAvatar(profile: current, size: 56)
-                    }
-                    .accessibilityLabel("Profile: \(current.name)")
-                }
-                .withoutSharedBackground()
-            }
-        }
         .toolbarBackground(.hidden, for: .navigationBar)
         .sheet(isPresented: $choosingProfile) {
             ProfilePickerView(marksCurrent: true)
@@ -63,32 +52,51 @@ struct HomeView: View {
     }
 
     private func content(_ home: Home) -> some View {
-        ScrollView(.vertical) {
-            // The whole screen when there's nothing else. With something to play (podcasts, Coming soon, channels) it
-            // stays out of the way: "nothing to watch" would be wrong.
-            if home.featured.isEmpty, newEpisodes.isEmpty, !home.rows.contains(where: \.hasContent),
-               let message = EmptyHomeMessage(libraries: model.libraries, limitedProfile: model.hasAgeLimit ? model.currentProfile?.name : nil) {
-                EmptyHome(message: message)
-                    .containerRelativeFrame(.vertical)
-            }
-            LazyVStack(alignment: .leading, spacing: 28) {
-                if !home.featured.isEmpty {
-                    HomeHero(items: home.featured, overviews: home.overviews, index: $featuredIndex, resuming: home.resuming)
+        // Read before the scroll view runs up under the status bar, to keep the profile picture below it.
+        GeometryReader { proxy in
+            ScrollView(.vertical) {
+                // The whole screen when there's nothing else. With something to play (podcasts, Coming soon, channels) it
+                // stays out of the way: "nothing to watch" would be wrong.
+                if home.featured.isEmpty, newEpisodes.isEmpty, !home.rows.contains(where: \.hasContent),
+                   let message = EmptyHomeMessage(libraries: model.libraries, limitedProfile: model.hasAgeLimit ? model.currentProfile?.name : nil) {
+                    EmptyHome(message: message)
+                        .containerRelativeFrame(.vertical)
                 }
-                // A row with nothing in it (a kind this app doesn't show yet, say) would be a bare heading.
-                let rows = home.rows.filter(\.hasContent)
-                let continuing = rows.first?.id == "continue" ? 1 : 0
-                ForEach(rows.prefix(continuing)) { HomeRowView(row: $0) }
-                if !newEpisodes.isEmpty {
-                    NewEpisodesRow(episodes: newEpisodes)
+                LazyVStack(alignment: .leading, spacing: 28) {
+                    if !home.featured.isEmpty {
+                        HomeHero(items: home.featured, overviews: home.overviews, index: $featuredIndex, resuming: home.resuming)
+                    }
+                    // A row with nothing in it (a kind this app doesn't show yet, say) would be a bare heading.
+                    let rows = home.rows.filter(\.hasContent)
+                    let continuing = rows.first?.id == "continue" ? 1 : 0
+                    ForEach(rows.prefix(continuing)) { HomeRowView(row: $0) }
+                    if !newEpisodes.isEmpty {
+                        NewEpisodesRow(episodes: newEpisodes)
+                    }
+                    ForEach(rows.dropFirst(continuing)) { HomeRowView(row: $0) }
                 }
-                ForEach(rows.dropFirst(continuing)) { HomeRowView(row: $0) }
+                .padding(.bottom, 32)
+                // Part of the page, so it scrolls away with the hero rather than floating over the rows.
+                .overlay(alignment: .topTrailing) {
+                    profileButton.padding(.top, home.featured.isEmpty ? 4 : proxy.safeAreaInsets.top + 4).padding(.trailing, 16)
+                }
             }
-            .padding(.bottom, 32)
+            // The hero runs up under the status bar; without one (a server of only podcasts, say) the rows start below it.
+            .ignoresSafeArea(edges: home.featured.isEmpty ? [] : .top)
+            .withoutTopEdgeEffect()
+            .refreshable { await load() }
         }
-        // The hero runs up under the status bar; without one (a server of only podcasts, say) the rows start below it.
-        .ignoresSafeArea(edges: home.featured.isEmpty ? [] : .top)
-        .refreshable { await load() }
+    }
+
+    @ViewBuilder
+    private var profileButton: some View {
+        if model.offersProfilePicker, let current = model.currentProfile {
+            Button { choosingProfile = true } label: {
+                ProfileAvatar(profile: current, size: 44)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Profile: \(current.name)")
+        }
     }
 
     private func load() async {
@@ -96,7 +104,9 @@ struct HomeView: View {
         let token = model.refreshToken
         do {
             // Empty without podcasts (none followed, no library, a server from before them: an error, also nothing).
-            async let episodes = client.newPodcastEpisodes(unplayed: true, take: 20)
+            // None on a kids profile, which has no podcasts.
+            let kids = model.isKids
+            async let episodes = kids ? [] : client.newPodcastEpisodes(unplayed: true, take: 20)
             let loaded = try await client.home()
             // Nothing yet: the libraries say whether a scan is under way or their folders hold nothing.
             if loaded.featured.isEmpty { await model.loadLibraries() }
@@ -337,12 +347,12 @@ private struct EmptyHome: View {
     }
 }
 
-private extension ToolbarContent {
-    /// The profile picture on its own, without iOS 26's glass pill around it.
-    @ToolbarContentBuilder
-    func withoutSharedBackground() -> some ToolbarContent {
+private extension View {
+    /// No iOS 26 blur across the top: the hero's artwork runs clear up to the status bar.
+    @ViewBuilder
+    func withoutTopEdgeEffect() -> some View {
         if #available(iOS 26, *) {
-            sharedBackgroundVisibility(.hidden)
+            scrollEdgeEffectHidden(true, for: .top)
         } else {
             self
         }

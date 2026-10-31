@@ -135,7 +135,7 @@ struct SettingsView: View {
         } message: {
             Text(notificationProblem ?? "")
         }
-        .confirmationDialog("Sign out of this server?", isPresented: $confirmSignOut, titleVisibility: .visible) {
+        .alert("Sign out of this server?", isPresented: $confirmSignOut) {
             Button("Sign out", role: .destructive) { model.signOut() }
             Button("Cancel", role: .cancel) {}
         } message: {

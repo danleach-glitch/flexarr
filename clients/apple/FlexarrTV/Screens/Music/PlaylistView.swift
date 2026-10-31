@@ -82,6 +82,9 @@ struct PlaylistView: View {
     var body: some View {
         ZStack {
             RoomBackground(ambient: tracks.first?.glowColor, intensity: 0.35)
+                // The whole screen, as a title's backdrop is: left to fill the space it's offered, a screen opened from the
+                // sidebar starts beside where the sidebar opens, leaving a bare strip down the left.
+                .frame(width: 1920, height: 1080)
             ScrollView(.vertical) {
                 VStack(alignment: .leading, spacing: 48) {
                     header

@@ -850,7 +850,8 @@ kbd {
 
 /* Tracks are album covers: square, the same width as posters. */
 .row-tracks .row-track,
-.row-playlists .row-track {
+.row-playlists .row-track,
+.row-mixes .row-track {
   grid-auto-columns: clamp(128px, 12vw, 196px);
 }
 
@@ -1489,13 +1490,20 @@ kbd {
 .palette-input input {
   flex: 1;
   min-height: 64px;
+  padding: 0;
   border: 0;
   background: none;
   font-size: var(--step-1);
 }
 
-.palette-input input:focus-visible {
+/* The panel is the field here: none of a form field's own border, fill or focus glow, which ran into the panel's edges. */
+.palette-input input[type='search'],
+.palette-input input[type='search']:hover,
+.palette-input input[type='search']:focus-visible {
   outline: none;
+  border: 0;
+  background: none;
+  box-shadow: none;
 }
 
 .palette-results {

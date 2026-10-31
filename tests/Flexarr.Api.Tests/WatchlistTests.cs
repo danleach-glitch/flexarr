@@ -258,6 +258,23 @@ public sealed class WatchlistTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AProfileWithAnAgeLimit_NeverAutoRequests_EvenWithTheSettingLeftOn()
+    {
+        SeerrKnows("movie", 4002, "Asked For Before The Limit", "2023-06-01");
+        var created = await (await Client().PostAsJsonAsync(Api("/profiles"), new { name = "Kid" })).Content.ReadFromJsonAsync<JsonElement>();
+        var id = created.GetProperty("id").GetString();
+        await Client().PutAsJsonAsync(Api($"/profiles/{id}/watchlist-requests"), new { autoRequest = true });
+        await InDbAsync(async db => await db.Profiles.Where(p => p.Id == id).ExecuteUpdateAsync(u => u.SetProperty(p => p.MaxRatingAge, 12)));
+        var token = (await (await Client().PostAsJsonAsync(Api($"/profiles/{id}/select"), new { })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("token").GetString();
+        var kid = Client();
+        kid.DefaultRequestHeaders.Add("X-Flexarr-Profile", token);
+
+        await kid.PostAsJsonAsync(Api("/watchlist"), new { mediaType = "movie", tmdbId = 4002 });
+
+        Assert.Equal(0, Requests());
+    }
+
+    [Fact]
     public async Task OnlyTheAdmin_TurnsOnAutoRequest()
     {
         // A TV on the main profile, locked: it watches, but doesn't manage the server.

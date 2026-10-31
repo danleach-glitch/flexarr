@@ -376,7 +376,7 @@ struct EpisodeDownloadButton: View {
             default: removing = true
             }
         } label: {
-            DownloadStateIcon(state: download?.state, waitingForWiFi: waiting, size: small ? 16 : size * 0.75)
+            DownloadStateIcon(state: download?.state, waitingForWiFi: waiting, size: small ? 16 : size * 0.75, ringWhilePreparing: true)
                 .font(small ? .system(size: 15, weight: .semibold) : .title3)
                 .foregroundStyle(Color.screen)
                 .frame(width: small ? 18 : size, height: small ? 18 : size)
@@ -385,7 +385,7 @@ struct EpisodeDownloadButton: View {
         }
         .buttonStyle(.borderless)
         .accessibilityLabel(waiting ? "Waiting for Wi-Fi" : DownloadStateIcon.accessibilityLabel(download?.state))
-        .confirmationDialog(download?.isDownloaded == true ? "Remove this download?" : "Stop this download?", isPresented: $removing, titleVisibility: .visible) {
+        .alert(download?.isDownloaded == true ? "Remove this download?" : "Stop this download?", isPresented: $removing) {
             Button(download?.isDownloaded == true ? "Remove download" : "Stop download", role: .destructive) {
                 if let download { store.remove(download.id) }
             }

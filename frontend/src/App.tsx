@@ -1,5 +1,5 @@
 import { Fragment, lazy, Suspense, useEffect, useState, type ComponentType, type FormEvent, type ReactNode } from 'react'
-import { BrowserRouter, Route, Routes, useLocation, useParams } from 'react-router'
+import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation, useParams } from 'react-router'
 import {
   ApiError,
   claimSetup,
@@ -23,6 +23,7 @@ import { Layout } from './components/Layout'
 import { AudioPlayerProvider } from './hooks/audioPlayer'
 import { LibrariesProvider } from './hooks/libraries'
 import { SessionProvider } from './hooks/session'
+import { useAgeLimits } from './hooks/sessionContext'
 import { CollectionPage, CollectionsPage } from './pages/CollectionsPage'
 import { DiscoverPage } from './pages/DiscoverPage'
 import { ExternalTitlePage } from './pages/ExternalTitlePage'
@@ -93,6 +94,12 @@ type ConnectionState =
   | { kind: 'unauthorized'; wrongKey?: boolean; setupOpen?: boolean; wrongCode?: boolean; pinMismatch?: boolean; badPin?: string }
   | { kind: 'error'; message: string }
 
+/** Pages a child's profile doesn't have (podcasts, the watchlist, collections, Live TV): a link to one goes Home. */
+function NotForKids() {
+  const { kids } = useAgeLimits()
+  return kids ? <Navigate to="/" replace /> : <Outlet />
+}
+
 /** Everything below the connection check; rendered inside a router so tests can supply a MemoryRouter. */
 export function Shell() {
   const { pathname } = useLocation()
@@ -104,27 +111,31 @@ export function Shell() {
             <Suspense fallback={null}>
               <Routes>
                 <Route path="play/:id" element={<PlayerPage />} />
-                <Route path="live/:id" element={<LivePlayerPage />} />
+                <Route element={<NotForKids />}>
+                  <Route path="live/:id" element={<LivePlayerPage />} />
+                </Route>
                 <Route path="setup" element={<SetupGuidePage />} />
                 <Route element={<Layout />}>
                   <Route index element={<HomePage />} />
                   <Route path="library/:id" element={<Fresh><LibraryPage /></Fresh>} />
                   <Route path="item/:id" element={<Fresh><ItemPage /></Fresh>} />
                   <Route path="person/:id" element={<Fresh><PersonPage /></Fresh>} />
-                  <Route path="collections" element={<CollectionsPage />} />
-                  <Route path="collection/:id" element={<Fresh><CollectionPage /></Fresh>} />
                   <Route path="playlists" element={<PlaylistsPage />} />
                   <Route path="playlist/:id" element={<Fresh><PlaylistPage /></Fresh>} />
                   <Route path="mix/:id" element={<Fresh><MixPage /></Fresh>} />
-                  <Route path="livetv" element={<LiveTvPage />} />
-                  <Route path="podcasts" element={<PodcastsPage />} />
-                  <Route path="podcasts/browse" element={<PodcastBrowsePage />} />
-                  <Route path="podcasts/episode/:id" element={<Fresh><PodcastEpisodePage /></Fresh>} />
-                  <Route path="podcasts/:id" element={<Fresh><PodcastPage /></Fresh>} />
+                  <Route element={<NotForKids />}>
+                    <Route path="collections" element={<CollectionsPage />} />
+                    <Route path="collection/:id" element={<Fresh><CollectionPage /></Fresh>} />
+                    <Route path="livetv" element={<LiveTvPage />} />
+                    <Route path="podcasts" element={<PodcastsPage />} />
+                    <Route path="podcasts/browse" element={<PodcastBrowsePage />} />
+                    <Route path="podcasts/episode/:id" element={<Fresh><PodcastEpisodePage /></Fresh>} />
+                    <Route path="podcasts/:id" element={<Fresh><PodcastPage /></Fresh>} />
+                    <Route path="watchlist" element={<WatchlistPage />} />
+                  </Route>
                   <Route path="discover" element={<DiscoverPage />} />
                   <Route path="discover/:mediaType/:tmdbId" element={<Fresh><ExternalTitlePage /></Fresh>} />
                   <Route path="upcoming" element={<UpcomingPage />} />
-                  <Route path="watchlist" element={<WatchlistPage />} />
                   <Route path="link" element={<LinkPage />} />
                   <Route path="settings" element={<SettingsPage />} />
                   <Route path="settings/:section" element={<SettingsPage />} />

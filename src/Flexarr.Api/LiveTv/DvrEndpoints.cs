@@ -37,7 +37,7 @@ public static class DvrEndpoints
     public static RouteGroupBuilder MapDvrEndpoints(this RouteGroupBuilder api)
     {
         // Recordings have no ratings, so profiles with an age limit don't record (the writes below turn them away) or see them.
-        var group = api.MapGroup("/livetv/recordings").WithTags("Live TV").RequireAuthorization();
+        var group = api.MapGroup("/livetv/recordings").WithTags("Live TV").RequireAuthorization().NotForKids();
 
         group.MapGet("/", async (FlexarrDbContext db, DvrService dvr, IOptionsMonitor<FlexarrOptions> options, TimeProvider clock, CancellationToken ct) =>
         {

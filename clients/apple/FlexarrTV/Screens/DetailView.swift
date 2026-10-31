@@ -29,6 +29,8 @@ struct DetailView: View {
     @Environment(\.scenePhase) private var scenePhase
     @FocusState private var focusedSeason: String?
     @FocusState private var focusedEpisode: String?
+    /// The round action button in focus, by name, to show it under the row.
+    @FocusState private var focusedAction: String?
 
     private var item: ItemSummary? { detail?.item ?? (preview?.kind == .season ? nil : preview) }
     private var series: ItemSummary? {
@@ -161,67 +163,80 @@ struct DetailView: View {
         .padding(.bottom, 10)
     }
 
-    @ViewBuilder
+    /// Play and Start over spelled out; the rest round icons, named underneath while focused.
     private func actions(_ item: ItemSummary) -> some View {
         let playable = playTarget(item)
         let watched = item.userData.watched || item.userData.unwatchedCount == 0
-        HStack(spacing: 26) {
-            if let playable {
-                Button { model.play(playable) } label: {
-                    Label(playLabel(playable, container: item), systemImage: "play.fill")
-                }
-                .buttonStyle(ActionButtonStyle(ambient: ambient, prominent: true))
-                .monospacedDigit()
-                .takesFocusFromLink()
-
-                if playable.isResumable {
-                    Button { model.play(playable, fromBeginning: true) } label: {
-                        Label("Start over", systemImage: "arrow.counterclockwise")
+        // Part way through: forget the place without marking it watched (it leaves Continue Watching).
+        let canForget = !model.isKids && item.isResumable && !watched
+        let subtitleFile = !model.isKids && detail?.canSearchSubtitles == true ? detail?.files.first : nil
+        return VStack(alignment: .leading, spacing: 18) {
+            HStack(spacing: 26) {
+                if let playable {
+                    Button { model.play(playable) } label: {
+                        Label(playLabel(playable, container: item), systemImage: "play.fill")
                     }
-                    .buttonStyle(ActionButtonStyle(ambient: ambient))
-                }
-            }
+                    .buttonStyle(ActionButtonStyle(ambient: ambient, prominent: true))
+                    .monospacedDigit()
+                    .takesFocusFromLink()
 
-            // A child's history keeps itself: watching is the only way to change it.
-            if !model.isKids {
-                Button { Task { await model.setWatched(item, !watched) } } label: {
-                    Label(watched ? "Mark as unwatched" : "Mark as watched", systemImage: watched ? "eye.slash" : "checkmark")
-                }
-                .buttonStyle(ActionButtonStyle(ambient: ambient))
-
-                // Part way through: forget the place without marking it watched (it leaves Continue Watching).
-                if item.isResumable && !watched {
-                    Button { Task { await model.setWatched(item, false) } } label: {
-                        Label("Mark as unwatched", systemImage: "eye.slash")
+                    if playable.isResumable {
+                        Button { model.play(playable, fromBeginning: true) } label: {
+                            Label("Start over", systemImage: "arrow.counterclockwise")
+                        }
+                        .buttonStyle(ActionButtonStyle(ambient: ambient))
                     }
-                    .buttonStyle(ActionButtonStyle(ambient: ambient))
                 }
-            }
 
-            if item.kind == .movie || item.kind == .series, let onList = detail?.onWatchlist {
-                WatchlistActionButton(key: .library(item.id), on: onList, ambient: ambient)
-            }
+                // A child's history keeps itself: watching is the only way to change it.
+                if !model.isKids {
+                    let name = watched ? "Mark as unwatched" : "Mark as watched"
+                    Button { Task { await model.setWatched(item, !watched) } } label: {
+                        Label(name, systemImage: watched ? "eye.slash" : "checkmark")
+                    }
+                    .buttonStyle(ActionButtonStyle(ambient: ambient, iconOnly: true))
+                    .focused($focusedAction, equals: name)
+                }
 
-            if item.kind == .episode, let series {
-                Button { router.push(.item(series)) } label: {
-                    Label("Go to show", systemImage: "rectangle.stack")
+                if model.hasWatchlist, item.kind == .movie || item.kind == .series, let onList = detail?.onWatchlist {
+                    WatchlistActionButton(key: .library(item.id), on: onList, ambient: ambient, iconOnly: true)
+                        .focused($focusedAction, equals: "Watchlist")
                 }
-                .buttonStyle(ActionButtonStyle(ambient: ambient))
-            }
 
-            // Things done now and then, out of the way of the row above.
-            if detail?.canSearchSubtitles == true, let file = detail?.files.first {
-                Button { showingMore = true } label: {
-                    Image(systemName: "ellipsis")
+                if item.kind == .episode, let series {
+                    Button { router.push(.item(series)) } label: {
+                        Label("Go to show", systemImage: "rectangle.stack")
+                    }
+                    .buttonStyle(ActionButtonStyle(ambient: ambient, iconOnly: true))
+                    .focused($focusedAction, equals: "Go to show")
                 }
-                .buttonStyle(ActionButtonStyle(ambient: ambient))
-                .accessibilityLabel("More")
-                .confirmationDialog(item.title, isPresented: $showingMore) {
-                    Button("Search for subtitles…") { subtitleSearchFile = SubtitleSearchFile(id: file.id) }
+
+                // Things done now and then, out of the way of the row above.
+                if canForget || subtitleFile != nil {
+                    Button { showingMore = true } label: {
+                        Label("More", systemImage: "ellipsis")
+                    }
+                    .buttonStyle(ActionButtonStyle(ambient: ambient, iconOnly: true))
+                    .focused($focusedAction, equals: "More")
+                    .confirmationDialog(item.title, isPresented: $showingMore) {
+                        if canForget {
+                            Button("Mark as unwatched") { Task { await model.setWatched(item, false) } }
+                        }
+                        if let subtitleFile {
+                            Button("Search for subtitles…") { subtitleSearchFile = SubtitleSearchFile(id: subtitleFile.id) }
+                        }
+                    }
                 }
             }
+            .focusSection()
+
+            // The focused round button's name; the line keeps its height so nothing jumps.
+            Text(focusedAction ?? " ")
+                .font(.system(size: 24, weight: .medium))
+                .foregroundStyle(Color.screen.opacity(0.75))
+                .animation(.easeOut(duration: 0.15), value: focusedAction)
+                .accessibilityHidden(true)
         }
-        .focusSection()
     }
 
     /// What Play starts: the item itself, or for a series the next-up episode (falling

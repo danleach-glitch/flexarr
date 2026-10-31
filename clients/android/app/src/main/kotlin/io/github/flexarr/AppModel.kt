@@ -255,6 +255,8 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
      */
     suspend fun loadWatchlist(): List<WatchlistEntry>? {
         val client = client ?: return null
+        // A kids profile has no watchlist.
+        if (isKids) return null.also { hasWatchlist = false }
         val list = client.watchlist()
         if (client.profileToken == this.client?.profileToken) hasWatchlist = list != null
         return list
@@ -266,6 +268,8 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
      */
     suspend fun refreshWatchlist() {
         val client = client ?: return
+        // A kids profile has no watchlist.
+        if (isKids) return forgetWatchlist()
         try {
             val keys = client.watchlistKeys()
             // Someone else may have been chosen meanwhile.
@@ -654,6 +658,11 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     /** Whether this profile has podcasts and how it listens to them: asked once the profile is known. */
     suspend fun loadPodcastStatus() {
         val client = client ?: return
+        // A kids profile has no podcasts.
+        if (isKids) {
+            podcastStatus = null
+            return
+        }
         podcastStatus = runCatching { client.podcastStatus() }.getOrNull()
         if (podcastStatus?.available == true) {
             runCatching { client.podcastPreferences() }.onSuccess { podcastPreferences = it }
@@ -662,12 +671,13 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
 
     suspend fun loadLiveTvStatus() {
         val client = client ?: return
-        liveTvStatus = runCatching { client.liveTvStatus() }.getOrNull()
+        // A kids profile has no Live TV.
+        liveTvStatus = if (isKids) null else runCatching { client.liveTvStatus() }.getOrNull()
     }
 
     suspend fun loadUpNext() {
         val client = client ?: return
-        if (podcastStatus?.available == false) return
+        if (podcastStatus?.available == false || isKids) return
         runCatching { client.upNext() }.onSuccess { upNext = it }
     }
 

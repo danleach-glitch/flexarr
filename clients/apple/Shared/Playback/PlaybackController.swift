@@ -47,6 +47,8 @@ final class PlaybackController: NSObject {
     @ObservationIgnored var onWatchedToEnd: ((_ closing: Bool) -> Void)?
     /// When false, sessions are still started and stopped but progress is never reported.
     @ObservationIgnored var recordsHistory = true
+    /// Whether the subtitles menu may offer a search and Re-sync to audio (not on a kids profile).
+    @ObservationIgnored var offersSubtitleSearch: () -> Bool = { true }
 
     @ObservationIgnored private var client: FlexarrClient?
     @ObservationIgnored private var info: PlaybackInfo?
@@ -482,7 +484,7 @@ final class PlaybackController: NSObject {
     /// downloaded), and re-syncing the subtitle files beside the video.
     private func updateSubtitleSearch() {
         guard let screen else { return }
-        let available = info.map { !$0.isOffline && $0.canSearchSubtitles == true } ?? false
+        let available = offersSubtitleSearch() && info.map { !$0.isOffline && $0.canSearchSubtitles == true } ?? false
         let files = Set(info?.subtitles.filter { $0.isExternal == true }.map(\.key) ?? [])
         let resyncing = subtitleSync.map { $0.itemId == info?.item.id && $0.fileId == info?.fileId } ?? false
         screen.setSubtitleSearch(available: available, files: files, resyncing: resyncing)
@@ -523,7 +525,7 @@ final class PlaybackController: NSObject {
     /// Asks the server to line the subtitle file `key` up with the audio, then follows it: when it's done the title
     /// opens again where it is (the file has changed), when it fails the viewer is told why. Playing carries on.
     private func resyncSubtitles(key: String) {
-        guard let client, let current = info, !current.isOffline else { return }
+        guard let client, offersSubtitleSearch(), let current = info, !current.isOffline else { return }
         let itemId = current.item.id
         let fileId = current.fileId
         if let running = subtitleSync {

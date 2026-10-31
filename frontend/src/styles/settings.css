@@ -520,9 +520,14 @@
   background: #7fd1a0;
 }
 
-/* A test that worked: a green tick on its button. */
+/* A test that worked: a green tick on its button; one that failed, a red cross. */
 .button .test-ok {
   color: #7fd1a0;
+  stroke-width: 3;
+}
+
+.button .test-bad {
+  color: var(--danger);
   stroke-width: 3;
 }
 

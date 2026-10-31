@@ -211,11 +211,11 @@ struct DetailView: View {
                     .accessibilityLabel(watched ? "Mark as unwatched" : "Mark as watched")
                 }
 
-                if item.kind == .movie || item.kind == .series, let onList = onWatchlist ?? detail?.onWatchlist {
+                if model.hasWatchlist, item.kind == .movie || item.kind == .series, let onList = onWatchlist ?? detail?.onWatchlist {
                     Button {
                         Task { if await model.setOnWatchlist(.library(item.id), !onList) != nil { onWatchlist = !onList } }
                     } label: {
-                        Label(onList ? "On watchlist" : "Watchlist", systemImage: onList ? "bookmark.fill" : "bookmark")
+                        Label("Watchlist", systemImage: onList ? "bookmark.fill" : "bookmark")
                     }
                     .accessibilityLabel(onList ? "Remove from watchlist" : "Add to watchlist")
                 }
@@ -227,7 +227,7 @@ struct DetailView: View {
                     .accessibilityLabel("Go to show")
                 }
 
-                if detail?.canSearchSubtitles == true, let file = detail?.files.first {
+                if !model.isKids, detail?.canSearchSubtitles == true, let file = detail?.files.first {
                     Button { subtitleSearchFile = SubtitleSearchFile(id: file.id) } label: {
                         Label("Subtitles", systemImage: "captions.bubble")
                     }

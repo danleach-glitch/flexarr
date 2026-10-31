@@ -20,7 +20,7 @@ import {
   type Settings,
 } from '../../api/client'
 import { AsyncButton, IconButton } from '../../components/AsyncButton'
-import { Check, Film, Pencil, Plus, Refresh, Trash } from '../../components/icons'
+import { Check, Close, Film, Pencil, Plus, Refresh, Trash } from '../../components/icons'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { CopyButton } from '../../components/CopyButton'
 import { FolderPicker } from '../../components/FolderPicker'
@@ -400,7 +400,7 @@ function ArrRow({
                 </AsyncButton>
               ))}
             <AsyncButton className="button quiet small" onClick={() => runTest()}>
-              {test && test !== 'testing' && test.ok && <Check className="test-ok" />}
+              {test && test !== 'testing' && <TestMark ok={test.ok} />}
               Test
             </AsyncButton>
             <button
@@ -608,6 +608,7 @@ function TmdbRow({
               </AsyncButton>
             )}
             <AsyncButton type="button" className="button quiet small" disabled={!apiKey.trim() && !hasKey} onClick={async () => setTest(await testTmdb(apiKey.trim()))}>
+              {test && <TestMark ok={test.ok} />}
               Test
             </AsyncButton>
             <button type="button" className="button quiet small" onClick={onClose}>
@@ -731,7 +732,7 @@ function DispatcharrRow({
                 )
               }}
             >
-              {test && test !== 'testing' && test.ok && <Check className="test-ok" />}
+              {test && test !== 'testing' && <TestMark ok={test.ok} />}
               Test
             </AsyncButton>
             <button type="button" className="button quiet small" onClick={onClose}>
@@ -987,4 +988,9 @@ function Webhooks({ secret: savedSecret }: { secret?: string | null }) {
       )}
     </SettingsGroup>
   )
+}
+
+/** How a Test went, on its button: a green tick, or a red cross. */
+function TestMark({ ok }: { ok: boolean }) {
+  return ok ? <Check className="test-ok" /> : <Close className="test-bad" />
 }
