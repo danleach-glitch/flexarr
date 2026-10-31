@@ -1,5 +1,7 @@
 package io.github.flexarr.ui.detail
 
+import io.github.flexarr.ui.books.BookScreen
+
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -184,6 +186,8 @@ fun DetailScreen(model: AppModel, id: String) {
 
     val loaded = detail
     val item = loaded?.item
+    // A book reached by a link or an older route opens as itself, never as a film.
+    if (item?.kind == MediaKind.Audiobook) return BookScreen(model, id)
     val series = item?.let { if (it.kind == MediaKind.Series) it else loaded.ancestors.firstOrNull { a -> a.kind == MediaKind.Series } }
     val ambient = item?.let { glowColor(it.accentColor) } ?: Flexarr.silver
 

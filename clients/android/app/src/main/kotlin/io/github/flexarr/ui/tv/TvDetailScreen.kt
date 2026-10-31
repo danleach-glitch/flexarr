@@ -141,6 +141,8 @@ fun TvDetailScreen(model: AppModel, id: String) {
     val item = loaded?.item
     Box(Modifier.fillMaxSize().background(Flexarr.room)) {
         when {
+            // A book (from a link, say) never opens as a film: the TV has no book screens yet.
+            item?.kind == MediaKind.Audiobook -> TvStatusView("Listen to this on your phone or the web.", empty = true)
             loaded != null && item != null -> {
                 val series = if (item.kind == MediaKind.Series) item else loaded.ancestors.firstOrNull { it.kind == MediaKind.Series }
                 val ambient = glowColor(item.accentColor)
