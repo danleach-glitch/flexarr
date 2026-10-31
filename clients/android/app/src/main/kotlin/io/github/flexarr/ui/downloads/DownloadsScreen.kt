@@ -252,11 +252,19 @@ private fun gettingReady(progress: Double) = if (progress > 0 && progress < 1) "
  * an exclamation when it failed.
  */
 @Composable
-fun DownloadStateIcon(download: LocalDownload?, waitingForWiFi: Boolean, size: Dp = 22.dp, progress: Double = download?.progress ?: 0.0) {
+fun DownloadStateIcon(
+    download: LocalDownload?,
+    waitingForWiFi: Boolean,
+    size: Dp = 22.dp,
+    progress: Double = download?.progress ?: 0.0,
+    // A ring from the start, where getting ready is part of the wait (podcast episodes) rather than a step to explain.
+    ringWhilePreparing: Boolean = false,
+) {
     Box(Modifier.size(size), contentAlignment = Alignment.Center) {
         when {
             waitingForWiFi -> Icon(Icons.Filled.Wifi, contentDescription = null, tint = Flexarr.usher)
             download == null -> Icon(Icons.Filled.Download, contentDescription = null, tint = Flexarr.screen)
+            download.phase == LocalPhase.Preparing && ringWhilePreparing -> DownloadRing(progress.toFloat())
             download.phase == LocalPhase.Preparing -> Icon(Icons.Filled.HourglassTop, contentDescription = null, tint = Flexarr.usher)
             download.phase == LocalPhase.Downloading -> DownloadRing(progress.toFloat())
             download.phase == LocalPhase.Downloaded -> Icon(Icons.Filled.ArrowCircleDown, contentDescription = null, tint = Flexarr.downloaded)
@@ -398,7 +406,7 @@ fun EpisodeDownloadButton(model: AppModel, episodeId: String, title: String) {
         }).semantics { contentDescription = "${downloadDescription(download, waiting)}: $title" },
         contentAlignment = Alignment.Center,
     ) {
-        DownloadStateIcon(download, waiting, size = 20.dp, progress = download?.let(model.downloads::progress) ?: 0.0)
+        DownloadStateIcon(download, waiting, size = 20.dp, progress = download?.let(model.downloads::progress) ?: 0.0, ringWhilePreparing = true)
     }
     if (removing && download != null) {
         AlertDialog(

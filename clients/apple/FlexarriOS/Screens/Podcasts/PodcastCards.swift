@@ -376,7 +376,7 @@ struct EpisodeDownloadButton: View {
             default: removing = true
             }
         } label: {
-            DownloadStateIcon(state: download?.state, waitingForWiFi: waiting, size: small ? 16 : size * 0.75)
+            DownloadStateIcon(state: download?.state, waitingForWiFi: waiting, size: small ? 16 : size * 0.75, ringWhilePreparing: true)
                 .font(small ? .system(size: 15, weight: .semibold) : .title3)
                 .foregroundStyle(Color.screen)
                 .frame(width: small ? 18 : size, height: small ? 18 : size)

@@ -293,6 +293,9 @@ struct DownloadStateIcon: View {
     let state: LocalDownload.State?
     var waitingForWiFi = false
     var size: CGFloat = 22
+    /// A ring from the start, filling with the server's progress too, where getting ready is part of the wait (podcast
+    /// episodes) rather than a separate step to explain.
+    var ringWhilePreparing = false
 
     var body: some View {
         ZStack {
@@ -301,6 +304,8 @@ struct DownloadStateIcon: View {
                 Image(systemName: "wifi").foregroundStyle(Color.usher)
             case nil:
                 Image(systemName: "arrow.down.circle")
+            case .preparing(let progress) where ringWhilePreparing:
+                DownloadRing(fraction: progress)
             case .preparing:
                 Image(systemName: "hourglass").foregroundStyle(Color.usher)
             case .downloading(let fraction):

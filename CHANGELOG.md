@@ -79,6 +79,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ### Podcasts
 - On the iPhone and Android apps, a downloaded episode is deleted as soon as you've heard it to the end, rather than a day later, and leaves Downloads and Home's new episodes there and then, without a refresh. Downloads you made yourself go too, not only ones the app fetched by itself. With no connection, it goes once the phone is back online and has told the server.
 - Marking a downloaded episode as played on the phone (or **Mark all as played** on its show) deletes the download straight away. An episode finished or marked played somewhere else, such as on the web, is deleted from the phone the next time the app catches up with the server. An episode you download again after hearing it stays until you've heard it again.
+- On the iPhone and Android apps, an episode's download button shows a ring that fills as it downloads, from the moment you tap it, instead of an hourglass while the server fetches it.
 
 ### iPhone remote
 - When an Apple TV in the house is playing something from Flexarr, the iPhone app shows a **Playing on TV** bar above the tabs, with play/pause. Tap it for a remote: a scrubber you can drag, back and forward 10 seconds, previous and next episode, and **Skip Intro** or **Next Episode** when the TV offers them.
