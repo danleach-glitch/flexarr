@@ -49,7 +49,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Tidying the library doesn't take the PIN: on the main profile, **Delete**, **Fix match**, **Allow for kids** and **Block for kids**, analysing a title, **Scan for changes** and the household's collections work while settings are locked.
 - When someone gets the admin PIN wrong too many times, Flexarr notes it in its log and tells the main profile's phones which device it was. Tapping the notification opens Settings in the app.
 - After too many wrong PINs, the web's **Settings are locked** page and PIN prompt count the wait down, and **Unlock** comes back when it's over.
-- The profile picture at the top of Home on iPhone and Android is bigger, so it's easier to find and tap.
+- The profile picture at the top of Home on iPhone and Android is bigger, so it's easier to find and tap. On iPhone it scrolls away with the page rather than staying pinned over it.
 - Switching to another profile on Android stops the music or podcast that was playing, as on iPhone, and clears Up Next, so what you play next counts for the right person.
 - On the web, **Test** in **Settings › Connections** shows a red cross when the test fails, as well as a green tick when it works.
 
