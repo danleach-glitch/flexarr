@@ -881,7 +881,8 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
                 if (e.guestRemoved && credentials == refused && refused.isGuest) removedAsGuest()
             } catch (_: FlexarrException.Unauthorized) {
                 if (credentials == refused) {
-                    val kept = downloads.signedOutByServer(refused.address)
+                    // A guest's address is the same loopback one whoever's Flexarr it joins, so its downloads can't wait for it.
+                    val kept = if (refused.isGuest) false.also { downloads.signedOut(null) } else downloads.signedOutByServer(refused.address)
                     notifications.forget()
                     forget()
                     signedOutNotice = if (kept) {
@@ -898,11 +899,13 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         }
     }
 
-    /** The host removed this guest's device: its sign-in and tunnel go, and the connect screen says what to do. */
+    /** The host removed this guest's device: its sign-in, tunnel and downloads go, and the connect screen says what to do. */
     private fun removedAsGuest() {
         val credentials = credentials ?: return
         val owner = credentials.guest?.ownerName?.ifEmpty { null }
-        downloads.signedOutByServer(credentials.address)
+        // Not kept for coming back: every guest's address is this phone's own loopback one, so another host's Flexarr
+        // joined later would look like the same server and take them on.
+        downloads.signedOut(null)
         notifications.forget()
         forget()
         signedOutNotice = if (owner != null) "You no longer have access to $owner’s Flexarr." else "You no longer have access to this Flexarr."
