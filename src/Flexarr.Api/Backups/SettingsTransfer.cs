@@ -400,7 +400,8 @@ public static class SettingsTransfer
 
         foreach (var key in ServerOwn)
         {
-            if (Get(current, key) is { } value)
+            // This server's, or (restoring onto a new one) the backup's.
+            if ((Get(current, key) ?? Get(backup, key)) is { } value)
             {
                 restored[key] = value.DeepClone();
             }
@@ -409,8 +410,12 @@ public static class SettingsTransfer
         ServerConfigStore.WritePrivately(restoredConfig, restored.ToJsonString(Json));
     }
 
-    /// <summary>The server's own bookkeeping in config.json: when sign-ins from older versions stop working.</summary>
-    private static readonly string[] ServerOwn = ["legacySignInsUntil"];
+    /// <summary>
+    /// The server's own in config.json, kept through a restore: when sign-ins from older versions stop working, and
+    /// family invites (their OAuth client and relay port belong to this server's tailnet; guests' sign-ins and
+    /// guests.json come back with the backup and need them).
+    /// </summary>
+    private static readonly string[] ServerOwn = ["legacySignInsUntil", "remoteGuests"];
 
     /// <summary>The single services a config can point at, by config.json name.</summary>
     private static readonly KeyValuePair<string, string>[] Services = [new("seerr", "Seerr"), new("bazarr", "Bazarr"), new("liveTv", "Live TV")];
