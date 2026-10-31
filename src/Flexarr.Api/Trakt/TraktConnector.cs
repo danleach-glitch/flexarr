@@ -56,15 +56,30 @@ public sealed partial class TraktConnector(IServiceScopeFactory scopes, ILogger<
 
         if (pending.EndedAt is { } ended && DateTime.UtcNow - ended > TimeSpan.FromMinutes(1))
         {
-            _pending.TryRemove(new KeyValuePair<string, Pending>(profileId, pending));
+            if (_pending.TryRemove(new KeyValuePair<string, Pending>(profileId, pending)))
+            {
+                pending.Stop.Dispose();
+            }
+
             return null;
         }
 
         return pending.Dto();
     }
 
+    /// <summary>A profile can ask Trakt for a new code at most this often.</summary>
+    internal TimeSpan StartGap { get; set; } = TimeSpan.FromSeconds(10);
+
+    private readonly ConcurrentDictionary<string, DateTime> _started = new(StringComparer.Ordinal);
+
     public async Task<TraktPendingConnect> StartAsync(string profileId, CancellationToken ct)
     {
+        if (DateTime.UtcNow - _started.GetValueOrDefault(profileId) < StartGap && Current(profileId) is { State: TraktConnectState.Waiting } waiting)
+        {
+            return waiting; // Pressed twice: the code already showing.
+        }
+
+        _started[profileId] = DateTime.UtcNow;
         Cancel(profileId);
         await using var scope = scopes.CreateAsyncScope();
         var trakt = scope.ServiceProvider.GetRequiredService<TraktClient>();
@@ -80,6 +95,7 @@ public sealed partial class TraktConnector(IServiceScopeFactory scopes, ILogger<
         if (_pending.TryRemove(profileId, out var old))
         {
             old.Stop.Cancel();
+            old.Stop.Dispose();
         }
     }
 
@@ -154,12 +170,15 @@ public sealed partial class TraktConnector(IServiceScopeFactory scopes, ILogger<
         var connection = await db.TraktConnections.FirstOrDefaultAsync(c => c.ProfileId == profileId, ct);
         if (connection is null || connection.UserSlug != slug)
         {
-            // A new account (or another one than before) starts its sync afresh.
+            // A new account (or another one than before) starts afresh: nothing queued for, held from or listed by the
+            // old one carries over.
             if (connection is not null)
             {
                 db.TraktConnections.Remove(connection);
                 await db.SaveChangesAsync(ct);
             }
+
+            await TraktConnections.ForgetAsync(db, profileId, ct);
 
             connection = new TraktConnection
             {
@@ -175,7 +194,7 @@ public sealed partial class TraktConnector(IServiceScopeFactory scopes, ILogger<
         await db.SaveChangesAsync(ct);
         LogConnected(profileId);
         End(pending, TraktConnectState.Connected, null);
-        TraktSyncWorker.Nudge();
+        TraktSyncWorker.Nudge(profileId);
     }
 
     private static void End(Pending pending, TraktConnectState state, string? error)
@@ -190,4 +209,30 @@ public sealed partial class TraktConnector(IServiceScopeFactory scopes, ILogger<
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Connecting profile {Profile} to Trakt failed")]
     private partial void LogConnectFailed(Exception ex, string profile);
+}
+
+/// <summary>Ending a profile's Trakt connection: Disconnect, a switch to another account, becoming a kids profile, deletion.</summary>
+public static class TraktConnections
+{
+    /// <summary>Removes what belongs to the profile's Trakt account: its queue, its held plays and its Trakt-list collections.</summary>
+    public static async Task ForgetAsync(FlexarrDbContext db, string profileId, CancellationToken ct)
+    {
+        await db.TraktOutbox.Where(o => o.ProfileId == profileId).ExecuteDeleteAsync(ct);
+        await db.TraktHistoryHolds.Where(h => h.ProfileId == profileId).ExecuteDeleteAsync(ct);
+        await db.Collections.Where(c => c.OwnerProfileId == profileId && c.Kind == CollectionKind.TraktList).ExecuteDeleteAsync(ct);
+    }
+
+    /// <summary>Disconnects the profile: Trakt forgets the token (best effort), and so does Flexarr, with all of the above.</summary>
+    public static async Task DisconnectAsync(FlexarrDbContext db, TraktClient trakt, TraktConnector connector, string profileId, CancellationToken ct)
+    {
+        connector.Cancel(profileId);
+        if (await db.TraktConnections.AsNoTracking().FirstOrDefaultAsync(c => c.ProfileId == profileId, ct) is not { } connection)
+        {
+            return;
+        }
+
+        await trakt.RevokeAsync(connection.AccessToken, ct);
+        await db.TraktConnections.Where(c => c.ProfileId == profileId).ExecuteDeleteAsync(ct);
+        await ForgetAsync(db, profileId, ct);
+    }
 }

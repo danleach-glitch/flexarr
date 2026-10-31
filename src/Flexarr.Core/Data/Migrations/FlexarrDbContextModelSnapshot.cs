@@ -1221,6 +1221,9 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<DateTime?>("ListsSyncedAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTime?>("ReconciledAt")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("RefreshToken")
                         .IsRequired()
                         .HasMaxLength(512)
@@ -1294,13 +1297,7 @@ namespace Flexarr.Core.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ImdbId");
-
                     b.HasIndex("ProfileId");
-
-                    b.HasIndex("TmdbId");
-
-                    b.HasIndex("TvdbId");
 
                     b.ToTable("TraktHistoryHolds");
                 });
@@ -1425,6 +1422,9 @@ namespace Flexarr.Core.Data.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<Guid?>("MediaItemId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("OnTraktAt")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("PosterUrl")

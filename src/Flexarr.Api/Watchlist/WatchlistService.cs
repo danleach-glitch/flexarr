@@ -274,7 +274,7 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
 
         if (source == WatchlistSource.Flexarr)
         {
-            Trakt.TraktSyncWorker.Nudge();
+            Trakt.TraktSyncWorker.Nudge(profileId);
         }
 
         // In the library already (even held by another of its entries): nothing to request.
@@ -296,7 +296,7 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
         await db.WatchlistEntries.Where(w => w.ProfileId == profileId && w.RemovedAt != null && w.RemovedAt < before).ExecuteDeleteAsync(ct);
         if (removed)
         {
-            Trakt.TraktSyncWorker.Nudge();
+            Trakt.TraktSyncWorker.Nudge(profileId);
         }
 
         return removed;

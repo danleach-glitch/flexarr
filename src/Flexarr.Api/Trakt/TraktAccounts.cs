@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using Flexarr.Core.Data;
 using Flexarr.Core.Media;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Query;
 
 namespace Flexarr.Api.Trakt;
 
@@ -63,8 +64,9 @@ public sealed partial class TraktAccounts(FlexarrDbContext db, TraktClient trakt
         await gate.WaitAsync(ct);
         try
         {
-            // Someone else may have refreshed it while this waited.
-            var fresh = await db.TraktConnections.FirstOrDefaultAsync(c => c.ProfileId == profileId, ct);
+            // Read from the database, not this context: a row it tracks (the sync loads one) may predate another
+            // scope's refresh, and refreshing again with a used refresh token would sign the profile out.
+            var fresh = await db.TraktConnections.AsNoTracking().FirstOrDefaultAsync(c => c.ProfileId == profileId, ct);
             if (fresh is not { Status: TraktStatus.Connected })
             {
                 return null;
@@ -83,23 +85,20 @@ public sealed partial class TraktAccounts(FlexarrDbContext db, TraktClient trakt
             catch (TraktException ex)
             {
                 // Trakt or the relay is away: the old token may have time left, and the next try refreshes.
-                fresh.LastError = ex.Message;
-                await db.SaveChangesAsync(ct);
+                await SaveAsync(profileId, c => c.SetProperty(x => x.LastError, ex.Message), ct);
                 return fresh.ExpiresAt > DateTime.UtcNow ? fresh.AccessToken : null;
             }
 
             if (token is null)
             {
                 LogNeedsSignIn(profileId);
-                fresh.Status = TraktStatus.NeedsSignIn;
-                fresh.LastError = "Trakt signed Flexarr out. Connect again.";
-                await db.SaveChangesAsync(ct);
+                await SaveAsync(profileId, c => c.SetProperty(x => x.Status, TraktStatus.NeedsSignIn).SetProperty(x => x.LastError, "Trakt signed Flexarr out. Connect again."), ct);
                 return null;
             }
 
             Apply(fresh, token);
-            fresh.LastError = null;
-            await db.SaveChangesAsync(ct);
+            await SaveAsync(profileId, c => c.SetProperty(x => x.AccessToken, fresh.AccessToken).SetProperty(x => x.RefreshToken, fresh.RefreshToken)
+                .SetProperty(x => x.ExpiresAt, fresh.ExpiresAt).SetProperty(x => x.Status, TraktStatus.Connected).SetProperty(x => x.LastError, (string?)null), ct);
             return fresh.AccessToken;
         }
         finally
@@ -108,8 +107,28 @@ public sealed partial class TraktAccounts(FlexarrDbContext db, TraktClient trakt
         }
     }
 
+    /// <summary>
+    /// Writes the connection straight to the database, and into a copy this context tracks (if any) so a later save of
+    /// that copy doesn't put the old values back.
+    /// </summary>
+    private async Task SaveAsync(string profileId,
+        Action<UpdateSettersBuilder<TraktConnection>> set,
+        CancellationToken ct)
+    {
+        await db.TraktConnections.Where(c => c.ProfileId == profileId).ExecuteUpdateAsync(set, ct);
+        if (db.ChangeTracker.Entries<TraktConnection>().FirstOrDefault(e => e.Entity.ProfileId == profileId) is { } tracked)
+        {
+            await tracked.ReloadAsync(ct);
+        }
+    }
+
     internal static void Apply(TraktConnection connection, TraktToken token)
     {
+        if (string.IsNullOrEmpty(token.AccessToken) || string.IsNullOrEmpty(token.RefreshToken))
+        {
+            throw new TraktException(null, "Trakt sent back an empty sign-in.");
+        }
+
         connection.AccessToken = token.AccessToken;
         connection.RefreshToken = token.RefreshToken;
         var created = token.CreatedAt > 0 ? DateTimeOffset.FromUnixTimeSeconds(token.CreatedAt).UtcDateTime : DateTime.UtcNow;

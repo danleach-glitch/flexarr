@@ -60,19 +60,11 @@ public static class TraktEndpoints
             return Results.NoContent();
         });
 
-        // Disconnect: Trakt forgets the token, and so does Flexarr, with everything queued for it. Watch history stays.
+        // Disconnect: Trakt forgets the token, and so does Flexarr, with everything queued for it, plays held from it and
+        // its lists. Watch history stays.
         group.MapDelete("/", async (CurrentProfile profile, FlexarrDbContext db, TraktClient trakt, TraktConnector connector, CancellationToken ct) =>
         {
-            connector.Cancel(profile.Id);
-            if (await db.TraktConnections.FirstOrDefaultAsync(c => c.ProfileId == profile.Id, ct) is { } connection)
-            {
-                await trakt.RevokeAsync(connection.AccessToken, ct);
-                db.TraktConnections.Remove(connection);
-                await db.TraktOutbox.Where(o => o.ProfileId == profile.Id).ExecuteDeleteAsync(ct);
-                await db.TraktHistoryHolds.Where(h => h.ProfileId == profile.Id).ExecuteDeleteAsync(ct);
-                await db.SaveChangesAsync(ct);
-            }
-
+            await TraktConnections.DisconnectAsync(db, trakt, connector, profile.Id, ct);
             return Results.NoContent();
         });
 
@@ -110,10 +102,18 @@ public static class TraktEndpoints
         group.MapPut("/lists", async (TraktListsUpdate update, CurrentProfile profile, TraktLists lists, CancellationToken ct) =>
             await lists.ChooseAsync(profile.Id, update.Ids, ct) ? Results.NoContent() : Results.Problem("Connect to Trakt first.", statusCode: 409));
 
-        group.MapPost("/sync", () =>
+        // Sync now, for this profile only: done before answering, so the app can show when it last synced. At most once
+        // a minute; sooner just asks the background sync.
+        group.MapPost("/sync", async (CurrentProfile profile, TraktSync sync, CancellationToken ct) =>
         {
-            TraktSyncWorker.Nudge();
-            return Results.Accepted();
+            if (!TraktSyncWorker.TryRunNow(profile.Id))
+            {
+                TraktSyncWorker.Nudge(profile.Id);
+                return Results.Accepted();
+            }
+
+            await sync.SyncAsync(profile.Id, ct);
+            return Results.NoContent();
         });
 
         // The admin's overview: who's connected, and how it's going.

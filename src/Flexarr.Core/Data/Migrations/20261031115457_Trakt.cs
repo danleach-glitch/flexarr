@@ -11,6 +11,12 @@ namespace Flexarr.Core.Data.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.AddColumn<DateTime>(
+                name: "OnTraktAt",
+                table: "WatchlistEntries",
+                type: "TEXT",
+                nullable: true);
+
             migrationBuilder.AddColumn<string>(
                 name: "TraktListId",
                 table: "Collections",
@@ -36,6 +42,7 @@ namespace Flexarr.Core.Data.Migrations
                     LastActivities = table.Column<string>(type: "TEXT", nullable: true),
                     HistoryCursor = table.Column<DateTime>(type: "TEXT", nullable: true),
                     WatchlistSyncedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
+                    ReconciledAt = table.Column<DateTime>(type: "TEXT", nullable: true),
                     ImportedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
                     ListIds = table.Column<string>(type: "TEXT", nullable: false),
                     ListsSyncedAt = table.Column<DateTime>(type: "TEXT", nullable: true)
@@ -110,24 +117,9 @@ namespace Flexarr.Core.Data.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
-                name: "IX_TraktHistoryHolds_ImdbId",
-                table: "TraktHistoryHolds",
-                column: "ImdbId");
-
-            migrationBuilder.CreateIndex(
                 name: "IX_TraktHistoryHolds_ProfileId",
                 table: "TraktHistoryHolds",
                 column: "ProfileId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_TraktHistoryHolds_TmdbId",
-                table: "TraktHistoryHolds",
-                column: "TmdbId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_TraktHistoryHolds_TvdbId",
-                table: "TraktHistoryHolds",
-                column: "TvdbId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_TraktOutbox_NextAttemptAt",
@@ -151,6 +143,10 @@ namespace Flexarr.Core.Data.Migrations
 
             migrationBuilder.DropTable(
                 name: "TraktOutbox");
+
+            migrationBuilder.DropColumn(
+                name: "OnTraktAt",
+                table: "WatchlistEntries");
 
             migrationBuilder.DropColumn(
                 name: "TraktListId",

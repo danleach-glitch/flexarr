@@ -362,10 +362,8 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
             e.Property(h => h.TmdbId).HasMaxLength(32);
             e.Property(h => h.TvdbId).HasMaxLength(32);
             e.Property(h => h.ImdbId).HasMaxLength(32);
+            // Read in id order, in pages (see TraktHolds); nothing looks them up by title id.
             e.HasOne<Profile>().WithMany().HasForeignKey(h => h.ProfileId).OnDelete(DeleteBehavior.Cascade);
-            e.HasIndex(h => h.TmdbId);
-            e.HasIndex(h => h.TvdbId);
-            e.HasIndex(h => h.ImdbId);
         });
 
         modelBuilder.Entity<WatchlistEntry>(e =>

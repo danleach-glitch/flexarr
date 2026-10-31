@@ -28,7 +28,7 @@ public sealed partial class TraktImports(IServiceScopeFactory scopes, IHostAppli
             {
                 await using var scope = scopes.CreateAsyncScope();
                 await scope.ServiceProvider.GetRequiredService<TraktSync>().ImportAsync(profileId, apply: true, lifetime.ApplicationStopping);
-                TraktSyncWorker.Nudge();
+                TraktSyncWorker.Nudge(profileId);
             }
             catch (TraktException ex)
             {

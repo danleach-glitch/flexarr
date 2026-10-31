@@ -50,6 +50,13 @@ public sealed class WatchlistEntry
     public DateTime? RemovedAt { get; set; }
 
     public WatchlistRemoval? RemovedReason { get; set; }
+
+    /// <summary>
+    /// When the Trakt sync last saw this title on the profile's Trakt watchlist; null if it never has. Only a title
+    /// known to have been on Trakt is taken off here when it's gone from there: one Trakt refused (a full free list,
+    /// a title it doesn't know) stays.
+    /// </summary>
+    public DateTime? OnTraktAt { get; set; }
 }
 
 /// <summary>Why a title came off a watchlist.</summary>

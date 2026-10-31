@@ -139,7 +139,8 @@ public static partial class ProfileEndpoints
             return Results.Ok(ToDto(profile, current));
         }).RequireAuthorization(FlexarrClaims.AdminPolicy);
 
-        group.MapPut("/{id}/age-limit", async (string id, AgeLimitRequest request, FlexarrDbContext db, CurrentProfile current, SignIns signIns, CancellationToken ct) =>
+        group.MapPut("/{id}/age-limit", async (string id, AgeLimitRequest request, FlexarrDbContext db, CurrentProfile current, SignIns signIns,
+            Trakt.TraktClient trakt, Trakt.TraktConnector connector, CancellationToken ct) =>
         {
             if (await db.Profiles.FindAsync([id], ct) is not { } profile)
             {
@@ -154,6 +155,12 @@ public static partial class ProfileEndpoints
             if (profile.IsKids && !request.IsKids && await KeepLockedDevicesAsync(id, db, signIns, ct) is { } refused)
             {
                 return refused;
+            }
+
+            // Kids profiles have no Trakt: one made a kids profile is disconnected, as it can't reach Disconnect itself.
+            if (request.IsKids && !profile.IsKids)
+            {
+                await Trakt.TraktConnections.DisconnectAsync(db, trakt, connector, id, ct);
             }
 
             (profile.MaxRatingAge, profile.IsKids) = (request.MaxRatingAge, request.IsKids);
@@ -323,7 +330,8 @@ public static partial class ProfileEndpoints
             return Results.Ok(ToDto(profile, current));
         });
 
-        group.MapDelete("/{id}", async (string id, FlexarrDbContext db, ProfileImages images, SignIns signIns, CancellationToken ct) =>
+        group.MapDelete("/{id}", async (string id, FlexarrDbContext db, ProfileImages images, SignIns signIns, Trakt.TraktClient trakt,
+            Trakt.TraktConnector connector, CancellationToken ct) =>
         {
             if (id == PlaybackState.DefaultUser)
             {
@@ -335,6 +343,9 @@ public static partial class ProfileEndpoints
             {
                 return refused;
             }
+
+            // Trakt forgets its token too (the row would only cascade away here, leaving the token working).
+            await Trakt.TraktConnections.DisconnectAsync(db, trakt, connector, id, ct);
 
             // Watch history goes with the profile (cascade).
             if (await db.Profiles.Where(p => p.Id == id).ExecuteDeleteAsync(ct) == 0)

@@ -471,6 +471,7 @@ public sealed class TraktTests : IAsyncLifetime
         var arrival = Film("Arrival", "329865");
         await SeedAsync(db => db.AddRange(Films, arrival));
 
+        TraktHolds.LookAgain();
         var applied = await InDbAsync(db => TraktHolds.ApplyAsync(db, default));
         var state = await InDbAsync(db => db.PlaybackStates.SingleAsync());
 
@@ -668,6 +669,116 @@ public sealed class TraktTests : IAsyncLifetime
         Assert.Equal("connected", profiles.Single(p => p.GetProperty("profileId").GetString() == "sam").GetProperty("state").GetString());
         Assert.Equal("disconnected", profiles.Single(p => p.GetProperty("profileId").GetString() == Owner).GetProperty("state").GetString());
         Assert.DoesNotContain("token", text, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // ---- Fixes from the audit ----
+
+    [Fact]
+    public async Task ATitleTraktRefused_StaysOnFlexarrsList()
+    {
+        var dune = Film("Dune", "438631");
+        await SeedAsync(db =>
+        {
+            db.AddRange(Films, dune);
+            db.WatchlistEntries.Add(new WatchlistEntry { ProfileId = Owner, Kind = MediaKind.Movie, TmdbId = 438631, MediaItemId = dune.Id, Title = "Dune", AddedAt = DateTime.UtcNow.AddDays(-5) });
+        });
+        await ConnectAsync();
+        Activities();
+        _trakt.Set("POST /sync/watchlist", "{}", (HttpStatusCode)420);
+
+        await SyncAsync();
+        // Something else changes on Trakt's list; Dune still isn't there.
+        Activities(watchlist: "2025-06-02T00:00:00.000Z");
+        await SyncAsync();
+
+        Assert.True(await InDbAsync(db => db.WatchlistEntries.AnyAsync(w => w.TmdbId == 438631 && w.RemovedAt == null)));
+        Assert.Equal(2, _trakt.Count("POST /sync/watchlist"));
+    }
+
+    [Fact]
+    public async Task TheFirstWatchlistSync_OnlyAdds()
+    {
+        var dune = Film("Dune", "438631");
+        await SeedAsync(db =>
+        {
+            db.AddRange(Films, dune);
+            db.WatchlistEntries.Add(new WatchlistEntry
+            {
+                ProfileId = Owner, Kind = MediaKind.Movie, TmdbId = 438631, MediaItemId = dune.Id, Title = "Dune", RemovedAt = DateTime.UtcNow.AddDays(-1),
+                RemovedReason = WatchlistRemoval.Removed,
+            });
+        });
+        await ConnectAsync();
+        Activities();
+        _trakt.Set("GET /sync/watchlist", $$$$"""[{"id":1,"listed_at":"{{{{DateTime.UtcNow.AddDays(-30):O}}}}","type":"movie","movie":{"ids":{"tmdb":438631}}}]""");
+
+        await SyncAsync();
+
+        Assert.Equal(0, _trakt.Count("POST /sync/watchlist/remove"));
+    }
+
+    [Fact]
+    public async Task ARefreshThatFails_KeepsTheTokens_AndDiscoverStillWorks()
+    {
+        await ConnectAsync(expires: DateTime.UtcNow.AddMinutes(30));
+        _trakt.Set("RELAY refresh", """{"reason":"NotConfigured"}""", HttpStatusCode.ServiceUnavailable);
+
+        string? token = null;
+        await InScopeAsync(async s => token = await s.GetRequiredService<TraktAccounts>().TokenAsync(Owner, force: false, default));
+        var saved = await InDbAsync(db => db.TraktConnections.SingleAsync());
+
+        Assert.Equal("access-token-0123456789", token);
+        Assert.Equal("refresh-token-0123456789", saved.RefreshToken);
+        Assert.Equal(TraktStatus.Connected, saved.Status);
+    }
+
+    [Fact]
+    public async Task QueuedPlays_WaitForASignIn_RatherThanGo()
+    {
+        await ConnectAsync();
+        await SeedAsync(db => db.TraktOutbox.Add(new TraktOutboxEntry { ProfileId = Owner, Kind = TraktOutboxKind.History, Payload = """{"movies":[{"ids":{"tmdb":1}}]}""" }));
+        await InDbAsync(db => db.TraktConnections.ExecuteUpdateAsync(u => u.SetProperty(c => c.Status, TraktStatus.NeedsSignIn)));
+
+        await InScopeAsync(s => TraktOutboxWorker.SendDueAsync(s, NullLogger.Instance, default, TimeSpan.Zero));
+
+        var kept = Assert.Single(await OutboxAsync());
+        Assert.True(kept.NextAttemptAt > DateTime.UtcNow);
+        Assert.Equal(0, _trakt.Count("POST /sync/history"));
+    }
+
+    [Fact]
+    public async Task ConnectingAnotherAccount_StartsClean()
+    {
+        await ConnectAsync(slug: "someone-else");
+        await SeedAsync(db =>
+        {
+            db.TraktOutbox.Add(new TraktOutboxEntry { ProfileId = Owner, Kind = TraktOutboxKind.History, Payload = "{}" });
+            db.TraktHistoryHolds.Add(new TraktHistoryHold { ProfileId = Owner, Kind = MediaKind.Movie, TmdbId = "1", WatchedAt = DateTime.UtcNow });
+        });
+        _server.Services.GetRequiredService<TraktConnector>().MinimumInterval = TimeSpan.FromMilliseconds(20);
+        _trakt.Set("RELAY device", FakeTrakt.Token());
+
+        await Client().PostAsync(Api("/trakt/connect"), null);
+        await WaitForAsync(s => s.GetProperty("username").GetString() == "Dan" && s.GetProperty("pending").GetProperty("state").GetString() == "Connected");
+
+        Assert.Equal("dan", (await InDbAsync(db => db.TraktConnections.SingleAsync())).UserSlug);
+        Assert.False(await InDbAsync(db => db.TraktOutbox.AnyAsync()));
+        Assert.False(await InDbAsync(db => db.TraktHistoryHolds.AnyAsync()));
+    }
+
+    [Fact]
+    public async Task MakingAProfileAKidsProfile_DisconnectsItsTrakt()
+    {
+        await SeedAsync(db => db.Profiles.Single(p => p.Id == Owner).SetPin("2468"));
+        var kid = (await (await Client().PostAsJsonAsync(Api("/profiles"), new { name = "Sam" })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString()!;
+        await ConnectAsync(kid, slug: "sam");
+        _trakt.Set("RELAY revoke", "{}");
+
+        var changed = await Client().PutAsJsonAsync(Api($"/profiles/{kid}/age-limit"), new { maxRatingAge = 8, isKids = true });
+
+        Assert.Equal(HttpStatusCode.OK, changed.StatusCode);
+        Assert.False(await InDbAsync(db => db.TraktConnections.AnyAsync()));
+        Assert.Contains(_trakt.RelayBodies, b => b.Contains("revoke", StringComparison.Ordinal));
     }
 
     [Fact]

@@ -52,6 +52,12 @@ public sealed class TraktConnection
     /// </summary>
     public DateTime? WatchlistSyncedAt { get; set; }
 
+    /// <summary>
+    /// When Trakt's whole watched list was last compared with Flexarr's, which catches plays added there with an earlier
+    /// date (the history cursor only sees newer ones). Done at most daily, when Trakt says something was watched.
+    /// </summary>
+    public DateTime? ReconciledAt { get; set; }
+
     /// <summary>When the history import (preview, then confirm) finished; null until it has.</summary>
     public DateTime? ImportedAt { get; set; }
 

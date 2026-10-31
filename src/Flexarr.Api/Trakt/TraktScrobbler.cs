@@ -91,7 +91,7 @@ public sealed partial class TraktScrobbler(PlaybackEvents events, IServiceScopeF
         if (action == "stop")
         {
             // Trakt's history has a new play: worth a sync soon, so Up next and the watchlist follow.
-            TraktSyncWorker.Nudge();
+            TraktSyncWorker.Nudge(profileId);
         }
     }
 

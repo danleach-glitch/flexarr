@@ -51,7 +51,7 @@ public sealed partial class TraktClient(HttpClient http, IOptionsMonitor<Flexarr
 {
     private static readonly TimeSpan ClientIdLifetime = TimeSpan.FromHours(6);
     private static readonly SemaphoreSlim ClientIdGate = new(1, 1);
-    private static (string Relay, string Id, DateTime At)? relayClientId;
+    private static (string Relay, string? Id, DateTime At)? relayClientId;
 
     private TraktOptions Options => options.CurrentValue.Trakt;
 
@@ -60,9 +60,16 @@ public sealed partial class TraktClient(HttpClient http, IOptionsMonitor<Flexarr
     /// <summary>Forgets the client id the relay gave (tests, and a relay that changed apps).</summary>
     internal static void ForgetClientId() => relayClientId = null;
 
+    /// <summary>How long "the relay has no Trakt app" is believed before asking again.</summary>
+    private static readonly TimeSpan NotSetUpFor = TimeSpan.FromMinutes(10);
+
+    /// <summary>The relay is asked for the id with a short wait of its own: a slow relay mustn't hold up every call.</summary>
+    private static readonly TimeSpan RelayTimeout = TimeSpan.FromSeconds(5);
+
     /// <summary>
     /// The Trakt app's client id: the admin's own, or Flexarr's from the relay (cached a few hours). Null when there's
-    /// neither, and Trakt stays hidden.
+    /// neither, and Trakt stays hidden. "Not set up" is remembered a few minutes; while the relay is unreachable or
+    /// answers with an error, the id it gave before is kept.
     /// </summary>
     public async Task<string?> ClientIdAsync(CancellationToken ct)
     {
@@ -77,40 +84,62 @@ public sealed partial class TraktClient(HttpClient http, IOptionsMonitor<Flexarr
             return null;
         }
 
-        if (relayClientId is { } cached && cached.Relay == o.RelayUrl && DateTime.UtcNow - cached.At < ClientIdLifetime)
+        static bool Fresh((string Relay, string? Id, DateTime At)? c, string url) =>
+            c is { } v && v.Relay == url && DateTime.UtcNow - v.At < (v.Id is null ? NotSetUpFor : ClientIdLifetime);
+
+        if (Fresh(relayClientId, o.RelayUrl))
         {
-            return cached.Id;
+            return relayClientId!.Value.Id;
         }
 
         await ClientIdGate.WaitAsync(ct);
         try
         {
-            if (relayClientId is { } again && again.Relay == o.RelayUrl && DateTime.UtcNow - again.At < ClientIdLifetime)
+            if (Fresh(relayClientId, o.RelayUrl))
             {
-                return again.Id;
+                return relayClientId!.Value.Id;
             }
 
-            using var response = await http.GetAsync(relay, ct);
-            if (response.IsSuccessStatusCode && await response.Content.ReadFromJsonAsync<RelayClientId>(ct) is { ClientId.Length: > 0 } answer)
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            timeout.CancelAfter(RelayTimeout);
+            using var response = await http.GetAsync(relay, timeout.Token);
+            if (response.IsSuccessStatusCode && await response.Content.ReadFromJsonAsync<RelayClientId>(timeout.Token) is { ClientId.Length: > 0 } answer)
             {
                 relayClientId = (o.RelayUrl, answer.ClientId, DateTime.UtcNow);
                 return answer.ClientId;
             }
 
-            // Not set up (503): nothing to offer, until the next look.
-            relayClientId = null;
-            return null;
+            if (response.StatusCode is HttpStatusCode.ServiceUnavailable or HttpStatusCode.NotFound)
+            {
+                // Not set up there (or not there yet): nothing to offer for a while.
+                relayClientId = (o.RelayUrl, null, DateTime.UtcNow);
+                return null;
+            }
+
+            return KeepStale(o.RelayUrl);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException && !ct.IsCancellationRequested)
         {
             LogRelayUnreachable(ex.Message);
-            // An id fetched before is still good while the relay is away.
-            return relayClientId is { } stale && stale.Relay == o.RelayUrl ? stale.Id : null;
+            return KeepStale(o.RelayUrl);
         }
         finally
         {
             ClientIdGate.Release();
         }
+    }
+
+    /// <summary>An id fetched before stays good while the relay is away, trusted for another while before asking again.</summary>
+    private static string? KeepStale(string relayUrl)
+    {
+        if (relayClientId is { Id: { } id } stale && stale.Relay == relayUrl)
+        {
+            relayClientId = (relayUrl, id, DateTime.UtcNow - ClientIdLifetime + TimeSpan.FromMinutes(30));
+            return id;
+        }
+
+        relayClientId = (relayUrl, null, DateTime.UtcNow);
+        return null;
     }
 
     // --- Connecting: device code, then its token.
@@ -155,12 +184,20 @@ public sealed partial class TraktClient(HttpClient http, IOptionsMonitor<Flexarr
                 redirect_uri = "urn:ietf:wg:oauth:2.0:oob", grant_type = "refresh_token",
             },
             new { grant = "refresh_token", refreshToken }, ct);
-        if (response.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.Unauthorized)
+        if (response.IsSuccessStatusCode)
+        {
+            return await ReadAsync<TraktToken>(response, ct);
+        }
+
+        // Only Trakt turning the refresh token down signs the profile out: a 401, or a 400 saying invalid_grant. Anything
+        // else (the relay or Trakt unwell, the relay's own checks) is tried again later.
+        if (response.StatusCode == HttpStatusCode.Unauthorized
+            || (response.StatusCode == HttpStatusCode.BadRequest && (await response.Content.ReadAsStringAsync(ct)).Contains("invalid_grant", StringComparison.Ordinal)))
         {
             return null;
         }
 
-        return await ReadAsync<TraktToken>(response, ct);
+        throw new TraktException(response.StatusCode, "Couldn't refresh the Trakt sign-in.");
     }
 
     /// <summary>Tells Trakt to forget a token; best effort, as Disconnect clears it here either way.</summary>

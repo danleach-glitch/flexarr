@@ -19,7 +19,7 @@ public sealed record TraktListsUpdate(IReadOnlyList<string> Ids);
 /// A profile's Trakt lists, its own and those it liked, and the ones it chose kept in step as its personal collections:
 /// the titles here in Trakt's order, and films that aren't here yet shown with Request, as franchises show theirs.
 /// </summary>
-public sealed class TraktLists(FlexarrDbContext db, TraktClient trakt, TraktAccounts accounts)
+public sealed partial class TraktLists(FlexarrDbContext db, TraktClient trakt, TraktAccounts accounts)
 {
     /// <summary>Lists are looked at again after this long, as someone else's liked list changes without a word to us.</summary>
     internal static readonly TimeSpan Refresh = TimeSpan.FromHours(6);
@@ -62,14 +62,19 @@ public sealed class TraktLists(FlexarrDbContext db, TraktClient trakt, TraktAcco
             return false;
         }
 
-        connection.ListIds = ids.Where(i => i.Contains('/', StringComparison.Ordinal) && i.Length <= 160).Distinct().Take(MaxLists).ToList();
+        // Only this profile's own lists and ones it liked, as Trakt lists them: an id is never put in a Trakt address unchecked.
+        var known = (await AvailableAsync(profileId, ct) ?? []).Select(l => l.Id).ToHashSet(StringComparer.Ordinal);
+        connection.ListIds = ids.Where(i => known.Contains(i) && ListId().IsMatch(i)).Distinct().Take(MaxLists).ToList();
         connection.ListsSyncedAt = null;
         await db.Collections.Where(c => c.OwnerProfileId == profileId && c.Kind == CollectionKind.TraktList && !connection.ListIds.Contains(c.TraktListId!))
             .ExecuteDeleteAsync(ct);
         await db.SaveChangesAsync(ct);
-        TraktSyncWorker.Nudge();
+        TraktSyncWorker.Nudge(profileId);
         return true;
     }
+
+    [System.Text.RegularExpressions.GeneratedRegex("^[A-Za-z0-9_-]{1,80}/[A-Za-z0-9_-]{1,40}$")]
+    private static partial System.Text.RegularExpressions.Regex ListId();
 
     /// <summary>Whether the chosen lists are due a look: changed on Trakt, newly chosen, or a while since.</summary>
     internal static bool Due(TraktConnection connection, TraktLastActivities now, TraktLastActivities? before) =>
@@ -77,15 +82,24 @@ public sealed class TraktLists(FlexarrDbContext db, TraktClient trakt, TraktAcco
         && (connection.ListsSyncedAt is null || DateTime.UtcNow - connection.ListsSyncedAt > Refresh
             || now.Lists?.UpdatedAt != before?.Lists?.UpdatedAt || now.Lists?.LikedAt != before?.Lists?.LikedAt);
 
-    /// <summary>Brings each chosen list across as a personal collection. Saved by the caller.</summary>
-    internal async Task SyncAsync(TraktConnection connection, string token, CancellationToken ct)
+    /// <summary>Most films not in the library kept for one list, to request.</summary>
+    private const int MaxMissing = 500;
+
+    /// <summary>Brings each chosen list across as a personal collection, and drops ones no longer chosen. Saved by the caller.</summary>
+    internal async Task SyncAsync(TraktConnection connection, string token, LibraryTitles titles, CancellationToken ct)
     {
         var profileId = connection.ProfileId;
+        // Read again: the choice may have changed (in another request) since this sync loaded the connection.
+        var chosen = await db.TraktConnections.AsNoTracking().Where(c => c.ProfileId == profileId).Select(c => c.ListIds).FirstOrDefaultAsync(ct) ?? [];
         var existing = await db.Collections.Include(c => c.Items)
             .Where(c => c.OwnerProfileId == profileId && c.Kind == CollectionKind.TraktList).ToListAsync(ct);
-        var titles = await LibraryTitles.LoadAsync(db, ct);
+        foreach (var gone in existing.Where(c => !chosen.Contains(c.TraktListId!)))
+        {
+            db.Collections.Remove(gone);
+        }
+
         var known = await AvailableAsync(profileId, ct) ?? [];
-        foreach (var listId in connection.ListIds)
+        foreach (var listId in chosen)
         {
             var slash = listId.IndexOf('/', StringComparison.Ordinal);
             List<TraktListItem> items;
@@ -112,8 +126,10 @@ public sealed class TraktLists(FlexarrDbContext db, TraktClient trakt, TraktAcco
                 collection.Name = info.Name.Length > 120 ? info.Name[..120] : info.Name;
             }
 
-            var ordered = items.Where(i => i.Type is "movie" or "show").OrderBy(i => i.Rank ?? int.MaxValue).ThenBy(i => i.ListedAt).ToList();
+            var ordered = items.Where(i => i is { Type: "movie", Movie: not null } or { Type: "show", Show: not null })
+                .OrderBy(i => i.Rank ?? int.MaxValue).ThenBy(i => i.ListedAt).ToList();
             var wanted = new List<Guid>();
+            var seen = new HashSet<Guid>();
             var missing = new List<MissingFilm>();
             foreach (var i in ordered)
             {
@@ -121,12 +137,12 @@ public sealed class TraktLists(FlexarrDbContext db, TraktClient trakt, TraktAcco
                 var key = new TitleKey(kind, ids.Tmdb?.ToString(CultureInfo.InvariantCulture), ids.Tvdb?.ToString(CultureInfo.InvariantCulture), ids.Imdb);
                 if (titles.Title(key) is { } item)
                 {
-                    if (!wanted.Contains(item))
+                    if (seen.Add(item))
                     {
                         wanted.Add(item);
                     }
                 }
-                else if (kind == MediaKind.Movie && ids.Tmdb is { } tmdb && title is not null)
+                else if (kind == MediaKind.Movie && ids.Tmdb is { } tmdb && title is not null && missing.Count < MaxMissing)
                 {
                     // Films only: a missing title is requested as a film (shows not here are left out for now).
                     missing.Add(new MissingFilm(tmdb, title, year, null, null));
@@ -134,10 +150,11 @@ public sealed class TraktLists(FlexarrDbContext db, TraktClient trakt, TraktAcco
             }
 
             collection.MissingJson = missing.Count > 0 ? JsonSerializer.Serialize(missing, FranchiseSync.Json) : null;
-            collection.Items.RemoveAll(c => !wanted.Contains(c.MediaItemId));
+            collection.Items.RemoveAll(c => !seen.Contains(c.MediaItemId));
+            var have = collection.Items.ToDictionary(c => c.MediaItemId);
             for (var p = 0; p < wanted.Count; p++)
             {
-                if (collection.Items.FirstOrDefault(c => c.MediaItemId == wanted[p]) is { } kept)
+                if (have.TryGetValue(wanted[p], out var kept))
                 {
                     kept.Position = p;
                 }
