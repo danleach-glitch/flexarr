@@ -172,6 +172,45 @@ describe('App', () => {
     expect(calls).toEqual(['watched false', 'removed f2'])
   })
 
+  it('asks Home for books and podcasts, and removes them from Continue watching without marking them finished', async () => {
+    const userData = { positionSeconds: 600, watched: false, playCount: 0, lastPlayedAt: null, unwatchedCount: null }
+    const book = summary({ id: 'b1', kind: 'Audiobook', title: 'Project Hail Mary', durationSeconds: 7200, userData })
+    const episode = summary({ id: 'p1', kind: 'PodcastEpisode', title: 'The long one', parentId: 'pod', seriesTitle: 'Hardcore History', durationSeconds: 3600, userData })
+    let row = [book, episode]
+    const asked: (string | null)[] = []
+    const calls: string[] = []
+    const remove = (id: string) => () => {
+      calls.push(`removed ${id}`)
+      row = row.filter((i) => i.id !== id)
+    }
+    mockApi({
+      '/system/status': status,
+      '/libraries': [movies],
+      '/home': (_init: RequestInit | undefined, url: URL) => {
+        asked.push(url.searchParams.get('listening'))
+        return { featured: [], overviews: {}, rows: [{ id: 'continue', title: 'Continue watching or listening', style: 'wide', items: row, link: null }], upcoming: [], downloading: 0 }
+      },
+      'DELETE /home/continue/b1': remove('b1'),
+      'DELETE /home/continue/p1': remove('p1'),
+    })
+
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: 'More for Project Hail Mary' }))
+    let menu = screen.getByRole('menu')
+    expect(within(menu).getByRole('menuitem', { name: 'Resume' })).toBeInTheDocument()
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Remove from Continue Watching' }))
+    await vi.waitFor(() => expect(screen.queryByRole('button', { name: 'More for Project Hail Mary' })).not.toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole('button', { name: 'More for The long one' }))
+    menu = screen.getByRole('menu')
+    expect(within(menu).getByRole('menuitem', { name: 'Resume' })).toBeInTheDocument()
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Remove from Continue Watching' }))
+    await vi.waitFor(() => expect(screen.queryByRole('button', { name: 'More for The long one' })).not.toBeInTheDocument())
+
+    expect(calls).toEqual(['removed b1', 'removed p1'])
+    expect(asked[0]).toBe('books,podcasts')
+  })
+
   it('toggles watched from the tick on a poster', async () => {
     const posted: unknown[] = []
     mockApi({

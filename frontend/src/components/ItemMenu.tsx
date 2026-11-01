@@ -17,8 +17,9 @@ export interface MenuPoint {
   y: number
 }
 
-/** Films, TV, albums and books get menus; artists and tracks have their own pages. */
-export const hasMenu = (item: ItemSummary) => ['Movie', 'Episode', 'Season', 'Series', 'Album', 'Audiobook'].includes(item.kind)
+/** Films, TV, albums and books get menus; artists and tracks have their own pages. Podcast episodes do in Continue watching. */
+export const hasMenu = (item: ItemSummary, continueWatching = false) =>
+  ['Movie', 'Episode', 'Season', 'Series', 'Album', 'Audiobook'].includes(item.kind) || (continueWatching && item.kind === 'PodcastEpisode')
 
 export type MenuAction = { label: string; run: () => void | Promise<void>; danger?: boolean } | 'divider'
 
@@ -110,9 +111,15 @@ export function ItemMenu({ item, at, onClose, continueWatching = false }: { item
           announceWatched(item)
         },
       })
+      // Forgets the place without marking it finished.
+      if (continueWatching && started) actions.push({ label: 'Remove from Continue Watching', run: remove })
       if (!kids) actions.push({ label: 'Add to collection…', run: () => openAddToCollection(item) })
       break
     }
+    case 'PodcastEpisode':
+      actions.push({ label: started ? 'Resume' : 'Play', run: () => music.play([item]) })
+      if (continueWatching) actions.push('divider', { label: 'Remove from Continue Watching', run: remove })
+      break
   }
 
   return <Menu label={item.title} at={at} actions={kids ? withoutWatched(actions) : actions} onClose={onClose} />

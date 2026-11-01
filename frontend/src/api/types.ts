@@ -238,6 +238,10 @@ export interface HomeRow {
    * is empty for both).
    */
   style: 'poster' | 'wide' | 'top10' | 'upcoming' | 'tracks' | 'playlists' | 'mixes' | 'live'
+  /**
+   * The 'continue' row may hold audiobooks and podcast episodes too (kinds `Audiobook` and `PodcastEpisode`) when Home is
+   * asked with `listening` and the profile's listeningInContinue is on. Servers before 0.58 send films and episodes only.
+   */
   items: ItemSummary[]
   link: string | null
   playlists?: PlaylistSummary[] | null
@@ -644,6 +648,11 @@ export interface PlaybackPreferences {
   subtitlePosition?: SubtitlePosition
   /** In films wider than the screen, subtitles go in the black bar below the picture. Absent from servers before 0.53. */
   subtitlesInBlackBars?: boolean
+  /**
+   * Home's continue row also holds the audiobooks and podcast episodes in progress (and is called "Continue watching or
+   * listening"). Absent from servers before 0.58, which have no such choice; a PUT without it leaves it as it is.
+   */
+  listeningInContinue?: boolean
 }
 
 export type SubtitleSize = 'Small' | 'Standard' | 'Large' | 'ExtraLarge'

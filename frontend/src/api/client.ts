@@ -592,7 +592,11 @@ export async function saveBookListening(changes: Partial<BookListening>) {
 export const getLibraryGenres = (id: string, signal?: AbortSignal) =>
   cachedGet<{ name: string; count: number; backdrop?: string | null }[]>(`/libraries/${id}/genres`, signal)
 
-export const getHome = (signal?: AbortSignal) => cachedGet<Home>('/home', signal)
+/**
+ * Home. `listening` says what this app can open from the continue row besides films and episodes (books and podcast
+ * episodes, which play in the audio player); servers before 0.58 ignore it.
+ */
+export const getHome = (signal?: AbortSignal) => cachedGet<Home>('/home?listening=books,podcasts', signal)
 
 export interface RowChoice {
   id: string
