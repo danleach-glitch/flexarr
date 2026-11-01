@@ -251,7 +251,7 @@ private fun BookPage(model: AppModel, detail: ItemDetail, defaultSpeed: Double, 
                 AlertDialog(
                     onDismissRequest = { confirmStartOver = false },
                     title = { Text("Start over?") },
-                    text = { Text("Your place in this book will be lost.") },
+                    text = { Text("You’re at ${Format.timestamp(position)}.") },
                     confirmButton = {
                         TextButton(onClick = {
                             confirmStartOver = false
