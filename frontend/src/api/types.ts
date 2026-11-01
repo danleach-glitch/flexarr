@@ -216,7 +216,8 @@ export type PersonSource = 'folder' | 'readarr' | 'audible' | 'openlibrary' | 't
 
 /** The photos and biographies an admin can choose from for an author: one of each per source at most. */
 export interface PersonCandidates {
-  photos: { source: string; image: string }[]
+  /** `current`: the photo shown now (absent from servers before it was added: go by Person.photoSource). */
+  photos: { source: string; image: string; current?: boolean }[]
   biographies: { source: string; text: string }[]
 }
 

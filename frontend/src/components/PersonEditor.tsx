@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { ApiError, getPersonCandidates, updatePerson, uploadPersonImage, type Person, type PersonUpdate } from '../api/client'
 import { useApi } from '../hooks/useApi'
 import { useModal } from '../hooks/useModal'
@@ -22,34 +22,73 @@ const sourceName = (source: string) => sourceNames[source] ?? source.charAt(0).t
 /** The chosen file, rather than one of the server's photos. */
 const FILE = ' file'
 
+/** The server keeps the photos it found for ten minutes; a dialog open longer asks again before they're gone. */
+const LOOK_AGAIN_MS = 9 * 60_000
+
 /**
  * An admin's fixes to a person: which photo (one the server found, or an upload), the biography, and whether it's
  * locked against refreshes. Choosing a photo or changing the biography locks it, as the server does.
  */
 export function PersonEditor({ person, onSaved, onClose }: { person: Person; onSaved: (person: Person) => void; onClose: () => void }) {
   const candidates = useApi((signal) => getPersonCandidates(person.id, signal), [person.id])
-  const current = person.photoSource ?? undefined
-  const [chosen, setChosen] = useState(current)
+  // The photo shown now: the one the server marks, or (before it marked them) the one from the person's photo source.
+  const current = candidates.data?.photos.find((p) => p.current)?.source ?? person.photoSource ?? undefined
+  const [picked, setPicked] = useState<string>()
+  const chosen = picked ?? current
   const [file, setFile] = useState<File>()
   const preview = usePreviewUrl(file)
+  // The file once it's saved, so a save that then fails on the rest doesn't send it again.
+  const [uploaded, setUploaded] = useState<File>()
   const original = person.biography ?? ''
   const [biography, setBiography] = useState(original)
   const [locked, setLocked] = useState(person.locked ?? false)
+  // Once the admin sets the switch themselves, choosing a photo or writing no longer turns it on for them.
+  const [lockSet, setLockSet] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string>()
   const dialog = useModal<HTMLFormElement>(onClose, !saving)
+  // Photos that didn't load (the source has gone, or the server forgot them): hidden, so they can't be chosen.
+  const [broken, setBroken] = useState<ReadonlySet<string>>(new Set())
 
-  const photos = candidates.data?.photos ?? []
+  const { reload } = candidates
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setBroken(new Set())
+      reload()
+    }, LOOK_AGAIN_MS)
+    return () => clearInterval(timer)
+  }, [reload])
+
+  const photos = (candidates.data?.photos ?? []).filter((p) => !broken.has(p.source))
   const biographies = (candidates.data?.biographies ?? []).filter((b) => b.text.trim() !== biography.trim())
 
   function choose(source: string) {
-    setChosen(source)
-    if (source !== current) setLocked(true)
+    setPicked(source)
+    if (source !== current && !lockSet) setLocked(true)
+  }
+
+  // One Tab stop for the photos (the chosen one, else the first); the arrow keys move between them and choose, as radios do.
+  const chosenShown = chosen === FILE ? !!preview : photos.some((p) => p.source === chosen)
+  function moveChoice(e: KeyboardEvent<HTMLDivElement>) {
+    const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key]
+    const radios = [...e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]:not(:disabled)')]
+    const at = radios.indexOf(document.activeElement as HTMLButtonElement)
+    if (at < 0 || radios.length === 0) return
+    const to = e.key === 'Home' ? 0 : e.key === 'End' ? radios.length - 1 : step ? (at + step + radios.length) % radios.length : -1
+    if (to < 0) return
+    e.preventDefault()
+    radios[to].focus()
+    radios[to].click()
+  }
+
+  function failed(source: string) {
+    setBroken((b) => new Set(b).add(source))
+    if (picked === source) setPicked(undefined)
   }
 
   function write(text: string) {
     setBiography(text)
-    if (text.trim() !== original.trim()) setLocked(true)
+    if (text.trim() !== original.trim() && !lockSet) setLocked(true)
   }
 
   async function save(e: FormEvent) {
@@ -60,17 +99,28 @@ export function PersonEditor({ person, onSaved, onClose }: { person: Person; onS
     if (text !== original.trim()) update.biography = text || null
     const lockChanged = locked !== (chosen === FILE || (person.locked ?? false))
     if (lockChanged || update.photo !== undefined || update.biography !== undefined) update.locked = locked
-    if (chosen !== FILE && Object.keys(update).length === 0) return onClose()
+    const upload = chosen === FILE && file && file !== uploaded ? file : undefined
+    if (!upload && Object.keys(update).length === 0) return onClose()
 
     setSaving(true)
     setError(undefined)
     try {
-      let saved = chosen === FILE && file ? await uploadPersonImage(person.id, file) : person
-      if (Object.keys(update).length > 0) saved = await updatePerson(person.id, update)
-      onSaved(saved)
+      if (upload) {
+        const saved = await uploadPersonImage(person.id, upload)
+        setUploaded(upload)
+        // The page behind shows the new photo even if the rest fails.
+        onSaved(saved)
+      }
+      if (Object.keys(update).length > 0) onSaved(await updatePerson(person.id, update))
       onClose()
     } catch (err) {
-      setError(err instanceof ApiError && err.messages[0] ? err.messages[0] : String(err))
+      if (err instanceof ApiError && err.status === 409) {
+        // The photo chosen has gone from the server's memory: show what it finds now.
+        setError('That photo’s gone. Choose again.')
+        setPicked(undefined)
+        setBroken(new Set())
+        reload()
+      } else setError(err instanceof ApiError && err.messages[0] ? err.messages[0] : String(err))
       setSaving(false)
     }
   }
@@ -90,14 +140,28 @@ export function PersonEditor({ person, onSaved, onClose }: { person: Person; onS
       >
         <h2 id="person-editor-title">Edit {person.name}</h2>
 
-        <div className="person-editor-photos" role="radiogroup" aria-label="Photo" aria-busy={candidates.loading}>
+        <div className="person-editor-photos">
           {candidates.loading && !candidates.data && <p className="muted">Loading…</p>}
           {loadError && <p className="error">{loadError}</p>}
           {candidates.data && photos.length === 0 && !file && <p className="muted">No photos found.</p>}
-          {photos.map((p) => (
-            <PhotoChoice key={p.source} image={p.image} label={sourceName(p.source)} current={p.source === current} checked={chosen === p.source} disabled={saving} onChoose={() => choose(p.source)} />
-          ))}
-          {preview && <PhotoChoice image={preview} label="Yours" current={false} checked={chosen === FILE} disabled={saving} onChoose={() => choose(FILE)} />}
+          <div className="person-editor-choices" role="radiogroup" aria-label="Photo" aria-busy={candidates.loading} onKeyDown={moveChoice}>
+            {photos.map((p, i) => (
+              <PhotoChoice
+                key={p.source}
+                image={p.image}
+                label={sourceName(p.source)}
+                current={p.source === current}
+                checked={chosen === p.source}
+                tabbable={chosen === p.source || (!chosenShown && i === 0)}
+                disabled={saving}
+                onChoose={() => choose(p.source)}
+                onError={() => failed(p.source)}
+              />
+            ))}
+            {preview && (
+              <PhotoChoice image={preview} label="Yours" current={false} checked={chosen === FILE} tabbable={chosen === FILE || (!chosenShown && photos.length === 0)} disabled={saving} onChoose={() => choose(FILE)} />
+            )}
+          </div>
           <label className="person-editor-upload file-button">
             Upload
             <input
@@ -105,9 +169,9 @@ export function PersonEditor({ person, onSaved, onClose }: { person: Person; onS
               accept="image/jpeg,image/png,image/webp"
               disabled={saving}
               onChange={(e) => {
-                const picked = e.target.files?.[0]
-                if (!picked) return
-                setFile(picked)
+                const upload = e.target.files?.[0]
+                if (!upload) return
+                setFile(upload)
                 choose(FILE)
               }}
             />
@@ -116,13 +180,13 @@ export function PersonEditor({ person, onSaved, onClose }: { person: Person; onS
 
         <label className="field">
           <span className="field-label">Biography</span>
-          <textarea value={biography} rows={8} onChange={(e) => write(e.target.value)} disabled={saving} />
+          <textarea value={biography} rows={8} autoFocus onChange={(e) => write(e.target.value)} disabled={saving} />
         </label>
         {biographies.length > 0 && (
           <p className="person-editor-sources">
             <span className="muted">Use</span>
             {biographies.map((b) => (
-              <button key={b.source} type="button" className="text-button" disabled={saving} onClick={() => write(b.text)}>
+              <button key={b.source} type="button" className="text-button" disabled={saving} aria-label={`Use ${sourceName(b.source)}’s biography`} onClick={() => write(b.text)}>
                 {sourceName(b.source)}
               </button>
             ))}
@@ -131,7 +195,17 @@ export function PersonEditor({ person, onSaved, onClose }: { person: Person; onS
 
         <label className="person-editor-lock">
           <span>Locked</span>
-          <input type="checkbox" role="switch" className="switch" checked={locked} disabled={saving} onChange={(e) => setLocked(e.target.checked)} />
+          <input
+            type="checkbox"
+            role="switch"
+            className="switch"
+            checked={locked}
+            disabled={saving}
+            onChange={(e) => {
+              setLocked(e.target.checked)
+              setLockSet(true)
+            }}
+          />
         </label>
 
         {error && (
@@ -157,19 +231,23 @@ function PhotoChoice({
   label,
   current,
   checked,
+  tabbable,
   disabled,
   onChoose,
+  onError,
 }: {
   image: string
   label: string
   current: boolean
   checked: boolean
+  tabbable: boolean
   disabled: boolean
   onChoose: () => void
+  onError?: () => void
 }) {
   return (
-    <button type="button" role="radio" aria-checked={checked} className="person-editor-photo" disabled={disabled} onClick={onChoose}>
-      <img src={image} alt="" />
+    <button type="button" role="radio" aria-checked={checked} tabIndex={tabbable ? 0 : -1} className="person-editor-photo" disabled={disabled} onClick={onChoose}>
+      <img src={image} alt="" onError={onError} />
       <span>
         {label}
         {current && <span className="tag keep">Current</span>}

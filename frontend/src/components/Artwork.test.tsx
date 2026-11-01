@@ -1,5 +1,6 @@
 import { act, fireEvent, render } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { initialsOf } from '../lib/initials'
 import { Artwork } from './Artwork'
 
 describe('Artwork', () => {
@@ -25,5 +26,20 @@ describe('Artwork', () => {
 
     act(() => vi.advanceTimersByTime(5000))
     expect(container.querySelector('img') !== null).toBe(retried)
+  })
+
+  it('falls back to initials for a person', () => {
+    const { container } = render(<Artwork src={null} title="Ada Marsh" width={185} shape="square" initials />)
+    expect(container.querySelector('.artwork-initials')?.textContent).toBe('AM')
+  })
+
+  it.each([
+    ['Ada Marsh', 'AM'],
+    ['Ursula K. Le Guin', 'UG'],
+    ['Plato', 'P'],
+    ['  émile zola ', 'ÉZ'],
+    ['', ''],
+  ])('takes the initials of %j', (name, expected) => {
+    expect(initialsOf(name)).toBe(expected)
   })
 })

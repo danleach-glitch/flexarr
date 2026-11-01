@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useParams } from 'react-router'
-import { getPerson, type CreditRole } from '../api/client'
+import { getPerson, unlockFirst, type CreditRole } from '../api/client'
 import { Artwork } from '../components/Artwork'
 import { PosterCard } from '../components/Cards'
 import { Overview } from '../components/Overview'
@@ -38,6 +38,12 @@ export function PersonPage() {
   const count = data.credits.length
   const one = books ? 'One book' : 'One title'
   const many = `${count} ${books ? 'books' : 'titles'}`
+  // Fixing a photo or biography is for authors, narrators and translators: book sources know them, and an actor's TMDB
+  // photo would stop updating once saved. The main profile, locked here, gives the PIN first.
+  const canEdit = (me?.isAdmin === true || me?.canUnlock === true) && data.credits.some((c) => bookRoles.has(c.role))
+  const edit = async () => {
+    if (me?.isAdmin === true || (await unlockFirst())) setEditing(true)
+  }
 
   return (
     <article className="person-page">
@@ -48,8 +54,8 @@ export function PersonPage() {
         <div>
           <h1>{data.name}</h1>
           <p className="muted">{count === 1 ? `${one} in your library` : `${many} in your library`}</p>
-          {me?.isAdmin === true && (
-            <button className="button quiet person-edit" onClick={() => setEditing(true)}>
+          {canEdit && (
+            <button className="button quiet person-edit" onClick={() => void edit()}>
               Edit
             </button>
           )}

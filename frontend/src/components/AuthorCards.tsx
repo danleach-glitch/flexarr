@@ -1,3 +1,4 @@
+import { useId } from 'react'
 import { Link } from 'react-router'
 import type { BookAuthor } from '../api/client'
 import { Artwork } from './Artwork'
@@ -12,18 +13,30 @@ export function AuthorCards({ authors }: { authors: BookAuthor[] | undefined }) 
   return (
     <ul className="author-cards" aria-label={authors.length === 1 ? 'Author' : 'Authors'}>
       {authors.map((a) => (
-        <li key={a.id}>
-          <Link to={`/person/${a.id}`} className="author-card">
-            <span className="author-card-photo">
-              <Artwork src={a.image} title={a.name} width={185} shape="square" />
-            </span>
-            <span className="author-card-text">
-              <strong>{a.name}</strong>
-              {a.biography && <span className="author-card-bio muted">{a.biography}</span>}
-            </span>
-          </Link>
-        </li>
+        <AuthorCard key={a.id} author={a} />
       ))}
     </ul>
+  )
+}
+
+/** The link is named by the author alone: the biography is the start of what their page says in full. */
+function AuthorCard({ author }: { author: BookAuthor }) {
+  const nameId = useId()
+  return (
+    <li>
+      <Link to={`/person/${author.id}`} className="author-card" aria-labelledby={nameId}>
+        <span className="author-card-photo">
+          <Artwork src={author.image} title={author.name} width={185} shape="square" initials />
+        </span>
+        <span className="author-card-text">
+          <strong id={nameId}>{author.name}</strong>
+          {author.biography && (
+            <span className="author-card-bio muted" aria-hidden="true">
+              {author.biography}
+            </span>
+          )}
+        </span>
+      </Link>
+    </li>
   )
 }

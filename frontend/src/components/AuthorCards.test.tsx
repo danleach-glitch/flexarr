@@ -27,6 +27,18 @@ describe('AuthorCards', () => {
     expect(screen.getByRole('list', { name: 'Authors' })).toBeTruthy()
   })
 
+  it('names each card by the author alone, not the biography', () => {
+    renderCards([{ ...leGuin, biography: 'A very long biography. '.repeat(100) }])
+    expect(screen.getByRole('link', { name: 'Ursula K. Le Guin' })).toBeTruthy()
+  })
+
+  it('shows initials in the circle of an author with no photo', () => {
+    renderCards([{ ...bare, name: 'Ada Marsh', biography: 'Writes.' }])
+    const photo = screen.getByRole('link').querySelector('.author-card-photo')
+    expect(photo?.querySelector('img')).toBeNull()
+    expect(photo?.textContent).toBe('AM')
+  })
+
   it('keeps an author without a biography to photo and name', () => {
     renderCards([{ ...leGuin, biography: null }])
     expect(screen.getByRole('link').querySelector('.author-card-bio')).toBeNull()
