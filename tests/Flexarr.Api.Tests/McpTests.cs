@@ -94,6 +94,22 @@ public class McpTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFacto
         Assert.True((await client.CallToolAsync("set_device_sound", new Dictionary<string, object?> { ["deviceId"] = deviceId, ["dialogueBoost"] = "low, high" })).IsError);
     }
 
+    [Theory]
+    [InlineData(0.0)]
+    [InlineData(601.0)]
+    public async Task SetSleepTimer_KeepsToTheRange(double minutes)
+    {
+        var admin = factory.CreateClient();
+        admin.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+        var device = await (await admin.PostAsJsonAsync(Api("/session/device"), new { deviceName = "Bedroom phone" })).Content.ReadFromJsonAsync<JsonElement>();
+        await using var client = await ConnectAsync();
+
+        var result = await client.CallToolAsync("set_sleep_timer", new Dictionary<string, object?> { ["deviceId"] = device.GetProperty("id").GetString(), ["minutes"] = minutes });
+
+        Assert.True(result.IsError);
+        Assert.Contains("1 to 600 minutes", Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task WithoutASignIn_TheEndpointRefuses()
     {

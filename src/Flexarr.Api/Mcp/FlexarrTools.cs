@@ -210,7 +210,9 @@ public static class FlexarrTools
         var result = DeviceEndpoints.Sleep(deviceId, new DeviceSleepRequest(minutes, endOfChapter), signIns, commands, profile);
         if (result is not Microsoft.AspNetCore.Http.HttpResults.Ok<DeviceCommandResultDto> { Value: { } sent })
         {
-            throw new InvalidOperationException(result is Microsoft.AspNetCore.Http.HttpResults.ProblemHttpResult problem ? problem.ProblemDetails.Detail : "No device with that id is signed in.");
+            // An McpException's message reaches the assistant, so it can say why.
+            throw new ModelContextProtocol.McpException(result is Microsoft.AspNetCore.Http.HttpResults.ProblemHttpResult { ProblemDetails.Detail: { } detail }
+                ? detail : "No device with that id is signed in.");
         }
 
         var what = endOfChapter ? "at the end of the chapter" : minutes is { } m ? $"in {m:0} minutes" : null;
