@@ -12,6 +12,16 @@ extension Color {
 extension ItemSummary {
     /// Ambient colour lifted so it reads as a glow on the room background.
     var glowColor: Color { Color(rgb: ambient.glow) }
+    /// The title's own ambient colour, or nil when it has none (the main button is silver then).
+    var ambientColor: Color? { accentColor.flatMap(RGB.init(hex:)).map(Color.init(rgb:)) }
+}
+
+extension Color {
+    /// The main button's fill (Play, Resume): `ambient` mixed with projected white so a dark or dull colour still
+    /// reads, with room-coloured words on it; silver when there's no ambient colour. The same on every client.
+    static func mainButton(_ ambient: Color?) -> Color {
+        ambient?.mix(with: .screen, by: 1 - MainButton.ambientMix) ?? .silver
+    }
 }
 
 extension Font {

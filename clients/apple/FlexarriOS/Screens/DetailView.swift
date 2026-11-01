@@ -29,6 +29,7 @@ struct DetailView: View {
     @State private var subtitlesJustSaved: String?
     /// On the watchlist or not, as changed here, until the page next loads.
     @State private var onWatchlist: Bool?
+    @State private var showingTrailer = false
     @Environment(\.scenePhase) private var scenePhase
 
     private var item: ItemSummary? { detail?.item ?? (preview?.kind == .season ? nil : preview) }
@@ -159,10 +160,26 @@ struct DetailView: View {
             .mask(LinearGradient(stops: [.init(color: .black, location: 0.55), .init(color: .clear, location: 1)], startPoint: .top, endPoint: .bottom))
     }
 
+    /// The buttons in the order every client shares (`DetailActions`).
+    private func detailActions(_ item: ItemSummary, playable: ItemSummary?) -> DetailActions {
+        let kind: DetailActions.Kind = item.kind == .series ? .show : item.kind == .episode ? .episode : .movie
+        return DetailActions(kind: kind, hasProgress: playable?.isResumable == true && item.kind != .series,
+                             watched: isWatched(item), hasTrailer: detail?.trailerYouTubeId != nil, isKids: model.isKids,
+                             platform: .phone, canPlayTrailers: canPlayTrailers,
+                             canDownload: item.kind == .movie || item.kind == .episode,
+                             canSearchSubtitles: detail?.canSearchSubtitles == true && detail?.files.first != nil)
+    }
+
+    private func isWatched(_ item: ItemSummary) -> Bool { item.userData.watched || item.userData.unwatchedCount == 0 }
+
+    /// Trailers play in a sheet on the phone.
+    private var canPlayTrailers: Bool { false }
+
     @ViewBuilder
     private func actions(_ item: ItemSummary) -> some View {
         let playable = playTarget(item)
-        let watched = item.userData.watched || item.userData.unwatchedCount == 0
+        let watched = isWatched(item)
+        let actions = detailActions(item, playable: playable)
         // Play on a line of its own, so "Resume from 1:02:35" never wraps; the rest underneath, named.
         VStack(spacing: 18) {
             if let playable {
@@ -170,76 +187,81 @@ struct DetailView: View {
                     Label(playLabel(playable, container: item), systemImage: "play.fill")
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(ActionButtonStyle(ambient: ambient, prominent: true))
+                .buttonStyle(ActionButtonStyle(ambient: item.ambientColor ?? series?.ambientColor, prominent: true))
                 .monospacedDigit()
             }
 
             HStack(alignment: .top, spacing: 8) {
-                if let playable, playable.isResumable {
-                    Button { model.play(playable, fromBeginning: true) } label: {
-                        Label("Start over", systemImage: "arrow.counterclockwise")
-                    }
-                }
-
-                if item.kind == .movie || item.kind == .episode {
-                    DownloadButton(item: item)
-                }
-
-                if item.kind == .series, item.childCount > 0 {
-                    Button { model.shuffle(item) } label: {
-                        Label("Shuffle", systemImage: "shuffle")
-                    }
-                }
-
-                // A child's history keeps itself: watching is the only way to change it.
-                if model.isKids {
-                    EmptyView()
-                } else if item.isResumable && !watched {
-                    // Part way through, either way: unwatched forgets the place (it leaves Continue Watching).
-                    Menu {
-                        Button { Task { await model.setWatched(item, true) } } label: {
-                            Label("Mark as watched", systemImage: "checkmark")
-                        }
-                        Button { Task { await model.setWatched(item, false) } } label: {
-                            Label("Mark as unwatched", systemImage: "eye.slash")
-                        }
-                    } label: {
-                        Label("Watched", systemImage: "checkmark")
-                    }
-                    .accessibilityLabel("Watched or unwatched")
-                } else {
-                    Button { Task { await model.setWatched(item, !watched) } } label: {
-                        Label(watched ? "Unwatched" : "Watched", systemImage: watched ? "eye.slash" : "checkmark")
-                    }
-                    .accessibilityLabel(watched ? "Mark as unwatched" : "Mark as watched")
-                }
-
-                if model.hasWatchlist, item.kind == .movie || item.kind == .series, let onList = onWatchlist ?? detail?.onWatchlist {
-                    Button {
-                        Task { if await model.setOnWatchlist(.library(item.id), !onList) != nil { onWatchlist = !onList } }
-                    } label: {
-                        Label("Watchlist", systemImage: onList ? "bookmark.fill" : "bookmark")
-                    }
-                    .accessibilityLabel(onList ? "Remove from watchlist" : "Add to watchlist")
-                }
-
-                if item.kind == .episode, let series {
-                    Button { router.push(.item(series)) } label: {
-                        Label("Show", systemImage: "rectangle.stack")
-                    }
-                    .accessibilityLabel("Go to show")
-                }
-
-                if !model.isKids, detail?.canSearchSubtitles == true, let file = detail?.files.first {
-                    Button { subtitleSearchFile = SubtitleSearchFile(id: file.id) } label: {
-                        Label("Subtitles", systemImage: "captions.bubble")
-                    }
-                    .accessibilityLabel("Search for subtitles")
+                ForEach(actions.buttons.filter { $0 != .play }, id: \.self) { button in
+                    secondaryButton(button, item: item, playable: playable, watched: watched, menu: actions.menu)
                 }
             }
             .buttonStyle(LabeledActionStyle())
         }
-        .frame(maxWidth: 520, alignment: .leading)
+        .frame(maxWidth: 560, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private func secondaryButton(_ button: DetailActions.Button, item: ItemSummary, playable: ItemSummary?, watched: Bool,
+                                 menu: [DetailActions.MenuItem]) -> some View {
+        switch button {
+        case .play:
+            EmptyView()
+        case .startOver:
+            if let playable {
+                Button { model.play(playable, fromBeginning: true) } label: {
+                    Label("Start over", systemImage: "arrow.counterclockwise")
+                }
+            }
+        case .shuffle:
+            if item.childCount > 0 {
+                Button { model.shuffle(item) } label: { Label("Shuffle", systemImage: "shuffle") }
+            }
+        case .trailer:
+            Button { showingTrailer = true } label: { Label("Trailer", systemImage: "film") }
+        case .watched:
+            Button { Task { await model.setWatched(item, !watched) } } label: {
+                Label(watched ? "Watched" : "Mark as watched", systemImage: watched ? "checkmark.circle.fill" : "checkmark")
+            }
+            .accessibilityLabel(watched ? "Mark as unwatched" : "Mark as watched")
+            .accessibilityAddTraits(watched ? .isSelected : [])
+        case .watchlist:
+            // Only what the server can put on a watchlist: films and shows, from servers that have one.
+            if model.hasWatchlist, item.kind == .movie || item.kind == .series, let onList = onWatchlist ?? detail?.onWatchlist {
+                Button {
+                    Task { if await model.setOnWatchlist(.library(item.id), !onList) != nil { onWatchlist = !onList } }
+                } label: {
+                    Label("Watchlist", systemImage: onList ? "bookmark.fill" : "bookmark")
+                }
+                .accessibilityLabel(onList ? "Remove from watchlist" : "Add to watchlist")
+            }
+        case .download:
+            DownloadButton(item: item)
+        case .more:
+            Menu {
+                ForEach(menu, id: \.self) { entry in
+                    switch entry {
+                    case .markUnwatched:
+                        Button { Task { await model.setWatched(item, false) } } label: {
+                            Label("Mark as unwatched", systemImage: "eye.slash")
+                        }
+                    case .subtitles:
+                        if let file = detail?.files.first {
+                            Button { subtitleSearchFile = SubtitleSearchFile(id: file.id) } label: {
+                                Label("Search for subtitles", systemImage: "captions.bubble")
+                            }
+                        }
+                    case .goToShow:
+                        if let series {
+                            Button { router.push(.item(series)) } label: { Label("Go to show", systemImage: "rectangle.stack") }
+                        }
+                    }
+                }
+            } label: {
+                Label("More", systemImage: "ellipsis")
+            }
+            .accessibilityLabel("More actions")
+        }
     }
 
     /// What Play starts: the item itself, or for a series the next-up episode (falling

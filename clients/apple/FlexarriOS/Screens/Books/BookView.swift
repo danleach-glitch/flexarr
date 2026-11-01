@@ -175,7 +175,7 @@ struct BookView: View {
                       systemImage: playingThis && model.music.isPlaying ? "pause.fill" : "play.fill")
                     .frame(maxWidth: .infinity)
             }
-            .buttonStyle(ActionButtonStyle(ambient: ambient, prominent: true))
+            .buttonStyle(ActionButtonStyle(ambient: item.ambientColor, prominent: true))
             .monospacedDigit()
 
             HStack(alignment: .top, spacing: 8) {

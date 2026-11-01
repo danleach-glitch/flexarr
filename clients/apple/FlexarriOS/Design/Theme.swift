@@ -67,10 +67,11 @@ struct SectionHeading: View {
     }
 }
 
-/// Play and the other actions on heroes and details: the main one in projected white, the rest quieter on a
-/// translucent seat, with the title's ambient colour in the glow.
+/// Play and the other actions on heroes and details: the main one filled with the title's ambient colour (see
+/// `Color.mainButton`), the rest quieter on a translucent seat.
 struct ActionButtonStyle: ButtonStyle {
-    var ambient: Color = .silver
+    /// The title's ambient colour, for the main button's fill; nil gives silver.
+    var ambient: Color? = nil
     var prominent = false
 
     func makeBody(configuration: Configuration) -> some View {
@@ -82,9 +83,8 @@ struct ActionButtonStyle: ButtonStyle {
             .foregroundStyle(prominent ? Color.room : Color.screen)
             .background {
                 RoundedRectangle(cornerRadius: Radius.control, style: .continuous)
-                    .fill(prominent ? AnyShapeStyle(Color.screen) : AnyShapeStyle(Color.screen.opacity(0.14)))
+                    .fill(prominent ? AnyShapeStyle(Color.mainButton(ambient)) : AnyShapeStyle(Color.screen.opacity(0.14)))
             }
-            .shadow(color: prominent ? ambient.opacity(0.45) : .clear, radius: 16)
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
             .opacity(configuration.isPressed ? 0.85 : 1)
             .animation(.easeOut(duration: 0.12), value: configuration.isPressed)

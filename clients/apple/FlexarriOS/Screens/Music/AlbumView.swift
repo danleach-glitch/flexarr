@@ -74,7 +74,7 @@ struct AlbumView: View {
                 Button { model.playTracks(tracks, albums: [item], showingNowPlaying: router) } label: {
                     Label("Play", systemImage: "play.fill")
                 }
-                .buttonStyle(ActionButtonStyle(ambient: ambient, prominent: true))
+                .buttonStyle(ActionButtonStyle(ambient: page.item?.ambientColor, prominent: true))
                 Button { model.playTracks(tracks, shuffled: true, albums: [item], showingNowPlaying: router) } label: {
                     Label("Shuffle", systemImage: "shuffle")
                 }

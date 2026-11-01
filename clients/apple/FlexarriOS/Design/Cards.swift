@@ -294,7 +294,7 @@ struct ItemContextMenu: View {
             }
             if item.isResumable {
                 Button { model.play(item, fromBeginning: true) } label: {
-                    Label("Play from beginning", systemImage: "arrow.counterclockwise")
+                    Label("Start over", systemImage: "arrow.counterclockwise")
                 }
             }
         }

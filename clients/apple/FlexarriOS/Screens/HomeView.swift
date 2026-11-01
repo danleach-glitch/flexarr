@@ -281,7 +281,7 @@ struct HomeHero: View {
                     } label: {
                         Label(resume != nil || item.isResumable ? "Resume" : "Play", systemImage: "play.fill")
                     }
-                    .buttonStyle(ActionButtonStyle(ambient: item.glowColor, prominent: true))
+                    .buttonStyle(ActionButtonStyle(ambient: item.ambientColor, prominent: true))
                     Button { router.push(.item(item)) } label: {
                         Label("More info", systemImage: "info.circle")
                     }
