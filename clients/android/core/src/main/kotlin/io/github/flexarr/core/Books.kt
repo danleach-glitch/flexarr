@@ -284,6 +284,45 @@ suspend fun FlexarrClient.recordBookProgress(itemId: String, positionSeconds: Do
         BookProgressBody(positionSeconds.coerceAtLeast(0.0), device, recordedAtMillis?.let { java.time.Instant.ofEpochMilli(it).toString() }, ended),
     )
 
+/**
+ * Tells the server where a book's session got to. A session it has let go (404: sessions end after twelve hours idle),
+ * or one already known to be gone ([sessionGone]), has the place recorded on the book instead, so it isn't lost. False
+ * when the session is gone.
+ */
+suspend fun FlexarrClient.reportBookSession(
+    sessionId: String, itemId: String, positionSeconds: Double, paused: Boolean, ended: Boolean, device: String?, sessionGone: Boolean = false,
+): Boolean {
+    if (!sessionGone) {
+        try {
+            reportProgress(sessionId, positionSeconds, paused, ended)
+            return true
+        } catch (e: FlexarrException.Http) {
+            if (e.status != 404) throw e
+        }
+    }
+    recordBookProgress(itemId, positionSeconds, device, System.currentTimeMillis(), ended)
+    return false
+}
+
+/**
+ * The end of a book's session: its last place ([ended] at the end of the book; only when [record]), then the stop, one
+ * after the other, so the server has the place (and counts the book finished) before the session goes.
+ */
+suspend fun FlexarrClient.endBookSession(
+    sessionId: String, itemId: String, positionSeconds: Double, ended: Boolean, record: Boolean, device: String?, sessionGone: Boolean = false,
+) {
+    var gone = sessionGone
+    if (record) {
+        try {
+            gone = !reportBookSession(sessionId, itemId, positionSeconds, paused = true, ended = ended, device = device, sessionGone = gone)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (_: Exception) {
+        }
+    }
+    if (!gone) runCatching { stopPlayback(sessionId) }
+}
+
 /** Marks a book finished, or not. */
 suspend fun FlexarrClient.setBookFinished(itemId: String, finished: Boolean) {
     send("POST", "items/$itemId/finished", body = FlexarrClient.json.encodeToString(BookFinishedBody.serializer(), BookFinishedBody(finished)))

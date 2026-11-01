@@ -26,6 +26,8 @@ data class LocalBook(
     val position: Double = 0.0,
     val finishedAtMillis: Long? = null,
     val unsent: UnsentProgress? = null,
+    /** A speed chosen while it played from here, kept in [manifest] and still to be told to the server. */
+    val unsentSpeed: Double? = null,
     /** Fetched by itself (the next in a series): it waits for Wi-Fi when Settings says so. */
     val automatic: Boolean = false,
     val createdAtMillis: Long = 0,
@@ -43,6 +45,22 @@ data class LocalBook(
         position = if (finished) 0.0 else position,
         finishedAtMillis = if (finished) now else if (position > 0) null else finishedAtMillis,
         unsent = UnsentProgress(position, finished, now),
+    )
+
+    /** [speed] chosen while playing from here: the book keeps it, and the server is told when it can be. */
+    fun speedChosen(speed: Double): LocalBook = copy(manifest = manifest.copy(speed = speed), unsentSpeed = speed)
+
+    /**
+     * The server's newer [fresh] manifest taken in, keeping this copy's files and chapters (they go together): its
+     * bookmarks, listening settings and next in the series, and its speed unless one chosen here hasn't reached it yet.
+     */
+    fun refreshed(fresh: BookManifest): LocalBook = copy(
+        manifest = manifest.copy(
+            bookmarks = fresh.bookmarks,
+            speed = unsentSpeed ?: fresh.speed,
+            listening = fresh.listening,
+            nextInSeries = fresh.nextInSeries ?: manifest.nextInSeries,
+        ),
     )
 }
 

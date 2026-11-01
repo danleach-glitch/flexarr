@@ -46,6 +46,63 @@ fun List<BookChapter>.previousChapterStart(position: Double): Double {
 fun List<BookChapter>.nextChapterStart(position: Double): Double? = getOrNull((chapterAt(position) ?: -1) + 1)?.startSeconds
 
 /**
+ * Where the chapter playing at [position] ends: its own end, or the next chapter's start, or the book's end ([duration]).
+ * Before the first chapter, where that starts.
+ */
+fun List<BookChapter>.chapterEnd(position: Double, duration: Double): Double {
+    val index = chapterAt(position) ?: return firstOrNull()?.startSeconds ?: duration
+    val chapter = this[index]
+    return chapter.endSeconds.takeIf { it > chapter.startSeconds } ?: getOrNull(index + 1)?.startSeconds ?: duration
+}
+
+/**
+ * The sleep timer's End of chapter: it stops where the chapter playing ends. Set, it holds that end while the book plays
+ * on (so a check that comes a moment late doesn't miss it); a seek the listener asks for (Next chapter, a chapter or
+ * bookmark, the scrubber) moves it to the end of the chapter it lands in.
+ */
+class ChapterSleep {
+    /** The place on the timeline to stop at; null when it's not set. */
+    var end: Double? = null
+        private set
+
+    fun set(chapters: List<BookChapter>, position: Double, duration: Double) {
+        end = chapters.chapterEnd(position, duration)
+    }
+
+    fun clear() {
+        end = null
+    }
+
+    /** Gone to [position]: the end is now that chapter's. */
+    fun seeked(chapters: List<BookChapter>, position: Double, duration: Double) {
+        if (end != null) end = chapters.chapterEnd(position, duration)
+    }
+
+    /** Seconds of listening left at [speed] before it stops; null when it's not set. */
+    fun left(position: Double, speed: Double): Double? = end?.let { (it - position) / speed.coerceAtLeast(0.5) }
+}
+
+/**
+ * When a book was paused, for smart rewind on playing again. A place the listener goes to while it's paused (a chapter,
+ * a bookmark, Jump to, the scrubber) forgets it, so playing starts right there rather than a little before it.
+ */
+class BookPause {
+    var since: Long? = null
+        private set
+
+    fun paused(now: Long) {
+        since = now
+    }
+
+    fun seeked() {
+        since = null
+    }
+
+    /** Playing again at [now]: how long it was paused, or null (not paused, or moved since); forgotten after. */
+    fun resumed(now: Long): Long? = since?.let { now - it }.also { since = null }
+}
+
+/**
  * Smart rewind: how far to step back on playing again after a pause of [pausedMillis]. None under ten seconds, then
  * from two seconds growing (with the log of the pause) to thirty after an hour, and no more after that.
  */
