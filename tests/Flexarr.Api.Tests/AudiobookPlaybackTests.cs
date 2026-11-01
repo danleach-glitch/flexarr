@@ -104,6 +104,46 @@ public class AudiobookPlaybackTests(FlexarrApiFactory factory) : IClassFixture<F
         Assert.Equal((6000.0, "Web"), (newer.PositionSeconds, newer.Device));
     }
 
+    [Fact]
+    public async Task TwoFirstReportsAtOnce_BothCount()
+    {
+        var book = await SeedAsync(("book.m4b", "aac", 36000));
+        string connection;
+        using (var scope = factory.Services.CreateScope())
+        {
+            connection = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().Database.GetConnectionString()!;
+        }
+
+        // The other report inserts the row between this one looking for it and saving.
+        var other = new InsertFirst(connection, book);
+        await using var db = new FlexarrDbContext(new DbContextOptionsBuilder<FlexarrDbContext>().UseSqlite(connection).AddInterceptors(other).Options);
+
+        var progress = await BookPlayback.RecordAsync(db, book, PlaybackState.DefaultUser, new BookProgressRequest(5000, "iPhone", DateTime.UtcNow), CancellationToken.None);
+
+        Assert.True(other.Inserted);
+        Assert.Equal((5000.0, "iPhone"), (progress!.PositionSeconds, progress.Device));
+    }
+
+    private sealed class InsertFirst(string connection, Guid book) : Microsoft.EntityFrameworkCore.Diagnostics.SaveChangesInterceptor
+    {
+        public bool Inserted { get; private set; }
+
+        public override async ValueTask<Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<int>> SavingChangesAsync(
+            Microsoft.EntityFrameworkCore.Diagnostics.DbContextEventData eventData, Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+        {
+            if (!Inserted)
+            {
+                Inserted = true;
+                await using var db = new FlexarrDbContext(new DbContextOptionsBuilder<FlexarrDbContext>().UseSqlite(connection).Options);
+                db.PlaybackStates.Add(new PlaybackState { UserId = PlaybackState.DefaultUser, MediaItemId = book, PositionSeconds = 100, LastPlayedAt = DateTime.UtcNow.AddMinutes(-1) });
+                await db.SaveChangesAsync(cancellationToken);
+            }
+
+            return result;
+        }
+    }
+
     [Theory]
     [InlineData(35000, false)] // more than two minutes and 2% from the end
     [InlineData(35290, true)]  // past 98%

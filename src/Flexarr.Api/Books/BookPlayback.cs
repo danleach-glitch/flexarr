@@ -95,21 +95,33 @@ public static class BookPlayback
             at = DateTime.UtcNow; // A device whose clock runs fast mustn't win against everything that follows.
         }
 
-        var state = await db.PlaybackStates.FirstOrDefaultAsync(p => p.UserId == profileId && p.MediaItemId == bookId, ct);
-        if (state is not null && state.LastPlayedAt > at)
+        for (var attempt = 0; ; attempt++)
         {
-            return Progress(state);
-        }
+            var state = await db.PlaybackStates.FirstOrDefaultAsync(p => p.UserId == profileId && p.MediaItemId == bookId, ct);
+            if (state is not null && state.LastPlayedAt > at)
+            {
+                return Progress(state);
+            }
 
-        if (state is null)
-        {
-            state = new PlaybackState { UserId = profileId, MediaItemId = bookId };
-            db.PlaybackStates.Add(state);
-        }
+            var added = state is null;
+            if (state is null)
+            {
+                state = new PlaybackState { UserId = profileId, MediaItemId = bookId };
+                db.PlaybackStates.Add(state);
+            }
 
-        Apply(state, Math.Clamp(request.PositionSeconds, 0, length), length, request.Ended, at, request.Device);
-        await db.SaveChangesAsync(ct);
-        return Progress(state);
+            Apply(state, Math.Clamp(request.PositionSeconds, 0, length), length, request.Ended, at, request.Device);
+            try
+            {
+                await db.SaveChangesAsync(ct);
+                return Progress(state);
+            }
+            catch (DbUpdateException) when (added && attempt == 0)
+            {
+                // Two first reports for the same book raced and the other inserted the row: apply this one to it.
+                db.Entry(state).State = EntityState.Detached;
+            }
+        }
     }
 
     /// <summary>
