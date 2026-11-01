@@ -76,6 +76,7 @@ import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import io.github.flexarr.AppModel
+import io.github.flexarr.core.CreditRole
 import io.github.flexarr.core.Person
 import io.github.flexarr.core.SearchResults
 import io.github.flexarr.ui.components.Load
@@ -298,6 +299,10 @@ fun TvPersonScreen(model: AppModel, id: String, name: String) {
                         }
                     }
                     biography?.let { TvBiography(name, it, Modifier.focusRequester(biographyFocus)) }
+                    // An author or narrator with nothing to show here: say where their books are rather than leave the page bare.
+                    if (person != null && biography == null && titles(person).isEmpty() && person.credits.any { it.role in BookRoles }) {
+                        Text("Books are on your phone.", fontSize = 14.sp, color = Flexarr.usher)
+                    }
                 }
             }
             when (val state = loader.state) {
@@ -376,4 +381,6 @@ private fun TvBiography(name: String, text: String, modifier: Modifier = Modifie
 }
 
 /** Someone's titles, each once: a person who both wrote and starred in a show is credited on it twice. */
-private fun titles(person: Person) = person.credits.map { it.item }.distinctBy { it.id }.filter { it.showsOnTv }
+private val BookRoles = setOf(CreditRole.Author, CreditRole.Narrator, CreditRole.Translator)
+
+private fun titles(person: Person) =person.credits.map { it.item }.distinctBy { it.id }.filter { it.showsOnTv }

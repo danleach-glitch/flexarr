@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.outlined.CheckCircle
@@ -367,9 +368,14 @@ private fun AuthorCard(author: BookAuthor) {
         horizontalArrangement = Arrangement.spacedBy(14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        RemoteImage(author.image, 160, Modifier.size(64.dp).clip(CircleShape).background(Flexarr.aisle)) {}
+        RemoteImage(author.image, 160, Modifier.size(64.dp).clip(CircleShape).background(Flexarr.aisle)) {
+            // No photo: a person, as on the iPhone.
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Icon(Icons.Filled.Person, contentDescription = null, tint = Flexarr.usher, modifier = Modifier.size(28.dp))
+            }
+        }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(author.name, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(author.name, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, maxLines = 2, overflow = TextOverflow.Ellipsis)
             author.biography?.takeIf { it.isNotBlank() }?.let {
                 Text(
                     it, fontSize = 13.sp, color = Flexarr.usher, maxLines = 3, overflow = TextOverflow.Ellipsis,
