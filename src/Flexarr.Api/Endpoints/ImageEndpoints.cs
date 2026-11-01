@@ -84,9 +84,10 @@ public static class ImageEndpoints
         group.MapGet("/people/{id:guid}", async (Guid id, int? w, string? v, FlexarrDbContext db, IMemoryCache memory, ImageCache cache, PersonImages uploads,
             HttpContext http, CancellationToken ct) =>
         {
-            // A ?v= other than the one remembered means the photo changed since (on another server process, a refresh).
+            // A ?v= newer than the one remembered means the photo changed since (on another server process, a refresh);
+            // an older one (a page cached before the change) is answered from memory, not the database.
             var key = PersonSourceKey(id);
-            if (!memory.TryGetValue(key, out ImageSource? source) || source is null || (v is not null && v != source.Version))
+            if (!memory.TryGetValue(key, out ImageSource? source) || source is null || IsNewer(v, source.Version))
             {
                 source = await ResolvePersonAsync(db, uploads, id, ct);
                 if (source is not null)
@@ -163,6 +164,11 @@ public static class ImageEndpoints
     }
 
     private sealed record ImageSource(string? Url, string? Version);
+
+    /// <summary>Whether a photo's ?v= (seconds) is newer than the one remembered; one that isn't a number never is.</summary>
+    internal static bool IsNewer(string? v, string? remembered) =>
+        long.TryParse(v, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var asked)
+        && (!long.TryParse(remembered, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var known) || asked > known);
 
     /// <summary>Where the person image endpoint remembers a person's photo comes from.</summary>
     public static string PersonSourceKey(Guid id) => $"image-source:person:{id}";
