@@ -163,6 +163,8 @@ class PodcastPlayer(private val context: Context, private val model: AppModel) {
 
     private fun start(episode: PodcastEpisode) {
         val client = client ?: return
+        // A new start: an earlier pause (of this episode or another) is no reason to step back.
+        pause.seeked()
         generation++
         val mine = generation
         endSession()
@@ -224,6 +226,7 @@ class PodcastPlayer(private val context: Context, private val model: AppModel) {
 
     /** From the phone's own copy, where it was left (here, or on another device if the server said so since). */
     private fun startDownloaded(episode: PodcastEpisode, download: io.github.flexarr.core.LocalDownload, file: java.io.File) {
+        pause.seeked()
         playingDownload = true
         val start = if (download.unsent != null || download.finishedAtMillis != null) download.startPosition else maxOf(download.startPosition, episode.userData.positionSeconds)
         position = start
@@ -290,6 +293,7 @@ class PodcastPlayer(private val context: Context, private val model: AppModel) {
      * taken out of Continue watching) the place isn't sent, so it can't put the episode back.
      */
     fun stop(reportsPlace: Boolean = true) {
+        pause.seeked()
         generation++
         sleep.set(null)
         endSession(reportsPlace)
