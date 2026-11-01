@@ -22,12 +22,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowCircleDown
 import androidx.compose.material.icons.filled.Bookmark
-import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay
+import androidx.compose.material.icons.outlined.Book
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Download
@@ -82,8 +82,8 @@ import io.github.flexarr.ui.components.Edge
 import io.github.flexarr.ui.components.FactsLine
 import io.github.flexarr.ui.components.LabeledAction
 import io.github.flexarr.ui.components.Load
-import io.github.flexarr.ui.components.LocalNavigator
 import io.github.flexarr.ui.components.Loaded
+import io.github.flexarr.ui.components.LocalNavigator
 import io.github.flexarr.ui.components.MenuAction
 import io.github.flexarr.ui.components.PageTitle
 import io.github.flexarr.ui.components.PosterCard
@@ -244,10 +244,9 @@ private fun BookPage(model: AppModel, detail: ItemDetail, defaultSpeed: Double, 
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                     BookDownloadAction(model, item)
                     if (!finished) LabeledAction("Finished", Icons.Outlined.CheckCircle, { navigator.setBookFinished(item, true) })
-                    // Unread: no place and not finished, as if never started. Not while it plays, which would set the place again.
-                    if (finished || (position > 0 && !playingThis)) {
-                        LabeledAction("Unread", Icons.AutoMirrored.Filled.Undo, { navigator.setBookFinished(item, false) })
-                    }
+                    // Unread (no place, not finished, as if never started) in Finished's place once it's finished. Part way
+                    // through, it's offered with Start over instead, as on iPhone.
+                    if (finished) LabeledAction("Unread", Icons.Outlined.Book, { navigator.setBookFinished(item, false) })
                     // Only with somewhere to start over from; a place in the book is asked about before it's lost.
                     if (position > 0 || finished) {
                         LabeledAction("Start over", Icons.Filled.Replay, { if (position > 0 && !finished) confirmStartOver = true else startOver() })
@@ -265,7 +264,18 @@ private fun BookPage(model: AppModel, detail: ItemDetail, defaultSpeed: Double, 
                             startOver()
                         }) { Text("Start over", color = Flexarr.screen) }
                     },
-                    dismissButton = { TextButton(onClick = { confirmStartOver = false }) { Text("Cancel", color = Flexarr.screen) } },
+                    dismissButton = {
+                        Row {
+                            // Not while it plays, which would set the place again.
+                            if (!playingThis) {
+                                TextButton(onClick = {
+                                    confirmStartOver = false
+                                    navigator.setBookFinished(item, false)
+                                }) { Text("Mark as unread", color = Flexarr.screen) }
+                            }
+                            TextButton(onClick = { confirmStartOver = false }) { Text("Cancel", color = Flexarr.screen) }
+                        }
+                    },
                     containerColor = Flexarr.seat,
                 )
             }
