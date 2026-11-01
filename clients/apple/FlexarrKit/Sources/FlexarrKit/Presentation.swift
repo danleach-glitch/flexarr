@@ -46,10 +46,10 @@ extension ItemSummary {
 
     public var isResumable: Bool { progress != nil }
 
-    /// "S2 E3", "S1 E1–E2", or nil for non-episodes and home videos (which go by their names).
+    /// "S2E3", "S1E1–E2", or nil for non-episodes and home videos (which go by their names).
     public var episodeCode: String? {
         guard kind == .episode, homeVideo != true, let episodeNumber else { return nil }
-        let season = seasonNumber.map { "S\($0) " } ?? ""
+        let season = seasonNumber.map { "S\($0)" } ?? ""
         if let end = episodeNumberEnd, end > episodeNumber { return "\(season)E\(episodeNumber)–E\(end)" }
         return "\(season)E\(episodeNumber)"
     }

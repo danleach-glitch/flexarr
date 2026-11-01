@@ -74,7 +74,7 @@ struct FormatTests {
     @Test func episodeTitles() throws {
         let episode = try Fixture.decode(Home.self, "home").rows[0].items[0]
         #expect(episode.displayTitle == "Breaking Bad")
-        #expect(episode.episodeSubtitle == "S2 E3  Bit by a Dead Bee")
+        #expect(episode.episodeSubtitle == "S2E3  Bit by a Dead Bee")
     }
 }
 
