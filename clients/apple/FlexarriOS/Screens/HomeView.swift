@@ -4,7 +4,8 @@ import SwiftUI
 struct HomeView: View {
     @Environment(AppModel.self) private var model
     @State private var home: Home?
-    /// The newest unplayed episodes of the podcasts followed, for a row after Continue watching.
+    /// The newest unplayed episodes of the podcasts followed, for the New podcasts row: where Home's rows place it, or
+    /// (servers before 0.58) after Continue watching.
     @State private var newEpisodes: [PodcastEpisode] = []
     @State private var error: String?
     @State private var featuredIndex = 0
@@ -57,7 +58,7 @@ struct HomeView: View {
             ScrollView(.vertical) {
                 // The whole screen when there's nothing else. With something to play (podcasts, Coming soon, channels) it
                 // stays out of the way: "nothing to watch" would be wrong.
-                if home.featured.isEmpty, newEpisodes.isEmpty, !home.rows.contains(where: \.hasContent),
+                if home.featured.isEmpty, !showsNewEpisodes(home), !home.rows.contains(where: \.hasContent),
                    let message = EmptyHomeMessage(libraries: model.libraries, limitedProfile: model.hasAgeLimit ? model.currentProfile?.name : nil) {
                     EmptyHome(message: message)
                         .containerRelativeFrame(.vertical)
@@ -66,14 +67,26 @@ struct HomeView: View {
                     if !home.featured.isEmpty {
                         HomeHero(items: home.featured, overviews: home.overviews, index: $featuredIndex, resuming: home.resuming)
                     }
-                    // A row with nothing in it (a kind this app doesn't show yet, say) would be a bare heading.
-                    let rows = home.rows.filter(\.hasContent)
-                    let continuing = rows.first?.id == "continue" ? 1 : 0
-                    ForEach(rows.prefix(continuing)) { HomeRowView(row: $0) }
-                    if !newEpisodes.isEmpty {
-                        NewEpisodesRow(episodes: newEpisodes)
+                    if home.placesPodcasts == true {
+                        // The server places New podcasts: an empty row where it goes (none when the profile switched it off).
+                        ForEach(home.rows.filter { $0.hasContent || $0.id == HomeRow.podcastsRowId }) { row in
+                            if row.id == HomeRow.podcastsRowId {
+                                if !newEpisodes.isEmpty { NewEpisodesRow(episodes: newEpisodes) }
+                            } else {
+                                HomeRowView(row: row)
+                            }
+                        }
+                    } else {
+                        // A row with nothing in it (a kind this app doesn't show yet, say) would be a bare heading.
+                        // Servers before 0.58 leave New podcasts to the app: after Continue watching.
+                        let rows = home.rows.filter(\.hasContent)
+                        let continuing = rows.first?.id == "continue" ? 1 : 0
+                        ForEach(rows.prefix(continuing)) { HomeRowView(row: $0) }
+                        if !newEpisodes.isEmpty {
+                            NewEpisodesRow(episodes: newEpisodes)
+                        }
+                        ForEach(rows.dropFirst(continuing)) { HomeRowView(row: $0) }
                     }
-                    ForEach(rows.dropFirst(continuing)) { HomeRowView(row: $0) }
                 }
                 .padding(.bottom, 32)
                 // Part of the page, so it scrolls away with the hero rather than floating over the rows.
@@ -86,6 +99,12 @@ struct HomeView: View {
             .withoutTopEdgeEffect()
             .refreshable { await load() }
         }
+    }
+
+    /// Whether the New podcasts row shows: there are new episodes, and the profile has it on Home.
+    private func showsNewEpisodes(_ home: Home) -> Bool {
+        guard !newEpisodes.isEmpty else { return false }
+        return home.placesPodcasts != true || home.rows.contains { $0.id == HomeRow.podcastsRowId }
     }
 
     @ViewBuilder

@@ -51,8 +51,8 @@ struct BookCard: View {
     }
 }
 
-/// An audiobooks library's tab: Continue listening first, then Next in series, Recently added, series, authors,
-/// narrators and finished books, each a row.
+/// An audiobooks library's tab: Continue listening, Next in series, Recently added, series, authors and finished books,
+/// each a row, in the profile's order (Settings › Home & browse).
 struct BooksLibraryView: View {
     @Environment(AppModel.self) private var model
     @Environment(Router.self) private var router
@@ -79,18 +79,8 @@ struct BooksLibraryView: View {
                     if shelves.isEmpty {
                         StatusView(state: .empty("No books yet.")).frame(height: 500)
                     }
-                    bookRow("Continue listening", shelves.continueListening)
-                    bookRow("Next in series", shelves.nextInSeries)
-                    bookRow("Recently added", shelves.recentlyAdded)
-                    if !shelves.series.isEmpty {
-                        row("Series") {
-                            ForEach(shelves.series) { series in
-                                SeriesCard(series: series) { router.push(.bookSeries(id: series.id, name: series.name)) }
-                            }
-                        }
-                    }
-                    peopleRow("Authors", shelves.authors)
-                    bookRow("Finished", shelves.finished)
+                    // In the profile's order, without the shelves it switched off.
+                    ForEach(shelves.shelfOrder, id: \.self) { shelf(shelf: $0, shelves) }
                 } else if let error {
                     StatusView(state: .failed(error) { Task { await load() } }).frame(height: 500)
                 } else {
@@ -109,6 +99,25 @@ struct BooksLibraryView: View {
         .onDisappear { isVisible = false }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active, isVisible, Freshness.isStale(loadedAt) { Task { await load() } }
+        }
+    }
+
+    @ViewBuilder
+    private func shelf(shelf: BookShelf, _ shelves: BookShelves) -> some View {
+        switch shelf {
+        case .continueListening: bookRow("Continue listening", shelves.continueListening)
+        case .nextInSeries: bookRow("Next in series", shelves.nextInSeries)
+        case .recentlyAdded: bookRow("Recently added", shelves.recentlyAdded)
+        case .series:
+            if !shelves.series.isEmpty {
+                row("Series") {
+                    ForEach(shelves.series) { series in
+                        SeriesCard(series: series) { router.push(.bookSeries(id: series.id, name: series.name)) }
+                    }
+                }
+            }
+        case .authors: peopleRow("Authors", shelves.authors)
+        case .finished: bookRow("Finished", shelves.finished)
         }
     }
 

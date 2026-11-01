@@ -331,10 +331,28 @@ public struct BookShelves: Codable, Sendable {
     public let narrators: [BookPerson]
     public let genres: [GenreCount]
     public let finished: [ItemSummary]
+    /// The front page's shelves in the profile's order, switched-off ones left out (`BookShelf` raw values). Absent
+    /// from servers before 0.58: every shelf, in `BookShelf`'s order.
+    public var order: [String]? = nil
 
     public var isEmpty: Bool {
         continueListening.isEmpty && nextInSeries.isEmpty && recentlyAdded.isEmpty && series.isEmpty && authors.isEmpty && finished.isEmpty
     }
+
+    /// The shelves the front page shows, in order: the profile's (ids this app doesn't know are skipped), or all of them.
+    public var shelfOrder: [BookShelf] {
+        guard let order else { return BookShelf.allCases }
+        var seen = Set<BookShelf>()
+        return order.compactMap(BookShelf.init(rawValue:)).filter { seen.insert($0).inserted }
+    }
+}
+
+/// One of an audiobooks library's front-page shelves, as `BookShelves.order` names it.
+public enum BookShelf: String, CaseIterable, Sendable, Hashable {
+    case continueListening = "continue"
+    case nextInSeries = "next"
+    case recentlyAdded = "recent"
+    case series, authors, finished
 }
 
 /// A series a search found.

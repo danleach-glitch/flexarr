@@ -91,7 +91,7 @@ final class BooksLibraryModel {
 }
 
 /// An audiobooks library: shelves to start (Continue listening, Next in series, new books, series, authors,
-/// finished), and the whole library as books, series, authors or genres.
+/// finished, in the profile's order), and the whole library as books, series, authors or genres.
 struct BooksLibraryView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.horizontalSizeClass) private var sizeClass
@@ -186,16 +186,25 @@ struct BooksLibraryView: View {
     @ViewBuilder
     private var shelves: some View {
         if let shelves = browse.shelves {
-            bookRow("Continue listening", shelves.continueListening)
-            bookRow("Next in series", shelves.nextInSeries)
-            bookRow("Recently added", shelves.recentlyAdded) { show(.all, sort: .added) }
+            // In the profile's order, without the shelves it switched off.
+            ForEach(shelves.shelfOrder, id: \.self) { shelf(shelf: $0, shelves) }
+        }
+    }
+
+    @ViewBuilder
+    private func shelf(shelf: BookShelf, _ shelves: BookShelves) -> some View {
+        switch shelf {
+        case .continueListening: bookRow("Continue listening", shelves.continueListening)
+        case .nextInSeries: bookRow("Next in series", shelves.nextInSeries)
+        case .recentlyAdded: bookRow("Recently added", shelves.recentlyAdded) { show(.all, sort: .added) }
+        case .series:
             if !shelves.series.isEmpty {
                 row("Series", seeAll: { browse.browse = .series }) {
                     ForEach(shelves.series) { SeriesCard(series: $0, width: cardWidth) }
                 }
             }
-            peopleRow("Authors", shelves.authors) { browse.browse = .authors }
-            bookRow("Finished", shelves.finished) { show(.all, progress: .finished) }
+        case .authors: peopleRow("Authors", shelves.authors) { browse.browse = .authors }
+        case .finished: bookRow("Finished", shelves.finished) { show(.all, progress: .finished) }
         }
     }
 

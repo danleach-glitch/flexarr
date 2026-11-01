@@ -52,7 +52,8 @@ struct HomeView: View {
                     // Above whatever else Home has (Coming soon, channels).
                     EmptyHome(message: message)
                 }
-                // A row with nothing in it (a kind this app doesn't show yet, say) would be a bare heading.
+                // A row with nothing in it (a kind this app doesn't show yet, say) would be a bare heading. That includes
+                // the empty row placing New podcasts (`HomeRow.podcastsRowId`): the Apple TV doesn't play podcasts.
                 ForEach(home.rows.filter(\.hasContent)) { row in
                     HomeRowView(row: row)
                 }

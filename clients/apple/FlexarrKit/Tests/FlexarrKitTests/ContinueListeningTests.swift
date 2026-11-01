@@ -60,4 +60,18 @@ struct ContinueListeningTests {
         #expect(urls.map { URLComponents(url: $0, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "listening" })?.value }
             == [nil, "books,podcasts", "books"])
     }
+
+    @Test func homePlacesTheNewPodcastsRowFromNewerServers() throws {
+        let older = #"{"featured":[],"rows":[],"overviews":{}}"#
+        #expect(try FlexarrClient.decoder.decode(Home.self, from: Data(older.utf8)).placesPodcasts == nil)
+
+        // An empty row of a style this app doesn't know: where the app's own New podcasts row goes, never a shelf itself.
+        let film = Self.summary("Movie", #""seriesTitle":null"#)
+        let newer = #"{"featured":[],"rows":[{"id":"continue","title":"Continue watching","style":"wide","items":[\#(film)],"link":null},{"id":"podcasts-new","title":"New podcasts","style":"podcasts","items":[],"link":"/podcasts"}],"overviews":{},"placesPodcasts":true}"#
+        let home = try FlexarrClient.decoder.decode(Home.self, from: Data(newer.utf8))
+        #expect(home.placesPodcasts == true)
+        #expect(home.rows.map(\.id) == ["continue", HomeRow.podcastsRowId])
+        #expect(home.rows[1].style == .unknown)
+        #expect(!home.rows[1].hasContent)
+    }
 }

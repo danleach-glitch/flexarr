@@ -362,6 +362,9 @@ public struct HomeRow: Codable, Sendable, Identifiable, Hashable {
 
     /// Whether there's anything to show: a row of items, of playlists or of channels. A row of none would be a bare heading.
     public var hasContent: Bool { !items.isEmpty || !(playlists ?? []).isEmpty || !(channels ?? []).isEmpty }
+
+    /// The id of Home's empty row that marks where the app's New podcasts row goes (`Home.placesPodcasts`).
+    public static let podcastsRowId = "podcasts-new"
 }
 
 // MARK: - Playlists
@@ -404,6 +407,10 @@ public struct Home: Codable, Sendable {
     public var resume: ItemSummary? = nil
     /// What each part-played featured title resumes, by its id. Absent from servers before 0.53.
     public var resumes: [String: ItemSummary]? = nil
+    /// Whether `rows` places the New podcasts row: an empty `HomeRow.podcastsRowId` row where the app puts its own row
+    /// of new episodes, left out when the profile switched it off. Absent from servers before 0.58, where the app
+    /// puts it after Continue watching itself.
+    public var placesPodcasts: Bool? = nil
 
     public func overview(for id: String) -> String? {
         overviews[id] ?? nil
