@@ -357,9 +357,9 @@ struct HomeRowView: View {
                         }
                     }
                     if let library = linkedLibrary {
-                        SeeAllCard(style: row.style) { router.push(.library(library.library, library.sort, genre: library.genre)) }
+                        SeeAllCard(style: row.style, square: isBooks) { router.push(.library(library.library, library.sort, genre: library.genre)) }
                     } else if row.link == "/watchlist" {
-                        SeeAllCard(style: row.style) { router.push(.watchlist) }
+                        SeeAllCard(style: row.style, square: isBooks) { router.push(.watchlist) }
                     }
                 }
                 .padding(.horizontal, Layout.edge)
@@ -393,6 +393,11 @@ struct HomeRowView: View {
         }
     }
 
+    /// A row of books, whose square covers the See all card matches.
+    private var isBooks: Bool {
+        row.style != .wide && row.style != .top10 && !row.items.isEmpty && row.items.allSatisfy { $0.kind == .audiobook }
+    }
+
     /// Rows link to "/library/{id}?view=all&sort=added" (or "&genre=Drama"); map that to a library destination.
     private var linkedLibrary: (library: Library, sort: LibrarySort, genre: String?)? {
         guard let link = row.link, let components = URLComponents(string: link),
@@ -407,11 +412,13 @@ struct HomeRowView: View {
 
 struct SeeAllCard: View {
     let style: HomeRowStyle
+    /// Beside square covers (books), square too.
+    var square = false
     let action: () -> Void
 
     var body: some View {
         let size = style == .wide ? CGSize(width: Layout.wideWidth, height: Layout.wideWidth * 9 / 16)
-            : CGSize(width: Layout.posterWidth, height: Layout.posterWidth * 1.5)
+            : CGSize(width: Layout.posterWidth, height: Layout.posterWidth * (square ? 1 : 1.5))
         Button(action: action) {
             VStack(spacing: 16) {
                 Image(systemName: "square.grid.2x2").font(.system(size: 48, weight: .semibold))
