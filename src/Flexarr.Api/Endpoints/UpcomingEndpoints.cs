@@ -142,7 +142,7 @@ public static class UpcomingEndpoints
             from d in db.BookDetails
             join i in db.MediaItems on d.MediaItemId equals i.Id
             where d.ArrBookId != null && bookIds.Contains(d.ArrBookId)
-            select new { d.ArrBookId, d.MediaItemId }).ToListAsync(ct);
+            select new { d.ArrBookId, d.ArrInstance, d.MediaItemId }).ToListAsync(ct);
         foreach (var (readarr, calendar) in readarrs.Zip(bookCalendars))
         {
             foreach (var book in calendar.Where(b => b.ReleaseDate is not null))
@@ -152,7 +152,7 @@ public static class UpcomingEndpoints
                 results.Add(new UpcomingDto(
                     $"readarr-{readarr.Name}-{book.Id}", MediaKind.Audiobook, book.Title ?? "Untitled", book.Author?.AuthorName ?? book.AuthorTitle,
                     null, null, book.ReleaseDate!.Value, "Out", book.Overview, Remote(cover), null,
-                    ownBooks.FirstOrDefault(o => o.ArrBookId == book.Id)?.MediaItemId, false, download, readarr.Name, null));
+                    ownBooks.FirstOrDefault(o => o.ArrBookId == book.Id && o.ArrInstance == readarr.Name)?.MediaItemId, false, download, readarr.Name, null));
             }
         }
 

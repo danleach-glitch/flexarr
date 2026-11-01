@@ -72,7 +72,7 @@ public static class BookRequestEndpoints
 
             var books = found.OfType<JsonObject>().Where(b => Text(b, "foreignBookId") is not null).Take(20).ToList();
             var arrIds = books.Select(b => Text(b, "id")).Where(id => id is not null and not "0").ToList();
-            var owned = await db.BookDetails.Where(d => d.ArrBookId != null && arrIds.Contains(d.ArrBookId) && d.MediaItem!.MissingSince == null)
+            var owned = await db.BookDetails.Where(d => d.ArrBookId != null && arrIds.Contains(d.ArrBookId) && d.ArrInstance == instance.Name && d.MediaItem!.MissingSince == null)
                 .Select(d => new { d.ArrBookId, d.MediaItemId }).ToListAsync(ct);
             var foreign = books.Select(b => Text(b, "foreignBookId")!).ToList();
             var requested = (await db.MediaRequests.Where(r => r.Kind == MediaKind.Audiobook && r.FulfilledAt == null && r.BookForeignId != null && foreign.Contains(r.BookForeignId))

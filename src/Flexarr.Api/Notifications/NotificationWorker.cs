@@ -71,7 +71,9 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
         // The cursors move on even with nobody listening, so turning notifications on doesn't bring a backlog.
         var devices = await db.NotificationDevices.ToListAsync(ct);
 
-        await LibraryAsync(db, notifier, devices, now, ct);
+        // Book requests go to one app; its ids are only its own.
+        var bookApp = Books.BookRequestEndpoints.Instance(scope.ServiceProvider.GetRequiredService<IOptionsMonitor<FlexarrOptions>>().CurrentValue)?.Name;
+        await LibraryAsync(db, notifier, devices, bookApp, now, ct);
         await PodcastsAsync(db, notifier, devices, now, ct);
         await RecordingsAsync(db, notifier, devices, now, ct);
         await UpcomingAsync(db, notifier, devices, now, ct);
@@ -85,7 +87,7 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
 
     private sealed record Show(Guid Id, string Title, string? Poster, string? TmdbId, string? TvdbId, string? ImdbId, DateTime AddedAt);
 
-    private static async Task LibraryAsync(FlexarrDbContext db, Notifier notifier, List<NotificationDevice> devices, DateTime now, CancellationToken ct)
+    private static async Task LibraryAsync(FlexarrDbContext db, Notifier notifier, List<NotificationDevice> devices, string? bookApp, DateTime now, CancellationToken ct)
     {
         if (await WindowAsync(db, "library", now - Settle, ct) is not var (from, to))
         {
@@ -106,7 +108,7 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
         var shows = await ShowsAsync(db, fresh, ct);
         fresh = await WithoutReplacementsAsync(db, fresh, shows, ct);
 
-        var answered = await RequestsAsync(db, to, now, ct);
+        var answered = await RequestsAsync(db, bookApp, to, now, ct);
         answered.AddRange(await WatchlistArrivalsAsync(db, answered, to, now, ct));
         if (devices.Count == 0)
         {
@@ -291,7 +293,7 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
     /// Requests whose film, or a new episode of whose show, is now in the library. Looked for every minute rather than
     /// among the minute's new items, since what's in the library may only learn its TMDB id a while after it lands.
     /// </summary>
-    private static async Task<List<Answered>> RequestsAsync(FlexarrDbContext db, DateTime settled, DateTime now, CancellationToken ct)
+    private static async Task<List<Answered>> RequestsAsync(FlexarrDbContext db, string? bookApp, DateTime settled, DateTime now, CancellationToken ct)
     {
         var answered = new List<Answered>();
         var open = await db.MediaRequests.Where(r => r.FulfilledAt == null).ToListAsync(ct);
@@ -301,7 +303,7 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
             {
                 // In once the library has it under the id the app gave it, which the metadata refresh learns.
                 var book = request.BookArrId is not { } arrId ? null : await db.MediaItems.AsNoTracking()
-                    .Where(i => i.Kind == MediaKind.Audiobook && i.MissingSince == null && i.Book!.ArrBookId == arrId && i.AddedAt <= settled)
+                    .Where(i => i.Kind == MediaKind.Audiobook && i.MissingSince == null && i.Book!.ArrBookId == arrId && (bookApp == null || i.Book.ArrInstance == bookApp) && i.AddedAt <= settled)
                     .Select(i => new { i.Id, i.Title, i.PosterUrl }).FirstOrDefaultAsync(ct);
                 if (book is not null)
                 {
