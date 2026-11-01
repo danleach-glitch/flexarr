@@ -71,8 +71,10 @@ public static class BookEndpoints
                 return Results.NotFound();
             }
 
+            // Converted only when asked and its sound isn't one every player decodes: an MP3 or an M4B is sent as it is,
+            // whatever the address says, so nobody can set the server converting every book.
             var parts = await BookPlayback.PartsAsync(db, id, BookPlayback.BasicCodecs, ct);
-            return index < 0 || index >= parts.Count ? Results.NotFound() : await ServeAsync(parts[index], convert == "aac", converter, ct);
+            return index < 0 || index >= parts.Count ? Results.NotFound() : await ServeAsync(parts[index], convert == "aac" && parts[index].Convert, converter, ct);
         });
 
         item.MapPut("/progress", async (Guid id, BookProgressRequest request, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>

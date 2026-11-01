@@ -77,6 +77,20 @@ public class AudiobookPlaybackTests(FlexarrApiFactory factory) : IClassFixture<F
     }
 
     [Fact]
+    public async Task AFileEveryPlayerDecodes_IsNeverConverted_WhateverTheAddressSays()
+    {
+        var book = await SeedAsync(("01.mp3", "mp3", 600), ("02.m4b", "aac", 600));
+
+        foreach (var (index, name, type) in new[] { (0, "01.mp3", "audio/mpeg"), (1, "02.m4b", "audio/mp4") })
+        {
+            var file = await Client().GetAsync(Url($"/api/v1/items/{book}/book/files/{index}?convert=aac"));
+            Assert.Equal(HttpStatusCode.OK, file.StatusCode);
+            Assert.Equal(name, await file.Content.ReadAsStringAsync());
+            Assert.Equal(type, file.Content.Headers.ContentType?.MediaType);
+        }
+    }
+
+    [Fact]
     public async Task Progress_TheNewestRecordingWins()
     {
         var book = await SeedAsync(("book.m4b", "aac", 36000));
