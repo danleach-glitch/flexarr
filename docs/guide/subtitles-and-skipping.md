@@ -13,7 +13,7 @@ Flexarr picks up these kinds of subtitles:
 
 - **Embedded:** tracks inside the video file, as most MKV files have.
 - **Closed captions** carried inside the video itself, as American TV recordings have them. They're listed as **CC**. Flexarr checks for them when it scans a file.
-- **Sidecar files:** `.srt`, `.vtt`, `.ass` or `.ssa` files beside the video, named after it. Add a language and, if you like, `forced` or `sdh` before the extension:
+- **Sidecar files:** `.srt`, `.vtt`, `.ass` or `.ssa` files beside the video, named after it. Add a language and, if you like, `forced` or `sdh` before the extension (`cc`, or `hi` after the language, as Bazarr writes it, also means SDH):
 
 ```text
 Heat (1995).mkv
@@ -33,13 +33,13 @@ ASS and SSA subtitles, as most anime has, can carry their own fonts, colours, po
 ### Closed captions and teletext
 
 - **Closed captions** carried inside the video, as American TV recordings have them, are listed as **CC** and work on every device. Flexarr looks for them when it scans a file.
-- **Teletext** subtitles, as European TV recordings carry them, show on Apple TV, iPhone and iPad with **Play files directly** on. The subtitles menu there has a **Teletext page** choice for channels that don't use the usual page, such as 888 in the UK or 150 and 777 in Germany. On Android and in a web browser, teletext shows only when the server's FFmpeg can read it, as the Docker image's can; a server on a Mac can't. Android's subtitles menu has the same **Teletext page** choice.
+- **Teletext** subtitles, as European TV recordings carry them, show on Apple TV, iPhone and iPad with **Play files directly** on. The subtitles menu there has a **Teletext page** choice for channels that don't use the usual page, such as 888 in the UK or 150 and 777 in Germany. In a web browser, teletext shows only when the server's FFmpeg can read it, as the Docker image's can; a server on a Mac can't.
 
 ### Finding subtitles
 
-When a film or episode has no subtitles in your language, or the ones it has are out of time, Flexarr can fetch some through [Bazarr](connect-arrs.md#bazarr). It works for what Sonarr and Radarr manage, in the languages Bazarr is set up for, and every profile can use it.
+When a film or episode has no subtitles in your language, or the ones it has are out of time, Flexarr can fetch some through [Bazarr](connect-arrs.md#bazarr). It works for what Sonarr and Radarr manage, in the languages Bazarr is set up for, and every profile but kids profiles can use it.
 
-1. In the player, open the subtitles menu and choose **Search for subtitles…**. On a title's page in the web app, it's under **⋯**.
+1. In the player, open the subtitles menu and choose **Search for subtitles…**. On a title's page, it's under **⋯** on the web and Apple TV, and the **Subtitles** button on iPhone and iPad.
 2. Wait while Bazarr asks its subtitle sites. It can take a minute.
 3. Choose one and **Download**, or **Pick the best for me**. Those marked **Matches your file** were made for your exact copy, so they should be in time.
 
@@ -58,19 +58,17 @@ Choose a subtitle track, or **Off**, from the subtitles menu in the player. Flex
 
 ### Size
 
-Choose **Small**, **Standard**, **Large** or **Extra large**. It's your profile's setting on every device:
-
-- On the web, in **Settings › Playback › Subtitle size**, or the player's subtitles menu.
-- On Apple TV, in **Settings › Playback › Subtitle size**, or the player.
-- On iPhone and iPad, in **Settings › Playback**.
+Choose **Small**, **Standard**, **Large** or **Extra large** in **Settings › Playback › Subtitle size**, or the player's subtitles menu. It's your profile's setting on every device.
 
 ### Position
 
-Subtitles sit at the bottom of the picture. If they cover text in the picture, or your TV cuts off its edges, choose **Raised** or **Higher**, or **Top**. With **Subtitles in the black bars** on, films wider than the screen get their subtitles in the black bar below the picture instead of over it, whenever they fit there. Both are your profile's settings on every device, in **Settings › Playback** and the player's subtitles menu. Styled subtitles that place themselves keep their own places.
+Subtitles sit at the bottom of the picture. If they cover text in the picture, or your TV cuts off its edges, choose **Raised**, **Higher** or **Top** under **Subtitle position**. With **Subtitles in the black bars** on, films wider than the screen get their subtitles in the black bar below the picture instead of over it, whenever they fit there. Both are your profile's settings on every device, in **Settings › Playback** and the player's subtitles menu. Styled subtitles that place themselves keep their own places.
 
 ### Timing
 
-If subtitles come too early or too late, move them to match the speech. In the web player, use the subtitles menu, a quarter of a second at a time. On Apple TV, it's in the subtitles button in the player's bar. Each film or episode remembers its own timing. Timing can't be adjusted on iPhone or iPad yet.
+If subtitles come too early or too late, choose **Timing** in the player's subtitles menu and move them to match the speech: a quarter of a second at a time on the web, or from half a second to two seconds on Apple TV, iPhone and iPad. Each film or episode remembers its own timing.
+
+On Apple devices, **Timing** isn't offered for a download, for subtitles burned into the picture, or when **Play files directly** is on and the file plays as it is. For the last of these, turning **Play files directly** off brings **Timing** back.
 
 ![The Apple TV player paused, with skip buttons, the progress bar, and subtitle and audio buttons at the bottom right](../../site/guide/img/tv-player.webp "The Apple TV player, with subtitles and audio at the bottom right")
 
@@ -93,7 +91,7 @@ The player's timeline shades the intro and credits once they're known.
 
 ### Skip buttons, or skipping by itself
 
-By default, a **Skip Intro** button appears when an intro starts. To skip without pressing anything, turn these on in **Settings › Playback** on any device, or from the player's menu on the web:
+By default, a **Skip Intro** or **Skip Recap** button appears when one starts. On iPhone and Apple TV it shows by itself, without the rest of the controls. To skip without pressing anything, turn these on in **Settings › Playback** on any device, or from the player's menu on the web:
 
 - **Skip intros**: jumps past the opening titles.
 - **Skip recaps**: jumps past "Previously on…".
@@ -103,11 +101,11 @@ They're your profile's own, on every device.
 
 ## Up Next
 
-When an episode ends, a five-second countdown starts the next one. Press **Cancel** to stop it. Flexarr gets the next episode ready while the credits play, so it starts straight away. If the server is busy with other people's streams, it starts the usual way instead.
+When the credits start, a **Next Episode** card offers the next one. For a show with no credits found, it comes a little before the end instead: up to two minutes for an hour-long episode. When the episode ends, a five-second countdown starts the next one. Press **Cancel** to stop it. Flexarr gets the next episode ready while the credits play, so it starts straight away. If the server is busy with other people's streams, it starts the usual way instead.
 
 Turn the countdown off with **Auto-play the next episode** in **Settings › Playback**. If you watch a special in the middle of a season, Up Next carries on with the regular episodes afterwards. When you're shuffling a show, the countdown plays another random episode.
 
-The player also has previous and next episode buttons.
+The player also has previous and next episode buttons: see [In the player](playback-and-transcoding.md#in-the-player).
 
 ## Scrubbing previews
 
