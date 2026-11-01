@@ -50,6 +50,17 @@ public sealed class AuthorProviderTests : IDisposable
     }
 
     [Fact]
+    public async Task AnAuthorLookupThatsTooMany_DoesntHoldUpBooks()
+    {
+        var throttle = new BookProviderThrottle();
+        _web.TooManyHosts.Add("api.audnex.us");
+
+        await Assert.ThrowsAsync<HttpRequestException>(() => new BookProviders(new HttpClient(_web), () => new Settings(_dir), throttle).AuthorAsync("B074KL81KM", default));
+
+        Assert.False(throttle.IsCooling("api.audnex.us"));
+    }
+
+    [Fact]
     public async Task OpenLibrary_SkipsANamesakeWithoutOurBooks()
     {
         _web.Answers[("openlibrary.org", "/search/authors.json")] = """
@@ -108,6 +119,9 @@ public sealed class AuthorProviderTests : IDisposable
         /// <summary>Hosts that answer 503.</summary>
         public HashSet<string> DownHosts { get; } = [];
 
+        /// <summary>Hosts that answer 429.</summary>
+        public HashSet<string> TooManyHosts { get; } = [];
+
         public Dictionary<(string Host, string Path), string> Answers { get; } = [];
         public System.Collections.Concurrent.ConcurrentQueue<string> Requests { get; } = new();
 
@@ -118,6 +132,11 @@ public sealed class AuthorProviderTests : IDisposable
             if (Down || DownHosts.Contains(url.Host))
             {
                 return Task.FromResult(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
+            }
+
+            if (TooManyHosts.Contains(url.Host))
+            {
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.TooManyRequests));
             }
 
             return Task.FromResult(Answers.TryGetValue((url.Host, url.AbsolutePath), out var body)

@@ -62,7 +62,11 @@ public sealed class BookProviderThrottle(TimeProvider? time = null)
     public bool IsCooling(string host) => _coolingUntil.TryGetValue(host, out var until) && until > _time.GetUtcNow();
 
     /// <summary>Sends a request when its host has room; null, unsent, while the host is backing Flexarr off.</summary>
-    public async Task<HttpResponseMessage?> SendAsync(HttpClient http, HttpRequestMessage request, CancellationToken ct)
+    /// <param name="backOff">
+    /// Whether a 429 backs every request to the host off. Authors' lookups don't: they stop themselves for the rest of
+    /// the refresh, and a 429 on an author shouldn't keep a minute of books from being matched.
+    /// </param>
+    public async Task<HttpResponseMessage?> SendAsync(HttpClient http, HttpRequestMessage request, CancellationToken ct, bool backOff = true)
     {
         ArgumentNullException.ThrowIfNull(http);
         ArgumentNullException.ThrowIfNull(request);
@@ -82,7 +86,7 @@ public sealed class BookProviderThrottle(TimeProvider? time = null)
             }
 
             var response = await http.SendAsync(request, ct).ConfigureAwait(false);
-            if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+            if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests && backOff)
             {
                 var now = _time.GetUtcNow();
                 var wait = response.Headers.RetryAfter is { } retry
@@ -457,7 +461,7 @@ public sealed partial class BookProviders(HttpClient http, Func<IMetadataSetting
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.UserAgent.ParseAdd("Flexarr/1.0 (+https://flexarr.io)");
-        using var response = await _throttle.SendAsync(http, request, ct).ConfigureAwait(false)
+        using var response = await _throttle.SendAsync(http, request, ct, backOff: false).ConfigureAwait(false)
             ?? throw new HttpRequestException($"{request.RequestUri!.Host} asked to be left alone for a while.");
         if (response.StatusCode is System.Net.HttpStatusCode.NotFound or System.Net.HttpStatusCode.BadRequest)
         {
