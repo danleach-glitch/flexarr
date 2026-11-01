@@ -24,24 +24,27 @@ import { languageOptions } from '../lib/books'
 
 const PAGE_SIZE = 60
 
-type View = 'browse' | 'all' | 'series' | 'authors' | 'narrators'
+type View = 'browse' | 'all' | 'series' | 'authors' | 'genres' | 'narrators'
 
 const views: { view: View; label: string }[] = [
   { view: 'browse', label: 'Browse' },
   { view: 'all', label: 'All books' },
   { view: 'series', label: 'Series' },
   { view: 'authors', label: 'Authors' },
-  { view: 'narrators', label: 'Narrators' },
+  { view: 'genres', label: 'Genres' },
 ]
+
+/** Views without a pill, still opened by their address. */
+const hidden: View[] = ['narrators']
 
 /**
  * An audiobooks library: shelves (Browse), every book with filters and sorts (All), and its series, authors and
- * narrators. Covers are square.
+ * genres (narrators too, by address only). Covers are square.
  */
 export function BooksLibrary({ library }: { library: Library }) {
   const [params] = useSearchParams()
   const asked = params.get('view')
-  const view: View = views.some((v) => v.view === asked) ? (asked as View) : params.has('sort') || params.has('genre') ? 'all' : 'browse'
+  const view: View = views.some((v) => v.view === asked) || hidden.includes(asked as View) ? (asked as View) : params.has('sort') || params.has('genre') ? 'all' : 'browse'
   return (
     <div className="library-page books-library">
       <header className="library-header">
@@ -60,6 +63,7 @@ export function BooksLibrary({ library }: { library: Library }) {
       {view === 'browse' && <Shelves key={library.id} library={library} />}
       {view === 'all' && <AllBooks key={library.id} library={library} />}
       {view === 'series' && <SeriesList key={library.id} library={library} />}
+      {view === 'genres' && <Genres key={library.id} library={library} />}
       {(view === 'authors' || view === 'narrators') && <People key={`${library.id}-${view}`} library={library} role={view === 'authors' ? 'author' : 'narrator'} />}
     </div>
   )
@@ -100,20 +104,27 @@ function Shelves({ library }: { library: Library }) {
           ))}
         </Row>
       )}
-      {data.genres.length > 0 && (
-        <section className="book-genres">
-          <h2>Genres</h2>
-          <div className="chips">
-            {data.genres.map((g) => (
-              <Link key={g.name} className="chip" to={`${all}&genre=${encodeURIComponent(g.name)}`}>
-                {g.name}
-              </Link>
-            ))}
-          </div>
-        </section>
-      )}
       {books('Finished', data.finished, `${all}&progress=finished`)}
     </div>
+  )
+}
+
+/** The library's genres, A–Z, each opening All books filtered to it. */
+function Genres({ library }: { library: Library }) {
+  const { data, error } = useApi((signal) => getBookShelves(library.id, signal), [library.id, library.itemCount])
+  if (error) return <p className="page-message error">{error.message}</p>
+  if (!data) return <div className="chips" aria-busy="true" />
+  if (data.genres.length === 0) return <p className="page-message muted">No genres here yet.</p>
+  const genres = [...data.genres].sort((a, b) => a.name.localeCompare(b.name))
+  return (
+    <nav className="chips book-genres" aria-label="Genres">
+      {genres.map((g) => (
+        <Link key={g.name} className="chip" to={`/library/${library.id}?view=all&genre=${encodeURIComponent(g.name)}`}>
+          {g.name}
+          <span className="chip-count">{g.count.toLocaleString()}</span>
+        </Link>
+      ))}
+    </nav>
   )
 }
 
