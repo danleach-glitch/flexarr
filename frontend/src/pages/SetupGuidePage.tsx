@@ -425,9 +425,9 @@ function ArrTile(props: { kind: ArrKind; settings: Settings; found?: string; ope
 }
 
 const folderKind: Record<ArrKind, LibraryType> = { Sonarr: 'TvShows', Radarr: 'Movies', Lidarr: 'Music' }
-const kindIcon: Partial<Record<LibraryType, ReactNode>> = { Movies: <Film />, TvShows: <Tv />, Music: <Music />, HomeVideos: <Home />, Podcasts: <Antenna /> }
 /** The guide makes one library of each of these; more, and home videos and audiobooks, are in Settings › Libraries. */
-const kinds: LibraryType[] = ['Movies', 'TvShows', 'Music']
+const kinds = ['Movies', 'TvShows', 'Music'] as const satisfies readonly LibraryType[]
+const kindIcon: Record<(typeof kinds)[number], ReactNode> = { Movies: <Film />, TvShows: <Tv />, Music: <Music /> }
 
 interface Choice {
   folder: string
