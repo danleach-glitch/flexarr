@@ -131,10 +131,10 @@ final class MusicPlayer {
     @ObservationIgnored private var bookURLs: [URL] = []
     /// Where `playBook` was asked to start (a chapter, a bookmark); nil: where this profile is.
     @ObservationIgnored private var bookStart: Double?
-    /// When the book was paused, for smart rewind.
+    /// When the book was paused (or, paused, last moved by the listener), for smart rewind.
     @ObservationIgnored private var pausedAt: Date?
     @ObservationIgnored private var speedSave: Task<Void, Never>?
-    /// Where an End of chapter timer stops: the end of the chapter playing when it was set.
+    /// Where an End of chapter timer stops: the end of the chapter playing (worked out again after every seek).
     @ObservationIgnored private var sleepChapterEnd: Double?
     @ObservationIgnored private var fade: Task<Void, Never>?
     /// The chapter the lock screen names.
@@ -459,8 +459,14 @@ final class MusicPlayer {
     func seek(to seconds: Double) {
         guard current != nil else { return }
         if isBook {
-            guard bookTimeline != nil, player.currentItem != nil else { return }
-            loadBookFile(at: max(0, min(seconds, max(0, duration - 0.5))), play: isPlaying)
+            guard let timeline = bookTimeline, player.currentItem != nil else { return }
+            let target = max(0, min(seconds, max(0, duration - 0.5)))
+            loadBookFile(at: target, play: isPlaying)
+            // Smart rewind counts from the listener's last choice of place: a chapter or bookmark picked while paused
+            // plays from there, not half a minute before it.
+            if pausedAt != nil { pausedAt = Date() }
+            // An End of chapter timer stops at the end of the chapter now playing (Next chapter lands on the old end).
+            if sleep.setting == .endOfChapter, fade == nil { sleepChapterEnd = timeline.chapterEnd(at: target) }
             nowPlaying.setTime(position: position, duration: duration, rate: isPlaying ? playRate : 0, defaultRate: playRate)
             return
         }
@@ -840,7 +846,8 @@ final class MusicPlayer {
         #endif
     }
 
-    /// An End of chapter timer stops at the end of the chapter playing when it was set.
+    /// An End of chapter timer stops at the end of the chapter playing: the one playing when it was set, or the one a
+    /// seek went to since.
     private func checkChapterSleep() {
         guard isBook, sleep.setting == .endOfChapter else {
             sleepChapterEnd = nil
