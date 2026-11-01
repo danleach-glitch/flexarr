@@ -124,6 +124,31 @@ public sealed class MetadataRefresherTests : IAsyncLifetime
         Assert.All(await _db.MediaItems.ToListAsync(), i => Assert.Equal($"https://image.test/{i.Title.ToLowerInvariant()}.jpg", i.PosterUrl));
     }
 
+    [Fact]
+    public async Task CastPhotos_LeaveALockedPerson_AndAFolderPhoto_Alone()
+    {
+        await AddMovieAsync("Dune", null, poster: null, arrId: 7);
+        _db.People.AddRange(
+            new Person { Name = "Locked", TmdbId = "1", ImageUrl = "https://mine.test/locked.jpg", PhotoSource = PersonSources.Manual, InfoLocked = true },
+            new Person { Name = "Folder", TmdbId = "2", ImageUrl = "file:///books/Folder/author.jpg", PhotoSource = PersonSources.Folder },
+            new Person { Name = "Anyone", TmdbId = "3", ImageUrl = "https://old.test/anyone.jpg" });
+        await _db.SaveChangesAsync();
+        _radarr.Responses["/api/v3/movie"] = """[{"id":7,"title":"Dune","year":2021,"path":"/movies/Dune"}]""";
+        _radarr.Responses["/api/v3/credit?movieId=7"] = """
+            [{"personName":"Locked","personTmdbId":1,"type":"cast","order":0,"images":[{"coverType":"headshot","remoteUrl":"https://image.tmdb.org/t/p/original/1.jpg"}]},
+             {"personName":"Folder","personTmdbId":2,"type":"cast","order":1,"images":[{"coverType":"headshot","remoteUrl":"https://image.tmdb.org/t/p/original/2.jpg"}]},
+             {"personName":"Anyone","personTmdbId":3,"type":"cast","order":2,"images":[{"coverType":"headshot","remoteUrl":"https://image.tmdb.org/t/p/original/3.jpg"}]}]
+            """;
+
+        await Refresher().RefreshLibraryAsync(_library, force: true, default);
+
+        var people = await _db.People.AsNoTracking().ToDictionaryAsync(p => p.Name);
+        Assert.Equal("https://mine.test/locked.jpg", people["Locked"].ImageUrl);
+        Assert.Equal("file:///books/Folder/author.jpg", people["Folder"].ImageUrl);
+        Assert.Equal(("https://image.tmdb.org/t/p/original/3.jpg", "tmdb"), (people["Anyone"].ImageUrl, people["Anyone"].PhotoSource));
+        Assert.NotNull(people["Anyone"].ImageChangedAt);
+    }
+
     private async Task AddMovieAsync(string title, DateTime? updatedAt, string? poster, int? arrId = null, string? tmdbId = null)
     {
         _db.MediaItems.Add(new MediaItem
