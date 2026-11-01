@@ -234,6 +234,39 @@ describe('PersonEditor', () => {
     expect(onClose).not.toHaveBeenCalled()
   })
 
+  it('shows an uploaded photo even when the rest of the save fails, and doesn’t send it twice', async () => {
+    URL.createObjectURL = () => 'blob:yours'
+    URL.revokeObjectURL = () => undefined
+    let uploads = 0
+    let puts = 0
+    mockApi({
+      'GET /people/p1/candidates': { photos: [], biographies: [] },
+      'PUT /people/p1/image': () => {
+        uploads++
+        return { ...person, image: '/api/v1/images/people/p1?v=3', photoSource: 'upload', locked: true }
+      },
+      'PUT /people/p1': () =>
+        ++puts === 1
+          ? new Response(JSON.stringify({ title: 'Biography too long.' }), { status: 400, headers: { 'Content-Type': 'application/problem+json' } })
+          : { ...person, biography: 'New words.', photoSource: 'upload', locked: true },
+    })
+    const onSaved = vi.fn()
+    const onClose = vi.fn()
+    render(<PersonEditor person={person} onSaved={onSaved} onClose={onClose} />)
+
+    await screen.findByText('No photos found.')
+    fireEvent.change(screen.getByLabelText('Upload'), { target: { files: [new File(['jpeg'], 'me.jpg', { type: 'image/jpeg' })] } })
+    fireEvent.change(screen.getByLabelText('Biography'), { target: { value: 'New words.' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Biography too long.')
+    expect(onSaved).toHaveBeenCalledWith(expect.objectContaining({ photoSource: 'upload' }))
+    expect(onClose).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(onClose).toHaveBeenCalled())
+    expect([uploads, puts]).toEqual([1, 2])
+  })
+
   it('says why the photos couldn’t load, and why a save failed', async () => {
     mockApi({
       'GET /people/p1/candidates': new Response(JSON.stringify({ title: 'Audible is unreachable.' }), { status: 502, headers: { 'Content-Type': 'application/problem+json' } }),

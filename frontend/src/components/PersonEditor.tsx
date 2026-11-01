@@ -37,6 +37,8 @@ export function PersonEditor({ person, onSaved, onClose }: { person: Person; onS
   const chosen = picked ?? current
   const [file, setFile] = useState<File>()
   const preview = usePreviewUrl(file)
+  // The file once it's saved, so a save that then fails on the rest doesn't send it again.
+  const [uploaded, setUploaded] = useState<File>()
   const original = person.biography ?? ''
   const [biography, setBiography] = useState(original)
   const [locked, setLocked] = useState(person.locked ?? false)
@@ -97,14 +99,19 @@ export function PersonEditor({ person, onSaved, onClose }: { person: Person; onS
     if (text !== original.trim()) update.biography = text || null
     const lockChanged = locked !== (chosen === FILE || (person.locked ?? false))
     if (lockChanged || update.photo !== undefined || update.biography !== undefined) update.locked = locked
-    if (chosen !== FILE && Object.keys(update).length === 0) return onClose()
+    const upload = chosen === FILE && file && file !== uploaded ? file : undefined
+    if (!upload && Object.keys(update).length === 0) return onClose()
 
     setSaving(true)
     setError(undefined)
     try {
-      let saved = chosen === FILE && file ? await uploadPersonImage(person.id, file) : person
-      if (Object.keys(update).length > 0) saved = await updatePerson(person.id, update)
-      onSaved(saved)
+      if (upload) {
+        const saved = await uploadPersonImage(person.id, upload)
+        setUploaded(upload)
+        // The page behind shows the new photo even if the rest fails.
+        onSaved(saved)
+      }
+      if (Object.keys(update).length > 0) onSaved(await updatePerson(person.id, update))
       onClose()
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
