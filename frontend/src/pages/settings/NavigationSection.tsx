@@ -34,9 +34,11 @@ export function NavigationSection() {
   useEffect(() => () => clearTimeout(timer.current), [])
 
   const podcastsShown = usePodcastsInSidebar()
+  // Asked with the rest, so the page draws at once rather than its Browse switches a moment later.
+  const liveTv = useApi((signal) => getLiveTvStatus(signal).then((s) => s.configured, () => false), [])
   const me = profiles.data?.find((p) => p.isCurrent)
   if (profiles.error) return <SaveStatus error={errorText(profiles.error)} />
-  if (!me) return null
+  if (!me || liveTv.loading) return null
 
   const byId = new Map(libraries.map((l) => [l.id, l]))
   const shown = draft?.filter((id) => byId.has(id)).map((id) => byId.get(id)!) ?? libraries
@@ -92,7 +94,7 @@ export function NavigationSection() {
           <ToggleRow label="Show in the sidebar" help="On the web." checked={podcastsShown.on} onChange={(v) => void podcastsShown.change(v)} />
         </SettingsGroup>
       )}
-      <BrowseItems profile={me} />
+      <BrowseItems profile={me} liveTv={liveTv.data === true} />
     </section>
   )
 }
@@ -107,20 +109,19 @@ const items: { id: NavigationItem; label: string }[] = [
 ]
 
 /** The rest of the menu, each on or off: the ones this profile has (Playlists with music, Live TV once it's set up). */
-function BrowseItems({ profile }: { profile: Profile }) {
+function BrowseItems({ profile, liveTv }: { profile: Profile; liveTv: boolean }) {
   const { libraries } = useLibraries()
   const { limited } = useAgeLimits()
-  const liveTv = useApi((signal) => getLiveTvStatus(signal).then((s) => s.configured, () => false), [])
   const [hidden, setHidden] = useState<string[]>(profile.hiddenNavigation ?? [])
   const [error, setError] = useState<string>()
   // Servers before 0.58 can't leave anything out.
-  if (profile.hiddenNavigation === undefined || liveTv.loading) return null
+  if (profile.hiddenNavigation === undefined) return null
 
   const has: Record<NavigationItem, boolean> = {
     watchlist: true,
     collections: true,
     playlists: libraries.some((l) => l.type === 'Music'),
-    'live-tv': liveTv.data === true,
+    'live-tv': liveTv,
     discover: !limited,
     upcoming: !limited,
   }
