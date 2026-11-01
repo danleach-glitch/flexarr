@@ -76,11 +76,7 @@ struct LiveGuideView: View {
         } message: {
             if let programme = details?.programme { Text(describe(programme)) }
         }
-        .alert("Recording", isPresented: Binding(get: { notice != nil }, set: { if !$0 { notice = nil } })) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(notice ?? "")
-        }
+        .banner($notice, systemImage: "record.circle")
     }
 
     private var timeline: some View {

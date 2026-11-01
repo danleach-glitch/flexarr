@@ -9,7 +9,7 @@ struct NotificationSettingsView: View {
     @State private var authorization: UNAuthorizationStatus = .notDetermined
     @State private var isWorking = false
     @State private var problem: Problem?
-    @State private var testSent = false
+    @State private var testSent: String?
 
     var body: some View {
         List {
@@ -81,11 +81,7 @@ struct NotificationSettingsView: View {
         } message: {
             Text(problem?.message ?? "")
         }
-        .alert("Test notification sent", isPresented: $testSent) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("It should arrive in a moment.")
-        }
+        .banner($testSent)
     }
 
     private func toggle(_ title: String, _ key: WritableKeyPath<NotificationSettings, Bool>, detail: String? = nil) -> some View {
@@ -162,7 +158,7 @@ struct NotificationSettingsView: View {
         defer { isWorking = false }
         do {
             try await notifications.sendTest(credentials)
-            testSent = true
+            testSent = "Test notification sent. It should arrive in a moment."
         } catch {
             problem = Problem(error, title: "Couldn't send a test notification")
         }

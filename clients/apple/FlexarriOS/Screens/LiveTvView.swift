@@ -65,11 +65,7 @@ struct LiveTvView: View {
             }
         }
         .refreshable { await load() }
-        .alert("Recording", isPresented: Binding(get: { notice != nil }, set: { if !$0 { notice = nil } })) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(notice ?? "")
-        }
+        .banner($notice, systemImage: "record.circle")
     }
 
     private var favourites: [LiveChannel] { (channels ?? []).filter(\.isFavourite) }

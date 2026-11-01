@@ -131,12 +131,7 @@ extension View {
                 .presentationDragIndicator(.visible)
                 .interactiveDismissDisabled(prompts.step == .working)
         }
-        .alert(prompts.notice ?? "", isPresented: Binding(
-            get: { prompts.notice != nil },
-            set: { if !$0 { prompts.notice = nil } }
-        )) {
-            Button("OK", role: .cancel) {}
-        }
+        .banner(Binding(get: { prompts.notice }, set: { prompts.notice = $0 }), systemImage: "info.circle")
     }
 }
 

@@ -25,7 +25,7 @@ struct DetailView: View {
     /// Searching for subtitles for this file (its id), and what was saved, to say so.
     @State private var subtitleSearchFile: SubtitleSearchFile?
     @State private var savedSubtitles: String?
-    /// Said once the search has gone (an alert can't come up while the sheet is still leaving).
+    /// Said once the search has gone, so the banner shows on the page rather than under the leaving sheet.
     @State private var subtitlesJustSaved: String?
     /// On the watchlist or not, as changed here, until the page next loads.
     @State private var onWatchlist: Bool?
@@ -86,9 +86,7 @@ struct DetailView: View {
                 TrailerSheet(trailer: trailer, title: item.title)
             }
         }
-        .alert(savedSubtitles ?? "", isPresented: Binding(get: { savedSubtitles != nil }, set: { if !$0 { savedSubtitles = nil } })) {
-            Button("OK", role: .cancel) {}
-        }
+        .banner($savedSubtitles)
         .task(id: model.refreshToken) {
             // Coming back from a screen pushed on top or another tab runs this again; fetch only when something
             // changed here, or what's shown is old enough that something may have changed elsewhere.
