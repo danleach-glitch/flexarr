@@ -30,7 +30,12 @@
   height: 14px;
 }
 
-/* Now Playing's switch between the whole book and the chapter on the scrubber: a word, so as wide as it needs. */
+/* Now Playing's switch between the chapter and the whole book on the scrubber: two words, each as wide as it needs. */
+.np-view-scopes {
+  display: inline-flex;
+  gap: 2px;
+}
+
 .np-view-tools .np-view-scope {
   width: auto;
   padding: 0 14px;
@@ -170,10 +175,6 @@
   max-width: 14rem;
 }
 
-.book-language {
-  width: 8rem;
-}
-
 .book-count {
   margin-bottom: 14px;
 }
@@ -245,6 +246,14 @@
 
 .book-edition {
   margin-top: 12px;
+}
+
+/* A few facts in a line, set apart by space rather than dots. */
+.book-edition,
+.meta-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
 }
 
 .book-chapters h2 {

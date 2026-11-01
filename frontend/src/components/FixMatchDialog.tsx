@@ -192,7 +192,7 @@ function BookMatchDialog({ item, onFixed, onClose }: Props) {
     <div className="dialog-backdrop" onClick={() => !busy && onClose()}>
       <div className="panel fix-match" ref={dialog} role="dialog" aria-modal="true" aria-labelledby="fix-match-title" onClick={(e) => e.stopPropagation()}>
         <h2 id="fix-match-title">Fix match</h2>
-        <p className="muted">Which book is this? The one you choose stays matched.</p>
+        <p className="muted">Which book is this?</p>
         <form className="fix-match-search" onSubmit={search} role="search">
           <input type="search" value={draft} onChange={(e) => setDraft(e.target.value)} aria-label="Title" placeholder="Title" autoFocus disabled={busy} />
           <input type="search" value={author} onChange={(e) => setAuthor(e.target.value)} aria-label="Author" placeholder="Author" disabled={busy} />
@@ -215,8 +215,12 @@ function BookMatchDialog({ item, onFixed, onClose }: Props) {
                       {m.year && <span className="muted"> ({m.year})</span>}
                     </strong>
                     {m.subtitle && <span className="muted">{m.subtitle}</span>}
-                    <span className="muted">
-                      {[m.authors.join(', '), m.narrators.length ? `read by ${m.narrators.join(', ')}` : null, m.series, formatDuration(m.durationSeconds)].filter(Boolean).join(' · ')}
+                    <span className="muted meta-line">
+                      {[m.authors.join(', '), m.narrators.length ? `Read by ${m.narrators.join(', ')}` : null, m.series, m.durationSeconds ? formatDuration(m.durationSeconds) : null]
+                        .filter((fact): fact is string => !!fact)
+                        .map((fact) => (
+                          <span key={fact}>{fact}</span>
+                        ))}
                     </span>
                   </span>
                   <span className="tag">{providerName[m.provider] ?? m.provider}</span>

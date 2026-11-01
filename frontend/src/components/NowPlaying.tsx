@@ -159,7 +159,8 @@ export function NowPlaying() {
               aria-label="Seek"
               disabled={!track}
             />
-            <span>-{formatClock(Math.max(0, duration - scrub.shown))}</span>
+            {/* Time left, at the speed it plays at. */}
+            <span>-{formatClock(Math.max(0, duration - scrub.shown) / (skips ? player.speed || 1 : 1))}</span>
           </div>
         </div>
         <div className="now-playing-tools">

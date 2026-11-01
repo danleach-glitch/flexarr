@@ -1,4 +1,5 @@
 import type { BookChapter, BookFile, BookProgress, BookSeriesRef, ItemSummary } from '../api/types'
+import { formatClock } from './format'
 
 /** A book, rather than a film, track or episode. */
 export const isBook = (item: Pick<ItemSummary, 'kind'> | undefined) => item?.kind === 'Audiobook'
@@ -88,6 +89,13 @@ export function previousChapterStart(chapters: BookChapter[], position: number, 
 export function nextChapterStart(chapters: BookChapter[], position: number): number | null {
   const next = chapters[chapterIndexAt(chapters, position) + 1]
   return next ? next.startSeconds : null
+}
+
+/** "1:02:03", with any part of a second kept ("1:02:03.5"), so a shift by half a second survives the round trip. */
+export function clockText(seconds: number): string {
+  const whole = Math.floor(seconds)
+  const part = Math.round((seconds - whole) * 1000) / 1000
+  return part > 0 ? `${formatClock(whole)}${String(part).slice(1)}` : formatClock(whole)
 }
 
 /** Reads a time typed as "1:02:03", "2:03", "123" or "12.5" (seconds); null when it isn't one. */
@@ -240,4 +248,14 @@ export function deviceName(userAgent = navigator.userAgent): string {
                 ? 'Linux'
                 : null
   return system ? `${browser} on ${system}` : browser
+}
+
+/** "English" for "en" or "eng", where the browser knows the code; the tag as it is otherwise. */
+export function languageName(code: string | null | undefined): string | null {
+  if (!code) return null
+  try {
+    return new Intl.DisplayNames(undefined, { type: 'language' }).of(code) ?? code
+  } catch {
+    return code
+  }
 }

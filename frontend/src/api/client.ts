@@ -505,6 +505,22 @@ export const getBookmarks = (id: string, signal?: AbortSignal) => apiGet<Bookmar
 export const addBookmark = (id: string, positionSeconds: number, note?: string) => request<Bookmark>('POST', `/items/${id}/bookmarks`, { positionSeconds, note })
 export const saveBookmarkNote = (bookmarkId: string, note: string | null) => request<Bookmark>('PUT', `/bookmarks/${bookmarkId}`, { note })
 export const deleteBookmark = (bookmarkId: string) => request<void>('DELETE', `/bookmarks/${bookmarkId}`)
+/**
+ * A book's place, sent without a playback session (its session expired while it sat paused): `recordedAt` lets the
+ * newest place win, wherever it was heard.
+ */
+export const recordBookProgress = (id: string, positionSeconds: number, ended: boolean, device: string) =>
+  request<unknown>('PUT', `/items/${id}/progress`, { positionSeconds, ended, device, recordedAt: new Date().toISOString() })
+/** The same as the page goes, when an ordinary request may be cancelled. */
+export function beaconBookProgress(id: string, positionSeconds: number, device: string) {
+  clearApiCache()
+  void fetch(`/api/v1/items/${id}/progress`, {
+    method: 'PUT',
+    keepalive: true,
+    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ positionSeconds, ended: false, device, recordedAt: new Date().toISOString() }),
+  }).catch(() => undefined)
+}
 /** Settings › Audiobooks: default speed, skip steps and smart rewind. */
 export const BOOK_LISTENING_CHANGED = 'flexarr:book-listening'
 /** Chapter tools (main profile only): each chapter runs to the next one's start. */

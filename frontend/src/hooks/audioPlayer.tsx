@@ -4,6 +4,7 @@ import {
   BOOK_LISTENING_CHANGED,
   deleteBookmark,
   getBookListening,
+  getBookmarks,
   getItem,
   getNextEpisode,
   getPodcastPreferences,
@@ -14,11 +15,12 @@ import {
   type BookManifest,
   type ItemSummary,
 } from '../api/client'
-import { authorsLine, chapterIndexAt, clampSpeed, fadeLevel, isBook, nextChapterStart, previousChapterStart, sleepReached } from '../lib/books'
+import { authorsLine, chapterEnd, chapterIndexAt, clampSpeed, fadeLevel, isBook, nextChapterStart, previousChapterStart, sleepReached } from '../lib/books'
 import { episodeAsTrack, PODCAST_PREFERENCES_CHANGED } from '../lib/podcasts'
 import { useMusicSettings } from '../lib/musicSettings'
 import { FADE_SECONDS } from '../lib/sleepTimer'
 import { createEngine, isPodcast, type AudioEngine } from './audioEngine'
+import { announceBookmarks, useBookmarkChanges } from './bookmarks'
 import { AudioPlayerContext, AudioTimeContext, MusicPagesContext, type AudioPlayer, type SleepTimer } from './audioPlayerContext'
 import { emptyQueue, queueReducer, queueStorageKey, readStoredQueue, rebuildQueue, serializeQueue, type StoredQueue } from './queue'
 
@@ -320,8 +322,22 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     if (engine().paused()) engine().play()
     else engine().pause()
   }, [current, index, engine])
+  const bookRef = useRef(book)
+  useEffect(() => {
+    bookRef.current = book
+  }, [book])
   const seek = useCallback(
     (seconds: number) => {
+      // "End of chapter" is the end of the chapter playing: a seek to another chapter moves it there.
+      const timer = sleepRef.current
+      const b = bookRef.current
+      if (timer && 'endOfChapter' in timer && b) {
+        const at = endOfChapterAt(b, seconds)
+        if (at !== timer.at) {
+          sleepRef.current = { endOfChapter: true, at }
+          setSleep(sleepRef.current)
+        }
+      }
       if (engine().loaded()) engine().seek(seconds)
       else {
         resumeAt.current = seconds
@@ -404,13 +420,24 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       if (!book) return
       const added = await saveBookmark(book.itemId, Math.floor(engine().currentTime()), note?.trim() || undefined)
       setBook((b) => (b && b.itemId === book.itemId ? { ...b, bookmarks: [...b.bookmarks, added] } : b))
+      announceBookmarks(book.itemId, true)
     },
     [book, engine],
   )
   const removeBookmark = useCallback(async (id: string) => {
     await deleteBookmark(id)
+    const bookId = bookRef.current?.itemId
     setBook((b) => (b ? { ...b, bookmarks: b.bookmarks.filter((m) => m.id !== id) } : b))
+    if (bookId) announceBookmarks(bookId, true)
   }, [])
+  // Bookmarks changed elsewhere (the book's page): the playing book's are fetched again.
+  const refreshBookmarks = useCallback((bookId: string) => {
+    void getBookmarks(bookId).then(
+      (bookmarks) => setBook((b) => (b && b.itemId === bookId ? { ...b, bookmarks } : b)),
+      () => undefined,
+    )
+  }, [])
+  useBookmarkChanges(book?.itemId, refreshBookmarks, true)
   const countMusicPage = useCallback((delta: 1 | -1) => setMusicPages((n) => n + delta), [])
 
   // Operating-system media controls.
@@ -537,4 +564,10 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       </MusicPagesContext>
     </AudioPlayerContext>
   )
+}
+
+/** Where the chapter playing at `position` ends (before the first chapter, where it starts). */
+function endOfChapterAt(book: BookManifest, position: number): number {
+  const i = chapterIndexAt(book.chapters, position)
+  return i >= 0 ? chapterEnd(book.chapters, i, book.durationSeconds) : (book.chapters[0]?.startSeconds ?? book.durationSeconds)
 }

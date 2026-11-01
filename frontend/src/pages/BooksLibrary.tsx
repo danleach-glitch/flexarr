@@ -5,6 +5,7 @@ import {
   getBookSeriesList,
   getBookShelves,
   getLibraryBooks,
+  getPerson,
   scanLibrary,
   type BookFilters,
   type ItemSummary,
@@ -19,6 +20,7 @@ import { ScanProgress } from '../components/ScanProgress'
 import { useLibraries } from '../hooks/librariesContext'
 import { useApi } from '../hooks/useApi'
 import { useWatchedChanges } from '../hooks/watched'
+import { languageName } from '../lib/books'
 
 const PAGE_SIZE = 60
 
@@ -70,7 +72,7 @@ function Shelves({ library }: { library: Library }) {
   if (!data) return <div className="rows" aria-busy="true" />
   const all = `/library/${library.id}?view=all`
   const empty = [data.continueListening, data.nextInSeries, data.recentlyAdded, data.finished].every((s) => s.length === 0) && data.series.length === 0
-  if (empty) return <p className="page-message muted">{library.scan ? 'Books appear here as the scan finds them.' : 'Nothing here yet.'}</p>
+  if (empty) return <p className="page-message muted">{library.scan ? 'Books appear here as the scan finds them.' : 'No books yet.'}</p>
   const books = (title: string, items: ItemSummary[], link?: string) =>
     items.length > 0 && (
       <Row title={title} link={link}>
@@ -162,6 +164,12 @@ function AllBooks({ library }: { library: Library }) {
   }
   const key = JSON.stringify(filters)
   const narrators = useApi((signal) => getBookPeople(library.id, { role: 'narrator', take: 200 }, signal), [library.id])
+  // The languages its books are in, from the shelves when the server sends them, the one chosen always among them.
+  const shelves = useApi((signal) => getBookShelves(library.id, signal), [library.id])
+  const languages = [...new Set([...(shelves.data?.languages ?? []), ...(filters.language ? [filters.language] : [])])].filter((l) => l !== 'und')
+  // The author filtered by, named (a link to it carries only the id).
+  const author = useApi((signal) => (filters.author ? getPerson(filters.author, signal) : Promise.resolve(null)), [filters.author])
+  const authorName = author.data?.name
   const [pages, setPages] = useState<{ key: string; books: Paged<ItemSummary> } | null>(null)
   const first = useApi((signal) => getLibraryBooks(library.id, { ...filters, take: PAGE_SIZE }, signal), [library.id, key])
   useWatchedChanges(first.reload)
@@ -181,6 +189,16 @@ function AllBooks({ library }: { library: Library }) {
     next.set('view', 'all')
     if (value) next.set(name, value)
     else next.delete(name)
+    setParams(next, { replace: true })
+  }
+
+  /** Every filter off (the search too), keeping the sort. */
+  function clearFilters() {
+    const next = new URLSearchParams()
+    next.set('view', 'all')
+    const sort = params.get('sort')
+    if (sort) next.set('sort', sort)
+    setSearch('')
     setParams(next, { replace: true })
   }
 
@@ -218,19 +236,18 @@ function AllBooks({ library }: { library: Library }) {
             </option>
           ))}
         </Choice>
-        <input
-          type="text"
-          className="book-language"
-          placeholder="Language"
-          aria-label="Language"
-          defaultValue={params.get('language') ?? ''}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') set('language', e.currentTarget.value.trim())
-          }}
-          onBlur={(e) => set('language', e.currentTarget.value.trim())}
-        />
+        {(languages.length > 1 || filters.language) && (
+          <Choice label="Language" value={filters.language ?? ''} onChange={(v) => set('language', v)}>
+            <option value="">Any language</option>
+            {languages.map((code) => (
+              <option key={code} value={code}>
+                {languageName(code)}
+              </option>
+            ))}
+          </Choice>
+        )}
         <Choice label="Abridged" value={abridged ?? ''} onChange={(v) => set('abridged', v)}>
-          <option value="">Abridged or not</option>
+          <option value="">Any edition</option>
           <option value="no">Unabridged</option>
           <option value="yes">Abridged</option>
         </Choice>
@@ -257,8 +274,8 @@ function AllBooks({ library }: { library: Library }) {
             </button>
           )}
           {filters.author && (
-            <button className="chip" aria-pressed="true" onClick={() => set('author', '')}>
-              One author ×
+            <button className="chip" aria-pressed="true" onClick={() => set('author', '')} aria-label={authorName ? `Author ${authorName}: clear` : 'Author: clear'}>
+              {authorName ?? 'Author'} ×
             </button>
           )}
         </p>
@@ -269,7 +286,17 @@ function AllBooks({ library }: { library: Library }) {
           {shown.total.toLocaleString()} {filtered ? 'matching' : shown.total === 1 ? 'book' : 'books'}
         </p>
       )}
-      {shown?.total === 0 && <p className="page-message muted">{filtered ? 'No books match.' : 'Nothing here yet.'}</p>}
+      {shown?.total === 0 &&
+        (filtered ? (
+          <div className="page-message muted">
+            <p>No books match.</p>
+            <button className="button quiet small" onClick={clearFilters}>
+              Clear filters
+            </button>
+          </div>
+        ) : (
+          <p className="page-message muted">No books yet.</p>
+        ))}
       <div className="poster-grid square" aria-busy={!shown}>
         {shown?.items.map((item) => (
           <div key={item.id} data-id={item.id}>
