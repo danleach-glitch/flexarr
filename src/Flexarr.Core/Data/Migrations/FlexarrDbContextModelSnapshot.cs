@@ -746,6 +746,9 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<int?>("BookOrder")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("BookProbe")
+                        .HasColumnType("TEXT");
+
                     b.Property<bool?>("ClosedCaptions")
                         .HasColumnType("INTEGER");
 

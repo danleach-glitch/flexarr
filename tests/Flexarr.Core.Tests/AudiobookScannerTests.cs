@@ -130,6 +130,25 @@ public sealed class AudiobookScannerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task EachFileIsReadOnce_AndOnlyFilesWithNoReadingKeptAreReadAgain()
+    {
+        Touch("A/Book/01.mp3", "A/Book/02.mp3");
+        await ScanAsync();
+        Assert.Equal(2, _probe.BookCalls); // the scanner's reading, kept for putting the book together
+        Assert.All(await _db.MediaFiles.AsNoTracking().ToListAsync(), f => Assert.NotNull(f.BookProbe));
+
+        // A file scanned before readings were kept, and a new file joining the book.
+        await _db.MediaFiles.Where(f => f.Path.EndsWith("02.mp3")).ExecuteUpdateAsync(u => u.SetProperty(f => f.BookProbe, (string?)null));
+        _db.ChangeTracker.Clear();
+        Touch("A/Book/03.mp3");
+        await ScanAsync();
+
+        Assert.Equal(4, _probe.BookCalls); // 03 by the scanner, 02 by the assembler; never 01 again
+        Assert.All(await _db.MediaFiles.AsNoTracking().ToListAsync(), f => Assert.NotNull(f.BookProbe));
+        Assert.Equal(3 * BookProbe.Length, (await _db.BookDetails.AsNoTracking().SingleAsync()).DurationSeconds);
+    }
+
+    [Fact]
     public async Task AFileBackAfterGoingMissing_JoinsItsBookAgain()
     {
         Touch("A/Book/01.mp3", "A/Book/02.mp3");

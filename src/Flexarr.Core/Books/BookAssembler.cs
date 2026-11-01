@@ -11,13 +11,15 @@ namespace Flexarr.Core.Books;
 /// <summary>
 /// Puts books together once a scan has found their files: the files in order on one timeline, the book's details,
 /// authors, narrators and series from what the files say (sidecars, then tags, then the path), and its chapters. Runs
-/// only for books whose files changed, and reads every file of such a book again, since the order and chapters depend
-/// on all of them. Local always wins: what's found here replaces what's stored, and what isn't found is left alone
-/// for the *arr and online providers to fill.
+/// only for books whose files changed, from what the scanner read of each file when it last changed
+/// (<see cref="MediaFile.BookProbe"/>): only files with no such reading (scanned before it was kept) are read here, a
+/// few at a time. Local always wins: what's found here replaces what's stored, and what isn't found is left alone for
+/// the *arr and online providers to fill.
 /// </summary>
 public sealed partial class BookAssembler(FlexarrDbContext db, IMediaProbe probe, ILogger logger)
 {
     private static readonly StringComparer Natural = StringComparer.Create(CultureInfo.InvariantCulture, CompareOptions.NumericOrdering | CompareOptions.IgnoreCase);
+    private const int ProbeConcurrency = 4;
 
     public async Task AssembleAsync(IReadOnlyCollection<Guid> bookIds, CancellationToken ct)
     {
@@ -63,17 +65,37 @@ public sealed partial class BookAssembler(FlexarrDbContext db, IMediaProbe probe
         }
 
         var probes = new Dictionary<Guid, BookFileProbe?>();
+        var unread = new List<MediaFile>();
         foreach (var file in files)
+        {
+            if (BookFileProbe.FromJson(file.BookProbe) is { } kept)
+            {
+                probes[file.Id] = kept;
+            }
+            else
+            {
+                unread.Add(file);
+            }
+        }
+
+        // Files scanned before their readings were kept: read now, and kept.
+        var read = new System.Collections.Concurrent.ConcurrentDictionary<Guid, BookFileProbe?>();
+        await Parallel.ForEachAsync(unread, new ParallelOptions { MaxDegreeOfParallelism = ProbeConcurrency, CancellationToken = ct }, async (file, token) =>
         {
             try
             {
-                probes[file.Id] = await probe.ProbeBookFileAsync(file.Path, ct).ConfigureAwait(false);
+                read[file.Id] = await probe.ProbeBookFileAsync(file.Path, token).ConfigureAwait(false);
             }
             catch (MediaProbeException ex)
             {
-                probes[file.Id] = null;
+                read[file.Id] = null;
                 LogProbeFailed(PathComparison.Printable(file.Path), PathComparison.Printable(ex.Message));
             }
+        }).ConfigureAwait(false);
+        foreach (var file in unread)
+        {
+            probes[file.Id] = read[file.Id];
+            file.BookProbe = read[file.Id]?.ToJson();
         }
 
         var key = book.Path!;

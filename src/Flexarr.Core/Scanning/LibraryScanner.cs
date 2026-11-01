@@ -190,24 +190,34 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
 
             progress.Begin(library.Id, target, work.Count);
 
+            // A book's files are read once, chapters and all, and what they say is kept with them for BookAssembler.
+            var books = library.Type == LibraryType.Audiobooks;
             foreach (var batch in work.Chunk(BatchSize))
             {
-                var probes = new ConcurrentDictionary<string, (ProbeResult? Result, string? Error)>(StringComparer.Ordinal);
+                var probes = new ConcurrentDictionary<string, (ProbeResult? Result, BookFileProbe? Book, string? Error)>(StringComparer.Ordinal);
                 await Parallel.ForEachAsync(batch, new ParallelOptions { MaxDegreeOfParallelism = ProbeConcurrency, CancellationToken = cancellationToken }, async (w, ct) =>
                 {
                     if (MediaFileEnumerator.ProtectedBookExtensions.Contains(w.File.Extension))
                     {
-                        probes[w.File.FullName] = (null, MediaFileEnumerator.ProtectedBookError);
+                        probes[w.File.FullName] = (null, null, MediaFileEnumerator.ProtectedBookError);
                         return;
                     }
 
                     try
                     {
-                        probes[w.File.FullName] = (await probe.ProbeAsync(w.File.FullName, ct).ConfigureAwait(false), null);
+                        if (books)
+                        {
+                            var book = await probe.ProbeBookFileAsync(w.File.FullName, ct).ConfigureAwait(false);
+                            probes[w.File.FullName] = (book.Result ?? await probe.ProbeAsync(w.File.FullName, ct).ConfigureAwait(false), book, null);
+                        }
+                        else
+                        {
+                            probes[w.File.FullName] = (await probe.ProbeAsync(w.File.FullName, ct).ConfigureAwait(false), null, null);
+                        }
                     }
                     catch (MediaProbeException ex)
                     {
-                        probes[w.File.FullName] = (null, ex.Message);
+                        probes[w.File.FullName] = (null, null, ex.Message);
                     }
                 }).ConfigureAwait(false);
 
@@ -220,7 +230,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
 
                 foreach (var (file, match) in batch)
                 {
-                    var (result, error) = probes[file.FullName];
+                    var (result, bookProbe, error) = probes[file.FullName];
                     if (error is not null && error != MediaFileEnumerator.ProtectedBookError)
                     {
                         failures++;
@@ -230,6 +240,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                     if (match is not null)
                     {
                         Apply(match, file, result, error);
+                        match.BookProbe = bookProbe?.ToJson();
                         state.ChangedBooks.Add(match.MediaItemId);
                         updated++;
                         continue;
@@ -248,7 +259,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                         state.ChangedBooks.Add(item.Id);
                     }
 
-                    var mediaFile = new MediaFile { Path = file.FullName, MediaItemId = item.Id };
+                    var mediaFile = new MediaFile { Path = file.FullName, MediaItemId = item.Id, BookProbe = bookProbe?.ToJson() };
                     Apply(mediaFile, file, result, error);
                     db.MediaFiles.Add(mediaFile);
                     added++;
