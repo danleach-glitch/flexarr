@@ -42,8 +42,10 @@ public static class PeopleEndpoints
             }
 
             var found = await FindCandidatesAsync(person, authors, memory, ct);
+            var current = found.Photos.FirstOrDefault(p => p.Image is not null && p.Image == person.ImageUrl);
             return Results.Ok(new PersonCandidatesDto(
-                [.. found.Photos.Select(p => new PersonPhotoCandidateDto(p.Source, $"/api/v1/images/people/{id}/candidates/{Uri.EscapeDataString(p.Source)}"))],
+                [.. found.Photos.Select(p => new PersonPhotoCandidateDto(p.Source, $"/api/v1/images/people/{id}/candidates/{Uri.EscapeDataString(p.Source)}",
+                    ReferenceEquals(p, current) ? true : null))],
                 [.. found.Biographies.Select(b => new PersonBiographyCandidateDto(b.Source, b.Biography!))]));
         });
 

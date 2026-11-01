@@ -49,11 +49,27 @@ public class AuthorInfoApiTests(FlexarrApiFactory factory) : IClassFixture<Flexa
         Assert.Equal(HttpStatusCode.NotFound, before.StatusCode); // nothing looked for yet
         var folder = candidates.GetProperty("photos").EnumerateArray().Single(p => p.GetProperty("source").GetString() == "folder");
         Assert.Equal($"/api/v1/images/people/{person}/candidates/folder", folder.GetProperty("image").GetString());
+        Assert.False(folder.TryGetProperty("current", out var notCurrent) && notCurrent.ValueKind == JsonValueKind.True); // no photo yet
         Assert.Contains(candidates.GetProperty("biographies").EnumerateArray(), b => b.GetProperty("text").GetString() == "A writer.");
         Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, elsewhere.StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, anonymous.StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, notAdmin.StatusCode);
+    }
+
+    [Fact]
+    public async Task TheCurrentPhoto_IsMarkedAmongTheCandidates()
+    {
+        using var app = Serve();
+        var (person, _) = await SeedAsync(app, folderPhoto: true);
+        var admin = Admin(app);
+        await admin.GetAsync(Api($"/people/{person}/candidates"));
+        await admin.PutAsJsonAsync(Api($"/people/{person}"), new { photo = "folder" });
+
+        var candidates = await admin.GetFromJsonAsync<JsonElement>(Api($"/people/{person}/candidates"));
+
+        var current = candidates.GetProperty("photos").EnumerateArray().Where(p => p.TryGetProperty("current", out var c) && c.ValueKind == JsonValueKind.True).ToList();
+        Assert.Equal("folder", Assert.Single(current).GetProperty("source").GetString());
     }
 
     [Fact]

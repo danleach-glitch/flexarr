@@ -116,7 +116,8 @@ public sealed record PersonDto(Guid Id, string Name, string? Image, IReadOnlyLis
     string? BiographySource = null);
 
 /// <summary>A photo an admin can choose for a person, served through the server (<c>/images/people/{id}/candidates/{source}</c>).</summary>
-public sealed record PersonPhotoCandidateDto(string Source, string Image);
+/// <param name="Current">True on the person's photo now (null on the rest). Absent from servers before 0.58.</param>
+public sealed record PersonPhotoCandidateDto(string Source, string Image, bool? Current = null);
 
 public sealed record PersonBiographyCandidateDto(string Source, string Text);
 
