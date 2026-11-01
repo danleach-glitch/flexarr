@@ -444,8 +444,8 @@ struct SeeAllCard: View {
     }
 }
 
-/// What Sonarr, Radarr and Readarr expect soon: episodes airing, films and books coming out, with any download under
-/// way. Pressing one already in the library (a show's next episode) opens it.
+/// What Sonarr and Radarr expect soon: episodes airing and films coming out, with any download under way.
+/// Pressing one already in the library (a show's next episode) opens it.
 private struct ComingSoonRow: View {
     @Environment(AppModel.self) private var model
     @Environment(Router.self) private var router

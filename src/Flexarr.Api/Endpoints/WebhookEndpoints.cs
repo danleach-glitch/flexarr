@@ -41,6 +41,12 @@ public static class WebhookEndpoints
                     }
                 }
 
+                // Flexarr no longer connects to Readarr, Bookshelf or Chaptarr; one still calling is told so and nothing is scanned.
+                if (string.Equals(source, "readarr", StringComparison.OrdinalIgnoreCase))
+                {
+                    return Results.StatusCode(StatusCodes.Status410Gone);
+                }
+
                 if (!Enum.TryParse<ArrKind>(source, ignoreCase: true, out var kind))
                 {
                     return Results.NotFound();

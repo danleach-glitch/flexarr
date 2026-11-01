@@ -136,8 +136,6 @@ public sealed class FlexarrOptions
 
     public BookMetadataOptions BookMetadata { get; set; } = new();
 
-    public BookRequestOptions BookRequests { get; set; } = new();
-
     public NotificationOptions Notifications { get; set; } = new();
 
     public TraktOptions Trakt { get; set; } = new();
@@ -224,19 +222,6 @@ public sealed class LiveTvOptions
         Uri.TryCreate(BaseUrl, UriKind.Absolute, out var url) && url.Scheme is "http" or "https" && Username.Length > 0 && Password.Length > 0
             ? new Flexarr.Api.LiveTv.XtreamAccount(url, Username, Password)
             : null;
-}
-
-/// <summary>How books requested in Flexarr are added to Readarr, Bookshelf or Chaptarr (config.json's <c>bookRequests</c>).</summary>
-public sealed class BookRequestOptions
-{
-    /// <summary>The Readarr-family connection requests go to; unset, the first.</summary>
-    public string? Instance { get; set; }
-
-    public int? QualityProfileId { get; set; }
-    public int? MetadataProfileId { get; set; }
-
-    /// <summary>The app's root folder (its own path) for books whose profile hasn't chosen a library.</summary>
-    public string? RootFolderPath { get; set; }
 }
 
 /// <summary>How books are looked up online (config.json's <c>bookMetadata</c>).</summary>

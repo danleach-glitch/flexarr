@@ -12,7 +12,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Flexarr.Core.Tests;
 
-/// <summary>Every author's photo and biography, from their folder, Readarr, Audible and Open Library, as a book refresh finds them.</summary>
+/// <summary>Every author's photo and biography, from their folder, Audible and Open Library, as a book refresh finds them.</summary>
 public sealed class AuthorInfoTests : IAsyncLifetime
 {
     private const string Osman = "Richard Osman", Keyes = "Marian Keyes", Title = "The Thursday Murder Club";
@@ -20,7 +20,6 @@ public sealed class AuthorInfoTests : IAsyncLifetime
     private readonly string _dir = Directory.CreateTempSubdirectory("flexarr-authorinfo-").FullName;
     private readonly AuthorProviderTests.Canned _web = new();
     private FlexarrDbContext _db = null!;
-    private bool _readarr;
 
     private string Books => Path.Combine(_dir, "media", "audiobooks");
 
@@ -32,12 +31,6 @@ public sealed class AuthorInfoTests : IAsyncLifetime
         _web.Answers[("api.audnex.us", "/authors/B074KL81KM")] = $$"""{"asin": "B074KL81KM", "name": "Richard Osman", "description": "From Audible.", "image": "{{AudiblePhoto}}"}""";
         _web.Answers[("openlibrary.org", "/search/authors.json")] = $$"""{"docs": [{"key": "OL5A", "name": "Marian Keyes", "top_work": "{{Title}}"}]}""";
         _web.Answers[("openlibrary.org", "/authors/OL5A.json")] = """{"name": "Marian Keyes", "bio": "From Open Library."}""";
-        // Readarr knows Richard Osman, with a biography but no photo, and none of his books.
-        _web.Answers[("readarr.test", "/api/v1/author")] = """[{"id": 3, "authorName": "Richard Osman", "overview": "<p>From Readarr.</p>", "images": []}]""";
-        foreach (var path in new[] { "/api/v1/book", "/api/v1/bookfile", "/api/v1/series" })
-        {
-            _web.Answers[("readarr.test", path)] = "[]";
-        }
     }
 
     public async Task DisposeAsync()
@@ -48,15 +41,14 @@ public sealed class AuthorInfoTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Readarr_ThenAudible_EachFillingOnlyWhatsMissing()
+    public async Task Audible_FillsWhatsMissing_LeavingNothingForOpenLibrary()
     {
-        _readarr = true;
         var library = await SeedAsync(new Person { Name = Osman });
 
         await Refresher().RefreshLibraryAsync(library, force: true, default);
 
         var osman = await PersonAsync(Osman);
-        Assert.Equal(("From Readarr.", "readarr"), (osman.Biography, osman.BiographySource));
+        Assert.Equal(("From Audible.", "audible"), (osman.Biography, osman.BiographySource));
         Assert.Equal((AudiblePhoto, "audible", "B074KL81KM"), (osman.ImageUrl, osman.PhotoSource, osman.Asin));
         Assert.NotNull(osman.ImageChangedAt);
         Assert.NotNull(osman.InfoCheckedAt);
@@ -177,24 +169,6 @@ public sealed class AuthorInfoTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task ReadarrsAuthorOfAnotherName_GoesOnlyToABooksOnlyAuthor()
-    {
-        var sir = new Integrations.Arr.Models.ReadarrAuthor { AuthorName = "Sir Richard Osman", Overview = "From Readarr." };
-        await SeedAsync(new Person { Name = Osman }, new Person { Name = Keyes });
-        await SeedAsync(Path.Combine(Books, Osman, "Alone"), new Person { Name = "Solo Writer" }, await _db.Libraries.SingleAsync());
-
-        foreach (var book in await _db.MediaItems.Include(i => i.Credits).ThenInclude(c => c.Person).ToListAsync())
-        {
-            await Authors().FillBookAsync(book, [], sir, [], default);
-        }
-
-        await _db.SaveChangesAsync();
-        Assert.Null((await PersonAsync(Osman)).Biography); // two authors: no telling whose Readarr's is
-        Assert.Null((await PersonAsync(Keyes)).Biography);
-        Assert.Equal("From Readarr.", (await PersonAsync("Solo Writer")).Biography);
-    }
-
-    [Fact]
     public async Task AFolderPhotoReplacedWithAnOlderOne_GetsANewVersion()
     {
         var photo = await AuthorPhotoAsync("author.jpg");
@@ -310,14 +284,6 @@ public sealed class AuthorInfoTests : IAsyncLifetime
         Assert.Equal((AudiblePhoto, "audible"), ((await PersonAsync(Osman)).ImageUrl, (await PersonAsync(Osman)).PhotoSource));
     }
 
-    [Fact]
-    public void ReadarrsPlaceholder_IsntAPhoto()
-    {
-        Assert.Null(AuthorInfo.ArrPhoto([new ArrImage("poster", "https://s.gr-assets.com/assets/nophoto/user/u_200x266-e183445fd1a1b5cc7075bb1cf7043306.png", null)]));
-        Assert.Equal("https://images.gr-assets.com/authors/1.jpg",
-            AuthorInfo.ArrPhoto([new ArrImage("poster", "https://s.gr-assets.com/assets/nophoto/author.png", null), new ArrImage("poster", "https://images.gr-assets.com/authors/1.jpg", null)]));
-    }
-
     [Theory]
     [InlineData("https://m.media-amazon.com/images/I/osman.jpg", "audible", true)]
     [InlineData("https://images-na.ssl-images-amazon.com/images/I/osman.jpg", "audible", true)]
@@ -325,13 +291,13 @@ public sealed class AuthorInfoTests : IAsyncLifetime
     [InlineData("https://images.example/x.jpg", "audible", false)]
     [InlineData("https://covers.openlibrary.org/a/olid/OL1A-L.jpg", "openlibrary", true)]
     [InlineData("https://openlibrary.org.evil.example/x.jpg", "openlibrary", false)]
-    [InlineData("https://images.gr-assets.com/authors/1.jpg", "readarr", true)]
-    [InlineData("https://192.168.1.1/x.jpg", "readarr", false)]
-    [InlineData("https://[::1]/x.jpg", "readarr", false)]
-    [InlineData("https://router/x.jpg", "readarr", false)]
-    [InlineData("https://nas.local/x.jpg", "readarr", false)]
-    [InlineData("https://images.example:8443/x.jpg", "readarr", false)]
-    [InlineData("http://images.example/x.jpg", "readarr", false)]
+    [InlineData("https://images.gr-assets.com/authors/1.jpg", "other", true)]
+    [InlineData("https://192.168.1.1/x.jpg", "other", false)]
+    [InlineData("https://[::1]/x.jpg", "other", false)]
+    [InlineData("https://router/x.jpg", "other", false)]
+    [InlineData("https://nas.local/x.jpg", "other", false)]
+    [InlineData("https://images.example:8443/x.jpg", "other", false)]
+    [InlineData("http://images.example/x.jpg", "other", false)]
     public void AProvidersPhoto_IsOnlyTakenFromWhereItShouldBe(string url, string source, bool taken) =>
         Assert.Equal(taken, AuthorInfo.OnlinePhoto(url, source) is not null);
 
@@ -460,16 +426,16 @@ public sealed class AuthorInfoTests : IAsyncLifetime
         var authors = Authors();
         foreach (var book in await _db.MediaItems.Include(i => i.Credits).ThenInclude(c => c.Person).ToListAsync())
         {
-            await authors.FillBookAsync(book, [], null, [], default);
+            await authors.FillBookAsync(book, [], default);
         }
 
         // A photo put there mid-refresh is seen next time, not this: the folder was read once.
         await AuthorPhotoAsync("author.jpg");
         var last = await _db.MediaItems.Include(i => i.Credits).ThenInclude(c => c.Person).FirstAsync();
-        await authors.FillBookAsync(last, [], null, [], default);
+        await authors.FillBookAsync(last, [], default);
         Assert.Null(osman.ImageUrl);
 
-        await Authors().FillBookAsync(last, [], null, [], default);
+        await Authors().FillBookAsync(last, [], default);
         Assert.NotNull(osman.ImageUrl);
     }
 
@@ -489,28 +455,6 @@ public sealed class AuthorInfoTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task ReadarrsAuthors_AreKeptAFewMinutes_ForTheEditor()
-    {
-        var time = new ManualTime();
-        var cache = new ReadarrAuthorCache(time);
-        await SeedAsync(new Person { Name = Osman });
-        var osman = await _db.People.SingleAsync(p => p.Name == Osman);
-        var settings = new Settings(_dir, [new ArrInstance { Name = "Readarr", Kind = ArrKind.Readarr, BaseUrl = new Uri("http://readarr.test"), ApiKey = "k" }]);
-        AuthorInfo Editor() => new(_db, new ArrClient(new HttpClient(_web)), settings, null, NullLogger.Instance, cache);
-        int Asked() => _web.Requests.Count(r => r.Contains("readarr.test/api/v1/author", StringComparison.Ordinal));
-
-        var (_, first) = await Editor().CandidatesAsync(osman, default);
-        await Editor().CandidatesAsync(osman, default);
-        var once = Asked();
-        time.Now += ReadarrAuthorCache.KeepFor + TimeSpan.FromSeconds(1);
-        await Editor().CandidatesAsync(osman, default);
-
-        Assert.Contains(first, b => b.Source == "readarr");
-        Assert.Equal(1, once);
-        Assert.Equal(2, Asked());
-    }
-
-    [Fact]
     public async Task ANewAuthorPhoto_ShowsAfterTheNextRefresh_EvenWithNoBookDue()
     {
         var library = await SeedAsync(new Person { Name = Osman, Biography = "Known.", InfoCheckedAt = DateTime.UtcNow });
@@ -523,25 +467,9 @@ public sealed class AuthorInfoTests : IAsyncLifetime
         Assert.Equal(($"file://{photo}", "folder"), ((await PersonAsync(Osman)).ImageUrl, (await PersonAsync(Osman)).PhotoSource));
     }
 
-    [Fact]
-    public void ReadarrsAuthors_AreFoundByFoldedName_TheFirstOfANameWinning()
-    {
-        var index = new ReadarrAuthorIndex([new() { Id = "1", AuthorName = "J.R.R. Tolkien" }, new() { Id = "2", AuthorName = "J. R. R. Tolkien" }, new() { Id = "3" }]);
-
-        Assert.Equal("1", index.Find("j r r tolkien")?.Id);
-        Assert.Null(index.Find("Christopher Tolkien"));
-    }
-
-    private sealed class ManualTime : TimeProvider
-    {
-        public DateTimeOffset Now { get; set; } = DateTimeOffset.UtcNow;
-
-        public override DateTimeOffset GetUtcNow() => Now;
-    }
-
     /// <summary>Just the authors, online providers left out.</summary>
     private AuthorInfo Authors(BookProviders? providers = null) =>
-        new(_db, new ArrClient(new HttpClient(_web)), new Settings(_dir, []), providers, NullLogger.Instance);
+        new(_db, providers, NullLogger.Instance);
 
     private async Task<Person> PersonAsync(string name) => await _db.People.AsNoTracking().SingleAsync(p => p.Name == name);
 
@@ -576,7 +504,7 @@ public sealed class AuthorInfoTests : IAsyncLifetime
 
     private MetadataRefresher Refresher()
     {
-        var settings = new Settings(_dir, _readarr ? [new ArrInstance { Name = "Readarr", Kind = ArrKind.Readarr, BaseUrl = new Uri("http://readarr.test"), ApiKey = "k" }] : []);
+        var settings = new Settings(_dir, []);
         var http = new HttpClient(_web);
         return new MetadataRefresher(_db, new ArrClient(http), new TvMazeClient(http), new ImageCache(http, settings, NullLogger<ImageCache>.Instance),
             settings, NullLogger<MetadataRefresher>.Instance, bookProviders: new BookProviders(http, () => settings, new BookProviderThrottle()));

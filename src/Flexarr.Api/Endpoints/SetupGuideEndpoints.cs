@@ -36,11 +36,10 @@ public static partial class SetupGuideEndpoints
     /// <summary>The steps a guide can have; others are dropped.</summary>
     private static readonly HashSet<string> Steps = ["apps", "libraries", "profiles", "devices", "away"];
 
-    /// <summary>Where each kind usually answers: its container names and port. The Readarr family shares a kind but not a name.</summary>
+    /// <summary>Where each kind usually answers: its container names and port.</summary>
     private static readonly (ArrKind Kind, string[] Names, int Port)[] UsualPlaces =
     [
         (ArrKind.Sonarr, ["sonarr"], 8989), (ArrKind.Radarr, ["radarr"], 7878), (ArrKind.Lidarr, ["lidarr"], 8686),
-        (ArrKind.Readarr, ["bookshelf", "readarr"], 8787), (ArrKind.Readarr, ["chaptarr"], 8789),
     ];
 
     /// <summary>The triggers (as the apps' schemas name them) that mean a file came, went or moved: what Flexarr scans for.</summary>
@@ -50,7 +49,6 @@ public static partial class SetupGuideEndpoints
         "onSeriesAdd", "onSeriesDelete", "onEpisodeFileDelete", "onEpisodeFileDeleteForUpgrade",
         "onMovieAdded", "onMovieDelete", "onMovieFileDelete", "onMovieFileDeleteForUpgrade",
         "onReleaseImport", "onArtistAdd", "onArtistDelete", "onAlbumDelete", "onTrackRetag",
-        "onAuthorAdded", "onAuthorDelete", "onBookDelete", "onBookFileDelete", "onBookFileDeleteForUpgrade", "onBookRetag",
     };
 
     public static RouteGroupBuilder MapSetupGuideEndpoints(this RouteGroupBuilder api)

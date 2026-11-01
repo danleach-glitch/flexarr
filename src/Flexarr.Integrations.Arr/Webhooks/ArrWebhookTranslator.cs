@@ -20,32 +20,11 @@ public static class ArrWebhookTranslator
         "ArtistAdd",
         "ArtistDelete",
         "AlbumDelete",
-        "TrackRetag",
-        "Retag",             // Readarr: a book's files' tags rewritten
-        "AuthorAdded",
-        "AuthorDelete",
-        "BookDelete",
-        "BookFileDelete",
+        "Retag",             // Lidarr: a track's tags rewritten (its On Track Retag trigger)
     };
 
     public static bool IsTest(ArrWebhookPayload payload) =>
         string.Equals(payload.EventType, "Test", StringComparison.OrdinalIgnoreCase);
-
-    /// <summary>
-    /// A book's own folder, from its files' paths (where they are, and for a rename where they were), so one book is
-    /// rescanned rather than its author's whole shelf. Author events, and a book deleted with no files named, take the
-    /// author's folder. A file straight in the author's folder rescans that folder, which is the same thing.
-    /// </summary>
-    private static string?[] ReadarrPaths(ArrWebhookPayload payload)
-    {
-        var files = (payload.BookFiles ?? []).Concat(payload.RenamedBookFiles ?? []).Append(payload.BookFile)
-            .OfType<ArrWebhookPayload.BookFileItem>()
-            .SelectMany(f => new[] { f.Path, f.PreviousPath })
-            .Where(p => !string.IsNullOrWhiteSpace(p))
-            .Select(p => Path.GetDirectoryName(p!))
-            .ToArray();
-        return files.Length > 0 && !payload.EventType.StartsWith("Author", StringComparison.OrdinalIgnoreCase) ? files : [payload.Author?.Path];
-    }
 
     public static IReadOnlyList<LibraryScanRequest> ToScanRequests(ArrKind source, ArrWebhookPayload payload)
     {
@@ -72,7 +51,6 @@ public static class ArrWebhookTranslator
             ArrKind.Sonarr => [payload.Series?.Path],
             ArrKind.Radarr => [payload.Movie?.FolderPath],
             ArrKind.Lidarr => [payload.Artist?.Path],
-            ArrKind.Readarr => ReadarrPaths(payload),
             _ => Array.Empty<string?>(),
         };
 

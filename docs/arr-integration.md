@@ -16,7 +16,7 @@ Each \*arr app sends a webhook when it imports, upgrades, renames or deletes med
 
 `SECRET` is the webhook secret from Settings › Connections (`webhookSecret` in `config.json`). It can only queue scans, so the API key needn't live in the \*arr apps' settings. Webhooks set up with `?apikey=KEY` keep working.
 
-Events that trigger a scan: `Download` (import/upgrade), `Rename`, `SeriesAdd`/`MovieAdded`/`ArtistAdd`, `*Delete`, `AlbumDownload`, `TrackRetag`. `Test` returns `200 OK`; other events (`Grab`, `Health`, …) are accepted and ignored.
+Events that trigger a scan: `Download` (import/upgrade), `Rename`, `SeriesAdd`/`MovieAdded`/`ArtistAdd`, `*Delete`, `AlbumDownload`, `Retag` (Lidarr's track retag). `Test` returns `200 OK`; other events (`Grab`, `Health`, …) are accepted and ignored.
 
 **Paths must match.** Mount media at the same path in Flexarr and the \*arrs (the provided `docker-compose.yml` uses `/data/media` everywhere). Where they can't match, add a path mapping in Settings › Connections.
 

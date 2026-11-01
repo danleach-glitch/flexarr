@@ -159,7 +159,6 @@ public sealed partial class PathMappingFinder(FlexarrDbContext db, ArrClient arr
             {
                 ArrKind.Sonarr => (await arr.GetSeriesAsync(instance, ct)).Select(s => s.Path).ToList(),
                 ArrKind.Radarr => (await arr.GetMoviesAsync(instance, ct)).Select(m => m.Path).ToList(),
-                ArrKind.Readarr => (await arr.GetAuthorsAsync(instance, ct)).Select(a => a.Path).ToList(),
                 _ => (await arr.GetArtistsAsync(instance, ct)).Select(a => a.Path).ToList(),
             };
 
@@ -168,10 +167,6 @@ public sealed partial class PathMappingFinder(FlexarrDbContext db, ArrClient arr
             {
                 ArrKind.Sonarr => await db.MediaItems.Where(i => i.Kind == MediaKind.Series).Select(i => i.Path).ToListAsync(ct),
                 ArrKind.Radarr => await db.MediaItems.Where(i => i.Kind == MediaKind.Movie).Select(i => i.Path).ToListAsync(ct),
-                // An author's folder holds their books, or their series folders that do.
-                ArrKind.Readarr => (await db.MediaItems.Where(i => i.Kind == MediaKind.Audiobook).Select(i => i.Path).ToListAsync(ct))
-                    .Select(p => p is null ? null : System.IO.Path.GetDirectoryName(p))
-                    .SelectMany(p => p is null ? [] : new[] { p, System.IO.Path.GetDirectoryName(p) }).Distinct().ToList(),
                 _ => (await db.MediaItems.Where(i => i.Kind == MediaKind.Album).Select(i => i.Path).ToListAsync(ct))
                     .Select(p => p is null ? null : System.IO.Path.GetDirectoryName(p)).Distinct().ToList(),
             };

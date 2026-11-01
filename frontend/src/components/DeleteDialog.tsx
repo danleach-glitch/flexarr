@@ -7,8 +7,8 @@ import { episodeCode } from '../lib/format'
 import { useModal } from '../hooks/useModal'
 
 /**
- * Confirms deleting a film, show or episode for good. Radarr or Sonarr delete the files from disk when they manage it;
- * otherwise Flexarr does, and the dialog lists the files first.
+ * Confirms deleting a film, show, episode or book for good. Radarr or Sonarr delete the files from disk when they manage it;
+ * otherwise (and always for books) Flexarr does, and the dialog lists the files first.
  */
 export function DeleteDialog({ item, onDeleted, onClose }: { item: ItemSummary; onDeleted: () => void; onClose: () => void }) {
   const [busy, setBusy] = useState(false)
@@ -22,7 +22,7 @@ export function DeleteDialog({ item, onDeleted, onClose }: { item: ItemSummary; 
     item.kind === 'Movie'
       ? { name: item.title, noun: 'film', detail: 'Radarr deletes the film’s files from disk and stops tracking it.' }
       : item.kind === 'Audiobook'
-        ? { name: item.title, noun: 'book', detail: 'Readarr (or Bookshelf, Chaptarr) deletes the book’s files from disk and stops tracking it.' }
+        ? { name: item.title, noun: 'book', detail: '' } // no app manages books: the file list below says it all
       : item.kind === 'Series'
         ? { name: item.title, noun: 'show', detail: 'Sonarr deletes the files of every episode from disk and stops tracking the show.' }
         : {
@@ -54,7 +54,7 @@ export function DeleteDialog({ item, onDeleted, onClose }: { item: ItemSummary; 
           {plan.data && !plan.data.managedBy && (
             <>
               <p>
-                {app} doesn’t manage this {what.noun}, so Flexarr deletes{' '}
+                {app ? `${app} doesn’t manage this ${what.noun}, so Flexarr deletes` : 'Flexarr deletes'}{' '}
                 {plan.data.files.length === 0 ? 'it from the library: there are no files on disk.' : plan.data.files.length === 1 ? 'its file from disk:' : `its ${plan.data.files.length} files from disk:`}
               </p>
               {plan.data.files.length > 0 && (

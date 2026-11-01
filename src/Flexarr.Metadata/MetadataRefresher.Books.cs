@@ -1,30 +1,13 @@
 using Flexarr.Core.Books;
 using Flexarr.Core.Media;
-using Flexarr.Core.Paths;
-using Flexarr.Integrations.Arr;
-using Flexarr.Integrations.Arr.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace Flexarr.Metadata;
 
-/// <summary>Audiobooks: what Readarr, Bookshelf or Chaptarr know about a book fills what its files don't say.</summary>
+/// <summary>Audiobooks: what online providers know about a book fills what its files don't say.</summary>
 public sealed partial class MetadataRefresher
 {
-    /// <summary>What one app knows, fetched once per refresh.</summary>
-    /// <param name="Complete">Every author's books, not just those of the authors of the books due.</param>
-    private sealed record ReadarrCatalogue(ArrInstance Instance, IReadOnlyList<ReadarrAuthor> Authors, IReadOnlyList<ReadarrBook> Books,
-        IReadOnlyList<ReadarrBookFile> Files, IReadOnlyDictionary<string, List<(ReadarrSeries Series, string? Position)>> SeriesByBook, bool Complete);
-
-    /// <summary>A book due a refresh, as working out its author in an app needs it.</summary>
-    private sealed record DueBook(string? Path, string? ArrAuthorId, string? ArrInstance, List<string> Authors);
-
-    /// <summary>Calls made at once to one app, for each author's files and series.</summary>
-    private const int ArrConcurrency = 4;
-
-    /// <summary>At most this many books due (a webhook's) are fetched by their authors rather than the whole catalogue.</summary>
-    private const int FewBooks = 10;
-
-    private enum BookOutcome { FromArr, LookedUp, Unmatched, Local }
+    private enum BookOutcome { LookedUp, Unmatched, Local }
 
     private async Task<MetadataRefreshResult> RefreshBooksAsync(Guid libraryId, bool force, IReadOnlyCollection<string> within, CancellationToken ct)
     {
@@ -47,28 +30,7 @@ public sealed partial class MetadataRefresher
             return new MetadataRefreshResult(0, 0, 0);
         }
 
-        // Just a webhook's books due: only their authors' books are asked for, not every author's.
-        List<DueBook>? only = null;
-        if (within.Count > 0 && ids.Count <= FewBooks && ids.All(also.Contains))
-        {
-            only = await db.MediaItems.Where(i => ids.Contains(i.Id))
-                .Select(i => new DueBook(i.Path, i.Book!.ArrAuthorId, i.Book.ArrInstance,
-                    i.Credits.Where(c => c.Role == CreditRole.Author).Select(c => c.Person!.Name).ToList()))
-                .ToListAsync(ct).ConfigureAwait(false);
-        }
-
-        var catalogues = new List<ReadarrCatalogue>();
-        foreach (var readarr in settings.ArrInstances.Where(a => a.Kind == ArrKind.Readarr))
-        {
-            if (await CatalogueAsync(readarr, only, ct).ConfigureAwait(false) is { } catalogue)
-            {
-                catalogues.Add(catalogue);
-            }
-        }
-
-        var shelves = catalogues.Select(c => new ReadarrShelf(c.Instance.Name, c.Books, c.Files, c.Authors)).ToList();
-        var readarrAuthors = new ReadarrAuthorIndex(catalogues.SelectMany(c => c.Authors)); // once, not once a book
-        int fromArr = 0, lookedUp = 0, unmatched = 0, local = 0;
+        int lookedUp = 0, unmatched = 0, local = 0;
         // A few books at a time, each saved as it's done: one that fails is logged and the rest go on.
         for (var next = 0; next < ids.Count;)
         {
@@ -87,12 +49,11 @@ public sealed partial class MetadataRefresher
 
                 try
                 {
-                    var outcome = await RefreshBookAsync(book, catalogues, shelves, readarrAuthors, ct).ConfigureAwait(false);
+                    var outcome = await RefreshBookAsync(book, ct).ConfigureAwait(false);
                     book.MetadataUpdatedAt = DateTime.UtcNow;
                     await db.SaveChangesAsync(ct).ConfigureAwait(false);
                     _ = outcome switch
                     {
-                        BookOutcome.FromArr => fromArr++,
                         BookOutcome.LookedUp => lookedUp++,
                         BookOutcome.Unmatched => unmatched++,
                         _ => local++,
@@ -119,33 +80,14 @@ public sealed partial class MetadataRefresher
             }
         }
 
-        return new MetadataRefreshResult(fromArr, lookedUp, unmatched, local);
+        return new MetadataRefreshResult(0, lookedUp, unmatched, local);
     }
 
-    /// <summary>One book: matched in a Readarr-compatible app, then looked up online.</summary>
-    private async Task<BookOutcome> RefreshBookAsync(MediaItem book, List<ReadarrCatalogue> catalogues, List<ReadarrShelf> shelves, ReadarrAuthorIndex readarrAuthors,
-        CancellationToken ct)
+    /// <summary>One book: looked up online by its ids, else by title and author.</summary>
+    private async Task<BookOutcome> RefreshBookAsync(MediaItem book, CancellationToken ct)
     {
         var details = book.Book ??= new BookDetails { MediaItemId = book.Id };
-        var wanted = new BookToMatch(book.Path, book.Title,
-            [.. book.Credits.Where(c => c.Role == CreditRole.Author).OrderBy(c => c.Order).Select(c => c.Person!.Name)],
-            details.Asin, details.Isbn, details.ArrBookId, details.ArrInstance, [.. book.Files.Select(f => f.Path)]);
-        // The app it came from is set up but didn't answer: its link stands rather than one guessed in another app.
-        var unanswered = details.ArrInstance is { } from
-            && settings.ArrInstances.Any(a => a.Kind == ArrKind.Readarr && SameInstance(a.Name, from))
-            && !catalogues.Any(c => SameInstance(c.Instance.Name, from));
-        var hit = unanswered ? null : ReadarrMatcher.Match(wanted, shelves, settings.PathMappings);
-        if (hit is { } matched)
-        {
-            await ApplyReadarrAsync(book, details, matched.Book, catalogues[matched.Shelf], ct).ConfigureAwait(false);
-        }
-        else if (!unanswered && details.ArrBookId is not null && catalogues.All(c => c.Complete))
-        {
-            // Its app no longer has it (or is gone): the old id would only reach some other book there.
-            details.ArrBookId = null;
-            details.ArrAuthorId = null;
-            details.ArrInstance = null;
-        }
+        IReadOnlyList<string> authors = [.. book.Credits.Where(c => c.Role == CreditRole.Author).OrderBy(c => c.Order).Select(c => c.Person!.Name)];
 
         // Online: by its ids, else (unless it was matched by hand) by title and author.
         var online = false;
@@ -155,7 +97,7 @@ public sealed partial class MetadataRefresher
             try
             {
                 var found = await bookProviders.LookupAsync(details.Asin, details.Isbn, ct).ConfigureAwait(false)
-                    ?? (book.MatchLocked ? null : await bookProviders.FindAsync(book.Title, wanted.Authors, ct).ConfigureAwait(false));
+                    ?? (book.MatchLocked ? null : await bookProviders.FindAsync(book.Title, authors, ct).ConfigureAwait(false));
                 if (found is not null)
                 {
                     // Locked: only its authors' photos and biographies come from it (below), not the book's details.
@@ -175,128 +117,11 @@ public sealed partial class MetadataRefresher
         }
 
         // Every author's photo and biography.
-        var matchedAuthor = hit is { } h ? catalogues[h.Shelf].Authors.FirstOrDefault(a => a.Id == h.Book.AuthorId) : null;
-        await Authors.FillBookAsync(book, readarrAuthors, matchedAuthor, authorAsins, ct).ConfigureAwait(false);
+        await Authors.FillBookAsync(book, authorAsins, ct).ConfigureAwait(false);
 
-        return hit is not null ? BookOutcome.FromArr
-            : online ? BookOutcome.LookedUp
-            : catalogues.Count > 0 || bookProviders is not null ? BookOutcome.Unmatched
+        return online ? BookOutcome.LookedUp
+            : bookProviders is not null ? BookOutcome.Unmatched
             : BookOutcome.Local;
-    }
-
-    /// <summary>
-    /// An app's authors, books, files and series; null if it can't be asked right now. With <paramref name="only"/>
-    /// (a webhook's few books), just their authors' books, files and series. Files and series are asked for author by
-    /// author, a few at a time.
-    /// </summary>
-    private async Task<ReadarrCatalogue?> CatalogueAsync(ArrInstance readarr, IReadOnlyList<DueBook>? only, CancellationToken ct)
-    {
-        try
-        {
-            var authors = await arr.GetAuthorsAsync(readarr, ct).ConfigureAwait(false);
-            var wanted = only is null ? null : AuthorsOf(readarr, authors, only);
-            var authorIds = (wanted ?? authors.Where(a => a.Id is not null).Select(a => a.Id!)).Distinct(StringComparer.Ordinal).ToList();
-            var perAuthor = new (IReadOnlyList<ReadarrBook> Books, IReadOnlyList<ReadarrBookFile> Files, IReadOnlyList<ReadarrSeries> Series)[authorIds.Count];
-            await Parallel.ForEachAsync(Enumerable.Range(0, authorIds.Count), new ParallelOptions { MaxDegreeOfParallelism = ArrConcurrency, CancellationToken = ct },
-                async (i, token) => perAuthor[i] = (
-                    wanted is null ? [] : await arr.GetAuthorBooksAsync(readarr, authorIds[i], token).ConfigureAwait(false),
-                    await arr.GetBookFilesAsync(readarr, authorIds[i], token).ConfigureAwait(false),
-                    await arr.GetBookSeriesAsync(readarr, authorIds[i], token).ConfigureAwait(false))).ConfigureAwait(false);
-
-            var books = wanted is null ? await arr.GetBooksAsync(readarr, ct).ConfigureAwait(false) : [.. perAuthor.SelectMany(a => a.Books)];
-            var series = new Dictionary<string, List<(ReadarrSeries, string?)>>(StringComparer.Ordinal);
-            foreach (var s in perAuthor.SelectMany(a => a.Series))
-            {
-                foreach (var link in s.Links.Where(l => l.BookId is not null))
-                {
-                    (series.TryGetValue(link.BookId!, out var list) ? list : series[link.BookId!] = []).Add((s, link.Position));
-                }
-            }
-
-            return new ReadarrCatalogue(readarr, authors, books, [.. perAuthor.SelectMany(a => a.Files)], series, Complete: wanted is null);
-        }
-        catch (Exception ex) when (ex is System.Text.Json.JsonException || IsNetworkFailure(ex, ct))
-        {
-            LogArrUnavailable(readarr.Name, ex.Message);
-            return null;
-        }
-    }
-
-    /// <summary>
-    /// The app's ids for the authors of <paramref name="due"/>: the one each was matched to before, else the author
-    /// whose folder holds the book, else one of the same name. A book none of them fits isn't this app's.
-    /// </summary>
-    private List<string> AuthorsOf(ArrInstance readarr, IReadOnlyList<ReadarrAuthor> authors, IReadOnlyList<DueBook> due)
-    {
-        var ids = new List<string>();
-        foreach (var book in due)
-        {
-            if (book.ArrAuthorId is { } known && book.ArrInstance is { } from && SameInstance(from, readarr.Name))
-            {
-                ids.Add(known);
-                continue;
-            }
-
-            var names = book.Authors.Select(FoldName).ToHashSet(StringComparer.Ordinal);
-            ids.AddRange(authors.Where(a => a.Id is not null
-                    && ((book.Path is { } path && a.Path is { Length: > 0 } folder && PathComparison.IsUnder(path, PathMapper.Map(folder, settings.PathMappings)))
-                        || (a.AuthorName is { } name && names.Contains(FoldName(name)))))
-                .Select(a => a.Id!));
-        }
-
-        return ids;
-
-        static string FoldName(string value) => new([.. value.Normalize(System.Text.NormalizationForm.FormC).ToLowerInvariant().Where(char.IsLetterOrDigit)]);
-    }
-
-    /// <summary>Fills the book's gaps from the app: never over what the files said.</summary>
-    private async Task ApplyReadarrAsync(MediaItem book, BookDetails details, ReadarrBook match, ReadarrCatalogue catalogue, CancellationToken ct)
-    {
-        var edition = match.Edition;
-        details.ArrBookId = match.Id;
-        details.ArrAuthorId = match.AuthorId;
-        details.ArrInstance = catalogue.Instance.Name;
-        details.Asin ??= edition?.Asin is { Length: > 0 } asin ? asin.ToUpperInvariant() : null;
-        details.Isbn ??= edition?.Isbn13;
-        // Locked (edited or matched by hand): the links above, but nothing of the book's own, not even its gaps, so a
-        // field emptied on purpose stays empty.
-        if (book.MatchLocked)
-        {
-            return;
-        }
-
-        details.Publisher ??= edition?.Publisher;
-        details.Language ??= edition?.Language;
-        book.Overview ??= Plain(edition?.Overview) ?? Plain(match.Overview);
-        book.ReleaseDate ??= match.ReleaseDate is { } released ? DateOnly.FromDateTime(released) : null;
-        book.Year ??= book.ReleaseDate?.Year;
-        book.Studio ??= details.Publisher;
-        book.PosterUrl ??= Cover(match.Images) ?? Cover(edition?.Images ?? []);
-        // Where its details came from, as shown; deleting it goes through ArrInstance.
-        book.MetadataSource = catalogue.Instance.Name;
-
-        if (book.Genres.Count == 0 && BookGenres.Clean(match.Genres) is { Count: > 0 } readarrGenres)
-        {
-            foreach (var name in readarrGenres.Take(5))
-            {
-                book.Genres.Add(await BookGenres.FindAsync(db, name, ct).ConfigureAwait(false));
-            }
-        }
-
-        // Its series and place in them, when the files didn't say.
-        if (match.Id is { } id && catalogue.SeriesByBook.TryGetValue(id, out var places)
-            && (await SeriesEntriesAsync(book.Id, ct).ConfigureAwait(false)).Count == 0)
-        {
-            var added = new List<BookSeriesEntry>();
-            foreach (var (series, position) in places.Where(p => p.Series.Title is { Length: > 0 }))
-            {
-                var stored = await SeriesAsync(book.LibraryId, series.Title!, ct, Plain(series.Description), series.Id).ConfigureAwait(false);
-                if (added.All(e => e.SeriesId != stored.Id))
-                {
-                    added.Add(db.BookSeriesEntries.Add(new BookSeriesEntry { SeriesId = stored.Id, Series = stored, BookId = book.Id, Sequence = position, SortOrder = BookAssembler.SequenceOrder(position) }).Entity);
-                }
-            }
-        }
     }
 
     /// <summary>
@@ -342,8 +167,8 @@ public sealed partial class MetadataRefresher
         await CreditsAsync(book, CreditRole.Author, found.Authors, overwrite, ct).ConfigureAwait(false);
         await CreditsAsync(book, CreditRole.Narrator, found.Narrators, overwrite, ct).ConfigureAwait(false);
 
-        // Its series so far: saved, or just given by Readarr and not saved yet. A series the files (or Readarr) named
-        // without a number takes the provider's, for the same series or when each has one.
+        // Its series so far: saved, or just added and not saved yet. A series the files named without a number takes
+        // the provider's, for the same series or when each has one.
         var entries = await SeriesEntriesAsync(book.Id, ct).ConfigureAwait(false);
         if (!overwrite && found.Series.Count > 0 && entries.Count > 0)
         {
@@ -403,13 +228,13 @@ public sealed partial class MetadataRefresher
     private AuthorInfo? _authors;
 
     /// <summary>Authors' photos and biographies (see <see cref="AuthorInfo"/>).</summary>
-    private AuthorInfo Authors => _authors ??= new AuthorInfo(db, arr, settings, bookProviders, logger);
+    private AuthorInfo Authors => _authors ??= new AuthorInfo(db, bookProviders, logger);
 
     /// <summary>
     /// The photos and biographies of a book's authors, after its match was fixed by hand. The caller saves.
     /// </summary>
     public Task FillAuthorsAsync(MediaItem book, IReadOnlyCollection<string> knownAsins, CancellationToken ct) =>
-        Authors.FillBookAsync(book, ReadarrAuthorIndex.Empty, null, knownAsins, ct);
+        Authors.FillBookAsync(book, knownAsins, ct);
 
     /// <summary>A book's series entries, saved or only added so far, each with its series.</summary>
     private async Task<List<BookSeriesEntry>> SeriesEntriesAsync(Guid bookId, CancellationToken ct)
@@ -524,13 +349,6 @@ public sealed partial class MetadataRefresher
             book.Credits.Add(new Credit { MediaItemId = book.Id, Person = person, PersonId = person.Id, Role = role, Order = i });
         }
     }
-
-    /// <summary>A cover the app points at on the web; its own /MediaCover paths need its key, so they're left for other sources.</summary>
-    private static string? Cover(IReadOnlyList<ArrImage> images) =>
-        images.Where(i => i.CoverType is "cover" or "poster").Select(i => i.RemoteUrl)
-            .FirstOrDefault(u => u is not null && u.StartsWith("http", StringComparison.OrdinalIgnoreCase));
-
-    private static bool SameInstance(string a, string b) => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
 
     private static string? Plain(string? html) => string.IsNullOrWhiteSpace(html) ? null : BookSidecars.PlainText(html);
 }

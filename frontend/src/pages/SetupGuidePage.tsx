@@ -26,12 +26,12 @@ import {
 } from '../api/client'
 import { AsyncButton } from '../components/AsyncButton'
 import { FolderPicker } from '../components/FolderPicker'
-import { Antenna, AppleLogo, Book, Check, Close, External, Film, Home, Monitor, Music, Pencil, Phone, Stack, Tv } from '../components/icons'
+import { Antenna, AppleLogo, Check, Close, External, Film, Home, Monitor, Music, Pencil, Phone, Stack, Tv } from '../components/icons'
 import { PairingPrompt } from '../components/PairingPrompt'
 import { UnlockPrompt } from '../components/UnlockDialog'
 import { Avatar } from '../components/ProfilePicker'
 import { useApi } from '../hooks/useApi'
-import { appLogos, arrLabel } from '../lib/apps'
+import { appLogos } from '../lib/apps'
 import { libraryTypeLabel } from '../lib/format'
 import { freeColour, profileColours } from '../lib/profileColours'
 import { tooBroad } from '../lib/setupGuide'
@@ -262,9 +262,9 @@ function NameStep({ nav }: { nav: StepNav }) {
   )
 }
 
-const arrKinds: ArrKind[] = ['Sonarr', 'Radarr', 'Lidarr', 'Readarr']
-const arrPurpose: Record<ArrKind, string> = { Sonarr: 'TV shows', Radarr: 'Films', Lidarr: 'Music', Readarr: 'Audiobooks' }
-const usualUrl: Record<ArrKind, string> = { Sonarr: 'http://localhost:8989', Radarr: 'http://localhost:7878', Lidarr: 'http://localhost:8686', Readarr: 'http://localhost:8787' }
+const arrKinds: ArrKind[] = ['Sonarr', 'Radarr', 'Lidarr']
+const arrPurpose: Record<ArrKind, string> = { Sonarr: 'TV shows', Radarr: 'Films', Lidarr: 'Music' }
+const usualUrl: Record<ArrKind, string> = { Sonarr: 'http://localhost:8989', Radarr: 'http://localhost:7878', Lidarr: 'http://localhost:8686' }
 
 function AppsStep({ nav }: { nav: StepNav }) {
   const settings = useApi(getSettings, [])
@@ -323,7 +323,7 @@ function ArrTile(props: { kind: ArrKind; settings: Settings; found?: string; ope
     const connection = { name: kind, kind, baseUrl: address.trim(), apiKey: apiKey.trim() }
     try {
       const status = await testArr(connection)
-      if (!status.ok) return setError(status.error ?? `Couldn’t reach ${arrLabel[kind]}.`)
+      if (!status.ok) return setError(status.error ?? `Couldn’t reach ${kind}.`)
       const current = settings.arr.map((a) => ({ name: a.name, kind: a.kind, baseUrl: a.baseUrl, apiKey: undefined }))
       await saveSettings({ arr: [...current, connection] })
       props.onConnected()
@@ -368,7 +368,7 @@ function ArrTile(props: { kind: ArrKind; settings: Settings; found?: string; ope
       <div className="onboard-tile-line">
         <img className="onboard-app-logo" src={appLogos[kind]} alt="" />
         <span className="onboard-tile-text">
-          <strong>{arrLabel[kind]}</strong>
+          <strong>{kind}</strong>
           <span className={found && !connected ? 'onboard-found' : undefined}>{status}</span>
         </span>
         {connected ? (
@@ -403,7 +403,7 @@ function ArrTile(props: { kind: ArrKind; settings: Settings; found?: string; ope
           <label>
             <span>API key</span>
             <input type="text" autoComplete="off" spellCheck={false} value={apiKey} required onChange={(e) => setApiKey(e.target.value)} />
-            <small>In {kind === 'Readarr' ? 'the app' : kind}: Settings › General</small>
+            <small>In {kind}: Settings › General</small>
           </label>
           {error && (
             <p className="onboard-error" role="alert">
@@ -424,13 +424,10 @@ function ArrTile(props: { kind: ArrKind; settings: Settings; found?: string; ope
   )
 }
 
-const folderKind: Record<ArrKind, LibraryType> = { Sonarr: 'TvShows', Radarr: 'Movies', Lidarr: 'Music', Readarr: 'Audiobooks' }
-const kindIcon: Record<LibraryType, ReactNode> = { Movies: <Film />, TvShows: <Tv />, Music: <Music />, HomeVideos: <Home />, Podcasts: <Antenna />, Audiobooks: <Book /> }
-/**
- * The guide makes one library of each of these; more, and home videos, are in Settings › Libraries. Audiobooks join them
- * once a book app is connected (or there's a library of them already).
- */
-const kinds: LibraryType[] = ['Movies', 'TvShows', 'Music']
+const folderKind: Record<ArrKind, LibraryType> = { Sonarr: 'TvShows', Radarr: 'Movies', Lidarr: 'Music' }
+/** The guide makes one library of each of these; more, and home videos and audiobooks, are in Settings › Libraries. */
+const kinds = ['Movies', 'TvShows', 'Music'] as const satisfies readonly LibraryType[]
+const kindIcon: Record<(typeof kinds)[number], ReactNode> = { Movies: <Film />, TvShows: <Tv />, Music: <Music /> }
 
 interface Choice {
   folder: string
@@ -470,13 +467,11 @@ function LibrariesStep({ nav }: { nav: StepNav }) {
     )
   if (!libraries.data || (!folders.data && !folders.error)) return <p className="onboard-wait">Looking for your folders…</p>
   const existing = (type: LibraryType) => libraries.data!.find((l) => l.type === type)
-  const books = (folders.data ?? []).some((f) => f.kind === 'Readarr') || !!existing('Audiobooks')
-  const shown: LibraryType[] = books ? [...kinds, 'Audiobooks'] : kinds
   const suggested = (type: LibraryType) =>
     (folders.data ?? []).filter((f) => folderKind[f.kind] === type).map(localFolder).find((c): c is Choice => !!c)
   const choice = (type: LibraryType) => (type in chosen ? chosen[type] : suggested(type))
-  const toAdd = shown.filter((type) => !existing(type) && choice(type))
-  const added = shown.some((type) => existing(type))
+  const toAdd = kinds.filter((type) => !existing(type) && choice(type))
+  const added = kinds.some((type) => existing(type))
   const missing = (folders.data ?? []).filter((f) => !localFolder(f))
 
   async function add() {
@@ -500,7 +495,7 @@ function LibrariesStep({ nav }: { nav: StepNav }) {
   return (
     <>
       <div className="onboard-tiles">
-        {shown.map((type) => {
+        {kinds.map((type) => {
           const library = existing(type)
           const picked = choice(type)
           return (

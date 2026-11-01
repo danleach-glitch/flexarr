@@ -13,7 +13,7 @@ Connect Seerr in **Settings › Connections**: under **Apps & Integrations**, ch
 
 Seerr itself needs Radarr and Sonarr set up in its own settings, since it hands requests to them. Connect Sonarr and Radarr to Flexarr too, so requested titles show up the moment they're downloaded (see [Webhooks](connect-arrs.md#webhooks-new-downloads-appear-straight-away)).
 
-> **Note** Seerr requests are for films and shows. In the next release, audiobooks can be requested through Readarr, Bookshelf or Chaptarr: see [Audiobooks](#audiobooks). Music isn't requested.
+> **Note** Requests are for films and shows. Audiobooks and music aren't requested.
 
 ## Where you can request
 
@@ -96,12 +96,3 @@ To follow a request while it downloads, use Seerr itself, or **Coming soon** in 
 - **"Requests need a Seerr server":** Seerr isn't connected yet.
 - **"This profile can't request films" (or shows):** that kind of library is hidden from the profile you're using.
 - **"Seerr didn't accept the request":** it may already be requested, or Seerr turned it down. Seerr's own requests page says why.
-
-## Audiobooks
-
-Book requests arrive in the next release, on the web only. Seerr doesn't handle books, so Flexarr asks Readarr, Bookshelf or Chaptarr itself. Connect one in **Settings › Connections**, then under **Requests** in **Settings › Libraries** choose its **Quality**, **Metadata** and **Folder**.
-
-In Discover's search, **Search for any film, show or book**, find a book you don't have and choose **Request**. Each result says whether it's **In your library**, **Requested** or available to request. Flexarr adds the book (and its author, if they're new, without following their other books), then asks for it to be found. When it arrives, whoever asked hears that it's ready to listen.
-
-With more than one audiobooks library, the main profile chooses where each profile's books go with **New books go to**, in the profile's editor in **Settings › Profiles**.
-

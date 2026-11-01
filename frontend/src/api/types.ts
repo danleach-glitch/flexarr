@@ -6,8 +6,7 @@ export type CreditRole = 'Actor' | 'Director' | 'Writer' | 'Producer' | 'Creator
 export type PlaybackMethod = 'DirectPlay' | 'Transcode'
 export type MarkerType = 'Intro' | 'Recap' | 'Credits'
 export type HardwareAcceleration = 'Auto' | 'None' | 'VideoToolbox' | 'Vaapi' | 'Qsv' | 'Nvenc'
-/** Readarr stands for any Readarr-compatible app (Readarr, Bookshelf, Chaptarr). */
-export type ArrKind = 'Sonarr' | 'Radarr' | 'Lidarr' | 'Readarr'
+export type ArrKind = 'Sonarr' | 'Radarr' | 'Lidarr'
 
 export interface SystemStatus {
   appName: string
@@ -212,7 +211,7 @@ export interface Person {
 }
 
 /** Where an author's photo or biography came from; servers may add more. */
-export type PersonSource = 'folder' | 'readarr' | 'audible' | 'openlibrary' | 'tmdb' | 'tvmaze' | 'upload' | 'manual'
+export type PersonSource = 'folder' | 'audible' | 'openlibrary' | 'tmdb' | 'tvmaze' | 'upload' | 'manual'
 
 /** The photos and biographies an admin can choose from for an author: one of each per source at most. */
 export interface PersonCandidates {
@@ -599,8 +598,6 @@ export interface ArrStatus {
   ok: boolean
   version: string | null
   error: string | null
-  /** Which of the Readarr family answered: "Readarr", "Bookshelf" or "Chaptarr". Absent from servers before 0.58. */
-  app?: string | null
 }
 
 /** One of an app's root folders, and where Flexarr finds it. */

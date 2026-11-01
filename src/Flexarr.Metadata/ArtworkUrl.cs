@@ -18,8 +18,8 @@ public static partial class ArtworkUrl
         ["is3-ssl.mzstatic.com"] = ["/image/thumb/"],
         ["is4-ssl.mzstatic.com"] = ["/image/thumb/"],
         ["is5-ssl.mzstatic.com"] = ["/image/thumb/"],
-        // Book covers: Audible's (through Audnexus and its catalogue) and Open Library's (Fix match, book requests).
-        // Goodreads' covers (Readarr's, for requests) live on Amazon's hosts too, and on their own.
+        // Book covers: Audible's (through Audnexus and its catalogue) and Open Library's (Fix match). Goodreads' covers,
+        // which books matched by earlier dev builds may still carry, live on Amazon's hosts too, and on their own.
         ["m.media-amazon.com"] = ["/images/I/", "/images/S/compressed.photo.goodreads.com/"],
         ["images-na.ssl-images-amazon.com"] = ["/images/I/", "/images/S/compressed.photo.goodreads.com/"],
         ["i.gr-assets.com"] = ["/images/S/compressed.photo.goodreads.com/"],

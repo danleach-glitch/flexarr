@@ -100,7 +100,7 @@ fun TvHomeScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit) 
     val loader = rememberLoader(model.credentials, model.watchStateVersion) {
         // Books (and podcasts) aren't featured on the TV, and its rows of them go (see [shows]).
         // Asks for no books or podcasts in Continue watching: the TV app plays neither from there.
-        // Coming soon leaves out books too.
+        // Coming soon leaves out books too: dev servers before 0.58 sent them.
         val home = client.home().let { home ->
             home.copy(featured = home.featured.filter { it.showsOnTv }, rows = home.rows.filterNot { it.id.startsWith("books-") }, upcoming = home.upcoming.filter { it.kind != MediaKind.Audiobook })
         }
