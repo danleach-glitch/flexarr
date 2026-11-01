@@ -314,7 +314,7 @@ public static class FlexarrTools
         return list;
     }
 
-    [McpServerTool(Name = "mark_watched"), Description("Marks a film or episode watched (or unwatched) for this profile; a show or season marks every episode. Unwatched also forgets how far in it was, taking it out of Continue watching.")]
+    [McpServerTool(Name = "mark_watched"), Description("Marks a film, episode or audiobook watched (or unwatched) for this profile; a show or season marks every episode. Unwatched also forgets how far in it was, taking it out of Continue watching.")]
     public static async Task<string> MarkWatchedAsync([Description("The title's id")] Guid itemId, bool watched, PlaybackService playback, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(playback);

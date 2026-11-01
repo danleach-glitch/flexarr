@@ -159,6 +159,22 @@ public class AudiobookPlaybackTests(FlexarrApiFactory factory) : IClassFixture<F
     }
 
     [Fact]
+    public async Task MarkingABookWatched_FinishesIt_AndUnwatchedForgetsWhen()
+    {
+        var book = await SeedAsync(("book.m4b", "aac", 3600));
+
+        (await Client().PostAsJsonAsync(Url($"/api/v1/items/{book}/watched"), new { watched = true })).EnsureSuccessStatusCode();
+        var finished = (await GetAsync<BookManifestDto>($"/api/v1/items/{book}/book")).Progress;
+        (await Client().PostAsJsonAsync(Url($"/api/v1/items/{book}/watched"), new { watched = false })).EnsureSuccessStatusCode();
+        var unfinished = (await GetAsync<BookManifestDto>($"/api/v1/items/{book}/book")).Progress;
+
+        Assert.True(finished.Finished);
+        Assert.NotNull(finished.FinishedAt);
+        Assert.False(unfinished.Finished);
+        Assert.Null(unfinished.FinishedAt);
+    }
+
+    [Fact]
     public async Task ListenAgain_StartsOver_AndKeepsWhenItWasFinished()
     {
         var book = await SeedAsync(("book.m4b", "aac", 3600));

@@ -490,6 +490,12 @@ public sealed class PlaybackService(
             return false;
         }
 
+        if (item.Kind == MediaKind.Audiobook)
+        {
+            // A book keeps when it was finished, and forgets it when it's marked not finished.
+            return await Books.BookPlayback.SetFinishedAsync(db, itemId, profile.Id, watched, ct);
+        }
+
         var targets = item.Kind switch
         {
             MediaKind.Series => await db.MediaItems.Where(e => e.Parent!.ParentId == itemId).Select(e => e.Id).ToListAsync(ct),
