@@ -158,7 +158,12 @@ public sealed partial class MetadataRefresher
                     ?? (book.MatchLocked ? null : await bookProviders.FindAsync(book.Title, wanted.Authors, ct).ConfigureAwait(false));
                 if (found is not null)
                 {
-                    await ApplyOnlineAsync(book, details, found, overwrite: false, ct).ConfigureAwait(false);
+                    // Locked: only its authors' photos and biographies come from it (below), not the book's details.
+                    if (!book.MatchLocked)
+                    {
+                        await ApplyOnlineAsync(book, details, found, overwrite: false, ct).ConfigureAwait(false);
+                    }
+
                     authorAsins = found.AuthorAsins ?? [];
                     online = true;
                 }
@@ -253,6 +258,13 @@ public sealed partial class MetadataRefresher
         details.ArrInstance = catalogue.Instance.Name;
         details.Asin ??= edition?.Asin is { Length: > 0 } asin ? asin.ToUpperInvariant() : null;
         details.Isbn ??= edition?.Isbn13;
+        // Locked (edited or matched by hand): the links above, but nothing of the book's own, not even its gaps, so a
+        // field emptied on purpose stays empty.
+        if (book.MatchLocked)
+        {
+            return;
+        }
+
         details.Publisher ??= edition?.Publisher;
         details.Language ??= edition?.Language;
         book.Overview ??= Plain(edition?.Overview) ?? Plain(match.Overview);
