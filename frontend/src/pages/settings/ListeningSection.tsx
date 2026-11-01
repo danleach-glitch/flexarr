@@ -2,12 +2,10 @@ import { useState } from 'react'
 import {
   BOOK_LISTENING_CHANGED,
   getPodcastPreferences,
-  getRequestStatus,
   savePodcastPreferences,
   type PodcastPreferences,
 } from '../../api/client'
 import { useSession } from '../../hooks/sessionContext'
-import { BookRequestSetupGroup } from './RequestLibrarySelect'
 import { useApi } from '../../hooks/useApi'
 import { bookSpeedPresets, skipSteps, withCurrent } from '../../lib/books'
 import { PODCAST_PREFERENCES_CHANGED, speedLabel } from '../../lib/podcasts'
@@ -16,17 +14,15 @@ import { errorText } from './useSettings'
 
 /**
  * How this profile listens to podcasts and books: one speed, skip steps and smart rewind for both (a book with a
- * speed of its own keeps it), and what phones download by themselves. For the main profile, how book requests are made too.
+ * speed of its own keeps it), and what phones download by themselves.
  */
 /** The settings books share: a change to one of them reaches a book playing too. */
 const listeningKeys = ['speed', 'skipBackSeconds', 'skipForwardSeconds', 'smartRewind'] as const
 
 export function ListeningSection() {
-  const { me, profiles } = useSession()
+  const { profiles } = useSession()
   const name = profiles?.find((p) => p.isCurrent)?.name
-  const isAdmin = me?.isAdmin === true
   const preferences = useApi((signal) => getPodcastPreferences(signal), [])
-  const requests = useApi((signal) => getRequestStatus(signal).catch(() => undefined), [])
   // The server's answer to the last save, newer than the load.
   const [saved, setSaved] = useState<PodcastPreferences | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -108,8 +104,6 @@ export function ListeningSection() {
           </SettingsGroup>
         </>
       )}
-      {/* How book requests reach Readarr: the server's, for the main profile. */}
-      {isAdmin && requests.data?.books === true && <BookRequestSetupGroup />}
       {preferences.error && !p && <SaveStatus error={errorText(preferences.error)} />}
       {error && <SaveStatus error={error} />}
     </section>

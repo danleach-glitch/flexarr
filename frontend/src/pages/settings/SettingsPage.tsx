@@ -76,8 +76,8 @@ const moved: Record<string, string> = {
   podcasts: 'listening',
   audiobooks: 'listening',
   sidebar: 'navigation',
-  // Where a profile's requests go is in its editor in Profiles; the book request setup, in Podcasts & audiobooks.
-  requests: 'profiles',
+  // Where a profile's requests go is in its editor in Profiles; how books are requested, in Libraries.
+  requests: 'libraries',
 }
 
 export function SettingsPage() {
