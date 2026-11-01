@@ -339,8 +339,12 @@ struct BookView: View {
                 }
                 .buttonStyle(PillButtonStyle(selected: false, ambient: item.glowColor))
                 .lineLimit(1)
+                // Room inside the clip for a focused pill's lift, so pills scrolled away don't draw over the cover.
+                .padding(.vertical, 20)
+                .padding(.horizontal, 12)
             }
-            .scrollClipDisabled()
+            .padding(.vertical, -20)
+            .padding(.horizontal, -12)
             .focusSection()
         } else {
             let read = item.book?.narrator.map { "Read by \($0)" }
