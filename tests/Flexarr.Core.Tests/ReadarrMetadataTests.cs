@@ -86,13 +86,42 @@ public sealed class ReadarrMetadataTests : IAsyncLifetime
         Assert.Null((await _db.MediaItems.SingleAsync()).Overview);
     }
 
-    private MetadataRefresher Refresher()
+    [Fact]
+    public async Task ASeriesFromTheApp_AndTheSameOneOnline_IsOneEntry()
+    {
+        // Bookshelf puts it in Thursday Murder Club; Audible says the same. Both used to be added, and the refresh failed.
+        var library = await SeedAsync(("The Thursday Murder Club", "Richard Osman", "Richard Osman/The Thursday Murder Club", null),
+            ("The Man Who Died Twice", "Richard Osman", "Elsewhere/TMC2", null));
+
+        var result = await Refresher(online: true).RefreshLibraryAsync(library, force: true, default);
+
+        Assert.Equal((2, 0, 0, 0), (result.FromArr, result.FromLookup, result.Unmatched, result.FromLocal));
+        var entries = await _db.BookSeriesEntries.Include(e => e.Series).Include(e => e.Book).OrderBy(e => e.SortOrder).ToListAsync();
+        Assert.Equal([("Thursday Murder Club", "The Thursday Murder Club", "1"), ("Thursday Murder Club", "The Man Who Died Twice", "2")],
+            entries.Select(e => (e.Series!.Name, e.Book!.Title, e.Sequence!)));
+        Assert.Equal(1, await _db.BookSeries.CountAsync());
+        Assert.All(await _db.MediaItems.ToListAsync(), b => Assert.NotNull(b.MetadataUpdatedAt));
+    }
+
+    private MetadataRefresher Refresher(bool online = false)
     {
         var settings = new Settings(_dir,
             [new ArrInstance { Name = "Bookshelf", Kind = ArrKind.Readarr, BaseUrl = new Uri("http://bookshelf.test"), ApiKey = "k" }],
             [new PathMapping { From = "/data/audiobooks", To = Books }]);
         return new MetadataRefresher(_db, new ArrClient(new HttpClient(_arr)), new TvMazeClient(new HttpClient(_arr)),
-            new ImageCache(new HttpClient(_arr), settings, NullLogger<ImageCache>.Instance), settings, NullLogger<MetadataRefresher>.Instance);
+            new ImageCache(new HttpClient(_arr), settings, NullLogger<ImageCache>.Instance), settings, new Throwing(),
+            bookProviders: online ? new Flexarr.Metadata.Books.BookProviders(new HttpClient(_arr), () => settings) : null);
+    }
+
+    /// <summary>A log that fails the test on any exception logged: a book whose refresh failed is logged and skipped.</summary>
+    private sealed class Throwing : Microsoft.Extensions.Logging.ILogger<MetadataRefresher>
+    {
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel) => true;
+        public void Log<TState>(Microsoft.Extensions.Logging.LogLevel logLevel, Microsoft.Extensions.Logging.EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            if (exception is not null) throw new InvalidProgramException(formatter(state, exception), exception);
+        }
     }
 
     private async Task<Library> SeedAsync(params (string Title, string Author, string Folder, string? Overview)[] books)
@@ -146,6 +175,11 @@ public sealed class ReadarrMetadataTests : IAsyncLifetime
                 """,
             ["/api/v1/series?authorId=3"] = """
                 [{"id": 5, "title": "Thursday Murder Club", "links": [{"position": "1", "seriesPosition": 1, "bookId": 12}, {"position": "2", "bookId": 13}]}]
+                """,
+            // Audible, through Audnexus: the first book, in the same series as Bookshelf has it.
+            ["/books/B07QL7C4NL?region=us"] = """
+                {"asin": "B07QL7C4NL", "title": "The Thursday Murder Club", "authors": [{"name": "Richard Osman"}],
+                 "seriesPrimary": {"name": "Thursday Murder Club", "position": "1"}}
                 """,
         };
 

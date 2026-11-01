@@ -38,6 +38,23 @@ public class BookMatchTests(FlexarrApiFactory factory) : IClassFixture<FlexarrAp
     }
 
     [Fact]
+    public async Task FixMatch_OntoABookAlreadyInThatSeries_RenumbersIt()
+    {
+        using var app = Serve();
+        var client = Client(app);
+        var book = await SeedAsync(app, "TMC (rip)", 3600, series: ("Thursday Murder Club", "7"));
+
+        var applied = await client.PostAsJsonAsync(new Uri($"/api/v1/items/{book}/book-match", UriKind.Relative),
+            new { provider = "audible", id = "B0TESTASIN", query = "thursday murder club", author = "osman" });
+
+        Assert.Equal(HttpStatusCode.NoContent, applied.StatusCode);
+        using var scope = app.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        var entry = await db.BookSeriesEntries.Include(e => e.Series).SingleAsync(e => e.BookId == book);
+        Assert.Equal(("Thursday Murder Club", "1", 1.0), (entry.Series!.Name, entry.Sequence!, entry.SortOrder!.Value));
+    }
+
+    [Fact]
     public async Task Chapters_RenamedAndRetimed_ThenShifted_ThenAudibles()
     {
         using var app = Serve();
@@ -80,7 +97,8 @@ public class BookMatchTests(FlexarrApiFactory factory) : IClassFixture<FlexarrAp
         return client;
     }
 
-    private static async Task<Guid> SeedAsync(Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<Program> app, string title, double seconds, string? asin = null)
+    private static async Task<Guid> SeedAsync(Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<Program> app, string title, double seconds, string? asin = null,
+        (string Name, string Sequence)? series = null)
     {
         using var scope = app.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
@@ -91,6 +109,12 @@ public class BookMatchTests(FlexarrApiFactory factory) : IClassFixture<FlexarrAp
             Book = new BookDetails { DurationSeconds = seconds, Asin = asin },
         };
         db.AddRange(library, book);
+        if (series is var (name, sequence))
+        {
+            var stored = new BookSeries { LibraryId = library.Id, Name = name, SortName = name.ToLowerInvariant() };
+            db.AddRange(stored, new BookSeriesEntry { SeriesId = stored.Id, BookId = book.Id, Sequence = sequence, SortOrder = BookAssembler.SequenceOrder(sequence) });
+        }
+
         await db.SaveChangesAsync();
         return book.Id;
     }

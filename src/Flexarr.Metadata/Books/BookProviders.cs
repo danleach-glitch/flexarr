@@ -281,14 +281,14 @@ public sealed class BookProviders(HttpClient http, Func<IMetadataSettings> setti
         return response.IsSuccessStatusCode ? await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false) : null;
     });
 
-    /// <summary>An answer from the disk cache, or fetched and kept; null (not kept) when fetching failed.</summary>
+    /// <summary>An answer from the disk cache, or fetched and kept; null (not kept) when fetching failed, and null for anything but a JSON object.</summary>
     private async Task<JsonNode?> CachedAsync(string key, Func<Task<string?>> fetch)
     {
         var directory = Path.Combine(settings().CacheDirectory, "book-metadata");
         var file = Path.Combine(directory, Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(key)))[..32] + ".json");
         if (File.Exists(file) && File.GetLastWriteTimeUtc(file) > DateTime.UtcNow - CacheFor)
         {
-            return JsonNode.Parse(await File.ReadAllTextAsync(file).ConfigureAwait(false));
+            return JsonNode.Parse(await File.ReadAllTextAsync(file).ConfigureAwait(false)) as JsonObject;
         }
 
         var body = await fetch().ConfigureAwait(false);
@@ -299,7 +299,7 @@ public sealed class BookProviders(HttpClient http, Func<IMetadataSettings> setti
 
         Directory.CreateDirectory(directory);
         await File.WriteAllTextAsync(file, body).ConfigureAwait(false);
-        return JsonNode.Parse(body);
+        return JsonNode.Parse(body) as JsonObject; // every answer worth reading is an object
     }
 
     private static async Task<T?> TryAsync<T>(Func<Task<T?>> call) where T : class
