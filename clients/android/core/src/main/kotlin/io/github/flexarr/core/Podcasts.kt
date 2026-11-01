@@ -26,8 +26,27 @@ data class PodcastSubscription(
 data class PodcastPreferences(
     val autoDownload: Boolean = true,
     val keepEpisodes: Int = 3,
+    /** The profile's one speed, for podcasts and books (from 0.58; before, podcasts' own). */
     val speed: Double = 1.0,
-)
+    /** Seconds skip back and forward jump, in podcasts and books alike. Absent from servers before 0.58. */
+    val skipBackSeconds: Int? = null,
+    val skipForwardSeconds: Int? = null,
+    /** After a pause, an episode or book picks up a little earlier. Absent from servers before 0.58. */
+    val smartRewind: Boolean? = null,
+) {
+    /** The skips and smart rewind the server shares with books (0.58 on), or null from an older one. */
+    val listening: BookListening?
+        get() = if (skipBackSeconds != null && skipForwardSeconds != null && smartRewind != null) {
+            BookListening(BookSpeed.snapped(speed), skipBackSeconds, skipForwardSeconds, smartRewind)
+        } else null
+
+    /** A podcast's skip back: the profile's, or 15 seconds from a server before 0.58. */
+    val podcastSkipBack: Int get() = skipBackSeconds ?: 15
+    /** A podcast's skip forward: the profile's, or 30 seconds from a server before 0.58. */
+    val podcastSkipForward: Int get() = skipForwardSeconds ?: 30
+    /** Smart rewind for podcasts: the profile's, or off on a server before 0.58. */
+    val podcastSmartRewind: Boolean get() = smartRewind ?: false
+}
 
 /** Changes to the podcast preferences; null leaves one as it is. */
 @Serializable
@@ -35,6 +54,9 @@ data class PodcastPreferencesUpdate(
     val autoDownload: Boolean? = null,
     val keepEpisodes: Int? = null,
     val speed: Double? = null,
+    val skipBackSeconds: Int? = null,
+    val skipForwardSeconds: Int? = null,
+    val smartRewind: Boolean? = null,
 )
 
 @Serializable

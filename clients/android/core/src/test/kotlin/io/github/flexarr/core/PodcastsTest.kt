@@ -66,4 +66,21 @@ class PodcastsTest {
     fun `a time past the end of the episode isn't a link`() {
         assertEquals(listOf(30.0), noteLinks("0:30 and 52:50", durationSeconds = 600.0).filterIsInstance<NoteLink.Seek>().map { it.seconds })
     }
+
+    @Test
+    fun `podcast preferences carry the listening shared with books, and an older server skips 15 and 30 without smart rewind`() = runTest {
+        server.enqueue(json("""{"autoDownload":true,"keepEpisodes":3,"speed":1.3,"showInSidebar":true,"skipBackSeconds":10,"skipForwardSeconds":45,"smartRewind":true}"""))
+        server.enqueue(json("""{"autoDownload":true,"keepEpisodes":3,"speed":1.0}"""))
+        val client = FlexarrClient(server.url("/"))
+
+        val shared = client.podcastPreferences()
+        assertEquals(BookListening(1.3, 10, 45, true), shared.listening)
+        assertEquals(Triple(10, 45, true), Triple(shared.podcastSkipBack, shared.podcastSkipForward, shared.podcastSmartRewind))
+        assertTrue(1.3 in BookSpeed.choices(shared.speed))
+
+        val older = client.podcastPreferences()
+        assertNull(older.listening)
+        assertEquals(Triple(15, 30, false), Triple(older.podcastSkipBack, older.podcastSkipForward, older.podcastSmartRewind))
+        assertEquals(BookSpeed.presets, BookSpeed.choices(1.0))
+    }
 }
