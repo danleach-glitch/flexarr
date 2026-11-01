@@ -102,7 +102,7 @@ import kotlinx.coroutines.launch
 // An audiobooks library, as the iPhone app's music library is laid out: shelves to browse, then every book (with filters
 // and orders), the series, and the authors and narrators.
 
-private enum class BooksView(val label: String) { Shelves("Browse"), All("All"), Series("Series"), Authors("Authors"), Narrators("Narrators") }
+private enum class BooksView(val label: String) { Shelves("Browse"), All("All books"), Series("Series"), Authors("Authors"), Narrators("Narrators") }
 
 /** An audiobooks library; [view] "" opens its shelves, or a [BookSort]'s raw value every book in that order. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -134,7 +134,7 @@ fun BookLibraryScreen(model: AppModel, libraryId: String, view: String) {
                     query = BookQuery(genre = genre)
                     shown = BooksView.All
                 }
-                BooksView.All -> AllBooks(model, libraryId, query)
+                BooksView.All -> AllBooks(model, libraryId, query) { query = BookQuery(sort = query.sort, descending = query.descending) }
                 BooksView.Series -> SeriesGrid(model, libraryId)
                 BooksView.Authors -> PeopleGrid(model, libraryId, BookPersonRole.Author)
                 BooksView.Narrators -> PeopleGrid(model, libraryId, BookPersonRole.Narrator)
@@ -152,7 +152,7 @@ private fun Shelves(model: AppModel, libraryId: String, openGenre: (String) -> U
     val loader = rememberLoader(libraryId, model.watchStateVersion) { client.bookShelves(libraryId) }
     Loaded(loader) { shelves: BookShelves ->
         val empty = shelves.recentlyAdded.isEmpty() && shelves.continueListening.isEmpty() && shelves.series.isEmpty()
-        if (empty) return@Loaded StatusView("No books here yet.", empty = true)
+        if (empty) return@Loaded StatusView("No books yet.", empty = true)
         PullToRefreshBox(isRefreshing = loader.refreshing, onRefresh = loader.retry) {
             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
                 bookShelf("Continue listening", shelves.continueListening, plays = { navigator.playBook(it) })
@@ -309,6 +309,8 @@ private fun <T> PagedGrid(
     emptyMessage: String,
     retry: () -> Unit,
     minimum: Dp = GridMinimum,
+    /** Offered beneath [emptyMessage]: a way out of filters that match nothing. */
+    emptyAction: Pair<String, () -> Unit>? = null,
     header: (LazyGridScope.() -> Unit)? = null,
     cell: @Composable (T) -> Unit,
 ) {
@@ -317,6 +319,14 @@ private fun <T> PagedGrid(
     when {
         failed != null -> StatusView(failed, retry)
         pager.items.isEmpty() && pager.loading -> StatusView()
+        pager.items.isEmpty() && emptyAction != null -> Column(
+            Modifier.fillMaxSize().padding(32.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(emptyMessage, fontSize = 17.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher)
+            PillButton(emptyAction.first, false, emptyAction.second)
+        }
         pager.items.isEmpty() -> StatusView(emptyMessage, empty = true)
         else -> LazyVerticalGrid(
             columns = GridCells.Adaptive(minimum),
@@ -336,15 +346,16 @@ private fun <T> PagedGrid(
 
 /** Every book, in the order and with the filters chosen. */
 @Composable
-private fun AllBooks(model: AppModel, libraryId: String, query: BookQuery) {
+private fun AllBooks(model: AppModel, libraryId: String, query: BookQuery, clearFilters: () -> Unit) {
     val client = model.client ?: return
     val pager = remember(libraryId, query) { Pager<ItemSummary>({ it.id }) { skip, take -> client.books(libraryId, query, skip, take) } }
     var attempt by remember { mutableIntStateOf(0) }
     LaunchedEffect(pager, attempt, model.watchStateVersion) { pager.reload() }
     PagedGrid(
         pager,
-        if (query.isFiltered) "No books match." else "No books here yet.",
+        if (query.isFiltered) "No books match." else "No books yet.",
         retry = { attempt++ },
+        emptyAction = if (query.isFiltered) "Clear filters" to clearFilters else null,
         header = {
             item(span = { GridItemSpan(maxLineSpan) }) {
                 val words = listOfNotNull(query.genre, query.progress?.label, lengthLabel(query)).joinToString("   ")
