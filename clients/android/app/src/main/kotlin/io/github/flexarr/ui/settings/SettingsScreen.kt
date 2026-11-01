@@ -186,11 +186,12 @@ fun SettingsScreen(
                             ProfileAvatar(model, current, size = 44)
                             Text(current.name, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, modifier = Modifier.weight(1f))
                             // Locked to one kids profile, the picker is still the way to unlock. A guest has the one profile.
-                            if (!model.isGuest && (model.profiles.size > 1 || model.kidsLock)) {
+                            // Choosing someone else takes the server.
+                            if (!model.isGuest && !model.serverUnreachable && (model.profiles.size > 1 || model.kidsLock)) {
                                 Text("Switch", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.silver, modifier = Modifier.pressable({ choosingProfile = true }).padding(6.dp))
                             }
                         }
-                        if (model.canLockToKids) {
+                        if (model.canLockToKids && !model.serverUnreachable) {
                             Divider()
                             Row(
                                 Modifier.fillMaxWidth().pressable(::lockToKids, enabled = !lockingToKids).padding(horizontal = 16.dp, vertical = 14.dp),
@@ -251,7 +252,9 @@ fun SettingsScreen(
             item {
                 Group {
                     // With an address for away from home, which of the two it's using; otherwise the server's name.
-                    val host = if (model.isGuest) {
+                    val host = if (model.serverUnreachable) {
+                        "Offline"
+                    } else if (model.isGuest) {
                         "By invite"
                     } else if (model.credentials?.remoteAddress != null) {
                         if (model.client?.addresses?.isAway == true) "Away" else "At home"
