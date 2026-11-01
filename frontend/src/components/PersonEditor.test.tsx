@@ -284,3 +284,14 @@ describe('PersonEditor', () => {
     expect(onClose).not.toHaveBeenCalled()
   })
 })
+
+describe('safeImageSrc', () => {
+  it('keeps object URLs and the server’s own paths, and drops anything else', async () => {
+    const { safeImageSrc } = await import('../lib/safeImageSrc')
+    expect(safeImageSrc('blob:http://localhost/abc')).toBe('blob:http://localhost/abc')
+    expect(safeImageSrc('/api/v1/images/people/1/candidates/audible')).toBe('/api/v1/images/people/1/candidates/audible')
+    expect(safeImageSrc('//evil.example/x.png')).toBeUndefined()
+    expect(safeImageSrc('javascript:alert(1)')).toBeUndefined()
+    expect(safeImageSrc('https://example.com/x.png')).toBeUndefined()
+  })
+})

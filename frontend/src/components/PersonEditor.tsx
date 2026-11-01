@@ -4,6 +4,7 @@ import { useApi } from '../hooks/useApi'
 import { useModal } from '../hooks/useModal'
 import { usePreviewUrl } from '../hooks/usePreviewUrl'
 import { AsyncButton } from './AsyncButton'
+import { safeImageSrc } from '../lib/safeImageSrc'
 
 const sourceNames: Record<string, string> = {
   folder: 'Folder',
@@ -247,7 +248,7 @@ function PhotoChoice({
 }) {
   return (
     <button type="button" role="radio" aria-checked={checked} tabIndex={tabbable ? 0 : -1} className="person-editor-photo" disabled={disabled} onClick={onChoose}>
-      <img src={image} alt="" onError={onError} />
+      <img src={safeImageSrc(image)} alt="" onError={onError} />
       <span>
         {label}
         {current && <span className="tag keep">Current</span>}
