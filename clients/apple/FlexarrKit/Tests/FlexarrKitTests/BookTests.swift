@@ -161,4 +161,29 @@ struct BookDecodingTests {
         #expect(https.bookFileRequest(file("https://flexarr.example.com:443/a.mp3")) != nil)
         #expect(https.bookFileRequest(file("http://flexarr.example.com/a.mp3")) == nil)
     }
+
+    @Test func aDownloadedManifestTakesTheServersSettingsButKeepsItsFiles() throws {
+        let saved = try FlexarrClient.decoder.decode(BookManifest.self, from: Data(BookJSON.manifest.utf8))
+        let fresh = BookManifest(itemId: "b1", durationSeconds: 999,
+                                 files: [BookFile(index: 0, fileId: "other", offsetSeconds: 0, durationSeconds: 999, url: "/api/v1/playback/new/book/0")],
+                                 chapters: [], bookmarks: [Bookmark(id: "m2", positionSeconds: 90, note: nil, createdAt: Date())],
+                                 progress: BookProgress(positionSeconds: 200, finished: true), speed: 1.6,
+                                 listening: BookListening(speed: 1.1, skipBackSeconds: 10, skipForwardSeconds: 45, smartRewind: false))
+        let merged = saved.refreshed(from: fresh)
+        #expect(merged.files == saved.files)
+        #expect(merged.chapters == saved.chapters)
+        #expect(merged.durationSeconds == 300)
+        #expect(merged.bookmarks.map(\.id) == ["m2"])
+        #expect(merged.speed == 1.6)
+        #expect(merged.listening.skipBackSeconds == 10)
+        #expect(!merged.listening.smartRewind)
+        #expect(merged.progress.finished)
+        // A speed chosen offline and not yet sent wins.
+        #expect(saved.refreshed(from: fresh, speed: 2).speed == 2)
+        // Another book's manifest changes nothing.
+        let other = BookManifest(itemId: "b2", durationSeconds: 1, files: [], chapters: [], speed: 3)
+        #expect(saved.refreshed(from: other) == saved)
+        #expect(saved.withSpeed(1.5).speed == 1.5)
+        #expect(saved.withSpeed(1.5).files == saved.files)
+    }
 }

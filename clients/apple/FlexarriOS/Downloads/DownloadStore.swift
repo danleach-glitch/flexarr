@@ -57,6 +57,8 @@ struct LocalDownload: Codable, Identifiable, Hashable {
 struct LocalBook: Codable, Hashable {
     var manifest: BookManifest
     var files: [String?]
+    /// A speed chosen while it played from here, not yet sent to the server.
+    var unsentSpeed: Double?
 
     var isComplete: Bool { !files.isEmpty && files.allSatisfy { $0 != nil } }
 }
@@ -449,6 +451,15 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
                 update(download.id) { if $0.unsent == unsent { $0.unsent = nil } }
             } catch {
                 log.warning("Couldn't send offline progress", error: error)
+            }
+        }
+        for download in all where download.profileId == profileId {
+            guard let speed = download.book?.unsentSpeed else { continue }
+            do {
+                try await client.setPlaybackSpeed(itemId: download.item.id, speed: speed)
+                update(download.id) { if $0.book?.unsentSpeed == speed { $0.book?.unsentSpeed = nil } }
+            } catch {
+                log.warning("Couldn't send a book's speed", error: error)
             }
         }
         deleteFinished() // podcast episodes whose play was waiting to be sent
@@ -924,6 +935,22 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
             $0.unsent = UnsentProgress(position: position, finished: ended, playedAt: Date())
         }
         if ended { bookFinished(itemId: itemId) }
+        if isOnline { Task { await catchUp() } }
+    }
+
+    func refreshBook(_ fresh: BookManifest) -> BookManifest? {
+        guard let download = entry(for: fresh.itemId), let book = download.book else { return nil }
+        let manifest = book.manifest.refreshed(from: fresh, speed: book.unsentSpeed)
+        if manifest != book.manifest { update(download.id) { $0.book?.manifest = manifest } }
+        return manifest
+    }
+
+    func recordBookSpeed(itemId: String, speed: Double) {
+        guard let download = entry(for: itemId), let book = download.book else { return }
+        update(download.id) {
+            $0.book?.manifest = book.manifest.withSpeed(speed)
+            $0.book?.unsentSpeed = speed
+        }
         if isOnline { Task { await catchUp() } }
     }
 

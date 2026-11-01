@@ -25,12 +25,19 @@ protocol OfflineMusicLibrary: AnyObject {
     func recordBook(itemId: String, position: Double, ended: Bool)
     /// A downloaded book was heard to the end on this device (and not started again since).
     func isBookFinished(_ bookId: String) -> Bool
+    /// The server's manifest for a downloaded book, fetched as it starts: its speed, bookmarks and listening settings
+    /// are kept with the download (a speed changed offline and not yet sent stays). The download's manifest after.
+    func refreshBook(_ fresh: BookManifest) -> BookManifest?
+    /// A downloaded book's speed changed: kept with it, and sent to the server once there's a connection.
+    func recordBookSpeed(itemId: String, speed: Double)
 }
 
 extension OfflineMusicLibrary {
     func localBook(for bookId: String) -> (manifest: BookManifest, files: [URL])? { nil }
     func recordBook(itemId: String, position: Double, ended: Bool) {}
     func isBookFinished(_ bookId: String) -> Bool { false }
+    func refreshBook(_ fresh: BookManifest) -> BookManifest? { nil }
+    func recordBookSpeed(itemId: String, speed: Double) {}
 }
 
 /// Where this device last was in each book, and when: the server's place is offered as "Jump to …" only when it's
@@ -324,15 +331,23 @@ final class MusicPlayer {
         pushNowPlaying()
     }
 
-    /// The book's own speed, kept on the server once the listener stops changing it.
+    /// The book's own speed, kept on the server once the listener stops changing it. A downloaded book keeps it
+    /// with its download too, and the server hears of it once there's a connection.
     private func saveBookSpeed() {
-        guard let client, let id = current?.id else { return }
+        guard let id = current?.id else { return }
         let speed = speed
+        let offline = isPlayingOffline
+        let client = client
+        if let manifest = book { book = manifest.withSpeed(speed) }
         speedSave?.cancel()
         speedSave = Task {
             try? await Task.sleep(for: .seconds(1))
             guard !Task.isCancelled else { return }
-            try? await client.setPlaybackSpeed(itemId: id, speed: speed)
+            if offline {
+                offlineLibrary?.recordBookSpeed(itemId: id, speed: speed)
+            } else {
+                try? await client?.setPlaybackSpeed(itemId: id, speed: speed)
+            }
         }
     }
 
@@ -641,12 +656,14 @@ final class MusicPlayer {
             let place = requested ?? (saved > 0 ? saved : finished ? 0 : local?.position ?? downloaded.manifest.progress.positionSeconds)
             beginBook(downloaded.manifest, urls: downloaded.files, at: place)
             if artwork == nil { loadArtwork(for: track, generation: mine) }
-            // With a connection, the server may know a newer place from another device: offered, not jumped to.
-            if requested == nil, let client {
+            // With a connection, the server knows the speed, bookmarks and listening settings chosen since the download,
+            // and maybe a newer place from another device: offered, not jumped to.
+            if let client {
                 let at = local?.at
                 Task {
                     guard let fresh = try? await client.bookManifest(track.id, codecs: Self.bookCodecs), mine == generation else { return }
-                    if BookResume.offersJump(server: fresh.progress, local: position, localAt: at, device: Self.deviceName) {
+                    applyFresh(offlineLibrary?.refreshBook(fresh) ?? downloaded.manifest.refreshed(from: fresh, speed: speed))
+                    if requested == nil, BookResume.offersJump(server: fresh.progress, local: position, localAt: at, device: Self.deviceName) {
                         jumpOffer = fresh.progress
                     }
                 }
@@ -704,6 +721,20 @@ final class MusicPlayer {
         bookFile = -1
         loadBookFile(at: min(max(0, place), max(0, duration - 1)), play: true)
         isLoading = false
+        pushNowPlaying()
+    }
+
+    /// A downloaded book's manifest brought up to date while it plays: the speed, bookmarks and skip steps change.
+    private func applyFresh(_ manifest: BookManifest) {
+        guard isBook, book?.itemId == manifest.itemId else { return }
+        book = manifest
+        bookmarks = manifest.bookmarks
+        let fresh = BookSpeed.clamped(manifest.speed)
+        if fresh != speed {
+            speed = fresh
+            player.defaultRate = playRate
+            if isPlaying { player.rate = playRate }
+        }
         pushNowPlaying()
     }
 

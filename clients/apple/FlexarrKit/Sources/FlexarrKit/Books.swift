@@ -214,6 +214,22 @@ public struct BookManifest: Codable, Sendable, Hashable {
     }
 
     public var timeline: BookTimeline { BookTimeline(files: files, chapters: chapters, duration: durationSeconds) }
+
+    /// A downloaded book's manifest brought up to date from `fresh` (the server's now): the speed, bookmarks, how
+    /// this profile listens, where it is and the series' next book come from the server; the files, chapters and
+    /// length stay these, which describe the files on the device. `speed`, when given, wins over the server's (a
+    /// change made offline that the server hasn't been told yet).
+    public func refreshed(from fresh: BookManifest, speed: Double? = nil) -> BookManifest {
+        guard fresh.itemId == itemId else { return self }
+        return BookManifest(itemId: itemId, durationSeconds: durationSeconds, files: files, chapters: chapters, bookmarks: fresh.bookmarks,
+                            progress: fresh.progress, speed: speed ?? fresh.speed, listening: fresh.listening, nextInSeries: fresh.nextInSeries)
+    }
+
+    /// The same manifest at another speed.
+    public func withSpeed(_ speed: Double) -> BookManifest {
+        BookManifest(itemId: itemId, durationSeconds: durationSeconds, files: files, chapters: chapters, bookmarks: bookmarks,
+                     progress: progress, speed: speed, listening: listening, nextInSeries: nextInSeries)
+    }
 }
 
 /// A place a device reached in a book, for `PUT /items/{id}/progress` (offline listening sent later with its time).
