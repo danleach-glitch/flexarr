@@ -293,6 +293,35 @@ public sealed class AuthorInfoTests : IAsyncLifetime
             AuthorInfo.ArrPhoto([new ArrImage("poster", "https://s.gr-assets.com/assets/nophoto/author.png", null), new ArrImage("poster", "https://images.gr-assets.com/authors/1.jpg", null)]));
     }
 
+    [Theory]
+    [InlineData("https://m.media-amazon.com/images/I/osman.jpg", "audible", true)]
+    [InlineData("https://images-na.ssl-images-amazon.com/images/I/osman.jpg", "audible", true)]
+    [InlineData("https://192.168.1.1/x.jpg", "audible", false)]
+    [InlineData("https://images.example/x.jpg", "audible", false)]
+    [InlineData("https://covers.openlibrary.org/a/olid/OL1A-L.jpg", "openlibrary", true)]
+    [InlineData("https://openlibrary.org.evil.example/x.jpg", "openlibrary", false)]
+    [InlineData("https://images.gr-assets.com/authors/1.jpg", "readarr", true)]
+    [InlineData("https://192.168.1.1/x.jpg", "readarr", false)]
+    [InlineData("https://[::1]/x.jpg", "readarr", false)]
+    [InlineData("https://router/x.jpg", "readarr", false)]
+    [InlineData("https://nas.local/x.jpg", "readarr", false)]
+    [InlineData("https://images.example:8443/x.jpg", "readarr", false)]
+    [InlineData("http://images.example/x.jpg", "readarr", false)]
+    public void AProvidersPhoto_IsOnlyTakenFromWhereItShouldBe(string url, string source, bool taken) =>
+        Assert.Equal(taken, AuthorInfo.OnlinePhoto(url, source) is not null);
+
+    [Fact]
+    public async Task AnAudiblePhotoOnTheHomeNetwork_IsntTaken()
+    {
+        _web.Answers[("api.audnex.us", "/authors/B074KL81KM")] = """{"asin": "B074KL81KM", "name": "Richard Osman", "description": "From Audible.", "image": "https://192.168.1.1/admin.jpg"}""";
+        var library = await SeedAsync(new Person { Name = Osman });
+
+        await Refresher().RefreshLibraryAsync(library, force: true, default);
+
+        var osman = await PersonAsync(Osman);
+        Assert.Equal(("From Audible.", null), (osman.Biography, osman.ImageUrl));
+    }
+
     /// <summary>Just the authors, online providers left out.</summary>
     private AuthorInfo Authors(BookProviders? providers = null) =>
         new(_db, new ArrClient(new HttpClient(_web)), new Settings(_dir, []), providers, NullLogger.Instance);

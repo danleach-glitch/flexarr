@@ -187,7 +187,7 @@ public sealed partial class AuthorInfo(FlexarrDbContext db, ArrClient arr, IMeta
         Add(PersonSources.Folder, (await FolderPhotoAsync(person.Name, books, ct).ConfigureAwait(false)).Photo, null);
         if ((await ReadarrAuthorsAsync(ct).ConfigureAwait(false)).FirstOrDefault(a => a.AuthorName is { } name && Fold(name) == Fold(person.Name)) is { } fromArr)
         {
-            Add(PersonSources.Readarr, ArrPhoto(fromArr.Images), Plain(fromArr.Overview));
+            Add(PersonSources.Readarr, OnlinePhoto(ArrPhoto(fromArr.Images), PersonSources.Readarr), Plain(fromArr.Overview));
         }
 
         if (providers is not null)
@@ -196,7 +196,7 @@ public sealed partial class AuthorInfo(FlexarrDbContext db, ArrClient arr, IMeta
             {
                 if (await AudibleAsync(person, [], ct).ConfigureAwait(false) is { } audible)
                 {
-                    Add(PersonSources.Audible, audible.Image, audible.Biography);
+                    Add(PersonSources.Audible, OnlinePhoto(audible.Image, PersonSources.Audible), audible.Biography);
                 }
             }
             catch (Exception ex) when (IsFailure(ex, ct))
@@ -208,7 +208,7 @@ public sealed partial class AuthorInfo(FlexarrDbContext db, ArrClient arr, IMeta
             {
                 if (await providers.OpenLibraryAuthorAsync(person.Name, [.. books.Select(b => b.Title)], ct).ConfigureAwait(false) is { } openLibrary)
                 {
-                    Add(PersonSources.OpenLibrary, openLibrary.Image, openLibrary.Biography);
+                    Add(PersonSources.OpenLibrary, OnlinePhoto(openLibrary.Image, PersonSources.OpenLibrary), openLibrary.Biography);
                 }
             }
             catch (Exception ex) when (IsFailure(ex, ct))
@@ -261,10 +261,41 @@ public sealed partial class AuthorInfo(FlexarrDbContext db, ArrClient arr, IMeta
             person.BiographySource = source;
         }
 
-        if (person.ImageUrl is null && ArtworkUrl.IsHttps(image))
+        if (person.ImageUrl is null && OnlinePhoto(image, source) is { } photo)
         {
-            PersonSources.SetPhoto(person, image, source, now);
+            PersonSources.SetPhoto(person, photo, source, now);
         }
+    }
+
+    /// <summary>Where Audible's author photos live: Amazon's image hosts.</summary>
+    private static readonly string[] AmazonImageSites = ["media-amazon.com", "ssl-images-amazon.com", "images-amazon.com"];
+
+    /// <summary>
+    /// A photo a provider gave, if it's one the server may fetch: Audible's only from Amazon's image hosts, Open
+    /// Library's only from its covers host, and anyone's only over https from a name on the internet (not an address, a
+    /// port, or a name that only means something at home), so a bad answer can't point the server at the home network.
+    /// </summary>
+    internal static string? OnlinePhoto(string? url, string source)
+    {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps || uri.HostNameType != UriHostNameType.Dns
+            || !uri.IsDefaultPort || !uri.Host.Contains('.', StringComparison.Ordinal) || !string.IsNullOrEmpty(uri.UserInfo))
+        {
+            return null;
+        }
+
+        var host = uri.Host.TrimEnd('.').ToLowerInvariant();
+        if (host.EndsWith(".local", StringComparison.Ordinal) || host.EndsWith(".lan", StringComparison.Ordinal) || host.EndsWith(".localhost", StringComparison.Ordinal)
+            || host.EndsWith(".internal", StringComparison.Ordinal) || host.EndsWith(".home.arpa", StringComparison.Ordinal) || host.EndsWith(".ts.net", StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        return source switch
+        {
+            PersonSources.Audible => AmazonImageSites.Any(site => host == site || host.EndsWith("." + site, StringComparison.Ordinal)) ? url : null,
+            PersonSources.OpenLibrary => host == "covers.openlibrary.org" ? url : null,
+            _ => url,
+        };
     }
 
     private static bool Missing(Person person) => person.ImageUrl is null || person.Biography is null;
