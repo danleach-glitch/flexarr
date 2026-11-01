@@ -126,6 +126,7 @@ import io.github.flexarr.ui.theme.glowColor
 import io.github.flexarr.ui.theme.marquee
 import java.util.Locale
 import io.github.flexarr.ui.theme.Tokens
+import io.github.flexarr.ui.theme.FlexarrIcons
 
 /**
  * Detail for a film, show or episode (a season opens its show with that season picked). The backdrop sits at the top,
@@ -311,7 +312,7 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
     val buttons = if (playsOn && DetailActions.Button.MORE !in actions.buttons) actions.buttons + DetailActions.Button.MORE else actions.buttons
     Column(Modifier.padding(horizontal = Edge).widthIn(max = 520.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
         if (playable != null) {
-            ActionButton(playLabel(playable, item), onClick = { navigator.play(playable) }, icon = Icons.Filled.PlayArrow, prominent = true, ambient = ambient, modifier = Modifier.fillMaxWidth())
+            ActionButton(playLabel(playable, item), onClick = { navigator.play(playable) }, icon = FlexarrIcons.play, prominent = true, ambient = ambient, modifier = Modifier.fillMaxWidth())
         }
         // Sharing the width, until large text or many actions would shrink the names to fit: then each its own size,
         // scrolling sideways.
@@ -322,13 +323,13 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
                 when (button) {
                     DetailActions.Button.PLAY -> Unit
                     DetailActions.Button.START_OVER -> playable?.let { target ->
-                        LabeledAction("Start over", Icons.Filled.Replay, { navigator.play(target, fromBeginning = true) }, slot)
+                        LabeledAction("Start over", FlexarrIcons.startOver, { navigator.play(target, fromBeginning = true) }, slot)
                     }
-                    DetailActions.Button.SHUFFLE -> if (item.childCount > 0) LabeledAction("Shuffle", Icons.Filled.Shuffle, { navigator.shuffle(item) }, slot)
-                    DetailActions.Button.TRAILER -> LabeledAction("Trailer", Icons.Filled.Theaters, { showingTrailer = true }, slot)
+                    DetailActions.Button.SHUFFLE -> if (item.childCount > 0) LabeledAction("Shuffle", FlexarrIcons.shuffle, { navigator.shuffle(item) }, slot)
+                    DetailActions.Button.TRAILER -> LabeledAction("Trailer", FlexarrIcons.trailer, { showingTrailer = true }, slot)
                     DetailActions.Button.WATCHED -> LabeledAction(
                         if (watched) "Mark as unwatched" else "Mark as watched",
-                        if (watched) Icons.Filled.VisibilityOff else Icons.Filled.Check,
+                        if (watched) FlexarrIcons.markUnwatched else FlexarrIcons.watched,
                         { navigator.setWatched(item, !watched) },
                         slot,
                         maxLines = 2,
@@ -339,7 +340,7 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
                     }
                     DetailActions.Button.DOWNLOAD -> DownloadAction(model, item, slot)
                     DetailActions.Button.MORE -> Box(slot) {
-                        LabeledAction("More", Icons.Filled.MoreHoriz, { more = true }, Modifier.fillMaxWidth())
+                        LabeledAction("More", FlexarrIcons.more, { more = true }, Modifier.fillMaxWidth())
                         DropdownMenu(more, onDismissRequest = { more = false }) {
                             actions.menu.forEach { entry ->
                                 when (entry) {
@@ -394,7 +395,7 @@ private fun WatchlistAction(item: ItemSummary, saved: Boolean, detail: ItemDetai
     val on = changed ?: saved
     LabeledAction(
         "Watchlist",
-        if (on) Icons.Filled.Bookmark else Icons.Filled.BookmarkBorder,
+        if (on) FlexarrIcons.onWatchlist else FlexarrIcons.watchlist,
         {
             changed = !on
             navigator.setOnWatchlist(item, !on, onFailed = { changed = on })

@@ -98,6 +98,7 @@ import io.github.flexarr.ui.settings.ListeningSettingsScreen
 import io.github.flexarr.ui.settings.ServerSettingsScreen
 import io.github.flexarr.ui.settings.SettingsScreen
 import io.github.flexarr.ui.theme.Flexarr
+import io.github.flexarr.ui.theme.FlexarrIcons
 
 private enum class Tab(val route: String, val label: String) {
     Home("home", "Home"),
@@ -399,8 +400,8 @@ private const val MAX_TAB_SCALE = 1.3f
 private fun Tab.icon(): Painter = when (this) {
     // The Flexarr mark stands in for a house.
     Tab.Home -> painterResource(R.drawable.ic_brand_mark)
-    Tab.Libraries -> rememberVectorPainter(Icons.Filled.GridView)
-    Tab.Downloads -> rememberVectorPainter(Icons.Filled.DownloadForOffline)
-    Tab.Search -> rememberVectorPainter(Icons.Filled.Search)
-    Tab.Settings -> rememberVectorPainter(Icons.Filled.Settings)
+    Tab.Libraries -> rememberVectorPainter(FlexarrIcons.libraries)
+    Tab.Downloads -> rememberVectorPainter(FlexarrIcons.downloads)
+    Tab.Search -> rememberVectorPainter(FlexarrIcons.search)
+    Tab.Settings -> rememberVectorPainter(FlexarrIcons.settings)
 }

@@ -104,16 +104,17 @@ import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.marquee
 import io.github.flexarr.ui.theme.Tokens
 import androidx.compose.material.icons.outlined.BookmarkBorder
+import io.github.flexarr.ui.theme.FlexarrIcons
 
 /** A screen of its own in the sidebar: Home, a library, Discover, Search or Settings. [route] is its first screen's. */
 private data class TvTab(val route: String, val title: String, val icon: ImageVector) {
     companion object {
-        val Home = TvTab("home", "Home", Icons.Outlined.Home)
-        val LiveTv = TvTab("tab/livetv", "Live TV", Icons.Outlined.SettingsInputAntenna)
-        val Discover = TvTab("discover", "Discover", Icons.Outlined.AutoAwesome)
-        val Watchlist = TvTab("watchlist", "Watchlist", Icons.Outlined.BookmarkBorder)
-        val Search = TvTab("search", "Search", Icons.Outlined.Search)
-        val Settings = TvTab("settings", "Settings", Icons.Outlined.Settings)
+        val Home = TvTab("home", "Home", FlexarrIcons.home)
+        val LiveTv = TvTab("tab/livetv", "Live TV", FlexarrIcons.liveTv)
+        val Discover = TvTab("discover", "Discover", FlexarrIcons.discover)
+        val Watchlist = TvTab("watchlist", "Watchlist", FlexarrIcons.watchlist)
+        val Search = TvTab("search", "Search", FlexarrIcons.search)
+        val Settings = TvTab("settings", "Settings", FlexarrIcons.settings)
 
         fun library(library: Library) = TvTab("tab/library/${library.id}", library.name, library.icon)
     }
@@ -433,7 +434,7 @@ private fun Sidebar(model: AppModel, open: Boolean, tabs: List<TvTab>, selected:
                 // Music that's playing gets a place of its own, as the Music app does: the surest way to reach it.
                 if (nowPlaying) {
                     item(key = "now-playing") {
-                        SidebarRow("Now Playing", selected = false, onClick = onNowPlaying, icon = { Icon(Icons.Outlined.GraphicEq, contentDescription = null, modifier = Modifier.size(20.dp)) })
+                        SidebarRow("Now Playing", selected = false, onClick = onNowPlaying, icon = { Icon(FlexarrIcons.nowPlaying, contentDescription = null, modifier = Modifier.size(20.dp)) })
                     }
                 }
                 items(tabs, key = { it.route }) { tab ->

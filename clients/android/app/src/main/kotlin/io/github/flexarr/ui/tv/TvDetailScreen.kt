@@ -91,6 +91,7 @@ import android.content.Intent
 import android.net.Uri
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.hideFromAccessibility
+import io.github.flexarr.ui.theme.FlexarrIcons
 
 /**
  * A film, show or episode (a season opens its show with that season picked), as the Apple TV's DetailView: the backdrop
@@ -259,16 +260,16 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, detail: ItemDetail,
             actions.buttons.forEach { button ->
                 when (button) {
                     DetailActions.Button.PLAY -> target?.let { playable ->
-                        TvActionButton(playLabel(playable, item), onClick = { navigator.play(playable) }, icon = Icons.Filled.PlayArrow, prominent = true, ambient = ambient, modifier = focusFirst())
+                        TvActionButton(playLabel(playable, item), onClick = { navigator.play(playable) }, icon = FlexarrIcons.play, prominent = true, ambient = ambient, modifier = focusFirst())
                     }
                     DetailActions.Button.START_OVER -> target?.let { playable ->
-                        TvActionButton("Start over", onClick = { navigator.play(playable, fromBeginning = true) }, icon = Icons.Filled.Replay, ambient = ambient)
+                        TvActionButton("Start over", onClick = { navigator.play(playable, fromBeginning = true) }, icon = FlexarrIcons.startOver, ambient = ambient)
                     }
                     DetailActions.Button.SHUFFLE -> if (item.childCount > 0) {
-                        RoundAction("Shuffle", Icons.Filled.Shuffle, ambient, { focusedName = it }, focusFirst()) { navigator.shuffle(item) }
+                        RoundAction("Shuffle", FlexarrIcons.shuffle, ambient, { focusedName = it }, focusFirst()) { navigator.shuffle(item) }
                     }
                     DetailActions.Button.TRAILER -> trailerIntent?.let { intent ->
-                        RoundAction("Trailer", Icons.Filled.Theaters, ambient, { focusedName = it }, focusFirst()) {
+                        RoundAction("Trailer", FlexarrIcons.trailer, ambient, { focusedName = it }, focusFirst()) {
                             runCatching { context.startActivity(intent) }.onFailure {
                                 scope.launch { navigator.notices.showSnackbar("Couldn’t open the trailer") }
                             }
@@ -276,7 +277,7 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, detail: ItemDetail,
                     }
                     DetailActions.Button.WATCHED -> RoundAction(
                         if (watched) "Mark as unwatched" else "Mark as watched",
-                        if (watched) Icons.Filled.VisibilityOff else Icons.Filled.Check,
+                        if (watched) FlexarrIcons.markUnwatched else FlexarrIcons.watched,
                         ambient,
                         { focusedName = it },
                         focusFirst(),
@@ -286,7 +287,7 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, detail: ItemDetail,
                         if (on != null && model.hasWatchlist && (item.kind == MediaKind.Movie || item.kind == MediaKind.Series)) {
                             RoundAction(
                                 if (on) "Remove from watchlist" else "Add to watchlist",
-                                if (on) Icons.Filled.Bookmark else Icons.Filled.BookmarkBorder,
+                                if (on) FlexarrIcons.onWatchlist else FlexarrIcons.watchlist,
                                 ambient,
                                 { focusedName = it },
                                 focusFirst(),
@@ -297,7 +298,7 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, detail: ItemDetail,
                         }
                     }
                     DetailActions.Button.DOWNLOAD -> Unit
-                    DetailActions.Button.MORE -> RoundAction("More", Icons.Filled.MoreHoriz, ambient, { focusedName = it }, focusFirst()) { more = true }
+                    DetailActions.Button.MORE -> RoundAction("More", FlexarrIcons.more, ambient, { focusedName = it }, focusFirst()) { more = true }
                 }
             }
         }

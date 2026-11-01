@@ -127,6 +127,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import io.github.flexarr.ui.theme.Tokens
+import io.github.flexarr.ui.theme.FlexarrIcons
 
 private class HomeContent(val home: Home, val newEpisodes: List<PodcastEpisode>, val isEmpty: Boolean, val emptyMessage: EmptyHomeMessage?)
 
@@ -310,7 +311,7 @@ private fun HeroSlide(home: Home, item: ItemSummary, height: Dp) {
                 ActionButton(
                     if (resume != null || item.isResumable) "Resume" else "Play",
                     onClick = { if (resume != null) navigator.play(resume) else navigator.playBest(item) },
-                    icon = Icons.Filled.PlayArrow,
+                    icon = FlexarrIcons.play,
                     prominent = true,
                     ambient = glow,
                 )

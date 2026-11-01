@@ -55,6 +55,7 @@ import io.github.flexarr.ui.theme.marquee
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
+import io.github.flexarr.ui.theme.FlexarrIcons
 
 /** Coming soon: what Sonarr, Radarr and Readarr expect over the next few weeks, a row a day, as the Apple TV's. */
 @Composable
@@ -151,7 +152,7 @@ internal fun TvSeeAllCard(onClick: () -> Unit) {
                 verticalArrangement = Arrangement.spacedBy(7.dp, Alignment.CenterVertically),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Icon(Icons.Filled.CalendarMonth, contentDescription = null, tint = Flexarr.screen, modifier = Modifier.size(27.dp))
+                Icon(FlexarrIcons.comingSoon, contentDescription = null, tint = Flexarr.screen, modifier = Modifier.size(27.dp))
                 Text("See all", fontSize = 14.5.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen)
             }
         },

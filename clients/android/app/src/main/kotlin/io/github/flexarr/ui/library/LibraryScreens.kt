@@ -99,6 +99,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import java.text.NumberFormat
 import io.github.flexarr.ui.theme.Tokens
+import io.github.flexarr.ui.theme.FlexarrIcons
 
 /** The libraries this profile can see, each opening its poster grid. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -182,13 +183,13 @@ internal sealed interface LibraryMenuEntry {
     /** Podcasts are one place however many libraries hold them; [id] is their library's, when there is one. */
     data class Podcasts(override val id: String) : LibraryMenuEntry {
         override val title get() = "Podcasts"
-        override val icon get() = Icons.Filled.Mic
+        override val icon get() = FlexarrIcons.podcasts
     }
 
     data object LiveTv : LibraryMenuEntry {
         override val id get() = LIVE_TV_ORDER_ID
         override val title get() = "Live TV"
-        override val icon get() = Icons.Filled.SettingsInputAntenna
+        override val icon get() = FlexarrIcons.liveTv
     }
 
     companion object {
@@ -210,14 +211,14 @@ internal sealed interface LibraryMenuEntry {
 
 internal val Library.icon
     get() = when (type) {
-        LibraryType.Movies -> Icons.Filled.Movie
-        LibraryType.TvShows -> Icons.Filled.Tv
-        LibraryType.Music -> Icons.Filled.MusicNote
-        LibraryType.Podcasts -> Icons.Filled.Mic
-        LibraryType.HomeVideos -> Icons.Filled.Folder
-        LibraryType.Audiobooks -> Icons.AutoMirrored.Filled.MenuBook
+        LibraryType.Movies -> FlexarrIcons.movies
+        LibraryType.TvShows -> FlexarrIcons.shows
+        LibraryType.Music -> FlexarrIcons.music
+        LibraryType.Podcasts -> FlexarrIcons.podcasts
+        LibraryType.HomeVideos -> FlexarrIcons.homeVideos
+        LibraryType.Audiobooks -> FlexarrIcons.audiobooks
         // Never listed (see [inMenu]).
-        LibraryType.Unknown -> Icons.Filled.Folder
+        LibraryType.Unknown -> FlexarrIcons.homeVideos
     }
 
 private const val PAGE_SIZE = 60

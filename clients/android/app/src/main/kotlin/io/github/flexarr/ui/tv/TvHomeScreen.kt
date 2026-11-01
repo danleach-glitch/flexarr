@@ -87,6 +87,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.ui.draw.clip
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import io.github.flexarr.ui.theme.FlexarrIcons
 
 private class TvHomeContent(val home: Home, val emptyMessage: EmptyHomeMessage?)
 
@@ -236,7 +237,7 @@ private fun HomeHero(home: Home, index: Int, onIndex: (Int) -> Unit, takeFocus: 
                 TvActionButton(
                     if (resume != null || item.isResumable) "Resume" else "Play",
                     onClick = { if (resume != null) navigator.play(resume) else navigator.playBest(item) },
-                    icon = Icons.Filled.PlayArrow,
+                    icon = FlexarrIcons.play,
                     prominent = true,
                     ambient = glow,
                     modifier = Modifier.focusRequester(play),

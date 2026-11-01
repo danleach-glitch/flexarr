@@ -82,6 +82,7 @@ import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.RoomBackground
 import kotlinx.coroutines.launch
 import io.github.flexarr.ui.theme.Tokens
+import io.github.flexarr.ui.theme.FlexarrIcons
 
 // The iPhone app's DownloadsView: everything downloaded (or on its way), playable with no connection; and the download
 // button a title's page and a podcast episode's row carry.
@@ -317,7 +318,7 @@ fun DownloadStateIcon(
     Box(Modifier.size(size), contentAlignment = Alignment.Center) {
         when {
             waitingForWiFi -> Icon(Icons.Filled.Wifi, contentDescription = null, tint = Flexarr.usher)
-            download == null -> Icon(Icons.Filled.Download, contentDescription = null, tint = Flexarr.screen)
+            download == null -> Icon(FlexarrIcons.download, contentDescription = null, tint = Flexarr.screen)
             download.phase == LocalPhase.Preparing && ringWhilePreparing -> DownloadRing(progress.toFloat())
             download.phase == LocalPhase.Preparing -> Icon(Icons.Filled.HourglassTop, contentDescription = null, tint = Flexarr.usher)
             download.phase == LocalPhase.Downloading -> DownloadRing(progress.toFloat())
