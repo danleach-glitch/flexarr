@@ -39,7 +39,14 @@ public sealed record BookDetailDto(
     IReadOnlyList<BookmarkDto> Bookmarks,
     IReadOnlyList<ItemSummaryDto> MoreInSeries,
     IReadOnlyList<ItemSummaryDto> ByAuthor,
-    IReadOnlyList<ItemSummaryDto> ReadByNarrator);
+    IReadOnlyList<ItemSummaryDto> ReadByNarrator,
+    // The book's credited authors in order, with their photos and biographies. Absent from servers before 0.58.
+    IReadOnlyList<BookAuthorDto>? Authors = null);
+
+/// <summary>One of a book's authors, for the author card on its page.</summary>
+/// <param name="Image">Their photo (versioned, as <see cref="PersonDto.Image"/>); null without one.</param>
+/// <param name="Biography">The whole biography; apps show its start.</param>
+public sealed record BookAuthorDto(Guid Id, string Name, string? Image, string? Biography);
 
 /// <summary>
 /// One of a book's files on its timeline. <paramref name="Url"/> serves it as it is when the player said it can play

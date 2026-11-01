@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using Flexarr.Api.Configuration;
+using Flexarr.Api.Profiles;
 using Flexarr.Core.Data;
 using Flexarr.Core.Media;
 using Flexarr.Core.Paths;
@@ -80,20 +81,30 @@ public static class ImageEndpoints
             : s is null || !CryptographicOperations.FixedTimeEquals(Encoding.ASCII.GetBytes(s), Encoding.ASCII.GetBytes(Signature(trusted))) ? Results.NotFound()
             : await ServeAsync(cache, trusted, w, http, ct));
 
-        group.MapGet("/people/{id:guid}", async (Guid id, int? w, FlexarrDbContext db, IMemoryCache memory, ImageCache cache, HttpContext http, CancellationToken ct) =>
+        group.MapGet("/people/{id:guid}", async (Guid id, int? w, string? v, FlexarrDbContext db, IMemoryCache memory, ImageCache cache, PersonImages uploads,
+            HttpContext http, CancellationToken ct) =>
         {
-            var key = $"image-source:person:{id}";
-            if (!memory.TryGetValue(key, out ImageSource? source) || source is null)
+            // A ?v= other than the one remembered means the photo changed since (on another server process, a refresh).
+            var key = PersonSourceKey(id);
+            if (!memory.TryGetValue(key, out ImageSource? source) || source is null || (v is not null && v != source.Version))
             {
-                source = await db.People.Where(p => p.Id == id).Select(p => new ImageSource(p.ImageUrl, null)).FirstOrDefaultAsync(ct);
+                source = await ResolvePersonAsync(db, uploads, id, ct);
                 if (source is not null)
                 {
                     memory.Set(key, source, SourceTtl);
                 }
             }
 
-            return ArtworkUrl.IsHttps(source?.Url) ? await ServeAsync(cache, source!.Url!, w ?? 185, http, ct) : Results.NotFound();
+            return source?.Url is { } url ? await ServeAsync(cache, url, w ?? 185, http, ct) : Results.NotFound();
         });
+
+        // A photo an admin could choose for a person: only one the server itself found for them, and only while it
+        // remembers what it found (ten minutes after they were looked for), never a URL from the request.
+        group.MapGet("/people/{id:guid}/candidates/{source}", async (Guid id, string source, int? w, IMemoryCache memory, ImageCache cache, HttpContext http,
+            CancellationToken ct) =>
+            PeopleEndpoints.CandidatePhoto(memory, id, source) is { } url
+                ? await ServeAsync(() => cache.GetAsync(url, w ?? 342, ct), http, "private, max-age=600")
+                : Results.NotFound());
 
         return api;
     }
@@ -153,6 +164,58 @@ public static class ImageEndpoints
 
     private sealed record ImageSource(string? Url, string? Version);
 
+    /// <summary>Where the person image endpoint remembers a person's photo comes from.</summary>
+    public static string PersonSourceKey(Guid id) => $"image-source:person:{id}";
+
+    /// <summary>
+    /// A person's photo: from the web over https, one an admin uploaded (always the person's own file in the data
+    /// folder, whatever the URL says), or a photo in their author folder, which is only read when it's in one of the
+    /// folders of a library they have a credit in.
+    /// </summary>
+    /// <returns>Null if there's no such person; otherwise their photo (null if there's none to serve) and its ?v=.</returns>
+    private static async Task<ImageSource?> ResolvePersonAsync(FlexarrDbContext db, PersonImages uploads, Guid id, CancellationToken ct)
+    {
+        var person = await db.People.AsNoTracking().Where(p => p.Id == id).Select(p => new { p.ImageUrl, p.PhotoSource, p.ImageChangedAt }).FirstOrDefaultAsync(ct);
+        if (person is null)
+        {
+            return null;
+        }
+
+        var version = person.ImageChangedAt is { } changed ? ArtworkUrls.PersonVersion(changed) : null;
+        var url = person.ImageUrl;
+        if (url is null)
+        {
+            return new ImageSource(null, version);
+        }
+
+        if (person.PhotoSource == PersonSources.Upload)
+        {
+            return new ImageSource(File.Exists(uploads.PathFor(id)) ? uploads.UrlFor(id) : null, version);
+        }
+
+        if (ArtworkUrl.IsHttps(url))
+        {
+            return new ImageSource(url, version);
+        }
+
+        return url.StartsWith("file://", StringComparison.Ordinal) && await PersonInLibraryAsync(db, id, url, ct)
+            ? new ImageSource(url, version)
+            : new ImageSource(null, version);
+    }
+
+    /// <summary>Whether a local photo of a person is a file in a folder of one of the libraries they're credited in.</summary>
+    private static async Task<bool> PersonInLibraryAsync(FlexarrDbContext db, Guid personId, string url, CancellationToken ct)
+    {
+        if (ArtworkUrl.LocalPath(url) is not { Length: > 0 } path)
+        {
+            return false;
+        }
+
+        var libraries = db.Credits.Where(c => c.PersonId == personId).Select(c => c.MediaItem!.LibraryId);
+        var folders = await db.LibraryFolders.AsNoTracking().Where(f => libraries.Contains(f.LibraryId)).Select(f => f.Path).ToListAsync(ct);
+        return folders.Any(folder => PathComparison.IsUnder(path, folder));
+    }
+
     /// <summary>
     /// Whether local artwork is a file in one of the library's folders (and, for art inside a media file, music's or a
     /// book's: the scanner takes a book's cover from its first file when the folder has none).
@@ -197,7 +260,7 @@ public static class ImageEndpoints
         ServeAsync(() => cache.GetAsync(url, width, ct), http);
 
     /// <param name="fetch">The cached copy's path; asked for again (once) if a trim deletes it before it's opened.</param>
-    private static async Task<IResult> ServeAsync(Func<Task<string?>> fetch, HttpContext http)
+    private static async Task<IResult> ServeAsync(Func<Task<string?>> fetch, HttpContext http, string cacheControl = "public, max-age=2592000, immutable")
     {
         // Opened here rather than when the response is written: a trim of the cache can delete the file in between,
         // and then it's fetched again, once. Once open, a trim can't take it away.
@@ -230,7 +293,7 @@ public static class ImageEndpoints
                 continue;
             }
 
-            http.Response.Headers[HeaderNames.CacheControl] = "public, max-age=2592000, immutable";
+            http.Response.Headers[HeaderNames.CacheControl] = cacheControl;
             return Results.File(file, path.EndsWith(".png", StringComparison.Ordinal) ? "image/png" : "image/jpeg", enableRangeProcessing: false);
         }
     }

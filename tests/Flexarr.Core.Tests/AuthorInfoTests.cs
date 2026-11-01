@@ -1,0 +1,199 @@
+using Flexarr.Core.Books;
+using Flexarr.Core.Data;
+using Flexarr.Core.Libraries;
+using Flexarr.Core.Media;
+using Flexarr.Core.Paths;
+using Flexarr.Integrations.Arr;
+using Flexarr.Metadata;
+using Flexarr.Metadata.Books;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
+
+namespace Flexarr.Core.Tests;
+
+/// <summary>Every author's photo and biography, from their folder, Readarr, Audible and Open Library, as a book refresh finds them.</summary>
+public sealed class AuthorInfoTests : IAsyncLifetime
+{
+    private const string Osman = "Richard Osman", Keyes = "Marian Keyes", Title = "The Thursday Murder Club";
+    private const string AudiblePhoto = "https://m.media-amazon.com/images/I/osman.jpg";
+    private readonly string _dir = Directory.CreateTempSubdirectory("flexarr-authorinfo-").FullName;
+    private readonly AuthorProviderTests.Canned _web = new();
+    private FlexarrDbContext _db = null!;
+    private bool _readarr;
+
+    private string Books => Path.Combine(_dir, "media", "audiobooks");
+
+    public async Task InitializeAsync()
+    {
+        _db = new FlexarrDbContext(new DbContextOptionsBuilder<FlexarrDbContext>().UseSqlite($"Data Source={Path.Combine(_dir, "test.db")}").Options);
+        await _db.Database.MigrateAsync();
+        _web.Answers[("api.audnex.us", "/authors")] = """[{"asin": "B074KL81KM", "name": "Richard Osman"}]""";
+        _web.Answers[("api.audnex.us", "/authors/B074KL81KM")] = $$"""{"asin": "B074KL81KM", "name": "Richard Osman", "description": "From Audible.", "image": "{{AudiblePhoto}}"}""";
+        _web.Answers[("openlibrary.org", "/search/authors.json")] = $$"""{"docs": [{"key": "OL5A", "name": "Marian Keyes", "top_work": "{{Title}}"}]}""";
+        _web.Answers[("openlibrary.org", "/authors/OL5A.json")] = """{"name": "Marian Keyes", "bio": "From Open Library."}""";
+        // Readarr knows Richard Osman, with a biography but no photo, and none of his books.
+        _web.Answers[("readarr.test", "/api/v1/author")] = """[{"id": 3, "authorName": "Richard Osman", "overview": "<p>From Readarr.</p>", "images": []}]""";
+        foreach (var path in new[] { "/api/v1/book", "/api/v1/bookfile", "/api/v1/series" })
+        {
+            _web.Answers[("readarr.test", path)] = "[]";
+        }
+    }
+
+    public async Task DisposeAsync()
+    {
+        await _db.DisposeAsync();
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+        Directory.Delete(_dir, recursive: true);
+    }
+
+    [Fact]
+    public async Task Readarr_ThenAudible_EachFillingOnlyWhatsMissing()
+    {
+        _readarr = true;
+        var library = await SeedAsync(new Person { Name = Osman });
+
+        await Refresher().RefreshLibraryAsync(library, force: true, default);
+
+        var osman = await PersonAsync(Osman);
+        Assert.Equal(("From Readarr.", "readarr"), (osman.Biography, osman.BiographySource));
+        Assert.Equal((AudiblePhoto, "audible", "B074KL81KM"), (osman.ImageUrl, osman.PhotoSource, osman.Asin));
+        Assert.NotNull(osman.ImageChangedAt);
+        Assert.NotNull(osman.InfoCheckedAt);
+        Assert.DoesNotContain(_web.Requests, r => r.Contains("/search/authors.json", StringComparison.Ordinal)); // nothing left for Open Library
+    }
+
+    [Fact]
+    public async Task EveryAuthor_IsLookedUp_NotJustTheFirst()
+    {
+        var library = await SeedAsync(new Person { Name = Osman }, new Person { Name = Keyes });
+
+        await Refresher().RefreshLibraryAsync(library, force: true, default);
+
+        Assert.Equal(("From Audible.", "audible"), ((await PersonAsync(Osman)).Biography, (await PersonAsync(Osman)).BiographySource));
+        var keyes = await PersonAsync(Keyes);
+        Assert.Equal(("From Open Library.", "openlibrary", null), (keyes.Biography, keyes.BiographySource, keyes.ImageUrl));
+        Assert.NotNull(keyes.InfoCheckedAt);
+    }
+
+    [Fact]
+    public async Task APhotoInTheAuthorsFolder_WinsOverAnOnlineOne()
+    {
+        var photo = await AuthorPhotoAsync("author.JPG");
+        var library = await SeedAsync(new Person { Name = Osman, ImageUrl = AudiblePhoto, PhotoSource = PersonSources.Audible, Biography = "Known." });
+
+        await Refresher().RefreshLibraryAsync(library, force: true, default);
+
+        var osman = await PersonAsync(Osman);
+        Assert.Equal(($"file://{photo}", "folder"), (osman.ImageUrl, osman.PhotoSource));
+        Assert.NotNull(osman.ImageChangedAt);
+    }
+
+    [Fact]
+    public async Task AFolderPhoto_IsntTakenForAFolderOfSeveralAuthors_OrOverAnUpload()
+    {
+        var shared = Path.Combine(Books, $"{Osman}, {Keyes}");
+        Directory.CreateDirectory(shared);
+        await File.WriteAllBytesAsync(Path.Combine(shared, "folder.jpg"), [0xFF, 0xD8, 0xFF]);
+        await AuthorPhotoAsync("author.jpg");
+        var library = await SeedAsync(Path.Combine(shared, Title), new Person { Name = Keyes });
+        await SeedAsync(Path.Combine(Books, Osman, "Another Book"), new Person { Name = Osman, ImageUrl = "file:///data/person-images/osman.jpg", PhotoSource = PersonSources.Upload, Biography = "Known." }, library);
+
+        await Refresher().RefreshLibraryAsync(library, force: true, default);
+
+        Assert.Null((await PersonAsync(Keyes)).ImageUrl);
+        Assert.Equal(("file:///data/person-images/osman.jpg", "upload"), ((await PersonAsync(Osman)).ImageUrl, (await PersonAsync(Osman)).PhotoSource));
+    }
+
+    [Fact]
+    public async Task ALockedAuthor_IsLeftAlone()
+    {
+        await AuthorPhotoAsync("author.jpg");
+        var library = await SeedAsync(new Person { Name = Osman, InfoLocked = true });
+
+        await Refresher().RefreshLibraryAsync(library, force: true, default);
+
+        var osman = await PersonAsync(Osman);
+        Assert.Equal((null, null, null), (osman.ImageUrl, osman.Biography, osman.InfoCheckedAt));
+        Assert.DoesNotContain(_web.Requests, r => r.Contains("audnex.us/authors", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task AnAuthorLookedUpThisMonth_IsntLookedUpAgain_UntilAMonthOn()
+    {
+        var library = await SeedAsync(new Person { Name = Osman, InfoCheckedAt = DateTime.UtcNow.AddDays(-5) });
+
+        await Refresher().RefreshLibraryAsync(library, force: true, default);
+        var asked = _web.Requests.Count(r => r.Contains("audnex.us/authors", StringComparison.Ordinal));
+        await _db.People.ExecuteUpdateAsync(u => u.SetProperty(p => p.InfoCheckedAt, DateTime.UtcNow.AddDays(-31)));
+        _db.ChangeTracker.Clear();
+        await Refresher().RefreshLibraryAsync(library, force: true, default);
+
+        Assert.Equal(0, asked);
+        Assert.Equal("From Audible.", (await PersonAsync(Osman)).Biography);
+    }
+
+    [Fact]
+    public async Task AProviderThatsDown_LeavesTheAuthorToBeTriedAgain()
+    {
+        _web.DownHosts.Add("api.audnex.us");
+        var library = await SeedAsync(new Person { Name = Osman });
+
+        await Refresher().RefreshLibraryAsync(library, force: true, default);
+        Assert.Null((await PersonAsync(Osman)).InfoCheckedAt);
+
+        _web.DownHosts.Clear();
+        _db.ChangeTracker.Clear();
+        await Refresher().RefreshLibraryAsync(library, force: true, default);
+
+        var osman = await PersonAsync(Osman);
+        Assert.Equal(("From Audible.", AudiblePhoto), (osman.Biography, osman.ImageUrl));
+        Assert.NotNull(osman.InfoCheckedAt);
+    }
+
+    private async Task<Person> PersonAsync(string name) => await _db.People.AsNoTracking().SingleAsync(p => p.Name == name);
+
+    private async Task<string> AuthorPhotoAsync(string name)
+    {
+        var folder = Directory.CreateDirectory(Path.Combine(Books, Osman)).FullName;
+        var path = Path.Combine(folder, name);
+        await File.WriteAllBytesAsync(path, [0xFF, 0xD8, 0xFF]);
+        return path;
+    }
+
+    private Task<Library> SeedAsync(params Person[] authors) => SeedAsync(Path.Combine(Books, Osman, Title), authors[0], null, authors[1..]);
+
+    private async Task<Library> SeedAsync(string path, Person author, Library? library = null, params Person[] more)
+    {
+        if (library is null)
+        {
+            library = new Library { Name = "Audiobooks", Type = LibraryType.Audiobooks, Folders = [new LibraryFolder { Path = Books }] };
+            _db.Libraries.Add(library);
+        }
+
+        var title = Path.GetFileName(path);
+        _db.MediaItems.Add(new MediaItem
+        {
+            LibraryId = library.Id, Kind = MediaKind.Audiobook, Title = title, SortTitle = SortTitle.For(title), Path = path,
+            Book = new BookDetails { DurationSeconds = 3600 },
+            Credits = [.. new[] { author }.Concat(more).Select((p, i) => new Credit { Person = p, Role = CreditRole.Author, Order = i })],
+        });
+        await _db.SaveChangesAsync();
+        return library;
+    }
+
+    private MetadataRefresher Refresher()
+    {
+        var settings = new Settings(_dir, _readarr ? [new ArrInstance { Name = "Readarr", Kind = ArrKind.Readarr, BaseUrl = new Uri("http://readarr.test"), ApiKey = "k" }] : []);
+        var http = new HttpClient(_web);
+        return new MetadataRefresher(_db, new ArrClient(http), new TvMazeClient(http), new ImageCache(http, settings, NullLogger<ImageCache>.Instance),
+            settings, NullLogger<MetadataRefresher>.Instance, bookProviders: new BookProviders(http, () => settings, new BookProviderThrottle()));
+    }
+
+    private sealed class Settings(string cache, IReadOnlyList<ArrInstance> instances) : IMetadataSettings
+    {
+        public IReadOnlyList<ArrInstance> ArrInstances => instances;
+        public IReadOnlyList<PathMapping> PathMappings { get; } = [];
+        public string CacheDirectory => cache;
+        public string FfmpegPath => "ffmpeg";
+    }
+}

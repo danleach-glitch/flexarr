@@ -345,7 +345,7 @@ public static partial class DiscoveryEndpoints
             var people = await db.People.Where(p => EF.Functions.Like(p.Name, contains) && p.Credits.Any(c => visible.Contains(c.MediaItemId)))
                 .OrderByDescending(p => EF.Functions.Like(p.Name, prefix)).ThenByDescending(p => p.Credits.Count(c => visible.Contains(c.MediaItemId)))
                 .Take(8)
-                .Select(p => new SearchPersonDto(p.Id, p.Name, ArtworkUrls.Person(p.Id, p.ImageUrl != null), p.Credits.Count(c => visible.Contains(c.MediaItemId))))
+                .Select(p => new SearchPersonDto(p.Id, p.Name, ArtworkUrls.Person(p.Id, p.ImageUrl != null, p.ImageChangedAt), p.Credits.Count(c => visible.Contains(c.MediaItemId))))
                 .ToListAsync(ct);
             var genres = await db.Genres.Where(g => EF.Functions.Like(g.Name, contains)).Select(g => g.Name).Take(5).ToListAsync(ct);
 
@@ -377,7 +377,7 @@ public static partial class DiscoveryEndpoints
                 var close = await index.FindAsync(db, term, Search.SearchIndex.Group.Person, 8 - people.Count, people.Select(p => p.Id).ToHashSet(), ct);
                 var ids = close.Select(m => m.Id).ToList();
                 var found = await db.People.Where(p => ids.Contains(p.Id) && p.Credits.Any(c => visible.Contains(c.MediaItemId)))
-                    .Select(p => new SearchPersonDto(p.Id, p.Name, ArtworkUrls.Person(p.Id, p.ImageUrl != null), p.Credits.Count(c => visible.Contains(c.MediaItemId))))
+                    .Select(p => new SearchPersonDto(p.Id, p.Name, ArtworkUrls.Person(p.Id, p.ImageUrl != null, p.ImageChangedAt), p.Credits.Count(c => visible.Contains(c.MediaItemId))))
                     .ToListAsync(ct);
                 people.AddRange(found.OrderBy(p => ids.IndexOf(p.Id)));
             }

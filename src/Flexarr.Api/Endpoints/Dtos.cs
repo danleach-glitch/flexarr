@@ -107,7 +107,49 @@ public sealed record PersonCreditDto(ItemSummaryDto Item, CreditRole Role, strin
 
 public sealed record PersonDto(Guid Id, string Name, string? Image, IReadOnlyList<PersonCreditDto> Credits,
     // An author's or narrator's biography. Absent from servers before 0.58.
-    string? Biography = null);
+    string? Biography = null,
+    // An admin fixed the photo or biography by hand, so refreshes leave them alone. Absent from servers before 0.58.
+    bool? Locked = null,
+    // Where the photo and biography came from: folder, readarr, audible, openlibrary, tmdb, tvmaze, upload, manual
+    // (more may come). Absent from servers before 0.58.
+    string? PhotoSource = null,
+    string? BiographySource = null);
+
+/// <summary>A photo an admin can choose for a person, served through the server (<c>/images/people/{id}/candidates/{source}</c>).</summary>
+public sealed record PersonPhotoCandidateDto(string Source, string Image);
+
+public sealed record PersonBiographyCandidateDto(string Source, string Text);
+
+/// <summary>The photos and biographies an admin can choose from, at most one of each from each source.</summary>
+public sealed record PersonCandidatesDto(IReadOnlyList<PersonPhotoCandidateDto> Photos, IReadOnlyList<PersonBiographyCandidateDto> Biographies);
+
+/// <summary>
+/// An admin's change to a person: a candidate photo by its source, a biography (null or empty clears it), and the lock.
+/// Choosing a photo or writing a biography locks the person unless <see cref="Locked"/> is false; <c>locked: false</c>
+/// alone unlocks them and looks them up again.
+/// </summary>
+public sealed class UpdatePersonRequest
+{
+    private string? _biography;
+
+    public string? Photo { get; set; }
+
+    public string? Biography
+    {
+        get => _biography;
+        set
+        {
+            _biography = value;
+            BiographyGiven = true;
+        }
+    }
+
+    /// <summary>Whether the body had a biography at all (null in it clears the biography; leaving it out doesn't).</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool BiographyGiven { get; private set; }
+
+    public bool? Locked { get; set; }
+}
 
 public static class ArtworkUrls
 {
@@ -127,7 +169,12 @@ public static class ArtworkUrls
         return (latest?.Ticks ?? 0) / 10_000_000;
     }
 
-    public static string? Person(Guid id, bool has) => has ? $"/api/v1/images/people/{id}" : null;
+    /// <summary>A person's photo, at a ?v= of when it last changed (none for one from before that was kept).</summary>
+    public static string? Person(Guid id, bool has, DateTime? changedAt) =>
+        !has ? null : changedAt is { } changed ? $"/api/v1/images/people/{id}?v={PersonVersion(changed)}" : $"/api/v1/images/people/{id}";
+
+    /// <summary>The ?v= of a person's photo: when it last changed, in seconds.</summary>
+    public static string PersonVersion(DateTime changedAt) => (changedAt.Ticks / 10_000_000).ToString(System.Globalization.CultureInfo.InvariantCulture);
 }
 
 public static class Resolution

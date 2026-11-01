@@ -197,7 +197,7 @@ public static class ItemEndpoints
         // Seasons and episodes show their series' cast.
         var creditsFor = entity.Kind is MediaKind.Season or MediaKind.Episode && ancestors.Count > 0 ? ancestors[0].Id : id;
         var credits = await db.Credits.Where(c => c.MediaItemId == creditsFor).OrderBy(c => c.Order)
-            .Select(c => new CreditDto(c.PersonId, c.Person!.Name, c.Role, c.Character, ArtworkUrls.Person(c.PersonId, c.Person.ImageUrl != null)))
+            .Select(c => new CreditDto(c.PersonId, c.Person!.Name, c.Role, c.Character, ArtworkUrls.Person(c.PersonId, c.Person.ImageUrl != null, c.Person.ImageChangedAt)))
             .ToListAsync(ct);
 
         var series = entity.Kind is MediaKind.Season or MediaKind.Episode && ancestors.Count > 0
