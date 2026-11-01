@@ -400,13 +400,14 @@ private fun NewEpisodesRow(model: AppModel, episodes: List<PodcastEpisode>) {
 private fun ComingSoonRow(items: List<UpcomingItem>, downloading: Int) {
     val navigator = LocalNavigator.current
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        SectionHeading(if (downloading > 0) "Coming soon ($downloading downloading)" else "Coming soon")
+        SectionHeading(if (downloading > 0) "Coming soon ($downloading downloading)" else "Coming soon", onSeeAll = navigator::openComingSoon)
         LazyRow(contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(RowSpacing), verticalAlignment = Alignment.Top) {
             items(items, key = { it.id }) { item ->
                 val opens = item.libraryItemId
+                // Every card does something: one in the library opens, anything else the full page, where it's described.
                 Column(
                     Modifier.width(WideWidth)
-                        .then(if (opens != null) Modifier.pressable({ navigator.openItem(opens) }, onClickLabel = "Open") else Modifier)
+                        .pressable({ if (opens != null) navigator.openItem(opens) else navigator.openComingSoon() }, onClickLabel = if (opens != null) "Open" else "See all")
                         .semantics(mergeDescendants = true) {},
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {

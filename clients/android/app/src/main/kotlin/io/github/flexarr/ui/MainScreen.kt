@@ -78,6 +78,7 @@ import io.github.flexarr.ui.podcasts.PodcastsScreen
 import io.github.flexarr.ui.search.PersonScreen
 import io.github.flexarr.ui.search.SearchScreen
 import io.github.flexarr.ui.watchlist.WatchlistScreen
+import io.github.flexarr.ui.home.ComingSoonScreen
 import io.github.flexarr.ui.pairing.PairingPrompt
 import io.github.flexarr.AppLink
 import io.github.flexarr.PairingPrompts
@@ -345,6 +346,7 @@ fun MainScreen(model: AppModel) {
                 }
                 composable("livetv") { LiveTvScreen(model) }
                 composable("watchlist") { WatchlistScreen(model) }
+                composable("coming-soon") { ComingSoonScreen(model) }
                 composable("livetv/recordings") { LiveRecordingsScreen(model) }
                 composable("music/{id}") { MusicLibraryScreen(model, it.arguments?.getString("id")!!) }
                 composable("artist/{id}") { ArtistScreen(model, it.arguments?.getString("id")!!) }

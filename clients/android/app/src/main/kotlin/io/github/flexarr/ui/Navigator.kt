@@ -131,6 +131,8 @@ class Navigator(private val nav: NavHostController, private val model: AppModel,
 
     fun openWatchlist() = nav.navigate("watchlist")
 
+    fun openComingSoon() = nav.navigate("coming-soon")
+
     fun openRecordings() = nav.navigate("livetv/recordings")
 
     /** Watches a live channel; Previous and Next go through [order], as the screen listed them. */
