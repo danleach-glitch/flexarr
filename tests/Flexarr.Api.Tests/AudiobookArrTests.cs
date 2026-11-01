@@ -163,6 +163,22 @@ public class AudiobookArrTests(FlexarrApiFactory factory) : IClassFixture<Flexar
         Assert.DoesNotContain("POST /api/v1/book", arr.Requests);
     }
 
+    [Theory]
+    [InlineData("{}")] // an add that says nothing of what it added
+    [InlineData("<html>Sign in</html>")] // a proxy's page
+    public async Task ARequestTheAppAnswersOddly_SaysSo(string answer)
+    {
+        await LibraryAsync();
+        var arr = BookshelfForRequests();
+        arr.Responses["POST //bookshelf.test/api/v1/book"] = answer;
+        using var app = arr.Serve(factory, bookshelf: true);
+
+        var response = await Client(app.CreateClient()).PostAsJsonAsync(new Uri("/api/v1/requests/books", UriKind.Relative), new { foreignBookId = "hc:1", query = "osman" });
+
+        Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
+        Assert.Contains("didn't answer the request", (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("detail").GetString(), StringComparison.Ordinal);
+    }
+
     private static string CalendarPath()
     {
         var today = DateTime.UtcNow.Date;
