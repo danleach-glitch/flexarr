@@ -14,7 +14,7 @@ import {
   type BookManifest,
   type ItemSummary,
 } from '../api/client'
-import { authorsLine, chapterIndexAt, clampSpeed, fadeLevel, isBook, nextChapterStart, previousChapterStart, sleepReached } from '../lib/books'
+import { authorsLine, chapterEnd, chapterIndexAt, clampSpeed, fadeLevel, isBook, nextChapterStart, previousChapterStart, sleepReached } from '../lib/books'
 import { episodeAsTrack, PODCAST_PREFERENCES_CHANGED } from '../lib/podcasts'
 import { useMusicSettings } from '../lib/musicSettings'
 import { FADE_SECONDS } from '../lib/sleepTimer'
@@ -320,8 +320,22 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     if (engine().paused()) engine().play()
     else engine().pause()
   }, [current, index, engine])
+  const bookRef = useRef(book)
+  useEffect(() => {
+    bookRef.current = book
+  }, [book])
   const seek = useCallback(
     (seconds: number) => {
+      // "End of chapter" is the end of the chapter playing: a seek to another chapter moves it there.
+      const timer = sleepRef.current
+      const b = bookRef.current
+      if (timer && 'endOfChapter' in timer && b) {
+        const at = endOfChapterAt(b, seconds)
+        if (at !== timer.at) {
+          sleepRef.current = { endOfChapter: true, at }
+          setSleep(sleepRef.current)
+        }
+      }
       if (engine().loaded()) engine().seek(seconds)
       else {
         resumeAt.current = seconds
@@ -537,4 +551,10 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       </MusicPagesContext>
     </AudioPlayerContext>
   )
+}
+
+/** Where the chapter playing at `position` ends (before the first chapter, where it starts). */
+function endOfChapterAt(book: BookManifest, position: number): number {
+  const i = chapterIndexAt(book.chapters, position)
+  return i >= 0 ? chapterEnd(book.chapters, i, book.durationSeconds) : (book.chapters[0]?.startSeconds ?? book.durationSeconds)
 }
