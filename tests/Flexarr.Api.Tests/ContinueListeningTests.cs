@@ -174,24 +174,32 @@ public class ContinueListeningTests(FlexarrApiFactory factory) : IClassFixture<F
         Assert.Equal([seeded.Book, seeded.Film], rows["continue"].Ids);
     }
 
-    private sealed record Seeded(string Profile, Guid Film, Guid Book, Guid Episode, Guid Podcast);
+    internal sealed record Seeded(string Profile, Guid Film, Guid Book, Guid Episode, Guid Podcast, Guid BookLibrary);
 
-    private sealed record Row(string Title, List<Guid> Ids);
+    internal sealed record Row(string Title, List<Guid> Ids);
+
+    private Task<(HttpClient Client, Seeded Seeded)> SeedProfileAsync() => SeedProfileAsync(factory);
 
     /// <summary>
     /// A new profile part way through a film (played 22 October, midday), The Man Who Died Twice (22 October) and an
     /// episode of The History Hour (23 October), and finished with another episode.
     /// </summary>
-    private async Task<(HttpClient Client, Seeded Seeded)> SeedProfileAsync()
+    internal static async Task<(HttpClient Client, Seeded Seeded)> SeedProfileAsync(FlexarrApiFactory server)
     {
-        var owner = Client();
+        var owner = Client(server);
         var created = await (await owner.PostAsJsonAsync(Api("profiles"), new { name = $"Listener {Guid.NewGuid():N}"[..20] })).Content.ReadFromJsonAsync<JsonElement>();
         var profileId = created.GetProperty("id").GetString()!;
         var token = (await (await owner.PostAsJsonAsync(Api($"profiles/{profileId}/select"), new { })).Content.ReadFromJsonAsync<JsonElement>())
             .GetProperty("token").GetString()!;
 
-        var books = await AudiobookApiTests.SeedAsync(factory.Services, profileId);
-        using var scope = factory.Services.CreateScope();
+        return (Client(server, token), await SeedAsync(server, profileId));
+    }
+
+    /// <summary>What <see cref="SeedProfileAsync(FlexarrApiFactory)"/> seeds, for <paramref name="profileId"/>.</summary>
+    internal static async Task<Seeded> SeedAsync(FlexarrApiFactory server, string profileId)
+    {
+        var books = await AudiobookApiTests.SeedAsync(server.Services, profileId);
+        using var scope = server.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
         var films = new Library { Name = $"Films {Guid.NewGuid():N}", Type = LibraryType.Movies };
         db.Libraries.Add(films);
@@ -219,21 +227,21 @@ public class ContinueListeningTests(FlexarrApiFactory factory) : IClassFixture<F
             new PlaybackState { UserId = profileId, MediaItemId = finished.Id, Watched = true, LastPlayedAt = new DateTime(2026, 10, 24, 0, 0, 0, DateTimeKind.Utc) });
         await db.SaveChangesAsync();
 
-        return (Client(token), new Seeded(profileId, film.Id, books.Books["The Man Who Died Twice"], started.Id, podcast.Id));
+        return new Seeded(profileId, film.Id, books.Books["The Man Who Died Twice"], started.Id, podcast.Id, books.Library);
     }
 
-    private static async Task<Dictionary<string, Row>> RowsAsync(HttpClient client, string path) =>
+    internal static async Task<Dictionary<string, Row>> RowsAsync(HttpClient client, string path) =>
         Rows(await client.GetFromJsonAsync<JsonElement>(Api(path)));
 
     private static Dictionary<string, Row> Rows(JsonElement home) =>
         home.GetProperty("rows").EnumerateArray().ToDictionary(r => r.GetProperty("id").GetString()!,
             r => new Row(r.GetProperty("title").GetString()!, [.. r.GetProperty("items").EnumerateArray().Select(i => i.GetProperty("id").GetGuid())]));
 
-    private static Uri Api(string path) => new($"/api/v1/{path}", UriKind.Relative);
+    internal static Uri Api(string path) => new($"/api/v1/{path}", UriKind.Relative);
 
-    private HttpClient Client(string? profileToken = null)
+    internal static HttpClient Client(FlexarrApiFactory server, string? profileToken = null)
     {
-        var client = factory.CreateClient();
+        var client = server.CreateClient();
         client.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
         if (profileToken is not null)
         {
@@ -241,5 +249,36 @@ public class ContinueListeningTests(FlexarrApiFactory factory) : IClassFixture<F
         }
 
         return client;
+    }
+}
+
+/// <summary>The Continue row with the household's Home layout changed: each on a server of its own.</summary>
+public sealed class ContinueListeningLayoutTests
+{
+    [Fact]
+    public async Task ContinueSwitchedOffOnHome_BooksKeepTheirOwnRow()
+    {
+        using var server = new FlexarrApiFactory();
+        var (client, seeded) = await ContinueListeningTests.SeedProfileAsync(server);
+        await SwitchOffAsync(server, "continue");
+
+        var rows = await ContinueListeningTests.RowsAsync(client, "home?listening=books,podcasts");
+
+        Assert.False(rows.ContainsKey("continue"));
+        Assert.Equal([seeded.Book], rows[BookRows.ContinueRowId].Ids);
+    }
+
+    /// <summary>Saves Home's layout with <paramref name="rowId"/> off, and waits for config.json to be read again.</summary>
+    internal static async Task SwitchOffAsync(FlexarrApiFactory server, string rowId)
+    {
+        var saved = new[] { new { id = rowId, enabled = false } };
+        (await ContinueListeningTests.Client(server).PutAsJsonAsync(ContinueListeningTests.Api("settings/layout"),
+            new { home = saved, movies = Array.Empty<object>(), shows = Array.Empty<object>() })).EnsureSuccessStatusCode();
+        var options = server.Services.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<Configuration.FlexarrOptions>>();
+        for (var waited = 0; !options.CurrentValue.Layout.Home.Any(r => r.Id == rowId && !r.Enabled); waited += 50)
+        {
+            Assert.True(waited < 10_000, "config.json wasn't read again");
+            await Task.Delay(50);
+        }
     }
 }

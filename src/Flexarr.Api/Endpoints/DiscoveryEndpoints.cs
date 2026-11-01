@@ -73,8 +73,9 @@ public static partial class DiscoveryEndpoints
 
             // Films and shows only: the hero resumes what this holds, and has no way to play a book.
             var continueWatching = await ContinueWatchingAsync(db, me, RowSize, null, ct);
-            // Books and podcast episodes join the row when the app can open them and the profile wants them there.
-            var asked = Listening.Parse(listening) is { Any: true } kinds
+            // Books and podcast episodes join the row when the app can open them and the profile wants them there, and
+            // the row is on in Settings › Home (switched off, books keep their own Continue listening row).
+            var asked = LayoutEndpoints.IsOn(options.Layout.Home, "continue") && Listening.Parse(listening) is { Any: true } kinds
                 && await db.Profiles.Where(p => p.Id == me).Select(p => p.ListeningInContinue).FirstOrDefaultAsync(ct)
                 ? kinds : default;
             List<Guid> listenBooks = asked.Books ? [.. libraries.Where(l => l.Type == LibraryType.Audiobooks).Select(l => l.Id)] : [];
