@@ -10,8 +10,10 @@ using Microsoft.EntityFrameworkCore;
 namespace Flexarr.Api.Books;
 
 /// <summary>A result of a book search for Fix match.</summary>
+/// <param name="Image">The cover through the server's image proxy; null when its host isn't one the proxy fetches from.
+/// Absent from servers before 0.58.</param>
 public sealed record BookMatchDto(string Provider, string Id, string Title, string? Subtitle, IReadOnlyList<string> Authors, IReadOnlyList<string> Narrators,
-    string? Series, int? Year, string? Cover, double? DurationSeconds);
+    string? Series, int? Year, string? Cover, double? DurationSeconds, string? Image = null);
 
 /// <summary>The result chosen: its provider and id, and the search it came from.</summary>
 public sealed record BookMatchRequest(string Provider, string Id, string Query, string? Author = null);
@@ -230,7 +232,8 @@ public static class BookMatchEndpoints
     }
 
     private static BookMatchDto ToDto(BookMatch m) => new(m.Provider, m.Id, m.Title, m.Subtitle, m.Authors, m.Narrators,
-        m.Series.Count > 0 ? m.Series[0].Sequence is null ? m.Series[0].Name : $"{m.Series[0].Name} #{m.Series[0].Sequence}" : null, m.ReleaseDate?.Year, m.Cover, m.DurationSeconds);
+        m.Series.Count > 0 ? m.Series[0].Sequence is null ? m.Series[0].Name : $"{m.Series[0].Name} #{m.Series[0].Sequence}" : null, m.ReleaseDate?.Year, m.Cover, m.DurationSeconds,
+        Endpoints.ImageEndpoints.RemoteUrl(m.Cover));
 
     /// <summary>Puts chapters in place of the book's, each running to the next one's start, the last to the end.</summary>
     private static async Task SaveAsync(FlexarrDbContext db, Guid bookId, BookDetails details, List<BookChapter> chapters, ChapterSource source, CancellationToken ct)

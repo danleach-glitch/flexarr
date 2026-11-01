@@ -18,6 +18,10 @@ public static partial class ArtworkUrl
         ["is3-ssl.mzstatic.com"] = "/image/thumb/",
         ["is4-ssl.mzstatic.com"] = "/image/thumb/",
         ["is5-ssl.mzstatic.com"] = "/image/thumb/",
+        // Book covers: Audible's (through Audnexus and its catalogue) and Open Library's (Fix match, book requests).
+        ["m.media-amazon.com"] = "/images/I/",
+        ["images-na.ssl-images-amazon.com"] = "/images/I/",
+        ["covers.openlibrary.org"] = "/b/",
     };
 
     /// <summary>
