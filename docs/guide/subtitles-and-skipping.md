@@ -95,7 +95,7 @@ By default, a **Skip Intro** or **Skip Recap** button appears when one starts. O
 
 - **Skip intros**: jumps past the opening titles.
 - **Skip recaps**: jumps past "Previously on…".
-- **Skip credits**: moves on to the next episode as the credits start, rather than when they end.
+- **Skip credits**: ends the episode as the credits start, rather than when they end.
 
 They're your profile's own, on every device.
 
@@ -103,7 +103,7 @@ They're your profile's own, on every device.
 
 When the credits start, a **Next Episode** card offers the next one. For a show with no credits found, it comes a little before the end instead: up to two minutes for an hour-long episode. When the episode ends, a five-second countdown starts the next one. Press **Cancel** to stop it. Flexarr gets the next episode ready while the credits play, so it starts straight away. If the server is busy with other people's streams, it starts the usual way instead.
 
-Turn the countdown off with **Auto-play the next episode** in **Settings › Playback**. If you watch a special in the middle of a season, Up Next carries on with the regular episodes afterwards. When you're shuffling a show, the countdown plays another random episode.
+Turn the countdown off with **Auto-play the next episode** in **Settings › Playback**: the player then closes when the episode ends, or as the credits start with **Skip credits** on. If you watch a special in the middle of a season, Up Next carries on with the regular episodes afterwards. When you're shuffling a show, the countdown plays another random episode.
 
 The player also has previous and next episode buttons: see [In the player](playback-and-transcoding.md#in-the-player).
 

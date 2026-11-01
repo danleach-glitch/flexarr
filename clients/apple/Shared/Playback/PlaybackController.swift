@@ -632,12 +632,18 @@ final class PlaybackController: NSObject {
         }
         // The sleep timer stops this episode at its end (or has run out): it doesn't go on to the next by itself.
         let sleepHolds = screen?.sleepHoldsEpisode == true
-        // Skip credits: the episode is over as soon as they start.
+        // Skip credits: the episode is over as soon as they start. With auto-play off, that closes the player.
         if preferences.skipCredits, info.next != nil, !nextCancelled, !isFinishing, !sleepHolds,
            let credits = info.markers.first(where: { $0.type == .credits }), seconds >= credits.start {
             transport?.pause()
             report(paused: true, ended: true)
-            beginFinishing()
+            if preferences.autoPlayNext {
+                beginFinishing()
+            } else {
+                log.info("Credits started with auto-play off: closing", ["playbackId": info.playbackId])
+                dismissPlayer()
+                return
+            }
         }
         if next != prompt {
             log.debug("Prompt \(String(describing: next)) at \(Int(seconds))s", ["playbackId": info.playbackId])
@@ -896,7 +902,7 @@ final class PlaybackController: NSObject {
         Task { try? await client.stopPlayback(sessionId: prepared.info.sessionId) }
     }
 
-    /// The episode is over: count down to the next one if auto-play is on, else wait to be asked.
+    /// The episode is over (with auto-play on): count down to the next one.
     private func beginFinishing() {
         guard info?.next != nil, !isFinishing else { return }
         isFinishing = true
@@ -970,8 +976,8 @@ final class PlaybackController: NSObject {
         updatePrompt()
     }
 
-    /// At the end: the countdown to the next episode (or the button, with auto-play off); the player closes when
-    /// there's nothing next or Cancel was chosen.
+    /// At the end: the countdown to the next episode; the player closes when auto-play is off, there's nothing next or
+    /// Cancel was chosen.
     private func itemEnded() {
         report(paused: true, ended: true)
         // The sleep timer stops here: the screen stays up, dimmed, on the end of this episode.
@@ -979,7 +985,7 @@ final class PlaybackController: NSObject {
             screen.sleepAtEndOfEpisode()
             return
         }
-        if info?.next != nil, !nextCancelled {
+        if info?.next != nil, !nextCancelled, preferences.autoPlayNext {
             beginFinishing()
         } else {
             dismissPlayer()

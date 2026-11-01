@@ -31,6 +31,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Where a profile's requests go (shows, films and now books) is set in its editor in **Settings › Profiles**, and the **Requests** page is gone. How books are requested from Readarr is in **Settings › Libraries**.
 - Profiles in **Settings › Profiles** each have a card of their own.
 
+### Playback
+- With **Auto-play the next episode** off, the player now closes at the end of an episode and goes back to where you started it, rather than waiting on the **Next Episode** button. With **Skip credits** on too, it closes as the credits start. On every app and the web.
+
 ### Music
 - A music library's page on iPhone, iPad, Apple TV and Android now shows the same rows as the web, in your order: **Your playlists**, **Recently played**, **Most played**, **More from artists you play** and **New albums**, then every artist. **Made for you** mixes are there and on Home too in every app, and play with one tap.
 

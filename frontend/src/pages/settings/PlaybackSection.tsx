@@ -31,7 +31,7 @@ function WhileWatching({ name }: { name?: string }) {
     { key: 'autoPlayNext', label: 'Auto-play the next episode', help: 'A five-second countdown, then the next episode starts.' },
     { key: 'skipIntros', label: 'Skip intros', help: 'Jumps past the opening titles by itself.' },
     { key: 'skipRecaps', label: 'Skip recaps', help: 'Jumps past “Previously on…” by itself.' },
-    { key: 'skipCredits', label: 'Skip credits', help: 'Moves on to the next episode as the credits start.' },
+    { key: 'skipCredits', label: 'Skip credits', help: 'Ends the episode as the credits start.' },
   ]
 
   async function change(next: PlaybackPreferences) {
