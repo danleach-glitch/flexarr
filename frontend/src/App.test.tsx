@@ -202,7 +202,7 @@ describe('App', () => {
     expect(calls).toEqual(['watched false', 'removed f2'])
   })
 
-  it('asks Home for books and podcasts, and removes them from Continue watching without marking them finished', async () => {
+  it('asks Home for books and podcasts, and takes them off Continue watching without marking them finished', async () => {
     const userData = { positionSeconds: 600, watched: false, playCount: 0, lastPlayedAt: null, unwatchedCount: null }
     const book = summary({ id: 'b1', kind: 'Audiobook', title: 'Project Hail Mary', durationSeconds: 7200, userData })
     const episode = summary({ id: 'p1', kind: 'PodcastEpisode', title: 'The long one', parentId: 'pod', seriesTitle: 'Hardcore History', durationSeconds: 3600, userData })
@@ -220,7 +220,11 @@ describe('App', () => {
         asked.push(url.searchParams.get('listening'))
         return { featured: [], overviews: {}, rows: [{ id: 'continue', title: 'Continue watching or listening', style: 'wide', items: row, link: null }], upcoming: [], downloading: 0 }
       },
-      'DELETE /home/continue/b1': remove('b1'),
+      // A book part way through is marked unread (no place, not finished), which takes it off the row too.
+      'POST /items/b1/finished': (init?: RequestInit) => {
+        calls.push(`b1 finished ${String(JSON.parse(String(init?.body)).finished)}`)
+        row = row.filter((i) => i.id !== 'b1')
+      },
       'DELETE /home/continue/p1': remove('p1'),
     })
 
@@ -228,7 +232,8 @@ describe('App', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'More for Project Hail Mary' }))
     let menu = screen.getByRole('menu')
     expect(within(menu).getByRole('menuitem', { name: 'Resume' })).toBeInTheDocument()
-    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Remove' }))
+    expect(within(menu).queryByRole('menuitem', { name: 'Remove' })).not.toBeInTheDocument()
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Mark as unread' }))
     await vi.waitFor(() => expect(screen.queryByRole('button', { name: 'More for Project Hail Mary' })).not.toBeInTheDocument())
 
     fireEvent.click(screen.getByRole('button', { name: 'More for The long one' }))
@@ -237,7 +242,7 @@ describe('App', () => {
     fireEvent.click(within(menu).getByRole('menuitem', { name: 'Remove' }))
     await vi.waitFor(() => expect(screen.queryByRole('button', { name: 'More for The long one' })).not.toBeInTheDocument())
 
-    expect(calls).toEqual(['removed b1', 'removed p1'])
+    expect(calls).toEqual(['b1 finished false', 'removed p1'])
     expect(asked[0]).toBe('books,podcasts')
   })
 
