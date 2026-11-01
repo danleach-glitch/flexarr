@@ -307,7 +307,7 @@ function RenameLibraryForm({ library, onDone }: { library: Library; onDone: (ren
 function AddLibraryForm({ onDone, onCancel }: { onDone: () => void; onCancel: () => void }) {
   const [name, setName] = useState('')
   const [type, setType] = useState<LibraryType>('Movies')
-  const [folders, setFolders] = useState<string[]>([])
+  const [folder, setFolder] = useState<string>()
   const [errors, setErrors] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
 
@@ -315,7 +315,8 @@ function AddLibraryForm({ onDone, onCancel }: { onDone: () => void; onCancel: ()
     event.preventDefault()
     setSaving(true)
     try {
-      await createLibrary({ name: name || libraryTypeLabel[type], type, folders })
+      if (!folder) return
+      await createLibrary({ name: name || libraryTypeLabel[type], type, folders: [folder] })
       onDone()
     } catch (e) {
       setErrors(e instanceof ApiError && e.messages.length ? e.messages : [e instanceof Error ? e.message : String(e)])
@@ -343,16 +344,8 @@ function AddLibraryForm({ onDone, onCancel }: { onDone: () => void; onCancel: ()
         </label>
       </div>
       <div className="field">
-        <span className="field-label">Folders</span>
-        {folders.map((f) => (
-          <div key={f} className="chosen-folder">
-            <code>{f}</code>
-            <button type="button" className="text-button" onClick={() => setFolders(folders.filter((x) => x !== f))}>
-              Remove
-            </button>
-          </div>
-        ))}
-        <FolderPicker onPick={(path) => setFolders((current) => (current.includes(path) ? current : [...current, path]))} />
+        <span className="field-label">Folder</span>
+        <FolderPicker onOpen={setFolder} />
       </div>
       {errors.length > 0 && (
         <ul className="error form-errors" role="alert">
@@ -365,7 +358,7 @@ function AddLibraryForm({ onDone, onCancel }: { onDone: () => void; onCancel: ()
         <button type="button" className="button quiet" onClick={onCancel}>
           Cancel
         </button>
-        <AsyncButton type="submit" className="button" busy={saving} disabled={folders.length === 0}>
+        <AsyncButton type="submit" className="button" busy={saving} disabled={!folder}>
           Add library
         </AsyncButton>
       </div>
