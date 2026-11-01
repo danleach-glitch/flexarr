@@ -52,7 +52,8 @@ internal fun LoadProfiles(model: AppModel, phase: AppModel.Phase.SignedIn) {
         // A list that couldn't be read (the network not up yet as the app starts, say) is asked for again: without it
         // Home has no profile button and nobody can switch.
         var wait = 2_000L
-        while (model.profiles.isEmpty()) {
+        // Offline mode tries again by itself, so this stops once it's on.
+        while (model.profiles.isEmpty() && !model.serverUnreachable) {
             delay(wait)
             model.loadProfiles()
             wait = (wait * 2).coerceAtMost(30_000L)
