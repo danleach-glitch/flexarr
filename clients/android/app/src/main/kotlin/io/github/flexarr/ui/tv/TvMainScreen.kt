@@ -332,6 +332,7 @@ fun TvMainScreen(model: AppModel) {
                     composable(TvTab.Search.route) { TvSearchScreen(model, takeFocus = arrives(TvTab.Search.route), onFocusTaken = arrived(TvTab.Search.route)) }
                     composable(TvTab.Settings.route) { TvSettingsScreen(model, onSwitchProfile = { choosingProfile = true }) }
                     composable("item/{id}") { TvDetailScreen(model, it.arguments!!.getString("id")!!) }
+                    composable("coming-soon") { TvComingSoonScreen(model) }
                     composable("artist/{id}") { TvArtistScreen(model, it.arguments!!.getString("id")!!) }
                     composable("album/{id}") { TvAlbumScreen(model, it.arguments!!.getString("id")!!) }
                     composable("playlist/{id}") { TvPlaylistScreen(model, it.arguments!!.getString("id")!!) }

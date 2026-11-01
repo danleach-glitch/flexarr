@@ -274,44 +274,11 @@ private fun ComingSoonRow(items: List<UpcomingItem>, downloading: Int) {
             horizontalArrangement = Arrangement.spacedBy(TvLayout.RowSpacing),
             verticalAlignment = Alignment.Top,
         ) {
-            items(items, key = { it.id }) { item -> TvComingSoonCard(item) { item.libraryItemId?.let(navigator::openItem) } }
+            items(items, key = { it.id }) { item -> TvComingSoonCard(item) }
+            // The rest, a day at a time, as on the Apple TV.
+            item(key = "see-all") { TvSeeAllCard(onClick = navigator::openComingSoon) }
         }
     }
-}
-
-/**
- * Something on its way, with the day it comes and any download's progress. Every card takes focus, so the row can be
- * looked along; only one already in the library (a show's next episode) opens.
- */
-@Composable
-private fun TvComingSoonCard(item: UpcomingItem, onClick: () -> Unit) {
-    val width = TvLayout.WideWidth
-    TvArtworkButton(
-        ambient = Flexarr.silver,
-        onClick = onClick,
-        modifier = Modifier.width(width),
-        contentDescription = "${item.cardTitle}, ${item.cardDetail}, ${item.dayLabel()}",
-        artwork = {
-            Box(Modifier.size(width, width * 9f / 16f).background(Flexarr.seat)) {
-                RemoteImage(item.still ?: item.poster, 560, Modifier.fillMaxSize()) {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(item.cardTitle, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, modifier = Modifier.padding(10.dp))
-                    }
-                }
-                Text(
-                    item.dayLabel(), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen,
-                    modifier = Modifier.align(Alignment.TopStart).padding(7.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.6f)).padding(horizontal = 7.dp, vertical = 3.dp),
-                )
-                item.download?.let { TvProgressBar(it.progress, Modifier.align(Alignment.BottomCenter).padding(8.dp)) }
-            }
-        },
-        caption = { focused ->
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(item.cardTitle, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = if (focused) Flexarr.screen else Flexarr.screen.copy(alpha = 0.85f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(item.cardDetail, fontSize = 11.5.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-        },
-    )
 }
 
 @Composable
