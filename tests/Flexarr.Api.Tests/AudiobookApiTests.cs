@@ -8,6 +8,7 @@ using Flexarr.Core.Books;
 using Flexarr.Core.Data;
 using Flexarr.Core.Libraries;
 using Flexarr.Core.Media;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Flexarr.Api.Tests;
@@ -93,6 +94,29 @@ public class AudiobookApiTests(FlexarrApiFactory factory) : IClassFixture<Flexar
         var german = await GetAsync<PagedDto<ItemSummaryDto>>($"/api/v1/libraries/{lib.Library}/books?language=ger");
 
         Assert.Equal((6, 6, 0), (byCode.Total, byName.Total, german.Total));
+    }
+
+    [Theory]
+    [InlineData("Русский")] // the tag as the shelves offer it
+    [InlineData("russian")]
+    [InlineData("ru")]
+    [InlineData("русский")]
+    public async Task Books_ByLanguage_WrittenBeyondAToZ(string asked)
+    {
+        var lib = await SeedAsync();
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var book = await db.BookDetails.SingleAsync(d => d.MediaItemId == lib.Books["Project Hail Mary"]);
+            book.Language = "Русский";
+            await db.SaveChangesAsync();
+        }
+
+        var shelves = await GetAsync<BookShelvesDto>($"/api/v1/libraries/{lib.Library}/book-shelves");
+        var books = await GetAsync<PagedDto<ItemSummaryDto>>($"/api/v1/libraries/{lib.Library}/books?language={Uri.EscapeDataString(asked)}");
+
+        Assert.Contains("Русский", shelves.Languages!);
+        Assert.Equal(["Project Hail Mary"], books.Items.Select(b => b.Title));
     }
 
     [Fact]

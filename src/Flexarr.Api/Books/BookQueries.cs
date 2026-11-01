@@ -62,10 +62,12 @@ public static class BookQueries
         if (filter.Language is { Length: > 0 } language)
         {
             // "en", "eng" and "English" are one language: books tagged with any of them, in any case, match. SQL's
-            // lower(), which ToLower becomes, has no culture to pass.
+            // lower(), which ToLower becomes, has no culture to pass and folds only A to Z, so "Русский" or "Čeština"
+            // is matched as it's written too: the tag as it was offered, and the names in their usual cases.
             var names = LanguageNames(language);
+            var written = LanguageSpellings(language, names);
 #pragma warning disable CA1304, CA1311
-            books = books.Where(i => names.Contains(i.Book!.Language!.ToLower()));
+            books = books.Where(i => names.Contains(i.Book!.Language!.ToLower()) || written.Contains(i.Book!.Language!));
 #pragma warning restore CA1304, CA1311
         }
 
@@ -329,6 +331,26 @@ public static class BookQueries
         }
 
         return [.. names];
+    }
+
+    /// <summary>
+    /// The ways <paramref name="names"/> (from <see cref="LanguageNames"/>) are written beyond lower case, for tags SQL's
+    /// lower() can't fold: <paramref name="language"/> as asked, and each name capitalised and in capitals.
+    /// </summary>
+    internal static List<string> LanguageSpellings(string language, IEnumerable<string> names)
+    {
+        var written = new HashSet<string>(StringComparer.Ordinal) { language.Trim() };
+        foreach (var name in names)
+        {
+            written.Add(name);
+            written.Add(name.ToUpperInvariant());
+            if (name.Length > 0)
+            {
+                written.Add(string.Concat(char.ToUpperInvariant(name[0]).ToString(), name[1..]));
+            }
+        }
+
+        return [.. written];
     }
 
     /// <summary>
