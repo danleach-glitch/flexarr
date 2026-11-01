@@ -17,6 +17,7 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import io.github.flexarr.AppModel
 import io.github.flexarr.core.BookChapter
@@ -24,6 +25,7 @@ import io.github.flexarr.core.BookFile
 import io.github.flexarr.core.BookListening
 import io.github.flexarr.core.BookManifest
 import io.github.flexarr.core.BookPause
+import io.github.flexarr.core.BookSessionClock
 import io.github.flexarr.core.BookSpeed
 import io.github.flexarr.core.ChapterSleep
 import io.github.flexarr.core.endBookSession
@@ -169,6 +171,10 @@ class BookPlayer(private val context: Context, private val model: AppModel) {
     private var ticker: Job? = null
     /** When it was paused, for smart rewind and for asking the server whether another device moved on meanwhile. */
     private val pause = BookPause()
+    /** When the session was last heard from (a report, or playing): apart from [pause], which a seek forgets. */
+    private val sessionClock = BookSessionClock()
+    /** A file request 404'd and a new session was asked for: once per session, so a missing file still fails. */
+    private var restartedForGoneFile = false
     private var shownChapter: Int? = null
     private var files: List<BookFile> = emptyList()
 
@@ -206,6 +212,15 @@ class BookPlayer(private val context: Context, private val model: AppModel) {
         }
 
         override fun onPlayerError(error: PlaybackException) {
+            val book = current
+            // The session's file addresses went with it (let go on the server): a new session, from the same place.
+            if (book != null && sessionId != null && !playingDownload && !restartedForGoneFile && error.isNotFound()) {
+                flexarrLog.info("Book session gone; starting a new one")
+                val at = timelinePosition()
+                start(book, at.takeIf { it > 0 && it < duration - 1 })
+                restartedForGoneFile = true
+                return
+            }
             flexarrLog.warning("Book failed", error)
             errorMessage = "This book couldn’t be played."
             endSession()
@@ -220,10 +235,17 @@ class BookPlayer(private val context: Context, private val model: AppModel) {
      */
     fun play(book: ItemSummary, from: Double? = null) {
         val client = model.client
-        if (current?.id == book.id && ((sessionId != null && !sessionGone) || playingDownload) && player.playbackState != Player.STATE_IDLE) {
-            from?.let(::seek)
-            if (!player.playWhenReady) player.play()
-            return
+        if (current?.id == book.id && player.playbackState != Player.STATE_IDLE) {
+            if (playingDownload || (sessionId != null && !sessionLapsed())) {
+                from?.let(::seek)
+                if (!player.playWhenReady) player.play()
+                return
+            }
+            // Paused for most of a day: the server has likely let the session go. A new one, from the same place.
+            if (sessionId != null) {
+                this.client = client
+                return start(book, from ?: timelinePosition().takeIf { it > 0 && it < duration - 1 })
+            }
         }
         this.client = client
         start(book, from)
@@ -329,6 +351,7 @@ class BookPlayer(private val context: Context, private val model: AppModel) {
         player.play()
         this.artworkUri = artworkUri
         lastReport = System.currentTimeMillis()
+        sessionClock.active(lastReport)
         recordedAt = System.currentTimeMillis()
         showChapter()
         startTicking()
@@ -373,11 +396,14 @@ class BookPlayer(private val context: Context, private val model: AppModel) {
     fun resume() {
         val book = current ?: return
         // A session paused for most of a day has likely been let go by the server: a new one, from the same place.
-        val sessionLapsed = sessionId != null && (sessionGone || pause.since?.let { System.currentTimeMillis() - it > SESSION_LAPSES_MS } == true)
-        if ((sessionId == null && !playingDownload) || sessionLapsed || player.playbackState == Player.STATE_IDLE) return start(book, position.takeIf { it > 0 && it < duration - 1 })
+        if ((sessionId == null && !playingDownload) || sessionLapsed() || player.playbackState == Player.STATE_IDLE) return start(book, position.takeIf { it > 0 && it < duration - 1 })
         if (player.playbackState == Player.STATE_ENDED) return start(book, 0.0)
         player.play()
     }
+
+    /** Session-based, and gone or idle longer than the server keeps one (a seek while paused doesn't count). */
+    private fun sessionLapsed(): Boolean =
+        sessionId != null && !playingDownload && (sessionGone || sessionClock.lapsed(System.currentTimeMillis()))
 
     /** Back or forward by [seconds] (the profile's steps). */
     fun skip(seconds: Double) = seek(timelinePosition() + seconds)
@@ -525,6 +551,7 @@ class BookPlayer(private val context: Context, private val model: AppModel) {
                     checkSleep()
                 }
                 if (!player.isPlaying) break
+                sessionClock.active(System.currentTimeMillis())
                 if (System.currentTimeMillis() - lastReport >= REPORT_INTERVAL_MS) report(paused = false)
                 delay(if (appInFront) 250 else 1_000)
             }
@@ -599,6 +626,7 @@ class BookPlayer(private val context: Context, private val model: AppModel) {
     private fun report(paused: Boolean, ended: Boolean = false) {
         val book = current ?: return
         lastReport = System.currentTimeMillis()
+        sessionClock.active(lastReport)
         if (!model.recordsHistory) return
         val at = if (ended) duration else timelinePosition()
         recordedAt = System.currentTimeMillis()
@@ -645,6 +673,8 @@ class BookPlayer(private val context: Context, private val model: AppModel) {
     /** Reports the last place (the end, with [ended]) and stops the session, one after the other. */
     private fun endSession(ended: Boolean = false) {
         ticker?.cancel()
+        sessionClock.clear()
+        restartedForGoneFile = false
         if (playingDownload) {
             playingDownload = false
             val book = current
@@ -694,11 +724,13 @@ class BookPlayer(private val context: Context, private val model: AppModel) {
 
     companion object {
         private const val REPORT_INTERVAL_MS = 15_000L
-        /** A little under the twelve hours idle after which the server ends a session. */
-        private const val SESSION_LAPSES_MS = 11 * 3_600_000L
         private const val FADE_SECONDS = 10.0
         private const val SHAKE_MINUTES = 5
         private const val SHAKE_AFTER_MS = 5 * 60_000L
+
+        /** A file request the server answered 404: what a lapsed session's file addresses get. */
+        private fun PlaybackException.isNotFound(): Boolean =
+            generateSequence<Throwable>(this) { it.cause }.take(8).any { (it as? HttpDataSource.InvalidResponseCodeException)?.responseCode == 404 }
 
         private val CHAPTER_COMMANDS = listOf(
             Player.COMMAND_SEEK_TO_NEXT,
