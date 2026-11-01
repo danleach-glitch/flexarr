@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { clearApiCache, getProfiles, setLibraryOrder } from '../../api/client'
+import { clearApiCache, getPodcastPreferences, getProfiles, savePodcastPreferences, setLibraryOrder } from '../../api/client'
 import { useApi } from '../../hooks/useApi'
 import { useLibraries } from '../../hooks/librariesContext'
 import { reorderedLibraries } from '../../lib/libraryOrder'
+import { PODCAST_PREFERENCES_CHANGED } from '../../lib/podcasts'
 import { RowList } from './LayoutSection'
-import { SaveStatus, SettingsHeader } from './shared'
+import { SaveStatus, SettingsGroup, SettingsHeader, ToggleRow } from './shared'
 import { errorText } from './useSettings'
 
 /** The profile's own: the order of its libraries in the sidebar here and in every app's menu. */
@@ -62,6 +63,34 @@ export function SidebarSection() {
       )}
       {/* Only a failed save says anything, under the list so the list never moves. */}
       <SaveStatus error={error} />
+      {libraries.some((l) => l.type === 'Podcasts') && <PodcastsInSidebar />}
     </section>
+  )
+}
+
+/** Whether Podcasts has a place among the libraries: a podcast setting, kept with the profile's podcast settings. */
+function PodcastsInSidebar() {
+  const loaded = useApi((signal) => getPodcastPreferences(signal), [])
+  const [chosen, setChosen] = useState<boolean>()
+  const [error, setError] = useState<string>()
+  const on = chosen ?? loaded.data?.showInSidebar
+  if (on === undefined) return null
+
+  async function change(showInSidebar: boolean) {
+    setChosen(showInSidebar)
+    setError(undefined)
+    try {
+      await savePodcastPreferences({ showInSidebar })
+      window.dispatchEvent(new Event(PODCAST_PREFERENCES_CHANGED))
+    } catch (e) {
+      setChosen(!showInSidebar)
+      setError(errorText(e))
+    }
+  }
+
+  return (
+    <SettingsGroup title="Podcasts" note={error ? <SaveStatus error={error} /> : undefined}>
+      <ToggleRow label="Show in the sidebar" help="Either way, Home has a New podcasts row." checked={on} onChange={(v) => void change(v)} />
+    </SettingsGroup>
   )
 }
