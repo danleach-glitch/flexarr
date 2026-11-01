@@ -69,12 +69,13 @@ fun PlaybackSettingsScreen(model: AppModel) {
         }
     }
 
-    /** Saved as soon as it changes, and put back if the server says no. */
-    fun save(changed: PlaybackPreferences, over: PlaybackPreferences) {
+    /** Saved as soon as it changes, and put back if the server says no. [refreshesHome]: Home's rows follow it. */
+    fun save(changed: PlaybackPreferences, over: PlaybackPreferences, refreshesHome: Boolean = false) {
         preferences = changed
         model.scope.launch {
             try {
                 client.setPlaybackPreferences(changed.forSaving())
+                if (refreshesHome) model.watchStateChanged()
             } catch (_: FlexarrException) {
                 preferences = over
             }
@@ -107,6 +108,11 @@ fun PlaybackSettingsScreen(model: AppModel) {
                         }
                         Divider()
                         Toggle("Subtitles in the black bars", current.subtitlesInBlackBars ?: false, { save(current.copy(subtitlesInBlackBars = it), current) })
+                        // Only from a server that has the switch (0.58 and later).
+                        current.listeningInContinue?.let { on ->
+                            Divider()
+                            Toggle("Books and podcasts in Continue watching", on, { save(current.copy(listeningInContinue = it), current, refreshesHome = true) })
+                        }
                     }
                 }
             }
