@@ -38,6 +38,11 @@ final class ParityTour: XCTestCase {
         app.launchArguments = arguments
         app.launch()
         pause(7)
+        // A run that ended on the profile picker leaves the app asking who's watching: the main profile watches.
+        if app.staticTexts["Who’s watching?"].exists, let main = try await client.profiles().first(where: \.isMain) {
+            app.buttons[main.name].firstMatch.tap()
+            pause(6)
+        }
     }
 
     func testParityTour() async throws {
