@@ -33,8 +33,8 @@ On a show's page:
 
 Episodes play in the same bar as music, and pick up where you left off on any device.
 
-- **15 seconds back and 30 on**, on screen and on the lock screen.
-- **Speeds** from 0.8× to 3×. Your profile's default is in **Settings › Podcasts › Speed**, and changing it in the player changes it there too.
+- **Skip back and forward** by your profile's steps (30 seconds each to start with), on screen, on the lock screen and with headphones. **Smart rewind** starts a little earlier after a pause.
+- **Speeds** from 0.8× to 3×. Changing it in the player changes your profile's speed, which books share.
 - **Sleep timer** (the moon): stop after a set time, or at the end of the episode.
 - **Notes** swaps the cover for the episode's notes and chapters. The chapter playing shows above the scrubber, with arrows to the next and the last.
 - Now Playing says when the episode will end, at the speed it's playing.
@@ -46,23 +46,21 @@ Episodes play through your server rather than straight from the podcast's host. 
 
 Up Next is your own queue of episodes, shared between the web and your phone. Use **Play next** or **Add to Up Next** on any episode. Reorder or remove episodes on the Podcasts page, or in Now Playing on iPhone and iPad. An episode leaves Up Next once it starts playing.
 
-Episodes you're part way through also show on Home, in **Continue watching or listening**, on the web, iPhone, iPad and Android. To leave them out, turn off **Books and podcasts in Continue watching** in **Settings › Playback**.
+Episodes you're part way through also show on Home, in **Continue watching or listening**, on the web, iPhone, iPad and Android. To leave them out, turn off **Books and podcasts in Continue watching** in **Settings › Podcasts and audiobooks**.
 
 ## Settings
 
-Podcast settings belong to each profile.
+Podcast settings belong to each profile, and are in **Settings › Podcasts and audiobooks** on the web, iPhone, iPad and Android:
 
-**On the web**, **Settings › Podcasts**:
+- **Speed**, **Skip back**, **Skip forward** and **Smart rewind**, shared with audiobooks.
+- **Books and podcasts in Continue watching**.
+- **Download new episodes** and how many of each show's newest to keep, for phones and tablets.
 
-- **Show in the sidebar**: either way, Home has a New podcasts row.
-- **Speed**.
-- **Download new episodes** and **Episodes to keep**, for iPhone and iPad.
-
-**On iPhone and iPad**, **Settings › Podcasts** has **Auto-download new episodes**, how many of the newest to keep, and **Speed**.
+On the web, **Show in the sidebar** is in **Settings › Sidebar**; either way, Home has a New podcasts row.
 
 ## Offline on iPhone and iPad
 
-Download any episode to listen with no connection. Or turn on **Auto-download new episodes**: the newest unplayed episodes of every show you follow then download by themselves. Episodes you deleted yourself are never downloaded again by themselves.
+Download any episode to listen with no connection. Or turn on **Download new episodes** in **Settings › Podcasts and audiobooks**: the newest unplayed episodes of every show you follow then download by themselves. Episodes you deleted yourself are never downloaded again by themselves.
 
 A downloaded episode is deleted once you've heard it to the end or marked it played, whether you downloaded it or the app did. One finished on another device, such as the web, goes the next time the app catches up with the server.
 

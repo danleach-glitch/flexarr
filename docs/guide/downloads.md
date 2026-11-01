@@ -55,7 +55,7 @@ In the next release, two more for audiobooks, both off to start with:
 
 Automatic downloads never use Low Data Mode. Downloads you start yourself use mobile data as well as Wi-Fi.
 
-For podcasts, **Auto-download new episodes** in **Settings › Podcasts** keeps the newest unplayed episodes of every show you follow on the device. See [Podcasts](podcasts.md).
+For podcasts, **Download new episodes** in **Settings › Podcasts and audiobooks** keeps the newest unplayed episodes of every show you follow on the device. See [Podcasts](podcasts.md).
 
 ## Storage
 
