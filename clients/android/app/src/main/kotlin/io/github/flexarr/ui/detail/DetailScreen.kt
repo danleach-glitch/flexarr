@@ -295,15 +295,14 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
     val actions = DetailActions.of(
         DetailActions.Input(
             kind = kind,
-            hasProgress = playable?.isResumable == true,
+            // A show's Resume already starts its episode; Start over and Mark as unwatched are for the title itself.
+            hasProgress = playable?.isResumable == true && item.kind != MediaKind.Series,
             isWatched = watched,
             hasTrailer = trailer != null,
             isKids = model.isKids,
             platform = DetailActions.Platform.PHONE,
             canDownload = item.kind == MediaKind.Movie || item.kind == MediaKind.Episode,
             canSearchSubtitles = detail.canSearchSubtitles == true && file != null,
-            // Servers before 0.56 don't say, and have no watchlist.
-            hasWatchlist = detail.onWatchlist != null,
         ),
     )
     // Another screen: a film or episode as it is, a show the episode that screen's profile is up to. The phone's own
@@ -327,32 +326,24 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
                     }
                     DetailActions.Button.SHUFFLE -> if (item.childCount > 0) LabeledAction("Shuffle", Icons.Filled.Shuffle, { navigator.shuffle(item) }, slot)
                     DetailActions.Button.TRAILER -> LabeledAction("Trailer", Icons.Filled.Theaters, { showingTrailer = true }, slot)
-                    DetailActions.Button.WATCHED -> if (item.isResumable && !watched) {
-                        // Part way through, either way: unwatched forgets the place (it leaves Continue watching).
-                        var menu by remember { mutableStateOf(false) }
-                        Box(slot) {
-                            LabeledAction("Mark as watched", Icons.Filled.Check, { menu = true }, Modifier.fillMaxWidth(), maxLines = 2)
-                            DropdownMenu(menu, onDismissRequest = { menu = false }) {
-                                DropdownMenuItem(text = { Text("Mark as watched") }, onClick = { menu = false; navigator.setWatched(item, true) })
-                                DropdownMenuItem(text = { Text("Mark as unwatched") }, onClick = { menu = false; navigator.setWatched(item, false) })
-                            }
-                        }
-                    } else {
-                        LabeledAction(
-                            if (watched) "Mark as unwatched" else "Mark as watched",
-                            if (watched) Icons.Filled.VisibilityOff else Icons.Filled.Check,
-                            { navigator.setWatched(item, !watched) },
-                            slot,
-                            maxLines = 2,
-                        )
+                    DetailActions.Button.WATCHED -> LabeledAction(
+                        if (watched) "Mark as unwatched" else "Mark as watched",
+                        if (watched) Icons.Filled.VisibilityOff else Icons.Filled.Check,
+                        { navigator.setWatched(item, !watched) },
+                        slot,
+                        maxLines = 2,
+                    )
+                    // Only what the server can put on a watchlist: films and shows, from servers that have one (0.56).
+                    DetailActions.Button.WATCHLIST -> if (item.kind == MediaKind.Movie || item.kind == MediaKind.Series) {
+                        detail.onWatchlist?.let { saved -> WatchlistAction(item, saved, detail, slot) }
                     }
-                    DetailActions.Button.WATCHLIST -> detail.onWatchlist?.let { saved -> WatchlistAction(item, saved, detail, slot) }
                     DetailActions.Button.DOWNLOAD -> DownloadAction(model, item, slot)
                     DetailActions.Button.MORE -> Box(slot) {
                         LabeledAction("More", Icons.Filled.MoreHoriz, { more = true }, Modifier.fillMaxWidth())
                         DropdownMenu(more, onDismissRequest = { more = false }) {
                             actions.menu.forEach { entry ->
                                 when (entry) {
+                                    // Part way through: forget the place without marking it watched (it leaves Continue watching).
                                     DetailActions.MenuItem.MARK_UNWATCHED ->
                                         DropdownMenuItem(text = { Text("Mark as unwatched") }, onClick = { more = false; navigator.setWatched(item, false) })
                                     DetailActions.MenuItem.SUBTITLES -> file?.let { found ->

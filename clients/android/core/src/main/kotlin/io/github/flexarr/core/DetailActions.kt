@@ -12,7 +12,11 @@ object DetailActions {
 
     enum class Button { PLAY, START_OVER, SHUFFLE, TRAILER, WATCHED, WATCHLIST, DOWNLOAD, MORE }
 
-    /** What the ⋯ menu holds: only what the app can already do. */
+    /**
+     * What the ⋯ menu holds: only what the app can already do. [MARK_UNWATCHED] is for part way through and not
+     * watched: forget the place without marking it watched (Watched only marks it watched then), so it's never the
+     * same thing twice; once it's watched, Watched itself becomes Mark as unwatched and this goes.
+     */
     enum class MenuItem { MARK_UNWATCHED, SUBTITLES, GO_TO_SHOW }
 
     data class Input(
@@ -29,8 +33,6 @@ object DetailActions {
         val canDownload: Boolean = false,
         /** The server can search for subtitles for it (it has a file and a subtitle source). */
         val canSearchSubtitles: Boolean = false,
-        /** The server has a watchlist (0.56 and later). */
-        val hasWatchlist: Boolean = true,
     )
 
     data class Actions(val buttons: List<Button>, val menu: List<MenuItem>)
@@ -43,13 +45,12 @@ object DetailActions {
             if (input.hasTrailer && !input.isKids && input.canPlayTrailers) add(Button.TRAILER)
             // A child's watched marks follow what they watch, not what they press.
             if (!input.isKids) add(Button.WATCHED)
-            // Episodes don't go on a watchlist; their show does.
-            if (!input.isKids && input.hasWatchlist && input.kind != Kind.EPISODE) add(Button.WATCHLIST)
+            // Only what the server can put on a watchlist shows it (films and shows, from servers that have one): the page's call.
+            if (!input.isKids) add(Button.WATCHLIST)
             if (input.platform == Platform.PHONE && input.canDownload) add(Button.DOWNLOAD)
         }
         val menu = buildList {
-            // Never twice: only when there's no Watched button to undo it with.
-            if (input.isWatched && Button.WATCHED !in buttons) add(MenuItem.MARK_UNWATCHED)
+            if (!input.isKids && input.hasProgress && !input.isWatched) add(MenuItem.MARK_UNWATCHED)
             if (input.canSearchSubtitles && !input.isKids) add(MenuItem.SUBTITLES)
             if (input.kind == Kind.EPISODE) add(MenuItem.GO_TO_SHOW)
         }
