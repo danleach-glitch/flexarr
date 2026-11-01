@@ -56,7 +56,7 @@ Sometimes you can't change the volumes, or the *arrs run in Docker and Flexarr r
 
 Go to **Settings › Connections** and find **Media folders**. Each root folder of a connected Sonarr, Radarr or Lidarr has a line saying where it is on this server.
 
-Usually Flexarr works this out by itself. It compares the folders the apps keep their shows, films, artists and books in with the folders Flexarr found the same titles in. Sonarr's `/tv/Severance (2022)` and Flexarr's `/data/media/tv/Severance (2022)` mean `/tv` is `/data/media/tv`. When enough titles agree, Flexarr saves the mapping itself, on its next library scan, and the line goes green.
+Usually Flexarr works this out by itself. It compares the folders the apps keep their shows, films and artists in with the folders Flexarr found the same titles in. Sonarr's `/tv/Severance (2022)` and Flexarr's `/data/media/tv/Severance (2022)` mean `/tv` is `/data/media/tv`. When enough titles agree, Flexarr saves the mapping itself, on its next library scan, and the line goes green.
 
 When it's less sure, the line is amber:
 

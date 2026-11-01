@@ -71,7 +71,7 @@ To undo a fix, open Fix match again and choose **Match automatically again**.
 
 ## Deleting a title
 
-To delete a film, show or episode, open its page, then **⋯ › Delete…** (main profile only). The dialog says who'll do the deleting before you confirm:
+To delete a film, show, episode or audiobook, open its page, then **⋯ › Delete…** (main profile only). The dialog says who'll do the deleting before you confirm:
 
 - **A film Radarr manages:** Radarr deletes the film's files from disk and stops tracking it.
 - **A show Sonarr manages:** Sonarr deletes every episode's files and stops tracking the show.

@@ -48,6 +48,7 @@ You can run Flexarr without them, but what you get differs by library.
 | Films | Radarr supplies titles, posters, backgrounds, overviews, genres, ratings, trailers and cast. Films Radarr doesn't manage are looked up through its search. | Films are found and play, named from their folders and files. Artwork and details come from any `.nfo` file and images (`poster.jpg`, `fanart.jpg`) in the film's folder, or from TMDB with a free key of your own. |
 | TV shows | Sonarr supplies show and episode details and artwork. Flexarr adds cast from TVmaze. | Episodes are found and play, organised from names like `S01E02`. Artwork and details come from any `tvshow.nfo`, episode `.nfo` files and images (`poster.jpg`, `season01-poster.jpg`, `-thumb.jpg`) beside them, or from TVmaze, which needs no setup. |
 | Music | Lidarr adds artist pictures, album details and sorts albums, EPs and singles apart. | Works well: Flexarr reads the tags in your files and uses `cover.jpg` or `folder.jpg` images, or art embedded in the files. |
+| Audiobooks (in the next release) | No app needed. | Works well: Flexarr reads the folders, tags and files beside each book, and looks up what's missing on Audible and Open Library. |
 | Requests | Seerr lets you search for and request films and shows from any of the apps. | No requests. |
 | Subtitles | Bazarr lets you search for subtitles from the player, and re-sync ones that are out of time. | Subtitles in or beside your files only. |
 

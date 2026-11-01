@@ -77,6 +77,6 @@ If an author has the wrong photo or biography, open their page in the web app an
 
 ## Getting books in
 
-Flexarr doesn't fetch books. Put them in the library's folder, by hand or with whatever app you use, in one of the layouts above. New books show up after the next scan, every 12 hours, or straight away with **Scan** in **Settings › Libraries**.
+Flexarr doesn't fetch books. Put them in the library's folder, by hand or with whatever app you use, in one of the layouts above. New books show up after the next scan, every 12 hours, or straight away with the library's scan button (⟳) in **Settings › Libraries**.
 
 A `metadata.opf`, `metadata.json` or cover beside a book gives it the details you want. If Flexarr still picks the wrong book, use **⋯ › Fix match…**. Deleting a book in Flexarr deletes its files.
