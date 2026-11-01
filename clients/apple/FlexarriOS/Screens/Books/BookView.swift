@@ -18,6 +18,10 @@ struct BookView: View {
     @State private var isVisible = false
     @State private var overviewExpanded = false
     @State private var allChapters = false
+    /// Start over was tapped part way through: it asks first.
+    @State private var confirmingStartOver = false
+    /// What the Bookmark button came to, for a moment.
+    @State private var notice: BookmarkNotice?
     /// The bookmark whose note is being written.
     @State private var editing: Bookmark?
     @State private var note = ""
@@ -57,6 +61,10 @@ struct BookView: View {
             }
         }
         .navigationBarTitleDisplayMode(.inline)
+        .overlay(alignment: .top) {
+            if let notice { NoticeCapsule(notice: notice).padding(.top, 8) }
+        }
+        .animation(.easeInOut(duration: 0.25), value: notice)
         .alert("Note", isPresented: Binding(get: { editing != nil }, set: { if !$0 { editing = nil } })) {
             TextField("Note", text: $note)
             Button("Save") { if let editing { save(note, for: editing) } }
@@ -184,9 +192,17 @@ struct BookView: View {
                     }
                     .accessibilityLabel(item.isFinishedBook ? "Mark as not finished" : "Mark as finished")
                 }
+                // Only with somewhere to start over from; part way through, it asks first.
                 if item.isFinishedBook || resumable {
-                    Button { Task { await model.listenAgain(item) } } label: {
-                        Label("Listen again", systemImage: "arrow.counterclockwise")
+                    Button {
+                        if resumable { confirmingStartOver = true } else { Task { await model.listenAgain(item) } }
+                    } label: {
+                        Label("Start over", systemImage: "arrow.counterclockwise")
+                    }
+                    .confirmationDialog("Start over from the beginning?", isPresented: $confirmingStartOver, titleVisibility: .visible) {
+                        Button("Start over", role: .destructive) { Task { await model.listenAgain(item) } }
+                    } message: {
+                        Text("You're at \(Format.timestamp(position)).")
                     }
                 }
                 Button { addBookmark() } label: { Label("Bookmark", systemImage: "bookmark") }
@@ -353,19 +369,35 @@ struct BookView: View {
         await load()
     }
 
-    /// A bookmark where the player is (playing this book) or where this profile got to.
+    /// A bookmark where the player is (playing this book) or where this profile got to, with a moment's notice.
     private func addBookmark() {
+        let place = position
         if model.music.current?.id == id, model.music.book != nil {
             Task {
-                await model.music.addBookmark()
+                let added = await model.music.addBookmark()
+                show(added != nil ? .added(place) : model.music.bookmarkNotice ?? BookmarkNotice(text: "Bookmark not added", isError: true))
                 await load()
             }
             return
         }
         guard let client = model.client else { return }
         Task {
-            _ = try? await client.addBookmark(id, positionSeconds: position)
+            do {
+                _ = try await client.addBookmark(id, positionSeconds: place)
+                show(.added(place))
+            } catch {
+                show(.failed(error))
+            }
             await load()
+        }
+    }
+
+    private func show(_ shown: BookmarkNotice) {
+        if model.music.current?.id != id { shown.tap() } // the player taps for its own
+        notice = shown
+        Task {
+            try? await Task.sleep(for: .seconds(shown.isError ? 4 : 2))
+            if notice == shown { notice = nil }
         }
     }
 

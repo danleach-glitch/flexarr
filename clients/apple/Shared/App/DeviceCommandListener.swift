@@ -16,9 +16,9 @@ final class DeviceCommandListener {
     /// The commands beyond the basic ones this app takes: a remote on another device offers these.
     static let accepts: [DeviceCommandKind] = DeviceCommandListener.ownAccepts
 
-    /// The iPhone and iPad also take the sleep timer, for books and podcasts.
+    /// Both apps play audiobooks (`book`); the iPhone and iPad also take the sleep timer, for books and podcasts.
     private static var ownAccepts: [DeviceCommandKind] {
-        var kinds: [DeviceCommandKind] = [.sound, .seek, .skip, .next, .previous, .skipSegment, .audioTrack, .subtitleTrack, .rate]
+        var kinds: [DeviceCommandKind] = [.sound, .seek, .skip, .next, .previous, .skipSegment, .audioTrack, .subtitleTrack, .rate, .book]
         #if os(iOS)
         kinds.append(.sleep)
         #endif

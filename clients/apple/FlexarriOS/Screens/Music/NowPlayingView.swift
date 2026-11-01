@@ -27,6 +27,9 @@ struct NowPlayingView: View {
     @State private var artworkGlow: Color?
     /// A book's speed is chosen on a sheet of its own (0.5× to 3.5× in 0.05 steps).
     @State private var showingSpeed = false
+    /// A book's scrubber covers the chapter playing (the default, as in book apps) or the whole book; the Apple TV
+    /// keeps the same choice under the same name.
+    @AppStorage("books.timelineIsBook") private var wholeBook = false
 
     private var music: MusicPlayer { model.music }
 
@@ -71,6 +74,10 @@ struct NowPlayingView: View {
         .task(id: music.current?.id) {
             await playing.load(music.isPodcast ? music.current?.id : nil, client: model.client)
         }
+        .overlay(alignment: .top) {
+            if let notice = music.bookmarkNotice { NoticeCapsule(notice: notice).padding(.top, 28) }
+        }
+        .animation(.easeInOut(duration: 0.25), value: music.bookmarkNotice)
         .task(id: music.artwork) { artworkGlow = music.artwork?.averageColor.map { Color(rgb: $0.glow) } }
         .onChange(of: music.current == nil) { _, empty in if empty { dismiss() } }
     }
@@ -252,18 +259,42 @@ struct NowPlayingView: View {
         }
     }
 
+    /// What the scrubber spans: a book's chapter playing (unless the whole book was chosen), else the whole track.
+    private var scope: (start: Double, length: Double, isChapter: Bool) {
+        if music.isBook, !wholeBook, let chapter = music.chapter, music.chapters.count > 1, chapter.durationSeconds > 0 {
+            return (chapter.startSeconds, chapter.durationSeconds, true)
+        }
+        return (0, music.duration, false)
+    }
+
+    /// Where the scrubber's thumb is, on the whole timeline.
+    private var shownPosition: Double { scrubbing.map { $0 + scope.start } ?? music.position }
+
     private var scrubber: some View {
-        VStack(spacing: 2) {
-            PlayerScrubber(position: music.position, duration: music.duration, chapterStarts: chapters.map(\.startSeconds),
-                           scrubbing: $scrubbing) { music.seek(to: $0) }
+        let scope = scope
+        let into = max(0, (scrubbing ?? (music.position - scope.start)))
+        // A book's time left is at the speed it plays.
+        let left = max(0, scope.length - into) / (music.isBook ? max(0.5, music.speed) : 1)
+        return VStack(spacing: 2) {
+            PlayerScrubber(position: music.position - scope.start, duration: scope.length,
+                           chapterStarts: scope.isChapter ? [] : chapters.map(\.startSeconds),
+                           step: music.isBook ? music.skipForward : nil, scrubbing: $scrubbing) { music.seek(to: $0 + scope.start) }
             HStack {
-                Text(Format.timestamp(scrubbing ?? music.position))
+                Text(Format.timestamp(into))
                     .frame(maxWidth: .infinity, alignment: .leading)
                 if music.isPodcast, music.duration > 0 {
                     // When it'll finish, at the speed it's playing.
                     Text("Ends \(Date().addingTimeInterval(max(0, music.duration - music.position) / max(0.5, music.speed)).formatted(date: .omitted, time: .shortened))")
+                } else if music.isBook, music.chapters.count > 1 {
+                    // Which the scrubber spans: a tap switches.
+                    Button(scope.isChapter ? "Chapter" : "Book") { wholeBook.toggle() }
+                        .buttonStyle(.plain)
+                        .frame(minHeight: 32)
+                        .contentShape(Rectangle())
+                        .accessibilityLabel(scope.isChapter ? "Showing the chapter" : "Showing the whole book")
+                        .accessibilityHint("Switches between the chapter and the whole book")
                 }
-                Text(music.duration > 0 ? "-" + Format.timestamp(max(0, music.duration - (scrubbing ?? music.position))) : "")
+                Text(scope.length > 0 ? "-" + Format.timestamp(left) : "")
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }
             .font(.caption.weight(.medium))
@@ -274,7 +305,7 @@ struct NowPlayingView: View {
 
     /// The chapter playing, with the ones either side a tap away.
     private var chapterStrip: some View {
-        let current = chapters.index(at: scrubbing ?? music.position)
+        let current = chapters.index(at: shownPosition)
         return HStack(spacing: 4) {
             Button {
                 // Back to the start of this chapter, or (near its start already) to the one before.
@@ -338,7 +369,7 @@ struct NowPlayingView: View {
                 music.acceptJump()
             } dismiss: { music.dismissJump() }
         } else if let next = music.nextBookOffer {
-            offerBar(text: next.title, action: "Play", icon: "play.fill") { music.playNextBook() } dismiss: { music.stop() }
+            offerBar(text: next.title, action: "Play", icon: "play.fill") { music.playNextBook() } dismiss: { music.dismissNextBook() }
         }
     }
 
@@ -354,13 +385,19 @@ struct NowPlayingView: View {
                 .buttonStyle(.borderedProminent)
                 .tint(Color.silver)
                 .foregroundStyle(Color.room)
-            Button(action: dismiss) { Image(systemName: "xmark").font(.footnote.weight(.semibold)).foregroundStyle(Color.usher) }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Not now")
+            Button(action: dismiss) {
+                Image(systemName: "xmark")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(Color.usher)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Not now")
         }
         .padding(.leading, 16)
-        .padding(.trailing, 12)
-        .padding(.vertical, 8)
+        .padding(.trailing, 2)
+        .padding(.vertical, 2)
         .background(Capsule().fill(Color.screen.opacity(0.1)))
         .transition(.opacity)
     }

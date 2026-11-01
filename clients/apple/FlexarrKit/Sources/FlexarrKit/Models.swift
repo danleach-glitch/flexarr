@@ -1271,6 +1271,9 @@ public enum DeviceCommandKind: String, ForwardCompatibleEnum {
     /// The sleep timer: stop after `seconds`, or at the end of the book's chapter (`endOfChapter`); neither turns it
     /// off. Sent only to devices that list it in `accepts`. Absent from servers before 0.58.
     case sleep = "Sleep"
+    /// Not a command: listed in `accepts`, it says this device plays audiobooks, so remotes offer books to it.
+    /// Absent from servers before 0.58.
+    case book = "Book"
     case unknown
 }
 

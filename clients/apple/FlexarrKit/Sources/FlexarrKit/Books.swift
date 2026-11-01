@@ -214,6 +214,22 @@ public struct BookManifest: Codable, Sendable, Hashable {
     }
 
     public var timeline: BookTimeline { BookTimeline(files: files, chapters: chapters, duration: durationSeconds) }
+
+    /// A downloaded book's manifest brought up to date from `fresh` (the server's now): the speed, bookmarks, how
+    /// this profile listens, where it is and the series' next book come from the server; the files, chapters and
+    /// length stay these, which describe the files on the device. `speed`, when given, wins over the server's (a
+    /// change made offline that the server hasn't been told yet).
+    public func refreshed(from fresh: BookManifest, speed: Double? = nil) -> BookManifest {
+        guard fresh.itemId == itemId else { return self }
+        return BookManifest(itemId: itemId, durationSeconds: durationSeconds, files: files, chapters: chapters, bookmarks: fresh.bookmarks,
+                            progress: fresh.progress, speed: speed ?? fresh.speed, listening: fresh.listening, nextInSeries: fresh.nextInSeries)
+    }
+
+    /// The same manifest at another speed.
+    public func withSpeed(_ speed: Double) -> BookManifest {
+        BookManifest(itemId: itemId, durationSeconds: durationSeconds, files: files, chapters: chapters, bookmarks: bookmarks,
+                     progress: progress, speed: speed, listening: listening, nextInSeries: nextInSeries)
+    }
 }
 
 /// A place a device reached in a book, for `PUT /items/{id}/progress` (offline listening sent later with its time).
@@ -543,14 +559,24 @@ extension FlexarrClient {
         try await get("items/\(itemId)/book", query: [.init(name: "codecs", value: codecs.joined(separator: ","))])
     }
 
-    /// The request for one of a book's files, signed in, for a background download session.
+    /// The request for one of a book's files, signed in, for a background download session. Only the server's own
+    /// address carries the sign-in: a file elsewhere (an absolute address in the manifest) gets no request at all.
     public func bookFileRequest(_ file: BookFile) -> URLRequest? {
-        guard let url = url(for: file.url) else { return nil }
+        guard let url = url(for: file.url), isServer(url) else { return nil }
         var request = URLRequest(url: url)
         if let apiKey, !apiKey.isEmpty { request.setValue(apiKey, forHTTPHeaderField: "X-Api-Key") }
         if let profileToken, !profileToken.isEmpty { request.setValue(profileToken, forHTTPHeaderField: "X-Flexarr-Profile") }
         if let deviceType = Self.deviceType { request.setValue(deviceType, forHTTPHeaderField: "X-Flexarr-Device") }
         return request
+    }
+
+    /// Whether `url` is on this server: the same host and port as `baseURL` (the scheme's port when none is written).
+    func isServer(_ url: URL) -> Bool {
+        func port(_ url: URL) -> Int? {
+            url.port ?? (url.scheme?.lowercased() == "https" ? 443 : url.scheme?.lowercased() == "http" ? 80 : nil)
+        }
+        guard let host = url.host()?.lowercased(), host == baseURL.host()?.lowercased() else { return false }
+        return port(url) == port(baseURL)
     }
 
     /// A place reached without a session (offline, from a download); the newest `recordedAt` wins on the server.
