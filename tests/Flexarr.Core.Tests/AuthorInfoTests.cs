@@ -486,6 +486,19 @@ public sealed class AuthorInfoTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ANewAuthorPhoto_ShowsAfterTheNextRefresh_EvenWithNoBookDue()
+    {
+        var library = await SeedAsync(new Person { Name = Osman, Biography = "Known.", InfoCheckedAt = DateTime.UtcNow });
+        await Refresher().RefreshLibraryAsync(library, force: true, default);
+        _db.ChangeTracker.Clear();
+
+        var photo = await AuthorPhotoAsync("author.jpg");
+        await Refresher().RefreshLibraryAsync(library, force: false, default); // nothing due: the book was just refreshed
+
+        Assert.Equal(($"file://{photo}", "folder"), ((await PersonAsync(Osman)).ImageUrl, (await PersonAsync(Osman)).PhotoSource));
+    }
+
+    [Fact]
     public void ReadarrsAuthors_AreFoundByFoldedName_TheFirstOfANameWinning()
     {
         var index = new ReadarrAuthorIndex([new() { Id = "1", AuthorName = "J.R.R. Tolkien" }, new() { Id = "2", AuthorName = "J. R. R. Tolkien" }, new() { Id = "3" }]);

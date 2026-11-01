@@ -100,27 +100,7 @@ public sealed partial class AuthorInfo(FlexarrDbContext db, ArrClient arr, IMeta
         var books = standing.Books;
 
         // Their own folder's photo, looked for every time (it's only a look on disk).
-        var (local, sure) = await FolderPhotoAsync(person.Name, books, ct).ConfigureAwait(false);
-        if (local is not null && (PersonSources.PhotoReplaceable(person) || person.PhotoSource == PersonSources.Folder))
-        {
-            var stamp = FileStamp(local);
-            if (person.ImageUrl != local)
-            {
-                PersonSources.SetPhoto(person, local, PersonSources.Folder, now);
-            }
-            else if (stamp != person.ImageStamp)
-            {
-                person.ImageChangedAt = now; // the same file, changed (or never stamped): a new ?v=
-            }
-
-            person.ImageStamp = stamp;
-        }
-        else if (local is null && sure && person.PhotoSource == PersonSources.Folder)
-        {
-            // Taken away (not just out of reach, a share that's offline): online fills it again, now.
-            PersonSources.SetPhoto(person, null, null, now);
-            person.InfoCheckedAt = null;
-        }
+        await ApplyFolderPhotoAsync(person, books, now, ct).ConfigureAwait(false);
 
         if ((person.ImageUrl is not null && person.Biography is not null) || (!force && person.InfoCheckedAt > now - LookAgainAfter))
         {
@@ -187,6 +167,63 @@ public sealed partial class AuthorInfo(FlexarrDbContext db, ArrClient arr, IMeta
         if (!failed)
         {
             person.InfoCheckedAt = now;
+        }
+    }
+
+    /// <summary>
+    /// A person's photo from their own folder: taken (over anything but an upload or a photo chosen by hand), its ?v=
+    /// moved on when the file changes, and dropped when it's gone (not merely out of reach).
+    /// </summary>
+    private async Task ApplyFolderPhotoAsync(Person person, List<AuthorBook> books, DateTime now, CancellationToken ct)
+    {
+        var (local, sure) = await FolderPhotoAsync(person.Name, books, ct).ConfigureAwait(false);
+        if (local is not null && (PersonSources.PhotoReplaceable(person) || person.PhotoSource == PersonSources.Folder))
+        {
+            var stamp = FileStamp(local);
+            if (person.ImageUrl != local)
+            {
+                PersonSources.SetPhoto(person, local, PersonSources.Folder, now);
+            }
+            else if (stamp != person.ImageStamp)
+            {
+                person.ImageChangedAt = now; // the same file, changed (or never stamped): a new ?v=
+            }
+
+            person.ImageStamp = stamp;
+        }
+        else if (local is null && sure && person.PhotoSource == PersonSources.Folder)
+        {
+            // Taken away (not just out of reach, a share that's offline): online fills it again, now.
+            PersonSources.SetPhoto(person, null, null, now);
+            person.InfoCheckedAt = null;
+        }
+    }
+
+    /// <summary>
+    /// After a scan: every unlocked author of a book in the library (or just in <paramref name="within"/>, a webhook's
+    /// folders) gets their folder's photo, new, changed or gone, without waiting for one of their books to be due a
+    /// refresh. Only the disk is looked at; the caller saves.
+    /// </summary>
+    public async Task FolderPhotosAsync(Guid libraryId, IReadOnlyCollection<string> within, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(within);
+        var credited = await db.Credits.IgnoreQueryFilters().AsNoTracking()
+            .Where(c => c.Role == CreditRole.Author && c.MediaItem!.LibraryId == libraryId && c.MediaItem.MissingSince == null && c.MediaItem.Path != null
+                && !c.Person!.InfoLocked)
+            .Select(c => new { c.PersonId, c.MediaItem!.Path })
+            .ToListAsync(ct).ConfigureAwait(false);
+        var ids = credited.Where(c => within.Count == 0 || within.Any(w => PathComparison.IsUnder(c.Path!, w))).Select(c => c.PersonId).Distinct().ToList();
+        var now = DateTime.UtcNow;
+        foreach (var chunk in ids.Chunk(200))
+        {
+            foreach (var person in await db.People.Where(p => chunk.Contains(p.Id)).ToListAsync(ct).ConfigureAwait(false))
+            {
+                var standing = await StandingAsync(person, null, ct).ConfigureAwait(false);
+                if (!standing.Screen)
+                {
+                    await ApplyFolderPhotoAsync(person, standing.Books, now, ct).ConfigureAwait(false);
+                }
+            }
         }
     }
 

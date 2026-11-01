@@ -28,6 +28,18 @@ public sealed partial class MetadataRefresher
 
     private async Task<MetadataRefreshResult> RefreshBooksAsync(Guid libraryId, bool force, IReadOnlyCollection<string> within, CancellationToken ct)
     {
+        var result = await RefreshDueBooksAsync(libraryId, force, within, ct).ConfigureAwait(false);
+
+        // A photo put in (or taken from) an author's folder shows after the scan that saw it, not when one of their
+        // books is next due.
+        await Authors.FolderPhotosAsync(libraryId, within, ct).ConfigureAwait(false);
+        await db.SaveChangesAsync(ct).ConfigureAwait(false);
+        db.ChangeTracker.Clear();
+        return result;
+    }
+
+    private async Task<MetadataRefreshResult> RefreshDueBooksAsync(Guid libraryId, bool force, IReadOnlyCollection<string> within, CancellationToken ct)
+    {
         var also = await WithinAsync(libraryId, MediaKind.Audiobook, within, ct).ConfigureAwait(false);
         var ids = await Stale(libraryId, MediaKind.Audiobook, force, also).OrderBy(i => i.SortTitle).Select(i => i.Id).ToListAsync(ct).ConfigureAwait(false);
         if (ids.Count == 0)
