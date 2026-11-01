@@ -26,7 +26,7 @@ function AuthorCard({ author }: { author: BookAuthor }) {
     <li>
       <Link to={`/person/${author.id}`} className="author-card" aria-labelledby={nameId}>
         <span className="author-card-photo">
-          <Artwork src={author.image} title={author.name} width={185} shape="square" />
+          <Artwork src={author.image} title={author.name} width={185} shape="square" initials />
         </span>
         <span className="author-card-text">
           <strong id={nameId}>{author.name}</strong>
