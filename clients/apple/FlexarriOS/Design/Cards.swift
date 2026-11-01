@@ -77,7 +77,8 @@ struct PosterArtwork: View {
     }
 }
 
-/// 16:9 card for Continue Watching: tapping plays, with how much is left beneath it.
+/// 16:9 card for Continue Watching: tapping plays, with how much is left beneath it. A book or podcast episode there
+/// shows its square art over a blur of itself and plays in the audio player.
 struct WideCard: View {
     @Environment(AppModel.self) private var model
     let item: ItemSummary
@@ -90,8 +91,12 @@ struct WideCard: View {
                 Color.seat
                     .frame(width: width, height: width * 9 / 16)
                     .overlay {
-                        RemoteImage(url: model.client?.imageURL(stillPath, width: 640)) {
-                            LinearGradient(colors: [item.glowColor.opacity(0.4), Color.seat], startPoint: .topLeading, endPoint: .bottomTrailing)
+                        if item.isListening {
+                            ListeningArt(item: item, imageWidth: 342, inset: 10)
+                        } else {
+                            RemoteImage(url: model.client?.imageURL(stillPath, width: 640)) {
+                                LinearGradient(colors: [item.glowColor.opacity(0.4), Color.seat], startPoint: .topLeading, endPoint: .bottomTrailing)
+                            }
                         }
                     }
                     .overlay {
@@ -108,7 +113,7 @@ struct WideCard: View {
                     }
                     .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(item.displayTitle)
+                    Text(item.isListening ? item.title : item.displayTitle)
                         .font(.footnote.weight(.semibold))
                         .foregroundStyle(Color.screen.opacity(0.9))
                     Text(secondLine)
@@ -132,7 +137,7 @@ struct WideCard: View {
         let remaining = item.progress != nil
             ? item.effectiveDuration.flatMap { Format.remaining($0 - item.userData.positionSeconds) }
             : nil
-        return [item.episodeSubtitle, remaining].compactMap { $0 }.joined(separator: "   ")
+        return [item.isListening ? item.listeningSubtitle : item.episodeSubtitle, remaining].compactMap { $0 }.joined(separator: "   ")
     }
 }
 
@@ -245,10 +250,36 @@ struct ItemContextMenu: View {
     var showsDetails = false
 
     var body: some View {
-        if item.kind == .audiobook {
+        if item.isListening, inContinueWatching {
+            listeningMenu
+        } else if item.kind == .audiobook {
             BookContextMenu(item: item)
         } else {
             menu
+        }
+    }
+
+    /// A book or podcast episode in Continue watching: carry on, its page (a book's), and out of the row.
+    @ViewBuilder
+    private var listeningMenu: some View {
+        Button { model.play(item) } label: {
+            Label(item.isResumable ? "Resume" : "Play", systemImage: "play.fill")
+        }
+        if item.kind == .audiobook {
+            Button { router.push(.item(item)) } label: { Label("Go to book", systemImage: "info.circle") }
+            if !model.isKids {
+                Button { Task { await model.setBookFinished(item, true) } } label: {
+                    Label("Mark as finished", systemImage: "checkmark.circle")
+                }
+            }
+        } else if !model.isKids {
+            Button { Task { await model.setWatched(item, true) } } label: {
+                Label("Mark as played", systemImage: "checkmark.circle")
+            }
+        }
+        // Forgets the place without marking it finished.
+        Button { Task { await model.removeFromContinueWatching(item) } } label: {
+            Label("Remove from Continue Watching", systemImage: "minus.circle")
         }
     }
 

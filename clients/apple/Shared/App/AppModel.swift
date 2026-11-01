@@ -937,6 +937,11 @@ final class AppModel {
             playBook(item, at: fromBeginning ? 0 : nil)
             return
         }
+        // So is a podcast episode (from Continue watching, say), at the profile's speed.
+        if item.kind == .podcastEpisode {
+            playEpisode(item)
+            return
+        }
         player.play(itemId: item.id, preview: item, startAt: fromBeginning ? 0 : nil, client: client)
     }
 
