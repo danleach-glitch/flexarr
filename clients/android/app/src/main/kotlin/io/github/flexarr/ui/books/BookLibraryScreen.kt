@@ -30,6 +30,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -69,6 +70,7 @@ import io.github.flexarr.core.BookSeriesSummary
 import io.github.flexarr.core.BookShelves
 import io.github.flexarr.core.BookSort
 import io.github.flexarr.core.Format
+import io.github.flexarr.core.GenreCount
 import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.Paged
 import io.github.flexarr.core.bookPeople
@@ -100,9 +102,9 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 // An audiobooks library, as the iPhone app's music library is laid out: shelves to browse, then every book (with filters
-// and orders), the series, and the authors and narrators.
+// and orders), the series, the authors and the genres.
 
-private enum class BooksView(val label: String) { Shelves("Browse"), All("All books"), Series("Series"), Authors("Authors"), Narrators("Narrators") }
+private enum class BooksView(val label: String) { Shelves("Browse"), All("All books"), Series("Series"), Authors("Authors"), Genres("Genres") }
 
 /** An audiobooks library; [view] "" opens its shelves, or a [BookSort]'s raw value every book in that order. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -130,23 +132,23 @@ fun BookLibraryScreen(model: AppModel, libraryId: String, view: String) {
                 BooksView.entries.forEach { view -> PillButton(view.label, view == shown, { shown = view }) }
             }
             when (shown) {
-                BooksView.Shelves -> Shelves(model, libraryId) { genre ->
+                BooksView.Shelves -> Shelves(model, libraryId)
+                BooksView.All -> AllBooks(model, libraryId, query) { query = BookQuery(sort = query.sort, descending = query.descending) }
+                BooksView.Series -> SeriesGrid(model, libraryId)
+                BooksView.Authors -> AuthorsGrid(model, libraryId)
+                BooksView.Genres -> GenreList(model, libraryId) { genre ->
                     query = BookQuery(genre = genre)
                     shown = BooksView.All
                 }
-                BooksView.All -> AllBooks(model, libraryId, query) { query = BookQuery(sort = query.sort, descending = query.descending) }
-                BooksView.Series -> SeriesGrid(model, libraryId)
-                BooksView.Authors -> PeopleGrid(model, libraryId, BookPersonRole.Author)
-                BooksView.Narrators -> PeopleGrid(model, libraryId, BookPersonRole.Narrator)
             }
         }
     }
 }
 
-/** The library's front page: what's on the go, what's next, what's new, its series, people and genres, and what's done. */
+/** The library's front page: what's on the go, what's next, what's new, its series and authors, and what's done. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun Shelves(model: AppModel, libraryId: String, openGenre: (String) -> Unit) {
+private fun Shelves(model: AppModel, libraryId: String) {
     val client = model.client ?: return
     val navigator = LocalNavigator.current
     val loader = rememberLoader(libraryId, model.watchStateVersion) { client.bookShelves(libraryId) }
@@ -167,14 +169,6 @@ private fun Shelves(model: AppModel, libraryId: String, openGenre: (String) -> U
                     }
                 }
                 peopleShelf("Authors", shelves.authors)
-                if (shelves.genres.isNotEmpty()) item("genres") {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        SectionHeading("Genres")
-                        Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            shelves.genres.forEach { genre -> PillButton(genre.name, false, { openGenre(genre.name) }) }
-                        }
-                    }
-                }
                 bookShelf("Finished", shelves.finished)
             }
         }
@@ -444,15 +438,54 @@ private fun SeriesGrid(model: AppModel, libraryId: String) {
 }
 
 @Composable
-private fun PeopleGrid(model: AppModel, libraryId: String, role: BookPersonRole) {
+private fun AuthorsGrid(model: AppModel, libraryId: String) {
     val client = model.client ?: return
     val navigator = LocalNavigator.current
-    val pager = remember(libraryId, role) { Pager<BookPerson>({ it.id }) { skip, take -> client.bookPeople(libraryId, role, skip = skip, take = take) } }
+    val pager = remember(libraryId) { Pager<BookPerson>({ it.id }) { skip, take -> client.bookPeople(libraryId, BookPersonRole.Author, skip = skip, take = take) } }
     var attempt by remember { mutableIntStateOf(0) }
     LaunchedEffect(pager, attempt) { pager.reload() }
-    PagedGrid(pager, if (role == BookPersonRole.Author) "No authors here yet." else "No narrators here yet.", retry = { attempt++ }, minimum = 96.dp) { person ->
+    PagedGrid(pager, "No authors here yet.", retry = { attempt++ }, minimum = 96.dp) { person ->
         Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
             PersonCard(person.name, bookCount(person.bookCount), person.image) { navigator.openPerson(person.id, person.name) }
         }
+    }
+}
+
+/** The library's genres, A to Z, each opening every book in it. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun GenreList(model: AppModel, libraryId: String, openGenre: (String) -> Unit) {
+    val client = model.client ?: return
+    val loader = rememberLoader(libraryId, model.watchStateVersion) { client.bookShelves(libraryId) }
+    Loaded(loader) { shelves: BookShelves ->
+        val genres = shelves.genres.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name })
+        if (genres.isEmpty()) return@Loaded StatusView("No genres yet.", empty = true)
+        PullToRefreshBox(isRefreshing = loader.refreshing, onRefresh = loader.retry) {
+            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = Edge, end = Edge, bottom = 24.dp)) {
+                item {
+                    Column(Modifier.clip(RoundedCornerShape(12.dp)).background(Flexarr.seat)) {
+                        genres.forEachIndexed { index, genre ->
+                            if (index > 0) HorizontalDivider(Modifier.padding(start = 16.dp), color = Flexarr.aisle.copy(alpha = 0.6f))
+                            GenreRow(genre) { openGenre(genre.name) }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun GenreRow(genre: GenreCount, onClick: () -> Unit) {
+    val count = bookCount(genre.count)
+    Row(
+        // pressable merges the row for TalkBack, which reads it as "Fantasy, 12 books, button".
+        Modifier.fillMaxWidth().pressable(onClick).padding(horizontal = 16.dp, vertical = 14.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(genre.name, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        Text(count, fontSize = 15.sp, color = Flexarr.usher, style = Tabular)
+        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = Flexarr.usher)
     }
 }
