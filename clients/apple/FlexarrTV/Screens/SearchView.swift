@@ -188,6 +188,12 @@ struct PersonView: View {
                         }
                     }
                 }
+                if let biography = person?.biography?.trimmingCharacters(in: .whitespacesAndNewlines), !biography.isEmpty {
+                    ReadMoreText(title: name, text: biography, ambient: person?.credits.first?.item.glowColor ?? .silver)
+                        .padding(.vertical, -24) // the text, not its focus panel, keeps the page's spacing
+                        .padding(.leading, 210) // under the name, past the photo
+                        .focusSection()
+                }
                 if let person {
                     LazyVGrid(columns: columns, alignment: .leading, spacing: 64) {
                         ForEach(person.credits, id: \.item.id) { credit in

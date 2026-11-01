@@ -231,6 +231,7 @@ struct BookView: View {
                                 .frame(maxWidth: 1200, alignment: .leading)
                                 .padding(.horizontal, Layout.edge)
                         }
+                        if let authors = book?.authorCards, !authors.isEmpty { authorCards(authors, ambient: item.glowColor) }
                         if let more = book?.moreInSeries, !more.isEmpty { row("More in the series", more) }
                         if let more = book?.byAuthor, !more.isEmpty { row(credits(.author).first.map { "More by \($0.name)" } ?? "More by the author", more) }
                         if let chapters = book?.chapters, chapters.count > 1 { chapterList(chapters, item: item) }
@@ -353,6 +354,46 @@ struct BookView: View {
                 .foregroundStyle(Color.usher)
                 .lineLimit(2)
         }
+    }
+
+    /// A card for each author with a photo or biography: the photo, name and start of the biography; it opens their page.
+    private func authorCards(_ authors: [BookAuthor], ambient: Color) -> some View {
+        VStack(alignment: .leading, spacing: 24) {
+            ForEach(authors) { author in
+                Button { router.push(.person(id: author.id, name: author.name)) } label: {
+                    HStack(alignment: .top, spacing: 30) {
+                        RemoteImage(url: model.client?.imageURL(author.image, width: 240)) {
+                            Color.seat.overlay {
+                                Image(systemName: "person.fill").font(.system(size: 44)).foregroundStyle(Color.usher)
+                            }
+                        }
+                        .frame(width: 120, height: 120)
+                        .clipShape(Circle())
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(author.name)
+                                .font(.system(size: 30, weight: .semibold))
+                                .lineLimit(1)
+                            if let biography = author.biography?.trimmingCharacters(in: .whitespacesAndNewlines), !biography.isEmpty {
+                                Text(biography)
+                                    .font(.system(size: 25))
+                                    .lineSpacing(4)
+                                    .lineLimit(3)
+                                    .multilineTextAlignment(.leading)
+                                    .opacity(0.8)
+                            }
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .frame(maxWidth: 1140, alignment: .leading)
+                }
+                .buttonStyle(TextCardStyle(ambient: ambient, filled: true))
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(author.name)
+                .accessibilityAddTraits(.isButton)
+            }
+        }
+        .padding(.horizontal, Layout.edge - 30)
+        .focusSection()
     }
 
     /// A name beside the pills that has no page to open.
