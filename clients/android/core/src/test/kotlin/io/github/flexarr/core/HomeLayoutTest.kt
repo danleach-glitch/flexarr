@@ -127,4 +127,16 @@ class HomeLayoutTest {
         assertEquals("Pilot", home.upcoming.single().title)
         assertEquals(0.5, home.upcoming.single().download?.progress)
     }
+
+    @Test
+    fun comingSoonSaysWhenInAWord() {
+        val now = java.time.ZonedDateTime.of(2026, 11, 2, 12, 0, 0, 0, java.time.ZoneOffset.UTC) // a Monday
+        fun at(day: Int, hour: Int) = UpcomingItem("x", MediaKind.Episode, "Pilot", "Show", 1, 3, java.time.Instant.parse("2026-11-%02dT%02d:00:00Z".format(day, hour)), "Airs")
+        assertEquals("Today", at(2, 9).dayLabel(now))
+        assertEquals("Tonight", at(2, 20).dayLabel(now))
+        assertEquals("Tomorrow", at(3, 9).dayLabel(now))
+        assertEquals("Friday", at(6, 9).dayLabel(now))
+        assertEquals("S01E03 Pilot", at(2, 9).cardDetail)
+        assertEquals("Show", at(2, 9).cardTitle)
+    }
 }

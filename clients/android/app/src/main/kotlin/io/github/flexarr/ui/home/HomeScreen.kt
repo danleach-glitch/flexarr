@@ -77,7 +77,9 @@ import io.github.flexarr.core.HomeRow
 import io.github.flexarr.core.HomeRowStyle
 import io.github.flexarr.core.HomeSlot
 import io.github.flexarr.core.UpcomingItem
-import io.github.flexarr.core.MediaKind
+import io.github.flexarr.core.cardDetail
+import io.github.flexarr.core.cardTitle
+import io.github.flexarr.core.dayLabel
 import io.github.flexarr.ui.components.WideWidth
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -409,40 +411,22 @@ private fun ComingSoonRow(items: List<UpcomingItem>, downloading: Int) {
                 ) {
                     Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(6.dp)).background(Flexarr.seat)) {
                         RemoteImage(item.still ?: item.poster, 640, Modifier.fillMaxSize()) {
-                            Text(item.seriesTitle ?: item.title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, modifier = Modifier.align(Alignment.Center).padding(10.dp))
+                            Text(item.cardTitle, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, modifier = Modifier.align(Alignment.Center).padding(10.dp))
                         }
                         Text(
-                            dayLabel(item.date), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen,
+                            item.dayLabel(), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen,
                             modifier = Modifier.align(Alignment.TopStart).padding(8.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.6f)).padding(horizontal = 8.dp, vertical = 4.dp),
                         )
                         item.download?.let { ProgressBar(it.progress, Modifier.align(Alignment.BottomCenter).padding(8.dp)) }
                     }
                     Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                        Text(if (item.kind == MediaKind.Audiobook) item.title else item.seriesTitle ?: item.title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                        Text(item.cardTitle, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
                             color = Flexarr.screen.copy(alpha = 0.9f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        val second = when (item.kind) {
-                            MediaKind.Episode -> "S%02dE%02d %s".format(item.seasonNumber ?: 0, item.episodeNumber ?: 0, item.title)
-                            MediaKind.Audiobook -> item.seriesTitle ?: item.`when`
-                            else -> item.`when`
-                        }
-                        Text(second, fontSize = 12.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(item.cardDetail, fontSize = 12.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
             }
         }
-    }
-}
-
-/** "Tonight", "Tomorrow", "Friday" within a week, otherwise "Fri 7 Nov", as on the web. */
-private fun dayLabel(date: java.time.Instant, now: java.time.ZonedDateTime = java.time.ZonedDateTime.now()): String {
-    val at = date.atZone(now.zone)
-    val days = java.time.temporal.ChronoUnit.DAYS.between(now.toLocalDate(), at.toLocalDate())
-    return when {
-        days == 0L -> if (at.hour >= 17) "Tonight" else "Today"
-        days == 1L -> "Tomorrow"
-        days == -1L -> "Yesterday"
-        days in 2..6 -> at.format(java.time.format.DateTimeFormatter.ofPattern("EEEE"))
-        else -> at.format(java.time.format.DateTimeFormatter.ofPattern("EEE d MMM"))
     }
 }
 

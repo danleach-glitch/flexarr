@@ -396,6 +396,30 @@ data class UpcomingItem(
 @Serializable
 data class UpcomingDownload(val progress: Double)
 
+/** The card's title: the show, the film, or the book. */
+val UpcomingItem.cardTitle: String get() = if (kind == MediaKind.Audiobook) title else seriesTitle ?: title
+
+/** The card's second line: the episode ("S01E03 Title"), a book's author, or how a film comes out ("In cinemas"). */
+val UpcomingItem.cardDetail: String
+    get() = when (kind) {
+        MediaKind.Episode -> "S%02dE%02d %s".format(seasonNumber ?: 0, episodeNumber ?: 0, title)
+        MediaKind.Audiobook -> seriesTitle ?: `when`
+        else -> `when`
+    }
+
+/** When it comes, in a word: "Tonight", "Tomorrow", "Friday" within a week, otherwise "Fri 7 Nov", as on the web. */
+fun UpcomingItem.dayLabel(now: java.time.ZonedDateTime = java.time.ZonedDateTime.now()): String {
+    val at = date.atZone(now.zone)
+    val days = java.time.temporal.ChronoUnit.DAYS.between(now.toLocalDate(), at.toLocalDate())
+    return when {
+        days == 0L -> if (at.hour >= 17) "Tonight" else "Today"
+        days == 1L -> "Tomorrow"
+        days == -1L -> "Yesterday"
+        days in 2..6 -> at.format(java.time.format.DateTimeFormatter.ofPattern("EEEE"))
+        else -> at.format(java.time.format.DateTimeFormatter.ofPattern("EEE d MMM"))
+    }
+}
+
 /** Whether this Home has the New podcasts row: not when the server places it and the profile switched it off. */
 val Home.hasNewPodcasts: Boolean get() = placesPodcasts != true || rows.any { it.id == HOME_PODCASTS_ROW_ID }
 

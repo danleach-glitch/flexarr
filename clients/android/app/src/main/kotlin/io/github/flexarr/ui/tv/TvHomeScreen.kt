@@ -78,6 +78,13 @@ import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.RoomBackground
 import io.github.flexarr.ui.theme.glowColor
 import io.github.flexarr.ui.theme.marquee
+import io.github.flexarr.core.UpcomingItem
+import io.github.flexarr.core.cardDetail
+import io.github.flexarr.core.cardTitle
+import io.github.flexarr.core.dayLabel
+import io.github.flexarr.core.MediaKind
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.draw.clip
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -93,9 +100,12 @@ fun TvHomeScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit) 
     val loader = rememberLoader(model.credentials, model.watchStateVersion) {
         // Books (and podcasts) aren't featured on the TV, and its rows of them go (see [shows]).
         // Asks for no books or podcasts in Continue watching: the TV app plays neither from there.
-        val home = client.home().let { home -> home.copy(featured = home.featured.filter { it.showsOnTv }, rows = home.rows.filterNot { it.id.startsWith("books-") }) }
+        // Coming soon leaves out books too.
+        val home = client.home().let { home ->
+            home.copy(featured = home.featured.filter { it.showsOnTv }, rows = home.rows.filterNot { it.id.startsWith("books-") }, upcoming = home.upcoming.filter { it.kind != MediaKind.Audiobook })
+        }
         // Nothing yet: the libraries say whether a scan is under way or their folders hold nothing.
-        val empty = if (home.featured.isEmpty() && home.rows.none { it.shows }) runCatching { EmptyHomeMessage.of(client.libraries()) }.getOrNull() else null
+        val empty = if (home.featured.isEmpty() && home.rows.none { it.shows } && home.upcoming.isEmpty()) runCatching { EmptyHomeMessage.of(client.libraries()) }.getOrNull() else null
         TvHomeContent(home, empty)
     }
     when (val state = loader.state) {
@@ -145,7 +155,10 @@ internal fun TvHomeRows(home: Home, emptyMessage: EmptyHomeMessage?, takeFocus: 
                 emptyMessage?.let { message -> item(key = "empty") { EmptyHome(message) } }
                 item(key = "top") { Box(Modifier.height(30.dp)) }
             }
-            items(home.rows.filter { it.shows }, key = { it.id }) { HomeRowView(it) }
+            // Coming soon's titles come separately, in `upcoming`.
+            items(home.rows.filter { it.shows || (it.style == HomeRowStyle.Upcoming && home.upcoming.isNotEmpty()) }, key = { it.id }) { row ->
+                if (row.style == HomeRowStyle.Upcoming) ComingSoonRow(home.upcoming, home.downloading) else HomeRowView(row)
+            }
         }
     }
 }
@@ -249,6 +262,56 @@ private fun HomeHero(home: Home, index: Int, onIndex: (Int) -> Unit, takeFocus: 
             }
         }
     }
+}
+
+@Composable
+private fun ComingSoonRow(items: List<UpcomingItem>, downloading: Int) {
+    val navigator = LocalNavigator.current
+    Column {
+        TvRowHeading(if (downloading > 0) "Coming soon ($downloading downloading)" else "Coming soon")
+        LazyRow(
+            contentPadding = PaddingValues(start = TvLayout.Edge, end = TvLayout.Edge, top = 14.dp, bottom = 20.dp),
+            horizontalArrangement = Arrangement.spacedBy(TvLayout.RowSpacing),
+            verticalAlignment = Alignment.Top,
+        ) {
+            items(items, key = { it.id }) { item -> TvComingSoonCard(item) { item.libraryItemId?.let(navigator::openItem) } }
+        }
+    }
+}
+
+/**
+ * Something on its way, with the day it comes and any download's progress. Every card takes focus, so the row can be
+ * looked along; only one already in the library (a show's next episode) opens.
+ */
+@Composable
+private fun TvComingSoonCard(item: UpcomingItem, onClick: () -> Unit) {
+    val width = TvLayout.WideWidth
+    TvArtworkButton(
+        ambient = Flexarr.silver,
+        onClick = onClick,
+        modifier = Modifier.width(width),
+        contentDescription = "${item.cardTitle}, ${item.cardDetail}, ${item.dayLabel()}",
+        artwork = {
+            Box(Modifier.size(width, width * 9f / 16f).background(Flexarr.seat)) {
+                RemoteImage(item.still ?: item.poster, 560, Modifier.fillMaxSize()) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(item.cardTitle, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, modifier = Modifier.padding(10.dp))
+                    }
+                }
+                Text(
+                    item.dayLabel(), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen,
+                    modifier = Modifier.align(Alignment.TopStart).padding(7.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.6f)).padding(horizontal = 7.dp, vertical = 3.dp),
+                )
+                item.download?.let { TvProgressBar(it.progress, Modifier.align(Alignment.BottomCenter).padding(8.dp)) }
+            }
+        },
+        caption = { focused ->
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(item.cardTitle, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = if (focused) Flexarr.screen else Flexarr.screen.copy(alpha = 0.85f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(item.cardDetail, fontSize = 11.5.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        },
+    )
 }
 
 @Composable
