@@ -448,6 +448,21 @@ public sealed class AuthorInfoTests : IAsyncLifetime
         Assert.NotNull(osman.ImageUrl);
     }
 
+    [Fact]
+    public async Task AProviderThatFails_IsntAskedAgainThatRefresh()
+    {
+        _web.DownHosts.Add("api.audnex.us");
+        _web.DownHosts.Add("openlibrary.org");
+        var library = await SeedAsync(new Person { Name = Osman });
+        await SeedAsync(Path.Combine(Books, Keyes, "Another"), new Person { Name = Keyes }, library);
+
+        await Refresher().RefreshLibraryAsync(library, force: true, default);
+
+        Assert.Single(_web.Requests, r => r.Contains("audnex.us/authors", StringComparison.Ordinal));
+        Assert.Single(_web.Requests, r => r.Contains("openlibrary.org/search/authors", StringComparison.Ordinal));
+        Assert.All(await _db.People.AsNoTracking().ToListAsync(), p => Assert.Null(p.InfoCheckedAt)); // both tried again next time
+    }
+
     /// <summary>Just the authors, online providers left out.</summary>
     private AuthorInfo Authors(BookProviders? providers = null) =>
         new(_db, new ArrClient(new HttpClient(_web)), new Settings(_dir, []), providers, NullLogger.Instance);

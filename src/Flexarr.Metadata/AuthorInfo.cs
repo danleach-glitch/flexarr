@@ -126,36 +126,54 @@ public sealed partial class AuthorInfo(FlexarrDbContext db, ArrClient arr, IMeta
             Take(person, Plain(fromArr.Overview), ArrPhoto(fromArr.Images), PersonSources.Readarr, now);
         }
 
+        // A provider that failed (down, slow, or asking to be left alone) isn't asked again for the rest of the refresh:
+        // its authors wait for the next one.
         var failed = false;
         if (providers is not null && Missing(person))
         {
-            try
+            if (_down.Contains(PersonSources.Audible))
             {
-                if (await AudibleAsync(person, knownAsins, remember: true, ct).ConfigureAwait(false) is { } audible)
-                {
-                    Take(person, audible.Biography, audible.Image, PersonSources.Audible, now);
-                }
-            }
-            catch (Exception ex) when (IsFailure(ex, ct))
-            {
-                LogLookupFailed(person.Name, "Audible", ex.Message);
                 failed = true;
+            }
+            else
+            {
+                try
+                {
+                    if (await AudibleAsync(person, knownAsins, remember: true, ct).ConfigureAwait(false) is { } audible)
+                    {
+                        Take(person, audible.Biography, audible.Image, PersonSources.Audible, now);
+                    }
+                }
+                catch (Exception ex) when (IsFailure(ex, ct))
+                {
+                    LogLookupFailed(person.Name, "Audible", ex.Message);
+                    _down.Add(PersonSources.Audible);
+                    failed = true;
+                }
             }
         }
 
         if (providers is not null && Missing(person))
         {
-            try
+            if (_down.Contains(PersonSources.OpenLibrary))
             {
-                if (await providers.OpenLibraryAuthorAsync(person.Name, [.. books.Select(b => b.Title)], ct).ConfigureAwait(false) is { } openLibrary)
-                {
-                    Take(person, openLibrary.Biography, openLibrary.Image, PersonSources.OpenLibrary, now);
-                }
-            }
-            catch (Exception ex) when (IsFailure(ex, ct))
-            {
-                LogLookupFailed(person.Name, "Open Library", ex.Message);
                 failed = true;
+            }
+            else
+            {
+                try
+                {
+                    if (await providers.OpenLibraryAuthorAsync(person.Name, [.. books.Select(b => b.Title)], ct).ConfigureAwait(false) is { } openLibrary)
+                    {
+                        Take(person, openLibrary.Biography, openLibrary.Image, PersonSources.OpenLibrary, now);
+                    }
+                }
+                catch (Exception ex) when (IsFailure(ex, ct))
+                {
+                    LogLookupFailed(person.Name, "Open Library", ex.Message);
+                    _down.Add(PersonSources.OpenLibrary);
+                    failed = true;
+                }
             }
         }
 
@@ -419,6 +437,9 @@ public sealed partial class AuthorInfo(FlexarrDbContext db, ArrClient arr, IMeta
 
         return (null, true);
     }
+
+    /// <summary>Providers that failed while this lives (a refresh): not asked again until the next.</summary>
+    private readonly HashSet<string> _down = new(StringComparer.Ordinal);
 
     // Remembered for as long as this lives (a refresh, a request): an author of 80 books has one folder, listed once.
     private readonly Dictionary<Guid, List<string>> _roots = [];
