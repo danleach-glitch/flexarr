@@ -4,7 +4,7 @@ import type { ItemSummary } from '../api/types'
 import { episodeCode, episodeHeading, episodeName, progressOf, year } from '../lib/format'
 import { authorsLine, isBook } from '../lib/books'
 import { itemLink } from '../lib/links'
-import { getTracks } from '../api/client'
+import { getTracks, imageUrl } from '../api/client'
 import { useAudioPlayer } from '../hooks/audioPlayerContext'
 import { usePlay } from '../hooks/usePlay'
 import { Artwork } from './Artwork'
@@ -17,11 +17,14 @@ function Progress({ item }: { item: ItemSummary }) {
   const progress = progressOf(item)
   if (progress === null) return null
   return (
-    <span className="progress" aria-label={`${Math.round(progress * 100)}% ${isBook(item) ? 'listened' : 'watched'}`}>
+    <span className="progress" aria-label={`${Math.round(progress * 100)}% ${listensTo(item) ? 'listened' : 'watched'}`}>
       <span style={{ width: `${progress * 100}%` }} />
     </span>
   )
 }
+
+/** Books and podcast episodes play in the audio player rather than the video one. */
+const listensTo = (item: ItemSummary) => item.kind === 'Audiobook' || item.kind === 'PodcastEpisode'
 
 /** Films, episodes and books get a tick of their own (a book's says finished). */
 const toggles = (item: ItemSummary) => item.kind === 'Movie' || item.kind === 'Episode' || item.kind === 'Audiobook'
@@ -74,7 +77,7 @@ function subtitle(item: ItemSummary): string | null {
 function CardShell({ item, to, className, art, playLabel, onOpen, overlay, continueWatching, children }: { item: ItemSummary; to: string; className: string; art: ReactNode; playLabel?: string; onOpen?: () => void; overlay?: ReactNode; continueWatching?: boolean; children?: ReactNode }) {
   const [menuAt, setMenuAt] = useState<MenuPoint | null>(null)
   const style = item.accentColor ? ({ '--ambient': item.accentColor } as CSSProperties) : undefined
-  const menu = hasMenu(item)
+  const menu = hasMenu(item, continueWatching)
   return (
     <div
       className={`card card-shell ${className}`}
@@ -208,6 +211,7 @@ export const PosterCard = memo(function PosterCard({ item, playLoneEpisode = fal
 
 /** 16:9 card for episodes and Continue Watching (`continueWatching`): the still (or backdrop) with the show's name beneath. */
 export function WideCard({ item, showSeries = true, continueWatching = false }: { item: ItemSummary; showSeries?: boolean; continueWatching?: boolean }) {
+  if (listensTo(item)) return <ListenCard item={item} continueWatching={continueWatching} />
   const image = item.artwork.thumb ?? item.artwork.backdrop
   const isEpisode = item.kind === 'Episode'
   return (
@@ -234,6 +238,43 @@ export function WideCard({ item, showSeries = true, continueWatching = false }: 
           <span className="card-subtitle">{isEpisode ? episodeCode(item) : year(item)}</span>
         </>
       )}
+    </CardShell>
+  )
+}
+
+/**
+ * A book or podcast episode in a wide row (Continue watching or listening): its square cover centred over a blurred,
+ * darkened copy of itself. The cover resumes it in the audio player, as the book's page and the episode's play button do.
+ */
+function ListenCard({ item, continueWatching }: { item: ItemSummary; continueWatching: boolean }) {
+  const player = useAudioPlayer()
+  const book = isBook(item)
+  const page = book ? itemLink(item) : `/podcasts/episode/${item.id}`
+  const podcast = item.seriesId ?? item.parentId
+  const cover = book ? (item.artwork.poster ?? item.artwork.thumb) : (item.artwork.thumb ?? item.artwork.poster)
+  const resumable = progressOf(item) !== null && !item.userData.watched
+  return (
+    <CardShell
+      item={item}
+      to={page}
+      onOpen={() => player.play([item])}
+      playLabel={`${resumable ? 'Resume' : 'Play'} ${item.title}`}
+      className="wide-card listen-card"
+      continueWatching={continueWatching}
+      art={
+        <div className="card-frame listen-frame">
+          {cover && <img className="listen-backdrop" src={imageUrl(cover, 185)} alt="" aria-hidden="true" loading="lazy" />}
+          <div className="listen-cover">
+            <Artwork src={cover} title={book ? item.title : (item.seriesTitle ?? item.title)} width={342} shape="square" accent={item.accentColor} />
+          </div>
+          <Progress item={item} />
+        </div>
+      }
+    >
+      <span className="card-title">
+        <Link to={page}>{item.title}</Link>
+      </span>
+      <span className="card-subtitle">{book ? authorsLine(item) : podcast && item.seriesTitle ? <Link to={`/podcasts/${podcast}`}>{item.seriesTitle}</Link> : item.seriesTitle}</span>
     </CardShell>
   )
 }
