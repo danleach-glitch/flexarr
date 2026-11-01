@@ -111,10 +111,11 @@ export function ItemMenu({ item, at, onClose, continueWatching = false }: { item
         announceWatched(item)
       }
       if (!finished) actions.push({ label: 'Mark finished', run: markBook(true) })
-      // Unread: no place and not finished, as if never started. Not while it plays, which would set the place again.
-      if ((finished || started) && music.current?.id !== item.id) actions.push({ label: 'Mark as unread', run: markBook(false) })
-      // Forgets the place without marking it finished.
-      if (continueWatching && started) actions.push({ label: 'Remove', run: remove })
+      // Unread: no place and not finished, as if never started. Not while it plays, which would set the place again: then
+      // Remove (which stops it first) takes it off Continue listening instead, so the two are never offered together.
+      const playing = music.current?.id === item.id
+      if ((finished || started) && !playing) actions.push({ label: 'Mark as unread', run: markBook(false) })
+      else if (continueWatching && started) actions.push({ label: 'Remove', run: remove })
       if (!kids) actions.push({ label: 'Add to collection…', run: () => openAddToCollection(item) })
       break
     }
