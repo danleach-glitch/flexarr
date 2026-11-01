@@ -557,6 +557,55 @@
   font-size: var(--step--1);
 }
 
+/* ---------- Edit a book ---------- */
+
+.book-editor {
+  width: min(680px, 100%);
+  max-height: 84vh;
+  overflow-y: auto;
+  display: grid;
+  gap: 16px;
+}
+
+.book-editor h2 {
+  font-size: var(--step-3);
+}
+
+.book-editor-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 120px;
+  gap: 14px 12px;
+}
+
+/* Settings' fields, laid out in a grid here: no gap of their own, and as wide as their column. */
+.book-editor-fields .field + .field {
+  margin-top: 0;
+}
+
+.book-editor-fields .field input {
+  max-width: none;
+}
+
+.book-editor-fields .wide {
+  grid-column: 1 / -1;
+}
+
+.book-editor-genres {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.book-editor-genres input {
+  flex: 1;
+  min-width: 140px;
+}
+
+.book-editor .form-actions {
+  margin-top: 0;
+}
+
 /* ---------- Edit a person ---------- */
 
 .person-editor {

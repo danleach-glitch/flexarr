@@ -585,6 +585,19 @@ export interface BookMatch {
   /** The cover through the server's image proxy (a page can't load other sites' images). Absent before 0.58. */
   image?: string | null
 }
+/** A book's details as edited by hand. Empty lists clear; locked keeps them through rescans and refreshes. Added in 0.58. */
+export interface BookEdit {
+  title: string
+  subtitle: string | null
+  authors: string[]
+  narrators: string[]
+  series: { name: string; sequence: string | null }[]
+  genres: string[]
+  overview: string | null
+  year: number | null
+  locked: boolean
+}
+export const editBook = (id: string, edit: BookEdit) => request<void>('PUT', `/items/${id}/book-details`, edit)
 export const searchBookMatches = (id: string, q: string, author?: string, signal?: AbortSignal) =>
   apiGet<BookMatch[]>(`/items/${id}/book-match${queryString({ q, author })}`, signal)
 export const fixBookMatch = (id: string, match: { provider: string; id: string; query: string; author?: string }) =>

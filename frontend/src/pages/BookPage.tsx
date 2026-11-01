@@ -6,6 +6,7 @@ import {
   imageUrl,
   listenAgain,
   setBookFinished,
+  unlockFirst,
   type BookChapter,
   type Credit,
   type ItemDetail,
@@ -13,6 +14,7 @@ import {
 } from '../api/client'
 import { openAddToCollection } from '../components/AddToCollection'
 import { Artwork } from '../components/Artwork'
+import { BookEditor } from '../components/BookEditor'
 import { BookmarkList } from '../components/BookmarkList'
 import { AsyncButton } from '../components/AsyncButton'
 import { AuthorCards } from '../components/AuthorCards'
@@ -50,7 +52,7 @@ export function BookPage({ detail, onChange }: { detail: ItemDetail; onChange: (
   const listening = useApi(getBookListening, [])
   const [showBookmarks, setShowBookmarks] = useState(false)
   const [deleting, setDeleting] = useState(false)
-  const [editing, setEditing] = useState<'chapters' | 'match' | null>(null)
+  const [editing, setEditing] = useState<'details' | 'chapters' | 'match' | null>(null)
   const [startingOver, setStartingOver] = useState(false)
   // A bookmark added or removed in the player shows here too.
   useBookmarkChanges(item.id, onChange)
@@ -96,6 +98,8 @@ export function BookPage({ detail, onChange }: { detail: ItemDetail; onChange: (
   // Unread: no place and not finished, as if never started. Not while it plays, which would set the place again.
   if (!playing && (finished || place.saved > 0)) more.push({ label: 'Mark as unread', run: () => mark(false) })
   if (mainProfile) {
+    // Saving takes the admin: the PIN first, if it's run out here.
+    more.push({ label: 'Edit…', run: () => void unlockFirst().then((unlocked) => unlocked && setEditing('details')) })
     more.push({ label: 'Edit chapters…', run: () => setEditing('chapters') })
     // Its search is a read the server keeps to the unlocked main profile, so a locked one doesn't get to ask for the PIN.
     if (me?.isAdmin === true) more.push({ label: 'Fix match…', run: () => setEditing('match') })
@@ -199,6 +203,7 @@ export function BookPage({ detail, onChange }: { detail: ItemDetail; onChange: (
           onClose={() => setStartingOver(false)}
         />
       )}
+      {editing === 'details' && <BookEditor detail={detail} onSaved={onChange} onClose={() => setEditing(null)} />}
       {editing === 'chapters' && <ChapterEditor bookId={item.id} chapters={book.chapters} hasAsin={!!book.asin} onSaved={onChange} onClose={() => setEditing(null)} />}
       {editing === 'match' && <FixMatchDialog item={item} onFixed={onChange} onClose={() => setEditing(null)} />}
       {deleting && <DeleteDialog item={item} onClose={() => setDeleting(false)} onDeleted={() => navigate(`/library/${item.libraryId}`, { replace: true })} />}
