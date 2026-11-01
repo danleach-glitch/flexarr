@@ -258,4 +258,26 @@ struct DownloadDecodingTests {
         #expect(download.fileName == nil)
         #expect(download.fileExtension == "mp4")
     }
+
+    @Test func aMusicLibrarysMixesRowAndAMixDecode() throws {
+        let browse = #"""
+        {"featured":[],"overviews":{},"upcoming":[],"downloading":0,"rows":[
+         {"id":"music-mixes","title":"Made for you","style":"mixes","items":[],"link":null,"playlists":null,
+          "mixes":[{"id":"a1b2c3d4","name":"Rock mix","description":"Foo Fighters, Muse and more","covers":["/c1","/c2"],"trackCount":40}],"channels":null},
+         {"id":"music-top","title":"Most played","style":"tracks","items":[],"link":null}]}
+        """#
+        let home = try FlexarrClient.decoder.decode(Home.self, from: Data(browse.utf8))
+        #expect(home.rows.map(\.id) == ["music-mixes", "music-top"])
+        #expect(home.rows[0].style == .mixes)
+        #expect(home.rows[0].mixes?.first?.name == "Rock mix")
+        #expect(home.rows[0].mixes?.first?.covers.count == 2)
+        #expect(home.rows[0].hasContent)
+        #expect(!home.rows[1].hasContent)
+
+        let detail = try FlexarrClient.decoder.decode(MixDetail.self, from: Data(#"""
+        {"summary":{"id":"a1b2c3d4","name":"Rock mix","description":"Foo Fighters, Muse and more","covers":[],"trackCount":0},"tracks":[]}
+        """#.utf8))
+        #expect(detail.summary.id == "a1b2c3d4")
+        #expect(detail.tracks.isEmpty)
+    }
 }

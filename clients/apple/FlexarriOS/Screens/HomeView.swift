@@ -290,6 +290,10 @@ struct HomeRowView: View {
                     ForEach(row.playlists ?? []) { playlist in
                         PlaylistCard(playlist: playlist, width: Layout.posterWidth(sizeClass))
                     }
+                    // A mixes row carries the day's mixes; tapping one plays it.
+                    ForEach(row.mixes ?? []) { mix in
+                        MixCard(mix: mix, width: Layout.posterWidth(sizeClass))
+                    }
                     // A Live TV row carries the profile's favourite channels; channel up and down go through them.
                     ForEach(row.channels ?? []) { channel in
                         HomeChannelCard(channel: channel, order: row.channels ?? [], width: Layout.wideWidth(sizeClass) * 0.8)

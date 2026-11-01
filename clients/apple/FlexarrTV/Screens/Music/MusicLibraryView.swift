@@ -1,7 +1,8 @@
 import FlexarrKit
 import SwiftUI
 
-/// A music library: the albums that arrived most recently, then every artist as a round picture.
+/// A music library: the server's Browse rows in the profile's order (Settings › Home & browse › Music), then every
+/// artist as a round picture. Without rows, the playlists and the albums that arrived most recently instead.
 struct MusicLibraryView: View {
     @Environment(AppModel.self) private var model
     @Environment(Router.self) private var router
@@ -29,7 +30,8 @@ struct MusicLibraryView: View {
                     StatusView(state: .empty("Nothing in this library yet."))
                         .frame(height: 500)
                 } else {
-                    if !browse.playlists.isEmpty {
+                    ForEach(browse.rows) { MusicRowView(row: $0) }
+                    if browse.rows.isEmpty, !browse.playlists.isEmpty {
                         VStack(alignment: .leading, spacing: 0) {
                             Text("Your playlists")
                                 .font(.marquee(40, weight: .bold))
@@ -47,7 +49,7 @@ struct MusicLibraryView: View {
                             .focusSection()
                         }
                     }
-                    if !browse.recentAlbums.isEmpty {
+                    if browse.rows.isEmpty, !browse.recentAlbums.isEmpty {
                         VStack(alignment: .leading, spacing: 0) {
                             Text("Recently added")
                                 .font(.marquee(40, weight: .bold))
@@ -86,7 +88,7 @@ struct MusicLibraryView: View {
             .padding(.bottom, 80)
         }
         .scrollClipDisabled()
-        .background(RoomBackground(ambient: browse.recentAlbums.first?.glowColor ?? browse.artists.first?.glowColor, intensity: 0.18))
+        .background(RoomBackground(ambient: browse.ambientItem?.glowColor, intensity: 0.18))
         .task {
             // Coming back from an artist or another tab runs this again: keep what's loaded unless it's getting old.
             if browse.loadedAt != nil, !Freshness.isStale(browse.loadedAt) { return }
@@ -118,5 +120,42 @@ struct MusicLibraryView: View {
     private func load() async {
         guard let client = model.client else { return }
         await browse.load(client: client)
+    }
+}
+
+/// One of a music library's Browse rows: playlists and mixes, albums that open, or tracks that play (the one pressed
+/// first, the rest of the row after it). No "See all": its links lead back to this page.
+private struct MusicRowView: View {
+    @Environment(AppModel.self) private var model
+    @Environment(Router.self) private var router
+    let row: HomeRow
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(row.title)
+                .font(.marquee(40, weight: .bold))
+                .foregroundStyle(Color.screen)
+            ScrollView(.horizontal) {
+                LazyHStack(alignment: .top, spacing: Layout.rowSpacing) {
+                    ForEach(row.playlists ?? []) { playlist in
+                        PlaylistCard(playlist: playlist) { router.push(.playlist(playlist)) }
+                    }
+                    ForEach(row.mixes ?? []) { MixCard(mix: $0) }
+                    ForEach(Array(row.items.enumerated()), id: \.element.id) { index, item in
+                        if row.style == .tracks || item.kind == .track {
+                            TrackCard(item: item) { model.playTracks(row.items, from: index) }
+                        } else if item.kind == .artist {
+                            ArtistCard(item: item) { router.push(.item(item)) }
+                        } else {
+                            AlbumCard(item: item, showsArtist: true) { router.push(.item(item)) }
+                        }
+                    }
+                }
+                .padding(.top, 28)
+                .padding(.bottom, 40)
+            }
+            .scrollClipDisabled()
+            .focusSection()
+        }
     }
 }

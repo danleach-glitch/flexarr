@@ -338,6 +338,10 @@ struct HomeRowView: View {
                     ForEach(row.playlists ?? []) { playlist in
                         PlaylistCard(playlist: playlist) { router.push(.playlist(playlist)) }
                     }
+                    // A mixes row carries the day's mixes; pressing one plays it.
+                    ForEach(row.mixes ?? []) { mix in
+                        MixCard(mix: mix)
+                    }
                     // A Live TV row carries the profile's favourite channels; channel up and down go through them.
                     ForEach(row.channels ?? []) { channel in
                         HomeChannelCard(channel: channel, order: row.channels ?? [])

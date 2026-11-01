@@ -2,14 +2,18 @@ import FlexarrKit
 import Foundation
 import Observation
 
-/// What a music library opens to: its artists (paged, by name) and the albums that arrived most recently. Shared by
-/// the Apple TV and iPhone screens, which only differ in how they draw it.
+/// What a music library opens to: the server's Browse rows (Your playlists, Made for you, Recently played, Most played,
+/// More from artists you play, New albums: in the profile's order, without the ones it switched off), then its artists
+/// (paged, by name). Without rows (Browse failed, or a library nobody has played yet), the playlists and the albums
+/// that arrived most recently instead. Shared by the Apple TV and iPhone screens, which only differ in how they draw it.
 @MainActor
 @Observable
 final class MusicBrowseModel {
     let library: Library
     private(set) var artists: [ItemSummary] = []
     private(set) var total = 0
+    /// The server's Browse rows with something in them, in its order. Empty draws `playlists` and `recentAlbums` instead.
+    private(set) var rows: [HomeRow] = []
     private(set) var recentAlbums: [ItemSummary] = []
     /// The profile's playlists (they span libraries, so every music library offers them).
     private(set) var playlists: [PlaylistSummary] = []
@@ -37,16 +41,24 @@ final class MusicBrowseModel {
         isLoading = true
         defer { if mine == generation { isLoading = false } }
         do {
-            async let newest = client.libraryItems(library.id, sort: .added, skip: 0, take: Self.recentArtists)
-            async let lists = client.playlists()
+            async let browse = client.libraryBrowse(library.id)
             let page = try await client.libraryItems(library.id, sort: .title, skip: 0, take: Self.pageSize)
             guard mine == generation else { return }
             artists = page.items.filter { $0.kind == .artist || $0.kind == .unknown }
             total = page.total
             error = nil
             loadedAt = Date()
-            playlists = (try? await lists) ?? []
-            recentAlbums = await Self.newestAlbums(of: (try? await newest)?.items ?? [], client: client)
+            let loaded = ((try? await browse)?.rows ?? []).filter(\.hasContent)
+            guard mine == generation else { return }
+            rows = loaded
+            guard loaded.isEmpty else { return }
+            async let newest = client.libraryItems(library.id, sort: .added, skip: 0, take: Self.recentArtists)
+            async let lists = client.playlists()
+            let fallbackLists = (try? await lists) ?? []
+            let fallbackAlbums = await Self.newestAlbums(of: (try? await newest)?.items ?? [], client: client)
+            guard mine == generation else { return }
+            playlists = fallbackLists
+            recentAlbums = fallbackAlbums
         } catch {
             if mine == generation { self.error = ConnectionError(error).message }
         }
@@ -67,6 +79,9 @@ final class MusicBrowseModel {
             }
         }
     }
+
+    /// Something to tint the page with: the first album or track in the rows, or the newest album, or the first artist.
+    var ambientItem: ItemSummary? { rows.lazy.compactMap(\.items.first).first ?? recentAlbums.first ?? artists.first }
 
     /// The newest albums among these artists', newest first.
     private static func newestAlbums(of artists: [ItemSummary], client: FlexarrClient) async -> [ItemSummary] {
