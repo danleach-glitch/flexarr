@@ -112,7 +112,7 @@ public static class ImageEndpoints
         for (Guid? current = id; current is { } itemId;)
         {
             var item = await db.MediaItems.AsNoTracking().Where(i => i.Id == itemId)
-                .Select(i => new { i.ParentId, i.LibraryId, i.PosterUrl, i.BackdropUrl, i.LogoUrl, i.ThumbUrl, i.Kind, i.MetadataUpdatedAt })
+                .Select(i => new { i.ParentId, i.LibraryId, i.PosterUrl, i.BackdropUrl, i.LogoUrl, i.ThumbUrl, i.Kind, i.MetadataUpdatedAt, i.ArtworkChangedAt })
                 .FirstOrDefaultAsync(ct);
             if (item is null)
             {
@@ -120,7 +120,7 @@ public static class ImageEndpoints
             }
 
             // As ArtworkUrls.For writes it, from the item asked for (not the series it borrows from).
-            version ??= ((item.MetadataUpdatedAt?.Ticks ?? 0) / 10_000_000).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            version ??= ArtworkUrls.Version(item.MetadataUpdatedAt, item.ArtworkChangedAt).ToString(System.Globalization.CultureInfo.InvariantCulture);
 
             var url = kind switch
             {

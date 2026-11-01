@@ -401,7 +401,7 @@ public static partial class DiscoveryEndpoints
                     Shows = g.Items.Count(i => i.Kind == MediaKind.Series),
                     Candidates = g.Items.Where(i => i.BackdropUrl != null && i.CommunityRating != null)
                         .OrderByDescending(i => i.CommunityRating).ThenByDescending(i => i.Popularity)
-                        .Select(i => new { i.Id, i.MetadataUpdatedAt }).Take(12).ToList(),
+                        .Select(i => new { i.Id, i.MetadataUpdatedAt, i.ArtworkChangedAt }).Take(12).ToList(),
                 })
                 .Where(g => g.Movies + g.Shows > 0)
                 .OrderByDescending(g => g.Movies + g.Shows)
@@ -413,7 +413,7 @@ public static partial class DiscoveryEndpoints
             {
                 var cover = g.Candidates.FirstOrDefault(c => used.Add(c.Id)) ?? g.Candidates.FirstOrDefault();
                 return new GenreDto(g.Name, g.Movies, g.Shows,
-                    cover is null ? null : ArtworkUrls.For(cover.Id, cover.MetadataUpdatedAt?.Ticks / 10_000_000 ?? 0, false, true, false, false).Backdrop);
+                    cover is null ? null : ArtworkUrls.For(cover.Id, ArtworkUrls.Version(cover.MetadataUpdatedAt, cover.ArtworkChangedAt), false, true, false, false).Backdrop);
             }).ToList();
         }).WithTags("Discovery");
 

@@ -300,20 +300,61 @@ public sealed class AudiobookScannerTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task AReplacedCover_ChangesTheArtworkVersion()
+    public async Task AReplacedCover_ChangesTheArtworkVersion_EvenWithAnOlderDate()
     {
         Touch("A/Book/01.mp3", "A/Book/cover.jpg");
-        await ScanAsync();
+        var cover = Path.Combine(Books, "A/Book/cover.jpg");
         var looked = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        File.SetLastWriteTimeUtc(cover, looked.AddDays(-1));
+        await ScanAsync();
         await _db.MediaItems.ExecuteUpdateAsync(u => u.SetProperty(i => i.MetadataUpdatedAt, looked));
-        File.SetLastWriteTimeUtc(Path.Combine(Books, "A/Book/cover.jpg"), looked.AddDays(-1));
 
+        // The first stamp is only recorded, and a scan with nothing changed leaves it be.
         await ScanAsync();
-        Assert.Equal(looked, (await _db.MediaItems.AsNoTracking().SingleAsync()).MetadataUpdatedAt);
+        var book = await _db.MediaItems.AsNoTracking().SingleAsync();
+        Assert.NotNull(book.ArtworkStamp);
+        Assert.Null(book.ArtworkChangedAt);
+        Assert.Equal(looked, book.MetadataUpdatedAt);
 
-        File.SetLastWriteTimeUtc(Path.Combine(Books, "A/Book/cover.jpg"), looked.AddDays(1));
+        // A Finder copy keeps the file's own, older date.
+        File.WriteAllText(cover, "a new picture");
+        File.SetLastWriteTimeUtc(cover, looked.AddDays(-30));
         await ScanAsync();
-        Assert.True((await _db.MediaItems.AsNoTracking().SingleAsync()).MetadataUpdatedAt > looked);
+        book = await _db.MediaItems.AsNoTracking().SingleAsync();
+        Assert.True(book.ArtworkChangedAt > looked);
+        Assert.Equal(looked, book.MetadataUpdatedAt);
+    }
+
+    [Fact]
+    public async Task AScan_NeverMovesTheLookUpDate()
+    {
+        // As PathMappingFinder.RematchAsync leaves it, to have the next refresh link the title again.
+        Touch("A/Book/01.mp3", "A/Book/cover.jpg");
+        await ScanAsync();
+        await _db.MediaItems.ExecuteUpdateAsync(u => u.SetProperty(i => i.MetadataUpdatedAt, DateTime.UnixEpoch));
+
+        File.WriteAllText(Path.Combine(Books, "A/Book/cover.jpg"), "a new picture");
+        await ScanAsync();
+
+        Assert.Equal(DateTime.UnixEpoch, (await _db.MediaItems.AsNoTracking().SingleAsync()).MetadataUpdatedAt);
+    }
+
+    [Fact]
+    public async Task ARetaggedFile_ChangesItsEmbeddedArtworkVersion()
+    {
+        Touch("A/Book/01.m4b");
+        _probe.CoverArt = true;
+        await ScanAsync();
+        Assert.Null((await _db.MediaItems.AsNoTracking().SingleAsync()).ArtworkChangedAt);
+
+        var file = Path.Combine(Books, "A/Book/01.m4b");
+        File.WriteAllText(file, "retagged");
+        File.SetLastWriteTimeUtc(file, DateTime.UtcNow.AddDays(-30));
+        await ScanAsync();
+
+        var book = await _db.MediaItems.AsNoTracking().SingleAsync();
+        Assert.StartsWith("embedded://", book.PosterUrl, StringComparison.Ordinal);
+        Assert.NotNull(book.ArtworkChangedAt);
     }
 
     [Fact]

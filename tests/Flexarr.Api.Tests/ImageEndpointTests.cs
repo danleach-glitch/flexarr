@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Json;
 using Flexarr.Api.Endpoints;
 using Flexarr.Core.Data;
 using Flexarr.Core.Libraries;
@@ -163,6 +164,38 @@ public class ImageEndpointTests(FlexarrApiFactory factory) : IClassFixture<Flexa
         {
             Directory.Delete(root, recursive: true);
         }
+    }
+
+    [Fact]
+    public async Task ArtworkVersion_IsTheLaterOfTheLookUpAndTheArtworkChange()
+    {
+        var looked = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var changed = looked.AddDays(3);
+        Guid id;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var library = new Library { Name = $"Books {Guid.NewGuid():N}", Type = LibraryType.Audiobooks };
+            var item = new MediaItem
+            {
+                LibraryId = library.Id, Kind = MediaKind.Audiobook, Title = "Book", SortTitle = "book", PosterUrl = "file:///nowhere/cover.jpg",
+                MetadataUpdatedAt = looked, ArtworkChangedAt = changed,
+            };
+            db.AddRange(library, item);
+            await db.SaveChangesAsync();
+            id = item.Id;
+        }
+
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+        var detail = await client.GetFromJsonAsync<System.Text.Json.JsonElement>(new Uri($"/api/v1/items/{id}", UriKind.Relative));
+
+        var poster = detail.GetProperty("item").GetProperty("artwork").GetProperty("poster").GetString();
+        Assert.EndsWith($"?v={changed.Ticks / 10_000_000}", poster, StringComparison.Ordinal);
+        Assert.Equal(looked.Ticks / 10_000_000, ArtworkUrls.Version(looked, null));
+        Assert.Equal(changed.Ticks / 10_000_000, ArtworkUrls.Version(null, changed));
+        Assert.Equal(changed.Ticks / 10_000_000, ArtworkUrls.Version(changed, looked));
+        Assert.Equal(0, ArtworkUrls.Version(null, null));
     }
 
     private static async Task<bool> HasFfmpegAsync()

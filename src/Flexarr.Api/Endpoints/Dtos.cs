@@ -117,6 +117,16 @@ public static class ArtworkUrls
         return new ArtworkDto(Url(poster, "poster"), Url(backdrop, "backdrop"), Url(logo, "logo"), Url(thumb, "thumb"));
     }
 
+    /// <summary>
+    /// The ?v= of a title's artwork: the later of when it was last looked up and when the scan saw its local artwork
+    /// change, in seconds. Called in a query's final projection, so it runs on the rows read.
+    /// </summary>
+    public static long Version(DateTime? metadataUpdatedAt, DateTime? artworkChangedAt)
+    {
+        var latest = metadataUpdatedAt is null || artworkChangedAt > metadataUpdatedAt ? artworkChangedAt : metadataUpdatedAt;
+        return (latest?.Ticks ?? 0) / 10_000_000;
+    }
+
     public static string? Person(Guid id, bool has) => has ? $"/api/v1/images/people/{id}" : null;
 }
 
