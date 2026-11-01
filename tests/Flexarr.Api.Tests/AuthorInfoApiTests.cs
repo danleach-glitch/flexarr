@@ -148,6 +148,26 @@ public class AuthorInfoApiTests(FlexarrApiFactory factory) : IClassFixture<Flexa
     }
 
     [Fact]
+    public async Task Unlocking_RepliesAtOnce_AndLooksThemUpAfter()
+    {
+        using var app = Serve();
+        var (person, _) = await SeedAsync(app, folderPhoto: true);
+        using (var scope = app.Services.CreateScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().People.Where(p => p.Id == person)
+                .ExecuteUpdateAsync(u => u.SetProperty(p => p.InfoLocked, true));
+        }
+
+        var admin = Admin(app);
+        var unlocked = await admin.PutAsJsonAsync(Api($"/people/{person}"), new { locked = false });
+        await app.Services.GetRequiredService<Flexarr.Api.Profiles.PersonLookups>().WhenIdleAsync().WaitAsync(TimeSpan.FromSeconds(30));
+        var after = await admin.GetFromJsonAsync<JsonElement>(Api($"/people/{person}"));
+
+        Assert.Equal(HttpStatusCode.OK, unlocked.StatusCode);
+        Assert.Equal(("folder", false), (after.GetProperty("photoSource").GetString(), after.GetProperty("locked").GetBoolean()));
+    }
+
+    [Fact]
     public async Task ABooksPage_ListsItsAuthors_WithPhotosAndBiographies()
     {
         using var app = Serve();

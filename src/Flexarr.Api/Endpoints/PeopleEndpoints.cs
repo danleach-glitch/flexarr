@@ -48,7 +48,7 @@ public static class PeopleEndpoints
         });
 
         admin.MapPut("/", async (Guid id, UpdatePersonRequest request, FlexarrDbContext db, AuthorInfo authors, IMemoryCache memory, CurrentProfile profile,
-            PersonImages images, CancellationToken ct) =>
+            PersonImages images, PersonLookups lookups, CancellationToken ct) =>
         {
             var person = await db.People.FirstOrDefaultAsync(p => p.Id == id, ct);
             if (person is null)
@@ -96,16 +96,22 @@ public static class PeopleEndpoints
                 PersonSources.SetPhoto(person, null, null, now); // an upload that's gone: no photo, so one can be found
             }
 
-            if (request.Locked == false && !byHand)
+            // Unlocked: looked up again now (filling what's missing, and a folder photo), not in a month. That can take a
+            // while, so it's after the reply; the person's page shows what it found once it's done.
+            var lookUp = request.Locked == false && !byHand;
+            if (lookUp)
             {
-                // Unlocked: looked up again now (filling what's missing, and a folder photo), not in a month.
                 person.InfoCheckedAt = null;
-                await authors.RefreshPersonAsync(person, ct);
             }
 
             await db.SaveChangesAsync(ct);
             memory.Remove(ImageEndpoints.PersonSourceKey(id));
             memory.Remove(CandidatesKey(id));
+            if (lookUp)
+            {
+                lookups.Start(id);
+            }
+
             return Results.Ok(await ToDtoAsync(db, person, profile, images, ct));
         });
 
