@@ -52,7 +52,20 @@ public static class BookPlayback
     public static async Task<BookListeningDto> ListeningAsync(FlexarrDbContext db, string profileId, CancellationToken ct) =>
         await db.Profiles.Where(p => p.Id == profileId)
             .Select(p => new BookListeningDto(p.AudiobookSpeed, p.AudiobookSkipBackSeconds, p.AudiobookSkipForwardSeconds, p.AudiobookSmartRewind))
-            .FirstOrDefaultAsync(ct) ?? new BookListeningDto(1, 30, 30, true);
+            .FirstOrDefaultAsync(ct) is { } listening
+            ? listening with
+            {
+                Speed = SpeedOrDefault(listening.Speed),
+                SkipBackSeconds = listening.SkipBackSeconds > 0 ? listening.SkipBackSeconds : 30,
+                SkipForwardSeconds = listening.SkipForwardSeconds > 0 ? listening.SkipForwardSeconds : 30,
+            }
+            : new BookListeningDto(1, 30, 30, true);
+
+    /// <summary>
+    /// A profile's book speed as it's handed out: a speed no one can choose (0, left by a profile made before
+    /// audiobooks, or anything that isn't a number) is 1×.
+    /// </summary>
+    public static double SpeedOrDefault(double speed) => double.IsFinite(speed) && speed > 0 ? speed : 1;
 
     public static BookProgressDto Progress(PlaybackState? state) => state is null
         ? new BookProgressDto(0, false, null, null, null)
@@ -75,7 +88,7 @@ public static class BookPlayback
             await BookQueries.Chapters(db, book.Id).ToListAsync(ct),
             await BookQueries.Bookmarks(db, book.Id, profileId).ToListAsync(ct),
             Progress(state),
-            speed ?? listening.Speed,
+            speed is > 0 and var kept ? kept : listening.Speed,
             listening,
             await BookQueries.NextInSeriesAfterAsync(db, book, profileId, ct));
     }

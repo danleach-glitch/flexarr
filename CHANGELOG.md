@@ -24,6 +24,12 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Replacing a `cover.jpg` or `poster.jpg` beside your files now shows the new picture in every app after the next scan, instead of the old one staying.
 - Adding a library on the web has one button: open its folder in the picker and press **Add library**.
 
+### Backups
+- Restoring a backup now keeps every setting, including error reports, automatic updates and audiobook keys, and the server keeps its identity, so apps carry on without signing in again.
+
+### Siri
+- "Resume listening in Flexarr" plays whichever book or podcast episode you listened to last. It takes the place of "Play my Up Next" as a Siri phrase (Apple allows ten), which is still an action in the Shortcuts app.
+
 ## 0.57.0 · 31 October 2026
 
 ### Trakt

@@ -710,4 +710,75 @@ public class BackupTests
             Directory.Delete(folder, recursive: true);
         }
     }
+
+    [Fact]
+    public void A_restore_keeps_every_setting_but_this_machines_paths()
+    {
+        var folder = Directory.CreateTempSubdirectory("flexarr-restore-").FullName;
+        try
+        {
+            var restored = Path.Combine(folder, "restored.json");
+            var current = Path.Combine(folder, "current.json");
+            File.WriteAllText(restored, """
+                {"apiKey":"theirs","serverId":"backup-server","setupOpen":false,"askPinForMainProfile":true,"ratingAges":"uk",
+                 "pathMappingsDetected":["/tv"],"logs":{"errorReports":true,"retentionDays":7,"directory":"/elsewhere/logs"},
+                 "updates":{"automatic":true},"bookMetadata":{"googleBooksKey":"g-key","hardcoverToken":"h-token"},
+                 "bookRequests":{"instance":"Readarr"},"setupGuide":{"dismissed":true},"transcoding":{"softwarePreset":"slow"},
+                 "ffmpegPath":"/tmp/not-ffmpeg","cacheDirectory":"/elsewhere/cache","backups":{"folder":"/elsewhere/backups"},
+                 "dataDirectory":"/","configRevision":"old","madeUp":1,"backups:folder":"/tmp/planted"}
+                """);
+            File.WriteAllText(current, """
+                {"serverId":"this-server","ffmpegPath":"/usr/bin/ffmpeg","backups":{"folder":"/here/backups"},"logs":{"directory":"/here/logs"}}
+                """);
+
+            Flexarr.Api.Backups.SettingsTransfer.KeepMachinePaths(restored, current);
+            var config = JsonNode.Parse(File.ReadAllText(restored))!.AsObject();
+
+            Assert.Equal("backup-server", config["serverId"]!.GetValue<string>());
+            Assert.Equal("theirs", config["apiKey"]!.GetValue<string>());
+            Assert.False(config["setupOpen"]!.GetValue<bool>());
+            Assert.True(config["askPinForMainProfile"]!.GetValue<bool>());
+            Assert.Equal("uk", config["ratingAges"]!.GetValue<string>());
+            Assert.Equal("/tv", config["pathMappingsDetected"]![0]!.GetValue<string>());
+            Assert.True(config["logs"]!["errorReports"]!.GetValue<bool>());
+            Assert.Equal(7, config["logs"]!["retentionDays"]!.GetValue<int>());
+            Assert.Equal("/here/logs", config["logs"]!["directory"]!.GetValue<string>());
+            Assert.True(config["updates"]!["automatic"]!.GetValue<bool>());
+            Assert.Equal("g-key", config["bookMetadata"]!["googleBooksKey"]!.GetValue<string>());
+            Assert.Equal("h-token", config["bookMetadata"]!["hardcoverToken"]!.GetValue<string>());
+            Assert.Equal("Readarr", config["bookRequests"]!["instance"]!.GetValue<string>());
+            Assert.True(config["setupGuide"]!["dismissed"]!.GetValue<bool>());
+            Assert.Equal("slow", config["transcoding"]!["softwarePreset"]!.GetValue<string>());
+            Assert.Equal("/usr/bin/ffmpeg", config["ffmpegPath"]!.GetValue<string>());
+            Assert.Equal("/here/backups", config["backups"]!["folder"]!.GetValue<string>());
+            Assert.DoesNotContain(config, p => p.Key is "cacheDirectory" or "dataDirectory" or "configRevision" or "madeUp" or "backups:folder");
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void A_restore_of_a_backup_without_a_server_id_keeps_this_servers()
+    {
+        var folder = Directory.CreateTempSubdirectory("flexarr-restore-").FullName;
+        try
+        {
+            var restored = Path.Combine(folder, "restored.json");
+            var current = Path.Combine(folder, "current.json");
+            File.WriteAllText(restored, """{"apiKey":"theirs","logs":{"directory":"/elsewhere/logs"}}""");
+            File.WriteAllText(current, """{"serverId":"this-server"}""");
+
+            Flexarr.Api.Backups.SettingsTransfer.KeepMachinePaths(restored, current);
+            var config = JsonNode.Parse(File.ReadAllText(restored))!.AsObject();
+
+            Assert.Equal("this-server", config["serverId"]!.GetValue<string>());
+            Assert.False(config["logs"]!.AsObject().ContainsKey("directory"));
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
 }

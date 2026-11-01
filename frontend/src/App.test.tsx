@@ -853,7 +853,7 @@ describe('Settings', () => {
     expect(await screen.findByText('ABC-DEF', { selector: '.connect-tv-big-code' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Allow' })).toHaveFocus()
     fireEvent.click(screen.getByRole('button', { name: 'Don’t allow' }))
-    expect(await screen.findByRole('status')).toHaveTextContent('The device will show a new code')
+    expect(await screen.findByRole('status')).toHaveTextContent('The device shows Not allowed')
     expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith('/pairing/code/ABC-DEF/decline') && init?.method === 'POST')).toBe(true)
   })
 
