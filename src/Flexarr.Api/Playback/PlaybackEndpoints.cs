@@ -454,11 +454,16 @@ public static partial class PlaybackEndpoints
         });
 
         group.MapPost("/progress", async (string sid, ProgressRequest progress, PlaybackSessions sessions, PlaybackService playback, PlaybackEvents events,
-            CancellationToken ct) =>
+            Books.BookFileConverter bookConverter, CancellationToken ct) =>
         {
             if (sessions.Get(sid) is not { } session)
             {
                 return Results.NotFound();
+            }
+
+            if (session.BookParts is { } parts && parts.Any(p => p.Convert) && double.IsFinite(progress.PositionSeconds))
+            {
+                bookConverter.Prepare(parts, progress.PositionSeconds); // the next few files this player can't decode, ahead of it
             }
 
             events.Observe(session, progress);

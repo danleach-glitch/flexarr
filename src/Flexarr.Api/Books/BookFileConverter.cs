@@ -45,6 +45,10 @@ public sealed partial class BookFileConverter : IDisposable
     private readonly ConcurrentDictionary<string, Lazy<Task<string?>>> _jobs = new(StringComparer.Ordinal);
     private readonly SemaphoreSlim _slots = new(MaxConcurrent, MaxConcurrent);
     private readonly CancellationTokenSource _stopping = new();
+
+    /// <summary>The parts of books needing conversion that players were handed lately, by book.</summary>
+    private readonly ConcurrentDictionary<Guid, (IReadOnlyList<BookPart> Parts, DateTime At)> _remembered = new();
+    private const int MaxRemembered = 64;
     private long _prunedAt;
 
     public BookFileConverter(IOptionsMonitor<FlexarrOptions> options, ILogger<BookFileConverter> logger)
@@ -80,16 +84,58 @@ public sealed partial class BookFileConverter : IDisposable
         }
     }
 
+    /// <summary>
+    /// <see cref="Prepare(IEnumerable{BookPart}, double)"/>, and remembers the book's parts (when any need converting)
+    /// so <see cref="PrepareAhead"/> can keep ahead of a player that reports its progress without a session.
+    /// </summary>
+    public void Prepare(Guid bookId, IReadOnlyList<BookPart> parts, double fromSeconds)
+    {
+        ArgumentNullException.ThrowIfNull(parts);
+        if (parts.Any(p => p.Convert))
+        {
+            if (_remembered.Count >= MaxRemembered)
+            {
+                foreach (var old in _remembered.OrderBy(r => r.Value.At).Take(MaxRemembered / 2))
+                {
+                    _remembered.TryRemove(old.Key, out _);
+                }
+            }
+
+            _remembered[bookId] = (parts, DateTime.UtcNow);
+        }
+
+        Prepare(parts, fromSeconds);
+    }
+
+    /// <summary>
+    /// Keeps the next <see cref="MaxPrepared"/> files after <paramref name="positionSeconds"/> converting, for a book
+    /// whose parts a player was handed lately (see <see cref="Prepare(Guid, IReadOnlyList{BookPart}, double)"/>), so it
+    /// doesn't stall at each file past the first few. Nothing to do for any other book; no database work either way.
+    /// </summary>
+    public void PrepareAhead(Guid bookId, double positionSeconds)
+    {
+        if (_remembered.TryGetValue(bookId, out var remembered))
+        {
+            Prepare(remembered.Parts, positionSeconds);
+        }
+    }
+
     /// <summary>Deletes the converted copies of these files (a book's, when it's deleted).</summary>
     public void RemoveCopies(IEnumerable<Guid> fileIds)
     {
         ArgumentNullException.ThrowIfNull(fileIds);
+        var ids = fileIds.ToHashSet();
+        foreach (var book in _remembered.Where(r => r.Value.Parts.Any(p => ids.Contains(p.FileId))))
+        {
+            _remembered.TryRemove(book.Key, out _);
+        }
+
         if (!System.IO.Directory.Exists(Directory))
         {
             return;
         }
 
-        foreach (var id in fileIds)
+        foreach (var id in ids)
         {
             foreach (var copy in System.IO.Directory.EnumerateFiles(Directory, $"{id:N}-*"))
             {
