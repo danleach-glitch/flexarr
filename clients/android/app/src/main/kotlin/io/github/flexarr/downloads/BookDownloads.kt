@@ -19,6 +19,7 @@ import io.github.flexarr.core.FlexarrException
 import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.LocalBook
 import io.github.flexarr.core.LocalPhase
+import io.github.flexarr.core.SettledSender
 import io.github.flexarr.core.bookManifest
 import io.github.flexarr.core.recordBookProgress
 import io.github.flexarr.logging.FlexarrLog
@@ -28,6 +29,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.builtins.ListSerializer
 import okhttp3.Request
@@ -215,7 +218,27 @@ class BookDownloads(private val context: Context, private val model: AppModel) {
     fun speedChosen(itemId: String, speed: Double) {
         entry(itemId) ?: return
         update(itemId) { it.speedChosen(speed) }
-        scope.launch { catchUp() }
+        speeds.changed(itemId)
+    }
+
+    /** One catch-up at a time, and a speed being sent in between, so saves land in the order they were made. */
+    private val sending = Mutex()
+
+    /** Speed taps (0.05 at a time) sent once they settle: only the speed, the latest. */
+    private val speeds = SettledSender<String>(scope, sending) { itemId -> sendSpeed(itemId) }
+
+    private suspend fun sendSpeed(itemId: String) {
+        val client = model.client ?: return
+        if (!model.downloads.isOnline) return
+        val speed = entry(itemId)?.unsentSpeed ?: return
+        try {
+            client.setPlaybackSpeed(itemId, speed)
+            update(itemId) { if (it.unsentSpeed == speed) it.copy(unsentSpeed = null) else it }
+        } catch (e: FlexarrException.Http) {
+            if (e.status == 404) update(itemId) { if (it.unsentSpeed == speed) it.copy(unsentSpeed = null) else it }
+        } catch (_: FlexarrException) {
+            // Out of reach: the next catch-up sends it.
+        }
     }
 
     /** The server's newer manifest for a book here: its bookmarks, listening settings and speed are kept with it. */
@@ -231,7 +254,9 @@ class BookDownloads(private val context: Context, private val model: AppModel) {
      * Sends what was heard offline (with the time it was heard), deletes finished books when Settings says so, fetches the
      * next in a series that's due, and gives anything still to come a transfer.
      */
-    suspend fun catchUp() {
+    suspend fun catchUp() = sending.withLock { catchUpNow() }
+
+    private suspend fun catchUpNow() {
         ready()
         val client = model.client
         if (client != null && model.downloads.isOnline) {

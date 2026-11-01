@@ -103,6 +103,33 @@ class BookPause {
 }
 
 /**
+ * How long a book's server session has sat idle: the server lets one go after twelve hours with no report, so a session
+ * quiet for a little under that is treated as gone and a new one is asked for from the same place. Kept apart from
+ * [BookPause]: a seek while paused forgets the pause (no smart rewind) but sends nothing, so the session still idles.
+ */
+class BookSessionClock(private val lapseMillis: Long = LAPSES_MS) {
+    var lastActive: Long? = null
+        private set
+
+    /** Something reached the server, or it's playing: the session is alive at [now]. */
+    fun active(now: Long) {
+        lastActive = now
+    }
+
+    fun clear() {
+        lastActive = null
+    }
+
+    /** Idle for longer than the server keeps a session. */
+    fun lapsed(now: Long): Boolean = lastActive?.let { now - it > lapseMillis } == true
+
+    companion object {
+        /** A little under the twelve hours idle after which the server ends a session. */
+        const val LAPSES_MS = 11 * 3_600_000L
+    }
+}
+
+/**
  * Smart rewind: how far to step back on playing again after a pause of [pausedMillis]. None under ten seconds, then
  * from two seconds growing (with the log of the pause) to thirty after an hour, and no more after that.
  */

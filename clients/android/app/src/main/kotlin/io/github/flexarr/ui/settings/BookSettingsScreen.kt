@@ -3,6 +3,7 @@ package io.github.flexarr.ui.settings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -10,8 +11,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.material3.Text
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import io.github.flexarr.AppModel
 import io.github.flexarr.core.BookListening
 import io.github.flexarr.core.BookListeningUpdate
@@ -19,9 +25,11 @@ import io.github.flexarr.core.BookSpeed
 import io.github.flexarr.core.FlexarrException
 import io.github.flexarr.core.bookListening
 import io.github.flexarr.core.setBookListening
+import io.github.flexarr.ui.components.Edge
 import io.github.flexarr.ui.components.LocalNavigator
 import io.github.flexarr.ui.components.PageTitle
 import io.github.flexarr.ui.components.StatusView
+import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.RoomBackground
 import kotlinx.coroutines.launch
 
@@ -46,8 +54,15 @@ fun BookSettingsScreen(model: AppModel) {
         }
     }
 
-    /** Shown at once; the server's answer follows, and a book playing takes the new steps. */
+    var saveFailed by remember { mutableStateOf(false) }
+
+    /**
+     * Shown at once; the server's answer follows, and a book playing takes the new steps. Not saved (offline): the value
+     * before goes back, with a line saying so.
+     */
     fun update(change: BookListeningUpdate) {
+        val before = listening
+        saveFailed = false
         listening?.let { known ->
             listening = known.copy(
                 speed = change.speed ?: known.speed,
@@ -60,6 +75,8 @@ fun BookSettingsScreen(model: AppModel) {
             val saved = try {
                 client.setBookListening(change)
             } catch (_: FlexarrException) {
+                listening = before
+                saveFailed = true
                 return@launch
             }
             listening = saved
@@ -87,6 +104,14 @@ fun BookSettingsScreen(model: AppModel) {
                 }
                 failed != null -> item { StatusView(failed, retry = { attempt++ }) }
                 else -> item { StatusView() }
+            }
+            if (known != null && saveFailed) item {
+                Text(
+                    "That didn’t save. Try again.",
+                    fontSize = 15.sp,
+                    color = Flexarr.danger,
+                    modifier = Modifier.padding(horizontal = Edge).semantics { liveRegion = LiveRegionMode.Polite },
+                )
             }
         }
     }

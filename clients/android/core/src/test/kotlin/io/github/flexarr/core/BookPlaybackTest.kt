@@ -62,6 +62,26 @@ class BookPlaybackTest {
     }
 
     @Test
+    fun `a session paused half a day has lapsed, even after a seek while paused`() {
+        val hour = 3_600_000L
+        val clock = BookSessionClock()
+        val pause = BookPause()
+        assertFalse(clock.lapsed(0))
+        clock.active(0)
+        pause.paused(0)
+        // A chapter tapped while paused: the pause is forgotten for smart rewind, but nothing reached the server.
+        pause.seeked()
+        assertNull(pause.since)
+        assertFalse(clock.lapsed(10 * hour))
+        assertTrue(clock.lapsed(12 * hour))
+        // Reported again: alive.
+        clock.active(12 * hour)
+        assertFalse(clock.lapsed(13 * hour))
+        clock.clear()
+        assertFalse(clock.lapsed(30 * hour))
+    }
+
+    @Test
     fun `ending a book reports the end before stopping the session`() = runTest {
         MockWebServer().use { server ->
             server.start()

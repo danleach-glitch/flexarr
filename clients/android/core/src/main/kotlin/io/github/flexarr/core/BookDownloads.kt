@@ -1,5 +1,12 @@
 package io.github.flexarr.core
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
 
 // Audiobooks kept on the phone, as the iPhone app keeps them: a whole book under one entry, its files fetched as they
@@ -82,4 +89,30 @@ object BookDownloadRules {
     fun imageName(itemId: String): String = "book-${safe(itemId)}.jpg"
 
     private fun safe(part: String) = part.replace(Regex("[^A-Za-z0-9_-]"), "_")
+}
+
+/**
+ * Quick changes (a speed tapped up in 0.05 steps) sent once they settle for [waitMillis]: only the last, and one send at a
+ * time under [lock], so a slow earlier send can't land after a newer one and leave the server with an old value. Per key:
+ * one book's change doesn't hold back another's. [send] reads the latest value itself when it runs.
+ */
+class SettledSender<K>(
+    private val scope: CoroutineScope,
+    private val lock: Mutex,
+    private val waitMillis: Long = 1_000,
+    private val send: suspend (K) -> Unit,
+) {
+    private val waiting = mutableMapOf<K, Job>()
+
+    fun changed(key: K) {
+        lateinit var job: Job
+        job = scope.launch(start = CoroutineStart.LAZY) {
+            delay(waitMillis)
+            // Sending now: a newer change waits for this one rather than cutting it off mid-request.
+            synchronized(waiting) { if (waiting[key] === job) waiting.remove(key) }
+            lock.withLock { send(key) }
+        }
+        synchronized(waiting) { waiting.put(key, job)?.cancel() }
+        job.start()
+    }
 }
