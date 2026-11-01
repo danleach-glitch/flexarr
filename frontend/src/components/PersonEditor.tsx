@@ -35,6 +35,8 @@ export function PersonEditor({ person, onSaved, onClose }: { person: Person; onS
   const original = person.biography ?? ''
   const [biography, setBiography] = useState(original)
   const [locked, setLocked] = useState(person.locked ?? false)
+  // Once the admin sets the switch themselves, choosing a photo or writing no longer turns it on for them.
+  const [lockSet, setLockSet] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string>()
   const dialog = useModal<HTMLFormElement>(onClose, !saving)
@@ -44,12 +46,12 @@ export function PersonEditor({ person, onSaved, onClose }: { person: Person; onS
 
   function choose(source: string) {
     setChosen(source)
-    if (source !== current) setLocked(true)
+    if (source !== current && !lockSet) setLocked(true)
   }
 
   function write(text: string) {
     setBiography(text)
-    if (text.trim() !== original.trim()) setLocked(true)
+    if (text.trim() !== original.trim() && !lockSet) setLocked(true)
   }
 
   async function save(e: FormEvent) {
@@ -131,7 +133,17 @@ export function PersonEditor({ person, onSaved, onClose }: { person: Person; onS
 
         <label className="person-editor-lock">
           <span>Locked</span>
-          <input type="checkbox" role="switch" className="switch" checked={locked} disabled={saving} onChange={(e) => setLocked(e.target.checked)} />
+          <input
+            type="checkbox"
+            role="switch"
+            className="switch"
+            checked={locked}
+            disabled={saving}
+            onChange={(e) => {
+              setLocked(e.target.checked)
+              setLockSet(true)
+            }}
+          />
         </label>
 
         {error && (

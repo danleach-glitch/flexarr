@@ -91,6 +91,28 @@ describe('PersonEditor', () => {
     expect(sent).toEqual([{ locked: false }])
   })
 
+  it('leaves Locked off once the admin turns it off, even as they edit', async () => {
+    const sent: unknown[] = []
+    mockApi({
+      'GET /people/p1/candidates': candidates,
+      'PUT /people/p1': (init?: RequestInit) => {
+        sent.push(bodyOf(init))
+        return { ...person, locked: false }
+      },
+    })
+    const onSaved = vi.fn()
+    render(<PersonEditor person={{ ...person, locked: true }} onSaved={onSaved} onClose={() => undefined} />)
+
+    const lock = screen.getByRole<HTMLInputElement>('switch', { name: 'Locked' })
+    fireEvent.click(lock)
+    fireEvent.change(screen.getByLabelText('Biography'), { target: { value: 'New words.' } })
+    fireEvent.click(await screen.findByRole('radio', { name: 'Open Library' }))
+    expect(lock.checked).toBe(false)
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(onSaved).toHaveBeenCalled())
+    expect(sent).toEqual([{ photo: 'openlibrary', biography: 'New words.', locked: false }])
+  })
+
   it('closes without a request when nothing changed', async () => {
     const fetchMock = mockApi({ 'GET /people/p1/candidates': candidates })
     const onClose = vi.fn()
