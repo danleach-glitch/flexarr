@@ -73,12 +73,14 @@ class MainActivity : ComponentActivity() {
      * seconds as `--ei at <seconds>`) opens the player on that title, so a test needn't tap its way there. With it,
      * `--es subtitle <key>`, `--es subtitlePosition Top`, `--es subtitleSize Large` and `--ez blackBars true` set the
      * subtitles as the menu would, without saving them. `--es notify '<payload json>'` shows a notification as the
-     * server would send it.
+     * server would send it. `--ez simulateOffline true` opens in offline mode.
      */
     private fun signInFromLaunch(intent: Intent) {
         if (!BuildConfig.LAUNCH_ARGUMENTS) return
         val model = appModel
         if (intent.hasExtra("noHistory")) model.recordsHistory = !intent.getBooleanExtra("noHistory", false)
+        // `--ez simulateOffline true` acts as if the server couldn't be reached (offline mode, for tests and screenshots).
+        if (intent.hasExtra("simulateOffline")) FlexarrClient.simulatesOffline = intent.getBooleanExtra("simulateOffline", false)
         // Debug builds only: `--es pairRelay http://10.0.2.2:8795/api/pair` points "Join someone’s Flexarr" at a local relay.
         intent.getStringExtra("pairRelay")?.toHttpUrlOrNull()?.let { model.pairRelay = it }
         val server = intent.getStringExtra("server")
