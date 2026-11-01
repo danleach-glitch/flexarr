@@ -14,6 +14,9 @@ const check = process.argv.includes('--check');
 const { sections } = JSON.parse(fs.readFileSync(path.join(source, 'index.json'), 'utf8'));
 const order = sections.flatMap(s => s.pages.map(slug => ({ slug, section: s.title })));
 const slugs = new Set(order.map(p => p.slug));
+// Pages whose questions are h3s list them in "On this page" too, so you can scan for your problem.
+const deepToc = new Set(['troubleshooting', 'faq']);
+const isInstall = slug => slug.startsWith('install-');
 
 const escape = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 // Strips tags until none are left, then decodes &amp; last so "&amp;lt;" stays "&lt;".
@@ -33,13 +36,17 @@ function frontMatter(text, file) {
 }
 
 // Links between articles are written as `other-page.md#part` so they work on GitHub too.
-function rewrite(href, file, missing) {
-  if (/^([a-z]+:|\/|#)/i.test(href)) return href;
+// Anchors are checked once every page is built, against the ids each page's headings get.
+function rewrite(href, file, missing, anchors) {
+  if (/^([a-z]+:|\/)/i.test(href)) return href;
   const [target, hash = ''] = href.split('#');
-  const slug = target.replace(/\.md$/, '');
+  const slug = target ? target.replace(/\.md$/, '') : file.replace(/\.md$/, '');
   if (!slugs.has(slug)) { missing.push(`${file}: link to "${href}"`); return href; }
+  if (hash) anchors.push({ file, href, slug, hash });
+  if (!target) return href;
   return `/guide/${slug}${hash ? '#' + hash : ''}`;
 }
+const anchors = [];
 
 const pages = order.map(({ slug, section }) => {
   const file = `${slug}.md`;
@@ -47,6 +54,7 @@ const pages = order.map(({ slug, section }) => {
   if (!fs.existsSync(full)) return { slug, section, missing: true };
   const { meta, body } = frontMatter(fs.readFileSync(full, 'utf8'), file);
   const toc = [];
+  const heads = [];
   const missing = [];
   const used = new Set();
   const marked = new Marked({
@@ -57,7 +65,8 @@ const pages = order.map(({ slug, section }) => {
         let id = slugify(html);
         for (let n = 2; used.has(id); n++) id = `${slugify(html)}-${n}`;
         used.add(id);
-        if (depth === 2) toc.push({ id, text: plain(html) });
+        if (depth === 2 || depth === 3) heads.push({ id, text: plain(html) });
+        if (depth === 2 || (depth === 3 && deepToc.has(slug))) toc.push({ id, text: plain(html), depth });
         return `<h${depth} id="${id}"><a class="anchor" href="#${id}" aria-hidden="true" tabindex="-1">#</a>${html}</h${depth}>\n`;
       },
       image({ href, title, text }) {
@@ -67,7 +76,7 @@ const pages = order.map(({ slug, section }) => {
         return `<img src="${escape(src)}" alt="${escape(text)}"${title ? ` data-caption="${escape(title)}"` : ''} loading="lazy" decoding="async"${device ? ' class="device"' : ''}>`;
       },
       link({ href, title, tokens }) {
-        const to = rewrite(href, file, missing);
+        const to = rewrite(href, file, missing, anchors);
         const external = /^https?:/.test(to) && new URL(to).hostname !== 'flexarr.io';
         return `<a href="${escape(to)}"${title ? ` title="${escape(title)}"` : ''}${external ? ' rel="noopener"' : ''}>${this.parser.parseInline(tokens)}</a>`;
       },
@@ -81,13 +90,21 @@ const pages = order.map(({ slug, section }) => {
   // > **Tip** … becomes a callout.
   html = html.replace(/<blockquote>\s*<p><strong>(Tip|Note|Important)<\/strong>:?\s*/g,
     (_, kind) => `<blockquote class="callout ${kind.toLowerCase()}"><p><strong>${kind}</strong> `);
-  if (missing.length) console.warn(missing.join('\n'));
   const text = plain(html).replace(/\s+/g, ' ').trim();
-  return { slug, section, meta, html, toc, text, words: text.split(' ').length };
+  return { slug, section, meta, html, toc, heads, ids: used, broken: missing, text, words: text.split(' ').length };
 });
 
 const ready = pages.filter(p => !p.missing);
-for (const p of pages.filter(p => p.missing)) console.warn(`missing: docs/guide/${p.slug}.md`);
+const problems = pages.filter(p => p.missing === true).map(p => `missing: docs/guide/${p.slug}.md`);
+for (const p of ready) problems.push(...p.broken);
+for (const a of anchors) {
+  const target = ready.find(p => p.slug === a.slug);
+  if (target && !target.ids.has(a.hash)) problems.push(`${a.file}: link to "${a.href}" has no #${a.hash} there`);
+}
+// A page left out of index.json isn't built. Some are on purpose (not launched yet), so this only says so.
+const unlisted = fs.readdirSync(source).filter(f => f.endsWith('.md') && !slugs.has(f.replace(/\.md$/, '')));
+if (unlisted.length) console.log(`not in index.json, so not built: ${unlisted.join(', ')}`);
+if (problems.length) { console.error(problems.join('\n')); process.exit(1); }
 
 const fonts = '<link rel="preconnect" href="https://fonts.googleapis.com">\n  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;700&family=Big+Shoulders+Display:wght@700;800;900&display=swap" rel="stylesheet">';
 
@@ -173,9 +190,12 @@ ${s.pages.map(slug => {
       </aside>`;
 
 function articlePage(p) {
-  const i = ready.indexOf(p);
-  const prev = ready[i - 1];
-  const next = ready[i + 1];
+  // Install pages are alternatives, so the pager steps over them: they lead back to What you need and on to First setup.
+  const find = slug => ready.find(r => r.slug === slug);
+  const path = isInstall(p.slug) ? ready : ready.filter(r => !isInstall(r.slug));
+  const i = path.indexOf(p);
+  const prev = isInstall(p.slug) ? find('what-you-need') : path[i - 1];
+  const next = isInstall(p.slug) ? find('first-setup') : path[i + 1];
   const minutes = Math.max(1, Math.round(p.words / 220));
   return `${head({ title: `${p.meta.title} · Flexarr guide`, description: p.meta.description, url: `/guide/${p.slug}` })}
 <body class="guide">
@@ -191,7 +211,7 @@ function articlePage(p) {
 ${p.toc.length > 2 ? `        <nav class="toc" aria-label="On this page">
           <p>On this page</p>
           <ol>
-${p.toc.map(t => `            <li><a href="#${t.id}">${escape(t.text)}</a></li>`).join('\n')}
+${p.toc.map(t => `            <li${t.depth === 3 ? ' class="sub"' : ''}><a href="#${t.id}">${escape(t.text)}</a></li>`).join('\n')}
           </ol>
         </nav>
 ` : ''}        <div class="prose">
@@ -210,7 +230,7 @@ ${next ? `          <a class="next" href="/guide/${next.slug}"><span>Next</span>
 
 const starts = [
   ['what-you-need', 'New to running a server?'],
-  ['first-setup', 'Got the iPhone app and need a server?'],
+  ['first-setup', 'Installed the server?'],
   ['connect-arrs', 'Already run Sonarr and Radarr?'],
 ];
 
@@ -249,7 +269,7 @@ ${s.pages.filter(slug => ready.some(r => r.slug === slug)).map(slug => `        
 
 const index = ready.map(p => ({
   slug: p.slug, title: p.meta.title, section: p.section, description: p.meta.description,
-  headings: p.toc.map(t => [t.id, t.text]), text: p.text.slice(0, 4000),
+  headings: p.heads.map(t => [t.id, t.text]), text: p.text,
 }));
 
 const files = new Map([
