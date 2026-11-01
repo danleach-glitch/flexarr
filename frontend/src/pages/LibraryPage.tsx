@@ -195,6 +195,8 @@ function LibraryBrowse({ library }: { library: Library }) {
 
   if (error) return <p className="page-message error">{error.message}</p>
   if (!data) return <div className="hero hero-loading" aria-busy="true" />
+  // Every row switched off in Home & browse (or none with anything in it), but the library has titles: show them all.
+  if (data.rows.length === 0 && library.itemCount > 0 && !library.scan) return <LibraryAll key={library.id} />
   if (data.rows.length === 0) {
     return (
       <div className="library-page">
