@@ -1,3 +1,4 @@
+import { bookSpeedPresets } from '../lib/books'
 import { createContext, useContext, useEffect } from 'react'
 import type { BookManifest, ItemSummary } from '../api/types'
 import type { SleepTimer } from '../lib/sleepTimer'
@@ -73,8 +74,8 @@ export interface AudioPlayer {
 
 export type { SleepTimer }
 
-/** The speeds podcasts can play at. */
-export const podcastSpeeds = [0.8, 1, 1.1, 1.2, 1.3, 1.5, 1.75, 2, 2.5, 3] as const
+/** The speeds podcasts can play at: the same choices as books, as they share one speed. */
+export const podcastSpeeds = bookSpeedPresets
 
 export const AudioPlayerContext = createContext<AudioPlayer | null>(null)
 

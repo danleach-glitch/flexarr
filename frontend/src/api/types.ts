@@ -701,9 +701,15 @@ export interface PodcastPreferences {
   autoDownload: boolean
   /** How many of each show's newest unplayed episodes they keep. */
   keepEpisodes: number
+  /** The profile's one speed, for podcasts and books. */
   speed: number
   /** Podcasts has a place in the sidebar. */
   showInSidebar: boolean
+  /** Seconds skip back and forward jump, in podcasts and books alike. Absent from servers before 0.58. */
+  skipBackSeconds?: number
+  skipForwardSeconds?: number
+  /** After a pause, an episode picks up a little earlier. Absent from servers before 0.58. */
+  smartRewind?: boolean
 }
 
 export interface Podcast {

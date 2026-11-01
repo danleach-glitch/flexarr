@@ -115,8 +115,8 @@ export interface EngineHost {
   book?(book: { manifest: BookManifest; session: string; decision: StartDecision } | null): void
   /** The book reached its end (and was reported finished). */
   bookEnded?(book: BookManifest): void
-  /** Whether smart rewind is on: after a pause, a book starts a little earlier. */
-  smartRewind?(): boolean
+  /** Whether smart rewind is on: after a pause, a book or podcast episode starts a little earlier. */
+  smartRewind?(kind: 'book' | 'podcast'): boolean
 }
 
 export interface AudioEngine {
@@ -170,6 +170,8 @@ export function createEngine(host: EngineHost): AudioEngine {
   const level = (s: Slot) => (host.settings().normalise ? s.gain : 1) * fade
   // A book plays its files back to back through both elements on one session; null when no book is playing.
   let book: BookPlay | null = null
+  // When the podcast episode playing was paused, for smart rewind; null when it wasn't (or was moved since).
+  let podcastPausedAt: number | null = null
 
   /** Seconds left in the slot's track, trusting the element once it knows its length; Infinity when nobody knows yet. */
   const remaining = (s: Slot) => {
@@ -614,6 +616,7 @@ export function createEngine(host: EngineHost): AudioEngine {
       const o = other()
       if (!c) return
       if (retried !== track) retried = undefined
+      podcastPausedAt = null
       isLoaded = true
       mixer.resume()
       // A book playing is let go first, its place sent while its element still has it.
@@ -662,10 +665,16 @@ export function createEngine(host: EngineHost): AudioEngine {
       // Smart rewind: back a little after a pause, more the longer it was.
       if (book) markIfStale(book)
       if (book && book.pausedAt !== null) {
-        const back = host.smartRewind?.() ? smartRewindSeconds((Date.now() - book.pausedAt) / 1000) : 0
+        const back = host.smartRewind?.('book') ? smartRewindSeconds((Date.now() - book.pausedAt) / 1000) : 0
         book.pausedAt = null
         if (back > 0) seekBook(bookTime() - back)
       }
+      const c = current()
+      if (c && podcastPausedAt !== null && isPodcast(c.track)) {
+        const back = host.smartRewind?.('podcast') ? smartRewindSeconds((Date.now() - podcastPausedAt) / 1000) : 0
+        if (back > 0) c.el.currentTime = Math.max(0, c.el.currentTime - back)
+      }
+      podcastPausedAt = null
       void current()?.el.play().catch(() => host.playing(false))
       // A track still fading out resumes with it, so the crossfade finishes as it would have.
       if (other()?.outgoing) void other().el.play().catch(() => undefined)
@@ -673,6 +682,7 @@ export function createEngine(host: EngineHost): AudioEngine {
 
     pause() {
       if (book && !current()?.el.paused) book.pausedAt = Date.now()
+      if (isPodcast(current()?.track) && !current()?.el.paused) podcastPausedAt = Date.now()
       current()?.el.pause()
       if (other()?.outgoing) other().el.pause()
     },
@@ -683,6 +693,7 @@ export function createEngine(host: EngineHost): AudioEngine {
         book.pausedAt = null
         return seekBook(seconds)
       }
+      podcastPausedAt = null
       const c = current()
       if (c) c.el.currentTime = seconds
     },
