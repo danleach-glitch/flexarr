@@ -32,6 +32,7 @@ import { ItemPage } from './pages/ItemPage'
 import { LibraryPage } from './pages/LibraryPage'
 import { MixPage } from './pages/MixPage'
 import { PersonPage } from './pages/PersonPage'
+import { BookSeriesPage } from './pages/BookSeriesPage'
 import { PlaylistPage, PlaylistsPage } from './pages/PlaylistsPage'
 import { PodcastBrowsePage, PodcastEpisodePage, PodcastPage, PodcastsPage } from './pages/PodcastPages'
 import { UpcomingPage } from './pages/UpcomingPage'
@@ -48,6 +49,7 @@ import './styles/player.css'
 import './styles/settings.css'
 import './styles/podcasts.css'
 import './styles/livetv.css'
+import './styles/books.css'
 
 // The player (with hls.js) and settings load on demand to keep the first page light.
 /**
@@ -126,6 +128,7 @@ export function Shell() {
                   <Route element={<NotForKids />}>
                     <Route path="collections" element={<CollectionsPage />} />
                     <Route path="collection/:id" element={<Fresh><CollectionPage /></Fresh>} />
+                    <Route path="book-series/:id" element={<Fresh><BookSeriesPage /></Fresh>} />
                     <Route path="livetv" element={<LiveTvPage />} />
                     <Route path="podcasts" element={<PodcastsPage />} />
                     <Route path="podcasts/browse" element={<PodcastBrowsePage />} />

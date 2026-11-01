@@ -578,7 +578,7 @@ public static class PodcastEndpoints
                 Latest = i.Children.Max(e => (DateTime?)e.AddedAt),
             })
             .Select(x => new PodcastDto(x.Item.Id, x.Item.Title, x.Item.Studio, x.Item.Overview,
-                ArtworkUrls.For(x.Item.Id, x.Item.MetadataUpdatedAt == null ? 0 : x.Item.MetadataUpdatedAt.Value.Ticks / 10_000_000, x.Item.PosterUrl != null, false, false, false),
+                ArtworkUrls.For(x.Item.Id, ArtworkUrls.Version(x.Item.MetadataUpdatedAt, x.Item.ArtworkChangedAt), x.Item.PosterUrl != null, false, false, false),
                 x.Item.AccentColor, x.Feed.Link, x.Feed.Categories, x.Feed.Explicit, x.Count, x.Unplayed, x.Latest, x.Feed.ITunesId, x.Feed.Url, x.Feed.CheckedAt,
                 x.Feed.Error, x.Subscription));
 
@@ -606,7 +606,7 @@ public static class PodcastEndpoints
                 x.Item.EpisodeNumber,
                 x.Enclosure.EpisodeType,
                 x.Enclosure.Explicit,
-                ArtworkUrls.For(x.Item.Id, x.Item.MetadataUpdatedAt == null ? 0 : x.Item.MetadataUpdatedAt.Value.Ticks / 10_000_000,
+                ArtworkUrls.For(x.Item.Id, ArtworkUrls.Version(x.Item.MetadataUpdatedAt, x.Item.ArtworkChangedAt),
                     x.Item.PosterUrl != null || x.Podcast.PosterUrl != null, false, false, x.Item.ThumbUrl != null),
                 x.Item.AccentColor ?? x.Podcast.AccentColor,
                 new UserDataDto(x.State == null ? 0 : x.State.PositionSeconds, x.State != null && x.State.Watched, x.State == null ? 0 : x.State.PlayCount,

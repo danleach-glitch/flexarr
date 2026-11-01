@@ -69,7 +69,11 @@ class VoiceActivity : ComponentActivity() {
                 }
                 VoiceSearch.Choice.Resume -> {
                     if (trusted) {
-                        if (model.music.current != null) model.music.resume() else if (!model.podcasts.isPlaying) model.podcasts.togglePlayPause()
+                        when {
+                            model.music.current != null -> model.music.resume()
+                            model.books.current != null -> if (!model.books.isPlaying) model.books.resume()
+                            !model.podcasts.isPlaying -> model.podcasts.togglePlayPause()
+                        }
                     }
                     open(AppLink.Home)
                 }

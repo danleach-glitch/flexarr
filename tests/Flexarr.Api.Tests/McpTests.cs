@@ -94,6 +94,49 @@ public class McpTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFacto
         Assert.True((await client.CallToolAsync("set_device_sound", new Dictionary<string, object?> { ["deviceId"] = deviceId, ["dialogueBoost"] = "low, high" })).IsError);
     }
 
+    [Theory]
+    [InlineData(0.0)]
+    [InlineData(601.0)]
+    public async Task SetSleepTimer_KeepsToTheRange(double minutes)
+    {
+        var admin = factory.CreateClient();
+        admin.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+        var device = await (await admin.PostAsJsonAsync(Api("/session/device"), new { deviceName = "Bedroom phone" })).Content.ReadFromJsonAsync<JsonElement>();
+        await using var client = await ConnectAsync();
+
+        var result = await client.CallToolAsync("set_sleep_timer", new Dictionary<string, object?> { ["deviceId"] = device.GetProperty("id").GetString(), ["minutes"] = minutes });
+
+        Assert.True(result.IsError);
+        Assert.Contains("1 to 600 minutes", Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task PlayOnDevice_SaysWhenADeviceCantPlayABook()
+    {
+        Guid book;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var library = new Library { Name = $"Books {Guid.NewGuid():N}", Type = LibraryType.Audiobooks };
+            var item = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Audiobook, Title = "An MCP Book", SortTitle = "mcp book" };
+            db.AddRange(library, item);
+            await db.SaveChangesAsync();
+            book = item.Id;
+        }
+
+        var admin = factory.CreateClient();
+        admin.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+        var device = await (await admin.PostAsJsonAsync(Api("/session/device"), new { deviceName = "Attic TV" })).Content.ReadFromJsonAsync<JsonElement>();
+        await using var client = await ConnectAsync();
+
+        var devices = Result(await client.CallToolAsync("list_devices", new Dictionary<string, object?>()));
+        Assert.False(devices.EnumerateArray().Single(d => d.GetProperty("name").GetString() == "Attic TV").GetProperty("playsAudiobooks").GetBoolean());
+        var played = await client.CallToolAsync("play_on_device", new Dictionary<string, object?> { ["deviceId"] = device.GetProperty("id").GetString(), ["itemId"] = book, ["fromBeginning"] = false });
+
+        Assert.True(played.IsError);
+        Assert.Contains("audiobooks", Assert.IsType<TextContentBlock>(Assert.Single(played.Content)).Text, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task WithoutASignIn_TheEndpointRefuses()
     {

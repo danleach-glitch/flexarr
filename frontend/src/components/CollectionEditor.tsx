@@ -98,6 +98,7 @@ export function CollectionEditor({
                   <option value="">Films and shows</option>
                   <option value="movie">Films</option>
                   <option value="series">Shows</option>
+                  <option value="book">Audiobooks</option>
                 </select>
               </label>
               <label className="grow">
@@ -133,11 +134,11 @@ export function CollectionEditor({
                 <input type="number" min={0} max={10} step={0.1} value={rules.minRating ?? ''} placeholder="Any" onChange={(e) => set({ minRating: number(e.target.value) })} />
               </label>
               <label>
-                Watched
+                {rules.type === 'book' ? 'Finished' : 'Watched'}
                 <select value={rules.watched ?? ''} onChange={(e) => set({ watched: (e.target.value || null) as SmartRules['watched'] })}>
                   <option value="">Either</option>
                   <option value="unwatched">Not yet</option>
-                  <option value="watched">Already watched</option>
+                  <option value="watched">{rules.type === 'book' ? 'Already finished' : 'Already watched'}</option>
                 </select>
               </label>
               <label>

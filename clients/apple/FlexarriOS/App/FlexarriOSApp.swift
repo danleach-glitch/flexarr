@@ -339,8 +339,10 @@ struct RootView: View {
             model.onWatchlistChange = { [weak model] in if let model { WidgetBridge.publishWatchlist(model) } }
             model.onWatchlistForgotten = { WidgetBridge.forgetWatchlist() }
             model.music.offlineLibrary = downloads
+            CarPlaySceneDelegate.downloads = downloads
             downloads.isPlaying = { [weak model] id in model?.music.isPlayingFile(of: id) == true }
             model.onPodcastHeard = { [downloads] in Task { await downloads.catchUp() } }
+            model.onBookHeard = { [downloads] id in downloads.bookFinished(itemId: id) }
             downloads.attach(client: model.client, profileId: model.currentProfile?.id)
             if model.client != nil { notifications.refresh() }
         }

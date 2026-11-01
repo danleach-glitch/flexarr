@@ -40,6 +40,17 @@ class DevicesTest {
     }
 
     @Test
+    fun `a device that plays books says so in what it accepts`() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(MockResponse.Builder().addHeader("Content-Type", "text/event-stream").body(": hello\n\n").build())
+            val client = FlexarrClient(server.url("/"), apiKey = "token")
+            client.deviceEvents(listOf(DeviceCommandKind.Sound, DeviceCommandKind.Sleep, DeviceCommandKind.Book)).toList()
+            assertEquals("Sound,Sleep,Book", server.takeRequest().url.queryParameter("accepts"))
+        }
+    }
+
+    @Test
     fun `a command can say which profile to play as`() {
         val command = FlexarrClient.json.decodeFromString(
             DeviceCommand.serializer(),

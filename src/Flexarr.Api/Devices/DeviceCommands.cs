@@ -40,6 +40,18 @@ public enum DeviceCommandKind
 
     /// <summary>Play at <see cref="DeviceCommand.Rate"/> times normal speed.</summary>
     Rate,
+
+    /// <summary>
+    /// Set the sleep timer: stop after <see cref="DeviceCommand.Seconds"/>, at the end of the chapter (with
+    /// <see cref="DeviceCommand.EndOfChapter"/>), or turn it off (neither). Only devices that say they take it.
+    /// </summary>
+    Sleep,
+
+    /// <summary>
+    /// Never sent: said in <c>accepts</c> by a device that can play audiobooks (a <see cref="Play"/> of a book). Only
+    /// devices that say they take it are sent one; an older app would play a book as a video, its first file only.
+    /// </summary>
+    Book,
 }
 
 public enum DialogueBoost
@@ -87,9 +99,10 @@ public sealed record DeviceSound(DialogueBoost? DialogueBoost = null, NightMode?
 /// <param name="Seconds">With <see cref="DeviceCommandKind.Seek"/>, where to go; with <see cref="DeviceCommandKind.Skip"/>, how far.</param>
 /// <param name="TrackId">With <see cref="DeviceCommandKind.AudioTrack"/> or <see cref="DeviceCommandKind.SubtitleTrack"/>, the player's id for the track.</param>
 /// <param name="Rate">With <see cref="DeviceCommandKind.Rate"/>, the speed.</param>
+/// <param name="EndOfChapter">With <see cref="DeviceCommandKind.Sleep"/>, stop at the end of the book's chapter.</param>
 public sealed record DeviceCommand(string Id, DeviceCommandKind Kind, Guid? ItemId, bool FromBeginning, string? SentBy, DateTime SentAt, bool Shuffle = false,
     Guid? ChannelId = null, string? ProfileId = null, DeviceSound? Sound = null, double? Seconds = null, string? TrackId = null, double? Rate = null,
-    bool? HandOff = null)
+    bool? HandOff = null, bool? EndOfChapter = null)
 {
     /// <summary>
     /// What every device that listens has always taken (apps from 0.55); the rest, Sound included, only a device that

@@ -67,8 +67,23 @@ public sealed class Profile
     /// <summary>Podcasts has a place in the web app's sidebar, among the libraries.</summary>
     public bool PodcastsInSidebar { get; set; } = true;
 
+    /// <summary>The speed audiobooks play at unless a book has its own.</summary>
+    public double AudiobookSpeed { get; set; } = 1;
+
+    /// <summary>Seconds the skip-back button (and headphones, lock screen, car) jumps in a book.</summary>
+    public int AudiobookSkipBackSeconds { get; set; } = 30;
+
+    /// <summary>Seconds the skip-forward button jumps in a book.</summary>
+    public int AudiobookSkipForwardSeconds { get; set; } = 30;
+
+    /// <summary>After a pause, a book picks up a little earlier: more the longer the pause.</summary>
+    public bool AudiobookSmartRewind { get; set; } = true;
+
     /// <summary>The TV library shows this profile requests are added to; null, wherever Seerr adds them by default.</summary>
     public Guid? RequestShowsLibraryId { get; set; }
+
+    /// <summary>The audiobooks library books this profile requests go to; null, the root folder chosen in Settings › Requests.</summary>
+    public Guid? RequestAudiobooksLibraryId { get; set; }
 
     /// <summary>The film library films this profile requests are added to; null, wherever Seerr adds them by default.</summary>
     public Guid? RequestFilmsLibraryId { get; set; }

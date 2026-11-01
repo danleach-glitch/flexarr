@@ -103,7 +103,7 @@ public static class ImageEndpoints
     /// https artwork, or artwork held by a configured *arr (Lidarr's); files on disk are only ever ones Flexarr found
     /// beside the media itself (a cover.jpg, a poster.jpg, an episode's -thumb.jpg, a frame of a home video). However a
     /// file:// URL got there, one outside the item's own library folders is never read, and art inside a media file
-    /// (embedded://) is only taken from music.
+    /// (embedded://) is only taken from music and audiobooks.
     /// </summary>
     /// <returns>Null if there's no such item; otherwise its artwork (null if it has none) and its ?v= version.</returns>
     private static async Task<ImageSource?> ResolveAsync(FlexarrDbContext db, Guid id, string kind, CancellationToken ct)
@@ -112,7 +112,7 @@ public static class ImageEndpoints
         for (Guid? current = id; current is { } itemId;)
         {
             var item = await db.MediaItems.AsNoTracking().Where(i => i.Id == itemId)
-                .Select(i => new { i.ParentId, i.LibraryId, i.PosterUrl, i.BackdropUrl, i.LogoUrl, i.ThumbUrl, i.Kind, i.MetadataUpdatedAt })
+                .Select(i => new { i.ParentId, i.LibraryId, i.PosterUrl, i.BackdropUrl, i.LogoUrl, i.ThumbUrl, i.Kind, i.MetadataUpdatedAt, i.ArtworkChangedAt })
                 .FirstOrDefaultAsync(ct);
             if (item is null)
             {
@@ -120,7 +120,7 @@ public static class ImageEndpoints
             }
 
             // As ArtworkUrls.For writes it, from the item asked for (not the series it borrows from).
-            version ??= ((item.MetadataUpdatedAt?.Ticks ?? 0) / 10_000_000).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            version ??= ArtworkUrls.Version(item.MetadataUpdatedAt, item.ArtworkChangedAt).ToString(System.Globalization.CultureInfo.InvariantCulture);
 
             var url = kind switch
             {
@@ -153,10 +153,13 @@ public static class ImageEndpoints
 
     private sealed record ImageSource(string? Url, string? Version);
 
-    /// <summary>Whether local artwork is a file in one of the library's folders (and, for art inside a media file, music's).</summary>
+    /// <summary>
+    /// Whether local artwork is a file in one of the library's folders (and, for art inside a media file, music's or a
+    /// book's: the scanner takes a book's cover from its first file when the folder has none).
+    /// </summary>
     private static async Task<bool> InLibraryAsync(FlexarrDbContext db, Guid libraryId, MediaKind kind, string url, CancellationToken ct)
     {
-        if (url.StartsWith("embedded://", StringComparison.Ordinal) && kind is not (MediaKind.Artist or MediaKind.Album or MediaKind.Track))
+        if (url.StartsWith("embedded://", StringComparison.Ordinal) && kind is not (MediaKind.Artist or MediaKind.Album or MediaKind.Track or MediaKind.Audiobook))
         {
             return false;
         }

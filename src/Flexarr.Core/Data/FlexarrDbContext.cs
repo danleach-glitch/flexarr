@@ -21,6 +21,11 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
     public DbSet<PlaybackState> PlaybackStates => Set<PlaybackState>();
     public DbSet<ContinueWatchingDismissal> ContinueWatchingDismissals => Set<ContinueWatchingDismissal>();
     public DbSet<ShowPlaybackSpeed> ShowPlaybackSpeeds => Set<ShowPlaybackSpeed>();
+    public DbSet<Books.BookDetails> BookDetails => Set<Books.BookDetails>();
+    public DbSet<Books.MediaChapter> MediaChapters => Set<Books.MediaChapter>();
+    public DbSet<Books.BookSeries> BookSeries => Set<Books.BookSeries>();
+    public DbSet<Books.BookSeriesEntry> BookSeriesEntries => Set<Books.BookSeriesEntry>();
+    public DbSet<Books.Bookmark> Bookmarks => Set<Books.Bookmark>();
     public DbSet<MediaMarker> MediaMarkers => Set<MediaMarker>();
     public DbSet<Profile> Profiles => Set<Profile>();
     public DbSet<Collection> Collections => Set<Collection>();
@@ -90,9 +95,10 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
             e.Property(l => l.Name).HasMaxLength(200);
             e.HasMany(l => l.Folders).WithOne().HasForeignKey(f => f.LibraryId).OnDelete(DeleteBehavior.Cascade);
             e.HasMany<MediaItem>().WithOne().HasForeignKey(i => i.LibraryId).OnDelete(DeleteBehavior.Cascade);
-            // Music and home videos have no ratings, so to a profile with an age limit they'd only ever be empty.
+            // Music, home videos and audiobooks have no ratings, so to a profile with an age limit they'd only ever be empty.
             e.HasQueryFilter(l => !HiddenLibraryIds.Contains(l.Id)
-                && (MaxRatingAge == null || l.FineForKids || l.Type != LibraryType.Music && l.Type != LibraryType.HomeVideos));
+                && (MaxRatingAge == null || l.FineForKids
+                    || l.Type != LibraryType.Music && l.Type != LibraryType.HomeVideos && l.Type != LibraryType.Audiobooks));
         });
 
         modelBuilder.Entity<LibraryFolder>().HasIndex(f => f.Path).IsUnique();
@@ -222,6 +228,45 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
             e.HasIndex(p => new { p.FeedId, p.PublishedAt });
         });
 
+        modelBuilder.Entity<Books.BookDetails>(e =>
+        {
+            e.HasKey(d => d.MediaItemId);
+            e.HasOne(d => d.MediaItem).WithOne(i => i.Book).HasForeignKey<Books.BookDetails>(d => d.MediaItemId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(d => d.Asin);
+            e.HasIndex(d => d.Isbn);
+            e.HasIndex(d => d.ArrBookId);
+            e.Property(d => d.ArrInstance).HasMaxLength(200);
+        });
+
+        modelBuilder.Entity<Books.MediaChapter>(e =>
+        {
+            e.HasOne<MediaItem>().WithMany().HasForeignKey(c => c.MediaItemId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(c => new { c.MediaItemId, c.Index }).IsUnique();
+        });
+
+        modelBuilder.Entity<Books.BookSeries>(e =>
+        {
+            e.HasOne<Library>().WithMany().HasForeignKey(b => b.LibraryId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(b => new { b.LibraryId, b.SortName });
+            e.HasMany(b => b.Entries).WithOne(x => x.Series).HasForeignKey(x => x.SeriesId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Books.BookSeriesEntry>(e =>
+        {
+            e.HasKey(x => new { x.SeriesId, x.BookId });
+            e.HasOne(x => x.Book).WithMany(i => i.SeriesEntries).HasForeignKey(x => x.BookId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => x.BookId);
+        });
+
+        modelBuilder.Entity<Books.Bookmark>(e =>
+        {
+            e.Property(b => b.ProfileId).HasMaxLength(64);
+            e.Property(b => b.Note).HasMaxLength(2000);
+            e.HasOne<Profile>().WithMany().HasForeignKey(b => b.ProfileId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<MediaItem>().WithMany().HasForeignKey(b => b.MediaItemId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(b => new { b.ProfileId, b.MediaItemId });
+        });
+
         modelBuilder.Entity<PodcastSubscription>(e =>
         {
             e.HasKey(s => new { s.ProfileId, s.FeedId });
@@ -332,6 +377,10 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
             e.Property(r => r.ProfileId).HasMaxLength(64);
             e.HasOne<Profile>().WithMany().HasForeignKey(r => r.ProfileId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(r => new { r.FulfilledAt, r.Kind, r.TmdbId });
+            e.Property(r => r.BookForeignId).HasMaxLength(100);
+            e.Property(r => r.BookArrId).HasMaxLength(100);
+            e.Property(r => r.BookArrInstance).HasMaxLength(200);
+            e.Property(r => r.Title).HasMaxLength(500);
         });
 
         modelBuilder.Entity<TraktConnection>(e =>
@@ -392,6 +441,7 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
         {
             e.HasKey(p => new { p.UserId, p.MediaItemId });
             e.Property(p => p.UserId).HasMaxLength(64);
+            e.Property(p => p.Device).HasMaxLength(100);
             e.HasOne(p => p.MediaItem).WithMany(i => i.PlaybackStates).HasForeignKey(p => p.MediaItemId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne<Profile>().WithMany().HasForeignKey(p => p.UserId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(p => new { p.UserId, p.LastPlayedAt });

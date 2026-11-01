@@ -67,7 +67,7 @@ private val flexarrLog = FlexarrLog("cast")
  */
 @OptIn(UnstableApi::class)
 class Casting private constructor(private val context: Context, private val model: AppModel) {
-    enum class Kind { Video, Music, Podcast }
+    enum class Kind { Video, Music, Podcast, Book }
 
     /** What's on the Chromecast. */
     class Playing(
@@ -182,6 +182,25 @@ class Casting private constructor(private val context: Context, private val mode
         castEpisode(episode, at)
     }
 
+    /**
+     * The book playing, where it's got to; it pauses on the phone. A book in one file goes as it is (the session's file
+     * needs no key); one in several stays on the phone for now, as the Chromecast would need the files queued and the
+     * timeline followed across them.
+     */
+    fun castBook() {
+        val books = model.books
+        val book = books.current ?: return
+        val manifest = books.manifest ?: return
+        if (manifest.files.size != 1) {
+            declined += book.id
+            Toast.makeText(context, "This book can’t be cast yet.", Toast.LENGTH_LONG).show()
+            return
+        }
+        val at = books.position
+        books.pause()
+        load(Kind.Book, PlaybackRequest(itemId = book.id, profile = audioProfile, startPositionSeconds = at, deviceName = model.deviceName))
+    }
+
     private fun castTrack(at: Double = 0.0) {
         val track = musicQueue.getOrNull(musicIndex) ?: return
         load(Kind.Music, PlaybackRequest(itemId = track.id, profile = audioProfile, startPositionSeconds = at))
@@ -219,6 +238,7 @@ class Casting private constructor(private val context: Context, private val mode
                 player.setMediaItem(mediaItem(now, info, client), (info.startPositionSeconds * 1000).toLong())
                 player.prepare()
                 if (kind == Kind.Podcast) player.playbackParameters = PlaybackParameters(model.podcasts.speed.toFloat().coerceIn(0.5f, 2f))
+                if (kind == Kind.Book) player.playbackParameters = PlaybackParameters(model.books.speed.toFloat().coerceIn(0.5f, 2f))
                 player.play()
                 lastReport = System.currentTimeMillis()
                 keepTicking()
@@ -245,6 +265,7 @@ class Casting private constructor(private val context: Context, private val mode
                 kind, item.id, episode?.title ?: item.title, episode?.podcastTitle ?: item.seriesTitle,
                 client.imageUrl(episode?.artwork?.let { it.thumb ?: it.poster } ?: item.artwork.poster, 600), info.sessionId, episode = episode,
             )
+            Kind.Book -> Playing(kind, item.id, item.title, item.book?.authors, client.imageUrl(item.artwork.poster, 600), info.sessionId)
         }
     }
 
@@ -256,6 +277,16 @@ class Casting private constructor(private val context: Context, private val mode
                 when {
                     info.method == PlaybackMethod.Transcode -> MimeTypes.APPLICATION_M3U8
                     now.kind == Kind.Video -> MimeTypes.VIDEO_MP4
+                    // A book's file: MP3, FLAC, or MP4 audio (an m4b, AAC, or converted).
+                    now.kind == Kind.Book -> info.book?.files?.firstOrNull().let { file ->
+                        when {
+                            file == null || file.converted -> MimeTypes.AUDIO_MP4
+                            file.audioCodec == "mp3" -> MimeTypes.AUDIO_MPEG
+                            file.audioCodec == "flac" -> MimeTypes.AUDIO_FLAC
+                            file.audioCodec == "opus" || file.audioCodec == "vorbis" -> MimeTypes.AUDIO_OGG
+                            else -> MimeTypes.AUDIO_MP4
+                        }
+                    }
                     else -> MimeTypes.AUDIO_MPEG
                 },
             )
@@ -270,6 +301,7 @@ class Casting private constructor(private val context: Context, private val mode
                             Kind.Video -> if (info.item.kind == MediaKind.Episode) MediaMetadata.MEDIA_TYPE_TV_SHOW else MediaMetadata.MEDIA_TYPE_MOVIE
                             Kind.Music -> MediaMetadata.MEDIA_TYPE_MUSIC
                             Kind.Podcast -> MediaMetadata.MEDIA_TYPE_PODCAST_EPISODE
+                            Kind.Book -> MediaMetadata.MEDIA_TYPE_AUDIO_BOOK
                         },
                     )
                     .build(),
@@ -291,7 +323,7 @@ class Casting private constructor(private val context: Context, private val mode
         Toast.makeText(context, message, Toast.LENGTH_LONG).show()
         when (kind) {
             Kind.Video -> videoHost?.resumeHere(itemId, at)
-            Kind.Music, Kind.Podcast, null -> Unit
+            Kind.Music, Kind.Podcast, Kind.Book, null -> Unit
         }
     }
 
@@ -336,7 +368,7 @@ class Casting private constructor(private val context: Context, private val mode
 
     /** A podcast speed chosen while casting (the Chromecast plays between half and double). */
     fun setSpeed(speed: Double) {
-        if (kind == Kind.Podcast) player?.playbackParameters = PlaybackParameters(speed.toFloat().coerceIn(0.5f, 2f))
+        if (kind == Kind.Podcast || kind == Kind.Book) player?.playbackParameters = PlaybackParameters(speed.toFloat().coerceIn(0.5f, 2f))
     }
 
     /** Back to the phone, from where the Chromecast got to; the Chromecast stays connected for the next title. */
@@ -448,6 +480,11 @@ class Casting private constructor(private val context: Context, private val mode
                     if (isConnected) castEpisode(next, null)
                 }
             }
+            // Finished: the phone's player stops too (its place was this one), and never starts the next book itself.
+            Kind.Book -> {
+                stop()
+                if (model.books.current?.id == now.itemId) model.books.stop()
+            }
         }
     }
 
@@ -481,6 +518,13 @@ class Casting private constructor(private val context: Context, private val mode
                     if (play) podcasts.togglePlayPause()
                 } else if (play && episode != null) {
                     podcasts.play(episode)
+                }
+            }
+            Kind.Book -> {
+                val books = model.books
+                if (books.current?.id == itemId) {
+                    at?.let(books::seek)
+                    if (play) books.resume()
                 }
             }
         }
@@ -541,6 +585,17 @@ class Casting private constructor(private val context: Context, private val mode
                     player?.play()
                 } else {
                     castPodcast()
+                }
+            }
+        }
+        scope.launch {
+            snapshotFlow { Triple(isConnected, model.books.isPlaying, model.books.current?.id) }.collect { (connected, playing, id) ->
+                if (!connected || !playing || id == null || id in declined) return@collect
+                if (this@Casting.playing?.itemId == id) {
+                    model.books.pause()
+                    player?.play()
+                } else {
+                    castBook()
                 }
             }
         }

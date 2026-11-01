@@ -38,7 +38,10 @@ public sealed record SearchResultsDto(
     IReadOnlyList<SearchPersonDto> People,
     IReadOnlyList<string> Genres,
     IReadOnlyList<ItemSummaryDto> Albums,
-    IReadOnlyList<SearchTrackDto> Tracks);
+    IReadOnlyList<SearchTrackDto> Tracks,
+    // Audiobooks, and their series, apart from films and shows. Absent from servers before 0.58.
+    IReadOnlyList<ItemSummaryDto>? Books = null,
+    IReadOnlyList<Books.BookSeriesSearchDto>? BookSeries = null);
 
 public sealed record GenreDto(string Name, int Movies, int Shows, string? Backdrop);
 
@@ -125,6 +128,13 @@ public static partial class DiscoveryEndpoints
                 // The row opens the library when there's only one to open.
                 var link = musicLibraries.Count == 1 ? $"/library/{musicLibraries[0].Id}?view=all&sort=added" : null;
                 rows.Add(new HomeRowDto("music-new", "New albums", "poster", await MusicDiscovery.NewAlbumsAsync(db, me, null, RowSize, ct), link));
+            }
+
+            // Audiobooks: where this profile is in its books, what's next in its series, and what's new.
+            var bookLibraries = libraries.Where(l => l.Type == LibraryType.Audiobooks).Select(l => l.Id).ToList();
+            if (bookLibraries.Count > 0)
+            {
+                rows.AddRange(await Books.BookRows.HomeAsync(db, bookLibraries, me, RowSize, ct));
             }
 
             // "Because you watched": share genres and cast with the latest thing finished.
@@ -323,7 +333,7 @@ public static partial class DiscoveryEndpoints
             // Titles that start with the term rank above titles that merely contain it.
             var titles = await db.MediaItems
                 // Podcasts have a search of their own (Apple's directory and the shows followed).
-                .Where(i => i.ParentId == null && i.Kind != MediaKind.Podcast
+                .Where(i => i.ParentId == null && i.Kind != MediaKind.Podcast && i.Kind != MediaKind.Audiobook
                     && (EF.Functions.Like(i.Title, contains) || (i.OriginalTitle != null && EF.Functions.Like(i.OriginalTitle, contains))))
                 .OrderByDescending(i => EF.Functions.Like(i.Title, prefix) || EF.Functions.Like(i.SortTitle, prefix))
                 .ThenByDescending(i => i.Popularity ?? i.CommunityRating)
@@ -348,8 +358,19 @@ public static partial class DiscoveryEndpoints
             var trackItems = await MusicDiscovery.InOrderAsync(db, trackIds.Select(t => t.Id), profile.Id, ct);
             var tracks = trackItems.Select(t => new SearchTrackDto(t, trackIds.First(x => x.Id == t.Id).Album)).ToList();
 
+            // Books by their title or subtitle, and series by name, in libraries this profile can see.
+            var books = await db.MediaItems.Where(i => i.Kind == MediaKind.Audiobook && i.MissingSince == null
+                    && (EF.Functions.Like(i.Title, contains) || (i.Book!.Subtitle != null && EF.Functions.Like(i.Book.Subtitle, contains))))
+                .OrderByDescending(i => EF.Functions.Like(i.Title, prefix) || EF.Functions.Like(i.SortTitle, prefix)).ThenBy(i => i.SortTitle)
+                .Take(8).Summaries(profile.Id).ToListAsync(ct);
+            var series = await db.BookSeries.Where(s => EF.Functions.Like(s.Name, contains) && s.Entries.Any(e => visible.Contains(e.BookId)))
+                .OrderByDescending(s => EF.Functions.Like(s.Name, prefix)).ThenBy(s => s.SortName).Take(5)
+                .Select(s => new Books.BookSeriesSearchDto(s.Id, s.Name, s.Entries.Count(e => visible.Contains(e.BookId))))
+                .ToListAsync(ct);
+
             // The database only finds the words as typed; top up with near misses ("breking bad", "amelie", "spiderman").
             titles.AddRange(await index.CloseItemsAsync(db, profile.Id, term, Search.SearchIndex.Group.Title, limit - titles.Count, titles, ct));
+            books.AddRange(await index.CloseItemsAsync(db, profile.Id, term, Search.SearchIndex.Group.Book, 8 - books.Count, books, ct));
             albums.AddRange(await index.CloseItemsAsync(db, profile.Id, term, Search.SearchIndex.Group.Album, 8 - albums.Count, albums, ct));
             if (people.Count < 8)
             {
@@ -367,7 +388,7 @@ public static partial class DiscoveryEndpoints
                 genres.AddRange(close.Select(m => m.Name).Where(n => !genres.Contains(n)).Take(5 - genres.Count));
             }
 
-            return new SearchResultsDto(titles, episodes, people, genres, albums, tracks);
+            return new SearchResultsDto(titles, episodes, people, genres, albums, tracks, books, series);
         }).WithTags("Discovery");
 
         api.MapGet("/genres", async (FlexarrDbContext db, CancellationToken ct) =>
@@ -380,7 +401,7 @@ public static partial class DiscoveryEndpoints
                     Shows = g.Items.Count(i => i.Kind == MediaKind.Series),
                     Candidates = g.Items.Where(i => i.BackdropUrl != null && i.CommunityRating != null)
                         .OrderByDescending(i => i.CommunityRating).ThenByDescending(i => i.Popularity)
-                        .Select(i => new { i.Id, i.MetadataUpdatedAt }).Take(12).ToList(),
+                        .Select(i => new { i.Id, i.MetadataUpdatedAt, i.ArtworkChangedAt }).Take(12).ToList(),
                 })
                 .Where(g => g.Movies + g.Shows > 0)
                 .OrderByDescending(g => g.Movies + g.Shows)
@@ -392,7 +413,7 @@ public static partial class DiscoveryEndpoints
             {
                 var cover = g.Candidates.FirstOrDefault(c => used.Add(c.Id)) ?? g.Candidates.FirstOrDefault();
                 return new GenreDto(g.Name, g.Movies, g.Shows,
-                    cover is null ? null : ArtworkUrls.For(cover.Id, cover.MetadataUpdatedAt?.Ticks / 10_000_000 ?? 0, false, true, false, false).Backdrop);
+                    cover is null ? null : ArtworkUrls.For(cover.Id, ArtworkUrls.Version(cover.MetadataUpdatedAt, cover.ArtworkChangedAt), false, true, false, false).Backdrop);
             }).ToList();
         }).WithTags("Discovery");
 

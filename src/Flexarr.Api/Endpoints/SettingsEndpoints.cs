@@ -11,6 +11,7 @@ using Flexarr.Core.Media;
 using Flexarr.Core.Paths;
 using Flexarr.Core.Scanning;
 using Flexarr.Integrations.Arr;
+using Flexarr.Integrations.Arr.Models;
 using Flexarr.Metadata;
 using Flexarr.Streaming;
 using Microsoft.EntityFrameworkCore;
@@ -100,7 +101,8 @@ public sealed record PodcastSettingsUpdate(string? Country);
 /// <param name="SignOutOthers">On rotating: sign out every other browser and device too.</param>
 public sealed record KeyRequest(string? Pin = null, bool Confirm = false, bool SignOutOthers = false);
 
-public sealed record ArrStatusDto(string Name, ArrKind Kind, bool Ok, string? Version, string? Error);
+/// <param name="App">Which of the Readarr family answered ("Bookshelf", "Chaptarr"). Absent from servers before 0.58.</param>
+public sealed record ArrStatusDto(string Name, ArrKind Kind, bool Ok, string? Version, string? Error, string? App = null);
 
 public sealed record StreamActivityDto(string SessionId, ItemSummaryDto Item, string? Series, PlaybackMethod Method, string? Transcode, double PositionSeconds, double DurationSeconds, bool Paused);
 
@@ -570,7 +572,8 @@ public static class SettingsEndpoints
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
             timeout.CancelAfter(TimeSpan.FromSeconds(8));
             var status = await client.GetSystemStatusAsync(instance, timeout.Token);
-            return new ArrStatusDto(instance.Name, instance.Kind, true, status.Version, null);
+            return new ArrStatusDto(instance.Name, instance.Kind, true, status.Version, null,
+                instance.Kind == ArrKind.Readarr ? ReadarrFlavours.Of(status).ToString() : null);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or InvalidOperationException)
         {
@@ -580,7 +583,7 @@ public static class SettingsEndpoints
                 HttpRequestException { StatusCode: not null } http => $"It answered with HTTP {(int)http.StatusCode.Value}.",
                 HttpRequestException => "Nothing answered at that address.",
                 TaskCanceledException => "It didn't answer within 8 seconds.",
-                _ => "That doesn't look like a Sonarr, Radarr or Lidarr server.",
+                _ => "That doesn't look like a Sonarr, Radarr, Lidarr or Readarr server.",
             };
             return new ArrStatusDto(instance.Name, instance.Kind, false, null, reason);
         }

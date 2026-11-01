@@ -191,7 +191,8 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
     /** This profile's downloads, newest first. */
     val downloads: List<LocalDownload> get() = all.filter { it.profileId == profileId }.sortedByDescending { it.createdAtMillis }
 
-    val films: List<LocalDownload> get() = downloads.filter { it.item.kind != MediaKind.Episode && !it.isPodcastEpisode && it.item.kind != MediaKind.Track }
+    /** Films only: a kind this app doesn't know (from a newer server) isn't filed under them. */
+    val films: List<LocalDownload> get() = downloads.filter { it.item.kind == MediaKind.Movie }
 
     /** Episodes by show, in episode order; the shows by name. */
     val shows: List<Pair<String, List<LocalDownload>>>
@@ -422,6 +423,8 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         all.filter { it.isPending }.forEach { enqueue(it, replace = false) }
         downloads.forEach { fetchNext(after = it) }
         reconcilePodcasts()
+        // Whole books are kept apart, and catch up with the rest.
+        model.bookDownloads.catchUp()
     }
 
     // Downloading
@@ -742,6 +745,7 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
 
     /** Every download goes (Settings' Delete all). What was watched offline is sent first, while it can be. */
     fun deleteAll() {
+        model.bookDownloads.deleteAll()
         if (!loaded) clearedBeforeLoad = true
         val client = currentClient
         val pending = all.mapNotNull { download -> download.unsent?.let { download.item.id to it } }

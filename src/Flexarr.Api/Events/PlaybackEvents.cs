@@ -31,8 +31,9 @@ public enum PlaybackEventKind
 /// <param name="SessionId">The playback; every event for one viewing carries the same id.</param>
 /// <param name="DeviceId">The browser or device sign-in playing it; null for a stream opened with the API key.</param>
 /// <param name="Item">What's playing; null if it has since left the library.</param>
+/// <param name="Chapter">The chapter of a book playing. Absent from servers before 0.58.</param>
 public sealed record PlaybackEventDto(PlaybackEventKind Kind, string SessionId, string? DeviceId, string? DeviceName, string ProfileId, string? ProfileName,
-    ItemSummaryDto? Item, double PositionSeconds, double DurationSeconds, DateTime At);
+    ItemSummaryDto? Item, double PositionSeconds, double DurationSeconds, DateTime At, string? Chapter = null);
 
 /// <summary>
 /// Works out playback events from the progress players report (started, paused, resumed, credits, ended, stopped) and
@@ -193,8 +194,10 @@ public sealed partial class PlaybackEventPublisher(PlaybackEvents events, SignIn
                 var item = await db.MediaItems.Where(i => i.Id == session.ItemId).Summaries(session.ProfileId).FirstOrDefaultAsync(stoppingToken);
                 var profile = await db.Profiles.AsNoTracking().Where(p => p.Id == session.ProfileId).Select(p => p.Name).FirstOrDefaultAsync(stoppingToken);
                 var device = session.SignInId is { } id ? signIns.List().FirstOrDefault(s => s.Id == id)?.Name : null;
+                var chapter = session.BookParts is null ? null : await db.MediaChapters.Where(c => c.MediaItemId == session.ItemId && c.StartSeconds <= session.LastPosition)
+                    .OrderByDescending(c => c.StartSeconds).Select(c => c.Title).FirstOrDefaultAsync(stoppingToken);
                 events.Publish(new PlaybackEventDto(kind, session.Id, session.SignInId, device, session.ProfileId, profile, item, session.LastPosition,
-                    session.DurationSeconds, at));
+                    session.DurationSeconds, at, chapter));
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {

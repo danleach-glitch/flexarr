@@ -318,6 +318,7 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
         endSession()
         // One thing plays at a time: a podcast stops (keeping its place) for the music.
         if (model.podcasts.current != null) model.podcasts.stop()
+        if (model.books.current != null) model.books.stop()
         player.stop()
         player.clearMediaItems()
         position = 0.0

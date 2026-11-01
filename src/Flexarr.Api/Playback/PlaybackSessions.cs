@@ -11,6 +11,18 @@ public sealed class PlaybackSession
     public required string Id { get; init; }
     public required Guid ItemId { get; init; }
 
+    /// <summary>A book's files, in order on its timeline, served at <c>/playback/{sid}/book/{index}</c>. Null for anything else.</summary>
+    public IReadOnlyList<Books.BookPart>? BookParts { get; init; }
+
+    /// <summary>The device's name, for a book's "Jump to where you were on …".</summary>
+    public string? DeviceName { get; init; }
+
+    /// <summary>
+    /// The player said it plays books (it named itself, as only apps that know books do). One that didn't plays a book
+    /// as a video, its first file only, so its "ended" means nothing for a book of several.
+    /// </summary>
+    public bool PlaysBooks { get; init; }
+
     /// <summary>Whose history progress is recorded against (stream requests carry no profile of their own).</summary>
     public required string ProfileId { get; init; }
 
@@ -83,6 +95,7 @@ public sealed partial class PlaybackSessions
     private const int MaxLabel = 100;
     private const int MaxTrackId = 64;
     private readonly ConcurrentDictionary<string, PlaybackSession> _sessions = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, DateTime> _bookReports = new(StringComparer.Ordinal);
     private readonly TranscodeManager transcodes;
     private readonly ILogger<PlaybackSessions> logger;
     private readonly PlaybackEvents? events;
@@ -107,6 +120,15 @@ public sealed partial class PlaybackSessions
     }
 
     public IEnumerable<PlaybackSession> Active => _sessions.Values;
+
+    /// <summary>
+    /// Notes that a device (by its sign-in) just said where it is in a book it plays without a playback here: a phone
+    /// playing a downloaded book reports its place, and nothing else.
+    /// </summary>
+    public void BookReported(string signInId) => _bookReports[signInId] = DateTime.UtcNow;
+
+    /// <summary>When the device last said where it was in a book it plays itself; null if not since the server started.</summary>
+    public DateTime? BookReportedAt(string signInId) => _bookReports.TryGetValue(signInId, out var at) ? at : null;
 
     public void Add(PlaybackSession session)
     {

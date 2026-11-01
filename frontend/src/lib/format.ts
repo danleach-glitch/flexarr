@@ -1,4 +1,4 @@
-import type { ItemSummary, MediaFile, VideoRange } from '../api/types'
+import type { ItemSummary, LibraryType, MediaFile, VideoRange } from '../api/types'
 
 export function formatDuration(seconds: number | null | undefined): string | null {
   if (!seconds) return null
@@ -91,7 +91,14 @@ export function progressOf(item: ItemSummary): number | null {
   return Math.min(1, item.userData.positionSeconds / duration)
 }
 
-export const libraryTypeLabel = { Movies: 'Movies', TvShows: 'TV Shows', Music: 'Music', Podcasts: 'Podcasts', HomeVideos: 'Home Videos' } as const
+export const libraryTypeLabel: Record<LibraryType, string> = {
+  Movies: 'Movies',
+  TvShows: 'TV Shows',
+  Music: 'Music',
+  Podcasts: 'Podcasts',
+  HomeVideos: 'Home Videos',
+  Audiobooks: 'Audiobooks',
+}
 
 /** What an episode is called where it is: a home video's is just its name. */
 export const episodeName = (item: ItemSummary) => (item.homeVideo || !item.seriesTitle ? item.title : `${item.seriesTitle} ${episodeCode(item)}`)

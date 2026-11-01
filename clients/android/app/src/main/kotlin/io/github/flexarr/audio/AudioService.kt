@@ -38,10 +38,14 @@ class AudioService : MediaLibraryService() {
         return super.onStartCommand(intent, flags, startId)
     }
 
-    /** The music if any is queued, else the podcast player. */
+    /** The music if any is queued, else a book if one's loaded, else the podcast player. */
     private fun activePlayer(): Player {
         val model = appModel
-        return if (model.music.current != null) model.music.sessionPlayer else model.podcasts.player
+        return when {
+            model.music.current != null -> model.music.sessionPlayer
+            model.books.current != null -> model.books.sessionPlayer
+            else -> model.podcasts.player
+        }
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession? = session
@@ -68,7 +72,7 @@ class AudioService : MediaLibraryService() {
         /** Something stopped: once neither music nor a podcast is left, there's nothing to publish. */
         fun stopIfIdle(context: Context) {
             val model = context.appModel
-            if (model.music.current == null && model.podcasts.current == null) {
+            if (model.music.current == null && model.podcasts.current == null && model.books.current == null) {
                 context.stopService(Intent(context, AudioService::class.java))
             }
         }

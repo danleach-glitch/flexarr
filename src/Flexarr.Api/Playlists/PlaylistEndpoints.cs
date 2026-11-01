@@ -305,23 +305,24 @@ public static class PlaylistEndpoints
                     // A track's cover is its album's, unless it has one of its own.
                     CoverOf = i.MediaItem.PosterUrl != null ? i.MediaItem.Id : i.MediaItem.Parent!.PosterUrl != null ? i.MediaItem.ParentId : null,
                     CoverVersion = i.MediaItem.PosterUrl != null ? i.MediaItem.MetadataUpdatedAt : i.MediaItem.Parent!.MetadataUpdatedAt,
+                    CoverChanged = i.MediaItem.PosterUrl != null ? i.MediaItem.ArtworkChangedAt : i.MediaItem.Parent!.ArtworkChangedAt,
                 })
                 .ToListAsync(ct);
         var byPlaylist = entries.ToLookup(e => e.PlaylistId);
 
         var coverIds = playlists.Where(p => p.CoverItemId != null).Select(p => p.CoverItemId!.Value).Distinct().ToList();
         var covers = coverIds.Count == 0 ? []
-            : await db.MediaItems.Where(i => coverIds.Contains(i.Id) && i.PosterUrl != null).Select(i => new { i.Id, i.MetadataUpdatedAt }).ToDictionaryAsync(i => i.Id, ct);
+            : await db.MediaItems.Where(i => coverIds.Contains(i.Id) && i.PosterUrl != null).Select(i => new { i.Id, i.MetadataUpdatedAt, i.ArtworkChangedAt }).ToDictionaryAsync(i => i.Id, ct);
 
         return playlists.Select(p =>
         {
             var items = byPlaylist[p.Id].OrderBy(e => e.Position).ToList();
-            var mosaic = items.Where(e => e.CoverOf != null).DistinctBy(e => e.CoverOf).Take(4).Select(e => Poster(e.CoverOf!.Value, e.CoverVersion)).ToList();
-            var cover = p.CoverItemId is { } id && covers.TryGetValue(id, out var c) ? Poster(id, c.MetadataUpdatedAt) : null;
+            var mosaic = items.Where(e => e.CoverOf != null).DistinctBy(e => e.CoverOf).Take(4).Select(e => Poster(e.CoverOf!.Value, ArtworkUrls.Version(e.CoverVersion, e.CoverChanged))).ToList();
+            var cover = p.CoverItemId is { } id && covers.TryGetValue(id, out var c) ? Poster(id, ArtworkUrls.Version(c.MetadataUpdatedAt, c.ArtworkChangedAt)) : null;
             return new PlaylistSummaryDto(p.Id, p.Name, items.Count, items.Sum(e => e.Duration ?? 0), mosaic, cover, p.CreatedAt, p.UpdatedAt);
         }).ToList();
     }
 
-    private static string Poster(Guid id, DateTime? version) =>
-        ArtworkUrls.For(id, version == null ? 0 : version.Value.Ticks / 10_000_000, true, false, false, false).Poster!;
+    private static string Poster(Guid id, long version) =>
+        ArtworkUrls.For(id, version, true, false, false, false).Poster!;
 }

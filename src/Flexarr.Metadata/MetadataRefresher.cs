@@ -28,7 +28,8 @@ public sealed partial class MetadataRefresher(
     ImageCache images,
     IMetadataSettings settings,
     ILogger<MetadataRefresher> logger,
-    TmdbClient? tmdb = null)
+    TmdbClient? tmdb = null,
+    Books.BookProviders? bookProviders = null)
 {
     private static readonly TimeSpan StaleAfter = TimeSpan.FromDays(7);
     private static readonly TimeSpan RetryUnmatchedAfter = TimeSpan.FromDays(1);
@@ -78,6 +79,7 @@ public sealed partial class MetadataRefresher(
             LibraryType.TvShows => await RefreshSeriesAsync(library.Id, force, within, tvdbId, ct).ConfigureAwait(false),
             LibraryType.Music => await RefreshMusicAsync(library.Id, force, within, ct).ConfigureAwait(false),
             LibraryType.HomeVideos => await RefreshHomeVideosAsync(library.Id, force, within, ct).ConfigureAwait(false),
+            LibraryType.Audiobooks => await RefreshBooksAsync(library.Id, force, within, ct).ConfigureAwait(false),
             _ => new MetadataRefreshResult(0, 0, 0),
         };
     }

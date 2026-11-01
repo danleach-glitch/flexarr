@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect } from 'react'
-import type { ItemSummary } from '../api/types'
+import type { BookManifest, ItemSummary } from '../api/types'
 import type { SleepTimer } from '../lib/sleepTimer'
 
 export interface AudioPlayer {
@@ -34,15 +34,36 @@ export interface AudioPlayer {
   /** Jumps back (negative) or forward from where it is: podcasts' 15 back, 30 on. */
   skipBy: (seconds: number) => void
   stop: () => void
-  /** How fast podcast episodes play (music always plays at 1×): the profile's podcast speed. */
+  /**
+   * How fast what's playing plays (music always plays at 1×): the profile's podcast speed, or a book's own (its
+   * default, the profile's speed for books).
+   */
   speed: number
-  /** Sets the podcast speed, for every show, here and on the profile's other devices. */
+  /** Sets the speed: for every podcast, or for the book playing, here and on the profile's other devices. */
   setSpeed: (speed: number) => void
-  /** A sleep timer: playback pauses at `until` (a Date.now() time), or when the episode ends. Null when there's none. */
+  /**
+   * A sleep timer: playback pauses at `until` (a Date.now() time), when the episode ends, or at `at` on a book's
+   * timeline (the end of its chapter), fading out first. Null when there's none.
+   */
   sleep: SleepTimer | null
   setSleep: (timer: SleepTimer | null) => void
   /** The music as it sounds, for the visualiser: null before anything has played, or without Web Audio. */
   analyser: () => AnalyserNode | null
+  /** The book playing: its files, chapters, bookmarks (kept current) and the next in its series. Null for anything else. */
+  book: BookManifest | null
+  /** How far the skip buttons go: a book's are the profile's; a podcast's are 15 back and 30 on. */
+  skipSteps: { back: number; forward: number }
+  /** Another device got further in the book: the place, offered rather than jumped to. */
+  bookOffer: { position: number; device: string | null } | null
+  acceptBookOffer: () => void
+  dismissBookOffer: () => void
+  /** The book ended and its series has another: offered with a Play button, never started by itself. */
+  nextBook: ItemSummary | null
+  playNextBook: () => void
+  dismissNextBook: () => void
+  /** Bookmarks the place playing in the book, with an optional note. */
+  addBookmark: (note?: string) => Promise<void>
+  removeBookmark: (id: string) => Promise<void>
 }
 
 export type { SleepTimer }

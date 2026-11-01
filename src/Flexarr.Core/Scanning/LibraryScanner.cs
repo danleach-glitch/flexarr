@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Flexarr.Core.Books;
 using Flexarr.Core.Data;
 using Flexarr.Core.Libraries;
 using Flexarr.Core.Media;
@@ -146,7 +147,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                 released = true;
             }
 
-            var onDisk = MediaFileEnumerator.Enumerate(root, target, audio: library.Type == LibraryType.Music, everything: library.Type == LibraryType.HomeVideos)
+            var onDisk = MediaFileEnumerator.Enumerate(root, target, audio: library.Type == LibraryType.Music, books: library.Type == LibraryType.Audiobooks, everything: library.Type == LibraryType.HomeVideos)
                 .Where(f => PathComparison.IsUnder(f.FullName, root))
                 .ToList();
             var seen = new HashSet<string>(StringComparer.Ordinal);
@@ -163,6 +164,12 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                 existing.TryGetValue(key, out var match);
                 if (match is not null)
                 {
+                    if (match.MissingSince is not null)
+                    {
+                        // Back after going missing, unchanged or not: its book is put together again with it in.
+                        state.ChangedBooks.Add(match.MediaItemId);
+                    }
+
                     match.MissingSince = null;
                 }
 
@@ -183,18 +190,34 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
 
             progress.Begin(library.Id, target, work.Count);
 
+            // A book's files are read once, chapters and all, and what they say is kept with them for BookAssembler.
+            var books = library.Type == LibraryType.Audiobooks;
             foreach (var batch in work.Chunk(BatchSize))
             {
-                var probes = new ConcurrentDictionary<string, (ProbeResult? Result, string? Error)>(StringComparer.Ordinal);
+                var probes = new ConcurrentDictionary<string, (ProbeResult? Result, BookFileProbe? Book, string? Error)>(StringComparer.Ordinal);
                 await Parallel.ForEachAsync(batch, new ParallelOptions { MaxDegreeOfParallelism = ProbeConcurrency, CancellationToken = cancellationToken }, async (w, ct) =>
                 {
+                    if (MediaFileEnumerator.ProtectedBookExtensions.Contains(w.File.Extension))
+                    {
+                        probes[w.File.FullName] = (null, null, MediaFileEnumerator.ProtectedBookError);
+                        return;
+                    }
+
                     try
                     {
-                        probes[w.File.FullName] = (await probe.ProbeAsync(w.File.FullName, ct).ConfigureAwait(false), null);
+                        if (books)
+                        {
+                            var book = await probe.ProbeBookFileAsync(w.File.FullName, ct).ConfigureAwait(false);
+                            probes[w.File.FullName] = (book.Result ?? await probe.ProbeAsync(w.File.FullName, ct).ConfigureAwait(false), book, null);
+                        }
+                        else
+                        {
+                            probes[w.File.FullName] = (await probe.ProbeAsync(w.File.FullName, ct).ConfigureAwait(false), null, null);
+                        }
                     }
                     catch (MediaProbeException ex)
                     {
-                        probes[w.File.FullName] = (null, ex.Message);
+                        probes[w.File.FullName] = (null, null, ex.Message);
                     }
                 }).ConfigureAwait(false);
 
@@ -207,8 +230,8 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
 
                 foreach (var (file, match) in batch)
                 {
-                    var (result, error) = probes[file.FullName];
-                    if (error is not null)
+                    var (result, bookProbe, error) = probes[file.FullName];
+                    if (error is not null && error != MediaFileEnumerator.ProtectedBookError)
                     {
                         failures++;
                         LogProbeFailed(PathComparison.Printable(file.FullName), PathComparison.Printable(error));
@@ -217,6 +240,8 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                     if (match is not null)
                     {
                         Apply(match, file, result, error);
+                        match.BookProbe = bookProbe?.ToJson();
+                        state.ChangedBooks.Add(match.MediaItemId);
                         updated++;
                         continue;
                     }
@@ -229,7 +254,12 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                         continue;
                     }
 
-                    var mediaFile = new MediaFile { Path = file.FullName, MediaItemId = item.Id };
+                    if (item.Kind == MediaKind.Audiobook)
+                    {
+                        state.ChangedBooks.Add(item.Id);
+                    }
+
+                    var mediaFile = new MediaFile { Path = file.FullName, MediaItemId = item.Id, BookProbe = bookProbe?.ToJson() };
                     Apply(mediaFile, file, result, error);
                     db.MediaFiles.Add(mediaFile);
                     added++;
@@ -261,6 +291,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                 foreach (var file in gone)
                 {
                     file.MissingSince = now;
+                    state.ChangedBooks.Add(file.MediaItemId);
                     missing++;
                 }
             }
@@ -285,8 +316,19 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
             await NumberHomeVideosAsync(library.Id, cancellationToken).ConfigureAwait(false);
         }
 
+        if (library.Type == LibraryType.Audiobooks)
+        {
+            if (state.ChangedBooks.Count > 0)
+            {
+                await new BookAssembler(db, probe, logger).AssembleAsync(state.ChangedBooks, cancellationToken).ConfigureAwait(false);
+            }
+
+            await BookCarryOver.CarryOverAsync(db, library.Id, cancellationToken).ConfigureAwait(false);
+        }
+
         // Ids from folder names are known now; those from Radarr/Sonarr after the metadata refresh, which does this again.
         await WatchHistoryCarryOver.CarryOverAsync(db, cancellationToken).ConfigureAwait(false);
+        await NoticeReplacedArtworkAsync(library.Id, cancellationToken).ConfigureAwait(false);
 
         library.LastScannedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
@@ -491,6 +533,77 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
         target.AudioChannels = audio?.Channels;
     }
 
+    /// <summary>
+    /// A cover.jpg or poster.jpg replaced beside the files, or a file whose own artwork is read (embedded://) retagged:
+    /// each title's local artwork sources are stamped by path, when they last changed and size, and a stamp different
+    /// from last time's sets <see cref="MediaItem.ArtworkChangedAt"/>. Artwork addresses carry it, so apps and browsers
+    /// fetch the new picture rather than keep the one they cached. A replacement keeping an older date (a Finder copy)
+    /// still counts. A first stamp is only recorded, and <see cref="MediaItem.MetadataUpdatedAt"/> is never touched:
+    /// that says when the title was last looked up.
+    /// </summary>
+    private async Task NoticeReplacedArtworkAsync(Guid libraryId, CancellationToken ct)
+    {
+        var local = await db.MediaItems
+            .Where(i => i.LibraryId == libraryId
+                && ((i.PosterUrl != null && (i.PosterUrl.StartsWith("file://") || i.PosterUrl.StartsWith("embedded://")))
+                    || (i.BackdropUrl != null && (i.BackdropUrl.StartsWith("file://") || i.BackdropUrl.StartsWith("embedded://")))
+                    || (i.LogoUrl != null && (i.LogoUrl.StartsWith("file://") || i.LogoUrl.StartsWith("embedded://")))
+                    || (i.ThumbUrl != null && (i.ThumbUrl.StartsWith("file://") || i.ThumbUrl.StartsWith("embedded://")))))
+            .Select(i => new { i.Id, i.ArtworkStamp, Urls = new[] { i.PosterUrl, i.BackdropUrl, i.LogoUrl, i.ThumbUrl } })
+            .ToListAsync(ct).ConfigureAwait(false);
+        var changed = local.Select(i => (i.Id, Old: i.ArtworkStamp, New: ArtworkStamp(i.Urls)))
+            .Where(i => i.New != i.Old)
+            .ToDictionary(i => i.Id, i => (i.Old, i.New));
+        if (changed.Count == 0)
+        {
+            return;
+        }
+
+        var now = DateTime.UtcNow;
+        foreach (var chunk in changed.Keys.Chunk(500))
+        {
+            var items = await db.MediaItems.Where(i => chunk.Contains(i.Id)).ToListAsync(ct).ConfigureAwait(false);
+            foreach (var item in items)
+            {
+                var (old, stamp) = changed[item.Id];
+                if (old is not null)
+                {
+                    item.ArtworkChangedAt = now;
+                }
+
+                item.ArtworkStamp = stamp;
+            }
+        }
+
+        await db.SaveChangesAsync(ct).ConfigureAwait(false);
+    }
+
+    /// <summary>The <see cref="MediaItem.ArtworkStamp"/> of these artwork addresses: their local files' paths, dates and sizes.</summary>
+    internal static string ArtworkStamp(IEnumerable<string?> urls)
+    {
+        var text = new System.Text.StringBuilder();
+        foreach (var url in urls)
+        {
+            var path = url is null ? null
+                : url.StartsWith("file://", StringComparison.Ordinal) ? url["file://".Length..]
+                : url.StartsWith("embedded://", StringComparison.Ordinal) ? url["embedded://".Length..]
+                : null;
+            if (path is null)
+            {
+                continue;
+            }
+
+            var file = new FileInfo(path);
+            var invariant = System.Globalization.CultureInfo.InvariantCulture;
+            text.Append(url).Append('\n')
+                .Append(file.Exists ? file.LastWriteTimeUtc.Ticks.ToString(invariant) : "-").Append('\n')
+                .Append(file.Exists ? file.Length.ToString(invariant) : "-").Append('\n');
+        }
+
+        var hash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(text.ToString()));
+        return Convert.ToHexStringLower(hash.AsSpan(0, 8));
+    }
+
     /// <summary>Removes files missing for longer than <see cref="MissingGracePeriod"/>.</summary>
     private async Task<int> RemoveExpiredAsync(Guid libraryId, CancellationToken ct)
     {
@@ -509,7 +622,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
         var now = DateTime.UtcNow;
         var items = db.MediaItems.IgnoreQueryFilters().Where(i => i.LibraryId == libraryId);
 
-        var playable = items.Where(i => i.Kind == MediaKind.Movie || i.Kind == MediaKind.Episode || i.Kind == MediaKind.Track);
+        var playable = items.Where(i => i.Kind == MediaKind.Movie || i.Kind == MediaKind.Episode || i.Kind == MediaKind.Track || i.Kind == MediaKind.Audiobook);
         await playable.Where(i => i.MissingSince == null && i.Files.All(f => f.MissingSince != null))
             .ExecuteUpdateAsync(u => u.SetProperty(i => i.MissingSince, now), ct).ConfigureAwait(false);
         await playable.Where(i => i.MissingSince != null && i.Files.Any(f => f.MissingSince == null))
@@ -566,7 +679,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
         // Missing files still count: their items wait out the grace period with them.
         // Their history and collections are kept a while, by id, in case the title comes back under a new path.
         var items = db.MediaItems.IgnoreQueryFilters().Where(i => i.LibraryId == libraryId);
-        var playable = items.Where(i => (i.Kind == MediaKind.Movie || i.Kind == MediaKind.Episode || i.Kind == MediaKind.Track) && !i.Files.Any());
+        var playable = items.Where(i => (i.Kind == MediaKind.Movie || i.Kind == MediaKind.Episode || i.Kind == MediaKind.Track || i.Kind == MediaKind.Audiobook) && !i.Files.Any());
         await WatchHistoryCarryOver.BuryAsync(db, playable, ct).ConfigureAwait(false);
         await playable.ExecuteDeleteAsync(ct).ConfigureAwait(false);
         await items.Where(i => (i.Kind == MediaKind.Season || i.Kind == MediaKind.Album) && !i.Children.Any()).ExecuteDeleteAsync(ct).ConfigureAwait(false);
@@ -611,7 +724,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
             // Tracks are never looked up, and a scan of one series only needs that series' seasons and episodes.
             var items = db.MediaItems.IgnoreQueryFilters().Where(i => i.LibraryId == library.Id);
             var parents = await items
-                .Where(i => i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series || i.Kind == MediaKind.Artist || i.Kind == MediaKind.Album)
+                .Where(i => i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series || i.Kind == MediaKind.Artist || i.Kind == MediaKind.Album || i.Kind == MediaKind.Audiobook)
                 .ToListAsync(ct).ConfigureAwait(false);
             parents.ForEach(index.Track);
             if (library.Type is not (LibraryType.TvShows or LibraryType.HomeVideos))
@@ -661,6 +774,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                 LibraryType.TvShows => ResolveEpisode(library, root, segments),
                 LibraryType.Music => ResolveTrack(library, root, filePath, probe),
                 LibraryType.HomeVideos => ResolveHomeVideo(library, root, filePath, segments),
+                LibraryType.Audiobooks => ResolveBook(library, root, filePath),
                 _ => null,
             };
         }
@@ -739,6 +853,47 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                 TrackArtist = info.TrackArtist is { } tagged && !IsNamed(artist, tagged) ? tagged : null,
                 Path = filePath,
             });
+        }
+
+        /// <summary>Books whose files were added, changed or went missing in this scan: <see cref="BookAssembler"/> puts them together after.</summary>
+        public HashSet<Guid> ChangedBooks { get; } = [];
+
+        /// <summary>
+        /// The book <paramref name="filePath"/> is part of, by its folder (see <see cref="BookLayout"/>). Only its path is
+        /// read here; <see cref="BookAssembler"/> reads its tags, sidecars and chapters once all its files are in.
+        /// </summary>
+        private MediaItem ResolveBook(Library library, string root, string filePath)
+        {
+            var place = BookLayout.Locate(root, filePath, AudioFilesIn);
+            if (_byPath.TryGetValue(PathComparison.Key(place.Key), out var book))
+            {
+                return book;
+            }
+
+            return Add(new MediaItem
+            {
+                LibraryId = library.Id,
+                Kind = MediaKind.Audiobook,
+                Title = place.Title,
+                SortTitle = SortTitle.For(place.Title),
+                Year = place.Year,
+                Path = place.Key,
+                Book = new BookDetails { Asin = place.Asin },
+            });
+        }
+
+        private readonly Dictionary<string, IReadOnlyCollection<string>> _audioFiles = new(StringComparer.Ordinal);
+
+        private IReadOnlyCollection<string> AudioFilesIn(string directory)
+        {
+            if (!_audioFiles.TryGetValue(directory, out var files))
+            {
+                files = MediaFileEnumerator.Enumerate(directory, directory, everything: true, books: true)
+                    .Where(f => Path.GetDirectoryName(f.FullName) == directory).Select(f => f.Name).ToList();
+                _audioFiles[directory] = files;
+            }
+
+            return files;
         }
 
         private static bool IsNamed(MediaItem artist, string name) =>
@@ -920,7 +1075,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
         {
             switch (item.Kind)
             {
-                case MediaKind.Movie or MediaKind.Series when item.Path is not null:
+                case MediaKind.Movie or MediaKind.Series or MediaKind.Audiobook when item.Path is not null:
                     _byPath[PathComparison.Key(item.Path)] = item;
                     break;
                 case MediaKind.Season when item.ParentId is { } p && item.SeasonNumber is { } s:

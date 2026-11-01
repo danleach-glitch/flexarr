@@ -17,6 +17,175 @@ namespace Flexarr.Core.Data.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.14");
 
+            modelBuilder.Entity("Flexarr.Core.Books.BookDetails", b =>
+                {
+                    b.Property<Guid>("MediaItemId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("Abridged")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ArrAuthorId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ArrBookId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ArrInstance")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Asin")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ChapterSource")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<double>("DurationSeconds")
+                        .HasColumnType("REAL");
+
+                    b.Property<bool>("Explicit")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Isbn")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Language")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Publisher")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Subtitle")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("MediaItemId");
+
+                    b.HasIndex("ArrBookId");
+
+                    b.HasIndex("Asin");
+
+                    b.HasIndex("Isbn");
+
+                    b.ToTable("BookDetails");
+                });
+
+            modelBuilder.Entity("Flexarr.Core.Books.BookSeries", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ExternalId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("LibraryId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SortName")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LibraryId", "SortName");
+
+                    b.ToTable("BookSeries");
+                });
+
+            modelBuilder.Entity("Flexarr.Core.Books.BookSeriesEntry", b =>
+                {
+                    b.Property<Guid>("SeriesId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("BookId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Sequence")
+                        .HasColumnType("TEXT");
+
+                    b.Property<double?>("SortOrder")
+                        .HasColumnType("REAL");
+
+                    b.HasKey("SeriesId", "BookId");
+
+                    b.HasIndex("BookId");
+
+                    b.ToTable("BookSeriesEntries");
+                });
+
+            modelBuilder.Entity("Flexarr.Core.Books.Bookmark", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("MediaItemId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(2000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<double>("PositionSeconds")
+                        .HasColumnType("REAL");
+
+                    b.Property<string>("ProfileId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MediaItemId");
+
+                    b.HasIndex("ProfileId", "MediaItemId");
+
+                    b.ToTable("Bookmarks");
+                });
+
+            modelBuilder.Entity("Flexarr.Core.Books.MediaChapter", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<double>("EndSeconds")
+                        .HasColumnType("REAL");
+
+                    b.Property<int>("Index")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("MediaItemId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<double>("StartSeconds")
+                        .HasColumnType("REAL");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MediaItemId", "Index")
+                        .IsUnique();
+
+                    b.ToTable("MediaChapters");
+                });
+
             modelBuilder.Entity("Flexarr.Core.Libraries.Library", b =>
                 {
                     b.Property<Guid>("Id")
@@ -574,6 +743,12 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<long?>("Bitrate")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int?>("BookOrder")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("BookProbe")
+                        .HasColumnType("TEXT");
+
                     b.Property<bool?>("ClosedCaptions")
                         .HasColumnType("INTEGER");
 
@@ -653,6 +828,12 @@ namespace Flexarr.Core.Data.Migrations
 
                     b.Property<int?>("ArrId")
                         .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("ArtworkChangedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ArtworkStamp")
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("BackdropUrl")
                         .HasColumnType("TEXT");
@@ -888,6 +1069,12 @@ namespace Flexarr.Core.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("Asin")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Biography")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("ImageUrl")
                         .HasColumnType("TEXT");
 
@@ -924,8 +1111,15 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<string>("AudioLanguage")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("Device")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
                     b.Property<double?>("DurationSeconds")
                         .HasColumnType("REAL");
+
+                    b.Property<DateTime?>("FinishedAt")
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("LastPlayedAt")
                         .HasColumnType("TEXT");
@@ -1019,6 +1213,18 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<string>("AdminPinHash")
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("AudiobookSkipBackSeconds")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("AudiobookSkipForwardSeconds")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("AudiobookSmartRewind")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<double>("AudiobookSpeed")
+                        .HasColumnType("REAL");
+
                     b.Property<bool>("AutoPlayNext")
                         .HasColumnType("INTEGER");
 
@@ -1069,6 +1275,9 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<bool>("PodcastsInSidebar")
                         .HasColumnType("INTEGER");
 
+                    b.Property<Guid?>("RequestAudiobooksLibraryId")
+                        .HasColumnType("TEXT");
+
                     b.Property<Guid?>("RequestFilmsLibraryId")
                         .HasColumnType("TEXT");
 
@@ -1111,6 +1320,10 @@ namespace Flexarr.Core.Data.Migrations
                         new
                         {
                             Id = "owner",
+                            AudiobookSkipBackSeconds = 30,
+                            AudiobookSkipForwardSeconds = 30,
+                            AudiobookSmartRewind = true,
+                            AudiobookSpeed = 1.0,
                             AutoPlayNext = true,
                             AutoRequestWatchlist = false,
                             Color = "#a9c2ec",
@@ -1489,6 +1702,18 @@ namespace Flexarr.Core.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("BookArrId")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("BookArrInstance")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("BookForeignId")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime?>("FulfilledAt")
                         .HasColumnType("TEXT");
 
@@ -1503,6 +1728,10 @@ namespace Flexarr.Core.Data.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime>("RequestedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Title")
+                        .HasMaxLength(500)
                         .HasColumnType("TEXT");
 
                     b.Property<int>("TmdbId")
@@ -1789,6 +2018,69 @@ namespace Flexarr.Core.Data.Migrations
                     b.HasIndex("ItemsId");
 
                     b.ToTable("MediaItemGenres", (string)null);
+                });
+
+            modelBuilder.Entity("Flexarr.Core.Books.BookDetails", b =>
+                {
+                    b.HasOne("Flexarr.Core.Media.MediaItem", "MediaItem")
+                        .WithOne("Book")
+                        .HasForeignKey("Flexarr.Core.Books.BookDetails", "MediaItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("MediaItem");
+                });
+
+            modelBuilder.Entity("Flexarr.Core.Books.BookSeries", b =>
+                {
+                    b.HasOne("Flexarr.Core.Libraries.Library", null)
+                        .WithMany()
+                        .HasForeignKey("LibraryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Flexarr.Core.Books.BookSeriesEntry", b =>
+                {
+                    b.HasOne("Flexarr.Core.Media.MediaItem", "Book")
+                        .WithMany("SeriesEntries")
+                        .HasForeignKey("BookId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Flexarr.Core.Books.BookSeries", "Series")
+                        .WithMany("Entries")
+                        .HasForeignKey("SeriesId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Book");
+
+                    b.Navigation("Series");
+                });
+
+            modelBuilder.Entity("Flexarr.Core.Books.Bookmark", b =>
+                {
+                    b.HasOne("Flexarr.Core.Media.MediaItem", null)
+                        .WithMany()
+                        .HasForeignKey("MediaItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Flexarr.Core.Media.Profile", null)
+                        .WithMany()
+                        .HasForeignKey("ProfileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Flexarr.Core.Books.MediaChapter", b =>
+                {
+                    b.HasOne("Flexarr.Core.Media.MediaItem", null)
+                        .WithMany()
+                        .HasForeignKey("MediaItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Flexarr.Core.Libraries.LibraryFolder", b =>
@@ -2242,6 +2534,11 @@ namespace Flexarr.Core.Data.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Flexarr.Core.Books.BookSeries", b =>
+                {
+                    b.Navigation("Entries");
+                });
+
             modelBuilder.Entity("Flexarr.Core.Libraries.Library", b =>
                 {
                     b.Navigation("Folders");
@@ -2261,6 +2558,8 @@ namespace Flexarr.Core.Data.Migrations
 
             modelBuilder.Entity("Flexarr.Core.Media.MediaItem", b =>
                 {
+                    b.Navigation("Book");
+
                     b.Navigation("Children");
 
                     b.Navigation("Credits");
@@ -2272,6 +2571,8 @@ namespace Flexarr.Core.Data.Migrations
                     b.Navigation("Files");
 
                     b.Navigation("PlaybackStates");
+
+                    b.Navigation("SeriesEntries");
                 });
 
             modelBuilder.Entity("Flexarr.Core.Media.Person", b =>

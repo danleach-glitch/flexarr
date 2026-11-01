@@ -125,6 +125,8 @@ struct TabStack<Content: View>: View {
         switch route {
         case .item(let item) where item.kind.isMusic:
             MusicDestination(item: item)
+        case .item(let item) where item.kind == .audiobook:
+            BookView(id: item.id, preview: item)
         case .item(let item) where item.kind == .podcast:
             PodcastView(id: item.id, preview: item)
         case .item(let item):
@@ -133,8 +135,15 @@ struct TabStack<Content: View>: View {
             DetailView(id: id, preview: nil)
         case .person(let id, let name):
             PersonView(id: id, name: name)
+        case .library(let library, _, _) where library.type == .unknown:
+            // A library of a type this app doesn't know (from a newer server): nothing to show it with.
+            EmptyView()
         case .library(let library, _, _) where library.type == .music:
             MusicLibraryView(library: library)
+        case .library(let library, _, _) where library.type == .audiobooks:
+            BooksLibraryView(library: library)
+        case .bookSeries(let id, let name):
+            BookSeriesView(id: id, name: name)
         case .library(let library, _, _) where library.type == .podcasts:
             PodcastsView()
         case .library(let library, let sort, let genre):

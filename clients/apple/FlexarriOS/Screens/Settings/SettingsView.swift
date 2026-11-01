@@ -82,6 +82,9 @@ struct SettingsView: View {
                 if model.podcastStatus?.available == true {
                     SettingsLink("Podcasts", icon: "mic.fill") { PodcastSettingsView() }
                 }
+                if model.bookListening != nil {
+                    SettingsLink("Audiobooks", icon: "headphones") { AudiobookSettingsView() }
+                }
                 // Servers before 0.54 keep no order.
                 if model.libraryOrder != nil, LibraryMenuEntry.ordered(model: model).count > 1 {
                     SettingsLink("Library order", icon: "list.bullet", value: model.libraryOrder?.isEmpty == true ? "By name" : "Your own") {

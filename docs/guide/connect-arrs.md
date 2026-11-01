@@ -12,6 +12,7 @@ Flexarr is built to sit alongside Sonarr, Radarr, Lidarr and Seerr. It doesn't d
 | **Radarr** | Titles, posters, backgrounds, overviews, genres, ratings and trailers for films. Upcoming films in **Coming soon**. Deleting a film from Flexarr goes through Radarr. Film series for collections. |
 | **Sonarr** | Show and episode details and artwork. Upcoming episodes in **Coming soon**. Deleting a show or episode goes through Sonarr. |
 | **Lidarr** | Artist pictures, album covers, canonical names and years, and albums, EPs and singles sorted apart. |
+| **Readarr, Bookshelf or Chaptarr** | Audiobook details, covers and series, author photos and biographies, upcoming books in **Coming soon**, deleting books, and book requests. See [Audiobooks](audiobooks.md). |
 | **Seerr** | **Discover** and requests. Seerr and Overseerr both work. See [Requests](requests.md). |
 | **Bazarr** | **Search for subtitles** from the player and a title's page, and re-syncing subtitles that are out of time. See [Finding subtitles](subtitles-and-skipping.md#finding-subtitles). |
 
@@ -43,6 +44,8 @@ Use the address Flexarr can reach the app on, with its port. The usual ports are
 | Sonarr | `http://<host>:8989` |
 | Radarr | `http://<host>:7878` |
 | Lidarr | `http://<host>:8686` |
+| Readarr or Bookshelf | `http://<host>:8787` |
+| Chaptarr | `http://<host>:8789` |
 | Seerr | `http://<host>:5055` |
 | Bazarr | `http://<host>:6767` |
 
@@ -55,6 +58,7 @@ Use the address Flexarr can reach the app on, with its port. The usual ports are
 | Sonarr | **Settings › General**, under **Security** |
 | Radarr | **Settings › General**, under **Security** |
 | Lidarr | **Settings › General**, under **Security** |
+| Readarr, Bookshelf, Chaptarr | **Settings › General**, under **Security** |
 | Seerr | **Settings › General** |
 | Bazarr | **Settings › General**, under **Security** |
 
@@ -76,7 +80,10 @@ The addresses to use are at the bottom of **Settings › Connections**, under **
 http://<flexarr-host>:8383/api/v1/webhooks/sonarr?secret=<webhook-secret>
 http://<flexarr-host>:8383/api/v1/webhooks/radarr?secret=<webhook-secret>
 http://<flexarr-host>:8383/api/v1/webhooks/lidarr?secret=<webhook-secret>
+http://<flexarr-host>:8383/api/v1/webhooks/readarr?secret=<webhook-secret>
 ```
+
+Bookshelf and Chaptarr use the `readarr` address.
 
 The secret can only start scans, so you don't hand your API key to the *arr apps.
 

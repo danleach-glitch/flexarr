@@ -1076,8 +1076,9 @@ a.np-view-artist:hover {
 /* Speed, sleep timer, notes and the menu: alike, each lit with a soft pill while it's set. */
 .np-view-tools {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 14px;
+  gap: 8px 14px;
   margin-top: clamp(16px, 2.5vh, 28px);
 }
 
@@ -1311,8 +1312,14 @@ a.np-view-artist:hover {
     width: 100%;
   }
 
+  /* A book's six tools fit a phone's width on one line where they can, and wrap where they can't. */
   .np-view-tools {
     justify-content: space-around;
+    column-gap: 4px;
+  }
+
+  .np-view-tools .icon-button:not(.now-playing-speed, .np-view-scope) {
+    width: 42px;
   }
 
   .np-view-info {

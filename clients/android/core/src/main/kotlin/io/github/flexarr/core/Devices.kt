@@ -54,7 +54,15 @@ fun deviceKind(deviceType: String?): String? = when (deviceType) {
 
 @Serializable(with = DeviceCommandKind.Serializer::class)
 enum class DeviceCommandKind(override val raw: String) : ForwardCompatibleEnum {
-    Play("Play"), Pause("Pause"), Resume("Resume"), Stop("Stop"), Watch("Watch"), Sound("Sound"), Unknown("");
+    Play("Play"), Pause("Pause"), Resume("Resume"), Stop("Stop"), Watch("Watch"), Sound("Sound"),
+    /** The sleep timer for what's playing: [DeviceCommand.seconds], or [DeviceCommand.endOfChapter]; neither turns it off. */
+    Sleep("Sleep"),
+    /**
+     * Never sent to a device: in the list of what it accepts, it says the device plays audiobooks (a TV doesn't), so a
+     * remote offers books only to those. Servers before 0.58 leave it out.
+     */
+    Book("Book"),
+    Unknown("");
 
     object Serializer : ForwardCompatibleEnumSerializer<DeviceCommandKind>("DeviceCommandKind", entries, Unknown)
 }
@@ -80,6 +88,10 @@ data class DeviceCommand(
     val profileId: String? = null,
     /** With [DeviceCommandKind.Sound], the sound settings to change. Absent from servers before 0.56. */
     val sound: DeviceSound? = null,
+    /** With [DeviceCommandKind.Sleep], stop after this many seconds. Absent from servers before 0.58. */
+    val seconds: Double? = null,
+    /** With [DeviceCommandKind.Sleep], stop at the end of the book's chapter. Absent from servers before 0.58. */
+    val endOfChapter: Boolean? = null,
 )
 
 /**
@@ -189,12 +201,15 @@ fun FlexarrClient.commandStream(): Flow<DeviceCommand> = deviceEvents().filterIs
  * What the server tells this device, as it arrives, over one long-lived request (server-sent events): commands, and
  * for the main profile, devices asking to connect. Ends when the server closes it (a newer connection from this device
  * took over) or the connection drops; the caller opens it again. Only a device signed in with its own token has one:
- * with the API key the server answers 403.
+ * with the API key the server answers 403. [accepts]: the commands beyond the basic ones this device takes (with
+ * [DeviceCommandKind.Book] when it plays audiobooks).
  */
-fun FlexarrClient.deviceEvents(): Flow<DeviceEvent> = flow {
+fun FlexarrClient.deviceEvents(
+    accepts: List<DeviceCommandKind> = listOf(DeviceCommandKind.Sound, DeviceCommandKind.Sleep),
+): Flow<DeviceEvent> = flow {
     val request = Request.Builder()
         // The commands beyond the basic ones this app takes (servers from 0.56 send only those).
-        .url(baseUrl.newBuilder().addPathSegments("api/v1/devices/commands").addQueryParameter("accepts", "Sound").build())
+        .url(baseUrl.newBuilder().addPathSegments("api/v1/devices/commands").addQueryParameter("accepts", accepts.joinToString(",") { it.raw }).build())
         .header("Accept", "text/event-stream")
         .signIn()
         .build()

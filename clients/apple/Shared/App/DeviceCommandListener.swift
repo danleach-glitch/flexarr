@@ -14,7 +14,16 @@ final class DeviceCommandListener {
     private var listeningFor: FlexarrClient?
 
     /// The commands beyond the basic ones this app takes: a remote on another device offers these.
-    static let accepts: [DeviceCommandKind] = [.sound, .seek, .skip, .next, .previous, .skipSegment, .audioTrack, .subtitleTrack, .rate]
+    static let accepts: [DeviceCommandKind] = DeviceCommandListener.ownAccepts
+
+    /// Both apps play audiobooks (`book`); the iPhone and iPad also take the sleep timer, for books and podcasts.
+    private static var ownAccepts: [DeviceCommandKind] {
+        var kinds: [DeviceCommandKind] = [.sound, .seek, .skip, .next, .previous, .skipSegment, .audioTrack, .subtitleTrack, .rate, .book]
+        #if os(iOS)
+        kinds.append(.sleep)
+        #endif
+        return kinds
+    }
 
     /// Listens on `client`'s sign-in, handing each command (and connect prompt, and with `nowPlaying` what every device
     /// is playing as it changes) to `handle`. Called again with the same client and profile, it carries on; another

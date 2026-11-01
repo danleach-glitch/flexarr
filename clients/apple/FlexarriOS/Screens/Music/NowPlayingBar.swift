@@ -40,7 +40,7 @@ struct NowPlayingBar: View {
                             Text(track.title)
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(Color.screen)
-                            if let artist = track.artistName {
+                            if let artist = music.isBook ? music.chapter?.title ?? track.bookAuthors : track.artistName {
                                 Text(artist)
                                     .font(.caption)
                                     .foregroundStyle(Color.usher)
@@ -61,9 +61,10 @@ struct NowPlayingBar: View {
                     .buttonStyle(RoundActionStyle())
                     .frame(width: 48, height: 48)
                 }
-                if music.isPodcast {
-                    Button { music.skip(by: 30) } label: {
-                        Label("Forward 30 seconds", systemImage: "goforward.30")
+                if music.isPodcast || music.isBook {
+                    let step = Int(music.skipForward)
+                    Button { music.skip(by: music.skipForward) } label: {
+                        Label("Forward \(step) seconds", systemImage: "goforward.\(step)")
                     }
                     .buttonStyle(RoundActionStyle())
                     .frame(width: 48, height: 48)

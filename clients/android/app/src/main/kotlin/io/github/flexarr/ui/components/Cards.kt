@@ -54,7 +54,9 @@ import io.github.flexarr.core.MediaKind
 import io.github.flexarr.core.displayTitle
 import io.github.flexarr.core.effectiveDuration
 import io.github.flexarr.core.episodeSubtitle
+import io.github.flexarr.core.isBookFinished
 import io.github.flexarr.core.isResumable
+import io.github.flexarr.ui.books.bookActions
 import io.github.flexarr.core.progress
 import io.github.flexarr.core.releaseYear
 import io.github.flexarr.ui.Navigator
@@ -83,14 +85,14 @@ fun RemoteImage(path: String?, width: Int, modifier: Modifier = Modifier, placeh
 
 /** A 2:3 poster with the title and year beneath it (text never sits on artwork). [onOpen] runs as it opens (Search remembers the pick). */
 @Composable
-fun PosterCard(item: ItemSummary, modifier: Modifier = Modifier, width: Dp? = PosterWidth, onOpen: (() -> Unit)? = null) {
+fun PosterCard(item: ItemSummary, modifier: Modifier = Modifier, width: Dp? = PosterWidth, onOpen: (() -> Unit)? = null, onClick: (() -> Unit)? = null) {
     val navigator = LocalNavigator.current
     var menu by remember { mutableStateOf(false) }
-    val actions = itemActions(item)
+    val actions = itemActions(item, showsDetails = onClick != null)
     Box(modifier) {
         Column(
             (if (width != null) Modifier.width(width) else Modifier.fillMaxWidth())
-                .pressable(onClick = { onOpen?.invoke(); navigator.open(item) }, onLongClick = { menu = true })
+                .pressable(onClick = { onOpen?.invoke(); onClick?.invoke() ?: navigator.open(item) }, onLongClick = { menu = true })
                 .menuActions(actions),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
@@ -105,6 +107,7 @@ fun PosterCard(item: ItemSummary, modifier: Modifier = Modifier, width: Dp? = Po
 }
 
 private fun posterSubtitle(item: ItemSummary): String? {
+    if (item.kind == MediaKind.Audiobook) return item.book?.authors
     val unwatched = item.userData.unwatchedCount
     if (item.kind == MediaKind.Series && unwatched != null && unwatched > 0) {
         return listOfNotNull(item.releaseYear?.toString(), "$unwatched new").joinToString("  ")
@@ -115,8 +118,8 @@ private fun posterSubtitle(item: ItemSummary): String? {
 /** Poster artwork with a title placeholder, watched tick and progress bar. Fills the width it's given. */
 @Composable
 fun PosterArtwork(item: ItemSummary, modifier: Modifier = Modifier) {
-    // Album covers and artist pictures are square; everything else is a 2:3 poster.
-    val ratio = if (item.kind == MediaKind.Album || item.kind == MediaKind.Artist || item.kind == MediaKind.Track) 1f else 2f / 3f
+    // Album covers, artist pictures and book covers are square; everything else is a 2:3 poster.
+    val ratio = if (item.kind == MediaKind.Album || item.kind == MediaKind.Artist || item.kind == MediaKind.Track || item.kind == MediaKind.Audiobook) 1f else 2f / 3f
     Box(modifier.fillMaxWidth().aspectRatio(ratio).clip(RoundedCornerShape(6.dp)).background(Flexarr.seat)) {
         RemoteImage(item.artwork.poster, 342, Modifier.fillMaxSize()) {
             Box(
@@ -127,7 +130,7 @@ fun PosterArtwork(item: ItemSummary, modifier: Modifier = Modifier) {
             }
         }
         item.progress?.let { ProgressBar(it, Modifier.align(Alignment.BottomCenter).padding(6.dp)) }
-        if (item.userData.watched) WatchedBadge(Modifier.align(Alignment.TopEnd).padding(6.dp))
+        if (item.userData.watched || item.isBookFinished) WatchedBadge(Modifier.align(Alignment.TopEnd).padding(6.dp))
     }
 }
 
@@ -205,6 +208,7 @@ fun itemActions(item: ItemSummary, showsDetails: Boolean = false, downloads: Boo
     val navigator = LocalNavigator.current
     val inContinueWatching = LocalInContinueWatching.current
     val model = androidx.compose.ui.platform.LocalContext.current.appModel
+    if (item.kind == MediaKind.Audiobook) return bookActions(item, showsDetails, downloads)
     return buildList {
         if (item.kind == MediaKind.Movie || item.kind == MediaKind.Episode) {
             add(MenuAction(if (item.isResumable) "Resume" else "Play") { navigator.play(item) })

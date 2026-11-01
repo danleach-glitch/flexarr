@@ -52,7 +52,7 @@ public static class ItemEndpoints
                     Count = g.Items.Count(i => i.LibraryId == id && i.ParentId == null),
                     Candidates = g.Items.Where(i => i.LibraryId == id && i.ParentId == null && i.BackdropUrl != null)
                         .OrderByDescending(i => i.CommunityRating ?? 0).ThenByDescending(i => i.Popularity)
-                        .Select(i => new { i.Id, i.MetadataUpdatedAt }).Take(12).ToList(),
+                        .Select(i => new { i.Id, i.MetadataUpdatedAt, i.ArtworkChangedAt }).Take(12).ToList(),
                 })
                 .Where(g => g.Count > 0)
                 .OrderByDescending(g => g.Count)
@@ -64,7 +64,7 @@ public static class ItemEndpoints
             {
                 var cover = g.Candidates.FirstOrDefault(c => used.Add(c.Id)) ?? g.Candidates.FirstOrDefault();
                 return new LibraryGenreDto(g.Name, g.Count,
-                    cover is null ? null : ArtworkUrls.For(cover.Id, cover.MetadataUpdatedAt?.Ticks / 10_000_000 ?? 0, false, true, false, false).Backdrop);
+                    cover is null ? null : ArtworkUrls.For(cover.Id, ArtworkUrls.Version(cover.MetadataUpdatedAt, cover.ArtworkChangedAt), false, true, false, false).Backdrop);
             }).ToList();
         }).WithTags("Items");
 
@@ -216,7 +216,8 @@ public static class ItemEndpoints
             series.TvdbId, entity.TmdbId ?? series.TmdbId, entity.ImdbId ?? series.ImdbId,
             ancestors, children, credits, files.Select(ToDto).ToList(), childOverviews, entity.MatchLocked,
             CanSearchSubtitles: bazarr && entity.Kind is (MediaKind.Movie or MediaKind.Episode) && entity.ArrId is not null && files.Count > 0,
-            RatingAge: entity.RatingAge, KidsOverride: profile.IsMainProfile ? entity.KidsOverride : null);
+            RatingAge: entity.RatingAge, KidsOverride: profile.IsMainProfile ? entity.KidsOverride : null,
+            Book: entity.Kind == MediaKind.Audiobook ? await Books.BookQueries.DetailAsync(db, entity, profile.Id, ct) : null);
     }
 
     private static FileDto ToDto(MediaFile f) => new(

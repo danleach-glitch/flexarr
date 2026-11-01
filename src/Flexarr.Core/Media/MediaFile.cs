@@ -43,6 +43,15 @@ public sealed class MediaFile
     /// </summary>
     public bool? ClosedCaptions { get; set; }
 
+    /// <summary>A book file's place in its book, from 0: the files play back to back in this order. Null for anything else.</summary>
+    public int? BookOrder { get; set; }
+
+    /// <summary>
+    /// A book file's tags and chapters as last read (<see cref="Probing.BookFileProbe.ToJson"/>), so putting its book
+    /// together again doesn't read every file again. Replaced when the file changes; null for anything but books.
+    /// </summary>
+    public string? BookProbe { get; set; }
+
     public string? AudioCodec { get; set; }
     public int? AudioChannels { get; set; }
 

@@ -39,6 +39,7 @@ enum TabBarEntry: Identifiable, Hashable {
             case .movies: "film"
             case .tvShows: "tv"
             case .music: "music.note"
+            case .audiobooks: "headphones"
             case .homeVideos: "folder"
             default: "square.stack"
             }
@@ -50,7 +51,9 @@ enum TabBarEntry: Identifiable, Hashable {
     /// recordings are in Live TV › Recordings, so their library has no tab of its own while Live TV has one.
     @MainActor
     static func available(model: AppModel) -> [TabBarEntry] {
-        model.libraries.filter { $0.type != .podcasts && !(model.hasLiveTv && isRecordings($0)) }.map(TabBarEntry.library)
+        // A type this app doesn't know (from a newer server) gets no tab rather than a film grid.
+        model.libraries.filter { $0.type != .podcasts && $0.type != .unknown && !(model.hasLiveTv && isRecordings($0)) }
+            .map(TabBarEntry.library)
             + (model.hasLiveTv ? [.liveTv] : [])
     }
 

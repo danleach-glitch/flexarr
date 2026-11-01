@@ -91,7 +91,8 @@ private class TvHomeContent(val home: Home, val emptyMessage: EmptyHomeMessage?)
 fun TvHomeScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit) {
     val client = model.client ?: return
     val loader = rememberLoader(model.credentials, model.watchStateVersion) {
-        val home = client.home()
+        // Books (and podcasts) aren't featured on the TV, and its rows of them go (see [shows]).
+        val home = client.home().let { home -> home.copy(featured = home.featured.filter { it.showsOnTv }, rows = home.rows.filterNot { it.id.startsWith("books-") }) }
         // Nothing yet: the libraries say whether a scan is under way or their folders hold nothing.
         val empty = if (home.featured.isEmpty() && home.rows.none { it.shows }) runCatching { EmptyHomeMessage.of(client.libraries()) }.getOrNull() else null
         TvHomeContent(home, empty)

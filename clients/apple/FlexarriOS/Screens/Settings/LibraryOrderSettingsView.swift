@@ -26,7 +26,14 @@ enum LibraryMenuEntry: Identifiable, Hashable {
 
     var symbol: String {
         switch self {
-        case .library(let library): library.type == .tvShows ? "tv" : library.type == .music ? "music.note" : library.type == .homeVideos ? "folder" : "film"
+        case .library(let library):
+            switch library.type {
+            case .tvShows: "tv"
+            case .music: "music.note"
+            case .audiobooks: "headphones"
+            case .homeVideos: "folder"
+            default: "film"
+            }
         case .podcasts: "mic.fill"
         case .liveTv: "antenna.radiowaves.left.and.right"
         }
@@ -36,7 +43,8 @@ enum LibraryMenuEntry: Identifiable, Hashable {
     /// as a new library, after them.
     @MainActor
     static func ordered(model: AppModel) -> [LibraryMenuEntry] {
-        var entries = model.libraries.filter { $0.type != .podcasts }.map(LibraryMenuEntry.library)
+        // A type this app doesn't know (from a newer server) has no screen here: skipped, not shown as films.
+        var entries = model.libraries.filter { $0.type != .podcasts && $0.type != .unknown }.map(LibraryMenuEntry.library)
         if model.podcastStatus != nil {
             entries.append(.podcasts(id: model.libraries.first(where: { $0.type == .podcasts })?.id ?? "podcasts"))
         }

@@ -20,13 +20,19 @@ extension ForwardCompatibleEnum {
 }
 
 public enum LibraryType: String, ForwardCompatibleEnum {
-    case movies = "Movies", tvShows = "TvShows", music = "Music", podcasts = "Podcasts", homeVideos = "HomeVideos", unknown
+    case movies = "Movies", tvShows = "TvShows", music = "Music", podcasts = "Podcasts", homeVideos = "HomeVideos"
+    /// Absent from servers before 0.58.
+    case audiobooks = "Audiobooks"
+    case unknown
 }
 
 public enum MediaKind: String, ForwardCompatibleEnum {
     case movie = "Movie", series = "Series", season = "Season", episode = "Episode"
     case artist = "Artist", album = "Album", track = "Track"
-    case podcast = "Podcast", podcastEpisode = "PodcastEpisode", unknown
+    case podcast = "Podcast", podcastEpisode = "PodcastEpisode"
+    /// A book in an audiobooks library: its files play back to back as one timeline. Absent from servers before 0.58.
+    case audiobook = "Audiobook"
+    case unknown
 
     /// An artist, album or track: listened to, not watched, so the music screens and player take it.
     public var isMusic: Bool {
@@ -49,7 +55,10 @@ public enum StreamType: String, ForwardCompatibleEnum {
 }
 
 public enum CreditRole: String, ForwardCompatibleEnum {
-    case actor = "Actor", director = "Director", writer = "Writer", producer = "Producer", creator = "Creator", unknown
+    case actor = "Actor", director = "Director", writer = "Writer", producer = "Producer", creator = "Creator"
+    /// Books' credits. Absent from servers before 0.58.
+    case author = "Author", narrator = "Narrator", translator = "Translator"
+    case unknown
 }
 
 public enum PlaybackMethod: String, ForwardCompatibleEnum {
@@ -210,6 +219,8 @@ public struct ItemSummary: Codable, Sendable, Hashable, Identifiable {
     /// In a home video library: a "series" is a folder, its "seasons" the folders in it and its "episodes" videos,
     /// all known by name rather than number. Absent from servers before home videos.
     public var homeVideo: Bool? = nil
+    /// A book's authors, narrator, series and length. Absent from servers before 0.58.
+    public var book: BookSummary? = nil
 }
 
 /// One line of a track's lyrics; `time` (seconds into the track) is set throughout synced lyrics and never otherwise.
@@ -298,6 +309,8 @@ public struct ItemDetail: Codable, Sendable {
     public var canSearchSubtitles: Bool? = nil
     /// For a film or show, whether it's on the profile's watchlist. Absent from servers before 0.56 (no watchlist there).
     public var onWatchlist: Bool? = nil
+    /// A book's edition, series, chapters and bookmarks. Absent from servers before 0.58.
+    public var book: BookDetail? = nil
 }
 
 public struct PersonCredit: Codable, Sendable, Hashable {
@@ -311,6 +324,8 @@ public struct Person: Codable, Sendable, Identifiable {
     public let name: String
     public let image: String?
     public let credits: [PersonCredit]
+    /// An author's or narrator's biography. Absent from servers before 0.58.
+    public var biography: String? = nil
 }
 
 // MARK: - Home and search
@@ -394,8 +409,11 @@ public struct SearchResults: Codable, Sendable {
     public let episodes: [ItemSummary]
     public let people: [PersonSummary]
     public let genres: [String]
+    /// Audiobooks (not in `titles`) and their series. Absent from servers before 0.58.
+    public var books: [ItemSummary]? = nil
+    public var bookSeries: [BookSeriesSearchResult]? = nil
 
-    public var isEmpty: Bool { titles.isEmpty && episodes.isEmpty && people.isEmpty }
+    public var isEmpty: Bool { titles.isEmpty && episodes.isEmpty && people.isEmpty && (books ?? []).isEmpty && (bookSeries ?? []).isEmpty }
 }
 
 /// The profile's last few searches and the titles opened from them, newest first, shared by all its devices.
@@ -530,6 +548,8 @@ public struct PlaybackRequest: Codable, Sendable, Hashable {
     /// The listener's dialogue boost and night mode, for the server to apply when it converts the sound (the player
     /// can't shape a stream it doesn't decode). Servers before 0.56 ignore it.
     public var sound: PlaybackSound?
+    /// A name for this device ("Dan's iPhone"), for a book's "Jump to where you were on …". Servers before 0.58 ignore it.
+    public var deviceName: String? = nil
 
     public init(itemId: String, profile: DeviceProfile, fileId: String? = nil, audioStreamIndex: Int? = nil,
                 subtitleKey: String? = nil, maxBitrate: Int? = nil, maxHeight: Int? = nil,
@@ -647,6 +667,8 @@ public struct PlaybackInfo: Codable, Sendable {
     /// The server shaped this stream's sound as `PlaybackRequest.sound` asked (dialogue boost, night mode). Absent
     /// from servers before 0.56, which can't.
     public var soundShaped: Bool? = nil
+    /// A book's files on its timeline, chapters, bookmarks and place. Absent from servers before 0.58.
+    public var book: BookManifest? = nil
 }
 
 /// A file's scrubbing previews: sheets of `columns` × `rows` thumbnails, one every `interval` seconds.
@@ -1124,9 +1146,11 @@ public struct NowPlaying: Codable, Sendable, Hashable {
     public var sound: DeviceSound? = nil
     /// Whose it is: the profile it plays against. Absent from servers before 0.56 (the device's own profile stands in).
     public var profileId: String? = nil
+    /// The chapter of a book playing. Absent from servers before 0.58.
+    public var chapter: String? = nil
 
     enum CodingKeys: String, CodingKey {
-        case item, positionSeconds, durationSeconds, paused, reportedAt, rate, prompt, hasNext, tracks, sound, profileId
+        case item, positionSeconds, durationSeconds, paused, reportedAt, rate, prompt, hasNext, tracks, sound, profileId, chapter
         /// How long ago the report was by the server's clock (servers from 0.56): `reportedAt` is worked out from it on
         /// this device's clock, so a server whose clock is off doesn't throw the times out.
         case ageSeconds
@@ -1151,6 +1175,7 @@ public struct NowPlaying: Codable, Sendable, Hashable {
         tracks = (try? c.decodeIfPresent(PlayerTracks.self, forKey: .tracks)) ?? nil
         sound = (try? c.decodeIfPresent(DeviceSound.self, forKey: .sound)) ?? nil
         profileId = (try? c.decodeIfPresent(String.self, forKey: .profileId)) ?? nil
+        chapter = (try? c.decodeIfPresent(String.self, forKey: .chapter)) ?? nil
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -1166,6 +1191,7 @@ public struct NowPlaying: Codable, Sendable, Hashable {
         try c.encodeIfPresent(tracks, forKey: .tracks)
         try c.encodeIfPresent(sound, forKey: .sound)
         try c.encodeIfPresent(profileId, forKey: .profileId)
+        try c.encodeIfPresent(chapter, forKey: .chapter)
     }
 
     public init(item: ItemSummary, positionSeconds: Double, durationSeconds: Double, paused: Bool, reportedAt: Date? = nil, rate: Double? = nil,
@@ -1242,6 +1268,12 @@ public enum DeviceCommandKind: String, ForwardCompatibleEnum {
     /// intro or recap, change soundtrack or subtitles (`trackId`), change speed (`rate`).
     case seek = "Seek", skip = "Skip", next = "Next", previous = "Previous", skipSegment = "SkipSegment"
     case audioTrack = "AudioTrack", subtitleTrack = "SubtitleTrack", rate = "Rate"
+    /// The sleep timer: stop after `seconds`, or at the end of the book's chapter (`endOfChapter`); neither turns it
+    /// off. Sent only to devices that list it in `accepts`. Absent from servers before 0.58.
+    case sleep = "Sleep"
+    /// Not a command: listed in `accepts`, it says this device plays audiobooks, so remotes offer books to it.
+    /// Absent from servers before 0.58.
+    case book = "Book"
     case unknown
 }
 
@@ -1286,6 +1318,8 @@ public struct DeviceCommand: Codable, Sendable, Hashable, Identifiable {
     public var rate: Double? = nil
     /// With `stop`: it's carrying on on `sentBy` (Continue on iPhone), so the TV says so. Absent from servers before 0.56.
     public var handOff: Bool? = nil
+    /// With `sleep`: stop at the end of the book's chapter. Absent from servers before 0.58.
+    public var endOfChapter: Bool? = nil
 
     public init(id: String, kind: DeviceCommandKind, itemId: String?, fromBeginning: Bool, sentBy: String?, sentAt: Date, shuffle: Bool = false,
                 channelId: String? = nil, profileId: String? = nil, sound: DeviceSound? = nil, seconds: Double? = nil, trackId: String? = nil,
@@ -1321,6 +1355,7 @@ public struct DeviceCommand: Codable, Sendable, Hashable, Identifiable {
         trackId = try container.decodeIfPresent(String.self, forKey: .trackId)
         rate = try container.decodeIfPresent(Double.self, forKey: .rate)
         handOff = try? container.decodeIfPresent(Bool.self, forKey: .handOff)
+        endOfChapter = try? container.decodeIfPresent(Bool.self, forKey: .endOfChapter)
     }
 }
 

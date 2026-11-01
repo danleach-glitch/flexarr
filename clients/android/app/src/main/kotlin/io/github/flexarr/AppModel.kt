@@ -11,6 +11,7 @@ import io.github.flexarr.core.FlexarrClient
 import io.github.flexarr.core.FlexarrException
 import io.github.flexarr.core.LiveTvStatus
 import io.github.flexarr.core.liveTvStatus
+import io.github.flexarr.audio.BookPlayer
 import io.github.flexarr.audio.MusicPlayer
 import io.github.flexarr.audio.PodcastPlayer
 import io.github.flexarr.core.PodcastEpisode
@@ -34,6 +35,7 @@ import io.github.flexarr.core.podcastStatus
 import io.github.flexarr.core.removeFromUpNext
 import io.github.flexarr.core.upNext
 import io.github.flexarr.data.CredentialStore
+import io.github.flexarr.downloads.BookDownloads
 import io.github.flexarr.downloads.DownloadStore
 import io.github.flexarr.logging.ErrorReports
 import io.github.flexarr.logging.FlexarrLog
@@ -229,6 +231,12 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     /** Music, playing on under every screen; it and podcasts take turns. */
     val music = MusicPlayer(context, this)
 
+    /** Audiobooks, playing on under every screen; music, podcasts and books take turns. */
+    val books = BookPlayer(context, this)
+
+    /** The book's Now Playing sheet is open. */
+    var showsBookPlayer by mutableStateOf(false)
+
     /** Goes up when Play or Shuffle starts music on the TV, which then shows Now Playing over everything. */
     var nowPlayingRequests by mutableIntStateOf(0)
 
@@ -237,6 +245,9 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
 
     /** Films, episodes and podcast episodes kept on this phone to play with no connection. */
     val downloads = DownloadStore(context, this)
+
+    /** Whole audiobooks kept on this phone. */
+    val bookDownloads = BookDownloads(context, this)
 
     /** The server couldn't be reached when the profiles were asked for: the app opens on Downloads, if there are any. */
     var serverUnreachable by mutableStateOf(false)
@@ -682,6 +693,8 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         val client = client
         // Downloads go too: what was watched offline is sent and the server's copies dropped first, while the sign-in works.
         val downloadsDone = downloads.signedOut(client)
+        books.stop()
+        bookDownloads.deleteAll(client)
         val told = if (saved) client?.let { client -> scope.launch { downloadsDone.join(); notifications.signedOut(client); runCatching { client.signOut() } } } else null
         forget(tunnelNeededBy = told)
     }
@@ -703,6 +716,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         offlineAsGuest = false
         music.stop()
         podcasts.stop()
+        books.stop()
         podcastStatus = null
         upNext = emptyList()
         forgetWatchlist()
@@ -873,6 +887,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         if (isSwitch(currentProfile?.id, selection.profile.id)) {
             music.stop()
             podcasts.stop()
+            books.stop()
             upNext = emptyList()
         }
         val updated = credentials.copy(profileToken = selection.token)
@@ -895,6 +910,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         // Someone else's music, podcasts and Up Next.
         music.stop()
         podcasts.stop()
+        books.stop()
         upNext = emptyList()
         forgetWatchlist()
         if (saved) store.saveProfile(null)
@@ -929,6 +945,21 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         if (podcastStatus?.available == true) {
             runCatching { client.podcastPreferences() }.onSuccess { podcastPreferences = it }
         }
+    }
+
+    /** This profile's audiobook libraries: none for a kids profile (the server hides them), or a server before 0.58. */
+    var audiobookLibraries: List<io.github.flexarr.core.Library> by mutableStateOf(emptyList())
+        private set
+
+    val hasAudiobooks: Boolean get() = audiobookLibraries.isNotEmpty()
+
+    suspend fun loadAudiobooks() {
+        val client = client ?: return
+        if (isKids) {
+            audiobookLibraries = emptyList()
+            return
+        }
+        runCatching { client.libraries() }.onSuccess { list -> audiobookLibraries = list.filter { it.type == io.github.flexarr.core.LibraryType.Audiobooks } }
     }
 
     suspend fun loadLiveTvStatus() {
@@ -1085,7 +1116,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         tunnelIdle?.cancel()
         tunnelIdle = scope.launch {
             delay(TUNNEL_IDLE_MS)
-            while (music.wantsToPlay || podcasts.wantsToPlay || downloads.isTransferring) delay(TUNNEL_IDLE_MS)
+            while (music.wantsToPlay || podcasts.wantsToPlay || books.wantsToPlay || downloads.isTransferring || bookDownloads.isTransferring) delay(TUNNEL_IDLE_MS)
             // Back in front meanwhile (cameToFront cancels this, but it may not have run yet).
             if (inFront) return@launch
             withContext(Dispatchers.IO) { tunnel.stop() }

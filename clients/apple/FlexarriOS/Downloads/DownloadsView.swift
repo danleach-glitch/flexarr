@@ -9,7 +9,7 @@ struct DownloadsView: View {
 
     var body: some View {
         Group {
-            if store.videoDownloads.isEmpty, store.musicCollections.isEmpty, store.podcastDownloads.isEmpty {
+            if store.videoDownloads.isEmpty, store.musicCollections.isEmpty, store.podcastDownloads.isEmpty, store.bookDownloads.isEmpty {
                 StatusView(state: .empty("Download films, episodes, albums, playlists and podcasts to watch and listen with no connection. Look for the download button on a title’s page."))
             } else {
                 List {
@@ -31,6 +31,13 @@ struct DownloadsView: View {
                         Section("Music") {
                             ForEach(music) { CollectionRow(collection: $0) }
                                 .onDelete { offsets in for index in offsets { store.remove(collectionId: music[index].id) } }
+                        }
+                    }
+                    let books = store.bookDownloads
+                    if !books.isEmpty {
+                        Section("Audiobooks") {
+                            ForEach(books) { PodcastDownloadRow(download: $0) }
+                                .onDelete { offsets in for index in offsets { store.remove(books[index].id) } }
                         }
                     }
                     let podcasts = store.podcastDownloads
@@ -143,14 +150,17 @@ private struct DownloadRow: View {
     }
 }
 
-/// A podcast episode on the phone: its artwork, title and show, and what it's doing (tap to play once it's here).
+/// A podcast episode or book on the phone: its artwork, title and show (or author), and what it's doing (tap to play
+/// once it's here).
 private struct PodcastDownloadRow: View {
     @Environment(AppModel.self) private var model
     @Environment(DownloadStore.self) private var store
     let download: LocalDownload
 
+    private var isBook: Bool { download.item.kind == .audiobook }
+
     var body: some View {
-        Button { model.playEpisode(download.item) } label: {
+        Button { if isBook { model.playBook(download.item) } else { model.playEpisode(download.item) } } label: {
             HStack(spacing: 12) {
                 Color.seat
                     .frame(width: 63, height: 63)
@@ -158,7 +168,7 @@ private struct PodcastDownloadRow: View {
                         if let image = store.image(named: download.imageFileName) {
                             Image(uiImage: image).resizable().scaledToFill()
                         } else {
-                            Image(systemName: "mic.fill").foregroundStyle(Color.usher)
+                            Image(systemName: isBook ? "book.fill" : "mic.fill").foregroundStyle(Color.usher)
                         }
                     }
                     .overlay(alignment: .bottom) {
@@ -172,7 +182,7 @@ private struct PodcastDownloadRow: View {
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(Color.screen)
                         .lineLimit(2)
-                    if let show = download.item.seriesTitle {
+                    if let show = isBook ? download.item.bookAuthors : download.item.seriesTitle {
                         Text(show).font(.caption).foregroundStyle(Color.usher).lineLimit(1)
                     }
                     status
@@ -204,7 +214,7 @@ private struct PodcastDownloadRow: View {
             HStack(spacing: 6) {
                 DownloadedMark()
                 caption([download.sizeBytes.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) },
-                     download.finishedAt != nil ? "Played" : nil].compactMap { $0 }.joined(separator: "  "))
+                     download.finishedAt != nil ? (isBook ? "Finished" : "Played") : nil].compactMap { $0 }.joined(separator: "  "))
             }
         case .failed(let message):
             Text(message).font(.caption).foregroundStyle(Color.danger)

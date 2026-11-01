@@ -9,7 +9,7 @@ import WidgetKit
 enum WidgetBridge {
     private static var pending: Task<Void, Never>?
     /// The episode to resume when nothing's playing, as last fetched.
-    private static var resume: PodcastEpisode?
+    private static var resume: ItemSummary?
     private static var resumeFetchedAt = Date.distantPast
 
     static func publish(_ model: AppModel) {
@@ -25,19 +25,23 @@ enum WidgetBridge {
         guard PodcastSnapshot.folder != nil, let client = model.client else { return }
         let music = model.music
         var current: PodcastSnapshot.Episode?
-        if music.isPodcast, let track = music.current {
+        // A podcast episode or a book, whichever is playing (or played last): the widget shows one or the other.
+        if music.isPodcast || music.isBook, let track = music.current {
             let duration = music.duration > 0 ? music.duration : track.durationSeconds ?? 0
-            current = await episode(id: track.id, title: track.title, show: track.seriesTitle ?? "", artwork: track.artwork, client: client,
+            current = await episode(id: track.id, title: track.title, show: (music.isBook ? track.bookAuthors : track.seriesTitle) ?? "",
+                                    artwork: track.artwork, client: client,
                                     progress: duration > 0 ? music.position / duration : nil,
                                     remaining: duration > 0 ? duration - music.position : nil)
         } else {
             if Date().timeIntervalSince(resumeFetchedAt) > 300 {
-                resume = try? await client.continueListening(take: 1).first
+                resume = await model.lastListened()
                 resumeFetchedAt = Date()
             }
             if let resume {
-                current = await episode(id: resume.id, title: resume.title, show: resume.podcastTitle, artwork: resume.artwork, client: client,
-                                        progress: resume.progress, remaining: resume.durationSeconds.map { $0 - resume.userData.positionSeconds })
+                let duration = resume.book?.durationSeconds ?? resume.durationSeconds
+                current = await episode(id: resume.id, title: resume.title, show: (resume.isBook ? resume.bookAuthors : resume.seriesTitle) ?? "",
+                                        artwork: resume.artwork, client: client,
+                                        progress: resume.progress, remaining: duration.map { $0 - resume.userData.positionSeconds })
             }
         }
         var next: [PodcastSnapshot.Episode] = []
@@ -45,7 +49,7 @@ enum WidgetBridge {
             next.append(await episode(id: queued.id, title: queued.title, show: queued.podcastTitle, artwork: queued.artwork, client: client,
                                       progress: queued.progress, remaining: queued.durationSeconds))
         }
-        let snapshot = PodcastSnapshot(current: current, isPlaying: music.isPodcast && music.isPlaying, upNext: next, updatedAt: Date())
+        let snapshot = PodcastSnapshot(current: current, isPlaying: (music.isPodcast || music.isBook) && music.isPlaying, upNext: next, updatedAt: Date())
         let previous = PodcastSnapshot.load()
         snapshot.save()
         removeUnusedArtwork(keeping: snapshot)

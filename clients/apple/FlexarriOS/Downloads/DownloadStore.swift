@@ -46,8 +46,21 @@ struct LocalDownload: Codable, Identifiable, Hashable {
     /// lists saved before it still read.
     var manual: Bool?
     var createdAt = Date()
+    /// A book: its files, fetched one by one under this one entry (whose `fileName` is their folder).
+    var book: LocalBook?
 
     var isDownloaded: Bool { state == .downloaded && fileName != nil }
+}
+
+/// A downloaded book: the manifest it was fetched with (the item's own file addresses, its chapters and timeline) and
+/// each file's name in its folder once it's here.
+struct LocalBook: Codable, Hashable {
+    var manifest: BookManifest
+    var files: [String?]
+    /// A speed chosen while it played from here, not yet sent to the server.
+    var unsentSpeed: Double?
+
+    var isComplete: Bool { !files.isEmpty && files.allSatisfy { $0 != nil } }
 }
 
 /// Read field by field, so a list saved by an older app (before `automatic` or `createdAt`, say) still reads: Swift's
@@ -55,7 +68,7 @@ struct LocalDownload: Codable, Identifiable, Hashable {
 extension LocalDownload {
     private enum CodingKeys: String, CodingKey {
         case id, profileId, quality, item, markers, durationSeconds, nextId, state, sizeBytes, fileName, remoteFileName
-        case imageFileName, position, finishedAt, unsent, automatic, manual, createdAt
+        case imageFileName, position, finishedAt, unsent, automatic, manual, createdAt, book
     }
 
     init(from decoder: Decoder) throws {
@@ -78,6 +91,7 @@ extension LocalDownload {
         automatic = try c.decodeIfPresent(Bool.self, forKey: .automatic) ?? false
         manual = try c.decodeIfPresent(Bool.self, forKey: .manual)
         createdAt = try c.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
+        book = try? c.decodeIfPresent(LocalBook.self, forKey: .book)
     }
 }
 
@@ -198,7 +212,19 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
             Task { await catchUp() }
         }
     }
+    /// Fetch the next book in a series by itself once one's finished (as automatic downloads do).
+    var downloadsNextBook: Bool = UserDefaults.standard.object(forKey: "downloads.nextBook") as? Bool ?? false {
+        didSet { UserDefaults.standard.set(downloadsNextBook, forKey: "downloads.nextBook") }
+    }
+    /// A book's download goes once it's finished.
+    var removesFinishedBooks: Bool = UserDefaults.standard.object(forKey: "downloads.removeFinishedBooks") as? Bool ?? false {
+        didSet { UserDefaults.standard.set(removesFinishedBooks, forKey: "downloads.removeFinishedBooks") }
+    }
     private(set) var isOnline = true
+    /// How far each of a book's files has come down (download id, then file), for the whole book's progress.
+    @ObservationIgnored private var bookFileProgress: [String: [Int: Double]] = [:]
+    /// Books whose next in the series is being looked up, so it's fetched once.
+    @ObservationIgnored private var fetchingNextBook: Set<String> = []
     private(set) var isOnWiFi = false
 
     /// Whether a title is playing from its file now (it isn't deleted from under the player).
@@ -286,8 +312,11 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         all.filter { $0.profileId == profileId }.sorted { $0.createdAt > $1.createdAt }
     }
 
-    /// This profile's films and episodes (tracks show under their albums and playlists).
-    var videoDownloads: [LocalDownload] { downloads.filter { $0.item.kind != .track && $0.item.kind != .podcastEpisode } }
+    /// This profile's films and episodes (tracks show under their albums and playlists; kinds this app doesn't know aren't videos).
+    var videoDownloads: [LocalDownload] { downloads.filter { [.movie, .episode].contains($0.item.kind) } }
+
+    /// This profile's books, newest first.
+    var bookDownloads: [LocalDownload] { downloads.filter { $0.item.kind == .audiobook } }
 
     /// This profile's podcast episodes, newest first.
     var podcastDownloads: [LocalDownload] {
@@ -385,7 +414,7 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         guard !held.isEmpty else { return }
         allTasks { tasks in
             for task in tasks {
-                guard let id = task.taskDescription, held.contains(id), let download = task as? URLSessionDownloadTask else { continue }
+                guard let id = task.taskDescription, held.contains(id) || held.contains(String(id.split(separator: "#").first ?? "")), let download = task as? URLSessionDownloadTask else { continue }
                 download.cancel { data in
                     Task { @MainActor in self.held(id, resumeData: data) }
                 }
@@ -418,10 +447,19 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         for download in all where download.profileId == profileId {
             guard let unsent = download.unsent else { continue }
             do {
-                try await client.reportOfflineProgress(itemId: download.item.id, positionSeconds: unsent.position, finished: unsent.finished, playedAt: unsent.playedAt)
+                try await send(unsent, itemId: download.item.id, isBook: download.book != nil, with: client)
                 update(download.id) { if $0.unsent == unsent { $0.unsent = nil } }
             } catch {
                 log.warning("Couldn't send offline progress", error: error)
+            }
+        }
+        for download in all where download.profileId == profileId {
+            guard let speed = download.book?.unsentSpeed else { continue }
+            do {
+                try await client.setPlaybackSpeed(itemId: download.item.id, speed: speed)
+                update(download.id) { if $0.book?.unsentSpeed == speed { $0.book?.unsentSpeed = nil } }
+            } catch {
+                log.warning("Couldn't send a book's speed", error: error)
             }
         }
         deleteFinished() // podcast episodes whose play was waiting to be sent
@@ -437,7 +475,19 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
             fetchNext(after: download)
         }
         poll()
+        resumeBooks()
         await reconcilePodcasts()
+    }
+
+    /// Listening done with no connection: a book's place goes to its progress with the time it was heard (the newest
+    /// wins on the server); anything else's as offline progress.
+    private func send(_ unsent: UnsentProgress, itemId: String, isBook: Bool, with client: FlexarrClient) async throws {
+        if isBook {
+            try await client.reportBookProgress(itemId: itemId, BookProgressUpdate(positionSeconds: unsent.position, device: MusicPlayer.deviceName,
+                                                                                   recordedAt: unsent.playedAt, ended: unsent.finished))
+        } else {
+            try await client.reportOfflineProgress(itemId: itemId, positionSeconds: unsent.position, finished: unsent.finished, playedAt: unsent.playedAt)
+        }
     }
 
     // MARK: Podcasts
@@ -527,6 +577,88 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         }
         apply(remote)
         poll()
+    }
+
+    // MARK: Books
+
+    nonisolated private static func bookDownloadId(_ itemId: String) -> String { "book-\(itemId)" }
+
+    /// Downloads a whole book: its manifest from the server (the files as they are, or converted where this phone
+    /// can't play their sound), then each file into one folder, all under one entry.
+    func download(book item: ItemSummary, automatic: Bool = false) async throws {
+        guard let client, let profileId else { throw FlexarrClientError.invalidResponse }
+        if let existing = entry(for: item.id) {
+            guard case .failed = existing.state else { return }
+            delete(existing.id)
+        }
+        let manifest = try await client.bookManifest(item.id, codecs: MusicPlayer.bookCodecs)
+        let id = Self.bookDownloadId(item.id)
+        let folder = id
+        try? FileManager.default.createDirectory(at: Self.folder.appending(path: folder, directoryHint: .isDirectory), withIntermediateDirectories: true)
+        var local = LocalDownload(id: id, profileId: profileId, quality: .original, item: item, markers: [], durationSeconds: manifest.durationSeconds,
+                                  nextId: manifest.nextInSeries?.id, state: .downloading(0), sizeBytes: manifest.files.reduce(0) { $0 + $1.size },
+                                  fileName: folder, position: manifest.progress.finished ? 0 : manifest.progress.positionSeconds,
+                                  automatic: automatic, manual: automatic ? nil : true)
+        local.book = LocalBook(manifest: manifest, files: Array(repeating: nil, count: manifest.files.count))
+        all.removeAll { $0.id == id }
+        all.append(local)
+        save()
+        log.info("Downloading the book \(item.title): \(manifest.files.count) files")
+        if let image = await fetchImage(at: item.artwork.poster, named: "\(id).jpg", width: 600) {
+            update(id) { $0.imageFileName = image }
+        }
+        startBookFiles(id)
+    }
+
+    /// Starts every file of a book that isn't here and isn't on its way.
+    private func startBookFiles(_ id: String) {
+        guard let client, let download = all.first(where: { $0.id == id }), let book = download.book else { return }
+        let wifiOnly = isWiFiOnly(download)
+        if wifiOnly, !isOnWiFi { return }
+        allTasks { tasks in
+            let running = Set(tasks.compactMap(\.taskDescription))
+            Task { @MainActor in
+                for (index, file) in book.manifest.files.enumerated() where book.files[index] == nil {
+                    let name = "\(id)#\(index)"
+                    guard !running.contains(name), var request = client.bookFileRequest(file) else { continue }
+                    if wifiOnly {
+                        request.allowsCellularAccess = false
+                        request.allowsExpensiveNetworkAccess = false
+                        request.allowsConstrainedNetworkAccess = false
+                    }
+                    let task = self.resumeData.removeValue(forKey: name).map { self.transferSession.downloadTask(withResumeData: $0) }
+                        ?? self.transferSession.downloadTask(with: request)
+                    task.taskDescription = name
+                    task.resume()
+                }
+            }
+        }
+    }
+
+    /// Books still missing files (cut off, or waiting for Wi-Fi) carry on.
+    private func resumeBooks() {
+        for download in downloads where download.book != nil && !download.isDownloaded {
+            if case .failed = download.state { continue }
+            startBookFiles(download.id)
+        }
+    }
+
+    /// A book was heard to the end: its download may go (Settings), and the next in its series may come.
+    func bookFinished(itemId: String) {
+        // Only a book that was downloaded: the series is being listened to on this phone.
+        guard let download = entry(for: itemId), download.book != nil else { return }
+        update(download.id) { $0.finishedAt = $0.finishedAt ?? Date() }
+        fetchNextBook(after: itemId)
+        deleteFinished()
+    }
+
+    private func fetchNextBook(after itemId: String) {
+        guard downloadsNextBook, isOnWiFi || !autoDownloadsOnWiFiOnly, let client, fetchingNextBook.insert(itemId).inserted else { return }
+        Task {
+            defer { fetchingNextBook.remove(itemId) }
+            guard let next = try? await client.bookManifest(itemId, codecs: MusicPlayer.bookCodecs).nextInSeries, entry(for: next.id) == nil else { return }
+            try? await download(book: next, automatic: true)
+        }
     }
 
     // MARK: Albums and playlists
@@ -688,7 +820,8 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
     func delete(_ id: String) {
         guard let download = all.first(where: { $0.id == id }) else { return }
         allTasks { tasks in
-            for task in tasks where task.taskDescription == id { task.cancel() }
+            // A book's files are its id with "#" and the file's number.
+            for task in tasks where task.taskDescription == id || task.taskDescription?.hasPrefix("\(id)#") == true { task.cancel() }
         }
         if let name = download.fileName {
             try? FileManager.default.removeItem(at: Self.folder.appending(path: name))
@@ -697,6 +830,12 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         save()
         removeImageIfUnused(download.imageFileName)
         resumeData[id] = nil
+        // A book's download is the phone's alone: the server keeps no copy to drop.
+        if download.book != nil {
+            bookFileProgress[id] = nil
+            for key in resumeData.keys where key.hasPrefix("\(id)#") { resumeData[key] = nil }
+            return
+        }
         // The server drops its copy (and, for a podcast episode, won't offer it again); out of reach, it's told later.
         unsentDeletes.insert(id)
         if let client {
@@ -719,20 +858,20 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
 
     /// Signing out: every download goes, whoever's it was (the server keeps its record of what was declined).
     /// Watched offline and not yet sent, kept from downloads deleted by signing out until the sign-in has sent it.
-    private var leftoverProgress: [(itemId: String, progress: UnsentProgress)] = []
+    private var leftoverProgress: [(itemId: String, progress: UnsentProgress, isBook: Bool)] = []
 
     /// Signing out: sends what was watched offline and not yet sent, with the sign-in that's still working, whether
     /// or not the downloads have been deleted yet.
     func sendLeftoverProgress(with client: FlexarrClient) async {
-        let pending = leftoverProgress + all.compactMap { d in d.unsent.map { (d.item.id, $0) } }
+        let pending = leftoverProgress + all.compactMap { d in d.unsent.map { (d.item.id, $0, d.book != nil) } }
         leftoverProgress = []
-        for (itemId, unsent) in pending {
-            try? await client.reportOfflineProgress(itemId: itemId, positionSeconds: unsent.position, finished: unsent.finished, playedAt: unsent.playedAt)
+        for (itemId, unsent, isBook) in pending {
+            try? await send(unsent, itemId: itemId, isBook: isBook, with: client)
         }
     }
 
     func deleteAll() {
-        leftoverProgress += all.compactMap { d in d.unsent.map { (d.item.id, $0) } }
+        leftoverProgress += all.compactMap { d in d.unsent.map { (d.item.id, $0, d.book != nil) } }
         for id in all.map(\.id) { delete(id) }
         let pictures = collections.compactMap(\.imageFileName)
         collections = []
@@ -751,6 +890,7 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
             switch download.item.kind {
             case .podcastEpisode where !isPlaying(download.item.id): delete(download.id)
             case .episode where finished < dayAgo: delete(download.id)
+            case .audiobook where removesFinishedBooks && !isPlaying(download.item.id): delete(download.id)
             default: break
             }
         }
@@ -784,6 +924,44 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         }
         if finished, let updated = entry(for: itemId) { fetchNext(after: updated) }
         Task { await catchUp() }
+    }
+
+    /// Where listening to a downloaded book got to: kept here, and sent with its time once there's a connection.
+    func recordBook(itemId: String, position: Double, ended: Bool) {
+        guard let download = entry(for: itemId), download.book != nil else { return }
+        update(download.id) {
+            $0.position = ended ? 0 : position
+            if ended { $0.finishedAt = $0.finishedAt ?? Date() } else if position > 0 { $0.finishedAt = nil }
+            $0.unsent = UnsentProgress(position: position, finished: ended, playedAt: Date())
+        }
+        if ended { bookFinished(itemId: itemId) }
+        if isOnline { Task { await catchUp() } }
+    }
+
+    func refreshBook(_ fresh: BookManifest) -> BookManifest? {
+        guard let download = entry(for: fresh.itemId), let book = download.book else { return nil }
+        let manifest = book.manifest.refreshed(from: fresh, speed: book.unsentSpeed)
+        if manifest != book.manifest { update(download.id) { $0.book?.manifest = manifest } }
+        return manifest
+    }
+
+    func recordBookSpeed(itemId: String, speed: Double) {
+        guard let download = entry(for: itemId), let book = download.book else { return }
+        update(download.id) {
+            $0.book?.manifest = book.manifest.withSpeed(speed)
+            $0.book?.unsentSpeed = speed
+        }
+        if isOnline { Task { await catchUp() } }
+    }
+
+    func isBookFinished(_ bookId: String) -> Bool {
+        entry(for: bookId)?.finishedAt != nil
+    }
+
+    func localBook(for bookId: String) -> (manifest: BookManifest, files: [URL])? {
+        guard let download = entry(for: bookId), download.isDownloaded, let book = download.book, book.isComplete, let folder = download.fileName else { return nil }
+        let base = Self.folder.appending(path: folder, directoryHint: .isDirectory)
+        return (book.manifest, book.files.compactMap { $0.map { base.appending(path: $0) } })
     }
 
     func forgetPosition(itemId: String) {
@@ -857,7 +1035,59 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         if let data = try? Self.encoder.encode(collections) { try? data.write(to: Self.collectionsManifest, options: .atomic) }
     }
 
+    /// A book's file is "id#n": its download and which file.
+    nonisolated fileprivate static func bookFile(_ description: String) -> (id: String, index: Int)? {
+        let parts = description.split(separator: "#")
+        guard parts.count == 2, let index = Int(parts[1]) else { return nil }
+        return (String(parts[0]), index)
+    }
+
+    fileprivate func bookProgressed(_ id: String, file: Int, _ fraction: Double) {
+        guard let index = all.firstIndex(where: { $0.id == id }), let book = all[index].book else { return }
+        bookFileProgress[id, default: [:]][file] = fraction
+        let sizes = book.manifest.files.map { Double(max(1, $0.size)) }
+        let total = sizes.reduce(0, +)
+        let done = sizes.indices.reduce(0.0) { sum, n in sum + sizes[n] * (book.files[n] != nil ? 1 : bookFileProgress[id]?[n] ?? 0) }
+        all[index].state = .downloading(min(0.999, done / total))
+        save(throttled: true)
+    }
+
+    /// The folder a book's files go in, and the name file `n` is kept under (with the extension it came as).
+    nonisolated fileprivate static func bookFileName(_ index: Int, sent: String?, file: BookFile?) -> String {
+        let fallback = file?.converted == true ? "m4a" : (file?.container?.split(separator: ",").first.map(String.init) ?? "m4a")
+        let ext = [sent ?? "", fallback].first { !$0.isEmpty && $0.count <= 5 } ?? "m4a"
+        return String(format: "%03d.%@", index, ext == "mp4" ? "m4a" : ext)
+    }
+
+    fileprivate func bookFileArrived(_ id: String, file: Int, name: String) {
+        guard let download = all.first(where: { $0.id == id }), var book = download.book, book.files.indices.contains(file) else { return }
+        book.files[file] = name
+        let complete = book.isComplete
+        update(id) {
+            $0.book = book
+            if complete { $0.state = .downloaded }
+        }
+        if complete {
+            bookFileProgress[id] = nil
+            log.info("Downloaded the book \(download.item.title)")
+        } else {
+            bookProgressed(id, file: file, 1)
+        }
+    }
+
+    fileprivate func bookFileStopped(_ id: String, file: Int, _ error: Error) {
+        guard let download = all.first(where: { $0.id == id }), !download.isDownloaded else { return }
+        if (error as? URLError)?.code == .cancelled { return }
+        // Cut off part-way: carried on from there at the next catch-up.
+        if let data = (error as NSError).userInfo[NSURLSessionDownloadTaskResumeData] as? Data {
+            resumeData["\(id)#\(file)"] = data
+            return
+        }
+        update(id) { $0.state = .failed("The download stopped. Try again.") }
+    }
+
     fileprivate func progressed(_ id: String, _ fraction: Double) {
+        if let (book, file) = Self.bookFile(id) { return bookProgressed(book, file: file, fraction) }
         guard let index = all.firstIndex(where: { $0.id == id }) else { return }
         all[index].state = .downloading(fraction)
         save(throttled: true)
@@ -875,6 +1105,7 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
     }
 
     fileprivate func stopped(_ id: String, _ error: Error) {
+        if let (book, file) = Self.bookFile(id) { return bookFileStopped(book, file: file, error) }
         guard let download = all.first(where: { $0.id == id }), !download.isDownloaded else { return }
         if (error as? URLError)?.code == .cancelled { return }
         // Cut off part-way (the network went, or a guest's tunnel slept with the phone locked): back to waiting, to
@@ -906,6 +1137,21 @@ extension DownloadStore: URLSessionDownloadDelegate {
         }
         // Kept under the extension the server sent it as (a track's .flac or .mp3), so the player opens it right.
         let sent = downloadTask.response?.suggestedFilename.map { ($0 as NSString).pathExtension } ?? ""
+        if let (bookId, index) = Self.bookFile(id) {
+            // One of a book's files: into the book's folder, as its number.
+            let file = MainActor.assumeIsolated { all.first { $0.id == bookId }?.book?.manifest.files.first { $0.index == index } }
+            let name = Self.bookFileName(index, sent: sent, file: file)
+            let destination = DownloadStore.folder.appending(path: bookId, directoryHint: .isDirectory).appending(path: name)
+            try? FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try? FileManager.default.removeItem(at: destination)
+            do {
+                try FileManager.default.moveItem(at: location, to: destination)
+                MainActor.assumeIsolated { bookFileArrived(bookId, file: index, name: name) }
+            } catch {
+                MainActor.assumeIsolated { stopped(id, error) }
+            }
+            return
+        }
         let known = MainActor.assumeIsolated { all.first { $0.id == id }?.remoteFileName.map { ($0 as NSString).pathExtension } ?? "" }
         let name = "\(id).\([sent, known, "mp4"].first { !$0.isEmpty && $0.count <= 5 } ?? "mp4")"
         let destination = DownloadStore.folder.appending(path: name)

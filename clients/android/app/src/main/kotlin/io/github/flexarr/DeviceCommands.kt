@@ -12,7 +12,9 @@ import io.github.flexarr.core.deviceEvents
 import io.github.flexarr.core.liveChannels
 import io.github.flexarr.core.podcastEpisode
 import io.github.flexarr.data.SoundSettings
+import io.github.flexarr.core.MediaKind
 import io.github.flexarr.player.LivePlayerActivity
+import io.github.flexarr.player.SleepTimer
 import io.github.flexarr.player.PlayerActivity
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -59,7 +61,7 @@ class DeviceCommands(private val context: Context, private val model: AppModel, 
             var wait = 2_000L
             while (isActive) {
                 try {
-                    client.deviceEvents().collect { event ->
+                    client.deviceEvents(accepts).collect { event ->
                         when (event) {
                             is DeviceEvent.Command -> {
                                 val command = event.command
@@ -90,6 +92,10 @@ class DeviceCommands(private val context: Context, private val model: AppModel, 
         }
     }
 
+    /** The commands beyond the basic ones this device takes: a phone plays books too; a TV has no book screens. */
+    private val accepts: List<DeviceCommandKind>
+        get() = listOf(DeviceCommandKind.Sound, DeviceCommandKind.Sleep) + if (context.usesTvInterface) emptyList() else listOf(DeviceCommandKind.Book)
+
     fun stop() {
         task?.cancel()
         task = null
@@ -107,7 +113,11 @@ class DeviceCommands(private val context: Context, private val model: AppModel, 
                     val client = model.client ?: return@launch
                     // A podcast episode (the command carries only its id) plays in the podcast player; anything else as video.
                     val episode = runCatching { client.podcastEpisode(id) }.getOrNull()
-                    if (episode != null) {
+                    // A book plays in the book player (a TV has none).
+                    val book = if (episode == null) runCatching { client.item(id).item }.getOrNull()?.takeIf { it.kind == MediaKind.Audiobook } else null
+                    if (book != null) {
+                        if (!context.usesTvInterface) model.books.play(book, from = if (command.fromBeginning) 0.0 else null)
+                    } else if (episode != null) {
                         // A TV has no podcasts to show it playing, or to stop it from.
                         if (!context.usesTvInterface) model.podcasts.play(episode)
                     } else {
@@ -140,7 +150,20 @@ class DeviceCommands(private val context: Context, private val model: AppModel, 
                     )
                 }
             }
-            DeviceCommandKind.Unknown -> Unit
+            DeviceCommandKind.Sleep -> {
+                val minutes = command.seconds?.let { kotlin.math.ceil(it / 60).toInt().coerceAtLeast(1) }
+                val setting = when {
+                    command.endOfChapter == true -> SleepTimer.Setting.EndOfChapter
+                    minutes != null -> SleepTimer.Setting.Minutes(minutes)
+                    else -> null
+                }
+                // A book has chapters; a podcast's nearest is its episode's end.
+                when {
+                    model.books.current != null -> model.books.setSleep(setting)
+                    model.podcasts.current != null -> model.podcasts.sleep.set(if (setting == SleepTimer.Setting.EndOfChapter) SleepTimer.Setting.EndOfEpisode else setting)
+                }
+            }
+            DeviceCommandKind.Book, DeviceCommandKind.Unknown -> Unit
         }
     }
 
@@ -166,10 +189,15 @@ class DeviceCommands(private val context: Context, private val model: AppModel, 
     private fun pauseAudio() {
         model.music.pause()
         model.podcasts.pause()
+        model.books.pause()
     }
 
     private fun resumeAudio() {
-        if (model.music.current != null) model.music.resume() else if (model.podcasts.current != null && !model.podcasts.player.isPlaying) model.podcasts.togglePlayPause()
+        when {
+            model.music.current != null -> model.music.resume()
+            model.books.current != null -> if (!model.books.isPlaying) model.books.resume()
+            model.podcasts.current != null && !model.podcasts.player.isPlaying -> model.podcasts.togglePlayPause()
+        }
     }
 
     private fun open(intent: Intent) {

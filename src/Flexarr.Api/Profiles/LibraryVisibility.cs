@@ -40,10 +40,10 @@ public static class LibraryVisibility
         db.ServesKids = profile?.IsKids == true;
         if (db.ServesKids)
         {
-            // A kids profile has no podcasts or Live TV: their libraries (podcasts, and the DVR's recordings) are hidden
-            // from it like any it's kept out of.
+            // A kids profile has no podcasts, audiobooks or Live TV: their libraries (podcasts, audiobooks, and the DVR's
+            // recordings) are hidden from it like any it's kept out of.
             var kept = await db.Libraries.IgnoreQueryFilters()
-                .Where(l => l.Type == LibraryType.Podcasts || (l.Type == LibraryType.TvShows && l.Name == RecordingsLibrary.Name))
+                .Where(l => l.Type == LibraryType.Podcasts || l.Type == LibraryType.Audiobooks || (l.Type == LibraryType.TvShows && l.Name == RecordingsLibrary.Name))
                 .Select(l => l.Id).ToListAsync(ct);
             db.HiddenLibraryIds = [.. db.HiddenLibraryIds.Union(kept)];
         }
@@ -165,6 +165,7 @@ public static class LibraryVisibility
         MediaKind.Movie => types.Contains(LibraryType.Movies),
         MediaKind.Series or MediaKind.Season or MediaKind.Episode => types.Contains(LibraryType.TvShows),
         MediaKind.Podcast or MediaKind.PodcastEpisode => types.Contains(LibraryType.Podcasts),
+        MediaKind.Audiobook => types.Contains(LibraryType.Audiobooks),
         _ => types.Contains(LibraryType.Music),
     };
 }

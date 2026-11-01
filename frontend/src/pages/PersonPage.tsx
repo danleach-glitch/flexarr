@@ -1,10 +1,23 @@
 import { useParams } from 'react-router'
-import { getPerson } from '../api/client'
+import { getPerson, type CreditRole } from '../api/client'
 import { Artwork } from '../components/Artwork'
 import { PosterCard } from '../components/Cards'
+import { Overview } from '../components/Overview'
 import { useApi } from '../hooks/useApi'
 
-const roleLabel = { Actor: 'Acting', Director: 'Directing', Writer: 'Writing', Creator: 'Creating', Producer: 'Producing' } as const
+const roleLabel: Record<CreditRole, string> = {
+  Actor: 'Acting',
+  Director: 'Directing',
+  Writer: 'Writing',
+  Creator: 'Creating',
+  Producer: 'Producing',
+  Author: 'Books',
+  Narrator: 'Narrated',
+  Translator: 'Translated',
+}
+
+/** Books have square covers. */
+const bookRoles = new Set<CreditRole>(['Author', 'Narrator', 'Translator'])
 
 export function PersonPage() {
   const { id = '' } = useParams()
@@ -13,9 +26,13 @@ export function PersonPage() {
   if (error) return <p className="page-message error">{error.message}</p>
   if (!data) return <p className="page-message muted">Loading…</p>
 
-  const byRole = Object.entries(roleLabel)
-    .map(([role, label]) => ({ label, credits: data.credits.filter((c) => c.role === role) }))
+  const byRole = (Object.entries(roleLabel) as [CreditRole, string][])
+    .map(([role, label]) => ({ role, label, credits: data.credits.filter((c) => c.role === role) }))
     .filter((g) => g.credits.length > 0)
+  const books = data.credits.length > 0 && data.credits.every((c) => bookRoles.has(c.role))
+  const count = data.credits.length
+  const one = books ? 'One book' : 'One title'
+  const many = `${count} ${books ? 'books' : 'titles'}`
 
   return (
     <article className="person-page">
@@ -25,15 +42,18 @@ export function PersonPage() {
         </div>
         <div>
           <h1>{data.name}</h1>
-          <p className="muted">
-            {data.credits.length === 1 ? 'One title in your library' : `${data.credits.length} titles in your library`}
-          </p>
+          <p className="muted">{count === 1 ? `${one} in your library` : `${many} in your library`}</p>
+          {data.biography && (
+            <div className="person-biography">
+              <Overview text={data.biography} />
+            </div>
+          )}
         </div>
       </header>
       {byRole.map((group) => (
         <section key={group.label} className="person-section">
           {byRole.length > 1 && <h2>{group.label}</h2>}
-          <div className="poster-grid">
+          <div className={bookRoles.has(group.role) ? 'poster-grid square' : 'poster-grid'}>
             {group.credits.map((c) => (
               <div key={c.item.id + group.label}>
                 <PosterCard item={c.item} />

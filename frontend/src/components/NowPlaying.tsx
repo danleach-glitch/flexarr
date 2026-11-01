@@ -4,7 +4,10 @@ import { imageUrl } from '../api/client'
 import { useAudioPlayer, useAudioTime } from '../hooks/audioPlayerContext'
 import { useScrub } from '../hooks/useScrub'
 import { formatClock } from '../lib/format'
-import { Close, Forward30, Fullscreen, Next, Pause, Play, Queue, Replay15 } from './icons'
+import { authorsLine, chapterIndexAt, isBook } from '../lib/books'
+import { BookOffers } from './BookOffers'
+import { BookTools } from './BookTools'
+import { Close, Fullscreen, Next, Pause, Play, Queue, SkipBack, SkipForward } from './icons'
 import { NowPlayingView } from './NowPlayingView'
 import { PodcastTools } from './PodcastTools'
 import { QueuePanel } from './QueuePanel'
@@ -36,10 +39,16 @@ export function NowPlaying() {
   const duration = player.duration || track?.durationSeconds || 0
   const upcoming = Math.max(0, player.queue.length - player.index - 1)
   const podcast = track?.kind === 'PodcastEpisode'
+  const book = isBook(track)
+  const chapters = player.book?.chapters ?? []
+  const chapter = chapters[chapterIndexAt(chapters, time)]
   const album = track?.parentId ? (podcast ? `/podcasts/${track.parentId}` : `/item/${track.parentId}`) : undefined
   // A track with an artist of its own (on a compilation, say) names them instead; they have no page to link to.
   const artist = podcast ? album : track?.seriesId && !track.trackArtist ? `/item/${track.seriesId}` : undefined
-  const titleLink = podcast && track ? `/podcasts/episode/${track.id}` : album
+  const titleLink = book && track ? `/item/${track.id}` : podcast && track ? `/podcasts/episode/${track.id}` : album
+  // Skips: a book's go by the profile's steps; a podcast's 15 back and 30 on.
+  const skips = podcast || book
+  const { back, forward } = player.skipSteps
 
   const closeQueue = () => {
     setQueueOpen(false)
@@ -52,6 +61,7 @@ export function NowPlaying() {
     <>
       {queueOpen && track && <QueuePanel onClose={closeQueue} style={accent} />}
       {viewOpen && track && <NowPlayingView onClose={closeView} />}
+      {!viewOpen && <BookOffers />}
       <aside className="now-playing" aria-label="Now playing" style={accent}>
         <div className="now-playing-track">
           {track ? (
@@ -86,6 +96,8 @@ export function NowPlaying() {
                   <span className="now-playing-artist now-playing-failure" role="status">
                     {player.failure}
                   </span>
+                ) : book ? (
+                  <span className="now-playing-artist">{chapter?.title ?? authorsLine(track)}</span>
                 ) : artist ? (
                   <Link to={artist} className="now-playing-artist">
                     {track.seriesTitle}
@@ -104,9 +116,14 @@ export function NowPlaying() {
         </div>
         <div className="now-playing-centre">
           <div className="now-playing-controls">
-            {podcast ? (
-              <button className="icon-button now-playing-skip" onClick={() => player.skipBy(-15)} aria-label="Back 15 seconds">
-                <Replay15 />
+            {book && (
+              <button className="icon-button now-playing-skip now-playing-chapter" onClick={player.previous} aria-label="Previous chapter" disabled={chapters.length === 0}>
+                <Next style={{ transform: 'scaleX(-1)' }} />
+              </button>
+            )}
+            {skips ? (
+              <button className="icon-button now-playing-skip" onClick={() => player.skipBy(-back)} aria-label={`Back ${back} seconds`}>
+                <SkipBack seconds={back} />
               </button>
             ) : (
               <button className="icon-button now-playing-skip" onClick={player.previous} aria-label="Previous track" disabled={!track}>
@@ -116,12 +133,17 @@ export function NowPlaying() {
             <button className="icon-button now-playing-toggle" onClick={player.toggle} aria-label={player.playing ? 'Pause' : 'Play'} disabled={!track}>
               {player.playing ? <Pause /> : <Play />}
             </button>
-            {podcast ? (
-              <button className="icon-button now-playing-skip" onClick={() => player.skipBy(30)} aria-label="Forward 30 seconds">
-                <Forward30 />
+            {skips ? (
+              <button className="icon-button now-playing-skip" onClick={() => player.skipBy(forward)} aria-label={`Forward ${forward} seconds`}>
+                <SkipForward seconds={forward} />
               </button>
             ) : (
               <button className="icon-button now-playing-skip" onClick={player.next} aria-label="Next track" disabled={!track || upcoming === 0}>
+                <Next />
+              </button>
+            )}
+            {book && (
+              <button className="icon-button now-playing-skip now-playing-chapter" onClick={player.next} aria-label="Next chapter" disabled={chapters.length === 0}>
                 <Next />
               </button>
             )}
@@ -137,13 +159,16 @@ export function NowPlaying() {
               aria-label="Seek"
               disabled={!track}
             />
-            <span>-{formatClock(Math.max(0, duration - scrub.shown))}</span>
+            {/* Time left, at the speed it plays at. */}
+            <span>-{formatClock(Math.max(0, duration - scrub.shown) / (skips ? player.speed || 1 : 1))}</span>
           </div>
         </div>
         <div className="now-playing-tools">
           {track && (
             <>
               {podcast && <PodcastTools player={player} />}
+              {book && <BookTools player={player} />}
+              {!book && (
               <button
                 ref={queueButton}
                 className="icon-button now-playing-queue"
@@ -155,6 +180,7 @@ export function NowPlaying() {
                 <Queue />
                 {upcoming > 0 && <span className="now-playing-count" aria-hidden="true">{upcoming > 99 ? '99+' : upcoming}</span>}
               </button>
+              )}
               <button
                 className="icon-button now-playing-stop"
                 onClick={() => {

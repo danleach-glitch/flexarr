@@ -25,6 +25,11 @@ struct NowPlayingView: View {
     @State private var openAtChapters = false
     /// The cover's own colour, for a glow when the server gives none.
     @State private var artworkGlow: Color?
+    /// A book's speed is chosen on a sheet of its own (0.5× to 3.5× in 0.05 steps).
+    @State private var showingSpeed = false
+    /// A book's scrubber covers the chapter playing (the default, as in book apps) or the whole book; the Apple TV
+    /// keeps the same choice under the same name.
+    @AppStorage("books.timelineIsBook") private var wholeBook = false
 
     private var music: MusicPlayer { model.music }
 
@@ -34,7 +39,8 @@ struct NowPlayingView: View {
             if let track = music.current {
                 if showingLyrics, let found = lyrics.lyrics {
                     lyricsPanel(track, found)
-                } else if music.isPodcast {
+                } else if music.isPodcast || music.isBook {
+                    // A book's page is an episode's, with its chapters, bookmarks and offers.
                     podcastPage(track)
                 } else {
                     ScrollView(.vertical) {
@@ -58,11 +64,20 @@ struct NowPlayingView: View {
                 StatusView(state: .empty("Nothing is playing."))
             }
         }
-        .task(id: music.current?.id) { await lyrics.load(music.isPodcast ? nil : music.current, client: model.client) }
+        .task(id: music.current?.id) { await lyrics.load(music.isPodcast || music.isBook ? nil : music.current, client: model.client) }
+        .sheet(isPresented: $showingSpeed) {
+            BookSpeedSheet()
+                .presentationDetents([.height(300)])
+                .presentationBackground(Color.room)
+        }
         .task(id: music.current?.id) { if music.isPodcast { await model.loadUpNext() } }
         .task(id: music.current?.id) {
             await playing.load(music.isPodcast ? music.current?.id : nil, client: model.client)
         }
+        .overlay(alignment: .top) {
+            if let notice = music.bookmarkNotice { NoticeCapsule(notice: notice).padding(.top, 28) }
+        }
+        .animation(.easeInOut(duration: 0.25), value: music.bookmarkNotice)
         .task(id: music.artwork) { artworkGlow = music.artwork?.averageColor.map { Color(rgb: $0.glow) } }
         .onChange(of: music.current == nil) { _, empty in if empty { dismiss() } }
     }
@@ -72,9 +87,10 @@ struct NowPlayingView: View {
         track.accentColor == nil ? artworkGlow ?? track.glowColor : track.glowColor
     }
 
-    /// The episode's chapters, once they've come (and only for the episode playing).
+    /// The episode's chapters, once they've come (and only for the episode playing), or the book's.
     private var chapters: [PodcastChapter] {
-        playing.episode?.id == music.current?.id ? playing.chapters : []
+        if music.isBook { return music.chapters.count > 1 ? music.chapters.map { PodcastChapter(startSeconds: $0.startSeconds, title: $0.title) } : [] }
+        return playing.episode?.id == music.current?.id ? playing.chapters : []
     }
 
     private var grabber: some View {
@@ -96,6 +112,7 @@ struct NowPlayingView: View {
                     .frame(maxHeight: .infinity)
                 titles(track)
             }
+            bookOffers
             if !chapters.isEmpty { chapterStrip }
             scrubber
             controls
@@ -114,8 +131,12 @@ struct NowPlayingView: View {
             ScrollView(.vertical) {
                 VStack(alignment: .leading, spacing: 20) {
                     chapterList.id("chapters")
-                    notes
-                    upNext
+                    if music.isBook {
+                        bookmarkList
+                    } else {
+                        notes
+                        upNext
+                    }
                 }
                 .padding(.bottom, 12)
             }
@@ -221,6 +242,10 @@ struct NowPlayingView: View {
                     Button { goToPodcast() } label: { Text(show).lineLimit(1) }
                         .buttonStyle(.plain)
                         .accessibilityHint("Opens the podcast")
+                } else if music.isBook {
+                    Button { goToBook() } label: { Text(track.bookAuthors ?? "").lineLimit(1) }
+                        .buttonStyle(.plain)
+                        .accessibilityHint("Opens the book")
                 } else {
                     Text([track.artistName, music.albumTitle(of: track)].compactMap { $0 }.joined(separator: "  –  "))
                         .lineLimit(1)
@@ -234,18 +259,44 @@ struct NowPlayingView: View {
         }
     }
 
+    /// What the scrubber spans: a book's chapter playing (unless the whole book was chosen), else the whole track.
+    private var scope: (start: Double, length: Double, isChapter: Bool) {
+        if music.isBook, !wholeBook, let chapter = music.chapter, music.chapters.count > 1, chapter.durationSeconds > 0 {
+            return (chapter.startSeconds, chapter.durationSeconds, true)
+        }
+        return (0, music.duration, false)
+    }
+
+    /// Where the scrubber's thumb is, on the whole timeline.
+    private var shownPosition: Double { scrubbing.map { $0 + scope.start } ?? music.position }
+
     private var scrubber: some View {
-        VStack(spacing: 2) {
-            PlayerScrubber(position: music.position, duration: music.duration, chapterStarts: chapters.map(\.startSeconds),
-                           scrubbing: $scrubbing) { music.seek(to: $0) }
+        let scope = scope
+        let into = max(0, (scrubbing ?? (music.position - scope.start)))
+        // A book's time left is at the speed it plays.
+        let left = max(0, scope.length - into) / (music.isBook ? max(0.5, music.speed) : 1)
+        return VStack(spacing: 2) {
+            PlayerScrubber(position: music.position - scope.start, duration: scope.length,
+                           chapterStarts: scope.isChapter ? [] : chapters.map(\.startSeconds),
+                           step: music.isBook ? music.skipForward : nil, scrubbing: $scrubbing) { music.seek(to: $0 + scope.start) }
             HStack {
-                Text(Format.timestamp(scrubbing ?? music.position))
+                Text(Format.timestamp(into))
                     .frame(maxWidth: .infinity, alignment: .leading)
                 if music.isPodcast, music.duration > 0 {
                     // When it'll finish, at the speed it's playing.
                     Text("Ends \(Date().addingTimeInterval(max(0, music.duration - music.position) / max(0.5, music.speed)).formatted(date: .omitted, time: .shortened))")
+                } else if music.isBook, music.chapters.count > 1 {
+                    // Which the scrubber spans: a tap switches.
+                    Button(scope.isChapter ? "Chapter" : "Book") { wholeBook.toggle() }
+                        .buttonStyle(.plain)
+                        // A full-size target, overlapping the space around it so the row keeps its height.
+                        .frame(minWidth: 64, minHeight: 44)
+                        .contentShape(Rectangle())
+                        .padding(.vertical, -6)
+                        .accessibilityLabel(scope.isChapter ? "Showing the chapter" : "Showing the whole book")
+                        .accessibilityHint("Switches between the chapter and the whole book")
                 }
-                Text(music.duration > 0 ? "-" + Format.timestamp(max(0, music.duration - (scrubbing ?? music.position))) : "")
+                Text(scope.length > 0 ? "-" + Format.timestamp(left) : "")
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }
             .font(.caption.weight(.medium))
@@ -256,7 +307,7 @@ struct NowPlayingView: View {
 
     /// The chapter playing, with the ones either side a tap away.
     private var chapterStrip: some View {
-        let current = chapters.index(at: scrubbing ?? music.position)
+        let current = chapters.index(at: shownPosition)
         return HStack(spacing: 4) {
             Button {
                 // Back to the start of this chapter, or (near its start already) to the one before.
@@ -293,21 +344,64 @@ struct NowPlayingView: View {
 
     @ViewBuilder
     private var controls: some View {
-        if music.isPodcast { podcastControls } else { musicControls }
+        if music.isPodcast || music.isBook { podcastControls } else { musicControls }
     }
 
+    /// Back and forward: a podcast's 15 and 30 seconds, a book's chosen steps.
     private var podcastControls: some View {
-        HStack(spacing: 0) {
+        let back = Int(music.skipBack), forward = Int(music.skipForward)
+        return HStack(spacing: 0) {
             Spacer()
-            Button { music.skip(by: -15) } label: { Label("Back 15 seconds", systemImage: "gobackward.15") }
+            Button { music.skip(by: -music.skipBack) } label: { Label("Back \(back) seconds", systemImage: "gobackward.\(back)") }
                 .buttonStyle(TransportStyle(size: 56))
             Spacer()
             playButton
             Spacer()
-            Button { music.skip(by: 30) } label: { Label("Forward 30 seconds", systemImage: "goforward.30") }
+            Button { music.skip(by: music.skipForward) } label: { Label("Forward \(forward) seconds", systemImage: "goforward.\(forward)") }
                 .buttonStyle(TransportStyle(size: 56))
             Spacer()
         }
+    }
+
+    /// "Jump to 2:14:05?" when another device got further, and the series' next book once this one ends.
+    @ViewBuilder
+    private var bookOffers: some View {
+        if let offer = music.jumpOffer {
+            offerBar(text: "\(offer.device ?? "Elsewhere"): \(Format.timestamp(offer.positionSeconds))", action: "Jump", icon: "arrow.uturn.forward") {
+                music.acceptJump()
+            } dismiss: { music.dismissJump() }
+        } else if let next = music.nextBookOffer {
+            offerBar(text: next.title, action: "Play", icon: "play.fill") { music.playNextBook() } dismiss: { music.dismissNextBook() }
+        }
+    }
+
+    private func offerBar(text: String, action: String, icon: String, act: @escaping () -> Void, dismiss: @escaping () -> Void) -> some View {
+        HStack(spacing: 10) {
+            Text(text)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.screen)
+                .lineLimit(1)
+                .monospacedDigit()
+            Spacer(minLength: 0)
+            Button(action: act) { Label(action, systemImage: icon).font(.subheadline.weight(.bold)) }
+                .buttonStyle(.borderedProminent)
+                .tint(Color.silver)
+                .foregroundStyle(Color.room)
+            Button(action: dismiss) {
+                Image(systemName: "xmark")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(Color.usher)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Not now")
+        }
+        .padding(.leading, 16)
+        .padding(.trailing, 2)
+        .padding(.vertical, 2)
+        .background(Capsule().fill(Color.screen.opacity(0.1)))
+        .transition(.opacity)
     }
 
     private var playButton: some View {
@@ -344,7 +438,7 @@ struct NowPlayingView: View {
 
     @ViewBuilder
     private var extras: some View {
-        if music.isPodcast { podcastExtras } else { musicExtras }
+        if music.isPodcast || music.isBook { podcastExtras } else { musicExtras }
     }
 
     /// AirPlay, and Lyrics when the track has some.
@@ -373,14 +467,100 @@ struct NowPlayingView: View {
                     .modifier(ExtraLabel(active: showingDetails))
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(showingDetails ? "Hide notes" : "Notes")
+            .accessibilityLabel(showingDetails ? "Hide notes" : music.isBook ? "Chapters and bookmarks" : "Notes")
             .frame(maxWidth: .infinity)
             if !GuestMode.isActive { RoutePicker().frame(width: 44, height: 44).frame(maxWidth: .infinity) }
-            episodeMenu.frame(maxWidth: .infinity)
+            if music.isBook { bookMenu.frame(maxWidth: .infinity) } else { episodeMenu.frame(maxWidth: .infinity) }
         }
     }
 
+    @ViewBuilder
     private var speedMenu: some View {
+        if music.isBook {
+            Button { showingSpeed = true } label: {
+                Text(BookSpeed.label(music.speed))
+                    .font(.system(size: 16, weight: .semibold))
+                    .monospacedDigit()
+                    .modifier(ExtraLabel(active: music.speed != 1))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Speed, \(BookSpeed.label(music.speed))")
+        } else {
+            podcastSpeedMenu
+        }
+    }
+
+    /// What can be done with the book: a bookmark here, its page, finished, its download.
+    private var bookMenu: some View {
+        Menu {
+            if let track = music.current {
+                Button { Task { await music.addBookmark() } } label: { Label("Add Bookmark", systemImage: "bookmark") }
+                Button { goToBook() } label: { Label("Go to Book", systemImage: "book") }
+                if !model.isKids {
+                    Button {
+                        Task {
+                            await model.setBookFinished(track, true)
+                            music.stop()
+                        }
+                    } label: { Label("Mark as Finished", systemImage: "checkmark.circle") }
+                }
+            }
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.system(size: 18, weight: .semibold))
+                .modifier(ExtraLabel(active: false))
+        }
+        .accessibilityLabel("More")
+    }
+
+    /// Closes Now Playing and opens the book's page.
+    private func goToBook() {
+        guard let track = music.current else { return }
+        dismiss()
+        router.push(.item(track))
+    }
+
+    /// The book's bookmarks: tapping one goes there; a long press deletes it.
+    @ViewBuilder
+    private var bookmarkList: some View {
+        let marks = music.bookmarks.sorted { $0.positionSeconds < $1.positionSeconds }
+        VStack(alignment: .leading, spacing: 2) {
+            HStack {
+                sectionTitle("Bookmarks")
+                Spacer()
+                Button { Task { await music.addBookmark() } } label: { Label("Add", systemImage: "plus") }
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.usher)
+                    .padding(.top, 8)
+                    .padding(.trailing, 12)
+            }
+            ForEach(marks) { mark in
+                Button { music.seek(to: mark.positionSeconds) } label: {
+                    HStack(alignment: .firstTextBaseline, spacing: 12) {
+                        Text(Format.timestamp(mark.positionSeconds))
+                            .font(.caption.weight(.semibold))
+                            .monospacedDigit()
+                            .foregroundStyle(Color.usher)
+                            .frame(minWidth: 52, alignment: .leading)
+                        Text(mark.note ?? music.book?.timeline.chapter(at: mark.positionSeconds)?.title ?? "Bookmark")
+                            .font(.subheadline)
+                            .foregroundStyle(Color.screen.opacity(0.85))
+                            .multilineTextAlignment(.leading)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .contextMenu {
+                    Button(role: .destructive) { Task { await music.deleteBookmark(mark) } } label: { Label("Delete", systemImage: "trash") }
+                }
+            }
+        }
+    }
+
+    private var podcastSpeedMenu: some View {
         Menu {
             Picker("Speed", selection: Binding(get: { music.speed }, set: { music.setSpeed($0) })) {
                 ForEach(MusicPlayer.speeds, id: \.self) { Text(speedLabel($0)).tag($0) }
@@ -399,7 +579,8 @@ struct NowPlayingView: View {
             Picker("Sleep timer", selection: Binding(get: { music.sleep.setting }, set: { music.sleep.set($0) })) {
                 Text("Off").tag(SleepTimer.Setting?.none)
                 ForEach(SleepTimer.minuteChoices, id: \.self) { Text(SleepTimer.Setting.minutes($0).label).tag(SleepTimer.Setting?.some(.minutes($0))) }
-                Text(SleepTimer.Setting.endOfEpisode.label).tag(SleepTimer.Setting?.some(.endOfEpisode))
+                let end: SleepTimer.Setting = music.isBook ? .endOfChapter : .endOfEpisode
+                Text(end.label).tag(SleepTimer.Setting?.some(end))
             }
         } label: {
             HStack(spacing: 4) {

@@ -1,11 +1,13 @@
 import { useEffect, type ComponentType, type ReactNode, type SVGProps } from 'react'
 import { Navigate, NavLink, useParams } from 'react-router'
-import { clearApiCache, getMe, getRequestDestinations, getTraktStatus, getUpdates, lockAdmin } from '../../api/client'
+import { clearApiCache, getMe, getRequestDestinations, getRequestStatus, getTraktStatus, getUpdates, lockAdmin } from '../../api/client'
+import { useLibraries } from '../../hooks/librariesContext'
 import { useSession } from '../../hooks/sessionContext'
 import { useApi } from '../../hooks/useApi'
-import { Antenna, Download, Film, Gauge, Globe, History, Inbox, Info, LayoutGrid, Microphone, Notes, Padlock, PanelLeft, Shield, PlayCircle, Plug, Restore, Stack, Users } from '../../components/icons'
+import { Antenna, Book, Download, Film, Gauge, Globe, History, Inbox, Info, LayoutGrid, Microphone, Notes, Padlock, PanelLeft, Shield, PlayCircle, Plug, Restore, Stack, Users } from '../../components/icons'
 import { hasRequestChoice } from '../../lib/requestLibraries'
 import { AboutSection } from './AboutSection'
+import { AudiobooksSection } from './AudiobooksSection'
 import { SecuritySection } from './SecuritySection'
 import { AdminUnlock } from './AdminUnlock'
 import { BackupSection } from './BackupSection'
@@ -45,6 +47,9 @@ const profilePages: Page[] = [
   { id: 'sidebar', label: 'Sidebar', icon: PanelLeft, render: () => <SidebarSection /> },
 ]
 
+/** Listed once there's an audiobooks library this profile can see. */
+const audiobooksPage: Page = { id: 'audiobooks', label: 'Audiobooks', icon: Book, render: () => <AudiobooksSection /> }
+
 /** Listed when the server offers Trakt (from 0.57). */
 const traktPage: Page = { id: 'trakt', label: 'Trakt', icon: History, render: () => <TraktSection /> }
 
@@ -81,14 +86,20 @@ export function SettingsPage() {
   const current = profiles?.find((p) => p.isCurrent)
   const name = current?.name
   const destinations = useApi(getRequestDestinations, [])
+  const requestStatus = useApi((signal) => getRequestStatus(signal).catch(() => undefined), [])
   const trakt = useApi((signal) => getTraktStatus(signal), [])
   const reloadTrakt = trakt.reload
   useEffect(() => {
     window.addEventListener(TRAKT_CHANGED, reloadTrakt)
     return () => window.removeEventListener(TRAKT_CHANGED, reloadTrakt)
   }, [reloadTrakt])
-  const withTrakt = trakt.data?.available ? [...profilePages, traktPage] : profilePages
-  const ownPages = destinations.data && hasRequestChoice(destinations.data, current?.hiddenLibraryIds ?? []) ? [...withTrakt, requestsPage] : withTrakt
+  const { libraries } = useLibraries()
+  const books = libraries.some((l) => l.type === 'Audiobooks')
+  const listed = books ? [...profilePages.slice(0, 2), audiobooksPage, ...profilePages.slice(2)] : profilePages
+  const withTrakt = trakt.data?.available ? [...listed, traktPage] : listed
+  // Book requests have a setup of their own (and a library to choose, with two), so they list the page too.
+  const requestsListed = (destinations.data && hasRequestChoice(destinations.data, current?.hiddenLibraryIds ?? [])) || requestStatus.data?.books === true
+  const ownPages = requestsListed ? [...withTrakt, requestsPage] : withTrakt
   // Settings for the server are the main profile's, and changing them takes the admin PIN (given lately on this browser):
   // locked, the server's pages ask for it. Another profile chosen here has only its own pages. Older servers have no
   // /me: everything, as before.
@@ -118,7 +129,7 @@ export function SettingsPage() {
   if (!section) return me.loading ? null : <Navigate to={`/settings/${isAdmin ? 'overview' : 'playback'}`} replace />
   if (moved[section]) return <Navigate to={`/settings/${moved[section]}`} replace />
 
-  const profilePage = [...profilePages, traktPage, requestsPage].find((p) => p.id === section)
+  const profilePage = [...profilePages, audiobooksPage, traktPage, requestsPage].find((p) => p.id === section)
   const serverPage = serverPages.find((p) => p.id === section)
   // A server page (an old link, say) waits to know whose profile this is, and sends anyone else to their own pages.
   if (!profilePage && me.loading) return null

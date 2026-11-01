@@ -5,6 +5,10 @@ import UIKit
 /// Podcasts in the car: tabs for Up Next, New episodes and Podcasts (the shows followed, each opening its episodes),
 /// lists with artwork, and the system's Now Playing screen with skip back 15, forward 30 (the player's remote commands)
 /// and a speed button. Everything plays through the app's own player, so the phone and the car agree.
+///
+/// Audiobooks get one tab of their own (CarPlay allows four for audio apps): Continue listening, the books downloaded
+/// on the phone, then each audiobooks library, which opens its books. A book plays where it was left, with the
+/// listener's skips and chapters on the Now Playing screen.
 @MainActor
 final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
     /// The app model, handed over at launch (the car's scene has no SwiftUI environment).
@@ -14,6 +18,9 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
     private let upNext = CPListTemplate(title: "Up Next", sections: [])
     private let fresh = CPListTemplate(title: "New episodes", sections: [])
     private let podcasts = CPListTemplate(title: "Podcasts", sections: [])
+    private let books = CPListTemplate(title: "Books", sections: [])
+    /// Where downloaded books are listed from (handed over at launch, like the model).
+    static weak var downloads: DownloadStore?
     /// Kept here: the Now Playing template only holds its observers weakly.
     private var upNextObserver: UpNextObserver?
 
@@ -22,8 +29,10 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         upNext.tabImage = UIImage(systemName: "list.bullet")
         fresh.tabImage = UIImage(systemName: "sparkles")
         podcasts.tabImage = UIImage(systemName: "mic.fill")
+        books.tabImage = UIImage(systemName: "book.fill")
         for list in [upNext, fresh, podcasts] { list.emptyViewSubtitleVariants = ["Nothing here yet."] }
-        interfaceController.setRootTemplate(CPTabBarTemplate(templates: [upNext, fresh, podcasts]), animated: false, completion: nil)
+        books.emptyViewSubtitleVariants = ["No books yet."]
+        interfaceController.setRootTemplate(CPTabBarTemplate(templates: [upNext, fresh, podcasts, books]), animated: false, completion: nil)
         setUpNowPlaying()
         Task { await reload() }
     }
@@ -36,13 +45,14 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
 
     private func reload() async {
         guard let model = Self.model, let client = model.client else {
-            for list in [upNext, fresh, podcasts] { list.emptyViewSubtitleVariants = ["Open Flexarr on your iPhone to sign in."] }
+            for list in [upNext, fresh, podcasts, books] { list.emptyViewSubtitleVariants = ["Open Flexarr on your iPhone to sign in."] }
+            await reloadBooks(client: nil)
             return
         }
-        // A kids profile has no podcasts.
+        // A kids profile has no podcasts, nor books.
         guard !model.isKids else {
-            for list in [upNext, fresh, podcasts] {
-                list.emptyViewSubtitleVariants = ["Podcasts aren't on kids profiles."]
+            for list in [upNext, fresh, podcasts, books] {
+                list.emptyViewSubtitleVariants = ["Not on kids profiles."]
                 list.updateSections([])
             }
             return
@@ -65,6 +75,82 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
             rows.append(row)
         }
         podcasts.updateSections([CPListSection(items: rows)])
+        await reloadBooks(client: client)
+    }
+
+    // MARK: Books
+
+    /// Continue listening, the downloaded books, and each audiobooks library. With no connection, the downloads alone.
+    private func reloadBooks(client: FlexarrClient?) async {
+        var sections: [CPListSection] = []
+        let libraries = Self.model?.libraries.filter { $0.type == .audiobooks } ?? []
+        if let client, let library = libraries.first, let shelves = try? await client.bookShelves(library.id), !shelves.continueListening.isEmpty {
+            sections.append(CPListSection(items: await bookItems(shelves.continueListening, client: client), header: "Continue listening", sectionIndexTitle: nil))
+        }
+        let downloaded = (Self.downloads?.bookDownloads ?? []).filter(\.isDownloaded)
+        if !downloaded.isEmpty {
+            var rows: [CPListItem] = []
+            for download in downloaded {
+                let row = CPListItem(text: download.item.title, detailText: download.item.bookAuthors,
+                                     image: Self.downloads?.image(named: download.imageFileName))
+                row.playbackProgress = download.durationSeconds > 0 && download.finishedAt == nil ? CGFloat(min(1, download.position / download.durationSeconds)) : 0
+                row.isPlaying = Self.model?.music.current?.id == download.item.id
+                let book = download.item
+                row.handler = { [weak self] _, completion in
+                    Task { @MainActor in
+                        self?.play(book)
+                        completion()
+                    }
+                }
+                rows.append(row)
+            }
+            sections.append(CPListSection(items: rows, header: "Downloaded", sectionIndexTitle: nil))
+        }
+        if let client, !libraries.isEmpty {
+            let rows = libraries.map { library in
+                let row = CPListItem(text: library.name, detailText: nil, image: UIImage(systemName: "books.vertical.fill"))
+                row.accessoryType = .disclosureIndicator
+                row.handler = { [weak self] _, completion in
+                    Task { @MainActor in
+                        await self?.open(library, client: client)
+                        completion()
+                    }
+                }
+                return row
+            }
+            sections.append(CPListSection(items: rows, header: "Library", sectionIndexTitle: nil))
+        }
+        books.updateSections(sections)
+    }
+
+    /// An audiobooks library's books, the most recently listened first.
+    private func open(_ library: Library, client: FlexarrClient) async {
+        let page = (try? await client.books(library.id, filter: BookFilter(sort: .listened), take: 100))?.items ?? []
+        let list = CPListTemplate(title: library.name, sections: [CPListSection(items: await bookItems(page, client: client))])
+        list.emptyViewSubtitleVariants = ["No books yet."]
+        interfaceController?.pushTemplate(list, animated: true, completion: nil)
+    }
+
+    private func bookItems(_ list: [ItemSummary], client: FlexarrClient) async -> [CPListItem] {
+        var rows: [CPListItem] = []
+        for book in list {
+            let row = CPListItem(text: book.title, detailText: book.bookAuthors, image: await artwork(book.artwork.poster, client: client))
+            row.isPlaying = Self.model?.music.current?.id == book.id
+            row.playbackProgress = CGFloat(book.progress ?? 0)
+            row.handler = { [weak self] _, completion in
+                Task { @MainActor in
+                    self?.play(book)
+                    completion()
+                }
+            }
+            rows.append(row)
+        }
+        return rows
+    }
+
+    private func play(_ book: ItemSummary) {
+        Self.model?.playBook(book)
+        showNowPlaying()
     }
 
     /// A show's unplayed episodes, newest first (or oldest, as it's listened to).
@@ -106,9 +192,9 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
     private func setUpNowPlaying() {
         let speed = CPNowPlayingPlaybackRateButton { _ in
             Task { @MainActor in
-                guard let music = Self.model?.music, music.isPodcast else { return }
-                // Round the speeds a podcast app offers.
-                let speeds = MusicPlayer.speeds
+                guard let music = Self.model?.music, music.isPodcast || music.isBook else { return }
+                // Round the speeds a podcast app offers (a book's own list).
+                let speeds = music.isBook ? MusicPlayer.bookLockScreenSpeeds : MusicPlayer.speeds
                 let next = speeds.first { $0 > music.speed + 0.01 } ?? speeds[0]
                 music.setSpeed(next)
             }

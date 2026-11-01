@@ -84,6 +84,18 @@ struct DeviceTests {
         #expect(!devices[1].takes(.seek))
     }
 
+    @Test func aDeviceThatPlaysBooksSaysSo() throws {
+        let json = """
+        {"id":"d1","name":"Phone","online":true,"lastUsedAt":"2026-10-25T10:00:00Z","profileId":"owner","profileName":"Dan","isThisOne":false,
+         "nowPlaying":null,"deviceType":"Iphone","accepts":["Pause","Book","Sleep"]}
+        """
+        let device = try FlexarrClient.decoder.decode(Device.self, from: Data(json.utf8))
+        #expect(device.takes(.book))
+        #expect(DeviceCommandKind.book.rawValue == "Book")
+        // Not every device plays books.
+        #expect(!(try FlexarrClient.decoder.decode(Device.self, from: Data(json.replacingOccurrences(of: "\"Book\",", with: "").utf8))).takes(.book))
+    }
+
     @Test func nowPlaying_movesOnWhilePlaying() {
         let reported = Date(timeIntervalSince1970: 1_000)
         let item = ItemSummary(id: "e1", libraryId: "", parentId: nil, kind: .episode, title: "Pilot", year: nil, seasonNumber: 1, episodeNumber: 1,

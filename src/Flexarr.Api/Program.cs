@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using Flexarr.Api.Authentication;
 using Flexarr.Api.Backups;
+using Flexarr.Api.Books;
 using Flexarr.Api.Collections;
 using Flexarr.Api.Configuration;
 using Flexarr.Api.Devices;
@@ -132,6 +133,7 @@ builder.Services.AddHttpClient(CommunityLogoIndex.ClientName, c =>
 });
 builder.Services.AddSingleton<CommunityLogoIndex>();
 builder.Services.AddSingleton<SearchIndex>();
+builder.Services.AddSingleton<BookFileConverter>();
 builder.Services.AddSingleton<LiveTvStatus>();
 builder.Services.AddSingleton<LiveTvRefreshSignal>();
 builder.Services.AddSingleton<LiveTvViewers>();
@@ -230,6 +232,9 @@ builder.Services.AddHostedService<BonjourAdvertiser>();
 builder.Services.AddSingleton<FranchiseSync>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<FranchiseSync>());
 builder.Services.AddSingleton<IMetadataSettings, MetadataSettings>();
+builder.Services.AddHttpClient("books", c => c.Timeout = TimeSpan.FromSeconds(20));
+builder.Services.AddScoped(sp => new Flexarr.Metadata.Books.BookProviders(
+    sp.GetRequiredService<IHttpClientFactory>().CreateClient("books"), sp.GetRequiredService<IMetadataSettings>));
 builder.Services.AddScoped<MetadataRefresher>();
 builder.Services.AddScoped<PathMappingFinder>();
 
@@ -421,6 +426,9 @@ app.MapGroup("/api/v1")
     .MapCollectionEndpoints()
     .MapPlaylistEndpoints()
     .MapPodcastEndpoints()
+    .MapBookEndpoints()
+    .MapBookMatchEndpoints()
+    .MapBookRequestEndpoints()
     .MapLiveTvEndpoints()
     .MapDvrEndpoints()
     .MapMusicMixEndpoints()

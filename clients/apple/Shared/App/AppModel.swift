@@ -36,6 +36,8 @@ final class AppModel {
     private(set) var liveTvStatus: LiveTvStatus?
     /// How this profile listens to podcasts (auto-download, how many to keep, speed); nil until loaded.
     private(set) var podcastPreferences: PodcastPreferences?
+    /// How this profile listens to books (default speed, skip steps, smart rewind); nil without an audiobooks library.
+    private(set) var bookListening: BookListening?
     /// The podcast episodes to hear next, as the server keeps them for this profile (every device sees the same).
     private(set) var upNext: [PodcastEpisode] = [] {
         didSet { if upNext != oldValue { onPodcastsChange?() } }
@@ -82,6 +84,8 @@ final class AppModel {
     var pendingSettings = false
     /// A podcast episode was heard to the end: the phone's downloads send the play and drop its file (see RootView).
     @ObservationIgnored var onPodcastHeard: (() -> Void)?
+    /// A book was heard to the end (its id), for the downloads to act on.
+    @ObservationIgnored var onBookHeard: ((String) -> Void)?
     /// Bumped when Play or Shuffle starts music on Apple TV, which then goes to its Now Playing tab.
     var nowPlayingRequests = 0
     /// The server's error-report switch, as it last said (nil until asked, and from servers before it).
@@ -182,6 +186,15 @@ final class AppModel {
                 guard let self else { return }
                 self.invalidate()
                 self.onPodcastHeard?()
+            }
+        }
+        // A book heard to the end leaves Continue listening at once (the server has it as finished).
+        music.onBookFinished = { [weak self] id in
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .seconds(1.5))
+                guard let self else { return }
+                self.watchStateChanged()
+                self.onBookHeard?(id)
             }
         }
         music.onPodcastStarted = { [weak self] in
@@ -798,6 +811,9 @@ final class AppModel {
         if podcastStatus?.available == true { podcastPreferences = try? await client.podcastPreferences() }
         // Nor Live TV.
         liveTvStatus = isKids ? nil : try? await client.liveTvStatus()
+        if libraries.contains(where: { $0.type == .audiobooks }), let listening = try? await client.bookListening() {
+            bookListening = listening
+        }
         await refreshWatchlist()
     }
 
@@ -916,6 +932,11 @@ final class AppModel {
 
     func play(_ item: ItemSummary, fromBeginning: Bool = false) {
         guard let client else { return }
+        // A book plays in the audio player, never as a video.
+        if item.kind == .audiobook {
+            playBook(item, at: fromBeginning ? 0 : nil)
+            return
+        }
         player.play(itemId: item.id, preview: item, startAt: fromBeginning ? 0 : nil, client: client)
     }
 
@@ -945,6 +966,64 @@ final class AppModel {
         default:
             play(item)
         }
+    }
+
+    // MARK: Books
+
+    /// Plays a book from where this profile is in it, or from `position` (a chapter, a bookmark).
+    func playBook(_ book: ItemSummary, at position: Double? = nil) {
+        guard let client else { return }
+        let starting = music.current?.id != book.id
+        music.playBook(book, at: position, client: client)
+        #if os(tvOS)
+        // The Apple TV shows Now Playing over everything as a book starts, as it does for music.
+        if starting { nowPlayingRequests += 1 }
+        #endif
+    }
+
+    /// What was listened to last, book or podcast episode (the newest of the two "continue listening" lists), for
+    /// Resume listening and the widget.
+    func lastListened() async -> ItemSummary? {
+        guard let client, !isKids else { return nil }
+        var candidates: [ItemSummary] = []
+        if podcastStatus?.available != false, let episode = try? await client.continueListening(take: 1).first {
+            candidates.append(episode.summary)
+        }
+        for library in libraries where library.type == .audiobooks {
+            if let book = try? await client.bookShelves(library.id).continueListening.first { candidates.append(book) }
+        }
+        return candidates.max { ($0.userData.lastPlayedAt ?? .distantPast) < ($1.userData.lastPlayedAt ?? .distantPast) }
+    }
+
+    /// Marks a book finished (it leaves Continue listening) or not.
+    func setBookFinished(_ book: ItemSummary, _ finished: Bool) async {
+        guard let client else { return }
+        try? await client.setBookFinished(book.id, finished: finished)
+        watchStateChanged()
+    }
+
+    /// Starts a book over from the beginning, keeping when it was finished.
+    func listenAgain(_ book: ItemSummary) async {
+        guard let client else { return }
+        try? await client.listenAgain(book.id)
+        watchStateChanged()
+        playBook(book, at: 0)
+    }
+
+    /// Saves how this profile listens to books, on every device (and the book playing takes the new steps). False
+    /// when it didn't save.
+    @discardableResult
+    func updateBookListening(_ update: BookListeningUpdate) async -> Bool {
+        guard let client, let saved = try? await client.setBookListening(update) else { return false }
+        bookListening = saved
+        music.listeningChanged(saved)
+        return true
+    }
+
+    /// How this profile listens to books, asked again (Settings › Audiobooks).
+    func loadBookListening() async {
+        guard let client else { return }
+        if let listening = try? await client.bookListening() { bookListening = listening }
     }
 
     // MARK: Podcasts
@@ -1105,6 +1184,9 @@ final class AppModel {
             Task {
                 if let episode = try? await client.podcastEpisode(id) {
                     playEpisode(episode.summary)
+                } else if let book = try? await client.item(id).item, book.kind == .audiobook {
+                    // A book plays in the audio player.
+                    playBook(book, at: command.fromBeginning ? 0 : command.seconds)
                 } else {
                     // From where it was asked to start (Undo after Stop), else from the beginning or where it was left.
                     player.play(itemId: id, preview: nil, startAt: command.fromBeginning ? 0 : command.seconds, client: client, shuffle: command.shuffle)
@@ -1135,6 +1217,15 @@ final class AppModel {
             case .rate: if let rate = command.rate { music.setSpeed(rate) }
             default: break
             }
+        case .sleep:
+            // The audio player's sleep timer: minutes, the end of the chapter, or off.
+            if command.endOfChapter == true, music.isBook {
+                music.sleep.set(.endOfChapter)
+            } else if let seconds = command.seconds, seconds > 0 {
+                music.sleep.set(.minutes(max(1, Int((seconds / 60).rounded()))))
+            } else {
+                music.sleep.set(nil)
+            }
         case .sound:
             // A player that's open follows the change, as it does one made in Settings.
             guard let sound = command.sound else { return }
@@ -1144,7 +1235,7 @@ final class AppModel {
             if let speakers = sound.speakers.flatMap(SoundSettings.Speakers.init(rawValue:)) { settings.speakers = speakers }
             SoundSettings.current = settings
             player.reportForRemotes()
-        case .unknown: break
+        case .book, .unknown: break // `book` is only ever listed in `accepts`
         }
     }
 
@@ -1160,6 +1251,8 @@ final class AppModel {
         guard let client else { return }
         if let episode = try? await client.podcastEpisode(itemId) {
             playEpisode(episode.summary)
+        } else if let detail = try? await client.item(itemId), detail.item.kind == .audiobook {
+            playBook(detail.item)
         } else if let detail = try? await client.item(itemId), detail.item.kind == .series || detail.item.kind == .season {
             if let next = try? await client.nextUp(itemId) { play(next) } else { pendingRoute = .itemID(itemId) }
         } else {
@@ -1228,7 +1321,13 @@ final class AppModel {
                     return
                 }
                 // A show or season (a link made before the profile was chosen) plays the episode this profile is up to.
-                if !shuffle, let item = try? await client.item(id).item, item.kind == .series || item.kind == .season {
+                let found = shuffle ? nil : try? await client.item(id).item
+                // A book goes to the audio player.
+                if let found, found.kind == .audiobook {
+                    playBook(found, at: start)
+                    return
+                }
+                if let item = found, item.kind == .series || item.kind == .season {
                     if let next = try? await client.nextUp(id) {
                         player.play(itemId: next.id, preview: next, startAt: start, client: client, subtitleKey: subtitles)
                     } else {
@@ -1338,6 +1437,8 @@ enum Route: Hashable {
     case genre(String)
     /// The profile's watchlist.
     case watchlist
+    /// An audiobook series in reading order (iPhone and iPad).
+    case bookSeries(id: String, name: String)
 }
 
 /// One navigation stack per tab.

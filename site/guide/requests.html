@@ -77,6 +77,7 @@
               <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
               <li><a href="/guide/music">Music</a></li>
               <li><a href="/guide/podcasts">Podcasts</a></li>
+              <li><a href="/guide/audiobooks">Audiobooks</a></li>
               <li><a href="/guide/watchlist">Watchlist</a></li>
               <li><a href="/guide/trakt">Trakt</a></li>
               <li><a href="/guide/downloads">Downloads</a></li>
@@ -114,7 +115,7 @@
         <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Your *arrs</p>
         <h1>Requests</h1>
         <p class="lede">Find films and shows you don&#39;t have yet in Discover, and request them through Seerr from the web app or the Apple TV.</p>
-        <p class="meta">3 min read</p>
+        <p class="meta">4 min read</p>
         <nav class="toc" aria-label="On this page">
           <p>On this page</p>
           <ol>
@@ -125,6 +126,7 @@
             <li><a href="#who-can-request">Who can request</a></li>
             <li><a href="#status-and-when-it-arrives">Status and when it arrives</a></li>
             <li><a href="#if-requests-don-t-work">If requests don&#39;t work</a></li>
+            <li><a href="#audiobooks">Audiobooks</a></li>
           </ol>
         </nav>
         <div class="prose">
@@ -133,7 +135,7 @@
 <h2 id="before-you-start"><a class="anchor" href="#before-you-start" aria-hidden="true" tabindex="-1">#</a>Before you start</h2>
 <p>Connect Seerr in <strong>Settings › Connections</strong>: choose the pencil beside <strong>Seerr</strong>, type its <strong>Address</strong> (usually <code>http://&lt;host&gt;:5055</code>) and its <strong>API key</strong> (in Seerr, under <strong>Settings › General</strong>), and choose <strong>Save</strong>. See <a href="/guide/connect-arrs">Connect Sonarr, Radarr, Lidarr and Seerr</a>.</p>
 <p>Seerr itself needs Radarr and Sonarr set up in its own settings, since it hands requests to them. For requested titles to show up the moment they&#39;re downloaded, set up the <a href="/guide/connect-arrs#webhooks-new-downloads-appear-straight-away">webhooks</a> too.</p>
-<blockquote class="callout note"><p><strong>Note</strong> Requests are for films and shows. Music isn&#39;t requested through Seerr.</p>
+<blockquote class="callout note"><p><strong>Note</strong> Seerr requests are for films and shows. Audiobooks are requested through Readarr, Bookshelf or Chaptarr instead: see <a href="#audiobooks">Audiobooks</a>. Music isn&#39;t requested.</p>
 </blockquote>
 <h2 id="where-you-can-request"><a class="anchor" href="#where-you-can-request" aria-hidden="true" tabindex="-1">#</a>Where you can request</h2>
 <div class="table"><table>
@@ -228,6 +230,10 @@
 <li><strong>&quot;This profile can&#39;t request films&quot; (or shows):</strong> that kind of library is hidden from the profile you&#39;re using.</li>
 <li><strong>&quot;Seerr didn&#39;t accept the request&quot;:</strong> it may already be requested, or Seerr turned it down. Seerr&#39;s own requests page says why.</li>
 </ul>
+<h2 id="audiobooks"><a class="anchor" href="#audiobooks" aria-hidden="true" tabindex="-1">#</a>Audiobooks</h2>
+<p>Seerr doesn&#39;t handle books, so Flexarr asks Readarr, Bookshelf or Chaptarr itself. Connect one in <strong>Settings › Connections</strong>, then in <strong>Settings › Requests</strong> choose its quality profile, metadata profile and root folder for books.</p>
+<p>Search for a book you don&#39;t have and choose <strong>Request</strong>. Each result says whether it&#39;s <strong>In your library</strong>, <strong>Requested</strong> or available to request. Flexarr adds the book (and its author, if they&#39;re new, without following their other books), then asks for it to be found. When it arrives, whoever asked hears that it&#39;s ready to listen.</p>
+<p>Each profile can send its books to a library of its own, in <strong>Settings › Profiles</strong>.</p>
 
         </div>
         <nav class="pager" aria-label="More of the guide">

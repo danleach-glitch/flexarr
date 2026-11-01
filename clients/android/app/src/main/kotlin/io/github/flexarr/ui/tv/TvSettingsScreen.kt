@@ -43,6 +43,7 @@ import io.github.flexarr.ui.components.Load
 import io.github.flexarr.ui.components.Loader
 import io.github.flexarr.ui.components.rememberLoader
 import io.github.flexarr.ui.library.LibraryMenuEntry
+import io.github.flexarr.ui.library.onTv
 import io.github.flexarr.ui.theme.Flexarr
 
 /** Settings' pages, opened from the first and from each other; Back goes to the one before. */
@@ -88,7 +89,9 @@ fun TvSettingsScreen(model: AppModel, onSwitchProfile: () -> Unit) {
 
 /** The places in the sidebar between Home and Search, in the profile's order: its libraries and Live TV, not Podcasts. */
 internal fun sidebarEntries(model: AppModel, libraries: Loader<List<Library>>): List<LibraryMenuEntry> =
-    (libraries.state as? Load.Loaded)?.value?.let { list -> LibraryMenuEntry.ordered(model, list).filter { it !is LibraryMenuEntry.Podcasts } }.orEmpty()
+    (libraries.state as? Load.Loaded)?.value?.let { list ->
+        LibraryMenuEntry.ordered(model, list).filter { it !is LibraryMenuEntry.Podcasts && (it !is LibraryMenuEntry.Shelf || it.library.onTv) }
+    }.orEmpty()
 
 @Composable
 private fun MainPage(

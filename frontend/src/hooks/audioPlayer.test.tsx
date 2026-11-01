@@ -249,6 +249,19 @@ describe('AudioPlayerProvider', () => {
       await waitFor(() => expect(a.getAttribute('src')).toBe('/stream/t3'))
     })
 
+    it('leaves a book queued next until it is reached, so its session is started with the device name', async () => {
+      const { requests } = playbackApi()
+      const book = summary({ id: 'b1', kind: 'Audiobook', title: 'The Book', durationSeconds: 200 }) as unknown as ItemSummary
+      const { result } = renderHook(useAudioPlayer, { wrapper: AudioPlayerProvider })
+      act(() => result.current.play([one, book] as unknown as ItemSummary[], 0))
+      const [a, b] = elements()
+      await waitFor(() => expect(a.getAttribute('src')).toBe('/stream/t1'))
+      tick(a, 245)
+      tick(a, 246)
+      expect(b.getAttribute('src')).toBeNull()
+      expect(requests.map((r) => r.itemId)).toEqual(['t1'])
+    })
+
     it('lets a prepared next track go when the queue changes so it is no longer next', async () => {
       const { requests, stopped } = playbackApi()
       const { result } = renderHook(useAudioPlayer, { wrapper: AudioPlayerProvider })
@@ -521,6 +534,145 @@ describe('AudioPlayerProvider', () => {
       expect(result.current.playing).toBe(false)
       expect(result.current.sleep).toBeNull()
       expect(requests.map((r) => r.itemId)).toEqual(['e1', 'e2'])
+    })
+  })
+
+  describe('books', () => {
+    const book = summary({ id: 'b1', kind: 'Audiobook', title: 'The Book', durationSeconds: 200 }) as unknown as ItemSummary
+    const file = (index: number) => ({ index, fileId: `f${index}`, offsetSeconds: index * 100, durationSeconds: 100, container: 'mp3', audioCodec: 'mp3', size: 1, url: `/book/${index}` })
+    const manifest = {
+      itemId: 'b1',
+      durationSeconds: 200,
+      files: [file(0), file(1)],
+      chapters: [
+        { index: 0, title: 'One', startSeconds: 0, endSeconds: 50 },
+        { index: 1, title: 'Two', startSeconds: 50, endSeconds: 100 },
+        { index: 2, title: 'Three', startSeconds: 100, endSeconds: 200 },
+      ],
+      bookmarks: [],
+      progress: { positionSeconds: 0, finished: false, finishedAt: null, updatedAt: null, device: null },
+      speed: 1,
+      listening: { speed: 1, skipBackSeconds: 30, skipForwardSeconds: 30, smartRewind: true },
+      nextInSeries: null,
+    }
+
+    /** Starts the book's session; `expired` makes the session's progress reports answer 404, as after a long pause. */
+    function bookApi({ expired = false } = {}) {
+      const progress: { positionSeconds: number; paused: boolean; ended: boolean }[] = []
+      const direct: { positionSeconds: number; ended: boolean }[] = []
+      mockApi({
+        'POST /playback': () => ({
+          sessionId: 'session-b1',
+          method: 'DirectPlay',
+          url: '',
+          reasons: [],
+          durationSeconds: 200,
+          startPositionSeconds: 0,
+          fileId: '',
+          audioTracks: [],
+          selectedAudioIndex: null,
+          subtitles: [],
+          selectedSubtitleKey: null,
+          subtitleBurnedIn: false,
+          book: manifest,
+        }),
+        'DELETE /playback/session-b1': () => undefined,
+        'POST /playback/session-b1/progress': (init?: RequestInit) =>
+          expired ? new Response('', { status: 404 }) : void progress.push(JSON.parse(String(init?.body))),
+        'PUT /items/b1/progress': (init?: RequestInit) => void direct.push(JSON.parse(String(init?.body))),
+      })
+      return { progress, direct }
+    }
+
+    /** The element has read the file's header: it knows its length, and can go to a place in it. */
+    const metadata = (el: HTMLAudioElement) => act(() => void el.dispatchEvent(new Event('loadedmetadata')))
+
+    async function start() {
+      const { result } = renderHook(useAudioPlayer, { wrapper: AudioPlayerProvider })
+      act(() => result.current.play([book]))
+      const [a, b] = elements()
+      await waitFor(() => expect(a.getAttribute('src')).toBe('/book/0'))
+      await waitFor(() => expect(result.current.book?.itemId).toBe('b1'))
+      metadata(a)
+      return { result, a, b }
+    }
+
+    it('keep the place chosen in another file while that file loads, and smart rewind leaves a chosen place alone', async () => {
+      const { progress } = bookApi()
+      const { result, a } = await start()
+      tick(a, 30)
+      // Paused a long while: smart rewind would step back on Play...
+      act(() => result.current.toggle())
+      const now = Date.now()
+      vi.spyOn(Date, 'now').mockReturnValue(now + 3_600_000)
+
+      // ...but a chapter tapped in the meantime is where it plays from.
+      act(() => result.current.seek(150))
+      expect(a.getAttribute('src')).toBe('/book/1')
+      // Until the new file says how long it is, the book's place is the one chosen, not that file's start.
+      act(() => a.pause())
+      act(() => result.current.toggle())
+      act(() => a.pause())
+      await waitFor(() => expect(progress.at(-1)).toMatchObject({ positionSeconds: 150, paused: true }))
+      metadata(a)
+      expect(a.currentTime).toBe(50)
+      expect(a.getAttribute('src')).toBe('/book/1')
+      vi.restoreAllMocks()
+    })
+
+    it('leave a next file that failed to load ahead until the one playing ends', async () => {
+      bookApi()
+      const { a, b } = await start()
+      tick(a, 92)
+      expect(b.getAttribute('src')).toBe('/book/1')
+      act(() => void b.dispatchEvent(new Event('error')))
+      expect(b.getAttribute('src')).toBeNull()
+      tick(a, 94)
+      tick(a, 96)
+      expect(b.getAttribute('src')).toBeNull()
+
+      ends(a)
+      expect(a.getAttribute('src')).toBe('/book/1')
+    })
+
+    it('move "end of chapter" to the chapter a seek lands in', async () => {
+      bookApi()
+      const { result, a } = await start()
+      tick(a, 10)
+      act(() => result.current.setSleep({ endOfChapter: true, at: 50 }))
+
+      // Next chapter lands exactly where the timer was: it now waits for the end of that chapter instead.
+      act(() => result.current.next())
+      expect(result.current.sleep).toEqual({ endOfChapter: true, at: 100 })
+      act(() => result.current.seek(120))
+      expect(result.current.sleep).toEqual({ endOfChapter: true, at: 200 })
+      expect(result.current.playing).toBe(true)
+    })
+
+    it('send the place to the book itself once the session has expired', async () => {
+      const { direct } = bookApi({ expired: true })
+      const { result, a } = await start()
+      tick(a, 40)
+      act(() => result.current.toggle())
+      await waitFor(() => expect(direct).toEqual([expect.objectContaining({ positionSeconds: 40, ended: false })]))
+    })
+
+    it('send the place to the book itself as the page closes after a pause longer than a session lasts', async () => {
+      const { progress, direct } = bookApi()
+      const beacon = vi.fn(() => true)
+      vi.stubGlobal('navigator', { ...navigator, sendBeacon: beacon })
+      const { result, a } = await start()
+      tick(a, 40)
+      act(() => result.current.toggle())
+      await waitFor(() => expect(progress.at(-1)).toMatchObject({ positionSeconds: 40, paused: true }))
+
+      // Paused overnight: the server has ended the session, though nothing has asked it yet.
+      const now = Date.now()
+      vi.spyOn(Date, 'now').mockReturnValue(now + 11.5 * 3_600_000)
+      act(() => void window.dispatchEvent(new Event('pagehide')))
+      expect(beacon).not.toHaveBeenCalled()
+      await waitFor(() => expect(direct).toEqual([expect.objectContaining({ positionSeconds: 40, ended: false })]))
+      vi.restoreAllMocks()
     })
   })
 })

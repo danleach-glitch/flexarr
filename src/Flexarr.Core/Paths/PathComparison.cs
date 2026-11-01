@@ -10,7 +10,22 @@ public static class PathComparison
     /// absolute with <c>.</c> and <c>..</c> resolved first, so <c>/tv/../../etc</c> isn't under <c>/tv</c>, and
     /// compared in composed Unicode, as macOS may hand back "é" decomposed.
     /// </summary>
-    public static bool IsUnder(string path, string root)
+    public static bool IsUnder(string path, string root) => IsUnder(path, root, StringComparison.Ordinal);
+
+    /// <summary>
+    /// How this machine's file system compares names: ignoring case on macOS (APFS and HFS+ as they're set up out of
+    /// the box) and Windows, exactly elsewhere. For telling whether two paths someone typed, or another app reported,
+    /// name the same file; not for paths Flexarr itself found, which are always spelled as on disk.
+    /// </summary>
+    public static StringComparison FileSystemComparison { get; } =
+        OperatingSystem.IsMacOS() || OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+
+    /// <summary>Compares <see cref="Key"/>s as <see cref="FileSystemComparison"/> does.</summary>
+    public static StringComparer FileSystemKeyComparer { get; } =
+        FileSystemComparison == StringComparison.OrdinalIgnoreCase ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+
+    /// <summary><see cref="IsUnder(string, string)"/>, comparing names as <paramref name="comparison"/> says.</summary>
+    public static bool IsUnder(string path, string root, StringComparison comparison)
     {
         ArgumentNullException.ThrowIfNull(path);
         ArgumentNullException.ThrowIfNull(root);
@@ -21,7 +36,7 @@ public static class PathComparison
             return false;
         }
 
-        return pathKey.StartsWith(rootKey, StringComparison.Ordinal)
+        return pathKey.StartsWith(rootKey, comparison)
             && (pathKey.Length == rootKey.Length || pathKey[rootKey.Length] is '/' or '\\' || rootKey is "/");
     }
 

@@ -1,0 +1,486 @@
+/* ---------- Audiobooks: the player ---------- */
+
+/* An offer just above the bar: another device's place, or the next book in the series. */
+.book-offer {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--now-playing-height, 88px) + 28px);
+  z-index: 56;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  max-width: calc(100vw - 32px);
+  padding: 8px 8px 8px 18px;
+  border: 1px solid var(--aisle);
+  border-radius: var(--radius-panel);
+  background: color-mix(in srgb, var(--seat) 96%, transparent);
+  backdrop-filter: blur(20px);
+  box-shadow: 0 12px 40px rgb(0 0 0 / 0.45);
+  transform: translateX(-50%);
+}
+
+.book-offer span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.book-offer .button svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Now Playing's switch between the chapter and the whole book on the scrubber: two words, each as wide as it needs. */
+.np-view-scopes {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.np-view-tools .np-view-scope {
+  width: auto;
+  padding: 0 14px;
+  font-weight: 700;
+}
+
+/* Chapter, where no chapter covers the time. */
+.np-view-tools .np-view-scope:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+@media (max-width: 760px) {
+  .np-view-tools .np-view-scope {
+    padding: 0 10px;
+  }
+}
+
+.np-view-details .book-bookmarks {
+  margin: 0;
+  font-size: var(--step--1);
+}
+
+.np-view-details .book-bookmark-jump {
+  grid-template-columns: 3.5rem minmax(0, 1fr);
+  padding: 8px 10px;
+}
+
+.now-playing-bookmark svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* ---------- Audiobooks: chapter editor ---------- */
+
+.chapter-editor {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto auto auto auto;
+  gap: 12px;
+  width: min(640px, 100%);
+  max-height: 84vh;
+}
+
+.chapter-editor h2 {
+  font-size: var(--step-3);
+}
+
+.chapter-edit-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.chapter-edit-list li {
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr) 7rem auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.chapter-edit-number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.chapter-edit-start {
+  font-variant-numeric: tabular-nums;
+}
+
+.chapter-edit-start[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+
+.chapter-editor .text-button {
+  justify-self: start;
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.chapter-editor .text-button svg {
+  width: 16px;
+  height: 16px;
+}
+
+.chapter-edit-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.chapter-edit-tools label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.chapter-edit-tools input {
+  width: 7rem;
+}
+
+/* ---------- Settings › Audiobooks ---------- */
+
+.key-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.key-row input {
+  width: min(16rem, 60vw);
+}
+
+/* ---------- Audiobooks: library ---------- */
+
+.books-library {
+  padding-bottom: 48px;
+}
+
+/* Shelves run edge to edge, as on Home: their track carries the page's margin itself. */
+.book-shelves {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 36px;
+  margin: 0 calc(-1 * var(--edge));
+}
+
+.book-shelves .row-header,
+.book-genres {
+  padding: 0 var(--edge);
+}
+
+.book-genres h2 {
+  margin-bottom: 12px;
+  font-size: var(--step-2);
+  font-weight: 800;
+}
+
+.book-filters {
+  margin-bottom: 18px;
+}
+
+.book-filters select {
+  max-width: 14rem;
+}
+
+.book-count {
+  margin-bottom: 14px;
+}
+
+.people-grid {
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+}
+
+/* ---------- Audiobooks: a book's page ---------- */
+
+.book-page {
+  padding-bottom: 48px;
+}
+
+.book-page .music-header h1 {
+  font-size: clamp(var(--step-4), 4vw, 4rem);
+}
+
+.book-series-link {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-bottom: 10px;
+  font-weight: 600;
+}
+
+.book-series-link a,
+.book-people a {
+  color: var(--screen);
+  text-decoration: none;
+}
+
+.book-series-link a:hover,
+.book-people a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.book-subtitle {
+  margin-top: 8px;
+  font-size: var(--step-1);
+  color: color-mix(in srgb, var(--screen) 78%, transparent);
+}
+
+.book-people {
+  margin-top: 8px;
+}
+
+.book-page .facts {
+  margin-top: 12px;
+}
+
+.book-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 40px;
+  align-items: start;
+  margin-bottom: 40px;
+}
+
+.book-body > :only-child {
+  grid-column: 1 / -1;
+  max-width: 900px;
+}
+
+.book-about .detail-overview-block {
+  max-width: 44rem;
+}
+
+.book-edition {
+  margin-top: 12px;
+}
+
+/* A few facts in a line, set apart by space rather than dots. */
+.book-edition,
+.meta-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+}
+
+.book-chapters h2 {
+  margin-bottom: 8px;
+  font-size: var(--step-1);
+  font-weight: 700;
+}
+
+.book-chapters .track-title {
+  position: relative;
+  padding-bottom: 6px;
+}
+
+/* How far through the chapter playing: a thin line under its title. */
+.chapter-progress {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--ambient);
+}
+
+.track.done .track-title {
+  color: var(--usher);
+}
+
+.track.done .track-number svg {
+  color: var(--usher);
+}
+
+.book-rows {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 36px;
+  margin: 0 calc(-1 * var(--edge));
+}
+
+.book-rows .row-header {
+  padding: 0 var(--edge);
+}
+
+.book-bookmarks {
+  list-style: none;
+  max-width: 900px;
+  margin: -16px 0 40px;
+  padding: 0;
+}
+
+.book-bookmark {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  border-radius: var(--radius-control);
+}
+
+.book-bookmark:hover,
+.book-bookmark:focus-within {
+  background: var(--seat);
+}
+
+.book-bookmark-jump {
+  display: grid;
+  grid-template-columns: 5.5rem minmax(0, 1fr);
+  gap: 16px;
+  align-items: baseline;
+  padding: 10px 12px;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.book-bookmark-time {
+  color: var(--usher);
+  font-variant-numeric: tabular-nums;
+}
+
+.book-bookmark-text {
+  display: flex;
+  flex-direction: column;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 900px) {
+  .book-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* A series' first covers fanned behind one another, each smaller and dimmer than the one in front. */
+.book-stack {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  padding: 14px 14px 0 0;
+}
+
+.book-stack > .card-frame {
+  grid-area: 1 / 1;
+}
+
+.book-stack-2 > :nth-child(2),
+.book-stack-3 > :nth-child(2) {
+  transform: translate(7px, -7px) scale(0.96);
+  filter: brightness(0.7);
+  z-index: -1;
+}
+
+.book-stack-3 > :nth-child(3) {
+  transform: translate(14px, -14px) scale(0.92);
+  filter: brightness(0.5);
+  z-index: -2;
+}
+
+/* ---------- Audiobooks: a series in reading order ---------- */
+
+.book-series-header {
+  max-width: 900px;
+  margin-bottom: 32px;
+}
+
+.book-series-header h1 {
+  font-size: clamp(var(--step-4), 4vw, 4rem);
+  font-weight: 800;
+  line-height: 0.95;
+  text-wrap: balance;
+}
+
+.book-series-header .facts {
+  margin: 12px 0;
+}
+
+.series-books {
+  list-style: none;
+  max-width: 900px;
+  margin: 0;
+  padding: 0 0 48px;
+}
+
+.series-book {
+  display: grid;
+  grid-template-columns: 2.5rem 64px minmax(0, 1fr) auto auto;
+  gap: 16px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: var(--radius-control);
+}
+
+.series-book:hover,
+.series-book:focus-within {
+  background: var(--seat);
+}
+
+.series-book.next {
+  background: color-mix(in srgb, var(--ambient) 12%, transparent);
+}
+
+.series-book-number {
+  color: var(--usher);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.series-book-cover {
+  display: block;
+  border-radius: var(--radius-art);
+  overflow: hidden;
+}
+
+.series-book-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.series-book-title {
+  color: var(--screen);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.series-book-title:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.series-book .detail-progress {
+  width: min(200px, 100%);
+  margin-top: 6px;
+}
+
+.series-book.finished .series-book-title {
+  color: var(--usher);
+}
+
+.series-book-done {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.series-book-done svg {
+  width: 16px;
+  height: 16px;
+}
+
+.series-book-next {
+  color: var(--ambient);
+  font-weight: 700;
+}
+
+.person-biography {
+  max-width: 44rem;
+  margin-top: 12px;
+}

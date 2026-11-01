@@ -36,6 +36,7 @@ struct PosterCard: View {
     }
 
     private var subtitle: String? {
+        if item.kind == .audiobook { return item.bookAuthors }
         if item.kind == .series, let count = item.userData.unwatchedCount, count > 0 {
             return [item.releaseYear.map(String.init), "\(count) new"].compactMap { $0 }.joined(separator: "  ")
         }
@@ -51,7 +52,7 @@ struct PosterArtwork: View {
     var body: some View {
         Color.seat
             // Album covers and artist pictures are square; everything else is a 2:3 poster.
-            .aspectRatio(item.kind.isMusic ? 1 : 2 / 3, contentMode: .fit)
+            .aspectRatio(item.kind.isMusic || item.kind == .audiobook ? 1 : 2 / 3, contentMode: .fit)
             .overlay {
                 RemoteImage(url: model.client?.imageURL(item.artwork.poster, width: 342)) {
                     ZStack {
@@ -70,7 +71,7 @@ struct PosterArtwork: View {
                 }
             }
             .overlay(alignment: .topTrailing) {
-                if item.userData.watched { WatchedBadge().padding(6) }
+                if item.userData.watched { WatchedBadge(label: item.isBook ? "Finished" : "Watched").padding(6) }
             }
             .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
     }
@@ -170,14 +171,17 @@ struct OutlinedNumeral: View {
     }
 }
 
+/// The tick on something watched; a book's is read as "Finished".
 struct WatchedBadge: View {
+    var label = "Watched"
+
     var body: some View {
         Image(systemName: "checkmark")
             .font(.system(size: 10, weight: .heavy))
             .foregroundStyle(Color.room)
             .frame(width: 20, height: 20)
             .background(Circle().fill(Color.screen.opacity(0.92)))
-            .accessibilityLabel("Watched")
+            .accessibilityLabel(label)
     }
 }
 
@@ -241,6 +245,15 @@ struct ItemContextMenu: View {
     var showsDetails = false
 
     var body: some View {
+        if item.kind == .audiobook {
+            BookContextMenu(item: item)
+        } else {
+            menu
+        }
+    }
+
+    @ViewBuilder
+    private var menu: some View {
         if item.kind == .movie || item.kind == .episode {
             Button { model.play(item) } label: {
                 Label(item.isResumable ? "Resume" : "Play", systemImage: "play.fill")

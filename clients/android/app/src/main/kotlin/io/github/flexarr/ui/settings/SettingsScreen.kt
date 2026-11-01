@@ -47,6 +47,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import io.github.flexarr.ReviewPrompt
 import io.github.flexarr.ui.library.LibraryMenuEntry
+import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PrivacyTip
@@ -124,6 +125,7 @@ fun SettingsScreen(
     onPodcasts: () -> Unit,
     onNotifications: () -> Unit,
     onTrakt: () -> Unit,
+    onAudiobooks: () -> Unit,
 ) {
     var confirmSignOut by remember { mutableStateOf(false) }
     var choosingProfile by remember { mutableStateOf(false) }
@@ -226,6 +228,11 @@ fun SettingsScreen(
                     if (model.podcastStatus?.available == true) {
                         Divider()
                         SettingsLink("Podcasts", Icons.Filled.Mic, value = null, onClick = onPodcasts)
+                    }
+                    // With an audiobooks library to listen to (none for a kids profile, or before 0.58).
+                    if (model.hasAudiobooks) {
+                        Divider()
+                        SettingsLink("Audiobooks", Icons.Filled.Headphones, value = null, onClick = onAudiobooks)
                     }
                     // Only from servers that can save an order (0.54 on), and with more than one place to put in order.
                     val order = model.currentProfile?.libraryOrder
@@ -382,10 +389,20 @@ fun DownloadSettingsScreen(model: AppModel) {
                     Toggle("Automatic downloads on Wi-Fi only", downloads.automaticOnWiFiOnly, downloads::changeAutomaticOnWiFiOnly)
                 }
             }
+            if (model.hasAudiobooks || model.bookDownloads.books.isNotEmpty()) {
+                item {
+                    Group(header = "Audiobooks") {
+                        Toggle("Download the next in a series", model.bookDownloads.downloadsNextInSeries, model.bookDownloads::changeDownloadsNextInSeries)
+                        Divider()
+                        Toggle("Remove finished books", model.bookDownloads.removesFinished, model.bookDownloads::changeRemovesFinished)
+                    }
+                }
+            }
             item {
+                val used = downloads.bytesUsed + model.bookDownloads.bytesUsed
                 Group(header = "Storage", footer = "Episodes are deleted a day after you finish them, and podcast episodes once they’re played.") {
-                    Fact("Space used", if (downloads.bytesUsed == 0L) "None" else Format.bytes(downloads.bytesUsed))
-                    if (downloads.downloads.isNotEmpty()) {
+                    Fact("Space used", if (used == 0L) "None" else Format.bytes(used))
+                    if (downloads.downloads.isNotEmpty() || model.bookDownloads.books.isNotEmpty()) {
                         Divider()
                         Text(
                             "Delete all downloads",

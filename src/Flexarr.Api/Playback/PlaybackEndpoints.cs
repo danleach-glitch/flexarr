@@ -134,8 +134,13 @@ public static partial class PlaybackEndpoints
                 return Results.NotFound();
             }
 
+            // A book keeps its own speed, even 1× when the profile's default for books is something else.
+            var bookDefault = item.Kind == MediaKind.Audiobook
+                ? await db.Profiles.Where(p => p.Id == profile.Id).Select(p => (double?)p.AudiobookSpeed).FirstOrDefaultAsync(ct) ?? 1
+                : 1;
             var series = item.Kind switch
             {
+                MediaKind.Audiobook => item.Id,
                 MediaKind.Series => item.Id,
                 MediaKind.Season => item.ParentId,
                 MediaKind.Episode => await db.MediaItems.Where(s => s.Id == item.ParentId).Select(s => s.ParentId).FirstOrDefaultAsync(ct),
@@ -147,7 +152,7 @@ public static partial class PlaybackEndpoints
             }
 
             var kept = await db.ShowPlaybackSpeeds.FirstOrDefaultAsync(s => s.ProfileId == profile.Id && s.SeriesId == seriesId, ct);
-            if (Math.Abs(request.Speed - 1) < 0.001)
+            if (Math.Abs(request.Speed - bookDefault) < 0.001)
             {
                 if (kept is not null)
                 {
@@ -264,6 +269,18 @@ public static partial class PlaybackEndpoints
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
         }).WithTags("Playback");
+
+        // A book's file n, as it is or converted (see BookPlayback.PartsAsync).
+        group.MapGet("/book/{index:int}", async (string sid, int index, PlaybackSessions sessions, Books.BookFileConverter converter, CancellationToken ct) =>
+        {
+            if (sessions.Get(sid) is not { BookParts: { } parts } session || index < 0 || index >= parts.Count)
+            {
+                return Results.NotFound();
+            }
+
+            session.LastSeen = DateTime.UtcNow;
+            return await Books.BookEndpoints.ServeAsync(parts[index], parts[index].Convert, converter, ct);
+        });
 
         group.MapGet("/stream", async (string sid, PlaybackSessions sessions, Podcasts.PodcastFetcher podcasts, HttpContext http, CancellationToken ct) =>
         {
@@ -437,11 +454,16 @@ public static partial class PlaybackEndpoints
         });
 
         group.MapPost("/progress", async (string sid, ProgressRequest progress, PlaybackSessions sessions, PlaybackService playback, PlaybackEvents events,
-            CancellationToken ct) =>
+            Books.BookFileConverter bookConverter, CancellationToken ct) =>
         {
             if (sessions.Get(sid) is not { } session)
             {
                 return Results.NotFound();
+            }
+
+            if (session.BookParts is { } parts && parts.Any(p => p.Convert) && double.IsFinite(progress.PositionSeconds))
+            {
+                bookConverter.Prepare(parts, progress.PositionSeconds); // the next few files this player can't decode, ahead of it
             }
 
             events.Observe(session, progress);
