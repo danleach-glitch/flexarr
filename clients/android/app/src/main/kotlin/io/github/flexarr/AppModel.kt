@@ -304,6 +304,9 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     var homeWatchlistVersion by mutableIntStateOf(0)
         private set
 
+    /** Whether each profile's last Home had New podcasts, so Home skips fetching the episodes when it's switched off. */
+    val newPodcastsMemory = io.github.flexarr.core.NewPodcastsMemory()
+
     /**
      * The profile's whole watchlist, for the Watchlist screen (it asks Seerr where each title has got to, so only there).
      * Null from a server without one; throws when the server can't be reached.

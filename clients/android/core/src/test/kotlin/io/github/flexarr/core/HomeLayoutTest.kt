@@ -86,4 +86,31 @@ class HomeLayoutTest {
         assertEquals(listOf(BookShelf.RecentlyAdded), some.shownShelves)
         assertTrue(shelves("""{"order":[]}""").isEmpty)
     }
+
+    @Test
+    fun `New podcasts episodes are fetched alongside Home until a Home has the row switched off`() {
+        val memory = NewPodcastsMemory()
+        // Nothing known yet: fetched.
+        assertTrue(memory.fetchesAlongside("p"))
+        val off = home("""{"featured":[],"placesPodcasts":true,"rows":[{"id":"recent","title":"Latest","style":"poster","items":[$item]}]}""")
+        assertTrue(!off.hasNewPodcasts)
+        memory.remember("p", off)
+        assertTrue(!memory.fetchesAlongside("p"))
+        // Another profile isn't affected.
+        assertTrue(memory.fetchesAlongside("q"))
+        // Switched back on: fetched alongside again from then on.
+        val on = home("""{"featured":[],"placesPodcasts":true,"rows":[{"id":"podcasts-new","title":"New podcasts","style":"podcasts","items":[]}]}""")
+        assertTrue(on.hasNewPodcasts)
+        memory.remember("p", on)
+        assertTrue(memory.fetchesAlongside("p"))
+    }
+
+    @Test
+    fun `a server before 0_58 always has New podcasts, so the episodes are always fetched`() {
+        val memory = NewPodcastsMemory()
+        val older = home("""{"featured":[],"rows":[]}""")
+        assertTrue(older.hasNewPodcasts)
+        memory.remember(null, older)
+        assertTrue(memory.fetchesAlongside(null))
+    }
 }

@@ -366,6 +366,24 @@ data class Home(
     }
 }
 
+/** Whether this Home has the New podcasts row: not when the server places it and the profile switched it off. */
+val Home.hasNewPodcasts: Boolean get() = placesPodcasts != true || rows.any { it.id == HOME_PODCASTS_ROW_ID }
+
+/**
+ * Whether each profile's last Home had the New podcasts row, so one that switched it off doesn't fetch the episodes
+ * on every visit. Not known yet (the first Home, a server before 0.58, which always has it): they're fetched.
+ */
+class NewPodcastsMemory {
+    private val had = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
+
+    /** Whether to fetch the episodes alongside [profileId]'s next Home, rather than only once it's known to want them. */
+    fun fetchesAlongside(profileId: String?): Boolean = had[profileId.orEmpty()] ?: true
+
+    fun remember(profileId: String?, home: Home) {
+        had[profileId.orEmpty()] = home.hasNewPodcasts
+    }
+}
+
 /** A place in Home's list: one of the server's rows, or the app's own New podcasts row. */
 sealed interface HomeSlot {
     data class Row(val row: HomeRow) : HomeSlot
