@@ -51,8 +51,11 @@ builder.Services.AddOptions<FlexarrOptions>()
     .BindConfiguration(FlexarrOptions.SectionName)
     .Configure(options => userConfig.Bind(options))
     // Connections to apps Flexarr no longer talks to (Readarr) are left out by the binder; say so, and tidy config.json.
-    .Configure<ILoggerFactory>((_, logs) => RetiredSettings.Check(
-        [builder.Configuration.GetSection(FlexarrOptions.SectionName), userConfig], dataDirectory, logs.CreateLogger("Flexarr.Configuration")));
+    .Configure<ILoggerFactory>((options, logs) =>
+    {
+        RetiredSettings.Check([builder.Configuration.GetSection(FlexarrOptions.SectionName), userConfig], dataDirectory, logs.CreateLogger("Flexarr.Configuration"));
+        RetiredSettings.DropUnknownKinds(options);
+    });
 builder.Services.AddSingleton<IOptionsChangeTokenSource<FlexarrOptions>>(new ConfigurationChangeTokenSource<FlexarrOptions>(userConfig));
 builder.Services.AddSingleton<IPostConfigureOptions<FlexarrOptions>, ServerConfigStore>();
 

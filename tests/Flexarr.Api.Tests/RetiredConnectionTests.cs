@@ -39,6 +39,7 @@ public sealed class RetiredConnectionTests : IDisposable
         var options = new FlexarrOptions { DataDirectory = _dir };
         config.Bind(options);
         RetiredSettings.Check([config], _dir, NullLogger.Instance);
+        RetiredSettings.DropUnknownKinds(options);
         return options;
     }
 
@@ -74,6 +75,21 @@ public sealed class RetiredConnectionTests : IDisposable
 
         Assert.Equal([("A", ArrKind.Radarr), ("B", ArrKind.Sonarr)], options.Arr.Select(a => (a.Name, a.Kind)));
         Assert.Equal(["A", "B", "C", "D"], Saved()["arr"]!.AsArray().Select(a => a!["name"]!.GetValue<string>()));
+    }
+
+    [Fact]
+    public void ANumberWithNoKind_IsLeftOut_AndAPaddedReadarrIsTidied()
+    {
+        var options = Load("""
+            { "arr": [
+              { "name": "Old", "kind": "3", "baseUrl": "http://localhost:8787", "apiKey": "o" },
+              { "name": "Padded", "kind": " Readarr ", "baseUrl": "http://localhost:8787", "apiKey": "p" },
+              { "name": "Sonarr", "kind": "Sonarr", "baseUrl": "http://localhost:8989", "apiKey": "s" }
+            ] }
+            """);
+
+        Assert.Equal(["Sonarr"], options.Arr.Select(a => a.Name));
+        Assert.Equal(["Old", "Sonarr"], Saved()["arr"]!.AsArray().Select(a => a!["name"]!.GetValue<string>()));
     }
 
     [Theory]

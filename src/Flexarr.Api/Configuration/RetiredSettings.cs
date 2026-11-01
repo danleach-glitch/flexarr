@@ -53,6 +53,16 @@ public static partial class RetiredSettings
         }
     }
 
+    /// <summary>
+    /// Leaves out connections the binder read as a number Flexarr has no kind for (a hand-edited <c>"kind": 3</c>, which
+    /// was Readarr's), as <see cref="Check"/> told the log it would.
+    /// </summary>
+    public static void DropUnknownKinds(FlexarrOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        options.Arr.RemoveAll(a => !Enum.IsDefined(a.Kind));
+    }
+
     /// <summary>Whether the binder reads <paramref name="kind"/> as an <see cref="ArrKind"/>: a name or a number it has, any case.</summary>
     public static bool Readable(string kind) => Enum.TryParse<ArrKind>(kind, ignoreCase: true, out var parsed) && Enum.IsDefined(parsed);
 
@@ -96,7 +106,7 @@ public static partial class RetiredSettings
 
     private static string? KindOf(JsonObject entry) =>
         entry.FirstOrDefault(p => string.Equals(p.Key, "kind", StringComparison.OrdinalIgnoreCase)).Value is JsonValue v
-        && v.TryGetValue<string>(out var kind) ? kind : null;
+        && v.TryGetValue<string>(out var kind) ? kind.Trim() : null;
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Skipped the connection {Name} in the settings: Flexarr doesn't connect to {Kind}")]
     private static partial void LogSkipped(ILogger logger, string name, string kind);
