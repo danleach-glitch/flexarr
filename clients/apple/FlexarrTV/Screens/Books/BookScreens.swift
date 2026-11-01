@@ -48,7 +48,7 @@ struct BookCard: View {
                 }
                 // Unread: no place and not finished, as if never started. Not while it plays, which would set the place again.
                 if item.userData.watched || item.isResumable, model.music.current?.id != item.id {
-                    Button { Task { await model.setBookFinished(item, false) } } label: { Label("Mark as unread", systemImage: "arrow.uturn.backward") }
+                    Button { Task { await model.setBookFinished(item, false) } } label: { Label("Mark as unread", systemImage: "book.closed") }
                 }
             }
         }
@@ -385,8 +385,9 @@ struct BookView: View {
                                 await load()
                             }
                         } label: {
+                            // A closed book for unread: an arrow would look like Start over's beside it.
                             Label(item.userData.watched ? "Mark as unread" : "Mark as finished",
-                                  systemImage: item.userData.watched ? "arrow.uturn.backward" : "checkmark")
+                                  systemImage: item.userData.watched ? "book.closed" : "checkmark")
                         }
                         .buttonStyle(ActionButtonStyle(iconOnly: true))
                         if unread, !item.userData.watched {
@@ -395,7 +396,7 @@ struct BookView: View {
                                     await model.setBookFinished(item, false)
                                     await load()
                                 }
-                            } label: { Label("Mark as unread", systemImage: "arrow.uturn.backward") }
+                            } label: { Label("Mark as unread", systemImage: "book.closed") }
                                 .buttonStyle(ActionButtonStyle(iconOnly: true))
                         }
                     }
