@@ -146,7 +146,7 @@ final class MusicPlayer {
     @ObservationIgnored private var bookURLs: [URL] = []
     /// Where `playBook` was asked to start (a chapter, a bookmark); nil: where this profile is.
     @ObservationIgnored private var bookStart: Double?
-    /// When the book was paused, for smart rewind (forgotten when the listener moves it while paused).
+    /// When the book or episode was paused, for smart rewind (forgotten when the listener moves it while paused).
     @ObservationIgnored private var bookPause = BookPause()
     @ObservationIgnored private var speedSave: Task<Void, Never>?
     /// The book whose speed was just changed and is waiting to be saved: a manifest fetched meanwhile keeps it.
@@ -248,9 +248,18 @@ final class MusicPlayer {
     /// The rate the player runs at while playing.
     private var playRate: Float { isPodcast || isBook ? Float(speed) : 1 }
 
-    /// The book's skip steps (the profile's choice), or a podcast's 15 back and 30 forward.
-    var skipBack: Double { isBook ? Double(book?.listening.skipBackSeconds ?? 30) : 15 }
-    var skipForward: Double { isBook ? Double(book?.listening.skipForwardSeconds ?? 30) : 30 }
+    /// The profile's podcast settings: a podcast's skip steps and smart rewind (shared with books from 0.58).
+    var podcastListening: PodcastPreferences? {
+        didSet { if isPodcast, podcastListening != oldValue { pushNowPlaying() } }
+    }
+
+    /// The profile's skip steps; a podcast on a server from before 0.58 skips 15 back and 30 forward.
+    var skipBack: Double {
+        isBook ? Double(book?.listening.skipBackSeconds ?? 30) : Double(podcastListening?.podcastSkipBack ?? 15)
+    }
+    var skipForward: Double {
+        isBook ? Double(book?.listening.skipForwardSeconds ?? 30) : Double(podcastListening?.podcastSkipForward ?? 30)
+    }
 
     /// The chapter playing in the book.
     var chapter: BookChapter? { bookTimeline?.chapter(at: position) }
@@ -470,6 +479,9 @@ final class MusicPlayer {
             if isBook {
                 let place = smartRewindPlace()
                 if place < position { moveBook(to: place) }
+            } else if isPodcast, let pause = bookPause.resumed(at: Date()), podcastListening?.podcastSmartRewind == true {
+                let place = SmartRewind.place(from: position, back: SmartRewind.seconds(afterPause: pause), chapterStart: nil)
+                if place < position { seek(to: place) }
             }
             player.play()
             if nowPlayingIsIdle { pushNowPlaying() }
@@ -543,6 +555,8 @@ final class MusicPlayer {
             return
         }
         let target = max(0, min(seconds, duration > 0 ? duration : seconds))
+        // A place picked in an episode while paused plays from there, not a little before it.
+        bookPause.seeked()
         position = target
         player.seek(to: CMTime(seconds: target, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
         nowPlaying.setTime(position: target, duration: duration, rate: isPlaying ? playRate : 0, defaultRate: playRate)
@@ -1166,7 +1180,8 @@ final class MusicPlayer {
         let playing = status == .playing
         guard playing != isPlaying else { return }
         isPlaying = playing
-        if isBook {
+        // When a book or episode was paused, for smart rewind.
+        if isBook || isPodcast {
             if playing { bookPause = BookPause() } else { bookPause.paused(at: Date()) }
         }
         if !playing, sessionId != nil || (expiredBookId != nil && expiredBookId == current?.id), player.currentItem != nil { report(paused: true) }
@@ -1248,11 +1263,13 @@ final class MusicPlayer {
             onChange?()
             return
         }
-        nowPlayingCommands = nil
         let podcast = isPodcast
-        if nowPlayingIsIdle || nowPlayingIsPodcast != podcast {
-            if podcast { nowPlaying.activateForPodcast() } else { nowPlaying.activateForMusic() }
+        // A podcast's skip steps are the profile's, so new ones take effect.
+        let commands = podcast ? "podcast#\(skipBack)#\(skipForward)" : nil
+        if nowPlayingIsIdle || nowPlayingIsPodcast != podcast || nowPlayingCommands != commands {
+            if podcast { nowPlaying.activateForPodcast(back: skipBack, forward: skipForward) } else { nowPlaying.activateForMusic() }
             nowPlayingIsPodcast = podcast
+            nowPlayingCommands = commands
         }
         nowPlaying.setTrack(title: track.title, artist: track.artistName, album: podcast ? nil : albumTitle(of: track), artwork: artwork)
         if !podcast { nowPlaying.setEpisodeNavigation(hasPrevious: hasPrevious || position > 3, hasNext: hasNext) }

@@ -34,8 +34,11 @@ final class AppModel {
     private(set) var podcastStatus: PodcastStatus?
     /// Whether the server has Live TV set up; nil for servers before it.
     private(set) var liveTvStatus: LiveTvStatus?
-    /// How this profile listens to podcasts (auto-download, how many to keep, speed); nil until loaded.
-    private(set) var podcastPreferences: PodcastPreferences?
+    /// How this profile listens to podcasts (auto-download, how many to keep, speed, and from 0.58 the skips and smart
+    /// rewind it shares with books); nil until loaded. The podcast player follows it.
+    private(set) var podcastPreferences: PodcastPreferences? {
+        didSet { if podcastPreferences != oldValue { music.podcastListening = podcastPreferences } }
+    }
     /// How this profile listens to books (default speed, skip steps, smart rewind); nil without an audiobooks library.
     private(set) var bookListening: BookListening?
     /// The podcast episodes to hear next, as the server keeps them for this profile (every device sees the same).
@@ -1039,6 +1042,14 @@ final class AppModel {
         guard let client, let saved = try? await client.setBookListening(update) else { return false }
         bookListening = saved
         music.listeningChanged(saved)
+        // Podcasts share them (from 0.58): the server saved both.
+        if var podcasts = podcastPreferences, podcasts.hasListening {
+            podcasts.speed = saved.speed
+            podcasts.skipBackSeconds = saved.skipBackSeconds
+            podcasts.skipForwardSeconds = saved.skipForwardSeconds
+            podcasts.smartRewind = saved.smartRewind
+            podcastPreferences = podcasts
+        }
         return true
     }
 
@@ -1095,10 +1106,25 @@ final class AppModel {
             if let value = update.autoDownload { known.autoDownload = value }
             if let value = update.keepEpisodes { known.keepEpisodes = value }
             if let value = update.speed { known.speed = value }
+            if let value = update.skipBackSeconds { known.skipBackSeconds = value }
+            if let value = update.skipForwardSeconds { known.skipForwardSeconds = value }
+            if let value = update.smartRewind { known.smartRewind = value }
             podcastPreferences = known
         }
-        guard let saved = try? await client.setPodcastPreferences(update) else { return nil }
+        guard let saved = try? await client.setPodcastPreferences(update) else {
+            // Not saved: back to what the server has.
+            if let fresh = try? await client.podcastPreferences() { podcastPreferences = fresh }
+            return nil
+        }
         podcastPreferences = saved
+        // Books share the speed, skips and smart rewind (from 0.58): the server saved both, and the book playing takes them.
+        if bookListening != nil, saved.hasListening,
+           let skipBack = saved.skipBackSeconds, let skipForward = saved.skipForwardSeconds, let smartRewind = saved.smartRewind {
+            let listening = BookListening(speed: BookSpeed.clamped(saved.speed), skipBackSeconds: skipBack, skipForwardSeconds: skipForward,
+                                          smartRewind: smartRewind)
+            bookListening = listening
+            music.listeningChanged(listening)
+        }
         return saved
     }
 
