@@ -1188,7 +1188,7 @@ final class PlaybackController: NSObject {
 
     // MARK: Artwork and detail
 
-    /// "1080p · E-AC-3 5.1 · Original", or the server's account of a converted stream.
+    /// "1080p   E-AC-3 5.1   Original", or the server's account of a converted stream.
     private static func detail(for info: PlaybackInfo) -> String? {
         if let summary = info.transcodeSummary, !summary.isEmpty { return summary }
         let audio = info.audioTracks.first { $0.index == info.selectedAudioIndex } ?? info.audioTracks.first

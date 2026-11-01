@@ -113,9 +113,10 @@ final class PlayerControlsView: UIView {
         subtitleLabel.isHidden = subtitle == nil
     }
 
-    /// "1080p · E-AC-3 5.1", or what the server is doing to the stream.
+    /// "1080p   E-AC-3 5.1   Original", or what the server is doing to the stream, as written (sentence case, never
+    /// capitals).
     func setDetail(_ detail: String?) {
-        detailLabel.text = detail?.uppercased()
+        detailLabel.text = detail
         detailLabel.isHidden = detail == nil
     }
 
@@ -261,7 +262,7 @@ final class PlayerControlsView: UIView {
         #else
         titleLabel.font = .systemFont(ofSize: 17, weight: .bold)
         subtitleLabel.font = .systemFont(ofSize: 14, weight: .medium)
-        detailLabel.font = .systemFont(ofSize: 11, weight: .semibold)
+        detailLabel.font = .systemFont(ofSize: 12, weight: .semibold)
         elapsedLabel.font = .monospacedDigitSystemFont(ofSize: 13, weight: .medium)
         hud.font = .systemFont(ofSize: 28, weight: .semibold)
         #endif
