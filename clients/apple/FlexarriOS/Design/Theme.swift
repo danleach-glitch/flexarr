@@ -168,6 +168,9 @@ struct PillButtonStyle: ButtonStyle {
 
 /// Loading, error and empty states in plain words.
 struct StatusView: View {
+    /// Offline, a failure is just that: the Offline bar says the rest, and the screen loads again once it's back.
+    @Environment(AppModel.self) private var model: AppModel?
+
     enum State {
         case loading
         case failed(String, retry: () -> Void)
@@ -181,6 +184,11 @@ struct StatusView: View {
             switch state {
             case .loading:
                 ProgressView().controlSize(.large)
+            case .failed where model?.isOffline == true:
+                Image(systemName: "wifi.slash").font(.system(size: 40)).foregroundStyle(Color.usher).accessibilityHidden(true)
+                Text("You’re offline")
+                    .font(.body.weight(.medium))
+                    .foregroundStyle(Color.screen)
             case .failed(let message, let retry):
                 Image(systemName: "wifi.exclamationmark").font(.system(size: 40)).foregroundStyle(Color.usher)
                 Text(message)

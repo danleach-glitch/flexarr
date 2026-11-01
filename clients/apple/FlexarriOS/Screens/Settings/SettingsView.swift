@@ -32,14 +32,15 @@ struct SettingsView: View {
                         ProfileAvatar(profile: current, size: 44)
                         Text(current.name).font(.body.weight(.semibold))
                         Spacer()
-                        if model.offersProfilePicker {
+                        // Choosing someone else takes the server.
+                        if model.offersProfilePicker, !model.isOffline {
                             Button("Switch") { choosingProfile = true }
                                 .font(.subheadline.weight(.semibold))
                         }
                     }
                     .padding(.vertical, 4)
                     .listRowBackground(Color.seat)
-                    if model.offersKidsLock {
+                    if model.offersKidsLock, !model.isOffline {
                         Button {
                             Task { await lockToKids(pin: nil) }
                         } label: {
@@ -190,6 +191,7 @@ struct SettingsView: View {
     }
 
     private var connection: String? {
+        if model.isOffline { return "Offline" }
         guard model.credentials?.remoteAddress != nil else { return model.credentials?.address.host() }
         return model.client?.addresses.isAway == true ? "Away" : "At home"
     }

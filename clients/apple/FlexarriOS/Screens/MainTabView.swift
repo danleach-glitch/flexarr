@@ -21,7 +21,7 @@ struct MainTabView: View {
         TabView(selection: $selection) {
             Tab(value: TabID.home) {
                 TabStack(handlesDeepLinks: true) {
-                    if model.isOffline { OfflineView { selection = .downloads } } else { HomeView() }
+                    if model.isOffline { OfflineView(title: "Home") { selection = .downloads } } else { HomeView() }
                 }
             } label: {
                 // The Flexarr mark stands in for a house.
@@ -29,7 +29,7 @@ struct MainTabView: View {
             }
             Tab("Libraries", systemImage: Symbol.libraries, value: TabID.libraries) {
                 TabStack {
-                    if model.isOffline { OfflineView { selection = .downloads } } else { LibrariesView() }
+                    if model.isOffline { OfflineView(title: "Libraries") { selection = .downloads } } else { LibrariesView() }
                 }
             }
             Tab("Downloads", systemImage: Symbol.downloads, value: TabID.downloads) {
@@ -37,7 +37,7 @@ struct MainTabView: View {
             }
             Tab("Search", systemImage: Symbol.search, value: TabID.search, role: .search) {
                 TabStack {
-                    if model.isOffline { OfflineView { selection = .downloads } } else { SearchView() }
+                    if model.isOffline { OfflineView(title: "Search") { selection = .downloads } } else { SearchView() }
                 }
             }
             // The kids app has no Settings: a child's choices are a parent's to make.
@@ -48,8 +48,12 @@ struct MainTabView: View {
             }
         }
         .tabViewStyle(.sidebarAdaptable)
-        // Opened offline: straight to what can be watched. Going offline later leaves you where you are.
-        .onAppear { if model.isOffline { selection = .downloads } }
+        // Opened offline: straight to what can be watched, if there's anything. Going offline later leaves you where you are.
+        .onAppear { if model.isOffline, downloads.hasAnything { selection = .downloads } }
+        // Said aloud too, as the bar comes and goes.
+        .onChange(of: model.isOffline) { _, offline in
+            AccessibilityNotification.Announcement(offline ? "Offline" : "Back online").post()
+        }
         // The libraries load now, and again once the server's back after offline mode.
         .task(id: model.isOffline) {
             guard !model.isOffline else { return }
@@ -114,8 +118,9 @@ struct TabStack<Content: View>: View {
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 0) {
                 // The remote has its own (on iPad its sheet doesn't cover the bars: one notice, not two).
-                if !remote.showsRemote { RemoteNoticeView() }
-                TVPlayingBar()
+                // Neither while offline: what the TVs are doing can't be known, or changed.
+                if !remote.showsRemote, !model.isOffline { RemoteNoticeView() }
+                if !model.isOffline { TVPlayingBar() }
                 NowPlayingBar()
             }
         }

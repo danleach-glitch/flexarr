@@ -9,8 +9,10 @@ struct DownloadsView: View {
 
     var body: some View {
         Group {
-            if store.videoDownloads.isEmpty, store.musicCollections.isEmpty, store.podcastDownloads.isEmpty, store.bookDownloads.isEmpty {
-                StatusView(state: .empty("Download movies, episodes, albums, playlists and podcasts to watch and listen with no connection. Look for the download button on a title’s page."))
+            if !store.hasAnything {
+                // Offline there's nothing to be done about it.
+                StatusView(state: .empty(model.isOffline ? "Nothing downloaded."
+                    : "Download movies, episodes, albums, playlists and podcasts to watch and listen with no connection. Look for the download button on a title’s page."))
             } else {
                 List {
                     let films = store.videoDownloads.filter { $0.item.kind != .episode }
