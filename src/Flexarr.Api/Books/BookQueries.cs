@@ -61,7 +61,10 @@ public static class BookQueries
 
         if (filter.Language is { Length: > 0 } language)
         {
-            books = books.Where(i => i.Book!.Language == language);
+            // "en", "eng" and "English" are one language: books tagged with any of them (as written: en, En, EN) match.
+            var names = LanguageNames(language);
+            var written = names.Concat(names.Select(n => n.Length > 0 ? char.ToUpperInvariant(n[0]) + n[1..] : n)).Concat(names.Select(n => n.ToUpperInvariant())).Append(language).Distinct().ToList();
+            books = books.Where(i => written.Contains(i.Book!.Language!));
         }
 
         if (filter.Abridged is { } abridged)
@@ -289,5 +292,28 @@ public static class BookQueries
             await books.Where(i => i.Credits.Any(c => c.Role == CreditRole.Narrator && narrators.Contains(c.PersonId))
                     && !i.Credits.Any(c => c.Role == CreditRole.Author && authors.Contains(c.PersonId)))
                 .OrderByDescending(i => i.AddedAt).Take(Row).Summaries(profileId).ToListAsync(ct));
+    }
+
+    /// <summary>
+    /// The ways one language is written in tags, lower case: <paramref name="language"/> itself, and when it names a
+    /// known language, its two- and three-letter codes and its English and own names.
+    /// </summary>
+    internal static List<string> LanguageNames(string language)
+    {
+        var names = new HashSet<string>(StringComparer.Ordinal) { language.Trim().ToLowerInvariant() };
+        var culture = System.Globalization.CultureInfo.GetCultures(System.Globalization.CultureTypes.NeutralCultures)
+            .FirstOrDefault(c => c.Name.Length > 0 && (string.Equals(c.TwoLetterISOLanguageName, language, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(c.ThreeLetterISOLanguageName, language, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(c.EnglishName, language, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(c.NativeName, language, StringComparison.OrdinalIgnoreCase)));
+        if (culture is not null)
+        {
+            foreach (var name in new[] { culture.TwoLetterISOLanguageName, culture.ThreeLetterISOLanguageName, culture.EnglishName, culture.NativeName })
+            {
+                names.Add(name.ToLowerInvariant());
+            }
+        }
+
+        return [.. names];
     }
 }
