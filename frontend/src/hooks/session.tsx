@@ -31,6 +31,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     const timer = window.setTimeout(reloadMe, Math.max(60_000, new Date(unlockedUntil).getTime() - Date.now() + 1000))
     return () => window.clearTimeout(timer)
   }, [unlockedUntil, reloadMe])
-  const value = useMemo(() => ({ me, profiles }), [me, profiles])
+  const value = useMemo(() => ({ me, profiles, reloadMe }), [me, profiles, reloadMe])
   return <SessionContext value={value}>{children}</SessionContext>
 }

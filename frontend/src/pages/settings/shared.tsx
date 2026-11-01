@@ -132,13 +132,13 @@ export function SettingLink({ to, label, help }: { to: string; label: ReactNode;
  * main profile with them locked, a row that asks for the PIN.
  */
 export function AdminOnly({ title, children }: { title: string; children: ReactNode }) {
-  const { me } = useSession()
+  const { me, reloadMe } = useSession()
   if (me?.isAdmin === true) return <>{children}</>
   if (me?.canUnlock !== true) return null
   return (
     <SettingsGroup title={title}>
       <SettingRow as="div" label="Locked" help="Give the admin PIN to see and change these.">
-        <button type="button" className="button quiet" onClick={() => void unlockFirst().then((unlocked) => unlocked && window.location.reload())}>
+        <button type="button" className="button quiet" onClick={() => void unlockFirst().then((unlocked) => unlocked && reloadMe?.())}>
           Unlock
         </button>
       </SettingRow>
