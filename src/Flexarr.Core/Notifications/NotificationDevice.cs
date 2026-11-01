@@ -73,6 +73,12 @@ public sealed class MediaRequest
     /// <summary>The book's id in the Readarr-compatible app it was requested from, which the library learns when it's in.</summary>
     public string? BookArrId { get; set; }
 
+    /// <summary>
+    /// The name of the app <see cref="BookArrId"/> belongs to, as it was when the book was requested: the app books are
+    /// requested from may change since. Null for requests made before it was kept.
+    /// </summary>
+    public string? BookArrInstance { get; set; }
+
     /// <summary>A book's title and author, for the notice when it's in.</summary>
     public string? Title { get; set; }
     public DateTime RequestedAt { get; set; } = DateTime.UtcNow;

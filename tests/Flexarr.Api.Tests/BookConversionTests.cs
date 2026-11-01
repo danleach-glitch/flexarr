@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Json;
 using Flexarr.Api.Books;
 using Flexarr.Core.Books;
 using Flexarr.Core.Data;
@@ -82,7 +83,7 @@ public sealed class BookConversionTests : IDisposable
     [Fact]
     public async Task OnlyAFewConversionsRunAtOnce()
     {
-        var book = await SeedAsync(("01.wma", "wmav2"), ("02.wma", "wmav2"), ("03.wma", "wmav2"), ("04.wma", "wmav2"));
+        var book = await SeedAsync(("01.wma", "wmav2"), ("02.wma", "wmav2"), ("03.wma", "wmav2"));
 
         (await Client().GetAsync(Url($"/api/v1/items/{book}/book?codecs=aac,mp3"))).EnsureSuccessStatusCode();
         await WaitForAsync(() => _started == BookFileConverter.MaxConcurrent);
@@ -90,8 +91,39 @@ public sealed class BookConversionTests : IDisposable
         Assert.Equal(BookFileConverter.MaxConcurrent, _started);
 
         _gate.SetResult();
-        await WaitForAsync(() => _started == 4 && _running == 0);
+        await WaitForAsync(() => _started == 3 && _running == 0);
         Assert.Equal(BookFileConverter.MaxConcurrent, _mostAtOnce);
+    }
+
+    [Theory]
+    [InlineData("none")]
+    [InlineData(",")]
+    public async Task APlayerClaimingNoCodecs_StillPlaysAacAndMp3AsTheyAre(string codecs)
+    {
+        var book = await SeedAsync(("01.mp3", "mp3"), ("02.m4b", "aac"));
+        _gate.SetResult();
+
+        var manifest = await Client().GetFromJsonAsync<BookManifestDto>(Url($"/api/v1/items/{book}/book?codecs={codecs}"));
+
+        Assert.All(manifest!.Files, f => Assert.False(f.Converted));
+        await Task.Delay(300);
+        Assert.Equal(0, _started);
+    }
+
+    [Fact]
+    public async Task OneRequest_StartsOnlyAFewConversions_AndTheRestWaitToBeAskedFor()
+    {
+        var book = await SeedAsync([.. Enumerable.Range(1, 8).Select(i => ($"{i:00}.wma", "wmav2"))]);
+        _gate.SetResult();
+
+        (await Client().GetAsync(Url($"/api/v1/items/{book}/book?codecs=aac,mp3"))).EnsureSuccessStatusCode();
+        await WaitForAsync(() => _started == BookFileConverter.MaxPrepared && _running == 0);
+        await Task.Delay(300);
+        Assert.Equal(BookFileConverter.MaxPrepared, _started);
+
+        var last = await Client().GetAsync(Url($"/api/v1/items/{book}/book/files/7?convert=aac"));
+        Assert.Equal("converted", await last.Content.ReadAsStringAsync());
+        Assert.Equal(BookFileConverter.MaxPrepared + 1, _started);
     }
 
     [Fact]
@@ -100,21 +132,25 @@ public sealed class BookConversionTests : IDisposable
         var directory = Directory.CreateDirectory(Converter.Directory).FullName;
         var old = Path.Combine(directory, $"{Guid.NewGuid():N}-1-1.m4a");
         var recent = Path.Combine(directory, $"{Guid.NewGuid():N}-1-1.m4a");
-        var abandoned = Path.Combine(directory, $"{Guid.NewGuid():N}-1-1.m4a.x.part");
+        var abandoned = Path.Combine(directory, $"{Guid.NewGuid():N}-1-1.m4a.{Guid.NewGuid():N}.part");
+        var notOurs = Path.Combine(directory, "Somebody's book.m4a"); // old, but not a copy the converter made
+        var notOursEither = Path.Combine(directory, "notes.part");
         var deleted = Guid.NewGuid();
         var ofDeletedBook = Path.Combine(directory, $"{deleted:N}-1-1.m4a");
-        foreach (var file in new[] { old, recent, abandoned, ofDeletedBook })
+        foreach (var file in new[] { old, recent, abandoned, ofDeletedBook, notOurs, notOursEither })
         {
             await File.WriteAllTextAsync(file, "x");
         }
 
         File.SetLastWriteTimeUtc(old, DateTime.UtcNow - BookFileConverter.UnusedFor - TimeSpan.FromDays(1));
         File.SetLastWriteTimeUtc(abandoned, DateTime.UtcNow.AddDays(-2));
+        File.SetLastWriteTimeUtc(notOurs, DateTime.UtcNow - BookFileConverter.UnusedFor - TimeSpan.FromDays(1));
+        File.SetLastWriteTimeUtc(notOursEither, DateTime.UtcNow.AddDays(-2));
 
-        Converter.Prune();
+        Converter.Prune(maxBytes: 0);
         Converter.RemoveCopies([deleted]);
 
-        Assert.Equal([recent], Directory.EnumerateFiles(directory));
+        Assert.Equal(new[] { recent, notOurs, notOursEither }.Order(), Directory.EnumerateFiles(directory).Order());
     }
 
     [Fact]
@@ -134,7 +170,7 @@ public sealed class BookConversionTests : IDisposable
 
         Converter.Prune(maxBytes: 20);
 
-        Assert.Equal([newer, playing], Directory.EnumerateFiles(directory).Order());
+        Assert.Equal(new[] { newer, playing }.Order(), Directory.EnumerateFiles(directory).Order());
     }
 
     private static async Task WaitForAsync(Func<bool> condition)

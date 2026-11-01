@@ -283,12 +283,20 @@ public static class DeviceEndpoints
 
     private const int MaxTrackId = 64;
 
-    /// <summary>The device is playing a book now.</summary>
+    /// <summary>
+    /// The device is playing a book now: its latest playback here is one, or, more recently than any playback, it said
+    /// where it was in a book it plays itself (a download, which has no playback here).
+    /// </summary>
     private static bool PlayingBook(PlaybackSessions sessions, string deviceId)
     {
         var now = DateTime.UtcNow;
-        return sessions.Active.Where(s => s.SignInId == deviceId && PlaybackSessions.Shows(s, now)).OrderByDescending(s => s.LastSeen).FirstOrDefault()
-            is { BookParts: not null };
+        var latest = sessions.Active.Where(s => s.SignInId == deviceId && PlaybackSessions.Shows(s, now)).OrderByDescending(s => s.LastSeen).FirstOrDefault();
+        if (sessions.BookReportedAt(deviceId) is { } at && now - at < PlaybackSessions.NowPlayingStaleness && (latest is null || at >= latest.LastSeen))
+        {
+            return true;
+        }
+
+        return latest is { BookParts: not null };
     }
 
     /// <summary>Who a Live Activity belongs to: the sign-in, or for the API key itself null (it may end any); any other way in (the home network, Tailscale) by its method.</summary>

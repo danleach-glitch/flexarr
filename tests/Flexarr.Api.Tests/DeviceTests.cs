@@ -554,6 +554,43 @@ public class DeviceTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
         return book.Id;
     }
 
+    [Fact]
+    public async Task APhonePlayingADownloadedBook_CanBeSetPast2x_UntilItPlaysSomethingElse()
+    {
+        var (id, phone) = await DeviceAsync("Pocket phone");
+        var (response, reader) = await ListenAsync(phone, "?accepts=Rate");
+        Guid book;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var library = new Library { Name = $"Books {Guid.NewGuid():N}", Type = LibraryType.Audiobooks };
+            var item = new MediaItem
+            {
+                LibraryId = library.Id, Kind = MediaKind.Audiobook, Title = "Downloaded", SortTitle = "downloaded",
+                Book = new Flexarr.Core.Books.BookDetails { DurationSeconds = 3600 },
+            };
+            db.AddRange(library, item);
+            await db.SaveChangesAsync();
+            book = item.Id;
+        }
+
+        // Listening offline, sent later, isn't listening now.
+        (await phone.PutAsJsonAsync(Api($"/items/{book}/progress"), new { positionSeconds = 60.0, recordedAt = DateTime.UtcNow.AddHours(-1) })).EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.BadRequest, (await Admin().PostAsJsonAsync(Api($"/devices/{id}/rate"), new { rate = 2.5 })).StatusCode);
+
+        (await phone.PutAsJsonAsync(Api($"/items/{book}/progress"), new { positionSeconds = 120.0 })).EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.OK, (await Admin().PostAsJsonAsync(Api($"/devices/{id}/rate"), new { rate = 2.5 })).StatusCode);
+        Assert.Equal(2.5, (await NextCommandAsync(reader)).GetProperty("rate").GetDouble());
+
+        await Task.Delay(20);
+        var sessions = factory.Services.GetRequiredService<PlaybackSessions>();
+        var film = Session(id, Guid.NewGuid());
+        sessions.Add(film);
+        Assert.Equal(HttpStatusCode.BadRequest, (await Admin().PostAsJsonAsync(Api($"/devices/{id}/rate"), new { rate = 2.5 })).StatusCode);
+        await sessions.RemoveAsync(film.Id);
+        response.Dispose();
+    }
+
     private static PlaybackSession Session(string deviceId, Guid itemId) => new()
     {
         Id = Guid.NewGuid().ToString("N"), ItemId = itemId, ProfileId = PlaybackState.DefaultUser, SignInId = deviceId, FileId = Guid.NewGuid(), FilePath = "",

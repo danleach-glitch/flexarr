@@ -22,6 +22,12 @@ public sealed partial class BookFileConverter : IDisposable
     /// <summary>Conversions running at once, across every book and listener.</summary>
     public const int MaxConcurrent = 2;
 
+    /// <summary>
+    /// The most files one player being handed a book starts converting ahead of time: the one it starts in and the next
+    /// few. The rest are converted when they're asked for, so one request can't queue a whole book (or a hundred).
+    /// </summary>
+    public const int MaxPrepared = 3;
+
     /// <summary>The most the converted copies may take up together, before the least recently used go.</summary>
     public const long MaxCacheBytes = 10L * 1024 * 1024 * 1024;
 
@@ -63,12 +69,12 @@ public sealed partial class BookFileConverter : IDisposable
 
     /// <summary>
     /// Starts converting the parts a player is about to ask for that need it, the one at <paramref name="fromSeconds"/>
-    /// first, so they're ready (or under way) by the time it does.
+    /// first, so they're ready (or under way) by the time it does; no more than <see cref="MaxPrepared"/>.
     /// </summary>
     public void Prepare(IEnumerable<BookPart> parts, double fromSeconds = 0)
     {
         ArgumentNullException.ThrowIfNull(parts);
-        foreach (var part in parts.Where(p => p.Convert).OrderBy(p => p.OffsetSeconds + p.DurationSeconds <= fromSeconds).ThenBy(p => p.Index))
+        foreach (var part in parts.Where(p => p.Convert).OrderBy(p => p.OffsetSeconds + p.DurationSeconds <= fromSeconds).ThenBy(p => p.Index).Take(MaxPrepared))
         {
             _ = Start(part.FileId, part.Path);
         }
@@ -105,7 +111,8 @@ public sealed partial class BookFileConverter : IDisposable
         }
 
         var now = DateTime.UtcNow;
-        var files = directory.EnumerateFiles().ToList();
+        // Only the converter's own files: whatever else is in the folder isn't the prune's to delete.
+        var files = directory.EnumerateFiles().Where(f => OwnName().IsMatch(f.Name)).ToList();
         foreach (var part in files.Where(f => f.Extension == ".part" && now - f.LastWriteTimeUtc > TimeSpan.FromDays(1)))
         {
             TryDelete(part.FullName); // ffmpeg writes as it goes, so one this old was abandoned.
@@ -126,12 +133,11 @@ public sealed partial class BookFileConverter : IDisposable
         }
     }
 
-    public void Dispose()
-    {
-        _stopping.Cancel();
-        _stopping.Dispose();
-        _slots.Dispose();
-    }
+    /// <summary>
+    /// Stops every conversion: cancelling kills their ffmpeg. The slots and the token are left undisposed: running jobs
+    /// still release one and read the other on their way out, and neither holds anything that needs freeing.
+    /// </summary>
+    public void Dispose() => _stopping.Cancel();
 
     private Task<string?>? Start(Guid fileId, string path)
     {
@@ -224,16 +230,10 @@ public sealed partial class BookFileConverter : IDisposable
         using var process = Process.Start(start) ?? throw new InvalidOperationException($"Could not start {settings.FfmpegPath}");
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(Timeout);
+        // Killed the moment it's cancelled (the server stopping, or the timeout), whatever this method is waiting on.
+        using var kill = timeout.Token.Register(() => Kill(process));
         var errors = process.StandardError.ReadToEndAsync(timeout.Token);
-        try
-        {
-            await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException)
-        {
-            process.Kill(entireProcessTree: true);
-            throw;
-        }
+        await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
 
         if (process.ExitCode != 0)
         {
@@ -242,6 +242,22 @@ public sealed partial class BookFileConverter : IDisposable
         }
 
         return true;
+    }
+
+    private static void Kill(Process process)
+    {
+        try
+        {
+            process.Kill(entireProcessTree: true);
+        }
+        catch (InvalidOperationException)
+        {
+            // Exited already.
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            // Exiting as it was asked to.
+        }
     }
 
     /// <summary>Notes that the copy was played (its time is when it was last used), for the prune.</summary>
@@ -300,6 +316,10 @@ public sealed partial class BookFileConverter : IDisposable
             return false;
         }
     }
+
+    /// <summary>A copy's name, <c>{file id}-{ticks}-{length}.m4a</c>, or one being written, with <c>.{guid}.part</c> after it.</summary>
+    [System.Text.RegularExpressions.GeneratedRegex(@"^[0-9a-f]{32}-[0-9]+-[0-9]+\.m4a(\.[0-9a-f]{32}\.part)?$")]
+    private static partial System.Text.RegularExpressions.Regex OwnName();
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Could not convert book file {File}: {Error}")]
     private partial void LogFailed(string file, string error);

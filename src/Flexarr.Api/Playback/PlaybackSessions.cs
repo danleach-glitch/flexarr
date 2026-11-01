@@ -95,6 +95,7 @@ public sealed partial class PlaybackSessions
     private const int MaxLabel = 100;
     private const int MaxTrackId = 64;
     private readonly ConcurrentDictionary<string, PlaybackSession> _sessions = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, DateTime> _bookReports = new(StringComparer.Ordinal);
     private readonly TranscodeManager transcodes;
     private readonly ILogger<PlaybackSessions> logger;
     private readonly PlaybackEvents? events;
@@ -119,6 +120,15 @@ public sealed partial class PlaybackSessions
     }
 
     public IEnumerable<PlaybackSession> Active => _sessions.Values;
+
+    /// <summary>
+    /// Notes that a device (by its sign-in) just said where it is in a book it plays without a playback here: a phone
+    /// playing a downloaded book reports its place, and nothing else.
+    /// </summary>
+    public void BookReported(string signInId) => _bookReports[signInId] = DateTime.UtcNow;
+
+    /// <summary>When the device last said where it was in a book it plays itself; null if not since the server started.</summary>
+    public DateTime? BookReportedAt(string signInId) => _bookReports.TryGetValue(signInId, out var at) ? at : null;
 
     public void Add(PlaybackSession session)
     {

@@ -1,4 +1,5 @@
 using Flexarr.Api.Endpoints;
+using Flexarr.Api.Playback;
 using Flexarr.Api.Profiles;
 using Flexarr.Core.Data;
 using Flexarr.Core.Libraries;
@@ -77,9 +78,26 @@ public static class BookEndpoints
             return index < 0 || index >= parts.Count ? Results.NotFound() : await ServeAsync(parts[index], convert == "aac" && parts[index].Convert, converter, ct);
         });
 
-        item.MapPut("/progress", async (Guid id, BookProgressRequest request, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
-            !double.IsFinite(request.PositionSeconds) ? Results.BadRequest()
-            : await BookPlayback.RecordAsync(db, id, profile.Id, request, ct) is { } progress ? Results.Ok(progress) : Results.NotFound());
+        item.MapPut("/progress", async (Guid id, BookProgressRequest request, FlexarrDbContext db, CurrentProfile profile, PlaybackSessions sessions, CancellationToken ct) =>
+        {
+            if (!double.IsFinite(request.PositionSeconds))
+            {
+                return Results.BadRequest();
+            }
+
+            if (await BookPlayback.RecordAsync(db, id, profile.Id, request, ct) is not { } progress)
+            {
+                return Results.NotFound();
+            }
+
+            // Listening now (not listening done offline, sent later): a remote may set it past 2x.
+            if (profile.SignInId is { } signIn && (request.RecordedAt is not { } at || DateTime.UtcNow - at.ToUniversalTime() < TimeSpan.FromMinutes(1)))
+            {
+                sessions.BookReported(signIn);
+            }
+
+            return Results.Ok(progress);
+        });
 
         item.MapPost("/finished", async (Guid id, BookFinishedRequest request, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
             await BookPlayback.SetFinishedAsync(db, id, profile.Id, request.Finished, ct) ? Results.NoContent() : Results.NotFound());

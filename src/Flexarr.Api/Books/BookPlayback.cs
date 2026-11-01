@@ -24,9 +24,15 @@ public static class BookPlayback
         ended || (duration > 0 && (position >= duration * FinishedFraction
             || (duration >= FinishedWithinSeconds * 10 && position >= duration - FinishedWithinSeconds)));
 
-    /// <summary>A book's playable files in order, each converted when <paramref name="codecs"/> doesn't include its sound.</summary>
+    /// <summary>
+    /// A book's playable files in order, each converted when <paramref name="codecs"/> doesn't include its sound. AAC and
+    /// MP3 always count, whatever a player says: every player decodes them, and a player that claimed none would
+    /// otherwise set the server converting every file of the book.
+    /// </summary>
     public static async Task<List<BookPart>> PartsAsync(FlexarrDbContext db, Guid bookId, IReadOnlyCollection<string> codecs, CancellationToken ct)
     {
+        ArgumentNullException.ThrowIfNull(codecs);
+        codecs = [.. codecs.Concat(BasicCodecs)];
         var files = await db.MediaFiles.AsNoTracking()
             .Where(f => f.MediaItemId == bookId && f.BookOrder != null && f.ProbeError == null && f.MissingSince == null)
             .OrderBy(f => f.BookOrder).ToListAsync(ct);

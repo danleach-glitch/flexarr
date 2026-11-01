@@ -439,8 +439,8 @@ public sealed partial class MetadataRefresher
 
     /// <summary>
     /// Audible's chapters for <paramref name="asin"/>, moved by <paramref name="shift"/> seconds and fitted to the
-    /// book (the first at the start, the last to the end), without saving them; null if there are none, or (unless
-    /// <paramref name="force"/>) they don't fit the book's length.
+    /// book (the first at the start, the last to the end), without saving them; null if there are none (none left once
+    /// shifted, too), or (unless <paramref name="force"/>) they don't fit the book's length.
     /// </summary>
     public async Task<List<BookChapter>?> AudibleChaptersAsync(BookDetails details, string asin, double shift, CancellationToken ct, bool force = false)
     {
@@ -458,6 +458,11 @@ public sealed partial class MetadataRefresher
 
         var chapters = audible.Chapters.Select(c => c with { StartSeconds = Math.Max(0, c.StartSeconds + shift), EndSeconds = Math.Max(0, c.EndSeconds + shift) })
             .Where(c => length <= 0 || c.StartSeconds < length).ToList();
+        if (chapters.Count == 0)
+        {
+            return null; // Shifted past the end: saving none would only delete the book's own.
+        }
+
         return chapters.Select((c, i) => c with
         {
             StartSeconds = i == 0 ? 0 : c.StartSeconds,
