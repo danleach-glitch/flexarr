@@ -206,10 +206,39 @@ struct FullTextView: View {
     let title: String
     let text: String
 
-    private var paragraphs: [String] {
+    private var paragraphs: [[String]] {
         text.components(separatedBy: .newlines)
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
+            .map { Self.chunks(of: $0) }
+    }
+
+    /// The page scrolls by moving focus from one block to the next, so a block taller than the screen can't
+    /// be read to its end. A long paragraph is split into groups of whole sentences (whole words for a very
+    /// long sentence), each focusable, set close together so they still read as one paragraph.
+    static func chunks(of paragraph: String, limit: Int = 600) -> [String] {
+        guard paragraph.count > limit else { return [paragraph] }
+        var pieces: [String] = []
+        paragraph.enumerateSubstrings(in: paragraph.startIndex..., options: .bySentences) { _, _, range, _ in
+            let sentence = String(paragraph[range])
+            if sentence.count > limit {
+                pieces.append(contentsOf: sentence.split(separator: " ").map { $0 + " " })
+            } else {
+                pieces.append(sentence)
+            }
+        }
+        var chunks: [String] = []
+        var current = ""
+        for piece in pieces {
+            if !current.isEmpty, current.count + piece.count > limit {
+                chunks.append(current.trimmingCharacters(in: .whitespaces))
+                current = ""
+            }
+            current += piece
+        }
+        let last = current.trimmingCharacters(in: .whitespaces)
+        if !last.isEmpty { chunks.append(last) }
+        return chunks.isEmpty ? [paragraph] : chunks
     }
 
     var body: some View {
@@ -221,14 +250,18 @@ struct FullTextView: View {
                         .font(.marquee(56, weight: .heavy))
                         .foregroundStyle(Color.screen)
                         .padding(.bottom, 10)
-                    ForEach(Array(paragraphs.enumerated()), id: \.offset) { _, paragraph in
-                        Text(paragraph)
-                            .font(.system(size: 30))
-                            .lineSpacing(8)
-                            .foregroundStyle(Color.screen.opacity(0.9))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .focusable()
-                            .focusEffectDisabled()
+                    ForEach(Array(paragraphs.enumerated()), id: \.offset) { _, chunks in
+                        VStack(alignment: .leading, spacing: 8) {
+                            ForEach(Array(chunks.enumerated()), id: \.offset) { _, chunk in
+                                Text(chunk)
+                                    .font(.system(size: 30))
+                                    .lineSpacing(8)
+                                    .foregroundStyle(Color.screen.opacity(0.9))
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .focusable()
+                                    .focusEffectDisabled()
+                            }
+                        }
                     }
                 }
                 .frame(maxWidth: 1300, alignment: .leading)
