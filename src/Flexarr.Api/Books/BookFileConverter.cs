@@ -133,12 +133,11 @@ public sealed partial class BookFileConverter : IDisposable
         }
     }
 
-    public void Dispose()
-    {
-        _stopping.Cancel();
-        _stopping.Dispose();
-        _slots.Dispose();
-    }
+    /// <summary>
+    /// Stops every conversion: cancelling kills their ffmpeg. The slots and the token are left undisposed: running jobs
+    /// still release one and read the other on their way out, and neither holds anything that needs freeing.
+    /// </summary>
+    public void Dispose() => _stopping.Cancel();
 
     private Task<string?>? Start(Guid fileId, string path)
     {
@@ -231,16 +230,10 @@ public sealed partial class BookFileConverter : IDisposable
         using var process = Process.Start(start) ?? throw new InvalidOperationException($"Could not start {settings.FfmpegPath}");
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(Timeout);
+        // Killed the moment it's cancelled (the server stopping, or the timeout), whatever this method is waiting on.
+        using var kill = timeout.Token.Register(() => Kill(process));
         var errors = process.StandardError.ReadToEndAsync(timeout.Token);
-        try
-        {
-            await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException)
-        {
-            process.Kill(entireProcessTree: true);
-            throw;
-        }
+        await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
 
         if (process.ExitCode != 0)
         {
@@ -249,6 +242,22 @@ public sealed partial class BookFileConverter : IDisposable
         }
 
         return true;
+    }
+
+    private static void Kill(Process process)
+    {
+        try
+        {
+            process.Kill(entireProcessTree: true);
+        }
+        catch (InvalidOperationException)
+        {
+            // Exited already.
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            // Exiting as it was asked to.
+        }
     }
 
     /// <summary>Notes that the copy was played (its time is when it was last used), for the prune.</summary>
