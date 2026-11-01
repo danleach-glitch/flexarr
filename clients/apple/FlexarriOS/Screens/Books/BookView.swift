@@ -190,9 +190,10 @@ struct BookView: View {
                     Button { Task { await setFinished(true) } } label: { Label("Finished", systemImage: "checkmark") }
                         .accessibilityLabel("Mark as finished")
                 }
-                // Unread: no place and not finished, as if never started. Not while it plays, which would set the place again.
-                if !model.isKids, item.isFinishedBook || (resumable && !playingThis) {
-                    Button { Task { await setFinished(false) } } label: { Label("Unread", systemImage: "arrow.uturn.backward") }
+                // Unread (no place, not finished, as if never started) in Finished's place once it's finished. Part way through,
+                // it's offered with Start over instead, so the row stays at four.
+                if !model.isKids, item.isFinishedBook {
+                    Button { Task { await setFinished(false) } } label: { Label("Unread", systemImage: "book.closed") }
                         .accessibilityLabel("Mark as unread")
                 }
                 // Only with somewhere to start over from; part way through, it asks first.
@@ -204,6 +205,10 @@ struct BookView: View {
                     }
                     .confirmationDialog("Start over?", isPresented: $confirmingStartOver, titleVisibility: .visible) {
                         Button("Start over", role: .destructive) { Task { await model.listenAgain(item) } }
+                        // Not while it plays, which would set the place again.
+                        if !model.isKids, !playingThis {
+                            Button("Mark as unread") { Task { await setFinished(false) } }
+                        }
                         Button("Cancel", role: .cancel) {}
                     } message: {
                         Text("You're at \(Format.timestamp(position)).")
