@@ -256,12 +256,49 @@ public sealed class BookProviders(HttpClient http, Func<IMetadataSettings> setti
             (found["brandIntroDurationMs"]?.GetValue<double>() ?? 0) / 1000);
     }
 
-    /// <summary>An author's photo and biography from Audible, by their ASIN.</summary>
+    // ---- Authors: unlike books, a provider that can't be asked throws, so the author is looked up again later ----
+
+    /// <summary>Whether the admin left a provider switched on (authors need no keys).</summary>
+    public bool Uses(string provider) => Options.Providers.Contains(provider, StringComparer.Ordinal);
+
+    /// <summary>
+    /// An author's photo and biography from Audible, by their ASIN; null when Audible doesn't know them or is switched
+    /// off.
+    /// </summary>
+    /// <exception cref="HttpRequestException">Audnexus couldn't be asked just now.</exception>
     public async Task<BookAuthorInfo?> AuthorAsync(string asin, CancellationToken ct)
     {
-        var author = await TryAsync(() => GetAsync($"https://api.audnex.us/authors/{Uri.EscapeDataString(asin)}?region={Options.Region}", ct)).ConfigureAwait(false);
+        ArgumentNullException.ThrowIfNull(asin);
+        if (!Uses("audible"))
+        {
+            return null;
+        }
+
+        var author = await GetOrThrowAsync($"https://api.audnex.us/authors/{Uri.EscapeDataString(asin)}?region={Options.Region}", ct).ConfigureAwait(false);
         return author is null || Text(author, "name") is not { } name ? null
             : new BookAuthorInfo(name, Text(author, "description"), Text(author, "image"));
+    }
+
+    /// <summary>
+    /// Audible's ASIN for an author of exactly this name (ignoring case, spaces and punctuation, so "J.R.R. Tolkien" is
+    /// "J. R. R. Tolkien"); of several, one a book of ours already lists (<paramref name="known"/>). Null when there's
+    /// none, or Audible is switched off.
+    /// </summary>
+    /// <exception cref="HttpRequestException">Audnexus couldn't be asked just now.</exception>
+    public async Task<string?> FindAudibleAuthorAsync(string name, IReadOnlyCollection<string> known, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        ArgumentNullException.ThrowIfNull(known);
+        if (!Uses("audible") || Fold(name) is not { Length: > 0 } wanted)
+        {
+            return null;
+        }
+
+        var found = await GetOrThrowAsync($"https://api.audnex.us/authors?name={Uri.EscapeDataString(name.Trim())}&region={Options.Region}", ct, array: true).ConfigureAwait(false);
+        var asins = (found as JsonArray ?? []).OfType<JsonObject>()
+            .Where(a => Text(a, "name") is { } theirs && Fold(theirs) == wanted).Select(a => Text(a, "asin")).OfType<string>()
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        return asins.FirstOrDefault(a => known.Contains(a, StringComparer.OrdinalIgnoreCase)) ?? asins.FirstOrDefault();
     }
 
     // ---- Open Library ----
@@ -355,14 +392,33 @@ public sealed class BookProviders(HttpClient http, Func<IMetadataSettings> setti
         return response.IsSuccessStatusCode ? await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false) : null;
     });
 
-    /// <summary>An answer from the disk cache, or fetched and kept; null (not kept) when fetching failed, and null for anything but a JSON object.</summary>
-    private async Task<JsonNode?> CachedAsync(string key, Func<Task<string?>> fetch)
+    /// <summary>As <see cref="GetAsync"/>, but a provider that's down, or backing Flexarr off, throws rather than answering null.</summary>
+    private Task<JsonNode?> GetOrThrowAsync(string url, CancellationToken ct, bool array = false) => CachedAsync(url, async () =>
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        request.Headers.UserAgent.ParseAdd("Flexarr/1.0 (+https://flexarr.io)");
+        using var response = await _throttle.SendAsync(http, request, ct).ConfigureAwait(false)
+            ?? throw new HttpRequestException($"{request.RequestUri!.Host} asked to be left alone for a while.");
+        if (response.StatusCode is System.Net.HttpStatusCode.NotFound or System.Net.HttpStatusCode.BadRequest)
+        {
+            return "null";
+        }
+
+        return response.IsSuccessStatusCode ? await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false)
+            : throw new HttpRequestException($"{request.RequestUri!.Host} answered {(int)response.StatusCode}.", null, response.StatusCode);
+    }, array);
+
+    /// <summary>
+    /// An answer from the disk cache, or fetched and kept; null (not kept) when fetching failed, and null for anything
+    /// but a JSON object (or, with <paramref name="array"/>, a list).
+    /// </summary>
+    private async Task<JsonNode?> CachedAsync(string key, Func<Task<string?>> fetch, bool array = false)
     {
         var directory = Path.Combine(settings().CacheDirectory, "book-metadata");
         var file = Path.Combine(directory, Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(key)))[..32] + ".json");
         if (File.Exists(file) && File.GetLastWriteTimeUtc(file) > DateTime.UtcNow - CacheFor)
         {
-            return JsonNode.Parse(await File.ReadAllTextAsync(file).ConfigureAwait(false)) as JsonObject;
+            return Shape(JsonNode.Parse(await File.ReadAllTextAsync(file).ConfigureAwait(false)));
         }
 
         var body = await fetch().ConfigureAwait(false);
@@ -373,7 +429,9 @@ public sealed class BookProviders(HttpClient http, Func<IMetadataSettings> setti
 
         Directory.CreateDirectory(directory);
         await File.WriteAllTextAsync(file, body).ConfigureAwait(false);
-        return JsonNode.Parse(body) as JsonObject; // every answer worth reading is an object
+        return Shape(JsonNode.Parse(body)); // every answer worth reading is an object, or a list asked for
+
+        JsonNode? Shape(JsonNode? node) => node is JsonObject || (array && node is JsonArray) ? node : null;
     }
 
     private static async Task<T?> TryAsync<T>(Func<Task<T?>> call) where T : class
