@@ -197,6 +197,19 @@ final class AppModel {
                 self.onBookHeard?(id)
             }
         }
+        // Paused or stopped part way: Home's Continue row shows the new place and order. A moment later, once the
+        // server has the report, and at most every 20 seconds, so pausing and playing doesn't reload Home each time.
+        music.onListeningPaused = { [weak self] in
+            guard let self, self.listeningRefresh == nil else { return }
+            let wait = max(2, 20 - Date().timeIntervalSince(self.lastListeningRefresh))
+            self.listeningRefresh = Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .seconds(wait))
+                guard let self else { return }
+                self.listeningRefresh = nil
+                self.lastListeningRefresh = Date()
+                self.invalidate()
+            }
+        }
         music.onPodcastStarted = { [weak self] in
             guard let self else { return }
             Task { await self.loadUpNext() }
@@ -918,6 +931,10 @@ final class AppModel {
         refreshToken += 1
     }
 
+    /// A Home refresh waiting after a book or episode paused part way, and when the last one ran (see `onListeningPaused`).
+    @ObservationIgnored private var listeningRefresh: Task<Void, Never>?
+    @ObservationIgnored private var lastListeningRefresh = Date.distantPast
+
     /// Something was watched or marked: titles can leave the watchlist.
     private func watchStateChanged() {
         invalidate()
@@ -1131,6 +1148,8 @@ final class AppModel {
 
     func removeFromContinueWatching(_ item: ItemSummary) async {
         guard let client else { return }
+        // Loaded in the audio player, its next report would put it back: it stops without one.
+        music.discard(item.id)
         try? await client.removeFromContinueWatching(item.id)
         player.offlineLibrary?.forgetPosition(itemId: item.id)
         invalidate()

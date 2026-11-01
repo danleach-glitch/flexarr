@@ -256,7 +256,7 @@ struct ItemContextMenu: View {
             leavesRow?(item.id)
             Task { await model.removeFromContinueWatching(item) }
         } label: {
-            Label("Remove from Continue Watching", systemImage: "minus.circle")
+            Label("Remove", systemImage: "minus.circle")
         }
     }
 
@@ -307,7 +307,7 @@ struct ItemContextMenu: View {
                 leavesRow?(item.id)
                 Task { await model.removeFromContinueWatching(item) }
             } label: {
-                Label("Remove from Continue Watching", systemImage: "minus.circle")
+                Label("Remove", systemImage: "minus.circle")
             }
         }
         if marks, item.kind == .episode, item.seriesId != nil, let show = item.seriesTitle {

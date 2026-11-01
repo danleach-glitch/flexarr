@@ -124,6 +124,8 @@ final class MusicPlayer {
     @ObservationIgnored var onChange: (() -> Void)?
     /// A book was heard to the end (its id): a download set to go once finished goes, and screens look again.
     @ObservationIgnored var onBookFinished: ((String) -> Void)?
+    /// A book or podcast episode paused or stopped part way, its place reported: Home's Continue row can look again.
+    @ObservationIgnored var onListeningPaused: (() -> Void)?
 
     // MARK: Book mode
 
@@ -566,20 +568,31 @@ final class MusicPlayer {
         pushNowPlaying()
     }
 
-    /// Ends the session and empties the queue (the now-playing bar goes away).
-    func stop() {
+    /// Removed from Continue watching while it's the one loaded: stops and empties the queue without sending or keeping
+    /// its place, which would put it straight back in the row.
+    func discard(_ itemId: String) {
+        guard current?.id == itemId else { return }
+        stop(keepingPlace: false)
+        BookPlaces.forget(itemId)
+    }
+
+    /// Ends the session and empties the queue (the now-playing bar goes away). `keepingPlace` false ends the session
+    /// without reporting where it got to.
+    func stop(keepingPlace: Bool = true) {
         generation += 1
         // A downloaded episode or track playing with no session keeps its place on the phone, as one streamed does on
         // the server (endSession).
-        if isPlayingOffline, recordsHistory, let track = current, position > 0 {
+        if keepingPlace, isPlayingOffline, recordsHistory, let track = current, position > 0 {
             if isBook {
                 offlineLibrary?.recordBook(itemId: track.id, position: position, ended: false)
             } else {
                 offlineLibrary?.record(itemId: track.id, position: position, finished: false)
             }
         }
-        if isBook, let track = current, position > 0 { BookPlaces.save(track.id, position: position) }
-        endSession()
+        if keepingPlace, isBook, let track = current, position > 0 { BookPlaces.save(track.id, position: position) }
+        let listening = keepingPlace && recordsHistory && (isBook || isPodcast) && position > 0
+        endSession(reporting: keepingPlace)
+        if listening { onListeningPaused?() }
         clearItem()
         clearBook()
         cancelFade()
@@ -1010,10 +1023,11 @@ final class MusicPlayer {
         player.replaceCurrentItem(with: nil)
     }
 
-    /// Reports where the track got to and ends its session (best effort; the server times abandoned ones out).
-    private func endSession() {
+    /// Reports where the track got to (unless `reporting` is false) and ends its session (best effort; the server times
+    /// abandoned ones out).
+    private func endSession(reporting: Bool = true) {
         // A book whose session the server forgot: its last place goes to the book's own progress.
-        if sessionId == nil, let bookId = expiredBookId, bookId == current?.id, position > 0, !isPlayingOffline, recordsHistory, let client {
+        if reporting, sessionId == nil, let bookId = expiredBookId, bookId == current?.id, position > 0, !isPlayingOffline, recordsHistory, let client {
             let update = BookProgressUpdate(positionSeconds: position, device: Self.deviceName, recordedAt: Date(), ended: false)
             Task { try? await client.reportBookProgress(itemId: bookId, update) }
         }
@@ -1021,7 +1035,7 @@ final class MusicPlayer {
         guard let client, let sessionId else { return }
         self.sessionId = nil
         let position = self.position
-        let record = recordsHistory
+        let record = recordsHistory && reporting
         let bookId = sessionBookId
         Task {
             if record { await Self.send(client, session: sessionId, book: bookId, position: position, paused: true) }
@@ -1157,6 +1171,7 @@ final class MusicPlayer {
         }
         if !playing, sessionId != nil || (expiredBookId != nil && expiredBookId == current?.id), player.currentItem != nil { report(paused: true) }
         if !playing, isPlayingOffline, isPodcast || isBook, player.currentItem != nil { recordOffline() }
+        if !playing, recordsHistory, isPodcast || isBook, player.currentItem != nil, position > 0 { onListeningPaused?() }
         watchShakes()
         onChange?()
         nowPlaying.setTime(position: position, duration: duration, rate: playing ? playRate : 0, defaultRate: playRate)
