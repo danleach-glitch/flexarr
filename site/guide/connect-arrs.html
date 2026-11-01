@@ -150,10 +150,6 @@
 <td>Artist pictures, album covers, canonical names and years, and albums, EPs and singles sorted apart.</td>
 </tr>
 <tr>
-<td><strong>Readarr, Bookshelf or Chaptarr</strong> (in the next release)</td>
-<td>Audiobook details, covers and series, author photos and biographies, upcoming books in <strong>Coming soon</strong>, deleting books, and book requests. See <a href="/guide/audiobooks">Audiobooks</a>.</td>
-</tr>
-<tr>
 <td><strong>Seerr</strong></td>
 <td><strong>Discover</strong> and requests. Seerr, Overseerr and Jellyseerr all work. See <a href="/guide/requests">Requests</a>.</td>
 </tr>
@@ -177,7 +173,7 @@
 <p>Films and shows that Radarr or Sonarr don&#39;t manage are still looked up through their search, so a connected Radarr fills in artwork even for films it didn&#39;t download.</p>
 <h2 id="add-a-connection"><a class="anchor" href="#add-a-connection" aria-hidden="true" tabindex="-1">#</a>Add a connection</h2>
 <p>You need two things for each app: its <strong>address</strong> and its <strong>API key</strong>.</p>
-<figure><img src="/guide/img/connections.webp" alt="Settings › Connections with Sonarr, Radarr, Lidarr, Readarr, Seerr and Bazarr connected, and TMDB and Trakt below" data-caption="Settings › Connections" loading="lazy" decoding="async"></figure>
+<figure><img src="/guide/img/connections.webp" alt="Settings › Connections with Sonarr, Radarr, Lidarr, Seerr and Bazarr connected, and TMDB and Trakt below" data-caption="Settings › Connections" loading="lazy" decoding="async"></figure>
 <ol>
 <li>In Flexarr, go to <strong>Settings › Connections</strong>.</li>
 <li>Every app Flexarr works with is listed under <strong>Apps &amp; Integrations</strong>. Find the one you want and choose <strong>Connect</strong>.</li>
@@ -186,7 +182,7 @@
 <li>Choose <strong>Test</strong>. A tick means Flexarr reached it; otherwise you&#39;ll see what went wrong.</li>
 <li>Choose <strong>Connect</strong>.</li>
 </ol>
-<p>Flexarr then adds its own webhook to Sonarr, Radarr, Lidarr and Readarr, so new downloads show up straight away (see <a href="#webhooks-new-downloads-appear-straight-away">Webhooks</a>).</p>
+<p>Flexarr then adds its own webhook to Sonarr, Radarr and Lidarr, so new downloads show up straight away (see <a href="#webhooks-new-downloads-appear-straight-away">Webhooks</a>).</p>
 <p>Repeat for each app. Each one then shows a green dot, its version, and a link to open it. Choose the pencil to change it, or <strong>Disconnect</strong> in it to stop using it; its titles stay in your libraries.</p>
 <p>If you run more than one Sonarr, Radarr or Lidarr, such as a second Radarr for 4K films, choose <strong>+</strong> beside the one already connected and give the new one a <strong>Name</strong> of its own, such as &quot;Radarr 4K&quot;. A second one has <strong>Remove</strong> in place of <strong>Disconnect</strong>.</p>
 <h3 id="the-address"><a class="anchor" href="#the-address" aria-hidden="true" tabindex="-1">#</a>The address</h3>
@@ -209,14 +205,6 @@
 <tr>
 <td>Lidarr</td>
 <td><code>http://&lt;host&gt;:8686</code></td>
-</tr>
-<tr>
-<td>Readarr or Bookshelf</td>
-<td><code>http://&lt;host&gt;:8787</code></td>
-</tr>
-<tr>
-<td>Chaptarr</td>
-<td><code>http://&lt;host&gt;:8789</code></td>
 </tr>
 <tr>
 <td>Seerr</td>
@@ -249,10 +237,6 @@
 <td><strong>Settings › General</strong>, under <strong>Security</strong></td>
 </tr>
 <tr>
-<td>Readarr, Bookshelf, Chaptarr</td>
-<td><strong>Settings › General</strong>, under <strong>Security</strong></td>
-</tr>
-<tr>
 <td>Seerr</td>
 <td><strong>Settings › General</strong></td>
 </tr>
@@ -273,9 +257,7 @@
 <pre><code class="language-text">http://&lt;flexarr-host&gt;:8383/api/v1/webhooks/sonarr?secret=&lt;webhook-secret&gt;
 http://&lt;flexarr-host&gt;:8383/api/v1/webhooks/radarr?secret=&lt;webhook-secret&gt;
 http://&lt;flexarr-host&gt;:8383/api/v1/webhooks/lidarr?secret=&lt;webhook-secret&gt;
-http://&lt;flexarr-host&gt;:8383/api/v1/webhooks/readarr?secret=&lt;webhook-secret&gt;
 </code></pre>
-<p>Bookshelf and Chaptarr use the <code>readarr</code> address.</p>
 <p>The secret can only start scans, so you don&#39;t hand your API key to the *arr apps.</p>
 <p>In each app:</p>
 <ol>

@@ -12,7 +12,6 @@ Flexarr is built to sit alongside Sonarr, Radarr, Lidarr and Seerr. It doesn't d
 | **Radarr** | Titles, posters, backgrounds, overviews, genres, ratings and trailers for films. Upcoming films in **Coming soon**. Deleting a film from Flexarr goes through Radarr. Film series for collections. |
 | **Sonarr** | Show and episode details and artwork. Upcoming episodes in **Coming soon**. Deleting a show or episode goes through Sonarr. |
 | **Lidarr** | Artist pictures, album covers, canonical names and years, and albums, EPs and singles sorted apart. |
-| **Readarr, Bookshelf or Chaptarr** (in the next release) | Audiobook details, covers and series, author photos and biographies, upcoming books in **Coming soon**, deleting books, and book requests. See [Audiobooks](audiobooks.md). |
 | **Seerr** | **Discover** and requests. Seerr, Overseerr and Jellyseerr all work. See [Requests](requests.md). |
 | **Bazarr** | **Search for subtitles** from the player and a title's page, and re-syncing subtitles that are out of time. See [Finding subtitles](subtitles-and-skipping.md#finding-subtitles). |
 | **TMDB** | Details, artwork and cast for films Radarr doesn't have, with a free key of your own. See [Films from TMDB](without-arrs.md#films-from-tmdb). |
@@ -25,7 +24,7 @@ Films and shows that Radarr or Sonarr don't manage are still looked up through t
 
 You need two things for each app: its **address** and its **API key**.
 
-![Settings › Connections with Sonarr, Radarr, Lidarr, Readarr, Seerr and Bazarr connected, and TMDB and Trakt below](../../site/guide/img/connections.webp "Settings › Connections")
+![Settings › Connections with Sonarr, Radarr, Lidarr, Seerr and Bazarr connected, and TMDB and Trakt below](../../site/guide/img/connections.webp "Settings › Connections")
 
 1. In Flexarr, go to **Settings › Connections**.
 2. Every app Flexarr works with is listed under **Apps & Integrations**. Find the one you want and choose **Connect**.
@@ -34,7 +33,7 @@ You need two things for each app: its **address** and its **API key**.
 5. Choose **Test**. A tick means Flexarr reached it; otherwise you'll see what went wrong.
 6. Choose **Connect**.
 
-Flexarr then adds its own webhook to Sonarr, Radarr, Lidarr and Readarr, so new downloads show up straight away (see [Webhooks](#webhooks-new-downloads-appear-straight-away)).
+Flexarr then adds its own webhook to Sonarr, Radarr and Lidarr, so new downloads show up straight away (see [Webhooks](#webhooks-new-downloads-appear-straight-away)).
 
 Repeat for each app. Each one then shows a green dot, its version, and a link to open it. Choose the pencil to change it, or **Disconnect** in it to stop using it; its titles stay in your libraries.
 
@@ -49,8 +48,6 @@ Use the address Flexarr can reach the app on, with its port. The usual ports are
 | Sonarr | `http://<host>:8989` |
 | Radarr | `http://<host>:7878` |
 | Lidarr | `http://<host>:8686` |
-| Readarr or Bookshelf | `http://<host>:8787` |
-| Chaptarr | `http://<host>:8789` |
 | Seerr | `http://<host>:5055` |
 | Bazarr | `http://<host>:6767` |
 
@@ -63,7 +60,6 @@ Use the address Flexarr can reach the app on, with its port. The usual ports are
 | Sonarr | **Settings › General**, under **Security** |
 | Radarr | **Settings › General**, under **Security** |
 | Lidarr | **Settings › General**, under **Security** |
-| Readarr, Bookshelf, Chaptarr | **Settings › General**, under **Security** |
 | Seerr | **Settings › General** |
 | Bazarr | **Settings › General**, under **Security** |
 
@@ -89,10 +85,7 @@ The addresses to use are at the bottom of **Settings › Connections**, under **
 http://<flexarr-host>:8383/api/v1/webhooks/sonarr?secret=<webhook-secret>
 http://<flexarr-host>:8383/api/v1/webhooks/radarr?secret=<webhook-secret>
 http://<flexarr-host>:8383/api/v1/webhooks/lidarr?secret=<webhook-secret>
-http://<flexarr-host>:8383/api/v1/webhooks/readarr?secret=<webhook-secret>
 ```
-
-Bookshelf and Chaptarr use the `readarr` address.
 
 The secret can only start scans, so you don't hand your API key to the *arr apps.
 

@@ -76,8 +76,7 @@ To delete a film, show or episode, open its page, then **⋯ › Delete…** (ma
 - **A film Radarr manages:** Radarr deletes the film's files from disk and stops tracking it.
 - **A show Sonarr manages:** Sonarr deletes every episode's files and stops tracking the show.
 - **An episode:** Sonarr deletes the episode's file and stops downloading it, so it doesn't come back.
-- **An audiobook** (from the next release) **that Readarr, Bookshelf or Chaptarr manage:** it deletes the book's files and unmonitors the book there, so it isn't fetched again.
-- **A title neither manages:** Flexarr deletes the video files itself and lists them first. It also removes folders left empty, but never a library's own folder or anything outside it.
+- **A title neither manages, or an audiobook** (from the next release): Flexarr deletes the files itself and lists them first. It also removes folders left empty, but never a library's own folder or anything outside it.
 
 If Sonarr or Radarr can't be reached or refuse, nothing is removed from Flexarr either.
 

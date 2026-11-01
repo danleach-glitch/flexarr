@@ -125,13 +125,13 @@
             <li><a href="#listening">Listening</a></li>
             <li><a href="#on-your-phone">On your phone</a></li>
             <li><a href="#details-from-the-internet">Details from the internet</a></li>
-            <li><a href="#readarr-bookshelf-and-chaptarr">Readarr, Bookshelf and Chaptarr</a></li>
+            <li><a href="#getting-books-in">Getting books in</a></li>
           </ol>
         </nav>
         <div class="prose">
 <blockquote class="callout note"><p><strong>Note</strong> Audiobooks arrive in the next release of Flexarr.</p>
 </blockquote>
-<p>Audiobooks are a library like films, TV and music. Flexarr finds the books in your folders, reads their chapters and details, and plays each book as one, however many files it has. Readarr, Bookshelf or Chaptarr can fetch books for it, but they don&#39;t have to: a folder of audiobooks is enough.</p>
+<p>Audiobooks are a library like films, TV and music. Flexarr finds the books in your folders, reads their chapters and details, and plays each book as one, however many files it has. A folder of audiobooks is all it needs.</p>
 <p>Books are on the web, iPhone, iPad and the Apple TV. Kids profiles don&#39;t see them.</p>
 <h2 id="adding-the-library"><a class="anchor" href="#adding-the-library" aria-hidden="true" tabindex="-1">#</a>Adding the library</h2>
 <p>In <strong>Settings › Libraries</strong>, add a library, choose <strong>Audiobooks</strong>, and pick the folder your books are in.</p>
@@ -146,7 +146,7 @@ Author - Title [B0DPXK6Y7B].m4b                  an Audible id in the name
 <ul>
 <li><strong>Files:</strong> m4b, m4a, mp3, aac, flac, ogg, opus and wma. Books protected by Audible (<code>.aax</code>, <code>.aaxc</code>) can&#39;t be played: <strong>Library health</strong> lists them.</li>
 <li><strong>Order:</strong> files play by disc, then track number, then name, with numbers in names counted as numbers.</li>
-<li><strong>Details:</strong> Flexarr reads them from files beside the book first (<code>metadata.opf</code> from Readarr, Bookshelf or Calibre, Audiobookshelf&#39;s <code>metadata.json</code>, <code>desc.txt</code>, <code>reader.txt</code>, a cover image), then the files&#39; tags, then the folder names. It never changes your files.</li>
+<li><strong>Details:</strong> Flexarr reads them from files beside the book first (<code>metadata.opf</code> from Calibre and other book managers, Audiobookshelf&#39;s <code>metadata.json</code>, <code>desc.txt</code>, <code>reader.txt</code>, a cover image), then the files&#39; tags, then the folder names. It never changes your files.</li>
 <li><strong>Chapters</strong> come from the files themselves, a <code>.cue</code> sheet, or one per file. A long book in a single file with none is split into half-hour parts.</li>
 </ul>
 <h2 id="finding-books"><a class="anchor" href="#finding-books" aria-hidden="true" tabindex="-1">#</a>Finding books</h2>
@@ -175,18 +175,11 @@ Author - Title [B0DPXK6Y7B].m4b                  an Audible id in the name
 <p>Audible&#39;s chapters replace guessed ones when they match the book&#39;s length. On the web, the main profile can change a book&#39;s chapters: open its page, choose <strong>⋯ › Edit chapters…</strong>, rename them or <strong>Shift all by</strong> a few seconds, then <strong>Save</strong>. <strong>Use Audible&#39;s</strong> fills them in; <strong>Save</strong> keeps them. <strong>⋯ › Fix match…</strong> finds the right book when Flexarr picked the wrong one.</p>
 <p>To fix a book&#39;s details yourself, choose <strong>⋯ › Edit…</strong> (it asks for the admin PIN): change its title, authors, narrators, series, genres, description or year. <strong>Locked</strong> keeps your changes when the library is scanned again. Genres that only say it&#39;s an audiobook, such as <em>Audiobook</em> or <em>Spoken Word</em>, are left out.</p>
 <h3 id="author-photos"><a class="anchor" href="#author-photos" aria-hidden="true" tabindex="-1">#</a>Author photos</h3>
-<p>Each author gets a photo and a short biography. Flexarr looks first for an <code>author.jpg</code> or <code>folder.jpg</code> in the author&#39;s folder, then asks Readarr, Audible and Open Library, and tries again later for anyone still missing one. A picture in the author&#39;s folder wins over anything found online.</p>
+<p>Each author gets a photo and a short biography. Flexarr looks first for an <code>author.jpg</code> or <code>folder.jpg</code> in the author&#39;s folder, then asks Audible and Open Library, and tries again later for anyone still missing one. A picture in the author&#39;s folder wins over anything found online.</p>
 <p>If an author has the wrong photo or biography, open their page in the web app and choose <strong>Edit</strong> (it asks for the admin PIN): pick another photo, upload your own, or rewrite the biography. Your changes stay put. Turn off <strong>Locked</strong> to let Flexarr fill in anything that&#39;s missing.</p>
-<h2 id="readarr-bookshelf-and-chaptarr"><a class="anchor" href="#readarr-bookshelf-and-chaptarr" aria-hidden="true" tabindex="-1">#</a>Readarr, Bookshelf and Chaptarr</h2>
-<p>Connect any of them in <strong>Settings › Connections</strong> as <strong>Readarr / Bookshelf / Chaptarr</strong>. Bookshelf keeps one kind of book per instance, so connect the one for audiobooks.</p>
-<p>With one connected:</p>
-<ul>
-<li>New books show up as soon as they&#39;re imported.</li>
-<li>Their details and covers fill what your files don&#39;t say.</li>
-<li><strong>Coming soon</strong> lists books on their way from authors you follow.</li>
-<li>Deleting a book in Flexarr deletes it there too, and it isn&#39;t fetched again.</li>
-<li>You can request books from the web app: see <a href="/guide/requests">Requests</a>.</li>
-</ul>
+<h2 id="getting-books-in"><a class="anchor" href="#getting-books-in" aria-hidden="true" tabindex="-1">#</a>Getting books in</h2>
+<p>Flexarr doesn&#39;t fetch books. Put them in the library&#39;s folder, by hand or with whatever app you use, in one of the layouts above. New books show up after the next scan, every 12 hours, or straight away with <strong>Scan</strong> in <strong>Settings › Libraries</strong>.</p>
+<p>A <code>metadata.opf</code>, <code>metadata.json</code> or cover beside a book gives it the details you want. If Flexarr still picks the wrong book, use <strong>⋯ › Fix match…</strong>. Deleting a book in Flexarr deletes its files.</p>
 
         </div>
         <nav class="pager" aria-label="More of the guide">

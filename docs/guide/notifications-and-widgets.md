@@ -22,7 +22,7 @@ If iOS has notifications switched off for Flexarr, the page says so and offers *
 - **Films** and **Shows**: something new in the library that you haven't seen, in a library your profile can see. A brand-new show says so, and several episodes of one show arriving together are one notification. Upgrades and replacements of things you already have don't count.
 - **Podcasts**: a new episode of a show you follow.
 - **Recordings**: a Live TV recording has finished. This appears when Live TV is set up.
-- **Requests**: something you asked for through Flexarr is ready, or a title on your [watchlist](watchlist.md) has arrived (**From your watchlist**). This takes the place of the ordinary "new" notification for it. In the next release, a book you asked for says it's ready to listen.
+- **Requests**: something you asked for through Flexarr is ready, or a title on your [watchlist](watchlist.md) has arrived (**From your watchlist**). This takes the place of the ordinary "new" notification for it.
 - **Upcoming** (off to start with): each morning, at the hour you choose under **At**, what's airing or out today from the shows you watch and the films you asked for.
 
 Phones on the main profile also hear, whatever they've chosen, when a device asks to connect (with **Allow** and **Don't allow** buttons: press and hold the notification) and when wrong guesses at the admin PIN lock someone out, naming the device.

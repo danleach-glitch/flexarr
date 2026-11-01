@@ -6,7 +6,7 @@ description: An audiobooks library with chapters, series, authors and narrators,
 > **Note**
 > Audiobooks arrive in the next release of Flexarr.
 
-Audiobooks are a library like films, TV and music. Flexarr finds the books in your folders, reads their chapters and details, and plays each book as one, however many files it has. Readarr, Bookshelf or Chaptarr can fetch books for it, but they don't have to: a folder of audiobooks is enough.
+Audiobooks are a library like films, TV and music. Flexarr finds the books in your folders, reads their chapters and details, and plays each book as one, however many files it has. A folder of audiobooks is all it needs.
 
 Books are on the web, iPhone, iPad and the Apple TV. Kids profiles don't see them.
 
@@ -27,7 +27,7 @@ Author - Title [B0DPXK6Y7B].m4b                  an Audible id in the name
 
 - **Files:** m4b, m4a, mp3, aac, flac, ogg, opus and wma. Books protected by Audible (`.aax`, `.aaxc`) can't be played: **Library health** lists them.
 - **Order:** files play by disc, then track number, then name, with numbers in names counted as numbers.
-- **Details:** Flexarr reads them from files beside the book first (`metadata.opf` from Readarr, Bookshelf or Calibre, Audiobookshelf's `metadata.json`, `desc.txt`, `reader.txt`, a cover image), then the files' tags, then the folder names. It never changes your files.
+- **Details:** Flexarr reads them from files beside the book first (`metadata.opf` from Calibre and other book managers, Audiobookshelf's `metadata.json`, `desc.txt`, `reader.txt`, a cover image), then the files' tags, then the folder names. It never changes your files.
 - **Chapters** come from the files themselves, a `.cue` sheet, or one per file. A long book in a single file with none is split into half-hour parts.
 
 ## Finding books
@@ -71,18 +71,12 @@ To fix a book's details yourself, choose **⋯ › Edit…** (it asks for the ad
 
 ### Author photos
 
-Each author gets a photo and a short biography. Flexarr looks first for an `author.jpg` or `folder.jpg` in the author's folder, then asks Readarr, Audible and Open Library, and tries again later for anyone still missing one. A picture in the author's folder wins over anything found online.
+Each author gets a photo and a short biography. Flexarr looks first for an `author.jpg` or `folder.jpg` in the author's folder, then asks Audible and Open Library, and tries again later for anyone still missing one. A picture in the author's folder wins over anything found online.
 
 If an author has the wrong photo or biography, open their page in the web app and choose **Edit** (it asks for the admin PIN): pick another photo, upload your own, or rewrite the biography. Your changes stay put. Turn off **Locked** to let Flexarr fill in anything that's missing.
 
-## Readarr, Bookshelf and Chaptarr
+## Getting books in
 
-Connect any of them in **Settings › Connections** as **Readarr / Bookshelf / Chaptarr**. Bookshelf keeps one kind of book per instance, so connect the one for audiobooks.
+Flexarr doesn't fetch books. Put them in the library's folder, by hand or with whatever app you use, in one of the layouts above. New books show up after the next scan, every 12 hours, or straight away with **Scan** in **Settings › Libraries**.
 
-With one connected:
-
-- New books show up as soon as they're imported.
-- Their details and covers fill what your files don't say.
-- **Coming soon** lists books on their way from authors you follow.
-- Deleting a book in Flexarr deletes it there too, and it isn't fetched again.
-- You can request books from the web app: see [Requests](requests.md).
+A `metadata.opf`, `metadata.json` or cover beside a book gives it the details you want. If Flexarr still picks the wrong book, use **⋯ › Fix match…**. Deleting a book in Flexarr deletes its files.
