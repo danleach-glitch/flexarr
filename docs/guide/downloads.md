@@ -21,7 +21,7 @@ Tap the button while a download is under way, or once it's here, to remove it. D
 
 Everything you've downloaded is in the **Downloads** tab, where it plays with Skip Intro and the countdown to the next episode as usual.
 
-![The Downloads tab on an iPhone with Ted Lasso episodes, an album and podcast episodes, beside a show page with its Download button](../../site/guide/img/phones-downloads.webp "Downloads on iPhone")
+![The Downloads tab on an iPhone with podcast episodes marked by green arrows, beside Ted Lasso's page with Resume and round buttons](../../site/guide/img/phones-downloads.webp "Downloads on iPhone")
 
 ## What your server does first
 

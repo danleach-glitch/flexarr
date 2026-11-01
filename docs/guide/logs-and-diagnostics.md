@@ -18,7 +18,7 @@ To narrow it down:
 
 **Load older** at the bottom goes further back.
 
-![The Logs page with error reports switched on, the level, area and search filters, and recent log lines](../../site/guide/img/logs.webp "Settings › Logs")
+![The Logs page with error reports switched on, and the log filtered to the Playback area](../../site/guide/img/logs.webp "Settings › Logs")
 
 ## Following one playback
 

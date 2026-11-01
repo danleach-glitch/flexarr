@@ -37,7 +37,7 @@ Then choose the **admin PIN** (4 to 8 digits, typed twice). It protects the serv
 
 If you close the page before choosing **Set up Flexarr**, nothing has happened yet, and the same code still works. The code stops working once the server is set up, and after ten wrong tries it's replaced with a new one (the log says so).
 
-![The welcome panel on a new server, asking for its setup code beside a Set up Flexarr button](../../site/guide/img/welcome.webp "What a new server shows a browser on your home network")
+![The welcome panel on a new server, asking for its setup code and a PIN, typed twice, beside Set up Flexarr](../../site/guide/img/welcome.webp "What a new server shows a browser on your home network")
 
 
 A few things to know:
@@ -69,7 +69,7 @@ You're signed in as the server's **main profile**, the one that can change setti
 
 A library is a set of folders holding one kind of media. Go to **Settings › Libraries** and choose **Add library**.
 
-![Settings › Libraries with four libraries, each with its folder, and the podcast episodes folder below](../../site/guide/img/libraries.webp "Settings › Libraries")
+![Settings › Libraries listing each library with its folder and a Fine for kids switch](../../site/guide/img/libraries.webp "Settings › Libraries")
 
 1. Pick the **Kind**: **Films**, **TV shows**, **Music**, **Home videos** (videos of your own, arranged by folder; see [Without Sonarr and Radarr](without-arrs.md#home-videos)) or, in the next release, **Audiobooks** (see [Audiobooks](audiobooks.md)).
 2. Give it a **Name** if you like. Left blank, it's named after its kind. You can rename it later.

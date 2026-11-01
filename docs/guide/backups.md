@@ -7,7 +7,7 @@ Your films, shows and music live on your own drives, and Flexarr can always scan
 
 Everything here is in the web app under **Settings › Backup and restore**, as the main profile with settings unlocked.
 
-![Settings › Backup and restore, listing two backups with download, restore and delete buttons, and the nightly backup switch](../../site/guide/img/backups.webp "Settings › Backup and restore")
+![Settings › Backup and restore with Back up now and a list of nightly and before-upgrade backups, each with download, restore and delete](../../site/guide/img/backups.webp "Settings › Backup and restore")
 
 ## What's in a backup
 

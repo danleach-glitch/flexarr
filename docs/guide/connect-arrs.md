@@ -25,7 +25,7 @@ Films and shows that Radarr or Sonarr don't manage are still looked up through t
 
 You need two things for each app: its **address** and its **API key**.
 
-![Settings › Connections listing Sonarr, Radarr, Lidarr, Seerr and Dispatcharr, all connected, with their media folders below](../../site/guide/img/connections.webp "Settings › Connections")
+![Settings › Connections with Sonarr, Radarr, Lidarr, Readarr, Seerr and Bazarr connected, and TMDB and Trakt below](../../site/guide/img/connections.webp "Settings › Connections")
 
 1. In Flexarr, go to **Settings › Connections**.
 2. Every app Flexarr works with is listed under **Apps & Integrations**. Find the one you want and choose **Connect**.

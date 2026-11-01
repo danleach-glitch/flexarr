@@ -7,7 +7,7 @@ Library health is a check-up for your films and TV. It shows what's wrong, how m
 
 Open it in the web app from **Settings › Libraries › Library health**, as the main profile with settings unlocked. The **Overview** page in Settings links to it too.
 
-![Library health with a score of 99, the health check and a film that only exists in standard definition](../../site/guide/img/health.webp "Settings › Libraries › Library health")
+![Library health with a score of 99, Run health check, a film that only exists in standard definition and one missing artwork](../../site/guide/img/health.webp "Settings › Libraries › Library health")
 
 ## The health score
 

@@ -61,7 +61,7 @@ On the web, signed in as the main profile:
 4. Switch off any libraries it shouldn't see.
 5. Choose **Add profile**.
 
-![Settings › Profiles listing three profiles with edit and delete buttons](../../site/guide/img/profiles.webp "Settings › Profiles")
+![Settings › Profiles listing the main profile, two others and a kids profile with its age limit](../../site/guide/img/profiles.webp "Settings › Profiles")
 
 If you bring your history over from Plex, your Plex Home profile pictures can come too. See [Import from Plex](import-from-plex.md).
 

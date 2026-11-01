@@ -28,7 +28,7 @@ While music plays, a **Now Playing** entry appears in the sidebar, with the cove
 
 Behind Now Playing, light in the cover's colours moves in time with the music. Turn it off with **Settings › Playback › Music visualiser**.
 
-![Thriller playing on Apple TV, with the album art and the track list](../../site/guide/img/tv-now-playing.webp "Music on Apple TV")
+![Thriller in Now Playing on Apple TV, with the visualiser's light behind it, the controls and Up next](../../site/guide/img/tv-now-playing.webp "Music on Apple TV")
 
 ## On iPhone and iPad
 

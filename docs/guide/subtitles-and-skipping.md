@@ -70,7 +70,7 @@ If subtitles come too early or too late, choose **Timing** in the player's subti
 
 On Apple devices, **Timing** isn't offered for a download, for subtitles burned into the picture, or when **Play files directly** is on and the file plays as it is. For the last of these, turning **Play files directly** off brings **Timing** back.
 
-![The Apple TV player paused, with skip buttons, the progress bar, and subtitle and audio buttons at the bottom right](../../site/guide/img/tv-player.webp "The Apple TV player, with subtitles and audio at the bottom right")
+![The Apple TV player paused, with the Audio, subtitles, sleep timer and speakers buttons above the progress bar](../../site/guide/img/tv-player.webp "The Apple TV player, with subtitles and audio at the bottom right")
 
 ## Skipping intros, recaps and credits
 
