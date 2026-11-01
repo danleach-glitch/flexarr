@@ -62,6 +62,8 @@ targets:
       path: FlexarrTV/Info.plist
       properties:
         CFBundleDisplayName: Flexarr
+        # Big Shoulders Display, the marquee type (Shared/Fonts; SIL Open Font License, OFL.txt beside them).
+        UIAppFonts: [BigShouldersDisplay-Bold.ttf, BigShouldersDisplay-ExtraBold.ttf, BigShouldersDisplay-Black.ttf]
         # Export compliance: exempt. Besides Apple's own HTTPS and CryptoKit, the apps carry Tailscale for family
         # guests (WireGuard: standard ChaCha20-Poly1305 and Curve25519, from open-source code). Flexarr's primary
         # function is playing the user's own media, not information security, so under Category 5 Part 2's Note 4
@@ -144,6 +146,8 @@ targets:
       path: FlexarriOS/Info.plist
       properties:
         CFBundleDisplayName: Flexarr
+        # Big Shoulders Display, the marquee type (Shared/Fonts; SIL Open Font License, OFL.txt beside them).
+        UIAppFonts: [BigShouldersDisplay-Bold.ttf, BigShouldersDisplay-ExtraBold.ttf, BigShouldersDisplay-Black.ttf]
         FlexarrAppGroup: group.$(FLEXARR_IOS_BUNDLE_ID)
         FlexarrGuestInvites: $(FLEXARR_GUEST_INVITES)
         CFBundleShortVersionString: $(MARKETING_VERSION)

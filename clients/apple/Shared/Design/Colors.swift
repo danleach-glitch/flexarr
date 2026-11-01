@@ -15,10 +15,29 @@ extension ItemSummary {
 }
 
 extension Font {
-    /// Marquee display type: tall, condensed and heavy, standing in for Big Shoulders Display.
+    /// Marquee display type: Big Shoulders Display (Shared/Fonts, OFL), tall and condensed like a cinema marquee, for
+    /// titles, row headings and Top 10 numerals. Bold, extra bold (`.heavy`) and black are bundled; lighter weights
+    /// take the bold and heavier ones the black.
     static func marquee(_ size: CGFloat, weight: Font.Weight = .heavy) -> Font {
-        .system(size: size, weight: weight).width(.condensed)
+        .custom(MarqueeFace(weight).postScriptName, fixedSize: size)
     }
+}
+
+/// The bundled Big Shoulders Display files (listed in each app's UIAppFonts).
+enum MarqueeFace: String, CaseIterable {
+    case bold = "BigShouldersDisplay-Bold"
+    case extraBold = "BigShouldersDisplay-ExtraBold"
+    case black = "BigShouldersDisplay-Black"
+
+    init(_ weight: Font.Weight) {
+        switch weight {
+        case .black: self = .black
+        case .heavy: self = .extraBold
+        default: self = .bold
+        }
+    }
+
+    var postScriptName: String { rawValue }
 }
 
 /// The room background with an optional ambient wash bleeding in from the top-left,
