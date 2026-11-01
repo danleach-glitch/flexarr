@@ -22,6 +22,7 @@ import { Film, Pencil, Picture, Refresh, Trash } from '../../components/icons'
 import { libraryIcons } from '../../components/libraryIcons'
 import { useApi } from '../../hooks/useApi'
 import { libraryTypeLabel, relativeTime } from '../../lib/format'
+import { BookDetailsGroup } from './BookDetailsGroup'
 import { SaveStatus, SettingLink, SettingRow, SettingsGroup, SettingsHeader } from './shared'
 import { errorText } from './useSettings'
 
@@ -80,6 +81,7 @@ export function LibrariesSection() {
         </div>
       )}
       {podcasts && <PodcastLibrary library={podcasts} onMoved={() => all.reload()} />}
+      {managed.some((l) => l.type === 'Audiobooks') && <BookDetailsGroup />}
       <LibraryTools />
     </section>
   )
