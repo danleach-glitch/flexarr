@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mockApi, movies } from '../test/mockApi'
-import { clearApiCache, FETCH_TIMEOUT_MS, getLibraries, getLibraryGenres, getLibraryItems, keepPage, keptPage, setWatched } from './client'
+import { clearApiCache, FETCH_TIMEOUT_MS, getLibraries, getLibraryGenres, getLibraryItems, keepPage, keptPage, savePlayerPreferences, setWatched } from './client'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -104,6 +104,23 @@ describe('API cache', () => {
     await getLibraryGenres('b')
     expect(sent(fetchMock, '/libraries/a/genres')).toBe(2)
     expect(sent(fetchMock, '/libraries/b/genres')).toBe(1)
+  })
+})
+
+describe('Playback preferences', () => {
+  it('leaves books and podcasts in Continue out of a save from the player', async () => {
+    const sent: unknown[] = []
+    mockApi({
+      'PUT /me/playback-preferences': (init?: RequestInit) => {
+        const body: unknown = JSON.parse(String(init?.body))
+        sent.push(body)
+        return body
+      },
+    })
+
+    await savePlayerPreferences({ autoPlayNext: true, skipIntros: false, skipRecaps: false, skipCredits: false, subtitleSize: 'Large', listeningInContinue: true })
+
+    expect(sent).toEqual([{ autoPlayNext: true, skipIntros: false, skipRecaps: false, skipCredits: false, subtitleSize: 'Large' }])
   })
 })
 

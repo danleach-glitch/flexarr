@@ -68,7 +68,9 @@ struct HomeView: View {
         guard let client = model.client else { return }
         let token = model.refreshToken
         do {
-            let loaded = try await client.home()
+            // Books in progress join Continue watching (for profiles that want them there) and play in the audio player.
+            // Not podcasts: the Apple TV doesn't play them.
+            let loaded = try await client.home(listening: [.books])
             // Nothing yet: the libraries say whether a scan is under way or their folders hold nothing.
             if loaded.featured.isEmpty { await model.loadLibraries() }
             home = loaded

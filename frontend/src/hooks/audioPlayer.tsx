@@ -15,7 +15,7 @@ import {
   type BookManifest,
   type ItemSummary,
 } from '../api/client'
-import { authorsLine, chapterEnd, chapterIndexAt, clampSpeed, fadeLevel, isBook, nextChapterStart, previousChapterStart, sleepReached } from '../lib/books'
+import { authorsLine, chapterEnd, chapterIndexAt, clampSpeed, fadeLevel, isBook, nextChapterStart, previousChapterStart, saveLocalPlace, sleepReached } from '../lib/books'
 import { episodeAsTrack, PODCAST_PREFERENCES_CHANGED } from '../lib/podcasts'
 import { useMusicSettings } from '../lib/musicSettings'
 import { FADE_SECONDS } from '../lib/sleepTimer'
@@ -382,6 +382,20 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     setSleep(null)
     setNextBook(null)
   }, [engine])
+  const forget = useCallback(
+    (item: ItemSummary) => {
+      const { tracks, index } = stateRef.current
+      if (tracks[index]?.id === item.id) {
+        engine().stop(false)
+        dispatch({ type: 'stop' })
+        setSleep(null)
+        setNextBook(null)
+      }
+      // Otherwise the next start here would offer this browser's old place back.
+      if (isBook(item)) saveLocalPlace(item.id, 0)
+    },
+    [engine],
+  )
   const speed = bookPlaying ? bookSpeed : usualSpeed
   const currentId = current?.id
   const setSpeed = useCallback(
@@ -500,6 +514,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       seek,
       skipBy,
       stop,
+      forget,
       speed,
       setSpeed,
       sleep,
@@ -538,6 +553,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       seek,
       skipBy,
       stop,
+      forget,
       speed,
       setSpeed,
       sleep,

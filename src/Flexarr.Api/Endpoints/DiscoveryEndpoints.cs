@@ -54,7 +54,9 @@ public static partial class DiscoveryEndpoints
 
     public static RouteGroupBuilder MapDiscoveryEndpoints(this RouteGroupBuilder api)
     {
-        api.MapGet("/home", async (FlexarrDbContext db, CurrentProfile profile, IServiceProvider services, CancellationToken ct) =>
+        // listening: what the app can open from the Continue row besides films and shows ("books,podcasts"). Older
+        // apps send nothing and get the row as it always was.
+        api.MapGet("/home", async (string? listening, FlexarrDbContext db, CurrentProfile profile, IServiceProvider services, CancellationToken ct) =>
         {
             var me = profile.Id;
             var options = services.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<Configuration.FlexarrOptions>>().CurrentValue;
@@ -65,10 +67,24 @@ public static partial class DiscoveryEndpoints
             var topLevel = db.MediaItems.Where(i => i.ParentId == null);
             var unwatchedMovies = topLevel.Where(i => i.Kind == MediaKind.Movie && !i.PlaybackStates.Any(p => p.UserId == me && p.Watched));
 
-            var continueWatching = await ContinueWatchingAsync(db, me, RowSize, null, ct);
-            if (continueWatching.Count > 0)
+            // Recordings are in Live TV, not a library with a row of its own.
+            var libraries = (await db.Libraries.OrderBy(l => l.Name).ToListAsync(ct))
+                .Where(l => !(options.LiveTv?.Account is not null && RecordingsLibrary.Is(l))).ToList();
+
+            // Books and podcast episodes join the row when the app can open them and the profile wants them there, and
+            // the row is on in Settings › Home (switched off, books keep their own Continue listening row).
+            var asked = LayoutEndpoints.IsOn(options.Layout.Home, "continue") && Listening.Parse(listening) is { Any: true } kinds
+                && await db.Profiles.Where(p => p.Id == me).Select(p => p.ListeningInContinue).FirstOrDefaultAsync(ct)
+                ? kinds : default;
+            List<Guid> listenBooks = asked.Books ? [.. libraries.Where(l => l.Type == LibraryType.Audiobooks).Select(l => l.Id)] : [];
+            List<Guid> listenPodcasts = asked.Podcasts ? [.. libraries.Where(l => l.Type == LibraryType.Podcasts).Select(l => l.Id)] : [];
+            // continueWatching is films and shows only: the hero resumes what it holds, and has no way to play a book.
+            var (continueWatching, continueRow) = await ContinueWatchingOrListeningAsync(db, me, RowSize, listenBooks, listenPodcasts, ct);
+            if (continueRow.Count > 0)
             {
-                rows.Add(new HomeRowDto("continue", "Continue watching", "wide", continueWatching));
+                // "or listening" only when there's something to listen to in it, not for every profile that could.
+                var listeningIn = continueRow.Any(i => i.Kind is MediaKind.Audiobook or MediaKind.PodcastEpisode);
+                rows.Add(new HomeRowDto("continue", listeningIn ? "Continue watching or listening" : "Continue watching", "wide", continueRow));
             }
 
             // Titles from this profile's watchlist it can play now; nothing until something on the list is in. A kids profile has none.
@@ -92,9 +108,6 @@ public static partial class DiscoveryEndpoints
                 rows.Add(new HomeRowDto("live-tv", "Live TV", "live", [], "/livetv", Channels: channels));
             }
 
-            // Recordings are in Live TV, not a library with a row of its own.
-            var libraries = (await db.Libraries.OrderBy(l => l.Name).ToListAsync(ct))
-                .Where(l => !(options.LiveTv?.Account is not null && RecordingsLibrary.Is(l))).ToList();
             // One row for each library, or (as it starts) one for all the film libraries and one for all the TV ones.
             var combine = options.Layout.CombineLibraries;
             foreach (var group in libraries.Where(l => l.Type is LibraryType.Movies or LibraryType.TvShows or LibraryType.HomeVideos).GroupBy(l => combine ? (object)l.Type : l.Id))
@@ -134,7 +147,8 @@ public static partial class DiscoveryEndpoints
             var bookLibraries = libraries.Where(l => l.Type == LibraryType.Audiobooks).Select(l => l.Id).ToList();
             if (bookLibraries.Count > 0)
             {
-                rows.AddRange(await Books.BookRows.HomeAsync(db, bookLibraries, me, RowSize, ct));
+                // Books in progress are in the Continue row instead, when it holds them.
+                rows.AddRange(await Books.BookRows.HomeAsync(db, bookLibraries, me, RowSize, continueRow: listenBooks.Count == 0, ct));
             }
 
             // "Because you watched": share genres and cast with the latest thing finished.
@@ -218,7 +232,8 @@ public static partial class DiscoveryEndpoints
         api.MapGet("/home/continue", async (int? take, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
             await ContinueWatchingAsync(db, profile.Id, Math.Clamp(take ?? 20, 1, 50), null, ct)).WithTags("Discovery");
 
-        // Takes a title out of Continue Watching without marking it watched (see PlaybackService).
+        // Takes a title (a film, episode, audiobook or podcast episode) out of Continue Watching without marking it
+        // watched (see PlaybackService).
         api.MapDelete("/home/continue/{id:guid}", async (Guid id, Playback.PlaybackService playback, CancellationToken ct) =>
             await playback.RemoveFromContinueWatchingAsync(id, ct) ? Results.NoContent() : Results.NotFound()).WithTags("Discovery");
 
@@ -456,6 +471,14 @@ public static partial class DiscoveryEndpoints
     /// <param name="libraryId">Only what's in this library (null for everything).</param>
     public static async Task<List<ItemSummaryDto>> ContinueWatchingAsync(FlexarrDbContext db, string profileId, int limit, Guid? libraryId, CancellationToken ct)
     {
+        var order = (await ContinueWatchingOrderAsync(db, profileId, limit, libraryId, ct)).Select(x => x.Id).ToList();
+        var items = await db.MediaItems.Where(i => order.Contains(i.Id)).Summaries(profileId).ToDictionaryAsync(i => i.Id, ct);
+        return order.Where(items.ContainsKey).Select(id => items[id]).ToList();
+    }
+
+    /// <summary>What <see cref="ContinueWatchingAsync"/> lists, by id, with when each was last played (for an episode up next, its show).</summary>
+    private static async Task<List<(Guid Id, DateTime At)>> ContinueWatchingOrderAsync(FlexarrDbContext db, string profileId, int limit, Guid? libraryId, CancellationToken ct)
+    {
         var states = db.PlaybackStates.Where(p => p.UserId == profileId && (libraryId == null || p.MediaItem!.LibraryId == libraryId));
         // Films and episodes only: a track half played is music's business (its Recently played row), and a Play button
         // on an album in the hero would be a different thing from resuming a film.
@@ -487,10 +510,70 @@ public static partial class DiscoveryEndpoints
             }
         }
 
-        var order = inProgress.Select(p => (Id: p.MediaItemId, At: p.LastPlayedAt)).Concat(upNext)
-            .OrderByDescending(x => x.At).Select(x => x.Id).Distinct().Take(limit).ToList();
-        var items = await db.MediaItems.Where(i => order.Contains(i.Id)).Summaries(profileId).ToDictionaryAsync(i => i.Id, ct);
-        return order.Where(items.ContainsKey).Select(id => items[id]).ToList();
+        return inProgress.Select(p => (Id: p.MediaItemId, At: p.LastPlayedAt)).Concat(upNext)
+            .OrderByDescending(x => x.At).DistinctBy(x => x.Id).Take(limit).ToList();
+    }
+
+    /// <summary>What an app can open from the Continue row besides films and shows, from Home's ?listening= list.</summary>
+    internal readonly record struct Listening(bool Books, bool Podcasts)
+    {
+        public bool Any => Books || Podcasts;
+
+        /// <summary>A comma list ("books,podcasts"); values it doesn't know are ignored. Null when the app sent nothing.</summary>
+        public static Listening? Parse(string? value)
+        {
+            if (value is null)
+            {
+                return null;
+            }
+
+            var kinds = value.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+            return new Listening(kinds.Contains("books", StringComparer.OrdinalIgnoreCase), kinds.Contains("podcasts", StringComparer.OrdinalIgnoreCase));
+        }
+    }
+
+    /// <summary>
+    /// Home's Continue row: films and shows as <see cref="ContinueWatchingAsync"/> has them, and the audiobooks and
+    /// podcast episodes the profile is part way through in <paramref name="bookLibraries"/> and
+    /// <paramref name="podcastLibraries"/> (those it can see, of the kinds the app asked for), all by when they were
+    /// last played. Films and shows are worked out once, for the row and for the hero (<paramref name="Watching"/>).
+    /// </summary>
+    /// <returns>The films and shows alone (what the hero may resume), and the row.</returns>
+    private static async Task<(List<ItemSummaryDto> Watching, List<ItemSummaryDto> Row)> ContinueWatchingOrListeningAsync(FlexarrDbContext db, string profileId, int limit,
+        List<Guid> bookLibraries, List<Guid> podcastLibraries, CancellationToken ct)
+    {
+        var watching = await ContinueWatchingOrderAsync(db, profileId, limit, null, ct);
+        var order = new List<(Guid Id, DateTime At)>(watching);
+        if (bookLibraries.Count > 0)
+        {
+            order.AddRange(await LastPlayedAsync(db, Books.BookRows.Playable(db, bookLibraries), profileId, limit, ct));
+        }
+
+        if (podcastLibraries.Count > 0)
+        {
+            var episodes = db.MediaItems.Where(i => podcastLibraries.Contains(i.LibraryId) && i.Kind == MediaKind.PodcastEpisode);
+            order.AddRange(await LastPlayedAsync(db, episodes, profileId, limit, ct));
+        }
+
+        var watchingIds = watching.Select(x => x.Id).ToList();
+        var rowIds = order.OrderByDescending(x => x.At).Select(x => x.Id).Distinct().Take(limit).ToList();
+        var wanted = watchingIds.Union(rowIds).ToList();
+        var items = await db.MediaItems.Where(i => wanted.Contains(i.Id)).Summaries(profileId).ToDictionaryAsync(i => i.Id, ct);
+        List<ItemSummaryDto> InOrder(List<Guid> ids) => [.. ids.Where(items.ContainsKey).Select(id => items[id])];
+        return (InOrder(watchingIds), InOrder(rowIds));
+    }
+
+    /// <summary>
+    /// Those of <paramref name="items"/> started and not finished (the rule of <see cref="Books.BookQueries.InProgress"/>),
+    /// the latest played first. It starts from this profile's own places, newest first (the (UserId, LastPlayedAt)
+    /// index), rather than from every item, which for podcasts would be every episode of every show.
+    /// </summary>
+    private static async Task<List<(Guid Id, DateTime At)>> LastPlayedAsync(FlexarrDbContext db, IQueryable<MediaItem> items, string profileId, int limit, CancellationToken ct)
+    {
+        var started = await db.PlaybackStates.Where(p => p.UserId == profileId && !p.Watched && p.PositionSeconds > 0 && items.Any(i => i.Id == p.MediaItemId))
+            .OrderByDescending(p => p.LastPlayedAt).Take(limit)
+            .Select(p => new { p.MediaItemId, p.LastPlayedAt }).ToListAsync(ct);
+        return [.. started.Select(x => (x.MediaItemId, x.LastPlayedAt))];
     }
 
     /// <summary>Same kind, ranked by shared genres and cast, then rating.</summary>

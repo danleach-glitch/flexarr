@@ -214,6 +214,7 @@ public sealed class PlaybackService(
         }
 
         var shuffling = request.Shuffle && item.Kind == MediaKind.Episode;
+        // Without ListeningInContinue: players save back what they were given, and mustn't switch Home's row back.
         var watching = await db.Profiles.AsNoTracking().Where(p => p.Id == profile.Id)
             .Select(p => new PlaybackPreferencesDto(p.AutoPlayNext, p.SkipIntros, p.SkipRecaps, p.SkipCredits, p.SubtitleSize, p.SubtitlePosition, p.SubtitlesInBlackBars)).FirstOrDefaultAsync(ct);
         var next = shuffling ? await ShuffleNextAsync(item, ct) : await NextEpisodeAsync(item, ct);
@@ -302,6 +303,7 @@ public sealed class PlaybackService(
             ?? (state is { Watched: false, PositionSeconds: > 0 } && (duration <= 0 || state.PositionSeconds < duration * WatchedThreshold) ? state.PositionSeconds : 0);
         var summary = await db.MediaItems.Where(i => i.Id == item.Id).Summaries(profile.Id).FirstAsync(ct);
         var ancestors = item.ParentId is { } podcastId ? await db.MediaItems.Where(i => i.Id == podcastId).Summaries(profile.Id).ToListAsync(ct) : [];
+        // Without ListeningInContinue: players save back what they were given, and mustn't switch Home's row back.
         var watching = await db.Profiles.AsNoTracking().Where(p => p.Id == profile.Id)
             .Select(p => new PlaybackPreferencesDto(p.AutoPlayNext, p.SkipIntros, p.SkipRecaps, p.SkipCredits, p.SubtitleSize, p.SubtitlePosition, p.SubtitlesInBlackBars)).FirstOrDefaultAsync(ct);
         return new PlaybackInfoDto(id, PlaybackMethod.DirectPlay, $"/api/v1/playback/{id}/stream", [], duration, Math.Max(0, start), Guid.Empty,
@@ -569,7 +571,10 @@ public sealed class PlaybackService(
 
     /// <summary>
     /// Takes a title out of Continue Watching without marking it watched: forgets the place reached in it and, for an
-    /// episode (or a show), keeps the show's next episode out of the row until another episode is played.
+    /// episode (or a show), keeps the show's next episode out of the row until another episode is played. An audiobook
+    /// or podcast episode (in the row for apps that ask) goes the same way: its place forgotten, not finished.
+    /// The removal is stamped as the latest play, so a place reached before it (a player's last save arriving late, or
+    /// listening done offline and sent afterwards) loses to it and doesn't put the title back.
     /// </summary>
     public async Task<bool> RemoveFromContinueWatchingAsync(Guid itemId, CancellationToken ct)
     {
@@ -579,8 +584,9 @@ public sealed class PlaybackService(
             return false;
         }
 
+        var now = DateTime.UtcNow;
         await db.PlaybackStates.Where(p => p.UserId == profile.Id && p.MediaItemId == itemId && !p.Watched)
-            .ExecuteUpdateAsync(u => u.SetProperty(p => p.PositionSeconds, 0), ct);
+            .ExecuteUpdateAsync(u => u.SetProperty(p => p.PositionSeconds, 0).SetProperty(p => p.LastPlayedAt, now), ct);
         await DismissShowAsync(item, ct);
         await db.SaveChangesAsync(ct);
         return true;

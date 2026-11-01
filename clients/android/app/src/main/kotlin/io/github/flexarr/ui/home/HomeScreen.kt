@@ -70,6 +70,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.flexarr.AppModel
 import io.github.flexarr.appModel
+import io.github.flexarr.core.ContinueListening
 import io.github.flexarr.core.EmptyHomeMessage
 import io.github.flexarr.core.Home
 import io.github.flexarr.core.HomeRow
@@ -132,7 +133,8 @@ fun HomeScreen(model: AppModel) {
             val episodes = async {
                 if (model.isKids) emptyList() else runCatching { client.newPodcastEpisodes(unplayed = true, take = 20) }.getOrDefault(emptyList())
             }
-            val home = client.home()
+            // Books and podcast episodes in progress join Continue watching: the phone plays both.
+            val home = client.home(setOf(ContinueListening.Books, ContinueListening.Podcasts))
             val newEpisodes = episodes.await()
             // Nothing at all yet: the libraries say whether a scan is under way or their folders hold nothing. Not to a
             // profile with an age limit, for whom it's only that nothing's within it.

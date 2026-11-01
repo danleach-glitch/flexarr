@@ -330,6 +330,25 @@ public struct Person: Codable, Sendable, Identifiable {
 
 // MARK: - Home and search
 
+/// What an app can play from Home's Continue watching row besides films and episodes (`home(listening:)`).
+public enum ContinueListeningKind: String, Sendable, Hashable, CaseIterable {
+    case books, podcasts
+}
+
+extension ItemSummary {
+    /// An audiobook or podcast episode: listened to in the audio player, with square art.
+    public var isListening: Bool { kind == .audiobook || kind == .podcastEpisode }
+
+    /// Beneath a book's or episode's title: its author, or its podcast.
+    public var listeningSubtitle: String? {
+        switch kind {
+        case .audiobook: bookAuthors
+        case .podcastEpisode: seriesTitle
+        default: nil
+        }
+    }
+}
+
 public struct HomeRow: Codable, Sendable, Identifiable, Hashable {
     public let id: String
     public let title: String
@@ -713,9 +732,13 @@ public struct PlaybackPreferences: Codable, Sendable, Hashable {
     public var subtitlePosition: SubtitlePosition?
     /// In films wider than the screen, subtitles go in the black bar below the picture. Absent from servers before 0.53.
     public var subtitlesInBlackBars: Bool?
+    /// Audiobooks and podcast episodes in progress join Home's Continue watching row (on unless switched off).
+    /// Absent from servers before 0.58; left out when saving, it's kept.
+    public var listeningInContinue: Bool? = nil
 
     public init(autoPlayNext: Bool = true, skipIntros: Bool = false, skipRecaps: Bool = false, skipCredits: Bool = false,
-                subtitleSize: SubtitleSize? = nil, subtitlePosition: SubtitlePosition? = nil, subtitlesInBlackBars: Bool? = nil) {
+                subtitleSize: SubtitleSize? = nil, subtitlePosition: SubtitlePosition? = nil, subtitlesInBlackBars: Bool? = nil,
+                listeningInContinue: Bool? = nil) {
         self.autoPlayNext = autoPlayNext
         self.skipIntros = skipIntros
         self.skipRecaps = skipRecaps
@@ -723,6 +746,7 @@ public struct PlaybackPreferences: Codable, Sendable, Hashable {
         self.subtitleSize = subtitleSize
         self.subtitlePosition = subtitlePosition
         self.subtitlesInBlackBars = subtitlesInBlackBars
+        self.listeningInContinue = listeningInContinue
     }
 
     /// Where this profile wants subtitles drawn.

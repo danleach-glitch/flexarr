@@ -70,7 +70,8 @@ struct PosterArtwork: View {
     }
 }
 
-/// 16:9 card for Continue Watching and episode lists, with a progress bar.
+/// 16:9 card for Continue Watching and episode lists, with a progress bar. A book in Continue watching shows its
+/// square cover over a blur of itself.
 struct WideCard: View {
     @Environment(AppModel.self) private var model
     let item: ItemSummary
@@ -81,10 +82,16 @@ struct WideCard: View {
 
     var body: some View {
         ArtworkButton(ambient: item.glowColor, focus: focus, focusID: item.id, action: action) {
-            RemoteImage(url: model.client?.imageURL(stillPath, width: 780)) {
-                ZStack {
-                    LinearGradient(colors: [item.glowColor.opacity(0.4), Color.seat], startPoint: .topLeading, endPoint: .bottomTrailing)
-                    Image(systemName: "play.fill").font(.system(size: 44)).foregroundStyle(Color.screen.opacity(0.5))
+            Group {
+                if item.isListening {
+                    ListeningArt(item: item, imageWidth: 500, inset: 20, cornerRadius: 6)
+                } else {
+                    RemoteImage(url: model.client?.imageURL(stillPath, width: 780)) {
+                        ZStack {
+                            LinearGradient(colors: [item.glowColor.opacity(0.4), Color.seat], startPoint: .topLeading, endPoint: .bottomTrailing)
+                            Image(systemName: "play.fill").font(.system(size: 44)).foregroundStyle(Color.screen.opacity(0.5))
+                        }
+                    }
                 }
             }
             .frame(width: width, height: width * 9 / 16)
@@ -100,7 +107,7 @@ struct WideCard: View {
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         } caption: { focused in
             VStack(alignment: .leading, spacing: 4) {
-                Text(item.displayTitle)
+                Text(item.isListening ? item.title : item.displayTitle)
                     .font(.system(size: 25, weight: .semibold))
                     .foregroundStyle(focused ? Color.screen : Color.screen.opacity(0.85))
                     .lineLimit(1)
@@ -122,7 +129,7 @@ struct WideCard: View {
         let remaining = item.progress != nil
             ? item.effectiveDuration.flatMap { Format.remaining($0 - item.userData.positionSeconds) }
             : nil
-        return [item.episodeSubtitle, remaining].compactMap { $0 }.joined(separator: "   ")
+        return [item.isListening ? item.listeningSubtitle : item.episodeSubtitle, remaining].compactMap { $0 }.joined(separator: "   ")
     }
 }
 
@@ -220,6 +227,41 @@ struct ItemContextMenu: View {
     var showsDetails = false
 
     var body: some View {
+        if item.isListening, inContinueWatching {
+            listeningMenu
+        } else {
+            menu
+        }
+    }
+
+    /// A book in Continue watching: carry on, its page, and out of the row.
+    @ViewBuilder
+    private var listeningMenu: some View {
+        Button { model.play(item) } label: {
+            Label(item.isResumable ? "Resume" : "Play", systemImage: "play.fill")
+        }
+        if item.kind == .audiobook {
+            Button { goToDetails() } label: { Label("Go to book", systemImage: "info.circle") }
+            if !model.isKids {
+                Button {
+                    leavesRow?(item.id)
+                    Task { await model.setBookFinished(item, true) }
+                } label: {
+                    Label("Mark as finished", systemImage: "checkmark.circle")
+                }
+            }
+        }
+        // Forgets the place without marking it finished.
+        Button {
+            leavesRow?(item.id)
+            Task { await model.removeFromContinueWatching(item) }
+        } label: {
+            Label("Remove", systemImage: "minus.circle")
+        }
+    }
+
+    @ViewBuilder
+    private var menu: some View {
         if item.kind == .movie || item.kind == .episode {
             Button { model.play(item) } label: {
                 Label(item.isResumable ? "Resume" : "Play", systemImage: "play.fill")
@@ -265,7 +307,7 @@ struct ItemContextMenu: View {
                 leavesRow?(item.id)
                 Task { await model.removeFromContinueWatching(item) }
             } label: {
-                Label("Remove from Continue Watching", systemImage: "minus.circle")
+                Label("Remove", systemImage: "minus.circle")
             }
         }
         if marks, item.kind == .episode, item.seriesId != nil, let show = item.seriesTitle {

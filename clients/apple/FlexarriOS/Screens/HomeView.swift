@@ -107,7 +107,9 @@ struct HomeView: View {
             // None on a kids profile, which has no podcasts.
             let kids = model.isKids
             async let episodes = kids ? [] : client.newPodcastEpisodes(unplayed: true, take: 20)
-            let loaded = try await client.home()
+            // Books and podcast episodes in progress join Continue watching (for profiles that want them there); the
+            // card plays them in the audio player.
+            let loaded = try await client.home(listening: [.books, .podcasts])
             // Nothing yet: the libraries say whether a scan is under way or their folders hold nothing.
             if loaded.featured.isEmpty { await model.loadLibraries() }
             home = loaded

@@ -710,6 +710,39 @@ kbd {
   background: var(--ambient);
 }
 
+/* A book's or podcast's square cover in a 16:9 card: centred over a blurred, darkened copy of itself. */
+.listen-frame {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 16 / 9;
+  background:
+    radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--ambient, var(--seat-raised)) 35%, transparent), transparent 75%),
+    var(--seat);
+}
+
+.listen-backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* Scaled up so the blur's soft edges fall outside the card. */
+  transform: scale(1.25);
+  filter: blur(20px) brightness(0.5) saturate(1.2);
+}
+
+.listen-cover {
+  position: relative;
+  height: 76%;
+  aspect-ratio: 1;
+  border-radius: calc(var(--radius-art) * 0.75);
+  overflow: hidden;
+}
+
+.listen-cover .artwork {
+  height: 100%;
+}
+
 .watched-mark,
 .unwatched-count {
   position: absolute;

@@ -35,6 +35,11 @@ export interface AudioPlayer {
   skipBy: (seconds: number) => void
   stop: () => void
   /**
+   * Taken out of Continue watching or listening: if it's what's loaded it stops without sending its place (which would
+   * put it back), and a book's place in this browser is forgotten too.
+   */
+  forget: (item: ItemSummary) => void
+  /**
    * How fast what's playing plays (music always plays at 1×): the profile's podcast speed, or a book's own (its
    * default, the profile's speed for books).
    */

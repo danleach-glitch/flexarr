@@ -22,7 +22,8 @@ import { errorText } from './useSettings'
 function WhileWatching({ name }: { name?: string }) {
   const loaded = useApi(getPlaybackPreferences, [])
   const [preferences, setPreferences] = useState<PlaybackPreferences>()
-  const [error, setError] = useState<string>()
+  // The group the failed change was in shows the error.
+  const [error, setError] = useState<{ text: string; home: boolean }>()
   useEffect(() => loaded.data && setPreferences(loaded.data), [loaded.data])
   if (!preferences) return loaded.error ? <SaveStatus error={errorText(loaded.error)} /> : null
 
@@ -34,7 +35,7 @@ function WhileWatching({ name }: { name?: string }) {
     { key: 'skipCredits', label: 'Skip credits', help: 'Moves on to the next episode as the credits start.' },
   ]
 
-  async function change(next: PlaybackPreferences) {
+  async function change(next: PlaybackPreferences, home = false) {
     const before = preferences
     setPreferences(next)
     setError(undefined)
@@ -42,41 +43,53 @@ function WhileWatching({ name }: { name?: string }) {
       await setPlaybackPreferences(next)
     } catch (e) {
       setPreferences(before)
-      setError(errorText(e))
+      setError({ text: errorText(e), home })
     }
   }
 
   return (
-    <SettingsGroup
-      title="While watching"
-      note={error ? <SaveStatus error={error} /> : `${name ? `${name}’s` : 'This profile’s'} own, on every device. The player’s menus change them too.`}
-    >
-      {options.map((o) => (
-        <ToggleRow key={o.key} label={o.label} help={o.help} checked={preferences[o.key]} onChange={(on) => void change({ ...preferences, [o.key]: on })} />
-      ))}
-      <SettingRow label="Subtitle size" help="Subtitles that run early or late can be moved from the player’s subtitles menu.">
-        <select value={preferences.subtitleSize ?? 'Standard'} onChange={(e) => void change({ ...preferences, subtitleSize: e.target.value as SubtitleSize })}>
-          <option value="Small">Small</option>
-          <option value="Standard">Standard</option>
-          <option value="Large">Large</option>
-          <option value="ExtraLarge">Extra large</option>
-        </select>
-      </SettingRow>
-      <SettingRow label="Subtitle position" help="Raise subtitles clear of a TV’s edge or text in the picture. Styled subtitles keep their own places.">
-        <select value={preferences.subtitlePosition ?? 'Bottom'} onChange={(e) => void change({ ...preferences, subtitlePosition: e.target.value as SubtitlePosition })}>
-          <option value="Bottom">Bottom</option>
-          <option value="Raised">Raised</option>
-          <option value="Higher">Higher</option>
-          <option value="Top">Top</option>
-        </select>
-      </SettingRow>
-      <ToggleRow
-        label="Subtitles in the black bars"
-        help="In films wider than the screen, subtitles go in the black bar below the picture rather than over it."
-        checked={preferences.subtitlesInBlackBars ?? false}
-        onChange={(on) => void change({ ...preferences, subtitlesInBlackBars: on })}
-      />
-    </SettingsGroup>
+    <>
+      <SettingsGroup
+        title="While watching"
+        note={error && !error.home ? <SaveStatus error={error.text} /> : `${name ? `${name}’s` : 'This profile’s'} own, on every device. The player’s menus change them too.`}
+      >
+        {options.map((o) => (
+          <ToggleRow key={o.key} label={o.label} help={o.help} checked={preferences[o.key]} onChange={(on) => void change({ ...preferences, [o.key]: on })} />
+        ))}
+        <SettingRow label="Subtitle size" help="Subtitles that run early or late can be moved from the player’s subtitles menu.">
+          <select value={preferences.subtitleSize ?? 'Standard'} onChange={(e) => void change({ ...preferences, subtitleSize: e.target.value as SubtitleSize })}>
+            <option value="Small">Small</option>
+            <option value="Standard">Standard</option>
+            <option value="Large">Large</option>
+            <option value="ExtraLarge">Extra large</option>
+          </select>
+        </SettingRow>
+        <SettingRow label="Subtitle position" help="Raise subtitles clear of a TV’s edge or text in the picture. Styled subtitles keep their own places.">
+          <select value={preferences.subtitlePosition ?? 'Bottom'} onChange={(e) => void change({ ...preferences, subtitlePosition: e.target.value as SubtitlePosition })}>
+            <option value="Bottom">Bottom</option>
+            <option value="Raised">Raised</option>
+            <option value="Higher">Higher</option>
+            <option value="Top">Top</option>
+          </select>
+        </SettingRow>
+        <ToggleRow
+          label="Subtitles in the black bars"
+          help="In films wider than the screen, subtitles go in the black bar below the picture rather than over it."
+          checked={preferences.subtitlesInBlackBars ?? false}
+          onChange={(on) => void change({ ...preferences, subtitlesInBlackBars: on })}
+        />
+      </SettingsGroup>
+      {/* Servers before it don't send it, and have no such choice. */}
+      {preferences.listeningInContinue !== undefined && (
+        <SettingsGroup title="Home" note={error?.home ? <SaveStatus error={error.text} /> : undefined}>
+          <ToggleRow
+            label="Books and podcasts in Continue watching"
+            checked={preferences.listeningInContinue}
+            onChange={(on) => void change({ ...preferences, listeningInContinue: on }, true)}
+          />
+        </SettingsGroup>
+      )}
+    </>
   )
 }
 

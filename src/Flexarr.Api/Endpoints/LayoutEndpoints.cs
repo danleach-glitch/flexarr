@@ -126,7 +126,7 @@ public static class LayoutEndpoints
     /// <param name="music">Whether there's a music library: its rows are only offered when there's one to fill them.</param>
     private static List<RowChoiceDto> HomeRows(IEnumerable<Library> libraries, bool combine, bool music, bool books) =>
     [
-        new("continue", "Continue watching", true),
+        new("continue", "Continue watching (and listening)", true),
         new(Watchlist.WatchlistService.HomeRowId, "Ready from your watchlist", true),
         new("live-tv", "Live TV (your favourite channels)", true),
         .. RecentRows(libraries.ToList(), combine),
@@ -157,7 +157,7 @@ public static class LayoutEndpoints
 
     private static readonly RowChoiceDto[] BookRows =
     [
-        new(Books.BookRows.ContinueRowId, "Continue listening (audiobooks)", true),
+        new(Books.BookRows.ContinueRowId, "Continue listening (when kept apart)", true),
         new(Books.BookRows.NextRowId, "Next in series (audiobooks)", true),
         new(Books.BookRows.NewRowId, "New audiobooks", true),
     ];

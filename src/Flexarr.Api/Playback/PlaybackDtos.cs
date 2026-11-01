@@ -84,8 +84,12 @@ public sealed record PlaybackInfoDto(
 /// <param name="SubtitleSize">Left out (an older app saving its toggles), the profile's size is kept; the same for the rest.</param>
 /// <param name="SubtitlePosition">How high subtitles sit over the picture.</param>
 /// <param name="SubtitlesInBlackBars">In films wider than the screen, subtitles go in the black bar below the picture.</param>
+/// <param name="ListeningInContinue">
+/// Home's Continue watching row also holds audiobooks and podcast episodes in progress. Absent from servers before
+/// 0.58; left out of a save (an older app), it's unchanged.
+/// </param>
 public sealed record PlaybackPreferencesDto(bool AutoPlayNext, bool SkipIntros, bool SkipRecaps, bool SkipCredits, SubtitleSize? SubtitleSize = null,
-    SubtitlePosition? SubtitlePosition = null, bool? SubtitlesInBlackBars = null);
+    SubtitlePosition? SubtitlePosition = null, bool? SubtitlesInBlackBars = null, bool? ListeningInContinue = null);
 
 /// <summary>Subtitles shown later (positive) or earlier (negative), in seconds.</summary>
 public sealed record SubtitleDelayRequest(double Seconds);

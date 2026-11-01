@@ -57,6 +57,14 @@ struct PlaybackSettingsView: View {
                     changed.subtitlesInBlackBars = !(preferences.subtitlesInBlackBars ?? false)
                     save(changed, over: preferences)
                 }
+                // Servers before 0.58 don't have it.
+                if let listening = preferences.listeningInContinue {
+                    SettingsRow.toggle("Books and podcasts in Continue watching", isOn: listening, symbol: "headphones") {
+                        var changed = preferences
+                        changed.listeningInContinue = !listening
+                        save(changed, over: preferences)
+                    }
+                }
             } else {
                 // The server's half arrives a moment later; this keeps the rows below from jumping up and back.
                 SettingsGroupLabel("Your profile, on every device")
@@ -160,6 +168,8 @@ struct PlaybackSettingsView: View {
         Task {
             do {
                 try await model.client?.setPlaybackPreferences(changed)
+                // Home's Continue watching row changes with it.
+                if changed.listeningInContinue != current.listeningInContinue { model.invalidate() }
             } catch {
                 preferences = current
                 saveFailed = true

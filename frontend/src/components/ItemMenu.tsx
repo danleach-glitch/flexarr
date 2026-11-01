@@ -17,8 +17,9 @@ export interface MenuPoint {
   y: number
 }
 
-/** Films, TV, albums and books get menus; artists and tracks have their own pages. */
-export const hasMenu = (item: ItemSummary) => ['Movie', 'Episode', 'Season', 'Series', 'Album', 'Audiobook'].includes(item.kind)
+/** Films, TV, albums and books get menus; artists and tracks have their own pages. Podcast episodes do in Continue watching. */
+export const hasMenu = (item: ItemSummary, continueWatching = false) =>
+  ['Movie', 'Episode', 'Season', 'Series', 'Album', 'Audiobook'].includes(item.kind) || (continueWatching && item.kind === 'PodcastEpisode')
 
 export type MenuAction = { label: string; run: () => void | Promise<void>; danger?: boolean } | 'divider'
 
@@ -40,6 +41,8 @@ export function ItemMenu({ item, at, onClose, continueWatching = false }: { item
   const resumable = progressOf(item) !== null
   const started = resumable && !item.userData.watched
   const remove = async () => {
+    // A book or episode loaded in the audio player stops first, so its place isn't sent again (putting it back).
+    music.forget(item)
     await removeFromContinueWatching(item.id)
     announceWatched(item)
   }
@@ -78,7 +81,7 @@ export function ItemMenu({ item, at, onClose, continueWatching = false }: { item
       if (resumable) actions.push({ label: 'Play from the start', run: go(`/play/${item.id}?t=0`) })
       actions.push('divider', { label: item.userData.watched ? 'Mark episode as unwatched' : 'Mark episode as watched', run: mark(item, !item.userData.watched) })
       if (started) actions.push({ label: 'Mark episode as unwatched', run: mark(item, false) })
-      else if (continueWatching && !item.userData.watched) actions.push({ label: 'Remove from Continue Watching', run: remove })
+      else if (continueWatching && !item.userData.watched) actions.push({ label: 'Remove', run: remove })
       if (showId) actions.push({ label: `Mark all of ${show} as watched`, run: mark({ id: showId, parentId: null, seriesId: null }, true) })
       break
     case 'Season':
@@ -110,9 +113,16 @@ export function ItemMenu({ item, at, onClose, continueWatching = false }: { item
           announceWatched(item)
         },
       })
+      // Forgets the place without marking it finished.
+      if (continueWatching && started) actions.push({ label: 'Remove', run: remove })
       if (!kids) actions.push({ label: 'Add to collection…', run: () => openAddToCollection(item) })
       break
     }
+    case 'PodcastEpisode':
+      actions.push({ label: started ? 'Resume' : 'Play', run: () => music.play([item]) })
+      // Played takes it out of the row as well; Remove forgets the place without marking it.
+      if (continueWatching) actions.push('divider', { label: 'Mark as played', run: mark(item, true) }, { label: 'Remove', run: remove })
+      break
   }
 
   return <Menu label={item.title} at={at} actions={kids ? withoutWatched(actions) : actions} onClose={onClose} />

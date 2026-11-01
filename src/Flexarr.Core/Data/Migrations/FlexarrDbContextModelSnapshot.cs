@@ -1273,6 +1273,9 @@ namespace Flexarr.Core.Data.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("ListeningInContinue")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int?>("MaxRatingAge")
                         .HasColumnType("INTEGER");
 
@@ -1352,6 +1355,7 @@ namespace Flexarr.Core.Data.Migrations
                             HiddenLibraryIds = "[]",
                             IsKids = false,
                             LibraryOrder = "[]",
+                            ListeningInContinue = true,
                             Name = "Main profile",
                             PodcastAutoDownload = true,
                             PodcastKeepEpisodes = 3,

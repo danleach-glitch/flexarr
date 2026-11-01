@@ -137,8 +137,8 @@ export interface AudioEngine {
   settingsChanged(): void
   /** The speed changed: the current track takes it. */
   rateChanged(): void
-  /** Stops everything and forgets it. */
-  stop(): void
+  /** Stops everything and forgets it. `report` false sends no place for it (it was taken out of Continue). */
+  stop(report?: boolean): void
   /** The mix, for the visualiser: null before anything has played, or without Web Audio. */
   analyser(): AnalyserNode | null
   /** Sets how loud the current book plays, from 1 (as it is) to 0, for the sleep timer's fade. */
@@ -186,15 +186,15 @@ export function createEngine(host: EngineHost): AudioEngine {
 
   /**
    * Forgets what's in a slot and ends its session; `ended` also tells the server the track was played to the end. A
-   * podcast episode left part way through says where, so it picks up there next time.
+   * podcast episode left part way through says where (unless `report` is false), so it picks up there next time.
    */
-  function release(s: Slot, ended = false) {
+  function release(s: Slot, ended = false, report = true) {
     if (s.track && !s.ready) loadCount += 1 // A load still in flight for it is discarded.
     s.hls?.destroy()
     s.hls = null
     if (s.session) {
       if (ended) void reportProgress(s.session, s.el.currentTime, true, true).catch(() => undefined)
-      else if (isPodcast(s.track) && s.el.currentTime > 1) void reportProgress(s.session, s.el.currentTime, true).catch(() => undefined)
+      else if (report && isPodcast(s.track) && s.el.currentTime > 1) void reportProgress(s.session, s.el.currentTime, true).catch(() => undefined)
       void stopPlayback(s.session)
     }
     s.session = undefined
@@ -707,9 +707,9 @@ export function createEngine(host: EngineHost): AudioEngine {
       slots.forEach((s) => s.track && applyRate(s))
     },
 
-    stop() {
-      endBook()
-      slots.forEach((s) => release(s))
+    stop(report = true) {
+      endBook(report)
+      slots.forEach((s) => release(s, false, report))
       isLoaded = false
       host.time(0)
       host.duration(0)

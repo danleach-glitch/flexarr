@@ -399,7 +399,9 @@ final class PlaybackController: NSObject {
 
     private func savePreferences() {
         if let client {
-            let saved = preferences
+            var saved = preferences
+            // Left out, so a switch flipped on another device since playback started isn't turned back.
+            saved.listeningInContinue = nil
             Task { try? await client.setPlaybackPreferences(saved) }
         }
     }

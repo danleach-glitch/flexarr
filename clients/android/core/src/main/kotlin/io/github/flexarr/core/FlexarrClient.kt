@@ -137,7 +137,13 @@ class FlexarrClient(
     /** A library's own home page: a hero of its titles, then rows of just this library (the TV's Browse). */
     suspend fun libraryBrowse(libraryId: String): Home = get("libraries/$libraryId/browse")
 
-    suspend fun home(): Home = get("home")
+    /**
+     * Home's featured titles and rows. [listening] is what this app can open from Continue watching besides films and
+     * episodes: asked for (and the profile's switch on), the row also holds those books and podcast episodes in
+     * progress. Left empty, the row is as servers before 0.58 send it.
+     */
+    suspend fun home(listening: Set<ContinueListening> = emptySet()): Home =
+        get("home", if (listening.isEmpty()) emptyMap() else mapOf("listening" to ContinueListening.query(listening)))
 
     /** Just the Continue watching row, for the home-screen widget. */
     suspend fun continueWatching(take: Int): List<ItemSummary> = get("home/continue", mapOf("take" to "$take"))
