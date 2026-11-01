@@ -39,6 +39,29 @@ describe('Podcasts and audiobooks settings', () => {
     await vi.waitFor(() => expect(sent).toEqual([{ speed: 1.5 }, { skipBackSeconds: 30 }, { smartRewind: false }]))
   })
 
+  it('keeps a saved change when a later one fails', async () => {
+    let state = podcasts
+    mockApi({
+      '/podcasts/preferences': () => state,
+      '/me/playback-preferences': playback,
+      'PUT /podcasts/preferences': (init?: RequestInit) => {
+        const body = JSON.parse(String(init?.body)) as Record<string, unknown>
+        if ('smartRewind' in body) return new Response('', { status: 500 })
+        state = { ...state, ...body }
+        return state
+      },
+    })
+    renderPage()
+
+    fireEvent.change(await screen.findByRole('combobox', { name: 'Skip back' }), { target: { value: '45' } })
+    await vi.waitFor(() => expect(screen.getByRole('combobox', { name: 'Skip back' })).toHaveValue('45'))
+    fireEvent.click(screen.getByRole('switch', { name: /Smart rewind/ }))
+
+    expect(await screen.findByText("That didn't save. Try again.")).toBeInTheDocument()
+    expect(screen.getByRole('switch', { name: /Smart rewind/ })).toBeChecked()
+    expect(screen.getByRole('combobox', { name: 'Skip back' })).toHaveValue('45')
+  })
+
   it('turns books and podcasts in Continue watching off, keeping the other playback preferences', async () => {
     const sent: unknown[] = []
     mockApi({

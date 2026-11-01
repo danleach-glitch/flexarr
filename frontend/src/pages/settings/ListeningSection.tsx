@@ -21,25 +21,31 @@ import { errorText } from './useSettings'
  */
 export function ListeningSection() {
   const name = useSession().profiles?.find((p) => p.isCurrent)?.name
-  const [version, setVersion] = useState(0)
-  const preferences = useApi((signal) => getPodcastPreferences(signal), [version])
+  const preferences = useApi((signal) => getPodcastPreferences(signal), [])
+  // The server's answer to the last save, newer than the load.
+  const [saved, setSaved] = useState<PodcastPreferences | null>(null)
   const [error, setError] = useState<string | null>(null)
-  // Changes show at once; the server's answer (or a fresh load, if saving failed) follows.
+  // Changes show at once, until the server answers each one.
   const [changed, setChanged] = useState<Partial<PodcastPreferences>>({})
-  const p = preferences.data && { ...preferences.data, ...changed }
+  const base = saved ?? preferences.data
+  const p = base && { ...base, ...changed }
 
   async function save(changes: Partial<PodcastPreferences>) {
     setChanged((c) => ({ ...c, ...changes }))
     setError(null)
+    // Only this save's own changes are let go when it's answered: others may still be on their way.
+    const settle = () =>
+      setChanged((c) => Object.fromEntries(Object.entries(c).filter(([key]) => !(key in changes))) as Partial<PodcastPreferences>)
     try {
-      await savePodcastPreferences(changes)
+      setSaved(await savePodcastPreferences(changes))
     } catch {
       setError("That didn't save. Try again.")
-      setChanged({})
+      settle()
+      // What the server has now, in place of the change that didn't save.
+      void getPodcastPreferences().then(setSaved, () => undefined)
       return
-    } finally {
-      setVersion((v) => v + 1)
     }
+    settle()
     // The sidebar and a player already playing (a podcast or a book) pick the change up.
     window.dispatchEvent(new Event(PODCAST_PREFERENCES_CHANGED))
     window.dispatchEvent(new Event(BOOK_LISTENING_CHANGED))
