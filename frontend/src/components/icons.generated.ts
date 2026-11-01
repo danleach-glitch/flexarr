@@ -14,6 +14,8 @@ export const icon = {
   trailer: Film,
   /** Mark as watched */
   watched: Check,
+  /** Already watched (the Watched button pressed) */
+  isWatched: Check,
   /** Mark as unwatched */
   markUnwatched: EyeOff,
   /** Add to watchlist */

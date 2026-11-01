@@ -6,6 +6,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ClosedCaption
 import androidx.compose.material.icons.filled.DownloadForOffline
 import androidx.compose.material.icons.filled.MoreHoriz
@@ -45,6 +46,8 @@ object FlexarrIcons {
     val trailer: ImageVector get() = Icons.Filled.Theaters
     /** Mark as watched. */
     val watched: ImageVector get() = Icons.Filled.Check
+    /** Already watched (the Watched button pressed). */
+    val isWatched: ImageVector get() = Icons.Filled.CheckCircle
     /** Mark as unwatched. */
     val markUnwatched: ImageVector get() = Icons.Filled.VisibilityOff
     /** Add to watchlist. */

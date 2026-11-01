@@ -226,7 +226,7 @@ struct DetailView: View {
             Button { showingTrailer = true } label: { Label("Trailer", systemImage: Symbol.trailer) }
         case .watched:
             Button { Task { await model.setWatched(item, !watched) } } label: {
-                Label(watched ? "Watched" : "Mark as watched", systemImage: watched ? "checkmark.circle.fill" : Symbol.watched)
+                Label(watched ? "Watched" : "Mark as watched", systemImage: watched ? Symbol.isWatched : Symbol.watched)
             }
             .accessibilityLabel(watched ? "Mark as unwatched" : "Mark as watched")
             .accessibilityAddTraits(watched ? .isSelected : [])

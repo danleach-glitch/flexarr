@@ -12,6 +12,8 @@ enum Symbol {
     static let trailer = "film"
     /// Mark as watched.
     static let watched = "checkmark"
+    /// Already watched (the Watched button pressed).
+    static let isWatched = "checkmark.circle.fill"
     /// Mark as unwatched.
     static let markUnwatched = "eye.slash"
     /// Add to watchlist.
@@ -60,5 +62,5 @@ enum Symbol {
     static let homeVideos = "folder"
 
     /// Every name above, so a debug build can check each one exists on this system.
-    static let all = [play, startOver, shuffle, trailer, watched, markUnwatched, watchlist, onWatchlist, download, subtitles, goToShow, more, home, libraries, search, settings, downloads, discover, comingSoon, liveTv, collections, nowPlaying, movies, shows, music, podcasts, audiobooks, homeVideos]
+    static let all = [play, startOver, shuffle, trailer, watched, isWatched, markUnwatched, watchlist, onWatchlist, download, subtitles, goToShow, more, home, libraries, search, settings, downloads, discover, comingSoon, liveTv, collections, nowPlaying, movies, shows, music, podcasts, audiobooks, homeVideos]
 }

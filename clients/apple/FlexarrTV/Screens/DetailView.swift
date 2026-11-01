@@ -228,8 +228,9 @@ struct DetailView: View {
         case .trailer:
             roundButton("Trailer", systemImage: Symbol.trailer) { openTrailer() }
         case .watched:
-            let name = watched ? "Mark as unwatched" : "Mark as watched"
-            roundButton(name, systemImage: watched ? Symbol.markUnwatched : Symbol.watched) {
+            // Pressed when watched, like the iPhone's and the web's: a filled tick that says Watched, and pressing it again unmarks.
+            let name = watched ? "Watched" : "Mark as watched"
+            roundButton(name, systemImage: watched ? Symbol.isWatched : Symbol.watched) {
                 Task { await model.setWatched(item, !watched) }
             }
         case .watchlist:
