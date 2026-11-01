@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -181,17 +182,20 @@ fun LabeledAction(label: String, icon: ImageVector, onClick: () -> Unit, modifie
 /** Small selectable pill for seasons. */
 @Composable
 fun PillButton(label: String, selected: Boolean, onClick: () -> Unit, ambient: Color = Flexarr.silver) {
-    // 36 high to see, with the touch area around it the usual 48.
+    // 36 high to see, with the touch area around it the usual 48. The touch area is its own box around the pill: given
+    // the 48's minimum, the pill's 36 stretched to fit it, and its outline was drawn at both heights (a double border).
     Box(
-        Modifier.minimumInteractiveComponentSize().height(36.dp).clip(CircleShape)
-            .then(if (selected) Modifier.background(ambient.copy(alpha = 0.32f)) else Modifier.background(Color.Transparent))
-            .then(if (selected) Modifier else Modifier.border(1.5.dp, Flexarr.aisle, CircleShape))
-            .pressable(onClick)
-            .semantics { this.selected = selected }
-            .padding(horizontal = 16.dp),
+        Modifier.minimumInteractiveComponentSize().pressable(onClick).semantics { this.selected = selected },
         contentAlignment = Alignment.Center,
     ) {
-        Text(label, fontSize = 15.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, color = if (selected) Flexarr.screen else Flexarr.usher)
+        Box(
+            Modifier.requiredHeight(36.dp).clip(CircleShape)
+                .then(if (selected) Modifier.background(ambient.copy(alpha = 0.32f)) else Modifier.border(1.5.dp, Flexarr.aisle, CircleShape))
+                .padding(horizontal = 16.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(label, fontSize = 15.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, color = if (selected) Flexarr.screen else Flexarr.usher)
+        }
     }
 }
 
