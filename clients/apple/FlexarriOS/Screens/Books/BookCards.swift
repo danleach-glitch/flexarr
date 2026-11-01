@@ -84,8 +84,8 @@ struct BookContextMenu: View {
             if !item.isFinishedBook {
                 Button { Task { await model.setBookFinished(item, true) } } label: { Label("Mark as finished", systemImage: "checkmark.circle") }
             }
-            // Unread: no place and not finished, as if never started.
-            if item.isFinishedBook || item.isResumable {
+            // Unread: no place and not finished, as if never started. Not while it plays, which would set the place again.
+            if item.isFinishedBook || item.isResumable, model.music.current?.id != item.id {
                 Button { Task { await model.setBookFinished(item, false) } } label: { Label("Mark as unread", systemImage: "arrow.uturn.backward") }
             }
         }

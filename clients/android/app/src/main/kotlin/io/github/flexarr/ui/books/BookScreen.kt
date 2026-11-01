@@ -120,8 +120,10 @@ fun bookActions(item: ItemSummary, showsDetails: Boolean, downloads: Boolean): L
             else add(MenuAction(if (download.isDownloaded) "Remove download" else "Stop download") { model.bookDownloads.remove(item.id) })
         }
         if (!finished) add(MenuAction("Mark as finished") { navigator.setBookFinished(item, true) })
-        // Unread: no place and not finished, as if never started.
-        if (finished || item.userData.positionSeconds > 0) add(MenuAction("Mark as unread") { navigator.setBookFinished(item, false) })
+        // Unread: no place and not finished, as if never started. Not while it plays, which would set the place again.
+        if ((finished || item.userData.positionSeconds > 0) && model.books.current?.id != item.id) {
+            add(MenuAction("Mark as unread") { navigator.setBookFinished(item, false) })
+        }
     }
 }
 

@@ -111,8 +111,8 @@ export function ItemMenu({ item, at, onClose, continueWatching = false }: { item
         announceWatched(item)
       }
       if (!finished) actions.push({ label: 'Mark finished', run: markBook(true) })
-      // Unread: no place and not finished, as if never started.
-      if (finished || started) actions.push({ label: 'Mark as unread', run: markBook(false) })
+      // Unread: no place and not finished, as if never started. Not while it plays, which would set the place again.
+      if ((finished || started) && music.current?.id !== item.id) actions.push({ label: 'Mark as unread', run: markBook(false) })
       // Forgets the place without marking it finished.
       if (continueWatching && started) actions.push({ label: 'Remove', run: remove })
       if (!kids) actions.push({ label: 'Add to collection…', run: () => openAddToCollection(item) })
