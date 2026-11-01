@@ -191,8 +191,9 @@ private fun SquareArtInWide(item: ItemSummary) {
     val art = if (item.kind == MediaKind.PodcastEpisode) item.artwork.thumb ?: item.artwork.poster else item.artwork.poster ?: item.artwork.thumb
     val glow = glowColor(item.accentColor)
     Box(Modifier.fillMaxSize()) {
-        // Blur needs Android 12; before it the copy is only dimmed further.
-        RemoteImage(art, 200, Modifier.fillMaxSize().blur(24.dp)) {
+        // Blur needs Android 12; before it the copy is only dimmed further. The same width as the cover below, so one
+        // download serves both.
+        RemoteImage(art, 342, Modifier.fillMaxSize().blur(24.dp)) {
             Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(glow.copy(alpha = 0.4f), Flexarr.seat))))
         }
         Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) 0.35f else 0.6f)))
