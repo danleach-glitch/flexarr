@@ -257,8 +257,17 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     var podcastStatus: PodcastStatus? by mutableStateOf(null)
         private set
 
-    /** How this profile listens to podcasts (its speed, above all), once loaded. */
-    var podcastPreferences: PodcastPreferences? by mutableStateOf(null)
+    /**
+     * How this profile listens to podcasts (its speed, skips and smart rewind), once loaded. The podcast player keeps
+     * the last ones, for an episode played before they load again.
+     */
+    private var loadedPodcastPreferences: PodcastPreferences? by mutableStateOf(null)
+    var podcastPreferences: PodcastPreferences?
+        get() = loadedPodcastPreferences
+        set(value) {
+            loadedPodcastPreferences = value
+            value?.let(podcasts::rememberListening)
+        }
 
     /** Whether the server has Live TV, and how many channels (null: not known, or a server from before it). */
     var liveTvStatus: LiveTvStatus? by mutableStateOf(null)

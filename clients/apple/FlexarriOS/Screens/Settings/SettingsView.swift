@@ -79,11 +79,8 @@ struct SettingsView: View {
                 SettingsLink("Downloads", icon: "arrow.down", value: downloads.bytesUsed == 0 ? nil : ByteCountFormatter.string(fromByteCount: downloads.bytesUsed, countStyle: .file)) {
                     DownloadSettingsView()
                 }
-                if model.podcastStatus?.available == true {
-                    SettingsLink("Podcasts", icon: "mic.fill") { PodcastSettingsView() }
-                }
-                if model.bookListening != nil {
-                    SettingsLink("Audiobooks", icon: "headphones") { AudiobookSettingsView() }
+                if model.podcastStatus?.available == true || model.bookListening != nil {
+                    SettingsLink("Podcasts and audiobooks", icon: "headphones") { ListeningSettingsView() }
                 }
                 // Servers before 0.54 keep no order.
                 if model.libraryOrder != nil, LibraryMenuEntry.ordered(model: model).count > 1 {

@@ -1,5 +1,6 @@
 package io.github.flexarr.audio
 
+import androidx.annotation.OptIn
 import io.github.flexarr.player.mediaSources
 import io.github.flexarr.logging.FlexarrLog
 import android.content.Context
@@ -14,13 +15,17 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
+import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import io.github.flexarr.AppModel
+import io.github.flexarr.core.BookPause
 import io.github.flexarr.core.FlexarrClient
 import io.github.flexarr.core.PlaybackRequest
 import io.github.flexarr.core.PodcastEpisode
 import io.github.flexarr.core.PodcastPreferencesUpdate
+import io.github.flexarr.core.SmartRewind
 import io.github.flexarr.core.asPodcastEpisode
 import io.github.flexarr.core.nextEpisode
 import io.github.flexarr.core.setPodcastPreferences
@@ -40,6 +45,7 @@ private val flexarrLog = FlexarrLog("podcasts")
  * suggests (Up Next first). The iPhone app's MusicPlayer, as far as podcasts need it. [AudioService] puts its player
  * on the lock screen and in the notification shade.
  */
+@OptIn(UnstableApi::class)
 class PodcastPlayer(private val context: Context, private val model: AppModel) {
     /** [player] has been made (it's made on first use). */
     private var created = false
@@ -58,13 +64,41 @@ class PodcastPlayer(private val context: Context, private val model: AppModel) {
             .setMediaSourceFactory(mediaSources(context))
             .setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_SPEECH).build(), true)
             .setHandleAudioBecomingNoisy(true)
-            .setSeekBackIncrementMs(BACK_MS)
-            .setSeekForwardIncrementMs(FORWARD_MS)
             // Heard with the screen off: the phone (and its Wi-Fi, for a stream) stays awake while it plays.
             .setWakeMode(C.WAKE_MODE_NETWORK)
             .build()
             .also { it.addListener(listener) }
     }
+    /** What the lock screen, headphones and the car drive: skips go by the profile's steps. */
+    val sessionPlayer: Player by lazy {
+        object : ForwardingPlayer(player) {
+            override fun seekBack() = skip(-skipBack)
+            override fun seekForward() = skip(skipForward)
+            override fun getSeekBackIncrement(): Long = skipBack * 1000L
+            override fun getSeekForwardIncrement(): Long = skipForward * 1000L
+        }
+    }
+
+    /**
+     * The profile's skip steps, shared with books (15 back and 30 forward from a server before 0.58), or the last ones
+     * known before they load.
+     */
+    val skipBack: Int get() = model.podcastPreferences?.podcastSkipBack ?: saved.getInt(SKIP_BACK_KEY, 15)
+    val skipForward: Int get() = model.podcastPreferences?.podcastSkipForward ?: saved.getInt(SKIP_FORWARD_KEY, 30)
+    private val smartRewind: Boolean get() = model.podcastPreferences?.podcastSmartRewind ?: saved.getBoolean(SMART_REWIND_KEY, false)
+
+    /** Keeps the profile's skips and smart rewind for an episode played before they load (offline, say). */
+    fun rememberListening(preferences: io.github.flexarr.core.PodcastPreferences) {
+        saved.edit {
+            putInt(SKIP_BACK_KEY, preferences.podcastSkipBack)
+            putInt(SKIP_FORWARD_KEY, preferences.podcastSkipForward)
+            putBoolean(SMART_REWIND_KEY, preferences.podcastSmartRewind)
+        }
+    }
+
+    /** When the episode was paused, for smart rewind (forgotten when the listener moves it while paused). */
+    private val pause = BookPause()
+
     private val scope = model.scope
     private val saved = context.getSharedPreferences("podcasts", Context.MODE_PRIVATE)
 
@@ -106,6 +140,19 @@ class PodcastPlayer(private val context: Context, private val model: AppModel) {
             scope.launch { PodcastWidgets.refresh(context, askServer = false) }
         }
 
+        override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+            if (!playWhenReady) {
+                if (player.playbackState != Player.STATE_ENDED) pause.paused(System.currentTimeMillis())
+                return
+            }
+            val away = pause.resumed(System.currentTimeMillis()) ?: return
+            // Smart rewind: a little earlier after a pause, more the longer it was (off from a server before 0.58).
+            if (smartRewind) {
+                val back = SmartRewind.seconds(away)
+                if (back > 0) seek(position - back)
+            }
+        }
+
         override fun onPlaybackStateChanged(state: Int) {
             if (state == Player.STATE_ENDED) episodeEnded()
         }
@@ -132,6 +179,8 @@ class PodcastPlayer(private val context: Context, private val model: AppModel) {
 
     private fun start(episode: PodcastEpisode) {
         val client = client ?: return
+        // A new start: an earlier pause (of this episode or another) is no reason to step back.
+        pause.seeked()
         generation++
         val mine = generation
         endSession()
@@ -193,6 +242,7 @@ class PodcastPlayer(private val context: Context, private val model: AppModel) {
 
     /** From the phone's own copy, where it was left (here, or on another device if the server said so since). */
     private fun startDownloaded(episode: PodcastEpisode, download: io.github.flexarr.core.LocalDownload, file: java.io.File) {
+        pause.seeked()
         playingDownload = true
         val start = if (download.unsent != null || download.finishedAtMillis != null) download.startPosition else maxOf(download.startPosition, episode.userData.positionSeconds)
         position = start
@@ -231,13 +281,23 @@ class PodcastPlayer(private val context: Context, private val model: AppModel) {
         if (current != null) player.pause()
     }
 
-    /** Back or forward a few seconds (15 and 30). */
+    /** Back or forward a few seconds (the profile's steps). */
     fun skip(seconds: Int) = seek(position + seconds)
 
     fun seek(seconds: Double) {
+        // A place picked while paused plays from there, not a little before it.
+        pause.seeked()
         val target = seconds.coerceIn(0.0, if (duration > 0) duration else seconds)
         player.seekTo((target * 1000).toLong())
         position = target
+    }
+
+    /** The profile's speed changed elsewhere (Settings): the episode playing takes it, without saving it again. */
+    fun followSpeed(speed: Double) {
+        if (current == null || speed == this.speed) return
+        this.speed = speed
+        player.setPlaybackSpeed(speed.toFloat())
+        saved.edit { putFloat(SPEED_KEY, speed.toFloat()) }
     }
 
     /** A podcast's speed, remembered as the one to use from now on, here and in the profile's preferences. */
@@ -257,6 +317,7 @@ class PodcastPlayer(private val context: Context, private val model: AppModel) {
      * taken out of Continue watching) the place isn't sent, so it can't put the episode back.
      */
     fun stop(reportsPlace: Boolean = true) {
+        pause.seeked()
         generation++
         sleep.set(null)
         endSession(reportsPlace)
@@ -371,12 +432,13 @@ class PodcastPlayer(private val context: Context, private val model: AppModel) {
     }
 
     companion object {
-        /** The speeds a podcast can play at. */
-        val speeds = listOf(0.8, 1.0, 1.2, 1.5, 1.75, 2.0, 2.5, 3.0)
-        private const val BACK_MS = 15_000L
-        private const val FORWARD_MS = 30_000L
+        /** The speeds a podcast can play at: books' choices, as they share one speed. */
+        val speeds = io.github.flexarr.core.BookSpeed.presets
         private const val REPORT_INTERVAL_MS = 10_000L
         private const val SPEED_KEY = "speed"
+        private const val SKIP_BACK_KEY = "skipBack"
+        private const val SKIP_FORWARD_KEY = "skipForward"
+        private const val SMART_REWIND_KEY = "smartRewind"
 
         /** "1×", "1.5×", "1.75×". */
         fun speedLabel(speed: Double): String =

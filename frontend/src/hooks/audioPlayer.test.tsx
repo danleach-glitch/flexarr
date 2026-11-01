@@ -443,7 +443,7 @@ describe('AudioPlayerProvider', () => {
      * The server resumes e1 at 300 s, remembers progress reports and speed changes, keeps the profile's podcast speed
      * (`speed`, or none for an older server) and after e1 auto-plays e2.
      */
-    function podcastApi(speed: number | null) {
+    function podcastApi(speed: number | null, listening: object = {}) {
       const requests: { itemId: string; startPositionSeconds?: number }[] = []
       const progress: { session: string; positionSeconds: number; paused: boolean; ended: boolean }[] = []
       const saved: unknown[] = []
@@ -466,7 +466,7 @@ describe('AudioPlayerProvider', () => {
             subtitleBurnedIn: false,
           }
         },
-        ...(speed ? { 'GET /podcasts/preferences': { autoDownload: true, keepEpisodes: 3, speed } } : {}),
+        ...(speed ? { 'GET /podcasts/preferences': { autoDownload: true, keepEpisodes: 3, speed, ...listening } } : {}),
         'PUT /podcasts/preferences': (init?: RequestInit) => {
           saved.push(JSON.parse(String(init?.body)))
           return { autoDownload: true, keepEpisodes: 3, speed: 2 }
@@ -534,6 +534,40 @@ describe('AudioPlayerProvider', () => {
       expect(result.current.playing).toBe(false)
       expect(result.current.sleep).toBeNull()
       expect(requests.map((r) => r.itemId)).toEqual(['e1', 'e2'])
+    })
+
+    it('skip by the profile’s steps and, with smart rewind on, start a little earlier after a long pause', async () => {
+      podcastApi(1, { skipBackSeconds: 10, skipForwardSeconds: 45, smartRewind: true })
+      const { result } = renderHook(useAudioPlayer, { wrapper: AudioPlayerProvider })
+      act(() => result.current.play([first] as unknown as ItemSummary[], 0))
+      await waitFor(() => expect(result.current.skipSteps).toEqual({ back: 10, forward: 45 }))
+      const [a] = elements()
+      act(() => void a.dispatchEvent(new Event('loadedmetadata')))
+      expect(a.currentTime).toBe(300)
+
+      act(() => result.current.toggle())
+      const now = Date.now()
+      vi.spyOn(Date, 'now').mockReturnValue(now + 3_600_000)
+      act(() => result.current.toggle())
+      expect(a.currentTime).toBe(270)
+      vi.restoreAllMocks()
+    })
+
+    it('without smart rewind, or on an older server, pick up exactly where they paused, skipping 15 back and 30 on', async () => {
+      podcastApi(null)
+      const { result } = renderHook(useAudioPlayer, { wrapper: AudioPlayerProvider })
+      act(() => result.current.play([first] as unknown as ItemSummary[], 0))
+      const [a] = elements()
+      await waitFor(() => expect(a.getAttribute('src')).toBe('/stream/e1'))
+      act(() => void a.dispatchEvent(new Event('loadedmetadata')))
+      expect(result.current.skipSteps).toEqual({ back: 15, forward: 30 })
+
+      act(() => result.current.toggle())
+      const now = Date.now()
+      vi.spyOn(Date, 'now').mockReturnValue(now + 3_600_000)
+      act(() => result.current.toggle())
+      expect(a.currentTime).toBe(300)
+      vi.restoreAllMocks()
     })
 
     it('stop without saying where when taken out of Continue, and leave another episode playing', async () => {

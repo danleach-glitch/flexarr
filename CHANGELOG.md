@@ -10,14 +10,19 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Details your files leave out come from Audible, Open Library, and with your own keys Google Books and Hardcover. **Fix match** finds the right book when the wrong one was picked.
 - On the web, iPhone, iPad, Android and the Apple TV: shelves for **Continue listening**, **Next in series**, series and authors, and views of every book, series, author and genre; book, series and author pages; and **Continue listening**, **Next in series** and **New audiobooks** rows on Home.
 - The player: speed from 0.5× to 3.5× remembered for each book, skips of your choosing, smart rewind after a pause, a sleep timer that can stop at the end of the chapter and fade out (shake your phone for more), bookmarks with notes, and **Mark finished** and **Start over**. Your place follows you between devices, and the player offers to jump to where another device got to. At the end of a book in a series, the next one is offered.
-- On iPhone, iPad and Android: download books to listen offline, with the lock screen showing the chapter, CarPlay and Android Auto, the **Continue listening** widget, and on iPhone, **Resume listening** with Siri. Choose your default speed, skips and smart rewind in **Settings › Audiobooks** in any of the apps.
+- On iPhone, iPad and Android: download books to listen offline, with the lock screen showing the chapter, CarPlay and Android Auto, the **Continue listening** widget, and on iPhone, **Resume listening** with Siri. Choose your default speed, skips and smart rewind in **Settings › Podcasts and audiobooks** in any of the apps (in **Settings › Playback** on the Apple TV).
 - Connect **Readarr, Bookshelf or Chaptarr** in **Settings › Connections**: new books appear as they're imported, upcoming books show in **Coming soon**, and deleting a book in Flexarr deletes it there without it being fetched again. The setup guide finds them for you.
 - **Request books** from Discover's search when one of them is connected. Whoever asked hears when it's ready to listen.
 - Every author gets a photo and a biography, from a picture in the author's folder, Readarr, Audible or Open Library, a book's page shows its authors, and author pages on the Apple TV and Android TV now show the biography too. On the web, the main profile can pick another photo, upload one or rewrite the biography.
 - Kids profiles don't see audiobooks. Audible-protected `.aax` files are listed in **Library health**, as they can't be played.
 
+### Podcasts
+- Podcast settings are now **Settings › Podcasts and audiobooks** on the web, iPhone, iPad and Android, and cover audiobooks too: one speed, skip steps and smart rewind for both (a book with its own speed keeps it).
+- Podcasts now skip by your steps, on the lock screen and headphones too, and **Smart rewind** (on to start with) picks up a little earlier after a pause. Skip back is now 30 seconds, not 15: change either on that page.
+- On the web, **Show in the sidebar** for podcasts is now in **Settings › Sidebar**, and where book details come from (the Audible store, Google Books and Hardcover keys) is in **Settings › Libraries**.
+
 ### Home
-- **Continue watching or listening**: books and podcast episodes you're part way through now sit in the same row as your films and shows, on the web, iPhone, iPad and Android (books only on the Apple TV). To keep them apart, turn off **Books and podcasts in Continue watching** in **Settings › Playback**.
+- **Continue watching or listening**: books and podcast episodes you're part way through now sit in the same row as your films and shows, on the web, iPhone, iPad and Android (books only on the Apple TV). To keep them apart, turn off **Books and podcasts in Continue watching** in **Settings › Podcasts and audiobooks** (the main profile's is in **Settings › Home and Browse** on the web, and the Apple TV's in **Settings › Playback**).
 
 ### Website
 - flexarr.io catches up: Trakt, the watchlist, kids profiles, dialogue boost and night mode, the iPhone remote, the new setup guide, and a first look at audiobooks.

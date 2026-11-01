@@ -150,6 +150,14 @@ export const Microphone = (p: IconProps) => (
     <path d="M12 17v4.5M8.5 21.5h7" />
   </svg>
 )
+/** Listening (podcasts and audiobooks): headphones. */
+export const Headphones = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="M4 15v-3a8 8 0 0 1 16 0v3" />
+    <rect x="3" y="14" width="4.5" height="7" rx="1.5" />
+    <rect x="16.5" y="14" width="4.5" height="7" rx="1.5" />
+  </svg>
+)
 /** The sleep timer: a moon, with z's. */
 export const Sleep = (p: IconProps) => (
   <svg {...base} {...p}>

@@ -22,13 +22,33 @@ public struct PodcastSubscription: Codable, Sendable, Hashable {
 public struct PodcastPreferences: Codable, Sendable, Hashable {
     public var autoDownload: Bool
     public var keepEpisodes: Int
+    /// The profile's one speed, for podcasts and books (from 0.58; before, podcasts' own).
     public var speed: Double
+    /// Seconds skip back and forward jump, in podcasts and books alike. Absent from servers before 0.58.
+    public var skipBackSeconds: Int? = nil
+    public var skipForwardSeconds: Int? = nil
+    /// After a pause, an episode or book picks up a little earlier. Absent from servers before 0.58.
+    public var smartRewind: Bool? = nil
 
-    public init(autoDownload: Bool = true, keepEpisodes: Int = 3, speed: Double = 1) {
+    public init(autoDownload: Bool = true, keepEpisodes: Int = 3, speed: Double = 1,
+                skipBackSeconds: Int? = nil, skipForwardSeconds: Int? = nil, smartRewind: Bool? = nil) {
         self.autoDownload = autoDownload
         self.keepEpisodes = keepEpisodes
         self.speed = speed
+        self.skipBackSeconds = skipBackSeconds
+        self.skipForwardSeconds = skipForwardSeconds
+        self.smartRewind = smartRewind
     }
+
+    /// Whether the server shares the skips and smart rewind with podcasts (0.58 on).
+    public var hasListening: Bool { skipBackSeconds != nil && skipForwardSeconds != nil && smartRewind != nil }
+
+    /// A podcast's skip back: the profile's, or 15 seconds from a server before 0.58.
+    public var podcastSkipBack: Int { skipBackSeconds ?? 15 }
+    /// A podcast's skip forward: the profile's, or 30 seconds from a server before 0.58.
+    public var podcastSkipForward: Int { skipForwardSeconds ?? 30 }
+    /// Smart rewind for podcasts: the profile's, or off on a server before 0.58.
+    public var podcastSmartRewind: Bool { smartRewind ?? false }
 }
 
 /// Changes to the podcast preferences; nil leaves one as it is.
@@ -36,11 +56,18 @@ public struct PodcastPreferencesUpdate: Codable, Sendable, Hashable {
     public var autoDownload: Bool?
     public var keepEpisodes: Int?
     public var speed: Double?
+    public var skipBackSeconds: Int?
+    public var skipForwardSeconds: Int?
+    public var smartRewind: Bool?
 
-    public init(autoDownload: Bool? = nil, keepEpisodes: Int? = nil, speed: Double? = nil) {
+    public init(autoDownload: Bool? = nil, keepEpisodes: Int? = nil, speed: Double? = nil,
+                skipBackSeconds: Int? = nil, skipForwardSeconds: Int? = nil, smartRewind: Bool? = nil) {
         self.autoDownload = autoDownload
         self.keepEpisodes = keepEpisodes
         self.speed = speed
+        self.skipBackSeconds = skipBackSeconds
+        self.skipForwardSeconds = skipForwardSeconds
+        self.smartRewind = smartRewind
     }
 }
 

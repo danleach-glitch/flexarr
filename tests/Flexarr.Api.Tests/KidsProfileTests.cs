@@ -154,11 +154,13 @@ public class KidsProfileTests
         var tv = await TvAsync(server);
         await SelectAsync(tv, ada);
 
-        foreach (var path in new[] { "/watchlist", "/watchlist/keys", "/podcasts", "/podcasts/search?q=news", "/collections", "/livetv/channels", "/livetv/guide",
+        foreach (var path in new[] { "/watchlist", "/watchlist/keys", "/podcasts", "/podcasts/search?q=news", "/books/listening", "/collections", "/livetv/channels", "/livetv/guide",
                      "/livetv/recordings", $"/items/{items["paddington"]}/subtitles/search", $"/items/{items["paddington"]}/subtitles/sync" })
         {
             Assert.True((await tv.GetAsync(Api(path))).StatusCode == HttpStatusCode.Forbidden, path);
         }
+
+        Assert.Equal(HttpStatusCode.Forbidden, (await tv.PutAsJsonAsync(Api("/books/listening"), new { speed = 2.0 })).StatusCode);
 
         Assert.Equal(HttpStatusCode.Forbidden, (await tv.PostAsJsonAsync(Api($"/items/{items["paddington"]}/subtitles/download"), new { })).StatusCode);
         Assert.False((await tv.GetFromJsonAsync<JsonElement>(Api("/subtitles/status"))).GetProperty("configured").GetBoolean());

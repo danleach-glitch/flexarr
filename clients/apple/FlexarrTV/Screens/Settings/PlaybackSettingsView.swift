@@ -71,9 +71,31 @@ struct PlaybackSettingsView: View {
                 ProgressView().padding(.leading, 32).frame(height: 78)
             }
 
+            // How books play: the profile's, shared with podcasts on the other apps. With an audiobooks library only.
+            if let listening = model.bookListening {
+                SettingsGroupLabel("Audiobooks")
+                SettingsLinkRow(title: "Speed", symbol: "gauge.with.dots.needle.50percent", value: BookSpeed.label(listening.speed),
+                                help: "A book with a speed of its own keeps it.") {
+                    SettingsChoicePage(title: "Speed", choices: BookSpeed.choices(with: listening.speed), label: BookSpeed.label,
+                                       selection: listening.speed) { speed in saveListening(.init(speed: speed)) }
+                }
+                SettingsLinkRow(title: "Skip back", symbol: "gobackward", value: "\(listening.skipBackSeconds) seconds") {
+                    SettingsChoicePage(title: "Skip back", choices: steps(listening.skipBackSeconds), label: { "\($0) seconds" },
+                                       selection: listening.skipBackSeconds) { seconds in saveListening(.init(skipBackSeconds: seconds)) }
+                }
+                SettingsLinkRow(title: "Skip forward", symbol: "goforward", value: "\(listening.skipForwardSeconds) seconds") {
+                    SettingsChoicePage(title: "Skip forward", choices: steps(listening.skipForwardSeconds), label: { "\($0) seconds" },
+                                       selection: listening.skipForwardSeconds) { seconds in saveListening(.init(skipForwardSeconds: seconds)) }
+                }
+                SettingsRow.toggle("Smart rewind", isOn: listening.smartRewind, symbol: "arrow.counterclockwise",
+                                   help: "After a pause, start a little earlier.") {
+                    saveListening(.init(smartRewind: !listening.smartRewind))
+                }
+            }
+
             SettingsGroupLabel("This Apple TV")
             SettingsLinkRow(title: "Skip back and forward", symbol: "goforward.\(Int(skipSeconds))", value: "\(Int(skipSeconds)) seconds",
-                            help: "How far a click on the left or right of the remote moves while something plays.") {
+                            help: "How far a click on the left or right of the remote moves films and shows.") {
                 SettingsChoicePage(title: "Skip back and forward", summary: "A click on the left or right of the remote's touch surface.",
                                    choices: [10.0, 15.0, 30.0], label: { "\(Int($0)) seconds" }, selection: skipSeconds) { seconds in
                     skipSeconds = seconds
@@ -159,6 +181,16 @@ struct PlaybackSettingsView: View {
         var changed = preferences
         changed[keyPath: key].toggle()
         save(changed, over: preferences)
+    }
+
+    /// How books play, saved for the profile (and podcasts, which share it); the book playing takes it at once.
+    private func saveListening(_ update: BookListeningUpdate) {
+        saveFailed = false
+        Task { saveFailed = !(await model.updateBookListening(update)) }
+    }
+
+    private func steps(_ current: Int) -> [Int] {
+        BookListening.skipSteps.contains(current) ? BookListening.skipSteps : (BookListening.skipSteps + [current]).sorted()
     }
 
     /// Saved as soon as it changes, and put back if the server says no.

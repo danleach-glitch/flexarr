@@ -60,7 +60,7 @@ final class NowPlaying {
         center.previousTrackCommand.isEnabled = true
     }
 
-    /// For podcasts: skip back 15 seconds and forward 30, as podcast apps do, and the speed the lock screen can change.
+    /// For podcasts: the profile's skip steps (15 back and 30 forward from older servers) and the speed the lock screen can change.
     func activateForPodcast(back: Double = 15, forward: Double = 30) {
         activate(skipSeconds: forward)
         let center = MPRemoteCommandCenter.shared()

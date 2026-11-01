@@ -156,11 +156,11 @@ public static class BookEndpoints
 
         // How this profile listens to books: default speed, skip steps, smart rewind.
         api.MapGet("/books/listening", async (FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
-            Results.Ok(await BookPlayback.ListeningAsync(db, profile.Id, ct))).WithTags("Audiobooks");
+            Results.Ok(await BookPlayback.ListeningAsync(db, profile.Id, ct))).WithTags("Audiobooks").NotForKids();
 
         api.MapPut("/books/listening", async (BookListeningRequest request, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
         {
-            int[] steps = [10, 15, 30, 45, 60];
+            var steps = BookPlayback.SkipSteps;
             if (request.Speed is { } s && (!double.IsFinite(s) || s is < 0.5 or > 3.5)
                 || request.SkipBackSeconds is { } b && !steps.Contains(b) || request.SkipForwardSeconds is { } f && !steps.Contains(f))
             {
@@ -172,13 +172,18 @@ public static class BookEndpoints
                 return Results.NotFound();
             }
 
-            me.AudiobookSpeed = request.Speed is { } speed ? Math.Round(speed * 20) / 20 : me.AudiobookSpeed;
+            // One speed for books and podcasts: older apps setting either keep the other in step.
+            if (request.Speed is { } speed)
+            {
+                BookPlayback.SetSharedSpeed(me, Math.Round(speed * 20) / 20);
+            }
+
             me.AudiobookSkipBackSeconds = request.SkipBackSeconds ?? me.AudiobookSkipBackSeconds;
             me.AudiobookSkipForwardSeconds = request.SkipForwardSeconds ?? me.AudiobookSkipForwardSeconds;
             me.AudiobookSmartRewind = request.SmartRewind ?? me.AudiobookSmartRewind;
             await db.SaveChangesAsync(ct);
             return Results.Ok(await BookPlayback.ListeningAsync(db, profile.Id, ct));
-        }).WithTags("Audiobooks");
+        }).WithTags("Audiobooks").NotForKids();
 
         var admin = api.MapGroup("/settings/book-metadata").WithTags("Settings").RequireAuthorization(Security.FlexarrClaims.AdminPolicy);
         admin.MapGet("/", (Microsoft.Extensions.Options.IOptionsMonitor<Configuration.FlexarrOptions> options) => Results.Ok(MetadataSettings(options.CurrentValue)));

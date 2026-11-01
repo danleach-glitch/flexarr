@@ -156,8 +156,11 @@ object BookSpeed {
     /** [speed] on a step, within the range. */
     fun snapped(speed: Double): Double = Math.round(speed.coerceIn(MIN, MAX) * 20) / 20.0
 
-    /** The quick choices offered beside the fine steps. */
-    val presets = listOf(0.8, 1.0, 1.2, 1.5, 1.75, 2.0, 2.5, 3.0)
+    /** The quick choices offered beside the fine steps, for books and podcasts alike (the web's and iPhone's too). */
+    val presets = listOf(0.8, 1.0, 1.1, 1.2, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0)
+
+    /** The presets, plus [current] when it isn't one of them (saved elsewhere). */
+    fun choices(current: Double): List<Double> = (presets + snapped(current)).distinct().sorted()
 
     /** "1×", "1.25×", "1.05×". */
     fun label(speed: Double): String {

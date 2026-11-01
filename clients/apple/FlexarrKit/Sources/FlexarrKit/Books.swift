@@ -552,6 +552,14 @@ public enum BookSpeed {
     public static let range: ClosedRange<Double> = 0.5...3.5
     public static let step = 0.05
 
+    /// The speeds settings offer, for books and podcasts alike (the web's too).
+    public static let presets: [Double] = [0.8, 1, 1.1, 1.2, 1.25, 1.5, 1.75, 2, 2.5, 3]
+
+    /// The presets, plus `current` when it isn't one of them (saved elsewhere).
+    public static func choices(with current: Double) -> [Double] {
+        presets.contains(current) ? presets : (presets + [current]).sorted()
+    }
+
     public static func clamped(_ speed: Double) -> Double {
         guard speed.isFinite else { return 1 }
         return (min(range.upperBound, max(range.lowerBound, speed)) / step).rounded() * step

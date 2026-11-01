@@ -1,19 +1,8 @@
 import { useState, type FormEvent } from 'react'
-import {
-  getBookListening,
-  getBookMetadataSettings,
-  saveBookListening,
-  saveBookMetadataSettings,
-  type BookListening,
-  type BookMetadataSettings,
-} from '../../api/client'
+import { getBookMetadataSettings, saveBookMetadataSettings, type BookMetadataSettings } from '../../api/client'
 import { AsyncButton } from '../../components/AsyncButton'
-import { useSession } from '../../hooks/sessionContext'
 import { useApi } from '../../hooks/useApi'
-import { bookSpeedPresets, formatSpeed } from '../../lib/books'
-import { SaveStatus, SettingRow, SettingsGroup, SettingsHeader, ToggleRow } from './shared'
-
-const skipSteps = [10, 15, 30, 45, 60] as const
+import { SaveStatus, SettingRow, SettingsGroup, ToggleRow } from './shared'
 
 const providerNames: Record<string, string> = { audible: 'Audible', openlibrary: 'Open Library', google: 'Google Books', hardcover: 'Hardcover' }
 
@@ -30,76 +19,8 @@ const regionNames: Record<string, string> = {
   jp: 'Japan',
 }
 
-/** How this profile listens to books (speed, skips, smart rewind), and, for the main profile, where details come from. */
-export function AudiobooksSection() {
-  const { me, profiles } = useSession()
-  const name = profiles?.find((p) => p.isCurrent)?.name
-  const [version, setVersion] = useState(0)
-  const listening = useApi((signal) => getBookListening(signal), [version])
-  const [changed, setChanged] = useState<Partial<BookListening>>({})
-  const [error, setError] = useState<string | null>(null)
-  const l = listening.data && { ...listening.data, ...changed }
-
-  async function save(changes: Partial<BookListening>) {
-    setChanged((c) => ({ ...c, ...changes }))
-    setError(null)
-    try {
-      await saveBookListening(changes)
-    } catch {
-      setError("That didn't save. Try again.")
-      setChanged({})
-    } finally {
-      setVersion((v) => v + 1)
-    }
-  }
-
-  // A speed saved from elsewhere that isn't one of the choices is offered too.
-  const speeds = l && !bookSpeedPresets.some((s) => s === l.speed) ? [...bookSpeedPresets, l.speed].sort((a, b) => a - b) : bookSpeedPresets
-
-  return (
-    <section>
-      <SettingsHeader title="Audiobooks" />
-      {l && (
-        <SettingsGroup title="Listening" note={`${name ? `${name}’s` : 'This profile’s'} own, in every app.`}>
-          <SettingRow label="Speed">
-            <select value={l.speed} onChange={(e) => void save({ speed: Number(e.target.value) })}>
-              {speeds.map((speed) => (
-                <option key={speed} value={speed}>
-                  {formatSpeed(speed)}
-                </option>
-              ))}
-            </select>
-          </SettingRow>
-          <SettingRow label="Skip back">
-            <select value={l.skipBackSeconds} onChange={(e) => void save({ skipBackSeconds: Number(e.target.value) })}>
-              {skipSteps.map((s) => (
-                <option key={s} value={s}>
-                  {s} seconds
-                </option>
-              ))}
-            </select>
-          </SettingRow>
-          <SettingRow label="Skip forward">
-            <select value={l.skipForwardSeconds} onChange={(e) => void save({ skipForwardSeconds: Number(e.target.value) })}>
-              {skipSteps.map((s) => (
-                <option key={s} value={s}>
-                  {s} seconds
-                </option>
-              ))}
-            </select>
-          </SettingRow>
-          <ToggleRow label="Smart rewind" help="After a pause, start a little earlier." checked={l.smartRewind} onChange={(smartRewind) => void save({ smartRewind })} />
-        </SettingsGroup>
-      )}
-      {listening.error && !l && <SaveStatus error={listening.error.message} />}
-      {error && <SaveStatus error={error} />}
-      {me?.isAdmin === true && <OnlineDetails />}
-    </section>
-  )
-}
-
 /** Where the server looks books up: the store region, which providers (in order), and the keys some of them need. */
-function OnlineDetails() {
+export function BookDetailsGroup() {
   const loaded = useApi((signal) => getBookMetadataSettings(signal), [])
   const [settings, setSettings] = useState<BookMetadataSettings | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -122,7 +43,7 @@ function OnlineDetails() {
   }
 
   return (
-    <SettingsGroup title="Online details" note="For the whole server. Details in the files always win.">
+    <SettingsGroup title="Audiobook details" note="Looked up online, for the whole server. Details in the files always win.">
       <SettingRow label="Audible store">
         <select value={s.region} onChange={(e) => void save({ region: e.target.value })}>
           {s.regions.map((r) => (

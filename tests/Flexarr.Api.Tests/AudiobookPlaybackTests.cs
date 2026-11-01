@@ -251,6 +251,34 @@ public class AudiobookPlaybackTests(FlexarrApiFactory factory) : IClassFixture<F
     }
 
     [Fact]
+    public async Task PodcastsAndBooks_ShareOneSpeed_SkipsAndSmartRewind()
+    {
+        try
+        {
+            // Saved as a podcast setting (an older app's podcast page): books follow, to the nearest 0.05×.
+            var podcasts = await (await Client().PutAsJsonAsync(Url("/api/v1/podcasts/preferences"), new { speed = 1.3, skipBackSeconds = 15, smartRewind = false }))
+                .Content.ReadFromJsonAsync<JsonElement>(Json);
+            Assert.Equal((1.3, 15, 30, false), (podcasts.GetProperty("speed").GetDouble(), podcasts.GetProperty("skipBackSeconds").GetInt32(),
+                podcasts.GetProperty("skipForwardSeconds").GetInt32(), podcasts.GetProperty("smartRewind").GetBoolean()));
+            Assert.Equal(new BookListeningDto(1.3, 15, 30, false), await GetAsync<BookListeningDto>("/api/v1/books/listening"));
+
+            // Saved as a book setting: podcasts follow.
+            (await Client().PutAsJsonAsync(Url("/api/v1/books/listening"), new { speed = 2.0, skipForwardSeconds = 45 })).EnsureSuccessStatusCode();
+            var after = await GetAsync<JsonElement>("/api/v1/podcasts/preferences");
+            Assert.Equal((2.0, 45), (after.GetProperty("speed").GetDouble(), after.GetProperty("skipForwardSeconds").GetInt32()));
+
+            // Faster than books play: podcasts keep it, books take their fastest.
+            (await Client().PutAsJsonAsync(Url("/api/v1/podcasts/preferences"), new { speed = 4.0 })).EnsureSuccessStatusCode();
+            Assert.Equal(3.5, (await GetAsync<BookListeningDto>("/api/v1/books/listening")).Speed);
+            Assert.Equal(HttpStatusCode.BadRequest, (await Client().PutAsJsonAsync(Url("/api/v1/podcasts/preferences"), new { skipBackSeconds = 20 })).StatusCode);
+        }
+        finally
+        {
+            await Client().PutAsJsonAsync(Url("/api/v1/books/listening"), new { speed = 1.0, skipBackSeconds = 30, skipForwardSeconds = 30, smartRewind = true });
+        }
+    }
+
+    [Fact]
     public async Task AProfileWithNoListeningSettings_ListensAt1x_WithThirtySecondSkips()
     {
         var book = await SeedAsync(("book.m4b", "aac", 3600));

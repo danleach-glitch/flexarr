@@ -563,7 +563,8 @@ struct NowPlayingView: View {
     private var podcastSpeedMenu: some View {
         Menu {
             Picker("Speed", selection: Binding(get: { music.speed }, set: { music.setSpeed($0) })) {
-                ForEach(MusicPlayer.speeds, id: \.self) { Text(speedLabel($0)).tag($0) }
+                // A speed chosen elsewhere that isn't one of the choices is offered too.
+                ForEach(BookSpeed.choices(with: music.speed), id: \.self) { Text(speedLabel($0)).tag($0) }
             }
         } label: {
             Text(speedLabel(music.speed))

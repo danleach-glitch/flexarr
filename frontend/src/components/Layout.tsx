@@ -38,7 +38,7 @@ export function Layout() {
   const [searching, setSearching] = useState(false)
   const [profileMenu, setProfileMenu] = useState(false)
   const [rail, setRail] = useState(initialRail)
-  // Whether Podcasts has a place among the libraries (a profile can leave it out; Settings › Podcasts).
+  // Whether Podcasts has a place among the libraries (a profile can leave it out; Settings › Sidebar).
   const [podcastsInSidebar, setPodcastsInSidebar] = useState(true)
   const hasPodcasts = libraries.some((l) => l.type === 'Podcasts')
   useEffect(() => {

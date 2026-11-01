@@ -34,8 +34,19 @@ final class AppModel {
     private(set) var podcastStatus: PodcastStatus?
     /// Whether the server has Live TV set up; nil for servers before it.
     private(set) var liveTvStatus: LiveTvStatus?
-    /// How this profile listens to podcasts (auto-download, how many to keep, speed); nil until loaded.
-    private(set) var podcastPreferences: PodcastPreferences?
+    /// How this profile listens to podcasts (auto-download, how many to keep, speed, and from 0.58 the skips and smart
+    /// rewind it shares with books); nil until loaded. The podcast player follows it.
+    private(set) var podcastPreferences: PodcastPreferences? {
+        didSet {
+            guard podcastPreferences != oldValue else { return }
+            music.podcastListening = podcastPreferences
+            // Kept, so an episode played before they load again (offline, from Siri) skips by them.
+            if let podcastPreferences, let data = try? JSONEncoder().encode(podcastPreferences) {
+                UserDefaults.standard.set(data, forKey: Self.lastPodcastPreferencesKey)
+            }
+        }
+    }
+    private static let lastPodcastPreferencesKey = "FlexarrLastPodcastPreferences"
     /// How this profile listens to books (default speed, skip steps, smart rewind); nil without an audiobooks library.
     private(set) var bookListening: BookListening?
     /// The podcast episodes to hear next, as the server keeps them for this profile (every device sees the same).
@@ -149,6 +160,10 @@ final class AppModel {
             skipsProfileChoice = true
         }
         #endif
+        // The podcast settings last known, for an episode played before they load.
+        if let data = defaults.data(forKey: Self.lastPodcastPreferencesKey), let last = try? JSONDecoder().decode(PodcastPreferences.self, from: data) {
+            music.podcastListening = last
+        }
         // A family guest reaches its host only through the tunnel: start it before anything asks the server.
         GuestMode.isActive = credentials?.isGuest == true
         if credentials?.isGuest == true { Task { await ensureGuestTunnel() } }
@@ -1039,10 +1054,24 @@ final class AppModel {
         guard let client, let saved = try? await client.setBookListening(update) else { return false }
         bookListening = saved
         music.listeningChanged(saved)
+        // Podcasts share them (from 0.58): the server saved both.
+        if var podcasts = podcastPreferences, podcasts.hasListening {
+            podcasts.speed = saved.speed
+            podcasts.skipBackSeconds = saved.skipBackSeconds
+            podcasts.skipForwardSeconds = saved.skipForwardSeconds
+            podcasts.smartRewind = saved.smartRewind
+            podcastPreferences = podcasts
+        }
         return true
     }
 
-    /// How this profile listens to books, asked again (Settings › Audiobooks).
+    /// The podcast settings, asked again (Settings › Podcasts and audiobooks), for a profile with podcasts.
+    func loadPodcastPreferences() async {
+        guard let client, podcastStatus?.available == true else { return }
+        if let preferences = try? await client.podcastPreferences() { podcastPreferences = preferences }
+    }
+
+    /// How this profile listens to books, asked again (Settings › Podcasts and audiobooks).
     func loadBookListening() async {
         guard let client else { return }
         if let listening = try? await client.bookListening() { bookListening = listening }
@@ -1095,10 +1124,25 @@ final class AppModel {
             if let value = update.autoDownload { known.autoDownload = value }
             if let value = update.keepEpisodes { known.keepEpisodes = value }
             if let value = update.speed { known.speed = value }
+            if let value = update.skipBackSeconds { known.skipBackSeconds = value }
+            if let value = update.skipForwardSeconds { known.skipForwardSeconds = value }
+            if let value = update.smartRewind { known.smartRewind = value }
             podcastPreferences = known
         }
-        guard let saved = try? await client.setPodcastPreferences(update) else { return nil }
+        guard let saved = try? await client.setPodcastPreferences(update) else {
+            // Not saved: back to what the server has.
+            if let fresh = try? await client.podcastPreferences() { podcastPreferences = fresh }
+            return nil
+        }
         podcastPreferences = saved
+        // Books share the speed, skips and smart rewind (from 0.58): the server saved both, and the book playing takes them.
+        if bookListening != nil, saved.hasListening,
+           let skipBack = saved.skipBackSeconds, let skipForward = saved.skipForwardSeconds, let smartRewind = saved.smartRewind {
+            let listening = BookListening(speed: BookSpeed.clamped(saved.speed), skipBackSeconds: skipBack, skipForwardSeconds: skipForward,
+                                          smartRewind: smartRewind)
+            bookListening = listening
+            music.listeningChanged(listening)
+        }
         return saved
     }
 

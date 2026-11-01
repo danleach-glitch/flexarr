@@ -12,6 +12,7 @@ import {
   savePodcastPreferences,
   setPlaybackSpeed,
   type BookListening,
+  type PodcastPreferences,
   type BookManifest,
   type ItemSummary,
 } from '../api/client'
@@ -29,7 +30,7 @@ const speedKey = 'flexarr.podcastSpeed'
 /** How long the bar says a track couldn't be played, in milliseconds. */
 const FAILURE_SHOWN_FOR = 8000
 
-/** A podcast's skip buttons, as in every podcast app. */
+/** A podcast's skip buttons on a server from before 0.58, which has no skip settings for podcasts. */
 const PODCAST_STEPS = { back: 15, forward: 30 }
 
 function storedSpeed(): number {
@@ -81,6 +82,9 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   const bookSpeedRef = useRef(1)
   const [listening, setListening] = useState<BookListening | null>(null)
   const listeningRef = useRef<BookListening | null>(null)
+  // The profile's podcast settings: skip steps and smart rewind (shared with books on servers from 0.58).
+  const [podcastPreferences, setPodcastPreferences] = useState<PodcastPreferences | null>(null)
+  const podcastPreferencesRef = useRef<PodcastPreferences | null>(null)
   const [bookOffer, setBookOffer] = useState<AudioPlayer['bookOffer']>(null)
   const [nextBook, setNextBook] = useState<ItemSummary | null>(null)
   const speedFor = useCallback(
@@ -103,6 +107,9 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     listeningRef.current = listening
   }, [listening])
+  useEffect(() => {
+    podcastPreferencesRef.current = podcastPreferences
+  }, [podcastPreferences])
 
   const persist = useCallback((at: number) => {
     const s = stateRef.current
@@ -183,7 +190,8 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
           setSleep((s) => (s && 'endOfChapter' in s ? null : s))
           setNextBook(manifest.nextInSeries)
         },
-        smartRewind: () => listeningRef.current?.smartRewind ?? true,
+        // A server from before 0.58 has no smart rewind for podcasts.
+        smartRewind: (kind) => (kind === 'book' ? (listeningRef.current?.smartRewind ?? true) : (podcastPreferencesRef.current?.smartRewind ?? false)),
       })),
     [persist],
   )
@@ -220,7 +228,14 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!podcastPlaying) return
     const controller = new AbortController()
-    const load = () => getPodcastPreferences(controller.signal).then((p) => setUsualSpeed(p.speed), () => undefined)
+    const load = () =>
+      getPodcastPreferences(controller.signal).then(
+        (p) => {
+          setUsualSpeed(p.speed)
+          setPodcastPreferences(p)
+        },
+        () => undefined,
+      )
     void load()
     window.addEventListener(PODCAST_PREFERENCES_CHANGED, load)
     return () => {
@@ -229,7 +244,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     }
   }, [podcastPlaying])
 
-  // How this profile listens to books, again when Settings › Audiobooks changes it.
+  // How this profile listens to books, again when Settings › Podcasts and audiobooks changes it.
   const bookPlaying = isBook(current)
   useEffect(() => {
     if (!bookPlaying) return
@@ -419,8 +434,11 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     [bookPlaying, currentId],
   )
   const skipSteps = useMemo(
-    () => (bookPlaying && listening ? { back: listening.skipBackSeconds, forward: listening.skipForwardSeconds } : PODCAST_STEPS),
-    [bookPlaying, listening],
+    () =>
+      bookPlaying && listening
+        ? { back: listening.skipBackSeconds, forward: listening.skipForwardSeconds }
+        : { back: podcastPreferences?.skipBackSeconds ?? PODCAST_STEPS.back, forward: podcastPreferences?.skipForwardSeconds ?? PODCAST_STEPS.forward },
+    [bookPlaying, listening, podcastPreferences],
   )
   const acceptBookOffer = useCallback(() => {
     if (bookOffer) seek(bookOffer.position)
