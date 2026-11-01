@@ -82,6 +82,8 @@ targets:
         NSLocalNetworkUsageDescription: "Flexarr looks for your Flexarr server on your home network so you can connect without typing an address, then streams from it. For example, it finds the server on your Mac and plays your films, shows and music from it."
         # Servers announce themselves (Bonjour) so the connect screen can list them.
         NSBonjourServices: [_flexarr._tcp]
+        # A title's Trailer opens the YouTube app, and shows only when it's installed.
+        LSApplicationQueriesSchemes: [youtube]
         # flexarr://item/<id> opens a title, flexarr://play/<id> plays it.
         CFBundleURLTypes:
           - CFBundleURLName: io.github.flexarr.tv

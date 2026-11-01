@@ -169,13 +169,15 @@ struct DetailView: View {
     private func detailActions(_ item: ItemSummary, playable: ItemSummary?) -> DetailActions {
         let kind: DetailActions.Kind = item.kind == .series ? .show : item.kind == .episode ? .episode : .movie
         return DetailActions(kind: kind, hasProgress: playable?.isResumable == true && item.kind != .series,
-                             watched: isWatched(item), hasTrailer: detail?.trailerYouTubeId != nil, isKids: model.isKids,
+                             watched: isWatched(item), hasTrailer: trailer != nil, isKids: model.isKids,
                              platform: .tv, canPlayTrailers: canPlayTrailers, canDownload: false,
                              canSearchSubtitles: detail?.canSearchSubtitles == true && detail?.files.first != nil)
     }
 
-    /// Trailers open in the YouTube app, so only when it's installed.
-    private var canPlayTrailers: Bool { false }
+    private var trailer: YouTubeTrailer? { YouTubeTrailer(id: detail?.trailerYouTubeId) }
+
+    /// Trailers open in the YouTube app, so only when it's installed (youtube is in LSApplicationQueriesSchemes).
+    private var canPlayTrailers: Bool { trailer.map { UIApplication.shared.canOpenURL($0.appURL) } ?? false }
 
     /// Play and Start over spelled out; the rest round icons, named underneath while focused.
     private func actions(_ item: ItemSummary) -> some View {
@@ -267,7 +269,10 @@ struct DetailView: View {
             .focused($focusedAction, equals: name)
     }
 
-    private func openTrailer() {}
+    private func openTrailer() {
+        guard let trailer else { return }
+        UIApplication.shared.open(trailer.appURL)
+    }
 
     /// What Play starts: the item itself, or for a series the next-up episode (falling
     /// back to the first episode of the selected season).
