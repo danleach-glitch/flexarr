@@ -3,6 +3,7 @@ using Flexarr.Api.Security;
 using Flexarr.Core.Data;
 using Flexarr.Core.Media;
 using Flexarr.Core.Paths;
+using Flexarr.Core.Scanning;
 using Flexarr.Integrations.Arr;
 using Flexarr.Integrations.Arr.Models;
 using Microsoft.EntityFrameworkCore;
@@ -126,7 +127,7 @@ public static partial class DeleteEndpoints
 
         try
         {
-            return (await OwnBookFilesThereAsync(db, book, instance, bookId, options, arr, ct)).Count > 0 ? instance : null;
+            return (await BookFilesThereAsync(db, book, instance, bookId, options, arr, ct)).Ours.Count > 0 ? instance : null;
         }
         catch (HttpRequestException)
         {
@@ -134,26 +135,54 @@ public static partial class DeleteEndpoints
         }
     }
 
-    /// <summary>
-    /// The app's files for its book that are this book's: one of its own files, as Flexarr sees the app's paths. Not
-    /// anything inside its folder: a folder holding one book's file beside other books' folders (Author/One.m4b,
-    /// Author/Two/…) is the first book's folder, and the rest aren't its. A book linked only by title and author can be
-    /// another edition entirely (an ebook in an ebook app, when ours is the audiobook); its files aren't ours either.
-    /// </summary>
-    private static async Task<List<ReadarrBookFile>> OwnBookFilesThereAsync(FlexarrDbContext db, MediaItem book, ArrInstance instance, string bookId,
+    /// <summary>The app's files for its book, sorted as <see cref="BookFilesThere"/> says.</summary>
+    private static async Task<BookFilesThere> BookFilesThereAsync(FlexarrDbContext db, MediaItem book, ArrInstance instance, string bookId,
         FlexarrOptions options, ArrClient arr, CancellationToken ct)
     {
         var ours = await db.MediaFiles.Where(f => f.MediaItemId == book.Id).Select(f => f.Path).ToListAsync(ct);
-        var keys = ours.Select(PathComparison.Key).ToHashSet(StringComparer.Ordinal);
-        var theirs = await arr.GetBookFilesForBookAsync(instance, bookId, ct);
-        return [.. theirs.Where(f => f.Id is not null && f.Path is { Length: > 0 } && keys.Contains(PathComparison.Key(PathMapper.Map(f.Path, options.PathMappings))))];
+        var keys = ours.Select(PathComparison.Key).ToHashSet(PathComparison.FileSystemKeyComparer);
+        var theirs = (await arr.GetBookFilesForBookAsync(instance, bookId, ct)).Where(f => f.Id is not null && f.Path is { Length: > 0 }).ToList();
+        var own = theirs.Where(f => keys.Contains(PathComparison.Key(Mapped(f)))).ToList();
+        if (own.Count > 0 || theirs.Count == 0)
+        {
+            return new(own, Unmapped: false);
+        }
+
+        // None ours. Audio files outside this library's folders are most likely ours under a path Flexarr can't map
+        // (no path mapping set up, say); audio files inside them are another of our books, and other files another
+        // edition (the ebook).
+        var roots = await db.LibraryFolders.Where(f => f.LibraryId == book.LibraryId).Select(f => f.Path).ToListAsync(ct);
+        var unmapped = theirs.Any(f => IsBookAudio(f.Path!) && !roots.Any(r => PathComparison.IsUnder(Mapped(f), r, PathComparison.FileSystemComparison)));
+        return new([], unmapped);
+
+        string Mapped(ReadarrBookFile f) => PathMapper.Map(f.Path!, options.PathMappings);
     }
+
+    private static bool IsBookAudio(string path) =>
+        Path.GetExtension(path) is var extension
+        && (MediaFileEnumerator.AudioExtensions.Contains(extension) || MediaFileEnumerator.ProtectedBookExtensions.Contains(extension));
+
+    /// <summary>What an app has for the book it's linked to.</summary>
+    /// <param name="Ours">
+    /// Its files that are this book's: one of its own files, as Flexarr sees the app's paths (names compared as this
+    /// machine's file system does). Not anything inside its folder: a folder holding one book's file beside other
+    /// books' folders (Author/One.m4b, Author/Two/…) is the first book's folder, and the rest aren't its. A book linked
+    /// only by title and author can be another edition entirely (an ebook in an ebook app, when ours is the
+    /// audiobook); its files aren't ours either.
+    /// </param>
+    /// <param name="Unmapped">
+    /// None are ours by path, but it has audio files outside the library's folders: most likely ours, at a path Flexarr
+    /// can't map to its own.
+    /// </param>
+    private sealed record BookFilesThere(List<ReadarrBookFile> Ours, bool Unmapped);
 
     /// <summary>
     /// A book: unmonitored in its app first, so it isn't fetched again, then its files deleted there. Only the app's
     /// files that are the book's own count: a book no app manages, whose app knows the book but not its files
     /// (imported by hand, say), or that's linked to some other book there (by title, to the ebook, say) has its files
-    /// deleted by Flexarr and is left alone in the app. Left on disk, the next scan would only bring it back.
+    /// deleted by Flexarr and is left alone in the app. Left on disk, the next scan would only bring it back. An app
+    /// whose audio files for it Flexarr can't place (no path mapping) has it unmonitored, then Flexarr deletes the
+    /// files it knows: the app's own are left to it rather than deleted on a guess.
     /// </summary>
     private static async Task<IResult> DeleteBookAsync(FlexarrDbContext db, MediaItem book, FlexarrOptions options, ArrClient arr, ILogger logger, CancellationToken ct)
     {
@@ -165,9 +194,16 @@ public static partial class DeleteEndpoints
 
         try
         {
-            var files = await OwnBookFilesThereAsync(db, book, instance, bookId, options, arr, ct);
+            var (files, unmapped) = await BookFilesThereAsync(db, book, instance, bookId, options, arr, ct);
             if (files.Count == 0)
             {
+                if (unmapped)
+                {
+                    // Not fetched again once its files are gone.
+                    await arr.SetBookMonitoredAsync(instance, bookId, monitored: false, ct);
+                    LogUnmonitoredOnly(logger, Name(book), instance.Name);
+                }
+
                 return await DeleteFromDiskAsync(db, book, logger, ct);
             }
 
@@ -284,6 +320,9 @@ public static partial class DeleteEndpoints
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Deleted {Kind} {Title} and its files through {Instance}")]
     private static partial void LogDeleted(ILogger logger, MediaKind kind, string? title, string instance);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Unmonitored {Title} in {Instance}, whose files for it aren't at paths Flexarr can map; deleting Flexarr's own files from disk")]
+    private static partial void LogUnmonitoredOnly(ILogger logger, string? title, string instance);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Deleted {Kind} {Title} and its {Count} files from disk (Sonarr and Radarr don't manage it)")]
     private static partial void LogDeletedFromDisk(ILogger logger, MediaKind kind, string? title, int count);

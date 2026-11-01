@@ -53,14 +53,14 @@ public static class ReadarrMatcher
 
         // Its files: one of an app's files is one of the book's files (or, when they aren't known, inside the book's
         // folder). Every app is asked before anything less certain is tried in any of them.
-        var files = book.Files is { Count: > 0 } ours ? ours.Select(PathComparison.Key).ToHashSet(StringComparer.Ordinal) : null;
+        var files = book.Files is { Count: > 0 } ours ? ours.Select(PathComparison.Key).ToHashSet(PathComparison.FileSystemKeyComparer) : null;
         if (book.Path is { Length: > 0 } path)
         {
             for (var i = 0; i < shelves.Count; i++)
             {
                 var hit = shelves[i].Files.Where(f => f.Path is { Length: > 0 } && f.BookId is not null)
                     .FirstOrDefault(f => PathMapper.Map(f.Path!, mappings) is var mapped
-                        && (files is not null ? files.Contains(PathComparison.Key(mapped)) : PathComparison.IsUnder(mapped, path)));
+                        && (files is not null ? files.Contains(PathComparison.Key(mapped)) : PathComparison.IsUnder(mapped, path, PathComparison.FileSystemComparison)));
                 if (hit is not null && shelves[i].Books.FirstOrDefault(b => b.Id == hit.BookId) is { } byFile)
                 {
                     return (i, byFile);

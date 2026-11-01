@@ -171,6 +171,57 @@ public class AudiobookArrTests(FlexarrApiFactory factory) : IClassFixture<Flexar
         }
     }
 
+    [Fact]
+    public async Task ABookWhoseAppFilesFlexarrCantMap_IsUnmonitoredThere_ThenDeletedFromDisk()
+    {
+        // No path mapping for /books: the app's audio file is most likely ours, but Flexarr can't tell which file it is.
+        var root = Directory.CreateTempSubdirectory("flexarr-book-delete-").FullName;
+        try
+        {
+            var (book, file) = await BookOnDiskAsync(root, "Unmapped", "19");
+            var arr = new FakeArr();
+            arr.Responses["PUT //bookshelf.test/api/v1/book/monitor"] = "[]";
+            arr.Responses["GET //bookshelf.test/api/v1/bookfile?bookId=19"] = """[{"id": 45, "bookId": 19, "path": "/books/Unmapped/book.m4b"}]""";
+            arr.Responses["DELETE //bookshelf.test/api/v1/bookfile/45"] = "{}";
+            using var app = arr.Serve(factory, bookshelf: true);
+            var client = Client(app.CreateClient());
+
+            var deleted = await client.DeleteAsync(new Uri($"/api/v1/items/{book}", UriKind.Relative));
+
+            Assert.Equal(HttpStatusCode.NoContent, deleted.StatusCode);
+            Assert.False(File.Exists(file));
+            Assert.Equal(["GET /api/v1/bookfile?bookId=19", "PUT /api/v1/book/monitor"], arr.Requests.Where(r => r.Contains("book", StringComparison.Ordinal)));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task AnAppPathInAnotherCase_IsOurs_WhereTheFileSystemIgnoresCase()
+    {
+        if (Flexarr.Core.Paths.PathComparison.FileSystemComparison != StringComparison.OrdinalIgnoreCase)
+        {
+            return; // Linux: another case is another file.
+        }
+
+        var library = await LibraryAsync();
+        var bookId = await BookAsync(library, managedBy: "Bookshelf", arrId: "20", file: "z.m4b");
+        var arr = new FakeArr();
+        arr.Responses["PUT //bookshelf.test/api/v1/book/monitor"] = "[]";
+        arr.Responses["GET //bookshelf.test/api/v1/bookfile?bookId=20"] = """[{"id": 46, "bookId": 20, "path": "/data/Audiobooks/BOOK20/z.m4b"}]""";
+        arr.Responses["DELETE //bookshelf.test/api/v1/bookfile/46"] = "{}";
+        using var app = arr.Serve(factory, bookshelf: true);
+        var client = Client(app.CreateClient());
+
+        var deleted = await client.DeleteAsync(new Uri($"/api/v1/items/{bookId}", UriKind.Relative));
+
+        Assert.Equal(HttpStatusCode.NoContent, deleted.StatusCode);
+        Assert.Equal(["GET /api/v1/bookfile?bookId=20", "PUT /api/v1/book/monitor", "DELETE /api/v1/bookfile/46"],
+            arr.Requests.Where(r => r.Contains("book", StringComparison.Ordinal)));
+    }
+
     /// <summary>Book One at root/Author (its one file straight in it), beside another book's folder root/Author/Two.</summary>
     private async Task<(Guid Id, string One, string Two)> OneAndTwoAsync(string root, string arrId)
     {
