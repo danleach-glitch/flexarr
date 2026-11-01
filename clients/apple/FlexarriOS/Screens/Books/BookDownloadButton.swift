@@ -22,7 +22,12 @@ struct BookDownloadButton: View {
                 Label("\(Int(fraction * 100))%", systemImage: "arrow.down.circle.dotted")
                     .monospacedDigit()
             case .downloaded:
-                Label("Downloaded", systemImage: "checkmark.circle.fill")
+                Label {
+                    Text("Downloaded")
+                } icon: {
+                    // Green, as downloads are everywhere else.
+                    Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.downloaded)
+                }
             case .failed:
                 Label("Try again", systemImage: "exclamationmark.arrow.circlepath")
             case nil:
