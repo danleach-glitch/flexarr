@@ -4,6 +4,7 @@ using Flexarr.Core.Data;
 using Flexarr.Core.Media;
 using Flexarr.Core.Paths;
 using Flexarr.Integrations.Arr;
+using Flexarr.Integrations.Arr.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -23,7 +24,7 @@ public static partial class DeleteEndpoints
     public static RouteGroupBuilder MapDeleteEndpoints(this RouteGroupBuilder api)
     {
         // Asked before confirming, so the dialog can say who deletes it and, when it's Flexarr, list the files.
-        api.MapGet("/items/{id:guid}/deletion", async (Guid id, FlexarrDbContext db, IOptionsMonitor<FlexarrOptions> options, CancellationToken ct) =>
+        api.MapGet("/items/{id:guid}/deletion", async (Guid id, FlexarrDbContext db, IOptionsMonitor<FlexarrOptions> options, ArrClient arr, CancellationToken ct) =>
         {
             var item = await db.MediaItems.AsNoTracking().Include(i => i.Parent).ThenInclude(p => p!.Parent).FirstOrDefaultAsync(i => i.Id == id, ct);
             if (item is null)
@@ -32,7 +33,7 @@ public static partial class DeleteEndpoints
             }
 
             var instance = item.Kind == MediaKind.Audiobook
-                ? (await BookManagerAsync(db, item, options.CurrentValue, ct)).Instance
+                ? await BookDeleterAsync(db, item, options.CurrentValue, arr, ct)
                 : Manager(item, options.CurrentValue).Instance;
             return Results.Ok(new DeletionDto(instance?.Name, instance is null ? await FilesAsync(db, item, ct) : []));
         }).WithTags("Items").RequireAuthorization(FlexarrClaims.MainProfilePolicy);
@@ -111,9 +112,49 @@ public static partial class DeleteEndpoints
     }
 
     /// <summary>
-    /// A book: unmonitored in its app first, so it isn't fetched again, then its files deleted there. A book no app
-    /// manages, or whose app knows the book but not its files (imported by hand, say), has its files deleted by
-    /// Flexarr: left on disk, the next scan would only bring it back.
+    /// The app that would delete a book's files: its app, when that has files inside the book's own folder. Otherwise
+    /// (no app, an app that has no files for it, or a link to some other book there) Flexarr deletes it: null. An app
+    /// that doesn't answer is still named: deleting would fail there rather than go behind its back.
+    /// </summary>
+    private static async Task<ArrInstance?> BookDeleterAsync(FlexarrDbContext db, MediaItem book, FlexarrOptions options, ArrClient arr, CancellationToken ct)
+    {
+        var (instance, bookId) = await BookManagerAsync(db, book, options, ct);
+        if (instance is null || bookId is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return (await OwnBookFilesThereAsync(db, book, instance, bookId, options, arr, ct)).Count > 0 ? instance : null;
+        }
+        catch (HttpRequestException)
+        {
+            return instance;
+        }
+    }
+
+    /// <summary>
+    /// The app's files for its book that are this book's: inside its folder (or its file), as Flexarr sees the app's
+    /// paths. A book linked only by title and author can be another edition entirely (an ebook in an ebook app, when
+    /// ours is the audiobook); its files aren't ours to delete.
+    /// </summary>
+    private static async Task<List<ReadarrBookFile>> OwnBookFilesThereAsync(FlexarrDbContext db, MediaItem book, ArrInstance instance, string bookId,
+        FlexarrOptions options, ArrClient arr, CancellationToken ct)
+    {
+        var ours = await db.MediaFiles.Where(f => f.MediaItemId == book.Id).Select(f => f.Path).ToListAsync(ct);
+        var keys = ours.Select(PathComparison.Key).ToHashSet(StringComparer.Ordinal);
+        var theirs = await arr.GetBookFilesForBookAsync(instance, bookId, ct);
+        return [.. theirs.Where(f => f.Id is not null && f.Path is { Length: > 0 } && IsOurs(PathMapper.Map(f.Path, options.PathMappings)))];
+
+        bool IsOurs(string path) => (book.Path is { Length: > 0 } folder && PathComparison.IsUnder(path, folder)) || keys.Contains(PathComparison.Key(path));
+    }
+
+    /// <summary>
+    /// A book: unmonitored in its app first, so it isn't fetched again, then its files deleted there. Only the app's
+    /// files inside the book's own folder count: a book no app manages, whose app knows the book but not its files
+    /// (imported by hand, say), or that's linked to some other book there (by title, to the ebook, say) has its files
+    /// deleted by Flexarr and is left alone in the app. Left on disk, the next scan would only bring it back.
     /// </summary>
     private static async Task<IResult> DeleteBookAsync(FlexarrDbContext db, MediaItem book, FlexarrOptions options, ArrClient arr, ILogger logger, CancellationToken ct)
     {
@@ -123,38 +164,30 @@ public static partial class DeleteEndpoints
             return await DeleteFromDiskAsync(db, book, logger, ct);
         }
 
-        var deletedThere = 0;
         try
         {
-            await arr.SetBookMonitoredAsync(instance, bookId, monitored: false, ct);
-            foreach (var file in await arr.GetBookFilesForBookAsync(instance, bookId, ct))
+            var files = await OwnBookFilesThereAsync(db, book, instance, bookId, options, arr, ct);
+            if (files.Count == 0)
             {
-                if (file.Id is not { } fileId)
-                {
-                    continue;
-                }
+                return await DeleteFromDiskAsync(db, book, logger, ct);
+            }
 
+            await arr.SetBookMonitoredAsync(instance, bookId, monitored: false, ct);
+            foreach (var file in files)
+            {
                 try
                 {
-                    await arr.DeleteAsync(instance, $"bookfile/{Uri.EscapeDataString(fileId)}", ct);
+                    await arr.DeleteAsync(instance, $"bookfile/{Uri.EscapeDataString(file.Id!)}", ct);
                 }
                 catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
                 {
                     // Already gone from the app: as good as deleted.
                 }
-
-                deletedThere++;
             }
         }
         catch (HttpRequestException ex)
         {
             return Results.Problem($"{instance.Name} didn't delete it ({(int?)ex.StatusCode ?? 0}). Nothing was removed from Flexarr.", statusCode: 502);
-        }
-
-        if (deletedThere == 0)
-        {
-            // Unmonitored, so it won't come back from the app; the files are Flexarr's to delete.
-            return await DeleteFromDiskAsync(db, book, logger, ct);
         }
 
         await RemoveFromLibraryAsync(db, book, ct);
