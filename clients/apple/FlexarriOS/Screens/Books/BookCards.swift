@@ -226,3 +226,21 @@ struct NoticeCapsule: View {
             .onAppear { UIAccessibility.post(notification: .announcement, argument: notice.text) }
     }
 }
+
+/// The × at the end of a bookmark's row, deleting it.
+struct DeleteBookmarkButton: View {
+    let mark: Bookmark
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "xmark")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(Color.usher)
+                .frame(width: 32, height: 32)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Delete the bookmark at \(Format.timestamp(mark.positionSeconds))")
+    }
+}

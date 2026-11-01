@@ -22,6 +22,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowCircleDown
 import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.IconButton
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.Person
@@ -29,7 +31,6 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.outlined.Book
 import androidx.compose.material.icons.outlined.CheckCircle
-import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -424,25 +425,19 @@ private fun ChapterRow(chapter: BookChapter, index: Int, current: Int?, finished
     }
 }
 
+/** A bookmark: tapping it plays from there, and × deletes it. */
 @Composable
 internal fun BookmarkRow(bookmark: Bookmark, onPlay: () -> Unit, onDelete: () -> Unit) {
-    var menu by remember { mutableStateOf(false) }
-    Box {
-        Row(
-            Modifier.fillMaxWidth().pressable(onPlay, onLongClick = { menu = true }, onClickLabel = "Play from here").padding(horizontal = 16.dp, vertical = 11.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(Icons.Filled.Bookmark, contentDescription = null, tint = Flexarr.silver, modifier = Modifier.size(16.dp))
-            Text(Format.timestamp(bookmark.positionSeconds), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, style = Tabular)
-            Text(bookmark.note ?: "", fontSize = 15.sp, color = Flexarr.screen, modifier = Modifier.weight(1f), maxLines = 3, overflow = TextOverflow.Ellipsis)
-        }
-        DropdownMenu(menu, onDismissRequest = { menu = false }, containerColor = Flexarr.seat) {
-            DropdownMenuItem(
-                text = { Text("Delete", color = Flexarr.danger) },
-                onClick = { menu = false; onDelete() },
-                leadingIcon = { Icon(Icons.Outlined.Delete, contentDescription = null, tint = Flexarr.danger) },
-            )
+    Row(
+        Modifier.fillMaxWidth().pressable(onPlay, onClickLabel = "Play from here").padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Filled.Bookmark, contentDescription = null, tint = Flexarr.silver, modifier = Modifier.size(16.dp))
+        Text(Format.timestamp(bookmark.positionSeconds), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, style = Tabular)
+        Text(bookmark.note ?: "", fontSize = 15.sp, color = Flexarr.screen, modifier = Modifier.weight(1f), maxLines = 3, overflow = TextOverflow.Ellipsis)
+        IconButton(onClick = onDelete) {
+            Icon(Icons.Filled.Close, contentDescription = "Delete the bookmark at ${Format.timestamp(bookmark.positionSeconds)}", tint = Flexarr.usher, modifier = Modifier.size(18.dp))
         }
     }
 }
