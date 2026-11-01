@@ -50,25 +50,34 @@ public sealed partial class AuthorInfo(FlexarrDbContext db, ArrClient arr, IMeta
             var person = authors[i];
             var fromArr = readarr.FirstOrDefault(a => a.AuthorName is { } name && Fold(name) == Fold(person.Name))
                 ?? (authors.Count == 1 ? matched : null);
-            await FillAsync(person, fromArr, knownAsins, new AuthorBook(book.Title, book.Path, book.LibraryId), force: false, ct).ConfigureAwait(false);
+            var standing = await StandingAsync(person, new AuthorBook(book.Title, book.Path, book.LibraryId), ct).ConfigureAwait(false);
+            await FillAsync(person, fromArr, knownAsins, standing, force: false, ct).ConfigureAwait(false);
         }
     }
 
     /// <summary>
     /// One person, now (an admin unlocked them): their folder, then online, whenever they were last looked up. Readarr's
-    /// authors are asked for; an app that doesn't answer is skipped.
+    /// authors are asked for; an app that doesn't answer is skipped. Only for someone credited on a book (an author,
+    /// narrator or translator), and never for someone from films or TV (see <see cref="Standing"/>).
     /// </summary>
     public async Task RefreshPersonAsync(Person person, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(person);
+        var standing = await StandingAsync(person, null, ct).ConfigureAwait(false);
+        if (!standing.Writes || standing.Screen)
+        {
+            return;
+        }
+
         var readarr = await ReadarrAuthorsAsync(ct).ConfigureAwait(false);
         var fromArr = readarr.FirstOrDefault(a => a.AuthorName is { } name && Fold(name) == Fold(person.Name));
-        await FillAsync(person, fromArr, [], null, force: true, ct).ConfigureAwait(false);
+        await FillAsync(person, fromArr, [], standing, force: true, ct).ConfigureAwait(false);
     }
 
-    private async Task FillAsync(Person person, ReadarrAuthor? fromArr, IReadOnlyCollection<string> knownAsins, AuthorBook? current, bool force, CancellationToken ct)
+    private async Task FillAsync(Person person, ReadarrAuthor? fromArr, IReadOnlyCollection<string> knownAsins, Standing standing, bool force, CancellationToken ct)
     {
-        if (person.InfoLocked)
+        // Someone from films or TV keeps their photo from there (TMDB can't take a book's back), and no namesake's biography.
+        if (person.InfoLocked || standing.Screen)
         {
             return;
         }
@@ -82,7 +91,7 @@ public sealed partial class AuthorInfo(FlexarrDbContext db, ArrClient arr, IMeta
             person.InfoCheckedAt = null;
         }
 
-        var books = await BooksAsync(person, current, ct).ConfigureAwait(false);
+        var books = standing.Books;
 
         // Their own folder's photo, looked for every time (it's only a look on disk).
         var (local, sure) = await FolderPhotoAsync(person.Name, books, ct).ConfigureAwait(false);
@@ -183,7 +192,14 @@ public sealed partial class AuthorInfo(FlexarrDbContext db, ArrClient arr, IMeta
         Add(person.PhotoSource ?? GuessSource(person.ImageUrl), person.ImageUrl, null);
         Add(person.BiographySource ?? Current, null, person.Biography);
 
-        var books = await BooksAsync(person, null, ct).ConfigureAwait(false);
+        // Only someone credited on a book is looked for as an author, and never someone from films or TV.
+        var standing = await StandingAsync(person, null, ct).ConfigureAwait(false);
+        if (!standing.Writes || standing.Screen)
+        {
+            return (photos, biographies);
+        }
+
+        var books = standing.Books;
         Add(PersonSources.Folder, (await FolderPhotoAsync(person.Name, books, ct).ConfigureAwait(false)).Photo, null);
         if ((await ReadarrAuthorsAsync(ct).ConfigureAwait(false)).FirstOrDefault(a => a.AuthorName is { } name && Fold(name) == Fold(person.Name)) is { } fromArr)
         {
@@ -304,18 +320,35 @@ public sealed partial class AuthorInfo(FlexarrDbContext db, ArrClient arr, IMeta
 
     private static bool Missing(Person person) => person.ImageUrl is null || person.Biography is null;
 
-    /// <summary>The books a person wrote: saved ones and, for someone new, the one being refreshed.</summary>
-    private async Task<List<AuthorBook>> BooksAsync(Person person, AuthorBook? current, CancellationToken ct)
+    /// <summary>
+    /// What a person is credited with, as finding their photo and biography needs it: the books they wrote, whether
+    /// they're credited on a book at all (an author, narrator or translator), and whether they're someone from films
+    /// or TV (a TMDB or TVmaze person with a credit there), whose photo is TMDB's or TVmaze's.
+    /// </summary>
+    private sealed record Standing(List<AuthorBook> Books, bool Writes, bool Screen);
+
+    /// <summary>
+    /// A person's <see cref="Standing"/>: saved credits, in every library (an admin whose profile hides one still
+    /// sees all of an author's books), and, for someone new, the book being refreshed.
+    /// </summary>
+    private async Task<Standing> StandingAsync(Person person, AuthorBook? current, CancellationToken ct)
     {
-        var books = await db.Credits.AsNoTracking().Where(c => c.PersonId == person.Id && c.Role == CreditRole.Author)
-            .Select(c => new AuthorBook(c.MediaItem!.Title, c.MediaItem.Path, c.MediaItem.LibraryId)).ToListAsync(ct).ConfigureAwait(false);
+        var credits = await db.Credits.IgnoreQueryFilters().AsNoTracking().Where(c => c.PersonId == person.Id)
+            .Select(c => new { c.Role, c.MediaItem!.Title, c.MediaItem.Path, c.MediaItem.LibraryId, Missing = c.MediaItem.MissingSince != null })
+            .ToListAsync(ct).ConfigureAwait(false);
+        var books = credits.Where(c => c.Role == CreditRole.Author && !c.Missing).Select(c => new AuthorBook(c.Title, c.Path, c.LibraryId)).Distinct().ToList();
         if (current is not null && !books.Contains(current))
         {
             books.Add(current);
         }
 
-        return books;
+        var writes = current is not null || credits.Any(c => BookRoles.Contains(c.Role));
+        var screen = (person.TmdbId is not null || person.TvMazeId is not null) && credits.Any(c => !BookRoles.Contains(c.Role));
+        return new Standing(books, writes, screen);
     }
+
+    /// <summary>The credits of books.</summary>
+    internal static readonly CreditRole[] BookRoles = [CreditRole.Author, CreditRole.Narrator, CreditRole.Translator];
 
     /// <summary>
     /// A photo in the author's own folder: author.jpg (or .jpeg, .png, .webp), else folder.jpg, in the top folder of a

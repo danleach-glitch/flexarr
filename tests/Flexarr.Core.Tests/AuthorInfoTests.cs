@@ -349,6 +349,79 @@ public sealed class AuthorInfoTests : IAsyncLifetime
         Assert.False(_db.ChangeTracker.HasChanges());
     }
 
+    [Fact]
+    public async Task SomeoneFromFilms_KeepsTheirPhoto_AndGetsNoBooksBiography()
+    {
+        const string Tmdb = "https://image.tmdb.org/t/p/original/osman.jpg";
+        await AuthorPhotoAsync("author.jpg");
+        var osman = new Person { Name = Osman, TmdbId = "123", ImageUrl = Tmdb, PhotoSource = PersonSources.Tmdb };
+        var library = await SeedAsync(osman);
+        await SeedFilmAsync(osman);
+
+        await Refresher().RefreshLibraryAsync(library, force: true, default);
+
+        var after = await PersonAsync(Osman);
+        Assert.Equal((Tmdb, "tmdb", null), (after.ImageUrl, after.PhotoSource, after.Biography));
+        Assert.DoesNotContain(_web.Requests, r => r.Contains("audnex.us/authors", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task SomeoneWithoutBooks_IsntLookedUpAsAnAuthor()
+    {
+        var actor = new Person { Name = Osman };
+        await SeedFilmAsync(actor);
+        var tracked = await _db.People.SingleAsync(p => p.Name == Osman);
+        var authors = Authors(new BookProviders(new HttpClient(_web), () => new Settings(_dir, []), new BookProviderThrottle()));
+
+        await authors.RefreshPersonAsync(tracked, default);
+        var (photos, biographies) = await authors.CandidatesAsync(tracked, default);
+
+        Assert.Equal((null, null), (tracked.ImageUrl, tracked.Biography));
+        Assert.Empty(photos);
+        Assert.Empty(biographies);
+        Assert.Empty(_web.Requests);
+    }
+
+    [Fact]
+    public async Task AnAuthorInALibraryTheProfileHides_StillHasTheirFolderPhoto()
+    {
+        var photo = await AuthorPhotoAsync("author.jpg");
+        var library = await SeedAsync(new Person { Name = Osman, Biography = "Known.", InfoCheckedAt = DateTime.UtcNow });
+        _db.HiddenLibraryIds = [library.Id];
+        var osman = await _db.People.SingleAsync(p => p.Name == Osman);
+
+        await Authors().RefreshPersonAsync(osman, default);
+        var (photos, _) = await Authors().CandidatesAsync(osman, default);
+
+        Assert.Equal(($"file://{photo}", "folder"), (osman.ImageUrl, osman.PhotoSource));
+        Assert.Contains(photos, p => p.Source == "folder");
+    }
+
+    [Fact]
+    public async Task ABooksAuthor_IsntAnActorOfTheSameName_ButIsAnotherBooksAuthor()
+    {
+        var actor = new Person { Name = Osman, TmdbId = "123" };
+        await SeedFilmAsync(actor);
+
+        Assert.Null(await BookAssembler.ExistingPersonAsync(_db, Osman, default));
+
+        await SeedAsync(new Person { Name = Keyes });
+        var keyes = await BookAssembler.ExistingPersonAsync(_db, Keyes, default);
+        Assert.Equal(Keyes, keyes?.Name);
+    }
+
+    private async Task SeedFilmAsync(Person person)
+    {
+        var films = new Library { Name = "Films", Type = LibraryType.Movies, Folders = [new LibraryFolder { Path = Path.Combine(_dir, "films") }] };
+        _db.Libraries.Add(films);
+        _db.MediaItems.Add(new MediaItem
+        {
+            LibraryId = films.Id, Kind = MediaKind.Movie, Title = "A Film", SortTitle = "film", Path = Path.Combine(_dir, "films", "A Film"),
+            Credits = [new Credit { Person = person, Role = CreditRole.Actor }],
+        });
+        await _db.SaveChangesAsync();
+    }
+
     /// <summary>Just the authors, online providers left out.</summary>
     private AuthorInfo Authors(BookProviders? providers = null) =>
         new(_db, new ArrClient(new HttpClient(_web)), new Settings(_dir, []), providers, NullLogger.Instance);
