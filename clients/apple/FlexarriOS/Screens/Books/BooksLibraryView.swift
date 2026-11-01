@@ -1,9 +1,9 @@
 import FlexarrKit
 import SwiftUI
 
-/// What an audiobooks library shows: its shelves, or every book, series, author or narrator.
+/// What an audiobooks library shows: its shelves, or every book, series, author or narrator (named as on the web).
 enum BookBrowse: String, CaseIterable, Identifiable {
-    case shelves = "Shelves", all = "All", series = "Series", authors = "Authors", narrators = "Narrators"
+    case shelves = "Browse", all = "All books", series = "Series", authors = "Authors", narrators = "Narrators"
     var id: String { rawValue }
 }
 
@@ -116,7 +116,11 @@ struct BooksLibraryView: View {
                 if let error = browse.error, isEmpty {
                     StatusView(state: .failed(error) { Task { await load() } }).frame(height: 400)
                 } else if isEmpty, !browse.isLoading, browse.loadedAt != nil {
-                    StatusView(state: .empty("Nothing here yet.")).frame(height: 400)
+                    if browse.browse == .all, isFiltered {
+                        noMatches.frame(height: 400)
+                    } else {
+                        StatusView(state: .empty("No books yet.")).frame(height: 400)
+                    }
                 } else {
                     content
                 }
@@ -326,6 +330,19 @@ struct BooksLibraryView: View {
             Image(systemName: isFiltered ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
         }
         .accessibilityLabel("Filter and sort")
+    }
+
+    /// Filters that leave nothing: say so, with a way back to every book (the sort stays).
+    private var noMatches: some View {
+        VStack(spacing: 16) {
+            Text("No books match.")
+                .font(.body.weight(.medium))
+                .foregroundStyle(Color.usher)
+            Button("Clear filters") { browse.filter = BookFilter(sort: browse.filter.sort, descending: browse.filter.descending) }
+                .buttonStyle(ActionButtonStyle(prominent: true))
+        }
+        .padding(32)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var isFiltered: Bool {
