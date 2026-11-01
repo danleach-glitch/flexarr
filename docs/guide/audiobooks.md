@@ -32,7 +32,7 @@ Author - Title [B0DPXK6Y7B].m4b                  an Audible id in the name
 
 ## Finding books
 
-The library's front page has **Continue listening**, **Next in series**, **Recently added**, your series, authors, narrators and genres, and what you've finished. **All books** lists every book, with filters for what you haven't started, are part way through or have finished, and by narrator, length and language.
+The library's front page has **Continue listening**, **Next in series**, **Recently added**, your series, authors and genres, and what you've finished. **All books** lists every book, with filters for what you haven't started, are part way through or have finished, and by narrator, length and language.
 
 Books you're part way through also show on Home, in **Continue watching or listening** with your films, shows and podcast episodes. To keep them in their own **Continue listening** row instead, turn off **Books and podcasts in Continue watching** in **Settings › Playback**.
 
