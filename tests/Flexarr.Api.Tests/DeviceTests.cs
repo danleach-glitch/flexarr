@@ -304,8 +304,25 @@ public class DeviceTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
         Assert.Equal(HttpStatusCode.OK, (await Admin().PostAsJsonAsync(Api($"/devices/{id}/sleep"), new { endOfChapter = true })).StatusCode);
         Assert.True((await NextCommandAsync(reader)).GetProperty("endOfChapter").GetBoolean());
 
-        // A book's speed goes past 2×.
+        // Past 2× only while a book plays there.
+        Assert.Equal(HttpStatusCode.BadRequest, (await Admin().PostAsJsonAsync(Api($"/devices/{id}/rate"), new { rate = 2.5 })).StatusCode);
+        var sessions = factory.Services.GetRequiredService<PlaybackSessions>();
+        var film = Session(id, Guid.NewGuid());
+        sessions.Add(film);
+        Assert.Equal(HttpStatusCode.BadRequest, (await Admin().PostAsJsonAsync(Api($"/devices/{id}/rate"), new { rate = 2.5 })).StatusCode);
+        await sessions.RemoveAsync(film.Id);
+        var fileId = Guid.NewGuid();
+        var book = new PlaybackSession
+        {
+            Id = Guid.NewGuid().ToString("N"), ItemId = Guid.NewGuid(), ProfileId = PlaybackState.DefaultUser, SignInId = id, FileId = fileId, FilePath = "",
+            Container = null, DurationSeconds = 3600, Method = PlaybackMethod.DirectPlay, Subtitles = [], CreditsStart = null,
+            BookParts = [new Flexarr.Api.Books.BookPart(0, fileId, "/b/01.mp3", 0, 3600, null, "mp3", 1, false)],
+        };
+        sessions.Add(book);
         Assert.Equal(HttpStatusCode.OK, (await Admin().PostAsJsonAsync(Api($"/devices/{id}/rate"), new { rate = 2.5 })).StatusCode);
+        Assert.Equal(2.5, (await NextCommandAsync(reader)).GetProperty("rate").GetDouble());
+        Assert.Equal(HttpStatusCode.BadRequest, (await Admin().PostAsJsonAsync(Api($"/devices/{id}/rate"), new { rate = 4 })).StatusCode);
+        await sessions.RemoveAsync(book.Id);
         Assert.Equal(HttpStatusCode.BadRequest, (await Admin().PostAsJsonAsync(Api($"/devices/{id}/sleep"), new { minutes = 0 })).StatusCode);
         response.Dispose();
 

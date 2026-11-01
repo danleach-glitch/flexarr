@@ -171,10 +171,11 @@ public static class DeviceEndpoints
             request.TrackId is { Length: > MaxTrackId }
                 ? Results.Problem("That isn't one of the player's subtitles.", statusCode: StatusCodes.Status400BadRequest)
                 : Remote(id, DeviceCommandKind.SubtitleTrack, signIns, commands, current, trackId: string.IsNullOrEmpty(request.TrackId) ? null : request.TrackId));
-        group.MapPost("/{id}/rate", (string id, DeviceRateRequest request, SignIns signIns, DeviceCommands commands, CurrentProfile current) =>
-            request.Rate is >= 0.5 and <= 3.5
+        // Past 2× only for a book: apps play films and episodes no faster.
+        group.MapPost("/{id}/rate", (string id, DeviceRateRequest request, SignIns signIns, DeviceCommands commands, PlaybackSessions sessions, CurrentProfile current) =>
+            request.Rate is >= 0.5 and <= 2 || (request.Rate is > 2 and <= 3.5 && PlayingBook(sessions, id))
                 ? Remote(id, DeviceCommandKind.Rate, signIns, commands, current, rate: request.Rate)
-                : Results.Problem("The speed is between 0.5 and 3.5.", statusCode: StatusCodes.Status400BadRequest));
+                : Results.Problem("The speed is between 0.5 and 2 (3.5 for an audiobook).", statusCode: StatusCodes.Status400BadRequest));
         group.MapPost("/{id}/sleep", (string id, DeviceSleepRequest request, SignIns signIns, DeviceCommands commands, CurrentProfile current) =>
             Sleep(id, request, signIns, commands, current));
         foreach (var (path, kind) in new[] { ("next", DeviceCommandKind.Next), ("previous", DeviceCommandKind.Previous), ("skip-segment", DeviceCommandKind.SkipSegment) })
@@ -281,6 +282,14 @@ public static class DeviceEndpoints
     }
 
     private const int MaxTrackId = 64;
+
+    /// <summary>The device is playing a book now.</summary>
+    private static bool PlayingBook(PlaybackSessions sessions, string deviceId)
+    {
+        var now = DateTime.UtcNow;
+        return sessions.Active.Where(s => s.SignInId == deviceId && PlaybackSessions.Shows(s, now)).OrderByDescending(s => s.LastSeen).FirstOrDefault()
+            is { BookParts: not null };
+    }
 
     /// <summary>Who a Live Activity belongs to: the sign-in, or for the API key itself null (it may end any); any other way in (the home network, Tailscale) by its method.</summary>
     private static string? Owner(CurrentProfile current, HttpContext http) =>
