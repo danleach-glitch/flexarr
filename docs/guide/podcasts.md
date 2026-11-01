@@ -44,6 +44,8 @@ Episodes play through your server rather than straight from the podcast's host. 
 
 Up Next is your own queue of episodes, shared between the web and your phone. Use **Play next** or **Add to Up Next** on any episode. Reorder or remove episodes on the Podcasts page, or in Now Playing on iPhone and iPad. An episode leaves Up Next once it starts playing.
 
+Episodes you're part way through also show on Home, in **Continue watching or listening**. To leave them out, turn off **Books and podcasts in Continue watching** in your profile's settings.
+
 ## Settings
 
 Podcast settings belong to each profile.

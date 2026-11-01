@@ -31,6 +31,8 @@ Author - Title [B0DPXK6Y7B].m4b                  an Audible id in the name
 
 The library's front page has **Continue listening**, **Next in series**, **Recently added**, your series, authors, narrators and genres, and what you've finished. **All** lists every book, with filters for what you haven't started, are part way through or have finished, and by narrator, length and language.
 
+Books you're part way through also show on Home, in **Continue watching or listening** with your films, shows and podcast episodes. To keep them in their own **Continue listening** row instead, turn off **Books and podcasts in Continue watching** in your profile's settings.
+
 A book's page shows its series ("Book 3 of 7"), authors and narrators, how long it is and how long is left at your speed, its chapters, and more in the series, by the author and read by the narrator. A series' page lists its books in order with the next one to hear picked out.
 
 **Home** can show **Continue listening**, **Next in series** and **New audiobooks**: turn them on or off in **Settings › Home**.
