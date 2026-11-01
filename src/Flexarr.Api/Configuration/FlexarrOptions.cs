@@ -279,6 +279,12 @@ public sealed class LayoutOptions
     public List<RowSetting> Movies { get; set; } = [];
     public List<RowSetting> Shows { get; set; } = [];
 
+    /// <summary>A music library's Browse.</summary>
+    public List<RowSetting> Music { get; set; } = [];
+
+    /// <summary>An audiobooks library's front page: its shelves.</summary>
+    public List<RowSetting> Audiobooks { get; set; } = [];
+
     /// <summary>Home shows one Latest unwatched row for all the film libraries, and one for all the TV ones.</summary>
     public bool CombineLibraries { get; set; } = true;
 }

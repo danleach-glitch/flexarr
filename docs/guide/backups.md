@@ -5,9 +5,9 @@ description: How Flexarr backs itself up every night, where backups are kept, an
 
 Your films, shows and music live on your own drives, and Flexarr can always scan them again. What it can't rebuild is everything you've added on top: profiles, what everyone has watched, watchlists, playlists, collections, settings and signed-in devices. That's what a backup holds.
 
-Everything here is in the web app under **Settings › Backup and restore**, as the main profile with settings unlocked.
+Everything here is in the web app under **Settings › Backup & restore**, as the main profile with settings unlocked.
 
-![Settings › Backup and restore with Back up now and a list of nightly and before-upgrade backups, each with download, restore and delete](../../site/guide/img/backups.webp "Settings › Backup and restore")
+![Settings › Backup & restore with Back up now and a list of nightly and before-upgrade backups, each with download, restore and delete](../../site/guide/img/backups.webp "Settings › Backup & restore")
 
 ## What's in a backup
 
@@ -83,6 +83,6 @@ Two ways, depending on what you want to take:
 - **Everything, history included:** download a backup on the old server and restore it on the new one with **From a file**. Mount your media at the same paths on the new machine, or fix up the library folders afterwards in **Settings › Libraries**.
 - **Settings only:** use **Export…** under **Settings file** on the old server, then **From a file** on the new one. A settings file holds libraries and the server's settings, without profiles, watch history or Trakt connections.
 
-When you import a settings file, you choose which parts to take: **Libraries**, **Connections** (Sonarr, Radarr, Lidarr, Seerr, Bazarr, the TMDB key, your own Trakt app and path mappings), **Live TV**, **Streaming**, **Home and Browse**, **Podcasts**, **Notifications**, **Access**, **This machine's paths** and **Server keys**. Each library's folders can be changed to where they are on the new machine. **This machine's paths** and **Server keys** start unticked, and taking either of them, or **Access**, asks for the admin PIN. Log and update settings, and the admin PIN, aren't in a settings file: the new server keeps its own.
+When you import a settings file, you choose which parts to take: **Libraries**, **Connections** (Sonarr, Radarr, Lidarr, Seerr, Bazarr, the TMDB key, your own Trakt app and path mappings), **Live TV**, **Streaming**, **Home & browse** (for profiles that haven't chosen their own rows), **Podcasts**, **Notifications**, **Access**, **This machine's paths** and **Server keys**. Each library's folders can be changed to where they are on the new machine. **This machine's paths** and **Server keys** start unticked, and taking either of them, or **Access**, asks for the admin PIN. Log and update settings, and the admin PIN, aren't in a settings file: the new server keeps its own. Nor are profiles, so each profile's own Home & browse and menu choices move only with a full backup.
 
 See also [Updating](updating.md), which makes its own backup before any upgrade that changes the database.

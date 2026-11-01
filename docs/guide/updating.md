@@ -37,7 +37,7 @@ The version before the last successful update is kept in `~/.flexarr/app.previou
 
 Each update also brings the .NET runtime Flexarr runs on (in `~/.dotnet`) up to its latest patch, as the install script does, so your server gets Microsoft's security fixes. The download is checked against the checksum Microsoft publishes. If it can't be fetched, the update carries on with the runtime you have, unless the new version needs a newer one.
 
-You don't need to make a backup by hand: Flexarr makes one itself whenever an update is about to change the database (see [below](#what-happens-to-your-data)). If you'd like an extra copy anyway, choose **Back up now** in **Settings › Backup and restore**.
+You don't need to make a backup by hand: Flexarr makes one itself whenever an update is about to change the database (see [below](#what-happens-to-your-data)). If you'd like an extra copy anyway, choose **Back up now** in **Settings › Backup & restore**.
 
 ## Docker
 
@@ -107,7 +107,7 @@ The script builds the new version, replaces the program in `~/.flexarr/app`, bri
 
 When a new version starts for the first time, it updates the database to its new layout if it needs to. Before it does, it makes a **pre-upgrade backup** in your backups folder. The last three pre-upgrade backups are kept, alongside the nightly ones.
 
-You'll find them in **Settings › Backup and restore**. If an update goes wrong, install the version you had before, then restore its pre-upgrade backup from that page. See [Backups](backups.md).
+You'll find them in **Settings › Backup & restore**. If an update goes wrong, install the version you had before, then restore its pre-upgrade backup from that page. See [Backups](backups.md).
 
 > **Important** Don't try to run an older Flexarr on a database a newer one has already updated. Go back to the older version and restore the pre-upgrade backup instead. A backup made by a newer Flexarr is refused by an older one.
 

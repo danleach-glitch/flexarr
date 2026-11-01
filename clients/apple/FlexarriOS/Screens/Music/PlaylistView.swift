@@ -4,20 +4,31 @@ import SwiftUI
 /// A playlist's picture: the cover chosen for it, or a mosaic of its first tracks' covers. Fills the width it's given.
 struct PlaylistArtwork: View {
     @Environment(AppModel.self) private var model
-    let playlist: PlaylistSummary
+    let covers: [String]
+    var cover: String?
+
+    init(playlist: PlaylistSummary) {
+        self.init(covers: playlist.covers, cover: playlist.cover)
+    }
+
+    /// A mosaic of these covers (a mix's), or the one chosen.
+    init(covers: [String], cover: String? = nil) {
+        self.covers = covers
+        self.cover = cover
+    }
 
     var body: some View {
         Color.seat
             .aspectRatio(1, contentMode: .fit)
             .overlay {
-                if let cover = playlist.cover {
+                if let cover = cover {
                     RemoteImage(url: model.client?.imageURL(cover, width: 500)) { placeholder }
-                } else if playlist.covers.count >= 4 {
+                } else if covers.count >= 4 {
                     VStack(spacing: 0) {
-                        HStack(spacing: 0) { tile(playlist.covers[0]); tile(playlist.covers[1]) }
-                        HStack(spacing: 0) { tile(playlist.covers[2]); tile(playlist.covers[3]) }
+                        HStack(spacing: 0) { tile(covers[0]); tile(covers[1]) }
+                        HStack(spacing: 0) { tile(covers[2]); tile(covers[3]) }
                     }
-                } else if let first = playlist.covers.first {
+                } else if let first = covers.first {
                     tile(first)
                 } else {
                     placeholder
@@ -61,6 +72,62 @@ struct PlaylistCard: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(CardButtonStyle())
+    }
+}
+
+/// One of the day's music mixes in a row: a mosaic of its covers with the name and what it is beneath; tapping plays it
+/// and opens Now Playing.
+struct MixCard: View {
+    @Environment(AppModel.self) private var model
+    @Environment(Router.self) private var router
+    let mix: MixSummary
+    var width: CGFloat?
+    /// Called when the mix is gone (a new day's mixes replaced it), to load the rows again. Home's reload otherwise.
+    var onStale: (() -> Void)?
+    @State private var isStarting = false
+
+    var body: some View {
+        Button { play() } label: {
+            VStack(alignment: .leading, spacing: 6) {
+                PlaylistArtwork(covers: mix.covers)
+                    .overlay {
+                        if isStarting { ProgressView().tint(Color.screen) }
+                    }
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(mix.name)
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(Color.screen.opacity(0.9))
+                    Text(mix.description)
+                        .font(.caption)
+                        .foregroundStyle(Color.usher)
+                }
+                .lineLimit(1)
+            }
+            .frame(width: width)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(CardButtonStyle())
+        .disabled(isStarting)
+        .accessibilityLabel("\(mix.name), \(mix.description)")
+        .accessibilityHint("Plays the mix")
+    }
+
+    private func play() {
+        guard let client = model.client else { return }
+        isStarting = true
+        Task {
+            defer { isStarting = false }
+            do {
+                let detail = try await client.mix(mix.id)
+                model.playTracks(detail.tracks, showingNowPlaying: router)
+            } catch FlexarrClientError.http(status: 404, _) {
+                // Yesterday's mix: the day's mixes have been made afresh since the page loaded.
+                model.player.showFailure("Today's mixes have changed. Try again.")
+                if let onStale { onStale() } else { model.invalidate() }
+            } catch {
+                model.player.showFailure(ConnectionError(error).message)
+            }
+        }
     }
 }
 

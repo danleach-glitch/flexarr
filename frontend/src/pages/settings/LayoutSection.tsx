@@ -6,26 +6,27 @@ import { SaveStatus, SettingsHeader, ToggleRow } from './shared'
 import { errorText } from './useSettings'
 import { ContinueWatchingRow } from './ContinueWatchingRow'
 
+/** The profile's own: which rows Home and each library's Browse show, in every app. */
 export function LayoutSection() {
   const { data, error } = useApi(getLayout, [])
-  // The main profile's own switch for books and podcasts in Continue watching, with the rest of Home.
+  // Books and podcasts in Continue watching, with the rest of Home.
   const playback = useApi(getPlaybackPreferences, [])
   const [draft, setDraft] = useState<Layout>()
-  const [status, setStatus] = useState<{ saved?: string; error?: string }>({})
+  const [status, setStatus] = useState<{ error?: string }>({})
   const layout = draft ?? data
   // Saved a moment after the last change, so a row moved several places up is one save, not several.
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
   useEffect(() => () => clearTimeout(timer.current), [])
 
   if (error) return <p className="error">{error.message}</p>
-  if (!layout) return <p className="muted">Loading…</p>
+  if (!layout) return null
 
   const save = (next: Layout) =>
     saveLayout(next).then(
-      () => setStatus({ saved: 'Saved. Home and Browse show it next time they load.' }),
+      () => setStatus({}),
       (e: unknown) => setStatus({ error: errorText(e) }),
     )
-  const change = (key: 'home' | 'movies' | 'shows', rows: RowChoice[]) => {
+  const change = (key: 'home' | 'movies' | 'shows' | 'music' | 'audiobooks', rows: RowChoice[]) => {
     const next = { ...layout, [key]: rows }
     setDraft(next)
     setStatus({})
@@ -41,7 +42,7 @@ export function LayoutSection() {
     saveLayout(next).then(
       (saved) => {
         setDraft(saved)
-        setStatus({ saved: 'Saved. Home and Browse show it next time they load.' })
+        setStatus({})
       },
       (e: unknown) => {
         setDraft(layout)
@@ -52,8 +53,7 @@ export function LayoutSection() {
 
   return (
     <section>
-      <SettingsHeader title="Home and Browse">Which rows Home and each library’s Browse show, for every profile. Drag a row to move it.</SettingsHeader>
-      <SaveStatus {...status} />
+      <SettingsHeader title="Home & browse">Which rows Home and each library’s Browse show, in every app. Drag a row to move it.</SettingsHeader>
       <RowList title="Home" rows={layout.home} onChange={(rows) => change('home', rows)}>
         {(layout.combinable || playback.data?.listeningInContinue !== undefined) && (
           <div className="panel setting-rows">
@@ -65,12 +65,16 @@ export function LayoutSection() {
                 onChange={combine}
               />
             )}
-            {playback.data && <ContinueWatchingRow loaded={playback.data} help="The main profile’s own." />}
+            {playback.data && <ContinueWatchingRow loaded={playback.data} />}
           </div>
         )}
       </RowList>
       <RowList title="Film libraries" rows={layout.movies} onChange={(rows) => change('movies', rows)} />
       <RowList title="TV libraries" rows={layout.shows} onChange={(rows) => change('shows', rows)} />
+      {layout.music && <RowList title="Music" rows={layout.music} onChange={(rows) => change('music', rows)} />}
+      {layout.audiobooks && <RowList title="Audiobooks" rows={layout.audiobooks} onChange={(rows) => change('audiobooks', rows)} />}
+      {/* It saves by itself: only a failed save says anything, under the lists so they never move. */}
+      <SaveStatus error={status.error} />
     </section>
   )
 }

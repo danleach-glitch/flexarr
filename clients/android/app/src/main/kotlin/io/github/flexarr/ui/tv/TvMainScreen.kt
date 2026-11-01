@@ -32,6 +32,7 @@ import androidx.compose.material.icons.outlined.SettingsInputAntenna
 import io.github.flexarr.core.Library
 import io.github.flexarr.core.LibrarySort
 import io.github.flexarr.core.LibraryType
+import io.github.flexarr.core.MenuItem
 import io.github.flexarr.core.liveChannels
 import io.github.flexarr.ui.components.Load
 import io.github.flexarr.ui.components.rememberLoader
@@ -136,7 +137,8 @@ fun TvMainScreen(model: AppModel) {
     val libraryTabs = LibraryMenuEntry.ordered(model, libraryList).mapNotNull { entry ->
         when (entry) {
             is LibraryMenuEntry.Shelf -> entry.library.takeIf { it.onTv && !(model.hasLiveTv && it.isRecordings) }?.let(TvTab::library)
-            LibraryMenuEntry.LiveTv -> TvTab.LiveTv
+            // Left out of the menu, Live TV is still on Home and its links.
+            LibraryMenuEntry.LiveTv -> TvTab.LiveTv.takeUnless { model.currentProfile?.hidesFromMenu(MenuItem.LIVE_TV) == true }
             is LibraryMenuEntry.Podcasts -> null
         }
     }
@@ -346,7 +348,8 @@ fun TvMainScreen(model: AppModel) {
             }
             // Music carries on under every screen; the bar says what's playing.
             TvNowPlayingBar(model, Modifier.align(Alignment.BottomCenter), onShown = { barShown = it })
-            val tabs = listOf(TvTab.Home) + libraryTabs + listOf(TvTab.Discover, TvTab.Search, TvTab.Settings)
+            val showsDiscover = model.currentProfile?.hidesFromMenu(MenuItem.DISCOVER) != true
+            val tabs = listOf(TvTab.Home) + libraryTabs + listOfNotNull(TvTab.Discover.takeIf { showsDiscover }, TvTab.Search, TvTab.Settings)
             Sidebar(model, sidebarOpen, tabs, tabRoute, onSelect = ::select, onProfile = {
                 closeSidebar()
                 choosingProfile = true
@@ -424,7 +427,7 @@ private fun Sidebar(model: AppModel, open: Boolean, tabs: List<TvTab>, selected:
                     }
                 }
                 items(tabs, key = { it.route }) { tab ->
-                    if (tab == TvTab.Discover) {
+                    if (tab == (if (TvTab.Discover in tabs) TvTab.Discover else TvTab.Search)) {
                         // A rule between the libraries and the rest.
                         Box(Modifier.padding(horizontal = 12.dp, vertical = 8.dp).fillMaxWidth().height(1.dp).background(Flexarr.aisle))
                     }

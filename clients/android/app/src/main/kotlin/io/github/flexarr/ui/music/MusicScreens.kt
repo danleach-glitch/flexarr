@@ -21,6 +21,7 @@ import androidx.compose.foundation.lazy.grid.LazyGridScope
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed as rowItemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.layout.layout
@@ -55,16 +56,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.flexarr.AppModel
 import io.github.flexarr.core.Format
+import io.github.flexarr.core.HomeRow
+import io.github.flexarr.core.HomeRowStyle
 import io.github.flexarr.core.ItemDetail
 import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.LibrarySort
 import io.github.flexarr.core.MediaKind
 import io.github.flexarr.core.PlaylistDetail
-import io.github.flexarr.core.PlaylistSummary
 import io.github.flexarr.core.artistName
 import io.github.flexarr.core.discs
 import io.github.flexarr.core.facts
 import io.github.flexarr.core.playlist
+import io.github.flexarr.core.musicRows
 import io.github.flexarr.core.playlists
 import io.github.flexarr.core.releaseYear
 import io.github.flexarr.core.totalRuntime
@@ -91,26 +94,19 @@ import io.github.flexarr.ui.theme.RoomBackground
 import io.github.flexarr.ui.theme.glowColor
 import io.github.flexarr.ui.theme.marquee
 import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
-// The music screens, as the iPhone app's: a library (playlists, new albums, every artist), an artist, an album and a
+// The music screens, as the iPhone app's: a library (the server's rows, every artist), an artist, an album and a
 // playlist. Each title page has Play and Shuffle; tapping a track plays from it, and tapping the one playing pauses it.
 
 private const val PAGE_SIZE = 60
+
 /**
- * How many of the newest artists are opened to find the newest albums. The server lists albums only under their
- * artist, so this bounds the requests a visit makes; an album newer than every one of these artists' can't exist.
+ * A music library: the server's rows for it (playlists, mixes, what's been played, new albums), in the profile's order
+ * and without the ones it switched off, then every artist as a round picture.
  */
-private const val RECENT_ARTISTS = 8
-private const val RECENT_ALBUM_COUNT = 12
-
-/** What a music library opens to, besides its artists: the profile's playlists and the albums that arrived last. */
-private class MusicBrowse(val playlists: List<PlaylistSummary>, val recentAlbums: List<ItemSummary>)
-
-/** A music library: the profile's playlists, the albums that arrived most recently, then every artist as a round picture. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MusicLibraryScreen(model: AppModel, libraryId: String) {
@@ -125,26 +121,22 @@ fun MusicLibraryScreen(model: AppModel, libraryId: String) {
     var attempt by remember { mutableIntStateOf(0) }
     var refreshing by remember { mutableStateOf(false) }
     var loadedAt by remember(libraryId) { mutableStateOf<Long?>(null) }
-    var browse by remember(libraryId) { mutableStateOf(MusicBrowse(emptyList(), emptyList())) }
+    var rows by remember(libraryId) { mutableStateOf(emptyList<HomeRow>()) }
     RefreshWhenStale(loadedAt) { attempt++ }
 
     LaunchedEffect(libraryId, attempt) {
         loading = true
         try {
             coroutineScope {
-                val lists = async { runCatching { client.playlists() }.getOrDefault(emptyList()) }
-                val newest = async { runCatching { client.libraryItems(libraryId, LibrarySort.Added, take = RECENT_ARTISTS).items }.getOrDefault(emptyList()) }
+                // Rows that can't load leave the playlists (when those can) and the artists.
+                val browse = async { client.musicRows(libraryId) }
                 val page = client.libraryItems(libraryId, LibrarySort.Title, take = PAGE_SIZE)
                 artists.clear()
                 artists.addAll(page.items.filter { it.kind == MediaKind.Artist || it.kind == MediaKind.Unknown })
                 total = page.total
                 error = null
                 loadedAt = System.currentTimeMillis()
-                // The newest albums among the newest artists', newest first.
-                val albums = newest.await().map { artist ->
-                    async { runCatching { client.item(artist.id).children.filter { it.kind == MediaKind.Album } }.getOrDefault(emptyList()) }
-                }.awaitAll().flatten().sortedByDescending { it.addedAt.orEmpty() }.take(RECENT_ALBUM_COUNT)
-                browse = MusicBrowse(lists.await(), albums)
+                rows = browse.await().filter { it.showsInMusic }
             }
         } catch (e: CancellationException) {
             // A newer load took over: it says when it's done.
@@ -176,7 +168,7 @@ fun MusicLibraryScreen(model: AppModel, libraryId: String) {
     }
 
     val name = (library.state as? Load.Loaded)?.value?.name.orEmpty()
-    RoomBackground(ambient = (browse.recentAlbums.firstOrNull() ?: artists.firstOrNull())?.let { glowColor(it.accentColor) }, intensity = 0.18f) {
+    RoomBackground(ambient = (rows.firstNotNullOfOrNull { it.items.firstOrNull() } ?: artists.firstOrNull())?.let { glowColor(it.accentColor) }, intensity = 0.18f) {
         Column {
             PageTitle(name, onBack = { navigator.back() })
             val failed = error
@@ -192,25 +184,17 @@ fun MusicLibraryScreen(model: AppModel, libraryId: String) {
                         verticalArrangement = Arrangement.spacedBy(20.dp),
                         modifier = Modifier.fillMaxSize(),
                     ) {
-                        fullWidth {
+                        fullWidth(key = "count") {
                             Text(if (total == 1) "1 artist" else "${Format.count(total)} artists", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher, style = Tabular)
                         }
-                        if (browse.playlists.isNotEmpty()) {
-                            fullWidth {
-                                Shelf("Your playlists") { items(browse.playlists, key = { it.id }) { PlaylistCard(it, PosterWidth * 1.15f) } }
-                            }
-                        }
-                        if (browse.recentAlbums.isNotEmpty()) {
-                            fullWidth {
-                                Shelf("Recently added") { items(browse.recentAlbums, key = { it.id }) { AlbumCard(it, width = PosterWidth * 1.15f, showsArtist = true) } }
-                            }
-                        }
-                        fullWidth { SectionHeading("Artists", Modifier.bleed()) }
+                        // As the server lists them: the profile chooses their order and which show.
+                        rows.forEach { row -> fullWidth(key = "row-${row.id}") { MusicShelf(model, row) } }
+                        fullWidth(key = "artists-heading") { SectionHeading("Artists", Modifier.bleed()) }
                         itemsIndexed(artists, key = { _, artist -> artist.id }) { index, artist ->
                             LaunchedEffect(index, artists.size) { loadMoreIfNeeded(index) }
                             ArtistCard(artist)
                         }
-                        if (loading) fullWidth { Box(Modifier.fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Flexarr.usher) } }
+                        if (loading) fullWidth(key = "loading") { Box(Modifier.fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Flexarr.usher) } }
                     }
                 }
             }
@@ -218,7 +202,35 @@ fun MusicLibraryScreen(model: AppModel, libraryId: String) {
     }
 }
 
-private fun LazyGridScope.fullWidth(content: @Composable () -> Unit) = item(span = { GridItemSpan(maxLineSpan) }) { content() }
+private fun LazyGridScope.fullWidth(key: Any? = null, content: @Composable () -> Unit) = item(key = key, span = { GridItemSpan(maxLineSpan) }) { content() }
+
+/** One of the server's rows for a music library: playlists, mixes and tracks that play, or albums (and artists) that open. */
+@Composable
+private fun MusicShelf(model: AppModel, row: HomeRow) {
+    val width = PosterWidth * 1.15f
+    Shelf(row.title) {
+        when (row.style) {
+            HomeRowStyle.Playlists -> items(row.playlists.orEmpty(), key = { it.id }) { PlaylistCard(it, width) }
+            HomeRowStyle.Mixes -> items(row.mixes.orEmpty(), key = { it.id }) { MixCard(it, width) }
+            // A row of tracks plays: the one tapped first, the rest of the row after it.
+            HomeRowStyle.Tracks -> rowItemsIndexed(row.items, key = { _, item -> item.id }) { index, item ->
+                TrackCard(model, item, width) { model.music.play(row.items, start = index) }
+            }
+            else -> items(row.items, key = { it.id }) { item ->
+                if (item.kind == MediaKind.Artist) ArtistCard(item, Modifier.width(width)) else AlbumCard(item, width = width, showsArtist = true)
+            }
+        }
+    }
+}
+
+/** A row this screen can draw, with something in it: not one of a kind it doesn't know, nor an empty one. */
+private val HomeRow.showsInMusic: Boolean
+    get() = when (style) {
+        HomeRowStyle.Playlists -> !playlists.isNullOrEmpty()
+        HomeRowStyle.Mixes -> !mixes.isNullOrEmpty()
+        HomeRowStyle.Tracks, HomeRowStyle.Poster, HomeRowStyle.Wide -> items.isNotEmpty()
+        else -> false
+    }
 
 /** A heading with a row of cards that scrolls sideways under it, reaching the screen's edges. */
 @Composable

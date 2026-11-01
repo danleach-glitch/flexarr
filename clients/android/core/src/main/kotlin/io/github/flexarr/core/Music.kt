@@ -1,5 +1,6 @@
 package io.github.flexarr.core
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.Serializable
 
 // Music: lyrics, playlists, and the requests and words the music screens need, as FlexarrKit's Models.swift,
@@ -44,6 +45,28 @@ data class PlaylistSummary(
     /** "12 tracks". */
     val trackCountLabel: String get() = if (trackCount == 1) "1 track" else "$trackCount tracks"
 }
+
+/** The id of the "Made for you" row of the profile's daily music mixes, on Home and a music library's page. */
+const val MUSIC_MIXES_ROW_ID = "music-mixes"
+
+/**
+ * One of the profile's daily music mixes ("Made for you"): the same all day, new tomorrow, so an id from yesterday is
+ * not found.
+ */
+@Serializable
+data class MixSummary(
+    val id: String,
+    val name: String,
+    /** Who's in it, or what it's made from: "Made from the artists you play". */
+    val description: String = "",
+    /** Up to four of its tracks' album covers, for a mosaic. */
+    val covers: List<String> = emptyList(),
+    val trackCount: Int = 0,
+)
+
+/** A mix with its tracks in order. */
+@Serializable
+data class MixDetail(val summary: MixSummary, val tracks: List<ItemSummary> = emptyList())
 
 /** A place in a playlist: the entry (what's moved or removed) and the track in it. */
 @Serializable
@@ -92,6 +115,36 @@ suspend fun FlexarrClient.playlists(): List<PlaylistSummary> =
 
 /** A playlist with its tracks in order. */
 suspend fun FlexarrClient.playlist(id: String): PlaylistDetail = get("playlists/$id")
+
+/** One of today's music mixes with its tracks in order. */
+suspend fun FlexarrClient.mix(id: String): MixDetail = get("music/mixes/$id")
+
+/** The id of the row of the profile's playlists a music library shows when its own rows can't load. */
+const val MUSIC_PLAYLISTS_ROW_ID = "playlists"
+
+/**
+ * A music library's rows, as the server lists them for the profile. When they can't load (a timeout, a server
+ * without them), the profile's playlists as one row instead, as the page had them before the server's rows.
+ */
+suspend fun FlexarrClient.musicRows(libraryId: String): List<HomeRow> {
+    try {
+        return libraryBrowse(libraryId).rows
+    } catch (e: CancellationException) {
+        throw e
+    } catch (_: Exception) {
+        // The playlists instead, below.
+    }
+    val lists = try {
+        playlists()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (_: Exception) {
+        // Neither: the artists still show.
+        emptyList()
+    }
+    if (lists.isEmpty()) return emptyList()
+    return listOf(HomeRow(MUSIC_PLAYLISTS_ROW_ID, "Your playlists", HomeRowStyle.Playlists, emptyList(), playlists = lists))
+}
 
 // Words
 

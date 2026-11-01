@@ -51,8 +51,9 @@ struct BookCard: View {
     }
 }
 
-/// An audiobooks library's tab: Continue listening first, then Next in series, Recently added, series, authors,
-/// narrators and finished books, each a row.
+/// An audiobooks library's tab: Continue listening, Next in series, Recently added, series, authors and finished books,
+/// each a row, in the profile's order (Settings › Home & browse). With no shelf left to show (all switched off, or only
+/// empty ones on), every book in a grid instead.
 struct BooksLibraryView: View {
     @Environment(AppModel.self) private var model
     @Environment(Router.self) private var router
@@ -64,6 +65,15 @@ struct BooksLibraryView: View {
     @State private var loadedAt: Date?
     @State private var loadedToken: Int?
     @State private var isVisible = false
+    /// Every book (paged, by title), loaded only when no shelf has anything to show.
+    @State private var books: [ItemSummary] = []
+    @State private var booksTotal = 0
+    @State private var isLoadingMore = false
+    /// Where across a shelf focus last was, so up and down keep to it (see `RowFocus`).
+    @State private var column = 0
+
+    private static let pageSize = 60
+    private let columns = Array(repeating: GridItem(.fixed(Layout.posterWidth), spacing: Layout.gridSpacing, alignment: .top), count: 6)
 
     var body: some View {
         ScrollView(.vertical) {
@@ -72,35 +82,31 @@ struct BooksLibraryView: View {
                     Text(library.name)
                         .font(.marquee(76, weight: .heavy))
                         .foregroundStyle(Color.screen)
-                        .padding(.horizontal, Layout.edge)
                         .padding(.top, 20)
                 }
                 if let shelves {
-                    if shelves.isEmpty {
+                    if !shelves.shownShelves.isEmpty {
+                        // In the profile's order, without the shelves it switched off.
+                        ForEach(shelves.shownShelves, id: \.self) { shelf(shelf: $0, shelves) }
+                    } else if !books.isEmpty {
+                        allBooks
+                    } else {
                         StatusView(state: .empty("No books yet.")).frame(height: 500)
                     }
-                    bookRow("Continue listening", shelves.continueListening)
-                    bookRow("Next in series", shelves.nextInSeries)
-                    bookRow("Recently added", shelves.recentlyAdded)
-                    if !shelves.series.isEmpty {
-                        row("Series") {
-                            ForEach(shelves.series) { series in
-                                SeriesCard(series: series) { router.push(.bookSeries(id: series.id, name: series.name)) }
-                            }
-                        }
-                    }
-                    peopleRow("Authors", shelves.authors)
-                    bookRow("Finished", shelves.finished)
                 } else if let error {
                     StatusView(state: .failed(error) { Task { await load() } }).frame(height: 500)
                 } else {
                     StatusView(state: .loading).frame(height: 500)
                 }
             }
+            .padding(.horizontal, Layout.edge)
             .padding(.bottom, 80)
         }
         .scrollClipDisabled()
-        .background(RoomBackground(ambient: shelves?.continueListening.first?.glowColor ?? shelves?.recentlyAdded.first?.glowColor, intensity: 0.18))
+        // Layout.edge from the screen's edge, as on the music and film pages (whose full-width grids reach past the
+        // safe area): without this the screen's safe area comes on top of it.
+        .ignoresSafeArea(edges: .horizontal)
+        .background(RoomBackground(ambient: shelves?.continueListening.first?.glowColor ?? shelves?.recentlyAdded.first?.glowColor ?? books.first?.glowColor, intensity: 0.18))
         .task(id: model.refreshToken) {
             guard loadedToken != model.refreshToken || Freshness.isStale(loadedAt) else { return }
             await load()
@@ -113,10 +119,29 @@ struct BooksLibraryView: View {
     }
 
     @ViewBuilder
+    private func shelf(shelf: BookShelf, _ shelves: BookShelves) -> some View {
+        switch shelf {
+        case .continueListening: bookRow("Continue listening", shelves.continueListening)
+        case .nextInSeries: bookRow("Next in series", shelves.nextInSeries)
+        case .recentlyAdded: bookRow("Recently added", shelves.recentlyAdded)
+        case .series:
+            if !shelves.series.isEmpty {
+                ShelfRow(title: "Series", ids: shelves.series.map(\.id), column: $column) { focus in
+                    ForEach(shelves.series) { series in
+                        SeriesCard(series: series, focus: focus) { router.push(.bookSeries(id: series.id, name: series.name)) }
+                    }
+                }
+            }
+        case .authors: peopleRow("Authors", shelves.authors)
+        case .finished: bookRow("Finished", shelves.finished)
+        }
+    }
+
+    @ViewBuilder
     private func bookRow(_ title: String, _ items: [ItemSummary]) -> some View {
         if !items.isEmpty {
-            row(title) {
-                ForEach(items) { book in BookCard(item: book) { router.push(.item(book)) } }
+            ShelfRow(title: title, ids: items.map(\.id), column: $column) { focus in
+                ForEach(items) { book in BookCard(item: book, focus: focus) { router.push(.item(book)) } }
             }
         }
     }
@@ -124,9 +149,10 @@ struct BooksLibraryView: View {
     @ViewBuilder
     private func peopleRow(_ title: String, _ people: [BookPerson]) -> some View {
         if !people.isEmpty {
-            row(title) {
+            ShelfRow(title: title, ids: people.map(\.id), column: $column) { focus in
                 ForEach(people) { person in
-                    PersonCard(name: person.name, detail: person.bookCount == 1 ? "1 book" : "\(person.bookCount) books", image: person.image) {
+                    PersonCard(name: person.name, detail: person.bookCount == 1 ? "1 book" : "\(person.bookCount) books", image: person.image,
+                               focus: focus, focusID: person.id) {
                         router.push(.person(id: person.id, name: person.name))
                     }
                 }
@@ -134,17 +160,27 @@ struct BooksLibraryView: View {
         }
     }
 
-    private func row(_ title: String, @ViewBuilder content: () -> some View) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            RowHeading(title: title)
-            ScrollView(.horizontal) {
-                LazyHStack(alignment: .top, spacing: Layout.rowSpacing) { content() }
-                    .padding(.horizontal, Layout.edge)
-                    .padding(.top, 28)
-                    .padding(.bottom, 40)
+    private var allBooks: some View {
+        LazyVGrid(columns: columns, alignment: .leading, spacing: 56) {
+            ForEach(Array(books.enumerated()), id: \.element.id) { index, book in
+                BookCard(item: book) { router.push(.item(book)) }
+                    .onAppear { loadMoreIfNeeded(at: index) }
             }
-            .scrollClipDisabled()
-            .focusSection()
+        }
+        .padding(.top, 20)
+        .focusSection()
+    }
+
+    private func loadMoreIfNeeded(at index: Int) {
+        guard let client = model.client, !isLoadingMore, books.count < booksTotal, index >= books.count - 18 else { return }
+        isLoadingMore = true
+        let skip = books.count
+        Task {
+            defer { isLoadingMore = false }
+            guard let page = try? await client.books(library.id, skip: skip, take: Self.pageSize), skip == books.count else { return }
+            let known = Set(books.map(\.id))
+            books += page.items.filter { !known.contains($0.id) }
+            booksTotal = page.total
         }
     }
 
@@ -152,7 +188,16 @@ struct BooksLibraryView: View {
         guard let client = model.client else { return }
         let token = model.refreshToken
         do {
-            shelves = try await client.bookShelves(library.id)
+            let loaded = try await client.bookShelves(library.id)
+            if loaded.shownShelves.isEmpty {
+                let page = try await client.books(library.id, take: Self.pageSize)
+                books = page.items
+                booksTotal = page.total
+            } else {
+                books = []
+                booksTotal = 0
+            }
+            shelves = loaded
             error = nil
             loadedAt = Date()
             loadedToken = token
@@ -162,14 +207,42 @@ struct BooksLibraryView: View {
     }
 }
 
+/// One of the library page's shelves: its heading and cards in a row, the cards taking the row's own focus state
+/// (a book can be on more than one shelf) so up and down land in the column focus left (see `RowFocus`).
+private struct ShelfRow<Content: View>: View {
+    let title: String
+    let ids: [String]
+    @Binding var column: Int
+    @ViewBuilder let content: (FocusState<String?>.Binding) -> Content
+    @FocusState private var focusedCard: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(title)
+                .font(.marquee(40, weight: .bold))
+                .foregroundStyle(Color.screen)
+            ScrollView(.horizontal) {
+                LazyHStack(alignment: .top, spacing: Layout.rowSpacing) { content($focusedCard) }
+                    .padding(.top, 28)
+                    .padding(.bottom, 40)
+            }
+            .scrollClipDisabled()
+            .focusSection()
+            .modifier(RowFocus(ids: ids, column: $column, focus: $focusedCard))
+        }
+    }
+}
+
 /// A series: its first book's cover with the name and how many books beneath.
 struct SeriesCard: View {
     @Environment(AppModel.self) private var model
     let series: BookSeriesSummary
+    /// Shared focus state, so the row can steer focus to this card (see `RowFocus`).
+    var focus: FocusState<String?>.Binding? = nil
     let action: () -> Void
 
     var body: some View {
-        ArtworkButton(ambient: .silver, action: action) {
+        ArtworkButton(ambient: .silver, focus: focus, focusID: series.id, action: action) {
             RemoteImage(url: model.client?.imageURL(series.covers.first?.poster, width: 500)) {
                 ZStack {
                     Color.seat

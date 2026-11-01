@@ -34,7 +34,16 @@ final class BooksLibraryModel {
         defer { isLoading = false }
         do {
             switch browse {
-            case .shelves, .genres:
+            case .shelves:
+                let loaded = try await client.bookShelves(library.id)
+                // No shelf left to show (all switched off, or only empty ones on): the whole library instead.
+                if loaded.shownShelves.isEmpty {
+                    let page = try await client.books(library.id, filter: filter, take: 60)
+                    books = page.items
+                    booksTotal = page.total
+                }
+                shelves = loaded
+            case .genres:
                 shelves = try await client.bookShelves(library.id)
             case .all:
                 let page = try await client.books(library.id, filter: filter, take: 60)
@@ -60,7 +69,8 @@ final class BooksLibraryModel {
     func loadMoreIfNeeded(at index: Int, client: FlexarrClient) {
         guard !isLoading else { return }
         switch browse {
-        case .all where index >= books.count - 10 && books.count < booksTotal:
+        case .all where index >= books.count - 10 && books.count < booksTotal,
+             .shelves where showsAllBooks && index >= books.count - 10 && books.count < booksTotal:
             more { [library, filter, books] in
                 let page = try await client.books(library.id, filter: filter, skip: books.count, take: 60)
                 self.books += page.items
@@ -81,6 +91,9 @@ final class BooksLibraryModel {
         }
     }
 
+    /// The Browse tab has no shelf to show, so it shows every book (as All books does).
+    var showsAllBooks: Bool { browse == .shelves && shelves?.shownShelves.isEmpty == true }
+
     private func more(_ work: @escaping @MainActor () async throws -> Void) {
         isLoading = true
         Task {
@@ -91,7 +104,7 @@ final class BooksLibraryModel {
 }
 
 /// An audiobooks library: shelves to start (Continue listening, Next in series, new books, series, authors,
-/// finished), and the whole library as books, series, authors or genres.
+/// finished, in the profile's order), and the whole library as books, series, authors or genres.
 struct BooksLibraryView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.horizontalSizeClass) private var sizeClass
@@ -149,7 +162,7 @@ struct BooksLibraryView: View {
 
     private var isEmpty: Bool {
         switch browse.browse {
-        case .shelves: browse.shelves?.isEmpty ?? true
+        case .shelves: browse.showsAllBooks ? browse.books.isEmpty : browse.shelves?.isEmpty ?? true
         case .all: browse.books.isEmpty
         case .series: browse.series.isEmpty
         case .authors: browse.people.isEmpty
@@ -173,7 +186,7 @@ struct BooksLibraryView: View {
     @ViewBuilder
     private var content: some View {
         switch browse.browse {
-        case .shelves: shelves
+        case .shelves: if browse.showsAllBooks { allBooks } else { shelves }
         case .all: allBooks
         case .series: seriesGrid
         case .authors: peopleGrid
@@ -186,16 +199,25 @@ struct BooksLibraryView: View {
     @ViewBuilder
     private var shelves: some View {
         if let shelves = browse.shelves {
-            bookRow("Continue listening", shelves.continueListening)
-            bookRow("Next in series", shelves.nextInSeries)
-            bookRow("Recently added", shelves.recentlyAdded) { show(.all, sort: .added) }
+            // In the profile's order, without the shelves it switched off.
+            ForEach(shelves.shelfOrder, id: \.self) { shelf(shelf: $0, shelves) }
+        }
+    }
+
+    @ViewBuilder
+    private func shelf(shelf: BookShelf, _ shelves: BookShelves) -> some View {
+        switch shelf {
+        case .continueListening: bookRow("Continue listening", shelves.continueListening)
+        case .nextInSeries: bookRow("Next in series", shelves.nextInSeries)
+        case .recentlyAdded: bookRow("Recently added", shelves.recentlyAdded) { show(.all, sort: .added) }
+        case .series:
             if !shelves.series.isEmpty {
                 row("Series", seeAll: { browse.browse = .series }) {
                     ForEach(shelves.series) { SeriesCard(series: $0, width: cardWidth) }
                 }
             }
-            peopleRow("Authors", shelves.authors) { browse.browse = .authors }
-            bookRow("Finished", shelves.finished) { show(.all, progress: .finished) }
+        case .authors: peopleRow("Authors", shelves.authors) { browse.browse = .authors }
+        case .finished: bookRow("Finished", shelves.finished) { show(.all, progress: .finished) }
         }
     }
 

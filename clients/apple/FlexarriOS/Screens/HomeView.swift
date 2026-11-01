@@ -4,8 +4,12 @@ import SwiftUI
 struct HomeView: View {
     @Environment(AppModel.self) private var model
     @State private var home: Home?
-    /// The newest unplayed episodes of the podcasts followed, for a row after Continue watching.
+    /// The newest unplayed episodes of the podcasts followed, for the New podcasts row: where Home's rows place it, or
+    /// (servers before 0.58) after Continue watching.
     @State private var newEpisodes: [PodcastEpisode] = []
+    /// The last Home placed the rows itself and had no New podcasts among them (the profile switched it off): the next
+    /// load skips fetching episodes alongside it, and fetches them after only if that Home has the row again.
+    @State private var podcastsRowOff = false
     @State private var error: String?
     @State private var featuredIndex = 0
     @State private var choosingProfile = false
@@ -57,7 +61,7 @@ struct HomeView: View {
             ScrollView(.vertical) {
                 // The whole screen when there's nothing else. With something to play (podcasts, Coming soon, channels) it
                 // stays out of the way: "nothing to watch" would be wrong.
-                if home.featured.isEmpty, newEpisodes.isEmpty, !home.rows.contains(where: \.hasContent),
+                if home.featured.isEmpty, !showsNewEpisodes(home), !home.rows.contains(where: \.hasContent),
                    let message = EmptyHomeMessage(libraries: model.libraries, limitedProfile: model.hasAgeLimit ? model.currentProfile?.name : nil) {
                     EmptyHome(message: message)
                         .containerRelativeFrame(.vertical)
@@ -66,14 +70,26 @@ struct HomeView: View {
                     if !home.featured.isEmpty {
                         HomeHero(items: home.featured, overviews: home.overviews, index: $featuredIndex, resuming: home.resuming)
                     }
-                    // A row with nothing in it (a kind this app doesn't show yet, say) would be a bare heading.
-                    let rows = home.rows.filter(\.hasContent)
-                    let continuing = rows.first?.id == "continue" ? 1 : 0
-                    ForEach(rows.prefix(continuing)) { HomeRowView(row: $0) }
-                    if !newEpisodes.isEmpty {
-                        NewEpisodesRow(episodes: newEpisodes)
+                    if home.placesPodcasts == true {
+                        // The server places New podcasts: an empty row where it goes (none when the profile switched it off).
+                        ForEach(home.rows.filter { $0.hasContent || $0.id == HomeRow.podcastsRowId }) { row in
+                            if row.id == HomeRow.podcastsRowId {
+                                if !newEpisodes.isEmpty { NewEpisodesRow(episodes: newEpisodes) }
+                            } else {
+                                HomeRowView(row: row)
+                            }
+                        }
+                    } else {
+                        // A row with nothing in it (a kind this app doesn't show yet, say) would be a bare heading.
+                        // Servers before 0.58 leave New podcasts to the app: after Continue watching.
+                        let rows = home.rows.filter(\.hasContent)
+                        let continuing = rows.first?.id == "continue" ? 1 : 0
+                        ForEach(rows.prefix(continuing)) { HomeRowView(row: $0) }
+                        if !newEpisodes.isEmpty {
+                            NewEpisodesRow(episodes: newEpisodes)
+                        }
+                        ForEach(rows.dropFirst(continuing)) { HomeRowView(row: $0) }
                     }
-                    ForEach(rows.dropFirst(continuing)) { HomeRowView(row: $0) }
                 }
                 .padding(.bottom, 32)
                 // Part of the page, so it scrolls away with the hero rather than floating over the rows.
@@ -86,6 +102,12 @@ struct HomeView: View {
             .withoutTopEdgeEffect()
             .refreshable { await load() }
         }
+    }
+
+    /// Whether the New podcasts row shows: there are new episodes, and the profile has it on Home.
+    private func showsNewEpisodes(_ home: Home) -> Bool {
+        guard !newEpisodes.isEmpty else { return false }
+        return home.placesPodcasts != true || home.rows.contains { $0.id == HomeRow.podcastsRowId }
     }
 
     @ViewBuilder
@@ -106,14 +128,21 @@ struct HomeView: View {
             // Empty without podcasts (none followed, no library, a server from before them: an error, also nothing).
             // None on a kids profile, which has no podcasts.
             let kids = model.isKids
-            async let episodes = kids ? [] : client.newPodcastEpisodes(unplayed: true, take: 20)
+            let skipped = kids || podcastsRowOff
+            async let episodes = skipped ? [] : client.newPodcastEpisodes(unplayed: true, take: 20)
             // Books and podcast episodes in progress join Continue watching (for profiles that want them there); the
             // card plays them in the audio player.
             let loaded = try await client.home(listening: [.books, .podcasts])
             // Nothing yet: the libraries say whether a scan is under way or their folders hold nothing.
             if loaded.featured.isEmpty { await model.loadLibraries() }
+            let hasRow = loaded.placesPodcasts != true || loaded.rows.contains { $0.id == HomeRow.podcastsRowId }
+            var fetched = (try? await episodes) ?? []
+            if skipped, !kids, hasRow {
+                fetched = (try? await client.newPodcastEpisodes(unplayed: true, take: 20)) ?? []
+            }
+            podcastsRowOff = !hasRow
             home = loaded
-            newEpisodes = (try? await episodes) ?? []
+            newEpisodes = hasRow ? fetched : []
             loadedToken = token
             loadedAt = Date()
             error = nil
@@ -270,6 +299,10 @@ struct HomeRowView: View {
                     // A playlists row carries playlists rather than items.
                     ForEach(row.playlists ?? []) { playlist in
                         PlaylistCard(playlist: playlist, width: Layout.posterWidth(sizeClass))
+                    }
+                    // A mixes row carries the day's mixes; tapping one plays it.
+                    ForEach(row.mixes ?? []) { mix in
+                        MixCard(mix: mix, width: Layout.posterWidth(sizeClass))
                     }
                     // A Live TV row carries the profile's favourite channels; channel up and down go through them.
                     ForEach(row.channels ?? []) { channel in

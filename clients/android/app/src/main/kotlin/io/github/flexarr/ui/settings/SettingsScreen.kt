@@ -226,7 +226,7 @@ fun SettingsScreen(
                     // With podcasts, or an audiobooks library to listen to (none for a kids profile, or before 0.58).
                     if (model.podcastStatus?.available == true || model.hasAudiobooks) {
                         Divider()
-                        SettingsLink("Podcasts and audiobooks", Icons.Filled.Headphones, value = null, onClick = onListening)
+                        SettingsLink("Podcasts & audiobooks", Icons.Filled.Headphones, value = null, onClick = onListening)
                     }
                     // Only from servers that can save an order (0.54 on), and with more than one place to put in order.
                     val order = model.currentProfile?.libraryOrder

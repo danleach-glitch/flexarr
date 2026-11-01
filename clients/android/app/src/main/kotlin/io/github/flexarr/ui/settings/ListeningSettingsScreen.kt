@@ -43,7 +43,7 @@ import io.github.flexarr.ui.theme.RoomBackground
 import kotlinx.coroutines.launch
 
 /**
- * Settings › Podcasts and audiobooks: one speed, skip steps and smart rewind for both (a book with a speed of its own
+ * Settings › Podcasts & audiobooks: one speed, skip steps and smart rewind for both (a book with a speed of its own
  * keeps it), whether they join Continue watching, and what this phone downloads by itself. As the iPhone's
  * ListeningSettingsView and the web's page of the same name. From a server before 0.58 podcasts have only their speed.
  */
@@ -160,7 +160,7 @@ fun ListeningSettingsScreen(model: AppModel, onNotifications: () -> Unit) {
 
     RoomBackground(ambient = null) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
-            item { PageTitle("Podcasts and audiobooks", onBack = { navigator.back() }) }
+            item { PageTitle("Podcasts & audiobooks", onBack = { navigator.back() }) }
             val speed = podcasts?.speed ?: books?.speed
             if (speed == null) item { loadFailed?.let { StatusView(it, retry = { attempt++ }) } ?: StatusView() }
             if (speed != null) item {

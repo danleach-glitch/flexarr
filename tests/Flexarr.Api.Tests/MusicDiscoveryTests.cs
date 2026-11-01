@@ -52,6 +52,7 @@ public class MusicDiscoveryTests(FlexarrApiFactory factory) : IClassFixture<Flex
     {
         var music = await SeedListeningAsync();
         var created = await (await Client().PostAsJsonAsync(Api("/profiles"), new { name = $"Sam {Guid.NewGuid():N}" })).Content.ReadFromJsonAsync<JsonElement>();
+        await factory.ShowEveryHomeRowAsync(created.GetProperty("id").GetString()!);
         var token = (await (await Client().PostAsJsonAsync(Api($"/profiles/{created.GetProperty("id").GetString()}/select"), new { })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("token").GetString();
 
         var sam = await Client(token).GetFromJsonAsync<HomeDto>(Api($"/libraries/{music.Library}/browse"), Json);

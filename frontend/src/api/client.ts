@@ -613,6 +613,10 @@ export interface Layout {
   combineLibraries: boolean
   /** There are two film libraries or two TV ones, so combining them changes anything. */
   combinable: boolean
+  /** A music library's Browse rows; null without a music library. */
+  music?: RowChoice[] | null
+  /** An audiobooks library's front page shelves; null without an audiobooks library. */
+  audiobooks?: RowChoice[] | null
 }
 
 export const getLayout = (signal?: AbortSignal) => apiGet<Layout>('/settings/layout', signal)
@@ -624,6 +628,8 @@ export const saveLayout = (layout: Layout) => {
     movies: strip(layout.movies),
     shows: strip(layout.shows),
     combineLibraries: layout.combineLibraries,
+    music: layout.music ? strip(layout.music) : undefined,
+    audiobooks: layout.audiobooks ? strip(layout.audiobooks) : undefined,
   })
 }
 /** A library's own home page: hero and rows for just that library. */
@@ -1468,6 +1474,8 @@ export interface Profile {
   requestAudiobooksLibraryId?: string | null
   /** The order of the libraries in the menu on every device: library ids, and "live-tv". Absent from servers before 0.54. */
   libraryOrder?: string[]
+  /** What's left out of its menu on every device, beside the libraries (see `NavigationItem`). Absent from servers before 0.58. */
+  hiddenNavigation?: string[]
   /**
    * Choosing it here asks for a PIN: its own, or for a main profile without one, the admin PIN (asked only of a guest,
    * not a browser the owner signed in). Absent from servers before 0.56, where `hasPin` says.
@@ -1512,6 +1520,11 @@ export const setBookRequestLibrary = (id: string, libraryId: string | null) => r
 export const setWatchlistRequests = (id: string, autoRequest: boolean) => request<Profile>('PUT', `/profiles/${id}/watchlist-requests`, { autoRequest })
 /** The order of a profile's libraries in every app's menu; /libraries lists them in it. */
 export const setLibraryOrder = (id: string, order: string[]) => request<Profile>('PUT', `/profiles/${id}/library-order`, { order })
+/** What a profile can leave out of its menu, beside its libraries. */
+export type NavigationItem = 'watchlist' | 'collections' | 'playlists' | 'live-tv' | 'discover' | 'upcoming'
+export const setHiddenNavigation = (id: string, hidden: NavigationItem[]) => request<Profile>('PUT', `/profiles/${id}/navigation`, { hidden })
+/** Sent when a profile's menu changes here, so the sidebar (and anything else reading the profiles) loads them again. */
+export const PROFILES_CHANGED = 'flexarr:profiles-changed'
 export const deleteProfile = (id: string) => request<void>('DELETE', `/profiles/${id}`)
 export const uploadProfileImage = (id: string, image: Blob) => request<Profile>('PUT', `/profiles/${id}/image`, image)
 export const removeProfileImage = (id: string) => request<Profile>('DELETE', `/profiles/${id}/image`)

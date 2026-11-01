@@ -933,6 +933,12 @@ final class AppModel {
         }
     }
 
+    /// The current profile leaves this out of the menu (Settings on the web). Only the menu: Home's rows, links and Siri
+    /// still reach it.
+    func hidesFromMenu(_ item: NavigationItem) -> Bool {
+        currentProfile?.hidesFromMenu(item) ?? false
+    }
+
     /// Live TV has a place once the server has a source with channels.
     var hasLiveTv: Bool { liveTvStatus.map { $0.configured && $0.channels > 0 } ?? false }
 
@@ -1065,13 +1071,13 @@ final class AppModel {
         return true
     }
 
-    /// The podcast settings, asked again (Settings › Podcasts and audiobooks), for a profile with podcasts.
+    /// The podcast settings, asked again (Settings › Podcasts & audiobooks), for a profile with podcasts.
     func loadPodcastPreferences() async {
         guard let client, podcastStatus?.available == true else { return }
         if let preferences = try? await client.podcastPreferences() { podcastPreferences = preferences }
     }
 
-    /// How this profile listens to books, asked again (Settings › Podcasts and audiobooks).
+    /// How this profile listens to books, asked again (Settings › Podcasts & audiobooks).
     func loadBookListening() async {
         guard let client else { return }
         if let listening = try? await client.bookListening() { bookListening = listening }
@@ -1526,6 +1532,6 @@ private extension Profile {
     func marked(current: Bool) -> Profile {
         Profile(id: id, name: name, color: color, hasPin: hasPin, isMain: isMain, isCurrent: current,
                 hiddenLibraryIds: hiddenLibraryIds, image: image, libraryOrder: libraryOrder, asksPin: asksPin,
-                maxRatingAge: maxRatingAge, isKids: isKids)
+                maxRatingAge: maxRatingAge, isKids: isKids, asksAdminPin: asksAdminPin, hiddenNavigation: hiddenNavigation)
     }
 }

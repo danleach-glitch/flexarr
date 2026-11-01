@@ -185,6 +185,11 @@ public struct FlexarrClient: Sendable {
         try await get("playlists/\(id)")
     }
 
+    /// One of today's music mixes with its tracks in order.
+    public func mix(_ id: String) async throws -> MixDetail {
+        try await get("music/mixes/\(id)")
+    }
+
     /// The episode to play next for a series or season, or `nil` when everything is watched.
     public func nextUp(_ id: String) async throws -> ItemSummary? {
         let data = try await send("GET", "items/\(id)/next-up")

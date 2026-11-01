@@ -75,6 +75,8 @@ import io.github.flexarr.core.EmptyHomeMessage
 import io.github.flexarr.core.Home
 import io.github.flexarr.core.HomeRow
 import io.github.flexarr.core.HomeRowStyle
+import io.github.flexarr.core.HomeSlot
+import io.github.flexarr.core.slots
 import io.github.flexarr.ui.livetv.HomeChannelCard
 import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.facts
@@ -89,6 +91,7 @@ import io.github.flexarr.ui.components.Loaded
 import io.github.flexarr.ui.components.PosterCard
 import io.github.flexarr.ui.components.PosterWidth
 import io.github.flexarr.ui.components.RemoteImage
+import io.github.flexarr.ui.music.MixCard
 import io.github.flexarr.ui.music.PlaylistCard
 import io.github.flexarr.ui.music.TrackCard
 import io.github.flexarr.ui.components.RowSpacing
@@ -106,6 +109,7 @@ import io.github.flexarr.ui.theme.RoomBackground
 import io.github.flexarr.ui.theme.glowColor
 import io.github.flexarr.ui.theme.marquee
 import io.github.flexarr.core.PodcastEpisode
+import io.github.flexarr.core.hasNewPodcasts
 import io.github.flexarr.core.newPodcastEpisodes
 import io.github.flexarr.ui.components.ProgressBar
 import io.github.flexarr.ui.podcasts.EpisodeSheet
@@ -130,12 +134,20 @@ fun HomeScreen(model: AppModel) {
     val loader = rememberLoader(model.credentials, model.watchStateVersion, model.homeWatchlistVersion) {
         coroutineScope {
             // Empty without podcasts (none followed, no library, a server from before them: an error, also nothing).
-            val episodes = async {
-                if (model.isKids) emptyList() else runCatching { client.newPodcastEpisodes(unplayed = true, take = 20) }.getOrDefault(emptyList())
-            }
+            suspend fun fetchEpisodes() = runCatching { client.newPodcastEpisodes(unplayed = true, take = 20) }.getOrDefault(emptyList())
+            // Alongside Home, unless this profile's last Home had the row switched off.
+            val profileId = model.currentProfile?.id
+            val episodes = if (!model.isKids && model.newPodcastsMemory.fetchesAlongside(profileId)) async { fetchEpisodes() } else null
             // Books and podcast episodes in progress join Continue watching: the phone plays both.
             val home = client.home(setOf(ContinueListening.Books, ContinueListening.Podcasts))
-            val newEpisodes = episodes.await()
+            model.newPodcastsMemory.remember(profileId, home)
+            // Not at all when the profile switched the row off (a server that places it, without its row); switched
+            // back on since the last Home, fetched now.
+            val newEpisodes = when {
+                model.isKids || !home.hasNewPodcasts -> emptyList<PodcastEpisode>().also { episodes?.cancel() }
+                episodes != null -> episodes.await()
+                else -> fetchEpisodes()
+            }
             // Nothing at all yet: the libraries say whether a scan is under way or their folders hold nothing. Not to a
             // profile with an age limit, for whom it's only that nothing's within it.
             val isEmpty = home.featured.isEmpty() && newEpisodes.isEmpty() && home.rows.none { it.hasContent }
@@ -176,15 +188,15 @@ fun HomeScreen(model: AppModel) {
                     } else {
                         item(key = "top") { Box(Modifier.statusBarsPadding()) }
                     }
-                    // A row with nothing in it (a kind this app doesn't show yet, say) would be a bare heading.
-                    val rows = home.rows.filter { it.hasContent }
-                    val continuing = if (rows.firstOrNull()?.id == "continue") 1 else 0
-                    val row: @Composable (HomeRow) -> Unit = { if (it.style == HomeRowStyle.Live) LiveRowView(it) else HomeRowView(model, it) }
-                    items(rows.take(continuing), key = { it.id }) { row(it) }
-                    if (content.newEpisodes.isNotEmpty()) {
-                        item(key = "new-podcasts") { NewEpisodesRow(model, content.newEpisodes) }
+                    // A row with nothing in it (a kind this app doesn't show yet, say) would be a bare heading. New
+                    // podcasts goes where the server places it, or after Continue watching for a server before 0.58.
+                    val slots = home.slots { it.hasContent }.filter { it !is HomeSlot.NewPodcasts || content.newEpisodes.isNotEmpty() }
+                    items(slots, key = { slot -> if (slot is HomeSlot.Row) slot.row.id else "new-podcasts" }) { slot ->
+                        when (slot) {
+                            HomeSlot.NewPodcasts -> NewEpisodesRow(model, content.newEpisodes)
+                            is HomeSlot.Row -> if (slot.row.style == HomeRowStyle.Live) LiveRowView(slot.row) else HomeRowView(model, slot.row)
+                        }
                     }
-                    items(rows.drop(continuing), key = { it.id }) { row(it) }
                 }
             }
         }
@@ -327,6 +339,7 @@ private fun HomeRowView(model: AppModel, row: HomeRow) {
                         TrackCard(model, item, PosterWidth) { model.music.play(row.items, start = index) }
                     }
                     HomeRowStyle.Playlists -> items(row.playlists.orEmpty(), key = { it.id }) { PlaylistCard(it, PosterWidth) }
+                    HomeRowStyle.Mixes -> items(row.mixes.orEmpty(), key = { it.id }) { MixCard(it, PosterWidth) }
                     else -> items(row.items, key = { it.id }) { PosterCard(it) }
                 }
             }
@@ -407,4 +420,4 @@ private fun NothingYet(name: String) {
 
 /** The row has something to show: a row with nothing in it (a kind this app doesn't show yet, say) is left out. */
 private val HomeRow.hasContent: Boolean
-    get() = items.isNotEmpty() || !playlists.isNullOrEmpty() || !channels.isNullOrEmpty()
+    get() = items.isNotEmpty() || !playlists.isNullOrEmpty() || !mixes.isNullOrEmpty() || !channels.isNullOrEmpty()

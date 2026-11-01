@@ -5,7 +5,7 @@ import { errorText } from './useSettings'
 
 /**
  * Books and podcasts in Continue watching, or a Continue listening row of their own: the profile's own playback
- * preference. The main profile finds it in Home and Browse; other profiles, in Podcasts and audiobooks.
+ * preference, in Home & browse.
  */
 export function ContinueWatchingRow({ loaded, help }: { loaded: PlaybackPreferences; help?: string }) {
   // What was chosen here, ahead of the load.

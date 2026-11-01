@@ -9,7 +9,7 @@ The ways into your libraries, beyond opening one.
 
 Home opens on **Continue watching**, then rows such as **Ready from your watchlist**, your favourite Live TV channels, the latest unwatched films and shows, **Top 10 films in your library**, **Because you watched…**, genre rows that change each day, and **Coming soon**.
 
-The rows come from your server, so every app shows the same ones in the same order. The main profile chooses them in **Settings › Home and Browse** on the web: turn a row on or off, and drag it to move it. The same page sets the rows of each film and TV library's **Browse**.
+The rows come from your server, so every app shows the same ones in the same order. Each profile chooses its own in **Settings › Home & browse** on the web: turn a row on or off, and drag it to move it. The same page sets the rows of each film and TV library's **Browse**, a music library's rows and the shelves of an audiobooks library's front page. Profiles that were there before keep the rows they had; a new profile starts with a shorter Home (the music rows other than **Made for you**, **New audiobooks**, **Continue listening** kept apart and **Highly rated films** start off) that it can add to. Kids profiles always have the standard Home and menu.
 
 With more than one film or TV library (say **Films** and **Films in 4K**), **Combine libraries of the same kind** gives Home one **Latest unwatched** row for all your film libraries and one for all your TV ones. It's on to start with.
 
@@ -65,9 +65,11 @@ Film and TV libraries have a **Genres** view: a tile for each genre, with a pict
 
 Put your libraries in the order you like, and every app follows it. Each profile has its own order.
 
-- **Web:** **Settings › Sidebar**. Drag a library, or use the arrows.
+- **Web:** **Settings › Navigation**. Drag a library, or use the arrows.
 - **Apple TV:** **Settings › Sidebar**.
 - **iPhone and iPad:** **Settings › Library order**. Drag a library by its handle. Podcasts and Live TV are in the list too.
+
+Under **Browse** on the same web page, turn off what you don't use: **Watchlist**, **Collections**, **Playlists**, **Live TV**, **Discover** and **Coming soon**. They leave the menu in every app that has them, for your profile only, and still open from Home and links. Hiding isn't a restriction: to keep something from a child, use a kids profile or an age limit.
 
 ## Continue Watching
 

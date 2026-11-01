@@ -14,6 +14,7 @@ import io.github.flexarr.player.LivePlayerActivity
 import io.github.flexarr.core.LibraryType
 import io.github.flexarr.core.MediaKind
 import io.github.flexarr.core.asPodcastEpisode
+import io.github.flexarr.core.mix
 import io.github.flexarr.core.setBookFinished
 import io.github.flexarr.usesTvInterface
 import io.github.flexarr.player.PlayerActivity
@@ -58,6 +59,27 @@ class Navigator(private val nav: NavHostController, private val model: AppModel,
     fun playEpisode(item: ItemSummary) {
         model.podcasts.play(item.asPodcastEpisode())
         model.showsNowPlaying = true
+    }
+
+    /**
+     * Plays one of today's music mixes from its first track and opens Now Playing. A mix that can't be fetched (or is
+     * yesterday's, which the server no longer has) says so instead.
+     */
+    fun playMix(id: String) {
+        val client = model.client ?: return
+        model.scope.launch {
+            try {
+                val tracks = client.mix(id).tracks
+                if (tracks.isEmpty()) throw IllegalStateException("There's nothing in it today.")
+                model.music.play(tracks)
+                // The TV shows Now Playing over everything when asked; the phone opens its sheet.
+                if (context.usesTvInterface) model.nowPlayingRequests++ else model.showsMusicPlayer = true
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                tell("Couldn’t play this mix", e)
+            }
+        }
     }
 
     /** Marks a book finished or not; Continue listening follows. */

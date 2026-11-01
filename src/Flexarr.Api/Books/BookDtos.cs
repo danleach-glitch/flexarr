@@ -122,7 +122,10 @@ public sealed record BookShelvesDto(
     IReadOnlyList<GenreCountDto> Genres,
     IReadOnlyList<ItemSummaryDto> Finished,
     // The languages the library's books are in, A to Z, for the language filter. Absent from servers before 0.58.
-    IReadOnlyList<string>? Languages = null);
+    IReadOnlyList<string>? Languages = null,
+    // The front page's shelves in the profile's order, switched-off ones left out: "continue", "next", "recent",
+    // "series", "authors", "finished" (Settings › Home & browse). Absent from servers before 0.58: that order, all shown.
+    IReadOnlyList<string>? Order = null);
 
 /// <summary>A series a search found, with how many of its books this profile can see.</summary>
 public sealed record BookSeriesSearchDto(Guid Id, string Name, int BookCount);

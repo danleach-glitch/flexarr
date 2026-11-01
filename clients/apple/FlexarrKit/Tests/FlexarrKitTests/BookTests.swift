@@ -122,6 +122,31 @@ struct BookDecodingTests {
         #expect(one.nextId == "b1")
     }
 
+    @Test func theFrontPageFollowsTheProfilesShelfOrder() throws {
+        let shelves = #"{"continueListening":[],"nextInSeries":[],"recentlyAdded":[],"series":[],"authors":[],"narrators":[],"genres":[],"finished":[]"#
+        // Servers before 0.58: every shelf, in the usual order.
+        let older = try FlexarrClient.decoder.decode(BookShelves.self, from: Data((shelves + "}").utf8))
+        #expect(older.order == nil)
+        #expect(older.shelfOrder == BookShelf.allCases)
+        #expect(older.shelfOrder.map(\.rawValue) == ["continue", "next", "recent", "series", "authors", "finished"])
+
+        // The profile's order, with switched-off shelves left out; ids this app doesn't know (or repeats) are skipped.
+        let newer = try FlexarrClient.decoder.decode(BookShelves.self, from: Data((shelves + #","order":["recent","shelf-from-later","continue","authors","recent"]}"#).utf8))
+        #expect(newer.order == ["recent", "shelf-from-later", "continue", "authors", "recent"])
+        #expect(newer.shelfOrder == [.recentlyAdded, .continueListening, .authors])
+
+        // Every shelf switched off.
+        let none = try FlexarrClient.decoder.decode(BookShelves.self, from: Data((shelves + #","order":[]}"#).utf8))
+        #expect(none.shelfOrder.isEmpty)
+        #expect(none.shownShelves.isEmpty)
+
+        // Only empty shelves left on: nothing to show either, but a shelf with books on it is shown.
+        #expect(newer.shownShelves.isEmpty)
+        let recent = shelves.replacingOccurrences(of: #""recentlyAdded":[]"#, with: #""recentlyAdded":[\#(BookJSON.summary)]"#)
+        let some = try FlexarrClient.decoder.decode(BookShelves.self, from: Data((recent + #","order":["continue","recent"]}"#).utf8))
+        #expect(some.shownShelves == [.recentlyAdded])
+    }
+
     @Test func searchAndPersonHaveBooksFromNewerServers() throws {
         let older = ##"{"titles":[],"episodes":[],"people":[],"genres":[]}"##
         let newer = ##"{"titles":[],"episodes":[],"people":[],"genres":[],"books":[\##(BookJSON.summary)],"bookSeries":[{"id":"s1","name":"Hail Mary","bookCount":2}]}"##

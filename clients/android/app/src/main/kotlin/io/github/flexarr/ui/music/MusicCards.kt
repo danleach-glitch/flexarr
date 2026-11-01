@@ -38,6 +38,7 @@ import io.github.flexarr.AppModel
 import io.github.flexarr.appModel
 import io.github.flexarr.core.Format
 import io.github.flexarr.core.ItemSummary
+import io.github.flexarr.core.MixSummary
 import io.github.flexarr.core.PlaylistSummary
 import io.github.flexarr.core.artistName
 import io.github.flexarr.core.releaseYear
@@ -137,11 +138,14 @@ fun TrackCard(model: AppModel, item: ItemSummary, width: Dp, onClick: () -> Unit
 
 /** A playlist's picture: the cover chosen for it, or a mosaic of its first tracks' covers. Fills the width it's given. */
 @Composable
-fun PlaylistArtwork(playlist: PlaylistSummary, modifier: Modifier = Modifier) {
+fun PlaylistArtwork(playlist: PlaylistSummary, modifier: Modifier = Modifier) = CoverMosaic(playlist.covers, modifier, playlist.cover)
+
+/** A mosaic of up to four album covers (one fills it when there are fewer), or [cover] instead. Fills the width it's given. */
+@Composable
+fun CoverMosaic(covers: List<String>, modifier: Modifier = Modifier, cover: String? = null) {
     Box(modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(6.dp)).background(Flexarr.seat), contentAlignment = Alignment.Center) {
-        val covers = playlist.covers
         when {
-            playlist.cover != null -> RemoteImage(playlist.cover, 500, Modifier.fillMaxSize()) { Placeholder() }
+            cover != null -> RemoteImage(cover, 500, Modifier.fillMaxSize()) { Placeholder() }
             covers.size >= 4 -> Column(Modifier.fillMaxSize()) {
                 Row(Modifier.weight(1f)) { Tile(covers[0]); Tile(covers[1]) }
                 Row(Modifier.weight(1f)) { Tile(covers[2]); Tile(covers[3]) }
@@ -169,6 +173,16 @@ fun PlaylistCard(playlist: PlaylistSummary, width: Dp) {
     Column(Modifier.width(width).pressable({ navigator.openPlaylist(playlist.id) }), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         PlaylistArtwork(playlist)
         CardCaption(playlist.name, playlist.trackCountLabel)
+    }
+}
+
+/** One of the profile's daily mixes in a row: a mosaic of its covers, the name and who's in it. Tapping plays it. */
+@Composable
+fun MixCard(mix: MixSummary, width: Dp) {
+    val navigator = LocalNavigator.current
+    Column(Modifier.width(width).pressable({ navigator.playMix(mix.id) }, onClickLabel = "Play"), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        CoverMosaic(mix.covers)
+        CardCaption(mix.name, mix.description.ifEmpty { null })
     }
 }
 

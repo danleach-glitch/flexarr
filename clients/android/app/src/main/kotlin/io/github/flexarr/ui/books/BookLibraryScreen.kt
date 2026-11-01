@@ -67,6 +67,7 @@ import io.github.flexarr.core.BookPersonRole
 import io.github.flexarr.core.BookProgressFilter
 import io.github.flexarr.core.BookQuery
 import io.github.flexarr.core.BookSeriesSummary
+import io.github.flexarr.core.BookShelf
 import io.github.flexarr.core.BookShelves
 import io.github.flexarr.core.BookSort
 import io.github.flexarr.core.Format
@@ -80,6 +81,7 @@ import io.github.flexarr.core.books
 import io.github.flexarr.ui.components.Edge
 import io.github.flexarr.ui.components.GridMinimum
 import io.github.flexarr.ui.components.Load
+import io.github.flexarr.ui.components.Loader
 import io.github.flexarr.ui.components.LocalNavigator
 import io.github.flexarr.ui.components.Loaded
 import io.github.flexarr.ui.components.PageTitle
@@ -116,11 +118,16 @@ fun BookLibraryScreen(model: AppModel, libraryId: String, view: String) {
     val initialSort = BookSort.entries.firstOrNull { it.raw == view }
     var shown by rememberSaveable { mutableStateOf(if (initialSort != null) BooksView.All else BooksView.Shelves) }
     var query by remember { mutableStateOf(BookQuery(sort = initialSort ?: BookSort.Title, descending = initialSort == BookSort.Added)) }
+    val shelvesLoader = rememberLoader(libraryId, model.watchStateVersion) { client.bookShelves(libraryId) }
+    // Every shelf switched off, or only empty ones left on: there's no front page, so the library opens to its books.
+    val noFrontPage = (shelvesLoader.state as? Load.Loaded)?.value?.let { !it.isEmpty && it.shownShelves.isEmpty() } == true
+    val views = if (noFrontPage) BooksView.entries - BooksView.Shelves else BooksView.entries
+    val showing = if (noFrontPage && shown == BooksView.Shelves) BooksView.All else shown
     val name = (library.state as? Load.Loaded)?.value?.name.orEmpty()
     RoomBackground(ambient = null) {
         Column {
             PageTitle(name, onBack = { navigator.back() }) {
-                if (shown == BooksView.All) {
+                if (showing == BooksView.All) {
                     FilterMenu(query) { query = it }
                     SortMenu(query) { query = it }
                 }
@@ -129,10 +136,10 @@ fun BookLibraryScreen(model: AppModel, libraryId: String, view: String) {
                 Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = Edge).padding(bottom = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                BooksView.entries.forEach { view -> PillButton(view.label, view == shown, { shown = view }) }
+                views.forEach { view -> PillButton(view.label, view == showing, { shown = view }) }
             }
-            when (shown) {
-                BooksView.Shelves -> Shelves(model, libraryId)
+            when (showing) {
+                BooksView.Shelves -> Shelves(model, shelvesLoader)
                 BooksView.All -> AllBooks(model, libraryId, query) { query = BookQuery(sort = query.sort, descending = query.descending) }
                 BooksView.Series -> SeriesGrid(model, libraryId)
                 BooksView.Authors -> AuthorsGrid(model, libraryId)
@@ -148,28 +155,30 @@ fun BookLibraryScreen(model: AppModel, libraryId: String, view: String) {
 /** The library's front page: what's on the go, what's next, what's new, its series and authors, and what's done. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun Shelves(model: AppModel, libraryId: String) {
-    val client = model.client ?: return
+private fun Shelves(model: AppModel, loader: Loader<BookShelves>) {
     val navigator = LocalNavigator.current
-    val loader = rememberLoader(libraryId, model.watchStateVersion) { client.bookShelves(libraryId) }
     Loaded(loader) { shelves: BookShelves ->
-        val empty = shelves.recentlyAdded.isEmpty() && shelves.continueListening.isEmpty() && shelves.series.isEmpty()
-        if (empty) return@Loaded StatusView("No books yet.", empty = true)
+        if (shelves.isEmpty) return@Loaded StatusView("No books yet.", empty = true)
         PullToRefreshBox(isRefreshing = loader.refreshing, onRefresh = loader.retry) {
             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
-                bookShelf("Continue listening", shelves.continueListening, plays = { navigator.playBook(it) })
-                bookShelf("Next in series", shelves.nextInSeries)
-                bookShelf("Recently added", shelves.recentlyAdded)
-                if (shelves.series.isNotEmpty()) item("series") {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        SectionHeading("Series")
-                        LazyRow(contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(RowSpacing)) {
-                            items(shelves.series, key = { it.id }) { SeriesCard(it, PosterWidth * 1.15f) { navigator.openBookSeries(it.id) } }
+                // In the profile's order, without the ones it switched off (a server before 0.58: all, in this order).
+                shelves.frontPage.forEach { shelf ->
+                    when (shelf) {
+                        BookShelf.ContinueListening -> bookShelf("Continue listening", shelves.continueListening, plays = { navigator.playBook(it) })
+                        BookShelf.NextInSeries -> bookShelf("Next in series", shelves.nextInSeries)
+                        BookShelf.RecentlyAdded -> bookShelf("Recently added", shelves.recentlyAdded)
+                        BookShelf.Series -> if (shelves.series.isNotEmpty()) item("series") {
+                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                SectionHeading("Series")
+                                LazyRow(contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(RowSpacing)) {
+                                    items(shelves.series, key = { it.id }) { SeriesCard(it, PosterWidth * 1.15f) { navigator.openBookSeries(it.id) } }
+                                }
+                            }
                         }
+                        BookShelf.Authors -> peopleShelf("Authors", shelves.authors)
+                        BookShelf.Finished -> bookShelf("Finished", shelves.finished)
                     }
                 }
-                peopleShelf("Authors", shelves.authors)
-                bookShelf("Finished", shelves.finished)
             }
         }
     }

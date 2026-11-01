@@ -23,8 +23,12 @@ public sealed record HomeRowDto(string Id, string Title, string Style, IReadOnly
 /// <param name="Resume">What the first featured title's Play button resumes (the episode, for a show), when it comes from Continue Watching.</param>
 /// <param name="Resumes">What each part-played featured title's Play button resumes, by the title's id: a film part watched, or a
 /// show's episode part watched or up next. Titles not started are left out.</param>
+/// <param name="PlacesPodcasts">
+/// Home's rows place the New podcasts row (an empty "podcasts-new" row the app fills), and leave it out when it's
+/// switched off. Absent from servers before 0.58, where each app placed it after Continue watching itself.
+/// </param>
 public sealed record HomeDto(IReadOnlyList<ItemSummaryDto> Featured, IReadOnlyDictionary<Guid, string?> Overviews, IReadOnlyList<HomeRowDto> Rows, IReadOnlyList<UpcomingDto> Upcoming, int Downloading, ItemSummaryDto? Resume = null,
-    IReadOnlyDictionary<Guid, ItemSummaryDto>? Resumes = null);
+    IReadOnlyDictionary<Guid, ItemSummaryDto>? Resumes = null, bool? PlacesPodcasts = null);
 
 public sealed record SearchPersonDto(Guid Id, string Name, string? Image, int Credits);
 
@@ -60,6 +64,8 @@ public static partial class DiscoveryEndpoints
         {
             var me = profile.Id;
             var options = services.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<Configuration.FlexarrOptions>>().CurrentValue;
+            // The profile's own rows, or the server's while it hasn't chosen.
+            var homeLayout = await LayoutEndpoints.ForProfileAsync(db, options, me, ct);
             var arr = services.GetRequiredService<Flexarr.Integrations.Arr.ArrClient>();
             var cache = services.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>();
             var rows = new List<HomeRowDto>();
@@ -73,7 +79,7 @@ public static partial class DiscoveryEndpoints
 
             // Books and podcast episodes join the row when the app can open them and the profile wants them there, and
             // the row is on in Settings › Home (switched off, books keep their own Continue listening row).
-            var asked = LayoutEndpoints.IsOn(options.Layout.Home, "continue") && Listening.Parse(listening) is { Any: true } kinds
+            var asked = LayoutEndpoints.IsOn(homeLayout.Home, "continue") && Listening.Parse(listening) is { Any: true } kinds
                 && await db.Profiles.Where(p => p.Id == me).Select(p => p.ListeningInContinue).FirstOrDefaultAsync(ct)
                 ? kinds : default;
             List<Guid> listenBooks = asked.Books ? [.. libraries.Where(l => l.Type == LibraryType.Audiobooks).Select(l => l.Id)] : [];
@@ -88,7 +94,7 @@ public static partial class DiscoveryEndpoints
             }
 
             // Titles from this profile's watchlist it can play now; nothing until something on the list is in. A kids profile has none.
-            if (!db.ServesKids && LayoutEndpoints.IsOn(options.Layout.Home, Watchlist.WatchlistService.HomeRowId))
+            if (!db.ServesKids && LayoutEndpoints.IsOn(homeLayout.Home, Watchlist.WatchlistService.HomeRowId))
             {
                 var ready = await services.GetRequiredService<Watchlist.WatchlistService>().ReadyAsync(me, RowSize, ct);
                 rows.Add(new HomeRowDto(Watchlist.WatchlistService.HomeRowId, "Ready from your watchlist", "poster", ready, "/watchlist"));
@@ -102,14 +108,14 @@ public static partial class DiscoveryEndpoints
             }
 
             // The channel watched last, then the profile's favourites, with what's on them; nothing until there's one.
-            if (options.LiveTv?.Account is not null && !db.ServesKids && LayoutEndpoints.IsOn(options.Layout.Home, "live-tv"))
+            if (options.LiveTv?.Account is not null && !db.ServesKids && LayoutEndpoints.IsOn(homeLayout.Home, "live-tv"))
             {
                 var channels = await LiveTv.LiveTvEndpoints.HomeChannelsAsync(db, me, DateTime.UtcNow, ct);
                 rows.Add(new HomeRowDto("live-tv", "Live TV", "live", [], "/livetv", Channels: channels));
             }
 
             // One row for each library, or (as it starts) one for all the film libraries and one for all the TV ones.
-            var combine = options.Layout.CombineLibraries;
+            var combine = homeLayout.CombineLibraries;
             foreach (var group in libraries.Where(l => l.Type is LibraryType.Movies or LibraryType.TvShows or LibraryType.HomeVideos).GroupBy(l => combine ? (object)l.Type : l.Id))
             {
                 var first = group.First();
@@ -124,11 +130,18 @@ public static partial class DiscoveryEndpoints
                     ids.Count == 1 ? $"/library/{first.Id}?sort=added" : null));
             }
 
+            // Rows switched off in Home & browse aren't worked out at all.
+            bool On(string id) => LayoutEndpoints.IsOn(homeLayout.Home, id);
+
             // Rows ranked by critics' and audiences' scores aren't for children, who aren't shown scores.
-            if (!kids)
+            if (!kids && On("top-movies"))
             {
                 rows.Add(new HomeRowDto("top-movies", "Top 10 films in your library", "top10",
                     await TopRated(topLevel.Where(i => i.Kind == MediaKind.Movie)).Take(10).Summaries(me).ToListAsync(ct)));
+            }
+
+            if (!kids && On("top-shows"))
+            {
                 rows.Add(new HomeRowDto("top-shows", "Top 10 shows in your library", "top10",
                     await TopRated(topLevel.Where(i => i.Kind == MediaKind.Series)).Take(10).Summaries(me).ToListAsync(ct)));
             }
@@ -137,10 +150,13 @@ public static partial class DiscoveryEndpoints
             var musicLibraries = libraries.Where(l => l.Type == LibraryType.Music).ToList();
             if (musicLibraries.Count > 0)
             {
-                rows.AddRange(await MusicDiscovery.RowsAsync(db, cache, me, null, RowSize, ct));
+                rows.AddRange(await MusicDiscovery.RowsAsync(db, cache, me, null, RowSize, ct, On));
                 // The row opens the library when there's only one to open.
                 var link = musicLibraries.Count == 1 ? $"/library/{musicLibraries[0].Id}?view=all&sort=added" : null;
-                rows.Add(new HomeRowDto("music-new", "New albums", "poster", await MusicDiscovery.NewAlbumsAsync(db, me, null, RowSize, ct), link));
+                if (On("music-new"))
+                {
+                    rows.Add(new HomeRowDto("music-new", "New albums", "poster", await MusicDiscovery.NewAlbumsAsync(db, me, null, RowSize, ct), link));
+                }
             }
 
             // Audiobooks: where this profile is in its books, what's next in its series, and what's new.
@@ -148,14 +164,14 @@ public static partial class DiscoveryEndpoints
             if (bookLibraries.Count > 0)
             {
                 // Books in progress are in the Continue row instead, when it holds them.
-                rows.AddRange(await Books.BookRows.HomeAsync(db, bookLibraries, me, RowSize, continueRow: listenBooks.Count == 0, ct));
+                rows.AddRange(await Books.BookRows.HomeAsync(db, bookLibraries, me, RowSize, continueRow: listenBooks.Count == 0, ct, On));
             }
 
             // "Because you watched": share genres and cast with the latest thing finished.
             var lastWatched = await states.Where(p => p.Watched && (p.MediaItem!.Kind == MediaKind.Movie || p.MediaItem.Kind == MediaKind.Episode)).OrderByDescending(p => p.LastPlayedAt)
                 .Select(p => p.MediaItem!.Kind == MediaKind.Episode ? p.MediaItem.Parent!.Parent! : p.MediaItem)
                 .FirstOrDefaultAsync(ct);
-            if (lastWatched is not null)
+            if (lastWatched is not null && On("because"))
             {
                 var similar = await SimilarAsync(db, lastWatched.Id, me, ct);
                 if (similar.Count >= 4)
@@ -165,7 +181,7 @@ public static partial class DiscoveryEndpoints
             }
 
             // A few genre rows, rotating daily so the home screen doesn't go stale.
-            var genres = await db.Genres.Select(g => new { g.Name, Count = g.Items.Count(i => i.ParentId == null) })
+            var genres = !On("genres") ? [] : await db.Genres.Select(g => new { g.Name, Count = g.Items.Count(i => i.ParentId == null) })
                 .Where(g => g.Count >= 12).OrderByDescending(g => g.Count).Take(12).ToListAsync(ct);
             var day = DateOnly.FromDateTime(DateTime.UtcNow).DayNumber;
             foreach (var genre in genres.OrderBy(g => (g.Name.GetHashCode(StringComparison.Ordinal) ^ day) & int.MaxValue).Take(3))
@@ -175,7 +191,7 @@ public static partial class DiscoveryEndpoints
                 rows.Add(new HomeRowDto($"genre-{genre.Name}", genre.Name, "poster", picks, $"/discover?genre={Uri.EscapeDataString(genre.Name)}"));
             }
 
-            if (!kids)
+            if (!kids && On("gems"))
             {
                 rows.Add(new HomeRowDto("gems", "Highly rated, not yet watched", "poster",
                     await TopRated(unwatchedMovies).Skip(10).Take(RowSize).Summaries(me).ToListAsync(ct)));
@@ -191,7 +207,7 @@ public static partial class DiscoveryEndpoints
             List<UpcomingDto> upcoming = [];
             var downloading = 0;
             // Switched off in Settings: don't ask Sonarr and Radarr at all.
-            if (LayoutEndpoints.IsOn(options.Layout.Home, "upcoming"))
+            if (LayoutEndpoints.IsOn(homeLayout.Home, "upcoming"))
             {
                 try
                 {
@@ -212,11 +228,18 @@ public static partial class DiscoveryEndpoints
 
             // Coming soon is a row like the others (its titles travel in Upcoming), so it can be moved or switched off.
             rows.Add(new HomeRowDto("upcoming", "Coming soon", "upcoming", []));
-            var shown = rows.Where(r => r.HasContent || (r.Id == "upcoming" && upcoming.Count > 0));
-            // Placed by every film and TV library, including ones this profile can't see, as Settings places them.
-            var placing = (await db.Libraries.IgnoreQueryFilters().OrderBy(l => l.Name).ToListAsync(ct))
+            // New podcast episodes: the apps fetch them; Home only says where they go. Built in, straight after Continue
+            // watching (or first, without one), where the apps put it before the server placed it.
+            if (libraries.Any(l => l.Type == LibraryType.Podcasts))
+            {
+                rows.Insert(rows.FindIndex(r => r.Id == "continue") + 1, new HomeRowDto(LayoutEndpoints.PodcastsRowId, "New podcasts", "podcasts", [], "/podcasts"));
+            }
+
+            var shown = rows.Where(r => r.HasContent || (r.Id == "upcoming" && upcoming.Count > 0) || r.Id == LayoutEndpoints.PodcastsRowId);
+            // Placed by the film and TV libraries this profile can see, as its Home & browse places them.
+            var placing = (await db.Libraries.OrderBy(l => l.Name).ToListAsync(ct))
                 .Where(l => !(options.LiveTv?.Account is not null && RecordingsLibrary.Is(l)));
-            var layout = LayoutEndpoints.WithWatchlistRow(LayoutEndpoints.ForCombining(options.Layout.Home, placing, options.Layout.CombineLibraries));
+            var layout = LayoutEndpoints.WithPodcastsRow(LayoutEndpoints.WithWatchlistRow(LayoutEndpoints.ForCombining(homeLayout.Home, placing, homeLayout.CombineLibraries)));
             var arranged = LayoutEndpoints.Arrange(shown, layout);
             if (kids && arranged.FindIndex(r => r.Id == WatchAgainRow) is var at and >= 0)
             {
@@ -226,7 +249,7 @@ public static partial class DiscoveryEndpoints
                 arranged.Insert(arranged.FindIndex(r => r.Id == "continue") + 1, row);
             }
 
-            return new HomeDto(rotation, overviews, arranged, upcoming, downloading, resume, resumes);
+            return new HomeDto(rotation, overviews, arranged, upcoming, downloading, resume, resumes, PlacesPodcasts: true);
         }).WithTags("Discovery");
 
         api.MapGet("/home/continue", async (int? take, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
@@ -257,9 +280,14 @@ public static partial class DiscoveryEndpoints
             {
                 // A music library's home: what you've been playing, then the newest albums. No hero: album covers are
                 // square, and the rows are the point.
-                var musicRows = await MusicDiscovery.RowsAsync(db, cache, me, id, RowSize, ct);
-                musicRows.Add(new HomeRowDto("recent", "New albums", "poster", await MusicDiscovery.NewAlbumsAsync(db, me, id, RowSize, ct), $"{all}&sort=added"));
-                return Results.Ok(new HomeDto([], new Dictionary<Guid, string?>(), musicRows.Where(r => r.HasContent).ToList(), [], 0));
+                var musicLayout = (await LayoutEndpoints.ForProfileAsync(db, options.CurrentValue, me, ct)).Music;
+                var musicRows = await MusicDiscovery.RowsAsync(db, cache, me, id, RowSize, ct, row => LayoutEndpoints.IsOn(musicLayout, row));
+                if (LayoutEndpoints.IsOn(musicLayout, "recent"))
+                {
+                    musicRows.Add(new HomeRowDto("recent", "New albums", "poster", await MusicDiscovery.NewAlbumsAsync(db, me, id, RowSize, ct), $"{all}&sort=added"));
+                }
+
+                return Results.Ok(new HomeDto([], new Dictionary<Guid, string?>(), LayoutEndpoints.Arrange(musicRows.Where(r => r.HasContent), musicLayout), [], 0));
             }
 
             var movies = library.Type == LibraryType.Movies;
@@ -267,21 +295,37 @@ public static partial class DiscoveryEndpoints
             var topLevel = db.MediaItems.Where(i => i.LibraryId == id && i.ParentId == null);
             var unwatched = topLevel.Where(i => !i.PlaybackStates.Any(p => p.UserId == me && p.Watched));
             var rows = new List<HomeRowDto>();
+            var browseLayout = await LayoutEndpoints.ForProfileAsync(db, options.CurrentValue, me, ct);
+            var layout = movies ? browseLayout.Movies : browseLayout.Shows;
+            // Rows switched off aren't worked out at all.
+            bool On(string row) => LayoutEndpoints.IsOn(layout, row);
 
-            // Continue Watching, narrowed to this library.
+            // Continue Watching, narrowed to this library (the hero leads with it either way).
             var continueWatching = await ContinueWatchingAsync(db, me, RowSize, id, ct);
             rows.Add(new HomeRowDto("continue", "Continue watching", "wide", continueWatching));
 
-            rows.Add(new HomeRowDto("recent", $"Latest unwatched {noun}", "poster",
-                await LatestUnwatched(topLevel, movies, me).Take(RowSize).Summaries(me).ToListAsync(ct), $"{all}&sort=added"));
-            rows.Add(new HomeRowDto("top", $"Top 10 {noun} in {library.Name}", "top10", await TopRated(topLevel).Take(10).Summaries(me).ToListAsync(ct)));
-            rows.Add(new HomeRowDto("released", movies ? "Newest releases" : "Newest shows", "poster",
-                await topLevel.Where(i => i.Year != null).OrderByDescending(i => i.Year).ThenByDescending(i => i.Popularity).Take(RowSize).Summaries(me).ToListAsync(ct), $"{all}&sort=year"));
-            if (movies)
+            if (On("recent"))
+            {
+                rows.Add(new HomeRowDto("recent", $"Latest unwatched {noun}", "poster",
+                    await LatestUnwatched(topLevel, movies, me).Take(RowSize).Summaries(me).ToListAsync(ct), $"{all}&sort=added"));
+            }
+
+            if (On("top"))
+            {
+                rows.Add(new HomeRowDto("top", $"Top 10 {noun} in {library.Name}", "top10", await TopRated(topLevel).Take(10).Summaries(me).ToListAsync(ct)));
+            }
+
+            if (On("released"))
+            {
+                rows.Add(new HomeRowDto("released", movies ? "Newest releases" : "Newest shows", "poster",
+                    await topLevel.Where(i => i.Year != null).OrderByDescending(i => i.Year).ThenByDescending(i => i.Popularity).Take(RowSize).Summaries(me).ToListAsync(ct), $"{all}&sort=year"));
+            }
+
+            if (On("gems") && movies)
             {
                 rows.Add(new HomeRowDto("gems", "Highly rated, not yet watched", "poster", await TopRated(unwatched).Skip(10).Take(RowSize).Summaries(me).ToListAsync(ct), $"{all}&sort=rating"));
             }
-            else
+            else if (On("gems"))
             {
                 // Watched is recorded per episode, so a show counts as unwatched only if no episode has been started.
                 var started = db.PlaybackStates.Where(p => p.UserId == me && p.MediaItem!.Kind == MediaKind.Episode).Select(p => p.MediaItem!.Parent!.ParentId).Distinct();
@@ -290,7 +334,7 @@ public static partial class DiscoveryEndpoints
             }
 
             // The library's biggest genres, biggest first, unwatched and best-rated first within each.
-            var genres = await db.Genres.Select(g => new { g.Name, Count = g.Items.Count(i => i.LibraryId == id && i.ParentId == null) })
+            var genres = !On("genres") ? [] : await db.Genres.Select(g => new { g.Name, Count = g.Items.Count(i => i.LibraryId == id && i.ParentId == null) })
                 .Where(g => g.Count >= 8).OrderByDescending(g => g.Count).Take(8).ToListAsync(ct);
             foreach (var genre in genres)
             {
@@ -305,7 +349,6 @@ public static partial class DiscoveryEndpoints
             var overviews = await OverviewsAsync(db, rotation, ct);
             var resumes = await ResumesAsync(db, me, rotation, resume, ct);
 
-            var layout = movies ? options.CurrentValue.Layout.Movies : options.CurrentValue.Layout.Shows;
             return Results.Ok(new HomeDto(rotation, overviews, LayoutEndpoints.Arrange(rows.Where(r => r.Items.Count > 0), layout), [], 0, resume, resumes));
         }).WithTags("Discovery");
 

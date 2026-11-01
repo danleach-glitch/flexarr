@@ -48,7 +48,8 @@ enum LibraryMenuEntry: Identifiable, Hashable {
         if model.podcastStatus != nil {
             entries.append(.podcasts(id: model.libraries.first(where: { $0.type == .podcasts })?.id ?? "podcasts"))
         }
-        if model.hasLiveTv { entries.append(.liveTv) }
+        // Not for a profile that hid Live TV from the menu: Home's row still opens it. Its saved place stays put.
+        if model.hasLiveTv && !model.hidesFromMenu(.liveTv) { entries.append(.liveTv) }
         return LibraryOrder.sorted(entries, by: model.libraryOrder ?? [], id: \.id)
     }
 }

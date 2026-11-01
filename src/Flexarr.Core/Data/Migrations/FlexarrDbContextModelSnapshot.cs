@@ -1263,11 +1263,18 @@ namespace Flexarr.Core.Data.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.PrimitiveCollection<string>("HiddenNavigation")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime?>("ImageUpdatedAt")
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("IsKids")
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("Layout")
+                        .HasColumnType("TEXT");
 
                     b.PrimitiveCollection<string>("LibraryOrder")
                         .IsRequired()
@@ -1353,6 +1360,7 @@ namespace Flexarr.Core.Data.Migrations
                             Color = "#a9c2ec",
                             CreatedAt = new DateTime(2026, 10, 24, 0, 0, 0, 0, DateTimeKind.Utc),
                             HiddenLibraryIds = "[]",
+                            HiddenNavigation = "[]",
                             IsKids = false,
                             LibraryOrder = "[]",
                             ListeningInContinue = true,

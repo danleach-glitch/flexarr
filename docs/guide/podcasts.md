@@ -46,21 +46,21 @@ Episodes play through your server rather than straight from the podcast's host. 
 
 Up Next is your own queue of episodes, shared between the web and your phone. Use **Play next** or **Add to Up Next** on any episode. Reorder or remove episodes on the Podcasts page, or in Now Playing on iPhone and iPad. An episode leaves Up Next once it starts playing.
 
-Episodes you're part way through also show on Home, in **Continue watching or listening**, on the web, iPhone, iPad and Android. To leave them out, turn off **Books and podcasts in Continue watching** in **Settings › Podcasts and audiobooks** (the main profile's is in **Settings › Home and Browse** on the web, and the Apple TV's in **Settings › Playback**).
+Episodes you're part way through also show on Home, in **Continue watching or listening**, on the web, iPhone, iPad and Android. To leave them out, turn off **Books and podcasts in Continue watching** in **Settings › Podcasts & audiobooks** (on the web it's in **Settings › Home & browse**, and on the Apple TV in **Settings › Playback**).
 
 ## Settings
 
-Podcast settings belong to each profile, and are in **Settings › Podcasts and audiobooks** on the web, iPhone, iPad and Android:
+Podcast settings belong to each profile, and are in **Settings › Podcasts & audiobooks** on the web, iPhone, iPad and Android:
 
 - **Speed**, **Skip back**, **Skip forward** and **Smart rewind**, shared with audiobooks.
-- **Books and podcasts in Continue watching** (for the main profile, in **Settings › Home and Browse** on the web).
+- **Books and podcasts in Continue watching** (on the web, in **Settings › Home & browse**).
 - **Download new episodes** and how many of each show's newest to keep, for phones and tablets.
 
-On the web, **Show in the sidebar** is in **Settings › Sidebar**; either way, Home has a New podcasts row.
+On the web, **Show in the sidebar** is in **Settings › Navigation**. Home's **New podcasts** row can be moved or switched off in **Settings › Home & browse**.
 
 ## Offline on iPhone and iPad
 
-Download any episode to listen with no connection. Or turn on **Download new episodes** in **Settings › Podcasts and audiobooks**: the newest unplayed episodes of every show you follow then download by themselves. Episodes you deleted yourself are never downloaded again by themselves.
+Download any episode to listen with no connection. Or turn on **Download new episodes** in **Settings › Podcasts & audiobooks**: the newest unplayed episodes of every show you follow then download by themselves. Episodes you deleted yourself are never downloaded again by themselves.
 
 A downloaded episode is deleted once you've heard it to the end or marked it played, whether you downloaded it or the app did. One finished on another device, such as the web, goes the next time the app catches up with the server.
 

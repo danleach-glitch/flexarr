@@ -52,7 +52,8 @@ struct HomeView: View {
                     // Above whatever else Home has (Coming soon, channels).
                     EmptyHome(message: message)
                 }
-                // A row with nothing in it (a kind this app doesn't show yet, say) would be a bare heading.
+                // A row with nothing in it (a kind this app doesn't show yet, say) would be a bare heading. That includes
+                // the empty row placing New podcasts (`HomeRow.podcastsRowId`): the Apple TV doesn't play podcasts.
                 ForEach(home.rows.filter(\.hasContent)) { row in
                     HomeRowView(row: row)
                 }
@@ -336,6 +337,10 @@ struct HomeRowView: View {
                     // A playlists row carries playlists rather than items.
                     ForEach(row.playlists ?? []) { playlist in
                         PlaylistCard(playlist: playlist) { router.push(.playlist(playlist)) }
+                    }
+                    // A mixes row carries the day's mixes; pressing one plays it.
+                    ForEach(row.mixes ?? []) { mix in
+                        MixCard(mix: mix)
                     }
                     // A Live TV row carries the profile's favourite channels; channel up and down go through them.
                     ForEach(row.channels ?? []) { channel in

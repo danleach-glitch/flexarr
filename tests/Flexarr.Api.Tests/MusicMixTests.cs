@@ -118,6 +118,7 @@ public class MusicMixTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApi
     {
         var created = await (await Client().PostAsJsonAsync(Api("/profiles"), new { name = $"Sam {Guid.NewGuid():N}" })).Content.ReadFromJsonAsync<JsonElement>();
         var id = created.GetProperty("id").GetString()!;
+        await factory.ShowEveryHomeRowAsync(id);
         var token = (await (await Client().PostAsJsonAsync(Api($"/profiles/{id}/select"), new { })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("token").GetString()!;
 
         using var scope = factory.Services.CreateScope();

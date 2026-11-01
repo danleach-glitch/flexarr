@@ -1,3 +1,4 @@
+import { Fragment, useEffect } from 'react'
 import { Link, Navigate } from 'react-router'
 import { getHome, getNewEpisodes, getSetupGuide, type Library } from '../api/client'
 import { EpisodeCard } from '../components/EpisodeCard'
@@ -16,11 +17,17 @@ export function HomePage() {
   const { libraries } = useLibraries()
   const { data, error, reload } = useApi(getHome, [])
   useWatchedChanges(reload)
-  // The newest episodes of the podcasts this profile follows that it hasn't heard, after Continue watching.
-  const podcasts = libraries.some((l) => l.type === 'Podcasts')
-  const episodes = useApi((signal) => (podcasts ? getNewEpisodes(signal, true) : Promise.resolve([])), [podcasts])
-  // The setup guide, for the main profile: servers before it answer 404, and have no guide.
   const { me, profiles } = useSession()
+  // The newest episodes of the podcasts this profile follows that it hasn't heard, where Home places them. Asked for
+  // alongside Home, unless Home came back without the row last time (switched off): then only once Home has it.
+  const podcasts = libraries.some((l) => l.type === 'Podcasts')
+  const offKey = `flexarr.podcastsRowOff.${me?.profileId ?? ''}`
+  const rowOff = data ? data.placesPodcasts === true && !data.rows.some((row) => row.id === 'podcasts-new') : readFlag(offKey)
+  useEffect(() => {
+    if (data) writeFlag(offKey, rowOff)
+  }, [data, offKey, rowOff])
+  const episodes = useApi((signal) => (podcasts && !rowOff ? getNewEpisodes(signal, true) : Promise.resolve([])), [podcasts, rowOff])
+  // The setup guide, for the main profile: servers before it answer 404, and have no guide.
   // A profile with an age limit and nothing within it: no setup talk, no way into Settings.
   const limited = me?.maxRatingAge != null
   const nothingFor = <NothingFor name={profiles?.find((p) => p.isCurrent)?.name} />
@@ -64,6 +71,8 @@ export function HomePage() {
       ))}
     </Row>
   )
+  // The server places New podcasts as one of its rows; before it did, it went after Continue watching.
+  const placed = data.placesPodcasts === true
   const afterContinue = data.rows.some((row) => row.id === 'continue')
   // Libraries set up but nothing in them recognised yet: say so, above whatever else Home has (Coming soon, channels).
   // Home's own rows win over the library list, which can lag a scan that finished between its checks.
@@ -78,9 +87,11 @@ export function HomePage() {
       <div className={data.featured.length > 0 ? 'rows' : empty ? 'rows rows-after-welcome' : 'rows rows-unheaded'}>
         {checklist}
         {/* Rows come in the order chosen in Settings; Coming soon is one of them. */}
-        {!afterContinue && newEpisodes}
+        {!placed && !afterContinue && newEpisodes}
         {data.rows.flatMap((row) => [
-          row.style === 'upcoming' ? (
+          row.id === 'podcasts-new' ? (
+            <Fragment key={row.id}>{newEpisodes}</Fragment>
+          ) : row.style === 'upcoming' ? (
             data.upcoming.length > 0 && (
               <Row key={row.id} title={data.downloading > 0 ? `Coming soon (${data.downloading} downloading)` : 'Coming soon'} link="/upcoming" style="wide">
                 {data.upcoming.map((item) => (
@@ -91,7 +102,7 @@ export function HomePage() {
           ) : (
             <HomeRows key={row.id} rows={[row]} />
           ),
-          row.id === 'continue' ? newEpisodes : null,
+          !placed && row.id === 'continue' ? newEpisodes : null,
         ])}
       </div>
     </>
@@ -158,4 +169,22 @@ function EmptyLibraries({ libraries }: { libraries: Library[] }) {
 /** "Films", "Films and TV", "Films, TV and Music". */
 function list(names: string[]) {
   return names.length < 2 ? (names[0] ?? '') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
+}
+
+/** A remembered yes or no in this tab's storage, which may be missing. */
+function readFlag(key: string) {
+  try {
+    return sessionStorage.getItem(key) === '1'
+  } catch {
+    return false
+  }
+}
+
+function writeFlag(key: string, on: boolean) {
+  try {
+    if (on) sessionStorage.setItem(key, '1')
+    else sessionStorage.removeItem(key)
+  } catch {
+    // Storage blocked: Home asks every time.
+  }
 }

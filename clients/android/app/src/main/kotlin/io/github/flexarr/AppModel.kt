@@ -237,6 +237,9 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     /** The book's Now Playing sheet is open. */
     var showsBookPlayer by mutableStateOf(false)
 
+    /** The phone's music Now Playing sheet is open: from the bar, or after a mix starts playing. */
+    var showsMusicPlayer by mutableStateOf(false)
+
     /** Goes up when Play or Shuffle starts music on the TV, which then shows Now Playing over everything. */
     var nowPlayingRequests by mutableIntStateOf(0)
 
@@ -300,6 +303,9 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
      */
     var homeWatchlistVersion by mutableIntStateOf(0)
         private set
+
+    /** Whether each profile's last Home had New podcasts, so Home skips fetching the episodes when it's switched off. */
+    val newPodcastsMemory = io.github.flexarr.core.NewPodcastsMemory()
 
     /**
      * The profile's whole watchlist, for the Watchlist screen (it asks Seerr where each title has got to, so only there).

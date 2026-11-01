@@ -1,7 +1,8 @@
 import FlexarrKit
 import SwiftUI
 
-/// A music library: the albums that arrived most recently, then every artist as a round picture.
+/// A music library: the server's Browse rows in the profile's order (Settings › Home & browse › Music), then every
+/// artist as a round picture. When Browse fails, the playlists and the albums that arrived most recently instead.
 struct MusicLibraryView: View {
     @Environment(AppModel.self) private var model
     @State private var browse: MusicBrowseModel
@@ -34,13 +35,16 @@ struct MusicLibraryView: View {
                     StatusView(state: .empty("Nothing in this library yet."))
                         .frame(height: 400)
                 } else {
-                    if !browse.playlists.isEmpty {
+                    if !browse.rows.isEmpty {
+                        ForEach(browse.rows) { MusicRowView(row: $0, width: cardWidth) { Task { await load() } } }
+                    }
+                    if browse.rows.isEmpty, !browse.playlists.isEmpty {
                         VStack(alignment: .leading, spacing: 10) {
                             SectionHeading(title: "Your playlists")
                             ScrollView(.horizontal) {
                                 LazyHStack(alignment: .top, spacing: Layout.rowSpacing) {
                                     ForEach(browse.playlists) { playlist in
-                                        PlaylistCard(playlist: playlist, width: Layout.posterWidth(sizeClass) * 1.15)
+                                        PlaylistCard(playlist: playlist, width: cardWidth)
                                     }
                                 }
                                 .padding(.horizontal, Layout.edge)
@@ -48,13 +52,13 @@ struct MusicLibraryView: View {
                             .scrollIndicators(.hidden)
                         }
                     }
-                    if !browse.recentAlbums.isEmpty {
+                    if browse.rows.isEmpty, !browse.recentAlbums.isEmpty {
                         VStack(alignment: .leading, spacing: 10) {
-                            SectionHeading(title: "Recently added")
+                            SectionHeading(title: "New albums")
                             ScrollView(.horizontal) {
                                 LazyHStack(alignment: .top, spacing: Layout.rowSpacing) {
                                     ForEach(browse.recentAlbums) { album in
-                                        AlbumCard(item: album, width: Layout.posterWidth(sizeClass) * 1.15, showsArtist: true)
+                                        AlbumCard(item: album, width: cardWidth, showsArtist: true)
                                     }
                                 }
                                 .padding(.horizontal, Layout.edge)
@@ -62,16 +66,7 @@ struct MusicLibraryView: View {
                             .scrollIndicators(.hidden)
                         }
                     }
-                    VStack(alignment: .leading, spacing: 12) {
-                        SectionHeading(title: "Artists")
-                        LazyVGrid(columns: columns, alignment: .leading, spacing: 20) {
-                            ForEach(Array(browse.artists.enumerated()), id: \.element.id) { index, artist in
-                                ArtistCard(item: artist)
-                                    .onAppear { if let client = model.client { browse.loadMoreIfNeeded(at: index, client: client) } }
-                            }
-                        }
-                        .padding(.horizontal, Layout.edge)
-                    }
+                    artistGrid
                     if browse.isLoading {
                         ProgressView().frame(maxWidth: .infinity).padding(20)
                     }
@@ -80,7 +75,7 @@ struct MusicLibraryView: View {
             .padding(.top, 8)
             .padding(.bottom, 24)
         }
-        .background(RoomBackground(ambient: browse.recentAlbums.first?.glowColor ?? browse.artists.first?.glowColor, intensity: 0.18))
+        .background(RoomBackground(ambient: browse.ambientItem?.glowColor, intensity: 0.18))
         .navigationTitle(browse.library.name)
         .refreshable { await load() }
         .task {
@@ -94,8 +89,56 @@ struct MusicLibraryView: View {
         }
     }
 
+    private var cardWidth: CGFloat { Layout.posterWidth(sizeClass) * 1.15 }
+
+    private var artistGrid: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SectionHeading(title: "Artists")
+            LazyVGrid(columns: columns, alignment: .leading, spacing: 20) {
+                ForEach(Array(browse.artists.enumerated()), id: \.element.id) { index, artist in
+                    ArtistCard(item: artist)
+                        .onAppear { if let client = model.client { browse.loadMoreIfNeeded(at: index, client: client) } }
+                }
+            }
+            .padding(.horizontal, Layout.edge)
+        }
+    }
+
     private func load() async {
         guard let client = model.client else { return }
         await browse.load(client: client)
+    }
+}
+
+/// One of a music library's Browse rows: playlists and mixes, albums that open, or tracks that play (the one tapped
+/// first, the rest of the row after it). No "See all": its links lead back to this page.
+private struct MusicRowView: View {
+    @Environment(AppModel.self) private var model
+    let row: HomeRow
+    let width: CGFloat
+    /// Loads the page again, when a mix in the row turns out to be yesterday's.
+    let onStale: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SectionHeading(title: row.title)
+            ScrollView(.horizontal) {
+                LazyHStack(alignment: .top, spacing: Layout.rowSpacing) {
+                    ForEach(row.playlists ?? []) { PlaylistCard(playlist: $0, width: width) }
+                    ForEach(row.mixes ?? []) { MixCard(mix: $0, width: width, onStale: onStale) }
+                    ForEach(Array(row.items.enumerated()), id: \.element.id) { index, item in
+                        if row.style == .tracks || item.kind == .track {
+                            TrackCard(item: item, width: width) { model.playTracks(row.items, from: index) }
+                        } else if item.kind == .artist {
+                            ArtistCard(item: item, width: width)
+                        } else {
+                            AlbumCard(item: item, width: width, showsArtist: true)
+                        }
+                    }
+                }
+                .padding(.horizontal, Layout.edge)
+            }
+            .scrollIndicators(.hidden)
+        }
     }
 }

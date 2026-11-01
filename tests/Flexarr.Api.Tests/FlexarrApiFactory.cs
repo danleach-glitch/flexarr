@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Net;
 using Flexarr.Api.Security;
+using Flexarr.Core.Data;
 using Flexarr.Core.Scanning;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -83,6 +84,19 @@ public sealed class FlexarrApiFactory : WebApplicationFactory<Program>
             // Nor Trakt, or its relay: Trakt isn't available unless a test stands one in (see FakeTrakt).
             services.AddHttpClient<Flexarr.Api.Trakt.TraktClient>().ConfigurePrimaryHttpMessageHandler(() => new Offline());
         });
+    }
+
+    /// <summary>
+    /// Gives a profile every Home row, as the server lays them out, in place of the shorter Home a new profile starts
+    /// with: for tests about what the rows hold.
+    /// </summary>
+    public async Task ShowEveryHomeRowAsync(string profileId)
+    {
+        using var scope = Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        var profile = await db.Profiles.FindAsync(profileId) ?? throw new InvalidOperationException($"No profile {profileId}");
+        profile.Layout = null;
+        await db.SaveChangesAsync();
     }
 
     /// <summary>Sets or clears the admin PIN directly (the API only changes it, never takes it off).</summary>

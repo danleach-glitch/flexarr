@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useState, type ReactNode } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import {
   getBookPeople,
@@ -85,26 +85,35 @@ function Shelves({ library }: { library: Library }) {
         ))}
       </Row>
     )
+  const shelves: Record<string, ReactNode> = {
+    continue: books('Continue listening', data.continueListening, `${all}&progress=inprogress&sort=listened`),
+    next: books('Next in series', data.nextInSeries),
+    recent: books('Recently added', data.recentlyAdded, `${all}&sort=added`),
+    series: data.series.length > 0 && (
+      <Row title="Series" link={`/library/${library.id}?view=series`}>
+        {data.series.map((s) => (
+          <BookSeriesCard key={s.id} series={s} />
+        ))}
+      </Row>
+    ),
+    authors: data.authors.length > 0 && (
+      <Row title="Authors" link={`/library/${library.id}?view=authors`} style="people">
+        {data.authors.map((p) => (
+          <BookPersonCard key={p.id} person={p} />
+        ))}
+      </Row>
+    ),
+    finished: books('Finished', data.finished, `${all}&progress=finished`),
+  }
+  // In the profile's order, without the ones it switched off (Settings › Home & browse).
+  const order = (data.order ?? Object.keys(shelves)).filter((id) => id in shelves)
+  // None left with anything on it: the whole library instead.
+  if (!order.some((id) => shelves[id])) return <AllBooks library={library} />
   return (
     <div className="book-shelves">
-      {books('Continue listening', data.continueListening, `${all}&progress=inprogress&sort=listened`)}
-      {books('Next in series', data.nextInSeries)}
-      {books('Recently added', data.recentlyAdded, `${all}&sort=added`)}
-      {data.series.length > 0 && (
-        <Row title="Series" link={`/library/${library.id}?view=series`}>
-          {data.series.map((s) => (
-            <BookSeriesCard key={s.id} series={s} />
-          ))}
-        </Row>
-      )}
-      {data.authors.length > 0 && (
-        <Row title="Authors" link={`/library/${library.id}?view=authors`} style="people">
-          {data.authors.map((p) => (
-            <BookPersonCard key={p.id} person={p} />
-          ))}
-        </Row>
-      )}
-      {books('Finished', data.finished, `${all}&progress=finished`)}
+      {order.map((id) => (
+        <Fragment key={id}>{shelves[id]}</Fragment>
+      ))}
     </div>
   )
 }

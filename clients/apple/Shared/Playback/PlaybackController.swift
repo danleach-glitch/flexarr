@@ -202,6 +202,11 @@ final class PlaybackController: NSObject {
         show(problem, message: ConnectionError(error).message, retry: retry)
     }
 
+    /// Something other than a title couldn't start (a music mix): the same "Couldn't play this", with nothing to retry.
+    func showFailure(_ message: String) {
+        show(.other, message: message, retry: nil)
+    }
+
     private func show(_ problem: Problem, message: String, retry: PlaybackRequest?) {
         var retry = retry
         if problem == .takenOver { retry?.replacesSessionId = nil }

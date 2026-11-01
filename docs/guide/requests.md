@@ -72,7 +72,7 @@ Flexarr sends every request to Seerr with its own API key. Seerr doesn't know wh
 
 ## Where requests go
 
-With two or more TV or film libraries Seerr can add to, each profile chooses which one its requests land in, in **Settings › Requests**: **New shows go to** and **New films go to**. When two people have a TV library each, the shows each of them asks for go to their own. The choice applies to requests from every device, and the main profile can set it for anyone in **Settings › Profiles**. With one library of each kind there's nothing to choose.
+With two or more TV or film libraries Seerr can add to, the main profile chooses which one each profile's requests land in, by editing the profile in **Settings › Profiles**: **New shows go to** and **New films go to**. When two people have a TV library each, the shows each of them asks for go to their own. The choice applies to requests from every device. With one library of each kind there's nothing to choose.
 
 ## Status and when it arrives
 
@@ -99,9 +99,9 @@ To follow a request while it downloads, use Seerr itself, or **Coming soon** in 
 
 ## Audiobooks
 
-Book requests arrive in the next release, on the web only. Seerr doesn't handle books, so Flexarr asks Readarr, Bookshelf or Chaptarr itself. Connect one in **Settings › Connections**, then under **Audiobooks** in **Settings › Requests** choose its **Quality**, **Metadata** and **Folder**.
+Book requests arrive in the next release, on the web only. Seerr doesn't handle books, so Flexarr asks Readarr, Bookshelf or Chaptarr itself. Connect one in **Settings › Connections**, then under **Requests** in **Settings › Libraries** choose its **Quality**, **Metadata** and **Folder**.
 
 In Discover's search, **Search for any film, show or book**, find a book you don't have and choose **Request**. Each result says whether it's **In your library**, **Requested** or available to request. Flexarr adds the book (and its author, if they're new, without following their other books), then asks for it to be found. When it arrives, whoever asked hears that it's ready to listen.
 
-With more than one audiobooks library, each profile chooses where its books go with **New books go to** in **Settings › Requests**.
+With more than one audiobooks library, the main profile chooses where each profile's books go with **New books go to**, in the profile's editor in **Settings › Profiles**.
 

@@ -77,6 +77,8 @@ public enum HomeRowStyle: String, ForwardCompatibleEnum {
     case playlists
     /// The profile's favourite TV channels with what's on; `items` is empty, the channels are in `channels`.
     case live
+    /// The profile's daily music mixes ("Made for you"); `items` is empty, the mixes are in `mixes`.
+    case mixes
     case unknown
 }
 
@@ -359,9 +361,17 @@ public struct HomeRow: Codable, Sendable, Identifiable, Hashable {
     public var playlists: [PlaylistSummary]? = nil
     /// A `live` row's channels (`items` is empty then). Absent from servers before Live TV.
     public var channels: [LiveChannel]? = nil
+    /// A `mixes` row's content (`items` is empty then).
+    public var mixes: [MixSummary]? = nil
 
-    /// Whether there's anything to show: a row of items, of playlists or of channels. A row of none would be a bare heading.
-    public var hasContent: Bool { !items.isEmpty || !(playlists ?? []).isEmpty || !(channels ?? []).isEmpty }
+    /// Whether there's anything to show: a row of items, of playlists, of mixes or of channels. A row of none would be a
+    /// bare heading.
+    public var hasContent: Bool {
+        !items.isEmpty || !(playlists ?? []).isEmpty || !(mixes ?? []).isEmpty || !(channels ?? []).isEmpty
+    }
+
+    /// The id of Home's empty row that marks where the app's New podcasts row goes (`Home.placesPodcasts`).
+    public static let podcastsRowId = "podcasts-new"
 }
 
 // MARK: - Playlists
@@ -381,6 +391,22 @@ public struct PlaylistSummary: Codable, Sendable, Hashable, Identifiable {
 
     /// "12 tracks".
     public var trackCountLabel: String { trackCount == 1 ? "1 track" : "\(trackCount) tracks" }
+}
+
+/// One of the profile's daily music mixes ("Made for you"): the same all day, new tomorrow, so an id from yesterday is
+/// simply not found.
+public struct MixSummary: Codable, Sendable, Hashable, Identifiable {
+    public let id: String
+    public let name: String
+    public let description: String
+    /// Up to four of its tracks' album covers, for a mosaic.
+    public let covers: [String]
+    public let trackCount: Int
+}
+
+public struct MixDetail: Codable, Sendable {
+    public let summary: MixSummary
+    public let tracks: [ItemSummary]
 }
 
 /// A place in a playlist: the entry (what's moved or removed) and the track in it.
@@ -404,6 +430,10 @@ public struct Home: Codable, Sendable {
     public var resume: ItemSummary? = nil
     /// What each part-played featured title resumes, by its id. Absent from servers before 0.53.
     public var resumes: [String: ItemSummary]? = nil
+    /// Whether `rows` places the New podcasts row: an empty `HomeRow.podcastsRowId` row where the app puts its own row
+    /// of new episodes, left out when the profile switched it off. Absent from servers before 0.58, where the app
+    /// puts it after Continue watching itself.
+    public var placesPodcasts: Bool? = nil
 
     public func overview(for id: String) -> String? {
         overviews[id] ?? nil
@@ -953,10 +983,15 @@ public struct Profile: Codable, Sendable, Hashable, Identifiable {
     /// The PIN choosing it here asks for is the admin PIN, not its own. Absent from servers before 0.57: see
     /// `asksAdminPinToChoose`.
     public var asksAdminPin: Bool? = nil
+    /// The menu items this profile leaves out (`NavigationItem`'s raw values; any this app doesn't know mean nothing),
+    /// chosen in Settings on the web. Only off the menu: still reachable from Home's rows, links and Siri. Absent from
+    /// servers before 0.58: nothing hidden.
+    public var hiddenNavigation: [String]? = nil
 
     public init(id: String, name: String, color: String, hasPin: Bool = false, isMain: Bool = false,
                 isCurrent: Bool = false, hiddenLibraryIds: [String] = [], image: String? = nil, libraryOrder: [String]? = nil,
-                asksPin: Bool? = nil, maxRatingAge: Int? = nil, isKids: Bool? = nil, asksAdminPin: Bool? = nil) {
+                asksPin: Bool? = nil, maxRatingAge: Int? = nil, isKids: Bool? = nil, asksAdminPin: Bool? = nil,
+                hiddenNavigation: [String]? = nil) {
         self.id = id
         self.name = name
         self.color = color
@@ -970,6 +1005,12 @@ public struct Profile: Codable, Sendable, Hashable, Identifiable {
         self.maxRatingAge = maxRatingAge
         self.isKids = isKids
         self.asksAdminPin = asksAdminPin
+        self.hiddenNavigation = hiddenNavigation
+    }
+
+    /// The profile leaves this out of the menu.
+    public func hidesFromMenu(_ item: NavigationItem) -> Bool {
+        hiddenNavigation?.contains(item.rawValue) == true
     }
 
     /// A child's profile (servers before 0.56 have none).
@@ -989,6 +1030,16 @@ public struct Profile: Codable, Sendable, Hashable, Identifiable {
     public var initial: String {
         name.trimmingCharacters(in: .whitespaces).first.map { String($0).uppercased() } ?? "?"
     }
+}
+
+/// A menu item a profile can hide (`Profile.hiddenNavigation`). Not every app has every one in its menu.
+public enum NavigationItem: String, Sendable, CaseIterable {
+    case watchlist
+    case collections
+    case playlists
+    case liveTv = "live-tv"
+    case discover
+    case upcoming
 }
 
 public enum LibraryOrder {

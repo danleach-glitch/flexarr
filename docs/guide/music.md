@@ -65,7 +65,7 @@ These are on the web for now.
 
 - **Daily mixes:** up to four for each profile, built from what it plays, grouping artists who share genres ("Rock Mix"). About 40 tracks each, the same all day and fresh tomorrow. They appear once a profile has played twenty or so tracks, in a **Made for you** row on Home and in a music library's Browse view.
 - **Artist radio:** start it from an artist's page. It's a station of about fifty tracks from that artist and others sharing their genres.
-- **Home rows:** **Recently played**, **Most played**, **More from artists you play** and **New albums**. Move them or turn them off in **Settings › Home and Browse**.
+- **Home rows:** **Recently played**, **Most played**, **More from artists you play** and **New albums**. Move them or turn them off in **Settings › Home & browse**.
 
 ## Gapless, crossfade and volume
 

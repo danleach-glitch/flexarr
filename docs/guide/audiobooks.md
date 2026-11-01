@@ -34,11 +34,11 @@ Author - Title [B0DPXK6Y7B].m4b                  an Audible id in the name
 
 The library's front page has **Continue listening**, **Next in series**, **Recently added**, your series and authors, and what you've finished. **All books** lists every book, with filters for what you haven't started, are part way through or have finished, and by narrator, length and language. **Series**, **Authors** and **Genres** list those; pick a genre to see its books.
 
-Books you're part way through also show on Home, in **Continue watching or listening** with your films, shows and podcast episodes. To keep them in their own **Continue listening** row instead, turn off **Books and podcasts in Continue watching** in **Settings › Podcasts and audiobooks** (the main profile's is in **Settings › Home and Browse** on the web, and the Apple TV's in **Settings › Playback**).
+Books you're part way through also show on Home, in **Continue watching or listening** with your films, shows and podcast episodes. To keep them in their own **Continue listening** row instead, turn off **Books and podcasts in Continue watching** in **Settings › Podcasts & audiobooks** (on the web it's in **Settings › Home & browse**, and on the Apple TV in **Settings › Playback**).
 
 A book's page shows its series ("Book 3 of 7"), authors and narrators, how long it is and how long is left at your speed, its chapters, and more in the series, by the author and read by the narrator. A series' page lists its books in order with the next one to hear picked out.
 
-**Home** can show **Continue listening**, **Next in series** and **New audiobooks**: the main profile turns them on or off in **Settings › Home and Browse** on the web.
+**Home** can show **Continue listening**, **Next in series** and **New audiobooks**: each profile turns them on or off in **Settings › Home & browse** on the web.
 
 ## Listening
 
@@ -53,7 +53,7 @@ A book's page shows its series ("Book 3 of 7"), authors and narrators, how long 
 
 In the player, the seek bar covers the chapter playing; switch it to **Book** to see the whole book. Time left counts at your speed.
 
-Set your default speed, skip steps and smart rewind in **Settings › Podcasts and audiobooks** on the web, iPhone, iPad or Android, or **Settings › Playback** on the Apple TV. They're your profile's, on every device, and podcasts share them. A book you've set a speed for in the player keeps its own.
+Set your default speed, skip steps and smart rewind in **Settings › Podcasts & audiobooks** on the web, iPhone, iPad or Android, or **Settings › Playback** on the Apple TV. They're your profile's, on every device, and podcasts share them. A book you've set a speed for in the player keeps its own.
 
 ## On your phone
 

@@ -99,6 +99,8 @@ struct ArtworkButton<Artwork: View, Caption: View>: View {
     /// Optional shared focus state so a row can steer focus to a particular card.
     var focus: FocusState<String?>.Binding?
     var focusID: String?
+    /// What VoiceOver reads for the button, where its artwork has no words of its own (a mosaic of covers).
+    var accessibilityText: String?
     let action: () -> Void
     @ViewBuilder var artwork: () -> Artwork
     @ViewBuilder var caption: (_ focused: Bool) -> Caption
@@ -113,6 +115,7 @@ struct ArtworkButton<Artwork: View, Caption: View>: View {
             .buttonStyle(.card)
             .focused($focused)
             .modifier(SharedFocus(binding: focus, id: focusID))
+            .modifier(OptionalAccessibilityLabel(text: accessibilityText))
             .background {
                 RoundedRectangle(cornerRadius: 12)
                     .fill(ambient)
@@ -129,7 +132,19 @@ struct ArtworkButton<Artwork: View, Caption: View>: View {
     }
 }
 
-private struct SharedFocus: ViewModifier {
+private struct OptionalAccessibilityLabel: ViewModifier {
+    let text: String?
+
+    func body(content: Content) -> some View {
+        if let text {
+            content.accessibilityLabel(text)
+        } else {
+            content
+        }
+    }
+}
+
+struct SharedFocus: ViewModifier {
     let binding: FocusState<String?>.Binding?
     let id: String?
 
@@ -139,6 +154,49 @@ private struct SharedFocus: ViewModifier {
         } else {
             content
         }
+    }
+}
+
+/// A round picture as a button (an artist, a person): it lifts and gains a ring when focused, as the square cards
+/// light up; the system's borderless style barely changes a picture that isn't an Image.
+struct CircleCardStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        CircleBody(configuration: configuration)
+    }
+
+    private struct CircleBody: View {
+        let configuration: Configuration
+        @Environment(\.isFocused) private var isFocused
+
+        var body: some View {
+            configuration.label
+                .clipShape(Circle())
+                .overlay { Circle().strokeBorder(Color.screen, lineWidth: isFocused ? 5 : 0) }
+                .shadow(color: .black.opacity(isFocused ? 0.5 : 0), radius: 24, y: 14)
+                .scaleEffect(configuration.isPressed ? 1.04 : (isFocused ? 1.12 : 1))
+                .animation(.spring(response: 0.3, dampingFraction: 0.75), value: isFocused)
+                .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+        }
+    }
+}
+
+/// Rows of cards on a page: moving up or down into a row lands on the card in the column focus left (or the row's
+/// last), rather than wherever the focus engine picks, which can be far along the row. `column` is shared by the
+/// page's rows; the cards take `focus` with their own ids.
+struct RowFocus: ViewModifier {
+    let ids: [String]
+    @Binding var column: Int
+    var focus: FocusState<String?>.Binding
+    /// A grid's width, where `column` is the place across it; nil for a row.
+    var columns: Int? = nil
+
+    func body(content: Content) -> some View {
+        content
+            .defaultFocus(focus, ids.isEmpty ? nil : ids[min(column, ids.count - 1, (columns ?? Int.max) - 1)], priority: .userInitiated)
+            .onChange(of: focus.wrappedValue) { _, id in
+                guard let id, let index = ids.firstIndex(of: id) else { return }
+                column = columns.map { index % $0 } ?? index
+            }
     }
 }
 

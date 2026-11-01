@@ -298,6 +298,8 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
         player.stop()
         player.clearMediaItems()
         queue = emptyList()
+        // Its sheet goes with it, rather than opening again with the next music.
+        model.showsMusicPlayer = false
         original = emptyList()
         albumTitles = emptyMap()
         index = 0

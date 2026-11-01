@@ -44,15 +44,17 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import io.github.flexarr.AppModel
 import io.github.flexarr.core.Format
+import io.github.flexarr.core.HomeRow
+import io.github.flexarr.core.HomeRowStyle
 import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.Library
 import io.github.flexarr.core.LibrarySort
 import io.github.flexarr.core.MediaKind
-import io.github.flexarr.core.PlaylistSummary
 import io.github.flexarr.core.artistName
 import io.github.flexarr.core.discs
 import io.github.flexarr.core.facts
 import io.github.flexarr.core.playlist
+import io.github.flexarr.core.musicRows
 import io.github.flexarr.core.playlists
 import io.github.flexarr.core.releaseYear
 import io.github.flexarr.core.totalRuntime
@@ -68,7 +70,6 @@ import io.github.flexarr.ui.theme.glowColor
 import io.github.flexarr.ui.theme.marquee
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -78,12 +79,6 @@ import kotlinx.coroutines.launch
 // from it, and pressing the one playing pauses it.
 
 private const val PAGE_SIZE = 60
-/**
- * How many of the newest artists are opened to find the newest albums. The server lists albums only under their
- * artist, so this bounds the requests a visit makes (as the phone's library does).
- */
-private const val RECENT_ARTISTS = 8
-private const val RECENT_ALBUM_COUNT = 12
 /** Six across, as the Apple TV's grids. */
 private const val ACROSS = 6
 /** The gap between six posters on the shared edges. */
@@ -102,12 +97,9 @@ private suspend fun FocusRequester.takeFocusSoon() {
     }
 }
 
-/** What a music library opens to, besides its artists: the profile's playlists and the albums that arrived last. */
-private class MusicBrowse(val playlists: List<PlaylistSummary>, val recentAlbums: List<ItemSummary>)
-
 /**
- * A music library's tab, as the Apple TV's MusicLibraryView: the profile's playlists, the albums that arrived most
- * recently, then every artist as a round picture. [takeFocus]: arriving from the sidebar, the first card takes focus
+ * A music library's tab: the server's rows for it (playlists, mixes, what's been played, new albums), in the profile's order
+ * and without the ones it switched off, then every artist as a round picture. [takeFocus]: arriving from the sidebar, the first card takes focus
  * once there is one, then [onFocusTaken].
  */
 @Composable
@@ -122,7 +114,7 @@ fun TvMusicLibraryScreen(model: AppModel, library: Library, takeFocus: Boolean, 
     var error by remember(libraryId) { mutableStateOf<String?>(null) }
     var attempt by remember { mutableIntStateOf(0) }
     var loadedAt by remember(libraryId) { mutableStateOf<Long?>(null) }
-    var browse by remember(libraryId) { mutableStateOf(MusicBrowse(emptyList(), emptyList())) }
+    var rows by remember(libraryId) { mutableStateOf(emptyList<HomeRow>()) }
     val first = remember { FocusRequester() }
     // Coming back from an artist or another tab keeps what's loaded unless it's getting old.
     RefreshWhenStale(loadedAt) { attempt++ }
@@ -131,18 +123,14 @@ fun TvMusicLibraryScreen(model: AppModel, library: Library, takeFocus: Boolean, 
         loading = true
         try {
             coroutineScope {
-                val lists = async { runCatching { client.playlists() }.getOrDefault(emptyList()) }
-                val newest = async { runCatching { client.libraryItems(libraryId, LibrarySort.Added, take = RECENT_ARTISTS).items }.getOrDefault(emptyList()) }
+                // Rows that can't load leave the playlists (when those can) and the artists.
+                val browse = async { client.musicRows(libraryId) }
                 val page = client.libraryItems(libraryId, LibrarySort.Title, take = PAGE_SIZE)
                 artists = page.items.filter { it.kind == MediaKind.Artist || it.kind == MediaKind.Unknown }
                 total = page.total
                 error = null
                 loadedAt = System.currentTimeMillis()
-                // The newest albums among the newest artists', newest first.
-                val albums = newest.await().map { artist ->
-                    async { runCatching { client.item(artist.id).children.filter { it.kind == MediaKind.Album } }.getOrDefault(emptyList()) }
-                }.awaitAll().flatten().sortedByDescending { it.addedAt.orEmpty() }.take(RECENT_ALBUM_COUNT)
-                browse = MusicBrowse(lists.await(), albums)
+                rows = browse.await().filter { it.showsInMusic }
             }
         } catch (e: CancellationException) {
             throw e
@@ -175,7 +163,7 @@ fun TvMusicLibraryScreen(model: AppModel, library: Library, takeFocus: Boolean, 
     }
 
     // Arriving from the sidebar: the first card, once there is one (or nothing to take it, said at once).
-    val hasCards = artists.isNotEmpty() || browse.playlists.isNotEmpty() || browse.recentAlbums.isNotEmpty()
+    val hasCards = artists.isNotEmpty() || rows.isNotEmpty()
     val list = rememberLazyListState()
     // Once everything's in: the artists come before the albums and playlists above them, which would move the first card.
     LaunchedEffect(takeFocus, hasCards, loading) {
@@ -188,12 +176,7 @@ fun TvMusicLibraryScreen(model: AppModel, library: Library, takeFocus: Boolean, 
         onFocusTaken()
     }
 
-    val firstSection = when {
-        browse.playlists.isNotEmpty() -> 0
-        browse.recentAlbums.isNotEmpty() -> 1
-        else -> 2
-    }
-    RoomBackground(ambient = (browse.recentAlbums.firstOrNull() ?: artists.firstOrNull())?.let { glowColor(it.accentColor) }, intensity = 0.18f) {
+    RoomBackground(ambient = (rows.firstNotNullOfOrNull { it.items.firstOrNull() } ?: artists.firstOrNull())?.let { glowColor(it.accentColor) }, intensity = 0.18f) {
         val failed = error
         when {
             failed != null && artists.isEmpty() -> TvStatusView(failed, retry = { attempt++ })
@@ -207,29 +190,13 @@ fun TvMusicLibraryScreen(model: AppModel, library: Library, takeFocus: Boolean, 
                         modifier = Modifier.padding(start = TvLayout.Edge),
                     )
                 }
-                if (browse.playlists.isNotEmpty()) {
-                    item(key = "playlists") {
-                        Shelf("Your playlists") {
-                            itemsIndexed(browse.playlists, key = { _, it -> it.id }) { index, playlist ->
-                                Box(if (index == 0 && firstSection == 0) Modifier.focusRequester(first) else Modifier) {
-                                    TvPlaylistCard(playlist, onClick = { navigator.openPlaylist(playlist.id) })
-                                }
-                            }
-                        }
-                    }
-                }
-                if (browse.recentAlbums.isNotEmpty()) {
-                    item(key = "recent") {
-                        Shelf("Recently added") {
-                            itemsIndexed(browse.recentAlbums, key = { _, it -> it.id }) { index, album ->
-                                TvAlbumCard(album, onClick = { navigator.open(album) }, showsArtist = true, modifier = if (index == 0 && firstSection == 1) Modifier.focusRequester(first) else Modifier)
-                            }
-                        }
-                    }
+                // As the server lists them: the profile chooses their order and which show. The first card takes focus.
+                rows.forEachIndexed { at, row ->
+                    item(key = "row-${row.id}") { MusicShelf(model, row, first.takeIf { at == 0 }) }
                 }
                 item(key = "artists-heading") { TvRowHeading("Artists") }
                 gridRows(artists, key = "artists", onRow = { lastIndex -> loadMoreIfNeeded(lastIndex) }) { index, artist ->
-                    TvArtistCard(artist, onClick = { navigator.open(artist) }, modifier = if (index == 0 && firstSection == 2) Modifier.focusRequester(first) else Modifier)
+                    TvArtistCard(artist, onClick = { navigator.open(artist) }, modifier = if (index == 0 && rows.isEmpty()) Modifier.focusRequester(first) else Modifier)
                 }
                 if (loading) {
                     item(key = "loading") {
@@ -240,6 +207,44 @@ fun TvMusicLibraryScreen(model: AppModel, library: Library, takeFocus: Boolean, 
         }
     }
 }
+
+/** One of the server's rows for a music library: playlists, tracks that play, or albums (and artists) that open. */
+@Composable
+private fun MusicShelf(model: AppModel, row: HomeRow, first: FocusRequester?) {
+    val navigator = LocalNavigator.current
+    fun Modifier.firstCard(index: Int) = if (index == 0 && first != null) focusRequester(first) else this
+    Shelf(row.title) {
+        when (row.style) {
+            HomeRowStyle.Playlists -> itemsIndexed(row.playlists.orEmpty(), key = { _, it -> it.id }) { index, playlist ->
+                Box(Modifier.firstCard(index)) { TvPlaylistCard(playlist, onClick = { navigator.openPlaylist(playlist.id) }) }
+            }
+            // A mix plays from its first track, with Now Playing over everything.
+            HomeRowStyle.Mixes -> itemsIndexed(row.mixes.orEmpty(), key = { _, it -> it.id }) { index, mix ->
+                Box(Modifier.firstCard(index)) { TvMixCard(mix, onClick = { navigator.playMix(mix.id) }) }
+            }
+            // A row of tracks plays: the one pressed first, the rest of the row after it.
+            HomeRowStyle.Tracks -> itemsIndexed(row.items, key = { _, it -> it.id }) { index, item ->
+                Box(Modifier.firstCard(index)) { TvTrackCard(model, item, onClick = { model.music.play(row.items, start = index) }) }
+            }
+            else -> itemsIndexed(row.items, key = { _, it -> it.id }) { index, item ->
+                if (item.kind == MediaKind.Artist) {
+                    TvArtistCard(item, onClick = { navigator.open(item) }, modifier = Modifier.firstCard(index))
+                } else {
+                    TvAlbumCard(item, onClick = { navigator.open(item) }, showsArtist = true, modifier = Modifier.firstCard(index))
+                }
+            }
+        }
+    }
+}
+
+/** A row this screen can draw, with something in it: not one of a kind it doesn't know, nor an empty one. */
+private val HomeRow.showsInMusic: Boolean
+    get() = when (style) {
+        HomeRowStyle.Playlists -> !playlists.isNullOrEmpty()
+        HomeRowStyle.Mixes -> !mixes.isNullOrEmpty()
+        HomeRowStyle.Tracks, HomeRowStyle.Poster, HomeRowStyle.Wide -> items.isNotEmpty()
+        else -> false
+    }
 
 /** A heading with a row of cards that scrolls sideways under it. */
 @Composable

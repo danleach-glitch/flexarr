@@ -180,7 +180,8 @@ struct LibrariesView: View {
                 }
             } else {
                 List {
-                    if model.hasWatchlist {
+                    // Not for a profile that hid it from the menu: Home's row and links still open it.
+                    if model.hasWatchlist && !model.hidesFromMenu(.watchlist) {
                         Section {
                             row("Watchlist", icon: "bookmark.fill") { router.push(.watchlist) }
                         }

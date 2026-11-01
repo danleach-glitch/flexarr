@@ -4,7 +4,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import App, { Shell } from './App'
 import { TrailerDialog } from './components/TrailerDialog'
 import { usePolling } from './hooks/usePolling'
-import { deleteItem } from './api/client'
+import { clearApiCache, deleteItem } from './api/client'
 import { WATCHED_CHANGED } from './hooks/watched'
 import { detail, mockApi, movies, status, summary } from './test/mockApi'
 
@@ -86,6 +86,36 @@ describe('App', () => {
 
     expect(await screen.findByRole('heading', { name: 'Latest unwatched films' })).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Your library is empty' })).not.toBeInTheDocument()
+  })
+
+  it('puts New podcasts where Home places it, and leaves it out when Home has switched it off', async () => {
+    const film = summary({ id: 'm9', kind: 'Movie', title: 'Big Buck Bunny', poster: null, backdrop: null })
+    const episode = {
+      id: 'pe1', podcastId: 'pod', podcastTitle: 'Hardcore History', title: 'Wrath of the Khans', overview: null, publishedAt: null,
+      durationSeconds: 3600, season: null, episode: null, episodeType: 'Full', explicit: false, artwork: {}, accentColor: null,
+      userData: { positionSeconds: 0, watched: false, playCount: 0, lastPlayedAt: null, unwatchedCount: null }, sizeBytes: null,
+    }
+    const films = { id: 'recent-movies', title: 'Latest unwatched films', style: 'poster', items: [film], link: null }
+    const podcastsRow = { id: 'podcasts-new', title: 'New podcasts', style: 'podcasts', items: [], link: '/podcasts' }
+    let rows: unknown[] = [films, podcastsRow]
+    mockApi({
+      '/system/status': status,
+      '/libraries': [movies, { ...movies, id: 'lib-pods', name: 'Podcasts', type: 'Podcasts' }],
+      '/home': () => ({ featured: [], overviews: {}, rows, upcoming: [], downloading: 0, placesPodcasts: true }),
+      '/podcasts/new': [episode],
+    })
+
+    const { unmount } = render(<App />)
+
+    await waitFor(() => expect(screen.getAllByRole('heading', { name: /Latest unwatched films|New podcasts/ })).toHaveLength(2))
+    expect(screen.getAllByRole('heading', { name: /Latest unwatched films|New podcasts/ }).map((h) => h.textContent)).toEqual(['Latest unwatched films', 'New podcasts'])
+    unmount()
+
+    rows = [films]
+    clearApiCache()
+    render(<App />)
+    expect(await screen.findByRole('heading', { name: 'Latest unwatched films' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'New podcasts' })).not.toBeInTheDocument()
   })
 
   it('says an empty library is still being looked through during its first scan', async () => {

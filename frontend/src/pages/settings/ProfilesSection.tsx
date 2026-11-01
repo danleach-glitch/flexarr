@@ -7,8 +7,10 @@ import {
   getAllLibraries,
   getMe,
   getRequestDestinations,
+  getRequestStatus,
   removeProfileImage,
   setAgeLimit,
+  setBookRequestLibrary,
   setRequestLibraries,
   setWatchlistRequests,
   uploadProfileImage,
@@ -26,7 +28,7 @@ import { usePreviewUrl } from '../../hooks/usePreviewUrl'
 import { freeColour, profileColours } from '../../lib/profileColours'
 import { ageLimitText, ratingSteps } from '../../lib/ratings'
 import { requestChoices, requestRows } from '../../lib/requestLibraries'
-import { RequestLibrarySelect } from './RequestsSection'
+import { RequestLibrarySelect } from './RequestLibrarySelect'
 import { SettingsHeader } from './shared'
 
 export function ProfilesSection() {
@@ -35,6 +37,8 @@ export function ProfilesSection() {
   const libraries = useApi(getAllLibraries, []).data ?? []
   // Seerr being away only takes the request choices out of the form.
   const destinations = useApi(getRequestDestinations, []).data ?? []
+  // Books are requested through Readarr (or its like), not Seerr: their library is chosen only when that's set up.
+  const books = useApi((signal) => getRequestStatus(signal).catch(() => undefined), []).data?.books === true
   const [editing, setEditing] = useState<Profile | 'new'>()
   // A kids profile is only as safe as the admin PIN, which is what it takes to leave one.
   const me = useApi(getMe, [])
@@ -59,12 +63,13 @@ export function ProfilesSection() {
       >
         Everyone gets their own Continue Watching, history and Up Next. A PIN keeps a profile private.
       </SettingsHeader>
-      <div className="panel profile-list">
+      <div className="profile-list">
         {editing === 'new' && (
           <ProfileForm
             defaultColour={freeColour(data ?? [])}
             libraries={libraries}
             destinations={destinations}
+            books={books}
             mainHasPin={mainHasPin}
             onDone={reload}
             onCancel={() => setEditing(undefined)}
@@ -80,12 +85,13 @@ export function ProfilesSection() {
               defaultColour={freeColour(data)}
               libraries={libraries}
               destinations={destinations}
+            books={books}
               mainHasPin={mainHasPin}
               onDone={reload}
               onCancel={() => setEditing(undefined)}
             />
           ) : (
-            <div key={p.id} className="profile-row">
+            <div key={p.id} className="panel profile-row">
               <Avatar profile={p} size={40} />
               <span className="setting-text">
                 <strong className="profile-name">
@@ -126,6 +132,7 @@ function ProfileForm({
   defaultColour,
   libraries,
   destinations,
+  books,
   mainHasPin,
   onDone,
   onCancel,
@@ -134,6 +141,7 @@ function ProfileForm({
   defaultColour: string
   libraries: Library[]
   destinations: RequestDestination[]
+  books: boolean
   mainHasPin: boolean
   onDone: () => void
   onCancel: () => void
@@ -144,9 +152,11 @@ function ProfileForm({
     requestShowsLibraryId: profile?.requestShowsLibraryId ?? null,
     requestFilmsLibraryId: profile?.requestFilmsLibraryId ?? null,
   })
+  const [bookLibrary, setBookLibrary] = useState(profile?.requestAudiobooksLibraryId ?? null)
   const [autoRequest, setAutoRequest] = useState(profile?.autoRequestWatchlist ?? false)
   // Only kinds with a choice left once the hidden libraries are taken out.
   const requestFields = requestRows.map((r) => ({ ...r, choices: requestChoices(destinations, r.mediaType, hidden) })).filter((r) => r.choices.length > 1)
+  const bookLibraries = books ? libraries.filter((l) => l.type === 'Audiobooks' && !hidden.includes(l.id)) : []
   const [picture, setPicture] = useState<File | null>()
   const preview = usePreviewUrl(picture)
   const shownImage = picture === null ? null : (preview ?? profile?.image ?? null)
@@ -178,6 +188,7 @@ function ProfileForm({
       const { requestShowsLibraryId: showsLibraryId, requestFilmsLibraryId: filmsLibraryId } = requestLibraries
       if (showsLibraryId !== (profile?.requestShowsLibraryId ?? null) || filmsLibraryId !== (profile?.requestFilmsLibraryId ?? null))
         await setRequestLibraries(saved.id, { showsLibraryId, filmsLibraryId })
+      if (bookLibraries.length > 1 && bookLibrary !== (profile?.requestAudiobooksLibraryId ?? null)) await setBookRequestLibrary(saved.id, bookLibrary)
       if (autoRequest !== (profile?.autoRequestWatchlist ?? false)) await setWatchlistRequests(saved.id, autoRequest)
       if (picture) await uploadProfileImage(saved.id, picture)
       else if (picture === null && profile?.image) await removeProfileImage(saved.id)
@@ -196,7 +207,7 @@ function ProfileForm({
       : 'Anyone can switch to this profile. A PIN keeps it private.'
 
   return (
-    <form className="profile-form" onSubmit={submit} aria-label={profile ? `Edit ${profile.name}` : 'New profile'}>
+    <form className="panel profile-form" onSubmit={submit} aria-label={profile ? `Edit ${profile.name}` : 'New profile'}>
       <div className="profile-identity">
         <div className="profile-picture">
           <Avatar profile={{ name: name || '?', color, image: shownImage }} size={72} />
@@ -376,12 +387,11 @@ function ProfileForm({
         </fieldset>
       )}
       {/* A profile with an age limit doesn't request: Seerr's titles have no ages Flexarr can check. */}
-      {requestFields.length > 0 && maxRatingAge === null && (
+      {(requestFields.length > 0 || bookLibraries.length > 1) && maxRatingAge === null && (
         <fieldset className="profile-section profile-libraries">
           <legend className="visually-hidden">Requests</legend>
           <span className="setting-text">
             <strong>Where {profile ? `${profile.name}’s` : 'this profile’s'} requests go</strong>
-            <span className="muted">The library shows and films requested from Discover are added to. They can change it in their own Settings too.</span>
           </span>
           <div className="profile-library-list">
             {requestFields.map((r) => (
@@ -390,6 +400,19 @@ function ProfileForm({
                 <RequestLibrarySelect choices={r.choices} value={requestLibraries[r.key]} onChange={(id) => setRequestLibraryIds({ ...requestLibraries, [r.key]: id })} />
               </label>
             ))}
+            {bookLibraries.length > 1 && (
+              <label className="profile-library">
+                <span>New books go to</span>
+                <select value={bookLibrary ?? ''} onChange={(e) => setBookLibrary(e.target.value || null)}>
+                  <option value="">As requests are set up</option>
+                  {bookLibraries.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
           </div>
         </fieldset>
       )}

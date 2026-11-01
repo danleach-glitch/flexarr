@@ -4,20 +4,32 @@ import SwiftUI
 /// A playlist's picture: the cover chosen for it, or a mosaic of its first tracks' covers.
 struct PlaylistArtwork: View {
     @Environment(AppModel.self) private var model
-    let playlist: PlaylistSummary
+    let covers: [String]
+    var cover: String?
     var size: CGFloat
+
+    init(playlist: PlaylistSummary, size: CGFloat) {
+        self.init(covers: playlist.covers, cover: playlist.cover, size: size)
+    }
+
+    /// A mosaic of these covers (a mix's), or the one chosen.
+    init(covers: [String], cover: String? = nil, size: CGFloat) {
+        self.covers = covers
+        self.cover = cover
+        self.size = size
+    }
 
     var body: some View {
         Group {
-            if let cover = playlist.cover {
+            if let cover = cover {
                 RemoteImage(url: model.client?.imageURL(cover, width: size > 400 ? 800 : 500)) { placeholder }
-            } else if playlist.covers.count >= 4 {
+            } else if covers.count >= 4 {
                 let half = size / 2
                 VStack(spacing: 0) {
-                    HStack(spacing: 0) { tile(playlist.covers[0], half); tile(playlist.covers[1], half) }
-                    HStack(spacing: 0) { tile(playlist.covers[2], half); tile(playlist.covers[3], half) }
+                    HStack(spacing: 0) { tile(covers[0], half); tile(covers[1], half) }
+                    HStack(spacing: 0) { tile(covers[2], half); tile(covers[3], half) }
                 }
-            } else if let first = playlist.covers.first {
+            } else if let first = covers.first {
                 tile(first, size)
             } else {
                 placeholder
@@ -47,10 +59,12 @@ struct PlaylistArtwork: View {
 struct PlaylistCard: View {
     let playlist: PlaylistSummary
     var width: CGFloat = Layout.posterWidth
+    /// Shared focus state, so the row can steer focus to this card (see `RowFocus`).
+    var focus: FocusState<String?>.Binding? = nil
     let action: () -> Void
 
     var body: some View {
-        ArtworkButton(ambient: .silver, action: action) {
+        ArtworkButton(ambient: .silver, focus: focus, focusID: playlist.id, accessibilityText: "\(playlist.name), \(playlist.trackCountLabel)", action: action) {
             PlaylistArtwork(playlist: playlist, size: width)
         } caption: { focused in
             VStack(alignment: .leading, spacing: 4) {
@@ -64,6 +78,60 @@ struct PlaylistCard: View {
                     .lineLimit(1)
             }
             .frame(width: width, alignment: .leading)
+        }
+    }
+}
+
+/// One of the day's music mixes in a row: a mosaic of its covers with the name and what it is beneath. Pressing it
+/// plays the mix.
+struct MixCard: View {
+    @Environment(AppModel.self) private var model
+    @Environment(Router.self) private var router
+    let mix: MixSummary
+    var width: CGFloat = Layout.posterWidth
+    /// Shared focus state, so the row can steer focus to this card (see `RowFocus`).
+    var focus: FocusState<String?>.Binding? = nil
+    /// Called when the mix is gone (a new day's mixes replaced it), to load the rows again. Home's reload otherwise.
+    var onStale: (() -> Void)?
+    @State private var isStarting = false
+
+    var body: some View {
+        ArtworkButton(ambient: .silver, focus: focus, focusID: mix.id, accessibilityText: "\(mix.name), \(mix.description)", action: play) {
+            PlaylistArtwork(covers: mix.covers, size: width)
+                .overlay {
+                    if isStarting { ProgressView() }
+                }
+        } caption: { focused in
+            VStack(alignment: .leading, spacing: 4) {
+                Text(mix.name)
+                    .font(.system(size: 24, weight: .semibold))
+                    .foregroundStyle(focused ? Color.screen : Color.screen.opacity(0.8))
+                    .lineLimit(1)
+                Text(mix.description)
+                    .font(.system(size: 21))
+                    .foregroundStyle(Color.usher)
+                    .lineLimit(1)
+            }
+            .frame(width: width, alignment: .leading)
+        }
+        .accessibilityHint("Plays the mix")
+    }
+
+    private func play() {
+        guard let client = model.client, !isStarting else { return }
+        isStarting = true
+        Task {
+            defer { isStarting = false }
+            do {
+                let detail = try await client.mix(mix.id)
+                model.playTracks(detail.tracks, showingNowPlaying: router)
+            } catch FlexarrClientError.http(status: 404, _) {
+                // Yesterday's mix: the day's mixes have been made afresh since the page loaded.
+                model.player.showFailure("Today's mixes have changed. Try again.")
+                if let onStale { onStale() } else { model.invalidate() }
+            } catch {
+                model.player.showFailure(ConnectionError(error).message)
+            }
         }
     }
 }

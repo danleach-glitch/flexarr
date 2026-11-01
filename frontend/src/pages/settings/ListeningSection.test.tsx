@@ -16,7 +16,7 @@ const renderPage = () =>
     </MemoryRouter>,
   )
 
-describe('Podcasts and audiobooks settings', () => {
+describe('Podcasts & audiobooks settings', () => {
   it('saves the shared speed, skips and smart rewind as podcast preferences', async () => {
     const sent: unknown[] = []
     mockApi({
@@ -63,27 +63,6 @@ describe('Podcasts and audiobooks settings', () => {
     expect(screen.getByRole('combobox', { name: 'Skip back' })).toHaveValue('45')
   })
 
-  it('turns books and podcasts in Continue watching off, keeping the other playback preferences', async () => {
-    const sent: unknown[] = []
-    mockApi({
-      '/podcasts/preferences': podcasts,
-      '/me/playback-preferences': { ...playback, listeningInContinue: true },
-      'PUT /me/playback-preferences': (init?: RequestInit) => {
-        const body: unknown = JSON.parse(String(init?.body))
-        sent.push(body)
-        return body
-      },
-    })
-    renderPage()
-
-    const toggle = await screen.findByRole('switch', { name: 'Books and podcasts in Continue watching' })
-    expect(toggle).toBeChecked()
-    fireEvent.click(toggle)
-
-    await vi.waitFor(() => expect(sent).toEqual([{ ...playback, listeningInContinue: false }]))
-    expect(toggle).not.toBeChecked()
-  })
-
   it('leaves out what an older server has no settings for', async () => {
     mockApi({ '/podcasts/preferences': { autoDownload: true, keepEpisodes: 3, speed: 1, showInSidebar: true }, '/me/playback-preferences': playback })
     renderPage()
@@ -91,10 +70,9 @@ describe('Podcasts and audiobooks settings', () => {
     expect(await screen.findByRole('combobox', { name: 'Speed' })).toBeInTheDocument()
     expect(screen.queryByRole('combobox', { name: 'Skip back' })).not.toBeInTheDocument()
     expect(screen.queryByRole('switch', { name: /Smart rewind/ })).not.toBeInTheDocument()
-    expect(screen.queryByRole('switch', { name: 'Books and podcasts in Continue watching' })).not.toBeInTheDocument()
   })
 
-  it('gives the main profile its Continue watching switch in Home and Browse', async () => {
+  it('has every profile’s Continue watching switch in Home & browse', async () => {
     const sent: unknown[] = []
     mockApi({
       '/settings/layout': { home: [], movies: [], shows: [], combinable: false, combineLibraries: false },
@@ -125,6 +103,6 @@ describe('Podcasts and audiobooks settings', () => {
       </MemoryRouter>,
     )
 
-    expect(await screen.findByRole('heading', { name: 'Podcasts and audiobooks', level: 2 })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Podcasts & audiobooks', level: 2 })).toBeInTheDocument()
   })
 })

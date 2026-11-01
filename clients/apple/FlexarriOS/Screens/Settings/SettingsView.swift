@@ -80,7 +80,7 @@ struct SettingsView: View {
                     DownloadSettingsView()
                 }
                 if model.podcastStatus?.available == true || model.bookListening != nil {
-                    SettingsLink("Podcasts and audiobooks", icon: "headphones") { ListeningSettingsView() }
+                    SettingsLink("Podcasts & audiobooks", icon: "headphones") { ListeningSettingsView() }
                 }
                 // Servers before 0.54 keep no order.
                 if model.libraryOrder != nil, LibraryMenuEntry.ordered(model: model).count > 1 {

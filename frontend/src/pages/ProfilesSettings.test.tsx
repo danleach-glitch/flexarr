@@ -117,6 +117,32 @@ describe('Profile form', () => {
   })
 })
 
+describe('Where a profile’s books go', () => {
+  it('is chosen in the profile editor when there are two audiobooks libraries', async () => {
+    const sent: unknown[] = []
+    const books = (id: string, name: string) => ({ ...movies, id, name, type: 'Audiobooks', scan: null })
+    mockApi({
+      '/libraries': (_: RequestInit | undefined, url: URL) => (url.searchParams.get('all') ? [books('lib-a', 'Audiobooks'), books('lib-b', 'Kids’ books')] : []),
+      '/me': adminHere,
+      '/profiles': [main, { ...kids, hiddenLibraryIds: [] }],
+      '/requests/status': { configured: true, reachable: true, books: true },
+      'PUT /profiles/c1': () => kids,
+      'PUT /profiles/c1/book-requests': (init?: RequestInit) => {
+        sent.push(JSON.parse(String(init?.body)))
+        return kids
+      },
+    })
+
+    renderAt('/settings/profiles')
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit Kids' }))
+    const form = await screen.findByRole('form', { name: 'Edit Kids' })
+    fireEvent.change(await within(form).findByRole('combobox', { name: 'New books go to' }), { target: { value: 'lib-b' } })
+    fireEvent.click(within(form).getByRole('button', { name: 'Save profile' }))
+
+    await vi.waitFor(() => expect(sent).toEqual([{ libraryId: 'lib-b' }]))
+  })
+})
+
 describe('Settings for another profile', () => {
   it('switches to the main profile with its PIN and comes back to the same page', async () => {
     window.history.replaceState(null, '', '/settings/playback')

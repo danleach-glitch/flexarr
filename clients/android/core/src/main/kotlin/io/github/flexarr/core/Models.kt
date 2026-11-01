@@ -82,6 +82,10 @@ enum class HomeRowStyle(override val raw: String) : ForwardCompatibleEnum {
     Playlists("playlists"),
     /** Favourite TV channels; `items` is empty. */
     Live("live"),
+    /** Where the app's own New podcasts row goes ([HOME_PODCASTS_ROW_ID]); `items` is empty. Absent from servers before 0.58. */
+    Podcasts("podcasts"),
+    /** The profile's daily music mixes ("Made for you", [MUSIC_MIXES_ROW_ID]); `items` is empty, the mixes are in `mixes`. */
+    Mixes("mixes"),
     Unknown("");
 
     object Serializer : ForwardCompatibleEnumSerializer<HomeRowStyle>("HomeRowStyle", entries, Unknown)
@@ -330,7 +334,12 @@ data class HomeRow(
     val channels: List<LiveChannel>? = null,
     /** A `playlists` row's content (`items` is empty then). Absent from servers before playlists. */
     val playlists: List<PlaylistSummary>? = null,
+    /** A `mixes` row's content (`items` is empty then). Absent from servers before music mixes (0.23). */
+    val mixes: List<MixSummary>? = null,
 )
+
+/** The id of the empty Home row that says where the New podcasts row goes ([Home.placesPodcasts]). */
+const val HOME_PODCASTS_ROW_ID = "podcasts-new"
 
 @Serializable
 data class Home(
@@ -341,6 +350,11 @@ data class Home(
     val resume: ItemSummary? = null,
     /** What each part-played featured title resumes, by its id. Absent from servers before 0.53. */
     val resumes: Map<String, ItemSummary>? = null,
+    /**
+     * True: [rows] place the New podcasts row (an empty [HOME_PODCASTS_ROW_ID] row the app fills), and leave it out
+     * when the profile switched it off. Absent from servers before 0.58, where the app put it after Continue watching.
+     */
+    val placesPodcasts: Boolean? = null,
 ) {
     /**
      * What a featured title's Play picks up from, when it's been started: the film itself, or a show's episode. A
@@ -350,6 +364,50 @@ data class Home(
         resumes?.let { return it[item.id] }
         return if (item.id == featured.firstOrNull()?.id) resume else null
     }
+}
+
+/** Whether this Home has the New podcasts row: not when the server places it and the profile switched it off. */
+val Home.hasNewPodcasts: Boolean get() = placesPodcasts != true || rows.any { it.id == HOME_PODCASTS_ROW_ID }
+
+/**
+ * Whether each profile's last Home had the New podcasts row, so one that switched it off doesn't fetch the episodes
+ * on every visit. Not known yet (the first Home, a server before 0.58, which always has it): they're fetched.
+ */
+class NewPodcastsMemory {
+    private val had = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
+
+    /** Whether to fetch the episodes alongside [profileId]'s next Home, rather than only once it's known to want them. */
+    fun fetchesAlongside(profileId: String?): Boolean = had[profileId.orEmpty()] ?: true
+
+    fun remember(profileId: String?, home: Home) {
+        had[profileId.orEmpty()] = home.hasNewPodcasts
+    }
+}
+
+/** A place in Home's list: one of the server's rows, or the app's own New podcasts row. */
+sealed interface HomeSlot {
+    data class Row(val row: HomeRow) : HomeSlot
+    data object NewPodcasts : HomeSlot
+}
+
+/**
+ * Home's rows that [shows] keeps, with the New podcasts row where it goes: at the server's [HOME_PODCASTS_ROW_ID] row
+ * when it [Home.placesPodcasts] (not at all without that row), otherwise after Continue watching (or first), as
+ * before 0.58.
+ */
+fun Home.slots(shows: (HomeRow) -> Boolean): List<HomeSlot> {
+    if (placesPodcasts == true) {
+        return rows.mapNotNull { row ->
+            when {
+                row.id == HOME_PODCASTS_ROW_ID -> HomeSlot.NewPodcasts
+                shows(row) -> HomeSlot.Row(row)
+                else -> null
+            }
+        }
+    }
+    val shown = rows.filter { it.id != HOME_PODCASTS_ROW_ID && shows(it) }.map(HomeSlot::Row)
+    val continuing = if (shown.firstOrNull()?.row?.id == "continue") 1 else 0
+    return shown.take(continuing) + HomeSlot.NewPodcasts + shown.drop(continuing)
 }
 
 // Playback
@@ -688,8 +746,16 @@ data class Profile(
     val maxRatingAge: Int? = null,
     /** A child's profile: the kids app, and leaving it takes the admin PIN. Absent from servers before 0.56. */
     val isKids: Boolean = false,
+    /**
+     * The menu items it leaves out of every app's menu (see [MenuItem]); they stay reachable from Home, links and
+     * widgets. Values this app doesn't know mean nothing. Null: nothing hidden. Absent from servers before 0.58.
+     */
+    val hiddenNavigation: List<String>? = null,
 ) {
     val initial: String get() = name.trim().firstOrNull()?.uppercase() ?: "?"
+
+    /** Whether it leaves [item] (one of [MenuItem]'s) out of the menu. */
+    fun hidesFromMenu(item: String): Boolean = hiddenNavigation.orEmpty().any { it.equals(item, ignoreCase = true) }
 
     /** Has an age limit: Discover, Coming Soon and requests aren't for it, since their titles have no age to check. */
     val hasAgeLimit: Boolean get() = maxRatingAge != null
@@ -718,6 +784,16 @@ fun libraryOrder(saved: List<String>, shown: List<String>): List<String> {
 
 /** Live TV's place in a profile's library order. */
 const val LIVE_TV_ORDER_ID = "live-tv"
+
+/** The menu items a profile can leave out of the menus ([Profile.hiddenNavigation]). */
+object MenuItem {
+    const val WATCHLIST = "watchlist"
+    const val COLLECTIONS = "collections"
+    const val PLAYLISTS = "playlists"
+    const val LIVE_TV = LIVE_TV_ORDER_ID
+    const val DISCOVER = "discover"
+    const val UPCOMING = "upcoming"
+}
 
 /**
  * [entries] in the order of [saved] (ids compared ignoring case); any it doesn't mention, such as a new library, after
