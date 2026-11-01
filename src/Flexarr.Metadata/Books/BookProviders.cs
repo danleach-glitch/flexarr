@@ -147,16 +147,52 @@ public sealed partial class BookProviders(HttpClient http, Func<IMetadataSetting
         return null;
     }
 
-    /// <summary>Every provider's results for a title and author, in the admin's order: for Fix match.</summary>
+    /// <summary>
+    /// Every provider's results for a title and author, in the admin's order: for Fix match. A provider that finds
+    /// nothing is asked again more loosely: without a leading "A", "An" or "The" (Open Library often files a book
+    /// without it), then without the author (a book Fix match is for may well have the wrong one).
+    /// </summary>
     public async Task<List<BookMatch>> SearchAsync(string title, string? author, CancellationToken ct)
     {
+        ArgumentNullException.ThrowIfNull(title);
+        var bare = WithoutArticle(title);
+        var tries = new List<(string Title, string? Author)> { (title, author) };
+        if (bare != title) tries.Add((bare, author));
+        if (author is not null)
+        {
+            tries.Add((title, null));
+            if (bare != title) tries.Add((bare, null));
+        }
+
         var results = new List<BookMatch>();
         foreach (var provider in Enabled)
         {
-            results.AddRange(await SearchOneAsync(provider, title, author, ct).ConfigureAwait(false));
+            foreach (var (t, a) in tries)
+            {
+                var found = await SearchOneAsync(provider, t, a, ct).ConfigureAwait(false);
+                if (found.Count > 0)
+                {
+                    results.AddRange(found);
+                    break;
+                }
+            }
         }
 
         return results;
+    }
+
+    private static string WithoutArticle(string title)
+    {
+        var trimmed = title.Trim();
+        foreach (var article in new[] { "A ", "An ", "The " })
+        {
+            if (trimmed.StartsWith(article, StringComparison.OrdinalIgnoreCase) && trimmed.Length > article.Length + 2)
+            {
+                return trimmed[article.Length..].TrimStart();
+            }
+        }
+
+        return trimmed;
     }
 
     private Task<List<BookMatch>> SearchOneAsync(string provider, string title, string? author, CancellationToken ct) => TryListAsync(() => provider switch

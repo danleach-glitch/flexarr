@@ -17,6 +17,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Kids profiles don't see audiobooks. Audible-protected `.aax` files are listed in **Library health**, as they can't be played.
 - On the web, **All books** and a genre's page keep just the sort, and **Series** and **Authors** just the grid: no search box or filter menus.
 - On Android, a series' Play button names the book it plays, as on the web and iPhone, rather than its number.
+- **Fix match** finds more books: when a search comes back empty it tries again without a leading "A" or "The", then without the author, which may be the wrong one.
 
 ### Podcasts
 - Podcast settings are now **Settings › Podcasts & audiobooks** on the web, iPhone, iPad and Android, and cover audiobooks too: one speed, skip steps and smart rewind for both (a book with its own speed keeps it).
