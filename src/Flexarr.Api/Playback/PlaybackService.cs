@@ -23,7 +23,8 @@ public sealed class PlaybackService(
     CurrentProfile profile,
     IOptionsMonitor<FlexarrOptions> options,
     Security.GuestLinks guestLinks,
-    Authentication.SignIns? signIns = null)
+    Authentication.SignIns? signIns = null,
+    Books.BookFileConverter? bookConverter = null)
 {
     /// <summary>Within this distance of the end (or once the credits start) an item counts as watched.</summary>
     internal const double WatchedThreshold = 0.92;
@@ -347,6 +348,7 @@ public sealed class PlaybackService(
         var basePath = $"/api/v1/playback/{id}";
         var manifest = await Books.BookPlayback.ManifestAsync(db, book, profile.Id, parts, p => $"{basePath}/book/{p.Index}", ct);
         var start = request.StartPositionSeconds ?? (manifest.Progress.Finished ? 0 : manifest.Progress.PositionSeconds);
+        bookConverter?.Prepare(parts, start); // the files this player can't decode, converted while it gets going
         var summary = await db.MediaItems.Where(i => i.Id == book.Id).Summaries(profile.Id).FirstAsync(ct);
         return new PlaybackInfoDto(id, PlaybackMethod.DirectPlay, manifest.Files[0].Url, [], duration, Math.Clamp(start, 0, duration), parts[0].FileId,
             [], null, [], null, false, [], summary, [], manifest.NextInSeries, null, Speed: manifest.Speed, Book: manifest);

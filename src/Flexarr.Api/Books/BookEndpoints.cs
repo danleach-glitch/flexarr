@@ -49,8 +49,8 @@ public static class BookEndpoints
         var item = api.MapGroup("/items/{id:guid}").WithTags("Audiobooks");
 
         // The book's files on its timeline, for a download or a player that plays it without a session. codecs: the
-        // sounds the player decodes ("aac,mp3,flac"); files in any other are converted.
-        item.MapGet("/book", async (Guid id, string? codecs, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
+        // sounds the player decodes ("aac,mp3,flac"); files in any other are converted, starting now.
+        item.MapGet("/book", async (Guid id, string? codecs, FlexarrDbContext db, CurrentProfile profile, BookFileConverter converter, CancellationToken ct) =>
         {
             if (await BookAsync(db, id, ct) is not { } book)
             {
@@ -58,8 +58,10 @@ public static class BookEndpoints
             }
 
             var parts = await BookPlayback.PartsAsync(db, id, Codecs(codecs), ct);
-            return Results.Ok(await BookPlayback.ManifestAsync(db, book, profile.Id, parts,
-                p => $"/api/v1/items/{id}/book/files/{p.Index}{(p.Convert ? "?convert=aac" : "")}", ct));
+            var manifest = await BookPlayback.ManifestAsync(db, book, profile.Id, parts,
+                p => $"/api/v1/items/{id}/book/files/{p.Index}{(p.Convert ? "?convert=aac" : "")}", ct);
+            converter.Prepare(parts, manifest.Progress.PositionSeconds);
+            return Results.Ok(manifest);
         });
 
         item.MapGet("/book/files/{index:int}", async (Guid id, int index, string? convert, FlexarrDbContext db, BookFileConverter converter, CancellationToken ct) =>
