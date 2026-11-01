@@ -529,6 +529,8 @@ const queryString = (options: object) => {
 }
 
 export const getBookShelves = (libraryId: string, signal?: AbortSignal) => cachedGet<BookShelves>(`/libraries/${libraryId}/book-shelves`, signal)
+/** A library's book genres, A–Z, with how many books are in each. */
+export const getBookGenres = (libraryId: string, signal?: AbortSignal) => cachedGet<{ name: string; count: number }[]>(`/libraries/${libraryId}/book-genres`, signal)
 export const getLibraryBooks = (libraryId: string, filters: BookFilters, signal?: AbortSignal) =>
   cachedGet<Paged<ItemSummary>>(`/libraries/${libraryId}/books${queryString(filters)}`, signal)
 export const getBookSeriesList = (libraryId: string, options: { search?: string; skip?: number; take?: number }, signal?: AbortSignal) =>

@@ -172,6 +172,25 @@
   padding: 0 var(--edge);
 }
 
+/* A genre's page: the way back to Genres sits above its name, where the views are on the library's. */
+.genre-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--usher);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.genre-back:hover {
+  color: var(--screen);
+}
+
+.genre-back svg {
+  width: 18px;
+  height: 18px;
+}
+
 .book-genres .chip-count {
   margin-left: 8px;
   opacity: 0.6;
