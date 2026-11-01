@@ -71,8 +71,6 @@ public static partial class DiscoveryEndpoints
             var libraries = (await db.Libraries.OrderBy(l => l.Name).ToListAsync(ct))
                 .Where(l => !(options.LiveTv?.Account is not null && RecordingsLibrary.Is(l))).ToList();
 
-            // Films and shows only: the hero resumes what this holds, and has no way to play a book.
-            var continueWatching = await ContinueWatchingAsync(db, me, RowSize, null, ct);
             // Books and podcast episodes join the row when the app can open them and the profile wants them there, and
             // the row is on in Settings › Home (switched off, books keep their own Continue listening row).
             var asked = LayoutEndpoints.IsOn(options.Layout.Home, "continue") && Listening.Parse(listening) is { Any: true } kinds
@@ -80,14 +78,11 @@ public static partial class DiscoveryEndpoints
                 ? kinds : default;
             List<Guid> listenBooks = asked.Books ? [.. libraries.Where(l => l.Type == LibraryType.Audiobooks).Select(l => l.Id)] : [];
             List<Guid> listenPodcasts = asked.Podcasts ? [.. libraries.Where(l => l.Type == LibraryType.Podcasts).Select(l => l.Id)] : [];
-            if (listenBooks.Count > 0 || listenPodcasts.Count > 0)
+            // continueWatching is films and shows only: the hero resumes what it holds, and has no way to play a book.
+            var (continueWatching, continueRow) = await ContinueWatchingOrListeningAsync(db, me, RowSize, listenBooks, listenPodcasts, ct);
+            if (continueRow.Count > 0)
             {
-                rows.Add(new HomeRowDto("continue", "Continue watching or listening", "wide",
-                    await ContinueWatchingOrListeningAsync(db, me, RowSize, listenBooks, listenPodcasts, ct)));
-            }
-            else if (continueWatching.Count > 0)
-            {
-                rows.Add(new HomeRowDto("continue", "Continue watching", "wide", continueWatching));
+                rows.Add(new HomeRowDto("continue", listenBooks.Count > 0 || listenPodcasts.Count > 0 ? "Continue watching or listening" : "Continue watching", "wide", continueRow));
             }
 
             // Titles from this profile's watchlist it can play now; nothing until something on the list is in. A kids profile has none.
@@ -539,12 +534,14 @@ public static partial class DiscoveryEndpoints
     /// Home's Continue row: films and shows as <see cref="ContinueWatchingAsync"/> has them, and the audiobooks and
     /// podcast episodes the profile is part way through in <paramref name="bookLibraries"/> and
     /// <paramref name="podcastLibraries"/> (those it can see, of the kinds the app asked for), all by when they were
-    /// last played.
+    /// last played. Films and shows are worked out once, for the row and for the hero (<paramref name="Watching"/>).
     /// </summary>
-    private static async Task<List<ItemSummaryDto>> ContinueWatchingOrListeningAsync(FlexarrDbContext db, string profileId, int limit,
+    /// <returns>The films and shows alone (what the hero may resume), and the row.</returns>
+    private static async Task<(List<ItemSummaryDto> Watching, List<ItemSummaryDto> Row)> ContinueWatchingOrListeningAsync(FlexarrDbContext db, string profileId, int limit,
         List<Guid> bookLibraries, List<Guid> podcastLibraries, CancellationToken ct)
     {
-        var order = await ContinueWatchingOrderAsync(db, profileId, limit, null, ct);
+        var watching = await ContinueWatchingOrderAsync(db, profileId, limit, null, ct);
+        var order = new List<(Guid Id, DateTime At)>(watching);
         if (bookLibraries.Count > 0)
         {
             order.AddRange(await LastPlayedAsync(db, Books.BookRows.Playable(db, bookLibraries), profileId, limit, ct));
@@ -556,9 +553,12 @@ public static partial class DiscoveryEndpoints
             order.AddRange(await LastPlayedAsync(db, episodes, profileId, limit, ct));
         }
 
-        var ids = order.OrderByDescending(x => x.At).Select(x => x.Id).Distinct().Take(limit).ToList();
-        var items = await db.MediaItems.Where(i => ids.Contains(i.Id)).Summaries(profileId).ToDictionaryAsync(i => i.Id, ct);
-        return ids.Where(items.ContainsKey).Select(id => items[id]).ToList();
+        var watchingIds = watching.Select(x => x.Id).ToList();
+        var rowIds = order.OrderByDescending(x => x.At).Select(x => x.Id).Distinct().Take(limit).ToList();
+        var wanted = watchingIds.Union(rowIds).ToList();
+        var items = await db.MediaItems.Where(i => wanted.Contains(i.Id)).Summaries(profileId).ToDictionaryAsync(i => i.Id, ct);
+        List<ItemSummaryDto> InOrder(List<Guid> ids) => [.. ids.Where(items.ContainsKey).Select(id => items[id])];
+        return (InOrder(watchingIds), InOrder(rowIds));
     }
 
     /// <summary>
