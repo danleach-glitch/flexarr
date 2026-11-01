@@ -46,7 +46,9 @@ A book's page shows its series ("Book 3 of 7"), authors and narrators, how long 
 - **Across devices:** your place is saved as you listen. If another device got further, the player offers to jump there.
 - At the end of a book in a series, the player offers the next one.
 
-Set your default speed, skip steps and smart rewind in **Settings › Audiobooks**.
+In the player, the seek bar covers the chapter playing; switch it to **Book** to see the whole book. Time left counts at your speed.
+
+Set your default speed, skip steps and smart rewind in any app's **Settings › Audiobooks**. A book you've set a speed for in the player keeps its own.
 
 ## On your phone
 
@@ -54,9 +56,9 @@ Set your default speed, skip steps and smart rewind in **Settings › Audiobooks
 
 ## Details from the internet
 
-When a book's files leave gaps, Flexarr fills them from Audible (through the community-run Audnexus service), Open Library, and if you add keys, Google Books and Hardcover. Choose the order and your Audible store in **Settings › Audiobooks**.
+When a book's files leave gaps, Flexarr fills them from Audible (through the community-run Audnexus service), Open Library, and if you add keys, Google Books and Hardcover. Choose the order and your Audible store in **Settings › Audiobooks**; Google Books and Hardcover turn on once their key or token is saved there.
 
-Audible's chapters replace guessed ones when they match the book's length. To change a book's chapters yourself, open its page, choose **⋯ › Edit chapters**, and rename them, move them all by a few seconds, or use Audible's. **Fix match** finds the right book when Flexarr picked the wrong one.
+Audible's chapters replace guessed ones when they match the book's length. To change a book's chapters yourself, open its page, choose **⋯ › Edit chapters**, rename them or move them all by a few seconds, then **Save**. **Use Audible's** replaces them all straight away. **Fix match** finds the right book when Flexarr picked the wrong one.
 
 ## Readarr, Bookshelf and Chaptarr
 
@@ -68,4 +70,4 @@ With one connected:
 - Their details and covers fill what your files don't say.
 - **Coming soon** lists books on their way from authors you follow.
 - Deleting a book in Flexarr deletes it there too, and it isn't fetched again.
-- You can request books: see [Requests](requests.md).
+- You can request books from the web app: see [Requests](requests.md).
