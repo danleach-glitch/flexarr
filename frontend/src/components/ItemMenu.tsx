@@ -41,6 +41,8 @@ export function ItemMenu({ item, at, onClose, continueWatching = false }: { item
   const resumable = progressOf(item) !== null
   const started = resumable && !item.userData.watched
   const remove = async () => {
+    // A book or episode loaded in the audio player stops first, so its place isn't sent again (putting it back).
+    music.forget(item)
     await removeFromContinueWatching(item.id)
     announceWatched(item)
   }
