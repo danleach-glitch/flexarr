@@ -1225,7 +1225,7 @@ final class AppModel {
             if let speakers = sound.speakers.flatMap(SoundSettings.Speakers.init(rawValue:)) { settings.speakers = speakers }
             SoundSettings.current = settings
             player.reportForRemotes()
-        case .unknown: break
+        case .book, .unknown: break // `book` is only ever listed in `accepts`
         }
     }
 
