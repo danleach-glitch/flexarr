@@ -167,6 +167,22 @@ struct PodcastClientTests {
         #expect(String(data: body, encoding: .utf8) == #"{"speed":1.5}"#)
     }
 
+    @Test func sharedListeningFromAServerThatHasIt() throws {
+        let json = #"{"autoDownload":true,"keepEpisodes":3,"speed":1.3,"showInSidebar":true,"skipBackSeconds":10,"skipForwardSeconds":45,"smartRewind":true}"#
+        let preferences = try JSONDecoder().decode(PodcastPreferences.self, from: Data(json.utf8))
+        #expect(preferences.hasListening)
+        #expect((preferences.podcastSkipBack, preferences.podcastSkipForward, preferences.podcastSmartRewind) == (10, 45, true))
+        #expect(BookSpeed.choices(with: preferences.speed).contains(1.3))
+    }
+
+    @Test func olderServersSkip15And30WithoutSmartRewind() throws {
+        let json = #"{"autoDownload":true,"keepEpisodes":3,"speed":1}"#
+        let preferences = try JSONDecoder().decode(PodcastPreferences.self, from: Data(json.utf8))
+        #expect(!preferences.hasListening)
+        #expect((preferences.podcastSkipBack, preferences.podcastSkipForward, preferences.podcastSmartRewind) == (15, 30, false))
+        #expect(BookSpeed.choices(with: 1) == BookSpeed.presets)
+    }
+
     @Test func aServerWithoutPodcastsHasNone() async throws {
         let (client, _) = stubbedClient(.init(status: 404, body: Data()))
 
