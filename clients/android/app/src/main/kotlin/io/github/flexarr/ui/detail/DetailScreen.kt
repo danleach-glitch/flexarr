@@ -327,11 +327,12 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
                     }
                     DetailActions.Button.SHUFFLE -> if (item.childCount > 0) LabeledAction("Shuffle", FlexarrIcons.shuffle, { navigator.shuffle(item) }, slot)
                     DetailActions.Button.TRAILER -> LabeledAction("Trailer", FlexarrIcons.trailer, { showingTrailer = true }, slot)
+                    // Pressed in once it's watched ("Watched", a filled tick); pressing it again unmarks it.
                     DetailActions.Button.WATCHED -> LabeledAction(
-                        if (watched) "Mark as unwatched" else "Mark as watched",
-                        if (watched) FlexarrIcons.markUnwatched else FlexarrIcons.watched,
+                        if (watched) "Watched" else "Mark as watched",
+                        if (watched) FlexarrIcons.isWatched else FlexarrIcons.watched,
                         { navigator.setWatched(item, !watched) },
-                        slot,
+                        slot.semantics { contentDescription = if (watched) "Watched. Mark as unwatched" else "Mark as watched" },
                         maxLines = 2,
                     )
                     // Only what the server can put on a watchlist: films and shows, from servers that have one (0.56).

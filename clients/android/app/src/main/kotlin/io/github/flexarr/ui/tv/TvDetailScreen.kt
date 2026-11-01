@@ -275,9 +275,10 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, detail: ItemDetail,
                             }
                         }
                     }
+                    // Pressed in once it's watched ("Watched", a filled tick); pressing it again unmarks it.
                     DetailActions.Button.WATCHED -> RoundAction(
-                        if (watched) "Mark as unwatched" else "Mark as watched",
-                        if (watched) FlexarrIcons.markUnwatched else FlexarrIcons.watched,
+                        if (watched) "Watched" else "Mark as watched",
+                        if (watched) FlexarrIcons.isWatched else FlexarrIcons.watched,
                         ambient,
                         { focusedName = it },
                         focusFirst(),
