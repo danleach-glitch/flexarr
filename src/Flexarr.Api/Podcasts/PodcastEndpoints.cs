@@ -1,4 +1,5 @@
 using System.Xml.Linq;
+using Flexarr.Api.Books;
 using Flexarr.Api.Configuration;
 using Flexarr.Api.Endpoints;
 using Flexarr.Api.Profiles;
@@ -25,12 +26,21 @@ public sealed record SubscriptionRequest(bool? OldestFirst = null);
 /// <summary>A profile's podcast settings, for every show it follows.</summary>
 /// <param name="AutoDownload">Phones keep the newest episodes of followed shows without being asked (on Wi-Fi).</param>
 /// <param name="KeepEpisodes">How many of each show's newest unplayed episodes they keep.</param>
-/// <param name="Speed">The speed podcasts play at.</param>
+/// <param name="Speed">The speed podcasts play at: the profile's one speed for podcasts and books.</param>
 /// <param name="ShowInSidebar">Podcasts has a place in the web app's sidebar.</param>
-public sealed record PodcastPreferencesDto(bool AutoDownload, int KeepEpisodes, double Speed, bool ShowInSidebar = true);
+/// <param name="SkipBackSeconds">Seconds skip back jumps, in podcasts and books alike (from 0.58).</param>
+/// <param name="SkipForwardSeconds">Seconds skip forward jumps, in podcasts and books alike (from 0.58).</param>
+/// <param name="SmartRewind">After a pause, an episode or book picks up a little earlier (from 0.58).</param>
+public sealed record PodcastPreferencesDto(bool AutoDownload, int KeepEpisodes, double Speed, bool ShowInSidebar = true,
+    int SkipBackSeconds = 30, int SkipForwardSeconds = 30, bool SmartRewind = true)
+{
+    public static PodcastPreferencesDto Of(Profile p) => new(p.PodcastAutoDownload, p.PodcastKeepEpisodes, p.PodcastSpeed, p.PodcastsInSidebar,
+        BookPlayback.SkipOrDefault(p.AudiobookSkipBackSeconds), BookPlayback.SkipOrDefault(p.AudiobookSkipForwardSeconds), p.AudiobookSmartRewind);
+}
 
-/// <summary>Changes podcast settings; fields left out keep what they were.</summary>
-public sealed record PodcastPreferencesRequest(bool? AutoDownload = null, int? KeepEpisodes = null, double? Speed = null, bool? ShowInSidebar = null);
+/// <summary>Changes podcast settings; fields left out keep what they were. Speed, skips and smart rewind are books' too.</summary>
+public sealed record PodcastPreferencesRequest(bool? AutoDownload = null, int? KeepEpisodes = null, double? Speed = null, bool? ShowInSidebar = null,
+    int? SkipBackSeconds = null, int? SkipForwardSeconds = null, bool? SmartRewind = null);
 
 public sealed record PodcastDto(
     Guid Id,
@@ -302,14 +312,18 @@ public static class PodcastEndpoints
         });
 
         group.MapGet("/preferences", async (FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
-            await db.Profiles.Where(p => p.Id == profile.Id).Select(p => new PodcastPreferencesDto(p.PodcastAutoDownload, p.PodcastKeepEpisodes, p.PodcastSpeed, p.PodcastsInSidebar))
-                .FirstOrDefaultAsync(ct) is { } preferences ? Results.Ok(preferences) : Results.NotFound());
+            await db.Profiles.AsNoTracking().FirstOrDefaultAsync(p => p.Id == profile.Id, ct) is { } me ? Results.Ok(PodcastPreferencesDto.Of(me)) : Results.NotFound());
 
         group.MapPut("/preferences", async (PodcastPreferencesRequest request, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
         {
-            if (request.KeepEpisodes is < 1 or > 50 || request.Speed is < 0.5 or > 4)
+            var steps = BookPlayback.SkipSteps;
+            if (request.KeepEpisodes is < 1 or > 50 || request.Speed is { } s && (!double.IsFinite(s) || s is < 0.5 or > 4)
+                || request.SkipBackSeconds is { } b && !steps.Contains(b) || request.SkipForwardSeconds is { } f && !steps.Contains(f))
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["preferences"] = ["Keep 1 to 50 episodes, at a speed from 0.5× to 4×."] });
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["preferences"] = ["Keep 1 to 50 episodes, at a speed from 0.5× to 4×; skips are 10, 15, 30, 45 or 60 seconds."],
+                });
             }
 
             if (await db.Profiles.FirstOrDefaultAsync(p => p.Id == profile.Id, ct) is not { } me)
@@ -319,10 +333,18 @@ public static class PodcastEndpoints
 
             me.PodcastAutoDownload = request.AutoDownload ?? me.PodcastAutoDownload;
             me.PodcastKeepEpisodes = request.KeepEpisodes ?? me.PodcastKeepEpisodes;
-            me.PodcastSpeed = request.Speed ?? me.PodcastSpeed;
+            // One speed for podcasts and books: older apps setting either keep the other in step.
+            if (request.Speed is { } speed)
+            {
+                BookPlayback.SetSharedSpeed(me, speed);
+            }
+
             me.PodcastsInSidebar = request.ShowInSidebar ?? me.PodcastsInSidebar;
+            me.AudiobookSkipBackSeconds = request.SkipBackSeconds ?? me.AudiobookSkipBackSeconds;
+            me.AudiobookSkipForwardSeconds = request.SkipForwardSeconds ?? me.AudiobookSkipForwardSeconds;
+            me.AudiobookSmartRewind = request.SmartRewind ?? me.AudiobookSmartRewind;
             await db.SaveChangesAsync(ct);
-            return Results.Ok(new PodcastPreferencesDto(me.PodcastAutoDownload, me.PodcastKeepEpisodes, me.PodcastSpeed, me.PodcastsInSidebar));
+            return Results.Ok(PodcastPreferencesDto.Of(me));
         });
 
         group.MapDelete("/{id:guid}/subscription", async (Guid id, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>

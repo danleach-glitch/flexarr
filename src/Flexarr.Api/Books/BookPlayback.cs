@@ -56,8 +56,8 @@ public static class BookPlayback
             ? listening with
             {
                 Speed = SpeedOrDefault(listening.Speed),
-                SkipBackSeconds = listening.SkipBackSeconds > 0 ? listening.SkipBackSeconds : 30,
-                SkipForwardSeconds = listening.SkipForwardSeconds > 0 ? listening.SkipForwardSeconds : 30,
+                SkipBackSeconds = SkipOrDefault(listening.SkipBackSeconds),
+                SkipForwardSeconds = SkipOrDefault(listening.SkipForwardSeconds),
             }
             : new BookListeningDto(1, 30, 30, true);
 
@@ -66,6 +66,23 @@ public static class BookPlayback
     /// audiobooks, or anything that isn't a number) is 1×.
     /// </summary>
     public static double SpeedOrDefault(double speed) => double.IsFinite(speed) && speed > 0 ? speed : 1;
+
+    /// <summary>The skip steps a profile can choose, for books and podcasts alike.</summary>
+    public static readonly int[] SkipSteps = [10, 15, 30, 45, 60];
+
+    /// <summary>A skip step as it's handed out: none chosen yet (0, a profile made before audiobooks) is 30 seconds.</summary>
+    public static int SkipOrDefault(int seconds) => seconds > 0 ? seconds : 30;
+
+    /// <summary>
+    /// Podcasts and books share one speed. Saved from either side, the book speed takes it to the nearest 0.05×, at most
+    /// 3.5×, and the podcast speed takes it as it is.
+    /// </summary>
+    public static void SetSharedSpeed(Profile profile, double speed)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        profile.PodcastSpeed = speed;
+        profile.AudiobookSpeed = Math.Clamp(Math.Round(speed * 20) / 20, 0.5, 3.5);
+    }
 
     public static BookProgressDto Progress(PlaybackState? state) => state is null
         ? new BookProgressDto(0, false, null, null, null)
