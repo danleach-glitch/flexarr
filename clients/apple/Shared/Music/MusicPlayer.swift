@@ -147,6 +147,8 @@ final class MusicPlayer {
     /// When the book was paused, for smart rewind (forgotten when the listener moves it while paused).
     @ObservationIgnored private var bookPause = BookPause()
     @ObservationIgnored private var speedSave: Task<Void, Never>?
+    /// The book whose speed was just changed and is waiting to be saved: a manifest fetched meanwhile keeps it.
+    @ObservationIgnored private var speedPendingFor: String?
     /// Where an End of chapter timer stops: the end of the chapter playing (worked out again after every seek).
     @ObservationIgnored private var sleepChapterEnd: Double?
     @ObservationIgnored private var fade: Task<Void, Never>?
@@ -350,9 +352,11 @@ final class MusicPlayer {
         let client = client
         if let manifest = book { book = manifest.withSpeed(speed) }
         speedSave?.cancel()
+        speedPendingFor = id
         speedSave = Task {
             try? await Task.sleep(for: .seconds(1))
             guard !Task.isCancelled else { return }
+            if speedPendingFor == id { speedPendingFor = nil }
             if offline {
                 offlineLibrary?.recordBookSpeed(itemId: id, speed: speed)
             } else {
@@ -784,9 +788,11 @@ final class MusicPlayer {
         pushNowPlaying()
     }
 
-    /// A downloaded book's manifest brought up to date while it plays: the speed, bookmarks and skip steps change.
-    private func applyFresh(_ manifest: BookManifest) {
-        guard isBook, book?.itemId == manifest.itemId else { return }
+    /// A downloaded book's manifest brought up to date while it plays: the speed, bookmarks and skip steps change
+    /// (not the speed when the listener has just chosen one that isn't saved yet).
+    private func applyFresh(_ fetched: BookManifest) {
+        guard isBook, book?.itemId == fetched.itemId else { return }
+        let manifest = speedPendingFor == fetched.itemId ? fetched.withSpeed(speed) : fetched
         book = manifest
         bookmarks = manifest.bookmarks
         let fresh = BookSpeed.clamped(manifest.speed)
