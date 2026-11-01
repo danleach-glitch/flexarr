@@ -213,6 +213,27 @@ describe('PersonEditor', () => {
     expect(onSaved.mock.calls[0][0]).toMatchObject({ photoSource: 'upload' })
   })
 
+  it('looks for photos again when the one chosen has gone', async () => {
+    let asked = 0
+    mockApi({
+      'GET /people/p1/candidates': () => {
+        asked++
+        return asked === 1 ? candidates : { ...candidates, photos: [candidates.photos[0]] }
+      },
+      'PUT /people/p1': new Response(JSON.stringify({ title: 'That photo can’t be found any more.' }), { status: 409, headers: { 'Content-Type': 'application/problem+json' } }),
+    })
+    const onClose = vi.fn()
+    render(<PersonEditor person={person} onSaved={() => undefined} onClose={onClose} />)
+
+    fireEvent.click(await screen.findByRole('radio', { name: 'Open Library' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('That photo’s gone. Choose again.')
+    await waitFor(() => expect(screen.queryByRole('radio', { name: 'Open Library' })).toBeNull())
+    expect(asked).toBe(2)
+    expect(screen.getByRole('radio', { name: /Audible/ }).getAttribute('aria-checked')).toBe('true')
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
   it('says why the photos couldn’t load, and why a save failed', async () => {
     mockApi({
       'GET /people/p1/candidates': new Response(JSON.stringify({ title: 'Audible is unreachable.' }), { status: 502, headers: { 'Content-Type': 'application/problem+json' } }),

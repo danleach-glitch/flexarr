@@ -107,7 +107,13 @@ export function PersonEditor({ person, onSaved, onClose }: { person: Person; onS
       onSaved(saved)
       onClose()
     } catch (err) {
-      setError(err instanceof ApiError && err.messages[0] ? err.messages[0] : String(err))
+      if (err instanceof ApiError && err.status === 409) {
+        // The photo chosen has gone from the server's memory: show what it finds now.
+        setError('That photo’s gone. Choose again.')
+        setPicked(undefined)
+        setBroken(new Set())
+        reload()
+      } else setError(err instanceof ApiError && err.messages[0] ? err.messages[0] : String(err))
       setSaving(false)
     }
   }
