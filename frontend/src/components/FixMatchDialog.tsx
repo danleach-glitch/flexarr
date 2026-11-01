@@ -192,7 +192,7 @@ function BookMatchDialog({ item, onFixed, onClose }: Props) {
     <div className="dialog-backdrop" onClick={() => !busy && onClose()}>
       <div className="panel fix-match" ref={dialog} role="dialog" aria-modal="true" aria-labelledby="fix-match-title" onClick={(e) => e.stopPropagation()}>
         <h2 id="fix-match-title">Fix match</h2>
-        <p className="muted">Which book is this? The one you choose stays matched.</p>
+        <p className="muted">Which book is this?</p>
         <form className="fix-match-search" onSubmit={search} role="search">
           <input type="search" value={draft} onChange={(e) => setDraft(e.target.value)} aria-label="Title" placeholder="Title" autoFocus disabled={busy} />
           <input type="search" value={author} onChange={(e) => setAuthor(e.target.value)} aria-label="Author" placeholder="Author" disabled={busy} />

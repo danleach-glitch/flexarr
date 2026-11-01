@@ -61,7 +61,7 @@ export function AudiobooksSection() {
       <SettingsHeader title="Audiobooks" />
       {l && (
         <SettingsGroup title="Listening" note={`${name ? `${name}’s` : 'This profile’s'} own, in every app.`}>
-          <SettingRow label="Speed" help="For books without one of their own. The player sets a book’s.">
+          <SettingRow label="Speed">
             <select value={l.speed} onChange={(e) => void save({ speed: Number(e.target.value) })}>
               {speeds.map((speed) => (
                 <option key={speed} value={speed}>
@@ -91,6 +91,7 @@ export function AudiobooksSection() {
           <ToggleRow label="Smart rewind" help="After a pause, start a little earlier." checked={l.smartRewind} onChange={(smartRewind) => void save({ smartRewind })} />
         </SettingsGroup>
       )}
+      {listening.error && !l && <SaveStatus error={listening.error.message} />}
       {error && <SaveStatus error={error} />}
       {me?.isAdmin === true && <OnlineDetails />}
     </section>
@@ -131,9 +132,20 @@ function OnlineDetails() {
           ))}
         </select>
       </SettingRow>
-      {s.allProviders.map((p) => (
-        <ToggleRow key={p} label={providerNames[p] ?? p} checked={s.providers.includes(p)} onChange={(on) => toggle(p, on)} />
-      ))}
+      {s.allProviders.map((p) => {
+        // Google Books and Hardcover answer only with a key: off until there is one.
+        const keyless = (p === 'google' && !s.hasGoogleBooksKey) || (p === 'hardcover' && !s.hasHardcoverToken)
+        return (
+          <ToggleRow
+            key={p}
+            label={providerNames[p] ?? p}
+            help={keyless ? (p === 'google' ? 'Needs a key' : 'Needs a token') : undefined}
+            checked={!keyless && s.providers.includes(p)}
+            disabled={keyless}
+            onChange={(on) => toggle(p, on)}
+          />
+        )
+      })}
       <KeyRow label="Google Books key" has={s.hasGoogleBooksKey} onSave={(googleBooksKey) => save({ googleBooksKey })} />
       <KeyRow label="Hardcover token" has={s.hasHardcoverToken} onSave={(hardcoverToken) => save({ hardcoverToken })} />
       {error && <SaveStatus error={error} />}
