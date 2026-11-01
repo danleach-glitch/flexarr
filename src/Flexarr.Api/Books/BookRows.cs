@@ -16,8 +16,7 @@ public static class BookRows
     public static async Task<List<HomeRowDto>> HomeAsync(FlexarrDbContext db, IReadOnlyList<Guid> libraryIds, string profileId, int size, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(libraryIds);
-        var books = db.MediaItems.Where(i => libraryIds.Contains(i.LibraryId) && i.Kind == MediaKind.Audiobook && i.MissingSince == null
-            && i.Files.Any(f => f.ProbeError == null && f.MissingSince == null));
+        var books = Playable(db, libraryIds);
         var link = libraryIds.Count == 1 ? $"/library/{libraryIds[0]}" : null;
         var rows = new List<HomeRowDto>
         {
@@ -29,5 +28,13 @@ public static class BookRows
                 link is null ? null : $"{link}?view=all&sort=added"),
         };
         return [.. rows.Where(r => r.Items.Count > 0)];
+    }
+
+    /// <summary>The books in <paramref name="libraryIds"/> that can be played: there, with a file that read properly.</summary>
+    public static IQueryable<MediaItem> Playable(FlexarrDbContext db, IReadOnlyList<Guid> libraryIds)
+    {
+        ArgumentNullException.ThrowIfNull(db);
+        return db.MediaItems.Where(i => libraryIds.Contains(i.LibraryId) && i.Kind == MediaKind.Audiobook && i.MissingSince == null
+            && i.Files.Any(f => f.ProbeError == null && f.MissingSince == null));
     }
 }

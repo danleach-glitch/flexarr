@@ -215,7 +215,7 @@ public sealed class PlaybackService(
 
         var shuffling = request.Shuffle && item.Kind == MediaKind.Episode;
         var watching = await db.Profiles.AsNoTracking().Where(p => p.Id == profile.Id)
-            .Select(p => new PlaybackPreferencesDto(p.AutoPlayNext, p.SkipIntros, p.SkipRecaps, p.SkipCredits, p.SubtitleSize, p.SubtitlePosition, p.SubtitlesInBlackBars)).FirstOrDefaultAsync(ct);
+            .Select(p => new PlaybackPreferencesDto(p.AutoPlayNext, p.SkipIntros, p.SkipRecaps, p.SkipCredits, p.SubtitleSize, p.SubtitlePosition, p.SubtitlesInBlackBars, p.ListeningInContinue)).FirstOrDefaultAsync(ct);
         var next = shuffling ? await ShuffleNextAsync(item, ct) : await NextEpisodeAsync(item, ct);
         // On shuffle the player keeps its own trail of what it played; in order, the episode before this one.
         var before = shuffling ? null : await PreviousEpisodeAsync(item, ct);
@@ -303,7 +303,7 @@ public sealed class PlaybackService(
         var summary = await db.MediaItems.Where(i => i.Id == item.Id).Summaries(profile.Id).FirstAsync(ct);
         var ancestors = item.ParentId is { } podcastId ? await db.MediaItems.Where(i => i.Id == podcastId).Summaries(profile.Id).ToListAsync(ct) : [];
         var watching = await db.Profiles.AsNoTracking().Where(p => p.Id == profile.Id)
-            .Select(p => new PlaybackPreferencesDto(p.AutoPlayNext, p.SkipIntros, p.SkipRecaps, p.SkipCredits, p.SubtitleSize, p.SubtitlePosition, p.SubtitlesInBlackBars)).FirstOrDefaultAsync(ct);
+            .Select(p => new PlaybackPreferencesDto(p.AutoPlayNext, p.SkipIntros, p.SkipRecaps, p.SkipCredits, p.SubtitleSize, p.SubtitlePosition, p.SubtitlesInBlackBars, p.ListeningInContinue)).FirstOrDefaultAsync(ct);
         return new PlaybackInfoDto(id, PlaybackMethod.DirectPlay, $"/api/v1/playback/{id}/stream", [], duration, Math.Max(0, start), Guid.Empty,
             [], null, [], null, false, [], summary, ancestors, null, null, false, watching);
     }
@@ -569,7 +569,8 @@ public sealed class PlaybackService(
 
     /// <summary>
     /// Takes a title out of Continue Watching without marking it watched: forgets the place reached in it and, for an
-    /// episode (or a show), keeps the show's next episode out of the row until another episode is played.
+    /// episode (or a show), keeps the show's next episode out of the row until another episode is played. An audiobook
+    /// or podcast episode (in the row for apps that ask) goes the same way: its place forgotten, not finished.
     /// </summary>
     public async Task<bool> RemoveFromContinueWatchingAsync(Guid itemId, CancellationToken ct)
     {
