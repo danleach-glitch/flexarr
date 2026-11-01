@@ -8,6 +8,7 @@ import {
   setBookFinished,
   unlockFirst,
   type BookChapter,
+  type Bookmark,
   type Credit,
   type ItemDetail,
   type ItemSummary,
@@ -15,7 +16,6 @@ import {
 import { openAddToCollection } from '../components/AddToCollection'
 import { Artwork } from '../components/Artwork'
 import { BookEditor } from '../components/BookEditor'
-import { BookmarkList } from '../components/BookmarkList'
 import { AsyncButton } from '../components/AsyncButton'
 import { AuthorCards } from '../components/AuthorCards'
 import { PosterCard } from '../components/Cards'
@@ -23,7 +23,7 @@ import { ChapterEditor } from '../components/ChapterEditor'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { DeleteDialog } from '../components/DeleteDialog'
 import { FixMatchDialog } from '../components/FixMatchDialog'
-import { Bookmark as BookmarkIcon, Check, Pause, Play } from '../components/icons'
+import { Bookmark as BookmarkIcon, Check, Close, Pause, Play } from '../components/icons'
 import type { MenuAction } from '../components/ItemMenu'
 import { Overview } from '../components/Overview'
 import { Row } from '../components/Row'
@@ -50,7 +50,6 @@ export function BookPage({ detail, onChange }: { detail: ItemDetail; onChange: (
   const navigate = useNavigate()
   const { me } = useSession()
   const listening = useApi(getBookListening, [])
-  const [showBookmarks, setShowBookmarks] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [editing, setEditing] = useState<'details' | 'chapters' | 'match' | null>(null)
   const [startingOver, setStartingOver] = useState(false)
@@ -78,6 +77,9 @@ export function BookPage({ detail, onChange }: { detail: ItemDetail; onChange: (
     } else if (playing) player.toggle()
     else player.play([{ ...item, playFrom: at }])
   }
+
+  /** Through the player while this book plays, so its own list of bookmarks keeps up. */
+  const removeBookmark = (id: string) => (playing ? player.removeBookmark(id) : deleteBookmark(id).then(() => announceBookmarks(item.id)))
 
   async function mark(to: boolean) {
     await setBookFinished(item.id, to)
@@ -144,26 +146,10 @@ export function BookPage({ detail, onChange }: { detail: ItemDetail; onChange: (
             <AsyncButton className="button quiet" aria-pressed={finished} onClick={() => mark(!finished)}>
               <Check /> {finished ? 'Finished' : 'Mark finished'}
             </AsyncButton>
-            {book.bookmarks.length > 0 && (
-              <button className="button quiet" aria-expanded={showBookmarks} aria-controls="book-bookmarks" onClick={() => setShowBookmarks(!showBookmarks)}>
-                <BookmarkIcon /> {book.bookmarks.length}
-                <span className="visually-hidden">{book.bookmarks.length === 1 ? 'bookmark' : 'bookmarks'}</span>
-              </button>
-            )}
             <MoreButton label={`More for ${item.title}`} actions={more} />
           </div>
         </div>
       </header>
-
-      {showBookmarks && book.bookmarks.length > 0 && (
-        <BookmarkList
-          id="book-bookmarks"
-          bookmarks={book.bookmarks}
-          chapters={book.chapters}
-          onJump={playAt}
-          onRemove={(id) => (playing ? player.removeBookmark(id) : deleteBookmark(id).then(() => announceBookmarks(item.id)))}
-        />
-      )}
 
       <div className="book-body">
         {(detail.overview || hasAuthorCards) && (
@@ -182,7 +168,15 @@ export function BookPage({ detail, onChange }: { detail: ItemDetail; onChange: (
         {book.chapters.length > 0 && (
           <section className="book-chapters">
             <h2>{book.chapters.length === 1 ? '1 chapter' : `${book.chapters.length} chapters`}</h2>
-            <Chapters chapters={book.chapters} place={place} sounding={playing && player.playing} duration={duration} onPlay={playAt} />
+            <Chapters
+              chapters={book.chapters}
+              bookmarks={book.bookmarks}
+              place={place}
+              sounding={playing && player.playing}
+              duration={duration}
+              onPlay={playAt}
+              onRemoveBookmark={removeBookmark}
+            />
           </section>
         )}
       </div>
@@ -267,26 +261,44 @@ function StartOverDialog({ place, onConfirm, onClose }: { place: Place; onConfir
  */
 function Chapters({
   chapters,
+  bookmarks,
   place,
   sounding,
   duration,
   onPlay,
+  onRemoveBookmark,
 }: {
   chapters: BookChapter[]
+  bookmarks: Bookmark[]
   place: Place
   sounding: boolean
   duration: number
   onPlay: (at: number) => void
+  onRemoveBookmark: (id: string) => Promise<unknown>
 }) {
   const position = usePosition(place)
   const current = position > 0 ? chapterIndexAt(chapters, position) : -1
   const end = chapters[current]?.endSeconds ?? 0
   const currentDone = end > 0 && position >= end
-  return <ChapterList chapters={chapters} place={place} current={current} currentDone={currentDone} sounding={sounding} duration={duration} onPlay={onPlay} />
+  return (
+    <ChapterList
+      chapters={chapters}
+      bookmarks={bookmarks}
+      place={place}
+      current={current}
+      currentDone={currentDone}
+      sounding={sounding}
+      duration={duration}
+      onPlay={onPlay}
+      onRemoveBookmark={onRemoveBookmark}
+    />
+  )
 }
 
 const ChapterList = memo(function ChapterList({
   chapters,
+  bookmarks,
+  onRemoveBookmark,
   place,
   current,
   currentDone,
@@ -295,6 +307,9 @@ const ChapterList = memo(function ChapterList({
   onPlay,
 }: {
   chapters: BookChapter[]
+  /** Each shows under the chapter it's in. */
+  bookmarks: Bookmark[]
+  onRemoveBookmark: (id: string) => Promise<unknown>
   place: Place
   /** The chapter the place is in, or -1 before the book's begun. */
   current: number
@@ -304,9 +319,11 @@ const ChapterList = memo(function ChapterList({
   duration: number
   onPlay: (at: number) => void
 }) {
+  const marks = [...bookmarks].sort((a, b) => a.positionSeconds - b.positionSeconds)
   return (
     <ol className="tracklist">
       {chapters.map((chapter, i) => {
+        const inChapter = marks.filter((b) => chapterIndexAt(chapters, b.positionSeconds) === i)
         // Chapters before the one playing are behind the place; the one playing only once the place is past its end.
         const done = chapter.endSeconds > 0 && (i < current || (i === current && currentDone))
         const here = i === current
@@ -322,6 +339,22 @@ const ChapterList = memo(function ChapterList({
                 <span className="track-time">{formatClock(chapter.endSeconds - chapter.startSeconds)}</span>
               </button>
             </div>
+            {inChapter.length > 0 && (
+              <ul className="chapter-bookmarks" aria-label={`Bookmarks in ${chapter.title}`}>
+                {inChapter.map((b) => (
+                  <li key={b.id} className="chapter-bookmark">
+                    <button className="chapter-bookmark-jump" onClick={() => onPlay(b.positionSeconds)}>
+                      <BookmarkIcon />
+                      <span className="chapter-bookmark-time">{formatClock(b.positionSeconds)}</span>
+                      {b.note && <span className="chapter-bookmark-note">{b.note}</span>}
+                    </button>
+                    <AsyncButton className="icon-button" aria-label={`Remove the bookmark at ${formatClock(b.positionSeconds)}`} onClick={() => onRemoveBookmark(b.id)}>
+                      <Close />
+                    </AsyncButton>
+                  </li>
+                ))}
+              </ul>
+            )}
           </li>
         )
       })}
