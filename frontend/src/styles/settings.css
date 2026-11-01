@@ -327,13 +327,6 @@
   color: var(--usher);
 }
 
-.chosen-folder {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  font-weight: 400;
-}
-
 .folder-picker {
   border: 1px solid var(--aisle);
   border-radius: var(--radius-control);

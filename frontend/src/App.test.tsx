@@ -454,8 +454,12 @@ describe('Settings', () => {
 
     renderAt('/settings/libraries')
     fireEvent.click(await screen.findByRole('button', { name: 'Add library' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Use this folder' }))
-    fireEvent.click(within(screen.getByRole('form', { name: 'Add library' })).getByRole('button', { name: 'Add library' }))
+    // The folder open in the picker is the library's folder: there's no separate button to pick it.
+    expect(await screen.findByText('/Volumes')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Use this folder' })).not.toBeInTheDocument()
+    const add = within(screen.getByRole('form', { name: 'Add library' })).getByRole('button', { name: 'Add library' })
+    await waitFor(() => expect(add).toBeEnabled())
+    fireEvent.click(add)
 
     expect(await screen.findByRole('alert')).toHaveTextContent('overlaps a folder in another library')
   })

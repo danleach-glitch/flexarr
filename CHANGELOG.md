@@ -18,6 +18,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Libraries
 - Replacing a `cover.jpg` or `poster.jpg` beside your files now shows the new picture in every app after the next scan, instead of the old one staying.
+- Adding a library on the web has one button: open its folder in the picker and press **Add library**.
 
 ## 0.57.0 · 31 October 2026
 
