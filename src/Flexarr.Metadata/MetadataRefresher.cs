@@ -302,7 +302,7 @@ public sealed partial class MetadataRefresher(
                 people[tmdbId] = person;
             }
 
-            person.ImageUrl = credit.Images.FirstOrDefault(i => i.CoverType == "headshot")?.RemoteUrl ?? person.ImageUrl;
+            SetPersonPhoto(person, credit.Images.FirstOrDefault(i => i.CoverType == "headshot")?.RemoteUrl, PersonSources.Tmdb);
             item.Credits.Add(new Credit { PersonId = person.Id, Role = role, Character = NullIfEmpty(credit.Character), Order = order++ });
         }
     }
@@ -836,7 +836,7 @@ public sealed partial class MetadataRefresher(
                 people[key] = entity;
             }
 
-            entity.ImageUrl = person.Image?.Original ?? person.Image?.Medium ?? entity.ImageUrl;
+            SetPersonPhoto(entity, person.Image?.Original ?? person.Image?.Medium, PersonSources.TvMaze);
             item.Credits.Add(new Credit { PersonId = entity.Id, Role = role, Character = character, Order = order++ });
         }
     }
@@ -988,7 +988,7 @@ public sealed partial class MetadataRefresher(
                 people[tmdbId] = person;
             }
 
-            person.ImageUrl = TmdbClient.ImageUrl(profile) ?? person.ImageUrl;
+            SetPersonPhoto(person, TmdbClient.ImageUrl(profile), PersonSources.Tmdb);
             item.Credits.Add(new Credit { PersonId = person.Id, Role = role, Character = character, Order = order++ });
         }
     }
@@ -1504,6 +1504,18 @@ public sealed partial class MetadataRefresher(
 
     private static (ArrInstance Instance, T Item)? Find<T>(Dictionary<string, (ArrInstance, T)> index, string? key) =>
         key is not null && index.TryGetValue(Key(key), out var hit) ? hit : null;
+
+    /// <summary>
+    /// A cast or crew photo from a film's or show's source, unless an admin fixed the person's by hand or it's from
+    /// their own folder or an upload.
+    /// </summary>
+    private static void SetPersonPhoto(Person person, string? url, string source)
+    {
+        if (url is not null && PersonSources.PhotoReplaceable(person))
+        {
+            PersonSources.SetPhoto(person, url, source, DateTime.UtcNow);
+        }
+    }
 
     private static string? NullIfEmpty(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 

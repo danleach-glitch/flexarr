@@ -135,6 +135,7 @@ public sealed partial class MetadataRefresher
 
         // Online: by its ids, else (unless it was matched by hand) by title and author.
         var online = false;
+        IReadOnlyList<string> authorAsins = [];
         if (bookProviders is not null)
         {
             try
@@ -144,6 +145,7 @@ public sealed partial class MetadataRefresher
                 if (found is not null)
                 {
                     await ApplyOnlineAsync(book, details, found, overwrite: false, ct).ConfigureAwait(false);
+                    authorAsins = found.AuthorAsins ?? [];
                     online = true;
                 }
             }
@@ -152,6 +154,10 @@ public sealed partial class MetadataRefresher
                 LogItemFailed(ex, book.Title);
             }
         }
+
+        // Every author's photo and biography.
+        var matchedAuthor = hit is { } h ? catalogues[h.Shelf].Authors.FirstOrDefault(a => a.Id == h.Book.AuthorId) : null;
+        await Authors.FillBookAsync(book, [.. catalogues.SelectMany(c => c.Authors)], matchedAuthor, authorAsins, ct).ConfigureAwait(false);
 
         return hit is not null ? BookOutcome.FromArr
             : online ? BookOutcome.LookedUp
@@ -251,14 +257,6 @@ public sealed partial class MetadataRefresher
                     ?? db.Genres.Local.FirstOrDefault(g => string.Equals(g.Name, name, StringComparison.OrdinalIgnoreCase))
                     ?? db.Genres.Add(new Genre { Name = name }).Entity);
             }
-        }
-
-        // The author's photo and biography, on whoever the files named first.
-        var author = catalogue.Authors.FirstOrDefault(a => a.Id == match.AuthorId);
-        if (author is not null && book.Credits.Where(c => c.Role == CreditRole.Author).OrderBy(c => c.Order).Select(c => c.Person).FirstOrDefault() is { } person)
-        {
-            person.Biography ??= Plain(author.Overview);
-            person.ImageUrl ??= Cover(author.Images);
         }
 
         // Its series and place in them, when the files didn't say.
@@ -362,15 +360,14 @@ public sealed partial class MetadataRefresher
             db.BookSeriesEntries.RemoveRange(entries.Where(e => !kept.Contains(e)));
         }
 
-        // The first author's photo and biography, from Audible.
-        if (bookProviders is not null && found.AuthorAsins is { Count: > 0 } asins
-            && book.Credits.Where(c => c.Role == CreditRole.Author).OrderBy(c => c.Order).Select(c => c.Person).FirstOrDefault() is { } person
-            && (person.Biography is null || person.ImageUrl is null)
-            && await bookProviders.AuthorAsync(asins[0], ct).ConfigureAwait(false) is { } author)
+        // Audible's ids for its authors, on those of the same name (their photos and biographies come after, AuthorInfo).
+        if (found.AuthorAsins is { Count: > 0 } asins && found.Authors.Count == asins.Count)
         {
-            person.Asin ??= asins[0];
-            person.Biography ??= author.Biography;
-            person.ImageUrl ??= author.Image;
+            foreach (var credit in book.Credits.Where(c => c.Role == CreditRole.Author && c.Person is { Asin: null }))
+            {
+                var at = found.Authors.ToList().FindIndex(a => AuthorInfo.Fold(a) == AuthorInfo.Fold(credit.Person!.Name));
+                credit.Person!.Asin = at >= 0 ? asins[at] : null;
+            }
         }
 
         // Audible's chapters, in place of guessed ones, when Audible says they're accurate and the length agrees.
@@ -380,6 +377,17 @@ public sealed partial class MetadataRefresher
             await UseAudibleChaptersAsync(book.Id, details, asin, shift: 0, ct).ConfigureAwait(false);
         }
     }
+
+    private AuthorInfo? _authors;
+
+    /// <summary>Authors' photos and biographies (see <see cref="AuthorInfo"/>).</summary>
+    private AuthorInfo Authors => _authors ??= new AuthorInfo(db, arr, settings, bookProviders, logger);
+
+    /// <summary>
+    /// The photos and biographies of a book's authors, after its match was fixed by hand. The caller saves.
+    /// </summary>
+    public Task FillAuthorsAsync(MediaItem book, IReadOnlyCollection<string> knownAsins, CancellationToken ct) =>
+        Authors.FillBookAsync(book, [], null, knownAsins, ct);
 
     /// <summary>A book's series entries, saved or only added so far, each with its series.</summary>
     private async Task<List<BookSeriesEntry>> SeriesEntriesAsync(Guid bookId, CancellationToken ct)
