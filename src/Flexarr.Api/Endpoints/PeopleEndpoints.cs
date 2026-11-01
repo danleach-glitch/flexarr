@@ -24,10 +24,10 @@ public static class PeopleEndpoints
     /// <summary>A person and everything they're in that's in your library.</summary>
     public static RouteGroupBuilder MapPeopleEndpoints(this RouteGroupBuilder api)
     {
-        api.MapGet("/people/{id:guid}", async (Guid id, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
+        api.MapGet("/people/{id:guid}", async (Guid id, FlexarrDbContext db, CurrentProfile profile, PersonImages images, CancellationToken ct) =>
         {
             var person = await db.People.AsNoTracking().FirstOrDefaultAsync(p => p.Id == id, ct);
-            return person is null ? Results.NotFound() : Results.Ok(await ToDtoAsync(db, person, profile, ct));
+            return person is null ? Results.NotFound() : Results.Ok(await ToDtoAsync(db, person, profile, images, ct));
         }).WithTags("People");
 
         var admin = api.MapGroup("/people/{id:guid}").WithTags("People").RequireAuthorization(FlexarrClaims.AdminPolicy);
@@ -48,7 +48,7 @@ public static class PeopleEndpoints
         });
 
         admin.MapPut("/", async (Guid id, UpdatePersonRequest request, FlexarrDbContext db, AuthorInfo authors, IMemoryCache memory, CurrentProfile profile,
-            CancellationToken ct) =>
+            PersonImages images, CancellationToken ct) =>
         {
             var person = await db.People.FirstOrDefaultAsync(p => p.Id == id, ct);
             if (person is null)
@@ -91,6 +91,11 @@ public static class PeopleEndpoints
             }
 
             person.InfoLocked = request.Locked ?? (byHand || person.InfoLocked);
+            if (request.Locked == false && images.Missing(person))
+            {
+                PersonSources.SetPhoto(person, null, null, now); // an upload that's gone: no photo, so one can be found
+            }
+
             if (request.Locked == false && !byHand)
             {
                 // Unlocked: looked up again now (filling what's missing, and a folder photo), not in a month.
@@ -101,7 +106,7 @@ public static class PeopleEndpoints
             await db.SaveChangesAsync(ct);
             memory.Remove(ImageEndpoints.PersonSourceKey(id));
             memory.Remove(CandidatesKey(id));
-            return Results.Ok(await ToDtoAsync(db, person, profile, ct));
+            return Results.Ok(await ToDtoAsync(db, person, profile, images, ct));
         });
 
         // The photo is the request body: a JPEG, PNG or WebP.
@@ -132,7 +137,7 @@ public static class PeopleEndpoints
             await db.SaveChangesAsync(ct);
             memory.Remove(ImageEndpoints.PersonSourceKey(id));
             memory.Remove(CandidatesKey(id));
-            return Results.Ok(await ToDtoAsync(db, person, profile, ct));
+            return Results.Ok(await ToDtoAsync(db, person, profile, images, ct));
         });
 
         return api;
@@ -156,7 +161,7 @@ public static class PeopleEndpoints
     internal static string? CandidatePhoto(IMemoryCache memory, Guid id, string source) =>
         memory.TryGetValue(CandidatesKey(id), out Candidates? cached) ? cached?.Photos.FirstOrDefault(p => p.Source == source)?.Image : null;
 
-    private static async Task<PersonDto> ToDtoAsync(FlexarrDbContext db, Person person, CurrentProfile profile, CancellationToken ct)
+    private static async Task<PersonDto> ToDtoAsync(FlexarrDbContext db, Person person, CurrentProfile profile, PersonImages images, CancellationToken ct)
     {
         var credits = await db.Credits.Where(c => c.PersonId == person.Id).Select(c => new { c.MediaItemId, c.Role, c.Character }).ToListAsync(ct);
         var itemIds = credits.Select(c => c.MediaItemId).Distinct().ToList();
@@ -167,7 +172,7 @@ public static class PeopleEndpoints
             .Select(c => new PersonCreditDto(items[c.MediaItemId], c.Role, c.Character))
             .OrderByDescending(c => c.Item.Year)
             .ToList();
-        return new PersonDto(person.Id, person.Name, ArtworkUrls.Person(person.Id, person.ImageUrl != null, person.ImageChangedAt), list, person.Biography,
+        return new PersonDto(person.Id, person.Name, ArtworkUrls.Person(person.Id, person.ImageUrl != null && !images.Missing(person), person.ImageChangedAt), list, person.Biography,
             person.InfoLocked, person.PhotoSource, person.BiographySource);
     }
 }

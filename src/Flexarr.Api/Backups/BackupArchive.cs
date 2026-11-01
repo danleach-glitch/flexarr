@@ -25,7 +25,8 @@ public sealed record BackupContents(BackupManifest Manifest, int Profiles, int L
 
 /// <summary>
 /// A backup is a zip of everything in the data folder that can't be made again: a snapshot of the database, config.json
-/// (settings and keys), devices.json (signed-in browsers and devices) and the profile pictures. The cache (artwork,
+/// (settings and keys), devices.json (signed-in browsers and devices), the profile pictures and the photos of people an
+/// admin uploaded. The cache (artwork,
 /// subtitles, previews) is left out: it fills itself again.
 /// </summary>
 public static class BackupArchive
@@ -34,6 +35,12 @@ public static class BackupArchive
     public const string ManifestName = "manifest.json";
     public const string DatabaseName = "flexarr.db";
     public const string ImagesFolder = "profile-images";
+
+    /// <summary>Photos of people (authors, mostly) an admin uploaded.</summary>
+    public const string PersonImagesFolder = "person-images";
+
+    /// <summary>The folders of pictures a backup carries, each holding only ".jpg"s named in lowercase hex.</summary>
+    public static readonly string[] ImageFolders = [ImagesFolder, PersonImagesFolder];
 
     /// <summary>The files beside the database a backup carries, all from the top of the data folder.</summary>
     /// <remarks>Family invites' guests.json (who is a guest) goes too; invites.json doesn't: its keys work once or have run out.</remarks>
@@ -80,13 +87,18 @@ public static class BackupArchive
                     await zip.CreateEntryFromFileAsync(Path.Combine(dataDirectory, name), name, CompressionLevel.Optimal, ct);
                 }
 
-                var images = Path.Combine(dataDirectory, ImagesFolder);
-                if (Directory.Exists(images))
+                foreach (var folder in ImageFolders)
                 {
-                    foreach (var image in Directory.EnumerateFiles(images))
+                    var images = Path.Combine(dataDirectory, folder);
+                    if (!Directory.Exists(images))
+                    {
+                        continue;
+                    }
+
+                    foreach (var image in Directory.EnumerateFiles(images, "*.jpg"))
                     {
                         // Pictures are compressed already.
-                        await zip.CreateEntryFromFileAsync(image, $"{ImagesFolder}/{Path.GetFileName(image)}", CompressionLevel.NoCompression, ct);
+                        await zip.CreateEntryFromFileAsync(image, $"{folder}/{Path.GetFileName(image)}", CompressionLevel.NoCompression, ct);
                     }
                 }
             }
@@ -312,12 +324,19 @@ public static class BackupArchive
             return name;
         }
 
-        // A picture straight inside profile-images, named as ProfileImages names them (hex digits and .jpg).
-        var prefix = ImagesFolder + "/";
-        return name.StartsWith(prefix, StringComparison.Ordinal) && name[prefix.Length..] is { Length: > 4 and <= 300 } image
-            && image.EndsWith(".jpg", StringComparison.Ordinal) && image[..^4].All(char.IsAsciiHexDigitLower)
-            ? Path.Combine(ImagesFolder, image)
-            : null;
+        // A picture straight inside profile-images or person-images, named as ProfileImages and PersonImages name them
+        // (hex digits and .jpg).
+        foreach (var folder in ImageFolders)
+        {
+            var prefix = folder + "/";
+            if (name.StartsWith(prefix, StringComparison.Ordinal) && name[prefix.Length..] is { Length: > 4 and <= 300 } image
+                && image.EndsWith(".jpg", StringComparison.Ordinal) && image[..^4].All(char.IsAsciiHexDigitLower))
+            {
+                return Path.Combine(folder, image);
+            }
+        }
+
+        return null;
     }
 
     private static BackupManifest? ReadManifest(ZipArchiveEntry entry)

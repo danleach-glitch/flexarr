@@ -7,6 +7,7 @@ using Flexarr.Core.Libraries;
 using Flexarr.Core.Media;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Flexarr.Api.Tests;
@@ -124,6 +125,26 @@ public class AuthorInfoApiTests(FlexarrApiFactory factory) : IClassFixture<Flexa
         {
             Directory.Delete(outside, recursive: true);
         }
+    }
+
+    [Fact]
+    public async Task AnUploadWhoseFileIsGone_IsNoPhoto_AndUnlockingClearsIt()
+    {
+        using var app = Serve();
+        var (person, _) = await SeedAsync(app, imageUrl: "file:///elsewhere/person-images/gone.jpg");
+        using (var scope = app.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            await db.People.Where(p => p.Id == person).ExecuteUpdateAsync(u => u.SetProperty(p => p.PhotoSource, PersonSources.Upload).SetProperty(p => p.InfoLocked, true));
+        }
+
+        var admin = Admin(app);
+        var shown = await admin.GetFromJsonAsync<JsonElement>(Api($"/people/{person}"));
+        var unlocked = await (await admin.PutAsJsonAsync(Api($"/people/{person}"), new { locked = false })).Content.ReadFromJsonAsync<JsonElement>();
+
+        Assert.Equal(JsonValueKind.Null, shown.GetProperty("image").ValueKind);
+        Assert.Equal(JsonValueKind.Null, unlocked.GetProperty("photoSource").ValueKind);
+        Assert.False(unlocked.GetProperty("locked").GetBoolean());
     }
 
     [Fact]
