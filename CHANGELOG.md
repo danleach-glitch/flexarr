@@ -46,6 +46,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ### Libraries
 - Replacing a `cover.jpg` or `poster.jpg` beside your files now shows the new picture in every app after the next scan, instead of the old one staying.
 - Adding a library on the web has one button: open its folder in the picker and press **Add library**.
+- On the web, **Settings › Libraries** says **Now scanning…** with its scan button turning while a library is scanned, from the moment it's added.
 
 ### Backups
 - Restoring a backup now keeps every setting, including error reports, automatic updates and audiobook keys, and the server keeps its identity, so apps carry on without signing in again.
