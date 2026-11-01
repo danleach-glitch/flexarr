@@ -22,6 +22,7 @@ fun TvRoot(model: AppModel) {
                     LoadProfiles(model, phase)
                     when {
                         model.tunnelProblem != null -> TvTunnelProblemScreen(model)
+                        model.serverUnreachable -> TvOfflineScreen(model)
                         !model.profilesLoaded -> CircularProgressIndicator(Modifier.align(Alignment.Center), color = Flexarr.screen)
                         model.needsProfile -> TvProfilePicker(model)
                         else -> TvMainScreen(model)
