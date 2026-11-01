@@ -25,6 +25,8 @@ const listeningKeys = ['speed', 'skipBackSeconds', 'skipForwardSeconds', 'smartR
 export function ListeningSection() {
   const name = useSession().profiles?.find((p) => p.isCurrent)?.name
   const preferences = useApi((signal) => getPodcastPreferences(signal), [])
+  // Loaded alongside, so the Continue watching switch is there with the rest rather than a moment later.
+  const playback = useApi(getPlaybackPreferences, [])
   // The server's answer to the last save, newer than the load.
   const [saved, setSaved] = useState<PodcastPreferences | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -68,7 +70,7 @@ export function ListeningSection() {
   return (
     <section>
       <SettingsHeader title="Podcasts and audiobooks" />
-      {p && (
+      {p && !playback.loading && (
         <>
           <SettingsGroup
             title="Listening"
@@ -88,7 +90,7 @@ export function ListeningSection() {
             {p.smartRewind !== undefined && (
               <ToggleRow label="Smart rewind" help="After a pause, start a little earlier." checked={p.smartRewind} onChange={(smartRewind) => void save({ smartRewind })} />
             )}
-            <ContinueWatching />
+            {playback.data && <ContinueWatching loaded={playback.data} />}
           </SettingsGroup>
           <SettingsGroup title="Phones and tablets" note="Notifications for new episodes are in each phone’s Settings.">
             <ToggleRow
@@ -116,11 +118,10 @@ export function ListeningSection() {
 }
 
 /** Books and podcasts in Continue watching, or a Continue listening row of their own: a playback preference. */
-function ContinueWatching() {
-  const loaded = useApi(getPlaybackPreferences, [])
-  // What was chosen here, ahead of the (cached) load.
+function ContinueWatching({ loaded }: { loaded: PlaybackPreferences }) {
+  // What was chosen here, ahead of the load.
   const [chosen, setPreferences] = useState<PlaybackPreferences>()
-  const preferences = chosen ?? loaded.data
+  const preferences = chosen ?? loaded
   const [error, setError] = useState<string>()
   // Servers before it don't send it, and have no such choice.
   if (preferences?.listeningInContinue === undefined) return null
