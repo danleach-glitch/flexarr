@@ -31,6 +31,10 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<string>("ArrBookId")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("ArrInstance")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Asin")
                         .HasColumnType("TEXT");
 

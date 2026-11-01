@@ -65,6 +65,26 @@ public class AudiobookArrTests(FlexarrApiFactory factory) : IClassFixture<Flexar
     }
 
     [Fact]
+    public async Task ABookMatchedByHand_IsStillDeletedThroughItsApp()
+    {
+        // Fix match makes the online provider its MetadataSource; the app its id came from still owns its files.
+        var library = await LibraryAsync();
+        var bookId = await BookAsync(library, managedBy: "Bookshelf", arrId: "14", source: "audible");
+        var arr = new FakeArr();
+        arr.Responses["PUT //bookshelf.test/api/v1/book/monitor"] = "[]";
+        arr.Responses["GET //bookshelf.test/api/v1/bookfile?bookId=14"] = """[{"id": 41, "bookId": 14, "path": "/data/audiobooks/y.m4b"}]""";
+        arr.Responses["DELETE //bookshelf.test/api/v1/bookfile/41"] = "{}";
+        using var app = arr.Serve(factory, bookshelf: true);
+        var client = Client(app.CreateClient());
+
+        var deleted = await client.DeleteAsync(new Uri($"/api/v1/items/{bookId}", UriKind.Relative));
+
+        Assert.Equal(HttpStatusCode.NoContent, deleted.StatusCode);
+        Assert.Equal(["PUT /api/v1/book/monitor", "GET /api/v1/bookfile?bookId=14", "DELETE /api/v1/bookfile/41"],
+            arr.Requests.Where(r => r.Contains("book", StringComparison.Ordinal)));
+    }
+
+    [Fact]
     public async Task ABookshelfThatRefuses_LeavesTheBookInFlexarr()
     {
         var library = await LibraryAsync();
@@ -190,14 +210,14 @@ public class AudiobookArrTests(FlexarrApiFactory factory) : IClassFixture<Flexar
         return library.Id;
     }
 
-    private async Task<Guid> BookAsync(Guid library, string managedBy, string arrId)
+    private async Task<Guid> BookAsync(Guid library, string managedBy, string arrId, string? source = null)
     {
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
         var book = new MediaItem
         {
-            LibraryId = library, Kind = MediaKind.Audiobook, Title = "Delete Me", SortTitle = "delete me", MetadataSource = managedBy,
-            Path = $"/books/{Guid.NewGuid():N}", Book = new BookDetails { ArrBookId = arrId },
+            LibraryId = library, Kind = MediaKind.Audiobook, Title = "Delete Me", SortTitle = "delete me", MetadataSource = source ?? managedBy,
+            Path = $"/books/{Guid.NewGuid():N}", Book = new BookDetails { ArrBookId = arrId, ArrInstance = managedBy },
         };
         db.MediaItems.Add(book);
         await db.SaveChangesAsync();

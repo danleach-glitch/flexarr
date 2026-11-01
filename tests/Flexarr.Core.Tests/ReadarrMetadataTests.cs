@@ -43,7 +43,7 @@ public sealed class ReadarrMetadataTests : IAsyncLifetime
         Assert.Equal(1, result.FromArr);
         var book = await _db.MediaItems.Include(i => i.Book).SingleAsync();
         Assert.Equal("Local description", book.Overview); // the files' word stands
-        Assert.Equal(("12", "3", "B07QL7C4NL", "Viking", "Bookshelf"), (book.Book!.ArrBookId, book.Book.ArrAuthorId, book.Book.Asin, book.Book.Publisher, book.MetadataSource));
+        Assert.Equal(("12", "3", "Bookshelf", "B07QL7C4NL", "Viking", "Bookshelf"), (book.Book!.ArrBookId, book.Book.ArrAuthorId, book.Book.ArrInstance, book.Book.Asin, book.Book.Publisher, book.MetadataSource));
         Assert.Equal(new DateOnly(2020, 9, 3), book.ReleaseDate);
         Assert.Equal("https://covers.example/tmc.jpg", book.PosterUrl);
         var entry = await _db.BookSeriesEntries.Include(e => e.Series).SingleAsync();

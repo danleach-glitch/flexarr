@@ -235,6 +235,7 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
             e.HasIndex(d => d.Asin);
             e.HasIndex(d => d.Isbn);
             e.HasIndex(d => d.ArrBookId);
+            e.Property(d => d.ArrInstance).HasMaxLength(200);
         });
 
         modelBuilder.Entity<Books.MediaChapter>(e =>

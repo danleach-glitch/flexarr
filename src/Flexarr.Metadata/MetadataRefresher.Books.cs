@@ -33,19 +33,30 @@ public sealed partial class MetadataRefresher
             }
         }
 
+        var shelves = catalogues.Select(c => new ReadarrShelf(c.Instance.Name, c.Books, c.Files, c.Authors)).ToList();
         int fromArr = 0, lookedUp = 0, unmatched = 0, local = 0;
         foreach (var book in books)
         {
             var details = book.Book ??= new BookDetails { MediaItemId = book.Id };
             var wanted = new BookToMatch(book.Path, book.Title,
                 [.. book.Credits.Where(c => c.Role == CreditRole.Author).OrderBy(c => c.Order).Select(c => c.Person!.Name)],
-                details.Asin, details.Isbn, details.ArrBookId);
-            var hit = catalogues.Select(c => (Catalogue: c, Book: ReadarrMatcher.Match(wanted, c.Books, c.Files, c.Authors, settings.PathMappings)))
-                .FirstOrDefault(h => h.Book is not null);
-            if (hit.Book is { } match)
+                details.Asin, details.Isbn, details.ArrBookId, details.ArrInstance);
+            // The app it came from is set up but didn't answer: its link stands rather than one guessed in another app.
+            var unanswered = details.ArrInstance is { } from
+                && settings.ArrInstances.Any(a => a.Kind == ArrKind.Readarr && SameInstance(a.Name, from))
+                && !catalogues.Any(c => SameInstance(c.Instance.Name, from));
+            var hit = unanswered ? null : ReadarrMatcher.Match(wanted, shelves, settings.PathMappings);
+            if (hit is { } matched)
             {
-                await ApplyReadarrAsync(book, details, match, hit.Catalogue, ct).ConfigureAwait(false);
+                await ApplyReadarrAsync(book, details, matched.Book, catalogues[matched.Shelf], ct).ConfigureAwait(false);
                 fromArr++;
+            }
+            else if (!unanswered && details.ArrBookId is not null)
+            {
+                // Its app no longer has it (or is gone): the old id would only reach some other book there.
+                details.ArrBookId = null;
+                details.ArrAuthorId = null;
+                details.ArrInstance = null;
             }
 
             // Online: by its ids, else (unless it was matched by hand) by title and author.
@@ -68,7 +79,7 @@ public sealed partial class MetadataRefresher
                 }
             }
 
-            if (hit.Book is null)
+            if (hit is null)
             {
                 if (online)
                 {
@@ -128,6 +139,7 @@ public sealed partial class MetadataRefresher
         var edition = match.Edition;
         details.ArrBookId = match.Id;
         details.ArrAuthorId = match.AuthorId;
+        details.ArrInstance = catalogue.Instance.Name;
         details.Asin ??= edition?.Asin is { Length: > 0 } asin ? asin.ToUpperInvariant() : null;
         details.Isbn ??= edition?.Isbn13;
         details.Publisher ??= edition?.Publisher;
@@ -137,7 +149,7 @@ public sealed partial class MetadataRefresher
         book.Year ??= book.ReleaseDate?.Year;
         book.Studio ??= details.Publisher;
         book.PosterUrl ??= Cover(match.Images) ?? Cover(edition?.Images ?? []);
-        // Which app has it: deleting it goes through that one.
+        // Where its details came from, as shown; deleting it goes through ArrInstance.
         book.MetadataSource = catalogue.Instance.Name;
 
         if (book.Genres.Count == 0 && match.Genres.Count > 0)
@@ -320,6 +332,8 @@ public sealed partial class MetadataRefresher
     private static string? Cover(IReadOnlyList<ArrImage> images) =>
         images.Where(i => i.CoverType is "cover" or "poster").Select(i => i.RemoteUrl)
             .FirstOrDefault(u => u is not null && u.StartsWith("http", StringComparison.OrdinalIgnoreCase));
+
+    private static bool SameInstance(string a, string b) => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
 
     private static string? Plain(string? html) => string.IsNullOrWhiteSpace(html) ? null : BookSidecars.PlainText(html);
 }

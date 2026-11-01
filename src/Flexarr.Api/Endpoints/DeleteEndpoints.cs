@@ -99,9 +99,12 @@ public static partial class DeleteEndpoints
     /// <summary>The Readarr-compatible app that manages a book, and the book's id there.</summary>
     private static async Task<(ArrInstance? Instance, string? BookId)> BookManagerAsync(FlexarrDbContext db, MediaItem book, FlexarrOptions options, CancellationToken ct)
     {
-        var arrId = await db.BookDetails.Where(d => d.MediaItemId == book.Id).Select(d => d.ArrBookId).FirstOrDefaultAsync(ct);
-        var instance = options.Arr.FirstOrDefault(a => a.Kind == ArrKind.Readarr && a.Name == book.MetadataSource);
-        return instance is not null && arrId is not null ? (instance, arrId) : (null, null);
+        // The app the id came from, not MetadataSource: Fix match points that at the online provider chosen.
+        var link = await db.BookDetails.Where(d => d.MediaItemId == book.Id).Select(d => new { d.ArrBookId, d.ArrInstance }).FirstOrDefaultAsync(ct);
+        var instance = link?.ArrInstance is { } name
+            ? options.Arr.FirstOrDefault(a => a.Kind == ArrKind.Readarr && string.Equals(a.Name, name, StringComparison.OrdinalIgnoreCase))
+            : null;
+        return instance is not null && link?.ArrBookId is { } arrId ? (instance, arrId) : (null, null);
     }
 
     /// <summary>
