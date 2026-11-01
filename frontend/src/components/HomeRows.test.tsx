@@ -67,7 +67,7 @@ describe('HomeRows', () => {
     // The square cover over a blurred copy of itself.
     const cards = container.querySelectorAll('.listen-card')
     expect(cards).toHaveLength(2)
-    expect(cards[0].querySelector('.listen-backdrop')).toHaveAttribute('src', '/api/v1/images/items/b1/poster?w=185')
+    expect(cards[0].querySelector('.listen-backdrop')).toHaveAttribute('src', '/api/v1/images/items/b1/poster?w=92')
     expect(cards[0].querySelector('.listen-cover .artwork-square')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('link', { name: 'Resume Project Hail Mary' }))
