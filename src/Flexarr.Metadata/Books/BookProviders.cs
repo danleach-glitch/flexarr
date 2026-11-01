@@ -281,8 +281,9 @@ public sealed partial class BookProviders(HttpClient http, Func<IMetadataSetting
 
     /// <summary>
     /// Audible's ASIN for an author of exactly this name (ignoring case, spaces and punctuation, so "J.R.R. Tolkien" is
-    /// "J. R. R. Tolkien"); of several, one a book of ours already lists (<paramref name="known"/>). Null when there's
-    /// none, or Audible is switched off.
+    /// "J. R. R. Tolkien"): one a book of ours already lists (<paramref name="known"/>), else the only one of that name.
+    /// Null when there's none, when there are several and none is known (a namesake could be taken for them), or when
+    /// Audible is switched off.
     /// </summary>
     /// <exception cref="HttpRequestException">Audnexus couldn't be asked just now.</exception>
     public async Task<string?> FindAudibleAuthorAsync(string name, IReadOnlyCollection<string> known, CancellationToken ct)
@@ -298,7 +299,7 @@ public sealed partial class BookProviders(HttpClient http, Func<IMetadataSetting
         var asins = (found as JsonArray ?? []).OfType<JsonObject>()
             .Where(a => Text(a, "name") is { } theirs && Fold(theirs) == wanted).Select(a => Text(a, "asin")).OfType<string>()
             .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-        return asins.FirstOrDefault(a => known.Contains(a, StringComparer.OrdinalIgnoreCase)) ?? asins.FirstOrDefault();
+        return asins.FirstOrDefault(a => known.Contains(a, StringComparer.OrdinalIgnoreCase)) ?? (asins.Count == 1 ? asins[0] : null);
     }
 
     /// <summary>Authors with the same name looked at on Open Library, at most, for one who wrote our books.</summary>

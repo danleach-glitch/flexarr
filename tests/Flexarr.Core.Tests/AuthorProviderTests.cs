@@ -30,14 +30,15 @@ public sealed class AuthorProviderTests : IDisposable
     }
 
     [Fact]
-    public async Task Audible_PrefersAnAsinTheBookAlreadyLists()
+    public async Task Audible_OfSeveralNamesakes_TakesOnlyOneTheBookAlreadyLists()
     {
         _web.Answers[("api.audnex.us", "/authors")] = """
             [{"asin": "B000OSMAN1", "name": "Richard Osman"}, {"asin": "B074KL81KM", "name": "Richard Osman"}]
             """;
 
         Assert.Equal("B074KL81KM", await Providers().FindAudibleAuthorAsync("Richard Osman", ["b074kl81km"], default));
-        Assert.Equal("B000OSMAN1", await Providers().FindAudibleAuthorAsync("Richard Osman", [], default));
+        Assert.Null(await Providers().FindAudibleAuthorAsync("Richard Osman", [], default)); // either could be the comedian
+        Assert.Null(await Providers().FindAudibleAuthorAsync("Richard Osman", ["B000NOBODY"], default));
     }
 
     [Fact]
