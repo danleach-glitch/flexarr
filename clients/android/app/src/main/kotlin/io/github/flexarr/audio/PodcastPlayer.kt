@@ -276,6 +276,14 @@ class PodcastPlayer(private val context: Context, private val model: AppModel) {
         position = target
     }
 
+    /** The profile's speed changed elsewhere (Settings): the episode playing takes it, without saving it again. */
+    fun followSpeed(speed: Double) {
+        if (current == null || speed == this.speed) return
+        this.speed = speed
+        player.setPlaybackSpeed(speed.toFloat())
+        saved.edit { putFloat(SPEED_KEY, speed.toFloat()) }
+    }
+
     /** A podcast's speed, remembered as the one to use from now on, here and in the profile's preferences. */
     fun chooseSpeed(speed: Double) {
         this.speed = speed

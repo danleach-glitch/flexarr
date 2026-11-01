@@ -90,6 +90,7 @@ fun ListeningSettingsScreen(model: AppModel, onNotifications: () -> Unit) {
                 return@launch
             }
             model.podcastPreferences = saved
+            if (change.speed != null) model.podcasts.followSpeed(saved.speed)
             saved.listening?.let(::booksFollow)
             if (reconciles) model.downloads.reconcilePodcasts()
         }

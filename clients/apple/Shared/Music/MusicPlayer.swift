@@ -250,7 +250,20 @@ final class MusicPlayer {
 
     /// The profile's podcast settings: a podcast's skip steps and smart rewind (shared with books from 0.58).
     var podcastListening: PodcastPreferences? {
-        didSet { if isPodcast, podcastListening != oldValue { pushNowPlaying() } }
+        didSet {
+            guard isPodcast, let listening = podcastListening else { return }
+            // The profile's speed changed elsewhere (Settings, another device): the episode playing takes it.
+            if let before = oldValue, listening.speed != before.speed, listening.speed != speed {
+                speed = listening.speed
+                Self.podcastSpeed = speed
+                player.defaultRate = playRate
+                if isPlaying { player.rate = playRate }
+                pushNowPlaying()
+            } else if listening.podcastSkipBack != oldValue?.podcastSkipBack || listening.podcastSkipForward != oldValue?.podcastSkipForward {
+                // New skip steps for the lock screen. Nothing else here shows there.
+                pushNowPlaying()
+            }
+        }
     }
 
     /// The profile's skip steps; a podcast on a server from before 0.58 skips 15 back and 30 forward.
