@@ -7,7 +7,7 @@
   padding: 0 16px 64px;
   background:
     radial-gradient(60rem 40rem at 50% -10%, color-mix(in srgb, var(--silver) 16%, transparent), transparent 70%),
-    radial-gradient(40rem 30rem at 100% 100%, color-mix(in srgb, #e8a0bf 8%, transparent), transparent 70%),
+    radial-gradient(40rem 30rem at 100% 100%, color-mix(in srgb, var(--silver) 8%, transparent), transparent 70%),
     var(--room);
 }
 

@@ -1,19 +1,12 @@
-/* Flexarr design tokens — see docs/design.md. */
+/* Flexarr design tokens — see docs/design.md. Colours, radii and the type scale come from tokens.generated.css
+   (design/tokens.json, `make tokens`); these are the ones only the web needs. */
 :root {
-  --room: #1b1720;
-  --seat: #25202c;
-  --seat-raised: #2e2836;
-  --aisle: #3a3343;
-  --screen: #f2eee7;
-  --usher: #a39aae;
-  --silver: #a9c2ec;
-  --danger: #f08a7e;
-  /* Connected, on, working: status dots, switches that are on, and Connect. */
-  --go: #7fd1a0;
-  /* Fields sit below the panel they're in, so they read as places to type rather than more panel. */
-  --well: #141118;
   --field-line: color-mix(in srgb, var(--screen) 22%, transparent);
   --black: #000;
+  /* Something to see to, short of an error: a pale coral rather than an amber, which design.md rules out. */
+  --warn: color-mix(in srgb, var(--danger) 55%, var(--screen));
+  /* Logs, file paths and API keys. */
+  --mono: ui-monospace, 'SF Mono', Menlo, monospace;
 
   /* Overridden inline per title from its artwork. */
   --ambient: var(--silver);
@@ -23,21 +16,7 @@
   --code-face: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --text: 'Atkinson Hyperlegible Next Variable', system-ui, sans-serif;
 
-  /* 1.25 scale from 17px. */
-  --step--1: 0.8rem;
-  --step-0: 1rem;
-  --step-1: 1.25rem;
-  --step-2: 1.5625rem;
-  --step-3: 1.953rem;
-  --step-4: 2.441rem;
-  --step-5: 3.052rem;
-  --step-6: 3.815rem;
-  --step-7: 4.768rem;
-
   --edge: clamp(16px, 4vw, 64px);
-  --radius-art: 4px;
-  --radius-control: 10px;
-  --radius-panel: 14px;
   --nav-height: 68px;
 
   color-scheme: dark;

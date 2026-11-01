@@ -3079,7 +3079,7 @@ a.download-attention {
   height: 32px;
   border-radius: 50%;
   background: var(--room);
-  color: #f2c879;
+  color: var(--screen);
 }
 
 .profile-choices .profile-choice-crown svg {
@@ -3157,7 +3157,7 @@ a.download-attention {
   max-width: min(90vw, 480px);
   padding: 10px 16px;
   border-radius: 10px;
-  background: var(--seat, #25202c);
+  background: var(--seat);
   color: var(--screen);
   font-size: var(--step--1);
   box-shadow: 0 8px 24px rgb(0 0 0 / 40%);

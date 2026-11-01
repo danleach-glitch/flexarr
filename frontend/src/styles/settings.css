@@ -479,7 +479,7 @@
 .connection-ok svg {
   width: 16px;
   height: 16px;
-  color: #7fd1a0;
+  color: var(--go);
 }
 
 .app-logo-icon svg {
@@ -527,12 +527,12 @@
 }
 
 .status-dot.ok {
-  background: #7fd1a0;
+  background: var(--go);
 }
 
 /* A test that worked: a green tick on its button; one that failed, a red cross. */
 .button .test-ok {
-  color: #7fd1a0;
+  color: var(--go);
   stroke-width: 3;
 }
 
@@ -547,11 +547,11 @@
 
 /* Connected, but something to see to (a media folder that isn't found here). */
 .status-dot.warn {
-  background: #e8b45a;
+  background: var(--warn);
 }
 
 .connection-warning {
-  color: #e8b45a;
+  color: var(--warn);
   font-size: 0.92rem;
 }
 
@@ -609,7 +609,7 @@
   border: 1px solid var(--aisle);
   border-radius: var(--radius-control);
   background: var(--room);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--mono);
   font-size: var(--step--1);
 }
 
@@ -1086,11 +1086,11 @@
 }
 
 .health-score[data-grade='fair'] .health-score-value {
-  color: #e8c27a;
+  color: var(--screen);
 }
 
 .health-score[data-grade='poor'] .health-score-value {
-  color: #e8908a;
+  color: var(--danger);
 }
 
 .health-score-label {
@@ -2090,7 +2090,7 @@
 
 .profile-crown {
   display: inline-grid;
-  color: #f2c879;
+  color: var(--screen);
 }
 
 .profile-crown svg {
@@ -2231,7 +2231,7 @@
   margin: 0;
   padding: 0;
   list-style: none;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--mono);
   font-size: 0.75rem;
   line-height: 1.5;
 }
@@ -2276,7 +2276,7 @@
 }
 
 .level-warning .log-level {
-  color: #e8c46a;
+  color: var(--warn);
 }
 
 .level-error .log-level,
@@ -2472,7 +2472,7 @@
   border-radius: 6px;
   background: var(--room);
   overflow-x: auto;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--mono);
   font-size: var(--step--1);
   color: var(--screen);
 }
@@ -2583,7 +2583,7 @@
 
 .guest-tv input {
   width: 9.5em;
-  font-family: var(--mono, ui-monospace, monospace);
+  font-family: var(--mono);
   letter-spacing: 0.08em;
 }
 
@@ -2695,7 +2695,7 @@
 
 .guest-code {
   width: 11em;
-  font-family: var(--mono, ui-monospace, monospace);
+  font-family: var(--mono);
   font-size: 1.3rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -2708,7 +2708,7 @@
 }
 
 .guest-joined {
-  color: #7fd1a0;
+  color: var(--go);
 }
 
 .guest-spinner {
@@ -2738,7 +2738,7 @@
   padding: 1px 7px;
   border-radius: 999px;
   background: rgb(127 209 160 / 0.16);
-  color: #7fd1a0;
+  color: var(--go);
   font-size: 0.75rem;
   font-weight: 700;
   vertical-align: 2px;
