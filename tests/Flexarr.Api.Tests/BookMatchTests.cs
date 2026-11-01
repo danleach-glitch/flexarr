@@ -73,6 +73,24 @@ public class BookMatchTests(FlexarrApiFactory factory) : IClassFixture<FlexarrAp
         Assert.Equal(ChapterSource.Audible, (await scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().BookDetails.SingleAsync(d => d.MediaItemId == book)).ChapterSource);
     }
 
+    [Fact]
+    public async Task AudibleChapters_Previewed_AreNotSaved()
+    {
+        using var app = Serve();
+        var client = Client(app);
+        var book = await SeedAsync(app, "The Thursday Murder Club", 600, asin: "B0TESTASIN");
+
+        var preview = await client.GetFromJsonAsync<List<BookChapterDto>>(new Uri($"/api/v1/items/{book}/chapters/audible", UriKind.Relative), Json);
+
+        Assert.Equal("Opening Credits", preview![0].Title);
+        Assert.Equal(0.0, preview[0].StartSeconds);
+        Assert.Equal(600.0, preview[^1].EndSeconds);
+        using var scope = app.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        Assert.NotEqual(ChapterSource.Audible, (await db.BookDetails.SingleAsync(d => d.MediaItemId == book)).ChapterSource);
+        Assert.DoesNotContain(await db.MediaChapters.Where(c => c.MediaItemId == book).Select(c => c.Title).ToListAsync(), t => t == "Opening Credits");
+    }
+
     [Theory]
     [InlineData("""{"chapters": []}""")]
     [InlineData("""{"chapters": [{"title": "", "startSeconds": 0}]}""")]

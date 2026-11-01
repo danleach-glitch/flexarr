@@ -62,4 +62,30 @@ describe('ChapterEditor', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Discard changes' }))
     expect(onClose).toHaveBeenCalled()
   })
+  it('fills the form with Audible’s chapters, saved only with Save', async () => {
+    const sent: unknown[] = []
+    mockApi({
+      'GET /items/b1/chapters/audible': () => [
+        { index: 0, title: 'Opening Credits', startSeconds: 0, endSeconds: 20 },
+        { index: 1, title: 'Chapter 1', startSeconds: 20, endSeconds: 200 },
+      ],
+      'PUT /items/b1/chapters': (init?: RequestInit) => {
+        const body = JSON.parse(String(init?.body)) as { chapters: { title: string; startSeconds: number }[] }
+        sent.push(body)
+        return body.chapters.map((c, i) => ({ index: i, ...c, endSeconds: 0 }))
+      },
+    })
+    const onSaved = vi.fn()
+    render(<ChapterEditor bookId="b1" chapters={chapters} hasAsin onSaved={onSaved} onClose={() => undefined} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Use Audible’s' }))
+    await waitFor(() => expect(screen.getByLabelText<HTMLInputElement>('Chapter 1 title').value).toBe('Opening Credits'))
+    expect(screen.queryByLabelText('Chapter 3 title')).toBeNull()
+    expect(sent).toEqual([])
+    expect(onSaved).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(onSaved).toHaveBeenCalled())
+    expect(sent).toEqual([{ chapters: [{ title: 'Opening Credits', startSeconds: 0 }, { title: 'Chapter 1', startSeconds: 20 }] }])
+  })
 })

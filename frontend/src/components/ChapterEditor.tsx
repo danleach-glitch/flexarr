@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ApiError, saveChapters, takeAudibleChapters, type BookChapter } from '../api/client'
+import { ApiError, audibleChapters, saveChapters, type BookChapter } from '../api/client'
 import { useModal } from '../hooks/useModal'
 import { clockText, parseClock } from '../lib/books'
 import { AsyncButton } from './AsyncButton'
@@ -24,8 +24,8 @@ function shiftDrafts(drafts: Draft[], seconds: number): Draft[] {
 
 /**
  * A book's chapters for the main profile to put right: rename them, move where each starts, add or remove one, shift
- * them all by some seconds (the first stays at the start), all saved together with Save; or take Audible's, which
- * replaces them straight away. Saved chapters stay through rescans.
+ * them all by some seconds (the first stays at the start), or fill in Audible's, all saved together with Save.
+ * Saved chapters stay through rescans.
  */
 export function ChapterEditor({
   bookId,
@@ -47,7 +47,6 @@ export function ChapterEditor({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
   const [leaving, setLeaving] = useState(false)
-  const [confirmAudible, setConfirmAudible] = useState(false)
 
   const changed = JSON.stringify(drafts.map(({ title, start }) => [title, start])) !== JSON.stringify(saved.map(({ title, start }) => [title, start]))
   // Done (or Escape, or a click outside) with edits not saved asks first.
@@ -80,6 +79,21 @@ export function ChapterEditor({
             ? e.messages[0]
             : String(e),
       )
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // Audible's chapters fill the form, in place of what's there; Save sends them, and Discard changes gets these back.
+  async function fillFromAudible() {
+    setBusy(true)
+    setError(undefined)
+    try {
+      const chapters = await audibleChapters(bookId)
+      setLeaving(false)
+      setDrafts(draftsOf(chapters).map((d, i) => ({ ...d, key: Math.max(-1, ...drafts.map((x) => x.key)) + 1 + i })))
+    } catch (e) {
+      setError(e instanceof ApiError && e.messages[0] ? e.messages[0] : String(e))
     } finally {
       setBusy(false)
     }
@@ -157,27 +171,12 @@ export function ChapterEditor({
           >
             Shift
           </button>
-          {hasAsin &&
-            (confirmAudible ? (
-              <>
-                <AsyncButton
-                  className="button small"
-                  disabled={busy}
-                  onClick={() => run(() => takeAudibleChapters(bookId, canShift ? seconds : 0)).finally(() => setConfirmAudible(false))}
-                >
-                  Replace all
-                </AsyncButton>
-                <button type="button" className="button quiet small" disabled={busy} onClick={() => setConfirmAudible(false)}>
-                  Cancel
-                </button>
-              </>
-            ) : (
-              <button type="button" className="button quiet small" disabled={busy} onClick={() => setConfirmAudible(true)}>
-                Use Audible’s
-              </button>
-            ))}
+          {hasAsin && (
+            <AsyncButton className="button quiet small" disabled={busy} onClick={fillFromAudible}>
+              Use Audible’s
+            </AsyncButton>
+          )}
         </div>
-        {confirmAudible && <p className="muted">Audible’s chapters replace all of these{changed ? ', and your changes,' : ''} straight away.</p>}
 
         {error && (
           <p className="error" role="alert">

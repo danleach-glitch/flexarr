@@ -108,6 +108,24 @@ public static class BookMatchEndpoints
             return Results.Ok(await BookQueries.Chapters(db, id).ToListAsync(ct));
         });
 
+        // Audible's chapters, not saved: the chapter editor puts them in its form, and Save sends them.
+        item.MapGet("/chapters/audible", async (Guid id, double? shiftSeconds, FlexarrDbContext db, MetadataRefresher refresher, CancellationToken ct) =>
+        {
+            if (await db.BookDetails.AsNoTracking().FirstOrDefaultAsync(d => d.MediaItemId == id, ct) is not { } details)
+            {
+                return Results.NotFound();
+            }
+
+            if (details.Asin is not { } asin)
+            {
+                return Results.Problem("This book has no Audible id. Fix match to find it on Audible first.", statusCode: 409);
+            }
+
+            return await refresher.AudibleChaptersAsync(details, asin, shiftSeconds ?? 0, ct, force: true) is { } chapters
+                ? Results.Ok(chapters.Select((c, i) => new BookChapterDto(i, c.Title, c.StartSeconds, c.EndSeconds)).ToList())
+                : Results.Problem("Audible has no chapters for this book.", statusCode: 404);
+        });
+
         item.MapPost("/chapters/audible", async (Guid id, AudibleChaptersRequest request, FlexarrDbContext db, MetadataRefresher refresher, CancellationToken ct) =>
         {
             if (await db.BookDetails.FirstOrDefaultAsync(d => d.MediaItemId == id, ct) is not { } details)

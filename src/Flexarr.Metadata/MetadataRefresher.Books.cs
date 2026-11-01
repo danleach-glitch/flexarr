@@ -423,28 +423,46 @@ public sealed partial class MetadataRefresher
     /// <summary>Replaces a book's chapters with Audible's for <paramref name="asin"/>, moved by <paramref name="shift"/> seconds; false if they don't fit.</summary>
     public async Task<bool> UseAudibleChaptersAsync(Guid bookId, BookDetails details, string asin, double shift, CancellationToken ct, bool force = false)
     {
-        ArgumentNullException.ThrowIfNull(details);
-        if (bookProviders is null || await bookProviders.ChaptersAsync(asin, ct).ConfigureAwait(false) is not { Chapters.Count: > 0 } audible)
-        {
-            return false;
-        }
-
-        var length = details.DurationSeconds;
-        if (!force && (!audible.Accurate || length <= 0 || Math.Abs(audible.RuntimeSeconds - length) > Math.Max(30, length * 0.01)))
+        if (await AudibleChaptersAsync(details, asin, shift, ct, force).ConfigureAwait(false) is not { } chapters)
         {
             return false;
         }
 
         await db.MediaChapters.Where(c => c.MediaItemId == bookId).ExecuteDeleteAsync(ct).ConfigureAwait(false);
-        var chapters = audible.Chapters.Select(c => c with { StartSeconds = Math.Max(0, c.StartSeconds + shift), EndSeconds = Math.Max(0, c.EndSeconds + shift) })
-            .Where(c => length <= 0 || c.StartSeconds < length).ToList();
         db.MediaChapters.AddRange(chapters.Select((c, i) => new MediaChapter
         {
-            MediaItemId = bookId, Index = i, Title = c.Title, StartSeconds = i == 0 ? 0 : c.StartSeconds,
-            EndSeconds = i == chapters.Count - 1 && length > 0 ? length : c.EndSeconds,
+            MediaItemId = bookId, Index = i, Title = c.Title, StartSeconds = c.StartSeconds, EndSeconds = c.EndSeconds,
         }));
         details.ChapterSource = ChapterSource.Audible;
         return true;
+    }
+
+    /// <summary>
+    /// Audible's chapters for <paramref name="asin"/>, moved by <paramref name="shift"/> seconds and fitted to the
+    /// book (the first at the start, the last to the end), without saving them; null if there are none, or (unless
+    /// <paramref name="force"/>) they don't fit the book's length.
+    /// </summary>
+    public async Task<List<BookChapter>?> AudibleChaptersAsync(BookDetails details, string asin, double shift, CancellationToken ct, bool force = false)
+    {
+        ArgumentNullException.ThrowIfNull(details);
+        if (bookProviders is null || await bookProviders.ChaptersAsync(asin, ct).ConfigureAwait(false) is not { Chapters.Count: > 0 } audible)
+        {
+            return null;
+        }
+
+        var length = details.DurationSeconds;
+        if (!force && (!audible.Accurate || length <= 0 || Math.Abs(audible.RuntimeSeconds - length) > Math.Max(30, length * 0.01)))
+        {
+            return null;
+        }
+
+        var chapters = audible.Chapters.Select(c => c with { StartSeconds = Math.Max(0, c.StartSeconds + shift), EndSeconds = Math.Max(0, c.EndSeconds + shift) })
+            .Where(c => length <= 0 || c.StartSeconds < length).ToList();
+        return chapters.Select((c, i) => c with
+        {
+            StartSeconds = i == 0 ? 0 : c.StartSeconds,
+            EndSeconds = i == chapters.Count - 1 && length > 0 ? length : c.EndSeconds,
+        }).ToList();
     }
 
     /// <summary>Credits in a role from a provider: when the book has none in it, or a chosen match says so.</summary>

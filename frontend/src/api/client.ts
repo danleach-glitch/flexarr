@@ -528,8 +528,8 @@ export const saveChapters = (id: string, chapters: { title: string; startSeconds
   request<BookChapter[]>('PUT', `/items/${id}/chapters`, { chapters })
 /** Moves every chapter but the first by `seconds` (up to ten minutes either way). */
 export const shiftChapters = (id: string, seconds: number) => request<BookChapter[]>('POST', `/items/${id}/chapters/shift`, { seconds })
-/** Audible's chapters for the book (it needs an ASIN), moved by `shiftSeconds`. */
-export const takeAudibleChapters = (id: string, shiftSeconds = 0) => request<BookChapter[]>('POST', `/items/${id}/chapters/audible`, { shiftSeconds })
+/** Audible's chapters for the book (it needs an ASIN), not saved: the editor fills its form with them. */
+export const audibleChapters = (id: string) => request<BookChapter[]>('GET', `/items/${id}/chapters/audible`)
 
 /** A result of a book search for Fix match. */
 export interface BookMatch {
