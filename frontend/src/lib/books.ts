@@ -143,8 +143,15 @@ export const stepSpeed = (speed: number, direction: 1 | -1) => clampSpeed(clampS
 /** "1×", "1.25×", "0.8×". */
 export const formatSpeed = (speed: number) => `${Number(clampSpeed(speed).toFixed(2))}×`
 
-/** The quick choices offered beside the fine steps. */
+/** The quick choices offered beside the fine steps, for books and podcasts alike. */
 export const bookSpeedPresets = [0.8, 1, 1.1, 1.2, 1.25, 1.5, 1.75, 2, 2.5, 3] as const
+
+/** The seconds skip back and forward can jump, in books and podcasts alike. */
+export const skipSteps = [10, 15, 30, 45, 60] as const
+
+/** The choices, plus a value saved elsewhere that isn't one of them (in order). */
+export const withCurrent = (choices: readonly number[], current: number): number[] =>
+  choices.includes(current) ? [...choices] : [...choices, current].sort((a, b) => a - b)
 
 /** Seconds of listening left at `speed`. */
 export const timeLeft = (duration: number, position: number, speed: number) => Math.max(0, duration - position) / (speed > 0 ? speed : 1)

@@ -244,7 +244,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     }
   }, [podcastPlaying])
 
-  // How this profile listens to books, again when Settings › Audiobooks changes it.
+  // How this profile listens to books, again when Settings › Podcasts and audiobooks changes it.
   const bookPlaying = isBook(current)
   useEffect(() => {
     if (!bookPlaying) return

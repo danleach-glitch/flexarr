@@ -22,8 +22,7 @@ import { errorText } from './useSettings'
 function WhileWatching({ name }: { name?: string }) {
   const loaded = useApi(getPlaybackPreferences, [])
   const [preferences, setPreferences] = useState<PlaybackPreferences>()
-  // The group the failed change was in shows the error.
-  const [error, setError] = useState<{ text: string; home: boolean }>()
+  const [error, setError] = useState<string>()
   useEffect(() => loaded.data && setPreferences(loaded.data), [loaded.data])
   if (!preferences) return loaded.error ? <SaveStatus error={errorText(loaded.error)} /> : null
 
@@ -35,7 +34,7 @@ function WhileWatching({ name }: { name?: string }) {
     { key: 'skipCredits', label: 'Skip credits', help: 'Moves on to the next episode as the credits start.' },
   ]
 
-  async function change(next: PlaybackPreferences, home = false) {
+  async function change(next: PlaybackPreferences) {
     const before = preferences
     setPreferences(next)
     setError(undefined)
@@ -43,7 +42,7 @@ function WhileWatching({ name }: { name?: string }) {
       await setPlaybackPreferences(next)
     } catch (e) {
       setPreferences(before)
-      setError({ text: errorText(e), home })
+      setError(errorText(e))
     }
   }
 
@@ -51,7 +50,7 @@ function WhileWatching({ name }: { name?: string }) {
     <>
       <SettingsGroup
         title="While watching"
-        note={error && !error.home ? <SaveStatus error={error.text} /> : `${name ? `${name}’s` : 'This profile’s'} own, on every device. The player’s menus change them too.`}
+        note={error ? <SaveStatus error={error} /> : `${name ? `${name}’s` : 'This profile’s'} own, on every device. The player’s menus change them too.`}
       >
         {options.map((o) => (
           <ToggleRow key={o.key} label={o.label} help={o.help} checked={preferences[o.key]} onChange={(on) => void change({ ...preferences, [o.key]: on })} />
@@ -79,16 +78,6 @@ function WhileWatching({ name }: { name?: string }) {
           onChange={(on) => void change({ ...preferences, subtitlesInBlackBars: on })}
         />
       </SettingsGroup>
-      {/* Servers before it don't send it, and have no such choice. */}
-      {preferences.listeningInContinue !== undefined && (
-        <SettingsGroup title="Home" note={error?.home ? <SaveStatus error={error.text} /> : undefined}>
-          <ToggleRow
-            label="Books and podcasts in Continue watching"
-            checked={preferences.listeningInContinue}
-            onChange={(on) => void change({ ...preferences, listeningInContinue: on }, true)}
-          />
-        </SettingsGroup>
-      )}
     </>
   )
 }

@@ -539,7 +539,7 @@ export function beaconBookProgress(id: string, positionSeconds: number, device: 
     body: JSON.stringify({ positionSeconds, ended: false, device, recordedAt: new Date().toISOString() }),
   }).catch(() => undefined)
 }
-/** Settings › Audiobooks: default speed, skip steps and smart rewind. */
+/** Settings › Podcasts and audiobooks: speed, skip steps and smart rewind. */
 export const BOOK_LISTENING_CHANGED = 'flexarr:book-listening'
 /** Chapter tools (main profile only): each chapter runs to the next one's start. */
 export const saveChapters = (id: string, chapters: { title: string; startSeconds: number }[]) =>

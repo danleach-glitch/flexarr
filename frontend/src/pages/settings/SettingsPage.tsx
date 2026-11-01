@@ -1,13 +1,11 @@
 import { useEffect, type ComponentType, type ReactNode, type SVGProps } from 'react'
 import { Navigate, NavLink, useParams } from 'react-router'
 import { clearApiCache, getMe, getRequestDestinations, getRequestStatus, getTraktStatus, getUpdates, lockAdmin } from '../../api/client'
-import { useLibraries } from '../../hooks/librariesContext'
 import { useSession } from '../../hooks/sessionContext'
 import { useApi } from '../../hooks/useApi'
-import { Antenna, Book, Download, Film, Gauge, Globe, History, Inbox, Info, LayoutGrid, Microphone, Notes, Padlock, PanelLeft, Shield, PlayCircle, Plug, Restore, Stack, Users } from '../../components/icons'
+import { Antenna, Download, Film, Gauge, Globe, History, Inbox, Info, LayoutGrid, Microphone, Notes, Padlock, PanelLeft, Shield, PlayCircle, Plug, Restore, Stack, Users } from '../../components/icons'
 import { hasRequestChoice } from '../../lib/requestLibraries'
 import { AboutSection } from './AboutSection'
-import { AudiobooksSection } from './AudiobooksSection'
 import { SecuritySection } from './SecuritySection'
 import { AdminUnlock } from './AdminUnlock'
 import { BackupSection } from './BackupSection'
@@ -20,10 +18,10 @@ import { LibrariesSection } from './LibrariesSection'
 import { LogsSection } from './LogsSection'
 import { OverviewSection } from './OverviewSection'
 import { PlaybackSection } from './PlaybackSection'
-import { PodcastsSection } from './PodcastsSection'
 import { ProfilesSection } from './ProfilesSection'
 import { RemoteAccessSection } from './RemoteAccessSection'
 import { RequestsSection } from './RequestsSection'
+import { ListeningSection } from './ListeningSection'
 import { LiveTvSection } from './LiveTvSection'
 import { StreamingSection } from './StreamingSection'
 import { SidebarSection } from './SidebarSection'
@@ -43,12 +41,9 @@ interface Page {
 /** Every profile's own: how it watches and listens, and this browser's music. */
 const profilePages: Page[] = [
   { id: 'playback', label: 'Playback', icon: PlayCircle, render: () => <PlaybackSection /> },
-  { id: 'podcasts', label: 'Podcasts', icon: Microphone, render: () => <PodcastsSection /> },
+  { id: 'listening', label: 'Podcasts and audiobooks', icon: Microphone, render: () => <ListeningSection /> },
   { id: 'sidebar', label: 'Sidebar', icon: PanelLeft, render: () => <SidebarSection /> },
 ]
-
-/** Listed once there's an audiobooks library this profile can see. */
-const audiobooksPage: Page = { id: 'audiobooks', label: 'Audiobooks', icon: Book, render: () => <AudiobooksSection /> }
 
 /** Listed when the server offers Trakt (from 0.57). */
 const traktPage: Page = { id: 'trakt', label: 'Trakt', icon: History, render: () => <TraktSection /> }
@@ -77,7 +72,15 @@ const serverPages: Page[] = [
 ]
 
 /** Pages that moved, so old links and bookmarks still land somewhere sensible. */
-const moved: Record<string, string> = { activity: 'overview', server: 'remote', access: 'remote', devices: 'security', changelog: 'about' }
+const moved: Record<string, string> = {
+  activity: 'overview',
+  server: 'remote',
+  access: 'remote',
+  devices: 'security',
+  changelog: 'about',
+  podcasts: 'listening',
+  audiobooks: 'listening',
+}
 
 export function SettingsPage() {
   const { section } = useParams()
@@ -93,10 +96,7 @@ export function SettingsPage() {
     window.addEventListener(TRAKT_CHANGED, reloadTrakt)
     return () => window.removeEventListener(TRAKT_CHANGED, reloadTrakt)
   }, [reloadTrakt])
-  const { libraries } = useLibraries()
-  const books = libraries.some((l) => l.type === 'Audiobooks')
-  const listed = books ? [...profilePages.slice(0, 2), audiobooksPage, ...profilePages.slice(2)] : profilePages
-  const withTrakt = trakt.data?.available ? [...listed, traktPage] : listed
+  const withTrakt = trakt.data?.available ? [...profilePages, traktPage] : profilePages
   // Book requests have a setup of their own (and a library to choose, with two), so they list the page too.
   const requestsListed = (destinations.data && hasRequestChoice(destinations.data, current?.hiddenLibraryIds ?? [])) || requestStatus.data?.books === true
   const ownPages = requestsListed ? [...withTrakt, requestsPage] : withTrakt
@@ -129,7 +129,7 @@ export function SettingsPage() {
   if (!section) return me.loading ? null : <Navigate to={`/settings/${isAdmin ? 'overview' : 'playback'}`} replace />
   if (moved[section]) return <Navigate to={`/settings/${moved[section]}`} replace />
 
-  const profilePage = [...profilePages, audiobooksPage, traktPage, requestsPage].find((p) => p.id === section)
+  const profilePage = [...profilePages, traktPage, requestsPage].find((p) => p.id === section)
   const serverPage = serverPages.find((p) => p.id === section)
   // A server page (an old link, say) waits to know whose profile this is, and sends anyone else to their own pages.
   if (!profilePage && me.loading) return null
