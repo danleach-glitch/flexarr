@@ -46,14 +46,14 @@ Episodes play through your server rather than straight from the podcast's host. 
 
 Up Next is your own queue of episodes, shared between the web and your phone. Use **Play next** or **Add to Up Next** on any episode. Reorder or remove episodes on the Podcasts page, or in Now Playing on iPhone and iPad. An episode leaves Up Next once it starts playing.
 
-Episodes you're part way through also show on Home, in **Continue watching or listening**, on the web, iPhone, iPad and Android. To leave them out, turn off **Books and podcasts in Continue watching** in **Settings › Podcasts and audiobooks**.
+Episodes you're part way through also show on Home, in **Continue watching or listening**, on the web, iPhone, iPad and Android. To leave them out, turn off **Books and podcasts in Continue watching** in **Settings › Podcasts and audiobooks** (the main profile's is in **Settings › Home and Browse** on the web, and the Apple TV's in **Settings › Playback**).
 
 ## Settings
 
 Podcast settings belong to each profile, and are in **Settings › Podcasts and audiobooks** on the web, iPhone, iPad and Android:
 
 - **Speed**, **Skip back**, **Skip forward** and **Smart rewind**, shared with audiobooks.
-- **Books and podcasts in Continue watching**.
+- **Books and podcasts in Continue watching** (for the main profile, in **Settings › Home and Browse** on the web).
 - **Download new episodes** and how many of each show's newest to keep, for phones and tablets.
 
 On the web, **Show in the sidebar** is in **Settings › Sidebar**; either way, Home has a New podcasts row.

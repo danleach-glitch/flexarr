@@ -4,11 +4,10 @@ import {
   getPlaybackPreferences,
   getPodcastPreferences,
   savePodcastPreferences,
-  setPlaybackPreferences,
-  type PlaybackPreferences,
   type PodcastPreferences,
 } from '../../api/client'
 import { useSession } from '../../hooks/sessionContext'
+import { ContinueWatchingRow } from './ContinueWatchingRow'
 import { useApi } from '../../hooks/useApi'
 import { bookSpeedPresets, skipSteps, withCurrent } from '../../lib/books'
 import { PODCAST_PREFERENCES_CHANGED, speedLabel } from '../../lib/podcasts'
@@ -23,7 +22,9 @@ import { errorText } from './useSettings'
 const listeningKeys = ['speed', 'skipBackSeconds', 'skipForwardSeconds', 'smartRewind'] as const
 
 export function ListeningSection() {
-  const name = useSession().profiles?.find((p) => p.isCurrent)?.name
+  const { me, profiles } = useSession()
+  const name = profiles?.find((p) => p.isCurrent)?.name
+  const isAdmin = me?.isAdmin === true
   const preferences = useApi((signal) => getPodcastPreferences(signal), [])
   // Loaded alongside, so the Continue watching switch is there with the rest rather than a moment later.
   const playback = useApi(getPlaybackPreferences, [])
@@ -90,7 +91,8 @@ export function ListeningSection() {
             {p.smartRewind !== undefined && (
               <ToggleRow label="Smart rewind" help="After a pause, start a little earlier." checked={p.smartRewind} onChange={(smartRewind) => void save({ smartRewind })} />
             )}
-            {playback.data && <ContinueWatching loaded={playback.data} />}
+            {/* The main profile has it in Home and Browse, with the rest of Home. */}
+            {playback.data && !isAdmin && <ContinueWatchingRow loaded={playback.data} />}
           </SettingsGroup>
           <SettingsGroup
             title="Phones and tablets"
@@ -112,36 +114,5 @@ export function ListeningSection() {
       {preferences.error && !p && <SaveStatus error={errorText(preferences.error)} />}
       {error && <SaveStatus error={error} />}
     </section>
-  )
-}
-
-/** Books and podcasts in Continue watching, or a Continue listening row of their own: a playback preference. */
-function ContinueWatching({ loaded }: { loaded: PlaybackPreferences }) {
-  // What was chosen here, ahead of the load.
-  const [chosen, setPreferences] = useState<PlaybackPreferences>()
-  const preferences = chosen ?? loaded
-  const [error, setError] = useState<string>()
-  // Servers before it don't send it, and have no such choice.
-  if (preferences?.listeningInContinue === undefined) return null
-
-  async function change(on: boolean) {
-    const before = preferences!
-    setPreferences({ ...before, listeningInContinue: on })
-    setError(undefined)
-    try {
-      await setPlaybackPreferences({ ...before, listeningInContinue: on })
-    } catch (e) {
-      setPreferences(before)
-      setError(errorText(e))
-    }
-  }
-
-  return (
-    <ToggleRow
-      label="Books and podcasts in Continue watching"
-      help={error ? <SaveStatus error={error} /> : undefined}
-      checked={preferences.listeningInContinue}
-      onChange={(on) => void change(on)}
-    />
   )
 }

@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { describe, expect, it, vi } from 'vitest'
 import { ListeningSection } from './ListeningSection'
+import { LayoutSection } from './LayoutSection'
 import { SettingsPage } from './SettingsPage'
 import { mockApi } from '../../test/mockApi'
 
@@ -91,6 +92,27 @@ describe('Podcasts and audiobooks settings', () => {
     expect(screen.queryByRole('combobox', { name: 'Skip back' })).not.toBeInTheDocument()
     expect(screen.queryByRole('switch', { name: /Smart rewind/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('switch', { name: 'Books and podcasts in Continue watching' })).not.toBeInTheDocument()
+  })
+
+  it('gives the main profile its Continue watching switch in Home and Browse', async () => {
+    const sent: unknown[] = []
+    mockApi({
+      '/settings/layout': { home: [], movies: [], shows: [], combinable: false, combineLibraries: false },
+      '/me/playback-preferences': { ...playback, listeningInContinue: true },
+      'PUT /me/playback-preferences': (init?: RequestInit) => {
+        const body: unknown = JSON.parse(String(init?.body))
+        sent.push(body)
+        return body
+      },
+    })
+    render(
+      <MemoryRouter>
+        <LayoutSection />
+      </MemoryRouter>,
+    )
+
+    fireEvent.click(await screen.findByRole('switch', { name: /Books and podcasts in Continue watching/ }))
+    await vi.waitFor(() => expect(sent).toEqual([{ ...playback, listeningInContinue: false }]))
   })
 
   it.each(['podcasts', 'audiobooks'])('sends the old /settings/%s address to the new page', async (old) => {

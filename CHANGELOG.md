@@ -22,7 +22,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On the web, **Show in the sidebar** for podcasts is now in **Settings › Sidebar**, and where book details come from (the Audible store, Google Books and Hardcover keys) is in **Settings › Libraries**.
 
 ### Home
-- **Continue watching or listening**: books and podcast episodes you're part way through now sit in the same row as your films and shows, on the web, iPhone, iPad and Android (books only on the Apple TV). To keep them apart, turn off **Books and podcasts in Continue watching** in **Settings › Podcasts and audiobooks** (in **Settings › Playback** on the Apple TV).
+- **Continue watching or listening**: books and podcast episodes you're part way through now sit in the same row as your films and shows, on the web, iPhone, iPad and Android (books only on the Apple TV). To keep them apart, turn off **Books and podcasts in Continue watching** in **Settings › Podcasts and audiobooks** (the main profile's is in **Settings › Home and Browse** on the web, and the Apple TV's in **Settings › Playback**).
 
 ### Website
 - flexarr.io catches up: Trakt, the watchlist, kids profiles, dialogue boost and night mode, the iPhone remote, the new setup guide, and a first look at audiobooks.

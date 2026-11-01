@@ -1,12 +1,15 @@
 import { useEffect, useId, useRef, useState, type DragEvent, type ReactNode } from 'react'
-import { getLayout, saveLayout, type Layout, type RowChoice } from '../../api/client'
+import { getLayout, getPlaybackPreferences, saveLayout, type Layout, type RowChoice } from '../../api/client'
 import { ChevronDown, ChevronUp, Grip } from '../../components/icons'
 import { useApi } from '../../hooks/useApi'
 import { SaveStatus, SettingsHeader, ToggleRow } from './shared'
 import { errorText } from './useSettings'
+import { ContinueWatchingRow } from './ContinueWatchingRow'
 
 export function LayoutSection() {
   const { data, error } = useApi(getLayout, [])
+  // The main profile's own switch for books and podcasts in Continue watching, with the rest of Home.
+  const playback = useApi(getPlaybackPreferences, [])
   const [draft, setDraft] = useState<Layout>()
   const [status, setStatus] = useState<{ saved?: string; error?: string }>({})
   const layout = draft ?? data
@@ -52,14 +55,17 @@ export function LayoutSection() {
       <SettingsHeader title="Home and Browse">Which rows Home and each library’s Browse show, for every profile. Drag a row to move it.</SettingsHeader>
       <SaveStatus {...status} />
       <RowList title="Home" rows={layout.home} onChange={(rows) => change('home', rows)}>
-        {layout.combinable && (
+        {(layout.combinable || playback.data?.listeningInContinue !== undefined) && (
           <div className="panel setting-rows">
-            <ToggleRow
-              label="Combine libraries of the same kind"
-              help="One Latest unwatched row for all your film libraries and one for all your TV ones. A title in more than one library shows once."
-              checked={layout.combineLibraries}
-              onChange={combine}
-            />
+            {layout.combinable && (
+              <ToggleRow
+                label="Combine libraries of the same kind"
+                help="One Latest unwatched row for all your film libraries and one for all your TV ones. A title in more than one library shows once."
+                checked={layout.combineLibraries}
+                onChange={combine}
+              />
+            )}
+            {playback.data && <ContinueWatchingRow loaded={playback.data} help="The main profile’s own." />}
           </div>
         )}
       </RowList>
