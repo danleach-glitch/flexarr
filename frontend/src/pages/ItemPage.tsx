@@ -20,7 +20,7 @@ import { Artwork } from '../components/Artwork'
 import { AsyncButton } from '../components/AsyncButton'
 import { PosterCard } from '../components/Cards'
 import { Facts } from '../components/Hero'
-import { Check, Film, History, More, Play, Shuffle } from '../components/icons'
+import { icon } from '../components/icons.generated'
 import { Menu, type MenuAction, type MenuPoint } from '../components/ItemMenu'
 import { Row } from '../components/Row'
 import { TrailerDialog } from '../components/TrailerDialog'
@@ -174,27 +174,27 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
           <div className="detail-actions">
             {playTarget && (
               <button className="button" onClick={() => navigate(`/play/${playTarget.id}`)}>
-                <Play /> {playLabel}
+                <icon.play /> {playLabel}
               </button>
             )}
             {progress !== null && (
               <button className="button quiet" onClick={() => navigate(`/play/${item.id}?t=0`)}>
-                <History /> Start over
+                <icon.startOver /> Start over
               </button>
             )}
             {item.kind === 'Series' && item.childCount > 0 && (
               <button className="button quiet" onClick={() => navigate(`/play/${item.id}?shuffle=1`)}>
-                <Shuffle /> Shuffle
+                <icon.shuffle /> Shuffle
               </button>
             )}
             {detail.trailerYouTubeId && !kids && (
               <button className="button quiet" onClick={() => setTrailer(true)}>
-                <Film /> Trailer
+                <icon.trailer /> Trailer
               </button>
             )}
             {!kids && (
               <AsyncButton className="button quiet" aria-pressed={item.userData.watched} onClick={toggleWatched}>
-                <Check /> {item.userData.watched ? 'Watched' : 'Mark as watched'}
+                <icon.watched /> {item.userData.watched ? 'Watched' : 'Mark as watched'}
               </AsyncButton>
             )}
             {detail.onWatchlist != null && !kids && <WatchlistButton titleKey={{ libraryItemId: item.id }} title={item.title} on={detail.onWatchlist} />}
@@ -209,7 +209,7 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
                   setMoreAt(moreAt ? null : { x: r.left, y: r.bottom + 6 })
                 }}
               >
-                <More />
+                <icon.more />
               </button>
             )}
             {moreAt && <Menu label={`More for ${item.title}`} at={moreAt} actions={more} onClose={() => setMoreAt(null)} />}
@@ -305,7 +305,7 @@ function Seasons({ series, onChange }: { series: ItemDetail; onChange: () => voi
             onClick={() => setParams({ season: String(s.seasonNumber) }, { replace: true })}
           >
             {s.homeVideo ? s.title : s.seasonNumber === 0 ? 'Specials' : `Season ${s.seasonNumber}`}
-            {s.userData.watched && <Check aria-label="watched" />}
+            {s.userData.watched && <icon.watched aria-label="watched" />}
           </button>
         ))}
       </div>
@@ -346,7 +346,7 @@ function Episode({ episode, overview, onChange }: { episode: ItemSummary; overvi
       <Link to={`/play/${episode.id}`} className="episode-still" aria-label={`Play ${episode.title}`}>
         <Artwork src={episode.artwork.thumb} fallback={episode.artwork.backdrop} title={episode.title} width={500} shape="wide" />
         <span className="episode-play" aria-hidden="true">
-          <Play />
+          <icon.play />
         </span>
         {progress !== null && (
           <span className="progress">

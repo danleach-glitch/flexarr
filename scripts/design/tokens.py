@@ -10,12 +10,27 @@ SOURCE = ROOT / "design" / "tokens.json"
 CSS = ROOT / "frontend/src/styles/tokens.generated.css"
 SWIFT = ROOT / "clients/apple/Shared/Design/Tokens.swift"
 KOTLIN = ROOT / "clients/android/app/src/main/kotlin/io/github/flexarr/ui/theme/Tokens.kt"
+WEB_ICONS = ROOT / "frontend/src/components/icons.generated.ts"
+WEB_ICON_SOURCE = ROOT / "frontend/src/components/icons.tsx"
+SWIFT_ICONS = ROOT / "clients/apple/Shared/Design/Icons.swift"
+KOTLIN_ICONS = ROOT / "clients/android/app/src/main/kotlin/io/github/flexarr/ui/theme/FlexarrIcons.kt"
 HEADER = "Generated from design/tokens.json by `make tokens`. Don't edit; change the JSON."
 
 HEX = re.compile(r"^#[0-9A-Fa-f]{6}$")
 NAME = re.compile(r"^[a-z][A-Za-z]*$")
 REQUIRED_COLORS = {"room", "seat", "aisle", "screen", "usher", "silver", "go", "danger", "record", "well"}
 REQUIRED_RADII = {"art", "control", "panel"}
+MATERIAL = re.compile(r"^(AutoMirrored\.)?(Filled|Outlined|Rounded|Sharp|TwoTone)\.[A-Z][A-Za-z0-9]*$")
+SF = re.compile(r"^[a-z0-9]+(\.[a-z0-9]+)*$")
+
+
+def icons(data):
+    """The icon entries, without the "about" note."""
+    return {k: v for k, v in data.get("icons", {}).items() if k != "about"}
+
+
+def web_icon_names():
+    return set(re.findall(r"^export const ([A-Z][A-Za-z0-9]*) =", WEB_ICON_SOURCE.read_text(), re.M))
 
 
 def load(path=SOURCE):
@@ -39,6 +54,19 @@ def validate(data):
     for name, r in radii.items():
         if not isinstance(r.get("value"), (int, float)) or r["value"] < 0:
             errors.append(f"radius {name}: needs a number")
+    known = web_icon_names() if WEB_ICON_SOURCE.exists() else None
+    for name, i in icons(data).items():
+        if not NAME.match(name):
+            errors.append(f"icon name {name!r} isn't camelCase")
+        for key in ("web", "sf", "material", "use"):
+            if not i.get(key):
+                errors.append(f"icon {name}: missing {key}")
+        if known is not None and i.get("web") and i["web"] not in known:
+            errors.append(f"icon {name}: the web has no icon {i['web']!r} in icons.tsx")
+        if i.get("material") and not MATERIAL.match(i["material"]):
+            errors.append(f"icon {name}: {i['material']!r} isn't Style.Name, e.g. Filled.PlayArrow")
+        if i.get("sf") and not SF.match(i["sf"]):
+            errors.append(f"icon {name}: {i['sf']!r} isn't an SF Symbol name")
     mix = data.get("mainButton", {}).get("ambientMix")
     if not isinstance(mix, (int, float)) or not 0 <= mix <= 1:
         errors.append("mainButton.ambientMix must be between 0 and 1")
@@ -101,8 +129,53 @@ def kotlin(data):
     return "\n".join(lines) + "\n"
 
 
+def web_icons(data):
+    entries = icons(data)
+    names = sorted({i["web"] for i in entries.values()})
+    lines = [f"// {HEADER}", "", f"import {{ {', '.join(names)} }} from './icons'", "",
+             "/** The icon for each action and place, the same idea on every client (design/tokens.json › icons). */",
+             "export const icon = {"]
+    for name, i in entries.items():
+        lines.append(f"  /** {i['use']} */")
+        lines.append(f"  {name}: {i['web']},")
+    lines.append("} as const")
+    return "\n".join(lines) + "\n"
+
+
+def swift_icons(data):
+    entries = icons(data)
+    lines = [f"// {HEADER}", "", "/// The SF Symbol for each action and place, the same idea on every client (design/tokens.json › icons).",
+             "enum Symbol {"]
+    for name, i in entries.items():
+        lines.append(f"    /// {i['use']}.")
+        lines.append(f'    static let {name} = "{i["sf"]}"')
+    lines.append("")
+    lines.append("    /// Every name above, so a debug build can check each one exists on this system.")
+    lines.append("    static let all = [" + ", ".join(entries) + "]")
+    lines.append("}")
+    return "\n".join(lines) + "\n"
+
+
+def kotlin_icons(data):
+    entries = icons(data)
+    imports = set()
+    for i in entries.values():
+        parts = i["material"].split(".")
+        imports.add("import androidx.compose.material.icons." + ".".join(p.lower() for p in parts[:-1]) + "." + parts[-1])
+    lines = [f"// {HEADER}", "", "package io.github.flexarr.ui.theme", "", "import androidx.compose.material.icons.Icons",
+             *sorted(imports), "import androidx.compose.ui.graphics.vector.ImageVector", "",
+             "/** The icon for each action and place, the same idea on every client (design/tokens.json › icons). */",
+             "object FlexarrIcons {"]
+    for name, i in entries.items():
+        lines.append(f"    /** {i['use']}. */")
+        lines.append(f"    val {name}: ImageVector get() = Icons.{i['material']}")
+    lines.append("}")
+    return "\n".join(lines) + "\n"
+
+
 def outputs(data):
-    return {CSS: css(data), SWIFT: swift(data), KOTLIN: kotlin(data)}
+    return {CSS: css(data), SWIFT: swift(data), KOTLIN: kotlin(data),
+            WEB_ICONS: web_icons(data), SWIFT_ICONS: swift_icons(data), KOTLIN_ICONS: kotlin_icons(data)}
 
 
 def main(argv):

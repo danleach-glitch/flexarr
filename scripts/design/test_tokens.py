@@ -39,6 +39,30 @@ class TokensTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "isn't #RRGGBB"):
             tokens.validate(bad)
 
+    def test_every_icon_reaches_every_client(self):
+        web, swift, kotlin = tokens.web_icons(self.data), tokens.swift_icons(self.data), tokens.kotlin_icons(self.data)
+        for name, i in tokens.icons(self.data).items():
+            self.assertIn(f"  {name}: {i['web']},", web)
+            self.assertIn(f'static let {name} = "{i["sf"]}"', swift)
+            self.assertIn(f"val {name}: ImageVector get() = Icons.{i['material']}", kotlin)
+
+    def test_material_imports(self):
+        kotlin = tokens.kotlin_icons(self.data)
+        self.assertIn("import androidx.compose.material.icons.filled.PlayArrow", kotlin)
+        self.assertIn("import androidx.compose.material.icons.outlined.Home", kotlin)
+
+    def test_unknown_web_icon_fails(self):
+        bad = copy.deepcopy(self.data)
+        bad["icons"]["play"]["web"] = "NoSuchIcon"
+        with self.assertRaisesRegex(ValueError, "no icon 'NoSuchIcon'"):
+            tokens.validate(bad)
+
+    def test_bad_material_name_fails(self):
+        bad = copy.deepcopy(self.data)
+        bad["icons"]["play"]["material"] = "PlayArrow"
+        with self.assertRaisesRegex(ValueError, "isn't Style.Name"):
+            tokens.validate(bad)
+
     def test_generated_files_are_current(self):
         for path, text in tokens.outputs(self.data).items():
             self.assertEqual(Path(path).read_text(), text, f"{path} is stale: run make tokens")

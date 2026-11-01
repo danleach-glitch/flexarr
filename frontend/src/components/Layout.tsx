@@ -7,7 +7,8 @@ import { useAudioPlayer } from '../hooks/audioPlayerContext'
 import { useLibraries } from '../hooks/librariesContext'
 import { useSession } from '../hooks/sessionContext'
 import { NoticeHost } from './Notice'
-import { Antenna, Bookmark, Calendar, ChevronsLeft, Close, Film, Gear, Home, Menu as MenuIcon, Microphone, Playlist, Search, Sparkles, Stack } from './icons'
+import { ChevronsLeft, Close, Menu as MenuIcon, Playlist } from './icons'
+import { icon } from './icons.generated'
 import { libraryIcons } from './libraryIcons'
 import { AsyncButton } from './AsyncButton'
 import { AddToCollectionHost } from './AddToCollection'
@@ -180,14 +181,14 @@ export function Layout() {
         </Link>
         <div className="topbar-tools">
           <button className="search-trigger" onClick={() => setSearching(true)}>
-            <Search />
+            <icon.search />
             <span>Search</span>
             <kbd>⌘K</kbd>
           </button>
           {/* Every profile has settings of its own; the server's are the main profile's. */}
           {!kids && (
             <NavLink to="/settings" className="icon-button" aria-label="Settings">
-              <Gear />
+              <icon.settings />
             </NavLink>
           )}
           {me && profiles && (profiles.length > 1 || canSignOut || access?.kidsLock) && (
@@ -261,7 +262,7 @@ export function Layout() {
           {/* Libraries scroll on their own below the wordmark, however many there are. */}
           <nav aria-label="Main" className="sidebar-nav">
             <NavLink to="/" end className="sidebar-link" title={tip('Home')}>
-              <Home />
+              <icon.home />
               <span className="sidebar-label">Home</span>
             </NavLink>
             {shownLibraries.length > 0 && (
@@ -273,11 +274,11 @@ export function Layout() {
                   if (library.type === 'Podcasts')
                     return (
                       <NavLink key={library.id} to="/podcasts" className="sidebar-link" title={tip('Podcasts')}>
-                        <Microphone />
+                        <icon.podcasts />
                         <span className="sidebar-label">Podcasts</span>
                       </NavLink>
                     )
-                  const Icon = libraryIcons[library.type] ?? Film
+                  const Icon = libraryIcons[library.type] ?? icon.movies
                   return (
                     <NavLink key={library.id} to={`/library/${library.id}`} className="sidebar-link" title={tip(library.name)}>
                       <Icon />
@@ -296,13 +297,13 @@ export function Layout() {
             {/* A child's profile has no watchlist or collections. */}
             {shows.watchlist && (
               <NavLink to="/watchlist" className="sidebar-link" title={tip('Watchlist')}>
-                <Bookmark />
+                <icon.watchlist />
                 <span className="sidebar-label">Watchlist</span>
               </NavLink>
             )}
             {shows.collections && (
               <NavLink to="/collections" className="sidebar-link" title={tip('Collections')}>
-                <Stack />
+                <icon.collections />
                 <span className="sidebar-label">Collections</span>
               </NavLink>
             )}
@@ -314,19 +315,19 @@ export function Layout() {
             )}
             {liveTvLink && (
               <NavLink to="/livetv" className="sidebar-link" title={tip('Live TV')}>
-                <Antenna />
+                <icon.liveTv />
                 <span className="sidebar-label">Live TV</span>
               </NavLink>
             )}
             {shows.discover && (
               <NavLink to="/discover" className="sidebar-link" title={tip('Discover')}>
-                <Sparkles />
+                <icon.discover />
                 <span className="sidebar-label">Discover</span>
               </NavLink>
             )}
             {shows.upcoming && (
               <NavLink to="/upcoming" className="sidebar-link" title={tip('Coming soon')}>
-                <Calendar />
+                <icon.comingSoon />
                 <span className="sidebar-label">Coming soon</span>
               </NavLink>
             )}
