@@ -927,6 +927,10 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         if isOnline { Task { await catchUp() } }
     }
 
+    func isBookFinished(_ bookId: String) -> Bool {
+        entry(for: bookId)?.finishedAt != nil
+    }
+
     func localBook(for bookId: String) -> (manifest: BookManifest, files: [URL])? {
         guard let download = entry(for: bookId), download.isDownloaded, let book = download.book, book.isComplete, let folder = download.fileName else { return nil }
         let base = Self.folder.appending(path: folder, directoryHint: .isDirectory)

@@ -23,11 +23,14 @@ protocol OfflineMusicLibrary: AnyObject {
     func localBook(for bookId: String) -> (manifest: BookManifest, files: [URL])?
     /// Where listening to a downloaded book got to (on the whole book's timeline), sent to the server with its time.
     func recordBook(itemId: String, position: Double, ended: Bool)
+    /// A downloaded book was heard to the end on this device (and not started again since).
+    func isBookFinished(_ bookId: String) -> Bool
 }
 
 extension OfflineMusicLibrary {
     func localBook(for bookId: String) -> (manifest: BookManifest, files: [URL])? { nil }
     func recordBook(itemId: String, position: Double, ended: Bool) {}
+    func isBookFinished(_ bookId: String) -> Bool { false }
 }
 
 /// Where this device last was in each book, and when: the server's place is offered as "Jump to …" only when it's
@@ -633,7 +636,9 @@ final class MusicPlayer {
             isPlayingOffline = true
             artwork = offlineLibrary?.localArtwork(for: track.id)
             let saved = offlineLibrary?.resumePosition(for: track.id) ?? 0
-            let place = requested ?? (saved > 0 ? saved : local?.position ?? downloaded.manifest.progress.positionSeconds)
+            // Finished (here, or before it was downloaded): it starts again from the beginning, as it does streamed.
+            let finished = offlineLibrary?.isBookFinished(track.id) == true || downloaded.manifest.progress.finished
+            let place = requested ?? (saved > 0 ? saved : finished ? 0 : local?.position ?? downloaded.manifest.progress.positionSeconds)
             beginBook(downloaded.manifest, urls: downloaded.files, at: place)
             if artwork == nil { loadArtwork(for: track, generation: mine) }
             // With a connection, the server may know a newer place from another device: offered, not jumped to.
