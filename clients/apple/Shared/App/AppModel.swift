@@ -1010,10 +1010,20 @@ final class AppModel {
         playBook(book, at: 0)
     }
 
-    /// Saves how this profile listens to books, on every device.
-    func updateBookListening(_ update: BookListeningUpdate) async {
+    /// Saves how this profile listens to books, on every device (and the book playing takes the new steps). False
+    /// when it didn't save.
+    @discardableResult
+    func updateBookListening(_ update: BookListeningUpdate) async -> Bool {
+        guard let client, let saved = try? await client.setBookListening(update) else { return false }
+        bookListening = saved
+        music.listeningChanged(saved)
+        return true
+    }
+
+    /// How this profile listens to books, asked again (Settings › Audiobooks).
+    func loadBookListening() async {
         guard let client else { return }
-        if let saved = try? await client.setBookListening(update) { bookListening = saved }
+        if let listening = try? await client.bookListening() { bookListening = listening }
     }
 
     // MARK: Podcasts

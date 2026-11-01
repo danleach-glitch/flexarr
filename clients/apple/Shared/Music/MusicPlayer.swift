@@ -772,6 +772,15 @@ final class MusicPlayer {
         pushNowPlaying()
     }
 
+    /// The profile's listening settings changed (in Settings): the book playing takes its new skip steps and smart rewind.
+    func listeningChanged(_ listening: BookListening) {
+        guard let manifest = book else { return }
+        book = BookManifest(itemId: manifest.itemId, durationSeconds: manifest.durationSeconds, files: manifest.files, chapters: manifest.chapters,
+                            bookmarks: manifest.bookmarks, progress: manifest.progress, speed: manifest.speed, listening: listening,
+                            nextInSeries: manifest.nextInSeries)
+        pushNowPlaying()
+    }
+
     /// A downloaded book's manifest brought up to date while it plays: the speed, bookmarks and skip steps change.
     private func applyFresh(_ manifest: BookManifest) {
         guard isBook, book?.itemId == manifest.itemId else { return }
