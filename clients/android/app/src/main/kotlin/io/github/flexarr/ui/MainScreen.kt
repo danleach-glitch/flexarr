@@ -1,6 +1,11 @@
 package io.github.flexarr.ui
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.statusBars
+import io.github.flexarr.ui.components.OfflineBar
+import io.github.flexarr.ui.components.OfflineScreen
 import androidx.compose.foundation.layout.padding
 import androidx.activity.compose.LocalActivity
 import androidx.compose.runtime.LaunchedEffect
@@ -246,9 +251,9 @@ fun MainScreen(model: AppModel) {
                 is AppLink.Join -> Unit
             } } }
         }
-        // With no connection to the server, the app opens on what's downloaded.
-        LaunchedEffect(model.serverUnreachable) {
-            if (model.serverUnreachable && model.downloads.downloads.isNotEmpty() && currentTab == Tab.Home) select(Tab.Downloads)
+        // Opened offline: straight to what can be watched. Going offline later leaves you where you are.
+        LaunchedEffect(Unit) {
+            if (model.serverUnreachable && currentTab == Tab.Home) select(Tab.Downloads)
         }
         // A tablet has the tabs down the side, as iPad's sidebar-style tab bar keeps the width for the screens.
         val rail = isWide
@@ -309,11 +314,19 @@ fun MainScreen(model: AppModel) {
                     Spacer(Modifier.weight(1f))
                 }
             }
-            NavHost(nav, startDestination = Tab.Home.route, modifier = Modifier.padding(bottom = padding.calculateBottomPadding())) {
-                composable(Tab.Home.route) { HomeScreen(model) }
-                composable(Tab.Libraries.route) { LibrariesScreen(model) }
+            Column(Modifier.weight(1f)) {
+            val offline = model.serverUnreachable
+            if (offline) OfflineBar()
+            NavHost(
+                nav,
+                startDestination = Tab.Home.route,
+                modifier = Modifier.padding(bottom = padding.calculateBottomPadding())
+                    .then(if (offline) Modifier.consumeWindowInsets(WindowInsets.statusBars) else Modifier),
+            ) {
+                composable(Tab.Home.route) { if (offline) OfflineScreen { select(Tab.Downloads) } else HomeScreen(model) }
+                composable(Tab.Libraries.route) { if (offline) OfflineScreen { select(Tab.Downloads) } else LibrariesScreen(model) }
                 composable(Tab.Downloads.route) { DownloadsScreen(model) }
-                composable(Tab.Search.route) { SearchScreen(model) }
+                composable(Tab.Search.route) { if (offline) OfflineScreen { select(Tab.Downloads) } else SearchScreen(model) }
                 composable(Tab.Settings.route) {
                     SettingsScreen(
                         model,
@@ -375,6 +388,7 @@ fun MainScreen(model: AppModel) {
                     "person/{id}?name={name}",
                     arguments = listOf(navArgument("name") { type = NavType.StringType; defaultValue = "" }),
                 ) { entry -> PersonScreen(model, entry.arguments?.getString("id")!!, entry.arguments?.getString("name").orEmpty()) }
+            }
             }
           }
         }
