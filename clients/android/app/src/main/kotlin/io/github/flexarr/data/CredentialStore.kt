@@ -5,6 +5,8 @@ import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
 import io.github.flexarr.core.FlexarrClient
+import io.github.flexarr.core.Profile
+import kotlinx.serialization.builtins.ListSerializer
 import io.github.flexarr.core.ServerAddresses
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import java.security.KeyStore
@@ -117,8 +119,21 @@ class CredentialStore internal constructor(context: Context, private val secrets
         prefs.edit().putString(PROFILE, token).apply()
     }
 
+    /**
+     * The profile list as the server last gave it (names, colours, which is watching, which are kids), so the app still
+     * knows who's watching while it can't reach the server.
+     */
+    fun saveProfiles(profiles: List<Profile>) {
+        prefs.edit().putString(PROFILES, FlexarrClient.json.encodeToString(ListSerializer(Profile.serializer()), profiles)).apply()
+    }
+
+    /** The profile list last saved for this sign-in; empty if there's none. */
+    fun savedProfiles(): List<Profile> = prefs.getString(PROFILES, null)
+        ?.let { runCatching { FlexarrClient.json.decodeFromString(ListSerializer(Profile.serializer()), it) }.getOrNull() }
+        ?: emptyList()
+
     fun clear() {
-        prefs.edit().remove(ADDRESS).remove(API_KEY).remove(PROFILE).remove(REMOTE)
+        prefs.edit().remove(ADDRESS).remove(API_KEY).remove(PROFILE).remove(PROFILES).remove(REMOTE)
             .remove(GUEST_TARGET).remove(GUEST_HOSTNAME).remove(GUEST_OWNER).apply()
     }
 
@@ -132,6 +147,7 @@ class CredentialStore internal constructor(context: Context, private val secrets
         const val LAST_ADDRESS = "address.last"
         const val API_KEY = "apiKey"
         const val PROFILE = "profile"
+        const val PROFILES = "profiles"
         const val REMOTE = "address.remote"
         const val GUEST_TARGET = "guest.target"
         const val GUEST_HOSTNAME = "guest.hostname"

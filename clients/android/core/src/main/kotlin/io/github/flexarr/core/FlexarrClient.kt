@@ -382,8 +382,10 @@ class FlexarrClient(
         http: OkHttpClient,
     ): String {
         val response = try {
+            if (simulatesOffline) throw ConnectException("No network (simulated)")
             reach(method, path, query, body, racesAlternate, http)
         } catch (e: IOException) {
+            if (couldNotConnect(e)) onCouldNotConnect?.invoke(addresses.home)
             throw FlexarrException.Unreachable(e)
         }
         return response.use {
@@ -412,6 +414,39 @@ class FlexarrClient(
                 else -> throw FlexarrException.Http(it.code, problemMessage(text), problemDetail(text))
             }
         }
+    }
+
+    /**
+     * Whether the server answers at all within [limitMs]: `system/status` at every address at once, the first answer
+     * winning (and becoming the address in use). Any answer counts, even an error: the server is there. Used at launch
+     * and while offline, so a missing server shows in seconds rather than after every request's own timeout.
+     */
+    suspend fun isReachable(limitMs: Long = REACHABLE_LIMIT_MS): Boolean {
+        if (simulatesOffline) return false
+        val quick = http.newBuilder().callTimeout(limitMs, TimeUnit.MILLISECONDS).build()
+        val targets = listOfNotNull(addresses.current, addresses.alternate(addresses.current))
+        val reached = withContext(Dispatchers.IO) {
+            withTimeoutOrNull(limitMs) {
+                coroutineScope {
+                    val answers = Channel<HttpUrl?>(capacity = targets.size)
+                    val jobs = targets.map { url ->
+                        launch {
+                            val answered = runCatching { quick.newCall(request("GET", "system/status", emptyMap(), null, url)).await().close() }.isSuccess
+                            answers.send(url.takeIf { answered })
+                        }
+                    }
+                    var found: HttpUrl? = null
+                    for (i in targets.indices) {
+                        found = answers.receive()
+                        if (found != null) break
+                    }
+                    jobs.forEach { it.cancel() }
+                    found
+                }
+            }
+        } ?: return false
+        addresses.reached(reached)
+        return true
     }
 
     /**
@@ -549,6 +584,20 @@ class FlexarrClient(
          */
         @Volatile
         var loopbackTunnel: LoopbackTunnel? = null
+
+        /** How long [isReachable] waits for an answer by default. */
+        const val REACHABLE_LIMIT_MS = 4_000L
+
+        /**
+         * Called whenever a request couldn't reach the server at either address (not when the server answered with an
+         * error), with the server's home address, so the app can check whether it's gone offline. Set once at launch.
+         */
+        @Volatile
+        var onCouldNotConnect: ((HttpUrl) -> Unit)? = null
+
+        /** Debug builds' "act offline": every request fails as if there were no network, and [isReachable] says no. */
+        @Volatile
+        var simulatesOffline = false
 
         /** One connection pool for the whole app; clients for different sign-ins share it. */
         val sharedHttp: OkHttpClient = OkHttpClient.Builder()
