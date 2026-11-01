@@ -241,3 +241,13 @@ export function deviceName(userAgent = navigator.userAgent): string {
                 : null
   return system ? `${browser} on ${system}` : browser
 }
+
+/** "English" for "en" or "eng", where the browser knows the code; the tag as it is otherwise. */
+export function languageName(code: string | null | undefined): string | null {
+  if (!code) return null
+  try {
+    return new Intl.DisplayNames(undefined, { type: 'language' }).of(code) ?? code
+  } catch {
+    return code
+  }
+}

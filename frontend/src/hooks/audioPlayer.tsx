@@ -4,6 +4,7 @@ import {
   BOOK_LISTENING_CHANGED,
   deleteBookmark,
   getBookListening,
+  getBookmarks,
   getItem,
   getNextEpisode,
   getPodcastPreferences,
@@ -19,6 +20,7 @@ import { episodeAsTrack, PODCAST_PREFERENCES_CHANGED } from '../lib/podcasts'
 import { useMusicSettings } from '../lib/musicSettings'
 import { FADE_SECONDS } from '../lib/sleepTimer'
 import { createEngine, isPodcast, type AudioEngine } from './audioEngine'
+import { announceBookmarks, useBookmarkChanges } from './bookmarks'
 import { AudioPlayerContext, AudioTimeContext, MusicPagesContext, type AudioPlayer, type SleepTimer } from './audioPlayerContext'
 import { emptyQueue, queueReducer, queueStorageKey, readStoredQueue, rebuildQueue, serializeQueue, type StoredQueue } from './queue'
 
@@ -418,13 +420,24 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       if (!book) return
       const added = await saveBookmark(book.itemId, Math.floor(engine().currentTime()), note?.trim() || undefined)
       setBook((b) => (b && b.itemId === book.itemId ? { ...b, bookmarks: [...b.bookmarks, added] } : b))
+      announceBookmarks(book.itemId, true)
     },
     [book, engine],
   )
   const removeBookmark = useCallback(async (id: string) => {
     await deleteBookmark(id)
+    const bookId = bookRef.current?.itemId
     setBook((b) => (b ? { ...b, bookmarks: b.bookmarks.filter((m) => m.id !== id) } : b))
+    if (bookId) announceBookmarks(bookId, true)
   }, [])
+  // Bookmarks changed elsewhere (the book's page): the playing book's are fetched again.
+  const refreshBookmarks = useCallback((bookId: string) => {
+    void getBookmarks(bookId).then(
+      (bookmarks) => setBook((b) => (b && b.itemId === bookId ? { ...b, bookmarks } : b)),
+      () => undefined,
+    )
+  }, [])
+  useBookmarkChanges(book?.itemId, refreshBookmarks, true)
   const countMusicPage = useCallback((delta: 1 | -1) => setMusicPages((n) => n + delta), [])
 
   // Operating-system media controls.
