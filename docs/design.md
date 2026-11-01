@@ -75,6 +75,8 @@ Content is left-aligned throughout and shares one 4vw left edge, so heroes, rows
 
 The colours, radii and type scale live in one file, `design/tokens.json`. `make tokens` writes them out for every client: `frontend/src/styles/tokens.generated.css`, `clients/apple/Shared/Design/Tokens.swift` and `clients/android/app/src/main/kotlin/io/github/flexarr/ui/theme/Tokens.kt`. CI fails if they're out of date. Change a value there, never in a client.
 
+The same file names the **icon** for each action and place (Play, Start over, Trailer, Watchlist, the menu's destinations, each kind of library): the web's icon from `icons.tsx`, an SF Symbol and a Material icon. `make tokens` writes `icons.generated.ts`, `Icons.swift` (`Symbol.trailer`) and `FlexarrIcons.kt`, so changing an icon is one edit. `make tokens` refuses a web icon that doesn't exist, and a debug build of the Apple apps stops at launch on an SF Symbol name it doesn't have. One-off decorative icons stay in each client.
+
 ## Platforms
 
 Flexarr looks like one product everywhere, and behaves like it belongs on each device. What's shared and what's native:
