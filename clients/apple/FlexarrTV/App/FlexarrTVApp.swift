@@ -48,6 +48,9 @@ struct RootView: View {
                 if model.tunnelProblem != nil {
                     TunnelProblemView()
                         .transition(.opacity)
+                } else if model.isOffline {
+                    OfflineView()
+                        .transition(.opacity)
                 } else if !model.profilesLoaded {
                     ProgressView().scaleEffect(1.4)
                 } else if model.needsProfileChoice {
@@ -63,6 +66,7 @@ struct RootView: View {
         }
         .animation(.easeInOut(duration: 0.35), value: model.phase)
         .animation(.easeInOut(duration: 0.35), value: model.needsProfileChoice)
+        .animation(.easeInOut(duration: 0.35), value: model.isOffline)
         .task(id: model.credentials?.address) { await model.loadProfiles() }
         // Top Shelf follows whoever's signed in here; after watching, its Continue Watching is refreshed.
         .task(id: model.credentials) {
@@ -79,6 +83,8 @@ struct RootView: View {
             if phase == .active {
                 // A guest's tunnel may have stopped while the app was away: back up before anything asks.
                 Task { await model.ensureGuestTunnel() }
+                // Offline ends (or starts) as soon as it's known whether the server answers now.
+                Task { await model.checkConnection() }
                 Task { await model.refreshErrorReports() }
             }
         }
