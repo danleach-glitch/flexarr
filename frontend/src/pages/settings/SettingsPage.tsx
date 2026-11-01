@@ -3,7 +3,7 @@ import { Navigate, NavLink, useParams } from 'react-router'
 import { clearApiCache, getMe, getRequestDestinations, getRequestStatus, getTraktStatus, getUpdates, lockAdmin } from '../../api/client'
 import { useSession } from '../../hooks/sessionContext'
 import { useApi } from '../../hooks/useApi'
-import { Antenna, Download, Film, Gauge, Globe, History, Inbox, Info, LayoutGrid, Microphone, Notes, Padlock, PanelLeft, Shield, PlayCircle, Plug, Restore, Stack, Users } from '../../components/icons'
+import { Antenna, Download, Film, Gauge, Globe, Headphones, History, Inbox, Info, LayoutGrid, Notes, Padlock, PanelLeft, Shield, PlayCircle, Plug, Restore, Stack, Users } from '../../components/icons'
 import { hasRequestChoice } from '../../lib/requestLibraries'
 import { AboutSection } from './AboutSection'
 import { SecuritySection } from './SecuritySection'
@@ -41,7 +41,7 @@ interface Page {
 /** Every profile's own: how it watches and listens, and this browser's music. */
 const profilePages: Page[] = [
   { id: 'playback', label: 'Playback', icon: PlayCircle, render: () => <PlaybackSection /> },
-  { id: 'listening', label: 'Podcasts and audiobooks', icon: Microphone, render: () => <ListeningSection /> },
+  { id: 'listening', label: 'Podcasts and audiobooks', icon: Headphones, render: () => <ListeningSection /> },
   { id: 'sidebar', label: 'Sidebar', icon: PanelLeft, render: () => <SidebarSection /> },
 ]
 
