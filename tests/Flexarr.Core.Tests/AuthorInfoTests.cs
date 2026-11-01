@@ -150,6 +150,28 @@ public sealed class AuthorInfoTests : IAsyncLifetime
         Assert.NotNull(osman.InfoCheckedAt);
     }
 
+    [Fact]
+    public async Task ReadarrsAuthorOfAnotherName_GoesOnlyToABooksOnlyAuthor()
+    {
+        var sir = new Integrations.Arr.Models.ReadarrAuthor { AuthorName = "Sir Richard Osman", Overview = "From Readarr." };
+        await SeedAsync(new Person { Name = Osman }, new Person { Name = Keyes });
+        await SeedAsync(Path.Combine(Books, Osman, "Alone"), new Person { Name = "Solo Writer" }, await _db.Libraries.SingleAsync());
+
+        foreach (var book in await _db.MediaItems.Include(i => i.Credits).ThenInclude(c => c.Person).ToListAsync())
+        {
+            await Authors().FillBookAsync(book, [], sir, [], default);
+        }
+
+        await _db.SaveChangesAsync();
+        Assert.Null((await PersonAsync(Osman)).Biography); // two authors: no telling whose Readarr's is
+        Assert.Null((await PersonAsync(Keyes)).Biography);
+        Assert.Equal("From Readarr.", (await PersonAsync("Solo Writer")).Biography);
+    }
+
+    /// <summary>Just the authors, online providers left out.</summary>
+    private AuthorInfo Authors(BookProviders? providers = null) =>
+        new(_db, new ArrClient(new HttpClient(_web)), new Settings(_dir, []), providers, NullLogger.Instance);
+
     private async Task<Person> PersonAsync(string name) => await _db.People.AsNoTracking().SingleAsync(p => p.Name == name);
 
     private async Task<string> AuthorPhotoAsync(string name)

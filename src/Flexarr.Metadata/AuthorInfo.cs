@@ -36,7 +36,8 @@ public sealed partial class AuthorInfo(FlexarrDbContext db, ArrClient arr, IMeta
     /// <summary>
     /// Every credited author of a book just refreshed. <paramref name="readarr"/> are the authors the Readarr-compatible
     /// apps know (one of the same name is the author's), <paramref name="matched"/> the author of the app's book it was
-    /// matched to (taken for the first author when no name agrees), and <paramref name="knownAsins"/> the authors'
+    /// matched to (taken for a book's only author when the names don't agree: "Sir Terry Pratchett" for "Terry
+    /// Pratchett"; with several, it's no telling whose it is), and <paramref name="knownAsins"/> the authors'
     /// ASINs an online match listed.
     /// </summary>
     public async Task FillBookAsync(MediaItem book, IReadOnlyList<ReadarrAuthor> readarr, ReadarrAuthor? matched, IReadOnlyCollection<string> knownAsins, CancellationToken ct)
@@ -48,7 +49,7 @@ public sealed partial class AuthorInfo(FlexarrDbContext db, ArrClient arr, IMeta
         {
             var person = authors[i];
             var fromArr = readarr.FirstOrDefault(a => a.AuthorName is { } name && Fold(name) == Fold(person.Name))
-                ?? (i == 0 && matched is not null && (matched.AuthorName is null || authors.All(p => Fold(p.Name) != Fold(matched.AuthorName))) ? matched : null);
+                ?? (authors.Count == 1 ? matched : null);
             await FillAsync(person, fromArr, knownAsins, new AuthorBook(book.Title, book.Path, book.LibraryId), force: false, ct).ConfigureAwait(false);
         }
     }
