@@ -167,6 +167,11 @@ final class MusicPlayer {
     /// The music's bass, middle and treble as it plays, for the visualiser behind Now Playing.
     @ObservationIgnored let spectrum = AudioSpectrum()
     @ObservationIgnored private var sessionId: String?
+    /// The book the session is for (nil for a track or episode): a report the server no longer has a session for goes
+    /// to the book's own progress instead.
+    @ObservationIgnored private var sessionBookId: String?
+    /// The book whose session the server forgot (12 hours without a report): its place goes to the book's progress.
+    @ObservationIgnored private var expiredBookId: String?
     /// The session's id for logs (never the session id itself, the stream's credential).
     @ObservationIgnored private var playbackId: String?
     @ObservationIgnored private var timeObserver: Any?
@@ -185,6 +190,8 @@ final class MusicPlayer {
     @ObservationIgnored private var lastOfflineRecord = Date.distantPast
 
     private static let reportInterval: TimeInterval = 10
+    /// The server forgets a session after 12 hours without a report; a book paused this long starts a new one.
+    private static let sessionIdleLimit: TimeInterval = 6 * 60 * 60
 
     init() {
         #if DEBUG
@@ -417,6 +424,17 @@ final class MusicPlayer {
         cancelFade()
         if player.currentItem == nil {
             startCurrent() // Stopped for a failure (or by a video): ask for the track again.
+        } else if isBook, !isPlayingOffline, let track = current,
+                  expiredBookId == track.id || (sessionId != nil && Date().timeIntervalSince(lastReport) > Self.sessionIdleLimit) {
+            // Paused so long the server has forgotten the session (and its file addresses): a new one, from here.
+            var place = position
+            if let pausedAt, book?.listening.smartRewind ?? true {
+                let back = SmartRewind.seconds(afterPause: Date().timeIntervalSince(pausedAt))
+                place = max(chapterStartNear(position - back), position - back)
+            }
+            if position > 0 { BookPlaces.save(track.id, position: place) }
+            bookStart = place
+            startCurrent()
         } else {
             // A book starts a little earlier after a pause, more the longer it was.
             if isBook, let pausedAt, book?.listening.smartRewind ?? true {
@@ -620,6 +638,7 @@ final class MusicPlayer {
                 }
                 guard let url = client.url(for: info.url) else { throw FlexarrClientError.invalidResponse }
                 sessionId = info.sessionId
+                sessionBookId = nil
                 playbackId = info.playbackId
                 if info.durationSeconds > 0 { duration = info.durationSeconds }
                 lastReport = Date()
@@ -690,6 +709,8 @@ final class MusicPlayer {
                 let urls = manifest.files.compactMap { client.url(for: $0.url) }
                 guard !urls.isEmpty, urls.count == manifest.files.count else { throw FlexarrClientError.invalidResponse }
                 sessionId = info.sessionId
+                sessionBookId = track.id
+                expiredBookId = nil
                 playbackId = info.playbackId
                 lastReport = Date()
                 var start = info.startPositionSeconds
@@ -787,10 +808,14 @@ final class MusicPlayer {
                 // Ended, then closed, in that order: a session closed first would forget the end.
                 self.sessionId = nil
                 let length = duration
+                let bookId = track.id
                 Task {
-                    try? await client.reportProgress(sessionId: sessionId, positionSeconds: length, paused: true, ended: true)
+                    await Self.send(client, session: sessionId, book: bookId, position: length, paused: true, ended: true)
                     try? await client.stopPlayback(sessionId: sessionId)
                 }
+            } else if let client, expiredBookId == track.id {
+                let bookId = track.id, length = duration
+                Task { try? await client.reportBookProgress(itemId: bookId, BookProgressUpdate(positionSeconds: length, device: Self.deviceName, recordedAt: Date(), ended: true)) }
             }
         }
         BookPlaces.forget(track.id)
@@ -941,12 +966,14 @@ final class MusicPlayer {
 
     /// Reports where the track got to and ends its session (best effort; the server times abandoned ones out).
     private func endSession() {
+        expiredBookId = nil
         guard let client, let sessionId else { return }
         self.sessionId = nil
         let position = self.position
         let record = recordsHistory
+        let bookId = sessionBookId
         Task {
-            if record { try? await client.reportProgress(sessionId: sessionId, positionSeconds: position, paused: true) }
+            if record { await Self.send(client, session: sessionId, book: bookId, position: position, paused: true) }
             try? await client.stopPlayback(sessionId: sessionId)
         }
     }
@@ -954,10 +981,40 @@ final class MusicPlayer {
     private func report(paused: Bool, ended: Bool = false) {
         // A book's place is kept on the device too, for "Jump to …" between devices.
         if isBook, let track = current, position > 0 { BookPlaces.save(track.id, position: position) }
-        guard recordsHistory, let client, let sessionId else { return }
-        lastReport = Date()
+        guard recordsHistory, let client else { return }
         let position = ended ? duration : self.position
-        Task { try? await client.reportProgress(sessionId: sessionId, positionSeconds: position, paused: paused, ended: ended) }
+        if sessionId == nil, isBook, !isPlayingOffline, let track = current, expiredBookId == track.id {
+            // The session's gone: the place goes to the book's own progress, as a download's does.
+            lastReport = Date()
+            Task { try? await client.reportBookProgress(itemId: track.id, BookProgressUpdate(positionSeconds: position, device: Self.deviceName, recordedAt: Date(), ended: ended)) }
+            return
+        }
+        guard let sessionId else { return }
+        lastReport = Date()
+        let bookId = sessionBookId
+        Task {
+            if await Self.send(client, session: sessionId, book: bookId, position: position, paused: paused, ended: ended), self.sessionId == sessionId {
+                // Forgotten by the server (12 hours without a report): later reports go to the book's progress.
+                self.sessionId = nil
+                expiredBookId = bookId
+            }
+        }
+    }
+
+    /// Reports on a session; a book's session the server no longer has (404: idle for 12 hours) is reported to the
+    /// book's own progress instead. True when the session was gone.
+    @discardableResult
+    private static func send(_ client: FlexarrClient, session: String, book: String?, position: Double, paused: Bool, ended: Bool = false) async -> Bool {
+        do {
+            try await client.reportProgress(sessionId: session, positionSeconds: position, paused: paused, ended: ended)
+            return false
+        } catch FlexarrClientError.http(status: 404, _) {
+            guard let book else { return true }
+            try? await client.reportBookProgress(itemId: book, BookProgressUpdate(positionSeconds: position, device: deviceName, recordedAt: Date(), ended: ended))
+            return true
+        } catch {
+            return false
+        }
     }
 
     private func trackEnded() {
@@ -1045,7 +1102,7 @@ final class MusicPlayer {
         guard playing != isPlaying else { return }
         isPlaying = playing
         if isBook { pausedAt = playing ? nil : pausedAt ?? Date() }
-        if !playing, sessionId != nil, player.currentItem != nil { report(paused: true) }
+        if !playing, sessionId != nil || (expiredBookId != nil && expiredBookId == current?.id), player.currentItem != nil { report(paused: true) }
         if !playing, isPlayingOffline, isPodcast || isBook, player.currentItem != nil { recordOffline() }
         watchShakes()
         onChange?()
