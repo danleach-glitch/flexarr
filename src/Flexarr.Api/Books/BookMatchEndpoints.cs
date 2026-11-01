@@ -89,7 +89,7 @@ public static class BookMatchEndpoints
             return Results.NoContent();
         });
 
-        // Edit a book's details by hand. Added in 0.58.
+        // Edit a book's details by hand. Added in 0.58. A real edit is a few kilobytes: far bigger is refused unread.
         item.MapPut("/book-details", async (Guid id, BookEditRequest request, FlexarrDbContext db, IMediaProbe probe, ILoggerFactory loggers, CancellationToken ct) =>
         {
             if (Invalid(request) is { } problem)
@@ -110,7 +110,7 @@ public static class BookMatchEndpoints
             book.MetadataUpdatedAt = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
-        });
+        }).WithMetadata(new EditSizeLimit());
 
         item.MapPut("/chapters", async (Guid id, ChapterEditRequest request, FlexarrDbContext db, CancellationToken ct) =>
         {
@@ -249,4 +249,10 @@ public static class BookMatchEndpoints
         details.ChapterSource = source;
         await db.SaveChangesAsync(ct);
     }
+}
+
+/// <summary>256 KB: room for the longest description and every name, refused before reading anything bigger.</summary>
+internal sealed class EditSizeLimit : Microsoft.AspNetCore.Http.Metadata.IRequestSizeLimitMetadata
+{
+    public long? MaxRequestBodySize => 256 * 1024;
 }
