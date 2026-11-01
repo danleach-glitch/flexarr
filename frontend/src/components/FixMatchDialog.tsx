@@ -208,7 +208,7 @@ function BookMatchDialog({ item, onFixed, onClose }: Props) {
             {results.data?.map((m) => (
               <li key={key(m)}>
                 <button type="button" role="option" aria-selected={chosen && key(chosen) === key(m)} className="fix-match-result" disabled={busy} onClick={() => setChosen(m)}>
-                  {m.cover ? <img src={m.cover} alt="" loading="lazy" referrerPolicy="no-referrer" /> : <span className="fix-match-noposter" aria-hidden="true" />}
+                  {m.image ? <img src={imageUrl(m.image, 92)} alt="" loading="lazy" /> : <span className="fix-match-noposter" aria-hidden="true" />}
                   <span className="fix-match-text">
                     <strong>
                       {m.title}

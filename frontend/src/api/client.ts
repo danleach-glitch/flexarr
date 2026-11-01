@@ -580,6 +580,8 @@ export interface BookMatch {
   year: number | null
   cover: string | null
   durationSeconds: number | null
+  /** The cover through the server's image proxy (a page can't load other sites' images). Absent before 0.58. */
+  image?: string | null
 }
 export const searchBookMatches = (id: string, q: string, author?: string, signal?: AbortSignal) =>
   apiGet<BookMatch[]>(`/items/${id}/book-match${queryString({ q, author })}`, signal)
@@ -1313,6 +1315,8 @@ export interface BookRequestResult {
   availability: 'Available' | 'Requested' | 'InLibrary'
   /** The book in the library, when it's there. */
   itemId: string | null
+  /** The cover through the server's image proxy (a page can't load other sites' images). Absent before 0.58. */
+  image?: string | null
 }
 export const searchBookRequests = (q: string, signal?: AbortSignal) => apiGet<BookRequestResult[]>(`/requests/books/search?q=${encodeURIComponent(q)}`, signal)
 /** `query` is the search it was found with, so the server can find it again. */
