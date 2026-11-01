@@ -613,6 +613,10 @@ export interface Layout {
   combineLibraries: boolean
   /** There are two film libraries or two TV ones, so combining them changes anything. */
   combinable: boolean
+  /** A music library's Browse rows; null without a music library. */
+  music?: RowChoice[] | null
+  /** An audiobooks library's front page shelves; null without an audiobooks library. */
+  audiobooks?: RowChoice[] | null
 }
 
 export const getLayout = (signal?: AbortSignal) => apiGet<Layout>('/settings/layout', signal)
@@ -624,6 +628,8 @@ export const saveLayout = (layout: Layout) => {
     movies: strip(layout.movies),
     shows: strip(layout.shows),
     combineLibraries: layout.combineLibraries,
+    music: layout.music ? strip(layout.music) : undefined,
+    audiobooks: layout.audiobooks ? strip(layout.audiobooks) : undefined,
   })
 }
 /** A library's own home page: hero and rows for just that library. */

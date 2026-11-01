@@ -1,3 +1,4 @@
+import { Fragment } from 'react'
 import { Link, Navigate } from 'react-router'
 import { getHome, getNewEpisodes, getSetupGuide, type Library } from '../api/client'
 import { EpisodeCard } from '../components/EpisodeCard'
@@ -64,6 +65,8 @@ export function HomePage() {
       ))}
     </Row>
   )
+  // The server places New podcasts as one of its rows; before it did, it went after Continue watching.
+  const placed = data.placesPodcasts === true
   const afterContinue = data.rows.some((row) => row.id === 'continue')
   // Libraries set up but nothing in them recognised yet: say so, above whatever else Home has (Coming soon, channels).
   // Home's own rows win over the library list, which can lag a scan that finished between its checks.
@@ -78,9 +81,11 @@ export function HomePage() {
       <div className={data.featured.length > 0 ? 'rows' : empty ? 'rows rows-after-welcome' : 'rows rows-unheaded'}>
         {checklist}
         {/* Rows come in the order chosen in Settings; Coming soon is one of them. */}
-        {!afterContinue && newEpisodes}
+        {!placed && !afterContinue && newEpisodes}
         {data.rows.flatMap((row) => [
-          row.style === 'upcoming' ? (
+          row.id === 'podcasts-new' ? (
+            <Fragment key={row.id}>{newEpisodes}</Fragment>
+          ) : row.style === 'upcoming' ? (
             data.upcoming.length > 0 && (
               <Row key={row.id} title={data.downloading > 0 ? `Coming soon (${data.downloading} downloading)` : 'Coming soon'} link="/upcoming" style="wide">
                 {data.upcoming.map((item) => (
@@ -91,7 +96,7 @@ export function HomePage() {
           ) : (
             <HomeRows key={row.id} rows={[row]} />
           ),
-          row.id === 'continue' ? newEpisodes : null,
+          !placed && row.id === 'continue' ? newEpisodes : null,
         ])}
       </div>
     </>

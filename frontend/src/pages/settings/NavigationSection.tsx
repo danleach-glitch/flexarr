@@ -67,7 +67,7 @@ export function NavigationSection() {
       {shown.length > 1 ? (
         <RowList
           title={`${me.name}’s libraries`}
-          // Podcasts' switch: whether it's in the web sidebar at all (Home has a New podcasts row either way).
+          // Podcasts' switch: whether it's in the web sidebar at all (Home's New podcasts row is in Home & browse).
           rows={shown.map((l) => ({ id: l.id, label: l.name, enabled: l.type !== 'Podcasts' || podcastsShown.on !== false }))}
           onChange={(rows) => {
             const podcasts = rows.find((r) => byId.get(r.id)?.type === 'Podcasts')
@@ -84,7 +84,7 @@ export function NavigationSection() {
       {/* Podcasts alone have no list to sit in: their switch on its own. */}
       {shown.length === 1 && shown[0].type === 'Podcasts' && podcastsShown.on !== undefined && (
         <SettingsGroup title="Podcasts">
-          <ToggleRow label="Show in the sidebar" help="Either way, Home has a New podcasts row." checked={podcastsShown.on} onChange={(v) => void podcastsShown.change(v)} />
+          <ToggleRow label="Show in the sidebar" checked={podcastsShown.on} onChange={(v) => void podcastsShown.change(v)} />
         </SettingsGroup>
       )}
       <BrowseItems profile={me} />

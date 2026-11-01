@@ -341,6 +341,8 @@ export interface Home {
   resume?: ItemSummary | null
   /** What each part-played featured title resumes, by its id. Absent from servers before 0.53. */
   resumes?: Record<string, ItemSummary> | null
+  /** The rows place New podcasts (an empty "podcasts-new" row), and leave it out when it's off. */
+  placesPodcasts?: boolean
   overviews: Record<string, string | null>
   rows: HomeRow[]
   upcoming: UpcomingItem[]
@@ -1149,6 +1151,8 @@ export interface BookShelves {
   finished: ItemSummary[]
   /** The languages its books are in, as their tags have them ("en", "eng"); optional, absent from servers that don't send it. */
   languages?: string[]
+  /** The front page's shelves in the profile's order, switched-off ones left out (Settings › Home & browse). */
+  order?: string[]
 }
 
 export interface BookSeriesSearch {

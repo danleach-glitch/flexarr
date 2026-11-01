@@ -56,7 +56,7 @@ Podcast settings belong to each profile, and are in **Settings › Podcasts & au
 - **Books and podcasts in Continue watching** (on the web, in **Settings › Home & browse**).
 - **Download new episodes** and how many of each show's newest to keep, for phones and tablets.
 
-On the web, **Show in the sidebar** is in **Settings › Navigation**; either way, Home has a New podcasts row.
+On the web, **Show in the sidebar** is in **Settings › Navigation**. Home's **New podcasts** row can be moved or switched off in **Settings › Home & browse**.
 
 ## Offline on iPhone and iPad
 

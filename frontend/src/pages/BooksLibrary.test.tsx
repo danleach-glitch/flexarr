@@ -58,6 +58,16 @@ describe('Audiobooks library', () => {
     expect(screen.queryByText('Fantasy')).not.toBeInTheDocument()
   })
 
+  it('puts the shelves in the profile’s order and leaves out switched-off ones', async () => {
+    const series = [{ id: 's1', name: 'Dune', bookCount: 2, finishedCount: 0, covers: [], next: null }]
+    const authors = [{ id: 'a1', name: 'Frank Herbert', image: null, bookCount: 2 }]
+    mockApi({ '/libraries/lib-books/book-shelves': { ...shelves, series, authors, order: ['authors', 'continue'] } })
+    show('/library/lib-books')
+
+    expect((await screen.findAllByText('Frank Herbert')).length).toBeGreaterThan(0)
+    expect(screen.queryByText('Dune')).not.toBeInTheDocument()
+  })
+
   it('still opens narrators by their old address', async () => {
     mockApi({ '/libraries/lib-books/book-people': { total: 0, items: [] } })
     show('/library/lib-books?view=narrators')

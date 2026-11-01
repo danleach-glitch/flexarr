@@ -26,7 +26,7 @@ export function LayoutSection() {
       () => setStatus({ saved: 'Saved. Home and Browse show it next time they load.' }),
       (e: unknown) => setStatus({ error: errorText(e) }),
     )
-  const change = (key: 'home' | 'movies' | 'shows', rows: RowChoice[]) => {
+  const change = (key: 'home' | 'movies' | 'shows' | 'music' | 'audiobooks', rows: RowChoice[]) => {
     const next = { ...layout, [key]: rows }
     setDraft(next)
     setStatus({})
@@ -72,6 +72,8 @@ export function LayoutSection() {
       </RowList>
       <RowList title="Film libraries" rows={layout.movies} onChange={(rows) => change('movies', rows)} />
       <RowList title="TV libraries" rows={layout.shows} onChange={(rows) => change('shows', rows)} />
+      {layout.music && <RowList title="Music" rows={layout.music} onChange={(rows) => change('music', rows)} />}
+      {layout.audiobooks && <RowList title="Audiobooks" rows={layout.audiobooks} onChange={(rows) => change('audiobooks', rows)} />}
     </section>
   )
 }

@@ -26,6 +26,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Settings
 - **Home & browse** is now each profile's own: everyone chooses which rows their Home and each library's Browse show, and every app follows. Profiles start with the rows the server had.
+- Home & browse now covers more: **New podcast episodes** is a Home row you can move or switch off, and music libraries' rows and the audiobooks front page's shelves can be put in order or switched off too.
 - **Settings › Sidebar** is now **Navigation**, and you can turn off what you don't use there: **Watchlist**, **Collections**, **Playlists**, **Live TV**, **Discover** and **Coming soon**. They leave the menu on the web, iPhone, iPad, Apple TV, Android and Android TV, for your profile only, and still open from Home and links.
 - Where a profile's requests go (shows, films and now books) is set in its editor in **Settings › Profiles**, and the **Requests** page is gone. How books are requested from Readarr is in **Settings › Podcasts & audiobooks**.
 - Profiles in **Settings › Profiles** each have a card of their own.
