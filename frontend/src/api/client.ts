@@ -223,13 +223,29 @@ export function onLockedChange(ask: () => Promise<boolean>) {
  */
 async function lockedHere(path: string) {
   if (!askToUnlock || path.startsWith('/admin/') || /^\/profiles\/[^/]+\/select$/.test(path) || path.includes('/api-key/')) return false
+  const me = await freshMe()
+  return me?.canUnlock === true && !me.isAdmin
+}
+
+/** Who this is, asked afresh (the PIN may have been given, or run out, since /me was cached). */
+async function freshMe() {
   try {
     const response = await fetch('/api/v1/me', { headers: authHeaders() })
-    const me = response.ok ? ((await response.json()) as Me) : undefined
-    return me?.canUnlock === true && !me.isAdmin
+    return response.ok ? ((await response.json()) as Me) : undefined
   } catch {
-    return false
+    return undefined
   }
+}
+
+/**
+ * For a dialog whose reads need the admin (a person's photos): asks for the PIN first when the main profile is chosen
+ * but settings are locked here. True once it may go ahead.
+ */
+export async function unlockFirst() {
+  const me = await freshMe()
+  if (me?.isAdmin) return true
+  if (me?.canUnlock !== true || !askToUnlock) return false
+  return askToUnlock()
 }
 
 async function request<T>(method: string, path: string, body?: unknown, signal?: AbortSignal, retried = false): Promise<T> {
