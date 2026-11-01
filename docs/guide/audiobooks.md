@@ -62,9 +62,9 @@ Audible's chapters replace guessed ones when they match the book's length. To ch
 
 ### Author photos
 
-Each author gets a photo and a short biography. Flexarr looks first for an `author.jpg` or `folder.jpg` in the author's folder, then asks Readarr, Audible and Open Library, and tries again later for anyone still missing one. A picture in the author's folder always wins.
+Each author gets a photo and a short biography. Flexarr looks first for an `author.jpg` or `folder.jpg` in the author's folder, then asks Readarr, Audible and Open Library, and tries again later for anyone still missing one. A picture in the author's folder wins over anything found online.
 
-If an author has the wrong photo or biography, open their page in the web app and choose **Edit**: pick another photo, upload your own, or rewrite the biography. Your changes stay put; turn off **Locked** to let Flexarr look again.
+If an author has the wrong photo or biography, open their page in the web app and choose **Edit** (it asks for the admin PIN): pick another photo, upload your own, or rewrite the biography. Your changes stay put. Turn off **Locked** to let Flexarr fill in anything that's missing.
 
 ## Readarr, Bookshelf and Chaptarr
 

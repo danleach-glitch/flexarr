@@ -13,7 +13,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On iPhone, iPad and Android: download books to listen offline, with the lock screen showing the chapter, CarPlay and Android Auto, the **Continue listening** widget, and on iPhone, **Resume listening** with Siri. Choose your default speed, skips and smart rewind in **Settings › Audiobooks** in any of the apps.
 - Connect **Readarr, Bookshelf or Chaptarr** in **Settings › Connections**: new books appear as they're imported, upcoming books show in **Coming soon**, and deleting a book in Flexarr deletes it there without it being fetched again. The setup guide finds them for you.
 - **Request books** from Discover's search when one of them is connected. Whoever asked hears when it's ready to listen.
-- Every author gets a photo and a biography, from a picture in the author's folder, Readarr, Audible or Open Library, and a book's page shows its authors. On the web, the main profile can pick another photo, upload one or rewrite the biography.
+- Every author gets a photo and a biography, from a picture in the author's folder, Readarr, Audible or Open Library, a book's page shows its authors, and author pages on the Apple TV and Android TV now show the biography too. On the web, the main profile can pick another photo, upload one or rewrite the biography.
 - Kids profiles don't see audiobooks. Audible-protected `.aax` files are listed in **Library health**, as they can't be played.
 
 ### Libraries
