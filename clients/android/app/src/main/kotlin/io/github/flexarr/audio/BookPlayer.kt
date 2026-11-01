@@ -173,8 +173,13 @@ class BookPlayer(private val context: Context, private val model: AppModel) {
     private val pause = BookPause()
     /** When the session was last heard from (a report, or playing): apart from [pause], which a seek forgets. */
     private val sessionClock = BookSessionClock()
-    /** A file request 404'd and a new session was asked for: once per session, so a missing file still fails. */
-    private var restartedForGoneFile = false
+    /**
+     * When a file request last 404'd and a new session was asked for. Another within a minute means the file itself is
+     * missing, and it fails; later on (the next night's lapsed session) it restarts again.
+     */
+    private var restartedForGoneFileAt = 0L
+    /** Whether [load] plays: a session restarted while paused stays paused. */
+    private var playWhenLoaded = true
     private var shownChapter: Int? = null
     private var files: List<BookFile> = emptyList()
 
@@ -214,11 +219,14 @@ class BookPlayer(private val context: Context, private val model: AppModel) {
         override fun onPlayerError(error: PlaybackException) {
             val book = current
             // The session's file addresses went with it (let go on the server): a new session, from the same place.
-            if (book != null && sessionId != null && !playingDownload && !restartedForGoneFile && error.isNotFound()) {
+            val now = System.currentTimeMillis()
+            if (book != null && sessionId != null && !playingDownload && now - restartedForGoneFileAt > 60_000 && error.isNotFound()) {
                 flexarrLog.info("Book session gone; starting a new one")
                 val at = timelinePosition()
-                start(book, at.takeIf { it > 0 && it < duration - 1 })
-                restartedForGoneFile = true
+                // A skip or a scrub while paused got here: the book stays paused.
+                val wasPlaying = player.playWhenReady
+                start(book, at.takeIf { it > 0 && it < duration - 1 }, playing = wasPlaying)
+                restartedForGoneFileAt = now
                 return
             }
             flexarrLog.warning("Book failed", error)
@@ -251,11 +259,12 @@ class BookPlayer(private val context: Context, private val model: AppModel) {
         start(book, from)
     }
 
-    /** Starts [book] over from the beginning (Listen again). */
+    /** Starts [book] over from the beginning (Start over). */
     fun playFromStart(book: ItemSummary) = play(book, from = 0.0)
 
-    private fun start(book: ItemSummary, from: Double?) {
+    private fun start(book: ItemSummary, from: Double?, playing: Boolean = true) {
         generation++
+        playWhenLoaded = playing
         val mine = generation
         endSession()
         current = book
@@ -348,7 +357,8 @@ class BookPlayer(private val context: Context, private val model: AppModel) {
         player.setPlaybackSpeed(speed.toFloat())
         player.volume = 1f
         player.prepare()
-        player.play()
+        if (playWhenLoaded) player.play() else player.pause()
+        playWhenLoaded = true
         this.artworkUri = artworkUri
         lastReport = System.currentTimeMillis()
         sessionClock.active(lastReport)
@@ -674,7 +684,6 @@ class BookPlayer(private val context: Context, private val model: AppModel) {
     private fun endSession(ended: Boolean = false) {
         ticker?.cancel()
         sessionClock.clear()
-        restartedForGoneFile = false
         if (playingDownload) {
             playingDownload = false
             val book = current
