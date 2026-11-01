@@ -13,6 +13,7 @@ import io.github.flexarr.core.LiveChannel
 import io.github.flexarr.player.LivePlayerActivity
 import io.github.flexarr.core.LibraryType
 import io.github.flexarr.core.MediaKind
+import io.github.flexarr.core.asPodcastEpisode
 import io.github.flexarr.core.setBookFinished
 import io.github.flexarr.usesTvInterface
 import io.github.flexarr.player.PlayerActivity
@@ -51,6 +52,12 @@ class Navigator(private val nav: NavHostController, private val model: AppModel,
     fun playBook(item: ItemSummary, from: Double? = null) {
         model.books.play(item, from)
         model.showsBookPlayer = true
+    }
+
+    /** Plays a podcast episode (a title as Home's Continue watching lists it) from where it was left, and opens Now Playing. */
+    fun playEpisode(item: ItemSummary) {
+        model.podcasts.play(item.asPodcastEpisode())
+        model.showsNowPlaying = true
     }
 
     /** Marks a book finished or not; Continue listening follows. */

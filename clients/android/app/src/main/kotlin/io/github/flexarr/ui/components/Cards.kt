@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
@@ -31,6 +32,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import android.os.Build
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -55,7 +58,9 @@ import io.github.flexarr.core.displayTitle
 import io.github.flexarr.core.effectiveDuration
 import io.github.flexarr.core.episodeSubtitle
 import io.github.flexarr.core.isBookFinished
+import io.github.flexarr.core.isListening
 import io.github.flexarr.core.isResumable
+import io.github.flexarr.core.listeningSubtitle
 import io.github.flexarr.ui.books.bookActions
 import io.github.flexarr.core.progress
 import io.github.flexarr.core.releaseYear
@@ -134,21 +139,35 @@ fun PosterArtwork(item: ItemSummary, modifier: Modifier = Modifier) {
     }
 }
 
-/** 16:9 card for Continue Watching: tapping plays, with how much is left beneath it. */
+/**
+ * 16:9 card for Continue Watching: tapping plays, with how much is left beneath it. A book or podcast episode plays in
+ * its own player, its square art centred over a dimmed, blurred copy of itself.
+ */
 @Composable
 fun WideCard(item: ItemSummary, width: Dp = WideWidth, onClick: (() -> Unit)? = null) {
     val navigator = LocalNavigator.current
     var menu by remember { mutableStateOf(false) }
     val actions = itemActions(item, showsDetails = true)
+    val play = {
+        when (item.kind) {
+            MediaKind.Audiobook -> navigator.playBook(item)
+            MediaKind.PodcastEpisode -> navigator.playEpisode(item)
+            else -> navigator.play(item)
+        }
+    }
     Box {
         Column(
-            Modifier.width(width).pressable(onClick = { onClick?.invoke() ?: navigator.play(item) }, onLongClick = { menu = true }).menuActions(actions),
+            Modifier.width(width).pressable(onClick = { onClick?.invoke() ?: play() }, onLongClick = { menu = true }).menuActions(actions),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(6.dp)).background(Flexarr.seat)) {
-                val still = if (item.kind == MediaKind.Episode) item.artwork.thumb ?: item.artwork.backdrop else item.artwork.backdrop ?: item.artwork.thumb
-                RemoteImage(still, 640, Modifier.fillMaxSize()) {
-                    Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(glowColor(item.accentColor).copy(alpha = 0.4f), Flexarr.seat))))
+                if (item.isListening) {
+                    SquareArtInWide(item)
+                } else {
+                    val still = if (item.kind == MediaKind.Episode) item.artwork.thumb ?: item.artwork.backdrop else item.artwork.backdrop ?: item.artwork.thumb
+                    RemoteImage(still, 640, Modifier.fillMaxSize()) {
+                        Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(glowColor(item.accentColor).copy(alpha = 0.4f), Flexarr.seat))))
+                    }
                 }
                 Box(Modifier.align(Alignment.Center).size(44.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.45f)), contentAlignment = Alignment.Center) {
                     Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = Flexarr.screen)
@@ -158,10 +177,35 @@ fun WideCard(item: ItemSummary, width: Dp = WideWidth, onClick: (() -> Unit)? = 
             Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
                 Text(item.displayTitle, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen.copy(alpha = 0.9f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 val remaining = if (item.progress != null) item.effectiveDuration?.let { Format.remaining(it - item.userData.positionSeconds) } else null
-                Text(listOfNotNull(item.episodeSubtitle, remaining).joinToString("   "), fontSize = 12.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(listOfNotNull(item.episodeSubtitle ?: item.listeningSubtitle, remaining).joinToString("   "), fontSize = 12.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
         ItemMenu(actions, menu, onDismiss = { menu = false })
+    }
+}
+
+/** A cover or podcast's artwork in a 16:9 card: whole in the middle, over a dimmed, blurred copy filling the rest. */
+@Composable
+private fun SquareArtInWide(item: ItemSummary) {
+    // A podcast episode's own artwork, else its show's (the server falls back to it).
+    val art = if (item.kind == MediaKind.PodcastEpisode) item.artwork.thumb ?: item.artwork.poster else item.artwork.poster ?: item.artwork.thumb
+    val glow = glowColor(item.accentColor)
+    Box(Modifier.fillMaxSize()) {
+        // Blur needs Android 12; before it the copy is only dimmed further.
+        RemoteImage(art, 200, Modifier.fillMaxSize().blur(24.dp)) {
+            Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(glow.copy(alpha = 0.4f), Flexarr.seat))))
+        }
+        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) 0.35f else 0.6f)))
+        Box(Modifier.align(Alignment.Center).fillMaxHeight().padding(vertical = 10.dp).aspectRatio(1f).clip(RoundedCornerShape(4.dp)).background(Flexarr.seat)) {
+            RemoteImage(art, 342, Modifier.fillMaxSize()) {
+                Box(
+                    Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(glow.copy(alpha = 0.4f), Flexarr.seat))),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(item.title, style = marquee(13, Flexarr.screen.copy(alpha = 0.8f)).copy(fontWeight = FontWeight.Bold), textAlign = TextAlign.Center, maxLines = 3, modifier = Modifier.padding(6.dp))
+                }
+            }
+        }
     }
 }
 
@@ -208,7 +252,10 @@ fun itemActions(item: ItemSummary, showsDetails: Boolean = false, downloads: Boo
     val navigator = LocalNavigator.current
     val inContinueWatching = LocalInContinueWatching.current
     val model = androidx.compose.ui.platform.LocalContext.current.appModel
-    if (item.kind == MediaKind.Audiobook) return bookActions(item, showsDetails, downloads)
+    // In Continue watching, a book or podcast episode can leave it without being marked finished.
+    val leave = if (inContinueWatching) listOf(MenuAction("Remove from Continue Watching") { navigator.removeFromContinueWatching(item) }) else emptyList()
+    if (item.kind == MediaKind.Audiobook) return bookActions(item, showsDetails, downloads) + leave
+    if (item.kind == MediaKind.PodcastEpisode) return podcastEpisodeActions(item, showsDetails, kids = model.isKids) + leave
     return buildList {
         if (item.kind == MediaKind.Movie || item.kind == MediaKind.Episode) {
             add(MenuAction(if (item.isResumable) "Resume" else "Play") { navigator.play(item) })
@@ -242,6 +289,19 @@ fun itemActions(item: ItemSummary, showsDetails: Boolean = false, downloads: Boo
             val on = item.id in model.watchlistItems
             add(MenuAction(if (on) "Remove from watchlist" else "Add to watchlist") { navigator.setOnWatchlist(item, !on) })
         }
+    }
+}
+
+/** A podcast episode listed as a title (Continue watching): play it, its podcast, played or not. */
+@Composable
+private fun podcastEpisodeActions(item: ItemSummary, showsDetails: Boolean, kids: Boolean): List<MenuAction> {
+    val navigator = LocalNavigator.current
+    val played = item.userData.watched
+    return buildList {
+        add(MenuAction(if (item.isResumable) "Resume" else "Play") { navigator.playEpisode(item) })
+        val podcast = item.seriesId ?: item.parentId
+        if (showsDetails && podcast != null) add(MenuAction("Go to podcast") { navigator.openPodcast(podcast) })
+        if (!kids) add(MenuAction(if (played) "Mark as unplayed" else "Mark as played") { navigator.setWatched(item, !played) })
     }
 }
 
