@@ -370,11 +370,12 @@ public static class SettingsTransfer
     }
 
     /// <summary>
-    /// The settings a restored backup brings: the ones Flexarr knows, under their own names, from the backup, except this
-    /// machine's paths (ffmpeg, the cache, the backups folder) and its own bookkeeping, which stay as they are here.
-    /// Paths belong to wherever the backup was made, and a backup someone else made could point ffmpeg's at any
-    /// program; anything else in the file (a "dataDirectory", a "backups:folder" the config reader would take apart)
-    /// is left behind.
+    /// The settings a restored backup brings: every one Flexarr knows, under its own name, from the backup, except this
+    /// machine's paths (ffmpeg, the cache, the backups and logs folders) and its own bookkeeping, which stay as they are
+    /// here. Paths belong to wherever the backup was made, and a backup someone else made could point ffmpeg's at any
+    /// program; anything else in the file (a "dataDirectory", a "backups:folder" the config reader would take apart, a
+    /// setting this version doesn't have) is left behind. The server's id comes with the backup, so apps signed in to
+    /// the server it was made on carry on.
     /// </summary>
     public static void KeepMachinePaths(string restoredConfig, string currentConfig)
     {
@@ -385,25 +386,31 @@ public static class SettingsTransfer
 
         var backup = JsonNode.Parse(File.ReadAllText(restoredConfig)) as JsonObject ?? [];
         var current = File.Exists(currentConfig) ? JsonNode.Parse(File.ReadAllText(currentConfig)) as JsonObject ?? [] : [];
+        var machine = Sections[MachineSection];
         var restored = new JsonObject();
-        foreach (var (section, keys) in Sections)
+        foreach (var key in Restorable)
         {
-            var from = section == MachineSection ? current : backup;
-            foreach (var key in keys)
+            var from = machine.Contains(key, StringComparer.OrdinalIgnoreCase) ? current
+                : ServerOwn.Contains(key, StringComparer.OrdinalIgnoreCase) ? (Get(current, key) is null ? backup : current)
+                : key == "serverId" && Get(backup, key) is null ? current
+                : backup;
+            if (Get(from, key) is { } value)
             {
-                if (Get(from, key) is { } value)
-                {
-                    restored[key] = value.DeepClone();
-                }
+                restored[key] = value.DeepClone();
             }
         }
 
-        foreach (var key in ServerOwn)
+        // Where the logs are written is this machine's too.
+        if (restored["logs"] is JsonObject logs)
         {
-            // This server's, or (restoring onto a new one) the backup's.
-            if ((Get(current, key) ?? Get(backup, key)) is { } value)
+            if (logs.FirstOrDefault(p => p.Key.Equals("directory", StringComparison.OrdinalIgnoreCase)).Key is { } directory)
             {
-                restored[key] = value.DeepClone();
+                logs.Remove(directory);
+            }
+
+            if (Get(current, "logs") is JsonObject here && Get(here, "directory") is { } folder)
+            {
+                logs["directory"] = folder.DeepClone();
             }
         }
 
@@ -416,6 +423,15 @@ public static class SettingsTransfer
     /// guests.json come back with the backup and need them).
     /// </summary>
     private static readonly string[] ServerOwn = ["legacySignInsUntil", "remoteGuests"];
+
+    /// <summary>
+    /// Every setting config.json can hold, by its config.json name: the server's options, but not where its data is
+    /// (that's how it found this file) or the revision of its last write.
+    /// </summary>
+    private static readonly string[] Restorable = typeof(FlexarrOptions).GetProperties()
+        .Where(p => p.CanWrite && p.Name is not nameof(FlexarrOptions.DataDirectory) and not nameof(FlexarrOptions.ConfigRevision))
+        .Select(p => JsonNamingPolicy.CamelCase.ConvertName(p.Name))
+        .ToArray();
 
     /// <summary>The single services a config can point at, by config.json name.</summary>
     private static readonly KeyValuePair<string, string>[] Services = [new("seerr", "Seerr"), new("bazarr", "Bazarr"), new("liveTv", "Live TV")];
