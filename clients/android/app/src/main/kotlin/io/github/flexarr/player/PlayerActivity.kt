@@ -462,7 +462,7 @@ private fun Controls(controller: PlaybackController, onClose: () -> Unit, onPict
                 Column(Modifier.weight(1f).padding(top = 2.dp)) {
                     Text(info.item.displayTitle, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Flexarr.screen, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     info.item.episodeSubtitle?.let { Text(it, fontSize = 15.sp, color = Flexarr.screen.copy(alpha = 0.8f), maxLines = 1, overflow = TextOverflow.Ellipsis) }
-                    info.transcodeSummary?.let { Text(it.uppercase(Locale.getDefault()), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, maxLines = 1, modifier = Modifier.padding(top = 4.dp)) }
+                    info.transcodeSummary?.let { Text(it, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, maxLines = 1, modifier = Modifier.padding(top = 4.dp)) }
                 }
             }
             GlassCastButton()

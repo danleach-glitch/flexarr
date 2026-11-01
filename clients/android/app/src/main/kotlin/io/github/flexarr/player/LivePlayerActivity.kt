@@ -334,7 +334,7 @@ private fun LiveControls(controller: LiveTvController, onClose: () -> Unit, onPi
             Column(Modifier.weight(1f).padding(top = 2.dp)) {
                 Text(controller.title, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Flexarr.screen, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(controller.subtitle, fontSize = 15.sp, color = Flexarr.screen.copy(alpha = 0.8f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                controller.detail?.let { Text(it.uppercase(), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, maxLines = 1, modifier = Modifier.padding(top = 4.dp)) }
+                controller.detail?.let { Text(it, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, maxLines = 1, modifier = Modifier.padding(top = 4.dp)) }
             }
             GlassButton(Icons.AutoMirrored.Filled.List, "Channels", size = 44) { onChannels(); onInteract() }
             if (LocalContext.current.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {

@@ -257,7 +257,7 @@ private fun LiveControls(controller: LiveTvController, timeline: FocusRequester,
         Column(Modifier.padding(horizontal = 40.dp, vertical = 28.dp)) {
             Text(controller.title, fontSize = 22.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(controller.subtitle, fontSize = 15.sp, color = Flexarr.screen.copy(alpha = 0.8f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            controller.detail?.let { Text(it.uppercase(java.util.Locale.ROOT), fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, maxLines = 1, modifier = Modifier.padding(top = 4.dp)) }
+            controller.detail?.let { Text(it, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, maxLines = 1, modifier = Modifier.padding(top = 4.dp)) }
         }
         Column(Modifier.align(Alignment.BottomCenter).padding(horizontal = 40.dp, vertical = 26.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             LiveTimeline(controller, timeline, onInteract)
