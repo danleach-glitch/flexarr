@@ -269,7 +269,7 @@ struct SeriesCard: View {
                 }
             }
             .frame(width: Layout.posterWidth, height: Layout.posterWidth)
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
         } caption: { focused in
             VStack(alignment: .leading, spacing: 4) {
                 Text(series.name)
@@ -342,7 +342,6 @@ struct BookView: View {
     private func header(_ item: ItemSummary) -> some View {
         HStack(alignment: .top, spacing: 80) {
             SquareArtwork(item: item, size: 520)
-                .shadow(color: .black.opacity(0.5), radius: 30, y: 18)
             VStack(alignment: .leading, spacing: 16) {
                 Text(item.title)
                     .font(.marquee(64, weight: .heavy))

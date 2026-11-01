@@ -175,7 +175,7 @@ struct MainProfilePinField: View {
                 .font(.title3.monospacedDigit())
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
-                .background(RoundedRectangle(cornerRadius: 12).fill(Color.seat))
+                .background(RoundedRectangle(cornerRadius: Radius.control).fill(Color.seat))
                 .focused($focused)
                 .submitLabel(.done)
                 .onSubmit { if Self.isComplete(pin) { submit() } }

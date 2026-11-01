@@ -37,7 +37,7 @@ struct TVPlayingBar: View {
                 HStack(spacing: 12) {
                     TVStill(item: playing.item, width: 240)
                         .frame(width: 64, height: 36)
-                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
                     VStack(alignment: .leading, spacing: 1) {
                         Text(playing.item.displayTitle)
                             .font(.subheadline.weight(.semibold))
@@ -63,7 +63,7 @@ struct TVPlayingBar: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
         .background {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: Radius.panel, style: .continuous)
                 .fill(Color.seat)
                 .overlay(alignment: .bottom) {
                     // How far it has got, along the bottom edge, moving on while it plays (still while paused).
@@ -119,7 +119,7 @@ struct RemoteNoticeView: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, notice.undo == nil ? 10 : 0)
                 // A rounded rectangle rather than a capsule: at the largest text sizes the words take several lines.
-                .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(Color.seat).shadow(color: .black.opacity(0.4), radius: 12, y: 4))
+                .background(RoundedRectangle(cornerRadius: Radius.panel, style: .continuous).fill(Color.seat).shadow(color: .black.opacity(0.4), radius: 12, y: 4))
                 .padding(.horizontal, 20)
                 .padding(.bottom, 8)
                 .transition(.move(edge: .bottom).combined(with: .opacity))

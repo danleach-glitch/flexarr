@@ -51,7 +51,6 @@ struct AlbumView: View {
     private func header(_ item: ItemSummary) -> some View {
         HStack(alignment: .bottom, spacing: 60) {
             SquareArtwork(item: item, size: 420)
-                .shadow(color: .black.opacity(0.45), radius: 30, y: 16)
             VStack(alignment: .leading, spacing: 20) {
                 Text(item.title)
                     .font(.marquee(72, weight: .heavy))

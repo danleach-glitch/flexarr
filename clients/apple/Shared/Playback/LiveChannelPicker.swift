@@ -105,9 +105,9 @@ struct LiveChannelPicker: View {
                 .foregroundStyle(Color.usher)
                 .frame(width: numberWidth, alignment: .trailing)
             ZStack {
-                RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.room.opacity(0.8))
+                RoundedRectangle(cornerRadius: Radius.art, style: .continuous).fill(Color.room.opacity(0.8))
                 RemoteImage(url: client.imageURL(channel.logoUrl, width: 300), contentMode: .fit) {
-                    Text(channel.name.prefix(4)).font(.marquee(logoTextSize, weight: .bold)).foregroundStyle(Color.usher)
+                    Text(channel.name.prefix(4)).font(.marquee(logoTextSize, weight: .bold, scales: false)).foregroundStyle(Color.usher)
                 }
                 .padding(6)
             }
@@ -176,7 +176,7 @@ struct PickerRowStyle: ButtonStyle {
         var body: some View {
             configuration.label
                 .background {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    RoundedRectangle(cornerRadius: Radius.panel, style: .continuous)
                         .fill(isFocused || configuration.isPressed ? Color.screen.opacity(0.16) : current ? Color.screen.opacity(0.07) : Color.clear)
                 }
                 .overlay(alignment: .leading) {

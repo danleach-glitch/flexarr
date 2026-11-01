@@ -506,7 +506,7 @@ struct EpisodeCard: View {
             .overlay(alignment: .topTrailing) {
                 if episode.userData.watched { WatchedBadge().padding(12) }
             }
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
         } caption: { focused in
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 14) {

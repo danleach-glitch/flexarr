@@ -61,7 +61,7 @@ private struct SettingHelpPanel: View {
                     .font(.system(size: 76, weight: .medium))
                     .foregroundStyle(Color.screen)
                     .frame(width: 168, height: 168)
-                    .background(Color.aisle, in: .rect(cornerRadius: 36, style: .continuous))
+                    .background(Color.aisle, in: .rect(cornerRadius: Radius.panel, style: .continuous))
                     .transition(.opacity)
             }
             if let text = help?.text, !text.isEmpty {
@@ -252,10 +252,9 @@ struct SettingsRowStyle: ButtonStyle {
                 .frame(maxWidth: .infinity, minHeight: 78, alignment: .leading)
                 .foregroundStyle(isFocused ? Color.room : (destructive ? Color.danger : Color.screen))
                 .background {
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    RoundedRectangle(cornerRadius: Radius.panel, style: .continuous)
                         .fill(isFocused ? AnyShapeStyle(Color.screen) : AnyShapeStyle(Color.screen.opacity(0.07)))
                 }
-                .shadow(color: isFocused ? Color.black.opacity(0.4) : .clear, radius: 24, y: 10)
                 .scaleEffect(configuration.isPressed ? 0.98 : (isFocused ? 1.03 : 1))
                 .animation(.spring(response: 0.3, dampingFraction: 0.75), value: isFocused)
                 .animation(.easeOut(duration: 0.12), value: configuration.isPressed)

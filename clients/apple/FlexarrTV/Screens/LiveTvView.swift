@@ -212,7 +212,7 @@ private struct CategoryButtonStyle: ButtonStyle {
                 .padding(.horizontal, 22)
                 .frame(height: 70)
                 .background {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    RoundedRectangle(cornerRadius: Radius.panel, style: .continuous)
                         .fill(isFocused ? AnyShapeStyle(Color.screen) : AnyShapeStyle(selected ? Color.screen.opacity(0.12) : Color.clear))
                 }
                 .scaleEffect(isFocused ? 1.04 : 1)
@@ -260,7 +260,7 @@ struct HomeChannelCard: View {
                     ProgressBar(value: now.progress(), tint: .silver).padding(16)
                 }
             }
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
         } caption: { focused in
             VStack(alignment: .leading, spacing: 4) {
                 Text(channel.now?.displayTitle ?? channel.name)

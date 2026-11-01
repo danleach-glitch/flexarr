@@ -19,7 +19,7 @@ struct TVPlayingLiveActivity: Widget {
                 DynamicIslandExpandedRegion(.leading) {
                     TVArtwork(file: context.attributes.artworkFile, accent: context.attributes.accent)
                         .frame(width: 64, height: 36)
-                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
                         .padding(.leading, 4)
                 }
                 DynamicIslandExpandedRegion(.center) {
@@ -64,7 +64,7 @@ private struct LockScreenView: View {
             HStack(spacing: 12) {
                 TVArtwork(file: context.attributes.artworkFile, accent: context.attributes.accent)
                     .frame(width: 80, height: 45)
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
                 VStack(alignment: .leading, spacing: 2) {
                     Text(context.attributes.title)
                         .font(.headline)

@@ -81,7 +81,7 @@ struct ActionButtonStyle: ButtonStyle {
             .frame(minHeight: 48)
             .foregroundStyle(prominent ? Color.room : Color.screen)
             .background {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: Radius.control, style: .continuous)
                     .fill(prominent ? AnyShapeStyle(Color.screen) : AnyShapeStyle(Color.screen.opacity(0.14)))
             }
             .shadow(color: prominent ? ambient.opacity(0.45) : .clear, radius: 16)

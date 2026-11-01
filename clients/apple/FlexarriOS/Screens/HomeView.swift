@@ -471,7 +471,7 @@ private struct ComingSoonCard: View {
                         ProgressBar(value: progress).padding(8)
                     }
                 }
-                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
             VStack(alignment: .leading, spacing: 1) {
                 Text(UpcomingDay.title(item))
                     .font(.footnote.weight(.semibold))

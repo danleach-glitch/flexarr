@@ -81,3 +81,16 @@ struct RoomBackground: View {
         .ignoresSafeArea()
     }
 }
+
+/// A soft pool of the room behind a title or logo, so it reads over a bright backdrop without a drop shadow.
+struct TitleScrim: ViewModifier {
+    var reach: CGFloat
+
+    func body(content: Content) -> some View {
+        content.background {
+            RadialGradient(colors: [Color.room.opacity(0.5), .clear], center: .center, startRadius: 0, endRadius: reach)
+                .padding(-reach / 3)
+                .allowsHitTesting(false)
+        }
+    }
+}

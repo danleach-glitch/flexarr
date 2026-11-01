@@ -303,7 +303,7 @@ struct TitleArt: View {
                 Color.clear
             }
             .frame(maxWidth: maxWidth, maxHeight: maxHeight, alignment: .bottomLeading)
-            .shadow(color: .black.opacity(0.35), radius: 16)
+            .modifier(TitleScrim(reach: maxWidth * 0.6))
             .accessibilityLabel(item.title)
         } else {
             title
@@ -318,7 +318,7 @@ struct TitleArt: View {
             .lineLimit(2)
             .minimumScaleFactor(0.6)
             .frame(maxWidth: maxWidth * 1.3, alignment: .leading)
-            .shadow(color: .black.opacity(0.35), radius: 16)
+            .modifier(TitleScrim(reach: maxWidth * 0.6))
     }
 }
 
@@ -485,7 +485,7 @@ private struct ComingSoonRow: View {
                                     ProgressBar(value: progress).padding(16)
                                 }
                             }
-                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
                         } caption: { focused in
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(UpcomingDay.title(item))

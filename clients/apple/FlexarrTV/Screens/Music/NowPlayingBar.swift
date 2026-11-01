@@ -37,7 +37,7 @@ struct NowPlayingBar: View {
                     }
                 }
                 .frame(width: 64, height: 64)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
                 VStack(alignment: .leading, spacing: 2) {
                     Text(track.title)
                         .font(.system(size: 25, weight: .semibold))
@@ -67,12 +67,12 @@ struct NowPlayingBar: View {
             .padding(.vertical, 12)
             .frame(maxWidth: .infinity)
             .background {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                RoundedRectangle(cornerRadius: Radius.panel, style: .continuous)
                     .fill(Color.seat.opacity(0.96))
                     .shadow(color: .black.opacity(0.45), radius: 24, y: 8)
             }
             .overlay {
-                RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Color.aisle, lineWidth: 2)
+                RoundedRectangle(cornerRadius: Radius.panel, style: .continuous).strokeBorder(Color.aisle, lineWidth: 2)
             }
             .padding(.horizontal, Layout.edge)
             .padding(.bottom, 20)

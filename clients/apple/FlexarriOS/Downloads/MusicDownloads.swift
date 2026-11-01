@@ -140,7 +140,7 @@ struct CollectionArtwork: View {
                     }
                 }
             }
-            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
     }
 
     private func tile(_ image: UIImage) -> some View {
@@ -284,7 +284,6 @@ struct OfflineCollectionView: View {
         VStack(spacing: 16) {
             CollectionArtwork(collection: collection)
                 .frame(width: sizeClass == .regular ? 320 : 240)
-                .shadow(color: .black.opacity(0.45), radius: 20, y: 10)
             VStack(spacing: 6) {
                 Text(collection.title)
                     .font(.marquee(sizeClass == .regular ? 40 : 30, weight: .heavy))

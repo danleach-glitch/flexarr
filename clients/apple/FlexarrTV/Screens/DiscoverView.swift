@@ -278,7 +278,7 @@ struct ExternalCard: View {
             .overlay(alignment: .topLeading) {
                 if title.isInLibrary { LibraryBadge().padding(10) }
             }
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
         } caption: { focused in
             VStack(alignment: .leading, spacing: 4) {
                 Text(title.title)
@@ -366,7 +366,7 @@ struct GenreTile: View {
                 LinearGradient(colors: [Color.silver.opacity(0.3), Color.seat], startPoint: .topLeading, endPoint: .bottomTrailing)
             }
             .frame(width: Self.width, height: Self.width * 9 / 16)
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
         } caption: { focused in
             VStack(alignment: .leading, spacing: 4) {
                 Text(name)

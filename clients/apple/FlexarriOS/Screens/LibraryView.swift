@@ -292,6 +292,6 @@ struct GenreTile: View {
                 .lineLimit(1)
                 .padding(10)
             }
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
     }
 }

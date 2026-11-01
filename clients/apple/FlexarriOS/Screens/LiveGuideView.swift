@@ -97,13 +97,13 @@ struct LiveGuideView: View {
 
     private func channelCell(_ channel: LiveChannel) -> some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.seat)
+            RoundedRectangle(cornerRadius: Radius.art, style: .continuous).fill(Color.seat)
             RemoteImage(url: model.client?.imageURL(channel.logoUrl, width: 300), contentMode: .fit) {
                 Text(channel.name.prefix(4)).font(.marquee(14, weight: .bold, scales: false)).foregroundStyle(Color.usher)
             }
             .padding(8)
             if model.liveTv.startingChannel == channel.id {
-                RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.black.opacity(0.45))
+                RoundedRectangle(cornerRadius: Radius.art, style: .continuous).fill(.black.opacity(0.45))
                 ProgressView()
             }
         }
@@ -189,12 +189,12 @@ struct LiveGuideView: View {
         .padding(.horizontal, 8)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .background {
-            RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.seat.opacity(onNow ? 1 : 0.55))
+            RoundedRectangle(cornerRadius: Radius.control, style: .continuous).fill(Color.seat.opacity(onNow ? 1 : 0.55))
         }
         // Set to record: outlined in red, so it stands out across the grid.
         .overlay {
             if programme.isSetToRecord {
-                RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Self.recordRed, lineWidth: 2)
+                RoundedRectangle(cornerRadius: Radius.control, style: .continuous).strokeBorder(Self.recordRed, lineWidth: 2)
             }
         }
         .overlay(alignment: .leading) {

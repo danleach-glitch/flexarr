@@ -468,7 +468,7 @@ struct EpisodeRow: View {
                         .overlay(alignment: .topTrailing) {
                             if episode.userData.watched { WatchedBadge().padding(5) }
                         }
-                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
                     VStack(alignment: .leading, spacing: 3) {
                         Text(episode.episodeNumber.map { "Episode \($0)" } ?? "Special")
                             .font(.caption.weight(.semibold))

@@ -349,7 +349,7 @@ struct PinEntry: View {
                 .font(.title2.monospacedDigit())
                 .padding(.vertical, 12)
                 .frame(maxWidth: 220)
-                .background(RoundedRectangle(cornerRadius: 12).fill(Color.seat))
+                .background(RoundedRectangle(cornerRadius: Radius.control).fill(Color.seat))
                 .focused($focused)
                 .onChange(of: pin) { _, new in
                     let digits = String(new.filter(\.isNumber).prefix(8))

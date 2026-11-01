@@ -221,7 +221,7 @@ private struct ChannelRow: View {
     var body: some View {
         HStack(spacing: 14) {
             ZStack {
-                RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.seat)
+                RoundedRectangle(cornerRadius: Radius.art, style: .continuous).fill(Color.seat)
                 RemoteImage(url: model.client?.imageURL(channel.logoUrl, width: 300), contentMode: .fit) {
                     Text(channel.name.prefix(4))
                         .font(.marquee(18, weight: .bold, scales: false))
@@ -229,7 +229,7 @@ private struct ChannelRow: View {
                 }
                 .padding(8)
                 if starting {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.black.opacity(0.45))
+                    RoundedRectangle(cornerRadius: Radius.art, style: .continuous).fill(.black.opacity(0.45))
                     ProgressView()
                 }
             }
@@ -321,7 +321,7 @@ struct HomeChannelCard: View {
                         ProgressView(value: now.progress()).tint(.silver).padding(10)
                     }
                 }
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
                 Text(channel.now?.displayTitle ?? channel.name)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Color.screen)

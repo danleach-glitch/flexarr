@@ -8,7 +8,7 @@ struct PodcastArtwork: View {
     var title = ""
     var accent: String?
     var imageWidth = 500
-    var cornerRadius: CGFloat = 8
+    var cornerRadius: CGFloat = Radius.art
 
     var body: some View {
         Color.seat
@@ -88,7 +88,7 @@ struct DirectoryCard: View {
                                 Color.black.opacity(0.45)
                                 ProgressView().tint(Color.screen)
                             }
-                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
                         }
                     }
                     .overlay(alignment: .topTrailing) {
@@ -232,7 +232,7 @@ struct PodcastEpisodeRow: View {
 
     private var artwork: some View {
         PodcastArtwork(path: episode.artwork.thumb ?? episode.artwork.poster, title: episode.podcastTitle, accent: episode.accentColor,
-                       imageWidth: 185, cornerRadius: 6)
+                       imageWidth: 185, cornerRadius: Radius.art)
             .frame(width: 56, height: 56)
     }
 

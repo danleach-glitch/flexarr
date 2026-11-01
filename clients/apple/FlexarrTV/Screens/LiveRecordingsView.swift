@@ -188,7 +188,7 @@ private struct RecordingRowStyle: ButtonStyle {
             configuration.label
                 .foregroundStyle(isFocused ? Color.room : Color.screen)
                 .background {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous).fill(isFocused ? Color.screen : Color.seat.opacity(0.7))
+                    RoundedRectangle(cornerRadius: Radius.panel, style: .continuous).fill(isFocused ? Color.screen : Color.seat.opacity(0.7))
                 }
                 .scaleEffect(isFocused ? 1.02 : 1)
                 .animation(.spring(response: 0.25, dampingFraction: 0.8), value: isFocused)

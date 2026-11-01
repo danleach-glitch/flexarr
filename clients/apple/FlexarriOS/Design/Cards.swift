@@ -73,7 +73,7 @@ struct PosterArtwork: View {
             .overlay(alignment: .topTrailing) {
                 if item.userData.watched { WatchedBadge(label: item.isBook ? "Finished" : "Watched").padding(6) }
             }
-            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
     }
 }
 
@@ -111,7 +111,7 @@ struct WideCard: View {
                             ProgressBar(value: progress).padding(8)
                         }
                     }
-                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
                 VStack(alignment: .leading, spacing: 1) {
                     Text(item.isListening ? item.title : item.displayTitle)
                         .font(.footnote.weight(.semibold))
@@ -349,7 +349,7 @@ struct TitleArt: View {
                 title
             }
             .frame(maxWidth: maxWidth, maxHeight: maxHeight, alignment: .bottomLeading)
-            .shadow(color: .black.opacity(0.35), radius: 10)
+            .modifier(TitleScrim(reach: maxWidth * 0.6))
             .accessibilityLabel(item.title)
         } else {
             title
@@ -363,6 +363,6 @@ struct TitleArt: View {
             .lineLimit(2)
             .minimumScaleFactor(0.6)
             .frame(maxWidth: maxWidth * 1.2, alignment: .leading)
-            .shadow(color: .black.opacity(0.35), radius: 10)
+            .modifier(TitleScrim(reach: maxWidth * 0.6))
     }
 }

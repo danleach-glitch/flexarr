@@ -136,14 +136,14 @@ struct SeriesCard: View {
                     let side = proxy.size.width - step * CGFloat(max(0, covers.count - 1))
                     ZStack(alignment: .bottomLeading) {
                         if covers.isEmpty {
-                            RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.seat)
+                            RoundedRectangle(cornerRadius: Radius.art, style: .continuous).fill(Color.seat)
                                 .overlay { Text(series.name).font(.marquee(16, weight: .bold, scales: false)).foregroundStyle(Color.screen.opacity(0.8)).padding(8) }
                         }
                         ForEach(Array(covers.enumerated().reversed()), id: \.offset) { index, cover in
                             Color.seat
                                 .frame(width: side, height: side)
                                 .overlay { RemoteImage(url: model.client?.imageURL(cover.poster, width: 400)) { Color.seat } }
-                                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                                .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
                                 .shadow(color: .black.opacity(index == 0 ? 0 : 0.4), radius: 4)
                                 .brightness(index == 0 ? 0 : -0.12 * Double(index))
                                 .offset(x: step * CGFloat(index), y: -step * CGFloat(index))

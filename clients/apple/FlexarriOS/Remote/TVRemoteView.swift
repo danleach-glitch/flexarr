@@ -143,8 +143,7 @@ struct TVRemoteView: View {
     private func still(_ playing: DeviceNowPlaying) -> some View {
         TVStill(item: playing.item)
             .aspectRatio(16 / 9, contentMode: .fit)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .shadow(color: .black.opacity(0.5), radius: 24, y: 12)
+            .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
             .shadow(color: playing.item.glowColor.opacity(0.3), radius: 40)
             // Smaller while paused, as Now Playing does.
             .scaleEffect(playing.paused ? 0.92 : 1)
@@ -393,7 +392,7 @@ struct TVRemoteView: View {
                     HStack(spacing: 12) {
                         TVStill(item: episode, width: 400)
                             .frame(width: 96, height: 54)
-                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                            .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
                             .overlay(alignment: .bottom) {
                                 if let progress = episode.progress, !isPlaying { ProgressBar(value: progress).padding(4) }
                             }

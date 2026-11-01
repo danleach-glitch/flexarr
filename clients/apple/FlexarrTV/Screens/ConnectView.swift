@@ -296,7 +296,7 @@ struct QRCode: View {
                 .interpolation(.none)
                 .resizable()
                 .padding(18)
-                .background(RoundedRectangle(cornerRadius: 18).fill(.white))
+                .background(RoundedRectangle(cornerRadius: Radius.panel).fill(.white))
         }
     }
 

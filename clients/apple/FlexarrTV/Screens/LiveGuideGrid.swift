@@ -339,7 +339,7 @@ private struct GuideCellStyle: ButtonStyle {
             configuration.label
                 .foregroundStyle(isFocused ? Color.room : Color.screen)
                 .background {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    RoundedRectangle(cornerRadius: Radius.control, style: .continuous)
                         .fill(isFocused ? Color.screen : Color.seat.opacity(onNow ? 0.95 : 0.6))
                 }
                 .overlay(alignment: .leading) {
@@ -349,13 +349,12 @@ private struct GuideCellStyle: ButtonStyle {
                 }
                 .overlay {
                     if recording {
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        RoundedRectangle(cornerRadius: Radius.control, style: .continuous)
                             .strokeBorder(Color.record, lineWidth: 3)
                     }
                 }
                 .opacity(past && !isFocused ? 0.55 : 1)
                 .scaleEffect(isFocused ? 1.04 : 1)
-                .shadow(color: .black.opacity(isFocused ? 0.4 : 0), radius: 16, y: 8)
                 .animation(.spring(response: 0.25, dampingFraction: 0.8), value: isFocused)
         }
     }

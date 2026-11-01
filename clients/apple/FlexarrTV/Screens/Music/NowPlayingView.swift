@@ -114,8 +114,7 @@ struct NowPlayingView: View {
             }
         }
         .frame(width: size, height: size)
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .shadow(color: .black.opacity(0.5), radius: 40, y: 24)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
         .shadow(color: track.glowColor.opacity(0.35), radius: 80)
         .animation(.easeOut(duration: 0.35), value: track.id)
     }

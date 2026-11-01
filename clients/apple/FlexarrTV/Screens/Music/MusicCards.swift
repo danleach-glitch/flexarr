@@ -20,7 +20,7 @@ struct SquareArtwork: View {
             }
         }
         .frame(width: size, height: size)
-        .clipShape(circular ? AnyShape(Circle()) : AnyShape(RoundedRectangle(cornerRadius: 10, style: .continuous)))
+        .clipShape(circular ? AnyShape(Circle()) : AnyShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous)))
     }
 
     private var initials: String {
@@ -198,7 +198,7 @@ struct TrackRowStyle: ButtonStyle {
                 .frame(height: 80)
                 .foregroundStyle(isFocused ? Color.room : (isCurrent ? Color.screen : Color.screen.opacity(0.82)))
                 .background {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    RoundedRectangle(cornerRadius: Radius.panel, style: .continuous)
                         .fill(isFocused ? AnyShapeStyle(Color.screen) : AnyShapeStyle(isCurrent ? Color.screen.opacity(0.12) : Color.clear))
                 }
                 .scaleEffect(configuration.isPressed ? 0.98 : (isFocused ? 1.02 : 1))

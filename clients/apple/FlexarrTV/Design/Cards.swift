@@ -66,7 +66,7 @@ struct PosterArtwork: View {
         .overlay(alignment: .topTrailing) {
             if item.userData.watched { WatchedBadge().padding(10) }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
     }
 }
 
@@ -84,7 +84,7 @@ struct WideCard: View {
         ArtworkButton(ambient: item.glowColor, focus: focus, focusID: item.id, action: action) {
             Group {
                 if item.isListening {
-                    ListeningArt(item: item, imageWidth: 500, inset: 20, cornerRadius: 6)
+                    ListeningArt(item: item, imageWidth: 500, inset: 20, cornerRadius: Radius.art)
                 } else {
                     RemoteImage(url: model.client?.imageURL(stillPath, width: 780)) {
                         ZStack {
@@ -104,7 +104,7 @@ struct WideCard: View {
                     }
                 }
             }
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
         } caption: { focused in
             VStack(alignment: .leading, spacing: 4) {
                 Text(item.isListening ? item.title : item.displayTitle)

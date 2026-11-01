@@ -120,9 +120,8 @@ struct PodcastView: View {
 
     private func header(_ podcast: Podcast) -> some View {
         VStack(spacing: 16) {
-            PodcastArtwork(path: podcast.artwork.poster, title: podcast.title, accent: podcast.accentColor, imageWidth: 780, cornerRadius: 12)
+            PodcastArtwork(path: podcast.artwork.poster, title: podcast.title, accent: podcast.accentColor, imageWidth: 780, cornerRadius: Radius.art)
                 .frame(width: sizeClass == .regular ? 300 : 220)
-                .shadow(color: .black.opacity(0.45), radius: 20, y: 10)
             VStack(spacing: 6) {
                 Text(podcast.title)
                     .font(.marquee(sizeClass == .regular ? 38 : 28, weight: .heavy))

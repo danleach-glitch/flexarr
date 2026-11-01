@@ -135,7 +135,7 @@ private struct WatchlistCard: View {
                                 .padding(8)
                         }
                     }
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
                 VStack(alignment: .leading, spacing: 1) {
                     Text(entry.title)
                         .font(.footnote.weight(.semibold))

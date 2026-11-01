@@ -36,7 +36,7 @@ struct PlaylistArtwork: View {
             }
         }
         .frame(width: size, height: size)
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
     }
 
     private func tile(_ path: String, _ side: CGFloat) -> some View {
@@ -191,7 +191,6 @@ struct PlaylistView: View {
     private var header: some View {
         HStack(alignment: .bottom, spacing: 60) {
             PlaylistArtwork(playlist: summary, size: 420)
-                .shadow(color: .black.opacity(0.45), radius: 30, y: 16)
             VStack(alignment: .leading, spacing: 20) {
                 Text(summary.name)
                     .font(.marquee(72, weight: .heavy))

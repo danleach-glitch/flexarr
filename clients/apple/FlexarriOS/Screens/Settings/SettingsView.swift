@@ -238,7 +238,7 @@ struct SettingsIcon: View {
             .font(.system(size: 14, weight: .semibold))
             .foregroundStyle(Color.screen)
             .frame(width: 29, height: 29)
-            .background(Color.aisle, in: .rect(cornerRadius: 7))
+            .background(Color.aisle, in: .rect(cornerRadius: Radius.control))
     }
 }
 

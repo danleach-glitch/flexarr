@@ -132,7 +132,7 @@ struct WatchlistView: View {
                     Color.seat
                         .frame(width: Layout.posterWidth, height: Layout.posterWidth * 1.5)
                         .overlay { Text(entry.title).font(.marquee(30, weight: .bold)).foregroundStyle(Color.screen.opacity(0.8)).multilineTextAlignment(.center).padding(16) }
-                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
                     Text(entry.title).font(.system(size: 24, weight: .semibold)).lineLimit(1)
                 }
             }

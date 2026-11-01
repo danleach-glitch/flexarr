@@ -55,7 +55,7 @@ struct SearchView: View {
                                     .lineLimit(1)
                                     .padding(.horizontal, 16)
                                     .padding(.vertical, 12)
-                                    .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.seat))
+                                    .background(RoundedRectangle(cornerRadius: Radius.control, style: .continuous).fill(Color.seat))
                                 }
                                 .buttonStyle(CardButtonStyle())
                             }
@@ -383,7 +383,7 @@ private struct OutsideTitleCard: View {
                                 .padding(8)
                         }
                     }
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
                     .overlay(alignment: .topTrailing) {
                         if isOn {
                             Image(systemName: "bookmark.fill")

@@ -65,7 +65,6 @@ struct ArtistView: View {
         VStack(spacing: 16) {
             SquareArtwork(item: item, circular: true)
                 .frame(width: sizeClass == .regular ? 240 : 180)
-                .shadow(color: .black.opacity(0.4), radius: 20, y: 10)
             VStack(spacing: 6) {
                 Text(item.title)
                     .font(.marquee(sizeClass == .regular ? 44 : 34, weight: .heavy))

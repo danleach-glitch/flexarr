@@ -58,7 +58,7 @@ extension PodcastSnapshot {
 /// An episode's saved square picture, or a quiet tile.
 private struct EpisodeArtwork: View {
     let episode: PodcastSnapshot.Episode
-    var cornerRadius: CGFloat = 10
+    var cornerRadius: CGFloat = Radius.art
 
     var body: some View {
         Group {
@@ -135,7 +135,7 @@ struct ContinueListeningView: View {
 
     private func medium(_ episode: PodcastSnapshot.Episode) -> some View {
         HStack(spacing: 14) {
-            EpisodeArtwork(episode: episode, cornerRadius: 12)
+            EpisodeArtwork(episode: episode, cornerRadius: Radius.art)
             VStack(alignment: .leading, spacing: 4) {
                 Text(episode.show)
                     .font(.caption.weight(.semibold))
@@ -227,7 +227,7 @@ struct UpNextView: View {
                 ForEach(episodes) { episode in
                     Link(destination: PodcastSnapshot.playURL(episode.id)) {
                         HStack(spacing: 10) {
-                            EpisodeArtwork(episode: episode, cornerRadius: 6).frame(width: 32, height: 32)
+                            EpisodeArtwork(episode: episode, cornerRadius: Radius.art).frame(width: 32, height: 32)
                             VStack(alignment: .leading, spacing: 0) {
                                 Text(episode.title).font(.caption.weight(.semibold)).foregroundStyle(Color.screen)
                                 Text(episode.show).font(.caption2).foregroundStyle(Color.usher)
@@ -337,7 +337,7 @@ struct WatchlistWidgetView: View {
             }
         }
         .aspectRatio(2 / 3, contentMode: .fit)
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
         .accessibilityLabel(title.title)
     }
 }

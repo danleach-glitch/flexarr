@@ -97,7 +97,7 @@ private struct DownloadRow: View {
                             ProgressBar(value: download.position / download.durationSeconds).padding(5)
                         }
                     }
-                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
                 VStack(alignment: .leading, spacing: 3) {
                     Text(download.item.kind == .episode ? (download.item.episodeSubtitle ?? download.item.title) : download.item.title)
                         .font(.subheadline.weight(.semibold))
@@ -176,7 +176,7 @@ private struct PodcastDownloadRow: View {
                             ProgressBar(value: min(1, download.position / download.durationSeconds)).padding(5)
                         }
                     }
-                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
                 VStack(alignment: .leading, spacing: 3) {
                     Text(download.item.title)
                         .font(.subheadline.weight(.semibold))

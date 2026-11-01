@@ -347,7 +347,7 @@ struct BooksLibraryView: View {
                 .accessibilityLabel("\(genre.name), \(bookCount(genre.count))")
             }
         }
-        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.seat))
+        .background(RoundedRectangle(cornerRadius: Radius.panel, style: .continuous).fill(Color.seat))
         .padding(.horizontal, Layout.edge)
     }
 

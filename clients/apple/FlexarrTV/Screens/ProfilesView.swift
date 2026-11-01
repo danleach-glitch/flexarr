@@ -359,7 +359,7 @@ private struct ProfileButtonStyle: ButtonStyle {
                         .opacity(isFocused ? 1 : 0)
                 }
                 .scaleEffect(configuration.isPressed ? 1.02 : (isFocused ? 1.1 : 1))
-                .shadow(color: isFocused ? Color.black.opacity(0.5) : .clear, radius: 30, y: 18)
+                .shadow(color: isFocused ? Color.silver.opacity(0.4) : .clear, radius: 30)
                 .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isFocused)
                 .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
         }

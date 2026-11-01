@@ -25,7 +25,7 @@ struct SquareArtwork: View {
                     }
                 }
             }
-            .clipShape(circular ? AnyShape(Circle()) : AnyShape(RoundedRectangle(cornerRadius: 6, style: .continuous)))
+            .clipShape(circular ? AnyShape(Circle()) : AnyShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous)))
     }
 
     private var initials: String {
@@ -202,7 +202,7 @@ struct TrackRow: View {
             .padding(.horizontal, 12)
             .background {
                 if isCurrent {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.screen.opacity(0.1))
+                    RoundedRectangle(cornerRadius: Radius.panel, style: .continuous).fill(Color.screen.opacity(0.1))
                 }
             }
             .opacity(isDimmed ? 0.45 : 1)

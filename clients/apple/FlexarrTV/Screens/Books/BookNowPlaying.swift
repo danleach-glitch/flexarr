@@ -209,7 +209,7 @@ private struct TimelineStyle: ButtonStyle {
         var body: some View {
             configuration.label
                 .background {
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    RoundedRectangle(cornerRadius: Radius.panel, style: .continuous)
                         .fill(Color.screen.opacity(isFocused ? 0.16 : 0))
                 }
                 .scaleEffect(isFocused ? 1.02 : 1)
