@@ -103,4 +103,32 @@ class MusicTest {
             assertNull(client.lyrics("track"))
         }
     }
+
+    private fun json(body: String, code: Int = 200) =
+        MockResponse.Builder().code(code).addHeader("Content-Type", "application/json").body(body).build()
+
+    @Test
+    fun `music rows that fail to load fall back to the profile's playlists`() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(MockResponse.Builder().code(500).build())
+            server.enqueue(json("""[{"id":"p","name":"Road trip","trackCount":2,"durationSeconds":400}]"""))
+            val rows = FlexarrClient(server.url("/")).musicRows("lib")
+            assertEquals("/api/v1/libraries/lib/browse", server.takeRequest().url.encodedPath)
+            assertEquals("/api/v1/playlists", server.takeRequest().url.encodedPath)
+            val row = rows.single()
+            assertEquals(HomeRowStyle.Playlists, row.style)
+            assertEquals(listOf("Road trip"), row.playlists!!.map { it.name })
+        }
+    }
+
+    @Test
+    fun `music rows that load empty stay empty, without fetching playlists`() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(json("""{"featured":[],"rows":[]}"""))
+            assertEquals(emptyList<HomeRow>(), FlexarrClient(server.url("/")).musicRows("lib"))
+            assertEquals(1, server.requestCount)
+        }
+    }
 }

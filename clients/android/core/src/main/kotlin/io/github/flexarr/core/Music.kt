@@ -1,5 +1,6 @@
 package io.github.flexarr.core
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.Serializable
 
 // Music: lyrics, playlists, and the requests and words the music screens need, as FlexarrKit's Models.swift,
@@ -92,6 +93,33 @@ suspend fun FlexarrClient.playlists(): List<PlaylistSummary> =
 
 /** A playlist with its tracks in order. */
 suspend fun FlexarrClient.playlist(id: String): PlaylistDetail = get("playlists/$id")
+
+/** The id of the row of the profile's playlists a music library shows when its own rows can't load. */
+const val MUSIC_PLAYLISTS_ROW_ID = "playlists"
+
+/**
+ * A music library's rows, as the server lists them for the profile. When they can't load (a timeout, a server
+ * without them), the profile's playlists as one row instead, as the page had them before the server's rows.
+ */
+suspend fun FlexarrClient.musicRows(libraryId: String): List<HomeRow> {
+    try {
+        return libraryBrowse(libraryId).rows
+    } catch (e: CancellationException) {
+        throw e
+    } catch (_: Exception) {
+        // The playlists instead, below.
+    }
+    val lists = try {
+        playlists()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (_: Exception) {
+        // Neither: the artists still show.
+        emptyList()
+    }
+    if (lists.isEmpty()) return emptyList()
+    return listOf(HomeRow(MUSIC_PLAYLISTS_ROW_ID, "Your playlists", HomeRowStyle.Playlists, emptyList(), playlists = lists))
+}
 
 // Words
 

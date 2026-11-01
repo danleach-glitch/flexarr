@@ -54,6 +54,7 @@ import io.github.flexarr.core.artistName
 import io.github.flexarr.core.discs
 import io.github.flexarr.core.facts
 import io.github.flexarr.core.playlist
+import io.github.flexarr.core.musicRows
 import io.github.flexarr.core.playlists
 import io.github.flexarr.core.releaseYear
 import io.github.flexarr.core.totalRuntime
@@ -122,8 +123,8 @@ fun TvMusicLibraryScreen(model: AppModel, library: Library, takeFocus: Boolean, 
         loading = true
         try {
             coroutineScope {
-                // Rows that can't load leave the artists, which can.
-                val browse = async { runCatching { client.libraryBrowse(libraryId).rows }.getOrDefault(emptyList()) }
+                // Rows that can't load leave the playlists (when those can) and the artists.
+                val browse = async { client.musicRows(libraryId) }
                 val page = client.libraryItems(libraryId, LibrarySort.Title, take = PAGE_SIZE)
                 artists = page.items.filter { it.kind == MediaKind.Artist || it.kind == MediaKind.Unknown }
                 total = page.total
