@@ -17,8 +17,17 @@ public static class BookEndpoints
     {
         var library = api.MapGroup("/libraries/{id:guid}").WithTags("Audiobooks");
 
-        library.MapGet("/book-shelves", async (Guid id, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
-            await IsBooksAsync(db, id, ct) ? Results.Ok(await BookQueries.ShelvesAsync(db, id, profile.Id, ct)) : Results.NotFound());
+        library.MapGet("/book-shelves", async (Guid id, FlexarrDbContext db, CurrentProfile profile,
+            Microsoft.Extensions.Options.IOptionsMonitor<Configuration.FlexarrOptions> options, CancellationToken ct) =>
+        {
+            if (!await IsBooksAsync(db, id, ct))
+            {
+                return Results.NotFound();
+            }
+
+            var layout = await Endpoints.LayoutEndpoints.ForProfileAsync(db, options.CurrentValue, profile.Id, ct);
+            return Results.Ok(await BookQueries.ShelvesAsync(db, id, profile.Id, ct) with { Order = Endpoints.LayoutEndpoints.ShelfOrder(layout.Audiobooks) });
+        });
 
         library.MapGet("/books", async (Guid id, string? search, string? progress, Guid? author, Guid? narrator, string? genre, string? language, bool? abridged,
             double? minHours, double? maxHours, string? sort, bool? descending, int? skip, int? take, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>

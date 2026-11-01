@@ -23,8 +23,12 @@ public sealed record HomeRowDto(string Id, string Title, string Style, IReadOnly
 /// <param name="Resume">What the first featured title's Play button resumes (the episode, for a show), when it comes from Continue Watching.</param>
 /// <param name="Resumes">What each part-played featured title's Play button resumes, by the title's id: a film part watched, or a
 /// show's episode part watched or up next. Titles not started are left out.</param>
+/// <param name="PlacesPodcasts">
+/// Home's rows place the New podcasts row (an empty "podcasts-new" row the app fills), and leave it out when it's
+/// switched off. Absent from servers before 0.58, where each app placed it after Continue watching itself.
+/// </param>
 public sealed record HomeDto(IReadOnlyList<ItemSummaryDto> Featured, IReadOnlyDictionary<Guid, string?> Overviews, IReadOnlyList<HomeRowDto> Rows, IReadOnlyList<UpcomingDto> Upcoming, int Downloading, ItemSummaryDto? Resume = null,
-    IReadOnlyDictionary<Guid, ItemSummaryDto>? Resumes = null);
+    IReadOnlyDictionary<Guid, ItemSummaryDto>? Resumes = null, bool? PlacesPodcasts = null);
 
 public sealed record SearchPersonDto(Guid Id, string Name, string? Image, int Credits);
 
@@ -214,11 +218,17 @@ public static partial class DiscoveryEndpoints
 
             // Coming soon is a row like the others (its titles travel in Upcoming), so it can be moved or switched off.
             rows.Add(new HomeRowDto("upcoming", "Coming soon", "upcoming", []));
-            var shown = rows.Where(r => r.HasContent || (r.Id == "upcoming" && upcoming.Count > 0));
+            // New podcast episodes: the apps fetch them; Home only says where they go.
+            if (libraries.Any(l => l.Type == LibraryType.Podcasts))
+            {
+                rows.Add(new HomeRowDto(LayoutEndpoints.PodcastsRowId, "New podcasts", "podcasts", [], "/podcasts"));
+            }
+
+            var shown = rows.Where(r => r.HasContent || (r.Id == "upcoming" && upcoming.Count > 0) || r.Id == LayoutEndpoints.PodcastsRowId);
             // Placed by every film and TV library, including ones this profile can't see, as Settings places them.
             var placing = (await db.Libraries.IgnoreQueryFilters().OrderBy(l => l.Name).ToListAsync(ct))
                 .Where(l => !(options.LiveTv?.Account is not null && RecordingsLibrary.Is(l)));
-            var layout = LayoutEndpoints.WithWatchlistRow(LayoutEndpoints.ForCombining(homeLayout.Home, placing, homeLayout.CombineLibraries));
+            var layout = LayoutEndpoints.WithPodcastsRow(LayoutEndpoints.WithWatchlistRow(LayoutEndpoints.ForCombining(homeLayout.Home, placing, homeLayout.CombineLibraries)));
             var arranged = LayoutEndpoints.Arrange(shown, layout);
             if (kids && arranged.FindIndex(r => r.Id == WatchAgainRow) is var at and >= 0)
             {
@@ -228,7 +238,7 @@ public static partial class DiscoveryEndpoints
                 arranged.Insert(arranged.FindIndex(r => r.Id == "continue") + 1, row);
             }
 
-            return new HomeDto(rotation, overviews, arranged, upcoming, downloading, resume, resumes);
+            return new HomeDto(rotation, overviews, arranged, upcoming, downloading, resume, resumes, PlacesPodcasts: true);
         }).WithTags("Discovery");
 
         api.MapGet("/home/continue", async (int? take, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
@@ -261,7 +271,8 @@ public static partial class DiscoveryEndpoints
                 // square, and the rows are the point.
                 var musicRows = await MusicDiscovery.RowsAsync(db, cache, me, id, RowSize, ct);
                 musicRows.Add(new HomeRowDto("recent", "New albums", "poster", await MusicDiscovery.NewAlbumsAsync(db, me, id, RowSize, ct), $"{all}&sort=added"));
-                return Results.Ok(new HomeDto([], new Dictionary<Guid, string?>(), musicRows.Where(r => r.HasContent).ToList(), [], 0));
+                var musicLayout = (await LayoutEndpoints.ForProfileAsync(db, options.CurrentValue, me, ct)).Music;
+                return Results.Ok(new HomeDto([], new Dictionary<Guid, string?>(), LayoutEndpoints.Arrange(musicRows.Where(r => r.HasContent), musicLayout), [], 0));
             }
 
             var movies = library.Type == LibraryType.Movies;

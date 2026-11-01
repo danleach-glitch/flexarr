@@ -11,10 +11,16 @@ namespace Flexarr.Api.Endpoints;
 public sealed record RowChoiceDto(string Id, string Label, bool Enabled);
 
 /// <param name="Combinable">Whether there are two film libraries or two TV ones, so combining them changes anything.</param>
-public sealed record LayoutDto(IReadOnlyList<RowChoiceDto> Home, IReadOnlyList<RowChoiceDto> Movies, IReadOnlyList<RowChoiceDto> Shows, bool CombineLibraries, bool Combinable);
+/// <param name="Music">A music library's Browse rows; null without a music library (and from servers before 0.58).</param>
+/// <param name="Audiobooks">An audiobooks library's shelves; null without an audiobooks library (and from servers before 0.58).</param>
+public sealed record LayoutDto(IReadOnlyList<RowChoiceDto> Home, IReadOnlyList<RowChoiceDto> Movies, IReadOnlyList<RowChoiceDto> Shows, bool CombineLibraries, bool Combinable,
+    IReadOnlyList<RowChoiceDto>? Music = null, IReadOnlyList<RowChoiceDto>? Audiobooks = null);
 
 /// <param name="CombineLibraries">Left out (by apps from before it), the setting stays as it is.</param>
-public sealed record LayoutUpdate(IReadOnlyList<RowSetting> Home, IReadOnlyList<RowSetting> Movies, IReadOnlyList<RowSetting> Shows, bool? CombineLibraries = null);
+/// <param name="Music">Left out, music's rows stay as they are.</param>
+/// <param name="Audiobooks">Left out, the audiobook shelves stay as they are.</param>
+public sealed record LayoutUpdate(IReadOnlyList<RowSetting> Home, IReadOnlyList<RowSetting> Movies, IReadOnlyList<RowSetting> Shows, bool? CombineLibraries = null,
+    IReadOnlyList<RowSetting>? Music = null, IReadOnlyList<RowSetting>? Audiobooks = null);
 
 /// <summary>
 /// Choosing which rows Home and Browse show, and in what order (Settings › Home and browse): each profile's own. A
@@ -39,8 +45,16 @@ public static class LayoutEndpoints
                 return Results.NotFound();
             }
 
-            var combine = update.CombineLibraries ?? Parse(me.Layout)?.CombineLibraries ?? options.CurrentValue.Layout.CombineLibraries;
-            var saved = new LayoutOptions { Home = [.. update.Home], Movies = [.. update.Movies], Shows = [.. update.Shows], CombineLibraries = combine };
+            var before = Parse(me.Layout) ?? options.CurrentValue.Layout;
+            var saved = new LayoutOptions
+            {
+                Home = [.. update.Home],
+                Movies = [.. update.Movies],
+                Shows = [.. update.Shows],
+                Music = update.Music is null ? before.Music : [.. update.Music],
+                Audiobooks = update.Audiobooks is null ? before.Audiobooks : [.. update.Audiobooks],
+                CombineLibraries = update.CombineLibraries ?? before.CombineLibraries,
+            };
             me.Layout = JsonSerializer.Serialize(saved, Json);
             await db.SaveChangesAsync(ct);
             return Results.Ok(await LayoutAsync(db, options.CurrentValue, saved, profile.Id, ct));
@@ -82,10 +96,12 @@ public static class LayoutEndpoints
             && !(options.LiveTv?.Account is not null && RecordingsLibrary.Is(l))).ToList();
         var collections = await db.Collections.Where(c => c.ShowOnHome && !c.Hidden && (c.OwnerProfileId == null || c.OwnerProfileId == me))
             .OrderBy(c => c.Name).Select(c => new RowChoiceDto($"collection-{c.Id}", $"Collection: {c.Name}", true)).ToListAsync(ct);
-        var home = WithWatchlistRow(ForCombining(layout.Home, libraries, layout.CombineLibraries));
-        return new LayoutDto(Merge([.. HomeRows(libraries, layout.CombineLibraries, all.Any(l => l.Type == LibraryType.Music), all.Any(l => l.Type == LibraryType.Audiobooks)), .. collections], home),
+        var home = WithPodcastsRow(WithWatchlistRow(ForCombining(layout.Home, libraries, layout.CombineLibraries)));
+        bool music = all.Any(l => l.Type == LibraryType.Music), books = all.Any(l => l.Type == LibraryType.Audiobooks);
+        return new LayoutDto(Merge([.. HomeRows(libraries, layout.CombineLibraries, music, books, all.Any(l => l.Type == LibraryType.Podcasts)), .. collections], home),
             Merge(BrowseRows(movies: true), layout.Movies), Merge(BrowseRows(movies: false), layout.Shows),
-            layout.CombineLibraries, libraries.GroupBy(l => l.Type).Any(g => g.Count() > 1));
+            layout.CombineLibraries, libraries.GroupBy(l => l.Type).Any(g => g.Count() > 1),
+            music ? Merge([.. MusicBrowseRows], layout.Music) : null, books ? Merge([.. BookShelves], layout.Audiobooks) : null);
     }
 
     /// <summary>
@@ -152,14 +168,36 @@ public static class LayoutEndpoints
         return layout;
     }
 
+    /// <summary>
+    /// A Home layout saved before the New podcasts row was one of its rows (each app placed it after Continue watching
+    /// itself), with it there rather than at the end.
+    /// </summary>
+    public static List<RowSetting> WithPodcastsRow(List<RowSetting> layout)
+    {
+        var continueAt = layout.FindIndex(r => r.Id == "continue");
+        if (continueAt >= 0 && layout.All(r => r.Id != PodcastsRowId))
+        {
+            layout.Insert(continueAt + 1, new RowSetting { Id = PodcastsRowId, Enabled = true });
+        }
+
+        return layout;
+    }
+
+    /// <summary>Home's row of new podcast episodes. The apps fill it themselves; the server only places it.</summary>
+    public const string PodcastsRowId = "podcasts-new";
+
+    /// <summary>The ids of an audiobooks library's shelves in this layout's order, leaving out switched-off ones.</summary>
+    public static List<string> ShelfOrder(IReadOnlyList<RowSetting> layout) => [.. Merge([.. BookShelves], layout).Where(r => r.Enabled).Select(r => r.Id)];
+
     public static bool IsOn(IReadOnlyList<RowSetting> layout, string id) => !layout.Any(r => r.Id == id && !r.Enabled);
 
     private static string Key(string rowId) => rowId.StartsWith("genre-", StringComparison.Ordinal) ? "genres" : rowId;
 
     /// <param name="music">Whether there's a music library: its rows are only offered when there's one to fill them.</param>
-    private static List<RowChoiceDto> HomeRows(IEnumerable<Library> libraries, bool combine, bool music, bool books) =>
+    private static List<RowChoiceDto> HomeRows(IEnumerable<Library> libraries, bool combine, bool music, bool books, bool podcasts) =>
     [
         new("continue", "Continue watching (and listening)", true),
+        .. podcasts ? [new RowChoiceDto(PodcastsRowId, "New podcast episodes", true)] : Array.Empty<RowChoiceDto>(),
         new(Watchlist.WatchlistService.HomeRowId, "Ready from your watchlist", true),
         new("live-tv", "Live TV (your favourite channels)", true),
         .. RecentRows(libraries.ToList(), combine),
@@ -203,6 +241,27 @@ public static class LayoutEndpoints
         new("music-top", "Most played (music)", true),
         new("music-artists", "More from artists you play", true),
         new("music-new", "New albums", true),
+    ];
+
+    private static readonly RowChoiceDto[] MusicBrowseRows =
+    [
+        new(Playlists.PlaylistEndpoints.HomeRowId, "Your playlists", true),
+        new(MusicMixes.HomeRowId, "Made for you (music mixes)", true),
+        new("music-recent", "Recently played", true),
+        new("music-top", "Most played", true),
+        new("music-artists", "More from artists you play", true),
+        new("recent", "New albums", true),
+    ];
+
+    /// <summary>An audiobooks library's shelves, as BookShelvesDto.Order names them.</summary>
+    private static readonly RowChoiceDto[] BookShelves =
+    [
+        new("continue", "Continue listening", true),
+        new("next", "Next in series", true),
+        new("recent", "Recently added", true),
+        new("series", "Series", true),
+        new("authors", "Authors", true),
+        new("finished", "Finished", true),
     ];
 
     private static List<RowChoiceDto> BrowseRows(bool movies) =>

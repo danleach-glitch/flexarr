@@ -1,6 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Flexarr.Core.Data;
+using Flexarr.Core.Libraries;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Flexarr.Api.Tests;
 
@@ -57,6 +60,71 @@ public sealed class ProfileLayoutTests : IDisposable
         Assert.Equal(HttpStatusCode.BadRequest, unknown.StatusCode);
         var owner = (await Client().GetFromJsonAsync<JsonElement>(Api("/profiles"))).EnumerateArray().First(p => p.GetProperty("id").GetString() == "owner");
         Assert.Empty(owner.GetProperty("hiddenNavigation").EnumerateArray());
+    }
+
+    [Fact]
+    public async Task NewPodcasts_IsAHomeRow_AfterContinueWatching_ThatCanBeSwitchedOff()
+    {
+        await AddLibraryAsync(LibraryType.Podcasts);
+        var client = Client(await NewProfileTokenAsync());
+
+        var home = await client.GetFromJsonAsync<JsonElement>(Api("/home"));
+        var ids = (await client.GetFromJsonAsync<JsonElement>(Api("/settings/layout"))).GetProperty("home").EnumerateArray().Select(r => r.GetProperty("id").GetString()).ToList();
+        Assert.True(home.GetProperty("placesPodcasts").GetBoolean());
+        Assert.Contains(home.GetProperty("rows").EnumerateArray(), r => r.GetProperty("id").GetString() == "podcasts-new");
+        Assert.Equal(ids.IndexOf("continue") + 1, ids.IndexOf("podcasts-new"));
+
+        (await client.PutAsJsonAsync(Api("/settings/layout"), new { home = new[] { new { id = "podcasts-new", enabled = false } }, movies = Array.Empty<object>(), shows = Array.Empty<object>() })).EnsureSuccessStatusCode();
+
+        home = await client.GetFromJsonAsync<JsonElement>(Api("/home"));
+        Assert.DoesNotContain(home.GetProperty("rows").EnumerateArray(), r => r.GetProperty("id").GetString() == "podcasts-new");
+    }
+
+    [Fact]
+    public async Task AudiobookShelves_FollowTheProfilesOrder_AndLeaveOutSwitchedOffOnes()
+    {
+        var books = await AddLibraryAsync(LibraryType.Audiobooks);
+        var client = Client(await NewProfileTokenAsync());
+        var before = await client.GetFromJsonAsync<JsonElement>(Api($"/libraries/{books}/book-shelves"));
+        Assert.Equal(["continue", "next", "recent", "series", "authors", "finished"], before.GetProperty("order").EnumerateArray().Select(e => e.GetString()));
+
+        var layout = await client.GetFromJsonAsync<JsonElement>(Api("/settings/layout"));
+        var home = layout.GetProperty("home").EnumerateArray().Select(r => new { id = r.GetProperty("id").GetString(), enabled = true });
+        (await client.PutAsJsonAsync(Api("/settings/layout"), new
+        {
+            home,
+            movies = Array.Empty<object>(),
+            shows = Array.Empty<object>(),
+            audiobooks = new[] { new { id = "series", enabled = true }, new { id = "finished", enabled = false } },
+        })).EnsureSuccessStatusCode();
+
+        var after = await client.GetFromJsonAsync<JsonElement>(Api($"/libraries/{books}/book-shelves"));
+        Assert.Equal(["series", "continue", "next", "recent", "authors"], after.GetProperty("order").EnumerateArray().Select(e => e.GetString()));
+        // A save without them (an older web app) leaves them as they were.
+        (await client.PutAsJsonAsync(Api("/settings/layout"), new { home, movies = Array.Empty<object>(), shows = Array.Empty<object>() })).EnsureSuccessStatusCode();
+        Assert.Equal("series", (await client.GetFromJsonAsync<JsonElement>(Api("/settings/layout"))).GetProperty("audiobooks")[0].GetProperty("id").GetString());
+    }
+
+    [Fact]
+    public async Task MusicRows_AreOfferedOnlyWithAMusicLibrary()
+    {
+        var client = Client(await NewProfileTokenAsync());
+        Assert.Equal(JsonValueKind.Null, (await client.GetFromJsonAsync<JsonElement>(Api("/settings/layout"))).GetProperty("music").ValueKind);
+
+        await AddLibraryAsync(LibraryType.Music);
+
+        var music = (await client.GetFromJsonAsync<JsonElement>(Api("/settings/layout"))).GetProperty("music").EnumerateArray().Select(r => r.GetProperty("id").GetString());
+        Assert.Equal(["music-playlists", "music-mixes", "music-recent", "music-top", "music-artists", "recent"], music);
+    }
+
+    private async Task<Guid> AddLibraryAsync(LibraryType type)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        var library = new Library { Name = $"{type} {Guid.NewGuid():N}", Type = type };
+        db.Add(library);
+        await db.SaveChangesAsync();
+        return library.Id;
     }
 
     private static async Task<bool> EnabledAsync(HttpClient client, string row) =>

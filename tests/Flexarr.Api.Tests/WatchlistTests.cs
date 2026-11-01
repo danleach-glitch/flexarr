@@ -491,7 +491,8 @@ public sealed class WatchlistTests : IAsyncLifetime
         var layout = await (await Client().PutAsJsonAsync(Api("/settings/layout"), new { home = saved, movies = Array.Empty<object>(), shows = Array.Empty<object>() }))
             .Content.ReadFromJsonAsync<JsonElement>();
 
-        var ids = layout.GetProperty("home").EnumerateArray().Select(r => r.GetProperty("id").GetString()).ToList();
+        // New podcasts, where there's a podcasts library, sits between them.
+        var ids = layout.GetProperty("home").EnumerateArray().Select(r => r.GetProperty("id").GetString()).Where(id => id != "podcasts-new").ToList();
         Assert.Equal(ids.IndexOf("continue") + 1, ids.IndexOf("watchlist"));
     }
 
