@@ -98,7 +98,7 @@ private suspend fun FocusRequester.takeFocusSoon() {
 }
 
 /**
- * A music library's tab: the server's rows for it (playlists, what's been played, new albums), in the profile's order
+ * A music library's tab: the server's rows for it (playlists, mixes, what's been played, new albums), in the profile's order
  * and without the ones it switched off, then every artist as a round picture. [takeFocus]: arriving from the sidebar, the first card takes focus
  * once there is one, then [onFocusTaken].
  */
@@ -218,6 +218,10 @@ private fun MusicShelf(model: AppModel, row: HomeRow, first: FocusRequester?) {
             HomeRowStyle.Playlists -> itemsIndexed(row.playlists.orEmpty(), key = { _, it -> it.id }) { index, playlist ->
                 Box(Modifier.firstCard(index)) { TvPlaylistCard(playlist, onClick = { navigator.openPlaylist(playlist.id) }) }
             }
+            // A mix plays from its first track, with Now Playing over everything.
+            HomeRowStyle.Mixes -> itemsIndexed(row.mixes.orEmpty(), key = { _, it -> it.id }) { index, mix ->
+                Box(Modifier.firstCard(index)) { TvMixCard(mix, onClick = { navigator.playMix(mix.id) }) }
+            }
             // A row of tracks plays: the one pressed first, the rest of the row after it.
             HomeRowStyle.Tracks -> itemsIndexed(row.items, key = { _, it -> it.id }) { index, item ->
                 Box(Modifier.firstCard(index)) { TvTrackCard(model, item, onClick = { model.music.play(row.items, start = index) }) }
@@ -233,10 +237,11 @@ private fun MusicShelf(model: AppModel, row: HomeRow, first: FocusRequester?) {
     }
 }
 
-/** A row this screen can draw, with something in it: not one of a kind it doesn't know (mixes, say), nor an empty one. */
+/** A row this screen can draw, with something in it: not one of a kind it doesn't know, nor an empty one. */
 private val HomeRow.showsInMusic: Boolean
     get() = when (style) {
         HomeRowStyle.Playlists -> !playlists.isNullOrEmpty()
+        HomeRowStyle.Mixes -> !mixes.isNullOrEmpty()
         HomeRowStyle.Tracks, HomeRowStyle.Poster, HomeRowStyle.Wide -> items.isNotEmpty()
         else -> false
     }

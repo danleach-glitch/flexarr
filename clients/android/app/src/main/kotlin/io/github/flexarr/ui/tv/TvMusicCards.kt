@@ -42,6 +42,7 @@ import androidx.tv.material3.Text
 import io.github.flexarr.AppModel
 import io.github.flexarr.core.Format
 import io.github.flexarr.core.ItemSummary
+import io.github.flexarr.core.MixSummary
 import io.github.flexarr.core.PlaylistSummary
 import io.github.flexarr.core.artistName
 import io.github.flexarr.core.releaseYear
@@ -143,12 +144,15 @@ fun TvArtistCard(item: ItemSummary, onClick: () -> Unit, modifier: Modifier = Mo
 
 /** A playlist's picture: the cover chosen for it, or a mosaic of its first tracks' covers. */
 @Composable
-fun TvPlaylistArtwork(playlist: PlaylistSummary, size: Dp) {
+fun TvPlaylistArtwork(playlist: PlaylistSummary, size: Dp) = TvCoverMosaic(playlist.covers, size, playlist.cover)
+
+/** A mosaic of up to four album covers (one fills it when there are fewer), or [cover] instead. */
+@Composable
+fun TvCoverMosaic(covers: List<String>, size: Dp, cover: String? = null) {
     Box(Modifier.size(size).clip(RoundedCornerShape(5.dp)).background(Flexarr.seat), contentAlignment = Alignment.Center) {
-        val covers = playlist.covers
         val half = size / 2
         when {
-            playlist.cover != null -> RemoteImage(playlist.cover, if (size > 200.dp) 800 else 500, Modifier.fillMaxSize()) { PlaylistPlaceholder(size) }
+            cover != null -> RemoteImage(cover, if (size > 200.dp) 800 else 500, Modifier.fillMaxSize()) { PlaylistPlaceholder(size) }
             covers.size >= 4 -> Column {
                 Row { MosaicTile(covers[0], half); MosaicTile(covers[1], half) }
                 Row { MosaicTile(covers[2], half); MosaicTile(covers[3], half) }
@@ -180,6 +184,20 @@ fun TvPlaylistCard(playlist: PlaylistSummary, onClick: () -> Unit) {
         contentDescription = playlist.name,
         artwork = { TvPlaylistArtwork(playlist, width) },
         caption = { focused -> CardCaption(playlist.name, playlist.trackCountLabel, focused, width) },
+    )
+}
+
+/** One of the profile's daily mixes in a row: a mosaic of its covers, the name and who's in it. */
+@Composable
+fun TvMixCard(mix: MixSummary, onClick: () -> Unit) {
+    val width = TvLayout.PosterWidth
+    TvArtworkButton(
+        ambient = Flexarr.silver,
+        onClick = onClick,
+        shape = RoundedCornerShape(5.dp),
+        contentDescription = mix.name,
+        artwork = { TvCoverMosaic(mix.covers, width) },
+        caption = { focused -> CardCaption(mix.name, mix.description.ifEmpty { null }, focused, width) },
     )
 }
 

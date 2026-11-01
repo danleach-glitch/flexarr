@@ -46,6 +46,28 @@ data class PlaylistSummary(
     val trackCountLabel: String get() = if (trackCount == 1) "1 track" else "$trackCount tracks"
 }
 
+/** The id of the "Made for you" row of the profile's daily music mixes, on Home and a music library's page. */
+const val MUSIC_MIXES_ROW_ID = "music-mixes"
+
+/**
+ * One of the profile's daily music mixes ("Made for you"): the same all day, new tomorrow, so an id from yesterday is
+ * not found.
+ */
+@Serializable
+data class MixSummary(
+    val id: String,
+    val name: String,
+    /** Who's in it, or what it's made from: "Made from the artists you play". */
+    val description: String = "",
+    /** Up to four of its tracks' album covers, for a mosaic. */
+    val covers: List<String> = emptyList(),
+    val trackCount: Int = 0,
+)
+
+/** A mix with its tracks in order. */
+@Serializable
+data class MixDetail(val summary: MixSummary, val tracks: List<ItemSummary> = emptyList())
+
 /** A place in a playlist: the entry (what's moved or removed) and the track in it. */
 @Serializable
 data class PlaylistTrack(val entryId: Int, val track: ItemSummary)
@@ -93,6 +115,9 @@ suspend fun FlexarrClient.playlists(): List<PlaylistSummary> =
 
 /** A playlist with its tracks in order. */
 suspend fun FlexarrClient.playlist(id: String): PlaylistDetail = get("playlists/$id")
+
+/** One of today's music mixes with its tracks in order. */
+suspend fun FlexarrClient.mix(id: String): MixDetail = get("music/mixes/$id")
 
 /** The id of the row of the profile's playlists a music library shows when its own rows can't load. */
 const val MUSIC_PLAYLISTS_ROW_ID = "playlists"

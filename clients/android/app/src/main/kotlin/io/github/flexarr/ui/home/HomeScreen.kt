@@ -92,6 +92,7 @@ import io.github.flexarr.ui.components.Loaded
 import io.github.flexarr.ui.components.PosterCard
 import io.github.flexarr.ui.components.PosterWidth
 import io.github.flexarr.ui.components.RemoteImage
+import io.github.flexarr.ui.music.MixCard
 import io.github.flexarr.ui.music.PlaylistCard
 import io.github.flexarr.ui.music.TrackCard
 import io.github.flexarr.ui.components.RowSpacing
@@ -332,6 +333,7 @@ private fun HomeRowView(model: AppModel, row: HomeRow) {
                         TrackCard(model, item, PosterWidth) { model.music.play(row.items, start = index) }
                     }
                     HomeRowStyle.Playlists -> items(row.playlists.orEmpty(), key = { it.id }) { PlaylistCard(it, PosterWidth) }
+                    HomeRowStyle.Mixes -> items(row.mixes.orEmpty(), key = { it.id }) { MixCard(it, PosterWidth) }
                     else -> items(row.items, key = { it.id }) { PosterCard(it) }
                 }
             }
@@ -412,4 +414,4 @@ private fun NothingYet(name: String) {
 
 /** The row has something to show: a row with nothing in it (a kind this app doesn't show yet, say) is left out. */
 private val HomeRow.hasContent: Boolean
-    get() = items.isNotEmpty() || !playlists.isNullOrEmpty() || !channels.isNullOrEmpty()
+    get() = items.isNotEmpty() || !playlists.isNullOrEmpty() || !mixes.isNullOrEmpty() || !channels.isNullOrEmpty()

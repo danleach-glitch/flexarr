@@ -131,4 +131,40 @@ class MusicTest {
             assertEquals(1, server.requestCount)
         }
     }
+
+    @Test
+    fun `a Made for you row has its mixes and no items`() {
+        val row = FlexarrClient.json.decodeFromString(
+            serializer<HomeRow>(),
+            """{"id":"music-mixes","title":"Made for you","style":"mixes","items":[],"link":null,"channels":null,"playlists":null,
+            "mixes":[{"id":"1a2b3c4d","name":"Rock Mix","description":"Dire Straits, Queen and more",
+            "covers":["/api/v1/images/items/a/poster"],"trackCount":40}]}""",
+        )
+        assertEquals(MUSIC_MIXES_ROW_ID, row.id)
+        assertEquals(HomeRowStyle.Mixes, row.style)
+        assertTrue(row.items.isEmpty())
+        val mix = row.mixes!!.single()
+        assertEquals("Rock Mix", mix.name)
+        assertEquals(40, mix.trackCount)
+        assertEquals(1, mix.covers.size)
+    }
+
+    @Test
+    fun `a row from a server before mixes has none`() {
+        val row = FlexarrClient.json.decodeFromString(serializer<HomeRow>(), """{"id":"recent","title":"Latest","style":"poster","items":[]}""")
+        assertNull(row.mixes)
+    }
+
+    @Test
+    fun `a mix is fetched with its tracks in order`() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            val tracks = text("tracks")
+            server.enqueue(json("""{"summary":{"id":"1a2b3c4d","name":"Rock Mix","description":"","covers":[],"trackCount":3},"tracks":$tracks}"""))
+            val mix = FlexarrClient(server.url("/")).mix("1a2b3c4d")
+            assertEquals("/api/v1/music/mixes/1a2b3c4d", server.takeRequest().url.encodedPath)
+            assertEquals("Rock Mix", mix.summary.name)
+            assertEquals(fixture<List<ItemSummary>>("tracks"), mix.tracks)
+        }
+    }
 }

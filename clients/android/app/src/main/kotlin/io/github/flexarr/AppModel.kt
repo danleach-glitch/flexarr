@@ -237,6 +237,9 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     /** The book's Now Playing sheet is open. */
     var showsBookPlayer by mutableStateOf(false)
 
+    /** The phone's music Now Playing sheet is open: from the bar, or after a mix starts playing. */
+    var showsMusicPlayer by mutableStateOf(false)
+
     /** Goes up when Play or Shuffle starts music on the TV, which then shows Now Playing over everything. */
     var nowPlayingRequests by mutableIntStateOf(0)
 

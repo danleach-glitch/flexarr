@@ -104,7 +104,6 @@ import kotlin.math.roundToInt
 fun MusicNowPlayingBar(model: AppModel) {
     val music = model.music
     val track = music.current ?: return
-    var open by remember { mutableStateOf(false) }
     Column(
         Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp).shadow(12.dp, RoundedCornerShape(14.dp)).clip(RoundedCornerShape(14.dp)).background(Flexarr.seat)
             .semantics { contentDescription = "Now playing: ${track.title}${track.artistName?.let { " by $it" }.orEmpty()}" },
@@ -113,7 +112,7 @@ fun MusicNowPlayingBar(model: AppModel) {
             Box(Modifier.minimumInteractiveComponentSize().size(width = 36.dp, height = 56.dp).pressable(music::stop), contentAlignment = Alignment.Center) {
                 Icon(Icons.Filled.Close, contentDescription = "Stop and close", tint = Flexarr.usher, modifier = Modifier.size(16.dp))
             }
-            Row(Modifier.weight(1f).pressable({ open = true }).padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.weight(1f).pressable({ model.showsMusicPlayer = true }).padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 SquareArtwork(track, Modifier.size(44.dp), imageWidth = 185)
                 Column(Modifier.weight(1f)) {
                     Text(track.title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -142,7 +141,7 @@ fun MusicNowPlayingBar(model: AppModel) {
             },
         )
     }
-    if (open) MusicNowPlayingSheet(model, onDismiss = { open = false })
+    if (model.showsMusicPlayer) MusicNowPlayingSheet(model, onDismiss = { model.showsMusicPlayer = false })
 }
 
 @Composable

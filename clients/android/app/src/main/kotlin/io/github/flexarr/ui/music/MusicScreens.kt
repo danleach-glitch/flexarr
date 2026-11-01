@@ -204,13 +204,14 @@ fun MusicLibraryScreen(model: AppModel, libraryId: String) {
 
 private fun LazyGridScope.fullWidth(key: Any? = null, content: @Composable () -> Unit) = item(key = key, span = { GridItemSpan(maxLineSpan) }) { content() }
 
-/** One of the server's rows for a music library: playlists, tracks that play, or albums (and artists) that open. */
+/** One of the server's rows for a music library: playlists, mixes and tracks that play, or albums (and artists) that open. */
 @Composable
 private fun MusicShelf(model: AppModel, row: HomeRow) {
     val width = PosterWidth * 1.15f
     Shelf(row.title) {
         when (row.style) {
             HomeRowStyle.Playlists -> items(row.playlists.orEmpty(), key = { it.id }) { PlaylistCard(it, width) }
+            HomeRowStyle.Mixes -> items(row.mixes.orEmpty(), key = { it.id }) { MixCard(it, width) }
             // A row of tracks plays: the one tapped first, the rest of the row after it.
             HomeRowStyle.Tracks -> rowItemsIndexed(row.items, key = { _, item -> item.id }) { index, item ->
                 TrackCard(model, item, width) { model.music.play(row.items, start = index) }
@@ -222,10 +223,11 @@ private fun MusicShelf(model: AppModel, row: HomeRow) {
     }
 }
 
-/** A row this screen can draw, with something in it: not one of a kind it doesn't know (mixes, say), nor an empty one. */
+/** A row this screen can draw, with something in it: not one of a kind it doesn't know, nor an empty one. */
 private val HomeRow.showsInMusic: Boolean
     get() = when (style) {
         HomeRowStyle.Playlists -> !playlists.isNullOrEmpty()
+        HomeRowStyle.Mixes -> !mixes.isNullOrEmpty()
         HomeRowStyle.Tracks, HomeRowStyle.Poster, HomeRowStyle.Wide -> items.isNotEmpty()
         else -> false
     }

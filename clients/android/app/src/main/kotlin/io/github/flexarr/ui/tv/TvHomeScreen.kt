@@ -158,6 +158,7 @@ private val HomeRow.shows: Boolean
     get() = when (style) {
         HomeRowStyle.Live -> !channels.isNullOrEmpty()
         HomeRowStyle.Playlists -> !playlists.isNullOrEmpty()
+        HomeRowStyle.Mixes -> !mixes.isNullOrEmpty()
         // Where New podcasts goes, an empty row; the TV has no podcasts.
         HomeRowStyle.Podcasts -> false
         else -> items.any { it.showsOnTv }
@@ -271,6 +272,7 @@ private fun HomeRowView(row: HomeRow) {
                         TvTrackCard(model, item, onClick = { model.music.play(items, start = index) })
                     }
                     HomeRowStyle.Playlists -> items(row.playlists.orEmpty(), key = { it.id }) { TvPlaylistCard(it, onClick = { navigator.openPlaylist(it.id) }) }
+                    HomeRowStyle.Mixes -> items(row.mixes.orEmpty(), key = { it.id }) { TvMixCard(it, onClick = { navigator.playMix(it.id) }) }
                     HomeRowStyle.Wide -> items(items, key = { it.id }) { TvWideCard(it, onClick = { navigator.play(it) }) }
                     HomeRowStyle.Top10 -> itemsIndexed(items, key = { _, item -> item.id }) { index, item -> TvTop10Card(index + 1, item, onClick = { navigator.open(item) }) }
                     else -> items(items, key = { it.id }) { TvPosterCard(it, onClick = { navigator.open(it) }) }

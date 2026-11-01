@@ -84,6 +84,8 @@ enum class HomeRowStyle(override val raw: String) : ForwardCompatibleEnum {
     Live("live"),
     /** Where the app's own New podcasts row goes ([HOME_PODCASTS_ROW_ID]); `items` is empty. Absent from servers before 0.58. */
     Podcasts("podcasts"),
+    /** The profile's daily music mixes ("Made for you", [MUSIC_MIXES_ROW_ID]); `items` is empty, the mixes are in `mixes`. */
+    Mixes("mixes"),
     Unknown("");
 
     object Serializer : ForwardCompatibleEnumSerializer<HomeRowStyle>("HomeRowStyle", entries, Unknown)
@@ -332,6 +334,8 @@ data class HomeRow(
     val channels: List<LiveChannel>? = null,
     /** A `playlists` row's content (`items` is empty then). Absent from servers before playlists. */
     val playlists: List<PlaylistSummary>? = null,
+    /** A `mixes` row's content (`items` is empty then). Absent from servers before music mixes (0.23). */
+    val mixes: List<MixSummary>? = null,
 )
 
 /** The id of the empty Home row that says where the New podcasts row goes ([Home.placesPodcasts]). */
