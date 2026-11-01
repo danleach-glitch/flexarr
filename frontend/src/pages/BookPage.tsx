@@ -17,6 +17,7 @@ import { BookmarkList } from '../components/BookmarkList'
 import { AsyncButton } from '../components/AsyncButton'
 import { PosterCard } from '../components/Cards'
 import { ChapterEditor } from '../components/ChapterEditor'
+import { ConfirmDialog } from '../components/ConfirmDialog'
 import { DeleteDialog } from '../components/DeleteDialog'
 import { FixMatchDialog } from '../components/FixMatchDialog'
 import { Bookmark as BookmarkIcon, Check, Pause, Play } from '../components/icons'
@@ -49,6 +50,7 @@ export function BookPage({ detail, onChange }: { detail: ItemDetail; onChange: (
   const [showBookmarks, setShowBookmarks] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [editing, setEditing] = useState<'chapters' | 'match' | null>(null)
+  const [startingOver, setStartingOver] = useState(false)
   // A bookmark added or removed in the player shows here too.
   useBookmarkChanges(item.id, onChange)
 
@@ -88,7 +90,8 @@ export function BookPage({ detail, onChange }: { detail: ItemDetail; onChange: (
   }
 
   const more: MenuAction[] = [{ label: 'Add to collection…', run: () => openAddToCollection(item) }]
-  if ((playing || place.saved > 0) && !finished) more.push({ label: 'Start over', run: () => playAt(0) })
+  // A finished book starts over straight from its button; one part-way through asks first, since its place is lost.
+  if ((playing || place.saved > 0) && !finished) more.push({ label: 'Start over', run: () => setStartingOver(true) })
   if (mainProfile) {
     more.push({ label: 'Edit chapters…', run: () => setEditing('chapters') })
     // Its search is a read the server keeps to the unlocked main profile, so a locked one doesn't get to ask for the PIN.
@@ -124,7 +127,7 @@ export function BookPage({ detail, onChange }: { detail: ItemDetail; onChange: (
           <div className="detail-actions">
             {finished ? (
               <AsyncButton className="button" onClick={again}>
-                <Play /> Listen again
+                <Play /> Start over
               </AsyncButton>
             ) : (
               <PlayButton place={place} sounding={playing && player.playing} onClick={() => playAt()} />
@@ -181,6 +184,16 @@ export function BookPage({ detail, onChange }: { detail: ItemDetail; onChange: (
         <BookRow title={narrators[0] ? `Read by ${narrators[0].name}` : 'Read by the narrator'} items={book.readByNarrator} link={narrators[0] ? `/person/${narrators[0].personId}` : undefined} />
       </div>
 
+      {startingOver && (
+        <StartOverDialog
+          place={place}
+          onConfirm={() => {
+            setStartingOver(false)
+            playAt(0)
+          }}
+          onClose={() => setStartingOver(false)}
+        />
+      )}
       {editing === 'chapters' && <ChapterEditor bookId={item.id} chapters={book.chapters} hasAsin={!!book.asin} onSaved={onChange} onClose={() => setEditing(null)} />}
       {editing === 'match' && <FixMatchDialog item={item} onFixed={onChange} onClose={() => setEditing(null)} />}
       {deleting && <DeleteDialog item={item} onClose={() => setDeleting(false)} onDeleted={() => navigate(`/library/${item.libraryId}`, { replace: true })} />}
@@ -223,6 +236,16 @@ function PlayButton({ place, sounding, onClick }: { place: Place; sounding: bool
     <button className="button" onClick={onClick}>
       {sounding ? <Pause /> : <Play />} {sounding ? 'Pause' : position > 0 ? `Resume from ${formatClock(position)}` : 'Play'}
     </button>
+  )
+}
+
+/** Asks before losing the place: "Start over? You're at 1:23:04." */
+function StartOverDialog({ place, onConfirm, onClose }: { place: Place; onConfirm: () => void; onClose: () => void }) {
+  const position = usePosition(place)
+  return (
+    <ConfirmDialog title="Start over?" confirmLabel="Start over" onConfirm={onConfirm} onClose={onClose}>
+      <p>You’re at {formatClock(position)}.</p>
+    </ConfirmDialog>
   )
 }
 

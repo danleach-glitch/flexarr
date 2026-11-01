@@ -42,7 +42,7 @@ A book's page shows its series ("Book 3 of 7"), authors and narrators, how long 
 - **Smart rewind:** after a pause, a book starts a little earlier, more the longer you were away.
 - **Sleep timer:** after some minutes or at the end of the chapter. On a phone, shake it to add time.
 - **Bookmarks**, with a note if you like, are on the book's page and in the player.
-- **Finished:** a book counts as finished in its last two minutes. **Listen again** starts over and keeps the record.
+- **Finished:** a book counts as finished in its last two minutes. **Start over** goes back to the beginning and keeps the record. Part-way through a book, it asks first.
 - **Across devices:** your place is saved as you listen. If another device got further, the player offers to jump there.
 - At the end of a book in a series, the player offers the next one.
 

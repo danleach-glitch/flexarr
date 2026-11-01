@@ -499,7 +499,7 @@ export const getBookSeriesList = (libraryId: string, options: { search?: string;
 export const getBookPeople = (libraryId: string, options: { role: 'author' | 'narrator'; search?: string; skip?: number; take?: number }, signal?: AbortSignal) =>
   cachedGet<Paged<BookPerson>>(`/libraries/${libraryId}/book-people${queryString(options)}`, signal)
 export const getBookSeries = (id: string, signal?: AbortSignal) => cachedGet<BookSeries>(`/book-series/${id}`, signal)
-/** "Listen again": back to the start, no longer finished (when it was finished is kept). */
+/** "Start over" on a finished book: back to the start, no longer finished (when it was finished is kept). */
 export const listenAgain = (id: string) => request<void>('POST', `/items/${id}/listen-again`)
 export const getBookmarks = (id: string, signal?: AbortSignal) => apiGet<Bookmark[]>(`/items/${id}/bookmarks`, signal)
 export const addBookmark = (id: string, positionSeconds: number, note?: string) => request<Bookmark>('POST', `/items/${id}/bookmarks`, { positionSeconds, note })
