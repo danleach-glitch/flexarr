@@ -19,7 +19,7 @@ import { Artwork } from '../components/Artwork'
 import { AsyncButton } from '../components/AsyncButton'
 import { PosterCard } from '../components/Cards'
 import { Facts } from '../components/Hero'
-import { Check, Film, More, Play, Shuffle } from '../components/icons'
+import { Check, Film, History, More, Play, Shuffle } from '../components/icons'
 import { Menu, type MenuAction, type MenuPoint } from '../components/ItemMenu'
 import { Row } from '../components/Row'
 import { TrailerDialog } from '../components/TrailerDialog'
@@ -93,9 +93,9 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
   const backdrop = item.artwork.backdrop ?? series?.artwork.backdrop
   const logo = item.kind === 'Episode' ? series?.artwork.logo : item.artwork.logo
   const progress = progressOf(item)
-  // Play, the trailer and watched stay as buttons; everything else waits behind the ellipsis so the row doesn't wrap.
+  // The order every client shares (docs/design.md › Platforms): Play, Start over, Shuffle, Trailer, Watched, Watchlist,
+  // then the ellipsis for everything else, so the row doesn't wrap.
   const more: MenuAction[] = []
-  if (progress !== null) more.push({ label: 'Play from the start', run: () => navigate(`/play/${item.id}?t=0`) })
   // Part way through: forget the place without marking it watched, which also takes it out of Continue Watching.
   if (progress !== null && !item.userData.watched && !kids) more.push({ label: 'Mark as unwatched', run: () => markUnwatched() })
   // A child's profile has no collections and doesn't find subtitles.
@@ -174,6 +174,11 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
             {playTarget && (
               <button className="button" onClick={() => navigate(`/play/${playTarget.id}`)}>
                 <Play /> {playLabel}
+              </button>
+            )}
+            {progress !== null && (
+              <button className="button quiet" onClick={() => navigate(`/play/${item.id}?t=0`)}>
+                <History /> Start over
               </button>
             )}
             {item.kind === 'Series' && item.childCount > 0 && (

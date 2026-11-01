@@ -4,6 +4,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ## Unreleased
 
+### Look and feel
+- Every app now has the same buttons on a movie or show page, in the same order: Play, Start over (once you've started), Shuffle, Trailer, Watched, Watchlist, then ⋯ for the rest. On the web, Start over has moved out of the ⋯ menu.
+
 ### Audiobooks
 - A new kind of library: **Audiobooks**. Add one in **Settings › Libraries** and point it at your books. A folder of files is one book, disc folders are parts of it, and the files play back to back as one book. Series and their numbers, authors and narrators come from the folders, the files' tags, and files beside them (`metadata.opf`, Audiobookshelf's `metadata.json`, `desc.txt`, `reader.txt`, a cover).
 - Chapters come from the files, a `.cue` sheet, or one per file. Audible's replace guessed ones when they match, and the main profile can rename, move or shift a book's chapters, or start from Audible's.

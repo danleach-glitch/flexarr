@@ -69,7 +69,7 @@ export function ItemMenu({ item, at, onClose, continueWatching = false }: { item
   switch (item.kind) {
     case 'Movie':
       actions.push({ label: resumable ? 'Resume' : 'Play', run: go(`/play/${item.id}`) })
-      if (resumable) actions.push({ label: 'Play from the start', run: go(`/play/${item.id}?t=0`) })
+      if (resumable) actions.push({ label: 'Start over', run: go(`/play/${item.id}?t=0`) })
       actions.push('divider')
       actions.push({ label: item.userData.watched ? 'Mark as unwatched' : 'Mark as watched', run: mark(item, !item.userData.watched) })
       if (started) actions.push({ label: 'Mark as unwatched', run: mark(item, false) })
@@ -78,7 +78,7 @@ export function ItemMenu({ item, at, onClose, continueWatching = false }: { item
       break
     case 'Episode':
       actions.push({ label: [resumable ? 'Resume' : 'Play', episodeCode(item)].filter(Boolean).join(' '), run: go(`/play/${item.id}`) })
-      if (resumable) actions.push({ label: 'Play from the start', run: go(`/play/${item.id}?t=0`) })
+      if (resumable) actions.push({ label: 'Start over', run: go(`/play/${item.id}?t=0`) })
       actions.push('divider', { label: item.userData.watched ? 'Mark episode as unwatched' : 'Mark episode as watched', run: mark(item, !item.userData.watched) })
       if (started) actions.push({ label: 'Mark episode as unwatched', run: mark(item, false) })
       else if (continueWatching && !item.userData.watched) actions.push({ label: 'Remove', run: remove })
