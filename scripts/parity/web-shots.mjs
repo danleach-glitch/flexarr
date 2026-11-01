@@ -58,8 +58,10 @@ try {
   await page.mouse.move(720, 460)
   await shot('05-player')
   await page.goto(base)
+  await page.waitForLoadState('networkidle')
 
-  await page.keyboard.press('Meta+k')
+  // The search button in the top bar (⌘K can arrive before the page listens for it).
+  await page.getByRole('button', { name: /^Search/ }).first().click()
   await page.keyboard.type(movie.title.split(' ')[0])
   await shot('06-search')
   await page.keyboard.press('Escape')
