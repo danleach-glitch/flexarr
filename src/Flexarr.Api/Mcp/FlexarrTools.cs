@@ -27,7 +27,9 @@ public sealed record McpTitle(Guid Id, MediaKind Kind, string Title, int? Year, 
 public sealed record McpSearchResult(IReadOnlyList<McpTitle> Titles, IReadOnlyList<McpTitle> Episodes);
 
 /// <param name="Online">Flexarr is open on it and would play at once; offline, a command waits two minutes for it.</param>
-public sealed record McpDevice(string Id, string Name, bool Online, string ProfileName, McpTitle? NowPlaying, double? PositionSeconds, bool? Paused);
+/// <param name="PlaysAudiobooks">Its app can play an audiobook sent to it with play_on_device.</param>
+public sealed record McpDevice(string Id, string Name, bool Online, string ProfileName, McpTitle? NowPlaying, double? PositionSeconds, bool? Paused,
+    bool PlaysAudiobooks = false);
 
 /// <param name="Delivered">False: Flexarr isn't open on the device; the command waits two minutes for it to be opened.</param>
 public sealed record McpCommandResult(bool Delivered, string Device, McpTitle? WillPlay, string Message);
@@ -109,7 +111,7 @@ public static class FlexarrTools
     {
         var devices = await DeviceEndpoints.ListAsync(signIns, commands, sessions, db, profile, ct);
         return devices.Select(d => new McpDevice(d.Id, d.Name, d.Online, d.ProfileName ?? "Main", d.NowPlaying is { } now ? McpTitle.From(now.Item) : null,
-            d.NowPlaying?.PositionSeconds, d.NowPlaying?.Paused)).ToList();
+            d.NowPlaying?.PositionSeconds, d.NowPlaying?.Paused, d.Accepts?.Contains(DeviceCommandKind.Book) == true)).ToList();
     }
 
     [McpServerTool(Name = "podcasts", ReadOnly = true), Description("The podcasts this profile follows, most recently updated first, with how many episodes it hasn't heard. Narrow it with words from the show's name. A podcast's id with play_on_device plays the episode to hear next.")]
@@ -219,7 +221,7 @@ public static class FlexarrTools
         return new McpCommandResult(true, sent.DeviceName, null, what is null ? $"Turned off the sleep timer on {sent.DeviceName}." : $"{sent.DeviceName} will stop {what}.");
     }
 
-    [McpServerTool(Name = "play_on_device"), Description("Plays a title on a device. Give a film's, episode's, track's, podcast episode's or audiobook's id to play that (a book carries on from where it was left); a show's or season's id plays the episode that device's profile is up to; an album's plays its first track; a podcast's plays the episode to hear next. The result says what will play, and whether the device took it (Flexarr must be open on it; otherwise the command waits two minutes).")]
+    [McpServerTool(Name = "play_on_device"), Description("Plays a title on a device. Give a film's, episode's, track's, podcast episode's or audiobook's id to play that (a book carries on from where it was left, and plays only on a device whose playsAudiobooks is true); a show's or season's id plays the episode that device's profile is up to; an album's plays its first track; a podcast's plays the episode to hear next. The result says what will play, and whether the device took it (Flexarr must be open on it; otherwise the command waits two minutes).")]
     public static async Task<McpCommandResult> PlayOnDeviceAsync([Description("The device's id, from list_devices")] string deviceId, [Description("The title's id, from search_library or continue_watching")] Guid itemId,
         [Description("Start from the beginning rather than carry on from where it was left")] bool fromBeginning,
         SignIns signIns, DeviceCommands commands, FlexarrDbContext db, PlaybackService playback, CurrentProfile profile, CancellationToken ct,
@@ -234,7 +236,8 @@ public static class FlexarrTools
         var outcome = await DeviceEndpoints.PlayAsync(deviceId, new DevicePlayRequest(itemId, fromBeginning, shuffle), signIns, commands, db, playback, profile, ct);
         if (outcome.Result is not { } result)
         {
-            throw new InvalidOperationException(outcome.Error ?? "Couldn't play that.");
+            // An McpException's message reaches the assistant, so it can say why (no such device, an app too old for books).
+            throw new ModelContextProtocol.McpException(outcome.Error ?? "Couldn't play that.");
         }
 
         var what = result.Item is { } item ? Describe(item) : "it";

@@ -404,6 +404,14 @@ public static class DeviceEndpoints
             return new PlayOutcome(null, false, $"\"{item.Title}\" has nothing that can be played.", 409);
         }
 
+        // An app from before books would play one as a video: only its first file, and finish the whole book at its end.
+        if (target.Kind == MediaKind.Audiobook && !commands.Takes(device.Id, DeviceCommandKind.Book))
+        {
+            return new PlayOutcome(null, false, commands.Accepts(device.Id) is null && !commands.IsOnline(device.Id)
+                ? $"Open Flexarr on {device.Name} first, so it can say whether it plays audiobooks."
+                : $"The Flexarr app on {device.Name} can't play audiobooks yet: update it.", StatusCodes.Status409Conflict);
+        }
+
         // Shuffling a show: the device is handed the show itself and asks for random episodes as it goes.
         var shuffle = request.Shuffle && item.Kind is MediaKind.Series or MediaKind.Season;
         var playing = shuffle ? item.Id : target.Id;

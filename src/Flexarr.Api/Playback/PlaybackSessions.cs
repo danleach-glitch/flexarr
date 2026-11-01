@@ -17,6 +17,12 @@ public sealed class PlaybackSession
     /// <summary>The device's name, for a book's "Jump to where you were on …".</summary>
     public string? DeviceName { get; init; }
 
+    /// <summary>
+    /// The player said it plays books (it named itself, as only apps that know books do). One that didn't plays a book
+    /// as a video, its first file only, so its "ended" means nothing for a book of several.
+    /// </summary>
+    public bool PlaysBooks { get; init; }
+
     /// <summary>Whose history progress is recorded against (stream requests carry no profile of their own).</summary>
     public required string ProfileId { get; init; }
 

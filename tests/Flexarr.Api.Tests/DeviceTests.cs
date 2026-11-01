@@ -497,6 +497,46 @@ public class DeviceTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
         response.Dispose();
     }
 
+    [Fact]
+    public async Task ABook_IsSentOnlyToADeviceThatSaysItPlaysThem()
+    {
+        var book = await SeedBookAsync();
+        var (id, phone) = await DeviceAsync("Book phone");
+        var (response, reader) = await ListenAsync(phone, "?accepts=Sleep,Book");
+
+        var listed = (await Admin().GetFromJsonAsync<JsonElement>(Api("/devices"))).EnumerateArray().Single(d => d.GetProperty("id").GetString() == id);
+        Assert.Contains("Book", listed.GetProperty("accepts").EnumerateArray().Select(a => a.GetString()));
+        Assert.Equal(HttpStatusCode.OK, (await Admin().PostAsJsonAsync(Api($"/devices/{id}/play"), new { itemId = book })).StatusCode);
+        var play = await NextCommandAsync(reader);
+        Assert.Equal(("Play", book), (play.GetProperty("kind").GetString(), play.GetProperty("itemId").GetGuid()));
+        response.Dispose();
+
+        // An app from before books would play it as a video.
+        var (old, oldTv) = await DeviceAsync("Old book TV");
+        var (oldResponse, _) = await ListenAsync(oldTv, "?accepts=Seek");
+        var refused = await Admin().PostAsJsonAsync(Api($"/devices/{old}/play"), new { itemId = book });
+        Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+        Assert.Contains("can't play audiobooks", await refused.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        oldResponse.Dispose();
+
+        // One that hasn't said since the server started: open it first.
+        var (never, _) = await DeviceAsync("Sleeping TV");
+        var unknown = await Admin().PostAsJsonAsync(Api($"/devices/{never}/play"), new { itemId = book });
+        Assert.Equal(HttpStatusCode.Conflict, unknown.StatusCode);
+        Assert.Contains("Open Flexarr on Sleeping TV", await unknown.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+    }
+
+    private async Task<Guid> SeedBookAsync()
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        var library = new Library { Name = $"Books {Guid.NewGuid():N}", Type = LibraryType.Audiobooks };
+        var book = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Audiobook, Title = "A Device Book", SortTitle = "device book" };
+        db.AddRange(library, book);
+        await db.SaveChangesAsync();
+        return book.Id;
+    }
+
     private static PlaybackSession Session(string deviceId, Guid itemId) => new()
     {
         Id = Guid.NewGuid().ToString("N"), ItemId = itemId, ProfileId = PlaybackState.DefaultUser, SignInId = deviceId, FileId = Guid.NewGuid(), FilePath = "",

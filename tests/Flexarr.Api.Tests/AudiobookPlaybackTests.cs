@@ -59,6 +59,20 @@ public class AudiobookPlaybackTests(FlexarrApiFactory factory) : IClassFixture<F
         Assert.Equal((950.0, "Dan's iPhone"), (progress.PositionSeconds, progress.Device));
     }
 
+    [Theory]
+    [InlineData(null, false)] // an app from before books plays the first file as a video: its end isn't the book's
+    [InlineData("Dan's iPhone", true)]
+    public async Task AnEnd_FinishesABookOfSeveralFiles_OnlyFromAPlayerThatKnowsBooks(string? deviceName, bool finished)
+    {
+        var book = await SeedAsync(("01.mp3", "mp3", 600), ("02.mp3", "mp3", 600));
+        var started = await Client().PostAsJsonAsync(Url("/api/v1/playback"), new { itemId = book, profile = new { audioCodecs = new[] { "aac", "mp3" } }, deviceName });
+        var info = (await started.Content.ReadFromJsonAsync<PlaybackInfoDto>(Json))!;
+
+        (await Client().PostAsJsonAsync(Url($"/api/v1/playback/{info.SessionId}/progress"), new { positionSeconds = 600, ended = true })).EnsureSuccessStatusCode();
+
+        Assert.Equal(finished, (await GetAsync<BookManifestDto>($"/api/v1/items/{book}/book")).Progress.Finished);
+    }
+
     [Fact]
     public async Task ADownload_GetsEachFile_AndCanResumePartWay()
     {

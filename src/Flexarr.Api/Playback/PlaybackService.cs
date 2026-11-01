@@ -341,6 +341,7 @@ public sealed class PlaybackService(
             Subtitles = [],
             CreditsStart = null,
             BookParts = parts,
+            PlaysBooks = request.DeviceName is not null,
             // The name the device was given when it signed in ("Dan's iPhone") says which one better than its model.
             DeviceName = (profile.SignInId is { } signIn ? signIns?.List().FirstOrDefault(s => s.Id == signIn)?.Name : null) ?? request.DeviceName,
         });
@@ -351,7 +352,8 @@ public sealed class PlaybackService(
         bookConverter?.Prepare(parts, start); // the files this player can't decode, converted while it gets going
         var summary = await db.MediaItems.Where(i => i.Id == book.Id).Summaries(profile.Id).FirstAsync(ct);
         return new PlaybackInfoDto(id, PlaybackMethod.DirectPlay, manifest.Files[0].Url, [], duration, Math.Clamp(start, 0, duration), parts[0].FileId,
-            [], null, [], null, false, [], summary, [], manifest.NextInSeries, null, Speed: manifest.Speed, Book: manifest);
+            // No next for an older app: it would go on to the next book when the first file of this one ends.
+            [], null, [], null, false, [], summary, [], request.DeviceName is null ? null : manifest.NextInSeries, null, Speed: manifest.Speed, Book: manifest);
     }
 
     public async Task ReportProgressAsync(PlaybackSession session, ProgressRequest progress, CancellationToken ct)
@@ -359,8 +361,10 @@ public sealed class PlaybackService(
         if (session.BookParts is not null)
         {
             // A book's place is on its whole timeline, and kept by its own rules (see BookPlayback).
+            // An older app plays a book as a video, its first file only: its end isn't the book's.
+            var ended = progress.Ended && (session.PlaysBooks || session.BookParts.Count == 1);
             await Books.BookPlayback.RecordAsync(db, session.ItemId, session.ProfileId,
-                new Books.BookProgressRequest(progress.PositionSeconds, session.DeviceName, DateTime.UtcNow, progress.Ended), ct);
+                new Books.BookProgressRequest(progress.PositionSeconds, session.DeviceName, DateTime.UtcNow, ended), ct);
             return;
         }
 
