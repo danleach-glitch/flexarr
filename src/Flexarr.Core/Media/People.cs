@@ -57,6 +57,12 @@ public sealed class Person
     /// <summary>When the photo last changed, for its URL's ?v=; null for one from before this was kept.</summary>
     public DateTime? ImageChangedAt { get; set; }
 
+    /// <summary>
+    /// A photo from the author's folder, as last seen: its size and modified time. Any change (even to an older time, a
+    /// copy that kept its date) is a new ?v=.
+    /// </summary>
+    public string? ImageStamp { get; set; }
+
     public List<Credit> Credits { get; set; } = [];
 }
 
@@ -84,6 +90,7 @@ public static class PersonSources
         {
             person.ImageUrl = url;
             person.ImageChangedAt = now;
+            person.ImageStamp = null;
         }
 
         person.PhotoSource = url is null ? null : source;

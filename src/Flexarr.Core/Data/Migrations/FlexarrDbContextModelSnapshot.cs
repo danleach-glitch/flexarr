@@ -1082,6 +1082,10 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<DateTime?>("ImageChangedAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("ImageStamp")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("ImageUrl")
                         .HasColumnType("TEXT");
 

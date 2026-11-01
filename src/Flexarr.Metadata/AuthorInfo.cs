@@ -80,14 +80,17 @@ public sealed partial class AuthorInfo(FlexarrDbContext db, ArrClient arr, IMeta
         var local = await FolderPhotoAsync(person.Name, books, ct).ConfigureAwait(false);
         if (local is not null && (PersonSources.PhotoReplaceable(person) || person.PhotoSource == PersonSources.Folder))
         {
+            var stamp = FileStamp(local);
             if (person.ImageUrl != local)
             {
                 PersonSources.SetPhoto(person, local, PersonSources.Folder, now);
             }
-            else if (File.GetLastWriteTimeUtc(ArtworkUrl.LocalPath(local)!) > person.ImageChangedAt)
+            else if (stamp != person.ImageStamp)
             {
-                person.ImageChangedAt = now; // the same file, changed: a new ?v=
+                person.ImageChangedAt = now; // the same file, changed (or never stamped): a new ?v=
             }
+
+            person.ImageStamp = stamp;
         }
         else if (local is null && person.PhotoSource == PersonSources.Folder)
         {
@@ -333,6 +336,16 @@ public sealed partial class AuthorInfo(FlexarrDbContext db, ArrClient arr, IMeta
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// A local photo's size and modified time, as the image cache tells copies apart: a replacement copied with its old
+    /// date (cp -p, rsync -a) still differs.
+    /// </summary>
+    private static string? FileStamp(string url)
+    {
+        var file = new FileInfo(ArtworkUrl.LocalPath(url)!);
+        return file.Exists ? $"{file.LastWriteTimeUtc.Ticks:x}-{file.Length:x}" : null;
     }
 
     /// <summary>The authors every Readarr-compatible app knows; one that doesn't answer is skipped.</summary>

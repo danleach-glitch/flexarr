@@ -168,6 +168,45 @@ public sealed class AuthorInfoTests : IAsyncLifetime
         Assert.Equal("From Readarr.", (await PersonAsync("Solo Writer")).Biography);
     }
 
+    [Fact]
+    public async Task AFolderPhotoReplacedWithAnOlderOne_GetsANewVersion()
+    {
+        var photo = await AuthorPhotoAsync("author.jpg");
+        File.SetLastWriteTimeUtc(photo, new DateTime(2025, 6, 1, 0, 0, 0, DateTimeKind.Utc));
+        var library = await SeedAsync(new Person { Name = Osman, Biography = "Known.", InfoCheckedAt = DateTime.UtcNow });
+        await Refresher().RefreshLibraryAsync(library, force: true, default);
+        var first = (await PersonAsync(Osman)).ImageChangedAt;
+        await _db.People.ExecuteUpdateAsync(u => u.SetProperty(p => p.ImageChangedAt, new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)));
+        _db.ChangeTracker.Clear();
+
+        // The same again: no new version.
+        await Refresher().RefreshLibraryAsync(library, force: true, default);
+        var unchanged = (await PersonAsync(Osman)).ImageChangedAt;
+        _db.ChangeTracker.Clear();
+
+        // Replaced by a copy dated earlier still (cp -p): a new version all the same.
+        await File.WriteAllBytesAsync(photo, [0xFF, 0xD8, 0xFF, 0xE0, 0x00]);
+        File.SetLastWriteTimeUtc(photo, new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+        await Refresher().RefreshLibraryAsync(library, force: true, default);
+
+        Assert.NotNull(first);
+        Assert.Equal(new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), unchanged);
+        Assert.True((await PersonAsync(Osman)).ImageChangedAt > unchanged);
+    }
+
+    [Fact]
+    public async Task AFolderPhotoFromBeforeVersions_GetsOne()
+    {
+        var photo = await AuthorPhotoAsync("author.jpg");
+        var library = await SeedAsync(new Person { Name = Osman, Biography = "Known.", ImageUrl = $"file://{photo}", PhotoSource = PersonSources.Folder, InfoCheckedAt = DateTime.UtcNow });
+
+        await Refresher().RefreshLibraryAsync(library, force: true, default);
+
+        var osman = await PersonAsync(Osman);
+        Assert.NotNull(osman.ImageChangedAt);
+        Assert.NotNull(osman.ImageStamp);
+    }
+
     /// <summary>Just the authors, online providers left out.</summary>
     private AuthorInfo Authors(BookProviders? providers = null) =>
         new(_db, new ArrClient(new HttpClient(_web)), new Settings(_dir, []), providers, NullLogger.Instance);
