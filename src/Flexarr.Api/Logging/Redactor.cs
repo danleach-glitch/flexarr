@@ -43,7 +43,7 @@ public static partial class Redactor
     public static string ShortHash(string token) =>
         Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(token.ToLowerInvariant())))[..8];
 
-    [GeneratedRegex(@"\b((?:api[_-]?key|apikey|access[_-]?token|token|password|passwd|secret|sig|signature)[""']?\s*[=:]\s*[""']?)[^&\s""',;\\]+", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\b((?:api[_-]?key|apikey|(?<=[?&])key|access[_-]?token|token|password|passwd|secret|sig|signature)[""']?\s*[=:]\s*[""']?)[^&\s""',;\\]+", RegexOptions.IgnoreCase)]
     private static partial Regex Named();
 
     [GeneratedRegex(@"\b(Bearer\s+)[^\s""\\]+", RegexOptions.IgnoreCase)]

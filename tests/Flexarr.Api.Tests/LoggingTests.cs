@@ -24,6 +24,8 @@ public class LoggingTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiF
     [InlineData("GET /x?api_key=abc123&page=2", "GET /x?api_key=***&page=2")]
     [InlineData("Authorization: Bearer eyJhbGciOi.payload", "Authorization: Bearer ***")]
     [InlineData("{\"password\":\"hunter2\"}", "{\"password\":\"***\"}")]
+    [InlineData("GET https://www.googleapis.com/books/v1/volumes?q=dune&key=AIzaSyabc", "GET https://www.googleapis.com/books/v1/volumes?q=dune&key=***")]
+    [InlineData("the sort key=title stays", "the sort key=title stays")]
     [InlineData("nothing secret here", "nothing secret here")]
     public void RedactsNamedSecrets(string line, string expected) => Assert.Equal(expected, Redactor.Redact(line));
 
