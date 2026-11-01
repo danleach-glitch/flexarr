@@ -1,10 +1,10 @@
-import { useEffect, useState, type FormEvent, type KeyboardEvent } from 'react'
+import { useEffect, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react'
 import { ApiError, getPersonCandidates, updatePerson, uploadPersonImage, type Person, type PersonUpdate } from '../api/client'
 import { useApi } from '../hooks/useApi'
 import { useModal } from '../hooks/useModal'
-import { usePreviewUrl } from '../hooks/usePreviewUrl'
 import { AsyncButton } from './AsyncButton'
 import { safeImageSrc } from '../lib/safeImageSrc'
+import { FilePreview } from './FilePreview'
 
 const sourceNames: Record<string, string> = {
   folder: 'Folder',
@@ -37,7 +37,6 @@ export function PersonEditor({ person, onSaved, onClose }: { person: Person; onS
   const [picked, setPicked] = useState<string>()
   const chosen = picked ?? current
   const [file, setFile] = useState<File>()
-  const preview = usePreviewUrl(file)
   // The file once it's saved, so a save that then fails on the rest doesn't send it again.
   const [uploaded, setUploaded] = useState<File>()
   const original = person.biography ?? ''
@@ -69,7 +68,7 @@ export function PersonEditor({ person, onSaved, onClose }: { person: Person; onS
   }
 
   // One Tab stop for the photos (the chosen one, else the first); the arrow keys move between them and choose, as radios do.
-  const chosenShown = chosen === FILE ? !!preview : photos.some((p) => p.source === chosen)
+  const chosenShown = chosen === FILE ? !!file : photos.some((p) => p.source === chosen)
   function moveChoice(e: KeyboardEvent<HTMLDivElement>) {
     const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key]
     const radios = [...e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]:not(:disabled)')]
@@ -149,18 +148,17 @@ export function PersonEditor({ person, onSaved, onClose }: { person: Person; onS
             {photos.map((p, i) => (
               <PhotoChoice
                 key={p.source}
-                image={p.image}
+                picture={<img src={safeImageSrc(p.image)} alt="" onError={() => failed(p.source)} />}
                 label={sourceName(p.source)}
                 current={p.source === current}
                 checked={chosen === p.source}
                 tabbable={chosen === p.source || (!chosenShown && i === 0)}
                 disabled={saving}
                 onChoose={() => choose(p.source)}
-                onError={() => failed(p.source)}
               />
             ))}
-            {preview && (
-              <PhotoChoice image={preview} label="Yours" current={false} checked={chosen === FILE} tabbable={chosen === FILE || (!chosenShown && photos.length === 0)} disabled={saving} onChoose={() => choose(FILE)} />
+            {file && (
+              <PhotoChoice picture={<FilePreview file={file} />} label="Yours" current={false} checked={chosen === FILE} tabbable={chosen === FILE || (!chosenShown && photos.length === 0)} disabled={saving} onChoose={() => choose(FILE)} />
             )}
           </div>
           <label className="person-editor-upload file-button">
@@ -228,27 +226,25 @@ export function PersonEditor({ person, onSaved, onClose }: { person: Person; onS
 }
 
 function PhotoChoice({
-  image,
+  picture,
   label,
   current,
   checked,
   tabbable,
   disabled,
   onChoose,
-  onError,
 }: {
-  image: string
+  picture: ReactNode
   label: string
   current: boolean
   checked: boolean
   tabbable: boolean
   disabled: boolean
   onChoose: () => void
-  onError?: () => void
 }) {
   return (
     <button type="button" role="radio" aria-checked={checked} tabIndex={tabbable ? 0 : -1} className="person-editor-photo" disabled={disabled} onClick={onChoose}>
-      <img src={safeImageSrc(image)} alt="" onError={onError} />
+      {picture}
       <span>
         {label}
         {current && <span className="tag keep">Current</span>}
