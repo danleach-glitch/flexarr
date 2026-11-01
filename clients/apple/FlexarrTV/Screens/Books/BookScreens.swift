@@ -100,9 +100,9 @@ struct BooksLibraryView: View {
                     // The shelves carry the genres (the most-used 200), so the row costs nothing more to show.
                     let genres = shelves.genres.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
                     if !shelves.shownShelves.isEmpty, !genres.isEmpty {
-                        row("Genres") {
+                        ShelfRow(title: "Genres", ids: genres.map(\.name), column: $column) { focus in
                             ForEach(genres, id: \.name) { genre in
-                                GenreTile(name: genre.name, caption: genre.count == 1 ? "1 book" : "\(genre.count) books", backdrop: nil) {
+                                GenreTile(name: genre.name, caption: genre.count == 1 ? "1 book" : "\(genre.count) books", backdrop: nil, focus: focus) {
                                     router.push(.library(library, .title, genre: genre.name))
                                 }
                             }
