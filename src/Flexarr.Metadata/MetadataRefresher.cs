@@ -302,7 +302,7 @@ public sealed partial class MetadataRefresher(
                 people[tmdbId] = person;
             }
 
-            SetPersonPhoto(person, credit.Images.FirstOrDefault(i => i.CoverType == "headshot")?.RemoteUrl, PersonSources.Tmdb);
+            await SetPersonPhotoAsync(person, credit.Images.FirstOrDefault(i => i.CoverType == "headshot")?.RemoteUrl, PersonSources.Tmdb, ct).ConfigureAwait(false);
             item.Credits.Add(new Credit { PersonId = person.Id, Role = role, Character = NullIfEmpty(credit.Character), Order = order++ });
         }
     }
@@ -836,7 +836,7 @@ public sealed partial class MetadataRefresher(
                 people[key] = entity;
             }
 
-            SetPersonPhoto(entity, person.Image?.Original ?? person.Image?.Medium, PersonSources.TvMaze);
+            await SetPersonPhotoAsync(entity, person.Image?.Original ?? person.Image?.Medium, PersonSources.TvMaze, ct).ConfigureAwait(false);
             item.Credits.Add(new Credit { PersonId = entity.Id, Role = role, Character = character, Order = order++ });
         }
     }
@@ -988,7 +988,7 @@ public sealed partial class MetadataRefresher(
                 people[tmdbId] = person;
             }
 
-            SetPersonPhoto(person, TmdbClient.ImageUrl(profile), PersonSources.Tmdb);
+            await SetPersonPhotoAsync(person, TmdbClient.ImageUrl(profile), PersonSources.Tmdb, ct).ConfigureAwait(false);
             item.Credits.Add(new Credit { PersonId = person.Id, Role = role, Character = character, Order = order++ });
         }
     }
@@ -1507,14 +1507,31 @@ public sealed partial class MetadataRefresher(
 
     /// <summary>
     /// A cast or crew photo from a film's or show's source, unless an admin fixed the person's by hand or it's from
-    /// their own folder or an upload.
+    /// their own folder or an upload. People are loaded once at the start of a refresh, so before a photo changes the
+    /// person is read again: an upload or lock made since wins.
     /// </summary>
-    private static void SetPersonPhoto(Person person, string? url, string source)
+    private async Task SetPersonPhotoAsync(Person person, string? url, string source, CancellationToken ct)
     {
-        if (url is not null && PersonSources.PhotoReplaceable(person))
+        if (url is null || !PersonSources.PhotoReplaceable(person))
         {
-            PersonSources.SetPhoto(person, url, source, DateTime.UtcNow);
+            return;
         }
+
+        if (person.ImageUrl != url && db.Entry(person).State is not EntityState.Added
+            && await db.People.AsNoTracking().Where(p => p.Id == person.Id)
+                .Select(p => new { p.InfoLocked, p.PhotoSource, p.ImageUrl, p.ImageChangedAt, p.ImageStamp }).FirstOrDefaultAsync(ct).ConfigureAwait(false) is { } now
+            && (now.InfoLocked || now.PhotoSource is PersonSources.Folder or PersonSources.Upload or PersonSources.Manual))
+        {
+            // Changed by hand meanwhile: take what's saved, so this refresh's save keeps it.
+            person.InfoLocked = now.InfoLocked;
+            person.PhotoSource = now.PhotoSource;
+            person.ImageUrl = now.ImageUrl;
+            person.ImageChangedAt = now.ImageChangedAt;
+            person.ImageStamp = now.ImageStamp;
+            return;
+        }
+
+        PersonSources.SetPhoto(person, url, source, DateTime.UtcNow);
     }
 
     private static string? NullIfEmpty(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
