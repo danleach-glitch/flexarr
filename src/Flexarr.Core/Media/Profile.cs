@@ -104,6 +104,18 @@ public sealed class Profile
     public List<string> LibraryOrder { get; set; } = [];
 
     /// <summary>
+    /// Which rows Home and each library's Browse show for this profile, and in what order, as JSON ({ home, movies,
+    /// shows, combineLibraries }). Null: the server's layout in config.json, which every profile shared before 0.58.
+    /// </summary>
+    public string? Layout { get; set; }
+
+    /// <summary>
+    /// What's left out of this profile's menu in every app, beside its libraries: "watchlist", "collections",
+    /// "playlists", "live-tv", "discover", "upcoming". An app shows what it has of the rest.
+    /// </summary>
+    public List<string> HiddenNavigation { get; set; } = [];
+
+    /// <summary>
     /// The oldest age a title may be rated for this profile to see it (a step of <see cref="RatingAges"/>); null, no
     /// limit. Unrated titles are hidden from it unless a parent allows them or their library.
     /// </summary>

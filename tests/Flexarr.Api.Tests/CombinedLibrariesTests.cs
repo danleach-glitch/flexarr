@@ -42,7 +42,7 @@ public class CombinedLibrariesTests(FlexarrApiFactory factory) : IClassFixture<F
         var rows2 = layout.GetProperty("home").EnumerateArray().Select(r => new { id = r.GetProperty("id").GetString(), enabled = r.GetProperty("enabled").GetBoolean() }).ToList();
         var put = await client.PutAsJsonAsync(Api("/settings/layout"), new { home = rows2, movies = Array.Empty<object>(), shows = Array.Empty<object>(), combineLibraries = false });
 
-        // Settings redraws from the answer: config.json only reloads a moment later.
+        // Settings redraws from the answer.
         layout = await put.EnsureSuccessStatusCode().Content.ReadFromJsonAsync<JsonElement>();
         var ids = layout.GetProperty("home").EnumerateArray().Select(r => r.GetProperty("id").GetString()).ToList();
         Assert.False(layout.GetProperty("combineLibraries").GetBoolean());

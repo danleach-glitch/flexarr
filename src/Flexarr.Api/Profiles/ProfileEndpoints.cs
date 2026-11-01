@@ -28,7 +28,9 @@ public sealed record ProfileDto(string Id, string Name, string Color, bool HasPi
     Guid? RequestShowsLibraryId = null, Guid? RequestFilmsLibraryId = null, IReadOnlyList<string>? LibraryOrder = null, bool AsksPin = false,
     bool AutoRequestWatchlist = false, int? MaxRatingAge = null, bool IsKids = false, bool AsksAdminPin = false,
     // The audiobooks library its book requests go to; null, the chosen root folder. Absent from servers before 0.58.
-    Guid? RequestAudiobooksLibraryId = null);
+    Guid? RequestAudiobooksLibraryId = null,
+    // What's left out of its menu beside the libraries (see NavigationRequest). Absent from servers before 0.58.
+    IReadOnlyList<string>? HiddenNavigation = null);
 
 /// <param name="MaxRatingAge">The age limit: 0 (U), 8 (PG), 12, 15 or 18; null for none.</param>
 /// <param name="IsKids">A child's profile; it needs an age limit.</param>
@@ -40,6 +42,15 @@ public sealed record KidsLockRequest(string? Pin, string? ProfileId = null);
 
 /// <summary>The order of a profile's libraries in the menu: library ids, and "live-tv"; empty goes back to by name.</summary>
 public sealed record LibraryOrderRequest(IReadOnlyList<string> Order);
+
+/// <summary>
+/// What's left out of a profile's menu in every app: any of "watchlist", "collections", "playlists", "live-tv",
+/// "discover" and "upcoming". An app leaves out what it has of them.
+/// </summary>
+public sealed record NavigationRequest(IReadOnlyList<string> Hidden)
+{
+    public static readonly IReadOnlySet<string> Items = new HashSet<string>(StringComparer.Ordinal) { "watchlist", "collections", "playlists", "live-tv", "discover", "upcoming" };
+}
 
 /// <summary>Where a profile's requests go. Both are set each time; null is wherever Seerr adds them by default.</summary>
 public sealed record RequestLibrariesRequest(Guid? ShowsLibraryId, Guid? FilmsLibraryId);
@@ -345,6 +356,29 @@ public static partial class ProfileEndpoints
             return Results.Ok(ToDto(profile, current));
         });
 
+        // Like the library order, a profile's own choice (or the main profile's for it); every app's menu follows it.
+        group.MapPut("/{id}/navigation", async (string id, NavigationRequest request, FlexarrDbContext db, CurrentProfile current, CancellationToken ct) =>
+        {
+            if (id != current.Id && !current.IsAdmin)
+            {
+                return Results.Problem("Only the main profile can choose for someone else.", statusCode: 403);
+            }
+
+            if (request.Hidden is null || request.Hidden.Any(h => !NavigationRequest.Items.Contains(h)))
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["hidden"] = [$"Choose from {string.Join(", ", NavigationRequest.Items)}."] });
+            }
+
+            if (await db.Profiles.FindAsync([id], ct) is not { } profile)
+            {
+                return Results.NotFound();
+            }
+
+            profile.HiddenNavigation = request.Hidden.Distinct(StringComparer.Ordinal).ToList();
+            await db.SaveChangesAsync(ct);
+            return Results.Ok(ToDto(profile, current));
+        });
+
         group.MapDelete("/{id}", async (string id, FlexarrDbContext db, ProfileImages images, SignIns signIns, Trakt.TraktClient trakt,
             Trakt.TraktConnector connector, Security.GuestInvites guests, CancellationToken ct) =>
         {
@@ -596,7 +630,7 @@ public static partial class ProfileEndpoints
     internal static ProfileDto ToDto(Profile p, CurrentProfile current) =>
         new(p.Id, p.Name, p.Color, p.PinHash is not null, p.IsMain, p.Id == current.Id, p.HiddenLibraryIds, current.ImageUrlFor(p), p.RequestShowsLibraryId,
             p.RequestFilmsLibraryId, p.LibraryOrder, current.AsksPinFor(p), p.AutoRequestWatchlist, p.MaxRatingAge,
-            p.IsKids, current.AsksAdminPinFor(p), p.RequestAudiobooksLibraryId);
+            p.IsKids, current.AsksAdminPinFor(p), p.RequestAudiobooksLibraryId, p.HiddenNavigation);
 
 
     /// <summary>

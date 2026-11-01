@@ -317,7 +317,7 @@ public sealed class ContinueListeningLayoutTests
     {
         using var server = new FlexarrApiFactory();
         var (client, seeded) = await ContinueListeningTests.SeedProfileAsync(server);
-        await SwitchOffAsync(server, "continue");
+        await SwitchOffAsync(client, "continue");
 
         var rows = await ContinueListeningTests.RowsAsync(client, "home?listening=books,podcasts");
 
@@ -350,17 +350,11 @@ public sealed class ContinueListeningLayoutTests
         Assert.Equal(HttpStatusCode.NotFound, (await tv.DeleteAsync(ContinueListeningTests.Api($"home/continue/{seeded.Book}"))).StatusCode);
     }
 
-    /// <summary>Saves Home's layout with <paramref name="rowId"/> off, and waits for config.json to be read again.</summary>
-    internal static async Task SwitchOffAsync(FlexarrApiFactory server, string rowId)
+    /// <summary>Saves the profile's Home layout with <paramref name="rowId"/> off.</summary>
+    internal static async Task SwitchOffAsync(HttpClient client, string rowId)
     {
         var saved = new[] { new { id = rowId, enabled = false } };
-        (await ContinueListeningTests.Client(server).PutAsJsonAsync(ContinueListeningTests.Api("settings/layout"),
+        (await client.PutAsJsonAsync(ContinueListeningTests.Api("settings/layout"),
             new { home = saved, movies = Array.Empty<object>(), shows = Array.Empty<object>() })).EnsureSuccessStatusCode();
-        var options = server.Services.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<Configuration.FlexarrOptions>>();
-        for (var waited = 0; !options.CurrentValue.Layout.Home.Any(r => r.Id == rowId && !r.Enabled); waited += 50)
-        {
-            Assert.True(waited < 10_000, "config.json wasn't read again");
-            await Task.Delay(50);
-        }
     }
 }

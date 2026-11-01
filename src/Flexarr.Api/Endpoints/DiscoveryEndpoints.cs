@@ -60,6 +60,8 @@ public static partial class DiscoveryEndpoints
         {
             var me = profile.Id;
             var options = services.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<Configuration.FlexarrOptions>>().CurrentValue;
+            // The profile's own rows, or the server's while it hasn't chosen.
+            var homeLayout = await LayoutEndpoints.ForProfileAsync(db, options, me, ct);
             var arr = services.GetRequiredService<Flexarr.Integrations.Arr.ArrClient>();
             var cache = services.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>();
             var rows = new List<HomeRowDto>();
@@ -73,7 +75,7 @@ public static partial class DiscoveryEndpoints
 
             // Books and podcast episodes join the row when the app can open them and the profile wants them there, and
             // the row is on in Settings › Home (switched off, books keep their own Continue listening row).
-            var asked = LayoutEndpoints.IsOn(options.Layout.Home, "continue") && Listening.Parse(listening) is { Any: true } kinds
+            var asked = LayoutEndpoints.IsOn(homeLayout.Home, "continue") && Listening.Parse(listening) is { Any: true } kinds
                 && await db.Profiles.Where(p => p.Id == me).Select(p => p.ListeningInContinue).FirstOrDefaultAsync(ct)
                 ? kinds : default;
             List<Guid> listenBooks = asked.Books ? [.. libraries.Where(l => l.Type == LibraryType.Audiobooks).Select(l => l.Id)] : [];
@@ -88,7 +90,7 @@ public static partial class DiscoveryEndpoints
             }
 
             // Titles from this profile's watchlist it can play now; nothing until something on the list is in. A kids profile has none.
-            if (!db.ServesKids && LayoutEndpoints.IsOn(options.Layout.Home, Watchlist.WatchlistService.HomeRowId))
+            if (!db.ServesKids && LayoutEndpoints.IsOn(homeLayout.Home, Watchlist.WatchlistService.HomeRowId))
             {
                 var ready = await services.GetRequiredService<Watchlist.WatchlistService>().ReadyAsync(me, RowSize, ct);
                 rows.Add(new HomeRowDto(Watchlist.WatchlistService.HomeRowId, "Ready from your watchlist", "poster", ready, "/watchlist"));
@@ -102,14 +104,14 @@ public static partial class DiscoveryEndpoints
             }
 
             // The channel watched last, then the profile's favourites, with what's on them; nothing until there's one.
-            if (options.LiveTv?.Account is not null && !db.ServesKids && LayoutEndpoints.IsOn(options.Layout.Home, "live-tv"))
+            if (options.LiveTv?.Account is not null && !db.ServesKids && LayoutEndpoints.IsOn(homeLayout.Home, "live-tv"))
             {
                 var channels = await LiveTv.LiveTvEndpoints.HomeChannelsAsync(db, me, DateTime.UtcNow, ct);
                 rows.Add(new HomeRowDto("live-tv", "Live TV", "live", [], "/livetv", Channels: channels));
             }
 
             // One row for each library, or (as it starts) one for all the film libraries and one for all the TV ones.
-            var combine = options.Layout.CombineLibraries;
+            var combine = homeLayout.CombineLibraries;
             foreach (var group in libraries.Where(l => l.Type is LibraryType.Movies or LibraryType.TvShows or LibraryType.HomeVideos).GroupBy(l => combine ? (object)l.Type : l.Id))
             {
                 var first = group.First();
@@ -191,7 +193,7 @@ public static partial class DiscoveryEndpoints
             List<UpcomingDto> upcoming = [];
             var downloading = 0;
             // Switched off in Settings: don't ask Sonarr and Radarr at all.
-            if (LayoutEndpoints.IsOn(options.Layout.Home, "upcoming"))
+            if (LayoutEndpoints.IsOn(homeLayout.Home, "upcoming"))
             {
                 try
                 {
@@ -216,7 +218,7 @@ public static partial class DiscoveryEndpoints
             // Placed by every film and TV library, including ones this profile can't see, as Settings places them.
             var placing = (await db.Libraries.IgnoreQueryFilters().OrderBy(l => l.Name).ToListAsync(ct))
                 .Where(l => !(options.LiveTv?.Account is not null && RecordingsLibrary.Is(l)));
-            var layout = LayoutEndpoints.WithWatchlistRow(LayoutEndpoints.ForCombining(options.Layout.Home, placing, options.Layout.CombineLibraries));
+            var layout = LayoutEndpoints.WithWatchlistRow(LayoutEndpoints.ForCombining(homeLayout.Home, placing, homeLayout.CombineLibraries));
             var arranged = LayoutEndpoints.Arrange(shown, layout);
             if (kids && arranged.FindIndex(r => r.Id == WatchAgainRow) is var at and >= 0)
             {
@@ -305,7 +307,8 @@ public static partial class DiscoveryEndpoints
             var overviews = await OverviewsAsync(db, rotation, ct);
             var resumes = await ResumesAsync(db, me, rotation, resume, ct);
 
-            var layout = movies ? options.CurrentValue.Layout.Movies : options.CurrentValue.Layout.Shows;
+            var browseLayout = await LayoutEndpoints.ForProfileAsync(db, options.CurrentValue, me, ct);
+            var layout = movies ? browseLayout.Movies : browseLayout.Shows;
             return Results.Ok(new HomeDto(rotation, overviews, LayoutEndpoints.Arrange(rows.Where(r => r.Items.Count > 0), layout), [], 0, resume, resumes));
         }).WithTags("Discovery");
 

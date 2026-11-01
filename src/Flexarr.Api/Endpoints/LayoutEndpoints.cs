@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using Flexarr.Api.Configuration;
 using Flexarr.Api.Security;
 using Flexarr.Core.Data;
@@ -17,29 +16,63 @@ public sealed record LayoutDto(IReadOnlyList<RowChoiceDto> Home, IReadOnlyList<R
 /// <param name="CombineLibraries">Left out (by apps from before it), the setting stays as it is.</param>
 public sealed record LayoutUpdate(IReadOnlyList<RowSetting> Home, IReadOnlyList<RowSetting> Movies, IReadOnlyList<RowSetting> Shows, bool? CombineLibraries = null);
 
-/// <summary>Choosing which rows Home and Browse show, and in what order (Settings › Home and Browse).</summary>
+/// <summary>
+/// Choosing which rows Home and Browse show, and in what order (Settings › Home and browse): each profile's own. A
+/// profile that hasn't chosen has the server's layout in config.json, as every profile shared before 0.58.
+/// </summary>
 public static class LayoutEndpoints
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
     public static RouteGroupBuilder MapLayoutEndpoints(this RouteGroupBuilder api)
     {
-        var group = api.MapGroup("/settings/layout").WithTags("Settings").RequireAuthorization(FlexarrClaims.AdminPolicy);
+        var group = api.MapGroup("/settings/layout").WithTags("Settings");
 
-        group.MapGet("/", (FlexarrDbContext db, IOptionsMonitor<FlexarrOptions> options, Profiles.CurrentProfile profile, CancellationToken ct) =>
-            LayoutAsync(db, options.CurrentValue, options.CurrentValue.Layout, profile.Id, ct));
+        group.MapGet("/", async (FlexarrDbContext db, IOptionsMonitor<FlexarrOptions> options, Profiles.CurrentProfile profile, CancellationToken ct) =>
+            await LayoutAsync(db, options.CurrentValue, await ForProfileAsync(db, options.CurrentValue, profile.Id, ct), profile.Id, ct));
 
-        // Answers with the layout as saved: config.json reloads a moment later, and combining changes which rows there are.
-        group.MapPut("/", (LayoutUpdate update, FlexarrDbContext db, IOptionsMonitor<FlexarrOptions> options, Profiles.CurrentProfile profile, CancellationToken ct) =>
+        // Answers with the layout as saved: combining changes which rows there are.
+        group.MapPut("/", async (LayoutUpdate update, FlexarrDbContext db, IOptionsMonitor<FlexarrOptions> options, Profiles.CurrentProfile profile, CancellationToken ct) =>
         {
-            var combine = update.CombineLibraries ?? options.CurrentValue.Layout.CombineLibraries;
-            ServerConfigStore.Update(options.CurrentValue.DataDirectory, config =>
-                config["layout"] = JsonSerializer.SerializeToNode(new { home = update.Home, movies = update.Movies, shows = update.Shows, combineLibraries = combine }, Json));
+            if (await db.Profiles.FindAsync([profile.Id], ct) is not { } me)
+            {
+                return Results.NotFound();
+            }
+
+            var combine = update.CombineLibraries ?? Parse(me.Layout)?.CombineLibraries ?? options.CurrentValue.Layout.CombineLibraries;
             var saved = new LayoutOptions { Home = [.. update.Home], Movies = [.. update.Movies], Shows = [.. update.Shows], CombineLibraries = combine };
-            return LayoutAsync(db, options.CurrentValue, saved, profile.Id, ct);
+            me.Layout = JsonSerializer.Serialize(saved, Json);
+            await db.SaveChangesAsync(ct);
+            return Results.Ok(await LayoutAsync(db, options.CurrentValue, saved, profile.Id, ct));
         });
 
         return api;
+    }
+
+    /// <summary>The profile's own layout, or the server's while it hasn't chosen one.</summary>
+    public static async Task<LayoutOptions> ForProfileAsync(FlexarrDbContext db, FlexarrOptions options, string profileId, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(db);
+        ArgumentNullException.ThrowIfNull(options);
+        var saved = await db.Profiles.AsNoTracking().Where(p => p.Id == profileId).Select(p => p.Layout).FirstOrDefaultAsync(ct);
+        return Parse(saved) ?? options.Layout;
+    }
+
+    private static LayoutOptions? Parse(string? json)
+    {
+        if (string.IsNullOrEmpty(json))
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<LayoutOptions>(json, Json);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     private static async Task<LayoutDto> LayoutAsync(FlexarrDbContext db, FlexarrOptions options, LayoutOptions layout, string me, CancellationToken ct)
