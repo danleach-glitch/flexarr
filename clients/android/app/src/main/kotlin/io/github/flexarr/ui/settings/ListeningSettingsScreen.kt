@@ -36,6 +36,7 @@ import io.github.flexarr.core.setPodcastPreferences
 import io.github.flexarr.ui.components.Edge
 import io.github.flexarr.ui.components.LocalNavigator
 import io.github.flexarr.ui.components.PageTitle
+import io.github.flexarr.ui.components.StatusView
 import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.RoomBackground
 import kotlinx.coroutines.launch
@@ -57,12 +58,21 @@ fun ListeningSettingsScreen(model: AppModel, onNotifications: () -> Unit) {
     // Podcast settings only for a profile with podcasts (as the iPhone); otherwise the books' own.
     val hasPodcasts = model.podcastStatus?.available == true
 
-    LaunchedEffect(model.credentials) {
-        if (hasPodcasts && model.podcastPreferences == null) runCatching { client.podcastPreferences() }.onSuccess { model.podcastPreferences = it }
+    // Neither the podcast nor the book settings could be loaded (offline, say): why, with Retry.
+    var loadFailed by remember { mutableStateOf<String?>(null) }
+    var attempt by remember { mutableStateOf(0) }
+
+    LaunchedEffect(model.credentials, attempt) {
+        loadFailed = null
+        var problem: String? = null
+        if (hasPodcasts && model.podcastPreferences == null) {
+            runCatching { client.podcastPreferences() }.onSuccess { model.podcastPreferences = it }.onFailure { problem = it.message }
+        }
         if ((!hasPodcasts || model.podcastPreferences?.listening == null) && model.hasAudiobooks) {
-            runCatching { client.bookListening() }.onSuccess { books = it }
+            runCatching { client.bookListening() }.onSuccess { books = it }.onFailure { problem = it.message }
         }
         runCatching { client.playbackPreferences() }.onSuccess { playback = it }
+        if (model.podcastPreferences?.takeIf { hasPodcasts } == null && books == null) loadFailed = problem ?: "Your settings couldn’t be loaded."
     }
 
     val podcasts = model.podcastPreferences?.takeIf { hasPodcasts }
@@ -144,6 +154,7 @@ fun ListeningSettingsScreen(model: AppModel, onNotifications: () -> Unit) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
             item { PageTitle("Podcasts and audiobooks", onBack = { navigator.back() }) }
             val speed = podcasts?.speed ?: books?.speed
+            if (speed == null) item { loadFailed?.let { StatusView(it, retry = { attempt++ }) } ?: StatusView() }
             if (speed != null) item {
                 Group(
                     header = "Your profile, on every device",

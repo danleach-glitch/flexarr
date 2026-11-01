@@ -1053,6 +1053,12 @@ final class AppModel {
         return true
     }
 
+    /// The podcast settings, asked again (Settings › Podcasts and audiobooks), for a profile with podcasts.
+    func loadPodcastPreferences() async {
+        guard let client, podcastStatus?.available == true else { return }
+        if let preferences = try? await client.podcastPreferences() { podcastPreferences = preferences }
+    }
+
     /// How this profile listens to books, asked again (Settings › Audiobooks).
     func loadBookListening() async {
         guard let client else { return }

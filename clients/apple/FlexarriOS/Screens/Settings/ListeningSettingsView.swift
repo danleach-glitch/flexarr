@@ -9,51 +9,64 @@ struct ListeningSettingsView: View {
     @Environment(DownloadStore.self) private var downloads
     @State private var playback: PlaybackPreferences?
     @State private var failed = false
+    /// Neither the podcast nor the book settings could be loaded (offline, say).
+    @State private var loadFailed = false
 
     var body: some View {
         List {
-            Section {
-                if let speed {
-                    Picker("Speed", selection: Binding(get: { speed }, set: { value in
-                        save(podcasts: .init(speed: value), books: .init(speed: value))
-                    })) {
-                        ForEach(BookSpeed.choices(with: speed), id: \.self) { Text(BookSpeed.label($0)).tag($0) }
+            if speed == nil {
+                Group {
+                    if loadFailed {
+                        StatusView(state: .failed("Your settings couldn't be loaded.", retry: { Task { await load() } }))
+                    } else {
+                        StatusView(state: .loading)
                     }
-                    .listRowBackground(Color.seat)
                 }
-                if let shared {
-                    Picker("Skip back", selection: Binding(get: { shared.skipBackSeconds }, set: { value in
-                        save(podcasts: .init(skipBackSeconds: value), books: .init(skipBackSeconds: value))
-                    })) {
-                        ForEach(steps(shared.skipBackSeconds), id: \.self) { Text("\($0) seconds").tag($0) }
+                .listRowBackground(Color.clear)
+            } else {
+                Section {
+                    if let speed {
+                        Picker("Speed", selection: Binding(get: { speed }, set: { value in
+                            save(podcasts: .init(speed: value), books: .init(speed: value))
+                        })) {
+                            ForEach(BookSpeed.choices(with: speed), id: \.self) { Text(BookSpeed.label($0)).tag($0) }
+                        }
+                        .listRowBackground(Color.seat)
                     }
-                    .listRowBackground(Color.seat)
-                    Picker("Skip forward", selection: Binding(get: { shared.skipForwardSeconds }, set: { value in
-                        save(podcasts: .init(skipForwardSeconds: value), books: .init(skipForwardSeconds: value))
-                    })) {
-                        ForEach(steps(shared.skipForwardSeconds), id: \.self) { Text("\($0) seconds").tag($0) }
+                    if let shared {
+                        Picker("Skip back", selection: Binding(get: { shared.skipBackSeconds }, set: { value in
+                            save(podcasts: .init(skipBackSeconds: value), books: .init(skipBackSeconds: value))
+                        })) {
+                            ForEach(steps(shared.skipBackSeconds), id: \.self) { Text("\($0) seconds").tag($0) }
+                        }
+                        .listRowBackground(Color.seat)
+                        Picker("Skip forward", selection: Binding(get: { shared.skipForwardSeconds }, set: { value in
+                            save(podcasts: .init(skipForwardSeconds: value), books: .init(skipForwardSeconds: value))
+                        })) {
+                            ForEach(steps(shared.skipForwardSeconds), id: \.self) { Text("\($0) seconds").tag($0) }
+                        }
+                        .listRowBackground(Color.seat)
+                        Toggle("Smart rewind", isOn: Binding(get: { shared.smartRewind }, set: { value in
+                            save(podcasts: .init(smartRewind: value), books: .init(smartRewind: value))
+                        }))
+                        .settingsRow()
                     }
-                    .listRowBackground(Color.seat)
-                    Toggle("Smart rewind", isOn: Binding(get: { shared.smartRewind }, set: { value in
-                        save(podcasts: .init(smartRewind: value), books: .init(smartRewind: value))
-                    }))
-                    .settingsRow()
-                }
-                // Servers before 0.58 don't have it.
-                if let playback, let listening = playback.listeningInContinue {
-                    Toggle("Books and podcasts in Continue watching", isOn: Binding(get: { listening }, set: { on in
-                        var changed = playback
-                        changed.listeningInContinue = on
-                        savePlayback(changed, over: playback)
-                    }))
-                    .settingsRow()
-                }
-            } header: {
-                Text("Your profile, on every device")
-            } footer: {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("A book with a speed of its own keeps it. Smart rewind starts a little earlier after a pause.")
-                    if failed { Text("That didn't save. Try again.").foregroundStyle(Color.danger) }
+                    // Servers before 0.58 don't have it.
+                    if let playback, let listening = playback.listeningInContinue {
+                        Toggle("Books and podcasts in Continue watching", isOn: Binding(get: { listening }, set: { on in
+                            var changed = playback
+                            changed.listeningInContinue = on
+                            savePlayback(changed, over: playback)
+                        }))
+                        .settingsRow()
+                    }
+                } header: {
+                    Text("Your profile, on every device")
+                } footer: {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("A book with a speed of its own keeps it. Smart rewind starts a little earlier after a pause.")
+                        if failed { Text("That didn't save. Try again.").foregroundStyle(Color.danger) }
+                    }
                 }
             }
 
@@ -88,10 +101,17 @@ struct ListeningSettingsView: View {
             }
         }
         .settingsPage("Podcasts and audiobooks")
-        .task {
-            if model.bookListening == nil, model.libraries.contains(where: { $0.type == .audiobooks }) { await model.loadBookListening() }
-            if let loaded = try? await model.client?.playbackPreferences() { playback = loaded }
-        }
+        .task { await load() }
+    }
+
+    /// What's missing, asked for again: the podcast settings (with podcasts), the books' (with an audiobooks
+    /// library) and the playback preferences.
+    private func load() async {
+        loadFailed = false
+        if model.podcastPreferences == nil { await model.loadPodcastPreferences() }
+        if model.bookListening == nil, model.libraries.contains(where: { $0.type == .audiobooks }) { await model.loadBookListening() }
+        if let loaded = try? await model.client?.playbackPreferences() { playback = loaded }
+        loadFailed = speed == nil
     }
 
     /// The one speed: the podcast settings' when podcasts are on, otherwise the books'.
