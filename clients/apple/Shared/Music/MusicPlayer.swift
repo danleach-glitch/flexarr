@@ -853,6 +853,7 @@ final class MusicPlayer {
                     try? await client.stopPlayback(sessionId: sessionId)
                 }
             } else if let client, expiredBookId == track.id {
+                expiredBookId = nil // reported as ended: nothing more to send for it
                 let bookId = track.id, length = duration
                 Task { try? await client.reportBookProgress(itemId: bookId, BookProgressUpdate(positionSeconds: length, device: Self.deviceName, recordedAt: Date(), ended: true)) }
             }
@@ -1005,6 +1006,11 @@ final class MusicPlayer {
 
     /// Reports where the track got to and ends its session (best effort; the server times abandoned ones out).
     private func endSession() {
+        // A book whose session the server forgot: its last place goes to the book's own progress.
+        if sessionId == nil, let bookId = expiredBookId, bookId == current?.id, position > 0, !isPlayingOffline, recordsHistory, let client {
+            let update = BookProgressUpdate(positionSeconds: position, device: Self.deviceName, recordedAt: Date(), ended: false)
+            Task { try? await client.reportBookProgress(itemId: bookId, update) }
+        }
         expiredBookId = nil
         guard let client, let sessionId else { return }
         self.sessionId = nil
