@@ -19,7 +19,9 @@ public sealed record AuthorCandidate(string Source, string? Image, string? Biogr
 /// fills gaps. An author is looked up online at most once a month, and one an admin fixed by hand
 /// (<see cref="Person.InfoLocked"/>) never is.
 /// </summary>
-public sealed partial class AuthorInfo(FlexarrDbContext db, ArrClient arr, IMetadataSettings settings, BookProviders? providers, ILogger logger)
+/// <param name="readarrAuthors">Readarr's authors kept a few minutes between requests (the editor's); none in a refresh.</param>
+public sealed partial class AuthorInfo(FlexarrDbContext db, ArrClient arr, IMetadataSettings settings, BookProviders? providers, ILogger logger,
+    ReadarrAuthorCache? readarrAuthors = null)
 {
     /// <summary>How long an author's online lookup stands before they're looked up again.</summary>
     public static readonly TimeSpan LookAgainAfter = TimeSpan.FromDays(30);
@@ -511,7 +513,9 @@ public sealed partial class AuthorInfo(FlexarrDbContext db, ArrClient arr, IMeta
         {
             try
             {
-                authors.AddRange(await arr.GetAuthorsAsync(readarr, ct).ConfigureAwait(false));
+                authors.AddRange(readarrAuthors is null
+                    ? await arr.GetAuthorsAsync(readarr, ct).ConfigureAwait(false)
+                    : await readarrAuthors.GetAsync(readarr, () => arr.GetAuthorsAsync(readarr, ct)).ConfigureAwait(false));
             }
             catch (Exception ex) when (IsFailure(ex, ct))
             {
@@ -539,4 +543,33 @@ public sealed partial class AuthorInfo(FlexarrDbContext db, ArrClient arr, IMeta
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Looking up {Author} on {Source} failed: {Error}")]
     private partial void LogLookupFailed(string author, string source, string error);
+}
+
+/// <summary>
+/// Every author each Readarr-compatible app knows, kept for a few minutes: opening the author editor (and looking again)
+/// would otherwise fetch the whole list from each app every time. One for the whole server.
+/// </summary>
+public sealed class ReadarrAuthorCache(TimeProvider? time = null)
+{
+    public static readonly TimeSpan KeepFor = TimeSpan.FromMinutes(5);
+
+    private readonly TimeProvider _time = time ?? TimeProvider.System;
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, (DateTimeOffset At, IReadOnlyList<ReadarrAuthor> Authors)> _kept = new(StringComparer.Ordinal);
+
+    /// <summary>The app's authors, as fetched in the last few minutes, else fetched now (a failure isn't kept).</summary>
+    public async Task<IReadOnlyList<ReadarrAuthor>> GetAsync(ArrInstance instance, Func<Task<IReadOnlyList<ReadarrAuthor>>> fetch)
+    {
+        ArgumentNullException.ThrowIfNull(instance);
+        ArgumentNullException.ThrowIfNull(fetch);
+        var key = $"{instance.Name}\n{instance.BaseUrl}\n{instance.ApiKey}";
+        var now = _time.GetUtcNow();
+        if (_kept.TryGetValue(key, out var kept) && now - kept.At < KeepFor)
+        {
+            return kept.Authors;
+        }
+
+        var authors = await fetch().ConfigureAwait(false);
+        _kept[key] = (now, authors);
+        return authors;
+    }
 }

@@ -463,6 +463,35 @@ public sealed class AuthorInfoTests : IAsyncLifetime
         Assert.All(await _db.People.AsNoTracking().ToListAsync(), p => Assert.Null(p.InfoCheckedAt)); // both tried again next time
     }
 
+    [Fact]
+    public async Task ReadarrsAuthors_AreKeptAFewMinutes_ForTheEditor()
+    {
+        var time = new ManualTime();
+        var cache = new ReadarrAuthorCache(time);
+        await SeedAsync(new Person { Name = Osman });
+        var osman = await _db.People.SingleAsync(p => p.Name == Osman);
+        var settings = new Settings(_dir, [new ArrInstance { Name = "Readarr", Kind = ArrKind.Readarr, BaseUrl = new Uri("http://readarr.test"), ApiKey = "k" }]);
+        AuthorInfo Editor() => new(_db, new ArrClient(new HttpClient(_web)), settings, null, NullLogger.Instance, cache);
+        int Asked() => _web.Requests.Count(r => r.Contains("readarr.test/api/v1/author", StringComparison.Ordinal));
+
+        var (_, first) = await Editor().CandidatesAsync(osman, default);
+        await Editor().CandidatesAsync(osman, default);
+        var once = Asked();
+        time.Now += ReadarrAuthorCache.KeepFor + TimeSpan.FromSeconds(1);
+        await Editor().CandidatesAsync(osman, default);
+
+        Assert.Contains(first, b => b.Source == "readarr");
+        Assert.Equal(1, once);
+        Assert.Equal(2, Asked());
+    }
+
+    private sealed class ManualTime : TimeProvider
+    {
+        public DateTimeOffset Now { get; set; } = DateTimeOffset.UtcNow;
+
+        public override DateTimeOffset GetUtcNow() => Now;
+    }
+
     /// <summary>Just the authors, online providers left out.</summary>
     private AuthorInfo Authors(BookProviders? providers = null) =>
         new(_db, new ArrClient(new HttpClient(_web)), new Settings(_dir, []), providers, NullLogger.Instance);
