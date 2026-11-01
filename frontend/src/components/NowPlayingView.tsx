@@ -242,7 +242,16 @@ export function NowPlayingView({ onClose }: { onClose: () => void }) {
               {chapters.length > 0 && (
                 <span className="np-view-scopes" role="group" aria-label="Seek bar covers">
                   {(['chapter', 'book'] as const).map((s) => (
-                    <button key={s} className="icon-button np-view-tool np-view-scope" onClick={() => setScope(s)} aria-pressed={s === 'chapter' ? ranged : !ranged}>
+                    // The choice shows as made even where no chapter covers the time (before the first, say), when
+                    // Chapter has nothing to cover and waits, off, until one does.
+                    <button
+                      key={s}
+                      className="icon-button np-view-tool np-view-scope"
+                      onClick={() => setScope(s)}
+                      aria-pressed={s === scope}
+                      disabled={s === 'chapter' && chapter === null}
+                      title={s === 'chapter' && chapter === null ? 'No chapter here' : undefined}
+                    >
                       {s === 'chapter' ? 'Chapter' : 'Book'}
                     </button>
                   ))}
