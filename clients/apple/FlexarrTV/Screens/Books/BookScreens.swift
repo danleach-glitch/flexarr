@@ -198,8 +198,8 @@ struct SeriesCard: View {
     }
 }
 
-/// A book's page: the cover beside its title, series, people and length, Play or Resume, then its chapters (each
-/// plays from its start) and description.
+/// A book's page: the cover beside its title, its series and people (each opens their page), length, Play or Resume;
+/// then its description, more in the series and by the author, and last its chapters (each plays from its start).
 struct BookView: View {
     @Environment(AppModel.self) private var model
     @Environment(Router.self) private var router
@@ -222,7 +222,6 @@ struct BookView: View {
                 ScrollView(.vertical) {
                     VStack(alignment: .leading, spacing: 60) {
                         header(item)
-                        if let chapters = book?.chapters, chapters.count > 1 { chapterList(chapters, item: item) }
                         if let overview = detail?.overview, !overview.isEmpty {
                             Text(overview)
                                 .font(.system(size: 28))
@@ -231,7 +230,8 @@ struct BookView: View {
                                 .padding(.horizontal, Layout.edge)
                         }
                         if let more = book?.moreInSeries, !more.isEmpty { row("More in the series", more) }
-                        if let more = book?.byAuthor, !more.isEmpty { row("More by the author", more) }
+                        if let more = book?.byAuthor, !more.isEmpty { row(credits(.author).first.map { "More by \($0.name)" } ?? "More by the author", more) }
+                        if let chapters = book?.chapters, chapters.count > 1 { chapterList(chapters, item: item) }
                     }
                     .padding(.vertical, 60)
                 }
@@ -262,15 +262,7 @@ struct BookView: View {
                 if let subtitle = book?.subtitle {
                     Text(subtitle).font(.system(size: 30, weight: .medium)).foregroundStyle(Color.screen.opacity(0.8))
                 }
-                if let series = book?.series.first {
-                    Text([series.name, series.placeLabel].compactMap { $0 }.joined(separator: ", "))
-                        .font(.system(size: 28, weight: .semibold))
-                        .foregroundStyle(Color.silver)
-                }
-                Text(people)
-                    .font(.system(size: 28, weight: .medium))
-                    .foregroundStyle(Color.usher)
-                    .lineLimit(2)
+                links(item)
                 FactsLine(facts: facts(item))
                 HStack(spacing: 30) {
                     Button {
@@ -305,13 +297,40 @@ struct BookView: View {
         .padding(.horizontal, Layout.edge)
     }
 
-    private var people: String {
-        let credits = detail?.credits ?? []
-        let authors = credits.filter { $0.role == .author }.map(\.name)
-        let narrators = credits.filter { $0.role == .narrator }.map(\.name)
-        let by = authors.isEmpty ? item?.bookAuthors : authors.prefix(3).joined(separator: ", ")
-        let read = narrators.isEmpty ? item?.book?.narrator : narrators.prefix(3).joined(separator: ", ")
-        return [by, read.map { "Read by \($0)" }].compactMap { $0 }.joined(separator: "   ")
+    private func credits(_ role: CreditRole) -> [Credit] {
+        Array((detail?.credits ?? []).filter { $0.role == role }.prefix(3))
+    }
+
+    /// The series, authors and narrators, each a button to their page; names the server hasn't linked yet are text.
+    @ViewBuilder
+    private func links(_ item: ItemSummary) -> some View {
+        let authors = credits(.author), narrators = credits(.narrator)
+        let series = book?.series.first
+        if series != nil || !authors.isEmpty || !narrators.isEmpty {
+            HStack(spacing: 16) {
+                if let series {
+                    Button { router.push(.bookSeries(id: series.id, name: series.name)) } label: {
+                        Label([series.name, series.placeLabel].compactMap { $0 }.joined(separator: ", "), systemImage: "books.vertical")
+                    }
+                    .accessibilityHint("Opens the series")
+                }
+                ForEach(authors, id: \.personId) { credit in
+                    Button(credit.name) { router.push(.person(id: credit.personId, name: credit.name)) }
+                }
+                ForEach(narrators, id: \.personId) { credit in
+                    Button("Read by \(credit.name)") { router.push(.person(id: credit.personId, name: credit.name)) }
+                }
+            }
+            .buttonStyle(PillButtonStyle(selected: false, ambient: item.glowColor))
+            .lineLimit(1)
+            .focusSection()
+        } else {
+            let read = item.book?.narrator.map { "Read by \($0)" }
+            Text([item.bookAuthors, read].compactMap { $0 }.joined(separator: "   "))
+                .font(.system(size: 28, weight: .medium))
+                .foregroundStyle(Color.usher)
+                .lineLimit(2)
+        }
     }
 
     private func facts(_ item: ItemSummary) -> [String] {
