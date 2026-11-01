@@ -79,6 +79,7 @@ import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.Library
 import io.github.flexarr.core.LibrarySort
 import io.github.flexarr.core.LibraryType
+import io.github.flexarr.core.MenuItem
 import io.github.flexarr.core.Paged
 import io.github.flexarr.ui.components.GridMinimum
 import io.github.flexarr.ui.components.Edge
@@ -110,12 +111,15 @@ fun LibrariesScreen(model: AppModel) {
             PageTitle("Libraries")
             Loaded(loader) { libraries ->
                 PullToRefreshBox(isRefreshing = loader.refreshing, onRefresh = loader.retry) {
-                    val entries = LibraryMenuEntry.ordered(model, libraries)
+                    // What the profile left out of the menu stays reachable from Home and links.
+                    val profile = model.currentProfile
+                    val entries = LibraryMenuEntry.ordered(model, libraries).filterNot { it == LibraryMenuEntry.LiveTv && profile?.hidesFromMenu(MenuItem.LIVE_TV) == true }
+                    val showsWatchlist = model.hasWatchlist && profile?.hidesFromMenu(MenuItem.WATCHLIST) != true
                     LazyColumn(contentPadding = PaddingValues(horizontal = Edge, vertical = 8.dp), modifier = Modifier.fillMaxSize()) {
                         item {
                             Column(Modifier.clip(RoundedCornerShape(12.dp)).background(Flexarr.seat)) {
                                 // The watchlist first, ahead of the profile's own order of libraries.
-                                if (model.hasWatchlist) {
+                                if (showsWatchlist) {
                                     LibraryRow("Watchlist", Icons.Filled.Bookmark) { navigator.openWatchlist() }
                                     if (entries.isNotEmpty()) HorizontalDivider(Modifier.padding(start = 62.dp), color = Flexarr.aisle.copy(alpha = 0.6f))
                                 }

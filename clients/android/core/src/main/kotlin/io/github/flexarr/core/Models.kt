@@ -688,8 +688,16 @@ data class Profile(
     val maxRatingAge: Int? = null,
     /** A child's profile: the kids app, and leaving it takes the admin PIN. Absent from servers before 0.56. */
     val isKids: Boolean = false,
+    /**
+     * The menu items it leaves out of every app's menu (see [MenuItem]); they stay reachable from Home, links and
+     * widgets. Values this app doesn't know mean nothing. Null: nothing hidden. Absent from servers before 0.58.
+     */
+    val hiddenNavigation: List<String>? = null,
 ) {
     val initial: String get() = name.trim().firstOrNull()?.uppercase() ?: "?"
+
+    /** Whether it leaves [item] (one of [MenuItem]'s) out of the menu. */
+    fun hidesFromMenu(item: String): Boolean = hiddenNavigation.orEmpty().any { it.equals(item, ignoreCase = true) }
 
     /** Has an age limit: Discover, Coming Soon and requests aren't for it, since their titles have no age to check. */
     val hasAgeLimit: Boolean get() = maxRatingAge != null
@@ -718,6 +726,16 @@ fun libraryOrder(saved: List<String>, shown: List<String>): List<String> {
 
 /** Live TV's place in a profile's library order. */
 const val LIVE_TV_ORDER_ID = "live-tv"
+
+/** The menu items a profile can leave out of the menus ([Profile.hiddenNavigation]). */
+object MenuItem {
+    const val WATCHLIST = "watchlist"
+    const val COLLECTIONS = "collections"
+    const val PLAYLISTS = "playlists"
+    const val LIVE_TV = LIVE_TV_ORDER_ID
+    const val DISCOVER = "discover"
+    const val UPCOMING = "upcoming"
+}
 
 /**
  * [entries] in the order of [saved] (ids compared ignoring case); any it doesn't mention, such as a new library, after

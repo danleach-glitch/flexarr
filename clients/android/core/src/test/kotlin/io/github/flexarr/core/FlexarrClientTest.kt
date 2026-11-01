@@ -74,6 +74,19 @@ class FlexarrClientTest {
     }
 
     @Test
+    fun `profiles say what they leave out of the menu`() = runTest {
+        server.enqueue(json("""[{"id":"kid","name":"Kid","color":"#a9c2ec","hiddenNavigation":["watchlist","live-tv","someday"]},{"id":"main","name":"Dan","color":"#a9c2ec"}]"""))
+        val (kid, older) = client().profiles()
+        assertEquals(listOf("watchlist", "live-tv", "someday"), kid.hiddenNavigation)
+        assertTrue(kid.hidesFromMenu(MenuItem.WATCHLIST))
+        assertTrue(kid.hidesFromMenu(MenuItem.LIVE_TV))
+        assertTrue(!kid.hidesFromMenu(MenuItem.DISCOVER))
+        // Servers before 0.58 don't say: nothing's hidden.
+        assertNull(older.hiddenNavigation)
+        assertTrue(!older.hidesFromMenu(MenuItem.WATCHLIST))
+    }
+
+    @Test
     fun `a new library order keeps what isn't shown in its place`() {
         // Live TV and a hidden library stay where they were among the shown ones.
         assertEquals(listOf("c", "live-tv", "a", "hidden", "b"), libraryOrder(listOf("a", "live-tv", "b", "hidden", "c"), listOf("c", "a", "b")))
