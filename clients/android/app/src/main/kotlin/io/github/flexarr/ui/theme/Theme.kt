@@ -12,6 +12,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
@@ -84,6 +85,13 @@ fun Color.glow(): Color {
     }
     return colour
 }
+
+/**
+ * The main button's fill on every client: the title's ambient colour mixed with projected white
+ * ([Tokens.MAIN_BUTTON_AMBIENT_MIX] of the ambient, in Oklab as the web's color-mix), so a dark or dull colour still
+ * reads under room-coloured text.
+ */
+fun mainButtonFill(ambient: Color): Color = lerp(Flexarr.screen, ambient, Tokens.MAIN_BUTTON_AMBIENT_MIX)
 
 /** A title's colour lifted to glow on the room. */
 fun glowColor(hex: String?): Color = ambientColor(hex).glow()

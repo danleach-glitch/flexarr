@@ -261,7 +261,7 @@ fun itemActions(item: ItemSummary, showsDetails: Boolean = false, downloads: Boo
     return buildList {
         if (item.kind == MediaKind.Movie || item.kind == MediaKind.Episode) {
             add(MenuAction(if (item.isResumable) "Resume" else "Play") { navigator.play(item) })
-            if (item.isResumable) add(MenuAction("Play from beginning") { navigator.play(item, fromBeginning = true) })
+            if (item.isResumable) add(MenuAction("Start over") { navigator.play(item, fromBeginning = true) })
         }
         if (showsDetails) add(MenuAction(if (item.kind == MediaKind.Episode) "Go to episode" else "Go to details") { navigator.openItem(item.id) })
         // Download at Settings' size, as a title's page does.

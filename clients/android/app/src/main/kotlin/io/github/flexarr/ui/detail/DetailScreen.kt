@@ -37,6 +37,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.Theaters
 import androidx.compose.material.icons.filled.Cast
 import androidx.compose.material.icons.filled.ClosedCaption
 import androidx.compose.material.icons.filled.PlayArrow
@@ -76,6 +78,7 @@ import androidx.compose.ui.unit.sp
 import io.github.flexarr.AppModel
 import io.github.flexarr.appModel
 import io.github.flexarr.core.CreditRole
+import io.github.flexarr.core.DetailActions
 import io.github.flexarr.core.Format
 import io.github.flexarr.core.ItemDetail
 import io.github.flexarr.core.ItemSummary
@@ -261,7 +264,10 @@ private fun Header(item: ItemSummary, series: ItemSummary?, detail: ItemDetail, 
     }
 }
 
-/** Play on a line of its own, so "Resume from 1:02:35" never wraps; the rest underneath, named. */
+/**
+ * Play on a line of its own, so "Resume from 1:02:35" never wraps; the rest underneath, named, in the order every
+ * client shares ([DetailActions]); ⋯ holds the rest.
+ */
 @Composable
 private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary?, season: ItemDetail?, ambient: Color, detail: ItemDetail) {
     val navigator = LocalNavigator.current
@@ -270,6 +276,8 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
     var searchingSubtitlesFor by remember(item.id) { mutableStateOf<String?>(null) }
     var savedSubtitles by remember { mutableStateOf<String?>(null) }
     var choosingScreen by remember(item.id) { mutableStateOf(false) }
+    var showingTrailer by remember(item.id) { mutableStateOf(false) }
+    var more by remember(item.id) { mutableStateOf(false) }
     // What Play starts: the item itself, or for a show the next-up episode (falling back to the selected season's first).
     val playable = when (item.kind) {
         MediaKind.Movie, MediaKind.Episode -> item
@@ -277,56 +285,92 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
         else -> null
     }
     val watched = item.userData.watched || item.userData.unwatchedCount == 0
+    val kind = when (item.kind) {
+        MediaKind.Series -> DetailActions.Kind.SHOW
+        MediaKind.Episode -> DetailActions.Kind.EPISODE
+        else -> DetailActions.Kind.MOVIE
+    }
+    val file = detail.files.firstOrNull()
+    val trailer = detail.trailerId
+    val actions = DetailActions.of(
+        DetailActions.Input(
+            kind = kind,
+            hasProgress = playable?.isResumable == true,
+            isWatched = watched,
+            hasTrailer = trailer != null,
+            isKids = model.isKids,
+            platform = DetailActions.Platform.PHONE,
+            canDownload = item.kind == MediaKind.Movie || item.kind == MediaKind.Episode,
+            canSearchSubtitles = detail.canSearchSubtitles == true && file != null,
+            // Servers before 0.56 don't say, and have no watchlist.
+            hasWatchlist = detail.onWatchlist != null,
+        ),
+    )
+    // Another screen: a film or episode as it is, a show the episode that screen's profile is up to. The phone's own
+    // addition to the menu.
+    val playsOn = item.kind == MediaKind.Movie || item.kind == MediaKind.Episode || item.kind == MediaKind.Series
+    val buttons = if (playsOn && DetailActions.Button.MORE !in actions.buttons) actions.buttons + DetailActions.Button.MORE else actions.buttons
     Column(Modifier.padding(horizontal = Edge).widthIn(max = 520.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
         if (playable != null) {
             ActionButton(playLabel(playable, item), onClick = { navigator.play(playable) }, icon = Icons.Filled.PlayArrow, prominent = true, ambient = ambient, modifier = Modifier.fillMaxWidth())
         }
-        // Sharing the width, until large text would shrink the names to fit: then each its own size, scrolling sideways.
-        val crowded = LocalDensity.current.fontScale > 1.3f
+        // Sharing the width, until large text or many actions would shrink the names to fit: then each its own size,
+        // scrolling sideways.
+        val crowded = LocalDensity.current.fontScale > 1.3f || buttons.size > 6
         Row(if (crowded) Modifier.horizontalScroll(rememberScrollState()) else Modifier, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             val slot = if (crowded) Modifier.widthIn(min = 72.dp) else Modifier.weight(1f)
-            if (playable != null && playable.isResumable) {
-                LabeledAction("Start over", Icons.Filled.Replay, { navigator.play(playable, fromBeginning = true) }, slot)
-            }
-            if (item.kind == MediaKind.Series && item.childCount > 0) {
-                LabeledAction("Shuffle", Icons.Filled.Shuffle, { navigator.shuffle(item) }, slot)
-            }
-            // A child's watched marks follow what they watch, not what they tap.
-            if (!model.isKids) {
-                if (item.isResumable && !watched) {
-                    // Part way through, either way: unwatched forgets the place (it leaves Continue Watching).
-                    var menu by remember { mutableStateOf(false) }
-                    Box(slot) {
-                        LabeledAction("Watched", Icons.Filled.Check, { menu = true })
-                        DropdownMenu(menu, onDismissRequest = { menu = false }) {
-                            DropdownMenuItem(text = { Text("Mark as watched") }, onClick = { menu = false; navigator.setWatched(item, true) })
-                            DropdownMenuItem(text = { Text("Mark as unwatched") }, onClick = { menu = false; navigator.setWatched(item, false) })
+            buttons.forEach { button ->
+                when (button) {
+                    DetailActions.Button.PLAY -> Unit
+                    DetailActions.Button.START_OVER -> playable?.let { target ->
+                        LabeledAction("Start over", Icons.Filled.Replay, { navigator.play(target, fromBeginning = true) }, slot)
+                    }
+                    DetailActions.Button.SHUFFLE -> if (item.childCount > 0) LabeledAction("Shuffle", Icons.Filled.Shuffle, { navigator.shuffle(item) }, slot)
+                    DetailActions.Button.TRAILER -> LabeledAction("Trailer", Icons.Filled.Theaters, { showingTrailer = true }, slot)
+                    DetailActions.Button.WATCHED -> if (item.isResumable && !watched) {
+                        // Part way through, either way: unwatched forgets the place (it leaves Continue watching).
+                        var menu by remember { mutableStateOf(false) }
+                        Box(slot) {
+                            LabeledAction("Mark as watched", Icons.Filled.Check, { menu = true }, Modifier.fillMaxWidth(), maxLines = 2)
+                            DropdownMenu(menu, onDismissRequest = { menu = false }) {
+                                DropdownMenuItem(text = { Text("Mark as watched") }, onClick = { menu = false; navigator.setWatched(item, true) })
+                                DropdownMenuItem(text = { Text("Mark as unwatched") }, onClick = { menu = false; navigator.setWatched(item, false) })
+                            }
+                        }
+                    } else {
+                        LabeledAction(
+                            if (watched) "Mark as unwatched" else "Mark as watched",
+                            if (watched) Icons.Filled.VisibilityOff else Icons.Filled.Check,
+                            { navigator.setWatched(item, !watched) },
+                            slot,
+                            maxLines = 2,
+                        )
+                    }
+                    DetailActions.Button.WATCHLIST -> detail.onWatchlist?.let { saved -> WatchlistAction(item, saved, detail, slot) }
+                    DetailActions.Button.DOWNLOAD -> DownloadAction(model, item, slot)
+                    DetailActions.Button.MORE -> Box(slot) {
+                        LabeledAction("More", Icons.Filled.MoreHoriz, { more = true }, Modifier.fillMaxWidth())
+                        DropdownMenu(more, onDismissRequest = { more = false }) {
+                            actions.menu.forEach { entry ->
+                                when (entry) {
+                                    DetailActions.MenuItem.MARK_UNWATCHED ->
+                                        DropdownMenuItem(text = { Text("Mark as unwatched") }, onClick = { more = false; navigator.setWatched(item, false) })
+                                    DetailActions.MenuItem.SUBTITLES -> file?.let { found ->
+                                        DropdownMenuItem(text = { Text("Search for subtitles") }, onClick = { more = false; searchingSubtitlesFor = found.id })
+                                    }
+                                    DetailActions.MenuItem.GO_TO_SHOW -> series?.let { show ->
+                                        DropdownMenuItem(text = { Text("Go to show") }, onClick = { more = false; navigator.openItem(show.id) })
+                                    }
+                                }
+                            }
+                            if (playsOn) DropdownMenuItem(text = { Text("Play on another screen") }, onClick = { more = false; choosingScreen = true })
                         }
                     }
-                } else {
-                    LabeledAction(if (watched) "Unwatched" else "Watched", if (watched) Icons.Filled.VisibilityOff else Icons.Filled.Check, { navigator.setWatched(item, !watched) }, slot)
                 }
-            }
-            if (item.kind == MediaKind.Movie || item.kind == MediaKind.Episode) {
-                DownloadAction(model, item, slot)
-            }
-            // Servers before 0.56 don't say, and have no watchlist; nor does a kids profile.
-            if (!model.isKids && (item.kind == MediaKind.Movie || item.kind == MediaKind.Series)) {
-                detail.onWatchlist?.let { saved -> WatchlistAction(item, saved, detail, slot) }
-            }
-            if (item.kind == MediaKind.Episode && series != null) {
-                LabeledAction("Show", Icons.Filled.VideoLibrary, { navigator.openItem(series.id) }, slot)
-            }
-            // Another screen: a film or episode as it is, a show the episode that screen's profile is up to.
-            if (item.kind == MediaKind.Movie || item.kind == MediaKind.Episode || item.kind == MediaKind.Series) {
-                LabeledAction("Play on", Icons.Filled.Cast, { choosingScreen = true }, slot)
-            }
-            val file = detail.files.firstOrNull()
-            if (detail.canSearchSubtitles == true && file != null && !model.isKids) {
-                LabeledAction("Subtitles", Icons.Filled.ClosedCaption, { searchingSubtitlesFor = file.id }, slot.semantics { contentDescription = "Search for subtitles" })
             }
         }
     }
+    if (showingTrailer && trailer != null) TrailerSheet(trailer, "${item.title} trailer", onClose = { showingTrailer = false })
     if (choosingScreen) PlayOnSheet(LocalClient.current, item, onClose = { choosingScreen = false })
     searchingSubtitlesFor?.let { fileId ->
         SubtitleSearchSheet(

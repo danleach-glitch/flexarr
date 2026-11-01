@@ -283,7 +283,12 @@ data class ItemDetail(
     val onWatchlist: Boolean? = null,
     /** A book's edition, series, chapters and bookmarks. Absent from servers before 0.58. */
     val book: BookDetail? = null,
-)
+    /** Films and shows: the trailer on YouTube, when the server knows one. Read through [trailerId]. */
+    val trailerYouTubeId: String? = null,
+) {
+    /** The trailer's YouTube id, only when it is one: anything else from metadata never reaches a player's address. */
+    val trailerId: String? get() = youTubeId(trailerYouTubeId)
+}
 
 // People and search
 

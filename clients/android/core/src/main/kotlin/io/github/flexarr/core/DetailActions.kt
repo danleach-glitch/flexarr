@@ -56,3 +56,8 @@ object DetailActions {
         return Actions(if (menu.isEmpty()) buttons else buttons + Button.MORE, menu)
     }
 }
+
+private val YOUTUBE_ID = Regex("^[A-Za-z0-9_-]{11}$")
+
+/** [raw] when it's a YouTube video id (eleven letters, digits, - and _), else null. */
+fun youTubeId(raw: String?): String? = raw?.takeIf { YOUTUBE_ID.matches(it) }

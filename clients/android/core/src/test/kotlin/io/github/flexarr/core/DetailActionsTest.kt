@@ -107,4 +107,25 @@ class DetailActionsTest {
         val result = DetailActions.of(DetailActions.Input(Kind.MOVIE, false, false, false, false, Platform.PHONE, hasWatchlist = false))
         assertEquals(listOf(PLAY, WATCHED), result.buttons)
     }
+
+    @Test
+    fun `only a real YouTube id is a trailer`() {
+        assertEquals("nelkiuezJxg", youTubeId("nelkiuezJxg"))
+        assertEquals("a-b_C123456", youTubeId("a-b_C123456"))
+        assertEquals(null, youTubeId(null))
+        assertEquals(null, youTubeId("short"))
+        assertEquals(null, youTubeId("nelkiuezJxg\"><script>"))
+        assertEquals(null, youTubeId("abc/def?x=1"))
+    }
+
+    @Test
+    fun `an item's trailer decodes, and is absent from older servers`() {
+        val item = """{"id":"m1","libraryId":"l","kind":"Movie","title":"The Invite","childCount":0,"artwork":{},"userData":{"positionSeconds":0,"watched":false,"playCount":0}}"""
+        val withTrailer = FlexarrClient.json.decodeFromString(ItemDetail.serializer(), """{"item":$item,"trailerYouTubeId":"nelkiuezJxg"}""")
+        assertEquals("nelkiuezJxg", withTrailer.trailerId)
+        val older = FlexarrClient.json.decodeFromString(ItemDetail.serializer(), """{"item":$item}""")
+        assertEquals(null, older.trailerId)
+        val junk = FlexarrClient.json.decodeFromString(ItemDetail.serializer(), """{"item":$item,"trailerYouTubeId":"not an id"}""")
+        assertEquals(null, junk.trailerId)
+    }
 }
