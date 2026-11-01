@@ -359,7 +359,7 @@ struct BookView: View {
                     } label: {
                         Label(playLabel(item), systemImage: model.music.current?.id == item.id && model.music.isPlaying ? "pause.fill" : "play.fill")
                     }
-                    .buttonStyle(ActionButtonStyle(ambient: item.glowColor, prominent: true))
+                    .buttonStyle(ActionButtonStyle(ambient: item.ambientColor, prominent: true))
                     .focused($playFocused)
                     // Only with somewhere to start over from; part way through, it asks first.
                     if position > 0 || item.userData.watched {

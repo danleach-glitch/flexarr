@@ -172,7 +172,7 @@ struct HomeHero: View {
                     Button { play() } label: {
                         Label(resuming(item) != nil || item.isResumable ? "Resume" : "Play", systemImage: "play.fill")
                     }
-                    .buttonStyle(ActionButtonStyle(ambient: item.glowColor, prominent: true))
+                    .buttonStyle(ActionButtonStyle(ambient: item.ambientColor, prominent: true))
                     .focused($focusedButton, equals: .play)
                     .prefersDefaultFocus(true, in: heroScope)
                     .onMoveCommand { if $0 == .left { step(-1) } }
