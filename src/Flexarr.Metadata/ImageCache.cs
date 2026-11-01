@@ -88,7 +88,7 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
         ArgumentNullException.ThrowIfNull(remoteUrl);
 
         var snapped = ArtworkUrl.Snap(width);
-        var key = Hash(remoteUrl);
+        var key = Hash(Versioned(remoteUrl));
         var target = Path.Combine(Directory, key[..2], $"{key}_w{snapped}.jpg");
         if (Cached(target) is { } hit)
         {
@@ -777,6 +777,22 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
         await using var file = File.OpenRead(path);
         var read = await file.ReadAtLeastAsync(header, header.Length, throwOnEndOfStream: false, ct).ConfigureAwait(false);
         return header[..read];
+    }
+
+    /// <summary>
+    /// The cache's name for <paramref name="remoteUrl"/>: a local cover or track also by when it last changed, so a
+    /// replaced cover.jpg (or a retagged file) is read again rather than served from the copy of the old one.
+    /// </summary>
+    private static string Versioned(string remoteUrl)
+    {
+        if (!ArtworkUrl.IsLocal(remoteUrl))
+        {
+            return remoteUrl;
+        }
+
+        var local = remoteUrl.StartsWith("embedded://", StringComparison.Ordinal) ? remoteUrl["embedded://".Length..] : remoteUrl["file://".Length..];
+        var changed = File.GetLastWriteTimeUtc(local); // 1601 when it's gone; the read then finds nothing either way
+        return $"{remoteUrl}\n{changed.Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
     }
 
     private static string Hash(string value) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(value)));

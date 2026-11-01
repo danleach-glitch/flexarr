@@ -126,6 +126,45 @@ public class ImageEndpointTests(FlexarrApiFactory factory) : IClassFixture<Flexa
         }
     }
 
+    [Fact]
+    public async Task AReplacedCover_IsServedAnew()
+    {
+        if (!await HasFfmpegAsync())
+        {
+            return; // CI without ffmpeg: nothing to make the covers with
+        }
+
+        var root = Directory.CreateTempSubdirectory("flexarr-cover-").FullName;
+        try
+        {
+            var cover = Path.Combine(root, "Book", "cover.jpg");
+            Directory.CreateDirectory(Path.GetDirectoryName(cover)!);
+            await RunAsync("ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=red:s=64x64", "-frames:v", "1", cover);
+            Guid id;
+            using (var scope = factory.Services.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+                var library = new Library { Name = $"Books {Guid.NewGuid():N}", Type = LibraryType.Audiobooks, Folders = [new LibraryFolder { Path = root }] };
+                var item = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Audiobook, Title = "Book", SortTitle = "book", PosterUrl = $"file://{cover}" };
+                db.AddRange(library, item);
+                await db.SaveChangesAsync();
+                id = item.Id;
+            }
+
+            var client = factory.CreateClient();
+            var before = await client.GetByteArrayAsync(new Uri($"/api/v1/images/items/{id}/poster?w=64", UriKind.Relative));
+            await RunAsync("ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=blue:s=128x128", "-frames:v", "1", cover);
+            File.SetLastWriteTimeUtc(cover, DateTime.UtcNow.AddMinutes(1));
+            var after = await client.GetByteArrayAsync(new Uri($"/api/v1/images/items/{id}/poster?w=64&v=2", UriKind.Relative));
+
+            Assert.NotEqual(before, after);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
     private static async Task<bool> HasFfmpegAsync()
     {
         try

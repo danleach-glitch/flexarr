@@ -15,6 +15,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - **Request books** from Discover's search when one of them is connected. Whoever asked hears when it's ready to listen.
 - Kids profiles don't see audiobooks. Audible-protected `.aax` files are listed in **Library health**, as they can't be played.
 
+### Libraries
+- Replacing a `cover.jpg` or `poster.jpg` beside your files now shows the new picture after the next scan, instead of the old one staying.
+
 ## 0.57.0 · 31 October 2026
 
 ### Trakt
