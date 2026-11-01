@@ -3,17 +3,18 @@ title: Backups
 description: How Flexarr backs itself up every night, where backups are kept, and how to restore one or move your settings to another server.
 ---
 
-Your films, shows and music live on your own drives, and Flexarr can always scan them again. What it can't rebuild is everything you've added on top: profiles, what everyone has watched, playlists, collections, settings and signed-in devices. That's what a backup holds.
+Your films, shows and music live on your own drives, and Flexarr can always scan them again. What it can't rebuild is everything you've added on top: profiles, what everyone has watched, watchlists, playlists, collections, settings and signed-in devices. That's what a backup holds.
 
-Everything here is in the web app under **Settings › Backup and restore**, as the main profile.
+Everything here is in the web app under **Settings › Backup and restore**, as the main profile with settings unlocked.
 
 ![Settings › Backup and restore, listing two backups with download, restore and delete buttons, and the nightly backup switch](../../site/guide/img/backups.webp "Settings › Backup and restore")
 
 ## What's in a backup
 
-- Profiles, with their PINs and pictures
+- Profiles, with their PINs and pictures, and the admin PIN
 - What every profile has watched, and where they stopped
-- Playlists, collections, podcast follows and other per-profile data
+- Watchlists, playlists, collections, podcast follows and other per-profile data
+- Each profile's Trakt connection
 - The server's settings and keys (`config.json`)
 - Signed-in browsers, phones and TVs
 
@@ -52,10 +53,10 @@ Use the **Download** icon on a backup to save a copy to your computer. You can p
 
 ## Restore a backup
 
-Restoring puts the whole server back to how it was when the backup was made: profiles, what's been watched, settings, keys and sign-ins. Anything since is lost.
+Restoring puts the whole server back to how it was when the backup was made: profiles, what's been watched, and all your settings, keys and sign-ins. Anything since is lost.
 
 1. Find the backup in the list and use its **Restore** icon. To restore a file you downloaded, use **From a file** further down the page instead (below).
-2. Read the warning, and enter the admin PIN if it has one.
+2. Read the warning, and enter the admin PIN.
 3. Choose **Restore and restart**.
 
 Flexarr first makes a copy of the server as it is now (it appears in the list as **Before a restore**), so you can change your mind. It then restarts to put the backup in place. Anyone watching is stopped. The page reloads when Flexarr is back.
@@ -80,8 +81,8 @@ If the backup came from a different Flexarr server, Flexarr points this out. Res
 Two ways, depending on what you want to take:
 
 - **Everything, history included:** download a backup on the old server and restore it on the new one with **From a file**. Mount your media at the same paths on the new machine, or fix up the library folders afterwards in **Settings › Libraries**.
-- **Settings only:** use **Settings file › Export…** on the old server, then **From a file** on the new one. A settings file holds libraries and the server's settings, without profiles or watch history.
+- **Settings only:** use **Export…** under **Settings file** on the old server, then **From a file** on the new one. A settings file holds libraries and the server's settings, without profiles, watch history or Trakt connections.
 
-When you import a settings file, you choose which parts to take: **Libraries**, **Connections**, **Live TV**, **Streaming**, **Home and Browse**, **Podcasts**, **Notifications**, **Access**, **This machine's paths** and **Server keys**. Each library's folders can be changed to where they are on the new machine. **This machine's paths** and **Server keys** start unticked, and taking either of them, or **Access**, asks for the admin PIN.
+When you import a settings file, you choose which parts to take: **Libraries**, **Connections** (Sonarr, Radarr, Lidarr, Seerr, Bazarr, the TMDB key, your own Trakt app and path mappings), **Live TV**, **Streaming**, **Home and Browse**, **Podcasts**, **Notifications**, **Access**, **This machine's paths** and **Server keys**. Each library's folders can be changed to where they are on the new machine. **This machine's paths** and **Server keys** start unticked, and taking either of them, or **Access**, asks for the admin PIN. Log and update settings, and the admin PIN, aren't in a settings file: the new server keeps its own.
 
 See also [Updating](updating.md), which makes its own backup before any upgrade that changes the database.
