@@ -379,6 +379,7 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
             e.HasIndex(r => new { r.FulfilledAt, r.Kind, r.TmdbId });
             e.Property(r => r.BookForeignId).HasMaxLength(100);
             e.Property(r => r.BookArrId).HasMaxLength(100);
+            e.Property(r => r.BookArrInstance).HasMaxLength(200);
             e.Property(r => r.Title).HasMaxLength(500);
         });
 

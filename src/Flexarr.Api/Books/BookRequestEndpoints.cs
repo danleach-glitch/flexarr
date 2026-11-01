@@ -132,6 +132,7 @@ public static class BookRequestEndpoints
                     db.MediaRequests.Add(new MediaRequest
                     {
                         ProfileId = current.Id, Kind = MediaKind.Audiobook, BookForeignId = request.ForeignBookId, BookArrId = arrId,
+                        BookArrInstance = instance.Name,
                         Title = author is null ? title : $"{title} by {author}",
                     });
                     await db.SaveChangesAsync(ct);

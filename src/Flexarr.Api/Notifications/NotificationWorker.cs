@@ -301,9 +301,11 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
         {
             if (request.Kind == MediaKind.Audiobook)
             {
-                // In once the library has it under the id the app gave it, which the metadata refresh learns.
+                // In once the library has it under the id the app gave it, which the metadata refresh learns. The app is
+                // the one it was requested from; today's, for a request made before that was kept.
+                var app = request.BookArrInstance ?? bookApp;
                 var book = request.BookArrId is not { } arrId ? null : await db.MediaItems.AsNoTracking()
-                    .Where(i => i.Kind == MediaKind.Audiobook && i.MissingSince == null && i.Book!.ArrBookId == arrId && (bookApp == null || i.Book.ArrInstance == bookApp) && i.AddedAt <= settled)
+                    .Where(i => i.Kind == MediaKind.Audiobook && i.MissingSince == null && i.Book!.ArrBookId == arrId && (app == null || i.Book.ArrInstance == app) && i.AddedAt <= settled)
                     .Select(i => new { i.Id, i.Title, i.PosterUrl }).FirstOrDefaultAsync(ct);
                 if (book is not null)
                 {

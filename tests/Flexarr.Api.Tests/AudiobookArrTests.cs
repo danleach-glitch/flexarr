@@ -239,7 +239,7 @@ public class AudiobookArrTests(FlexarrApiFactory factory) : IClassFixture<Flexar
         Assert.Contains("POST /api/v1/command", arr.Requests);
         using var scope = app.Services.CreateScope();
         var request = await scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().MediaRequests.SingleAsync(r => r.BookForeignId == "hc:1");
-        Assert.Equal(("21", "The Impossible Fortune by Richard Osman"), (request.BookArrId, request.Title));
+        Assert.Equal(("21", "Bookshelf", "The Impossible Fortune by Richard Osman"), (request.BookArrId, request.BookArrInstance, request.Title));
 
         // Asked again, it's Requested.
         var again = await Client(app.CreateClient()).GetFromJsonAsync<JsonElement>(new Uri("/api/v1/requests/books/search?q=osman", UriKind.Relative));
