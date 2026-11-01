@@ -46,6 +46,12 @@ public enum DeviceCommandKind
     /// <see cref="DeviceCommand.EndOfChapter"/>), or turn it off (neither). Only devices that say they take it.
     /// </summary>
     Sleep,
+
+    /// <summary>
+    /// Never sent: said in <c>accepts</c> by a device that can play audiobooks (a <see cref="Play"/> of a book). Only
+    /// devices that say they take it are sent one; an older app would play a book as a video, its first file only.
+    /// </summary>
+    Book,
 }
 
 public enum DialogueBoost

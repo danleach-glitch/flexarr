@@ -171,14 +171,13 @@ public static class DeviceEndpoints
             request.TrackId is { Length: > MaxTrackId }
                 ? Results.Problem("That isn't one of the player's subtitles.", statusCode: StatusCodes.Status400BadRequest)
                 : Remote(id, DeviceCommandKind.SubtitleTrack, signIns, commands, current, trackId: string.IsNullOrEmpty(request.TrackId) ? null : request.TrackId));
-        group.MapPost("/{id}/rate", (string id, DeviceRateRequest request, SignIns signIns, DeviceCommands commands, CurrentProfile current) =>
-            request.Rate is >= 0.5 and <= 3.5
+        // Past 2× only for a book: apps play films and episodes no faster.
+        group.MapPost("/{id}/rate", (string id, DeviceRateRequest request, SignIns signIns, DeviceCommands commands, PlaybackSessions sessions, CurrentProfile current) =>
+            request.Rate is >= 0.5 and <= 2 || (request.Rate is > 2 and <= 3.5 && PlayingBook(sessions, id))
                 ? Remote(id, DeviceCommandKind.Rate, signIns, commands, current, rate: request.Rate)
-                : Results.Problem("The speed is between 0.5 and 3.5.", statusCode: StatusCodes.Status400BadRequest));
+                : Results.Problem("The speed is between 0.5 and 2 (3.5 for an audiobook).", statusCode: StatusCodes.Status400BadRequest));
         group.MapPost("/{id}/sleep", (string id, DeviceSleepRequest request, SignIns signIns, DeviceCommands commands, CurrentProfile current) =>
-            request.Minutes is null or (>= 1 and <= 600)
-                ? Remote(id, DeviceCommandKind.Sleep, signIns, commands, current, seconds: request.EndOfChapter ? null : request.Minutes * 60, endOfChapter: request.EndOfChapter ? true : null)
-                : Results.Problem("Sleep in 1 to 600 minutes, or at the end of the chapter.", statusCode: StatusCodes.Status400BadRequest));
+            Sleep(id, request, signIns, commands, current));
         foreach (var (path, kind) in new[] { ("next", DeviceCommandKind.Next), ("previous", DeviceCommandKind.Previous), ("skip-segment", DeviceCommandKind.SkipSegment) })
         {
             group.MapPost($"/{{id}}/{path}", (string id, SignIns signIns, DeviceCommands commands, CurrentProfile current) => Remote(id, kind, signIns, commands, current));
@@ -237,15 +236,20 @@ public static class DeviceEndpoints
         return api;
     }
 
-    /// <summary>Sends a remote's command to a device that's listening and takes it: 409 when it isn't open, or its app is too old.</summary>
-    /// <summary>The same as the sleep endpoint, for the assistant's tools.</summary>
+    /// <summary>The sleep timer on a device, for the endpoint and the assistant's tools: 400 unless it's 1 to 600 minutes, the end of the chapter, or off.</summary>
     public static IResult Sleep(string deviceId, DeviceSleepRequest request, SignIns signIns, DeviceCommands commands, CurrentProfile current)
     {
         ArgumentNullException.ThrowIfNull(request);
+        if (request.Minutes is { } minutes && !(double.IsFinite(minutes) && minutes is >= 1 and <= 600))
+        {
+            return Results.Problem("Sleep in 1 to 600 minutes, or at the end of the chapter.", statusCode: StatusCodes.Status400BadRequest);
+        }
+
         return Remote(deviceId, DeviceCommandKind.Sleep, signIns, commands, current, seconds: request.EndOfChapter ? null : request.Minutes * 60,
             endOfChapter: request.EndOfChapter ? true : null);
     }
 
+    /// <summary>Sends a remote's command to a device that's listening and takes it: 409 when it isn't open, or its app is too old.</summary>
     private static IResult Remote(string deviceId, DeviceCommandKind kind, SignIns signIns, DeviceCommands commands, CurrentProfile current, double? seconds = null,
         string? trackId = null, double? rate = null, bool? endOfChapter = null)
     {
@@ -278,6 +282,14 @@ public static class DeviceEndpoints
     }
 
     private const int MaxTrackId = 64;
+
+    /// <summary>The device is playing a book now.</summary>
+    private static bool PlayingBook(PlaybackSessions sessions, string deviceId)
+    {
+        var now = DateTime.UtcNow;
+        return sessions.Active.Where(s => s.SignInId == deviceId && PlaybackSessions.Shows(s, now)).OrderByDescending(s => s.LastSeen).FirstOrDefault()
+            is { BookParts: not null };
+    }
 
     /// <summary>Who a Live Activity belongs to: the sign-in, or for the API key itself null (it may end any); any other way in (the home network, Tailscale) by its method.</summary>
     private static string? Owner(CurrentProfile current, HttpContext http) =>
@@ -399,6 +411,14 @@ public static class DeviceEndpoints
         if (target is null)
         {
             return new PlayOutcome(null, false, $"\"{item.Title}\" has nothing that can be played.", 409);
+        }
+
+        // An app from before books would play one as a video: only its first file, and finish the whole book at its end.
+        if (target.Kind == MediaKind.Audiobook && !commands.Takes(device.Id, DeviceCommandKind.Book))
+        {
+            return new PlayOutcome(null, false, commands.Accepts(device.Id) is null && !commands.IsOnline(device.Id)
+                ? $"Open Flexarr on {device.Name} first, so it can say whether it plays audiobooks."
+                : $"The Flexarr app on {device.Name} can't play audiobooks yet: update it.", StatusCodes.Status409Conflict);
         }
 
         // Shuffling a show: the device is handed the show itself and asks for random episodes as it goes.

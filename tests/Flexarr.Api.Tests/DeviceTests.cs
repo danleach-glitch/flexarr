@@ -304,8 +304,25 @@ public class DeviceTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
         Assert.Equal(HttpStatusCode.OK, (await Admin().PostAsJsonAsync(Api($"/devices/{id}/sleep"), new { endOfChapter = true })).StatusCode);
         Assert.True((await NextCommandAsync(reader)).GetProperty("endOfChapter").GetBoolean());
 
-        // A book's speed goes past 2×.
+        // Past 2× only while a book plays there.
+        Assert.Equal(HttpStatusCode.BadRequest, (await Admin().PostAsJsonAsync(Api($"/devices/{id}/rate"), new { rate = 2.5 })).StatusCode);
+        var sessions = factory.Services.GetRequiredService<PlaybackSessions>();
+        var film = Session(id, Guid.NewGuid());
+        sessions.Add(film);
+        Assert.Equal(HttpStatusCode.BadRequest, (await Admin().PostAsJsonAsync(Api($"/devices/{id}/rate"), new { rate = 2.5 })).StatusCode);
+        await sessions.RemoveAsync(film.Id);
+        var fileId = Guid.NewGuid();
+        var book = new PlaybackSession
+        {
+            Id = Guid.NewGuid().ToString("N"), ItemId = Guid.NewGuid(), ProfileId = PlaybackState.DefaultUser, SignInId = id, FileId = fileId, FilePath = "",
+            Container = null, DurationSeconds = 3600, Method = PlaybackMethod.DirectPlay, Subtitles = [], CreditsStart = null,
+            BookParts = [new Flexarr.Api.Books.BookPart(0, fileId, "/b/01.mp3", 0, 3600, null, "mp3", 1, false)],
+        };
+        sessions.Add(book);
         Assert.Equal(HttpStatusCode.OK, (await Admin().PostAsJsonAsync(Api($"/devices/{id}/rate"), new { rate = 2.5 })).StatusCode);
+        Assert.Equal(2.5, (await NextCommandAsync(reader)).GetProperty("rate").GetDouble());
+        Assert.Equal(HttpStatusCode.BadRequest, (await Admin().PostAsJsonAsync(Api($"/devices/{id}/rate"), new { rate = 4 })).StatusCode);
+        await sessions.RemoveAsync(book.Id);
         Assert.Equal(HttpStatusCode.BadRequest, (await Admin().PostAsJsonAsync(Api($"/devices/{id}/sleep"), new { minutes = 0 })).StatusCode);
         response.Dispose();
 
@@ -495,6 +512,46 @@ public class DeviceTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
         Assert.Equal(HttpStatusCode.Conflict, sent.StatusCode);
         Assert.Contains("update it", await sent.Content.ReadAsStringAsync(), StringComparison.Ordinal);
         response.Dispose();
+    }
+
+    [Fact]
+    public async Task ABook_IsSentOnlyToADeviceThatSaysItPlaysThem()
+    {
+        var book = await SeedBookAsync();
+        var (id, phone) = await DeviceAsync("Book phone");
+        var (response, reader) = await ListenAsync(phone, "?accepts=Sleep,Book");
+
+        var listed = (await Admin().GetFromJsonAsync<JsonElement>(Api("/devices"))).EnumerateArray().Single(d => d.GetProperty("id").GetString() == id);
+        Assert.Contains("Book", listed.GetProperty("accepts").EnumerateArray().Select(a => a.GetString()));
+        Assert.Equal(HttpStatusCode.OK, (await Admin().PostAsJsonAsync(Api($"/devices/{id}/play"), new { itemId = book })).StatusCode);
+        var play = await NextCommandAsync(reader);
+        Assert.Equal(("Play", book), (play.GetProperty("kind").GetString(), play.GetProperty("itemId").GetGuid()));
+        response.Dispose();
+
+        // An app from before books would play it as a video.
+        var (old, oldTv) = await DeviceAsync("Old book TV");
+        var (oldResponse, _) = await ListenAsync(oldTv, "?accepts=Seek");
+        var refused = await Admin().PostAsJsonAsync(Api($"/devices/{old}/play"), new { itemId = book });
+        Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+        Assert.Contains("can't play audiobooks", await refused.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        oldResponse.Dispose();
+
+        // One that hasn't said since the server started: open it first.
+        var (never, _) = await DeviceAsync("Sleeping TV");
+        var unknown = await Admin().PostAsJsonAsync(Api($"/devices/{never}/play"), new { itemId = book });
+        Assert.Equal(HttpStatusCode.Conflict, unknown.StatusCode);
+        Assert.Contains("Open Flexarr on Sleeping TV", await unknown.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+    }
+
+    private async Task<Guid> SeedBookAsync()
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        var library = new Library { Name = $"Books {Guid.NewGuid():N}", Type = LibraryType.Audiobooks };
+        var book = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Audiobook, Title = "A Device Book", SortTitle = "device book" };
+        db.AddRange(library, book);
+        await db.SaveChangesAsync();
+        return book.Id;
     }
 
     private static PlaybackSession Session(string deviceId, Guid itemId) => new()

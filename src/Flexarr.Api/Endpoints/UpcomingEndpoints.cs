@@ -137,8 +137,12 @@ public static class UpcomingEndpoints
 
         // Books by authors the app follows, on their release day. Shown only to profiles that can see an audiobooks library.
         var bookIds = bookCalendars.SelectMany(c => c).Select(b => b.Id).OfType<string>().Distinct().ToList();
-        var ownBooks = bookIds.Count == 0 ? [] : await db.BookDetails.Where(d => d.ArrBookId != null && bookIds.Contains(d.ArrBookId))
-            .Select(d => new { d.ArrBookId, d.MediaItemId }).ToListAsync(ct);
+        // Through MediaItems, whose filter hides the libraries this profile can't see: no id of a book in one.
+        var ownBooks = bookIds.Count == 0 ? [] : await (
+            from d in db.BookDetails
+            join i in db.MediaItems on d.MediaItemId equals i.Id
+            where d.ArrBookId != null && bookIds.Contains(d.ArrBookId)
+            select new { d.ArrBookId, d.MediaItemId }).ToListAsync(ct);
         foreach (var (readarr, calendar) in readarrs.Zip(bookCalendars))
         {
             foreach (var book in calendar.Where(b => b.ReleaseDate is not null))

@@ -143,6 +143,12 @@ public static class BookRequestEndpoints
             {
                 return Results.Problem($"{instance.Name} didn't accept the request ({(int?)ex.StatusCode ?? 0}): {ex.Message}", statusCode: 502);
             }
+            catch (Exception ex) when (ex is TaskCanceledException or System.Text.Json.JsonException or InvalidOperationException or FormatException
+                && !ct.IsCancellationRequested)
+            {
+                // A timeout, or an answer that isn't the one expected (a proxy's page, an add that names no book).
+                return Results.Problem($"{instance.Name} didn't answer the request as expected.", statusCode: 502);
+            }
         });
 
         // Where requested books go, chosen by an admin.

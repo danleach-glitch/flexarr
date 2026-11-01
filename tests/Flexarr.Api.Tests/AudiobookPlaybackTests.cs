@@ -59,6 +59,20 @@ public class AudiobookPlaybackTests(FlexarrApiFactory factory) : IClassFixture<F
         Assert.Equal((950.0, "Dan's iPhone"), (progress.PositionSeconds, progress.Device));
     }
 
+    [Theory]
+    [InlineData(null, false)] // an app from before books plays the first file as a video: its end isn't the book's
+    [InlineData("Dan's iPhone", true)]
+    public async Task AnEnd_FinishesABookOfSeveralFiles_OnlyFromAPlayerThatKnowsBooks(string? deviceName, bool finished)
+    {
+        var book = await SeedAsync(("01.mp3", "mp3", 600), ("02.mp3", "mp3", 600));
+        var started = await Client().PostAsJsonAsync(Url("/api/v1/playback"), new { itemId = book, profile = new { audioCodecs = new[] { "aac", "mp3" } }, deviceName });
+        var info = (await started.Content.ReadFromJsonAsync<PlaybackInfoDto>(Json))!;
+
+        (await Client().PostAsJsonAsync(Url($"/api/v1/playback/{info.SessionId}/progress"), new { positionSeconds = 600, ended = true })).EnsureSuccessStatusCode();
+
+        Assert.Equal(finished, (await GetAsync<BookManifestDto>($"/api/v1/items/{book}/book")).Progress.Finished);
+    }
+
     [Fact]
     public async Task ADownload_GetsEachFile_AndCanResumePartWay()
     {
@@ -77,6 +91,20 @@ public class AudiobookPlaybackTests(FlexarrApiFactory factory) : IClassFixture<F
     }
 
     [Fact]
+    public async Task AFileEveryPlayerDecodes_IsNeverConverted_WhateverTheAddressSays()
+    {
+        var book = await SeedAsync(("01.mp3", "mp3", 600), ("02.m4b", "aac", 600));
+
+        foreach (var (index, name, type) in new[] { (0, "01.mp3", "audio/mpeg"), (1, "02.m4b", "audio/mp4") })
+        {
+            var file = await Client().GetAsync(Url($"/api/v1/items/{book}/book/files/{index}?convert=aac"));
+            Assert.Equal(HttpStatusCode.OK, file.StatusCode);
+            Assert.Equal(name, await file.Content.ReadAsStringAsync());
+            Assert.Equal(type, file.Content.Headers.ContentType?.MediaType);
+        }
+    }
+
+    [Fact]
     public async Task Progress_TheNewestRecordingWins()
     {
         var book = await SeedAsync(("book.m4b", "aac", 36000));
@@ -88,6 +116,46 @@ public class AudiobookPlaybackTests(FlexarrApiFactory factory) : IClassFixture<F
 
         Assert.Equal((5000.0, "iPhone"), (stale.PositionSeconds, stale.Device));
         Assert.Equal((6000.0, "Web"), (newer.PositionSeconds, newer.Device));
+    }
+
+    [Fact]
+    public async Task TwoFirstReportsAtOnce_BothCount()
+    {
+        var book = await SeedAsync(("book.m4b", "aac", 36000));
+        string connection;
+        using (var scope = factory.Services.CreateScope())
+        {
+            connection = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().Database.GetConnectionString()!;
+        }
+
+        // The other report inserts the row between this one looking for it and saving.
+        var other = new InsertFirst(connection, book);
+        await using var db = new FlexarrDbContext(new DbContextOptionsBuilder<FlexarrDbContext>().UseSqlite(connection).AddInterceptors(other).Options);
+
+        var progress = await BookPlayback.RecordAsync(db, book, PlaybackState.DefaultUser, new BookProgressRequest(5000, "iPhone", DateTime.UtcNow), CancellationToken.None);
+
+        Assert.True(other.Inserted);
+        Assert.Equal((5000.0, "iPhone"), (progress!.PositionSeconds, progress.Device));
+    }
+
+    private sealed class InsertFirst(string connection, Guid book) : Microsoft.EntityFrameworkCore.Diagnostics.SaveChangesInterceptor
+    {
+        public bool Inserted { get; private set; }
+
+        public override async ValueTask<Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<int>> SavingChangesAsync(
+            Microsoft.EntityFrameworkCore.Diagnostics.DbContextEventData eventData, Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+        {
+            if (!Inserted)
+            {
+                Inserted = true;
+                await using var db = new FlexarrDbContext(new DbContextOptionsBuilder<FlexarrDbContext>().UseSqlite(connection).Options);
+                db.PlaybackStates.Add(new PlaybackState { UserId = PlaybackState.DefaultUser, MediaItemId = book, PositionSeconds = 100, LastPlayedAt = DateTime.UtcNow.AddMinutes(-1) });
+                await db.SaveChangesAsync(cancellationToken);
+            }
+
+            return result;
+        }
     }
 
     [Theory]
@@ -102,6 +170,22 @@ public class AudiobookPlaybackTests(FlexarrApiFactory factory) : IClassFixture<F
 
         Assert.Equal(finished, progress.Finished);
         Assert.Equal(finished, progress.FinishedAt is not null);
+    }
+
+    [Fact]
+    public async Task MarkingABookWatched_FinishesIt_AndUnwatchedForgetsWhen()
+    {
+        var book = await SeedAsync(("book.m4b", "aac", 3600));
+
+        (await Client().PostAsJsonAsync(Url($"/api/v1/items/{book}/watched"), new { watched = true })).EnsureSuccessStatusCode();
+        var finished = (await GetAsync<BookManifestDto>($"/api/v1/items/{book}/book")).Progress;
+        (await Client().PostAsJsonAsync(Url($"/api/v1/items/{book}/watched"), new { watched = false })).EnsureSuccessStatusCode();
+        var unfinished = (await GetAsync<BookManifestDto>($"/api/v1/items/{book}/book")).Progress;
+
+        Assert.True(finished.Finished);
+        Assert.NotNull(finished.FinishedAt);
+        Assert.False(unfinished.Finished);
+        Assert.Null(unfinished.FinishedAt);
     }
 
     [Fact]
