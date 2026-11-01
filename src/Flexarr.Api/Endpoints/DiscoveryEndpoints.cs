@@ -82,7 +82,9 @@ public static partial class DiscoveryEndpoints
             var (continueWatching, continueRow) = await ContinueWatchingOrListeningAsync(db, me, RowSize, listenBooks, listenPodcasts, ct);
             if (continueRow.Count > 0)
             {
-                rows.Add(new HomeRowDto("continue", listenBooks.Count > 0 || listenPodcasts.Count > 0 ? "Continue watching or listening" : "Continue watching", "wide", continueRow));
+                // "or listening" only when there's something to listen to in it, not for every profile that could.
+                var listeningIn = continueRow.Any(i => i.Kind is MediaKind.Audiobook or MediaKind.PodcastEpisode);
+                rows.Add(new HomeRowDto("continue", listeningIn ? "Continue watching or listening" : "Continue watching", "wide", continueRow));
             }
 
             // Titles from this profile's watchlist it can play now; nothing until something on the list is in. A kids profile has none.

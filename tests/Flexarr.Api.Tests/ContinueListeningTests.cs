@@ -78,6 +78,19 @@ public class ContinueListeningTests(FlexarrApiFactory factory) : IClassFixture<F
     }
 
     [Fact]
+    public async Task WithNothingToListenTo_TheRowIsContinueWatching()
+    {
+        var (client, seeded) = await SeedProfileAsync();
+        await client.DeleteAsync(Api($"home/continue/{seeded.Book}"));
+        await client.DeleteAsync(Api($"home/continue/{seeded.Episode}"));
+
+        var rows = await RowsAsync(client, "home?listening=books,podcasts");
+
+        Assert.Equal("Continue watching", rows["continue"].Title);
+        Assert.Equal([seeded.Film], rows["continue"].Ids);
+    }
+
+    [Fact]
     public async Task TheSwitchOff_FilmsAndShowsOnly_AndContinueListeningIsBack()
     {
         var (client, seeded) = await SeedProfileAsync();
