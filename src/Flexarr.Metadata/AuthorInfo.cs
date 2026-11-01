@@ -347,7 +347,8 @@ public sealed partial class AuthorInfo(FlexarrDbContext db, ArrClient arr, IMeta
 
     /// <summary>
     /// The files in an author folder: none when it's gone from a library folder that's there, null when it can't be
-    /// read or its library folder is missing or empty (a share that isn't mounted).
+    /// read or its library folder is missing or empty (a share that isn't mounted). Links are left out: an author.jpg
+    /// linked to a picture elsewhere would show something from outside the library.
     /// </summary>
     internal static string[]? ListFolder(string folder)
     {
@@ -355,7 +356,7 @@ public sealed partial class AuthorInfo(FlexarrDbContext db, ArrClient arr, IMeta
         {
             if (Directory.Exists(folder))
             {
-                return Directory.GetFiles(folder);
+                return [.. Directory.GetFiles(folder).Where(f => new FileInfo(f).LinkTarget is null)];
             }
 
             var root = Path.GetDirectoryName(folder);

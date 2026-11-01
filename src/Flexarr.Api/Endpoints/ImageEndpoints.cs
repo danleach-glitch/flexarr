@@ -206,7 +206,8 @@ public static class ImageEndpoints
     /// <summary>Whether a local photo of a person is a file in a folder of one of the libraries they're credited in.</summary>
     private static async Task<bool> PersonInLibraryAsync(FlexarrDbContext db, Guid personId, string url, CancellationToken ct)
     {
-        if (ArtworkUrl.LocalPath(url) is not { Length: > 0 } path)
+        // Not a link, which could lead anywhere from inside the library.
+        if (ArtworkUrl.LocalPath(url) is not { Length: > 0 } path || (File.Exists(path) && new FileInfo(path).LinkTarget is not null))
         {
             return false;
         }
@@ -227,7 +228,8 @@ public static class ImageEndpoints
             return false;
         }
 
-        if (ArtworkUrl.LocalPath(url) is not { Length: > 0 } path)
+        // Not a link, which could lead anywhere from inside the library.
+        if (ArtworkUrl.LocalPath(url) is not { Length: > 0 } path || (File.Exists(path) && new FileInfo(path).LinkTarget is not null))
         {
             return false;
         }

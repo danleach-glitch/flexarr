@@ -260,6 +260,20 @@ public sealed class AuthorInfoTests : IAsyncLifetime
         Assert.Equal((found, listed), (photo is not null, wasListed));
     }
 
+    [Fact]
+    public async Task ALinkedAuthorPhoto_IsntTaken()
+    {
+        var elsewhere = Path.Combine(_dir, "elsewhere.jpg");
+        await File.WriteAllBytesAsync(elsewhere, [0xFF, 0xD8, 0xFF]);
+        var folder = Directory.CreateDirectory(Path.Combine(Books, Osman)).FullName;
+        File.CreateSymbolicLink(Path.Combine(folder, "author.jpg"), elsewhere);
+        var library = await SeedAsync(new Person { Name = Osman, Biography = "Known.", InfoCheckedAt = DateTime.UtcNow });
+
+        await Refresher().RefreshLibraryAsync(library, force: true, default);
+
+        Assert.Null((await PersonAsync(Osman)).ImageUrl);
+    }
+
     /// <summary>Just the authors, online providers left out.</summary>
     private AuthorInfo Authors(BookProviders? providers = null) =>
         new(_db, new ArrClient(new HttpClient(_web)), new Settings(_dir, []), providers, NullLogger.Instance);
