@@ -212,7 +212,7 @@ private fun BookPage(model: AppModel, detail: ItemDetail, defaultSpeed: Double, 
                 if (position > 0 && !finished && duration > 0) ProgressBar(position / duration)
                 val label = when {
                     playingThis && player.isPlaying -> "Pause"
-                    finished -> "Listen again"
+                    finished -> "Start over"
                     position > 0 -> "Resume"
                     else -> "Play"
                 }
