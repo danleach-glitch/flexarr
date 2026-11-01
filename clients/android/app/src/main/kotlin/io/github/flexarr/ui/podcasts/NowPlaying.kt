@@ -168,14 +168,14 @@ fun NowPlayingBar(model: AppModel) {
         val cast = Casting.shared?.takeIf { it.casts(Casting.Kind.Podcast) }
         if (cast != null) {
             RoundButton(if (cast.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, if (cast.isPlaying) "Pause" else "Play", cast::togglePlayPause)
-            RoundButton(Icons.Filled.Forward30, "Forward 30 seconds") { cast.skip(30) }
+            ForwardButton(player.skipForward) { cast.skip(player.skipForward) }
         } else {
             if (player.isLoading) {
                 Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Flexarr.screen, modifier = Modifier.size(20.dp), strokeWidth = 2.dp) }
             } else {
                 RoundButton(if (player.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, if (player.isPlaying) "Pause" else "Play", player::togglePlayPause)
             }
-            RoundButton(Icons.Filled.Forward30, "Forward 30 seconds") { player.skip(30) }
+            ForwardButton(player.skipForward) { player.skip(player.skipForward) }
         }
     }
     if (model.showsNowPlaying) NowPlayingSheet(model, onDismiss = { model.showsNowPlaying = false })
@@ -185,6 +185,16 @@ fun NowPlayingBar(model: AppModel) {
 private fun RoundButton(icon: ImageVector, label: String, onClick: () -> Unit) {
     Box(Modifier.minimumInteractiveComponentSize().size(40.dp).clip(CircleShape).pressable(onClick), contentAlignment = Alignment.Center) {
         Icon(icon, contentDescription = label, tint = Flexarr.screen, modifier = Modifier.size(24.dp))
+    }
+}
+
+/** The bar's skip forward, by the profile's step: Material's 30 when it's 30, otherwise the step in a turned arrow. */
+@Composable
+private fun ForwardButton(seconds: Int, onClick: () -> Unit) {
+    if (seconds == 30) return RoundButton(Icons.Filled.Forward30, "Forward 30 seconds", onClick)
+    Box(Modifier.minimumInteractiveComponentSize().size(40.dp).clip(CircleShape).pressable(onClick), contentAlignment = Alignment.Center) {
+        Icon(Icons.Filled.Replay, contentDescription = "Forward $seconds seconds", tint = Flexarr.screen, modifier = Modifier.size(24.dp).scale(scaleX = -1f, scaleY = 1f))
+        Text("$seconds", fontSize = 7.sp, fontWeight = FontWeight.Bold, color = Flexarr.screen, modifier = Modifier.padding(top = 2.dp))
     }
 }
 
@@ -288,12 +298,13 @@ fun NowPlayingSheet(model: AppModel, onDismiss: () -> Unit) {
                     Scrubber(player, chapters, scrubbing) { scrubbing = it }
                     player.errorMessage?.let { Text(it, fontSize = 13.sp, color = Flexarr.danger, textAlign = TextAlign.Center) }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-                        Transport(Icons.Filled.Replay, "Back 15 seconds", badge = "15") { player.skip(-15) }
+                        Transport(Icons.Filled.Replay, "Back ${player.skipBack} seconds", badge = "${player.skipBack}") { player.skip(-player.skipBack) }
                         Box(Modifier.size(76.dp).clip(CircleShape).background(Flexarr.screen).pressable(player::togglePlayPause), contentAlignment = Alignment.Center) {
                             if (player.isLoading) CircularProgressIndicator(color = Flexarr.room, modifier = Modifier.size(28.dp))
                             else Icon(if (player.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, contentDescription = if (player.isPlaying) "Pause" else "Play", tint = Flexarr.room, modifier = Modifier.size(32.dp))
                         }
-                        Transport(Icons.Filled.Forward30, "Forward 30 seconds") { player.skip(30) }
+                        if (player.skipForward == 30) Transport(Icons.Filled.Forward30, "Forward 30 seconds") { player.skip(30) }
+                        else Transport(Icons.Filled.Replay, "Forward ${player.skipForward} seconds", badge = "${player.skipForward}", mirrored = true) { player.skip(player.skipForward) }
                     }
                 }
                 // Speed, the sleep timer, Notes, Cast and the episode's menu: of a kind, evenly spaced, each lit while it's set.
@@ -511,9 +522,9 @@ private fun Scrubber(player: PodcastPlayer, chapters: List<PodcastChapter>, scru
 }
 
 @Composable
-private fun Transport(icon: ImageVector, label: String, badge: String? = null, onClick: () -> Unit) {
+private fun Transport(icon: ImageVector, label: String, badge: String? = null, mirrored: Boolean = false, onClick: () -> Unit) {
     Box(Modifier.size(56.dp).clip(CircleShape).pressable(onClick), contentAlignment = Alignment.Center) {
-        Icon(icon, contentDescription = label, tint = Flexarr.screen, modifier = Modifier.size(30.dp))
+        Icon(icon, contentDescription = label, tint = Flexarr.screen, modifier = Modifier.size(30.dp).then(if (mirrored) Modifier.scale(scaleX = -1f, scaleY = 1f) else Modifier))
         // Material has a 30 but no 15: the number goes inside the arrow.
         badge?.let { Text(it, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Flexarr.screen, modifier = Modifier.padding(top = 3.dp)) }
     }

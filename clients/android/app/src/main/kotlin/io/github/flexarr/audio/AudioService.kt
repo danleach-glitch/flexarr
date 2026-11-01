@@ -44,7 +44,7 @@ class AudioService : MediaLibraryService() {
         return when {
             model.music.current != null -> model.music.sessionPlayer
             model.books.current != null -> model.books.sessionPlayer
-            else -> model.podcasts.player
+            else -> model.podcasts.sessionPlayer
         }
     }
 
