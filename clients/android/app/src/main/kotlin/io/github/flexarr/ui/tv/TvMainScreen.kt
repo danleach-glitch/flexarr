@@ -103,6 +103,7 @@ import io.github.flexarr.ui.profiles.ProfileAvatar
 import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.marquee
 import io.github.flexarr.ui.theme.Tokens
+import androidx.compose.material.icons.outlined.BookmarkBorder
 
 /** A screen of its own in the sidebar: Home, a library, Discover, Search or Settings. [route] is its first screen's. */
 private data class TvTab(val route: String, val title: String, val icon: ImageVector) {
@@ -110,6 +111,7 @@ private data class TvTab(val route: String, val title: String, val icon: ImageVe
         val Home = TvTab("home", "Home", Icons.Outlined.Home)
         val LiveTv = TvTab("tab/livetv", "Live TV", Icons.Outlined.SettingsInputAntenna)
         val Discover = TvTab("discover", "Discover", Icons.Outlined.AutoAwesome)
+        val Watchlist = TvTab("watchlist", "Watchlist", Icons.Outlined.BookmarkBorder)
         val Search = TvTab("search", "Search", Icons.Outlined.Search)
         val Settings = TvTab("settings", "Settings", Icons.Outlined.Settings)
 
@@ -170,6 +172,8 @@ fun TvMainScreen(model: AppModel) {
     LaunchedEffect(model.credentials) { model.listenForCommands() }
     // Whether the server has Live TV, for its place in the sidebar.
     LaunchedEffect(model.credentials, model.isKids) { model.loadLiveTvStatus() }
+    // Whether the server keeps watchlists, and what's on this profile's (the sidebar, cards' menus and title pages offer it).
+    LaunchedEffect(model.credentials, model.isKids) { model.refreshWatchlist() }
 
     fun closeSidebar() {
         sidebarOpen = false
@@ -271,8 +275,9 @@ fun TvMainScreen(model: AppModel) {
             }
             AppLink.Search -> select(TvTab.Search)
             AppLink.Home -> select(TvTab.Home)
-            // Podcasts, downloads and the watchlist aren't on the TV yet, and nothing here sends it a pairing or PIN notification.
-            is AppLink.Podcast, is AppLink.PodcastEpisode, AppLink.Downloads, is AppLink.Pairing, AppLink.Watchlist, AppLink.Settings, is AppLink.Join -> Unit
+            AppLink.Watchlist -> if (model.hasWatchlist && !model.isKids) select(TvTab.Watchlist)
+            // Podcasts and downloads aren't on the TV, and nothing here sends it a pairing or PIN notification.
+            is AppLink.Podcast, is AppLink.PodcastEpisode, AppLink.Downloads, is AppLink.Pairing, AppLink.Settings, is AppLink.Join -> Unit
         } }
     }
     // Words said to the Assistant ("search Flexarr for Fargo"): Search takes them in.
@@ -329,6 +334,7 @@ fun TvMainScreen(model: AppModel) {
                     }
                     composable(TvTab.LiveTv.route) { TvLiveTvScreen(model, takeFocus = arrives(TvTab.LiveTv.route), onFocusTaken = arrived(TvTab.LiveTv.route)) }
                     composable(TvTab.Discover.route) { TvDiscoverScreen(model) }
+                    composable(TvTab.Watchlist.route) { TvWatchlistScreen(model) }
                     composable(TvTab.Search.route) { TvSearchScreen(model, takeFocus = arrives(TvTab.Search.route), onFocusTaken = arrived(TvTab.Search.route)) }
                     composable(TvTab.Settings.route) { TvSettingsScreen(model, onSwitchProfile = { choosingProfile = true }) }
                     composable("item/{id}") { TvDetailScreen(model, it.arguments!!.getString("id")!!) }
@@ -351,7 +357,9 @@ fun TvMainScreen(model: AppModel) {
             // Music carries on under every screen; the bar says what's playing.
             TvNowPlayingBar(model, Modifier.align(Alignment.BottomCenter), onShown = { barShown = it })
             val showsDiscover = model.currentProfile?.hidesFromMenu(MenuItem.DISCOVER) != true
-            val tabs = listOf(TvTab.Home) + libraryTabs + listOfNotNull(TvTab.Discover.takeIf { showsDiscover }, TvTab.Search, TvTab.Settings)
+            // The watchlist: the server keeps one, it isn't a kids profile, and the profile didn't hide it from the menu.
+            val showsWatchlist = model.hasWatchlist && !model.isKids && model.currentProfile?.hidesFromMenu(MenuItem.WATCHLIST) != true
+            val tabs = listOf(TvTab.Home) + libraryTabs + listOfNotNull(TvTab.Discover.takeIf { showsDiscover }, TvTab.Watchlist.takeIf { showsWatchlist }, TvTab.Search, TvTab.Settings)
             Sidebar(model, sidebarOpen, tabs, tabRoute, onSelect = ::select, onProfile = {
                 closeSidebar()
                 choosingProfile = true
