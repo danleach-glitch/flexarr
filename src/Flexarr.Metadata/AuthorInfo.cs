@@ -122,7 +122,7 @@ public sealed partial class AuthorInfo(FlexarrDbContext db, ArrClient arr, IMeta
         {
             try
             {
-                if (await AudibleAsync(person, knownAsins, ct).ConfigureAwait(false) is { } audible)
+                if (await AudibleAsync(person, knownAsins, remember: true, ct).ConfigureAwait(false) is { } audible)
                 {
                     Take(person, audible.Biography, audible.Image, PersonSources.Audible, now);
                 }
@@ -194,7 +194,7 @@ public sealed partial class AuthorInfo(FlexarrDbContext db, ArrClient arr, IMeta
         {
             try
             {
-                if (await AudibleAsync(person, [], ct).ConfigureAwait(false) is { } audible)
+                if (await AudibleAsync(person, [], remember: false, ct).ConfigureAwait(false) is { } audible)
                 {
                     Add(PersonSources.Audible, OnlinePhoto(audible.Image, PersonSources.Audible), audible.Biography);
                 }
@@ -229,8 +229,12 @@ public sealed partial class AuthorInfo(FlexarrDbContext db, ArrClient arr, IMeta
         : uri?.Host == "covers.openlibrary.org" ? PersonSources.OpenLibrary
         : Current;
 
-    /// <summary>Audible's photo and biography: by the ASIN the person has, else (or when that's unknown there) by name.</summary>
-    private async Task<BookAuthorInfo?> AudibleAsync(Person person, IReadOnlyCollection<string> knownAsins, CancellationToken ct)
+    /// <summary>
+    /// Audible's photo and biography: by the ASIN the person has, else (or when that's unknown there) by name. An ASIN
+    /// found by name is kept on the person only when <paramref name="remember"/> (a refresh, not the editor's list of
+    /// candidates, which may be saved with whatever else an admin changes).
+    /// </summary>
+    private async Task<BookAuthorInfo?> AudibleAsync(Person person, IReadOnlyCollection<string> knownAsins, bool remember, CancellationToken ct)
     {
         if (person.Asin is { Length: > 0 } asin && await providers!.AuthorAsync(asin, ct).ConfigureAwait(false) is { } byAsin)
         {
@@ -244,7 +248,7 @@ public sealed partial class AuthorInfo(FlexarrDbContext db, ArrClient arr, IMeta
         }
 
         var info = await providers.AuthorAsync(found, ct).ConfigureAwait(false);
-        if (info is not null)
+        if (info is not null && remember)
         {
             person.Asin ??= found;
         }

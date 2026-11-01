@@ -336,6 +336,19 @@ public sealed class AuthorInfoTests : IAsyncLifetime
         Assert.EndsWith("word…", biography, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task Candidates_LeaveThePersonAsTheyWere()
+    {
+        await SeedAsync(new Person { Name = Osman });
+        var osman = await _db.People.SingleAsync(p => p.Name == Osman);
+
+        var (photos, _) = await Authors(new BookProviders(new HttpClient(_web), () => new Settings(_dir, []), new BookProviderThrottle())).CandidatesAsync(osman, default);
+
+        Assert.Contains(photos, p => p.Source == "audible");
+        Assert.Null(osman.Asin); // found by name, for showing only
+        Assert.False(_db.ChangeTracker.HasChanges());
+    }
+
     /// <summary>Just the authors, online providers left out.</summary>
     private AuthorInfo Authors(BookProviders? providers = null) =>
         new(_db, new ArrClient(new HttpClient(_web)), new Settings(_dir, []), providers, NullLogger.Instance);
