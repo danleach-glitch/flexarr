@@ -17,7 +17,7 @@ import {
 import { AsyncButton } from '../components/AsyncButton'
 import { BookPersonCard, BookSeriesCard } from '../components/BookCards'
 import { PosterCard } from '../components/Cards'
-import { ChevronLeft } from '../components/icons'
+import { ChevronLeft, ChevronRight } from '../components/icons'
 import { Row } from '../components/Row'
 import { ScanProgress } from '../components/ScanProgress'
 import { useLibraries } from '../hooks/librariesContext'
@@ -125,19 +125,20 @@ function Shelves({ library }: { library: Library }) {
   )
 }
 
-/** The library's genres, A–Z, each opening a page of its books. */
+/** The library's genres, A–Z, as a list (as in the apps), each opening a page of its books. */
 function Genres({ library }: { library: Library }) {
   const { data, error } = useApi((signal) => getBookGenres(library.id, signal), [library.id, library.itemCount])
   if (error) return <p className="page-message error">{error.message}</p>
-  if (!data) return <div className="chips" aria-busy="true" />
+  if (!data) return <div className="book-genres" aria-busy="true" />
   if (data.length === 0) return <p className="page-message muted">No genres here yet.</p>
   const genres = [...data].sort((a, b) => a.name.localeCompare(b.name))
   return (
-    <nav className="chips book-genres" aria-label="Genres">
+    <nav className="panel book-genres" aria-label="Genres">
       {genres.map((g) => (
-        <Link key={g.name} className="chip" to={`/library/${library.id}?view=genre&genre=${encodeURIComponent(g.name)}`}>
-          {g.name}
-          <span className="chip-count">{g.count.toLocaleString()}</span>
+        <Link key={g.name} to={`/library/${library.id}?view=genre&genre=${encodeURIComponent(g.name)}`}>
+          <span className="book-genre-name">{g.name}</span>
+          <span className="muted">{g.count === 1 ? '1 book' : `${g.count.toLocaleString()} books`}</span>
+          <ChevronRight aria-hidden="true" />
         </Link>
       ))}
     </nav>

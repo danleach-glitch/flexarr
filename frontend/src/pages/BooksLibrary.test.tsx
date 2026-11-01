@@ -46,7 +46,7 @@ describe('Audiobooks library', () => {
     show('/library/lib-books?view=genres')
     const list = await screen.findByRole('navigation', { name: 'Genres' })
     const links = within(list).getAllByRole('link')
-    expect(links.map((l) => l.textContent)).toEqual(['Biography1', 'Fantasy3', 'Science Fiction12'])
+    expect(links.map((l) => l.textContent)).toEqual(['Biography1 book', 'Fantasy3 books', 'Science Fiction12 books'])
     expect(links[2]).toHaveAttribute('href', '/library/lib-books?view=genre&genre=Science%20Fiction')
     expect(screen.getByRole('link', { name: 'Genres' })).toHaveAttribute('aria-current', 'page')
   })
