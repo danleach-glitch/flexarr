@@ -18,6 +18,8 @@ struct BookView: View {
     @State private var isVisible = false
     @State private var overviewExpanded = false
     @State private var allChapters = false
+    /// Start over was tapped part way through: it asks first.
+    @State private var confirmingStartOver = false
     /// What the Bookmark button came to, for a moment.
     @State private var notice: BookmarkNotice?
     /// The bookmark whose note is being written.
@@ -190,9 +192,17 @@ struct BookView: View {
                     }
                     .accessibilityLabel(item.isFinishedBook ? "Mark as not finished" : "Mark as finished")
                 }
+                // Only with somewhere to start over from; part way through, it asks first.
                 if item.isFinishedBook || resumable {
-                    Button { Task { await model.listenAgain(item) } } label: {
-                        Label("Listen again", systemImage: "arrow.counterclockwise")
+                    Button {
+                        if resumable { confirmingStartOver = true } else { Task { await model.listenAgain(item) } }
+                    } label: {
+                        Label("Start over", systemImage: "arrow.counterclockwise")
+                    }
+                    .confirmationDialog("Start over from the beginning?", isPresented: $confirmingStartOver, titleVisibility: .visible) {
+                        Button("Start over", role: .destructive) { Task { await model.listenAgain(item) } }
+                    } message: {
+                        Text("You're at \(Format.timestamp(position)).")
                     }
                 }
                 Button { addBookmark() } label: { Label("Bookmark", systemImage: "bookmark") }

@@ -77,7 +77,7 @@ struct BooksLibraryView: View {
                 }
                 if let shelves {
                     if shelves.isEmpty {
-                        StatusView(state: .empty("Nothing in this library yet.")).frame(height: 500)
+                        StatusView(state: .empty("No books yet.")).frame(height: 500)
                     }
                     bookRow("Continue listening", shelves.continueListening)
                     bookRow("Next in series", shelves.nextInSeries)
@@ -209,6 +209,8 @@ struct BookView: View {
     @State private var error: String?
     @State private var loadedToken: Int?
     @FocusState private var playFocused: Bool
+    /// Start over was pressed part way through: it asks first.
+    @State private var confirmingStartOver = false
 
     private var item: ItemSummary? { detail?.item ?? preview }
     private var book: BookDetail? { detail?.book }
@@ -272,9 +274,18 @@ struct BookView: View {
                     }
                     .buttonStyle(ActionButtonStyle(ambient: item.glowColor, prominent: true))
                     .focused($playFocused)
+                    // Only with somewhere to start over from; part way through, it asks first.
                     if position > 0 || item.userData.watched {
-                        Button { Task { await model.listenAgain(item) } } label: { Label("Listen again", systemImage: "arrow.counterclockwise") }
+                        Button {
+                            if position > 0, !item.userData.watched { confirmingStartOver = true } else { Task { await model.listenAgain(item) } }
+                        } label: { Label("Start over", systemImage: "arrow.counterclockwise") }
                             .buttonStyle(ActionButtonStyle(iconOnly: true))
+                            .alert("Start over from the beginning?", isPresented: $confirmingStartOver) {
+                                Button("Start over", role: .destructive) { Task { await model.listenAgain(item) } }
+                                Button("Cancel", role: .cancel) {}
+                            } message: {
+                                Text("You're at \(Format.timestamp(position)).")
+                            }
                     }
                     if !model.isKids {
                         Button {
