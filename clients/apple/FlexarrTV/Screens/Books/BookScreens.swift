@@ -318,22 +318,29 @@ struct BookView: View {
         let authors = credits(.author), narrators = credits(.narrator)
         let series = book?.series.first
         if series != nil || !authors.isEmpty || !narrators.isEmpty {
-            HStack(spacing: 16) {
-                if let series {
-                    Button { router.push(.bookSeries(id: series.id, name: series.name)) } label: {
-                        Label([series.name, series.placeLabel].compactMap { $0 }.joined(separator: ", "), systemImage: "books.vertical")
+            // Scrolls sideways when the pills don't fit (a focused one comes into view).
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 16) {
+                    if let series {
+                        Button { router.push(.bookSeries(id: series.id, name: series.name)) } label: {
+                            Label([series.name, series.placeLabel].compactMap { $0 }.joined(separator: ", "), systemImage: "books.vertical")
+                        }
+                        .accessibilityHint("Opens the series")
                     }
-                    .accessibilityHint("Opens the series")
+                    ForEach(authors, id: \.personId) { credit in
+                        Button(credit.name) { router.push(.person(id: credit.personId, name: credit.name)) }
+                    }
+                    // Names the server hasn't linked to a page yet are still shown.
+                    if authors.isEmpty, let names = item.bookAuthors { plainLink(names) }
+                    ForEach(narrators, id: \.personId) { credit in
+                        Button("Read by \(credit.name)") { router.push(.person(id: credit.personId, name: credit.name)) }
+                    }
+                    if narrators.isEmpty, let narrator = item.book?.narrator { plainLink("Read by \(narrator)") }
                 }
-                ForEach(authors, id: \.personId) { credit in
-                    Button(credit.name) { router.push(.person(id: credit.personId, name: credit.name)) }
-                }
-                ForEach(narrators, id: \.personId) { credit in
-                    Button("Read by \(credit.name)") { router.push(.person(id: credit.personId, name: credit.name)) }
-                }
+                .buttonStyle(PillButtonStyle(selected: false, ambient: item.glowColor))
+                .lineLimit(1)
             }
-            .buttonStyle(PillButtonStyle(selected: false, ambient: item.glowColor))
-            .lineLimit(1)
+            .scrollClipDisabled()
             .focusSection()
         } else {
             let read = item.book?.narrator.map { "Read by \($0)" }
@@ -342,6 +349,13 @@ struct BookView: View {
                 .foregroundStyle(Color.usher)
                 .lineLimit(2)
         }
+    }
+
+    /// A name beside the pills that has no page to open.
+    private func plainLink(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 28, weight: .medium))
+            .foregroundStyle(Color.usher)
     }
 
     private func facts(_ item: ItemSummary) -> [String] {
