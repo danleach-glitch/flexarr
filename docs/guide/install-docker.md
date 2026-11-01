@@ -13,7 +13,7 @@ On Linux and Windows, Flexarr runs as a Docker container. The image is `ghcr.io/
 | Settings | `/config` | A folder (or Docker volume) for Flexarr's settings, database and caches. Keep it: it's your whole setup. |
 | Media | `/data/media` (your choice) | Your media folder. Mount it at **the same path** Sonarr, Radarr and Lidarr use, so the paths they report match what Flexarr sees. |
 
-The `latest` tag is always the newest [release](https://github.com/danleach-glitch/flexarr/releases). To upgrade only when you choose, use a version instead, such as `ghcr.io/danleach-glitch/flexarr:0.49`.
+The `latest` tag is always the newest [release](https://github.com/danleach-glitch/flexarr/releases). To upgrade only when you choose, use a version instead, such as `ghcr.io/danleach-glitch/flexarr:0.57`. See [Which tag to use](updating.md#which-tag-to-use).
 
 ## Linux
 
@@ -89,14 +89,14 @@ Flexarr joins the device's group by itself. Then **VA-API (Intel and AMD on Linu
 
 > **Note** With `--user` in place of `PUID`, Flexarr can't join the device's group by itself. Add it with `--group-add` (`group_add:` in Compose), using the group number from `ls -n /dev/dri`.
 
-**NVIDIA** works too, because the NVIDIA Container Toolkit supplies the driver libraries to the container. With the toolkit installed on the host, add this to the service in Compose:
+**NVIDIA** works too, because the NVIDIA Container Toolkit supplies the driver libraries to the container. With the toolkit installed on the host, add `runtime: nvidia` to the service in Compose, and two variables to its `environment:` list:
 
 ```yaml
     runtime: nvidia
-    environment:
-      - NVIDIA_VISIBLE_DEVICES=all
-      - NVIDIA_DRIVER_CAPABILITIES=compute,video,utility
+    environment: [PUID=1000, PGID=1000, NVIDIA_VISIBLE_DEVICES=all, "NVIDIA_DRIVER_CAPABILITIES=compute,video,utility"]
 ```
+
+With `docker run`, that's `--runtime nvidia -e NVIDIA_VISIBLE_DEVICES=all -e NVIDIA_DRIVER_CAPABILITIES=compute,video,utility`.
 
 Then choose **NVIDIA NVENC** in **Settings › Streaming** and play something that needs converting. If it fails, set it back to **Automatic**.
 
@@ -124,6 +124,8 @@ Then choose **NVIDIA NVENC** in **Settings › Streaming** and play something th
    Change `D:/Media` to where your media is, with forward slashes.
 
 4. Open PowerShell in that folder and run `docker compose up -d`.
+
+The apps don't find a server in Docker Desktop by themselves. In the app, choose **Enter an address instead** and type the PC's IP address, such as `http://192.168.1.20:8383`. If nothing connects, check that Windows' firewall lets other devices reach port 8383.
 
 ### Performance on Windows
 
