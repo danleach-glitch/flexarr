@@ -265,6 +265,10 @@ public static class RequestEndpoints
             {
                 return Results.Problem($"Seerr didn't accept the request ({(int?)ex.StatusCode ?? 0}). It may already be requested.", statusCode: 502);
             }
+            catch (NotRequestableException ex)
+            {
+                return Results.Problem(ex.Message, statusCode: 409);
+            }
         });
 
         return api;
@@ -279,6 +283,13 @@ public static class RequestEndpoints
         int tmdbId, CancellationToken ct)
     {
         var kind = KindOf(mediaType);
+        // Sonarr adds shows by their TheTVDB id. Seerr takes a show without one, then drops it while saying it's
+        // requested; such a show is often specials TheTVDB files under another (a Halloween special, say).
+        if (mediaType == "tv" && await seerr.GetAsync(instance, $"tv/{tmdbId}", ct) is { } show && LacksTvdbId(show))
+        {
+            throw new NotRequestableException("Sonarr can't add this show: TheTVDB doesn't list it. It may be part of another show.");
+        }
+
         var to = await RequestDestinations.ForRequestAsync(seerr, instance, options.PathMappings, db, profileId, kind, ct);
         await seerr.RequestAsync(instance, mediaType, tmdbId, to, ct);
         if (!await db.MediaRequests.AnyAsync(r => r.ProfileId == profileId && r.Kind == kind && r.TmdbId == tmdbId && r.FulfilledAt == null, ct))
@@ -287,6 +298,11 @@ public static class RequestEndpoints
             await db.SaveChangesAsync(ct);
         }
     }
+
+    /// <summary>Seerr's show says it has no TheTVDB id (and not just nothing about its ids).</summary>
+    private static bool LacksTvdbId(JsonElement show) =>
+        show.ValueKind == JsonValueKind.Object && show.TryGetProperty("externalIds", out var ids) && ids.ValueKind == JsonValueKind.Object
+        && !(ids.TryGetProperty("tvdbId", out var tvdb) && tvdb.ValueKind == JsonValueKind.Number && tvdb.GetInt64() > 0);
 
     /// <summary>What Seerr's status for a title (from <c>mediaInfo.status</c>) means for whether you can have it.</summary>
     internal static AvailabilityDto AvailabilityOf(int? seerrStatus) => seerrStatus switch
@@ -425,3 +441,6 @@ public static class RequestEndpoints
         }
     }
 }
+
+/// <summary>A title that can't be requested, and why, in words for whoever asked.</summary>
+public sealed class NotRequestableException(string message) : Exception(message);

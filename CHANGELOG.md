@@ -28,6 +28,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Podcasts now skip by your steps, on the lock screen and headphones too, and **Smart rewind** (on to start with) picks up a little earlier after a pause. Skip back is now 30 seconds, not 15: change either on that page.
 - On the web, **Show in the sidebar** for podcasts is now in **Settings › Navigation**, and where book details come from (the Audible store, Google Books and Hardcover keys) is in **Settings › Libraries**.
 
+### Discover
+- Requesting a show Sonarr can't add (TheTVDB doesn't list it, as with some specials) now says so, rather than looking requested and never arriving.
+
 ### Home
 - **Continue watching or listening**: books and podcast episodes you're part way through now sit in the same row as your films and shows, on the web, iPhone, iPad and Android (books only on the Apple TV). To keep them apart, turn off **Books and podcasts in Continue watching** in **Settings › Podcasts & audiobooks** (on the web it's in **Settings › Home & browse**, and on the Apple TV in **Settings › Playback**).
 - **Coming soon** and **Downloads** no longer show titles from a library hidden from your profile, such as someone else's shows.
