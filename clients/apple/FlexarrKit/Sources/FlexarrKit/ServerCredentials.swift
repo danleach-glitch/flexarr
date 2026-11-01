@@ -113,9 +113,17 @@ public struct CredentialStore: Sendable {
         defaults.data(forKey: "\(addressKey).profiles").flatMap { try? JSONDecoder().decode([Profile].self, from: $0) } ?? []
     }
 
+    /// Whether this device was locked to kids profiles when the server last said, so offline it stays a child's.
+    public func saveKidsLock(_ locked: Bool) {
+        defaults.set(locked, forKey: "\(addressKey).kidsLock")
+    }
+
+    public var savedKidsLock: Bool { defaults.bool(forKey: "\(addressKey).kidsLock") }
+
     public func clear() {
         if let text = defaults.string(forKey: addressKey) { deleteKey(account: text) }
         defaults.removeObject(forKey: "\(addressKey).profiles")
+        defaults.removeObject(forKey: "\(addressKey).kidsLock")
         defaults.removeObject(forKey: addressKey)
         defaults.removeObject(forKey: "\(addressKey).profile")
         defaults.removeObject(forKey: "\(addressKey).remote")
