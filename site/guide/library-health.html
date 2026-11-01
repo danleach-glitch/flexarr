@@ -72,6 +72,7 @@
             <details class="section">
             <summary>Watching and listening</summary>
             <ul>
+              <li><a href="/guide/finding-things">Finding things</a></li>
               <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
               <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
               <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
@@ -133,7 +134,7 @@
         </nav>
         <div class="prose">
 <p>Library health is a check-up for your films and TV. It shows what&#39;s wrong, how much space spare copies take, and a button to fix each problem, usually by asking Sonarr or Radarr to do the work.</p>
-<p>Open it in the web app from <strong>Settings › Libraries › Library health</strong>, as the main profile. The <strong>Overview</strong> page in Settings links to it too.</p>
+<p>Open it in the web app from <strong>Settings › Libraries › Library health</strong>, as the main profile with settings unlocked. The <strong>Overview</strong> page in Settings links to it too.</p>
 <figure><img src="/guide/img/health.webp" alt="Library health with a score of 99, the health check and a film that only exists in standard definition" data-caption="Settings › Libraries › Library health" loading="lazy" decoding="async"></figure>
 <h2 id="the-health-score"><a class="anchor" href="#the-health-score" aria-hidden="true" tabindex="-1">#</a>The health score</h2>
 <p>At the top is a score out of 100: the share of your films and episodes with nothing wrong. Next to it is a breakdown of what&#39;s affecting the rest, such as spare copies, unreadable files or missing artwork.</p>
@@ -151,6 +152,8 @@
 <p>The <strong>Health check</strong> panel looks at every file: whether it&#39;s still on disk, whether it&#39;s empty, and whether it can be read. Choose <strong>Run health check</strong> and it works through your library in the background, with a progress bar. Problems are listed under <strong>Missing from disk</strong>, <strong>Empty files</strong> and <strong>Still unreadable</strong>, each with <strong>Search again</strong> to have Sonarr or Radarr fetch it again.</p>
 <h2 id="files-that-can-t-be-read"><a class="anchor" href="#files-that-can-t-be-read" aria-hidden="true" tabindex="-1">#</a>Files that can&#39;t be read</h2>
 <p>Files Flexarr couldn&#39;t open when it scanned them are listed under <strong>Files that can&#39;t be read</strong>, with the reason. This is usually a damaged or unfinished download. <strong>Get a new copy</strong> asks Sonarr or Radarr to search for the title again; a fresh copy fixes playback.</p>
+<h3 id="audible-books"><a class="anchor" href="#audible-books" aria-hidden="true" tabindex="-1">#</a>Audible books</h3>
+<p>From the next release, audiobooks bought from Audible as <code>.aax</code> or <code>.aaxc</code> files are listed here too, as protected by Audible&#39;s DRM. Flexarr can&#39;t play them. Convert them to <code>.m4b</code> with a tool that uses your own Audible account, put the <code>.m4b</code> in the book&#39;s folder in place of the original, and rescan.</p>
 <h2 id="standard-definition-films"><a class="anchor" href="#standard-definition-films" aria-hidden="true" tabindex="-1">#</a>Standard-definition films</h2>
 <p><strong>Only in standard definition</strong> lists films whose best copy is below 720p. <strong>Find a better copy</strong> asks Radarr to search for the film again, so it can upgrade it within the quality profile you&#39;ve set in Radarr.</p>
 <p>When Sonarr or Radarr are already fetching a new copy, the row shows how far along it is (&quot;Downloading 45%&quot;) instead of the button.</p>
@@ -161,7 +164,7 @@
 <li>If it&#39;s wrong, choose <strong>Fix match</strong> (below).</li>
 </ul>
 <h2 id="missing-artwork"><a class="anchor" href="#missing-artwork" aria-hidden="true" tabindex="-1">#</a>Missing artwork</h2>
-<p>Titles with no poster or details are listed under <strong>Missing artwork</strong>. Artwork comes from Radarr and Sonarr, so if they aren&#39;t connected, connect them in <strong>Settings › Connections</strong> (<a href="/guide/connect-arrs">Connect Sonarr, Radarr, Lidarr and Seerr</a>). If they are, the title wasn&#39;t found: fix its match, or rename its folder to the form <code>Title (Year)</code> and rescan.</p>
+<p>Titles with no poster or details are listed under <strong>Missing artwork</strong>. Artwork comes from <code>.nfo</code> files and pictures beside the title, from Radarr and Sonarr, from TVmaze for shows, and from TMDB for films if you&#39;ve added a key. If Radarr and Sonarr aren&#39;t connected, connect them in <strong>Settings › Connections</strong> (<a href="/guide/connect-arrs">Connect Sonarr, Radarr, Lidarr and Seerr</a>), or see <a href="/guide/without-arrs">Without Sonarr and Radarr</a>. Otherwise the title wasn&#39;t found: fix its match, or rename its folder to the form <code>Title (Year)</code> and rescan.</p>
 <h2 id="fix-match"><a class="anchor" href="#fix-match" aria-hidden="true" tabindex="-1">#</a>Fix match</h2>
 <p><strong>Fix match</strong> puts right a film or show that&#39;s been matched to the wrong title. It&#39;s on each row in Check these matches and Missing artwork, and in the <strong>⋯</strong> menu on any film&#39;s or show&#39;s page (main profile only).</p>
 <ol>
@@ -179,6 +182,7 @@
 <li><strong>A film Radarr manages:</strong> Radarr deletes the film&#39;s files from disk and stops tracking it.</li>
 <li><strong>A show Sonarr manages:</strong> Sonarr deletes every episode&#39;s files and stops tracking the show.</li>
 <li><strong>An episode:</strong> Sonarr deletes the episode&#39;s file and stops downloading it, so it doesn&#39;t come back.</li>
+<li><strong>An audiobook</strong> (from the next release) <strong>that Readarr, Bookshelf or Chaptarr manage:</strong> it deletes the book&#39;s files and unmonitors the book there, so it isn&#39;t fetched again.</li>
 <li><strong>A title neither manages:</strong> Flexarr deletes the video files itself and lists them first. It also removes folders left empty, but never a library&#39;s own folder or anything outside it.</li>
 </ul>
 <p>If Sonarr or Radarr can&#39;t be reached or refuse, nothing is removed from Flexarr either.</p>

@@ -72,6 +72,7 @@
             <details class="section">
             <summary>Watching and listening</summary>
             <ul>
+              <li><a href="/guide/finding-things">Finding things</a></li>
               <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
               <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
               <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
@@ -133,7 +134,7 @@
 <h3 id="set-it-up"><a class="anchor" href="#set-it-up" aria-hidden="true" tabindex="-1">#</a>Set it up</h3>
 <ol>
 <li><strong>On the server</strong>, install Tailscale from <a href="https://tailscale.com/download" rel="noopener">tailscale.com/download</a> and sign in.</li>
-<li>In Flexarr on the web, signed in as the main profile, go to <strong>Settings › Remote access</strong>. Under <strong>Away from home</strong>, Tailscale should say it&#39;s connected. Choose <strong>Turn on</strong>.</li>
+<li>In Flexarr on the web, signed in as the main profile, go to <strong>Settings › Remote access</strong>. Under <strong>Away from home</strong>, Tailscale should say <strong>Off. Connected as</strong> and your server&#39;s name. Choose <strong>Turn on</strong>.</li>
 <li>Flexarr shows its <strong>Private address</strong>, something like <code>https://your-server.your-tailnet.ts.net:8443</code>. It&#39;s HTTPS, with a real certificate from Tailscale.</li>
 <li><strong>On your iPhone or iPad</strong>, install Tailscale from the App Store and sign in with the same account. Leave it connected.</li>
 <li>Open the Flexarr app once while you&#39;re at home, so it learns the private address.</li>
@@ -141,13 +142,13 @@
 <figure><img src="/guide/img/access.webp" alt="Settings › Remote access with Tailscale on, the private address and its Copy button, and the people on the tailnet" data-caption="Settings › Remote access, with Tailscale on" loading="lazy" decoding="async"></figure>
 <p>From then on, the iPhone, iPad and Apple TV apps switch by themselves. When the home address doesn&#39;t answer, they use the Tailscale one, and they go back to the home address when you&#39;re home again. There&#39;s nothing to change in the apps.</p>
 <p>In a browser away from home, open the private address instead of the usual one.</p>
+<blockquote class="callout note"><p><strong>Note</strong> The Mac app (coming to the Mac App Store) can&#39;t turn Tailscale on. Install Tailscale on that Mac and sign in, and <strong>Settings › Remote access</strong> shows the Mac&#39;s own Tailscale address to use.</p>
+</blockquote>
 <blockquote class="callout note"><p><strong>Note</strong> Flexarr needs the <code>tailscale</code> command on the same computer it runs on to turn this on. In Docker it can&#39;t see the Tailscale installed around it, so <strong>Settings › Remote access</strong> says <strong>Not available in Docker</strong>. To use Flexarr away from home from Docker, put it behind an <a href="#an-https-reverse-proxy-instead">HTTPS reverse proxy</a>, or run Flexarr without Docker on a computer with Tailscale.</p>
 </blockquote>
 <h3 id="who-can-get-in"><a class="anchor" href="#who-can-get-in" aria-hidden="true" tabindex="-1">#</a>Who can get in</h3>
 <p>When you first turn it on, your own Tailscale account is linked to the main profile. Anyone else you invite to your tailnet appears under <strong>People with their own Tailscale</strong> in <strong>Settings › Remote access</strong>. Choose a profile for each person. Anyone set to <strong>Not allowed</strong> is turned away, even though Tailscale lets them reach the server.</p>
-<p>Over Tailscale, watching works as it does at home. Changing settings is stricter: you&#39;ll be asked to choose the main profile with the admin PIN. That browser then stays signed in until it&#39;s signed out, or left unused for two weeks. See <a href="/guide/profiles#unlocking-settings">Unlocking settings</a> for the admin PIN.</p>
-<blockquote class="callout important"><p><strong>Important</strong> Someone on your tailnet whose account is linked to another profile can only choose the main profile with the admin PIN, even if it has a PIN of its own. Changing settings over Tailscale asks for the admin PIN, as it does at home.</p>
-</blockquote>
+<p>Over Tailscale, watching works as it does at home. Someone whose account is linked to another profile can only choose the main profile with the admin PIN, even if the main profile has a PIN of its own. That browser then stays signed in until it&#39;s signed out, or left unused for two weeks. Changing settings asks for the admin PIN, as it does at home: see <a href="/guide/profiles#unlocking-settings">Unlocking settings</a>.</p>
 <p>Don&#39;t use <strong>Tailscale Funnel</strong> for Flexarr. Funnel publishes an address to the whole internet. If Flexarr spots it, Settings warns you; turn remote access off and on again to make it private.</p>
 <h2 id="quality-away-from-home"><a class="anchor" href="#quality-away-from-home" aria-hidden="true" tabindex="-1">#</a>Quality away from home</h2>
 <p>Hotel Wi-Fi and phone data are slower than your home network, and so is the upload speed of most home broadband.</p>
@@ -182,8 +183,8 @@
 <h2 id="connecting-a-device-from-outside"><a class="anchor" href="#connecting-a-device-from-outside" aria-hidden="true" tabindex="-1">#</a>Connecting a device from outside</h2>
 <p>Devices normally connect with a code you approve in <strong>Settings › Security › Connect a device</strong>, and that only works from your home network or over Tailscale. To connect an app through a reverse proxy instead, use the API key:</p>
 <ul>
-<li><strong>iPhone and iPad:</strong> on the connect screen, choose <strong>Enter an address instead</strong>, then <strong>Connecting from outside your home? Use an API key</strong>.</li>
-<li><strong>Apple TV:</strong> the same: <strong>Enter an address instead</strong>, then <strong>Connecting from outside your home? Use an API key</strong>.</li>
+<li><strong>iPhone and iPad:</strong> on the connect screen, choose <strong>Enter its address</strong> (under any servers it found, or once it has looked for a while), then <strong>Connecting from outside your home? Use an API key</strong>.</li>
+<li><strong>Apple TV:</strong> <strong>Enter an address instead</strong>, then <strong>Connecting from outside your home? Use an API key</strong>.</li>
 </ul>
 <p>The API key is in <strong>Settings › Security</strong> under <strong>API key</strong>. Showing it asks for the admin PIN. It&#39;s also in <code>config.json</code>.</p>
 <blockquote class="callout important"><p><strong>Important</strong> The API key gives full control of your server. Don&#39;t paste it anywhere you wouldn&#39;t paste a password. If it leaks, <strong>Make a new key</strong> in <strong>Settings › Security</strong> replaces it, and can sign out every other browser and device at the same time.</p>

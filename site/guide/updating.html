@@ -72,6 +72,7 @@
             <details class="section">
             <summary>Watching and listening</summary>
             <ul>
+              <li><a href="/guide/finding-things">Finding things</a></li>
               <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
               <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
               <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
@@ -165,13 +166,14 @@ docker compose up -d flexarr
 <pre><code class="language-bash">docker pull ghcr.io/danleach-glitch/flexarr:latest
 docker stop flexarr
 docker rm flexarr
-docker run -d --name flexarr \
+docker run -d --name flexarr --restart unless-stopped \
+  -e PUID=1000 -e PGID=1000 \
   -p 8383:8383 \
-  -v /path/to/config:/config \
+  -v ~/flexarr/config:/config \
   -v /path/to/media:/data/media \
   ghcr.io/danleach-glitch/flexarr:latest
 </code></pre>
-<p>Removing the container doesn&#39;t touch your data, as long as <code>/config</code> is a folder or volume you mounted. Use exactly the same <code>-v</code> paths as before.</p>
+<p>Removing the container doesn&#39;t touch your data, as long as <code>/config</code> is a folder or volume you mounted. Use exactly the same options as before: the same <code>-v</code> paths, <code>PUID</code> and <code>PGID</code>, and <code>--network host</code> in place of <code>-p 8383:8383</code> if you used it.</p>
 <blockquote class="callout note"><p><strong>Note</strong> On a Synology or Unraid server, use the platform&#39;s own way to update a container. See <a href="/guide/install-synology">Install on a Synology NAS</a> or <a href="/guide/install-unraid">Install on Unraid</a>.</p>
 </blockquote>
 <h3 id="which-tag-to-use"><a class="anchor" href="#which-tag-to-use" aria-hidden="true" tabindex="-1">#</a>Which tag to use</h3>
@@ -188,21 +190,22 @@ docker run -d --name flexarr \
 <td>The newest release. Every update you pull may be a bigger step.</td>
 </tr>
 <tr>
-<td><code>0.49</code></td>
-<td>The newest <code>0.49.x</code> release: fixes, without moving to <code>0.50</code>.</td>
+<td><code>0.57</code></td>
+<td>The newest <code>0.57.x</code> release: fixes, without moving to <code>0.58</code>.</td>
 </tr>
 <tr>
-<td><code>0.49.1</code></td>
+<td><code>0.57.0</code></td>
 <td>Exactly that release, never anything else.</td>
 </tr>
 </tbody></table></div>
 <p>To have containers updated automatically, a tool such as <a href="https://containrrr.dev/watchtower/" rel="noopener">Watchtower</a> can pull new images and recreate them.</p>
-<p>Use <code>latest</code> to always get the newest Flexarr, or pin a version like <code>0.49</code> and change the number when you&#39;re ready to move on. Change the tag in your <code>docker-compose.yml</code> (<code>image: ghcr.io/danleach-glitch/flexarr:0.49</code>) or in your <code>docker run</code> command.</p>
+<p>Use <code>latest</code> to always get the newest Flexarr, or pin a version like <code>0.57</code> and change the number when you&#39;re ready to move on. Change the tag in your <code>docker-compose.yml</code> (<code>image: ghcr.io/danleach-glitch/flexarr:0.57</code>) or in your <code>docker run</code> command.</p>
 <p>Images are built for 64-bit Intel/AMD and 64-bit ARM, and Docker picks the right one for your machine.</p>
 <h2 id="on-a-mac"><a class="anchor" href="#on-a-mac" aria-hidden="true" tabindex="-1">#</a>On a Mac</h2>
-<p>If you installed Flexarr natively on a Mac with the deploy script (see <a href="/guide/install-macos">Install on a Mac</a>), the easiest way is <strong>Update now</strong> in <a href="#settings-updates">Settings › Updates</a>. You can also update by getting the newest source and running the same command again from the machine you deployed from:</p>
+<p>If you installed Flexarr natively on a Mac with the deploy script (see <a href="/guide/install-macos">Install on a Mac</a>), the easiest way is <strong>Update now</strong> in <a href="#settings-updates">Settings › Updates</a>. You can also update by checking out the newest release and running the same command again from the machine you deployed from:</p>
 <pre><code class="language-bash">cd flexarr
-git pull
+git fetch --tags
+git checkout &quot;$(git tag --list &#39;v*&#39; --sort=-v:refname | head -1)&quot;
 make deploy DEPLOY_HOST=&lt;your-mac&gt;
 </code></pre>
 <p>The script builds the new version, replaces the program in <code>~/.flexarr/app</code>, brings the .NET runtime up to its latest patch, and restarts the server. It waits for the server to come back before saying it&#39;s done, and shows the end of the log if it doesn&#39;t. Your settings in <code>~/.flexarr/data</code> are never touched.</p>
@@ -216,7 +219,7 @@ make deploy DEPLOY_HOST=&lt;your-mac&gt;
 <h2 id="keeping-the-apps-up-to-date"><a class="anchor" href="#keeping-the-apps-up-to-date" aria-hidden="true" tabindex="-1">#</a>Keeping the apps up to date</h2>
 <ul>
 <li><strong>iPhone and iPad:</strong> the App Store updates Flexarr like any other app. To update by hand, open the App Store, tap your picture, and pull down to refresh the list of updates.</li>
-<li><strong>Apple TV:</strong> until it&#39;s on the App Store, pull the latest source and run <code>make apple-install</code> again. See <a href="/guide/apple-tv-xcode#updating-the-app">Install the Apple TV app with Xcode</a>.</li>
+<li><strong>Apple TV:</strong> until it&#39;s on the App Store, check out the latest release and run <code>make apple-install</code> again. See <a href="/guide/apple-tv-xcode#updating-the-app">Install the Apple TV app with Xcode</a>.</li>
 <li><strong>Web:</strong> the web app comes with the server, so it&#39;s up to date as soon as the server is. Reload any open tabs.</li>
 </ul>
 <p>It&#39;s best to keep the server and the apps roughly in step. When a release adds something to both, the app&#39;s side of it only works once the server has it too.</p>

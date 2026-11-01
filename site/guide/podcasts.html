@@ -72,6 +72,7 @@
             <details class="section" open>
             <summary>Watching and listening</summary>
             <ul>
+              <li><a href="/guide/finding-things">Finding things</a></li>
               <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
               <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
               <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
@@ -132,7 +133,7 @@
           </ol>
         </nav>
         <div class="prose">
-<p>Podcasts are built into Flexarr. There&#39;s no library to add and nothing to set up: they sit with your libraries, and each profile follows its own shows. They&#39;re on the web, iPhone and iPad. They aren&#39;t on the Apple TV.</p>
+<p>Podcasts are built into Flexarr. There&#39;s no library to add and nothing to set up: they sit with your libraries, and each profile follows its own shows. They&#39;re on the web, iPhone and iPad. They aren&#39;t on the Apple TV, and kids profiles don&#39;t have them.</p>
 <h2 id="finding-shows"><a class="anchor" href="#finding-shows" aria-hidden="true" tabindex="-1">#</a>Finding shows</h2>
 <p>Open <strong>Podcasts</strong> and choose <strong>Browse</strong>.</p>
 <figure><img src="/guide/img/phones-podcasts.webp" alt="The Podcasts screen with followed shows, Up Next and Continue listening, beside the now playing screen" data-caption="Podcasts and the player on iPhone" loading="lazy" decoding="async" class="device"></figure>
@@ -156,7 +157,9 @@
 <ul>
 <li><strong>15 seconds back and 30 on</strong>, on screen and on the lock screen.</li>
 <li><strong>Speeds</strong> from 0.8× to 3×. Your profile&#39;s default is in <strong>Settings › Podcasts › Speed</strong>, and changing it in the player changes it there too.</li>
-<li><strong>Sleep timer:</strong> stop after a set time, or at the end of the episode.</li>
+<li><strong>Sleep timer</strong> (the moon): stop after a set time, or at the end of the episode.</li>
+<li><strong>Notes</strong> swaps the cover for the episode&#39;s notes and chapters. The chapter playing shows above the scrubber, with arrows to the next and the last.</li>
+<li>Now Playing says when the episode will end, at the speed it&#39;s playing.</li>
 <li>When an episode ends, the show&#39;s next one plays, or else the newest you haven&#39;t heard.</li>
 </ul>
 <p>Episodes play through your server rather than straight from the podcast&#39;s host. That means they work <a href="/guide/away-from-home">away from home</a> over Tailscale as they do at home, and podcast hosts don&#39;t see where each listener is.</p>
@@ -172,7 +175,8 @@
 </ul>
 <p><strong>On iPhone and iPad</strong>, <strong>Settings › Podcasts</strong> has <strong>Auto-download new episodes</strong>, how many of the newest to keep, and <strong>Speed</strong>.</p>
 <h2 id="offline-on-iphone-and-ipad"><a class="anchor" href="#offline-on-iphone-and-ipad" aria-hidden="true" tabindex="-1">#</a>Offline on iPhone and iPad</h2>
-<p>Download any episode to listen with no connection. Or turn on <strong>Auto-download new episodes</strong>: the newest unplayed episodes of every show you follow then download by themselves, and played ones are cleared away. Episodes you deleted yourself are never downloaded again by themselves.</p>
+<p>Download any episode to listen with no connection. Or turn on <strong>Auto-download new episodes</strong>: the newest unplayed episodes of every show you follow then download by themselves. Episodes you deleted yourself are never downloaded again by themselves.</p>
+<p>A downloaded episode is deleted once you&#39;ve heard it to the end or marked it played, whether you downloaded it or the app did. One finished on another device, such as the web, goes the next time the app catches up with the server.</p>
 <p>Automatic downloads wait for Wi-Fi, unless you turn off <strong>Automatic downloads on Wi-Fi only</strong> in <strong>Settings › Downloads</strong>. They never use Low Data Mode. An episode you download by hand comes over mobile data too. What you hear offline counts once you&#39;re back online.</p>
 <h3 id="the-episodes-folder-on-the-server"><a class="anchor" href="#the-episodes-folder-on-the-server" aria-hidden="true" tabindex="-1">#</a>The episodes folder on the server</h3>
 <p>To reach your phone, an episode is first fetched to your server, then the phone takes it and the server deletes its copy. It waits in the Podcasts <strong>Episodes folder</strong>, in <strong>Settings › Libraries</strong>. This starts as a folder in Flexarr&#39;s own data folder. If that&#39;s on a small drive, choose <strong>Change</strong> and pick a folder on your media drive instead.</p>

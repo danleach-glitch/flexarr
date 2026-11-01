@@ -72,6 +72,7 @@
             <details class="section">
             <summary>Watching and listening</summary>
             <ul>
+              <li><a href="/guide/finding-things">Finding things</a></li>
               <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
               <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
               <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
@@ -142,37 +143,34 @@
 </ul>
 <p>If the page doesn&#39;t load, check that Flexarr is running (your install guide, linked from <a href="/guide/what-you-need">What you need</a>, shows how) and that you&#39;ve typed <code>http://</code>, not <code>https://</code>.</p>
 <h2 id="enter-the-setup-code"><a class="anchor" href="#enter-the-setup-code" aria-hidden="true" tabindex="-1">#</a>Enter the setup code</h2>
-<p>Usually there&#39;s nothing to look up:</p>
+<p>A new server greets you with <strong>Welcome to your Flexarr server</strong>. The <strong>setup code</strong> proves you&#39;re the one who installed it: some setups (a reverse proxy, Docker Desktop) make visitors from the internet look as though they&#39;re on your home network, and only someone with the server can read its code. It&#39;s eight letters and numbers, like <code>K7QM-3PXT</code>.</p>
+<p>Usually there&#39;s nothing to type, because the server gives you a link with the code filled in:</p>
 <ul>
-<li><strong>The Mac app</strong> opens the welcome page in your browser the first time it starts, with the code already filled in. <strong>Open Flexarr</strong> in its menu does the same until the server is set up.</li>
-<li><strong>Docker</strong> (including Synology and Unraid): the container&#39;s log says <strong>Set it up at <a href="http://localhost:8383/#setup=…" rel="noopener">http://localhost:8383/#setup=…</a></strong>. Open that link. From another computer, put the server&#39;s name or IP address in place of <code>localhost</code>. Pasting the whole link into the setup code box works too.</li>
+<li><strong>Docker</strong> (including Synology and Unraid): the container&#39;s log (<code>docker logs flexarr</code>, or the log in your NAS&#39;s Docker app) says <strong>Set it up at <a href="http://localhost:8383/#setup=…" rel="noopener">http://localhost:8383/#setup=…</a></strong>. Open that link. From another computer, put the server&#39;s name or IP address in place of <code>localhost</code>. The code alone is in <code>setup-code.txt</code> in the container&#39;s settings folder.</li>
+<li><strong>macOS (installed with the script)</strong>: the script ends with a <strong>Set it up</strong> link. The code is also in <code>~/.flexarr/logs/console.log</code> and <code>~/.flexarr/data/setup-code.txt</code>.</li>
+<li><strong>The Mac app</strong> (coming to the Mac App Store) opens the welcome page with the code filled in.</li>
 </ul>
-<p>Either way you only choose a PIN. If you open the server&#39;s address without the link, it asks for the code itself.</p>
-<p>A new server greets you with <strong>Welcome to your Flexarr server</strong> and asks for its <strong>setup code</strong>. The code proves you&#39;re the one who installed it: some setups (a reverse proxy, Docker Desktop) make visitors from the internet look as though they&#39;re on your home network, and only someone with the server can read its code. It&#39;s eight letters and numbers, like <code>K7QM-3PXT</code>, and it&#39;s in:</p>
-<ul>
-<li><strong>Docker</strong> (including Synology and Unraid): the container&#39;s log. Run <code>docker logs flexarr</code>, or open the container&#39;s log in your NAS&#39;s Docker app. It&#39;s also in <code>setup-code.txt</code> in the container&#39;s settings folder.</li>
-<li><strong>The Mac app</strong>: the menu bar menu, as <strong>Setup Code</strong>. Choose it to copy the code.</li>
-<li><strong>macOS (installed with the script)</strong>: <code>~/.flexarr/logs/console.log</code>, or <code>~/.flexarr/data/setup-code.txt</code>.</li>
-</ul>
-<p>Type it in, choose a <strong>PIN</strong> to protect the server&#39;s settings (4 to 8 digits, typed twice), and choose <strong>Set up Flexarr</strong>. This browser becomes the server&#39;s owner and is signed in. That&#39;s the whole sign-up. Watching doesn&#39;t need the PIN; changing settings does. If you close the page before choosing <strong>Set up Flexarr</strong>, nothing has happened yet, and the same code still works. The code stops working once the server is set up, and after ten wrong tries it&#39;s replaced with a new one (the log says so).</p>
+<p>Opened without the link, the page asks for the code and says where it is for your kind of install. Pasting the whole link into the <strong>Setup code</strong> box works too.</p>
+<p>Then choose the <strong>admin PIN</strong> (4 to 8 digits, typed twice). It protects the server&#39;s settings: watching doesn&#39;t need it; changing settings does. Choose <strong>Set up Flexarr</strong>. This browser becomes the server&#39;s owner and is signed in. That&#39;s the whole sign-up.</p>
+<p>If you close the page before choosing <strong>Set up Flexarr</strong>, nothing has happened yet, and the same code still works. The code stops working once the server is set up, and after ten wrong tries it&#39;s replaced with a new one (the log says so).</p>
 <figure><img src="/guide/img/welcome.webp" alt="The welcome panel on a new server, asking for its setup code beside a Set up Flexarr button" data-caption="What a new server shows a browser on your home network" loading="lazy" decoding="async"></figure>
 <p>A few things to know:</p>
 <ul>
-<li><strong>It only works once.</strong> As soon as anyone signs in, setup closes for good. Every other phone, tablet, TV and browser then connects with a code that you approve from this browser. See <a href="/guide/connect-devices">Connect your devices</a>.</li>
+<li><strong>It only works once.</strong> As soon as anyone signs in, setup closes for good. Phones, tablets and TVs then connect with a code that you allow from your phone or this browser (see <a href="/guide/connect-devices">Connect your devices</a>). Other browsers sign in with the <a href="#the-api-key">API key</a>.</li>
 <li><strong>It only works from home.</strong> The button appears only to a browser on your home network, reaching the server by its IP address, a <code>.local</code> name or the server&#39;s own name. That stops anyone on the internet, or a web page you happen to visit, from claiming your server.</li>
-<li><strong>Servers set up before version 0.49.0 aren&#39;t affected.</strong> They keep using the API key, as before.</li>
+<li><strong>Older servers</strong> don&#39;t need any of this. One set up before version 0.49.0 keeps using the API key, and one without an admin PIN asks you to <strong>Choose an admin PIN</strong> the first time you open Settings.</li>
 </ul>
-<blockquote class="callout note"><p><strong>Note</strong> If you see a box asking for an <strong>API key</strong> instead of the welcome, someone has already set this server up, or you&#39;re not on the home network. Try opening it by its IP address from a computer at home. If you set it up yourself in another browser, approve this one from there with a code, or sign in with the key (see <a href="#the-api-key">The API key</a> below).</p>
+<blockquote class="callout note"><p><strong>Note</strong> If you see a box asking for an <strong>API key</strong> instead of the welcome, someone has already set this server up, or you&#39;re not on the home network. Try opening it by its IP address from a computer at home. If you set it up yourself in another browser, sign in here with the key (see <a href="#the-api-key">The API key</a> below).</p>
 </blockquote>
 <h2 id="the-setup-guide"><a class="anchor" href="#the-setup-guide" aria-hidden="true" tabindex="-1">#</a>The setup guide</h2>
 <p>Next, Flexarr welcomes you with a short setup guide, one card at a time. Choose <strong>Get started</strong>, or <strong>I&#39;ll set it up myself</strong> to go straight to Home. Every step after your name can be skipped, and <strong>Set up later</strong> leaves the guide whenever you like:</p>
 <ol>
-<li><strong>Your name.</strong> Type your name and choose a colour for your profile, the one that runs Flexarr.</li>
-<li><strong>Your apps.</strong> Connect Sonarr, Radarr and Lidarr, if you use them. If Flexarr finds one running nearby, its address is filled in already, and you only paste its API key. Flexarr also adds its own webhook to each app in the background (<strong>Setting up instant updates…</strong>), so new downloads show up straight away (see <a href="/guide/connect-arrs#webhooks-new-downloads-appear-straight-away">Webhooks</a>). Connected the wrong one? Choose <strong>Disconnect</strong>. Don&#39;t use them? Choose <strong>Skip</strong>.</li>
-<li><strong>Libraries.</strong> There&#39;s a line each for <strong>Movies</strong>, <strong>TV Shows</strong> and <strong>Music</strong>. A folder from Sonarr, Radarr or Lidarr is filled in already. Otherwise choose <strong>Choose folder</strong>, go to the folder that holds it and choose <strong>Add library</strong>. Then choose <strong>Next</strong>. Choose a whole drive or your home folder and it warns you: reading all of it takes hours. The guide adds one library of each kind; more, and home videos, are in <strong>Settings › Libraries</strong>.</li>
-<li><strong>Who&#39;s watching.</strong> Add a profile for each person in the house, or choose <strong>Skip</strong>. Added someone by mistake? Choose the <strong>✕</strong> on their picture. See <a href="/guide/profiles">Profiles</a>.</li>
+<li><strong>What&#39;s your name?</strong> Type your name and choose a colour for your profile, the one that runs Flexarr.</li>
+<li><strong>Connect your apps.</strong> Connect Sonarr, Radarr and Lidarr (and, in the next release, Readarr), if you use them. If Flexarr finds one running nearby, its address is filled in already, and you only paste its API key. Flexarr also adds its own webhook to each app in the background (<strong>Setting up instant updates…</strong>), so new downloads show up straight away (see <a href="/guide/connect-arrs#webhooks-new-downloads-appear-straight-away">Webhooks</a>). Connected the wrong one? Choose <strong>Disconnect</strong>. Don&#39;t use them? Choose <strong>Skip</strong>.</li>
+<li><strong>Add your libraries.</strong> There&#39;s a line each for <strong>Movies</strong>, <strong>TV Shows</strong> and <strong>Music</strong> (and <strong>Audiobooks</strong>, in the next release, when Readarr is connected). A folder from Sonarr, Radarr or Lidarr is filled in already. Otherwise choose <strong>Choose folder</strong>, go to the folder that holds it and choose <strong>Add library</strong>. Then choose <strong>Next</strong>, or <strong>Continue</strong> once they&#39;re added. Choose a whole drive or your home folder and it warns you: reading all of it takes hours. The guide adds one library of each kind; more, and home videos, are in <strong>Settings › Libraries</strong>.</li>
+<li><strong>Who&#39;s watching?</strong> Add a profile for each person in the house, or choose <strong>Skip</strong>. Added someone by mistake? Choose the <strong>✕</strong> on their picture. See <a href="/guide/profiles">Profiles</a>.</li>
 <li><strong>Watch on all your devices.</strong> Each app is listed with where to get it. Open it at home, and when it asks to connect, choose <strong>Allow</strong>. See <a href="/guide/connect-devices">Connect your devices</a>.</li>
-<li><strong>Away from home.</strong> Turn on Tailscale, and <strong>Disconnect</strong> to turn it off again. Not installed yet? <strong>Get Tailscale</strong> opens its download page: install it on the server, sign in, then choose <strong>Check again</strong>. In Docker, see <a href="/guide/away-from-home">Watch away from home</a> for other ways.</li>
+<li><strong>Watch away from home.</strong> Turn on Tailscale, and <strong>Disconnect</strong> to turn it off again. Not installed yet? <strong>Get Tailscale</strong> opens its download page: install it on the server, sign in, then choose <strong>Check again</strong>. In Docker, see <a href="/guide/away-from-home">Watch away from home</a> for other ways.</li>
 </ol>
 <p>At the end, the guide shows what&#39;s set up, says <strong>Checking your libraries</strong> while it reads your files for the first time, and warns you if a library came up empty or Flexarr can&#39;t see one of an app&#39;s folders.</p>
 <p>If you leave part way, Home lists what&#39;s left under <strong>Finish setting up</strong>. Each one opens the right page in Settings; <strong>Hide</strong> puts the list away. Everything in the guide is in Settings too, as described below.</p>
@@ -181,7 +179,7 @@
 <p>A library is a set of folders holding one kind of media. Go to <strong>Settings › Libraries</strong> and choose <strong>Add library</strong>.</p>
 <figure><img src="/guide/img/libraries.webp" alt="Settings › Libraries with four libraries, each with its folder, and the podcast episodes folder below" data-caption="Settings › Libraries" loading="lazy" decoding="async"></figure>
 <ol>
-<li>Pick the <strong>Kind</strong>: <strong>Films</strong>, <strong>TV shows</strong>, <strong>Music</strong> or <strong>Home videos</strong> (videos of your own, arranged by folder; see <a href="/guide/without-arrs#home-videos">Without Sonarr and Radarr</a>).</li>
+<li>Pick the <strong>Kind</strong>: <strong>Films</strong>, <strong>TV shows</strong>, <strong>Music</strong>, <strong>Home videos</strong> (videos of your own, arranged by folder; see <a href="/guide/without-arrs#home-videos">Without Sonarr and Radarr</a>) or, in the next release, <strong>Audiobooks</strong> (see <a href="/guide/audiobooks">Audiobooks</a>).</li>
 <li>Give it a <strong>Name</strong> if you like. Left blank, it&#39;s named after its kind. You can rename it later.</li>
 <li>Under <strong>Folders</strong>, browse the server&#39;s disks and choose <strong>Use this folder</strong> on the folder that holds that media. Add more than one folder if your films are spread across drives.</li>
 <li>Choose <strong>Add library</strong>.</li>
@@ -201,8 +199,7 @@
 <h2 id="the-api-key"><a class="anchor" href="#the-api-key" aria-hidden="true" tabindex="-1">#</a>The API key</h2>
 <p>Flexarr still has an API key. You won&#39;t need it for everyday use at home, but it&#39;s there for:</p>
 <ul>
-<li>signing in a browser or app away from home, when you don&#39;t use <a href="/guide/away-from-home">Tailscale</a></li>
-<li>connecting an Apple TV by typing the server&#39;s address, when it doesn&#39;t find the server by itself</li>
+<li>signing in another browser, or an app away from home when you don&#39;t use <a href="/guide/away-from-home">Tailscale</a></li>
 <li>scripts, <a href="/guide/home-assistant">Home Assistant</a> and <a href="/guide/assistant-mcp">assistants</a></li>
 <li>getting back in if you&#39;ve lost every signed-in browser</li>
 </ul>
@@ -235,7 +232,7 @@
 
         </div>
         <nav class="pager" aria-label="More of the guide">
-          <a class="prev" href="/guide/install-docker"><span>Previous</span>Install with Docker on Linux or Windows</a>
+          <a class="prev" href="/guide/what-you-need"><span>Previous</span>What you need</a>
           <a class="next" href="/guide/without-arrs"><span>Next</span>Without Sonarr and Radarr</a>
         </nav>
         <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/first-setup.md">Edit this page on GitHub</a> <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20First%20setup">Report something wrong or missing</a></p>

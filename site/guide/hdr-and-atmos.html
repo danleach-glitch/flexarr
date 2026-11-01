@@ -72,6 +72,7 @@
             <details class="section" open>
             <summary>Watching and listening</summary>
             <ul>
+              <li><a href="/guide/finding-things">Finding things</a></li>
               <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
               <li><a href="/guide/hdr-and-atmos" aria-current="page">HDR and Dolby Atmos</a></li>
               <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
@@ -195,17 +196,17 @@
 <p>Plain DTS is decoded with nothing more lost on the way.</p>
 <blockquote class="callout note"><p><strong>Note</strong> TrueHD soundtracks with Atmos currently play as lossless surround without Atmos&#39;s height channels. Keeping them is on the <a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/roadmap.md" rel="noopener">roadmap</a>.</p>
 </blockquote>
-<h3 id="turning-on-lossless-surround"><a class="anchor" href="#turning-on-lossless-surround" aria-hidden="true" tabindex="-1">#</a>Turning on Lossless surround</h3>
-<p>On the Apple TV, open Flexarr&#39;s <strong>Settings › Playback</strong>. Under <strong>This Apple TV</strong>, turn on <strong>Play files directly</strong> if it&#39;s off, then <strong>Lossless surround</strong>. The same switches are in the iPhone and iPad app&#39;s <strong>Settings › Playback</strong>, for AirPlay or a connected display.</p>
-<p>Leave <strong>Lossless surround</strong> off if your television is plugged straight into a soundbar over ordinary ARC (not eARC), or if you hear nothing on TrueHD or DTS films with it on.</p>
+<h3 id="lossless-surround"><a class="anchor" href="#lossless-surround" aria-hidden="true" tabindex="-1">#</a>Lossless surround</h3>
+<p><strong>Lossless surround</strong> comes on by itself when the Apple TV is connected to a receiver or soundbar that takes it. To change it, open Flexarr&#39;s <strong>Settings › Playback</strong> on the Apple TV: it&#39;s under <strong>This Apple TV</strong>, while <strong>Play files directly</strong> is on. The iPhone and iPad app has the same switch, for AirPlay or a connected display.</p>
+<p>Turn it off if your television is plugged straight into a soundbar over ordinary ARC (not eARC), or if you hear nothing on TrueHD or DTS films with it on.</p>
 <h3 id="dialogue-boost-and-night-mode"><a class="anchor" href="#dialogue-boost-and-night-mode" aria-hidden="true" tabindex="-1">#</a>Dialogue boost and night mode</h3>
 <p>The player&#39;s audio menu, and <strong>Settings › Playback</strong>, have three sound settings that each device keeps for itself:</p>
 <ul>
 <li><strong>Dialogue boost</strong> (Low, Medium or High) raises the centre channel, where the voices are, and the speech frequencies.</li>
 <li><strong>Night mode</strong> squeezes loud and quiet together, so explosions don&#39;t wake the house and whispers stay audible. <strong>On a schedule</strong> turns it on between set times, even in the middle of a film.</li>
-<li><strong>Speakers</strong> folds the sound to <strong>Stereo</strong> or <strong>5.1</strong>. <strong>Auto</strong> plays every channel your equipment takes; leave it there for headphones, so the iPhone&#39;s Spatial Audio (or Android&#39;s) gets the whole mix.</li>
+<li><strong>Speakers</strong> folds the sound to <strong>Stereo</strong> or <strong>5.1</strong>. <strong>Auto</strong> plays every channel your equipment takes; leave it there for headphones, so the iPhone&#39;s Spatial Audio gets the whole mix.</li>
 </ul>
-<p>To change the sound, the Apple TV and iPhone have to work on it as PCM, so while any of these is on, nothing is passed through to your receiver: Atmos plays without its height channels. Leave them off (and <strong>Speakers</strong> on <strong>Auto</strong>) for the full Atmos. They need <strong>Play files directly</strong>. When the server converts a film for the app anyway (one the Apple TV can&#39;t show as it is), the server shapes the sound before sending it. Over AirPlay, sound the app shapes itself plays as it is. The web and Android apps have the same settings, and use them for live TV too, except live TV in Safari.</p>
+<p>On Apple TV and iPhone they need <strong>Play files directly</strong>. While any is on, Atmos plays without its height channels, so leave them off (and <strong>Speakers</strong> on <strong>Auto</strong>) for the full Atmos. Over AirPlay the sound plays as it is. The web has them too, for live TV as well, except in Safari.</p>
 <h2 id="watching-away-from-home"><a class="anchor" href="#watching-away-from-home" aria-hidden="true" tabindex="-1">#</a>Watching away from home</h2>
 <p>With a quality limit set in <strong>Settings › Streaming</strong>, anything above it is converted down. Lossless sound becomes compressed and HDR becomes SDR, because neither fits through a small connection. See <a href="/guide/away-from-home">Away from home</a>.</p>
 <h2 id="other-screens"><a class="anchor" href="#other-screens" aria-hidden="true" tabindex="-1">#</a>Other screens</h2>

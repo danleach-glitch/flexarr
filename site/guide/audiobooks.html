@@ -72,6 +72,7 @@
             <details class="section" open>
             <summary>Watching and listening</summary>
             <ul>
+              <li><a href="/guide/finding-things">Finding things</a></li>
               <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
               <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
               <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
@@ -115,7 +116,7 @@
         <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Watching and listening</p>
         <h1>Audiobooks</h1>
         <p class="lede">An audiobooks library with chapters, series, authors and narrators, a player with speed, smart rewind, a sleep timer and bookmarks, and books on your phone offline.</p>
-        <p class="meta">4 min read</p>
+        <p class="meta">5 min read</p>
         <nav class="toc" aria-label="On this page">
           <p>On this page</p>
           <ol>
@@ -128,8 +129,10 @@
           </ol>
         </nav>
         <div class="prose">
+<blockquote class="callout note"><p><strong>Note</strong> Audiobooks arrive in the next release of Flexarr.</p>
+</blockquote>
 <p>Audiobooks are a library like films, TV and music. Flexarr finds the books in your folders, reads their chapters and details, and plays each book as one, however many files it has. Readarr, Bookshelf or Chaptarr can fetch books for it, but they don&#39;t have to: a folder of audiobooks is enough.</p>
-<p>Books are on the web, iPhone and iPad, Android and the Apple TV. Kids profiles don&#39;t see them.</p>
+<p>Books are on the web, iPhone, iPad and the Apple TV. Kids profiles don&#39;t see them.</p>
 <h2 id="adding-the-library"><a class="anchor" href="#adding-the-library" aria-hidden="true" tabindex="-1">#</a>Adding the library</h2>
 <p>In <strong>Settings › Libraries</strong>, add a library, choose <strong>Audiobooks</strong>, and pick the folder your books are in.</p>
 <p>Flexarr reads these layouts:</p>
@@ -147,9 +150,9 @@ Author - Title [B0DPXK6Y7B].m4b                  an Audible id in the name
 <li><strong>Chapters</strong> come from the files themselves, a <code>.cue</code> sheet, or one per file. A long book in a single file with none is split into half-hour parts.</li>
 </ul>
 <h2 id="finding-books"><a class="anchor" href="#finding-books" aria-hidden="true" tabindex="-1">#</a>Finding books</h2>
-<p>The library&#39;s front page has <strong>Continue listening</strong>, <strong>Next in series</strong>, <strong>Recently added</strong>, your series, authors, narrators and genres, and what you&#39;ve finished. <strong>All</strong> lists every book, with filters for what you haven&#39;t started, are part way through or have finished, and by narrator, length and language.</p>
+<p>The library&#39;s front page has <strong>Continue listening</strong>, <strong>Next in series</strong>, <strong>Recently added</strong>, your series, authors, narrators and genres, and what you&#39;ve finished. <strong>All books</strong> lists every book, with filters for what you haven&#39;t started, are part way through or have finished, and by narrator, length and language.</p>
 <p>A book&#39;s page shows its series (&quot;Book 3 of 7&quot;), authors and narrators, how long it is and how long is left at your speed, its chapters, and more in the series, by the author and read by the narrator. A series&#39; page lists its books in order with the next one to hear picked out.</p>
-<p><strong>Home</strong> can show <strong>Continue listening</strong>, <strong>Next in series</strong> and <strong>New audiobooks</strong>: turn them on or off in <strong>Settings › Home</strong>.</p>
+<p><strong>Home</strong> can show <strong>Continue listening</strong>, <strong>Next in series</strong> and <strong>New audiobooks</strong>: the main profile turns them on or off in <strong>Settings › Home and Browse</strong> on the web.</p>
 <h2 id="listening"><a class="anchor" href="#listening" aria-hidden="true" tabindex="-1">#</a>Listening</h2>
 <ul>
 <li><strong>Speed</strong> goes from 0.5× to 3.5×. Each book remembers its own; new books start at your default.</li>
@@ -157,17 +160,18 @@ Author - Title [B0DPXK6Y7B].m4b                  an Audible id in the name
 <li><strong>Smart rewind:</strong> after a pause, a book starts a little earlier, more the longer you were away.</li>
 <li><strong>Sleep timer:</strong> after some minutes or at the end of the chapter. On a phone, shake it to add time.</li>
 <li><strong>Bookmarks</strong>, with a note if you like, are on the book&#39;s page and in the player.</li>
-<li><strong>Finished:</strong> a book counts as finished in its last two minutes. <strong>Start over</strong> goes back to the beginning and keeps the record. Part-way through a book, it asks first.</li>
+<li><strong>Finished:</strong> a book counts as finished in its last two minutes or last 2%, whichever comes first, or when you choose <strong>Mark finished</strong> on its page. <strong>Start over</strong> goes back to the beginning and keeps the record. Part-way through a book, it asks first.</li>
 <li><strong>Across devices:</strong> your place is saved as you listen. If another device got further, the player offers to jump there.</li>
 <li>At the end of a book in a series, the player offers the next one.</li>
 </ul>
 <p>In the player, the seek bar covers the chapter playing; switch it to <strong>Book</strong> to see the whole book. Time left counts at your speed.</p>
-<p>Set your default speed, skip steps and smart rewind in <strong>Settings › Audiobooks</strong> on the web, iPhone and Android. A book you&#39;ve set a speed for in the player keeps its own.</p>
+<p>Set your default speed, skip steps and smart rewind in <strong>Settings › Audiobooks</strong> on the web or iPhone. They&#39;re your profile&#39;s, on every device. A book you&#39;ve set a speed for in the player keeps its own.</p>
 <h2 id="on-your-phone"><a class="anchor" href="#on-your-phone" aria-hidden="true" tabindex="-1">#</a>On your phone</h2>
-<p><strong>Download</strong> a book to listen without a connection. Your place is sent when you&#39;re back online. In the car, CarPlay and Android Auto list what you&#39;re listening to and what you&#39;ve downloaded.</p>
+<p><strong>Download</strong> a book on iPhone or iPad to listen without a connection. Your place is sent when you&#39;re back online. In <strong>Settings › Downloads</strong>, <strong>Download the next book in a series</strong> fetches the next one when you finish a book, and <strong>Remove books once finished</strong> deletes a book when you&#39;ve heard it. Both are off to start with. See <a href="/guide/downloads">Downloads</a>.</p>
+<p>The <strong>Continue listening</strong> widget and &quot;Resume listening in Flexarr&quot; with Siri pick up the book you&#39;re on. CarPlay will list books too, once Apple approves Flexarr for CarPlay.</p>
 <h2 id="details-from-the-internet"><a class="anchor" href="#details-from-the-internet" aria-hidden="true" tabindex="-1">#</a>Details from the internet</h2>
-<p>When a book&#39;s files leave gaps, Flexarr fills them from Audible (through the community-run Audnexus service), Open Library, and if you add keys, Google Books and Hardcover. Choose your Audible store in the web app&#39;s <strong>Settings › Audiobooks</strong>; Google Books and Hardcover turn on once their key or token is saved there.</p>
-<p>Audible&#39;s chapters replace guessed ones when they match the book&#39;s length. To change a book&#39;s chapters yourself, open its page, choose <strong>⋯ › Edit chapters</strong>, rename them or move them all by a few seconds, then <strong>Save</strong>. <strong>Use Audible&#39;s</strong> fills them in; <strong>Save</strong> keeps them. <strong>Fix match</strong> finds the right book when Flexarr picked the wrong one.</p>
+<p>When a book&#39;s files leave gaps, Flexarr fills them from Audible (through the community-run Audnexus service), Open Library, and if you add keys, Google Books and Hardcover. The main profile chooses the <strong>Audible store</strong> in the web app&#39;s <strong>Settings › Audiobooks</strong>; Google Books and Hardcover turn on once their key or token is saved there.</p>
+<p>Audible&#39;s chapters replace guessed ones when they match the book&#39;s length. On the web, the main profile can change a book&#39;s chapters: open its page, choose <strong>⋯ › Edit chapters…</strong>, rename them or <strong>Shift all by</strong> a few seconds, then <strong>Save</strong>. <strong>Use Audible&#39;s</strong> fills them in; <strong>Save</strong> keeps them. <strong>⋯ › Fix match…</strong> finds the right book when Flexarr picked the wrong one.</p>
 <h3 id="author-photos"><a class="anchor" href="#author-photos" aria-hidden="true" tabindex="-1">#</a>Author photos</h3>
 <p>Each author gets a photo and a short biography. Flexarr looks first for an <code>author.jpg</code> or <code>folder.jpg</code> in the author&#39;s folder, then asks Readarr, Audible and Open Library, and tries again later for anyone still missing one. A picture in the author&#39;s folder wins over anything found online.</p>
 <p>If an author has the wrong photo or biography, open their page in the web app and choose <strong>Edit</strong> (it asks for the admin PIN): pick another photo, upload your own, or rewrite the biography. Your changes stay put. Turn off <strong>Locked</strong> to let Flexarr fill in anything that&#39;s missing.</p>

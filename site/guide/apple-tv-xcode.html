@@ -72,6 +72,7 @@
             <details class="section">
             <summary>Watching and listening</summary>
             <ul>
+              <li><a href="/guide/finding-things">Finding things</a></li>
               <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
               <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
               <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
@@ -115,7 +116,7 @@
         <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Getting started</p>
         <h1>Install the Apple TV app with Xcode</h1>
         <p class="lede">Build the Flexarr Apple TV app from source and install it on your own Apple TV with a Mac and Xcode, until it arrives on the App Store.</p>
-        <p class="meta">3 min read</p>
+        <p class="meta">4 min read</p>
         <nav class="toc" aria-label="On this page">
           <p>On this page</p>
           <ol>
@@ -135,7 +136,7 @@
 <ul>
 <li><strong>A Mac</strong> that can run Xcode 26 or later.</li>
 <li><strong>Xcode 26 or later</strong>, free from the Mac App Store. Open it once after installing, and when it offers to download platforms, include <strong>tvOS</strong>. (If you skipped that, add it later in <strong>Xcode › Settings › Components</strong>.)</li>
-<li><strong>XcodeGen</strong>, which makes the Xcode project from the files in the repository. With <a href="https://brew.sh" rel="noopener">Homebrew</a>: <code>brew install xcodegen</code>.</li>
+<li><strong>XcodeGen</strong>, which makes the Xcode project from the files in the repository, and <strong>Go</strong>, which builds part of the app. With <a href="https://brew.sh" rel="noopener">Homebrew</a>: <code>brew install xcodegen go</code>.</li>
 <li><strong>Git</strong>, to download the source. macOS offers to install it the first time you type <code>git</code> in Terminal.</li>
 <li><strong>An Apple ID.</strong> A free one works.</li>
 <li><strong>An Apple TV running tvOS 18.2 or later</strong>, on the same network as the Mac.</li>
@@ -146,7 +147,9 @@
 <p>In Terminal:</p>
 <pre><code class="language-bash">git clone https://github.com/danleach-glitch/flexarr.git
 cd flexarr
+git checkout &quot;$(git tag --list &#39;v*&#39; --sort=-v:refname | head -1)&quot;
 </code></pre>
+<p>The last line picks the latest release, so the app matches the server you installed.</p>
 <h2 id="2-sign-xcode-in-to-your-apple-id"><a class="anchor" href="#2-sign-xcode-in-to-your-apple-id" aria-hidden="true" tabindex="-1">#</a>2. Sign Xcode in to your Apple ID</h2>
 <p>Open Xcode, then <strong>Xcode › Settings › Accounts</strong>, choose <strong>+</strong> and sign in with your Apple ID. Xcode makes a free &quot;Personal Team&quot; for it.</p>
 <h3 id="find-your-team-id"><a class="anchor" href="#find-your-team-id" aria-hidden="true" tabindex="-1">#</a>Find your Team ID</h3>
@@ -175,16 +178,17 @@ cd flexarr
 </code></pre>
 <p>The first build takes several minutes. When Flexarr opens on the TV, <a href="/guide/connect-devices#apple-tv">connect it to your server</a>.</p>
 <h2 id="updating-the-app"><a class="anchor" href="#updating-the-app" aria-hidden="true" tabindex="-1">#</a>Updating the app</h2>
-<p>Download the latest source and run the same command again:</p>
-<pre><code class="language-bash">git pull
+<p>Download the latest release and run the same command again:</p>
+<pre><code class="language-bash">git fetch --tags
+git checkout &quot;$(git tag --list &#39;v*&#39; --sort=-v:refname | head -1)&quot;
 make apple-install TEAM=A1B2C3D4E5 BUNDLE_ID=com.yourname.flexarr.tv
 </code></pre>
 <p>Use the same bundle ID every time, so the TV treats it as the same app and keeps your sign-in. Keeping the app and the server on the same version avoids surprises; see <a href="/guide/updating">Updating</a>.</p>
 <h2 id="troubleshooting"><a class="anchor" href="#troubleshooting" aria-hidden="true" tabindex="-1">#</a>Troubleshooting</h2>
 <h3 id="no-paired-apple-tv-found"><a class="anchor" href="#no-paired-apple-tv-found" aria-hidden="true" tabindex="-1">#</a>&quot;No paired Apple TV found&quot;</h3>
 <p>The Mac can&#39;t see a paired Apple TV. Check both are on the same network, the Apple TV is awake, and it&#39;s listed (and connected) in Xcode&#39;s <strong>Devices and Simulators</strong> window. If it&#39;s listed but greyed out, wake the TV and wait a minute.</p>
-<h3 id="xcodegen-command-not-found"><a class="anchor" href="#xcodegen-command-not-found" aria-hidden="true" tabindex="-1">#</a><code>xcodegen: command not found</code></h3>
-<p>Install XcodeGen (<code>brew install xcodegen</code>), then open a new Terminal window.</p>
+<h3 id="xcodegen-command-not-found-or-go-command-not-found"><a class="anchor" href="#xcodegen-command-not-found-or-go-command-not-found" aria-hidden="true" tabindex="-1">#</a><code>xcodegen: command not found</code> or <code>go: command not found</code></h3>
+<p>Install what&#39;s missing (<code>brew install xcodegen go</code>), then open a new Terminal window.</p>
 <h3 id="signing-errors-no-account-for-team-no-profiles-were-found"><a class="anchor" href="#signing-errors-no-account-for-team-no-profiles-were-found" aria-hidden="true" tabindex="-1">#</a>Signing errors: &quot;No Account for Team&quot;, &quot;No profiles were found&quot;</h3>
 <ul>
 <li>Check the <code>TEAM</code> value is your Team ID, not your email address or name, and that Xcode is signed in to that Apple ID.</li>

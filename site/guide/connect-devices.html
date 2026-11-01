@@ -72,6 +72,7 @@
             <details class="section">
             <summary>Watching and listening</summary>
             <ul>
+              <li><a href="/guide/finding-things">Finding things</a></li>
               <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
               <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
               <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
@@ -130,10 +131,10 @@
           </ol>
         </nav>
         <div class="prose">
-<p>Every device signs in to your server with a code. The device shows the code, and you allow it: on an iPhone or Android phone that&#39;s already signed in to Flexarr as the main profile, which asks you by itself, or on the computer where you <a href="/guide/first-setup">set up Flexarr</a>. Each device then gets a sign-in of its own, which you can rename or sign out at any time.</p>
+<p>Every device signs in to your server with a code. The device shows the code, and you allow it: on an iPhone that&#39;s already signed in to Flexarr as the main profile, which asks you by itself, or on the computer where you <a href="/guide/first-setup">set up Flexarr</a>. Each device then gets a sign-in of its own, which you can rename or sign out at any time.</p>
 <h2 id="allow-it-from-your-phone"><a class="anchor" href="#allow-it-from-your-phone" aria-hidden="true" tabindex="-1">#</a>Allow it from your phone</h2>
-<p>When a device asks to connect, every iPhone and Android phone signed in as the main profile asks <strong>Connect “Living room”?</strong>, with the device&#39;s code. Check the code matches the one on the device&#39;s screen and tap <strong>Allow</strong>. If the device isn&#39;t yours, tap <strong>Don&#39;t allow</strong>: the device says <strong>Not allowed</strong>, and asks again only if someone there chooses <strong>Try again</strong>.</p>
-<p>The phone asks while Flexarr is open on it. When it isn&#39;t, a notification says the device wants to connect, if notifications are turned on for that phone. Choose <strong>Allow</strong> or <strong>Don&#39;t allow</strong> on the notification itself (the phone asks to be unlocked first), or tap it to get the same question in the app. The web app asks too, when it&#39;s open on the main profile.</p>
+<p>When a device asks to connect, every iPhone signed in as the main profile asks <strong>Connect “Living room”?</strong>, with the device&#39;s code. Check the code matches the one on the device&#39;s screen and tap <strong>Allow</strong>. If settings are locked, <strong>Allow</strong> asks for the admin PIN first. If the device isn&#39;t yours, tap <strong>Don&#39;t allow</strong>: the device says <strong>Not allowed</strong>, and asks again only if someone there chooses <strong>Try again</strong>.</p>
+<p>The phone asks while Flexarr is open on it. When it isn&#39;t, a notification says the device wants to connect, if notifications are turned on for that phone. Tap it to get the same question in the app, or press and hold it: <strong>Allow</strong> opens the app to allow it there, and <strong>Don&#39;t allow</strong> answers without opening it (the phone asks to be unlocked first). The web app asks too, when it&#39;s open on the main profile.</p>
 <p>To see every device waiting, open <strong>Settings</strong> in the app, or <strong>Settings › Security › Connect a device</strong> on the web. Each one has <strong>Allow</strong> and <strong>Don&#39;t allow</strong>.</p>
 <p>Turned a device away by mistake? Choose <strong>Try again</strong> on the device, and allow it this time. (An app from before version 0.56 shows a new code by itself instead; you aren&#39;t asked about that one, but it&#39;s listed in Settings as turned away, with <strong>Allow</strong>.)</p>
 <h2 id="iphone-and-ipad"><a class="anchor" href="#iphone-and-ipad" aria-hidden="true" tabindex="-1">#</a>iPhone and iPad</h2>
@@ -142,7 +143,7 @@
 <ol>
 <li>When iOS asks whether Flexarr can find devices on your local network, choose <strong>Allow</strong>. Without it, the app can&#39;t see your server.</li>
 <li>Under <strong>Servers on your network</strong>, choose your server.</li>
-<li>The app shows <strong>Connect this iPhone</strong> (or iPad) with a code like <code>ABC-123</code>.</li>
+<li>The app shows <strong>Connect this iPhone</strong> (or iPad) with a code of six letters and numbers, like <code>H7KM2P</code>.</li>
 <li>On another phone signed in to Flexarr, tap <strong>Allow</strong> when it asks (see <a href="#allow-it-from-your-phone">Allow it from your phone</a>). Or, on your computer, open the server&#39;s address in a browser, go to <strong>Settings › Security › Connect a device</strong>, type in the code and choose <strong>Continue</strong>.</li>
 <li>Check that the code matches the one on your phone, and choose <strong>Allow</strong>.</li>
 </ol>
