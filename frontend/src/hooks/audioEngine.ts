@@ -24,6 +24,13 @@ import type { QueueState } from './queue'
  */
 export const PRELOAD_SECONDS = 10
 
+/**
+ * How long a book's session can go unheard before it's taken as gone: the server ends sessions after 12 hours idle, and
+ * this is an hour short of that, so a place sent after a long pause (the page closing, say) goes to the book itself
+ * rather than to a session that has already ended.
+ */
+export const BOOK_SESSION_STALE_MS = 11 * 3_600_000
+
 /** How often a podcast episode's place is sent to the server while it plays, so it resumes there anywhere. */
 export const PODCAST_PROGRESS_SECONDS = 10
 
@@ -47,6 +54,8 @@ interface BookPlay {
    * book itself instead.
    */
   expired: boolean
+  /** When the server last heard from its session (a Date.now() time, which keeps counting while the computer sleeps). */
+  heardAt: number
   /** A next file that failed to load ahead of time: left for the end of the one playing, which opens it the ordinary way. */
   preloadFailed: number | null
 }
@@ -220,15 +229,22 @@ export function createEngine(host: EngineHost): AudioEngine {
     if (!book) return
     const at = ended ? book.manifest.durationSeconds : bookTime()
     book.reportedAt = performance.now()
+    markIfStale(book)
     saveLocalPlace(book.track.id, ended ? 0 : at)
     const b = book
     const direct = () => void recordBookProgress(b.track.id, at, ended, deviceName()).catch(() => undefined)
     if (b.expired) return direct()
+    b.heardAt = Date.now()
     void reportProgress(b.session, at, paused, ended).catch((e: unknown) => {
       if (!(e instanceof ApiError && e.status === 404)) return
       b.expired = true
       direct()
     })
+  }
+
+  /** Takes the book's session as ended once the server has gone long enough without hearing from it. */
+  function markIfStale(b: BookPlay) {
+    if (Date.now() - b.heardAt > BOOK_SESSION_STALE_MS) b.expired = true
   }
 
   /** Lets go of the book: its place is sent (unless it ended, which said so already) and its session ended. */
@@ -280,7 +296,7 @@ export function createEngine(host: EngineHost): AudioEngine {
       throw new Error('Not a book this player can play')
     }
     const decision = startDecision(manifest.progress, readLocalPlace(track.id), startAt > 0 ? startAt : track.playFrom)
-    book = { track, session: info.sessionId, manifest, pausedAt: null, reportedAt: performance.now(), expired: false, preloadFailed: null }
+    book = { track, session: info.sessionId, manifest, pausedAt: null, reportedAt: performance.now(), expired: false, heardAt: Date.now(), preloadFailed: null }
     host.book?.({ manifest, session: info.sessionId, decision })
     host.duration(manifest.durationSeconds)
     const place = fileAt(manifest.files, decision.start)
@@ -485,7 +501,8 @@ export function createEngine(host: EngineHost): AudioEngine {
     if (book) return
     const { tracks, index } = host.queue()
     const next = tracks[index + 1]
-    if (!next) return
+    // A book queued next isn't got ready ahead: it starts its own session (with this device's name) when it's reached.
+    if (!next || isBook(next)) return
     const left = remaining(s)
     const o = other()
     // Talk doesn't crossfade: an episode ends and the next begins.
@@ -643,6 +660,7 @@ export function createEngine(host: EngineHost): AudioEngine {
     play() {
       mixer.resume()
       // Smart rewind: back a little after a pause, more the longer it was.
+      if (book) markIfStale(book)
       if (book && book.pausedAt !== null) {
         const back = host.smartRewind?.() ? smartRewindSeconds((Date.now() - book.pausedAt) / 1000) : 0
         book.pausedAt = null
@@ -709,6 +727,7 @@ export function createEngine(host: EngineHost): AudioEngine {
     beacon() {
       if (!book) return
       saveLocalPlace(book.track.id, bookTime())
+      markIfStale(book)
       if (book.expired) beaconBookProgress(book.track.id, bookTime(), deviceName())
       else beaconProgress(book.session, bookTime())
     },
