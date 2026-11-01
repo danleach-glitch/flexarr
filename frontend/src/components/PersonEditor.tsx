@@ -8,7 +8,6 @@ import { FilePreview } from './FilePreview'
 
 const sourceNames: Record<string, string> = {
   folder: 'Folder',
-  readarr: 'Readarr',
   audible: 'Audible',
   openlibrary: 'Open Library',
   tmdb: 'TMDB',
