@@ -89,7 +89,7 @@ public static partial class ProfileEndpoints
                 .Select(p => ToDto(p, current)).ToList();
         });
 
-        group.MapPost("/", async (ProfileRequest request, FlexarrDbContext db, CurrentProfile current, CancellationToken ct) =>
+        group.MapPost("/", async (ProfileRequest request, FlexarrDbContext db, CurrentProfile current, IOptionsMonitor<FlexarrOptions> options, CancellationToken ct) =>
         {
             if (Validate(request) is { } problem)
             {
@@ -105,6 +105,8 @@ public static partial class ProfileEndpoints
             {
                 Id = Profile.NewId(), Name = request.Name.Trim(), Color = request.Color ?? "#a9c2ec", HiddenLibraryIds = request.HiddenLibraryIds?.Distinct().ToList() ?? [],
                 MaxRatingAge = request.MaxRatingAge, IsKids = request.IsKids,
+                // A shorter Home to start with (a kids profile always has the standard one).
+                Layout = request.IsKids ? null : await Endpoints.LayoutEndpoints.StartingLayoutAsync(db, options.CurrentValue, ct),
             };
             profile.SetPin(request.Pin);
             db.Profiles.Add(profile);
@@ -362,6 +364,11 @@ public static partial class ProfileEndpoints
             if (id != current.Id && !current.IsAdmin)
             {
                 return Results.Problem("Only the main profile can choose for someone else.", statusCode: 403);
+            }
+
+            if (await db.Profiles.AsNoTracking().AnyAsync(p => p.Id == id && p.IsKids, ct))
+            {
+                return Results.Problem("A kids profile has the standard menu.", statusCode: 403);
             }
 
             if (request.Hidden is null || request.Hidden.Any(h => !NavigationRequest.Items.Contains(h)))
@@ -630,7 +637,8 @@ public static partial class ProfileEndpoints
     internal static ProfileDto ToDto(Profile p, CurrentProfile current) =>
         new(p.Id, p.Name, p.Color, p.PinHash is not null, p.IsMain, p.Id == current.Id, p.HiddenLibraryIds, current.ImageUrlFor(p), p.RequestShowsLibraryId,
             p.RequestFilmsLibraryId, p.LibraryOrder, current.AsksPinFor(p), p.AutoRequestWatchlist, p.MaxRatingAge,
-            p.IsKids, current.AsksAdminPinFor(p), p.RequestAudiobooksLibraryId, p.HiddenNavigation);
+            p.IsKids, current.AsksAdminPinFor(p), p.RequestAudiobooksLibraryId,
+            p.IsKids ? [] : p.HiddenNavigation);
 
 
     /// <summary>

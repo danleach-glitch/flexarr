@@ -9,7 +9,7 @@ The ways into your libraries, beyond opening one.
 
 Home opens on **Continue watching**, then rows such as **Ready from your watchlist**, your favourite Live TV channels, the latest unwatched films and shows, **Top 10 films in your library**, **Because you watched…**, genre rows that change each day, and **Coming soon**.
 
-The rows come from your server, so every app shows the same ones in the same order. Each profile chooses its own in **Settings › Home & browse** on the web: turn a row on or off, and drag it to move it. The same page sets the rows of each film and TV library's **Browse**, a music library's rows and the shelves of an audiobooks library's front page. A profile that hasn't chosen keeps the rows the server had before.
+The rows come from your server, so every app shows the same ones in the same order. Each profile chooses its own in **Settings › Home & browse** on the web: turn a row on or off, and drag it to move it. The same page sets the rows of each film and TV library's **Browse**, a music library's rows and the shelves of an audiobooks library's front page. Profiles that were there before keep the rows they had; a new profile starts with a shorter Home (the music rows other than **Made for you**, **New audiobooks**, **Continue listening** kept apart and **Highly rated films** start off) that it can add to. Kids profiles always have the standard Home and menu.
 
 With more than one film or TV library (say **Films** and **Films in 4K**), **Combine libraries of the same kind** gives Home one **Latest unwatched** row for all your film libraries and one for all your TV ones. It's on to start with.
 

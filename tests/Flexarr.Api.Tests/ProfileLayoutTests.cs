@@ -169,6 +169,66 @@ public sealed class ProfileLayoutTests : IDisposable
         Assert.Equal(HttpStatusCode.OK, (await client.GetAsync(Api("/settings/layout"))).StatusCode);
     }
 
+    [Fact]
+    public async Task ANewProfile_StartsWithAShorterHome_AndEveryBrowseRowOn()
+    {
+        await AddLibraryAsync(LibraryType.Music);
+        var client = Client(await NewProfileTokenAsync());
+
+        var layout = await client.GetFromJsonAsync<JsonElement>(Api("/settings/layout"));
+        var home = layout.GetProperty("home").EnumerateArray().ToDictionary(r => r.GetProperty("id").GetString()!, r => r.GetProperty("enabled").GetBoolean());
+
+        Assert.True(home["continue"]);
+        Assert.True(home["music-mixes"]);
+        Assert.False(home["music-playlists"]);
+        Assert.False(home["music-top"]);
+        Assert.False(home["gems"]);
+        Assert.All(layout.GetProperty("movies").EnumerateArray(), r => Assert.True(r.GetProperty("enabled").GetBoolean()));
+        // The main profile keeps what it had.
+        var owner = (await Client().GetFromJsonAsync<JsonElement>(Api("/settings/layout"))).GetProperty("home").EnumerateArray();
+        Assert.All(owner, r => Assert.True(r.GetProperty("enabled").GetBoolean()));
+    }
+
+    [Fact]
+    public async Task AKidsProfile_HasTheStandardHomeAndMenu_AndCantChangeThem()
+    {
+        await _factory.SetMainPinAsync("2580");
+        var created = await (await Client().PostAsJsonAsync(Api("/profiles"), new { name = "Ada", maxRatingAge = 8, isKids = true })).Content.ReadFromJsonAsync<JsonElement>();
+        var id = created.GetProperty("id").GetString();
+        var token = (await (await Client().PostAsJsonAsync(Api("/session/device"), new { deviceName = "Playroom TV" })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("token").GetString();
+        var tv = _factory.CreateClient();
+        tv.DefaultRequestHeaders.Add("X-Api-Key", token);
+        (await tv.PostAsJsonAsync(Api($"/profiles/{id}/select"), new { })).EnsureSuccessStatusCode();
+        var none = Array.Empty<object>();
+
+        var layout = await tv.PutAsJsonAsync(Api("/settings/layout"), new { home = new[] { new { id = "upcoming", enabled = false } }, movies = none, shows = none });
+        var navigation = await Client().PutAsJsonAsync(Api($"/profiles/{id}/navigation"), new { hidden = new[] { "discover" } });
+
+        Assert.Equal(HttpStatusCode.Forbidden, layout.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, navigation.StatusCode);
+        Assert.Empty(created.GetProperty("hiddenNavigation").EnumerateArray());
+    }
+
+    [Fact]
+    public async Task OnlyTheMainProfile_SetsAnotherProfilesMenu()
+    {
+        await _factory.SetMainPinAsync("2580");
+        var a = await (await Client().PostAsJsonAsync(Api("/profiles"), new { name = $"A {Guid.NewGuid():N}" })).Content.ReadFromJsonAsync<JsonElement>();
+        var b = await (await Client().PostAsJsonAsync(Api("/profiles"), new { name = $"B {Guid.NewGuid():N}" })).Content.ReadFromJsonAsync<JsonElement>();
+        var token = (await (await Client().PostAsJsonAsync(Api("/session/device"), new { deviceName = "Lounge TV" })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("token").GetString();
+        var device = _factory.CreateClient();
+        device.DefaultRequestHeaders.Add("X-Api-Key", token);
+        (await device.PostAsJsonAsync(Api($"/profiles/{a.GetProperty("id").GetString()}/select"), new { })).EnsureSuccessStatusCode();
+
+        var own = await device.PutAsJsonAsync(Api($"/profiles/{a.GetProperty("id").GetString()}/navigation"), new { hidden = new[] { "discover" } });
+        var other = await device.PutAsJsonAsync(Api($"/profiles/{b.GetProperty("id").GetString()}/navigation"), new { hidden = new[] { "discover" } });
+        var main = await device.PutAsJsonAsync(Api("/profiles/owner/navigation"), new { hidden = new[] { "discover" } });
+
+        Assert.Equal(HttpStatusCode.OK, own.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, other.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, main.StatusCode);
+    }
+
     private async Task<Guid> AddLibraryAsync(LibraryType type)
     {
         using var scope = _factory.Services.CreateScope();

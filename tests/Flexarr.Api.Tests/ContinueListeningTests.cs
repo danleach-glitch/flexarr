@@ -246,6 +246,7 @@ public class ContinueListeningTests(FlexarrApiFactory factory) : IClassFixture<F
         var owner = Client(server);
         var created = await (await owner.PostAsJsonAsync(Api("profiles"), new { name = $"Listener {Guid.NewGuid():N}"[..20] })).Content.ReadFromJsonAsync<JsonElement>();
         var profileId = created.GetProperty("id").GetString()!;
+        await server.ShowEveryHomeRowAsync(profileId);
         var token = (await (await owner.PostAsJsonAsync(Api($"profiles/{profileId}/select"), new { })).Content.ReadFromJsonAsync<JsonElement>())
             .GetProperty("token").GetString()!;
 

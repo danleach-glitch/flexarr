@@ -50,6 +50,11 @@ public static class LayoutEndpoints
                 return Results.NotFound();
             }
 
+            if (me.IsKids)
+            {
+                return Results.Problem("A kids profile has the standard Home.", statusCode: 403);
+            }
+
             var before = Parse(me.Layout) ?? options.CurrentValue.Layout;
             var saved = new LayoutOptions
             {
@@ -68,13 +73,52 @@ public static class LayoutEndpoints
         return api;
     }
 
-    /// <summary>The profile's own layout, or the server's while it hasn't chosen one.</summary>
+    /// <summary>
+    /// The profile's own layout, or the server's while it hasn't chosen one. A kids profile always has the standard
+    /// one: every row a child can have, in the built-in order.
+    /// </summary>
     public static async Task<LayoutOptions> ForProfileAsync(FlexarrDbContext db, FlexarrOptions options, string profileId, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(db);
         ArgumentNullException.ThrowIfNull(options);
-        var saved = await db.Profiles.AsNoTracking().Where(p => p.Id == profileId).Select(p => p.Layout).FirstOrDefaultAsync(ct);
-        return Parse(saved) ?? options.Layout;
+        var saved = await db.Profiles.AsNoTracking().Where(p => p.Id == profileId).Select(p => new { p.Layout, p.IsKids }).FirstOrDefaultAsync(ct);
+        if (saved?.IsKids == true)
+        {
+            return new LayoutOptions();
+        }
+
+        return Parse(saved?.Layout) ?? options.Layout;
+    }
+
+    /// <summary>Home's rows a new profile starts with switched off: the ones that mostly repeat a library's own page.</summary>
+    private static readonly HashSet<string> StartsOff = new(StringComparer.Ordinal)
+    {
+        Playlists.PlaylistEndpoints.HomeRowId, "music-recent", "music-top", "music-artists", "music-new",
+        Books.BookRows.ContinueRowId, Books.BookRows.NewRowId, "gems",
+    };
+
+    /// <summary>
+    /// What a new profile starts with, as JSON for <see cref="Core.Media.Profile.Layout"/>: Home's rows in the built-in
+    /// order with a few switched off, and every Browse row on.
+    /// </summary>
+    public static async Task<string> StartingLayoutAsync(FlexarrDbContext db, FlexarrOptions options, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(db);
+        ArgumentNullException.ThrowIfNull(options);
+        var all = await db.Libraries.IgnoreQueryFilters().OrderBy(l => l.Name).ToListAsync(ct);
+        var libraries = all.Where(l => l.Type is (LibraryType.Movies or LibraryType.TvShows or LibraryType.HomeVideos)
+            && !(options.LiveTv?.Account is not null && RecordingsLibrary.Is(l))).ToList();
+        var combine = options.Layout.CombineLibraries;
+        var home = HomeRows(libraries, combine, all.Any(l => l.Type == LibraryType.Music), all.Any(l => l.Type == LibraryType.Audiobooks),
+            all.Any(l => l.Type == LibraryType.Podcasts));
+        // Music and book rows a server doesn't have yet are switched off too, ready for when it does.
+        var off = StartsOff.Where(id => home.All(r => r.Id != id)).Select(id => new RowSetting { Id = id, Enabled = false });
+        var layout = new LayoutOptions
+        {
+            Home = [.. home.Select(r => new RowSetting { Id = r.Id, Enabled = !StartsOff.Contains(r.Id) }), .. off],
+            CombineLibraries = combine,
+        };
+        return JsonSerializer.Serialize(layout, Json);
     }
 
     /// <summary>The most rows one list may hold: far more than there are, and a cap on what a profile can store.</summary>
