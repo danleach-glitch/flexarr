@@ -133,7 +133,8 @@ public static partial class ArtworkUrl
         return !apiPath.Contains("..", StringComparison.Ordinal) && !apiPath.Contains("://", StringComparison.Ordinal);
     }
 
-    [GeneratedRegex(@"^/[A-Za-z0-9_\-./]+\.(?:jpe?g|png|webp)$", RegexOptions.IgnoreCase)]
+    // "+" too: Amazon's cover names have them (51ef+s6y42L._SL500_.jpg).
+    [GeneratedRegex(@"^/[A-Za-z0-9_\-./+]+\.(?:jpe?g|png|webp)$", RegexOptions.IgnoreCase)]
     private static partial Regex ImagePath();
 
     /// <summary>/t/p/{size}/{file}: TMDB keeps every image under a size folder (w92 … original).</summary>

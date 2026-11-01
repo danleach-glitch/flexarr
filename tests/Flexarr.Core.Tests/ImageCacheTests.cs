@@ -15,7 +15,7 @@ public class ImageCacheTests
     [InlineData("https://artworks.thetvdb.com/banners/v4/series/1/posters/a.jpg", "https://artworks.thetvdb.com/banners/v4/series/1/posters/a.jpg")]
     [InlineData("https://static.tvmaze.com/uploads/images/original_untouched/1/2.jpg", "https://static.tvmaze.com/uploads/images/original_untouched/1/2.jpg")]
     [InlineData("https://assets.fanart.tv/fanart/tv/1/clearlogo/a.png", "https://assets.fanart.tv/fanart/tv/1/clearlogo/a.png")]
-    [InlineData("https://m.media-amazon.com/images/I/51Abc+def._SL500_.jpg", null)] // only plain file names
+    [InlineData("https://m.media-amazon.com/images/I/51ef+s6y42L._SL500_.jpg", "https://m.media-amazon.com/images/I/51ef+s6y42L._SL500_.jpg")]
     [InlineData("https://m.media-amazon.com/images/I/51AbcDef._SL500_.jpg", "https://m.media-amazon.com/images/I/51AbcDef._SL500_.jpg")]
     [InlineData("https://covers.openlibrary.org/b/id/12345-L.jpg", "https://covers.openlibrary.org/b/id/12345-L.jpg")]
     [InlineData("https://covers.openlibrary.org/a/olid/OL1A-L.jpg", null)] // authors' photos aren't book covers
