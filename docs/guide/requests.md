@@ -99,9 +99,7 @@ To follow a request while it downloads, use Seerr itself, or **Coming soon** in 
 
 ## Audiobooks
 
-Book requests arrive in the next release, on the web only. Seerr doesn't handle books, so Flexarr asks Readarr, Bookshelf or Chaptarr itself. Connect one in **Settings › Connections**, then under **Requests** in **Settings › Libraries** switch on **Book requests (preview)** and choose its **Quality**, **Metadata** and **Folder**.
-
-> **Note** Book requests are a preview, off to start with. Bookshelf, the Readarr fork most people run, can't always search by title: its searches go to Goodreads, which often doesn't answer. Typing a book's ISBN works better. Coming soon, new books arriving and deleting through the app work whether requests are on or not.
+Book requests arrive in the next release, on the web only. Seerr doesn't handle books, so Flexarr asks Readarr, Bookshelf or Chaptarr itself. Connect one in **Settings › Connections**, then under **Requests** in **Settings › Libraries** choose its **Quality**, **Metadata** and **Folder**.
 
 In Discover's search, **Search for any film, show or book**, find a book you don't have and choose **Request**. Each result says whether it's **In your library**, **Requested** or available to request. Flexarr adds the book (and its author, if they're new, without following their other books), then asks for it to be found. When it arrives, whoever asked hears that it's ready to listen.
 
