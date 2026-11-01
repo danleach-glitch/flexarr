@@ -163,6 +163,42 @@ public class AudiobookArrTests(FlexarrApiFactory factory) : IClassFixture<Flexar
         Assert.DoesNotContain("POST /api/v1/book", arr.Requests);
     }
 
+    [Fact]
+    public async Task ComingSoon_DoesntPointIntoALibraryTheProfileCantSee()
+    {
+        await LibraryAsync();
+        Guid hidden;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var library = new Library { Name = $"Private books {Guid.NewGuid():N}", Type = LibraryType.Audiobooks };
+            db.Libraries.Add(library);
+            await db.SaveChangesAsync();
+            hidden = library.Id;
+        }
+
+        var book = await BookAsync(hidden, managedBy: "Bookshelf", arrId: "31");
+        var arr = new FakeArr();
+        var release = DateTime.UtcNow.Date.AddDays(3).ToString("yyyy-MM-dd'T'00:00:00'Z'", System.Globalization.CultureInfo.InvariantCulture);
+        arr.Responses["GET //bookshelf.test" + CalendarPath()] = $$"""[{"id": 31, "title": "Hidden Away", "releaseDate": "{{release}}"}]""";
+        using var app = arr.Serve(factory, bookshelf: true);
+        var admin = Client(app.CreateClient());
+        var created = await (await admin.PostAsJsonAsync(new Uri("/api/v1/profiles", UriKind.Relative), new { name = $"Sam {Guid.NewGuid():N}"[..20], hiddenLibraryIds = new[] { hidden } }))
+            .Content.ReadFromJsonAsync<JsonElement>();
+        var token = (await (await admin.PostAsJsonAsync(new Uri($"/api/v1/profiles/{created.GetProperty("id").GetString()}/select", UriKind.Relative), new { }))
+            .Content.ReadFromJsonAsync<JsonElement>()).GetProperty("token").GetString();
+        var sam = Client(app.CreateClient());
+        sam.DefaultRequestHeaders.Add("X-Flexarr-Profile", token);
+
+        UpcomingEndpoints.ForgetArrCalls();
+        var forSam = await sam.GetFromJsonAsync<JsonElement>(new Uri("/api/v1/upcoming?days=14", UriKind.Relative));
+        var forMain = await admin.GetFromJsonAsync<JsonElement>(new Uri("/api/v1/upcoming?days=14", UriKind.Relative));
+
+        static JsonElement Hidden(JsonElement list) => list.EnumerateArray().Single(u => u.GetProperty("title").GetString() == "Hidden Away");
+        Assert.True(Hidden(forSam).GetProperty("libraryItemId").ValueKind == JsonValueKind.Null);
+        Assert.Equal(book, Hidden(forMain).GetProperty("libraryItemId").GetGuid());
+    }
+
     [Theory]
     [InlineData("{}")] // an add that says nothing of what it added
     [InlineData("<html>Sign in</html>")] // a proxy's page
