@@ -212,14 +212,27 @@ public static class BookQueries
         var series = await SeriesListAsync(db, libraryId, null, 0, Shelf, profileId, ct);
         var authors = await PeopleAsync(db, libraryId, CreditRole.Author, null, 0, Shelf, ct);
         var narrators = await PeopleAsync(db, libraryId, CreditRole.Narrator, null, 0, Shelf, ct);
-        var genres = await db.Genres.Select(g => new { g.Name, Count = g.Items.Count(i => books.Any(b => b.Id == i.Id)) })
-            .Where(g => g.Count > 0).OrderByDescending(g => g.Count).ThenBy(g => g.Name).Take(200).ToListAsync(ct);
+        var genres = await GenreCounts(db, books).OrderByDescending(g => g.Count).ThenBy(g => g.Name).Take(200)
+            .Select(g => new GenreCountDto(g.Name, g.Count)).ToListAsync(ct);
 
         var languages = await books.Select(i => i.Book!.Language).Where(l => l != null && l != "").Distinct().OrderBy(l => l).ToListAsync(ct);
 
         return new BookShelvesDto(continuing, next, recent, series.Items, authors.Items, narrators.Items,
-            [.. genres.Select(g => new GenreCountDto(g.Name, g.Count))], finished, [.. languages.OfType<string>()]);
+            genres, finished, [.. languages.OfType<string>()]);
     }
+
+    /// <summary>A library's book genres and how many books are in each, A to Z (the Genres view).</summary>
+    public static Task<List<GenreCountDto>> GenresAsync(FlexarrDbContext db, Guid libraryId, CancellationToken ct) =>
+        GenreCounts(db, Books(db, libraryId)).OrderBy(g => g.Name).Select(g => new GenreCountDto(g.Name, g.Count)).ToListAsync(ct);
+
+    private sealed class GenreCount
+    {
+        public required string Name { get; init; }
+        public int Count { get; init; }
+    }
+
+    private static IQueryable<GenreCount> GenreCounts(FlexarrDbContext db, IQueryable<MediaItem> books) =>
+        db.Genres.Select(g => new GenreCount { Name = g.Name, Count = g.Items.Count(i => books.Any(b => b.Id == i.Id)) }).Where(g => g.Count > 0);
 
     /// <summary>
     /// For each series this profile has finished a book of, the next one it hasn't started: most recently finished
