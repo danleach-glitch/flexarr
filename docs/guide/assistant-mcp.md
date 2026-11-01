@@ -12,7 +12,7 @@ Flexarr is an MCP server. MCP (the [Model Context Protocol](https://modelcontext
 | `search_library` | Finds films, shows and episodes by title. |
 | `continue_watching` | What you're in the middle of, most recent first. |
 | `next_up` | The episode to watch next in a show. |
-| `list_devices` | The Apple TVs, iPhones and iPads signed in, whether Flexarr is open on each, and what each is playing. |
+| `list_devices` | The TVs, phones and tablets signed in, whether Flexarr is open on each, and what each is playing. |
 | `now_playing` | Everything playing right now on every screen: which device, whose profile, what, and how far in. |
 | `play_on_device` | Plays a title on a device. A show plays the episode you're up to; it can shuffle a show or start from the beginning. |
 | `control_device` | Pauses, resumes or stops a device. |
@@ -30,6 +30,10 @@ Flexarr is an MCP server. MCP (the [Model Context Protocol](https://modelcontext
 | `watch_channel_on_device` | Puts a channel on a device. |
 | `record_programme` | Sets a programme, or every showing of a series, to record. |
 | `recordings` | What's set to record, and what's been recorded. |
+| `audiobooks_in_progress` | *Next release.* The books you're part way through, most recent first, with how far in. |
+| `set_sleep_timer` | *Next release.* Stops what a device is playing after some minutes, or at the end of the book's chapter. |
+
+In the next release, `play_on_device` also plays a book from where you left it, and `mark_watched` marks one finished. See [Audiobooks](audiobooks.md).
 
 The Live TV tools are only useful once Live TV is set up. See [Live TV](live-tv.md).
 

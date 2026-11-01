@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>What you need · Flexarr guide</title>
-  <meta name="description" content="What Flexarr is, what kind of computer can run it, and whether you need Sonarr, Radarr and Lidarr.">
+  <meta name="description" content="What Flexarr is, what kind of computer can run it, and whether you need Sonarr, Radarr, Lidarr and the other *arr apps.">
   <meta name="theme-color" content="#1b1720">
   <meta name="color-scheme" content="dark">
   <meta name="apple-itunes-app" content="app-id=6826618084">
@@ -12,7 +12,7 @@
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <meta property="og:title" content="What you need · Flexarr guide">
-  <meta property="og:description" content="What Flexarr is, what kind of computer can run it, and whether you need Sonarr, Radarr and Lidarr.">
+  <meta property="og:description" content="What Flexarr is, what kind of computer can run it, and whether you need Sonarr, Radarr, Lidarr and the other *arr apps.">
   <meta property="og:image" content="https://flexarr.io/shots/og.jpg">
   <meta property="og:url" content="https://flexarr.io/guide/what-you-need">
   <meta name="twitter:card" content="summary_large_image">
@@ -72,6 +72,7 @@
             <details class="section">
             <summary>Watching and listening</summary>
             <ul>
+              <li><a href="/guide/finding-things">Finding things</a></li>
               <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
               <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
               <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
@@ -114,8 +115,8 @@
       <article>
         <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Getting started</p>
         <h1>What you need</h1>
-        <p class="lede">What Flexarr is, what kind of computer can run it, and whether you need Sonarr, Radarr and Lidarr.</p>
-        <p class="meta">4 min read</p>
+        <p class="lede">What Flexarr is, what kind of computer can run it, and whether you need Sonarr, Radarr, Lidarr and the other *arr apps.</p>
+        <p class="meta">5 min read</p>
         <nav class="toc" aria-label="On this page">
           <p>On this page</p>
           <ol>
@@ -176,8 +177,13 @@
 <td>Works well: Flexarr reads the tags in your files and uses <code>cover.jpg</code> or <code>folder.jpg</code> images, or art embedded in the files.</td>
 </tr>
 <tr>
+<td>Audiobooks (in the next release)</td>
+<td>Readarr, Bookshelf or Chaptarr fetch books, add details and covers, and let you request books.</td>
+<td>Works well: Flexarr reads the folders, tags and files beside each book, and looks up what&#39;s missing on Audible and Open Library.</td>
+</tr>
+<tr>
 <td>Requests</td>
-<td>Seerr lets you search for and request films and shows from the web app and the Apple TV.</td>
+<td>Seerr lets you search for and request films and shows from any of the apps.</td>
 <td>No requests.</td>
 </tr>
 <tr>
@@ -188,8 +194,8 @@
 </tbody></table></div>
 <p>A few other things depend on the *arrs too:</p>
 <ul>
-<li><strong>New downloads appear straight away</strong> when Sonarr, Radarr or Lidarr tell Flexarr about them with a webhook. Without that, Flexarr finds new files on its own scan, every 12 hours, or when you start one in <strong>Settings › Libraries</strong>.</li>
-<li><strong>Coming soon</strong>, showing episodes about to air and films about to be released, comes from Sonarr and Radarr.</li>
+<li><strong>New downloads appear straight away</strong> when Sonarr, Radarr or Lidarr tell Flexarr about them with a webhook, which Flexarr adds to each app for you. Without that, Flexarr finds new files on its own scan, every 12 hours, or when you start one in <strong>Settings › Libraries</strong>.</li>
+<li><strong>Coming soon</strong>, showing episodes about to air and films about to be released, comes from Sonarr and Radarr (and, in the next release, books on the way from Readarr).</li>
 </ul>
 <p>Some features don&#39;t need any of them: podcasts are built in, <a href="/guide/live-tv">Live TV</a> uses Dispatcharr, and the web app, profiles, downloads to your phone and <a href="/guide/import-from-plex">importing your history from Plex</a> all work on their own.</p>
 <blockquote class="callout tip"><p><strong>Tip</strong> If you don&#39;t run the *arrs yet, you can start with Flexarr and a folder of media, then add Sonarr and Radarr later. Flexarr tries unmatched titles again within a day, or straight away when you choose <strong>Refresh artwork and details</strong> on a library in <strong>Settings › Libraries</strong>.</p>
@@ -202,6 +208,7 @@
 <li><strong>Apple TV</strong>: coming soon to the App Store. Until then you can <a href="/guide/apple-tv-xcode">install it from Xcode</a>.</li>
 <li><strong>Web</strong>: built into the server. Open the server&#39;s address in any browser.</li>
 </ul>
+<p>Android and Android TV apps are on the way: see <a href="https://flexarr.io/apps">flexarr.io/apps</a>.</p>
 <h2 id="pick-your-platform"><a class="anchor" href="#pick-your-platform" aria-hidden="true" tabindex="-1">#</a>Pick your platform</h2>
 <ul>
 <li><a href="/guide/install-macos">Install on a Mac</a></li>
@@ -213,7 +220,7 @@
         </div>
         <nav class="pager" aria-label="More of the guide">
           <span></span>
-          <a class="next" href="/guide/install-macos"><span>Next</span>Install on a Mac</a>
+          <a class="next" href="/guide/first-setup"><span>Next</span>First setup</a>
         </nav>
         <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/what-you-need.md">Edit this page on GitHub</a> <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20What%20you%20need">Report something wrong or missing</a></p>
       </article>

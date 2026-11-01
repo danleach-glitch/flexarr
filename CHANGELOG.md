@@ -19,8 +19,19 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ### Home
 - **Continue watching or listening**: books and podcast episodes you're part way through now sit in the same row as your films and shows, on the web, iPhone, iPad and Android (books only on the Apple TV). To keep them apart, turn off **Books and podcasts in Continue watching** in **Settings › Playback**.
 
+### Website
+- flexarr.io catches up: Trakt, the watchlist, kids profiles, dialogue boost and night mode, the iPhone remote, the new setup guide, and a first look at audiobooks.
+- The guide at flexarr.io/guide is up to date with this version, with a new **Finding things** page, fresh screenshots, and search that reads whole pages, troubleshooting questions included.
+
 ### Libraries
 - Replacing a `cover.jpg` or `poster.jpg` beside your files now shows the new picture in every app after the next scan, instead of the old one staying.
+- Adding a library on the web has one button: open its folder in the picker and press **Add library**.
+
+### Backups
+- Restoring a backup now keeps every setting, including error reports, automatic updates and audiobook keys, and the server keeps its identity, so apps carry on without signing in again.
+
+### Siri
+- "Resume listening in Flexarr" plays whichever book or podcast episode you listened to last. It takes the place of "Play my Up Next" as a Siri phrase (Apple allows ten), which is still an action in the Shortcuts app.
 
 ## 0.57.0 · 31 October 2026
 

@@ -5,7 +5,7 @@ description: Watch TV channels in Flexarr with a guide, favourites and rewind, a
 
 Flexarr can show TV channels next to your films and shows, with a programme guide, favourites, pause and rewind, and recording. It doesn't come with any channels. You bring your own, through Dispatcharr.
 
-Live TV is on the web, Apple TV, iPhone and iPad.
+Live TV is on the web, Apple TV, iPhone and iPad. Kids profiles don't have it, and a profile with an age limit sees only the channels the main profile picks under **Channels for kids** in **Settings › Live TV**.
 
 ## What you need
 

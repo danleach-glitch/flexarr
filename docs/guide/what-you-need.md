@@ -1,6 +1,6 @@
 ---
 title: What you need
-description: What Flexarr is, what kind of computer can run it, and whether you need Sonarr, Radarr and Lidarr.
+description: What Flexarr is, what kind of computer can run it, and whether you need Sonarr, Radarr, Lidarr and the other *arr apps.
 ---
 
 Flexarr comes in two halves. The **server** runs on a computer in your home and keeps your films, TV shows, music and podcasts. The **apps** on your iPhone, iPad, Apple TV and web browser connect to it and play from it. There's no account and no cloud service in the middle: your library stays on your own disk.
@@ -48,13 +48,14 @@ You can run Flexarr without them, but what you get differs by library.
 | Films | Radarr supplies titles, posters, backgrounds, overviews, genres, ratings, trailers and cast. Films Radarr doesn't manage are looked up through its search. | Films are found and play, named from their folders and files. Artwork and details come from any `.nfo` file and images (`poster.jpg`, `fanart.jpg`) in the film's folder, or from TMDB with a free key of your own. |
 | TV shows | Sonarr supplies show and episode details and artwork. Flexarr adds cast from TVmaze. | Episodes are found and play, organised from names like `S01E02`. Artwork and details come from any `tvshow.nfo`, episode `.nfo` files and images (`poster.jpg`, `season01-poster.jpg`, `-thumb.jpg`) beside them, or from TVmaze, which needs no setup. |
 | Music | Lidarr adds artist pictures, album details and sorts albums, EPs and singles apart. | Works well: Flexarr reads the tags in your files and uses `cover.jpg` or `folder.jpg` images, or art embedded in the files. |
-| Requests | Seerr lets you search for and request films and shows from the web app and the Apple TV. | No requests. |
+| Audiobooks (in the next release) | Readarr, Bookshelf or Chaptarr fetch books, add details and covers, and let you request books. | Works well: Flexarr reads the folders, tags and files beside each book, and looks up what's missing on Audible and Open Library. |
+| Requests | Seerr lets you search for and request films and shows from any of the apps. | No requests. |
 | Subtitles | Bazarr lets you search for subtitles from the player, and re-sync ones that are out of time. | Subtitles in or beside your files only. |
 
 A few other things depend on the \*arrs too:
 
-- **New downloads appear straight away** when Sonarr, Radarr or Lidarr tell Flexarr about them with a webhook. Without that, Flexarr finds new files on its own scan, every 12 hours, or when you start one in **Settings › Libraries**.
-- **Coming soon**, showing episodes about to air and films about to be released, comes from Sonarr and Radarr.
+- **New downloads appear straight away** when Sonarr, Radarr or Lidarr tell Flexarr about them with a webhook, which Flexarr adds to each app for you. Without that, Flexarr finds new files on its own scan, every 12 hours, or when you start one in **Settings › Libraries**.
+- **Coming soon**, showing episodes about to air and films about to be released, comes from Sonarr and Radarr (and, in the next release, books on the way from Readarr).
 
 Some features don't need any of them: podcasts are built in, [Live TV](live-tv.md) uses Dispatcharr, and the web app, profiles, downloads to your phone and [importing your history from Plex](import-from-plex.md) all work on their own.
 
@@ -67,6 +68,8 @@ Some features don't need any of them: podcasts are built in, [Live TV](live-tv.m
 - **iPhone and iPad**: [on the App Store](https://apps.apple.com/app/flexarr/id6826618084).
 - **Apple TV**: coming soon to the App Store. Until then you can [install it from Xcode](apple-tv-xcode.md).
 - **Web**: built into the server. Open the server's address in any browser.
+
+Android and Android TV apps are on the way: see [flexarr.io/apps](https://flexarr.io/apps).
 
 ## Pick your platform
 

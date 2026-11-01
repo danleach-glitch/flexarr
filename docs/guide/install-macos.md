@@ -5,7 +5,7 @@ description: Build Flexarr from source and run it natively on a Mac as a backgro
 
 On a Mac, Flexarr runs natively rather than in Docker. That way it can use the Mac's graphics hardware (Apple VideoToolbox) to convert video, which Docker on macOS can't. It works on Apple silicon and Intel Macs.
 
-There's no downloadable Mac app or installer yet. You build Flexarr from its source code with one command, which installs it as a background service that starts when you log in. It takes some time in Terminal, but you only do it once.
+A Mac app is coming to the Mac App Store. Until then, you build Flexarr from its source code with one command, which installs it as a background service that starts when you log in. It takes some time in Terminal, but you only do it once.
 
 > **Note** Prefer not to build anything? Docker Desktop for Mac runs the [Docker image](install-docker.md) too, but without VideoToolbox: video is converted on the processor.
 
@@ -34,12 +34,15 @@ The install script copies Flexarr into place and starts it over SSH, even on the
 
 ## Build and install
 
-1. Get the source code:
+1. Get the source code of the latest release:
 
    ```bash
    git clone https://github.com/danleach-glitch/flexarr.git
    cd flexarr
+   git checkout "$(git tag --list 'v*' --sort=-v:refname | head -1)"
    ```
+
+   Build a release, not the newest code on `main`: that's work in progress, and once it has changed your database you can't go back to a release.
 
 2. Build and install:
 
@@ -47,7 +50,7 @@ The install script copies Flexarr into place and starts it over SSH, even on the
    make deploy DEPLOY_HOST=localhost
    ```
 
-The script builds the web app and the server, downloads Microsoft's ASP.NET Core runtime into `~/.dotnet` (checking it against Microsoft's published checksum), copies Flexarr into `~/.flexarr`, and starts it. It waits until Flexarr answers, then prints its address, something like `http://your-mac.local:8383`.
+The script builds the web app and the server, downloads Microsoft's ASP.NET Core runtime into `~/.dotnet` (checking it against Microsoft's published checksum), copies Flexarr into `~/.flexarr`, and starts it. It waits until Flexarr answers, then prints its address, something like `http://your-mac.local:8383`, and on a new server a **Set it up** link with the setup code filled in.
 
 To install on a different Mac, use its SSH host name in place of `localhost`, for example `make deploy DEPLOY_HOST=mini`. That Mac needs Remote Login and FFmpeg, but not the SDK or Node.js.
 
@@ -89,11 +92,12 @@ Sonarr, Radarr and Lidarr in Docker see your media under their own paths, such a
 
 ## Updating
 
-Fetch the latest code and install again. Your settings and library stay as they are.
+The easiest way is **Update now** in **Settings › Updates**. Or check out the newest release and install again. Your settings and library stay as they are.
 
 ```bash
 cd flexarr
-git pull
+git fetch --tags
+git checkout "$(git tag --list 'v*' --sort=-v:refname | head -1)"
 make deploy DEPLOY_HOST=localhost
 ```
 
@@ -101,4 +105,4 @@ See [Updating](updating.md) for more.
 
 ## Next: set it up
 
-Open **http://your-mac.local:8383** (or **http://localhost:8383** on the Mac itself) in a browser and enter the setup code from `~/.flexarr/logs/console.log` (or `~/.flexarr/data/setup-code.txt`). The first browser with the code becomes the new server's owner. Carry on with [First setup](first-setup.md).
+Open the **Set it up** link the install printed, and choose a PIN: the code is already filled in. Without the link, open **http://your-mac.local:8383** (or **http://localhost:8383** on the Mac itself) and enter the setup code from `~/.flexarr/data/setup-code.txt`. The first browser with the code becomes the new server's owner. Carry on with [First setup](first-setup.md).

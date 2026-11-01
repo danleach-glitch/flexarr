@@ -62,14 +62,15 @@ Download the new image, remove the old container, and start a new one with the s
 docker pull ghcr.io/danleach-glitch/flexarr:latest
 docker stop flexarr
 docker rm flexarr
-docker run -d --name flexarr \
+docker run -d --name flexarr --restart unless-stopped \
+  -e PUID=1000 -e PGID=1000 \
   -p 8383:8383 \
-  -v /path/to/config:/config \
+  -v ~/flexarr/config:/config \
   -v /path/to/media:/data/media \
   ghcr.io/danleach-glitch/flexarr:latest
 ```
 
-Removing the container doesn't touch your data, as long as `/config` is a folder or volume you mounted. Use exactly the same `-v` paths as before.
+Removing the container doesn't touch your data, as long as `/config` is a folder or volume you mounted. Use exactly the same options as before: the same `-v` paths, `PUID` and `PGID`, and `--network host` in place of `-p 8383:8383` if you used it.
 
 > **Note** On a Synology or Unraid server, use the platform's own way to update a container. See [Install on a Synology NAS](install-synology.md) or [Install on Unraid](install-unraid.md).
 
@@ -80,22 +81,23 @@ Images are published for every release with these tags:
 | Tag | What it follows |
 | --- | --- |
 | `latest` | The newest release. Every update you pull may be a bigger step. |
-| `0.49` | The newest `0.49.x` release: fixes, without moving to `0.50`. |
-| `0.49.1` | Exactly that release, never anything else. |
+| `0.57` | The newest `0.57.x` release: fixes, without moving to `0.58`. |
+| `0.57.0` | Exactly that release, never anything else. |
 
 To have containers updated automatically, a tool such as [Watchtower](https://containrrr.dev/watchtower/) can pull new images and recreate them.
 
-Use `latest` to always get the newest Flexarr, or pin a version like `0.49` and change the number when you're ready to move on. Change the tag in your `docker-compose.yml` (`image: ghcr.io/danleach-glitch/flexarr:0.49`) or in your `docker run` command.
+Use `latest` to always get the newest Flexarr, or pin a version like `0.57` and change the number when you're ready to move on. Change the tag in your `docker-compose.yml` (`image: ghcr.io/danleach-glitch/flexarr:0.57`) or in your `docker run` command.
 
 Images are built for 64-bit Intel/AMD and 64-bit ARM, and Docker picks the right one for your machine.
 
 ## On a Mac
 
-If you installed Flexarr natively on a Mac with the deploy script (see [Install on a Mac](install-macos.md)), the easiest way is **Update now** in [Settings › Updates](#settings-updates). You can also update by getting the newest source and running the same command again from the machine you deployed from:
+If you installed Flexarr natively on a Mac with the deploy script (see [Install on a Mac](install-macos.md)), the easiest way is **Update now** in [Settings › Updates](#settings-updates). You can also update by checking out the newest release and running the same command again from the machine you deployed from:
 
 ```bash
 cd flexarr
-git pull
+git fetch --tags
+git checkout "$(git tag --list 'v*' --sort=-v:refname | head -1)"
 make deploy DEPLOY_HOST=<your-mac>
 ```
 
@@ -114,7 +116,7 @@ You'll find them in **Settings › Backup and restore**. If an update goes wrong
 ## Keeping the apps up to date
 
 - **iPhone and iPad:** the App Store updates Flexarr like any other app. To update by hand, open the App Store, tap your picture, and pull down to refresh the list of updates.
-- **Apple TV:** until it's on the App Store, pull the latest source and run `make apple-install` again. See [Install the Apple TV app with Xcode](apple-tv-xcode.md#updating-the-app).
+- **Apple TV:** until it's on the App Store, check out the latest release and run `make apple-install` again. See [Install the Apple TV app with Xcode](apple-tv-xcode.md#updating-the-app).
 - **Web:** the web app comes with the server, so it's up to date as soon as the server is. Reload any open tabs.
 
 It's best to keep the server and the apps roughly in step. When a release adds something to both, the app's side of it only works once the server has it too.

@@ -3,13 +3,13 @@ title: Podcasts
 description: Follow podcasts from Apple's directory or any feed, with Up Next, speeds, a sleep timer, offline episodes on iPhone and iPad, and OPML import.
 ---
 
-Podcasts are built into Flexarr. There's no library to add and nothing to set up: they sit with your libraries, and each profile follows its own shows. They're on the web, iPhone and iPad. They aren't on the Apple TV.
+Podcasts are built into Flexarr. There's no library to add and nothing to set up: they sit with your libraries, and each profile follows its own shows. They're on the web, iPhone and iPad. They aren't on the Apple TV, and kids profiles don't have them.
 
 ## Finding shows
 
 Open **Podcasts** and choose **Browse**.
 
-![The Podcasts screen with followed shows, Up Next and Continue listening, beside the now playing screen](../../site/guide/img/phones-podcasts.webp "Podcasts and the player on iPhone")
+![The Podcasts screen with your podcasts, Up Next and Continue listening, beside a podcast's Now Playing with its end time](../../site/guide/img/phones-podcasts.webp "Podcasts and the player on iPhone")
 
 - **Top charts**, by category, come from Apple's podcast directory.
 - **Search** finds any show in that directory.
@@ -35,7 +35,9 @@ Episodes play in the same bar as music, and pick up where you left off on any de
 
 - **15 seconds back and 30 on**, on screen and on the lock screen.
 - **Speeds** from 0.8× to 3×. Your profile's default is in **Settings › Podcasts › Speed**, and changing it in the player changes it there too.
-- **Sleep timer:** stop after a set time, or at the end of the episode.
+- **Sleep timer** (the moon): stop after a set time, or at the end of the episode.
+- **Notes** swaps the cover for the episode's notes and chapters. The chapter playing shows above the scrubber, with arrows to the next and the last.
+- Now Playing says when the episode will end, at the speed it's playing.
 - When an episode ends, the show's next one plays, or else the newest you haven't heard.
 
 Episodes play through your server rather than straight from the podcast's host. That means they work [away from home](away-from-home.md) over Tailscale as they do at home, and podcast hosts don't see where each listener is.
@@ -60,7 +62,9 @@ Podcast settings belong to each profile.
 
 ## Offline on iPhone and iPad
 
-Download any episode to listen with no connection. Or turn on **Auto-download new episodes**: the newest unplayed episodes of every show you follow then download by themselves, and played ones are cleared away. Episodes you deleted yourself are never downloaded again by themselves.
+Download any episode to listen with no connection. Or turn on **Auto-download new episodes**: the newest unplayed episodes of every show you follow then download by themselves. Episodes you deleted yourself are never downloaded again by themselves.
+
+A downloaded episode is deleted once you've heard it to the end or marked it played, whether you downloaded it or the app did. One finished on another device, such as the web, goes the next time the app catches up with the server.
 
 Automatic downloads wait for Wi-Fi, unless you turn off **Automatic downloads on Wi-Fi only** in **Settings › Downloads**. They never use Low Data Mode. An episode you download by hand comes over mobile data too. What you hear offline counts once you're back online.
 

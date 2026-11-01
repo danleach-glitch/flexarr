@@ -15,9 +15,11 @@ Every phrase needs the word **Flexarr** in it, so Siri knows which app you mean.
 - "Play *Heat* in Flexarr" or "Watch *Heat* in Flexarr"
 - "Shuffle *Family Guy* in Flexarr"
 - "Continue watching in Flexarr"
-- "Add *Severance* to my watchlist in Flexarr" (see [Watchlist](watchlist.md))
+- "Save *Severance* in Flexarr" for a title in your library, or "Add to my watchlist in Flexarr" and then any title (see [Watchlist](watchlist.md))
 
 A show plays the episode you're up to. A film carries on from where you left off. Shuffle plays a show's episodes in a random order, one after another. Continue watching picks up whatever you were in the middle of most recently.
+
+Don't say "Add *Severance* to my watchlist": iOS keeps that sentence for itself.
 
 ### Podcasts
 
@@ -25,15 +27,19 @@ A show plays the episode you're up to. A film carries on from where you left off
 - "Play the latest *The Rest Is History* in Flexarr" plays the newest one you haven't heard
 - "What's new in my podcasts in Flexarr" reads out the newest episodes, without opening anything
 - "Add *The Rest Is History* to Up Next in Flexarr"
-- "Play my Up Next in Flexarr"
+- "Play my Up Next in Flexarr", until the next release. From then on it's the **Play Up Next** action in the Shortcuts app.
 
 These work for podcasts the profile follows. See [Podcasts](podcasts.md).
 
+In the next release, "Resume listening in Flexarr" picks up the podcast episode or [audiobook](audiobooks.md) you heard last.
+
 ### Controlling what's playing
 
-- "Pause Flexarr"
-- "Resume Flexarr"
-- "Stop Flexarr"
+- "Pause Flexarr", "Resume Flexarr", "Stop Flexarr"
+- "Skip intro in Flexarr"
+- "Next episode in Flexarr"
+- "Skip back in Flexarr" and "Skip forward in Flexarr", 10 seconds at a time
+- "Flexarr, turn on subtitles" and "Flexarr, turn off subtitles", said that way round, as Siri answers "Turn on subtitles" itself. Subtitles come on in your language where there are some.
 - "Turn on night mode in Flexarr" (and "Turn off night mode in Flexarr"). If night mode is on a schedule and already doing what you asked, the schedule stays; otherwise Siri says it replaced the schedule.
 
 ## Playing on your Apple TV
@@ -44,7 +50,7 @@ By default, what you ask for plays on the iPhone or iPad you asked. To send it t
 2. Under **Siri plays on**, choose the Apple TV.
 
 
-Now "Play the next episode of *Severance* in Flexarr" starts it on the TV, and Siri tells you where it's playing. Pause, resume and stop go to the same TV.
+Now "Play the next episode of *Severance* in Flexarr" starts it on the TV, and Siri tells you where it's playing. Pausing, skipping, subtitles and night mode go to the same TV.
 
 You can also name a device as you ask, for example "… on the living room TV". The name is the one the device has in Flexarr's list of signed-in devices.
 
@@ -67,7 +73,8 @@ Everything Siri can do is also in the Shortcuts app on iPhone and iPad, as actio
 | **Shuffle a show** | Plays a show's episodes in a random order. |
 | **Continue watching** | Picks up what you were in the middle of. |
 | **Add to watchlist** | Puts a film or show from your library on your watchlist. |
-| **Pause, resume or stop** | Controls what Flexarr is playing. |
+| **Control playback** | Pauses, resumes or stops, skips the intro, moves on to the next episode, or skips back or forward. |
+| **Subtitles** | Turns subtitles on or off. |
 | **Night mode** | Turns night mode on or off, here or on another device with Flexarr open. |
 | **Dialogue boost** | Sets dialogue boost to off, low, medium or high, here or on another device with Flexarr open. |
 | **Play a podcast's latest episode** | The newest episode you haven't heard. |
@@ -75,6 +82,8 @@ Everything Siri can do is also in the Shortcuts app on iPhone and iPad, as actio
 | **Add a podcast to Up Next** | Puts the next episode at the end of Up Next. |
 | **Play Up Next** | Plays your podcast queue from the start. |
 | **Search Flexarr** | Opens the app on a search. |
+
+In the next release, three more arrive with [audiobooks](audiobooks.md): **Resume listening**, **Play a book**, and **Sleep at the end of the chapter**.
 
 The play and control actions have an **On** setting, where you choose this device or another one signed in to your server. That's handy for a shortcut of your own. A "Film night" shortcut could use Apple's own actions to dim the lights and wake the Apple TV, open Flexarr on it, then use **Play a film or show** with **On** set to that TV.
 
@@ -101,4 +110,4 @@ Add `profile=<name>` (or the profile's id) to either to switch to that profile f
 - **"… isn't signed in to the server any more."** The device chosen in **Settings › Siri** was signed out. Choose another.
 - **Siri opens a different app.** Make sure "Flexarr" is in the phrase.
 
-Siri works on what the profile chosen on that iPhone or iPad sees: its libraries, its next episodes and its podcasts. See [Profiles](profiles.md).
+Siri works on what the profile chosen on that iPhone or iPad sees: its libraries, its next episodes and its podcasts, within any age limit. See [Profiles](profiles.md).

@@ -14,7 +14,7 @@ The iPhone, iPad and Apple TV apps look for Flexarr on your home Wi-Fi. If **Loo
 1. **Check the server is running.** On another device on the same network, open `http://<server>:8383` in a browser, using the computer's name or IP address. If that doesn't load, the problem is the server, not the app. See your install guide: [Mac](install-macos.md), [Synology](install-synology.md), [Unraid](install-unraid.md) or [Docker](install-docker.md).
 2. **Check you're on the same network.** The device must be on the same Wi-Fi as the server, not a guest network and not mobile data.
 3. **Check local network access (iPhone and iPad).** The app asks to find devices on your local network the first time it opens. If you said no, turn it back on in the iPhone's **Settings › Privacy & Security › Local Network › Flexarr**.
-4. **Type the address instead.** Choose **Enter an address instead** and type the address that worked in the browser, such as `http://192.168.1.20:8383`. You'll still get a code to approve.
+4. **Type the address instead.** Choose **Enter its address** on iPhone and iPad, or **Enter an address instead** on Apple TV, and type the address that worked in the browser, such as `http://192.168.1.20:8383`. You'll still get a code to approve.
 
 If the browser test works but discovery doesn't, your router may block devices from announcing themselves to each other. Typing the address always works.
 
@@ -34,9 +34,9 @@ The app moves on by itself once you have. See [First setup](first-setup.md).
 
 Flexarr isn't on the public internet. Away from home, the apps reach it over Tailscale. Check each of these:
 
-1. **Remote access is on.** In the web app, **Settings › Remote access › Away from home** should say **On: Flexarr is available on your tailnet**. If it says Tailscale isn't installed or isn't connected, install Tailscale on the server and sign in first.
+1. **Remote access is on.** In the web app, **Settings › Remote access › Away from home** should say **On: Flexarr is available on your tailnet**. If it says Tailscale isn't installed or isn't connected, install Tailscale on the server and sign in first. (Docker can't use Tailscale: see [Away from home](away-from-home.md#an-https-reverse-proxy-instead).)
 2. **Tailscale is connected on your phone or tablet**, signed in to the same tailnet.
-3. **You have a profile.** Under **People on your tailnet**, each Tailscale account must be linked to a profile. Anyone without one is turned away.
+3. **You have a profile.** If people use their own Tailscale accounts, each one needs a profile under **People with their own Tailscale**. Anyone set to **Not allowed** is turned away.
 4. **The app has picked up the address.** It learns the Tailscale address from the server and uses it when the home address can't be reached. If remote access was turned on after the app connected, close and reopen the app at home once. In the app, **Settings › Server** shows both addresses and which one it's using.
 
 Full details are in [Away from home](away-from-home.md).
@@ -45,7 +45,7 @@ Full details are in [Away from home](away-from-home.md).
 
 ### New downloads don't appear
 
-Flexarr rescans each library every 12 hours, and straight away when Sonarr, Radarr or Lidarr tell it something's arrived. If new downloads take hours to show up, the webhook is missing or failing.
+Flexarr rescans each library every 12 hours, and straight away when Sonarr, Radarr or Lidarr tell it something's arrived. Connecting one of them in Flexarr adds that webhook to it for you. If new downloads take hours to show up, the webhook is missing or failing: add it by hand.
 
 1. In Flexarr, open **Settings › Connections** and find **Webhooks**. Copy the address for each app.
 2. In Sonarr (and Radarr, and Lidarr), go to **Settings › Connect › + › Webhook**, paste the address, set the method to **POST**, and tick **On Import**, **On Upgrade**, **On Rename** and **On Delete**.
@@ -59,11 +59,11 @@ To pick something up now, use the **Scan for new and changed files** icon on the
 
 ### Artwork or details are missing
 
-Films and shows get their artwork and details from Radarr and Sonarr.
+Films and shows get their artwork and details from `.nfo` files and pictures beside them first, then from Radarr and Sonarr. Shows they don't know are looked up on TVmaze, and films on TMDB if you've added a TMDB key.
 
-- **Are they connected?** Check **Settings › Connections**. Without them, titles show without posters.
+- **Are they connected?** Check **Settings › Connections**. Without Sonarr and Radarr, a film needs a TMDB key (or its own `.nfo` and poster) to get artwork. See [Without Sonarr and Radarr](without-arrs.md).
 - **Is it the wrong title?** Open **Settings › Libraries › Library health** and look under **Missing artwork** and **Check these matches**. Use **Fix match** to pick the right one. See [Library health](library-health.md).
-- **Is the folder named clearly?** For titles Sonarr and Radarr don't manage, Flexarr searches by the folder's name. `Title (Year)` works best.
+- **Is the folder named clearly?** For titles Sonarr and Radarr don't manage, Flexarr searches by the folder's name. `Title (Year)` works best, or an `.nfo` with the title's IDs.
 - **Refresh it.** In **Settings › Libraries**, use **Refresh artwork and details** on the library.
 
 For music, artist pictures and album covers come from Lidarr when it's connected, otherwise from the artwork in each album's folder and the files' tags.
@@ -94,6 +94,7 @@ More in [HDR and Dolby Atmos](hdr-and-atmos.md).
 
 - **No sound at all, on Apple TV with a receiver or soundbar:** try turning off **Lossless surround** in the app's **Settings › Playback**. With it on, TrueHD and DTS-HD soundtracks go as multichannel PCM, which some soundbars and receivers don't accept. Off, they go as Dolby Digital Plus, which anything plays.
 - **Atmos:** Dolby Atmos in Dolby Digital Plus reaches the Apple TV, iPhone and iPad intact. Atmos inside TrueHD doesn't yet keep its height channels; it's on the [roadmap](https://github.com/danleach-glitch/flexarr/discussions/45). The web player doesn't pass Atmos through.
+- **Dialogue boost, Night mode or Speakers** turn Atmos into plain surround while any of them is on. Turn them off (and **Speakers** to **Auto**) in the player's audio menu or **Settings › Playback** for the full Atmos.
 - **Away from home** with a stream limit, the sound is compressed to save data.
 
 More in [HDR and Dolby Atmos](hdr-and-atmos.md).
@@ -102,7 +103,7 @@ More in [HDR and Dolby Atmos](hdr-and-atmos.md).
 
 ### The Apple TV app stopped opening after 7 days
 
-Until the Apple TV app is on the App Store, it installs from Xcode. With a free Apple ID, Apple only lets apps installed that way run for 7 days. Run the install command again to refresh it:
+The Apple TV app is with Apple for review. Until it's on the App Store, it installs from Xcode. With a free Apple ID, Apple only lets apps installed that way run for 7 days. Run the install command again to refresh it:
 
 ```bash
 make apple-install TEAM=<your team id> BUNDLE_ID=com.yourname.flexarr.tv
@@ -132,8 +133,8 @@ To help us fix it quickly:
 1. Say what you did, what you expected, and what happened instead.
 2. Include your Flexarr version (**Settings › About**) and the device and app you were using.
 3. If it happened on an Apple TV, iPhone or iPad, use **Send diagnostics** in the app's **Settings › Server** right after it happens, with a short note.
-4. In the web app, open **Settings › Logs** and choose **Download diagnostics**. Attach the zip to the issue.
+4. In the web app, open **Settings › Logs** and choose **Download diagnostics**. Don't attach it to the issue: paste in the log lines that show the problem, and say you can send the zip privately if it's needed.
 
-Keys and passwords are taken out of the zip, but titles and file names stay in. See [Logs and diagnostics](logs-and-diagnostics.md).
+Keys and passwords are taken out of the zip, but your titles, file names and addresses stay in, so it doesn't belong on a public page. See [Logs and diagnostics](logs-and-diagnostics.md#download-diagnostics).
 
 Ideas and feature requests go in [Discussions](https://github.com/danleach-glitch/flexarr/discussions/categories/ideas).

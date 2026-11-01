@@ -72,6 +72,7 @@
             <details class="section" open>
             <summary>Watching and listening</summary>
             <ul>
+              <li><a href="/guide/finding-things">Finding things</a></li>
               <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
               <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
               <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
@@ -140,12 +141,13 @@
 <p>Lidarr isn&#39;t required, but it makes a big difference. With it, artists and albums take their names, years, descriptions and artwork from Lidarr: the artist&#39;s own picture rather than an album cover, and a cover for every album even when the files carry none. An artist&#39;s page shelves releases into <strong>Albums</strong>, <strong>EPs and singles</strong>, <strong>Live and compilations</strong> and <strong>Other</strong>. Without Lidarr, Flexarr reads everything from the files&#39; tags.</p>
 <p>A track by someone other than the album&#39;s artist, such as a duet or a compilation track, shows its own artist. Compilations without an album artist are filed under <strong>Various Artists</strong>.</p>
 <h2 id="playing-and-the-queue"><a class="anchor" href="#playing-and-the-queue" aria-hidden="true" tabindex="-1">#</a>Playing and the queue</h2>
-<p>Every artist, album and playlist has <strong>Play</strong> and <strong>Shuffle</strong>. An artist&#39;s Play runs through their whole catalogue, oldest album first.</p>
-<p><strong>On the web</strong>, the now-playing bar stays with you as you browse. Tracks and albums have <strong>Play next</strong> and <strong>Add to queue</strong> in their menus. The queue panel above the bar lets you drag tracks into order, remove them, clear the lot or skip to any track. The queue and your place in it survive a page reload.</p>
+<p>Every artist, album and playlist has <strong>Play</strong> and <strong>Shuffle</strong>, which open Now Playing. An artist&#39;s Play runs through their whole catalogue, oldest album first. Picking a single song leaves you on the list.</p>
+<p><strong>On the web</strong>, the now-playing bar stays with you as you browse. Click its cover for Now Playing across the whole window: a big cover, the controls and what&#39;s up next, with light in the cover&#39;s colours moving with the music. Escape closes it. Tracks and albums have <strong>Play next</strong> and <strong>Add to queue</strong> in their menus. The queue panel above the bar lets you drag tracks into order, remove them, clear the lot or skip to any track. The queue and your place in it survive a page reload.</p>
 <p><strong>On Apple TV, iPhone and iPad</strong>, the player has next and previous, seeking, shuffle and repeat, and shows the whole queue. Music carries on while you browse, and playing a film pauses it until you&#39;re done.</p>
 <h2 id="now-playing-on-apple-tv"><a class="anchor" href="#now-playing-on-apple-tv" aria-hidden="true" tabindex="-1">#</a>Now Playing on Apple TV</h2>
-<p>While music plays, a <strong>Now Playing</strong> entry appears in the sidebar, with the cover, controls and the queue. Play/pause on the remote works from anywhere in the app.</p>
-<figure><img src="/guide/img/tv-now-playing.webp" alt="Thriller playing on Apple TV, with the album art and the track list" data-caption="Music on Apple TV" loading="lazy" decoding="async" class="device"></figure>
+<p>While music plays, a <strong>Now Playing</strong> entry appears in the sidebar, with the cover, controls and the queue, and a bar along the bottom of the screen that goes away a few seconds after the music is paused. Play/pause on the remote works from anywhere in the app. <strong>Stop</strong> ends the music and takes the bar and Now Playing away until you play something else.</p>
+<p>Behind Now Playing, light in the cover&#39;s colours moves in time with the music. Turn it off with <strong>Settings › Playback › Music visualiser</strong>.</p>
+<figure><img src="/guide/img/tv-now-playing.webp" alt="Thriller in Now Playing on Apple TV, with the visualiser&#39;s light behind it, the controls and Up next" data-caption="Music on Apple TV" loading="lazy" decoding="async" class="device"></figure>
 <h2 id="on-iphone-and-ipad"><a class="anchor" href="#on-iphone-and-ipad" aria-hidden="true" tabindex="-1">#</a>On iPhone and iPad</h2>
 <p>A mini-player sits above the tab bar. Tap it for the full Now Playing sheet, with the cover, scrubber, controls, queue and AirPlay. The lock screen, Control Center and a paired Apple Watch control playback too.</p>
 <h2 id="playlists"><a class="anchor" href="#playlists" aria-hidden="true" tabindex="-1">#</a>Playlists</h2>
@@ -173,14 +175,15 @@ Brothers in Arms/01 - So Far Away.lrc
 </ul>
 <h2 id="gapless-crossfade-and-volume"><a class="anchor" href="#gapless-crossfade-and-volume" aria-hidden="true" tabindex="-1">#</a>Gapless, crossfade and volume</h2>
 <p>The web player loads the next track before the current one ends, so the switch between them takes a few milliseconds. Live albums and DJ mixes flow on almost without a gap.</p>
-<p>In the web app, <strong>Settings › Playback › Music in this browser</strong> has two more:</p>
+<p>In the web app, <strong>Settings › Playback › Music in this browser</strong> has three more:</p>
 <ul>
 <li><strong>Crossfade:</strong> <strong>Off</strong>, or fade the next track in over 2 to 12 seconds as the current one ends.</li>
 <li><strong>Normalise volume:</strong> on by default. It uses ReplayGain (and Opus R128) tags in your files to level loudness, so a quiet album and a loud one play at about the same volume. Tracks without these tags play as they are; a tagging tool can add them.</li>
+<li><strong>Visualiser:</strong> the moving light behind Now Playing.</li>
 </ul>
 <p>These are kept per browser, since speakers and taste differ by room.</p>
 <h2 id="albums-offline"><a class="anchor" href="#albums-offline" aria-hidden="true" tabindex="-1">#</a>Albums offline</h2>
-<p>On iPhone and iPad, every album and playlist has a <strong>Download</strong> button. Tracks the phone plays as they are (AAC, ALAC, MP3, FLAC, WAV and AIFF) are kept as they are. Anything else is converted to AAC. Downloaded tracks carry a green tick and play with no connection. See <a href="/guide/downloads">Downloads</a>.</p>
+<p>On iPhone and iPad, every album and playlist has a <strong>Download</strong> button. Tracks the phone plays as they are (AAC, ALAC, MP3, FLAC, WAV and AIFF) are kept as they are. Anything else is converted to AAC. Downloaded tracks carry a green arrow and play with no connection. See <a href="/guide/downloads">Downloads</a>.</p>
 
         </div>
         <nav class="pager" aria-label="More of the guide">

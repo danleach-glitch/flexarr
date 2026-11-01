@@ -72,6 +72,7 @@
             <details class="section">
             <summary>Watching and listening</summary>
             <ul>
+              <li><a href="/guide/finding-things">Finding things</a></li>
               <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
               <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
               <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
@@ -115,33 +116,52 @@
         <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Looking after it</p>
         <h1>Frequently asked questions</h1>
         <p class="lede">Short answers about Flexarr&#39;s cost and licence, what you need to run it, privacy, the apps, and how many people can use it.</p>
-        <p class="meta">6 min read</p>
+        <p class="meta">7 min read</p>
         <nav class="toc" aria-label="On this page">
           <p>On this page</p>
           <ol>
             <li><a href="#the-basics">The basics</a></li>
+            <li class="sub"><a href="#what-is-flexarr">What is Flexarr?</a></li>
+            <li class="sub"><a href="#is-it-free">Is it free?</a></li>
+            <li class="sub"><a href="#do-i-need-sonarr-radarr-or-lidarr">Do I need Sonarr, Radarr or Lidarr?</a></li>
+            <li class="sub"><a href="#what-hardware-do-i-need">What hardware do I need?</a></li>
             <li><a href="#using-it">Using it</a></li>
+            <li class="sub"><a href="#can-several-people-use-it">Can several people use it?</a></li>
+            <li class="sub"><a href="#how-many-people-can-watch-at-once">How many people can watch at once?</a></li>
+            <li class="sub"><a href="#does-it-work-away-from-home">Does it work away from home?</a></li>
+            <li class="sub"><a href="#can-i-watch-offline">Can I watch offline?</a></li>
             <li><a href="#privacy">Privacy</a></li>
+            <li class="sub"><a href="#does-any-data-leave-my-home">Does any data leave my home?</a></li>
             <li><a href="#apps">Apps</a></li>
+            <li class="sub"><a href="#is-there-an-apple-tv-app-on-the-app-store">Is there an Apple TV app on the App Store?</a></li>
+            <li class="sub"><a href="#is-there-an-android-app">Is there an Android app?</a></li>
+            <li class="sub"><a href="#is-there-a-mac-app">Is there a Mac app?</a></li>
+            <li class="sub"><a href="#does-it-do-photos">Does it do photos?</a></li>
+            <li class="sub"><a href="#which-languages-does-it-speak">Which languages does it speak?</a></li>
+            <li class="sub"><a href="#does-it-work-with-siri">Does it work with Siri?</a></li>
             <li><a href="#getting-help">Getting help</a></li>
+            <li class="sub"><a href="#where-do-i-report-a-bug">Where do I report a bug?</a></li>
+            <li class="sub"><a href="#where-do-i-ask-for-a-feature">Where do I ask for a feature?</a></li>
+            <li class="sub"><a href="#what-s-changed-in-each-version">What&#39;s changed in each version?</a></li>
           </ol>
         </nav>
         <div class="prose">
 <h2 id="the-basics"><a class="anchor" href="#the-basics" aria-hidden="true" tabindex="-1">#</a>The basics</h2>
 <h3 id="what-is-flexarr"><a class="anchor" href="#what-is-flexarr" aria-hidden="true" tabindex="-1">#</a>What is Flexarr?</h3>
-<p>Flexarr is a media server you run yourself, on a computer at home. It organises your films, TV, music and podcasts and plays them on the web, Apple TV, iPhone and iPad. There&#39;s no Flexarr account and no cloud service in the middle: your library and everything about it stays on your server.</p>
+<p>Flexarr is a media server you run yourself, on a computer at home. It organises your films, TV, home videos, music and podcasts, and live TV from an IPTV source, and plays them on the web, Apple TV, iPhone and iPad. Audiobooks arrive in the next release. There&#39;s no Flexarr account and no cloud service in the middle: your library and everything about it stays on your server.</p>
 <p>It&#39;s built to sit alongside Sonarr, Radarr and Lidarr, which fetch and organise your media, and Seerr, which handles requests.</p>
 <h3 id="is-it-free"><a class="anchor" href="#is-it-free" aria-hidden="true" tabindex="-1">#</a>Is it free?</h3>
-<p>Yes. The server and the iPhone and iPad app are both free, with no subscription and no adverts.</p>
+<p>Yes. The server and the apps are free, with no subscription and no adverts.</p>
 <p>Flexarr is licensed under the <a href="https://github.com/danleach-glitch/flexarr/blob/main/LICENSE" rel="noopener">PolyForm Noncommercial License 1.0.0</a>. You can use it, change it and share it for any noncommercial purpose: at home, for yourself and your family, or in a charity, school or other noncommercial organisation. You can&#39;t sell it or use it in a commercial product or service without a separate licence from the author.</p>
 <p>Because it restricts commercial use, Flexarr is <em>source-available</em> rather than open source in the Open Source Initiative&#39;s sense. The source code is all <a href="https://github.com/danleach-glitch/flexarr" rel="noopener">on GitHub</a>.</p>
-<p>If you&#39;d like to support it, there&#39;s a Sponsor button on the GitHub page.</p>
+<p>If you&#39;d like to support it, see <a href="https://flexarr.io/donate">flexarr.io/donate</a>.</p>
 <h3 id="do-i-need-sonarr-radarr-or-lidarr"><a class="anchor" href="#do-i-need-sonarr-radarr-or-lidarr" aria-hidden="true" tabindex="-1">#</a>Do I need Sonarr, Radarr or Lidarr?</h3>
 <p>Flexarr works best with them, and they&#39;re where most of its information comes from. Here&#39;s what each one adds:</p>
 <ul>
 <li><strong>Sonarr and Radarr</strong> supply the posters, artwork and details for your shows and films, with no extra accounts or API keys. Without them, Flexarr still finds and plays your video files, and takes artwork and details from any <code>.nfo</code> files and images beside them (as Kodi, Jellyfin and Plex users often have), from TVmaze for shows, and from TMDB for films with a free key of your own. See <a href="/guide/without-arrs">Without Sonarr and Radarr</a>. They also power <strong>Coming soon</strong>, deleting through Sonarr and Radarr, and &quot;find a better copy&quot; in <a href="/guide/library-health">Library health</a>.</li>
 <li><strong>Lidarr</strong> supplies artist pictures, album covers and the split into albums, EPs and singles. Music works without it, using the tags in your files and any artwork in their folders.</li>
 <li><strong>Seerr</strong> lets you request films and shows from <strong>Discover</strong>. Without it, Discover shows your own library by genre.</li>
+<li><strong>Bazarr</strong> finds subtitles from the player when a title has none in your language.</li>
 </ul>
 <p>Cast and crew for TV shows come from TVmaze, which needs no setup. Podcasts are built in and need none of these apps. See <a href="/guide/connect-arrs">Connect Sonarr, Radarr, Lidarr and Seerr</a>.</p>
 <h3 id="what-hardware-do-i-need"><a class="anchor" href="#what-hardware-do-i-need" aria-hidden="true" tabindex="-1">#</a>What hardware do I need?</h3>
@@ -154,8 +174,8 @@
 <p>The apps need iOS, iPadOS or tvOS 18.2 or later. More in <a href="/guide/what-you-need">What you need</a>.</p>
 <h2 id="using-it"><a class="anchor" href="#using-it" aria-hidden="true" tabindex="-1">#</a>Using it</h2>
 <h3 id="can-several-people-use-it"><a class="anchor" href="#can-several-people-use-it" aria-hidden="true" tabindex="-1">#</a>Can several people use it?</h3>
-<p>Yes. Each person gets a <strong>profile</strong> with their own Continue Watching, watched history, playlists, podcasts and settings, which follow them from device to device. Profiles can have a PIN, and can be kept out of particular libraries. A shared Apple TV can ask who&#39;s watching each time Flexarr opens.</p>
-<p>The <strong>main profile</strong> manages the server; the others can change their own playback and podcast settings. See <a href="/guide/profiles">Profiles</a>.</p>
+<p>Yes. Each person gets a <strong>profile</strong> with their own Continue Watching, watched history, watchlist, playlists, podcasts and settings, which follow them from device to device. Profiles can have a PIN, an age limit, and be kept out of particular libraries; kids profiles see only what suits them. A shared Apple TV can ask who&#39;s watching each time Flexarr opens.</p>
+<p>The <strong>main profile</strong> manages the server, with an admin PIN guarding its settings; the others can change their own playback and podcast settings. See <a href="/guide/profiles">Profiles</a>.</p>
 <h3 id="how-many-people-can-watch-at-once"><a class="anchor" href="#how-many-people-can-watch-at-once" aria-hidden="true" tabindex="-1">#</a>How many people can watch at once?</h3>
 <p>Flexarr doesn&#39;t limit how many screens play at once. In practice the limit is your server and your network.</p>
 <ul>
@@ -172,28 +192,37 @@
 <h3 id="does-any-data-leave-my-home"><a class="anchor" href="#does-any-data-leave-my-home" aria-hidden="true" tabindex="-1">#</a>Does any data leave my home?</h3>
 <p>Your library, what everyone watches, your profiles and your logs stay on your server. Flexarr has no account, analytics or adverts. A few things do go out, each for a reason:</p>
 <ul>
-<li><strong>Artwork and details.</strong> The server downloads posters and artwork from the image addresses Sonarr, Radarr and Lidarr give it, and TV cast from TVmaze.</li>
+<li><strong>Artwork and details.</strong> The server downloads posters and artwork from the image addresses Sonarr, Radarr and Lidarr give it, looks up shows on TVmaze, and films on TMDB if you add a TMDB key.</li>
+<li><strong>Audiobook details</strong> (from the next release) come from Audible and Open Library, and from Google Books and Hardcover if you add their keys.</li>
+<li><strong>Updates.</strong> Once a day the server asks GitHub whether there&#39;s a newer version.</li>
+<li><strong>Trakt</strong>, if a profile connects to it. Signing in goes through the relay at push.flexarr.io unless you use your own Trakt app.</li>
 <li><strong>Podcasts.</strong> Browsing and search use Apple&#39;s podcast directory, and the server fetches each show&#39;s feed and episodes. Your devices play them through your server, so podcast hosts see your server rather than each listener.</li>
 <li><strong>Live TV logos</strong>, if you use Live TV, come from a community collection on GitHub.</li>
-<li><strong>Notifications</strong>, if you turn them on, pass through a small relay at flexarr.io on their way to Apple. They&#39;re encrypted on your server so only your phone can read them; the relay never sees what&#39;s in them and keeps nothing. The iPhone&#39;s Lock Screen panel for a TV is the exception: its updates carry only whether it&#39;s paused, how far in it is, how long it is and its speed, unencrypted, never the title or picture.</li>
+<li><strong>Notifications</strong>, if you turn them on, pass through a small relay at push.flexarr.io on their way to Apple. They&#39;re encrypted on your server so only your phone can read them; the relay never sees what&#39;s in them and keeps nothing. The iPhone&#39;s Lock Screen panel for a TV is the exception: its updates carry only whether it&#39;s paused, how far in it is, how long it is and its speed, unencrypted, never the title or picture.</li>
 <li><strong>Error reports</strong>, only if you turn them on. They describe what went wrong in Flexarr&#39;s code, with titles, names, addresses and keys removed first. See <a href="/guide/logs-and-diagnostics#error-reports">Logs and diagnostics</a>.</li>
 <li><strong>Plex profile pictures</strong>, only if you use that button, make one request to plex.tv. See <a href="/guide/import-from-plex">Bring your history over from Plex</a>.</li>
 </ul>
 <p>The apps talk only to your server. The full details are in the <a href="https://flexarr.io/privacy">privacy policy</a>.</p>
 <h2 id="apps"><a class="anchor" href="#apps" aria-hidden="true" tabindex="-1">#</a>Apps</h2>
 <h3 id="is-there-an-apple-tv-app-on-the-app-store"><a class="anchor" href="#is-there-an-apple-tv-app-on-the-app-store" aria-hidden="true" tabindex="-1">#</a>Is there an Apple TV app on the App Store?</h3>
-<p>Not yet. The iPhone and iPad app is <a href="https://apps.apple.com/app/flexarr/id6826618084" rel="noopener">on the App Store</a>. The Apple TV app is coming to the App Store next; until then, you can install it on your own Apple TV from a Mac with Xcode. See <a href="/guide/apple-tv-xcode">Apple TV with Xcode</a>.</p>
+<p>Not yet: it&#39;s with Apple for review. The iPhone and iPad app is <a href="https://apps.apple.com/app/flexarr/id6826618084" rel="noopener">on the App Store</a>. Until the Apple TV app joins it, you can install it on your own Apple TV from a Mac with Xcode. See <a href="/guide/apple-tv-xcode">Apple TV with Xcode</a>.</p>
 <h3 id="is-there-an-android-app"><a class="anchor" href="#is-there-an-android-app" aria-hidden="true" tabindex="-1">#</a>Is there an Android app?</h3>
-<p>Not at the moment. Android, Android TV and Chromecast are on the <a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/roadmap.md" rel="noopener">roadmap</a> under <strong>Later</strong>, with no date yet. In the meantime, the web app works in any modern browser, including on Android phones and tablets.</p>
+<p>Android and Android TV apps are on the way: see <a href="https://flexarr.io/apps">flexarr.io/apps</a>. Until then, the web app works in your phone&#39;s browser.</p>
+<h3 id="is-there-a-mac-app"><a class="anchor" href="#is-there-a-mac-app" aria-hidden="true" tabindex="-1">#</a>Is there a Mac app?</h3>
+<p>Flexarr Server for Mac is coming to the Mac App Store. Until then, you can build the server on your Mac from source: see <a href="/guide/install-macos">Install on a Mac</a>.</p>
+<h3 id="does-it-do-photos"><a class="anchor" href="#does-it-do-photos" aria-hidden="true" tabindex="-1">#</a>Does it do photos?</h3>
+<p>Not yet.</p>
+<h3 id="which-languages-does-it-speak"><a class="anchor" href="#which-languages-does-it-speak" aria-hidden="true" tabindex="-1">#</a>Which languages does it speak?</h3>
+<p>English only, for now.</p>
 <h3 id="does-it-work-with-siri"><a class="anchor" href="#does-it-work-with-siri" aria-hidden="true" tabindex="-1">#</a>Does it work with Siri?</h3>
 <p>On iPhone and iPad, yes: &quot;Play the next episode of <em>Curb Your Enthusiasm</em> in Flexarr&quot;, &quot;Shuffle <em>Family Guy</em> in Flexarr&quot;, and podcast commands too. See <a href="/guide/siri-and-shortcuts">Siri and Shortcuts</a>.</p>
 <h2 id="getting-help"><a class="anchor" href="#getting-help" aria-hidden="true" tabindex="-1">#</a>Getting help</h2>
 <h3 id="where-do-i-report-a-bug"><a class="anchor" href="#where-do-i-report-a-bug" aria-hidden="true" tabindex="-1">#</a>Where do I report a bug?</h3>
-<p>On GitHub: <a href="https://github.com/danleach-glitch/flexarr/issues" rel="noopener">github.com/danleach-glitch/flexarr/issues</a>. Say what happened and what you expected, and attach the zip from <strong>Download diagnostics</strong> in <strong>Settings › Logs</strong>. See <a href="/guide/troubleshooting#where-can-i-get-help">Troubleshooting</a>.</p>
+<p>On GitHub: <a href="https://github.com/danleach-glitch/flexarr/issues" rel="noopener">github.com/danleach-glitch/flexarr/issues</a>. Say what happened and what you expected. Don&#39;t attach the zip from <strong>Download diagnostics</strong> to a public issue: it holds your addresses and file names. See <a href="/guide/troubleshooting#where-can-i-get-help">Troubleshooting</a>.</p>
 <h3 id="where-do-i-ask-for-a-feature"><a class="anchor" href="#where-do-i-ask-for-a-feature" aria-hidden="true" tabindex="-1">#</a>Where do I ask for a feature?</h3>
 <p>In <a href="https://github.com/danleach-glitch/flexarr/discussions/categories/ideas" rel="noopener">Ideas</a> on GitHub Discussions. The <a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/roadmap.md" rel="noopener">roadmap</a> links each planned feature to its discussion, so you can add your vote and thoughts there.</p>
 <h3 id="what-s-changed-in-each-version"><a class="anchor" href="#what-s-changed-in-each-version" aria-hidden="true" tabindex="-1">#</a>What&#39;s changed in each version?</h3>
-<p><strong>Settings › About</strong> in the web app shows the latest release, and the full <a href="https://github.com/danleach-glitch/flexarr/blob/main/CHANGELOG.md" rel="noopener">changelog</a> is on GitHub. To upgrade, see <a href="/guide/updating">Updating</a>.</p>
+<p><strong>Settings › Updates</strong> in the web app shows your version and what&#39;s new in the latest one, and the full <a href="https://github.com/danleach-glitch/flexarr/blob/main/CHANGELOG.md" rel="noopener">changelog</a> is on GitHub. To upgrade, see <a href="/guide/updating">Updating</a>.</p>
 
         </div>
         <nav class="pager" aria-label="More of the guide">

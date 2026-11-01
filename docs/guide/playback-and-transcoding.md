@@ -38,7 +38,7 @@ Converting video on the server's graphics chip is much faster and lighter than o
 | **NVIDIA NVENC** | NVIDIA graphics cards. |
 | **Off: convert on the CPU** | No graphics chip, or for troubleshooting. A **Software speed** choice appears. |
 
-Only the options your server's copy of FFmpeg was built with are listed. Being listed doesn't prove the hardware is reachable, though. In Docker, for example, the container also needs the graphics device passed through to it. After changing this, play something that needs converting and check it starts (see **How to tell what's happening**, below).
+Only the options your server's copy of FFmpeg was built with are listed. On Linux, **VA-API** and **Intel Quick Sync** are listed only when the server can see a graphics device, so in Docker pass `/dev/dri` into the container. **NVIDIA NVENC** is listed whenever FFmpeg has it, even if the container can't reach the card. After changing this, play something that needs converting and check it starts (see **How to tell what's happening**, below).
 
 > **Note**
 > On a Mac, files whose video the graphics chip can't decode (old AVI and XviD files, VC-1) are decoded on the processor and still encoded on the graphics chip. You don't need to do anything.
@@ -60,6 +60,15 @@ Use it when your home internet's upload is slow and people watch [away from home
 
 In the web player, the quality button in the corner chooses **Best for this device**, **1080p**, **720p** or **480p** for what you're watching now.
 
+## In the player
+
+- **Audio sync:** when the sound and picture are out of step, open the player's audio menu (the **Audio** button, a waveform) and use **Audio sync**. Each press of − or + moves the sound 10 ms; hold one (a long press on the Apple TV remote) to move 50 ms at a time. It's saved for that file, for everyone in the household. Downloads play as they were made.
+- **Sleep timer:** stop in 15, 30, 45 or 60 minutes, or at the end of the episode. In the last minute the picture dims and asks **Still watching?**. Any button adds 15 minutes (on iPhone, a tap or a shake). Otherwise the sound fades out and playback pauses.
+- **Speed:** from 0.5× to 2×. A speed chosen during an episode is kept for the rest of the show, on every device. A film's is for this time only.
+- **Previous:** a few seconds in, it starts the episode again. Press it again to go to the episode before. In a film, or a first episode, it starts again.
+
+The audio menu also has the soundtrack, and [dialogue boost, night mode and speakers](hdr-and-atmos.md#dialogue-boost-and-night-mode). Subtitles have a menu of their own: see [Subtitles, skipping and Up Next](subtitles-and-skipping.md).
+
 ## Settings that are per device
 
 On Apple TV, iPhone and iPad, these live in the app's **Settings › Playback** under this device's own settings, not your profile's:
@@ -67,11 +76,11 @@ On Apple TV, iPhone and iPad, these live in the app's **Settings › Playback** 
 - **Play files directly**: on by default. Off, the server sends a stream instead and converts what the device can't play.
 - **Lossless surround**: appears when **Play files directly** is on. See [HDR and Dolby Atmos](hdr-and-atmos.md).
 - **Skip back and forward**: 10, 15 or 30 seconds.
-- **Dialogue boost**, **Night mode** and **Speakers**: appear when **Play files directly** is on. See [HDR and Dolby Atmos](hdr-and-atmos.md#dialogue-boost-and-night-mode). The web keeps them in **Settings › Playback** under **Sound in this browser**, and Android under **This phone**.
+- **Dialogue boost**, **Night mode** and **Speakers**: appear when **Play files directly** is on. See [HDR and Dolby Atmos](hdr-and-atmos.md#dialogue-boost-and-night-mode). The web keeps them in **Settings › Playback** under **Sound in this browser**.
 
 ## How to tell what's happening
 
-- **Web player:** the quality button says **Original** when the file is playing as it is, and **Auto** when it's being converted.
+- **Web player:** the quality button says **Original** when the file is playing as it is, and **Auto** when it's being repackaged or converted.
 - **Apple TV, iPhone and iPad:** with the player's controls showing, a line in the corner describes the stream. It ends in "Original" for a file played as it is, says "repackaged" when the original picture is copied, and gives a size and bitrate (such as "1080p H.264 at 10 Mbps") when it's converted.
 - **Settings › Overview:** under **Watching now**, each stream is tagged **Original file** or **Converting to …**.
 

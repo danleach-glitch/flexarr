@@ -149,7 +149,7 @@ export function ConnectTv({ initialCode = '', titled = true }: { initialCode?: s
       {titled && <h2>Connect a device</h2>}
       {state === 'declined' && (
         <p className="key-note" role="status">
-          Not connected. The device will show a new code in a moment.
+          Not connected. The device shows Not allowed, with Try again.
         </p>
       )}
       <p className="muted">Open Flexarr on the TV, iPhone or iPad and enter the code it shows. A TV also shows a QR code to scan with your phone.</p>

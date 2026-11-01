@@ -72,6 +72,7 @@
             <details class="section">
             <summary>Watching and listening</summary>
             <ul>
+              <li><a href="/guide/finding-things">Finding things</a></li>
               <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
               <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
               <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
@@ -115,7 +116,7 @@
         <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Around the house</p>
         <h1>Siri and Shortcuts</h1>
         <p class="lede">Ask Siri on your iPhone or iPad to play a film, the next episode of a show or a podcast, here or on your Apple TV, and build your own shortcuts.</p>
-        <p class="meta">5 min read</p>
+        <p class="meta">6 min read</p>
         <nav class="toc" aria-label="On this page">
           <p>On this page</p>
           <ol>
@@ -136,23 +137,27 @@
 <li>&quot;Play <em>Heat</em> in Flexarr&quot; or &quot;Watch <em>Heat</em> in Flexarr&quot;</li>
 <li>&quot;Shuffle <em>Family Guy</em> in Flexarr&quot;</li>
 <li>&quot;Continue watching in Flexarr&quot;</li>
-<li>&quot;Add <em>Severance</em> to my watchlist in Flexarr&quot; (see <a href="/guide/watchlist">Watchlist</a>)</li>
+<li>&quot;Save <em>Severance</em> in Flexarr&quot; for a title in your library, or &quot;Add to my watchlist in Flexarr&quot; and then any title (see <a href="/guide/watchlist">Watchlist</a>)</li>
 </ul>
 <p>A show plays the episode you&#39;re up to. A film carries on from where you left off. Shuffle plays a show&#39;s episodes in a random order, one after another. Continue watching picks up whatever you were in the middle of most recently.</p>
+<p>Don&#39;t say &quot;Add <em>Severance</em> to my watchlist&quot;: iOS keeps that sentence for itself.</p>
 <h3 id="podcasts"><a class="anchor" href="#podcasts" aria-hidden="true" tabindex="-1">#</a>Podcasts</h3>
 <ul>
 <li>&quot;Play <em>The Rest Is History</em> in Flexarr&quot; plays the episode you&#39;d hear next</li>
 <li>&quot;Play the latest <em>The Rest Is History</em> in Flexarr&quot; plays the newest one you haven&#39;t heard</li>
 <li>&quot;What&#39;s new in my podcasts in Flexarr&quot; reads out the newest episodes, without opening anything</li>
 <li>&quot;Add <em>The Rest Is History</em> to Up Next in Flexarr&quot;</li>
-<li>&quot;Play my Up Next in Flexarr&quot;</li>
+<li>&quot;Play my Up Next in Flexarr&quot;, until the next release. From then on it&#39;s the <strong>Play Up Next</strong> action in the Shortcuts app.</li>
 </ul>
 <p>These work for podcasts the profile follows. See <a href="/guide/podcasts">Podcasts</a>.</p>
+<p>In the next release, &quot;Resume listening in Flexarr&quot; picks up the podcast episode or <a href="/guide/audiobooks">audiobook</a> you heard last.</p>
 <h3 id="controlling-what-s-playing"><a class="anchor" href="#controlling-what-s-playing" aria-hidden="true" tabindex="-1">#</a>Controlling what&#39;s playing</h3>
 <ul>
-<li>&quot;Pause Flexarr&quot;</li>
-<li>&quot;Resume Flexarr&quot;</li>
-<li>&quot;Stop Flexarr&quot;</li>
+<li>&quot;Pause Flexarr&quot;, &quot;Resume Flexarr&quot;, &quot;Stop Flexarr&quot;</li>
+<li>&quot;Skip intro in Flexarr&quot;</li>
+<li>&quot;Next episode in Flexarr&quot;</li>
+<li>&quot;Skip back in Flexarr&quot; and &quot;Skip forward in Flexarr&quot;, 10 seconds at a time</li>
+<li>&quot;Flexarr, turn on subtitles&quot; and &quot;Flexarr, turn off subtitles&quot;, said that way round, as Siri answers &quot;Turn on subtitles&quot; itself. Subtitles come on in your language where there are some.</li>
 <li>&quot;Turn on night mode in Flexarr&quot; (and &quot;Turn off night mode in Flexarr&quot;). If night mode is on a schedule and already doing what you asked, the schedule stays; otherwise Siri says it replaced the schedule.</li>
 </ul>
 <h2 id="playing-on-your-apple-tv"><a class="anchor" href="#playing-on-your-apple-tv" aria-hidden="true" tabindex="-1">#</a>Playing on your Apple TV</h2>
@@ -161,7 +166,7 @@
 <li>On the iPhone or iPad, open Flexarr and go to <strong>Settings › Siri</strong>.</li>
 <li>Under <strong>Siri plays on</strong>, choose the Apple TV.</li>
 </ol>
-<p>Now &quot;Play the next episode of <em>Severance</em> in Flexarr&quot; starts it on the TV, and Siri tells you where it&#39;s playing. Pause, resume and stop go to the same TV.</p>
+<p>Now &quot;Play the next episode of <em>Severance</em> in Flexarr&quot; starts it on the TV, and Siri tells you where it&#39;s playing. Pausing, skipping, subtitles and night mode go to the same TV.</p>
 <p>You can also name a device as you ask, for example &quot;… on the living room TV&quot;. The name is the one the device has in Flexarr&#39;s list of signed-in devices.</p>
 <blockquote class="callout important"><p><strong>Important</strong> The Apple TV only takes commands while Flexarr is open on it. If it isn&#39;t, Siri says so, and what you asked for starts if you open Flexarr on the TV within two minutes.</p>
 </blockquote>
@@ -194,8 +199,12 @@
 <td>Puts a film or show from your library on your watchlist.</td>
 </tr>
 <tr>
-<td><strong>Pause, resume or stop</strong></td>
-<td>Controls what Flexarr is playing.</td>
+<td><strong>Control playback</strong></td>
+<td>Pauses, resumes or stops, skips the intro, moves on to the next episode, or skips back or forward.</td>
+</tr>
+<tr>
+<td><strong>Subtitles</strong></td>
+<td>Turns subtitles on or off.</td>
 </tr>
 <tr>
 <td><strong>Night mode</strong></td>
@@ -226,6 +235,7 @@
 <td>Opens the app on a search.</td>
 </tr>
 </tbody></table></div>
+<p>In the next release, three more arrive with <a href="/guide/audiobooks">audiobooks</a>: <strong>Resume listening</strong>, <strong>Play a book</strong>, and <strong>Sleep at the end of the chapter</strong>.</p>
 <p>The play and control actions have an <strong>On</strong> setting, where you choose this device or another one signed in to your server. That&#39;s handy for a shortcut of your own. A &quot;Film night&quot; shortcut could use Apple&#39;s own actions to dim the lights and wake the Apple TV, open Flexarr on it, then use <strong>Play a film or show</strong> with <strong>On</strong> set to that TV.</p>
 <p><strong>Play a film or show</strong> and <strong>Shuffle a show</strong> also have an <strong>As</strong> setting, for the profile to watch as. The device switches to that profile first, so the next episode is that person&#39;s and what they watch lands in their Continue Watching, whoever used the TV last. A &quot;Kids&#39; bedtime episode&quot; shortcut can play their show on the TV as their profile. If the profile has a PIN, the device asks for it before playing.</p>
 <blockquote class="callout tip"><p><strong>Tip</strong> A shortcut you make can have a phrase of its own. Name it, and Siri runs it when you say that name.</p>
@@ -256,7 +266,7 @@
 <li><strong>&quot;… isn&#39;t signed in to the server any more.&quot;</strong> The device chosen in <strong>Settings › Siri</strong> was signed out. Choose another.</li>
 <li><strong>Siri opens a different app.</strong> Make sure &quot;Flexarr&quot; is in the phrase.</li>
 </ul>
-<p>Siri works on what the profile chosen on that iPhone or iPad sees: its libraries, its next episodes and its podcasts. See <a href="/guide/profiles">Profiles</a>.</p>
+<p>Siri works on what the profile chosen on that iPhone or iPad sees: its libraries, its next episodes and its podcasts, within any age limit. See <a href="/guide/profiles">Profiles</a>.</p>
 
         </div>
         <nav class="pager" aria-label="More of the guide">

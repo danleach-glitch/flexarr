@@ -532,8 +532,12 @@ describe('Settings', () => {
 
     renderAt('/settings/libraries')
     fireEvent.click(await screen.findByRole('button', { name: 'Add library' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Use this folder' }))
-    fireEvent.click(within(screen.getByRole('form', { name: 'Add library' })).getByRole('button', { name: 'Add library' }))
+    // The folder open in the picker is the library's folder: there's no separate button to pick it.
+    expect(await screen.findByText('/Volumes')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Use this folder' })).not.toBeInTheDocument()
+    const add = within(screen.getByRole('form', { name: 'Add library' })).getByRole('button', { name: 'Add library' })
+    await waitFor(() => expect(add).toBeEnabled())
+    fireEvent.click(add)
 
     expect(await screen.findByRole('alert')).toHaveTextContent('overlaps a folder in another library')
   })
@@ -927,7 +931,7 @@ describe('Settings', () => {
     expect(await screen.findByText('ABC-DEF', { selector: '.connect-tv-big-code' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Allow' })).toHaveFocus()
     fireEvent.click(screen.getByRole('button', { name: 'Don’t allow' }))
-    expect(await screen.findByRole('status')).toHaveTextContent('The device will show a new code')
+    expect(await screen.findByRole('status')).toHaveTextContent('The device shows Not allowed')
     expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith('/pairing/code/ABC-DEF/decline') && init?.method === 'POST')).toBe(true)
   })
 

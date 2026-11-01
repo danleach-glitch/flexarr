@@ -72,6 +72,7 @@
             <details class="section" open>
             <summary>Watching and listening</summary>
             <ul>
+              <li><a href="/guide/finding-things">Finding things</a></li>
               <li><a href="/guide/playback-and-transcoding" aria-current="page">Playback and transcoding</a></li>
               <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
               <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
@@ -115,13 +116,14 @@
         <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Watching and listening</p>
         <h1>Playback and transcoding</h1>
         <p class="lede">How Flexarr plays a file as it is, repackages it, or converts it, and how to set up hardware acceleration on your server.</p>
-        <p class="meta">5 min read</p>
+        <p class="meta">6 min read</p>
         <nav class="toc" aria-label="On this page">
           <p>On this page</p>
           <ol>
             <li><a href="#three-ways-a-file-can-play">Three ways a file can play</a></li>
             <li><a href="#hardware-acceleration">Hardware acceleration</a></li>
             <li><a href="#limiting-quality">Limiting quality</a></li>
+            <li><a href="#in-the-player">In the player</a></li>
             <li><a href="#settings-that-are-per-device">Settings that are per device</a></li>
             <li><a href="#how-to-tell-what-s-happening">How to tell what&#39;s happening</a></li>
           </ol>
@@ -172,7 +174,7 @@
 <td>No graphics chip, or for troubleshooting. A <strong>Software speed</strong> choice appears.</td>
 </tr>
 </tbody></table></div>
-<p>Only the options your server&#39;s copy of FFmpeg was built with are listed. Being listed doesn&#39;t prove the hardware is reachable, though. In Docker, for example, the container also needs the graphics device passed through to it. After changing this, play something that needs converting and check it starts (see <strong>How to tell what&#39;s happening</strong>, below).</p>
+<p>Only the options your server&#39;s copy of FFmpeg was built with are listed. On Linux, <strong>VA-API</strong> and <strong>Intel Quick Sync</strong> are listed only when the server can see a graphics device, so in Docker pass <code>/dev/dri</code> into the container. <strong>NVIDIA NVENC</strong> is listed whenever FFmpeg has it, even if the container can&#39;t reach the card. After changing this, play something that needs converting and check it starts (see <strong>How to tell what&#39;s happening</strong>, below).</p>
 <blockquote class="callout note"><p><strong>Note</strong> On a Mac, files whose video the graphics chip can&#39;t decode (old AVI and XviD files, VC-1) are decoded on the processor and still encoded on the graphics chip. You don&#39;t need to do anything.</p>
 </blockquote>
 <h3 id="without-a-graphics-chip"><a class="anchor" href="#without-a-graphics-chip" aria-hidden="true" tabindex="-1">#</a>Without a graphics chip</h3>
@@ -184,17 +186,25 @@
 <blockquote class="callout note"><p><strong>Note</strong> Live TV is different: away from home, channels automatically come in a reduced version. See <a href="/guide/live-tv">Live TV and recording</a>.</p>
 </blockquote>
 <p>In the web player, the quality button in the corner chooses <strong>Best for this device</strong>, <strong>1080p</strong>, <strong>720p</strong> or <strong>480p</strong> for what you&#39;re watching now.</p>
+<h2 id="in-the-player"><a class="anchor" href="#in-the-player" aria-hidden="true" tabindex="-1">#</a>In the player</h2>
+<ul>
+<li><strong>Audio sync:</strong> when the sound and picture are out of step, open the player&#39;s audio menu (the <strong>Audio</strong> button, a waveform) and use <strong>Audio sync</strong>. Each press of − or + moves the sound 10 ms; hold one (a long press on the Apple TV remote) to move 50 ms at a time. It&#39;s saved for that file, for everyone in the household. Downloads play as they were made.</li>
+<li><strong>Sleep timer:</strong> stop in 15, 30, 45 or 60 minutes, or at the end of the episode. In the last minute the picture dims and asks <strong>Still watching?</strong>. Any button adds 15 minutes (on iPhone, a tap or a shake). Otherwise the sound fades out and playback pauses.</li>
+<li><strong>Speed:</strong> from 0.5× to 2×. A speed chosen during an episode is kept for the rest of the show, on every device. A film&#39;s is for this time only.</li>
+<li><strong>Previous:</strong> a few seconds in, it starts the episode again. Press it again to go to the episode before. In a film, or a first episode, it starts again.</li>
+</ul>
+<p>The audio menu also has the soundtrack, and <a href="/guide/hdr-and-atmos#dialogue-boost-and-night-mode">dialogue boost, night mode and speakers</a>. Subtitles have a menu of their own: see <a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a>.</p>
 <h2 id="settings-that-are-per-device"><a class="anchor" href="#settings-that-are-per-device" aria-hidden="true" tabindex="-1">#</a>Settings that are per device</h2>
 <p>On Apple TV, iPhone and iPad, these live in the app&#39;s <strong>Settings › Playback</strong> under this device&#39;s own settings, not your profile&#39;s:</p>
 <ul>
 <li><strong>Play files directly</strong>: on by default. Off, the server sends a stream instead and converts what the device can&#39;t play.</li>
 <li><strong>Lossless surround</strong>: appears when <strong>Play files directly</strong> is on. See <a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a>.</li>
 <li><strong>Skip back and forward</strong>: 10, 15 or 30 seconds.</li>
-<li><strong>Dialogue boost</strong>, <strong>Night mode</strong> and <strong>Speakers</strong>: appear when <strong>Play files directly</strong> is on. See <a href="/guide/hdr-and-atmos#dialogue-boost-and-night-mode">HDR and Dolby Atmos</a>. The web keeps them in <strong>Settings › Playback</strong> under <strong>Sound in this browser</strong>, and Android under <strong>This phone</strong>.</li>
+<li><strong>Dialogue boost</strong>, <strong>Night mode</strong> and <strong>Speakers</strong>: appear when <strong>Play files directly</strong> is on. See <a href="/guide/hdr-and-atmos#dialogue-boost-and-night-mode">HDR and Dolby Atmos</a>. The web keeps them in <strong>Settings › Playback</strong> under <strong>Sound in this browser</strong>.</li>
 </ul>
 <h2 id="how-to-tell-what-s-happening"><a class="anchor" href="#how-to-tell-what-s-happening" aria-hidden="true" tabindex="-1">#</a>How to tell what&#39;s happening</h2>
 <ul>
-<li><strong>Web player:</strong> the quality button says <strong>Original</strong> when the file is playing as it is, and <strong>Auto</strong> when it&#39;s being converted.</li>
+<li><strong>Web player:</strong> the quality button says <strong>Original</strong> when the file is playing as it is, and <strong>Auto</strong> when it&#39;s being repackaged or converted.</li>
 <li><strong>Apple TV, iPhone and iPad:</strong> with the player&#39;s controls showing, a line in the corner describes the stream. It ends in &quot;Original&quot; for a file played as it is, says &quot;repackaged&quot; when the original picture is copied, and gives a size and bitrate (such as &quot;1080p H.264 at 10 Mbps&quot;) when it&#39;s converted.</li>
 <li><strong>Settings › Overview:</strong> under <strong>Watching now</strong>, each stream is tagged <strong>Original file</strong> or <strong>Converting to …</strong>.</li>
 </ul>
@@ -203,7 +213,7 @@
 
         </div>
         <nav class="pager" aria-label="More of the guide">
-          <a class="prev" href="/guide/requests"><span>Previous</span>Requests</a>
+          <a class="prev" href="/guide/finding-things"><span>Previous</span>Finding things</a>
           <a class="next" href="/guide/hdr-and-atmos"><span>Next</span>HDR and Dolby Atmos</a>
         </nav>
         <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/playback-and-transcoding.md">Edit this page on GitHub</a> <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20Playback%20and%20transcoding">Report something wrong or missing</a></p>

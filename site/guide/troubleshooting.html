@@ -72,6 +72,7 @@
             <details class="section">
             <summary>Watching and listening</summary>
             <ul>
+              <li><a href="/guide/finding-things">Finding things</a></li>
               <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
               <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
               <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
@@ -115,15 +116,26 @@
         <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Looking after it</p>
         <h1>Troubleshooting</h1>
         <p class="lede">Fixes for the most common Flexarr problems, from an app that can&#39;t find your server to playback that won&#39;t start, HDR, sound and connecting away from home.</p>
-        <p class="meta">8 min read</p>
+        <p class="meta">9 min read</p>
         <nav class="toc" aria-label="On this page">
           <p>On this page</p>
           <ol>
             <li><a href="#connecting">Connecting</a></li>
+            <li class="sub"><a href="#the-app-can-t-find-my-server">The app can&#39;t find my server</a></li>
+            <li class="sub"><a href="#the-app-says-the-server-hasn-t-been-set-up">The app says the server hasn&#39;t been set up</a></li>
+            <li class="sub"><a href="#i-can-t-connect-away-from-home">I can&#39;t connect away from home</a></li>
             <li><a href="#your-library">Your library</a></li>
+            <li class="sub"><a href="#new-downloads-don-t-appear">New downloads don&#39;t appear</a></li>
+            <li class="sub"><a href="#artwork-or-details-are-missing">Artwork or details are missing</a></li>
             <li><a href="#watching">Watching</a></li>
+            <li class="sub"><a href="#playback-buffers-or-won-t-start">Playback buffers or won&#39;t start</a></li>
+            <li class="sub"><a href="#hdr-looks-washed-out-or-dim">HDR looks washed out or dim</a></li>
+            <li class="sub"><a href="#no-sound-or-dolby-atmos-is-missing">No sound, or Dolby Atmos is missing</a></li>
             <li><a href="#apps-and-profiles">Apps and profiles</a></li>
+            <li class="sub"><a href="#the-apple-tv-app-stopped-opening-after-7-days">The Apple TV app stopped opening after 7 days</a></li>
+            <li class="sub"><a href="#i-forgot-a-profile-s-pin">I forgot a profile&#39;s PIN</a></li>
             <li><a href="#getting-help">Getting help</a></li>
+            <li class="sub"><a href="#where-can-i-get-help">Where can I get help?</a></li>
           </ol>
         </nav>
         <div class="prose">
@@ -135,7 +147,7 @@
 <li><strong>Check the server is running.</strong> On another device on the same network, open <code>http://&lt;server&gt;:8383</code> in a browser, using the computer&#39;s name or IP address. If that doesn&#39;t load, the problem is the server, not the app. See your install guide: <a href="/guide/install-macos">Mac</a>, <a href="/guide/install-synology">Synology</a>, <a href="/guide/install-unraid">Unraid</a> or <a href="/guide/install-docker">Docker</a>.</li>
 <li><strong>Check you&#39;re on the same network.</strong> The device must be on the same Wi-Fi as the server, not a guest network and not mobile data.</li>
 <li><strong>Check local network access (iPhone and iPad).</strong> The app asks to find devices on your local network the first time it opens. If you said no, turn it back on in the iPhone&#39;s <strong>Settings › Privacy &amp; Security › Local Network › Flexarr</strong>.</li>
-<li><strong>Type the address instead.</strong> Choose <strong>Enter an address instead</strong> and type the address that worked in the browser, such as <code>http://192.168.1.20:8383</code>. You&#39;ll still get a code to approve.</li>
+<li><strong>Type the address instead.</strong> Choose <strong>Enter its address</strong> on iPhone and iPad, or <strong>Enter an address instead</strong> on Apple TV, and type the address that worked in the browser, such as <code>http://192.168.1.20:8383</code>. You&#39;ll still get a code to approve.</li>
 </ol>
 <p>If the browser test works but discovery doesn&#39;t, your router may block devices from announcing themselves to each other. Typing the address always works.</p>
 <h3 id="the-app-says-the-server-hasn-t-been-set-up"><a class="anchor" href="#the-app-says-the-server-hasn-t-been-set-up" aria-hidden="true" tabindex="-1">#</a>The app says the server hasn&#39;t been set up</h3>
@@ -150,15 +162,15 @@
 <h3 id="i-can-t-connect-away-from-home"><a class="anchor" href="#i-can-t-connect-away-from-home" aria-hidden="true" tabindex="-1">#</a>I can&#39;t connect away from home</h3>
 <p>Flexarr isn&#39;t on the public internet. Away from home, the apps reach it over Tailscale. Check each of these:</p>
 <ol>
-<li><strong>Remote access is on.</strong> In the web app, <strong>Settings › Remote access › Away from home</strong> should say <strong>On: Flexarr is available on your tailnet</strong>. If it says Tailscale isn&#39;t installed or isn&#39;t connected, install Tailscale on the server and sign in first.</li>
+<li><strong>Remote access is on.</strong> In the web app, <strong>Settings › Remote access › Away from home</strong> should say <strong>On: Flexarr is available on your tailnet</strong>. If it says Tailscale isn&#39;t installed or isn&#39;t connected, install Tailscale on the server and sign in first. (Docker can&#39;t use Tailscale: see <a href="/guide/away-from-home#an-https-reverse-proxy-instead">Away from home</a>.)</li>
 <li><strong>Tailscale is connected on your phone or tablet</strong>, signed in to the same tailnet.</li>
-<li><strong>You have a profile.</strong> Under <strong>People on your tailnet</strong>, each Tailscale account must be linked to a profile. Anyone without one is turned away.</li>
+<li><strong>You have a profile.</strong> If people use their own Tailscale accounts, each one needs a profile under <strong>People with their own Tailscale</strong>. Anyone set to <strong>Not allowed</strong> is turned away.</li>
 <li><strong>The app has picked up the address.</strong> It learns the Tailscale address from the server and uses it when the home address can&#39;t be reached. If remote access was turned on after the app connected, close and reopen the app at home once. In the app, <strong>Settings › Server</strong> shows both addresses and which one it&#39;s using.</li>
 </ol>
 <p>Full details are in <a href="/guide/away-from-home">Away from home</a>.</p>
 <h2 id="your-library"><a class="anchor" href="#your-library" aria-hidden="true" tabindex="-1">#</a>Your library</h2>
 <h3 id="new-downloads-don-t-appear"><a class="anchor" href="#new-downloads-don-t-appear" aria-hidden="true" tabindex="-1">#</a>New downloads don&#39;t appear</h3>
-<p>Flexarr rescans each library every 12 hours, and straight away when Sonarr, Radarr or Lidarr tell it something&#39;s arrived. If new downloads take hours to show up, the webhook is missing or failing.</p>
+<p>Flexarr rescans each library every 12 hours, and straight away when Sonarr, Radarr or Lidarr tell it something&#39;s arrived. Connecting one of them in Flexarr adds that webhook to it for you. If new downloads take hours to show up, the webhook is missing or failing: add it by hand.</p>
 <ol>
 <li>In Flexarr, open <strong>Settings › Connections</strong> and find <strong>Webhooks</strong>. Copy the address for each app.</li>
 <li>In Sonarr (and Radarr, and Lidarr), go to <strong>Settings › Connect › + › Webhook</strong>, paste the address, set the method to <strong>POST</strong>, and tick <strong>On Import</strong>, <strong>On Upgrade</strong>, <strong>On Rename</strong> and <strong>On Delete</strong>.</li>
@@ -168,11 +180,11 @@
 <p>If the webhook arrives but nothing appears, the paths probably don&#39;t match. Sonarr tells Flexarr the folder by its own path, such as <code>/data/tv/Show</code>, and Flexarr has to see the same folder at that path. Either mount your media at the same path in both, or check <strong>Settings › Connections › Media folders</strong>: an amber line there is a folder Flexarr hasn&#39;t found yet, with a suggestion or a folder to choose. See <a href="/guide/media-paths">Media paths</a>.</p>
 <p>To pick something up now, use the <strong>Scan for new and changed files</strong> icon on the library in <strong>Settings › Libraries</strong>.</p>
 <h3 id="artwork-or-details-are-missing"><a class="anchor" href="#artwork-or-details-are-missing" aria-hidden="true" tabindex="-1">#</a>Artwork or details are missing</h3>
-<p>Films and shows get their artwork and details from Radarr and Sonarr.</p>
+<p>Films and shows get their artwork and details from <code>.nfo</code> files and pictures beside them first, then from Radarr and Sonarr. Shows they don&#39;t know are looked up on TVmaze, and films on TMDB if you&#39;ve added a TMDB key.</p>
 <ul>
-<li><strong>Are they connected?</strong> Check <strong>Settings › Connections</strong>. Without them, titles show without posters.</li>
+<li><strong>Are they connected?</strong> Check <strong>Settings › Connections</strong>. Without Sonarr and Radarr, a film needs a TMDB key (or its own <code>.nfo</code> and poster) to get artwork. See <a href="/guide/without-arrs">Without Sonarr and Radarr</a>.</li>
 <li><strong>Is it the wrong title?</strong> Open <strong>Settings › Libraries › Library health</strong> and look under <strong>Missing artwork</strong> and <strong>Check these matches</strong>. Use <strong>Fix match</strong> to pick the right one. See <a href="/guide/library-health">Library health</a>.</li>
-<li><strong>Is the folder named clearly?</strong> For titles Sonarr and Radarr don&#39;t manage, Flexarr searches by the folder&#39;s name. <code>Title (Year)</code> works best.</li>
+<li><strong>Is the folder named clearly?</strong> For titles Sonarr and Radarr don&#39;t manage, Flexarr searches by the folder&#39;s name. <code>Title (Year)</code> works best, or an <code>.nfo</code> with the title&#39;s IDs.</li>
 <li><strong>Refresh it.</strong> In <strong>Settings › Libraries</strong>, use <strong>Refresh artwork and details</strong> on the library.</li>
 </ul>
 <p>For music, artist pictures and album covers come from Lidarr when it&#39;s connected, otherwise from the artwork in each album&#39;s folder and the files&#39; tags.</p>
@@ -198,12 +210,13 @@
 <ul>
 <li><strong>No sound at all, on Apple TV with a receiver or soundbar:</strong> try turning off <strong>Lossless surround</strong> in the app&#39;s <strong>Settings › Playback</strong>. With it on, TrueHD and DTS-HD soundtracks go as multichannel PCM, which some soundbars and receivers don&#39;t accept. Off, they go as Dolby Digital Plus, which anything plays.</li>
 <li><strong>Atmos:</strong> Dolby Atmos in Dolby Digital Plus reaches the Apple TV, iPhone and iPad intact. Atmos inside TrueHD doesn&#39;t yet keep its height channels; it&#39;s on the <a href="https://github.com/danleach-glitch/flexarr/discussions/45" rel="noopener">roadmap</a>. The web player doesn&#39;t pass Atmos through.</li>
+<li><strong>Dialogue boost, Night mode or Speakers</strong> turn Atmos into plain surround while any of them is on. Turn them off (and <strong>Speakers</strong> to <strong>Auto</strong>) in the player&#39;s audio menu or <strong>Settings › Playback</strong> for the full Atmos.</li>
 <li><strong>Away from home</strong> with a stream limit, the sound is compressed to save data.</li>
 </ul>
 <p>More in <a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a>.</p>
 <h2 id="apps-and-profiles"><a class="anchor" href="#apps-and-profiles" aria-hidden="true" tabindex="-1">#</a>Apps and profiles</h2>
 <h3 id="the-apple-tv-app-stopped-opening-after-7-days"><a class="anchor" href="#the-apple-tv-app-stopped-opening-after-7-days" aria-hidden="true" tabindex="-1">#</a>The Apple TV app stopped opening after 7 days</h3>
-<p>Until the Apple TV app is on the App Store, it installs from Xcode. With a free Apple ID, Apple only lets apps installed that way run for 7 days. Run the install command again to refresh it:</p>
+<p>The Apple TV app is with Apple for review. Until it&#39;s on the App Store, it installs from Xcode. With a free Apple ID, Apple only lets apps installed that way run for 7 days. Run the install command again to refresh it:</p>
 <pre><code class="language-bash">make apple-install TEAM=&lt;your team id&gt; BUNDLE_ID=com.yourname.flexarr.tv
 </code></pre>
 <p>With a paid Apple Developer account, an install lasts a year instead. See <a href="/guide/apple-tv-xcode">Apple TV with Xcode</a>.</p>
@@ -224,9 +237,9 @@
 <li>Say what you did, what you expected, and what happened instead.</li>
 <li>Include your Flexarr version (<strong>Settings › About</strong>) and the device and app you were using.</li>
 <li>If it happened on an Apple TV, iPhone or iPad, use <strong>Send diagnostics</strong> in the app&#39;s <strong>Settings › Server</strong> right after it happens, with a short note.</li>
-<li>In the web app, open <strong>Settings › Logs</strong> and choose <strong>Download diagnostics</strong>. Attach the zip to the issue.</li>
+<li>In the web app, open <strong>Settings › Logs</strong> and choose <strong>Download diagnostics</strong>. Don&#39;t attach it to the issue: paste in the log lines that show the problem, and say you can send the zip privately if it&#39;s needed.</li>
 </ol>
-<p>Keys and passwords are taken out of the zip, but titles and file names stay in. See <a href="/guide/logs-and-diagnostics">Logs and diagnostics</a>.</p>
+<p>Keys and passwords are taken out of the zip, but your titles, file names and addresses stay in, so it doesn&#39;t belong on a public page. See <a href="/guide/logs-and-diagnostics#download-diagnostics">Logs and diagnostics</a>.</p>
 <p>Ideas and feature requests go in <a href="https://github.com/danleach-glitch/flexarr/discussions/categories/ideas" rel="noopener">Discussions</a>.</p>
 
         </div>

@@ -1,6 +1,6 @@
 ---
 title: Connect Sonarr, Radarr, Lidarr and Seerr
-description: Add your *arr apps and Seerr to Flexarr for artwork, Coming soon, requests and instant imports, and set up webhooks so new downloads appear straight away.
+description: Add your *arr apps, Seerr, Bazarr and TMDB to Flexarr for artwork, Coming soon, requests and subtitles, with webhooks so new downloads appear straight away.
 ---
 
 Flexarr is built to sit alongside Sonarr, Radarr, Lidarr and Seerr. It doesn't download anything itself; it takes its artwork and details from them, and they tell it when something new arrives. If you don't run them yet, Flexarr still plays your files. See [What you need](what-you-need.md) for what you get with and without each one.
@@ -12,9 +12,12 @@ Flexarr is built to sit alongside Sonarr, Radarr, Lidarr and Seerr. It doesn't d
 | **Radarr** | Titles, posters, backgrounds, overviews, genres, ratings and trailers for films. Upcoming films in **Coming soon**. Deleting a film from Flexarr goes through Radarr. Film series for collections. |
 | **Sonarr** | Show and episode details and artwork. Upcoming episodes in **Coming soon**. Deleting a show or episode goes through Sonarr. |
 | **Lidarr** | Artist pictures, album covers, canonical names and years, and albums, EPs and singles sorted apart. |
-| **Readarr, Bookshelf or Chaptarr** | Audiobook details, covers and series, author photos and biographies, upcoming books in **Coming soon**, deleting books, and book requests. See [Audiobooks](audiobooks.md). |
-| **Seerr** | **Discover** and requests. Seerr and Overseerr both work. See [Requests](requests.md). |
+| **Readarr, Bookshelf or Chaptarr** (in the next release) | Audiobook details, covers and series, author photos and biographies, upcoming books in **Coming soon**, deleting books, and book requests. See [Audiobooks](audiobooks.md). |
+| **Seerr** | **Discover** and requests. Seerr, Overseerr and Jellyseerr all work. See [Requests](requests.md). |
 | **Bazarr** | **Search for subtitles** from the player and a title's page, and re-syncing subtitles that are out of time. See [Finding subtitles](subtitles-and-skipping.md#finding-subtitles). |
+| **TMDB** | Details, artwork and cast for films Radarr doesn't have, with a free key of your own. See [Films from TMDB](without-arrs.md#films-from-tmdb). |
+| **Trakt** | Nothing to set up: Flexarr uses its own Trakt app. You can enter your own app's details here instead. See [Trakt](trakt.md#your-own-trakt-app). |
+| **Dispatcharr** | Live TV channels and their guide. See [Live TV](live-tv.md). |
 
 Films and shows that Radarr or Sonarr don't manage are still looked up through their search, so a connected Radarr fills in artwork even for films it didn't download.
 
@@ -22,7 +25,7 @@ Films and shows that Radarr or Sonarr don't manage are still looked up through t
 
 You need two things for each app: its **address** and its **API key**.
 
-![Settings › Connections listing Sonarr, Radarr, Lidarr, Seerr and Dispatcharr, all connected, with their media folders below](../../site/guide/img/connections.webp "Settings › Connections")
+![Settings › Connections with Sonarr, Radarr, Lidarr, Readarr, Seerr and Bazarr connected, and TMDB and Trakt below](../../site/guide/img/connections.webp "Settings › Connections")
 
 1. In Flexarr, go to **Settings › Connections**.
 2. Every app Flexarr works with is listed under **Apps & Integrations**. Find the one you want and choose **Connect**.
@@ -31,9 +34,11 @@ You need two things for each app: its **address** and its **API key**.
 5. Choose **Test**. A tick means Flexarr reached it; otherwise you'll see what went wrong.
 6. Choose **Connect**.
 
-Repeat for each app. Each one then shows a green dot, its version, and a link to open it. Choose the pencil to change or remove it.
+Flexarr then adds its own webhook to Sonarr, Radarr, Lidarr and Readarr, so new downloads show up straight away (see [Webhooks](#webhooks-new-downloads-appear-straight-away)).
 
-If you run more than one Sonarr, Radarr or Lidarr, such as a second Radarr for 4K films, choose **+** beside the one already connected and give the new one a **Name** of its own, such as "Radarr 4K".
+Repeat for each app. Each one then shows a green dot, its version, and a link to open it. Choose the pencil to change it, or **Disconnect** in it to stop using it; its titles stay in your libraries.
+
+If you run more than one Sonarr, Radarr or Lidarr, such as a second Radarr for 4K films, choose **+** beside the one already connected and give the new one a **Name** of its own, such as "Radarr 4K". A second one has **Remove** in place of **Disconnect**.
 
 ### The address
 
@@ -64,15 +69,19 @@ Use the address Flexarr can reach the app on, with its port. The usual ports are
 
 ### Seerr
 
-Seerr has its own row under **Apps**. Choose the pencil beside **Seerr**, type its **Address** and **API key**, and choose **Save**. Once it's connected, **Discover** fills with what's trending and popular, and you can request what you don't have. See [Requests](requests.md).
+Choose **Connect** beside **Seerr**, type its **Address** and **API key**, and choose **Connect**. Once it's connected, **Discover** fills with what's trending and popular, and you can request what you don't have. See [Requests](requests.md).
 
 ### Bazarr
 
-Bazarr has its own row too. Choose the pencil beside **Bazarr**, type its **Address** and **API key**, and choose **Save**. Bazarr needs Sonarr and Radarr connected on its side, at least one languages profile and some subtitle sites (providers); set those up in Bazarr itself. A title you search for gets Bazarr's first languages profile if it has none, so Bazarr's own schedule may then fetch subtitles for it too. See [Finding subtitles](subtitles-and-skipping.md#finding-subtitles).
+Choose **Connect** beside **Bazarr**, type its **Address** and **API key**, and choose **Connect**. Bazarr needs Sonarr and Radarr connected on its side, at least one languages profile and some subtitle sites (providers); set those up in Bazarr itself. A title you search for gets Bazarr's first languages profile if it has none, so Bazarr's own schedule may then fetch subtitles for it too. See [Finding subtitles](subtitles-and-skipping.md#finding-subtitles).
 
 ## Webhooks: new downloads appear straight away
 
 Without webhooks, Flexarr finds new files on its own scan every 12 hours. With them, Sonarr, Radarr and Lidarr tell Flexarr the moment they import, upgrade, rename or delete something, and Flexarr rescans only that folder.
+
+Usually there's nothing to do: connecting an app adds a webhook called **Flexarr** to it, which you'll see under **Settings › Connect** in the app. If it isn't there, the app couldn't reach Flexarr at any address Flexarr tried: add it by hand.
+
+### Adding a webhook by hand
 
 The addresses to use are at the bottom of **Settings › Connections**, under **Webhooks**, already filled in with your server's address and its **webhook secret**. They look like this:
 

@@ -1,29 +1,27 @@
 ---
 title: Requests
-description: Find films and shows you don't have yet in Discover, and request them through Seerr from the web app or the Apple TV.
+description: Find films and shows you don't have yet, request them through Seerr from any of the apps, and choose which library they go to.
 ---
 
 With Seerr connected, Flexarr can show you films and shows you don't have yet, and request them in one go. Seerr passes the request to Radarr or Sonarr, they download it, and it turns up in your library.
 
-Seerr and Overseerr both work.
+Seerr, Overseerr and Jellyseerr all work.
 
 ## Before you start
 
-Connect Seerr in **Settings › Connections**: choose the pencil beside **Seerr**, type its **Address** (usually `http://<host>:5055`) and its **API key** (in Seerr, under **Settings › General**), and choose **Save**. See [Connect Sonarr, Radarr, Lidarr and Seerr](connect-arrs.md).
+Connect Seerr in **Settings › Connections**: under **Apps & Integrations**, choose **Connect** beside **Seerr**, type its **Address** (usually `http://<host>:5055`) and its **API key** (in Seerr, under **Settings › General**), and choose **Connect**. See [Connect Sonarr, Radarr, Lidarr and Seerr](connect-arrs.md).
 
-Seerr itself needs Radarr and Sonarr set up in its own settings, since it hands requests to them. For requested titles to show up the moment they're downloaded, set up the [webhooks](connect-arrs.md#webhooks-new-downloads-appear-straight-away) too.
+Seerr itself needs Radarr and Sonarr set up in its own settings, since it hands requests to them. Connect Sonarr and Radarr to Flexarr too, so requested titles show up the moment they're downloaded (see [Webhooks](connect-arrs.md#webhooks-new-downloads-appear-straight-away)).
 
-> **Note** Seerr requests are for films and shows. Audiobooks are requested through Readarr, Bookshelf or Chaptarr instead: see [Audiobooks](#audiobooks). Music isn't requested.
+> **Note** Seerr requests are for films and shows. In the next release, audiobooks can be requested through Readarr, Bookshelf or Chaptarr: see [Audiobooks](#audiobooks). Music isn't requested.
 
 ## Where you can request
 
 | Where | Discover | Request |
 | --- | --- | --- |
-| Web app | Yes | Yes |
-| Apple TV | Yes | Yes |
-| iPhone and iPad | Not yet | Not yet |
-
-On iPhone and iPad you'll still hear when something you asked for arrives (see [Status](#status-and-when-it-arrives)).
+| Web app | Yes | From Discover, its search and collections |
+| Apple TV | Yes | From Discover and its search |
+| iPhone and iPad | No | From **Search** |
 
 ## On the web
 
@@ -31,7 +29,7 @@ Choose **Discover** in the sidebar. With Seerr connected, it starts with rows fr
 
 - **Trending this week**
 - **Popular films**
-- **Popular shows**
+- **Popular new shows**
 - **Coming to cinemas**
 
 Below them is **Your library by genre**, which is everything you already have.
@@ -50,7 +48,7 @@ A film series collection lists the films you don't have under **Not in your libr
 
 ## On the Apple TV
 
-**Discover** is in the sidebar, above **Search**. It shows the same rows as the web: what's trending, popular films and shows, and what's coming to cinemas.
+**Discover** is in the sidebar, above **Search**. It shows the same rows as the web: what's trending, popular films, popular new shows, and what's coming to cinemas.
 
 1. Select a title you don't have to open it. You'll see its ratings, cast, who made it, and more like it.
 2. Select **Request**.
@@ -62,11 +60,19 @@ A title you already have is marked with a gold play badge on its poster, and ope
 
 Without Seerr connected, Discover on the Apple TV shows your library by genre, and says where to connect Seerr.
 
+## On iPhone and iPad
+
+With Seerr connected, **Search** looks beyond your library too. Films and shows you don't have are listed under **Not in your library**. Tap one and choose **Request**. Once it's asked for, it's marked **Requested**.
+
 ## Who can request
 
-Any profile can request, with one exception: a profile that can't see any of your film libraries can't request films, and one that can't see any TV libraries can't request shows. Libraries a profile sees are set in **Settings › Profiles**. Hidden libraries are left out of Discover and requests for that profile too. See [Profiles](profiles.md).
+Any profile can request, with two exceptions. Kids profiles, and any profile with an age limit, can't request at all. A profile that can't see any of your film libraries can't request films, and one that can't see any TV libraries can't request shows. Libraries a profile sees are set in **Settings › Profiles**. Hidden libraries are left out of Discover and requests for that profile too. See [Profiles](profiles.md).
 
 Flexarr sends every request to Seerr with its own API key. Seerr doesn't know which profile asked: it handles the request under the rules of the Seerr account that key belongs to, which decides whether it's approved automatically. Shows are requested with all their seasons.
+
+## Where requests go
+
+With two or more TV or film libraries Seerr can add to, each profile chooses which one its requests land in, in **Settings › Requests**: **New shows go to** and **New films go to**. When two people have a TV library each, the shows each of them asks for go to their own. The choice applies to requests from every device, and the main profile can set it for anyone in **Settings › Profiles**. With one library of each kind there's nothing to choose.
 
 ## Status and when it arrives
 
@@ -93,9 +99,9 @@ To follow a request while it downloads, use Seerr itself, or **Coming soon** in 
 
 ## Audiobooks
 
-Seerr doesn't handle books, so Flexarr asks Readarr, Bookshelf or Chaptarr itself. Connect one in **Settings › Connections**, then in **Settings › Requests** choose its quality profile, metadata profile and root folder for books.
+Book requests arrive in the next release, on the web only. Seerr doesn't handle books, so Flexarr asks Readarr, Bookshelf or Chaptarr itself. Connect one in **Settings › Connections**, then under **Audiobooks** in **Settings › Requests** choose its **Quality**, **Metadata** and **Folder**.
 
-Search for a book you don't have and choose **Request**. Each result says whether it's **In your library**, **Requested** or available to request. Flexarr adds the book (and its author, if they're new, without following their other books), then asks for it to be found. When it arrives, whoever asked hears that it's ready to listen.
+In Discover's search, **Search for any film, show or book**, find a book you don't have and choose **Request**. Each result says whether it's **In your library**, **Requested** or available to request. Flexarr adds the book (and its author, if they're new, without following their other books), then asks for it to be found. When it arrives, whoever asked hears that it's ready to listen.
 
-Each profile can send its books to a library of its own, in **Settings › Profiles**.
+With more than one audiobooks library, each profile chooses where its books go with **New books go to** in **Settings › Requests**.
 
