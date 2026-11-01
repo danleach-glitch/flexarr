@@ -184,17 +184,17 @@ fun MusicLibraryScreen(model: AppModel, libraryId: String) {
                         verticalArrangement = Arrangement.spacedBy(20.dp),
                         modifier = Modifier.fillMaxSize(),
                     ) {
-                        fullWidth {
+                        fullWidth(key = "count") {
                             Text(if (total == 1) "1 artist" else "${Format.count(total)} artists", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher, style = Tabular)
                         }
                         // As the server lists them: the profile chooses their order and which show.
-                        rows.forEach { row -> fullWidth { MusicShelf(model, row) } }
-                        fullWidth { SectionHeading("Artists", Modifier.bleed()) }
+                        rows.forEach { row -> fullWidth(key = "row-${row.id}") { MusicShelf(model, row) } }
+                        fullWidth(key = "artists-heading") { SectionHeading("Artists", Modifier.bleed()) }
                         itemsIndexed(artists, key = { _, artist -> artist.id }) { index, artist ->
                             LaunchedEffect(index, artists.size) { loadMoreIfNeeded(index) }
                             ArtistCard(artist)
                         }
-                        if (loading) fullWidth { Box(Modifier.fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Flexarr.usher) } }
+                        if (loading) fullWidth(key = "loading") { Box(Modifier.fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Flexarr.usher) } }
                     }
                 }
             }
@@ -202,7 +202,7 @@ fun MusicLibraryScreen(model: AppModel, libraryId: String) {
     }
 }
 
-private fun LazyGridScope.fullWidth(content: @Composable () -> Unit) = item(span = { GridItemSpan(maxLineSpan) }) { content() }
+private fun LazyGridScope.fullWidth(key: Any? = null, content: @Composable () -> Unit) = item(key = key, span = { GridItemSpan(maxLineSpan) }) { content() }
 
 /** One of the server's rows for a music library: playlists, tracks that play, or albums (and artists) that open. */
 @Composable

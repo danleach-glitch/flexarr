@@ -4,16 +4,17 @@ import Observation
 
 /// What a music library opens to: the server's Browse rows (Your playlists, Made for you, Recently played, Most played,
 /// More from artists you play, New albums: in the profile's order, without the ones it switched off), then its artists
-/// (paged, by name). Without rows (Browse failed, or a library nobody has played yet), the playlists and the albums
-/// that arrived most recently instead. Shared by the Apple TV and iPhone screens, which only differ in how they draw it.
+/// (paged, by name). When Browse fails (a server before it, or an error), the playlists and the albums that arrived
+/// most recently instead; when it answers with no rows (the profile switched them all off), just the artists. Shared by the Apple TV and iPhone screens, which only differ in how they draw it.
 @MainActor
 @Observable
 final class MusicBrowseModel {
     let library: Library
     private(set) var artists: [ItemSummary] = []
     private(set) var total = 0
-    /// The server's Browse rows with something in them, in its order. Empty draws `playlists` and `recentAlbums` instead.
+    /// The server's Browse rows with something in them, in its order.
     private(set) var rows: [HomeRow] = []
+    /// Only filled when Browse failed: drawn in place of the rows.
     private(set) var recentAlbums: [ItemSummary] = []
     /// The profile's playlists (they span libraries, so every music library offers them).
     private(set) var playlists: [PlaylistSummary] = []
@@ -48,10 +49,14 @@ final class MusicBrowseModel {
             total = page.total
             error = nil
             loadedAt = Date()
-            let loaded = ((try? await browse)?.rows ?? []).filter(\.hasContent)
+            let loaded = try? await browse
             guard mine == generation else { return }
-            rows = loaded
-            guard loaded.isEmpty else { return }
+            rows = (loaded?.rows ?? []).filter(\.hasContent)
+            guard loaded == nil else {
+                playlists = []
+                recentAlbums = []
+                return
+            }
             async let newest = client.libraryItems(library.id, sort: .added, skip: 0, take: Self.recentArtists)
             async let lists = client.playlists()
             let fallbackLists = (try? await lists) ?? []
