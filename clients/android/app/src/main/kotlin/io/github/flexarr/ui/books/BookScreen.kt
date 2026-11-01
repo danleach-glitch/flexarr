@@ -49,6 +49,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -57,6 +58,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.flexarr.AppModel
 import io.github.flexarr.appModel
+import io.github.flexarr.core.BookAuthor
 import io.github.flexarr.core.BookChapter
 import io.github.flexarr.core.BookSeries
 import io.github.flexarr.core.Bookmark
@@ -312,6 +314,14 @@ private fun BookPage(model: AppModel, detail: ItemDetail, defaultSpeed: Double, 
                 }
             }
         }
+        val authorCards = book?.authorCards.orEmpty()
+        if (authorCards.isNotEmpty()) {
+            item("authors") {
+                Column(Modifier.padding(horizontal = Edge), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    authorCards.forEach { AuthorCard(it) }
+                }
+            }
+        }
         bookRow("More in ${series?.name ?: "the series"}", book?.moreInSeries.orEmpty())
         bookRow(authors.firstOrNull()?.let { "More by ${it.name}" } ?: "More by the author", book?.byAuthor.orEmpty())
         bookRow(narrators.firstOrNull()?.let { "Read by ${it.name}" } ?: "More read by the narrator", book?.readByNarrator.orEmpty())
@@ -343,6 +353,29 @@ private fun People(people: List<Pair<String, String>>, prefix: String?) {
                 fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen,
                 modifier = Modifier.pressable({ navigator.openPerson(id, name) }, onClickLabel = "Open $name"),
             )
+        }
+    }
+}
+
+/** An author's photo, name and the start of their biography, opening their page. TalkBack reads the name. */
+@Composable
+private fun AuthorCard(author: BookAuthor) {
+    val navigator = LocalNavigator.current
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Flexarr.seat)
+            .pressable({ navigator.openPerson(author.id, author.name) }, onClickLabel = "Open ${author.name}").padding(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        RemoteImage(author.image, 160, Modifier.size(64.dp).clip(CircleShape).background(Flexarr.aisle)) {}
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(author.name, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            author.biography?.takeIf { it.isNotBlank() }?.let {
+                Text(
+                    it, fontSize = 13.sp, color = Flexarr.usher, maxLines = 3, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.clearAndSetSemantics {},
+                )
+            }
         }
     }
 }

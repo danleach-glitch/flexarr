@@ -42,6 +42,13 @@ enum class ChapterSource(override val raw: String) : ForwardCompatibleEnum {
     object Serializer : ForwardCompatibleEnumSerializer<ChapterSource>("ChapterSource", entries, Unknown)
 }
 
+/** One of a book's credited authors, with their photo and biography for the author card. */
+@Serializable
+data class BookAuthor(val id: String, val name: String, val image: String? = null, val biography: String? = null) {
+    /** Whether there's anything to show beyond the name. */
+    val hasDetails: Boolean get() = image != null || !biography.isNullOrBlank()
+}
+
 /** A book's own page (on [ItemDetail.book]). Absent from servers before 0.58. */
 @Serializable
 data class BookDetail(
@@ -63,7 +70,12 @@ data class BookDetail(
     val moreInSeries: List<ItemSummary> = emptyList(),
     val byAuthor: List<ItemSummary> = emptyList(),
     val readByNarrator: List<ItemSummary> = emptyList(),
-)
+    /** The book's credited authors in order, with photos and biographies. Absent from servers before 0.58. */
+    val authors: List<BookAuthor>? = null,
+) {
+    /** The authors worth a card: those with a photo or a biography. */
+    val authorCards: List<BookAuthor> get() = authors.orEmpty().filter { it.hasDetails }
+}
 
 /**
  * One of a book's files on its timeline. [url] serves it as it is when the player said it can play its sound, and
