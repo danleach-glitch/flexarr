@@ -547,13 +547,13 @@ public static partial class DiscoveryEndpoints
         var order = await ContinueWatchingOrderAsync(db, profileId, limit, null, ct);
         if (bookLibraries.Count > 0)
         {
-            order.AddRange(await LastPlayedAsync(Books.BookRows.Playable(db, bookLibraries), profileId, limit, ct));
+            order.AddRange(await LastPlayedAsync(db, Books.BookRows.Playable(db, bookLibraries), profileId, limit, ct));
         }
 
         if (podcastLibraries.Count > 0)
         {
             var episodes = db.MediaItems.Where(i => podcastLibraries.Contains(i.LibraryId) && i.Kind == MediaKind.PodcastEpisode);
-            order.AddRange(await LastPlayedAsync(episodes, profileId, limit, ct));
+            order.AddRange(await LastPlayedAsync(db, episodes, profileId, limit, ct));
         }
 
         var ids = order.OrderByDescending(x => x.At).Select(x => x.Id).Distinct().Take(limit).ToList();
@@ -563,14 +563,15 @@ public static partial class DiscoveryEndpoints
 
     /// <summary>
     /// Those of <paramref name="items"/> started and not finished (the rule of <see cref="Books.BookQueries.InProgress"/>),
-    /// the latest played first.
+    /// the latest played first. It starts from this profile's own places, newest first (the (UserId, LastPlayedAt)
+    /// index), rather than from every item, which for podcasts would be every episode of every show.
     /// </summary>
-    private static async Task<List<(Guid Id, DateTime At)>> LastPlayedAsync(IQueryable<MediaItem> items, string profileId, int limit, CancellationToken ct)
+    private static async Task<List<(Guid Id, DateTime At)>> LastPlayedAsync(FlexarrDbContext db, IQueryable<MediaItem> items, string profileId, int limit, CancellationToken ct)
     {
-        var started = await Books.BookQueries.InProgress(items, profileId)
-            .Select(i => new { i.Id, At = i.PlaybackStates.Where(p => p.UserId == profileId).Select(p => p.LastPlayedAt).FirstOrDefault() })
-            .OrderByDescending(x => x.At).Take(limit).ToListAsync(ct);
-        return [.. started.Select(x => (x.Id, x.At))];
+        var started = await db.PlaybackStates.Where(p => p.UserId == profileId && !p.Watched && p.PositionSeconds > 0 && items.Any(i => i.Id == p.MediaItemId))
+            .OrderByDescending(p => p.LastPlayedAt).Take(limit)
+            .Select(p => new { p.MediaItemId, p.LastPlayedAt }).ToListAsync(ct);
+        return [.. started.Select(x => (x.MediaItemId, x.LastPlayedAt))];
     }
 
     /// <summary>Same kind, ranked by shared genres and cast, then rating.</summary>
