@@ -211,6 +211,20 @@ class BookDownloads(private val context: Context, private val model: AppModel) {
         if (finished || System.currentTimeMillis() - lastSent > SEND_EVERY_MS) scope.launch { catchUp() }
     }
 
+    /** A speed chosen while the book plays from here: kept with it, and sent to the server now or when it can be. */
+    fun speedChosen(itemId: String, speed: Double) {
+        entry(itemId) ?: return
+        update(itemId) { it.speedChosen(speed) }
+        scope.launch { catchUp() }
+    }
+
+    /** The server's newer manifest for a book here: its bookmarks, listening settings and speed are kept with it. */
+    fun refreshed(itemId: String, fresh: io.github.flexarr.core.BookManifest): LocalBook? {
+        entry(itemId) ?: return null
+        update(itemId) { it.refreshed(fresh) }
+        return entry(itemId)
+    }
+
     private var lastSent = 0L
 
     /**
@@ -230,6 +244,18 @@ class BookDownloads(private val context: Context, private val model: AppModel) {
                     model.watchStateChanged()
                 } catch (e: FlexarrException.Http) {
                     if (e.status == 404) update(book.itemId) { if (it.unsent == unsent) it.copy(unsent = null) else it }
+                } catch (_: FlexarrException) {
+                    break // out of reach
+                }
+            }
+            // Speeds chosen offline: the book's own speed on the server.
+            for (book in all.filter { it.profileId == profileId && it.unsentSpeed != null }) {
+                val speed = book.unsentSpeed ?: continue
+                try {
+                    client.setPlaybackSpeed(book.itemId, speed)
+                    update(book.itemId) { if (it.unsentSpeed == speed) it.copy(unsentSpeed = null) else it }
+                } catch (e: FlexarrException.Http) {
+                    if (e.status == 404) update(book.itemId) { if (it.unsentSpeed == speed) it.copy(unsentSpeed = null) else it }
                 } catch (_: FlexarrException) {
                     break // out of reach
                 }

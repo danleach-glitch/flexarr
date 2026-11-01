@@ -61,7 +61,7 @@ class DeviceCommands(private val context: Context, private val model: AppModel, 
             var wait = 2_000L
             while (isActive) {
                 try {
-                    client.deviceEvents().collect { event ->
+                    client.deviceEvents(accepts).collect { event ->
                         when (event) {
                             is DeviceEvent.Command -> {
                                 val command = event.command
@@ -91,6 +91,10 @@ class DeviceCommands(private val context: Context, private val model: AppModel, 
             }
         }
     }
+
+    /** The commands beyond the basic ones this device takes: a phone plays books too; a TV has no book screens. */
+    private val accepts: List<DeviceCommandKind>
+        get() = listOf(DeviceCommandKind.Sound, DeviceCommandKind.Sleep) + if (context.usesTvInterface) emptyList() else listOf(DeviceCommandKind.Book)
 
     fun stop() {
         task?.cancel()
@@ -159,7 +163,7 @@ class DeviceCommands(private val context: Context, private val model: AppModel, 
                     model.podcasts.current != null -> model.podcasts.sleep.set(if (setting == SleepTimer.Setting.EndOfChapter) SleepTimer.Setting.EndOfEpisode else setting)
                 }
             }
-            DeviceCommandKind.Unknown -> Unit
+            DeviceCommandKind.Book, DeviceCommandKind.Unknown -> Unit
         }
     }
 

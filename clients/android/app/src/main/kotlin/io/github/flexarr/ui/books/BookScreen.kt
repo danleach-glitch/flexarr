@@ -30,11 +30,13 @@ import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -166,6 +168,15 @@ private fun BookPage(model: AppModel, detail: ItemDetail, defaultSpeed: Double, 
     val series = book?.series?.firstOrNull()
     var allChapters by remember { mutableStateOf(false) }
     var allNotes by remember { mutableStateOf(false) }
+    var confirmStartOver by remember { mutableStateOf(false) }
+    val startOver = {
+        val client = model.client
+        model.scope.launch {
+            runCatching { client?.listenAgain(item.id) }
+            model.watchStateChanged()
+        }
+        navigator.playBook(item, from = 0.0)
+    }
 
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
         item("head") {
@@ -210,14 +221,7 @@ private fun BookPage(model: AppModel, detail: ItemDetail, defaultSpeed: Double, 
                     onClick = {
                         when {
                             playingThis && player.isPlaying -> player.pause()
-                            finished -> {
-                                val client = model.client
-                                model.scope.launch {
-                                    runCatching { client?.listenAgain(item.id) }
-                                    model.watchStateChanged()
-                                }
-                                navigator.playBook(item, from = 0.0)
-                            }
+                            finished -> startOver()
                             else -> navigator.playBook(item)
                         }
                     },
@@ -237,17 +241,26 @@ private fun BookPage(model: AppModel, detail: ItemDetail, defaultSpeed: Double, 
                         if (finished) Icons.Filled.CheckCircle else Icons.Outlined.CheckCircle,
                         { navigator.setBookFinished(item, !finished) },
                     )
-                    if (position > 0 && !finished) {
-                        LabeledAction("Start over", Icons.Filled.Replay, {
-                            val client = model.client
-                            model.scope.launch {
-                                runCatching { client?.listenAgain(item.id) }
-                                model.watchStateChanged()
-                            }
-                            navigator.playBook(item, from = 0.0)
-                        })
+                    // Only with somewhere to start over from; a place in the book is asked about before it's lost.
+                    if (position > 0 || finished) {
+                        LabeledAction("Start over", Icons.Filled.Replay, { if (position > 0 && !finished) confirmStartOver = true else startOver() })
                     }
                 }
+            }
+            if (confirmStartOver) {
+                AlertDialog(
+                    onDismissRequest = { confirmStartOver = false },
+                    title = { Text("Start over?") },
+                    text = { Text("Your place in this book will be lost.") },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            confirmStartOver = false
+                            startOver()
+                        }) { Text("Start over", color = Flexarr.screen) }
+                    },
+                    dismissButton = { TextButton(onClick = { confirmStartOver = false }) { Text("Cancel", color = Flexarr.screen) } },
+                    containerColor = Flexarr.seat,
+                )
             }
         }
         if (chapters.isNotEmpty()) {

@@ -93,6 +93,7 @@ import io.github.flexarr.ui.settings.WaitingDevicesScreen
 import io.github.flexarr.ui.settings.DownloadSettingsScreen
 import io.github.flexarr.ui.settings.LibraryOrderSettingsScreen
 import io.github.flexarr.ui.settings.PlaybackSettingsScreen
+import io.github.flexarr.ui.settings.BookSettingsScreen
 import io.github.flexarr.ui.settings.PodcastSettingsScreen
 import io.github.flexarr.ui.settings.ServerSettingsScreen
 import io.github.flexarr.ui.settings.SettingsScreen
@@ -322,8 +323,10 @@ fun MainScreen(model: AppModel) {
                         onPodcasts = { nav.navigate("settings/podcasts") },
                         onNotifications = { nav.navigate("settings/notifications") },
                         onTrakt = { nav.navigate("settings/trakt") },
+                        onAudiobooks = { nav.navigate("settings/audiobooks") },
                     )
                 }
+                composable("settings/audiobooks") { BookSettingsScreen(model) }
                 composable("settings/playback") { PlaybackSettingsScreen(model) }
                 composable("settings/downloads") { DownloadSettingsScreen(model) }
                 composable("settings/podcasts") { PodcastSettingsScreen(model, onNotifications = { nav.navigate("settings/notifications") }) }

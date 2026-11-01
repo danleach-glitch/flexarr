@@ -23,7 +23,11 @@ import io.github.flexarr.core.BookChapter
 import io.github.flexarr.core.BookFile
 import io.github.flexarr.core.BookListening
 import io.github.flexarr.core.BookManifest
+import io.github.flexarr.core.BookPause
 import io.github.flexarr.core.BookSpeed
+import io.github.flexarr.core.ChapterSleep
+import io.github.flexarr.core.endBookSession
+import io.github.flexarr.core.reportBookSession
 import io.github.flexarr.core.BookTimeline
 import io.github.flexarr.core.Bookmark
 import io.github.flexarr.core.FlexarrClient
@@ -148,12 +152,14 @@ class BookPlayer(private val context: Context, private val model: AppModel) {
         get() = isPlaying || isLoading ||
             (created && player.playWhenReady && player.playbackState.let { it == Player.STATE_BUFFERING || it == Player.STATE_READY })
 
-    /** The sleep timer; End of chapter stops where the chapter playing when it was set ends. */
+    /** The sleep timer; End of chapter stops where the chapter playing ends (the one gone to, after a seek). */
     val sleep = SleepTimer(scope).also { it.onExpire = { fadeOutThenPause() } }
-    private var sleepChapterEnd: Double? = null
+    private val chapterSleep = ChapterSleep()
 
     private var client: FlexarrClient? = null
     private var sessionId: String? = null
+    /** The server let the session go (twelve hours idle): places go to the book itself, and Play asks for a new one. */
+    private var sessionGone = false
     /** Playing from the phone's own copy, with no session: what's heard goes to the downloads, for the server later. */
     private var playingDownload = false
     private var generation = 0
@@ -162,7 +168,7 @@ class BookPlayer(private val context: Context, private val model: AppModel) {
     private var recordedAt: Long? = null
     private var ticker: Job? = null
     /** When it was paused, for smart rewind and for asking the server whether another device moved on meanwhile. */
-    private var pausedAt: Long? = null
+    private val pause = BookPause()
     private var shownChapter: Int? = null
     private var files: List<BookFile> = emptyList()
 
@@ -177,15 +183,14 @@ class BookPlayer(private val context: Context, private val model: AppModel) {
 
         override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
             if (!playWhenReady) {
-                if (player.playbackState != Player.STATE_ENDED) pausedAt = System.currentTimeMillis()
+                if (player.playbackState != Player.STATE_ENDED) pause.paused(System.currentTimeMillis())
                 return
             }
-            val paused = pausedAt ?: return
-            pausedAt = null
-            val away = System.currentTimeMillis() - paused
+            val away = pause.resumed(System.currentTimeMillis()) ?: return
             if (listening.smartRewind) {
                 val back = SmartRewind.seconds(away)
-                if (back > 0) seek(timelinePosition() - back)
+                // Not a place the listener chose: the end of chapter the sleep timer waits for stays as it was.
+                if (back > 0) moveTo(timelinePosition() - back)
             }
             if (away > 60_000) checkElsewhere()
         }
@@ -215,7 +220,7 @@ class BookPlayer(private val context: Context, private val model: AppModel) {
      */
     fun play(book: ItemSummary, from: Double? = null) {
         val client = model.client
-        if (current?.id == book.id && (sessionId != null || playingDownload) && player.playbackState != Player.STATE_IDLE) {
+        if (current?.id == book.id && ((sessionId != null && !sessionGone) || playingDownload) && player.playbackState != Player.STATE_IDLE) {
             from?.let(::seek)
             if (!player.playWhenReady) player.play()
             return
@@ -367,7 +372,9 @@ class BookPlayer(private val context: Context, private val model: AppModel) {
     /** Play again: stopped (it ended, or failed), it's asked for again; at the end, it starts over. */
     fun resume() {
         val book = current ?: return
-        if ((sessionId == null && !playingDownload) || player.playbackState == Player.STATE_IDLE) return start(book, position.takeIf { it > 0 && it < duration - 1 })
+        // A session paused for most of a day has likely been let go by the server: a new one, from the same place.
+        val sessionLapsed = sessionId != null && (sessionGone || pause.since?.let { System.currentTimeMillis() - it > SESSION_LAPSES_MS } == true)
+        if ((sessionId == null && !playingDownload) || sessionLapsed || player.playbackState == Player.STATE_IDLE) return start(book, position.takeIf { it > 0 && it < duration - 1 })
         if (player.playbackState == Player.STATE_ENDED) return start(book, 0.0)
         player.play()
     }
@@ -379,8 +386,18 @@ class BookPlayer(private val context: Context, private val model: AppModel) {
 
     fun skipForward() = skip(listening.skipForwardSeconds.toDouble())
 
-    /** Goes to [seconds] on the book's timeline. */
+    /**
+     * Goes to [seconds] on the book's timeline, as the listener asked (a chapter, a bookmark, Jump to, the scrubber, a
+     * skip): playing after a pause starts right there, with no smart rewind, and End of chapter becomes this chapter's.
+     */
     fun seek(seconds: Double) {
+        if (current == null) return
+        pause.seeked()
+        moveTo(seconds)
+        chapterSleep.seeked(chapters, position, duration)
+    }
+
+    private fun moveTo(seconds: Double) {
         if (current == null) return
         val target = seconds.coerceIn(0.0, if (duration > 0) (duration - 0.5).coerceAtLeast(0.0) else seconds.coerceAtLeast(0.0))
         position = target
@@ -402,6 +419,8 @@ class BookPlayer(private val context: Context, private val model: AppModel) {
         this.speed = snapped
         player.setPlaybackSpeed(snapped.toFloat())
         val book = current ?: return
+        // From the phone's copy: kept with it (it plays at it next time), and sent when the server can be reached.
+        if (playingDownload) return model.bookDownloads.speedChosen(book.id, snapped)
         val client = client ?: return
         scope.launch { runCatching { client.setPlaybackSpeed(book.id, snapped) } }
     }
@@ -409,7 +428,7 @@ class BookPlayer(private val context: Context, private val model: AppModel) {
     /** Sets the sleep timer; End of chapter remembers which chapter's end. */
     fun setSleep(setting: SleepTimer.Setting?) {
         player.volume = 1f
-        sleepChapterEnd = if (setting == SleepTimer.Setting.EndOfChapter) chapter?.endSeconds ?: duration else null
+        if (setting == SleepTimer.Setting.EndOfChapter) chapterSleep.set(chapters, timelinePosition(), duration) else chapterSleep.clear()
         sleep.set(setting)
         listenForShakes()
     }
@@ -460,7 +479,7 @@ class BookPlayer(private val context: Context, private val model: AppModel) {
     fun stop() {
         generation++
         sleep.set(null)
-        sleepChapterEnd = null
+        chapterSleep.clear()
         listenForShakes()
         endSession()
         if (created) {
@@ -514,12 +533,11 @@ class BookPlayer(private val context: Context, private val model: AppModel) {
 
     /** End of chapter, and the last seconds of a timer of minutes fading out. */
     private fun checkSleep() {
-        val end = sleepChapterEnd
-        if (end != null && sleep.setting == SleepTimer.Setting.EndOfChapter) {
-            val left = (end - position) / speed.coerceAtLeast(0.5)
+        val left = chapterSleep.left(position, speed)
+        if (left != null && sleep.setting == SleepTimer.Setting.EndOfChapter) {
             if (left <= 0.3) {
                 sleep.set(null)
-                sleepChapterEnd = null
+                chapterSleep.clear()
                 player.pause()
                 player.volume = 1f
                 expiredAt = System.currentTimeMillis()
@@ -590,22 +608,42 @@ class BookPlayer(private val context: Context, private val model: AppModel) {
         }
         val client = client ?: return
         val session = sessionId ?: return
-        scope.launch { runCatching { client.reportProgress(session, at, paused, ended) } }
+        val gone = sessionGone
+        scope.launch {
+            runCatching { client.reportBookSession(session, book.id, at, paused, ended, model.deviceName, gone) }
+                .onSuccess { alive -> if (!alive && sessionId == session) sessionGone = true }
+        }
     }
 
-    /** Back after a while away: if another device got further meanwhile, offer to jump there. */
+    /**
+     * Back after a while away: if another device got further meanwhile, offer to jump there. Playing from the phone's
+     * copy, the server's bookmarks, listening settings and speed (unless one chosen here is still to be sent) are taken
+     * in too, as the copy's manifest is from when it was downloaded.
+     */
     private fun checkElsewhere() {
         val book = current ?: return
         val client = client ?: return
         val since = recordedAt
         scope.launch {
-            val progress = runCatching { client.bookManifest(book.id, profile.audioCodecs).progress }.getOrNull() ?: return@launch
+            val fresh = runCatching { client.bookManifest(book.id, profile.audioCodecs) }.getOrNull() ?: return@launch
             if (current?.id != book.id) return@launch
-            jumpOffer = progress.jumpOffer(timelinePosition(), since, model.deviceName)
+            jumpOffer = fresh.progress.jumpOffer(timelinePosition(), since, model.deviceName)
+            if (playingDownload) {
+                val kept = model.bookDownloads.refreshed(book.id, fresh)?.manifest ?: return@launch
+                manifest = manifest?.copy(bookmarks = kept.bookmarks, listening = kept.listening, speed = kept.speed, nextInSeries = kept.nextInSeries)
+                bookmarks = kept.bookmarks
+                listening = kept.listening
+                val snapped = BookSpeed.snapped(kept.speed)
+                if (snapped != speed) {
+                    speed = snapped
+                    player.setPlaybackSpeed(snapped.toFloat())
+                }
+            }
         }
     }
 
-    private fun endSession() {
+    /** Reports the last place (the end, with [ended]) and stops the session, one after the other. */
+    private fun endSession(ended: Boolean = false) {
         ticker?.cancel()
         if (playingDownload) {
             playingDownload = false
@@ -618,12 +656,15 @@ class BookPlayer(private val context: Context, private val model: AppModel) {
         }
         val client = client ?: return
         val session = sessionId ?: return
+        val book = current ?: return
         sessionId = null
-        val at = timelinePosition()
+        val at = if (ended) duration else timelinePosition()
         val records = model.recordsHistory
+        val gone = sessionGone
+        sessionGone = false
+        if (records) recordedAt = System.currentTimeMillis()
         scope.launch {
-            if (records) runCatching { client.reportProgress(session, at, paused = true) }
-            runCatching { client.stopPlayback(session) }
+            client.endBookSession(session, book.id, at, ended, records, model.deviceName, gone)
             model.watchStateChanged()
         }
     }
@@ -631,12 +672,13 @@ class BookPlayer(private val context: Context, private val model: AppModel) {
     /** The end of the book: finished (the server counts it), and the next in its series offered. */
     private fun bookEnded() {
         current ?: return
-        report(paused = true, ended = true)
+        // The phone's copy keeps it here; a session reports the end and then stops, in that order (endSession).
+        if (playingDownload) report(paused = true, ended = true)
         val next = manifest?.nextInSeries
-        endSession()
+        endSession(ended = true)
         position = 0.0
         sleep.set(null)
-        sleepChapterEnd = null
+        chapterSleep.clear()
         player.volume = 1f
         nextOffer = next
         // Continue listening drops it now: a moment later, once the server has it.
@@ -652,6 +694,8 @@ class BookPlayer(private val context: Context, private val model: AppModel) {
 
     companion object {
         private const val REPORT_INTERVAL_MS = 15_000L
+        /** A little under the twelve hours idle after which the server ends a session. */
+        private const val SESSION_LAPSES_MS = 11 * 3_600_000L
         private const val FADE_SECONDS = 10.0
         private const val SHAKE_MINUTES = 5
         private const val SHAKE_AFTER_MS = 5 * 60_000L
