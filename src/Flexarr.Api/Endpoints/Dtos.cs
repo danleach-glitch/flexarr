@@ -127,7 +127,12 @@ public static class ArtworkUrls
         return (latest?.Ticks ?? 0) / 10_000_000;
     }
 
-    public static string? Person(Guid id, bool has) => has ? $"/api/v1/images/people/{id}" : null;
+    /// <summary>A person's photo, at a ?v= of when it last changed (none for one from before that was kept).</summary>
+    public static string? Person(Guid id, bool has, DateTime? changedAt) =>
+        !has ? null : changedAt is { } changed ? $"/api/v1/images/people/{id}?v={PersonVersion(changed)}" : $"/api/v1/images/people/{id}";
+
+    /// <summary>The ?v= of a person's photo: when it last changed, in seconds.</summary>
+    public static string PersonVersion(DateTime changedAt) => (changedAt.Ticks / 10_000_000).ToString(System.Globalization.CultureInfo.InvariantCulture);
 }
 
 public static class Resolution

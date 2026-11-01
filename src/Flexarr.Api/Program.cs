@@ -152,6 +152,7 @@ builder.Services.AddSingleton<PodcastRefreshQueue>();
 builder.Services.AddHostedService<PodcastRefreshWorker>();
 builder.Services.AddHostedService<PodcastChartWarmer>();
 builder.Services.AddSingleton<ProfileImages>();
+builder.Services.AddSingleton<PersonImages>();
 builder.Services.AddSingleton<BackupStore>();
 builder.Services.AddSingleton<BackupUploads>();
 builder.Services.AddSingleton<IServerRestart, ServerRestart>();

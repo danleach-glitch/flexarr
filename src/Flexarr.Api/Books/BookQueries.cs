@@ -185,7 +185,7 @@ public static class BookQueries
             .Select(g => new { PersonId = g.Key, Count = g.Count() });
         var people = from c in counts
                      join p in db.People on c.PersonId equals p.Id
-                     select new { p.Id, p.Name, HasImage = p.ImageUrl != null, c.Count };
+                     select new { p.Id, p.Name, HasImage = p.ImageUrl != null, p.ImageChangedAt, c.Count };
         if (search is { Length: > 0 })
         {
             people = people.Where(p => EF.Functions.Like(p.Name, $"%{search.Trim()}%"));
@@ -193,7 +193,7 @@ public static class BookQueries
 
         var total = await people.CountAsync(ct);
         var page = await people.OrderBy(p => p.Name).Skip(skip).Take(take).ToListAsync(ct);
-        return new PagedDto<BookPersonDto>(total, [.. page.Select(p => new BookPersonDto(p.Id, p.Name, ArtworkUrls.Person(p.Id, p.HasImage), p.Count))]);
+        return new PagedDto<BookPersonDto>(total, [.. page.Select(p => new BookPersonDto(p.Id, p.Name, ArtworkUrls.Person(p.Id, p.HasImage, p.ImageChangedAt), p.Count))]);
     }
 
     public static async Task<BookShelvesDto> ShelvesAsync(FlexarrDbContext db, Guid libraryId, string profileId, CancellationToken ct)

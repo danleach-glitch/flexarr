@@ -26,7 +26,7 @@ public static class PeopleEndpoints
                 .Select(c => new PersonCreditDto(items[c.MediaItemId], c.Role, c.Character))
                 .OrderByDescending(c => c.Item.Year)
                 .ToList();
-            return Results.Ok(new PersonDto(person.Id, person.Name, ArtworkUrls.Person(person.Id, person.ImageUrl != null), list, person.Biography));
+            return Results.Ok(new PersonDto(person.Id, person.Name, ArtworkUrls.Person(person.Id, person.ImageUrl != null, person.ImageChangedAt), list, person.Biography));
         }).WithTags("People");
 
         return api;

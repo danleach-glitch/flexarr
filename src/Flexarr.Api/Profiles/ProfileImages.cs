@@ -16,10 +16,17 @@ public sealed partial class ProfileImages(IOptionsMonitor<FlexarrOptions> option
     public string PathFor(string profileId) => Path.Combine(Directory, $"{Convert.ToHexStringLower(System.Text.Encoding.UTF8.GetBytes(profileId))}.jpg");
 
     /// <summary>Converts any image ffmpeg can read; false if it isn't one.</summary>
-    public async Task<bool> SaveAsync(string profileId, Stream image, CancellationToken ct)
+    public Task<bool> SaveAsync(string profileId, Stream image, CancellationToken ct) => SaveSquareAsync(PathFor(profileId), Size, image, ct);
+
+    /// <summary>
+    /// Any image ffmpeg can read, cropped square and shrunk to a <paramref name="size"/>px JPEG at
+    /// <paramref name="target"/> (people's photos use this too); false if it isn't an image.
+    /// </summary>
+    public async Task<bool> SaveSquareAsync(string target, int size, Stream image, CancellationToken ct)
     {
-        System.IO.Directory.CreateDirectory(Directory);
-        var target = PathFor(profileId);
+        ArgumentNullException.ThrowIfNull(target);
+        ArgumentNullException.ThrowIfNull(image);
+        System.IO.Directory.CreateDirectory(Path.GetDirectoryName(target)!);
         var source = $"{target}.{Guid.NewGuid():N}.upload";
         var output = $"{target}.{Guid.NewGuid():N}.jpg";
         try
@@ -38,7 +45,7 @@ public sealed partial class ProfileImages(IOptionsMonitor<FlexarrOptions> option
 
             // Centre-crop to a square, then scale: avatars are always shown as circles.
             string[] args = ["-v", "error", "-y", "-protocol_whitelist", "file", "-f", format, "-i", source,
-                "-vf", $"crop='min(iw,ih)':'min(iw,ih)',scale={Size}:{Size}", "-frames:v", "1", "-update", "1", "-q:v", "3", output];
+                "-vf", $"crop='min(iw,ih)':'min(iw,ih)',scale={size}:{size}", "-frames:v", "1", "-update", "1", "-q:v", "3", output];
             if (!await RunFfmpegAsync(args, ct) || !File.Exists(output))
             {
                 return false;

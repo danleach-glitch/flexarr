@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using Flexarr.Api.Configuration;
+using Flexarr.Api.Profiles;
 using Flexarr.Core.Data;
 using Flexarr.Core.Media;
 using Flexarr.Core.Paths;
@@ -80,12 +81,14 @@ public static class ImageEndpoints
             : s is null || !CryptographicOperations.FixedTimeEquals(Encoding.ASCII.GetBytes(s), Encoding.ASCII.GetBytes(Signature(trusted))) ? Results.NotFound()
             : await ServeAsync(cache, trusted, w, http, ct));
 
-        group.MapGet("/people/{id:guid}", async (Guid id, int? w, FlexarrDbContext db, IMemoryCache memory, ImageCache cache, HttpContext http, CancellationToken ct) =>
+        group.MapGet("/people/{id:guid}", async (Guid id, int? w, string? v, FlexarrDbContext db, IMemoryCache memory, ImageCache cache, PersonImages uploads,
+            HttpContext http, CancellationToken ct) =>
         {
+            // A ?v= other than the one remembered means the photo changed since (on another server process, a refresh).
             var key = PersonSourceKey(id);
-            if (!memory.TryGetValue(key, out ImageSource? source) || source is null)
+            if (!memory.TryGetValue(key, out ImageSource? source) || source is null || (v is not null && v != source.Version))
             {
-                source = await ResolvePersonAsync(db, id, ct);
+                source = await ResolvePersonAsync(db, uploads, id, ct);
                 if (source is not null)
                 {
                     memory.Set(key, source, SourceTtl);
@@ -157,27 +160,39 @@ public static class ImageEndpoints
     public static string PersonSourceKey(Guid id) => $"image-source:person:{id}";
 
     /// <summary>
-    /// A person's photo: from the web over https, or a photo in their author folder, which is only read when it's in
-    /// one of the folders of a library they have a credit in.
+    /// A person's photo: from the web over https, one an admin uploaded (always the person's own file in the data
+    /// folder, whatever the URL says), or a photo in their author folder, which is only read when it's in one of the
+    /// folders of a library they have a credit in.
     /// </summary>
-    /// <returns>Null if there's no such person; otherwise their photo (null if there's none to serve).</returns>
-    private static async Task<ImageSource?> ResolvePersonAsync(FlexarrDbContext db, Guid id, CancellationToken ct)
+    /// <returns>Null if there's no such person; otherwise their photo (null if there's none to serve) and its ?v=.</returns>
+    private static async Task<ImageSource?> ResolvePersonAsync(FlexarrDbContext db, PersonImages uploads, Guid id, CancellationToken ct)
     {
-        var person = await db.People.AsNoTracking().Where(p => p.Id == id).Select(p => new { p.ImageUrl }).FirstOrDefaultAsync(ct);
+        var person = await db.People.AsNoTracking().Where(p => p.Id == id).Select(p => new { p.ImageUrl, p.PhotoSource, p.ImageChangedAt }).FirstOrDefaultAsync(ct);
         if (person is null)
         {
             return null;
         }
 
+        var version = person.ImageChangedAt is { } changed ? ArtworkUrls.PersonVersion(changed) : null;
         var url = person.ImageUrl;
-        if (ArtworkUrl.IsHttps(url))
+        if (url is null)
         {
-            return new ImageSource(url, null);
+            return new ImageSource(null, version);
         }
 
-        return url is not null && url.StartsWith("file://", StringComparison.Ordinal) && await PersonInLibraryAsync(db, id, url, ct)
-            ? new ImageSource(url, null)
-            : new ImageSource(null, null);
+        if (person.PhotoSource == PersonSources.Upload)
+        {
+            return new ImageSource(File.Exists(uploads.PathFor(id)) ? uploads.UrlFor(id) : null, version);
+        }
+
+        if (ArtworkUrl.IsHttps(url))
+        {
+            return new ImageSource(url, version);
+        }
+
+        return url.StartsWith("file://", StringComparison.Ordinal) && await PersonInLibraryAsync(db, id, url, ct)
+            ? new ImageSource(url, version)
+            : new ImageSource(null, version);
     }
 
     /// <summary>Whether a local photo of a person is a file in a folder of one of the libraries they're credited in.</summary>
