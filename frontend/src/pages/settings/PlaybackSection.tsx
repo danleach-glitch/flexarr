@@ -76,6 +76,14 @@ function WhileWatching({ name }: { name?: string }) {
         checked={preferences.subtitlesInBlackBars ?? false}
         onChange={(on) => void change({ ...preferences, subtitlesInBlackBars: on })}
       />
+      {/* Servers before it don't send it, and have no such choice. */}
+      {preferences.listeningInContinue !== undefined && (
+        <ToggleRow
+          label="Books and podcasts in Continue watching"
+          checked={preferences.listeningInContinue}
+          onChange={(on) => void change({ ...preferences, listeningInContinue: on })}
+        />
+      )}
     </SettingsGroup>
   )
 }
