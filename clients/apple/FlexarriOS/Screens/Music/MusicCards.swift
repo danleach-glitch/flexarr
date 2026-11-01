@@ -18,7 +18,7 @@ struct SquareArtwork: View {
                     ZStack {
                         LinearGradient(colors: [item.glowColor.opacity(0.4), Color.seat], startPoint: .top, endPoint: .bottom)
                         Text(circular ? initials : item.title)
-                            .font(.marquee(circular ? 28 : 16, weight: .bold))
+                            .font(.marquee(circular ? 28 : 16, weight: .bold, scales: false))
                             .foregroundStyle(Color.screen.opacity(0.8))
                             .multilineTextAlignment(.center)
                             .padding(8)

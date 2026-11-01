@@ -224,7 +224,7 @@ private struct ChannelRow: View {
                 RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.seat)
                 RemoteImage(url: model.client?.imageURL(channel.logoUrl, width: 300), contentMode: .fit) {
                     Text(channel.name.prefix(4))
-                        .font(.marquee(18, weight: .bold))
+                        .font(.marquee(18, weight: .bold, scales: false))
                         .foregroundStyle(Color.usher)
                 }
                 .padding(8)
@@ -299,7 +299,7 @@ struct HomeChannelCard: View {
                     Color.seat
                     RemoteImage(url: model.client?.imageURL(channel.logoUrl, width: 400), contentMode: .fit) {
                         Text(channel.name.prefix(4))
-                            .font(.marquee(22, weight: .bold))
+                            .font(.marquee(22, weight: .bold, scales: false))
                             .foregroundStyle(Color.usher)
                     }
                     .padding(.horizontal, width * 0.18)

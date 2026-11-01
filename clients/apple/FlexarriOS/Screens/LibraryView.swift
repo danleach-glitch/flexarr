@@ -283,7 +283,7 @@ struct GenreTile: View {
             .overlay(alignment: .bottomLeading) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(genre.name)
-                        .font(.marquee(20, weight: .heavy))
+                        .font(.marquee(20, weight: .heavy, scales: false))
                         .foregroundStyle(Color.screen)
                     Text(caption)
                         .font(.caption.weight(.medium))

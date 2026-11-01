@@ -129,7 +129,7 @@ private struct WatchlistCard: View {
                     .overlay {
                         RemoteImage(url: model.client?.imageURL(entry.poster, width: 342)) {
                             Text(entry.title)
-                                .font(.marquee(18, weight: .bold))
+                                .font(.marquee(18, weight: .bold, scales: false))
                                 .foregroundStyle(Color.screen.opacity(0.8))
                                 .multilineTextAlignment(.center)
                                 .padding(8)

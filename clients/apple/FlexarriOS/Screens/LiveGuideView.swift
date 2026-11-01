@@ -99,7 +99,7 @@ struct LiveGuideView: View {
         ZStack {
             RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.seat)
             RemoteImage(url: model.client?.imageURL(channel.logoUrl, width: 300), contentMode: .fit) {
-                Text(channel.name.prefix(4)).font(.marquee(14, weight: .bold)).foregroundStyle(Color.usher)
+                Text(channel.name.prefix(4)).font(.marquee(14, weight: .bold, scales: false)).foregroundStyle(Color.usher)
             }
             .padding(8)
             if model.liveTv.startingChannel == channel.id {

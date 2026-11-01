@@ -137,7 +137,7 @@ struct SeriesCard: View {
                     ZStack(alignment: .bottomLeading) {
                         if covers.isEmpty {
                             RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.seat)
-                                .overlay { Text(series.name).font(.marquee(16, weight: .bold)).foregroundStyle(Color.screen.opacity(0.8)).padding(8) }
+                                .overlay { Text(series.name).font(.marquee(16, weight: .bold, scales: false)).foregroundStyle(Color.screen.opacity(0.8)).padding(8) }
                         }
                         ForEach(Array(covers.enumerated().reversed()), id: \.offset) { index, cover in
                             Color.seat

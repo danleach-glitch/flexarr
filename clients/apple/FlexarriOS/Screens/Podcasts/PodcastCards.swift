@@ -18,7 +18,7 @@ struct PodcastArtwork: View {
                     ZStack {
                         LinearGradient(colors: [podcastGlow(accent).opacity(0.4), Color.seat], startPoint: .top, endPoint: .bottom)
                         Text(title)
-                            .font(.marquee(15, weight: .bold))
+                            .font(.marquee(15, weight: .bold, scales: false))
                             .foregroundStyle(Color.screen.opacity(0.8))
                             .multilineTextAlignment(.center)
                             .padding(8)

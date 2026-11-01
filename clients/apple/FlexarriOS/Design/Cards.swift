@@ -58,7 +58,7 @@ struct PosterArtwork: View {
                     ZStack {
                         LinearGradient(colors: [item.glowColor.opacity(0.35), Color.seat], startPoint: .top, endPoint: .bottom)
                         Text(item.title)
-                            .font(.marquee(18, weight: .bold))
+                            .font(.marquee(18, weight: .bold, scales: false))
                             .foregroundStyle(Color.screen.opacity(0.8))
                             .multilineTextAlignment(.center)
                             .padding(8)
@@ -158,9 +158,12 @@ struct Top10Card: View {
 struct OutlinedNumeral: View {
     let text: String
     let size: CGFloat
+    /// Grows with Dynamic Type like the headings, within reason: the poster beside it stays the same size.
+    @ScaledMetric(relativeTo: .largeTitle) private var scale: CGFloat = 1
 
     var body: some View {
-        let glyph = Text(text).font(.marquee(size, weight: .black)).kerning(-size * 0.04)
+        let size = size * min(scale, 1.4)
+        let glyph = Text(text).font(.marquee(size, weight: .black, scales: false)).kerning(-size * 0.04)
         ZStack {
             // An outline drawn by stamping the glyph around a ring, then knocking out the middle.
             ForEach(0..<12, id: \.self) { index in
@@ -211,7 +214,7 @@ struct PersonCard: View {
                     .frame(width: 84, height: 84)
                     .overlay {
                         RemoteImage(url: model.client?.imageURL(image, width: 200)) {
-                            Text(initials).font(.marquee(28, weight: .bold)).foregroundStyle(Color.usher)
+                            Text(initials).font(.marquee(28, weight: .bold, scales: false)).foregroundStyle(Color.usher)
                         }
                     }
                     .clipShape(Circle())

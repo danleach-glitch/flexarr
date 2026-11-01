@@ -11,7 +11,7 @@ struct ProfileAvatar: View {
         ZStack {
             Circle().fill(Color(rgb: RGB(hex: profile.color) ?? .silver))
             Text(profile.initial)
-                .font(.marquee(size * 0.46, weight: .heavy))
+                .font(.marquee(size * 0.46, weight: .heavy, scales: false))
                 .foregroundStyle(Color.room)
             if let url = model.client?.imageURL(profile.image, width: Int(size * 3)) {
                 RemoteImage(url: url) { Color.clear }
