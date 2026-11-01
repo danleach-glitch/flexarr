@@ -248,7 +248,7 @@ private struct LibraryGenreGrid: View {
             let minimum: CGFloat = sizeClass == .regular ? 240 : 150
             LazyVGrid(columns: [GridItem(.adaptive(minimum: minimum), spacing: 12)], spacing: 12) {
                 ForEach(genres, id: \.name) { genre in
-                    Button { router.push(.library(library, .title, genre: genre.name)) } label: { tile(genre) }
+                    Button { router.push(.library(library, .title, genre: genre.name)) } label: { GenreTile(genre: genre, caption: caption(genre)) }
                         .buttonStyle(CardButtonStyle())
                         .accessibilityLabel("\(genre.name), \(caption(genre))")
                 }
@@ -257,7 +257,19 @@ private struct LibraryGenreGrid: View {
         }
     }
 
-    private func tile(_ genre: GenreCount) -> some View {
+    private func caption(_ genre: GenreCount) -> String {
+        let noun = library.type == .tvShows ? (genre.count == 1 ? "show" : "shows") : (genre.count == 1 ? "film" : "films")
+        return "\(genre.count) \(noun)"
+    }
+}
+
+/// A genre's tile: a backdrop from one of its titles (a wash without one), the name and how many there are.
+struct GenreTile: View {
+    @Environment(AppModel.self) private var model
+    let genre: GenreCount
+    let caption: String
+
+    var body: some View {
         Color.seat
             .aspectRatio(16 / 9, contentMode: .fit)
             .overlay {
@@ -273,7 +285,7 @@ private struct LibraryGenreGrid: View {
                     Text(genre.name)
                         .font(.marquee(20, weight: .heavy))
                         .foregroundStyle(Color.screen)
-                    Text(caption(genre))
+                    Text(caption)
                         .font(.caption.weight(.medium))
                         .foregroundStyle(Color.usher)
                 }
@@ -281,10 +293,5 @@ private struct LibraryGenreGrid: View {
                 .padding(10)
             }
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-    }
-
-    private func caption(_ genre: GenreCount) -> String {
-        let noun = library.type == .tvShows ? (genre.count == 1 ? "show" : "shows") : (genre.count == 1 ? "film" : "films")
-        return "\(genre.count) \(noun)"
     }
 }

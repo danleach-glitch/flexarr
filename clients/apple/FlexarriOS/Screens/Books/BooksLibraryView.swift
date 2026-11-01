@@ -1,9 +1,9 @@
 import FlexarrKit
 import SwiftUI
 
-/// What an audiobooks library shows: its shelves, or every book, series, author or narrator (named as on the web).
+/// What an audiobooks library shows: its shelves, or every book, series, author or genre.
 enum BookBrowse: String, CaseIterable, Identifiable {
-    case shelves = "Browse", all = "All books", series = "Series", authors = "Authors", narrators = "Narrators"
+    case shelves = "Browse", all = "All books", series = "Series", authors = "Authors", genres = "Genres"
     var id: String { rawValue }
 }
 
@@ -34,7 +34,7 @@ final class BooksLibraryModel {
         defer { isLoading = false }
         do {
             switch browse {
-            case .shelves:
+            case .shelves, .genres:
                 shelves = try await client.bookShelves(library.id)
             case .all:
                 let page = try await client.books(library.id, filter: filter, take: 60)
@@ -44,8 +44,8 @@ final class BooksLibraryModel {
                 let page = try await client.bookSeriesList(library.id, take: 60)
                 series = page.items
                 seriesTotal = page.total
-            case .authors, .narrators:
-                let page = try await client.bookPeople(library.id, role: browse == .authors ? .author : .narrator, take: 90)
+            case .authors:
+                let page = try await client.bookPeople(library.id, role: .author, take: 90)
                 people = page.items
                 peopleTotal = page.total
             }
@@ -70,11 +70,10 @@ final class BooksLibraryModel {
                 let page = try await client.bookSeriesList(library.id, skip: series.count, take: 60)
                 self.series += page.items
             }
-        case .authors, .narrators:
+        case .authors:
             guard index >= people.count - 10, people.count < peopleTotal else { return }
-            let role: BookPersonRole = browse == .authors ? .author : .narrator
             more { [library, people] in
-                let page = try await client.bookPeople(library.id, role: role, skip: people.count, take: 90)
+                let page = try await client.bookPeople(library.id, role: .author, skip: people.count, take: 90)
                 self.people += page.items
             }
         default:
@@ -92,7 +91,7 @@ final class BooksLibraryModel {
 }
 
 /// An audiobooks library: shelves to start (Continue listening, Next in series, new books, series, authors,
-/// narrators, genres, finished), and the whole library as books, series, authors or narrators.
+/// finished), and the whole library as books, series, authors or genres.
 struct BooksLibraryView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.horizontalSizeClass) private var sizeClass
@@ -119,7 +118,7 @@ struct BooksLibraryView: View {
                     if browse.browse == .all, isFiltered {
                         noMatches.frame(height: 400)
                     } else {
-                        StatusView(state: .empty("No books yet.")).frame(height: 400)
+                        StatusView(state: .empty(browse.browse == .genres ? "No genres yet." : "No books yet.")).frame(height: 400)
                     }
                 } else {
                     content
@@ -153,7 +152,8 @@ struct BooksLibraryView: View {
         case .shelves: browse.shelves?.isEmpty ?? true
         case .all: browse.books.isEmpty
         case .series: browse.series.isEmpty
-        case .authors, .narrators: browse.people.isEmpty
+        case .authors: browse.people.isEmpty
+        case .genres: browse.shelves?.genres.isEmpty ?? true
         }
     }
 
@@ -176,7 +176,8 @@ struct BooksLibraryView: View {
         case .shelves: shelves
         case .all: allBooks
         case .series: seriesGrid
-        case .authors, .narrators: peopleGrid
+        case .authors: peopleGrid
+        case .genres: genreGrid
         }
     }
 
@@ -194,24 +195,6 @@ struct BooksLibraryView: View {
                 }
             }
             peopleRow("Authors", shelves.authors) { browse.browse = .authors }
-            if !shelves.genres.isEmpty {
-                VStack(alignment: .leading, spacing: 10) {
-                    SectionHeading(title: "Genres")
-                    ScrollView(.horizontal) {
-                        HStack(spacing: 8) {
-                            ForEach(shelves.genres, id: \.name) { genre in
-                                Button(genre.name) {
-                                    browse.filter = BookFilter(genre: genre.name)
-                                    browse.browse = .all
-                                }
-                                .buttonStyle(PillButtonStyle(selected: false))
-                            }
-                        }
-                        .padding(.horizontal, Layout.edge)
-                    }
-                    .scrollIndicators(.hidden)
-                }
-            }
             bookRow("Finished", shelves.finished) { show(.all, progress: .finished) }
         }
     }
@@ -298,6 +281,23 @@ struct BooksLibraryView: View {
             ForEach(Array(browse.people.enumerated()), id: \.element.id) { index, person in
                 PersonCard(id: person.id, name: person.name, detail: bookCount(person.bookCount), image: person.image)
                     .onAppear { if let client = model.client { browse.loadMoreIfNeeded(at: index, client: client) } }
+            }
+        }
+        .padding(.horizontal, Layout.edge)
+    }
+
+    /// The library's genres, A to Z: each opens All books narrowed to it.
+    private var genreGrid: some View {
+        let genres = (browse.shelves?.genres ?? []).sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+        let minimum: CGFloat = sizeClass == .regular ? 240 : 150
+        return LazyVGrid(columns: [GridItem(.adaptive(minimum: minimum), spacing: 12)], spacing: 12) {
+            ForEach(genres, id: \.name) { genre in
+                Button {
+                    browse.filter = BookFilter(genre: genre.name)
+                    browse.browse = .all
+                } label: { GenreTile(genre: genre, caption: bookCount(genre.count)) }
+                    .buttonStyle(CardButtonStyle())
+                    .accessibilityLabel("\(genre.name), \(bookCount(genre.count))")
             }
         }
         .padding(.horizontal, Layout.edge)
