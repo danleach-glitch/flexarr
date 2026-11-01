@@ -151,8 +151,7 @@ public static partial class DiscoveryEndpoints
             if (bookLibraries.Count > 0)
             {
                 // Books in progress are in the Continue row instead, when it holds them.
-                rows.AddRange((await Books.BookRows.HomeAsync(db, bookLibraries, me, RowSize, ct))
-                    .Where(r => !(r.Id == Books.BookRows.ContinueRowId && listenBooks.Count > 0)));
+                rows.AddRange(await Books.BookRows.HomeAsync(db, bookLibraries, me, RowSize, continueRow: listenBooks.Count == 0, ct));
             }
 
             // "Because you watched": share genres and cast with the latest thing finished.
