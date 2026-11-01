@@ -458,7 +458,7 @@ private fun PickerRow(controller: LiveTvController, channel: LiveChannel, curren
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(channel.now?.displayTitle ?: "No listings", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                if (channel.isFavourite) Icon(Icons.Filled.Star, contentDescription = "Favourite", tint = LiveGold, modifier = Modifier.size(12.dp))
+                if (channel.isFavourite) Icon(Icons.Filled.Star, contentDescription = "Favourite", tint = LiveStar, modifier = Modifier.size(12.dp))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(channel.name, fontSize = 12.sp, color = Flexarr.usher, maxLines = 1)
@@ -471,5 +471,5 @@ private fun PickerRow(controller: LiveTvController, channel: LiveChannel, curren
     }
 }
 
-/** Favourites' star. */
-internal val LiveGold = Color(0xFFF2C473)
+/** Favourites' star: projected white, never gold. */
+internal val LiveStar = Flexarr.screen

@@ -452,7 +452,7 @@ private fun BookDownloadAction(model: AppModel, item: ItemSummary) {
     Box {
         when {
             download == null -> LabeledAction("Download", Icons.Outlined.Download, { navigator.downloadBook(item) })
-            download.isDownloaded -> LabeledAction("Downloaded", Icons.Filled.ArrowCircleDown, { menu = true }, tint = Flexarr.downloaded)
+            download.isDownloaded -> LabeledAction("Downloaded", Icons.Filled.ArrowCircleDown, { menu = true }, tint = Flexarr.go)
             download.phase == LocalPhase.Failed -> LabeledAction("Try again", Icons.Outlined.Download, { navigator.downloadBook(item) }, tint = Flexarr.danger)
             else -> Column(Modifier.pressable({ menu = true }), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Box(Modifier.size(48.dp).clip(CircleShape).background(Flexarr.screen.copy(alpha = 0.14f)), contentAlignment = Alignment.Center) {

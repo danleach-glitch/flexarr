@@ -450,8 +450,8 @@ internal fun Toggle(label: String, on: Boolean, onChange: (Boolean) -> Unit, det
             onCheckedChange = null,
             enabled = enabled,
             colors = SwitchDefaults.colors(
-                checkedTrackColor = Flexarr.downloaded, checkedThumbColor = Flexarr.screen, uncheckedTrackColor = Flexarr.aisle, uncheckedThumbColor = Flexarr.usher, uncheckedBorderColor = Flexarr.aisle,
-                disabledCheckedTrackColor = Flexarr.downloaded.copy(alpha = 0.38f), disabledCheckedThumbColor = Flexarr.screen.copy(alpha = 0.6f),
+                checkedTrackColor = Flexarr.go, checkedThumbColor = Flexarr.screen, uncheckedTrackColor = Flexarr.aisle, uncheckedThumbColor = Flexarr.usher, uncheckedBorderColor = Flexarr.aisle,
+                disabledCheckedTrackColor = Flexarr.go.copy(alpha = 0.38f), disabledCheckedThumbColor = Flexarr.screen.copy(alpha = 0.6f),
                 disabledUncheckedTrackColor = Flexarr.aisle.copy(alpha = 0.38f), disabledUncheckedThumbColor = Flexarr.usher.copy(alpha = 0.38f),
                 disabledUncheckedBorderColor = Flexarr.aisle.copy(alpha = 0.38f),
             ),

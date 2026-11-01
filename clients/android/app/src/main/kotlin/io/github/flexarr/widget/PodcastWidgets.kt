@@ -4,7 +4,6 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
@@ -71,6 +70,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import java.io.File
+import io.github.flexarr.ui.theme.Tokens
 
 private val log = FlexarrLog("widget")
 
@@ -229,11 +229,11 @@ object PodcastWidgets {
     internal val episodeKey = ActionParameters.Key<String>("episode")
 
     // The app's own colours (Theme.kt), as Continue Watching's widget has them.
-    internal val ROOM = ColorProvider(Color(0xFF1B1720))
-    internal val SEAT = ColorProvider(Color(0xFF25202C))
-    internal val AISLE = ColorProvider(Color(0xFF3A3343))
-    internal val SCREEN = ColorProvider(Color(0xFFF2EEE7))
-    internal val USHER = ColorProvider(Color(0xFFA39AAE))
+    internal val ROOM = ColorProvider(Tokens.room)
+    internal val SEAT = ColorProvider(Tokens.seat)
+    internal val AISLE = ColorProvider(Tokens.aisle)
+    internal val SCREEN = ColorProvider(Tokens.screen)
+    internal val USHER = ColorProvider(Tokens.usher)
 
     /** "25m left", "1h 5m left"; nothing under a minute. */
     internal fun remaining(seconds: Double?): String? {

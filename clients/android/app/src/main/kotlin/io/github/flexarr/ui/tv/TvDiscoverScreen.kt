@@ -430,12 +430,12 @@ internal val Availability.label: String?
     }
 
 /**
- * On a poster from Discover: it's in the library, ready to play. Gold, top-left, away from the watched tick's corner;
+ * On a poster from Discover: it's in the library, ready to play. Green, top-left, away from the watched tick's corner;
  * a play mark rather than a tick, which on a poster means watched.
  */
 @Composable
 private fun LibraryBadge(modifier: Modifier = Modifier) {
-    Box(modifier.size(18.dp).background(Flexarr.inLibrary, CircleShape), contentAlignment = Alignment.Center) {
+    Box(modifier.size(18.dp).background(Flexarr.go, CircleShape), contentAlignment = Alignment.Center) {
         Icon(Icons.Filled.PlayArrow, contentDescription = "In your library", tint = Flexarr.room, modifier = Modifier.size(13.dp).offset(x = 0.5.dp))
     }
 }

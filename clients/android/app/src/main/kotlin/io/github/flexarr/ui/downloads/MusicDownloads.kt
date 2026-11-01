@@ -197,7 +197,7 @@ private fun CollectionStateIcon(status: CollectionStatus?, modifier: Modifier = 
             null -> Icon(Icons.Filled.Download, contentDescription = null, tint = Flexarr.screen)
             CollectionStatus.Preparing -> Icon(Icons.Filled.HourglassTop, contentDescription = null, tint = Flexarr.usher)
             is CollectionStatus.Downloading -> DownloadRing(status.fraction.toFloat())
-            CollectionStatus.Downloaded -> Icon(Icons.Filled.ArrowCircleDown, contentDescription = null, tint = Flexarr.downloaded)
+            CollectionStatus.Downloaded -> Icon(Icons.Filled.ArrowCircleDown, contentDescription = null, tint = Flexarr.go)
             is CollectionStatus.Failed -> Icon(Icons.Filled.ErrorOutline, contentDescription = null, tint = Flexarr.danger)
         }
     }
@@ -214,7 +214,7 @@ private fun collectionDescription(status: CollectionStatus?): String = when (sta
 /** A small filled green arrow that marks something downloaded (a track, an album). */
 @Composable
 fun DownloadedMark(modifier: Modifier = Modifier, size: Dp = 14.dp) {
-    Icon(Icons.Filled.ArrowCircleDown, contentDescription = "Downloaded", tint = Flexarr.downloaded, modifier = modifier.size(size))
+    Icon(Icons.Filled.ArrowCircleDown, contentDescription = "Downloaded", tint = Flexarr.go, modifier = modifier.size(size))
 }
 
 /** An album's or playlist's saved picture: its cover, or for a playlist without one a mosaic of its tracks' covers. */

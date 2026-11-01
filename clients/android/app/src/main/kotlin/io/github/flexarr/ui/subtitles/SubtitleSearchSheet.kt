@@ -154,8 +154,8 @@ private fun ResultRow(title: String, detail: String, provider: String?, matchesF
                     provider?.let { Text(it, fontSize = 13.sp, color = Flexarr.usher, maxLines = 1) }
                     if (matchesFile) {
                         Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Filled.Verified, contentDescription = null, tint = Flexarr.downloaded, modifier = Modifier.size(14.dp))
-                            Text("Matches your file", fontSize = 13.sp, color = Flexarr.downloaded, maxLines = 1)
+                            Icon(Icons.Filled.Verified, contentDescription = null, tint = Flexarr.go, modifier = Modifier.size(14.dp))
+                            Text("Matches your file", fontSize = 13.sp, color = Flexarr.go, maxLines = 1)
                         }
                     }
                 }

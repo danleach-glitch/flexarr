@@ -65,6 +65,7 @@ import androidx.tv.material3.Text
 import androidx.tv.material3.darkColorScheme
 import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.marquee
+import io.github.flexarr.ui.theme.Tokens
 
 // The Apple TV app's design (FlexarrTV/Design) on Android TV. tvOS lays out a 1920-point screen and Android TV a
 // 960 dp one, so every size here is the Apple TV's halved.
@@ -249,8 +250,8 @@ fun TvTextField(
         modifier = modifier,
         decorationBox = { field ->
             Row(
-                Modifier.fillMaxWidth().height(42.dp).background(Flexarr.screen.copy(alpha = if (focused) 0.16f else 0.1f), RoundedCornerShape(10.dp))
-                    .border(2.dp, if (focused) Flexarr.screen else Color.Transparent, RoundedCornerShape(10.dp)).padding(horizontal = 14.dp),
+                Modifier.fillMaxWidth().height(42.dp).background(Flexarr.well, RoundedCornerShape(Tokens.radiusControl))
+                    .border(if (focused) 2.dp else 1.dp, if (focused) Flexarr.screen else Flexarr.aisle, RoundedCornerShape(Tokens.radiusControl)).padding(horizontal = 14.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {

@@ -83,6 +83,7 @@ import io.github.flexarr.ui.theme.RoomBackground
 import io.github.flexarr.ui.theme.marquee
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import io.github.flexarr.ui.theme.Tokens
 
 private sealed interface Step {
     data object Choose : Step
@@ -402,10 +403,11 @@ private fun NumberedStep(number: Int, content: @Composable () -> Unit) {
 private fun ErrorNote(message: String) {
     Row(
         // Read out when it appears.
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0x996B3347)).padding(14.dp).semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(Tokens.radiusPanel)).background(Flexarr.seat)
+            .border(1.dp, Flexarr.danger.copy(alpha = 0.5f), RoundedCornerShape(Tokens.radiusPanel)).padding(14.dp).semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Icon(Icons.Filled.Warning, contentDescription = null, tint = Flexarr.screen, modifier = Modifier.size(18.dp))
+        Icon(Icons.Filled.Warning, contentDescription = null, tint = Flexarr.danger, modifier = Modifier.size(18.dp))
         Text(message, fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Flexarr.screen)
     }
 }

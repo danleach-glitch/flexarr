@@ -106,6 +106,8 @@ import io.github.flexarr.ui.theme.marquee
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import io.github.flexarr.ui.theme.Tokens
+import androidx.compose.foundation.border
 
 /** Films, shows, episodes and people in the libraries, as they're typed. The iPhone app's SearchView. */
 @Composable
@@ -500,7 +502,8 @@ fun SearchField(
 ) {
     Row(
         // At least the usual height, taller when the text is set larger.
-        modifier.fillMaxWidth().heightIn(min = 40.dp).clip(RoundedCornerShape(10.dp)).background(Flexarr.seat).padding(horizontal = 10.dp, vertical = 6.dp),
+        modifier.fillMaxWidth().heightIn(min = 40.dp).clip(RoundedCornerShape(Tokens.radiusControl)).background(Flexarr.well)
+            .border(1.dp, Flexarr.aisle, RoundedCornerShape(Tokens.radiusControl)).padding(horizontal = 10.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

@@ -4,7 +4,6 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -59,6 +58,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import java.io.File
+import io.github.flexarr.ui.theme.Tokens
 
 private val log = FlexarrLog("widget")
 
@@ -194,12 +194,12 @@ class ContinueWatchingWidget : GlanceAppWidget() {
         private val WIDE = DpSize(360.dp, 120.dp)
 
         // The app's own colours (Theme.kt): the widget keeps Flexarr's room, as the app does, whatever the wallpaper.
-        private val ROOM = ColorProvider(Color(0xFF1B1720))
-        private val SEAT = ColorProvider(Color(0xFF25202C))
-        private val AISLE = ColorProvider(Color(0xFF3A3343))
-        private val SCREEN = ColorProvider(Color(0xFFF2EEE7))
-        private val USHER = ColorProvider(Color(0xFFA39AAE))
-        private val SILVER = ColorProvider(Color(0xFFA9C2EC))
+        private val ROOM = ColorProvider(Tokens.room)
+        private val SEAT = ColorProvider(Tokens.seat)
+        private val AISLE = ColorProvider(Tokens.aisle)
+        private val SCREEN = ColorProvider(Tokens.screen)
+        private val USHER = ColorProvider(Tokens.usher)
+        private val SILVER = ColorProvider(Tokens.silver)
 
         /** Something was watched, or who's watching changed: the widget asks again. */
         suspend fun refresh(context: Context) {

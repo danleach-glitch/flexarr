@@ -183,15 +183,15 @@ fun PodcastEpisodeRow(
     val startSwipe = buildList {
         add(
             if (episode.isPlayed) SwipeAction("Unplayed", Icons.AutoMirrored.Filled.Undo, Flexarr.aisle) { setPlayed(false) }
-            else SwipeAction("Played", Icons.Filled.CheckCircle, Flexarr.played) { setPlayed(true) },
+            else SwipeAction("Played", Icons.Filled.CheckCircle, Flexarr.usher, Flexarr.room) { setPlayed(true) },
         )
-        if (removeFromUpNext == null) add(SwipeAction("Play next", Icons.Filled.QueuePlayNext, Flexarr.upNext) { model.addToUpNext(episode.id, next = true) })
+        if (removeFromUpNext == null) add(SwipeAction("Play next", Icons.Filled.QueuePlayNext, Flexarr.silver, Flexarr.room) { model.addToUpNext(episode.id, next = true) })
     }
     val endSwipe = buildList {
         if (removeFromUpNext != null) {
             add(SwipeAction("Remove from Up Next", Icons.Filled.RemoveCircleOutline, Flexarr.danger, Flexarr.room, removeFromUpNext))
         } else {
-            add(SwipeAction("Add to Up Next", Icons.AutoMirrored.Filled.PlaylistAdd, Flexarr.upNext) { model.addToUpNext(episode.id, next = false) })
+            add(SwipeAction("Add to Up Next", Icons.AutoMirrored.Filled.PlaylistAdd, Flexarr.silver, Flexarr.room) { model.addToUpNext(episode.id, next = false) })
             if (download == null) {
                 add(SwipeAction("Download", Icons.Outlined.ArrowCircleDown, Flexarr.aisle) { model.scope.launch { runCatching { model.downloads.downloadEpisode(episode.id) } } })
             } else {
@@ -298,7 +298,7 @@ internal fun EpisodeSheet(model: AppModel, episode: PodcastEpisode, setPlayed: (
                         setPlayed(!isPlayed)
                         played = !isPlayed
                     },
-                    tint = if (isPlayed) Flexarr.downloaded else Flexarr.screen,
+                    tint = if (isPlayed) Flexarr.go else Flexarr.screen,
                     iconSize = if (isPlayed) 30.dp else 22.dp,
                 )
                 if (shown.progress != null && played == null) {
@@ -327,11 +327,6 @@ fun dateLine(published: String?): String? {
         else -> date.format(DateTimeFormatter.ofPattern("d MMM yyyy", Locale.getDefault()))
     }
 }
-
-/** A swipe's "played" colour, as podcast apps use (the iPhone's Color.played). */
-val Flexarr.played: Color get() = Color(0xFF6B5BB5)
-/** A swipe's "Up Next" colour (the iPhone's Color.upNext). */
-val Flexarr.upNext: Color get() = Color(0xFF4A6FA5)
 
 /** Marks an episode played or unplayed for screens that don't keep their own list: sent, then screens reload. */
 fun setEpisodePlayed(model: AppModel, episode: PodcastEpisode, played: Boolean) {

@@ -368,7 +368,7 @@ private fun ChannelPanel(controller: LiveTvController, onPick: (LiveChannel) -> 
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                                 Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
                                     Text(channel.now?.displayTitle ?: "No listings", fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                                    if (channel.isFavourite) Icon(Icons.Filled.Star, contentDescription = "Favourite", tint = LiveGold, modifier = Modifier.size(9.dp))
+                                    if (channel.isFavourite) Icon(Icons.Filled.Star, contentDescription = "Favourite", tint = LiveStar, modifier = Modifier.size(9.dp))
                                 }
                                 Text(channel.name, fontSize = 10.sp, maxLines = 1)
                                 channel.now?.let { TvProgressBar(it.progress().toDouble(), Modifier.width(70.dp), tint = Flexarr.silver) }

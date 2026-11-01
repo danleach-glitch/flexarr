@@ -192,7 +192,7 @@ private fun BookDownloadRow(model: AppModel, book: io.github.flexarr.core.LocalB
                     LinearProgressIndicator(progress = { progress.toFloat() }, color = Flexarr.silver, trackColor = Flexarr.aisle, modifier = Modifier.fillMaxWidth().padding(end = 4.dp))
                 }
                 else -> Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Filled.ArrowCircleDown, contentDescription = "Downloaded", tint = Flexarr.downloaded, modifier = Modifier.size(14.dp))
+                    Icon(Icons.Filled.ArrowCircleDown, contentDescription = "Downloaded", tint = Flexarr.go, modifier = Modifier.size(14.dp))
                     caption(listOfNotNull(Format.bytes(book.estimatedBytes), if (book.finishedAtMillis != null) "Finished" else null).joinToString("   "))
                 }
             }
@@ -290,7 +290,7 @@ private fun DownloadStatusLine(model: AppModel, download: LocalDownload, doneLin
         }
         download.phase == LocalPhase.Failed -> Text(download.failure ?: "Couldn’t download this.", fontSize = 12.sp, color = Flexarr.danger)
         else -> Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Filled.ArrowCircleDown, contentDescription = "Downloaded", tint = Flexarr.downloaded, modifier = Modifier.size(14.dp))
+            Icon(Icons.Filled.ArrowCircleDown, contentDescription = "Downloaded", tint = Flexarr.go, modifier = Modifier.size(14.dp))
             caption(doneLine.joinToString("   "))
         }
     }
@@ -320,7 +320,7 @@ fun DownloadStateIcon(
             download.phase == LocalPhase.Preparing && ringWhilePreparing -> DownloadRing(progress.toFloat())
             download.phase == LocalPhase.Preparing -> Icon(Icons.Filled.HourglassTop, contentDescription = null, tint = Flexarr.usher)
             download.phase == LocalPhase.Downloading -> DownloadRing(progress.toFloat())
-            download.phase == LocalPhase.Downloaded -> Icon(Icons.Filled.ArrowCircleDown, contentDescription = null, tint = Flexarr.downloaded)
+            download.phase == LocalPhase.Downloaded -> Icon(Icons.Filled.ArrowCircleDown, contentDescription = null, tint = Flexarr.go)
             else -> Icon(Icons.Filled.ErrorOutline, contentDescription = null, tint = Flexarr.danger)
         }
     }

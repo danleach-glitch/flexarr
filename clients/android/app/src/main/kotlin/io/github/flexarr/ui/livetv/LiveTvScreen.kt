@@ -79,7 +79,7 @@ import io.github.flexarr.core.recordings
 import io.github.flexarr.core.removeRecording
 import io.github.flexarr.core.removeSeries
 import io.github.flexarr.core.setFavouriteChannel
-import io.github.flexarr.player.LiveGold
+import io.github.flexarr.player.LiveStar
 import io.github.flexarr.player.LiveTvController
 import io.github.flexarr.ui.components.Edge
 import io.github.flexarr.ui.components.LocalClient
@@ -96,7 +96,7 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 
 /** The red of a programme set to record. */
-internal val RecordRed = Color(0xFFE6474D)
+internal val RecordRed = Flexarr.record
 
 private sealed interface Filter {
     data object Favourites : Filter
@@ -257,7 +257,7 @@ private fun Chip(title: String, selected: Boolean, star: Boolean = false, onClic
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (star) Icon(Icons.Filled.Star, contentDescription = null, tint = LiveGold, modifier = Modifier.size(16.dp))
+        if (star) Icon(Icons.Filled.Star, contentDescription = null, tint = LiveStar, modifier = Modifier.size(16.dp))
         Text(title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = if (selected) Flexarr.screen else Flexarr.usher)
     }
 }
@@ -289,7 +289,7 @@ private fun ChannelRow(channel: LiveChannel, starting: Boolean, onWatch: () -> U
         ) {
             Box {
                 ChannelLogo(channel, 104.dp, starting)
-                if (channel.isFavourite) Icon(Icons.Filled.Star, contentDescription = "Favourite", tint = LiveGold, modifier = Modifier.align(Alignment.TopEnd).padding(5.dp).size(10.dp))
+                if (channel.isFavourite) Icon(Icons.Filled.Star, contentDescription = "Favourite", tint = LiveStar, modifier = Modifier.align(Alignment.TopEnd).padding(5.dp).size(10.dp))
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -427,7 +427,7 @@ private fun LiveGuideView(
                     contentAlignment = Alignment.Center,
                 ) {
                     ChannelLogo(channel, channelWidth - 12.dp, model.liveStartingChannel == channel.id, textSize = 14)
-                    if (channel.isFavourite) Icon(Icons.Filled.Star, contentDescription = null, tint = LiveGold, modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).size(9.dp))
+                    if (channel.isFavourite) Icon(Icons.Filled.Star, contentDescription = null, tint = LiveStar, modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).size(9.dp))
                 }
                 Box(Modifier.weight(1f).horizontalScroll(across)) {
                     val programmes = byChannel[channel.id]?.programmes.orEmpty().filter { it.end > windowStart && it.start < windowEnd }

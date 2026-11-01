@@ -34,10 +34,14 @@ object Flexarr {
     val silver = Tokens.silver
     /** Errors: a soft coral that reads on the room without shouting. */
     val danger = Tokens.danger
-    /** On the phone, or a good match: the one green. */
-    val downloaded = Color(0xFF6FCF97)
-    /** Ready to watch: Discover's badge on a poster the library has. */
-    val inLibrary = Color(0xFFE8B84A)
+    /** A surface on a surface: a menu over a panel. */
+    val seatRaised = Tokens.seatRaised
+    /** Connected, on, set up, downloaded, in the library: the one green. */
+    val go = Tokens.go
+    /** The live and recording dot on Live TV, and nothing else. */
+    val record = Tokens.record
+    /** Inside text fields and menus, below the panel. */
+    val well = Tokens.well
 
     /** Marquee display type: tall, condensed and heavy, standing in for Big Shoulders Display. */
     val marquee = FontFamily(Typeface.create("sans-serif-condensed", Typeface.BOLD))
