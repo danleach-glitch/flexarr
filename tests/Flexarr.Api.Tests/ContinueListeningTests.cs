@@ -78,6 +78,63 @@ public class ContinueListeningTests(FlexarrApiFactory factory) : IClassFixture<F
     }
 
     [Fact]
+    public async Task AHiddenAudiobooksLibrary_KeepsItsBooksOutOfTheRow_AndTheyCantBeRemoved()
+    {
+        var (client, seeded) = await SeedProfileAsync();
+        (await Client(factory).PutAsJsonAsync(Api($"profiles/{seeded.Profile}"), new { name = $"Hidden {Guid.NewGuid():N}"[..20], hiddenLibraryIds = new[] { seeded.BookLibrary } }))
+            .EnsureSuccessStatusCode();
+
+        var rows = await RowsAsync(client, "home?listening=books,podcasts");
+
+        Assert.DoesNotContain(rows.Values, r => r.Ids.Contains(seeded.Book));
+        Assert.Equal([seeded.Episode, seeded.Film], rows["continue"].Ids);
+        Assert.False(rows.ContainsKey(BookRows.ContinueRowId));
+        Assert.Equal(HttpStatusCode.NotFound, (await client.DeleteAsync(Api($"home/continue/{seeded.Book}"))).StatusCode);
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        var state = await db.PlaybackStates.AsNoTracking().SingleAsync(p => p.UserId == seeded.Profile && p.MediaItemId == seeded.Book);
+        Assert.Equal(1234, state.PositionSeconds); // its place untouched
+    }
+
+    [Fact]
+    public async Task AnotherProfilesListening_IsntInTheRow()
+    {
+        var (_, seeded) = await SeedProfileAsync();
+        var (other, _) = await SeedProfileAsync();
+        // The other profile has its own places in the same kinds of things, none in these.
+        var rows = await RowsAsync(other, "home?listening=books,podcasts");
+
+        Assert.DoesNotContain(seeded.Book, rows["continue"].Ids);
+        Assert.DoesNotContain(seeded.Episode, rows["continue"].Ids);
+        Assert.DoesNotContain(seeded.Film, rows["continue"].Ids);
+    }
+
+    [Fact]
+    public async Task SettingsHome_SaysContinueWatchingCoversListening()
+    {
+        await SeedProfileAsync(); // an audiobooks library, so its rows are offered
+
+        var layout = await Client(factory).GetFromJsonAsync<JsonElement>(Api("settings/layout"));
+        var labels = layout.GetProperty("home").EnumerateArray().ToDictionary(r => r.GetProperty("id").GetString()!, r => r.GetProperty("label").GetString());
+
+        Assert.Equal("Continue watching (and listening)", labels["continue"]);
+        Assert.Equal("Continue listening (when kept apart)", labels[BookRows.ContinueRowId]);
+    }
+
+    [Fact]
+    public async Task WithNothingToListenTo_TheRowIsContinueWatching()
+    {
+        var (client, seeded) = await SeedProfileAsync();
+        await client.DeleteAsync(Api($"home/continue/{seeded.Book}"));
+        await client.DeleteAsync(Api($"home/continue/{seeded.Episode}"));
+
+        var rows = await RowsAsync(client, "home?listening=books,podcasts");
+
+        Assert.Equal("Continue watching", rows["continue"].Title);
+        Assert.Equal([seeded.Film], rows["continue"].Ids);
+    }
+
+    [Fact]
     public async Task TheSwitchOff_FilmsAndShowsOnly_AndContinueListeningIsBack()
     {
         var (client, seeded) = await SeedProfileAsync();
@@ -132,24 +189,74 @@ public class ContinueListeningTests(FlexarrApiFactory factory) : IClassFixture<F
         }
     }
 
-    private sealed record Seeded(string Profile, Guid Film, Guid Book, Guid Episode, Guid Podcast);
+    [Fact]
+    public async Task APlayersSave_LeavesTheSwitchAlone()
+    {
+        var (client, seeded) = await SeedProfileAsync();
+        (await client.PutAsJsonAsync(Api("me/playback-preferences"), new { autoPlayNext = true, skipIntros = false, skipRecaps = false, skipCredits = false, listeningInContinue = false }))
+            .EnsureSuccessStatusCode();
 
-    private sealed record Row(string Title, List<Guid> Ids);
+        // A podcast player gets the preferences without the switch, and saves them back as it got them.
+        var started = await client.PostAsJsonAsync(Api("playback"), new { itemId = seeded.Episode, profile = new { } });
+        started.EnsureSuccessStatusCode();
+        var info = await started.Content.ReadFromJsonAsync<JsonElement>();
+        var given = info.GetProperty("preferences");
+        Assert.True(!given.TryGetProperty("listeningInContinue", out var listening) || listening.ValueKind == JsonValueKind.Null);
+        (await client.PutAsJsonAsync(Api("me/playback-preferences"), given)).EnsureSuccessStatusCode();
+        await client.DeleteAsync(Api($"playback/{info.GetProperty("sessionId").GetString()}"));
+
+        var preferences = await client.GetFromJsonAsync<JsonElement>(Api("me/playback-preferences"));
+        Assert.False(preferences.GetProperty("listeningInContinue").GetBoolean());
+    }
+
+    [Fact]
+    public async Task ARemovedBookOrEpisode_StaysOut_WhenAnOlderPlaceArrives()
+    {
+        var (client, seeded) = await SeedProfileAsync();
+        var before = DateTime.UtcNow.AddMinutes(-1);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync(Api($"home/continue/{seeded.Book}"))).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync(Api($"home/continue/{seeded.Episode}"))).StatusCode);
+
+        // A player's last save, reached before the removal and arriving after it; and listening done offline before it.
+        (await client.PutAsJsonAsync(Api($"items/{seeded.Book}/progress"), new { positionSeconds = 1500, recordedAt = before })).EnsureSuccessStatusCode();
+        (await client.PostAsJsonAsync(Api($"items/{seeded.Book}/offline-progress"), new { positionSeconds = 1600, finished = false, playedAt = before })).EnsureSuccessStatusCode();
+        (await client.PostAsJsonAsync(Api($"items/{seeded.Episode}/offline-progress"), new { positionSeconds = 900, finished = false, playedAt = before })).EnsureSuccessStatusCode();
+
+        var rows = await RowsAsync(client, "home?listening=books,podcasts");
+        Assert.Equal([seeded.Film], rows["continue"].Ids);
+
+        // Listening after the removal brings it back.
+        (await client.PutAsJsonAsync(Api($"items/{seeded.Book}/progress"), new { positionSeconds = 1700 })).EnsureSuccessStatusCode();
+        rows = await RowsAsync(client, "home?listening=books,podcasts");
+        Assert.Equal([seeded.Book, seeded.Film], rows["continue"].Ids);
+    }
+
+    internal sealed record Seeded(string Profile, Guid Film, Guid Book, Guid Episode, Guid Podcast, Guid BookLibrary);
+
+    internal sealed record Row(string Title, List<Guid> Ids);
+
+    private Task<(HttpClient Client, Seeded Seeded)> SeedProfileAsync() => SeedProfileAsync(factory);
 
     /// <summary>
     /// A new profile part way through a film (played 22 October, midday), The Man Who Died Twice (22 October) and an
     /// episode of The History Hour (23 October), and finished with another episode.
     /// </summary>
-    private async Task<(HttpClient Client, Seeded Seeded)> SeedProfileAsync()
+    internal static async Task<(HttpClient Client, Seeded Seeded)> SeedProfileAsync(FlexarrApiFactory server)
     {
-        var owner = Client();
+        var owner = Client(server);
         var created = await (await owner.PostAsJsonAsync(Api("profiles"), new { name = $"Listener {Guid.NewGuid():N}"[..20] })).Content.ReadFromJsonAsync<JsonElement>();
         var profileId = created.GetProperty("id").GetString()!;
         var token = (await (await owner.PostAsJsonAsync(Api($"profiles/{profileId}/select"), new { })).Content.ReadFromJsonAsync<JsonElement>())
             .GetProperty("token").GetString()!;
 
-        var books = await AudiobookApiTests.SeedAsync(factory.Services, profileId);
-        using var scope = factory.Services.CreateScope();
+        return (Client(server, token), await SeedAsync(server, profileId));
+    }
+
+    /// <summary>What <see cref="SeedProfileAsync(FlexarrApiFactory)"/> seeds, for <paramref name="profileId"/>.</summary>
+    internal static async Task<Seeded> SeedAsync(FlexarrApiFactory server, string profileId)
+    {
+        var books = await AudiobookApiTests.SeedAsync(server.Services, profileId);
+        using var scope = server.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
         var films = new Library { Name = $"Films {Guid.NewGuid():N}", Type = LibraryType.Movies };
         db.Libraries.Add(films);
@@ -177,21 +284,21 @@ public class ContinueListeningTests(FlexarrApiFactory factory) : IClassFixture<F
             new PlaybackState { UserId = profileId, MediaItemId = finished.Id, Watched = true, LastPlayedAt = new DateTime(2026, 10, 24, 0, 0, 0, DateTimeKind.Utc) });
         await db.SaveChangesAsync();
 
-        return (Client(token), new Seeded(profileId, film.Id, books.Books["The Man Who Died Twice"], started.Id, podcast.Id));
+        return new Seeded(profileId, film.Id, books.Books["The Man Who Died Twice"], started.Id, podcast.Id, books.Library);
     }
 
-    private static async Task<Dictionary<string, Row>> RowsAsync(HttpClient client, string path) =>
+    internal static async Task<Dictionary<string, Row>> RowsAsync(HttpClient client, string path) =>
         Rows(await client.GetFromJsonAsync<JsonElement>(Api(path)));
 
     private static Dictionary<string, Row> Rows(JsonElement home) =>
         home.GetProperty("rows").EnumerateArray().ToDictionary(r => r.GetProperty("id").GetString()!,
             r => new Row(r.GetProperty("title").GetString()!, [.. r.GetProperty("items").EnumerateArray().Select(i => i.GetProperty("id").GetGuid())]));
 
-    private static Uri Api(string path) => new($"/api/v1/{path}", UriKind.Relative);
+    internal static Uri Api(string path) => new($"/api/v1/{path}", UriKind.Relative);
 
-    private HttpClient Client(string? profileToken = null)
+    internal static HttpClient Client(FlexarrApiFactory server, string? profileToken = null)
     {
-        var client = factory.CreateClient();
+        var client = server.CreateClient();
         client.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
         if (profileToken is not null)
         {
@@ -199,5 +306,61 @@ public class ContinueListeningTests(FlexarrApiFactory factory) : IClassFixture<F
         }
 
         return client;
+    }
+}
+
+/// <summary>The Continue row where the household's settings change (Home's layout, a main PIN): each on a server of its own.</summary>
+public sealed class ContinueListeningLayoutTests
+{
+    [Fact]
+    public async Task ContinueSwitchedOffOnHome_BooksKeepTheirOwnRow()
+    {
+        using var server = new FlexarrApiFactory();
+        var (client, seeded) = await ContinueListeningTests.SeedProfileAsync(server);
+        await SwitchOffAsync(server, "continue");
+
+        var rows = await ContinueListeningTests.RowsAsync(client, "home?listening=books,podcasts");
+
+        Assert.False(rows.ContainsKey("continue"));
+        Assert.Equal([seeded.Book], rows[BookRows.ContinueRowId].Ids);
+    }
+
+    [Fact]
+    public async Task AKidsProfile_GetsNoBooksOrEpisodesInTheRow_AndCantRemoveThem()
+    {
+        using var server = new FlexarrApiFactory();
+        await server.SetMainPinAsync("2580");
+        var admin = ContinueListeningTests.Client(server);
+        var created = await admin.PostAsJsonAsync(ContinueListeningTests.Api("profiles"), new { name = "Ada", maxRatingAge = 8, isKids = true });
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var kidId = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString()!;
+        var token = (await (await admin.PostAsJsonAsync(ContinueListeningTests.Api("session/device"), new { deviceName = "Playroom TV" })).Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("token").GetString();
+        var tv = server.CreateClient();
+        tv.DefaultRequestHeaders.Add("X-Api-Key", token);
+        Assert.Equal(HttpStatusCode.OK, (await tv.PostAsJsonAsync(ContinueListeningTests.Api($"profiles/{kidId}/select"), new { })).StatusCode);
+        // Part way through a book and an episode (played on another app before the limit, say).
+        var seeded = await ContinueListeningTests.SeedAsync(server, kidId);
+
+        var rows = await ContinueListeningTests.RowsAsync(tv, "home?listening=books,podcasts");
+
+        Assert.DoesNotContain(rows.Values, r => r.Ids.Contains(seeded.Book) || r.Ids.Contains(seeded.Episode));
+        Assert.False(rows.ContainsKey(BookRows.ContinueRowId));
+        Assert.True(!rows.TryGetValue("continue", out var row) || row.Title == "Continue watching");
+        Assert.Equal(HttpStatusCode.NotFound, (await tv.DeleteAsync(ContinueListeningTests.Api($"home/continue/{seeded.Book}"))).StatusCode);
+    }
+
+    /// <summary>Saves Home's layout with <paramref name="rowId"/> off, and waits for config.json to be read again.</summary>
+    internal static async Task SwitchOffAsync(FlexarrApiFactory server, string rowId)
+    {
+        var saved = new[] { new { id = rowId, enabled = false } };
+        (await ContinueListeningTests.Client(server).PutAsJsonAsync(ContinueListeningTests.Api("settings/layout"),
+            new { home = saved, movies = Array.Empty<object>(), shows = Array.Empty<object>() })).EnsureSuccessStatusCode();
+        var options = server.Services.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<Configuration.FlexarrOptions>>();
+        for (var waited = 0; !options.CurrentValue.Layout.Home.Any(r => r.Id == rowId && !r.Enabled); waited += 50)
+        {
+            Assert.True(waited < 10_000, "config.json wasn't read again");
+            await Task.Delay(50);
+        }
     }
 }
