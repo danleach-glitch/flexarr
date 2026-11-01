@@ -113,7 +113,9 @@ public sealed record BookShelvesDto(
     IReadOnlyList<BookPersonDto> Authors,
     IReadOnlyList<BookPersonDto> Narrators,
     IReadOnlyList<GenreCountDto> Genres,
-    IReadOnlyList<ItemSummaryDto> Finished);
+    IReadOnlyList<ItemSummaryDto> Finished,
+    // The languages the library's books are in, A to Z, for the language filter. Absent from servers before 0.58.
+    IReadOnlyList<string>? Languages = null);
 
 /// <summary>A series a search found, with how many of its books this profile can see.</summary>
 public sealed record BookSeriesSearchDto(Guid Id, string Name, int BookCount);

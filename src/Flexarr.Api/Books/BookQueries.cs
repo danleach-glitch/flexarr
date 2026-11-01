@@ -208,8 +208,10 @@ public static class BookQueries
         var genres = await db.Genres.Select(g => new { g.Name, Count = g.Items.Count(i => books.Any(b => b.Id == i.Id)) })
             .Where(g => g.Count > 0).OrderByDescending(g => g.Count).ThenBy(g => g.Name).Take(40).ToListAsync(ct);
 
+        var languages = await books.Select(i => i.Book!.Language).Where(l => l != null && l != "").Distinct().OrderBy(l => l).ToListAsync(ct);
+
         return new BookShelvesDto(continuing, next, recent, series.Items, authors.Items, narrators.Items,
-            [.. genres.Select(g => new GenreCountDto(g.Name, g.Count))], finished);
+            [.. genres.Select(g => new GenreCountDto(g.Name, g.Count))], finished, [.. languages.OfType<string>()]);
     }
 
     /// <summary>

@@ -31,6 +31,7 @@ public class AudiobookApiTests(FlexarrApiFactory factory) : IClassFixture<Flexar
         Assert.Equal(["Discworld", "Thursday Murder Club"], shelves.Series.Select(s => s.Name));
         Assert.Equal(["Andy Weir", "Richard Osman", "Terry Pratchett"], shelves.Authors.Select(a => a.Name).Order());
         Assert.Contains(shelves.Narrators, n => n is { Name: "Lesley Manville", BookCount: 4 });
+        Assert.Equal(["English"], shelves.Languages);
     }
 
     [Fact]
