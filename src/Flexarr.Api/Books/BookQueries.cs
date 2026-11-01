@@ -215,11 +215,17 @@ public static class BookQueries
         var genres = await GenreCounts(db, books).OrderByDescending(g => g.Count).ThenBy(g => g.Name).Take(200)
             .Select(g => new GenreCountDto(g.Name, g.Count)).ToListAsync(ct);
 
-        var languages = await books.Select(i => i.Book!.Language).Where(l => l != null && l != "").Distinct().OrderBy(l => l).ToListAsync(ct);
+        var languages = await LanguagesAsync(books, ct);
 
         return new BookShelvesDto(continuing, next, recent, series.Items, authors.Items, narrators.Items,
-            genres, finished, [.. languages.OfType<string>()]);
+            genres, finished, languages);
     }
+
+    /// <summary>The languages a library's books are in, as their tags write them, A to Z (the Language filter).</summary>
+    public static Task<List<string>> LanguagesAsync(FlexarrDbContext db, Guid libraryId, CancellationToken ct) => LanguagesAsync(Books(db, libraryId), ct);
+
+    private static async Task<List<string>> LanguagesAsync(IQueryable<MediaItem> books, CancellationToken ct) =>
+        [.. (await books.Select(i => i.Book!.Language).Where(l => l != null && l != "").Distinct().OrderBy(l => l).ToListAsync(ct)).OfType<string>()];
 
     /// <summary>A library's book genres and how many books are in each, A to Z (the Genres view).</summary>
     public static Task<List<GenreCountDto>> GenresAsync(FlexarrDbContext db, Guid libraryId, CancellationToken ct) =>

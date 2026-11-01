@@ -116,6 +116,7 @@ public class AudiobookApiTests(FlexarrApiFactory factory) : IClassFixture<Flexar
         var books = await GetAsync<PagedDto<ItemSummaryDto>>($"/api/v1/libraries/{lib.Library}/books?language={Uri.EscapeDataString(asked)}");
 
         Assert.Contains("Русский", shelves.Languages!);
+        Assert.Contains("Русский", await GetAsync<List<string>>($"/api/v1/libraries/{lib.Library}/book-languages"));
         Assert.Equal(["Project Hail Mary"], books.Items.Select(b => b.Title));
     }
 

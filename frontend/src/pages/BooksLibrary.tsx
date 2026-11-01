@@ -2,6 +2,7 @@ import { Fragment, useEffect, useState, type ReactNode } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import {
   getBookGenres,
+  getBookLanguages,
   getBookPeople,
   getBookSeriesList,
   getBookShelves,
@@ -200,10 +201,9 @@ function AllBooks({ library, view }: { library: Library; view: 'all' | 'genre' }
   }
   const key = JSON.stringify(filters)
   const narrators = useApi((signal) => getBookPeople(library.id, { role: 'narrator', take: 200 }, signal), [library.id])
-  // The languages its books are in, from the shelves when the server sends them, one per name, the one chosen always
-  // among them.
-  const shelves = useApi((signal) => getBookShelves(library.id, signal), [library.id])
-  const languages = languageOptions(shelves.data?.languages ?? [], filters.language)
+  // The languages its books are in, one per name, the one chosen always among them.
+  const bookLanguages = useApi((signal) => getBookLanguages(library.id, signal), [library.id])
+  const languages = languageOptions(bookLanguages.data ?? [], filters.language)
   // The author filtered by, named (a link to it carries only the id).
   const author = useApi((signal) => (filters.author ? getPerson(filters.author, signal) : Promise.resolve(null)), [filters.author])
   const authorName = author.data?.name
