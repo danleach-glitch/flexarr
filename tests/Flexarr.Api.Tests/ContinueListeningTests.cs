@@ -78,6 +78,38 @@ public class ContinueListeningTests(FlexarrApiFactory factory) : IClassFixture<F
     }
 
     [Fact]
+    public async Task AHiddenAudiobooksLibrary_KeepsItsBooksOutOfTheRow_AndTheyCantBeRemoved()
+    {
+        var (client, seeded) = await SeedProfileAsync();
+        (await Client(factory).PutAsJsonAsync(Api($"profiles/{seeded.Profile}"), new { name = $"Hidden {Guid.NewGuid():N}"[..20], hiddenLibraryIds = new[] { seeded.BookLibrary } }))
+            .EnsureSuccessStatusCode();
+
+        var rows = await RowsAsync(client, "home?listening=books,podcasts");
+
+        Assert.DoesNotContain(rows.Values, r => r.Ids.Contains(seeded.Book));
+        Assert.Equal([seeded.Episode, seeded.Film], rows["continue"].Ids);
+        Assert.False(rows.ContainsKey(BookRows.ContinueRowId));
+        Assert.Equal(HttpStatusCode.NotFound, (await client.DeleteAsync(Api($"home/continue/{seeded.Book}"))).StatusCode);
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        var state = await db.PlaybackStates.AsNoTracking().SingleAsync(p => p.UserId == seeded.Profile && p.MediaItemId == seeded.Book);
+        Assert.Equal(1234, state.PositionSeconds); // its place untouched
+    }
+
+    [Fact]
+    public async Task AnotherProfilesListening_IsntInTheRow()
+    {
+        var (_, seeded) = await SeedProfileAsync();
+        var (other, _) = await SeedProfileAsync();
+        // The other profile has its own places in the same kinds of things, none in these.
+        var rows = await RowsAsync(other, "home?listening=books,podcasts");
+
+        Assert.DoesNotContain(seeded.Book, rows["continue"].Ids);
+        Assert.DoesNotContain(seeded.Episode, rows["continue"].Ids);
+        Assert.DoesNotContain(seeded.Film, rows["continue"].Ids);
+    }
+
+    [Fact]
     public async Task SettingsHome_SaysContinueWatchingCoversListening()
     {
         await SeedProfileAsync(); // an audiobooks library, so its rows are offered
@@ -277,7 +309,7 @@ public class ContinueListeningTests(FlexarrApiFactory factory) : IClassFixture<F
     }
 }
 
-/// <summary>The Continue row with the household's Home layout changed: each on a server of its own.</summary>
+/// <summary>The Continue row where the household's settings change (Home's layout, a main PIN): each on a server of its own.</summary>
 public sealed class ContinueListeningLayoutTests
 {
     [Fact]
@@ -291,6 +323,31 @@ public sealed class ContinueListeningLayoutTests
 
         Assert.False(rows.ContainsKey("continue"));
         Assert.Equal([seeded.Book], rows[BookRows.ContinueRowId].Ids);
+    }
+
+    [Fact]
+    public async Task AKidsProfile_GetsNoBooksOrEpisodesInTheRow_AndCantRemoveThem()
+    {
+        using var server = new FlexarrApiFactory();
+        await server.SetMainPinAsync("2580");
+        var admin = ContinueListeningTests.Client(server);
+        var created = await admin.PostAsJsonAsync(ContinueListeningTests.Api("profiles"), new { name = "Ada", maxRatingAge = 8, isKids = true });
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var kidId = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString()!;
+        var token = (await (await admin.PostAsJsonAsync(ContinueListeningTests.Api("session/device"), new { deviceName = "Playroom TV" })).Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("token").GetString();
+        var tv = server.CreateClient();
+        tv.DefaultRequestHeaders.Add("X-Api-Key", token);
+        Assert.Equal(HttpStatusCode.OK, (await tv.PostAsJsonAsync(ContinueListeningTests.Api($"profiles/{kidId}/select"), new { })).StatusCode);
+        // Part way through a book and an episode (played on another app before the limit, say).
+        var seeded = await ContinueListeningTests.SeedAsync(server, kidId);
+
+        var rows = await ContinueListeningTests.RowsAsync(tv, "home?listening=books,podcasts");
+
+        Assert.DoesNotContain(rows.Values, r => r.Ids.Contains(seeded.Book) || r.Ids.Contains(seeded.Episode));
+        Assert.False(rows.ContainsKey(BookRows.ContinueRowId));
+        Assert.True(!rows.TryGetValue("continue", out var row) || row.Title == "Continue watching");
+        Assert.Equal(HttpStatusCode.NotFound, (await tv.DeleteAsync(ContinueListeningTests.Api($"home/continue/{seeded.Book}"))).StatusCode);
     }
 
     /// <summary>Saves Home's layout with <paramref name="rowId"/> off, and waits for config.json to be read again.</summary>
