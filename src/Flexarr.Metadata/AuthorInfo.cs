@@ -1,6 +1,7 @@
 using Flexarr.Core.Books;
 using Flexarr.Core.Data;
 using Flexarr.Core.Media;
+using Flexarr.Core.Paths;
 using Flexarr.Integrations.Arr;
 using Flexarr.Integrations.Arr.Models;
 using Flexarr.Metadata.Books;
@@ -10,7 +11,8 @@ using Microsoft.Extensions.Logging;
 namespace Flexarr.Metadata;
 
 /// <summary>
-/// Authors' photos and biographies. What's missing comes from Readarr, then Audible (by ASIN, then by name), then Open Library, and only
+/// Authors' photos and biographies. A photo in the author's own folder (author.jpg, folder.jpg) wins over any found
+/// online; what's still missing comes from Readarr, then Audible (by ASIN, then by name), then Open Library, and only
 /// fills gaps. An author is looked up online at most once a month, and one an admin fixed by hand
 /// (<see cref="Person.InfoLocked"/>) never is.
 /// </summary>
@@ -18,6 +20,9 @@ public sealed partial class AuthorInfo(FlexarrDbContext db, ArrClient arr, IMeta
 {
     /// <summary>How long an author's online lookup stands before they're looked up again.</summary>
     public static readonly TimeSpan LookAgainAfter = TimeSpan.FromDays(30);
+
+    private static readonly string[] PhotoNames = ["author", "folder"];
+    private static readonly string[] PhotoExtensions = [".jpg", ".jpeg", ".png", ".webp"];
 
     /// <summary>The books an author is credited on, as finding their photo and biography needs them.</summary>
     private sealed record AuthorBook(string Title, string? Path, Guid LibraryId);
@@ -43,7 +48,7 @@ public sealed partial class AuthorInfo(FlexarrDbContext db, ArrClient arr, IMeta
     }
 
     /// <summary>
-    /// One person, now (an admin unlocked them): online, whenever they were last looked up. Readarr's
+    /// One person, now (an admin unlocked them): their folder, then online, whenever they were last looked up. Readarr's
     /// authors are asked for; an app that doesn't answer is skipped.
     /// </summary>
     public async Task RefreshPersonAsync(Person person, CancellationToken ct)
@@ -63,6 +68,24 @@ public sealed partial class AuthorInfo(FlexarrDbContext db, ArrClient arr, IMeta
 
         var now = DateTime.UtcNow;
         var books = await BooksAsync(person, current, ct).ConfigureAwait(false);
+
+        // Their own folder's photo, looked for every time (it's only a look on disk).
+        var local = await FolderPhotoAsync(person.Name, books, ct).ConfigureAwait(false);
+        if (local is not null && (PersonSources.PhotoReplaceable(person) || person.PhotoSource == PersonSources.Folder))
+        {
+            if (person.ImageUrl != local)
+            {
+                PersonSources.SetPhoto(person, local, PersonSources.Folder, now);
+            }
+            else if (File.GetLastWriteTimeUtc(ArtworkUrl.LocalPath(local)!) > person.ImageChangedAt)
+            {
+                person.ImageChangedAt = now; // the same file, changed: a new ?v=
+            }
+        }
+        else if (local is null && person.PhotoSource == PersonSources.Folder)
+        {
+            PersonSources.SetPhoto(person, null, null, now); // taken away: online can fill it again
+        }
 
         if ((person.ImageUrl is not null && person.Biography is not null) || (!force && person.InfoCheckedAt > now - LookAgainAfter))
         {
@@ -165,6 +188,72 @@ public sealed partial class AuthorInfo(FlexarrDbContext db, ArrClient arr, IMeta
         }
 
         return books;
+    }
+
+    /// <summary>
+    /// A photo in the author's own folder: author.jpg (or .jpeg, .png, .webp), else folder.jpg, in the top folder of a
+    /// book of theirs that's under an author folder (Author/Title, Author/Series/Title) named for them alone.
+    /// </summary>
+    private async Task<string?> FolderPhotoAsync(string name, List<AuthorBook> books, CancellationToken ct)
+    {
+        var libraries = books.Where(b => b.Path is not null).Select(b => b.LibraryId).Distinct().ToList();
+        if (libraries.Count == 0)
+        {
+            return null;
+        }
+
+        var roots = await db.LibraryFolders.AsNoTracking().Where(f => libraries.Contains(f.LibraryId)).Select(f => new { f.LibraryId, f.Path }).ToListAsync(ct).ConfigureAwait(false);
+        foreach (var book in books.Where(b => b.Path is not null))
+        {
+            foreach (var root in roots.Where(r => r.LibraryId == book.LibraryId).Select(r => r.Path.TrimEnd('/')))
+            {
+                if (FolderPhoto(name, root, book.Path!) is { } photo)
+                {
+                    return photo;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>The photo in <paramref name="bookPath"/>'s author folder under <paramref name="root"/>, as a file:// URL.</summary>
+    internal static string? FolderPhoto(string name, string root, string bookPath)
+    {
+        if (root.Length == 0 || !PathComparison.IsUnder(bookPath, root))
+        {
+            return null;
+        }
+
+        var relative = Path.GetRelativePath(root, bookPath).Split(Path.DirectorySeparatorChar);
+        if (relative.Length < 2 || relative[0] is "." or ".." || BookLayout.SplitAuthors(relative[0]) is not [var only] || Fold(only) != Fold(name))
+        {
+            return null;
+        }
+
+        var folder = Path.Combine(root, relative[0]);
+        string[] files;
+        try
+        {
+            files = Directory.Exists(folder) ? Directory.GetFiles(folder) : [];
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+
+        foreach (var wanted in PhotoNames)
+        {
+            foreach (var extension in PhotoExtensions)
+            {
+                if (files.FirstOrDefault(f => string.Equals(Path.GetFileName(f), wanted + extension, StringComparison.OrdinalIgnoreCase)) is { } file)
+                {
+                    return $"file://{file}";
+                }
+            }
+        }
+
+        return null;
     }
 
     /// <summary>The authors every Readarr-compatible app knows; one that doesn't answer is skipped.</summary>

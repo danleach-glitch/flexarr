@@ -82,17 +82,17 @@ public static class ImageEndpoints
 
         group.MapGet("/people/{id:guid}", async (Guid id, int? w, FlexarrDbContext db, IMemoryCache memory, ImageCache cache, HttpContext http, CancellationToken ct) =>
         {
-            var key = $"image-source:person:{id}";
+            var key = PersonSourceKey(id);
             if (!memory.TryGetValue(key, out ImageSource? source) || source is null)
             {
-                source = await db.People.Where(p => p.Id == id).Select(p => new ImageSource(p.ImageUrl, null)).FirstOrDefaultAsync(ct);
+                source = await ResolvePersonAsync(db, id, ct);
                 if (source is not null)
                 {
                     memory.Set(key, source, SourceTtl);
                 }
             }
 
-            return ArtworkUrl.IsHttps(source?.Url) ? await ServeAsync(cache, source!.Url!, w ?? 185, http, ct) : Results.NotFound();
+            return source?.Url is { } url ? await ServeAsync(cache, url, w ?? 185, http, ct) : Results.NotFound();
         });
 
         return api;
@@ -152,6 +152,46 @@ public static class ImageEndpoints
     }
 
     private sealed record ImageSource(string? Url, string? Version);
+
+    /// <summary>Where the person image endpoint remembers a person's photo comes from.</summary>
+    public static string PersonSourceKey(Guid id) => $"image-source:person:{id}";
+
+    /// <summary>
+    /// A person's photo: from the web over https, or a photo in their author folder, which is only read when it's in
+    /// one of the folders of a library they have a credit in.
+    /// </summary>
+    /// <returns>Null if there's no such person; otherwise their photo (null if there's none to serve).</returns>
+    private static async Task<ImageSource?> ResolvePersonAsync(FlexarrDbContext db, Guid id, CancellationToken ct)
+    {
+        var person = await db.People.AsNoTracking().Where(p => p.Id == id).Select(p => new { p.ImageUrl }).FirstOrDefaultAsync(ct);
+        if (person is null)
+        {
+            return null;
+        }
+
+        var url = person.ImageUrl;
+        if (ArtworkUrl.IsHttps(url))
+        {
+            return new ImageSource(url, null);
+        }
+
+        return url is not null && url.StartsWith("file://", StringComparison.Ordinal) && await PersonInLibraryAsync(db, id, url, ct)
+            ? new ImageSource(url, null)
+            : new ImageSource(null, null);
+    }
+
+    /// <summary>Whether a local photo of a person is a file in a folder of one of the libraries they're credited in.</summary>
+    private static async Task<bool> PersonInLibraryAsync(FlexarrDbContext db, Guid personId, string url, CancellationToken ct)
+    {
+        if (ArtworkUrl.LocalPath(url) is not { Length: > 0 } path)
+        {
+            return false;
+        }
+
+        var libraries = db.Credits.Where(c => c.PersonId == personId).Select(c => c.MediaItem!.LibraryId);
+        var folders = await db.LibraryFolders.AsNoTracking().Where(f => libraries.Contains(f.LibraryId)).Select(f => f.Path).ToListAsync(ct);
+        return folders.Any(folder => PathComparison.IsUnder(path, folder));
+    }
 
     /// <summary>
     /// Whether local artwork is a file in one of the library's folders (and, for art inside a media file, music's or a
