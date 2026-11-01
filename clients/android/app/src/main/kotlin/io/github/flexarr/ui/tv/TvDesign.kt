@@ -66,6 +66,7 @@ import androidx.tv.material3.darkColorScheme
 import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.marquee
 import io.github.flexarr.ui.theme.Tokens
+import io.github.flexarr.ui.theme.mainButtonFill
 
 // The Apple TV app's design (FlexarrTV/Design) on Android TV. tvOS lays out a 1920-point screen and Android TV a
 // 960 dp one, so every size here is the Apple TV's halved.
@@ -99,8 +100,8 @@ fun TvTheme(content: @Composable () -> Unit) {
 }
 
 /**
- * Play, More info and the other actions. Unfocused they sit quietly on a translucent seat; focused they light up in
- * projected white with an ambient glow, as a first-party Apple TV button does.
+ * Play, More info and the other actions. Unfocused the main one is filled with the title's ambient colour and the rest
+ * sit quietly on a translucent seat; focused they light up in projected white with an ambient glow.
  */
 @Composable
 fun TvActionButton(
@@ -122,8 +123,9 @@ fun TvActionButton(
         modifier = modifier.height(38.dp).semantics { if (!enabled) disabled() },
         shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(Tokens.radiusControl)),
         colors = ClickableSurfaceDefaults.colors(
-            containerColor = if (!enabled) Flexarr.screen.copy(alpha = 0.08f) else if (prominent) ambient.copy(alpha = 0.42f) else Flexarr.screen.copy(alpha = 0.14f),
-            contentColor = if (enabled) Flexarr.screen else Flexarr.usher,
+            // The main one in the title's colour lifted towards white (projected white once focused, as Google TV expects).
+            containerColor = if (!enabled) Flexarr.screen.copy(alpha = 0.08f) else if (prominent) mainButtonFill(ambient) else Flexarr.screen.copy(alpha = 0.14f),
+            contentColor = if (!enabled) Flexarr.usher else if (prominent) Flexarr.room else Flexarr.screen,
             focusedContainerColor = if (enabled) Flexarr.screen else Flexarr.screen.copy(alpha = 0.35f),
             focusedContentColor = Flexarr.room,
             pressedContainerColor = if (enabled) Flexarr.screen else Flexarr.screen.copy(alpha = 0.35f),

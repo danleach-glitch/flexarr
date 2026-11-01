@@ -81,6 +81,16 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import java.util.Locale
+import io.github.flexarr.core.DetailActions
+import androidx.compose.material.icons.filled.Shuffle
+import androidx.compose.material.icons.filled.Theaters
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.BookmarkBorder
+import androidx.compose.ui.graphics.vector.ImageVector
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.hideFromAccessibility
 
 /**
  * A film, show or episode (a season opens its show with that season picked), as the Apple TV's DetailView: the backdrop
@@ -196,16 +206,21 @@ private fun Header(item: ItemSummary, series: ItemSummary?, detail: ItemDetail, 
     }
 }
 
+/**
+ * The actions in the order every client shares ([DetailActions]), as the Apple TV's: Play and Start over spelled out,
+ * the rest round icons, the focused one named underneath. ⋯ holds the rest.
+ */
 @Composable
 private fun Actions(item: ItemSummary, series: ItemSummary?, detail: ItemDetail, nextUp: ItemSummary?, season: ItemDetail?, ambient: Color, modifier: Modifier) {
     val navigator = LocalNavigator.current
     val client = LocalClient.current
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val model = context.appModel
     var more by remember { mutableStateOf(false) }
     var searchingSubtitlesFor by remember { mutableStateOf<String?>(null) }
-    // Bazarr can look for subtitles for the file (the first, as on the Apple TV), but not for a kids profile.
-    val kids = LocalContext.current.appModel.isKids
-    val subtitleFile = detail.files.firstOrNull()?.takeIf { detail.canSearchSubtitles == true && !kids }
+    var focusedName by remember { mutableStateOf<String?>(null) }
+    val file = detail.files.firstOrNull()
     // What Play starts: the film or episode itself, or for a show the episode it's up to (else the season's first).
     val target = when (item.kind) {
         MediaKind.Movie, MediaKind.Episode -> item
@@ -213,31 +228,92 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, detail: ItemDetail,
         else -> null
     }
     val watched = item.userData.watched || item.userData.unwatchedCount == 0
-    val play = remember { FocusRequester() }
+    val trailer = detail.trailerId
+    val trailerIntent = remember(trailer) { trailer?.let { youTubeAppIntent(context, it) } }
+    val actions = DetailActions.of(
+        DetailActions.Input(
+            kind = when (item.kind) {
+                MediaKind.Series -> DetailActions.Kind.SHOW
+                MediaKind.Episode -> DetailActions.Kind.EPISODE
+                else -> DetailActions.Kind.MOVIE
+            },
+            // A show's Resume already starts its episode; Start over and Mark as unwatched are for the title itself.
+            hasProgress = target?.isResumable == true && item.kind != MediaKind.Series,
+            isWatched = watched,
+            hasTrailer = trailer != null,
+            isKids = model.isKids,
+            platform = DetailActions.Platform.TV,
+            canPlayTrailers = trailerIntent != null,
+            canSearchSubtitles = detail.canSearchSubtitles == true && file != null,
+        ),
+    )
+    val first = remember { FocusRequester() }
     // Play takes focus as the page opens, so OK plays at once; with nothing to play, the first button does.
-    LaunchedEffect(target != null) { runCatching { play.requestFocus() } }
-    Row(modifier, horizontalArrangement = Arrangement.spacedBy(13.dp)) {
-        if (target != null) {
-            TvActionButton(playLabel(target, item), onClick = { navigator.play(target) }, icon = Icons.Filled.PlayArrow, prominent = true, ambient = ambient, modifier = Modifier.focusRequester(play))
-            if (target.isResumable) TvActionButton("Start over", onClick = { navigator.play(target, fromBeginning = true) }, icon = Icons.Filled.Replay, ambient = ambient)
+    LaunchedEffect(target != null) { runCatching { first.requestFocus() } }
+    // What the server can put on a watchlist: films and shows, from servers that have one (0.56).
+    var onWatchlist by remember(detail) { mutableStateOf(detail.onWatchlist) }
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(9.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(13.dp), verticalAlignment = Alignment.CenterVertically) {
+            var takesFirst = true
+            fun focusFirst(): Modifier = if (takesFirst) Modifier.focusRequester(first).also { takesFirst = false } else Modifier
+            actions.buttons.forEach { button ->
+                when (button) {
+                    DetailActions.Button.PLAY -> target?.let { playable ->
+                        TvActionButton(playLabel(playable, item), onClick = { navigator.play(playable) }, icon = Icons.Filled.PlayArrow, prominent = true, ambient = ambient, modifier = focusFirst())
+                    }
+                    DetailActions.Button.START_OVER -> target?.let { playable ->
+                        TvActionButton("Start over", onClick = { navigator.play(playable, fromBeginning = true) }, icon = Icons.Filled.Replay, ambient = ambient)
+                    }
+                    DetailActions.Button.SHUFFLE -> if (item.childCount > 0) {
+                        RoundAction("Shuffle", Icons.Filled.Shuffle, ambient, { focusedName = it }, focusFirst()) { navigator.shuffle(item) }
+                    }
+                    DetailActions.Button.TRAILER -> trailerIntent?.let { intent ->
+                        RoundAction("Trailer", Icons.Filled.Theaters, ambient, { focusedName = it }, focusFirst()) {
+                            runCatching { context.startActivity(intent) }.onFailure {
+                                scope.launch { navigator.notices.showSnackbar("Couldn’t open the trailer") }
+                            }
+                        }
+                    }
+                    DetailActions.Button.WATCHED -> RoundAction(
+                        if (watched) "Mark as unwatched" else "Mark as watched",
+                        if (watched) Icons.Filled.VisibilityOff else Icons.Filled.Check,
+                        ambient,
+                        { focusedName = it },
+                        focusFirst(),
+                    ) { navigator.setWatched(item, !watched) }
+                    DetailActions.Button.WATCHLIST -> {
+                        val on = onWatchlist
+                        if (on != null && model.hasWatchlist && (item.kind == MediaKind.Movie || item.kind == MediaKind.Series)) {
+                            RoundAction(
+                                if (on) "Remove from watchlist" else "Add to watchlist",
+                                if (on) Icons.Filled.Bookmark else Icons.Filled.BookmarkBorder,
+                                ambient,
+                                { focusedName = it },
+                                focusFirst(),
+                            ) {
+                                onWatchlist = !on
+                                navigator.setOnWatchlist(item, !on, onFailed = { onWatchlist = on })
+                            }
+                        }
+                    }
+                    DetailActions.Button.DOWNLOAD -> Unit
+                    DetailActions.Button.MORE -> RoundAction("More", Icons.Filled.MoreHoriz, ambient, { focusedName = it }, focusFirst()) { more = true }
+                }
+            }
         }
-        TvActionButton(
-            if (watched) "Mark as unwatched" else "Mark as watched",
-            onClick = { navigator.setWatched(item, !watched) },
-            icon = if (watched) Icons.Filled.VisibilityOff else Icons.Filled.Check,
-            ambient = ambient,
-            modifier = if (target == null) Modifier.focusRequester(play) else Modifier,
-        )
-        // Part way through: forget the place without marking it watched (it leaves Continue Watching).
-        if (item.isResumable && !watched) TvActionButton("Mark as unwatched", onClick = { navigator.setWatched(item, false) }, icon = Icons.Filled.VisibilityOff, ambient = ambient)
-        if (item.kind == MediaKind.Episode && series != null) {
-            TvActionButton("Go to show", onClick = { navigator.openItem(series.id) }, icon = Icons.AutoMirrored.Filled.ViewList, ambient = ambient)
-        }
-        // More, as on the Apple TV: what doesn't need a button of its own.
-        if (subtitleFile != null) TvActionButton(null, onClick = { more = true }, icon = Icons.Filled.MoreHoriz, ambient = ambient, contentDescription = "More")
+        // The focused round button's name; the line keeps its height so nothing jumps.
+        Text(focusedName ?: " ", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Flexarr.screen.copy(alpha = 0.75f), modifier = Modifier.semantics { hideFromAccessibility() })
     }
-    if (more && subtitleFile != null) {
-        TvItemMenu(item.displayTitle, listOf(MenuAction("Search for subtitles") { searchingSubtitlesFor = subtitleFile.id }), onDismiss = { more = false })
+    if (more) {
+        val entries = actions.menu.mapNotNull { entry ->
+            when (entry) {
+                // Part way through: forget the place without marking it watched (it leaves Continue watching).
+                DetailActions.MenuItem.MARK_UNWATCHED -> MenuAction("Mark as unwatched") { navigator.setWatched(item, false) }
+                DetailActions.MenuItem.SUBTITLES -> file?.let { found -> MenuAction("Search for subtitles") { searchingSubtitlesFor = found.id } }
+                DetailActions.MenuItem.GO_TO_SHOW -> series?.let { show -> MenuAction("Go to show") { navigator.openItem(show.id) } }
+            }
+        }
+        TvItemMenu(item.displayTitle, entries, onDismiss = { more = false })
     }
     searchingSubtitlesFor?.let { fileId ->
         // Over the page, as in the player: a panel down the right.
@@ -250,6 +326,37 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, detail: ItemDetail,
             }
         }
     }
+}
+
+/** An icon-only action whose name shows under the row while it has focus (the Apple TV's round buttons). */
+@Composable
+private fun RoundAction(name: String, icon: ImageVector, ambient: Color, onFocusName: (String?) -> Unit, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    var focused by remember { mutableStateOf(false) }
+    // A name that changes while focused (Add to watchlist, once pressed) says the new one.
+    LaunchedEffect(name, focused) { if (focused) onFocusName(name) }
+    TvActionButton(
+        null,
+        onClick = onClick,
+        icon = icon,
+        ambient = ambient,
+        contentDescription = name,
+        modifier = modifier.onFocusChanged {
+            focused = it.isFocused
+            if (!it.isFocused) onFocusName(null)
+        },
+    )
+}
+
+/**
+ * The trailer in the YouTube app, when the TV has it: its own link first, then the TV app by package. Null when
+ * nothing on the TV opens it, so there's no Trailer button.
+ */
+internal fun youTubeAppIntent(context: android.content.Context, id: String): Intent? {
+    val packages = context.packageManager
+    return listOf(
+        Intent(Intent.ACTION_VIEW, Uri.parse("vnd.youtube:$id")),
+        Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/watch?v=$id")).setPackage("com.google.android.youtube.tv"),
+    ).firstOrNull { it.resolveActivity(packages) != null }?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 }
 
 private fun playLabel(target: ItemSummary, container: ItemSummary): String {
