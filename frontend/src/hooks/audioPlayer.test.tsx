@@ -249,6 +249,19 @@ describe('AudioPlayerProvider', () => {
       await waitFor(() => expect(a.getAttribute('src')).toBe('/stream/t3'))
     })
 
+    it('leaves a book queued next until it is reached, so its session is started with the device name', async () => {
+      const { requests } = playbackApi()
+      const book = summary({ id: 'b1', kind: 'Audiobook', title: 'The Book', durationSeconds: 200 }) as unknown as ItemSummary
+      const { result } = renderHook(useAudioPlayer, { wrapper: AudioPlayerProvider })
+      act(() => result.current.play([one, book] as unknown as ItemSummary[], 0))
+      const [a, b] = elements()
+      await waitFor(() => expect(a.getAttribute('src')).toBe('/stream/t1'))
+      tick(a, 245)
+      tick(a, 246)
+      expect(b.getAttribute('src')).toBeNull()
+      expect(requests.map((r) => r.itemId)).toEqual(['t1'])
+    })
+
     it('lets a prepared next track go when the queue changes so it is no longer next', async () => {
       const { requests, stopped } = playbackApi()
       const { result } = renderHook(useAudioPlayer, { wrapper: AudioPlayerProvider })
@@ -642,6 +655,24 @@ describe('AudioPlayerProvider', () => {
       tick(a, 40)
       act(() => result.current.toggle())
       await waitFor(() => expect(direct).toEqual([expect.objectContaining({ positionSeconds: 40, ended: false })]))
+    })
+
+    it('send the place to the book itself as the page closes after a pause longer than a session lasts', async () => {
+      const { progress, direct } = bookApi()
+      const beacon = vi.fn(() => true)
+      vi.stubGlobal('navigator', { ...navigator, sendBeacon: beacon })
+      const { result, a } = await start()
+      tick(a, 40)
+      act(() => result.current.toggle())
+      await waitFor(() => expect(progress.at(-1)).toMatchObject({ positionSeconds: 40, paused: true }))
+
+      // Paused overnight: the server has ended the session, though nothing has asked it yet.
+      const now = Date.now()
+      vi.spyOn(Date, 'now').mockReturnValue(now + 11.5 * 3_600_000)
+      act(() => void window.dispatchEvent(new Event('pagehide')))
+      expect(beacon).not.toHaveBeenCalled()
+      await waitFor(() => expect(direct).toEqual([expect.objectContaining({ positionSeconds: 40, ended: false })]))
+      vi.restoreAllMocks()
     })
   })
 })

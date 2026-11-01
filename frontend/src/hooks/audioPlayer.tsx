@@ -246,8 +246,11 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!sleep || 'endOfEpisode' in sleep) return
     const check = () => {
+      // The timer as it is now: a seek moves "end of chapter" in the ref straight away, before the next render.
+      const timer = sleepRef.current
+      if (!timer || 'endOfEpisode' in timer) return
       const left =
-        'until' in sleep ? (sleep.until - Date.now()) / 1000 : sleepReached(sleep.at, position.current) ? 0 : (sleep.at - position.current) / (bookSpeedRef.current || 1)
+        'until' in timer ? (timer.until - Date.now()) / 1000 : sleepReached(timer.at, position.current) ? 0 : (timer.at - position.current) / (bookSpeedRef.current || 1)
       if (left <= 0) {
         engine().pause()
         engine().volume(1)

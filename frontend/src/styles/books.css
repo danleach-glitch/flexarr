@@ -42,6 +42,18 @@
   font-weight: 700;
 }
 
+/* Chapter, where no chapter covers the time. */
+.np-view-tools .np-view-scope:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+@media (max-width: 760px) {
+  .np-view-tools .np-view-scope {
+    padding: 0 10px;
+  }
+}
+
 .np-view-details .book-bookmarks {
   margin: 0;
   font-size: var(--step--1);

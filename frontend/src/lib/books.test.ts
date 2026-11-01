@@ -9,6 +9,8 @@ import {
   fadeLevel,
   fileAt,
   formatSpeed,
+  languageName,
+  languageOptions,
   nextChapterStart,
   parseClock,
   previousChapterStart,
@@ -202,5 +204,19 @@ describe('deviceName', () => {
     expect(deviceName('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36')).toBe('Chrome on Windows')
     expect(deviceName('Mozilla/5.0 (Windows NT 10.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36 Edg/130.0')).toBe('Edge on Windows')
     expect(deviceName('Mozilla/5.0 (X11; Linux x86_64; rv:131.0) Gecko/20100101 Firefox/131.0')).toBe('Firefox on Linux')
+  })
+})
+
+describe('languages', () => {
+  it('name codes, and leave words that are not codes as they are', () => {
+    expect(languageName('en')).toBe(languageName('eng'))
+    expect(languageName('English')).toBe('English')
+    expect(languageName('francais')).toBe('francais')
+  })
+
+  it('offer one choice per name, keeping the code chosen, and never "und"', () => {
+    const english = languageName('en')!
+    expect(languageOptions(['en', 'eng', 'und'])).toEqual([{ value: 'en', label: english }])
+    expect(languageOptions(['en', 'eng'], 'eng')).toEqual([{ value: 'eng', label: english }])
   })
 })

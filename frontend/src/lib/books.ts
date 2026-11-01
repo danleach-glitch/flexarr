@@ -250,12 +250,30 @@ export function deviceName(userAgent = navigator.userAgent): string {
   return system ? `${browser} on ${system}` : browser
 }
 
-/** "English" for "en" or "eng", where the browser knows the code; the tag as it is otherwise. */
+/** A language code ("en", "eng", "en-GB"), as opposed to a word a tag might carry instead ("English", "francais"). */
+const LANGUAGE_CODE = /^[a-z]{2,3}(?:[-_][a-z0-9]{2,8})*$/i
+
+/** "English" for "en" or "eng", where the browser knows the code; text that isn't a code (or an unknown code) as it is. */
 export function languageName(code: string | null | undefined): string | null {
   if (!code) return null
+  if (!LANGUAGE_CODE.test(code)) return code
   try {
-    return new Intl.DisplayNames(undefined, { type: 'language' }).of(code) ?? code
+    return new Intl.DisplayNames(undefined, { type: 'language' }).of(code.replaceAll('_', '-')) ?? code
   } catch {
     return code
   }
+}
+
+/**
+ * The Language filter's choices: one per name, so "en" and "eng" are one "English" (its value is the one chosen, else
+ * the first of its codes). The server matches a book's language exactly, so choosing it shows that code's books.
+ */
+export function languageOptions(codes: string[], chosen?: string): { value: string; label: string }[] {
+  const byName = new Map<string, string>()
+  for (const code of chosen ? [chosen, ...codes] : codes) {
+    if (code === 'und') continue // a tag's way of saying the language isn't known
+    const label = languageName(code) ?? code
+    if (!byName.has(label)) byName.set(label, code)
+  }
+  return [...byName].map(([label, value]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label))
 }
