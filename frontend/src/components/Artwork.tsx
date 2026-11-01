@@ -1,5 +1,6 @@
 import { useEffect, useState, type CSSProperties } from 'react'
 import { imageSrcSet, imageUrl } from '../api/client'
+import { initialsOf } from '../lib/initials'
 
 // A poster grid loads far more than the browser's 250 default timings; keep room for the newest so a failed image's
 // timing is there to read.
@@ -88,13 +89,4 @@ export function Artwork({
       )}
     </div>
   )
-}
-
-/** "Ada Marsh" → "AM", "Plato" → "P": the first and last words' first letters. */
-export function initialsOf(name: string) {
-  const words = name.trim().split(/\s+/).filter((w) => /\p{L}/u.test(w))
-  if (words.length === 0) return name.trim().charAt(0).toUpperCase()
-  const first = Array.from(words[0])[0]
-  const last = words.length > 1 ? Array.from(words.at(-1)!)[0] : ''
-  return (first + last).toUpperCase()
 }

@@ -1,6 +1,7 @@
 import { act, fireEvent, render } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { Artwork, initialsOf } from './Artwork'
+import { initialsOf } from '../lib/initials'
+import { Artwork } from './Artwork'
 
 describe('Artwork', () => {
   afterEach(() => {
