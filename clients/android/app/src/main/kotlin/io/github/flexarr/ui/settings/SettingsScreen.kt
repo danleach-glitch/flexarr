@@ -706,7 +706,7 @@ private fun <T> List<T>.moved(from: Int, to: Int): List<T> = toMutableList().app
 @Composable
 internal fun Group(header: String? = null, footer: String? = null, content: @Composable () -> Unit) {
     Column(Modifier.padding(horizontal = Edge), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        header?.let { Text(it.uppercase(), fontSize = 13.sp, color = Flexarr.usher, modifier = Modifier.padding(horizontal = 16.dp)) }
+        header?.let { Text(it, fontSize = 13.sp, color = Flexarr.usher, modifier = Modifier.padding(horizontal = 16.dp)) }
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(Tokens.radiusPanel)).background(Flexarr.seat)) { content() }
         footer?.let { Text(it, fontSize = 13.sp, color = Flexarr.usher, modifier = Modifier.padding(horizontal = 16.dp)) }
     }
