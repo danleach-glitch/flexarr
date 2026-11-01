@@ -184,7 +184,7 @@ public static class CollectionEndpoints
 
             if (!await db.MediaItems.AnyAsync(i => i.Id == request.ItemId && (i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series || i.Kind == MediaKind.Audiobook), ct))
             {
-                return Results.Problem("Only films, shows and audiobooks can be added to a collection.", statusCode: 400);
+                return Results.Problem("Only movies, shows and audiobooks can be added to a collection.", statusCode: 400);
             }
 
             if (!await db.CollectionItems.AnyAsync(i => i.CollectionId == id && i.MediaItemId == request.ItemId, ct))

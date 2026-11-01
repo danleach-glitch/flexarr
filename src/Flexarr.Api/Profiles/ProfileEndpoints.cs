@@ -309,7 +309,7 @@ public static partial class ProfileEndpoints
 
             if (!await IsAsync(request.FilmsLibraryId, LibraryType.Movies))
             {
-                errors["filmsLibraryId"] = ["That isn’t a film library."];
+                errors["filmsLibraryId"] = ["That isn’t a movie library."];
             }
 
             if (errors.Count > 0)

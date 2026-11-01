@@ -284,13 +284,13 @@ public static class LayoutEndpoints
         new(Watchlist.WatchlistService.HomeRowId, "Ready from your watchlist", true),
         new("live-tv", "Live TV (your favourite channels)", true),
         .. RecentRows(libraries.ToList(), combine),
-        new("top-movies", "Top 10 films", true),
+        new("top-movies", "Top 10 movies", true),
         new("top-shows", "Top 10 shows", true),
         .. music ? MusicRows : Array.Empty<RowChoiceDto>(),
         .. books ? BookRows : Array.Empty<RowChoiceDto>(),
         new("because", "Because you watched…", true),
         new("genres", "Genre rows (three, changing daily)", true),
-        new("gems", "Highly rated films, not yet watched", true),
+        new("gems", "Highly rated movies, not yet watched", true),
         new("upcoming", "Coming soon", true),
     ];
 
@@ -302,7 +302,7 @@ public static class LayoutEndpoints
             var label = g.Count() == 1 ? $"Latest unwatched in {first.Name}"
                 : first.Type switch
                 {
-                    LibraryType.Movies => "Latest unwatched films, from every film library",
+                    LibraryType.Movies => "Latest unwatched movies, from every movie library",
                     LibraryType.HomeVideos => "Latest unwatched home videos, from every home video library",
                     _ => "Latest unwatched shows, from every TV library",
                 };
