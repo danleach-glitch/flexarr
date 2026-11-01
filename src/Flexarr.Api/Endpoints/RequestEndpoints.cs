@@ -107,8 +107,7 @@ public static class RequestEndpoints
         {
             var instance = db.IsLimited() ? null : options.CurrentValue.Seerr?.Instance;
             // Books are requested from Readarr, Bookshelf or Chaptarr, not Seerr. Absent from servers before 0.58.
-            // Only once book requests (a preview) are switched on in Settings › Libraries.
-            var books = !db.IsLimited() && options.CurrentValue.BookRequests.Enabled && Books.BookRequestEndpoints.Instance(options.CurrentValue) is not null
+            var books = !db.IsLimited() && Books.BookRequestEndpoints.Instance(options.CurrentValue) is not null
                 && await db.Libraries.AnyAsync(l => l.Type == Flexarr.Core.Libraries.LibraryType.Audiobooks, ct);
             return new { configured = instance is not null, reachable = instance is not null && await SafePingAsync(seerr, instance, ct), books };
         }).WithTags("Requests");

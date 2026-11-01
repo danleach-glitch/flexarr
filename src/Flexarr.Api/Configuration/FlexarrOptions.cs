@@ -229,12 +229,6 @@ public sealed class LiveTvOptions
 /// <summary>How books requested in Flexarr are added to Readarr, Bookshelf or Chaptarr (config.json's <c>bookRequests</c>).</summary>
 public sealed class BookRequestOptions
 {
-    /// <summary>
-    /// Book requests are on (a preview, off to start with): Bookshelf, the Readarr fork most run, can't search by title
-    /// reliably. Coming soon, imports and deleting through the app work either way.
-    /// </summary>
-    public bool Enabled { get; set; }
-
     /// <summary>The Readarr-family connection requests go to; unset, the first.</summary>
     public string? Instance { get; set; }
 

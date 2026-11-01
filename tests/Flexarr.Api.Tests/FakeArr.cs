@@ -35,8 +35,7 @@ public sealed class FakeArr : HttpMessageHandler
     /// <summary>The test server, with a Sonarr and a Radarr (both named after their kind) answered by this.</summary>
     /// <param name="factory">The server under test.</param>
     /// <param name="bookshelf">Add a Readarr-family instance named "Bookshelf" at bookshelf.test.</param>
-    /// <param name="bookRequests">With it, book requests (a preview) are switched on.</param>
-    public WebApplicationFactory<Program> Serve(FlexarrApiFactory factory, bool bookshelf = false, bool bookRequests = true) => factory.WithWebHostBuilder(builder =>
+    public WebApplicationFactory<Program> Serve(FlexarrApiFactory factory, bool bookshelf = false) => factory.WithWebHostBuilder(builder =>
     {
         foreach (var (kind, i) in new[] { (ArrKind.Sonarr, 0), (ArrKind.Radarr, 1) })
         {
@@ -52,7 +51,6 @@ public sealed class FakeArr : HttpMessageHandler
             builder.UseSetting("Flexarr:Arr:2:Kind", nameof(ArrKind.Readarr));
             builder.UseSetting("Flexarr:Arr:2:BaseUrl", "http://bookshelf.test");
             builder.UseSetting("Flexarr:Arr:2:ApiKey", "key");
-            builder.UseSetting("Flexarr:BookRequests:Enabled", bookRequests ? "true" : "false");
         }
 
         builder.ConfigureTestServices(services => services.AddHttpClient<ArrClient>().ConfigurePrimaryHttpMessageHandler(() => this));
