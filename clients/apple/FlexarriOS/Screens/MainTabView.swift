@@ -159,6 +159,8 @@ struct TabStack<Content: View>: View {
             LiveTvView()
         case .watchlist:
             WatchlistView()
+        case .comingSoon:
+            ComingSoonView()
         case .external, .genre:
             // Discover is on the Apple TV and the web; nothing on iPhone or iPad goes here.
             EmptyView()

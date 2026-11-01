@@ -409,15 +409,16 @@ private extension View {
 }
 
 /// What Sonarr, Radarr and Readarr expect soon: episodes airing, films and books coming out, with any download under
-/// way. One already in the library (a show's next episode) opens it.
+/// way. One already in the library (a show's next episode) opens it; See all opens the Coming soon page.
 private struct ComingSoonRow: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(Router.self) private var router
     let items: [UpcomingItem]
     let downloading: Int
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            SectionHeading(title: downloading > 0 ? "Coming soon (\(downloading) downloading)" : "Coming soon")
+            SectionHeading(title: downloading > 0 ? "Coming soon (\(downloading) downloading)" : "Coming soon") { router.push(.comingSoon) }
             ScrollView(.horizontal) {
                 LazyHStack(alignment: .top, spacing: Layout.rowSpacing) {
                     ForEach(items) { ComingSoonCard(item: $0, width: Layout.wideWidth(sizeClass)) }
@@ -434,13 +435,18 @@ private struct ComingSoonCard: View {
     @Environment(Router.self) private var router
     let item: UpcomingItem
     let width: CGFloat
+    @State private var showingAbout = false
 
+    /// One in the library opens it; anything else opens what's known about it.
     var body: some View {
-        if let id = item.libraryItemId {
-            Button { router.push(.itemID(id)) } label: { card }
-                .buttonStyle(CardButtonStyle())
-        } else {
-            card
+        Button {
+            if let id = item.libraryItemId { router.push(.itemID(id)) } else { showingAbout = true }
+        } label: { card }
+        .buttonStyle(CardButtonStyle())
+        .sheet(isPresented: $showingAbout) {
+            UpcomingAboutSheet(item: item, detail: UpcomingDay.detail(item))
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
         }
     }
 

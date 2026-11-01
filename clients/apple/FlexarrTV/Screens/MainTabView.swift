@@ -496,6 +496,8 @@ struct TabStack<Content: View>: View {
             GenreView(name: name)
         case .watchlist:
             WatchlistView()
+        case .comingSoon:
+            ComingSoonView()
         }
     }
 }

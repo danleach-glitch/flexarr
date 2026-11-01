@@ -1513,6 +1513,8 @@ enum Route: Hashable {
     case watchlist
     /// An audiobook series in reading order (iPhone and iPad).
     case bookSeries(id: String, name: String)
+    /// What's coming over the next few weeks, a day at a time.
+    case comingSoon
 }
 
 /// One navigation stack per tab.

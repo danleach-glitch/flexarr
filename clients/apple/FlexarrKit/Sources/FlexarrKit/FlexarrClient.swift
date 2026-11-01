@@ -132,6 +132,12 @@ public struct FlexarrClient: Sendable {
         return try await get("home", query: [.init(name: "listening", value: listening.map(\.rawValue).joined(separator: ","))])
     }
 
+    /// What Sonarr, Radarr and Readarr expect over the next `days` days (and what came yesterday), soonest first: the
+    /// Coming soon page.
+    public func upcoming(days: Int = 30) async throws -> [UpcomingItem] {
+        try await get("upcoming", query: [.init(name: "days", value: String(days))])
+    }
+
     /// A library's own home page: a hero and rows of just its titles (no hero for music).
     public func libraryBrowse(_ libraryId: String) async throws -> Home {
         try await get("libraries/\(libraryId)/browse")
