@@ -82,6 +82,7 @@ import io.github.flexarr.core.UpcomingItem
 import io.github.flexarr.core.cardDetail
 import io.github.flexarr.core.cardTitle
 import io.github.flexarr.core.dayLabel
+import io.github.flexarr.core.MediaKind
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.draw.clip
 import kotlinx.coroutines.delay
@@ -99,8 +100,9 @@ fun TvHomeScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit) 
     val loader = rememberLoader(model.credentials, model.watchStateVersion) {
         // Books (and podcasts) aren't featured on the TV, and its rows of them go (see [shows]).
         // Asks for no books or podcasts in Continue watching: the TV app plays neither from there.
+        // Coming soon leaves out books too: dev servers before 0.58 sent them.
         val home = client.home().let { home ->
-            home.copy(featured = home.featured.filter { it.showsOnTv }, rows = home.rows.filterNot { it.id.startsWith("books-") })
+            home.copy(featured = home.featured.filter { it.showsOnTv }, rows = home.rows.filterNot { it.id.startsWith("books-") }, upcoming = home.upcoming.filter { it.kind != MediaKind.Audiobook })
         }
         // Nothing yet: the libraries say whether a scan is under way or their folders hold nothing.
         val empty = if (home.featured.isEmpty() && home.rows.none { it.shows } && home.upcoming.isEmpty()) runCatching { EmptyHomeMessage.of(client.libraries()) }.getOrNull() else null
