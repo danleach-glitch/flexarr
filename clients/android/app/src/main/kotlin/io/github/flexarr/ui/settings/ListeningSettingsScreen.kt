@@ -54,13 +54,18 @@ fun ListeningSettingsScreen(model: AppModel, onNotifications: () -> Unit) {
     var playback by remember { mutableStateOf<PlaybackPreferences?>(null) }
     var saveFailed by remember { mutableStateOf(false) }
 
+    // Podcast settings only for a profile with podcasts (as the iPhone); otherwise the books' own.
+    val hasPodcasts = model.podcastStatus?.available == true
+
     LaunchedEffect(model.credentials) {
-        if (model.podcastPreferences == null) runCatching { client.podcastPreferences() }.onSuccess { model.podcastPreferences = it }
-        if (model.podcastPreferences?.listening == null && model.hasAudiobooks) runCatching { client.bookListening() }.onSuccess { books = it }
+        if (hasPodcasts && model.podcastPreferences == null) runCatching { client.podcastPreferences() }.onSuccess { model.podcastPreferences = it }
+        if ((!hasPodcasts || model.podcastPreferences?.listening == null) && model.hasAudiobooks) {
+            runCatching { client.bookListening() }.onSuccess { books = it }
+        }
         runCatching { client.playbackPreferences() }.onSuccess { playback = it }
     }
 
-    val podcasts = model.podcastPreferences
+    val podcasts = model.podcastPreferences?.takeIf { hasPodcasts }
     // The shared settings: the podcast settings' when the server shares them (0.58 on), or the books'.
     val listening = podcasts?.listening ?: books
 
@@ -120,7 +125,7 @@ fun ListeningSettingsScreen(model: AppModel, onNotifications: () -> Unit) {
 
     /** Saved as podcast settings where there are any (the server keeps books in step), otherwise as book settings. */
     fun update(podcastChange: PodcastPreferencesUpdate, bookChange: BookListeningUpdate) {
-        if (model.podcastPreferences != null) updatePodcasts(podcastChange) else updateBooks(bookChange)
+        if (podcasts != null) updatePodcasts(podcastChange) else updateBooks(bookChange)
     }
 
     fun savePlayback(changed: PlaybackPreferences, over: PlaybackPreferences) {
