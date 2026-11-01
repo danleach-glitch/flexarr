@@ -98,8 +98,9 @@ struct TitleScrim: ViewModifier {
 
     func body(content: Content) -> some View {
         content.background {
+            // The frame reaches past the gradient's edge, so it fades out to nothing rather than stopping at a line.
             RadialGradient(colors: [Color.room.opacity(0.5), .clear], center: .center, startRadius: 0, endRadius: reach)
-                .padding(-reach / 3)
+                .padding(-reach)
                 .allowsHitTesting(false)
         }
     }
