@@ -112,7 +112,7 @@ public static partial class DeleteEndpoints
     }
 
     /// <summary>
-    /// The app that would delete a book's files: its app, when that has files inside the book's own folder. Otherwise
+    /// The app that would delete a book's files: its app, when that has the book's own files. Otherwise
     /// (no app, an app that has no files for it, or a link to some other book there) Flexarr deletes it: null. An app
     /// that doesn't answer is still named: deleting would fail there rather than go behind its back.
     /// </summary>
@@ -135,9 +135,10 @@ public static partial class DeleteEndpoints
     }
 
     /// <summary>
-    /// The app's files for its book that are this book's: inside its folder (or its file), as Flexarr sees the app's
-    /// paths. A book linked only by title and author can be another edition entirely (an ebook in an ebook app, when
-    /// ours is the audiobook); its files aren't ours to delete.
+    /// The app's files for its book that are this book's: one of its own files, as Flexarr sees the app's paths. Not
+    /// anything inside its folder: a folder holding one book's file beside other books' folders (Author/One.m4b,
+    /// Author/Two/…) is the first book's folder, and the rest aren't its. A book linked only by title and author can be
+    /// another edition entirely (an ebook in an ebook app, when ours is the audiobook); its files aren't ours either.
     /// </summary>
     private static async Task<List<ReadarrBookFile>> OwnBookFilesThereAsync(FlexarrDbContext db, MediaItem book, ArrInstance instance, string bookId,
         FlexarrOptions options, ArrClient arr, CancellationToken ct)
@@ -145,14 +146,12 @@ public static partial class DeleteEndpoints
         var ours = await db.MediaFiles.Where(f => f.MediaItemId == book.Id).Select(f => f.Path).ToListAsync(ct);
         var keys = ours.Select(PathComparison.Key).ToHashSet(StringComparer.Ordinal);
         var theirs = await arr.GetBookFilesForBookAsync(instance, bookId, ct);
-        return [.. theirs.Where(f => f.Id is not null && f.Path is { Length: > 0 } && IsOurs(PathMapper.Map(f.Path, options.PathMappings)))];
-
-        bool IsOurs(string path) => (book.Path is { Length: > 0 } folder && PathComparison.IsUnder(path, folder)) || keys.Contains(PathComparison.Key(path));
+        return [.. theirs.Where(f => f.Id is not null && f.Path is { Length: > 0 } && keys.Contains(PathComparison.Key(PathMapper.Map(f.Path, options.PathMappings))))];
     }
 
     /// <summary>
     /// A book: unmonitored in its app first, so it isn't fetched again, then its files deleted there. Only the app's
-    /// files inside the book's own folder count: a book no app manages, whose app knows the book but not its files
+    /// files that are the book's own count: a book no app manages, whose app knows the book but not its files
     /// (imported by hand, say), or that's linked to some other book there (by title, to the ebook, say) has its files
     /// deleted by Flexarr and is left alone in the app. Left on disk, the next scan would only bring it back.
     /// </summary>
