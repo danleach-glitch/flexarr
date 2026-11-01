@@ -1075,11 +1075,32 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<string>("Biography")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("BiographySource")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("ImageChangedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ImageStamp")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("ImageUrl")
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTime?>("InfoCheckedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("InfoLocked")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Name")
                         .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PhotoSource")
+                        .HasMaxLength(32)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("TmdbId")

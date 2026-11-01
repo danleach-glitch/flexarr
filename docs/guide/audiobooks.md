@@ -60,6 +60,12 @@ When a book's files leave gaps, Flexarr fills them from Audible (through the com
 
 Audible's chapters replace guessed ones when they match the book's length. To change a book's chapters yourself, open its page, choose **⋯ › Edit chapters**, rename them or move them all by a few seconds, then **Save**. **Use Audible's** fills them in; **Save** keeps them. **Fix match** finds the right book when Flexarr picked the wrong one.
 
+### Author photos
+
+Each author gets a photo and a short biography. Flexarr looks first for an `author.jpg` or `folder.jpg` in the author's folder, then asks Readarr, Audible and Open Library, and tries again later for anyone still missing one. A picture in the author's folder wins over anything found online.
+
+If an author has the wrong photo or biography, open their page in the web app and choose **Edit** (it asks for the admin PIN): pick another photo, upload your own, or rewrite the biography. Your changes stay put. Turn off **Locked** to let Flexarr fill in anything that's missing.
+
 ## Readarr, Bookshelf and Chaptarr
 
 Connect any of them in **Settings › Connections** as **Readarr / Bookshelf / Chaptarr**. Bookshelf keeps one kind of book per instance, so connect the one for audiobooks.

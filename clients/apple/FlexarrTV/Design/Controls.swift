@@ -141,3 +141,133 @@ private struct SharedFocus: ViewModifier {
         }
     }
 }
+
+/// A block of text as a button: plain until focused, then lit in projected white like a track row. `filled` gives it
+/// a quiet panel unfocused, for a card that should read as one (an author on a book's page).
+struct TextCardStyle: ButtonStyle {
+    var ambient: Color = .silver
+    var filled = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        CardBody(configuration: configuration, ambient: ambient, filled: filled)
+    }
+
+    private struct CardBody: View {
+        let configuration: Configuration
+        let ambient: Color
+        let filled: Bool
+        @Environment(\.isFocused) private var isFocused
+
+        var body: some View {
+            configuration.label
+                .padding(.horizontal, 30)
+                .padding(.vertical, 24)
+                .foregroundStyle(isFocused ? Color.room : Color.screen)
+                .background {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(isFocused ? AnyShapeStyle(Color.screen) : AnyShapeStyle(filled ? Color.screen.opacity(0.08) : Color.clear))
+                }
+                .shadow(color: isFocused ? ambient.opacity(0.5) : .clear, radius: 24)
+                .scaleEffect(configuration.isPressed ? 0.98 : (isFocused ? 1.02 : 1))
+                .animation(.spring(response: 0.3, dampingFraction: 0.75), value: isFocused)
+                .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+        }
+    }
+}
+
+/// Long text (a biography) clamped to a few lines; pressing it opens all of it. It reaches 30 points past its column
+/// on each side, so the text lines up with what's above while the focus panel has room.
+struct ReadMoreText: View {
+    let title: String
+    let text: String
+    var lineLimit = 4
+    var ambient: Color = .silver
+    @State private var reading = false
+
+    var body: some View {
+        Button { reading = true } label: {
+            Text(text)
+                .font(.system(size: 27))
+                .lineSpacing(5)
+                .lineLimit(lineLimit)
+                .multilineTextAlignment(.leading)
+                .opacity(0.88)
+                .frame(maxWidth: 1100, alignment: .leading)
+        }
+        .buttonStyle(TextCardStyle(ambient: ambient))
+        .padding(.horizontal, -30)
+        .accessibilityHint("Shows all of it")
+        .fullScreenCover(isPresented: $reading) { FullTextView(title: title, text: text) }
+    }
+}
+
+/// All of a long text, a paragraph at a time: each paragraph takes focus, so swiping scrolls through it. Menu closes it.
+struct FullTextView: View {
+    let title: String
+    let text: String
+
+    private var paragraphs: [[String]] {
+        text.components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+            .map { Self.chunks(of: $0) }
+    }
+
+    /// The page scrolls by moving focus from one block to the next, so a block taller than the screen can't
+    /// be read to its end. A long paragraph is split into groups of whole sentences (whole words for a very
+    /// long sentence), each focusable, set close together so they still read as one paragraph.
+    static func chunks(of paragraph: String, limit: Int = 600) -> [String] {
+        guard paragraph.count > limit else { return [paragraph] }
+        var pieces: [String] = []
+        paragraph.enumerateSubstrings(in: paragraph.startIndex..., options: .bySentences) { _, _, range, _ in
+            let sentence = String(paragraph[range])
+            if sentence.count > limit {
+                pieces.append(contentsOf: sentence.split(separator: " ").map { $0 + " " })
+            } else {
+                pieces.append(sentence)
+            }
+        }
+        var chunks: [String] = []
+        var current = ""
+        for piece in pieces {
+            if !current.isEmpty, current.count + piece.count > limit {
+                chunks.append(current.trimmingCharacters(in: .whitespaces))
+                current = ""
+            }
+            current += piece
+        }
+        let last = current.trimmingCharacters(in: .whitespaces)
+        if !last.isEmpty { chunks.append(last) }
+        return chunks.isEmpty ? [paragraph] : chunks
+    }
+
+    var body: some View {
+        ZStack {
+            Color.room.ignoresSafeArea()
+            ScrollView(.vertical) {
+                VStack(alignment: .leading, spacing: 30) {
+                    Text(title)
+                        .font(.marquee(56, weight: .heavy))
+                        .foregroundStyle(Color.screen)
+                        .padding(.bottom, 10)
+                    ForEach(Array(paragraphs.enumerated()), id: \.offset) { _, chunks in
+                        VStack(alignment: .leading, spacing: 8) {
+                            ForEach(Array(chunks.enumerated()), id: \.offset) { _, chunk in
+                                Text(chunk)
+                                    .font(.system(size: 30))
+                                    .lineSpacing(8)
+                                    .foregroundStyle(Color.screen.opacity(0.9))
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .focusable()
+                                    .focusEffectDisabled()
+                            }
+                        }
+                    }
+                }
+                .frame(maxWidth: 1300, alignment: .leading)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 80)
+            }
+        }
+    }
+}

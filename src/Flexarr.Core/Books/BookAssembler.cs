@@ -282,7 +282,8 @@ public sealed partial class BookAssembler(FlexarrDbContext db, IMediaProbe probe
 
     /// <summary>
     /// The person called <paramref name="name"/>: someone already credited on a book first (an author or narrator),
-    /// then anyone of that name, then someone new.
+    /// then anyone of that name who isn't in films or TV (an actor of the same name is someone else, whose photo is
+    /// TMDB's), then someone new.
     /// </summary>
     private async Task<Person> PersonAsync(string name, CancellationToken ct)
     {
@@ -292,10 +293,7 @@ public sealed partial class BookAssembler(FlexarrDbContext db, IMediaProbe probe
             return known;
         }
 
-        var bookRoles = new[] { CreditRole.Author, CreditRole.Narrator, CreditRole.Translator };
-        var person = await db.People.Where(p => p.Name == name && p.Credits.Any(c => bookRoles.Contains(c.Role))).FirstOrDefaultAsync(ct).ConfigureAwait(false)
-            ?? await db.People.Where(p => p.Name == name).FirstOrDefaultAsync(ct).ConfigureAwait(false)
-            ?? db.People.Local.FirstOrDefault(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
+        var person = await ExistingPersonAsync(db, name, ct).ConfigureAwait(false);
         if (person is null)
         {
             person = new Person { Name = name };
@@ -304,6 +302,17 @@ public sealed partial class BookAssembler(FlexarrDbContext db, IMediaProbe probe
 
         _people[name] = person;
         return person;
+    }
+
+    private static readonly CreditRole[] BookRoles = [CreditRole.Author, CreditRole.Narrator, CreditRole.Translator];
+
+    /// <summary>The person a book's credit of <paramref name="name"/> goes to, if there's one already (see <see cref="PersonAsync"/>).</summary>
+    internal static async Task<Person?> ExistingPersonAsync(FlexarrDbContext db, string name, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(db);
+        return await db.People.Where(p => p.Name == name && p.Credits.Any(c => BookRoles.Contains(c.Role))).FirstOrDefaultAsync(ct).ConfigureAwait(false)
+            ?? await db.People.Where(p => p.Name == name && !p.Credits.Any(c => !BookRoles.Contains(c.Role))).FirstOrDefaultAsync(ct).ConfigureAwait(false)
+            ?? db.People.Local.FirstOrDefault(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase) && p.TmdbId is null && p.TvMazeId is null);
     }
 
     private readonly Dictionary<(Guid Library, string Name), BookSeries> _series = [];

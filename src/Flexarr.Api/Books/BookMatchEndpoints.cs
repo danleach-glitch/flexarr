@@ -64,6 +64,7 @@ public static class BookMatchEndpoints
 
             var details = book.Book ??= new BookDetails { MediaItemId = book.Id };
             await refresher.ApplyOnlineAsync(book, details, chosen, overwrite: true, ct);
+            await refresher.FillAuthorsAsync(book, chosen.AuthorAsins ?? [], ct);
             book.MatchLocked = true;
             book.MetadataSource = chosen.Provider;
             book.MetadataUpdatedAt = DateTime.UtcNow;

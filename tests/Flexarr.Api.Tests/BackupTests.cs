@@ -93,6 +93,8 @@ public class BackupTests
         var client = Client(factory);
         Directory.CreateDirectory(Path.Combine(factory.DataDirectory, "profile-images"));
         await File.WriteAllBytesAsync(Path.Combine(factory.DataDirectory, "profile-images", "6f776e6572.jpg"), [1, 2, 3]);
+        Directory.CreateDirectory(Path.Combine(factory.DataDirectory, "person-images"));
+        await File.WriteAllBytesAsync(Path.Combine(factory.DataDirectory, "person-images", "0193a0b1c2d37e4f8a9b0c1d2e3f4a5b.jpg"), [4, 5, 6]);
 
         var created = await (await client.PostAsync(Api("/backups"), null)).Content.ReadFromJsonAsync<JsonElement>();
         var name = created.GetProperty("name").GetString()!;
@@ -103,7 +105,7 @@ public class BackupTests
         Assert.Equal("Manual", created.GetProperty("kind").GetString());
         Assert.Contains(list.GetProperty("backups").EnumerateArray(), b => b.GetProperty("name").GetString() == name);
         Assert.Equal(Path.Combine(factory.DataDirectory, "backups"), list.GetProperty("folder").GetString());
-        Assert.Subset(zip.Entries.Select(e => e.FullName).ToHashSet(), new HashSet<string> { "manifest.json", "flexarr.db", "config.json", "profile-images/6f776e6572.jpg" });
+        Assert.Subset(zip.Entries.Select(e => e.FullName).ToHashSet(), new HashSet<string> { "manifest.json", "flexarr.db", "config.json", "profile-images/6f776e6572.jpg", "person-images/0193a0b1c2d37e4f8a9b0c1d2e3f4a5b.jpg" });
         if (!OperatingSystem.IsWindows())
         {
             Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite, File.GetUnixFileMode(Path.Combine(factory.DataDirectory, "backups", name)));
@@ -191,6 +193,8 @@ public class BackupTests
             var unpacked = Directory.CreateDirectory(Path.Combine(data, "unpacked")).FullName;
             File.WriteAllText(Path.Combine(unpacked, "flexarr.db"), "new");
             File.WriteAllText(Path.Combine(unpacked, "config.json"), "{\"apiKey\":\"new\"}");
+            Directory.CreateDirectory(Path.Combine(unpacked, "person-images"));
+            File.WriteAllText(Path.Combine(unpacked, "person-images", "0193a0b1c2d37e4f8a9b0c1d2e3f4a5b.jpg"), "photo");
 
             PendingRestore.Stage(data, unpacked, DateTime.UtcNow);
             var applied = PendingRestore.Apply(data, DateTime.UtcNow);
@@ -200,6 +204,7 @@ public class BackupTests
             Assert.False(File.Exists(Path.Combine(data, "flexarr.db-wal")));
             Assert.Contains("new", File.ReadAllText(Path.Combine(data, "config.json")), StringComparison.Ordinal);
             Assert.False(Directory.Exists(Path.Combine(data, "profile-images")));
+            Assert.Equal("photo", File.ReadAllText(Path.Combine(data, "person-images", "0193a0b1c2d37e4f8a9b0c1d2e3f4a5b.jpg")));
             Assert.False(Directory.Exists(PendingRestore.FolderFor(data)));
             Assert.False(PendingRestore.Apply(data, DateTime.UtcNow));
         }

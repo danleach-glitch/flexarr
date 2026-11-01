@@ -1,5 +1,6 @@
 import { useEffect, useState, type CSSProperties } from 'react'
 import { imageSrcSet, imageUrl } from '../api/client'
+import { initialsOf } from '../lib/initials'
 
 // A poster grid loads far more than the browser's 250 default timings; keep room for the newest so a failed image's
 // timing is there to read.
@@ -25,7 +26,7 @@ function worthRetrying(image: HTMLImageElement) {
  * marquee face on a tint of the title's ambient colour, so a missing poster still looks deliberate. A failed image is
  * tried once more after a few seconds when it looks like the server was busy (it turns new artwork away while it's
  * fetching lots at once), not when the poster is gone. With a `fallback` (an episode's show backdrop, say), that's
- * shown before giving up.
+ * shown before giving up. A person's round photo (`initials`) falls back to their initials, as the name won't fit.
  */
 export function Artwork({
   src,
@@ -35,6 +36,7 @@ export function Artwork({
   shape = 'poster',
   accent,
   eager = false,
+  initials = false,
 }: {
   src: string | null | undefined
   fallback?: string | null
@@ -43,6 +45,7 @@ export function Artwork({
   shape?: 'poster' | 'wide' | 'square' | 'portrait'
   accent?: string | null
   eager?: boolean
+  initials?: boolean
 }) {
   const [state, setState] = useState<'showing' | 'retrying' | 'failed'>('showing')
   const [attempt, setAttempt] = useState(0)
@@ -80,8 +83,8 @@ export function Artwork({
           }}
         />
       ) : (
-        <span className="artwork-fallback" aria-hidden="true">
-          {title}
+        <span className={initials ? 'artwork-fallback artwork-initials' : 'artwork-fallback'} aria-hidden="true">
+          {initials ? initialsOf(title) : title}
         </span>
       )}
     </div>

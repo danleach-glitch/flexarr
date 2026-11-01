@@ -313,12 +313,12 @@ public static class PendingRestore
             // What's there now goes aside first, the database with its write-ahead log (which would otherwise be played
             // into the restored database).
             string[] database = [BackupArchive.DatabaseName, BackupArchive.DatabaseName + "-wal", BackupArchive.DatabaseName + "-shm"];
-            foreach (var name in database.Concat(BackupArchive.Files).Append(BackupArchive.ImagesFolder))
+            foreach (var name in database.Concat(BackupArchive.Files).Concat(BackupArchive.ImageFolders))
             {
                 Move(Path.Combine(dataDirectory, name), Path.Combine(previous, name), moved);
             }
 
-            foreach (var name in BackupArchive.Files.Prepend(BackupArchive.DatabaseName).Append(BackupArchive.ImagesFolder))
+            foreach (var name in BackupArchive.Files.Prepend(BackupArchive.DatabaseName).Concat(BackupArchive.ImageFolders))
             {
                 Move(Path.Combine(staging, name), Path.Combine(dataDirectory, name), moved);
             }

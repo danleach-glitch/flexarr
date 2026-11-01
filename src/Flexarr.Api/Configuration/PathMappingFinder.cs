@@ -147,20 +147,8 @@ public sealed partial class PathMappingFinder(FlexarrDbContext db, ArrClient arr
     }
 
     /// <summary>Writes config.json, then waits for the options to reload, so what follows sees the change.</summary>
-    private async Task SaveAsync(string dataDirectory, Action<JsonObject> change, CancellationToken ct)
-    {
-        var reloaded = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        using var watch = options.OnChange(_ => reloaded.TrySetResult());
-        ServerConfigStore.Update(dataDirectory, change);
-        try
-        {
-            await reloaded.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
-        }
-        catch (TimeoutException)
-        {
-            // Applied when the watcher catches up.
-        }
-    }
+    private Task SaveAsync(string dataDirectory, Action<JsonObject> change, CancellationToken ct) =>
+        ServerConfigStore.UpdateAndWaitAsync(options, dataDirectory, change, ct: ct);
 
     /// <summary>The app's title folders and Flexarr's for the same kind of title, or null when the app can't say.</summary>
     private async Task<(IReadOnlyList<string> Theirs, IReadOnlyList<string> Ours)?> TitlesAsync(ArrInstance instance, CancellationToken ct)

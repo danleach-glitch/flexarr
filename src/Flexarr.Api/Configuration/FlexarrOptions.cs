@@ -17,6 +17,13 @@ public sealed class FlexarrOptions
     /// <summary>Where Flexarr keeps its config, database and caches. Mounted at /config in Docker.</summary>
     public string DataDirectory { get; set; } = "data";
 
+    /// <summary>
+    /// The revision of the last settings change written to config.json (see
+    /// <see cref="ServerConfigStore.UpdateAndWaitAsync"/>): what tells a reload of that change from a late one of an
+    /// earlier change.
+    /// </summary>
+    public string? ConfigRevision { get; set; }
+
     /// <summary>API key for clients and *arr webhooks. Generated and persisted on first run when empty.</summary>
     public string? ApiKey { get; set; }
 

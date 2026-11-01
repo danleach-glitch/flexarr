@@ -15,6 +15,7 @@ import { openAddToCollection } from '../components/AddToCollection'
 import { Artwork } from '../components/Artwork'
 import { BookmarkList } from '../components/BookmarkList'
 import { AsyncButton } from '../components/AsyncButton'
+import { AuthorCards } from '../components/AuthorCards'
 import { PosterCard } from '../components/Cards'
 import { ChapterEditor } from '../components/ChapterEditor'
 import { ConfirmDialog } from '../components/ConfirmDialog'
@@ -101,6 +102,8 @@ export function BookPage({ detail, onChange }: { detail: ItemDetail; onChange: (
 
   // "und" is a tag's way of saying the language isn't known.
   const edition = [book.publisher, book.language === 'und' ? null : languageName(book.language)].filter((e): e is string => !!e)
+  // The same test AuthorCards makes: an author with a photo or a biography (servers before 0.58 send none).
+  const hasAuthorCards = !!book.authors?.some((a) => a.image || a.biography)
 
   return (
     <article className="music-page book-page" style={item.accentColor ? ({ '--ambient': item.accentColor } as CSSProperties) : undefined}>
@@ -158,16 +161,17 @@ export function BookPage({ detail, onChange }: { detail: ItemDetail; onChange: (
       )}
 
       <div className="book-body">
-        {detail.overview && (
+        {(detail.overview || hasAuthorCards) && (
           <section className="book-about">
-            <Overview text={detail.overview} />
-            {edition.length > 0 && (
+            {detail.overview && <Overview text={detail.overview} />}
+            {detail.overview && edition.length > 0 && (
               <p className="muted book-edition">
                 {edition.map((e) => (
                   <span key={e}>{e}</span>
                 ))}
               </p>
             )}
+            <AuthorCards authors={book.authors} />
           </section>
         )}
         {book.chapters.length > 0 && (

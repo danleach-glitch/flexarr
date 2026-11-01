@@ -191,16 +191,13 @@ public static class BookEndpoints
             }
 
             var current = options.CurrentValue.BookMetadata;
-            var reloaded = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-            using var watch = options.OnChange((_, _) => reloaded.TrySetResult());
-            Configuration.ServerConfigStore.Update(options.CurrentValue.DataDirectory, config => config["bookMetadata"] = new System.Text.Json.Nodes.JsonObject
+            await Configuration.ServerConfigStore.UpdateAndWaitAsync(options, options.CurrentValue.DataDirectory, config => config["bookMetadata"] = new System.Text.Json.Nodes.JsonObject
             {
                 ["region"] = request.Region ?? current.Region,
                 ["providers"] = request.Providers is { } chosen ? new System.Text.Json.Nodes.JsonArray([.. chosen.Distinct().Select(p => (System.Text.Json.Nodes.JsonNode?)p)]) : current.Providers is { } kept ? new System.Text.Json.Nodes.JsonArray([.. kept.Select(p => (System.Text.Json.Nodes.JsonNode?)p)]) : null,
                 ["googleBooksKey"] = request.GoogleBooksKey is { } g ? (g.Trim() is { Length: > 0 } gk ? gk : null) : current.GoogleBooksKey,
                 ["hardcoverToken"] = request.HardcoverToken is { } h ? (h.Trim() is { Length: > 0 } hk ? hk : null) : current.HardcoverToken,
             });
-            await Task.WhenAny(reloaded.Task, Task.Delay(TimeSpan.FromSeconds(5)));
             return Results.Ok(MetadataSettings(options.CurrentValue));
         });
 

@@ -187,6 +187,39 @@ public sealed class ImageCacheDownloadTests : IDisposable
     }
 
     [Fact]
+    public async Task AnOpenLibraryCover_FollowsItsRedirectToTheInternetArchive()
+    {
+        var seen = new System.Collections.Concurrent.ConcurrentQueue<string>();
+        var host = new ScriptedArtwork(() => new HttpResponseMessage(HttpStatusCode.OK)) { OnRequest = r => seen.Enqueue(r.RequestUri!.ToString()) };
+        host.Answer = request => request.RequestUri!.Host switch
+        {
+            "covers.openlibrary.org" => Redirect("https://archive.org/download/olcovers24/olcovers24-L.zip/240727-L.jpg"),
+            "archive.org" => Redirect("https://ia800100.us.archive.org/view_archive.php?archive=olcovers24-L.zip&file=240727-L.jpg"),
+            _ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(Jpeg) },
+        };
+        var cache = Cache(host);
+
+        var photo = await cache.GetAsync("https://covers.openlibrary.org/a/olid/OL2A-L.jpg?default=false", 342, default).WaitAsync(TimeSpan.FromSeconds(10));
+        var cover = await cache.GetAsync("https://covers.openlibrary.org/b/id/240727-L.jpg", 342, default).WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.NotNull(photo);
+        Assert.NotNull(cover);
+        Assert.Contains(seen, u => u.StartsWith("https://ia800100.us.archive.org/", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ARedirectToAnotherSite_IsntFollowed()
+    {
+        var host = new ScriptedArtwork(() => Redirect("https://archive.org/download/x/a.jpg"));
+        var cache = Cache(host);
+
+        Assert.Null(await cache.GetAsync("https://image.tmdb.org/t/p/original/bounced.jpg", 342, default).WaitAsync(TimeSpan.FromSeconds(10)));
+        Assert.Equal(1, host.Requests);
+    }
+
+    private static HttpResponseMessage Redirect(string to) => new(HttpStatusCode.Found) { Headers = { Location = new Uri(to) } };
+
+    [Fact]
     public async Task ArrArtwork_IsFetchedFromTheInstance_WithItsKey()
     {
         HttpRequestMessage? seen = null;
@@ -255,11 +288,14 @@ public sealed class ImageCacheDownloadTests : IDisposable
         public int Requests;
         public Action<HttpRequestMessage>? OnRequest { get; init; }
 
+        /// <summary>An answer by request, in place of the same one for all.</summary>
+        public Func<HttpRequestMessage, HttpResponseMessage>? Answer { get; set; }
+
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             Interlocked.Increment(ref Requests);
             OnRequest?.Invoke(request);
-            return Task.FromResult(answer());
+            return Task.FromResult(Answer?.Invoke(request) ?? answer());
         }
     }
 
