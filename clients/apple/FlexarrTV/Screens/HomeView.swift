@@ -54,8 +54,13 @@ struct HomeView: View {
                 }
                 // A row with nothing in it (a kind this app doesn't show yet, say) would be a bare heading. That includes
                 // the empty row placing New podcasts (`HomeRow.podcastsRowId`): the Apple TV doesn't play podcasts.
-                ForEach(home.rows.filter(\.hasContent)) { row in
-                    HomeRowView(row: row)
+                // Coming soon's titles come separately, in `Home.upcoming`.
+                ForEach(home.rows.filter { $0.style == .upcoming ? !(home.upcoming ?? []).isEmpty : $0.hasContent }) { row in
+                    if row.style == .upcoming {
+                        ComingSoonRow(items: home.upcoming ?? [], downloading: home.downloading ?? 0)
+                    } else {
+                        HomeRowView(row: row)
+                    }
                 }
             }
             .padding(.bottom, 80)
@@ -436,5 +441,71 @@ struct SeeAllCard: View {
             .background(Color.seat)
         }
         .buttonStyle(.card)
+    }
+}
+
+/// What Sonarr, Radarr and Readarr expect soon: episodes airing, films and books coming out, with any download under
+/// way. Pressing one already in the library (a show's next episode) opens it.
+private struct ComingSoonRow: View {
+    @Environment(AppModel.self) private var model
+    @Environment(Router.self) private var router
+    let items: [UpcomingItem]
+    let downloading: Int
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            RowHeading(title: downloading > 0 ? "Coming soon (\(downloading) downloading)" : "Coming soon")
+            ScrollView(.horizontal) {
+                LazyHStack(alignment: .top, spacing: Layout.rowSpacing) {
+                    ForEach(items) { item in
+                        // Every card takes focus, so the row can be looked along; only those in the library open.
+                        ArtworkButton(ambient: .silver, accessibilityText: "\(UpcomingDay.title(item)), \(UpcomingDay.label(item.date))") {
+                            if let id = item.libraryItemId { router.push(.itemID(id)) }
+                        } artwork: {
+                            RemoteImage(url: model.client?.imageURL(item.still ?? item.poster, width: 780)) {
+                                Text(UpcomingDay.title(item))
+                                    .font(.system(size: 25, weight: .semibold))
+                                    .foregroundStyle(Color.usher)
+                                    .multilineTextAlignment(.center)
+                                    .padding(20)
+                            }
+                            .frame(width: Layout.wideWidth, height: Layout.wideWidth * 9 / 16)
+                            .background(Color.seat)
+                            .overlay(alignment: .topLeading) {
+                                Text(UpcomingDay.label(item.date))
+                                    .font(.system(size: 21, weight: .semibold))
+                                    .foregroundStyle(Color.screen)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(Capsule().fill(.black.opacity(0.6)))
+                                    .padding(14)
+                            }
+                            .overlay(alignment: .bottom) {
+                                if let progress = item.download?.progress {
+                                    ProgressBar(value: progress).padding(16)
+                                }
+                            }
+                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        } caption: { focused in
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(UpcomingDay.title(item))
+                                    .font(.system(size: 25, weight: .semibold))
+                                    .foregroundStyle(focused ? Color.screen : Color.screen.opacity(0.85))
+                                Text(UpcomingDay.detail(item))
+                                    .font(.system(size: 21))
+                                    .foregroundStyle(Color.usher)
+                            }
+                            .lineLimit(1)
+                            .frame(width: Layout.wideWidth, alignment: .leading)
+                        }
+                    }
+                }
+                .padding(.horizontal, Layout.edge)
+                .padding(.top, 28)
+                .padding(.bottom, 40)
+            }
+            .scrollClipDisabled()
+            .focusSection()
+        }
     }
 }

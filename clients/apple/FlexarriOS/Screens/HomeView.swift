@@ -458,7 +458,7 @@ private struct ComingSoonCard: View {
                     }
                 }
                 .overlay(alignment: .topLeading) {
-                    Text(Self.day(item.date))
+                    Text(UpcomingDay.label(item.date))
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(Color.screen)
                         .padding(.horizontal, 8)
@@ -473,10 +473,10 @@ private struct ComingSoonCard: View {
                 }
                 .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
             VStack(alignment: .leading, spacing: 1) {
-                Text(item.kind == .audiobook ? item.title : item.seriesTitle ?? item.title)
+                Text(UpcomingDay.title(item))
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(Color.screen.opacity(0.9))
-                Text(secondLine)
+                Text(UpcomingDay.detail(item))
                     .font(.caption)
                     .foregroundStyle(Color.usher)
             }
@@ -485,30 +485,5 @@ private struct ComingSoonCard: View {
         }
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
-    }
-
-    /// The episode ("S01E03 Title"), a book's author, or how a film comes out ("In cinemas").
-    private var secondLine: String {
-        switch item.kind {
-        case .episode:
-            String(format: "S%02dE%02d ", item.seasonNumber ?? 0, item.episodeNumber ?? 0) + item.title
-        case .audiobook:
-            item.seriesTitle ?? item.when
-        default:
-            item.when
-        }
-    }
-
-    /// "Tonight", "Tomorrow", "Friday" within a week, otherwise "Fri 7 Nov", as on the web.
-    static func day(_ date: Date, now: Date = .now) -> String {
-        let calendar = Calendar.current
-        let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: now), to: calendar.startOfDay(for: date)).day ?? 0
-        switch days {
-        case 0: return calendar.component(.hour, from: date) >= 17 ? "Tonight" : "Today"
-        case 1: return "Tomorrow"
-        case -1: return "Yesterday"
-        case 2..<7: return date.formatted(.dateTime.weekday(.wide))
-        default: return date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))
-        }
     }
 }
