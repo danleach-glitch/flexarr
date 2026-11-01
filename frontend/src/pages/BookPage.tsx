@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from 'react'
+import { memo, use, useState, type CSSProperties } from 'react'
 import { Link, useNavigate } from 'react-router'
 import {
   deleteBookmark,
@@ -24,7 +24,7 @@ import { Bookmark as BookmarkIcon, Check, Pause, Play } from '../components/icon
 import type { MenuAction } from '../components/ItemMenu'
 import { Overview } from '../components/Overview'
 import { Row } from '../components/Row'
-import { useAudioPlayer, useAudioTime } from '../hooks/audioPlayerContext'
+import { AudioTimeContext, useAudioPlayer } from '../hooks/audioPlayerContext'
 import { announceBookmarks, useBookmarkChanges } from '../hooks/bookmarks'
 import { useSession } from '../hooks/sessionContext'
 import { useApi } from '../hooks/useApi'
@@ -37,8 +37,8 @@ import { MoreButton } from './MusicPages'
  * A book's page: cover, title, its series and people, how long it is and how long is left at the speed it plays at,
  * its chapters (with where you are), bookmarks, and more from its series, author and narrator.
  *
- * Only the parts that show where the book has got to follow the player's time, so the page itself doesn't redraw
- * every second while it plays.
+ * Only the parts that show where the book has got to follow the player's time, and only while this book is the one
+ * playing, so the page itself doesn't redraw every second while it (or anything else) plays.
  */
 export function BookPage({ detail, onChange }: { detail: ItemDetail; onChange: () => void }) {
   const { item } = detail
@@ -207,10 +207,12 @@ interface Place {
   saved: number
 }
 
-/** Where the book has got to: the player's time while it plays, else where it was left. */
+/**
+ * Where the book has got to: the player's time while it plays, else where it was left. The time is only read (`use`
+ * may be skipped) while this book is playing, so another book or a song playing doesn't redraw the page each second.
+ */
 function usePosition({ playing, saved }: Place) {
-  const time = useAudioTime()
-  return playing ? time : saved
+  return playing ? use(AudioTimeContext) : saved
 }
 
 function Facts({ place, year, duration, finished, speed, abridged }: { place: Place; year: number | null; duration: number; finished: boolean; speed: number; abridged: boolean }) {
@@ -259,6 +261,10 @@ function Listened({ place, duration }: { place: Place; duration: number }) {
   )
 }
 
+/**
+ * The chapter list. Only the chapter playing and whether it's been passed follow the time, so the list itself redraws
+ * when the chapter changes; the bar in the chapter playing (`ChapterBar`) follows each second.
+ */
 function Chapters({
   chapters,
   place,
@@ -273,12 +279,37 @@ function Chapters({
   onPlay: (at: number) => void
 }) {
   const position = usePosition(place)
-  const current = chapterIndexAt(chapters, position)
+  const current = position > 0 ? chapterIndexAt(chapters, position) : -1
+  const end = chapters[current]?.endSeconds ?? 0
+  const currentDone = end > 0 && position >= end
+  return <ChapterList chapters={chapters} place={place} current={current} currentDone={currentDone} sounding={sounding} duration={duration} onPlay={onPlay} />
+}
+
+const ChapterList = memo(function ChapterList({
+  chapters,
+  place,
+  current,
+  currentDone,
+  sounding,
+  duration,
+  onPlay,
+}: {
+  chapters: BookChapter[]
+  place: Place
+  /** The chapter the place is in, or -1 before the book's begun. */
+  current: number
+  /** The place is past the current chapter's end (a gap before the next). */
+  currentDone: boolean
+  sounding: boolean
+  duration: number
+  onPlay: (at: number) => void
+}) {
   return (
     <ol className="tracklist">
       {chapters.map((chapter, i) => {
-        const done = position >= chapter.endSeconds && chapter.endSeconds > 0
-        const here = i === current && position > 0
+        // Chapters before the one playing are behind the place; the one playing only once the place is past its end.
+        const done = chapter.endSeconds > 0 && (i < current || (i === current && currentDone))
+        const here = i === current
         return (
           <li key={chapter.index}>
             <div className="track-row">
@@ -286,7 +317,7 @@ function Chapters({
                 <span className="track-number">{here && sounding ? <Play /> : done ? <Check aria-label="Heard" /> : i + 1}</span>
                 <span className="track-title">
                   {chapter.title}
-                  {here && <span className="chapter-progress" style={{ width: `${chapterProgress(chapters, i, position, duration) * 100}%` }} />}
+                  {here && <ChapterBar chapters={chapters} index={i} place={place} duration={duration} />}
                 </span>
                 <span className="track-time">{formatClock(chapter.endSeconds - chapter.startSeconds)}</span>
               </button>
@@ -296,6 +327,12 @@ function Chapters({
       })}
     </ol>
   )
+})
+
+/** How far into the chapter playing the place is: the one part of the list that follows the time each second. */
+function ChapterBar({ chapters, index, place, duration }: { chapters: BookChapter[]; index: number; place: Place; duration: number }) {
+  const position = usePosition(place)
+  return <span className="chapter-progress" style={{ width: `${chapterProgress(chapters, index, position, duration) * 100}%` }} />
 }
 
 function People({ label, people }: { label: string; people: Credit[] }) {
