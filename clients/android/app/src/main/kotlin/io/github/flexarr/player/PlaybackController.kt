@@ -900,7 +900,8 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
 
     private fun savePreferences() {
         if (!model.recordsHistory) return
-        val saved = preferences
+        // Settings' own switch isn't the player's to send: what it got at the start may be stale by now.
+        val saved = preferences.copy(listeningInContinue = null)
         scope.launch { runCatching { client.setPlaybackPreferences(saved) } }
     }
 
