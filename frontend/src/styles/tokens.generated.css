@@ -1,0 +1,38 @@
+/* Generated from design/tokens.json by `make tokens`. Don't edit; change the JSON. */
+:root {
+  /* Base background: a dim, plum-tinted screening room */
+  --room: #1b1720;
+  /* Raised surfaces: panels, menus, inputs */
+  --seat: #25202c;
+  /* A surface on a surface: a menu over a panel */
+  --seat-raised: #2e2836;
+  /* Hairlines and inactive controls */
+  --aisle: #3a3343;
+  /* Primary text: warm projected white */
+  --screen: #f2eee7;
+  /* Secondary text */
+  --usher: #a39aae;
+  /* Fallback accent when a title has no ambient colour */
+  --silver: #a9c2ec;
+  /* Connected, on, set up, downloaded, in the library */
+  --go: #7fd1a0;
+  /* Destructive actions and error messages, never decoration */
+  --danger: #f08a7e;
+  /* The live and recording dot on Live TV, nothing else */
+  --record: #e5484d;
+  /* Inside text fields and menus, below the panel */
+  --well: #141118;
+  --radius-art: 4px;
+  --radius-control: 10px;
+  --radius-panel: 14px;
+  --main-button-mix: 68%;
+  --step--1: 0.8rem;
+  --step-0: 1rem;
+  --step-1: 1.25rem;
+  --step-2: 1.5625rem;
+  --step-3: 1.9531rem;
+  --step-4: 2.4414rem;
+  --step-5: 3.0518rem;
+  --step-6: 3.8147rem;
+  --step-7: 4.7684rem;
+}

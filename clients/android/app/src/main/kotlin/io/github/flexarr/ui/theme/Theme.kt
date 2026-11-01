@@ -22,18 +22,18 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 
-// Tokens from docs/design.md, as the Apple apps' Colors.swift. The room is a dim plum, never pure black, and the only
+// Tokens from design/tokens.json (Tokens.kt, `make tokens`), as the Apple apps' Colors.swift. The room is a dim plum, never pure black, and the only
 // loud colour on screen is each title's own ambient colour.
 object Flexarr {
-    val room = Color(0xFF1B1720)
-    val seat = Color(0xFF25202C)
-    val aisle = Color(0xFF3A3343)
-    val screen = Color(0xFFF2EEE7)
-    val usher = Color(0xFFA39AAE)
+    val room = Tokens.room
+    val seat = Tokens.seat
+    val aisle = Tokens.aisle
+    val screen = Tokens.screen
+    val usher = Tokens.usher
     /** Fallback accent when a title has no ambient colour. */
-    val silver = Color(0xFFA9C2EC)
+    val silver = Tokens.silver
     /** Errors: a soft coral that reads on the room without shouting. */
-    val danger = Color(0xFFF08A7E)
+    val danger = Tokens.danger
     /** On the phone, or a good match: the one green. */
     val downloaded = Color(0xFF6FCF97)
     /** Ready to watch: Discover's badge on a poster the library has. */

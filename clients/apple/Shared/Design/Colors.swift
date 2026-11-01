@@ -1,17 +1,9 @@
 import FlexarrKit
 import SwiftUI
 
-// Tokens from docs/design.md. The room is a dim plum, never pure black, and the only
+// The tokens themselves are in Tokens.swift (generated from design/tokens.json). The room is a dim plum, never pure black, and the only
 // loud colour on screen is each title's own ambient colour.
 extension Color {
-    static let room = Color(rgb: RGB(hex: "#1B1720")!)
-    static let seat = Color(rgb: RGB(hex: "#25202C")!)
-    static let aisle = Color(rgb: RGB(hex: "#3A3343")!)
-    static let screen = Color(rgb: RGB(hex: "#F2EEE7")!)
-    static let usher = Color(rgb: RGB(hex: "#A39AAE")!)
-    static let silver = Color(rgb: .silver)
-    /// Errors, as the web app's `--danger`: a soft coral that reads on the room without shouting.
-    static let danger = Color(rgb: RGB(hex: "#F08A7E")!)
     /// Downloaded, wherever it's shown: a calm green that reads on the room, with the room's own colour for a glyph on it.
     static let downloaded = Color(rgb: RGB(hex: "#6FCF97")!)
     /// In the library, on Discover's posters: a warm marquee gold, with the room's own colour for a glyph on it. Not

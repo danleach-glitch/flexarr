@@ -1,4 +1,4 @@
-.PHONY: tunnel tunnel-test tunnel-apple tunnel-android guide apps apple-install ios-install ios-upload ios-dsyms tv-upload mac-upload android-bundle android-upload android-listing setup dev-api dev-web test test-api test-web test-apple build apple docker deploy logs
+.PHONY: tunnel tunnel-test tunnel-apple tunnel-android guide apps tokens apple-install ios-install ios-upload ios-dsyms tv-upload mac-upload android-bundle android-upload android-listing setup dev-api dev-web test test-api test-web test-apple build apple docker deploy logs
 
 export DOTNET_CLI_TELEMETRY_OPTOUT := 1
 
@@ -119,6 +119,9 @@ ios-dsyms: ## Upload the last iOS archive's debug symbols to Sentry
 
 guide: ## Build flexarr.io/guide (site/guide) from docs/guide
 	cd scripts/guide && npm ci --silent && node build.mjs
+
+tokens: ## Write design/tokens.json out as the web's CSS, Swift and Kotlin
+	python3 scripts/design/tokens.py
 
 apps: ## Build flexarr.io/apps (site/apps.html) from site/apps.json
 	node scripts/apps/build.mjs
