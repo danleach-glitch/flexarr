@@ -92,14 +92,12 @@ export function ListeningSection() {
             )}
             {playback.data && <ContinueWatching loaded={playback.data} />}
           </SettingsGroup>
-          <SettingsGroup title="Phones and tablets" note="Notifications for new episodes are in each phone’s Settings.">
-            <ToggleRow
-              label="Download new episodes"
-              help="On Wi-Fi, by themselves, for every show you follow."
-              checked={p.autoDownload}
-              onChange={(autoDownload) => void save({ autoDownload })}
-            />
-            <SettingRow label="Episodes to keep" help="Of each show, the newest you haven’t played.">
+          <SettingsGroup
+            title="Phones and tablets"
+            note="On Wi-Fi, the newest unplayed episodes of every show you follow. Played ones are deleted. Notifications for new episodes are in each phone’s Settings."
+          >
+            <ToggleRow label="Download new episodes" checked={p.autoDownload} onChange={(autoDownload) => void save({ autoDownload })} />
+            <SettingRow label="Episodes to keep">
               <select value={p.keepEpisodes} disabled={!p.autoDownload} onChange={(e) => void save({ keepEpisodes: Number(e.target.value) })}>
                 {withCurrent([1, 2, 3, 5, 10], p.keepEpisodes).map((n) => (
                   <option key={n} value={n}>
