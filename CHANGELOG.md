@@ -17,7 +17,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Kids profiles don't see audiobooks. Audible-protected `.aax` files are listed in **Library health**, as they can't be played.
 
 ### Home
-- **Continue watching or listening**: books and podcast episodes you're part way through now sit in the same row as your films and shows. To keep them apart, turn off **Books and podcasts in Continue watching** in your profile's settings in any app.
+- **Continue watching or listening**: books and podcast episodes you're part way through now sit in the same row as your films and shows, on the web, iPhone, iPad and Android (books only on the Apple TV). To keep them apart, turn off **Books and podcasts in Continue watching** in **Settings › Playback**.
 
 ### Libraries
 - Replacing a `cover.jpg` or `poster.jpg` beside your files now shows the new picture in every app after the next scan, instead of the old one staying.
