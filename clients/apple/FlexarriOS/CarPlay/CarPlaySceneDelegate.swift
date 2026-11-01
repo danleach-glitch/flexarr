@@ -108,7 +108,7 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         }
         if let client, !libraries.isEmpty {
             let rows = libraries.map { library in
-                let row = CPListItem(text: library.name, detailText: nil, image: UIImage(systemName: "books.vertical.fill"))
+                let row = CPListItem(text: library.name, detailText: nil, image: UIImage(systemName: "book.fill"))
                 row.accessoryType = .disclosureIndicator
                 row.handler = { [weak self] _, completion in
                     Task { @MainActor in

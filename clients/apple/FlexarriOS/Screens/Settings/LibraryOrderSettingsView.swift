@@ -30,7 +30,7 @@ enum LibraryMenuEntry: Identifiable, Hashable {
             switch library.type {
             case .tvShows: "tv"
             case .music: "music.note"
-            case .audiobooks: "headphones"
+            case .audiobooks: "book"
             case .homeVideos: "folder"
             default: "film"
             }
