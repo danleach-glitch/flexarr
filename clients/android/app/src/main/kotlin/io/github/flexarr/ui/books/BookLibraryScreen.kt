@@ -473,7 +473,8 @@ private fun AuthorsGrid(model: AppModel, libraryId: String) {
 @Composable
 private fun GenreList(model: AppModel, libraryId: String, openGenre: (String) -> Unit) {
     val client = model.client ?: return
-    val loader = rememberLoader(libraryId, model.watchStateVersion) { client.bookGenres(libraryId) }
+    // Counts don't change with what's been listened to, so only the library keys it (pull to refresh is there).
+    val loader = rememberLoader(libraryId) { client.bookGenres(libraryId) }
     Loaded(loader) { genres: List<GenreCount> ->
         if (genres.isEmpty()) return@Loaded StatusView("No genres yet.", empty = true)
         PullToRefreshBox(isRefreshing = loader.refreshing, onRefresh = loader.retry) {
