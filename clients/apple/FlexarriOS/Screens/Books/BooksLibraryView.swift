@@ -194,7 +194,6 @@ struct BooksLibraryView: View {
                 }
             }
             peopleRow("Authors", shelves.authors) { browse.browse = .authors }
-            peopleRow("Narrators", shelves.narrators) { browse.browse = .narrators }
             if !shelves.genres.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
                     SectionHeading(title: "Genres")

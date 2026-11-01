@@ -100,13 +100,6 @@ function Shelves({ library }: { library: Library }) {
           ))}
         </Row>
       )}
-      {data.narrators.length > 0 && (
-        <Row title="Narrators" link={`/library/${library.id}?view=narrators`} style="people">
-          {data.narrators.map((p) => (
-            <BookPersonCard key={p.id} person={p} />
-          ))}
-        </Row>
-      )}
       {data.genres.length > 0 && (
         <section className="book-genres">
           <h2>Genres</h2>

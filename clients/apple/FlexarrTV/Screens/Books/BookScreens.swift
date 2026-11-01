@@ -90,7 +90,6 @@ struct BooksLibraryView: View {
                         }
                     }
                     peopleRow("Authors", shelves.authors)
-                    peopleRow("Narrators", shelves.narrators)
                     bookRow("Finished", shelves.finished)
                 } else if let error {
                     StatusView(state: .failed(error) { Task { await load() } }).frame(height: 500)

@@ -167,7 +167,6 @@ private fun Shelves(model: AppModel, libraryId: String, openGenre: (String) -> U
                     }
                 }
                 peopleShelf("Authors", shelves.authors)
-                peopleShelf("Narrators", shelves.narrators)
                 if (shelves.genres.isNotEmpty()) item("genres") {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         SectionHeading("Genres")
