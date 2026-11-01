@@ -136,7 +136,7 @@ public static partial class PlaybackEndpoints
 
             // A book keeps its own speed, even 1× when the profile's default for books is something else.
             var bookDefault = item.Kind == MediaKind.Audiobook
-                ? await db.Profiles.Where(p => p.Id == profile.Id).Select(p => (double?)p.AudiobookSpeed).FirstOrDefaultAsync(ct) ?? 1
+                ? Flexarr.Api.Books.BookPlayback.SpeedOrDefault(await db.Profiles.Where(p => p.Id == profile.Id).Select(p => (double?)p.AudiobookSpeed).FirstOrDefaultAsync(ct) ?? 1)
                 : 1;
             var series = item.Kind switch
             {

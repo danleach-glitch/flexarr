@@ -250,6 +250,38 @@ public class AudiobookPlaybackTests(FlexarrApiFactory factory) : IClassFixture<F
         await Client().PutAsJsonAsync(Url("/api/v1/books/listening"), new { speed = 1.0, skipBackSeconds = 30 });
     }
 
+    [Fact]
+    public async Task AProfileWithNoListeningSettings_ListensAt1x_WithThirtySecondSkips()
+    {
+        var book = await SeedAsync(("book.m4b", "aac", 3600));
+        await SetOwnersListeningAsync(speed: 0, skip: 0);
+        try
+        {
+            Assert.Equal(new BookListeningDto(1, 30, 30, true), await GetAsync<BookListeningDto>("/api/v1/books/listening"));
+            var manifest = await GetAsync<BookManifestDto>($"/api/v1/items/{book}/book");
+            Assert.Equal(1, manifest.Speed);
+            Assert.Equal(new BookListeningDto(1, 30, 30, true), manifest.Listening);
+
+            // 1× is the default, so the book doesn't keep it as its own.
+            (await Client().PutAsJsonAsync(Url($"/api/v1/items/{book}/playback-speed"), new { speed = 1.0 })).EnsureSuccessStatusCode();
+            using var scope = factory.Services.CreateScope();
+            Assert.False(await scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().ShowPlaybackSpeeds.AnyAsync(s => s.SeriesId == book));
+        }
+        finally
+        {
+            await SetOwnersListeningAsync(speed: 1, skip: 30);
+        }
+    }
+
+    private async Task SetOwnersListeningAsync(double speed, int skip)
+    {
+        using var scope = factory.Services.CreateScope();
+        await scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().Profiles.Where(p => p.Id == "owner").ExecuteUpdateAsync(p => p
+            .SetProperty(x => x.AudiobookSpeed, speed)
+            .SetProperty(x => x.AudiobookSkipBackSeconds, skip)
+            .SetProperty(x => x.AudiobookSkipForwardSeconds, skip));
+    }
+
     [Theory]
     [InlineData(4.0, null)]
     [InlineData(null, 20)]
