@@ -469,6 +469,55 @@ public class AudiobookArrTests(FlexarrApiFactory factory) : IClassFixture<Flexar
         Assert.Equal(book, forMain.EnumerateArray().Single(u => u.GetProperty("title").GetString() == "Hidden Away").GetProperty("libraryItemId").GetGuid());
     }
 
+    [Fact]
+    public async Task BookRequests_AreOffUntilSwitchedOn()
+    {
+        await LibraryAsync();
+        var arr = new FakeArr();
+        arr.Responses["GET //bookshelf.test/api/v1/book/lookup?term=osman"] = "[]";
+
+        using (var off = arr.Serve(factory, bookshelf: true, bookRequests: false))
+        {
+            var client = Client(off.CreateClient());
+            var status = await client.GetFromJsonAsync<JsonElement>(new Uri("/api/v1/requests/status", UriKind.Relative));
+            var search = await client.GetAsync(new Uri("/api/v1/requests/books/search?q=osman", UriKind.Relative));
+
+            Assert.False(status.GetProperty("books").GetBoolean());
+            Assert.Equal(HttpStatusCode.Conflict, search.StatusCode);
+            Assert.Contains("Settings › Libraries", (await search.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("detail").GetString(), StringComparison.Ordinal);
+        }
+
+        using var on = arr.Serve(factory, bookshelf: true);
+        var onStatus = await Client(on.CreateClient()).GetFromJsonAsync<JsonElement>(new Uri("/api/v1/requests/status", UriKind.Relative));
+        Assert.True(onStatus.GetProperty("books").GetBoolean());
+    }
+
+    [Fact]
+    public async Task ASearchTheAppCantAnswer_SaysSoPlainly()
+    {
+        await LibraryAsync();
+        var arr = new FakeArr(); // every lookup a 404, as an app whose Goodreads search fails
+        using var app = arr.Serve(factory, bookshelf: true);
+
+        var search = await Client(app.CreateClient()).GetAsync(new Uri("/api/v1/requests/books/search?q=zzqq", UriKind.Relative));
+
+        Assert.Equal(HttpStatusCode.BadGateway, search.StatusCode);
+        Assert.Equal("Bookshelf couldn't search for books.", (await search.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("detail").GetString());
+    }
+
+    [Fact]
+    public async Task AnIsbn_IsLookedUpAsOne()
+    {
+        await LibraryAsync();
+        var arr = new FakeArr();
+        arr.Responses["GET //bookshelf.test/api/v1/book/lookup?term=isbn%3A9780241988299"] = """[{"foreignBookId": "gr:1", "title": "The Thursday Murder Club"}]""";
+        using var app = arr.Serve(factory, bookshelf: true);
+
+        var found = await Client(app.CreateClient()).GetFromJsonAsync<JsonElement>(new Uri("/api/v1/requests/books/search?q=978-0241988299", UriKind.Relative));
+
+        Assert.Equal("The Thursday Murder Club", found.EnumerateArray().Single().GetProperty("title").GetString());
+    }
+
     [Theory]
     [InlineData("{}")] // an add that says nothing of what it added
     [InlineData("<html>Sign in</html>")] // a proxy's page

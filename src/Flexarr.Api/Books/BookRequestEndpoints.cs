@@ -37,10 +37,12 @@ public sealed record ArrChoiceDto(int Id, string Name);
 public sealed record ArrRootFolderDto(string Path, Guid? LibraryId);
 
 /// <summary>Where requested books go: the app, its profiles and folders, and what's chosen.</summary>
+/// <param name="Enabled">Book requests are switched on (a preview). Absent from servers before 0.58.</param>
 public sealed record BookRequestSetupDto(bool Configured, string? Instance, IReadOnlyList<ArrChoiceDto> QualityProfiles, IReadOnlyList<ArrChoiceDto> MetadataProfiles,
-    IReadOnlyList<ArrRootFolderDto> RootFolders, int? QualityProfileId, int? MetadataProfileId, string? RootFolderPath);
+    IReadOnlyList<ArrRootFolderDto> RootFolders, int? QualityProfileId, int? MetadataProfileId, string? RootFolderPath, bool Enabled = false);
 
-public sealed record BookRequestSetupRequest(int? QualityProfileId, int? MetadataProfileId, string? RootFolderPath, string? Instance = null);
+/// <param name="Enabled">Switches book requests on or off; left out, as they were.</param>
+public sealed record BookRequestSetupRequest(int? QualityProfileId, int? MetadataProfileId, string? RootFolderPath, string? Instance = null, bool? Enabled = null);
 
 public sealed record BookRequestLibraryRequest(Guid? LibraryId);
 
@@ -54,7 +56,8 @@ public static class BookRequestEndpoints
     {
         var group = api.MapGroup("/requests/books").WithTags("Requests").NotForAgeLimited();
 
-        group.MapGet("/search", async (string q, IOptionsMonitor<FlexarrOptions> options, ArrClient arr, FlexarrDbContext db, CancellationToken ct) =>
+        group.MapGet("/search", async (string q, IOptionsMonitor<FlexarrOptions> options, ArrClient arr, Flexarr.Metadata.Books.BookProviders providers, FlexarrDbContext db,
+            CancellationToken ct) =>
         {
             if (await RefusedAsync(db, options.CurrentValue, ct) is { } refused)
             {
@@ -65,11 +68,12 @@ public static class BookRequestEndpoints
             JsonArray found;
             try
             {
-                found = await arr.LookupBooksRawAsync(instance, q.Trim(), ct);
+                found = await LookupAsync(arr, providers, instance, q, ct);
             }
             catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException && !ct.IsCancellationRequested)
             {
-                return Results.Problem($"{instance.Name} didn't answer the search.", statusCode: 502);
+                // Bookshelf's title search often fails upstream (Goodreads): its words, not Flexarr's, would mean nothing here.
+                return Results.Problem($"{instance.Name} couldn't search for books.", statusCode: 502);
             }
 
             var books = found.OfType<JsonObject>().Where(b => Text(b, "foreignBookId") is not null).Take(20).ToList();
@@ -96,7 +100,8 @@ public static class BookRequestEndpoints
             }).ToList());
         });
 
-        group.MapPost("/", async (BookRequestRequest request, IOptionsMonitor<FlexarrOptions> options, ArrClient arr, FlexarrDbContext db, CurrentProfile current, CancellationToken ct) =>
+        group.MapPost("/", async (BookRequestRequest request, IOptionsMonitor<FlexarrOptions> options, ArrClient arr, Flexarr.Metadata.Books.BookProviders providers,
+            FlexarrDbContext db, CurrentProfile current, CancellationToken ct) =>
         {
             if (await RefusedAsync(db, options.CurrentValue, ct) is { } refused)
             {
@@ -107,8 +112,17 @@ public static class BookRequestEndpoints
             var instance = Instance(settings)!;
             try
             {
-                var book = (await arr.LookupBooksRawAsync(instance, request.Query.Trim(), ct)).OfType<JsonObject>()
-                    .FirstOrDefault(b => Text(b, "foreignBookId") == request.ForeignBookId);
+                JsonArray again;
+                try
+                {
+                    again = await LookupAsync(arr, providers, instance, request.Query, ct);
+                }
+                catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException && !ct.IsCancellationRequested)
+                {
+                    return Results.Problem($"{instance.Name} couldn't search for books.", statusCode: 502);
+                }
+
+                var book = again.OfType<JsonObject>().FirstOrDefault(b => Text(b, "foreignBookId") == request.ForeignBookId);
                 if (book is null)
                 {
                     return Results.Problem("That book can't be found any more. Search again.", statusCode: 409);
@@ -176,6 +190,7 @@ public static class BookRequestEndpoints
                 ["qualityProfileId"] = request.QualityProfileId,
                 ["metadataProfileId"] = request.MetadataProfileId,
                 ["rootFolderPath"] = request.RootFolderPath,
+                ["enabled"] = request.Enabled ?? options.CurrentValue.BookRequests.Enabled,
             }, ct: ct);
             return Results.Ok(await SetupAsync(options.CurrentValue, arr, db, ct));
         });
@@ -214,9 +229,43 @@ public static class BookRequestEndpoints
             return Results.Problem("This profile can't request audiobooks.", statusCode: 403);
         }
 
-        return Instance(options) is null
-            ? Results.Problem("Requests for books need Readarr, Bookshelf or Chaptarr. Add one under Settings › Connections.", statusCode: 409)
-            : null;
+        if (Instance(options) is null)
+        {
+            return Results.Problem("Requests for books need Readarr, Bookshelf or Chaptarr. Add one under Settings › Connections.", statusCode: 409);
+        }
+
+        return options.BookRequests.Enabled ? null
+            : Results.Problem("Book requests are a preview. Switch them on in Settings › Libraries.", statusCode: 409);
+    }
+
+    /// <summary>
+    /// The app's books for a search: by ISBN first (typed, or the first two the book providers know for the words),
+    /// which Bookshelf answers from its own data, then by the words, which it sends on to Goodreads and may not answer.
+    /// A request runs the same search again, so it finds the same book.
+    /// </summary>
+    private static async Task<JsonArray> LookupAsync(ArrClient arr, Flexarr.Metadata.Books.BookProviders providers, ArrInstance instance, string query, CancellationToken ct)
+    {
+        var words = query.Trim();
+        var digits = new string([.. words.Where(c => char.IsDigit(c) || c is 'X' or 'x')]);
+        var typedIsbn = digits.Length is 10 or 13 && words.All(c => char.IsDigit(c) || c is '-' or ' ' or 'X' or 'x');
+        var isbns = typedIsbn ? [digits]
+            : (await providers.SearchAsync(words, null, ct)).Select(m => m.Isbn).OfType<string>().Where(i => i.Length is 10 or 13).Distinct().Take(2).ToList();
+        foreach (var isbn in isbns)
+        {
+            try
+            {
+                if (await arr.LookupBooksRawAsync(instance, $"isbn:{isbn}", ct) is { Count: > 0 } byIsbn)
+                {
+                    return byIsbn;
+                }
+            }
+            catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException && !ct.IsCancellationRequested)
+            {
+                // Not every app takes isbn: searches; the words still might work.
+            }
+        }
+
+        return await arr.LookupBooksRawAsync(instance, words, ct);
     }
 
     public static ArrInstance? Instance(FlexarrOptions options)
@@ -278,7 +327,7 @@ public static class BookRequestEndpoints
         var chosen = options.BookRequests;
         if (Instance(options) is not { } instance)
         {
-            return new BookRequestSetupDto(false, null, [], [], [], null, null, null);
+            return new BookRequestSetupDto(false, null, [], [], [], null, null, null, chosen.Enabled);
         }
 
         try
@@ -291,11 +340,11 @@ public static class BookRequestEndpoints
                 .Select(p => new ArrRootFolderDto(p, folders.FirstOrDefault(f => PathComparison.Key(f.Path) == PathComparison.Key(PathMapper.Map(p, options.PathMappings)))?.LibraryId))
                 .ToList();
             return new BookRequestSetupDto(true, instance.Name, Choices(await arr.GetListAsync(instance, "qualityprofile", ct)),
-                Choices(await arr.GetListAsync(instance, "metadataprofile", ct)), roots, chosen.QualityProfileId, chosen.MetadataProfileId, chosen.RootFolderPath);
+                Choices(await arr.GetListAsync(instance, "metadataprofile", ct)), roots, chosen.QualityProfileId, chosen.MetadataProfileId, chosen.RootFolderPath, chosen.Enabled);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException && !ct.IsCancellationRequested)
         {
-            return new BookRequestSetupDto(true, instance.Name, [], [], [], chosen.QualityProfileId, chosen.MetadataProfileId, chosen.RootFolderPath);
+            return new BookRequestSetupDto(true, instance.Name, [], [], [], chosen.QualityProfileId, chosen.MetadataProfileId, chosen.RootFolderPath, chosen.Enabled);
         }
     }
 
