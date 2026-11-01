@@ -124,8 +124,12 @@ public struct FlexarrClient: Sendable {
         try await get("libraries/\(libraryId)/genres")
     }
 
-    public func home() async throws -> Home {
-        try await get("home")
+    /// Home. `listening` is what this app can play from the Continue watching row besides films and episodes: with
+    /// it, a profile that has them there gets its books and podcast episodes in progress in that row (servers before
+    /// 0.58 ignore it).
+    public func home(listening: [ContinueListeningKind] = []) async throws -> Home {
+        guard !listening.isEmpty else { return try await get("home") }
+        return try await get("home", query: [.init(name: "listening", value: listening.map(\.rawValue).joined(separator: ","))])
     }
 
     /// A library's own home page: a hero and rows of just its titles (no hero for music).
