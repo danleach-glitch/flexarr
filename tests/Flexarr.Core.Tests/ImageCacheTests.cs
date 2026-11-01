@@ -59,6 +59,16 @@ public class ImageCacheTests
     public void Redirects_AreOnlyFollowedToHttpsOnTheSameSite(string from, string to, bool followed) =>
         Assert.Equal(followed, ImageCache.SameSite(new Uri(from), new Uri(to)));
 
+    [Theory]
+    [InlineData("https://covers.openlibrary.org/a/olid/OL1A-L.jpg", "https://archive.org/download/x/1-L.jpg", true)]
+    [InlineData("https://covers.openlibrary.org/b/id/1-L.jpg", "https://ia800100.us.archive.org/view_archive.php?file=1-L.jpg", true)]
+    [InlineData("https://covers.openlibrary.org/b/id/1-L.jpg", "http://archive.org/download/x/1-L.jpg", false)]
+    [InlineData("https://covers.openlibrary.org/b/id/1-L.jpg", "https://evil.example/1-L.jpg", false)]
+    [InlineData("https://image.tmdb.org/t/p/w500/a.jpg", "https://archive.org/download/x/a.jpg", false)]
+    [InlineData("https://openlibrary.org/a.jpg", "https://archive.org/download/x/a.jpg", false)]
+    public void OpenLibraryCovers_MayGoToTheInternetArchive_AndNowhereElse(string from, string to, bool followed) =>
+        Assert.Equal(followed, ImageCache.MayFollow(new Uri(from), new Uri(to)));
+
     [Fact]
     public void Trim_RemovesTheLeastRecentlyUsed_UntilUnderTheCap()
     {

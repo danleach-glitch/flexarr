@@ -477,7 +477,8 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
 
     /// <summary>
     /// Fetches at most <see cref="MaxDownloadBytes"/>, following redirects by hand: only to https on the same site
-    /// (thetvdb.com to artworks.thetvdb.com, say), so an artwork host can't point the server anywhere else.
+    /// (thetvdb.com to artworks.thetvdb.com, say), or where a known host keeps its pictures (<see cref="KnownRedirects"/>),
+    /// so an artwork host can't point the server anywhere else.
     /// </summary>
     private async Task<bool> DownloadAsync(Uri uri, string remoteUrl, string path, Job job, CancellationToken cancel)
     {
@@ -490,7 +491,7 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
             if ((int)response.StatusCode is >= 300 and < 400 && response.Headers.Location is { } location)
             {
                 var next = location.IsAbsoluteUri ? location : new Uri(uri, location);
-                if (hops >= MaxRedirects || !SameSite(uri, next))
+                if (hops >= MaxRedirects || !MayFollow(uri, next))
                 {
                     LogRedirectRefused(remoteUrl, next.ToString());
                     job.RetryAfter = GoneFor;
@@ -549,8 +550,21 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
     }
 
     internal static bool SameSite(Uri from, Uri to) =>
-        to.Scheme == Uri.UriSchemeHttps && to.HostNameType == UriHostNameType.Dns && to.IsDefaultPort
-        && string.Equals(Site(from.Host), Site(to.Host), StringComparison.OrdinalIgnoreCase);
+        PlainHttps(to) && string.Equals(Site(from.Host), Site(to.Host), StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Artwork hosts that hand every picture to another site: Open Library's covers (books' and authors') live on the
+    /// Internet Archive, and covers.openlibrary.org only redirects there.
+    /// </summary>
+    private static readonly (string From, string ToSite)[] KnownRedirects = [("covers.openlibrary.org", "archive.org")];
+
+    /// <summary>Whether a redirect is followed: to https on the same site, or from a known host to where it keeps its pictures.</summary>
+    internal static bool MayFollow(Uri from, Uri to) =>
+        SameSite(from, to)
+        || (PlainHttps(to) && KnownRedirects.Any(r => string.Equals(from.Host, r.From, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(Site(to.Host), r.ToSite, StringComparison.OrdinalIgnoreCase)));
+
+    private static bool PlainHttps(Uri to) => to.Scheme == Uri.UriSchemeHttps && to.HostNameType == UriHostNameType.Dns && to.IsDefaultPort;
 
     /// <summary>The last two labels of a host name: "artworks.thetvdb.com" is on "thetvdb.com".</summary>
     private static string Site(string host)
