@@ -559,12 +559,24 @@
 
 /* ---------- Edit a book ---------- */
 
+/* The fields scroll between the title and the actions, so Save is always in view. */
 .book-editor {
   width: min(680px, 100%);
   max-height: 84vh;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.book-editor-body {
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
   display: grid;
   gap: 16px;
+  /* Room for the focus ring, which the scrolling would clip. */
+  margin: -6px;
+  padding: 6px;
 }
 
 .book-editor h2 {
@@ -586,18 +598,33 @@
   max-width: none;
 }
 
+/* The labels are bold; what's typed isn't. */
+.book-editor-fields input,
+.book-editor-fields textarea {
+  font-weight: 400;
+}
+
+.book-editor-fields textarea {
+  padding: 10px 14px;
+  border: 1px solid var(--field-line);
+  border-radius: var(--radius-control);
+  background-color: var(--well);
+  color: var(--screen);
+  resize: vertical;
+}
+
 .book-editor-fields .wide {
   grid-column: 1 / -1;
 }
 
-.book-editor-genres {
+.book-editor-names {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
 }
 
-.book-editor-genres input {
+.book-editor-names input {
   flex: 1;
   min-width: 140px;
 }

@@ -10,13 +10,13 @@ const detail = {
   item: { id: 'b1', title: 'TMC (rip)', year: 2020 },
   overview: 'Four friends.',
   genres: ['Audiobook', 'Mystery'],
-  credits: [{ personId: 'p1', name: 'Richard Osman', role: 'Author', character: null, image: null }],
+  credits: [{ personId: 'p1', name: 'Martin Luther King, Jr.', role: 'Author', character: null, image: null }],
   matchLocked: false,
   book: { subtitle: null, series: [{ id: 's1', name: 'Thursday Murder Club', sequence: '1', bookCount: 1 }] },
 } as unknown as ItemDetail
 
 describe('BookEditor', () => {
-  it('sends the edited details, locked once anything changed', async () => {
+  it('sends the edited details, locked once anything changed, keeping names with commas whole', async () => {
     const sent: unknown[] = []
     mockApi({ 'PUT /items/b1/book-details': (init?: RequestInit) => void sent.push(JSON.parse(String(init?.body))) })
     const onSaved = vi.fn()
@@ -24,7 +24,7 @@ describe('BookEditor', () => {
 
     fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'The Thursday Murder Club' } })
     fireEvent.click(screen.getByRole('button', { name: 'Remove Audiobook' }))
-    fireEvent.change(screen.getByLabelText('Narrators'), { target: { value: 'Lesley Manville, ' } })
+    fireEvent.change(screen.getByLabelText('Add a narrator'), { target: { value: 'Lesley Manville' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() => expect(onSaved).toHaveBeenCalled())
@@ -32,7 +32,7 @@ describe('BookEditor', () => {
       {
         title: 'The Thursday Murder Club',
         subtitle: null,
-        authors: ['Richard Osman'],
+        authors: ['Martin Luther King, Jr.'],
         narrators: ['Lesley Manville'],
         series: [{ name: 'Thursday Murder Club', sequence: '1' }],
         genres: ['Mystery'],
