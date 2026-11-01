@@ -1,5 +1,6 @@
 package io.github.flexarr.audio
 
+import androidx.annotation.OptIn
 import io.github.flexarr.player.mediaSources
 import io.github.flexarr.logging.FlexarrLog
 import android.content.Context
@@ -16,6 +17,7 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import io.github.flexarr.AppModel
 import io.github.flexarr.core.BookPause
@@ -43,6 +45,7 @@ private val flexarrLog = FlexarrLog("podcasts")
  * suggests (Up Next first). The iPhone app's MusicPlayer, as far as podcasts need it. [AudioService] puts its player
  * on the lock screen and in the notification shade.
  */
+@OptIn(UnstableApi::class)
 class PodcastPlayer(private val context: Context, private val model: AppModel) {
     /** [player] has been made (it's made on first use). */
     private var created = false
