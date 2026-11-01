@@ -30,7 +30,8 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         fresh.tabImage = UIImage(systemName: "sparkles")
         podcasts.tabImage = UIImage(systemName: "mic.fill")
         books.tabImage = UIImage(systemName: "book.fill")
-        for list in [upNext, fresh, podcasts, books] { list.emptyViewSubtitleVariants = ["Nothing here yet."] }
+        for list in [upNext, fresh, podcasts] { list.emptyViewSubtitleVariants = ["Nothing here yet."] }
+        books.emptyViewSubtitleVariants = ["No books yet."]
         interfaceController.setRootTemplate(CPTabBarTemplate(templates: [upNext, fresh, podcasts, books]), animated: false, completion: nil)
         setUpNowPlaying()
         Task { await reload() }
