@@ -485,6 +485,15 @@ public sealed class AuthorInfoTests : IAsyncLifetime
         Assert.Equal(2, Asked());
     }
 
+    [Fact]
+    public void ReadarrsAuthors_AreFoundByFoldedName_TheFirstOfANameWinning()
+    {
+        var index = new ReadarrAuthorIndex([new() { Id = "1", AuthorName = "J.R.R. Tolkien" }, new() { Id = "2", AuthorName = "J. R. R. Tolkien" }, new() { Id = "3" }]);
+
+        Assert.Equal("1", index.Find("j r r tolkien")?.Id);
+        Assert.Null(index.Find("Christopher Tolkien"));
+    }
+
     private sealed class ManualTime : TimeProvider
     {
         public DateTimeOffset Now { get; set; } = DateTimeOffset.UtcNow;

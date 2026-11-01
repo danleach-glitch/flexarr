@@ -42,7 +42,12 @@ public sealed partial class AuthorInfo(FlexarrDbContext db, ArrClient arr, IMeta
     /// Pratchett"; with several, it's no telling whose it is), and <paramref name="knownAsins"/> the authors'
     /// ASINs an online match listed.
     /// </summary>
-    public async Task FillBookAsync(MediaItem book, IReadOnlyList<ReadarrAuthor> readarr, ReadarrAuthor? matched, IReadOnlyCollection<string> knownAsins, CancellationToken ct)
+    public Task FillBookAsync(MediaItem book, IReadOnlyList<ReadarrAuthor> readarr, ReadarrAuthor? matched, IReadOnlyCollection<string> knownAsins, CancellationToken ct) =>
+        FillBookAsync(book, new ReadarrAuthorIndex(readarr), matched, knownAsins, ct);
+
+    /// <inheritdoc cref="FillBookAsync(MediaItem, IReadOnlyList{ReadarrAuthor}, ReadarrAuthor?, IReadOnlyCollection{string}, CancellationToken)"/>
+    /// <remarks>The index is made once a refresh, not once a book.</remarks>
+    public async Task FillBookAsync(MediaItem book, ReadarrAuthorIndex readarr, ReadarrAuthor? matched, IReadOnlyCollection<string> knownAsins, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(book);
         ArgumentNullException.ThrowIfNull(readarr);
@@ -50,8 +55,7 @@ public sealed partial class AuthorInfo(FlexarrDbContext db, ArrClient arr, IMeta
         for (var i = 0; i < authors.Count; i++)
         {
             var person = authors[i];
-            var fromArr = readarr.FirstOrDefault(a => a.AuthorName is { } name && Fold(name) == Fold(person.Name))
-                ?? (authors.Count == 1 ? matched : null);
+            var fromArr = readarr.Find(person.Name) ?? (authors.Count == 1 ? matched : null);
             var standing = await StandingAsync(person, new AuthorBook(book.Title, book.Path, book.LibraryId), ct).ConfigureAwait(false);
             await FillAsync(person, fromArr, knownAsins, standing, force: false, ct).ConfigureAwait(false);
         }
@@ -72,7 +76,7 @@ public sealed partial class AuthorInfo(FlexarrDbContext db, ArrClient arr, IMeta
         }
 
         var readarr = await ReadarrAuthorsAsync(ct).ConfigureAwait(false);
-        var fromArr = readarr.FirstOrDefault(a => a.AuthorName is { } name && Fold(name) == Fold(person.Name));
+        var fromArr = new ReadarrAuthorIndex(readarr).Find(person.Name);
         await FillAsync(person, fromArr, [], standing, force: true, ct).ConfigureAwait(false);
     }
 
@@ -221,7 +225,7 @@ public sealed partial class AuthorInfo(FlexarrDbContext db, ArrClient arr, IMeta
 
         var books = standing.Books;
         Add(PersonSources.Folder, (await FolderPhotoAsync(person.Name, books, ct).ConfigureAwait(false)).Photo, null);
-        if ((await ReadarrAuthorsAsync(ct).ConfigureAwait(false)).FirstOrDefault(a => a.AuthorName is { } name && Fold(name) == Fold(person.Name)) is { } fromArr)
+        if (new ReadarrAuthorIndex(await ReadarrAuthorsAsync(ct).ConfigureAwait(false)).Find(person.Name) is { } fromArr)
         {
             Add(PersonSources.Readarr, OnlinePhoto(ArrPhoto(fromArr.Images), PersonSources.Readarr), Plain(fromArr.Overview));
         }
@@ -572,4 +576,26 @@ public sealed class ReadarrAuthorCache(TimeProvider? time = null)
         _kept[key] = (now, authors);
         return authors;
     }
+}
+
+/// <summary>Readarr's authors by name, folded as <see cref="AuthorInfo.Fold"/> folds them; the first of a name wins.</summary>
+public sealed class ReadarrAuthorIndex
+{
+    public static ReadarrAuthorIndex Empty { get; } = new([]);
+
+    private readonly Dictionary<string, ReadarrAuthor> _byName = new(StringComparer.Ordinal);
+
+    public ReadarrAuthorIndex(IEnumerable<ReadarrAuthor> authors)
+    {
+        ArgumentNullException.ThrowIfNull(authors);
+        foreach (var author in authors)
+        {
+            if (author.AuthorName is { } name)
+            {
+                _byName.TryAdd(AuthorInfo.Fold(name), author);
+            }
+        }
+    }
+
+    public ReadarrAuthor? Find(string name) => _byName.GetValueOrDefault(AuthorInfo.Fold(name));
 }
