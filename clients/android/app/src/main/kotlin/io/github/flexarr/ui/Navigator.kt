@@ -82,9 +82,9 @@ class Navigator(private val nav: NavHostController, private val model: AppModel,
         }
     }
 
-    /** Marks a book finished or not; Continue listening follows. */
+    /** Marks a book finished, or unread (no place, not finished); Continue listening follows. */
     fun setBookFinished(item: ItemSummary, finished: Boolean) =
-        changeWatchState(if (finished) "Couldn’t mark this as finished" else "Couldn’t mark this as not finished") { it.setBookFinished(item.id, finished) }
+        changeWatchState(if (finished) "Couldn’t mark this as finished" else "Couldn’t mark this as unread") { it.setBookFinished(item.id, finished) }
 
     /** Downloads a whole book, saying so if it didn't work. */
     fun downloadBook(item: ItemSummary) {
