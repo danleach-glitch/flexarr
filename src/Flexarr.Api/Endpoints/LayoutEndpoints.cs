@@ -40,6 +40,11 @@ public static class LayoutEndpoints
         // Answers with the layout as saved: combining changes which rows there are.
         group.MapPut("/", async (LayoutUpdate update, FlexarrDbContext db, IOptionsMonitor<FlexarrOptions> options, Profiles.CurrentProfile profile, CancellationToken ct) =>
         {
+            if (Invalid(update) is { } problem)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["rows"] = [problem] });
+            }
+
             if (await db.Profiles.FindAsync([profile.Id], ct) is not { } me)
             {
                 return Results.NotFound();
@@ -72,6 +77,26 @@ public static class LayoutEndpoints
         return Parse(saved) ?? options.Layout;
     }
 
+    /// <summary>The most rows one list may hold: far more than there are, and a cap on what a profile can store.</summary>
+    private const int MaxRows = 200;
+
+    private const int MaxIdLength = 128;
+
+    /// <summary>Why a save can't be taken, or null: every list there, and each row a short id.</summary>
+    private static string? Invalid(LayoutUpdate update)
+    {
+        IReadOnlyList<RowSetting>?[] required = [update.Home, update.Movies, update.Shows];
+        if (required.Any(l => l is null))
+        {
+            return "Send the home, movies and shows rows.";
+        }
+
+        return required.Concat([update.Music, update.Audiobooks]).OfType<IReadOnlyList<RowSetting>>()
+            .Any(l => l.Count > MaxRows || l.Any(r => r is null || string.IsNullOrWhiteSpace(r.Id) || r.Id.Length > MaxIdLength))
+            ? $"Each list takes up to {MaxRows} rows, each with an id of up to {MaxIdLength} characters."
+            : null;
+    }
+
     private static LayoutOptions? Parse(string? json)
     {
         if (string.IsNullOrEmpty(json))
@@ -81,12 +106,25 @@ public static class LayoutEndpoints
 
         try
         {
-            return JsonSerializer.Deserialize<LayoutOptions>(json, Json);
+            // Rows without an id (saved before saves were checked) are left out rather than breaking Home.
+            return JsonSerializer.Deserialize<LayoutOptions>(json, Json) is { } layout
+                ? new LayoutOptions
+                {
+                    Home = Valid(layout.Home),
+                    Movies = Valid(layout.Movies),
+                    Shows = Valid(layout.Shows),
+                    Music = Valid(layout.Music),
+                    Audiobooks = Valid(layout.Audiobooks),
+                    CombineLibraries = layout.CombineLibraries,
+                }
+                : null;
         }
         catch (JsonException)
         {
             return null;
         }
+
+        static List<RowSetting> Valid(List<RowSetting>? rows) => [.. (rows ?? []).Where(r => r is not null && !string.IsNullOrEmpty(r.Id))];
     }
 
     private static async Task<LayoutDto> LayoutAsync(FlexarrDbContext db, FlexarrOptions options, LayoutOptions layout, string me, CancellationToken ct)

@@ -153,6 +153,22 @@ public sealed class ProfileLayoutTests : IDisposable
         Assert.False(layout.GetProperty("combinable").GetBoolean());
     }
 
+    [Fact]
+    public async Task ALayoutSave_IsChecked_SoItCantBreakHome()
+    {
+        var client = Client(await NewProfileTokenAsync());
+        var none = Array.Empty<object>();
+
+        var missing = await client.PutAsJsonAsync(Api("/settings/layout"), new { home = (object?)null, movies = none, shows = none });
+        var noId = await client.PutAsJsonAsync(Api("/settings/layout"), new { home = new[] { new { id = (string?)null, enabled = false } }, movies = none, shows = none });
+        var tooMany = await client.PutAsJsonAsync(Api("/settings/layout"), new { home = Enumerable.Range(0, 201).Select(i => new { id = $"row-{i}", enabled = true }), movies = none, shows = none });
+        var tooLong = await client.PutAsJsonAsync(Api("/settings/layout"), new { home = none, movies = none, shows = none, music = new[] { new { id = new string('x', 129), enabled = true } } });
+
+        Assert.All([missing, noId, tooMany, tooLong], r => Assert.Equal(HttpStatusCode.BadRequest, r.StatusCode));
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync(Api("/home"))).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync(Api("/settings/layout"))).StatusCode);
+    }
+
     private async Task<Guid> AddLibraryAsync(LibraryType type)
     {
         using var scope = _factory.Services.CreateScope();
