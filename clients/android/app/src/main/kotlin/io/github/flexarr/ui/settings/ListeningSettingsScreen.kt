@@ -134,9 +134,14 @@ fun ListeningSettingsScreen(model: AppModel, onNotifications: () -> Unit) {
         }
     }
 
-    /** Saved as podcast settings where there are any (the server keeps books in step), otherwise as book settings. */
+    /**
+     * Saved as podcast settings where the server shares them with books (0.58 on). A server that has book settings
+     * but doesn't share them yet (a build of main from before) takes them as book settings, with the speed for podcasts too.
+     */
     fun update(podcastChange: PodcastPreferencesUpdate, bookChange: BookListeningUpdate) {
-        if (podcasts != null) updatePodcasts(podcastChange) else updateBooks(bookChange)
+        if (podcasts != null && (podcasts.listening != null || books == null)) return updatePodcasts(podcastChange)
+        updateBooks(bookChange)
+        if (podcasts != null && podcastChange.speed != null) updatePodcasts(PodcastPreferencesUpdate(speed = podcastChange.speed))
     }
 
     fun savePlayback(changed: PlaybackPreferences, over: PlaybackPreferences) {

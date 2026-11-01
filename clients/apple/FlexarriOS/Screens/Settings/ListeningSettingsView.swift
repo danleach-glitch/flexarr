@@ -126,13 +126,19 @@ struct ListeningSettingsView: View {
         return model.bookListening
     }
 
-    /// Saved as podcast settings where there are any (the server keeps books in step), otherwise as book settings.
+    /// Saved as podcast settings where the server shares them with books (0.58 on). A server that has book settings
+    /// but doesn't share them yet (a build of main from before) takes them as book settings, with the speed for
+    /// podcasts too.
     private func save(podcasts: PodcastPreferencesUpdate, books: BookListeningUpdate) {
         Task {
-            if model.podcastPreferences != nil {
+            if let preferences = model.podcastPreferences, preferences.hasListening || model.bookListening == nil {
                 failed = await model.updatePodcastPreferences(podcasts) == nil
             } else {
-                failed = !(await model.updateBookListening(books))
+                var ok = await model.updateBookListening(books)
+                if podcasts.speed != nil, model.podcastPreferences != nil {
+                    ok = await model.updatePodcastPreferences(.init(speed: podcasts.speed)) != nil && ok
+                }
+                failed = !ok
             }
         }
     }
