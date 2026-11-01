@@ -31,7 +31,7 @@ public sealed class DropFormatGenresTests : IAsyncLifetime
     public async Task FormatGenres_LeaveBooks_InAnySpelling_AndUnusedOnesGo()
     {
         var migrator = _db.GetService<IMigrator>();
-        await migrator.MigrateAsync("20261101082228_ListeningInContinue");
+        await migrator.MigrateAsync("20261101100601_ShareListeningSpeed");
 
         // The schema is the same before and after (the migration only changes data), so today's model can seed it.
         Genre G(string name) => new() { Name = name };
