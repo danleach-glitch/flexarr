@@ -20,7 +20,7 @@ import { ScanProgress } from '../components/ScanProgress'
 import { useLibraries } from '../hooks/librariesContext'
 import { useApi } from '../hooks/useApi'
 import { useWatchedChanges } from '../hooks/watched'
-import { languageName } from '../lib/books'
+import { languageOptions } from '../lib/books'
 
 const PAGE_SIZE = 60
 
@@ -164,9 +164,10 @@ function AllBooks({ library }: { library: Library }) {
   }
   const key = JSON.stringify(filters)
   const narrators = useApi((signal) => getBookPeople(library.id, { role: 'narrator', take: 200 }, signal), [library.id])
-  // The languages its books are in, from the shelves when the server sends them, the one chosen always among them.
+  // The languages its books are in, from the shelves when the server sends them, one per name, the one chosen always
+  // among them.
   const shelves = useApi((signal) => getBookShelves(library.id, signal), [library.id])
-  const languages = [...new Set([...(shelves.data?.languages ?? []), ...(filters.language ? [filters.language] : [])])].filter((l) => l !== 'und')
+  const languages = languageOptions(shelves.data?.languages ?? [], filters.language)
   // The author filtered by, named (a link to it carries only the id).
   const author = useApi((signal) => (filters.author ? getPerson(filters.author, signal) : Promise.resolve(null)), [filters.author])
   const authorName = author.data?.name
@@ -239,9 +240,9 @@ function AllBooks({ library }: { library: Library }) {
         {(languages.length > 1 || filters.language) && (
           <Choice label="Language" value={filters.language ?? ''} onChange={(v) => set('language', v)}>
             <option value="">Any language</option>
-            {languages.map((code) => (
-              <option key={code} value={code}>
-                {languageName(code)}
+            {languages.map((l) => (
+              <option key={l.value} value={l.value}>
+                {l.label}
               </option>
             ))}
           </Choice>
