@@ -657,6 +657,7 @@ struct BookGenreView: View {
     @State private var books: [ItemSummary] = []
     @State private var total = 0
     @State private var loaded = false
+    @State private var loadedToken: Int?
     @State private var loadingMore = false
     @State private var error: String?
     @FocusState private var focused: String?
@@ -691,18 +692,27 @@ struct BookGenreView: View {
         }
         .scrollClipDisabled()
         .background(RoomBackground(ambient: books.first?.glowColor, intensity: 0.2))
-        .task { await load() }
+        // Once, and again when something changed (a book marked finished): not on every return from a book, which would
+        // drop the pages scrolled through and the focus with them.
+        .task(id: model.refreshToken) {
+            guard loadedToken != model.refreshToken else { return }
+            await load()
+        }
     }
 
     private func load() async {
         guard let client = model.client else { return }
+        let token = model.refreshToken
         do {
-            let page = try await client.books(library.id, filter: BookFilter(genre: genre), take: 60)
+            // As many as were showing, so a refresh keeps the place.
+            let page = try await client.books(library.id, filter: BookFilter(genre: genre), take: min(200, max(60, books.count)))
             books = page.items
             total = page.total
             loaded = true
+            error = nil
+            loadedToken = token
         } catch {
-            self.error = ConnectionError(error).message
+            if !loaded { self.error = ConnectionError(error).message }
         }
     }
 
