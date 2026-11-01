@@ -71,7 +71,7 @@ struct PosterArtwork: View {
                 }
             }
             .overlay(alignment: .topTrailing) {
-                if item.userData.watched { WatchedBadge().padding(6) }
+                if item.userData.watched { WatchedBadge(label: item.isBook ? "Finished" : "Watched").padding(6) }
             }
             .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
     }
@@ -171,14 +171,17 @@ struct OutlinedNumeral: View {
     }
 }
 
+/// The tick on something watched; a book's is read as "Finished".
 struct WatchedBadge: View {
+    var label = "Watched"
+
     var body: some View {
         Image(systemName: "checkmark")
             .font(.system(size: 10, weight: .heavy))
             .foregroundStyle(Color.room)
             .frame(width: 20, height: 20)
             .background(Circle().fill(Color.screen.opacity(0.92)))
-            .accessibilityLabel("Watched")
+            .accessibilityLabel(label)
     }
 }
 

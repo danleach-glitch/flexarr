@@ -14,7 +14,7 @@ struct BookCover: View {
                 }
             }
             .overlay(alignment: .topTrailing) {
-                if item.isFinishedBook { WatchedBadge().padding(6) }
+                if item.isFinishedBook { WatchedBadge(label: "Finished").padding(6) }
             }
     }
 }
