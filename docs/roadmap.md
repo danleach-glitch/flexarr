@@ -15,7 +15,6 @@ Sizes are rough: **S** a day or two, **M** about a week, **L** several weeks.
 | Android | An app for phones and tablets, with Chromecast, and Android TV and Google TV after it. M–L. [#49](https://github.com/danleach-glitch/flexarr/discussions/49) | 🚧 |
 | Tracker sync | Trakt is built (on its way in the next release). Still to come: ratings, then Simkl, MyAnimeList and AniList. M. [#128](https://github.com/danleach-glitch/flexarr/discussions/128) | 🚧 |
 | Invite family to watch from afar | A link or code connects their apps, with Tailscale built in: no account, sign-in or setup for them. M–L. [#146](https://github.com/danleach-glitch/flexarr/discussions/146) | 🚧 |
-| Audiobooks | A library for audiobooks with Readarr, Bookshelf or Chaptarr: chapters, series, narrators, bookmarks, offline listening on iPhone and Android, CarPlay and Android Auto, and requests. An import from Audiobookshelf after. L. [Plan](audiobooks.md), [#144](https://github.com/danleach-glitch/flexarr/discussions/144) | 🚧 |
 | Flexarr in your language | Translated apps, a language per profile. M, then ongoing. [#126](https://github.com/danleach-glitch/flexarr/discussions/126) | 🕐 1 |
 | TrueHD Atmos with height channels | Object audio kept for receivers that decode it. M. [#45](https://github.com/danleach-glitch/flexarr/discussions/45) | 🕐 2 |
 | Multiview | Up to four live channels at once. M. [#38](https://github.com/danleach-glitch/flexarr/discussions/38) | 🕐 3 |
@@ -37,6 +36,7 @@ Sizes are rough: **S** a day or two, **M** about a week, **L** several weeks.
 | Finding things | Home rows you arrange, libraries of the same kind combined on Home, search, person and genre pages, collections (manual, smart and Radarr series), a watchlist that follows titles until they arrive, Coming soon, Discover and Seerr requests, shuffle | ✅ |
 | Music | Queue, playlists, synced lyrics, daily mixes, artist radio, near-gapless, crossfade, volume normalisation, offline albums, a visualiser on Now Playing | ✅ |
 | Podcasts | Apple's directory and any feed, following per profile, Up Next across devices, speeds and sleep timer, OPML, offline and automatic downloads, notifications, widgets, CarPlay (awaiting Apple) | ✅ |
+| Audiobooks | Books with Readarr, Bookshelf or Chaptarr: chapters, series, authors and narrators, speed per book, smart rewind, sleep timer, bookmarks, offline listening on iPhone and Android, CarPlay and Android Auto, requests, and the Apple TV. An import from Audiobookshelf next. [Plan](audiobooks.md) | ✅ |
 | Live TV | Dispatcharr sources, guide, favourites, pause and rewind, recording and series recording | ✅ |
 | Apple apps | Apple TV, iPhone and iPad with Flexarr's own player, profiles, Top Shelf with title logos, downloads, Picture in Picture and AirPlay; the iPhone and iPad app on the App Store | ✅ |
 | Control | Siri and Shortcuts (play, shuffle, on another device), play on another device, the iPhone as an Apple TV remote with Lock Screen controls, an MCP server for assistants, [Home Assistant](https://github.com/danleach-glitch/flexarr-home-assistant) (media players and playback triggers) | ✅ |
