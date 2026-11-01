@@ -31,6 +31,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Where a profile's requests go (shows, films and now books) is set in its editor in **Settings › Profiles**, and the **Requests** page is gone. How books are requested from Readarr is in **Settings › Podcasts & audiobooks**.
 - Profiles in **Settings › Profiles** each have a card of their own.
 
+### Music
+- A music library's page on iPhone, iPad, Apple TV and Android now shows the same rows as the web, in your order: **Your playlists**, **Recently played**, **Most played**, **More from artists you play** and **New albums**, then every artist. On iPhone, iPad and Apple TV, **Made for you** mixes are there and on Home too, and play with one tap.
+
 ### Website
 - flexarr.io catches up: Trakt, the watchlist, kids profiles, dialogue boost and night mode, the iPhone remote, the new setup guide, and a first look at audiobooks.
 - The guide at flexarr.io/guide is up to date with this version, with a new **Finding things** page, fresh screenshots, and search that reads whole pages, troubleshooting questions included.
