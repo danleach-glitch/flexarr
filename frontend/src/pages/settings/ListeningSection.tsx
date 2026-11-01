@@ -1,13 +1,13 @@
 import { useState } from 'react'
 import {
   BOOK_LISTENING_CHANGED,
-  getPlaybackPreferences,
   getPodcastPreferences,
+  getRequestStatus,
   savePodcastPreferences,
   type PodcastPreferences,
 } from '../../api/client'
 import { useSession } from '../../hooks/sessionContext'
-import { ContinueWatchingRow } from './ContinueWatchingRow'
+import { BookRequestSetupGroup } from './RequestLibrarySelect'
 import { useApi } from '../../hooks/useApi'
 import { bookSpeedPresets, skipSteps, withCurrent } from '../../lib/books'
 import { PODCAST_PREFERENCES_CHANGED, speedLabel } from '../../lib/podcasts'
@@ -16,7 +16,7 @@ import { errorText } from './useSettings'
 
 /**
  * How this profile listens to podcasts and books: one speed, skip steps and smart rewind for both (a book with a
- * speed of its own keeps it), whether they join Continue watching, and what phones download by themselves.
+ * speed of its own keeps it), and what phones download by themselves. For the main profile, how book requests are made too.
  */
 /** The settings books share: a change to one of them reaches a book playing too. */
 const listeningKeys = ['speed', 'skipBackSeconds', 'skipForwardSeconds', 'smartRewind'] as const
@@ -26,8 +26,7 @@ export function ListeningSection() {
   const name = profiles?.find((p) => p.isCurrent)?.name
   const isAdmin = me?.isAdmin === true
   const preferences = useApi((signal) => getPodcastPreferences(signal), [])
-  // Loaded alongside, so the Continue watching switch is there with the rest rather than a moment later.
-  const playback = useApi(getPlaybackPreferences, [])
+  const requests = useApi((signal) => getRequestStatus(signal).catch(() => undefined), [])
   // The server's answer to the last save, newer than the load.
   const [saved, setSaved] = useState<PodcastPreferences | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -70,8 +69,8 @@ export function ListeningSection() {
 
   return (
     <section>
-      <SettingsHeader title="Podcasts and audiobooks" />
-      {p && !playback.loading && (
+      <SettingsHeader title="Podcasts & audiobooks" />
+      {p && (
         <>
           <SettingsGroup
             title="Listening"
@@ -91,8 +90,6 @@ export function ListeningSection() {
             {p.smartRewind !== undefined && (
               <ToggleRow label="Smart rewind" help="After a pause, start a little earlier." checked={p.smartRewind} onChange={(smartRewind) => void save({ smartRewind })} />
             )}
-            {/* The main profile has it in Home and Browse, with the rest of Home. */}
-            {playback.data && !isAdmin && <ContinueWatchingRow loaded={playback.data} />}
           </SettingsGroup>
           <SettingsGroup
             title="Phones and tablets"
@@ -111,6 +108,8 @@ export function ListeningSection() {
           </SettingsGroup>
         </>
       )}
+      {/* How book requests reach Readarr: the server's, for the main profile. */}
+      {isAdmin && requests.data?.books === true && <BookRequestSetupGroup />}
       {preferences.error && !p && <SaveStatus error={errorText(preferences.error)} />}
       {error && <SaveStatus error={error} />}
     </section>

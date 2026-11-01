@@ -38,7 +38,7 @@ export function Layout() {
   const [searching, setSearching] = useState(false)
   const [profileMenu, setProfileMenu] = useState(false)
   const [rail, setRail] = useState(initialRail)
-  // Whether Podcasts has a place among the libraries (a profile can leave it out; Settings › Sidebar).
+  // Whether Podcasts has a place among the libraries (a profile can leave it out; Settings › Navigation).
   const [podcastsInSidebar, setPodcastsInSidebar] = useState(true)
   const hasPodcasts = libraries.some((l) => l.type === 'Podcasts')
   useEffect(() => {
@@ -56,7 +56,7 @@ export function Layout() {
       window.removeEventListener(PODCAST_PREFERENCES_CHANGED, changed)
     }
   }, [hasPodcasts])
-  // Podcasts aren't a library as such, but they're listed with them in the profile's order (Settings › Sidebar), unless
+  // Podcasts aren't a library as such, but they're listed with them in the profile's order (Settings › Navigation), unless
   // the profile left them out.
   const podcastsLink = hasPodcasts && podcastsInSidebar
   const shownLibraries = libraries.filter((l) => l.type !== 'Podcasts' || podcastsLink)
@@ -73,6 +73,15 @@ export function Layout() {
   const kids = access?.isKids === true
   const limited = access?.maxRatingAge != null
   const hasMusic = libraries.some((l) => l.type === 'Music')
+  // What the profile left out of its menu (Settings › Navigation); reachable still from Home and links.
+  const hidden = new Set(me?.hiddenNavigation ?? [])
+  const shows = {
+    watchlist: !kids && !hidden.has('watchlist'),
+    collections: !kids && !hidden.has('collections'),
+    playlists: hasMusic && !hidden.has('playlists'),
+    discover: !limited && !hidden.has('discover'),
+    upcoming: !limited && !hidden.has('upcoming'),
+  }
   // Signed in with the API key (a cookie of this browser's own): any profile may end that, say on a shared laptop.
   const canSignOut = access?.method === 'session' && !kids
   const location = useLocation()
@@ -85,6 +94,7 @@ export function Layout() {
     getLiveTvStatus(controller.signal).then((s) => setLiveTv(s.configured), () => undefined)
     return () => controller.abort()
   }, [inSettings])
+  const liveTvLink = liveTv && !hidden.has('live-tv')
   // Settings has its own sidebar, so the main one makes way and the bar carries the wordmark home instead.
   const bare = location.pathname.startsWith('/settings')
   // The page keeps clear of the now-playing bar while it's showing.
@@ -278,47 +288,47 @@ export function Layout() {
                 })}
               </>
             )}
-            {(!kids || hasMusic || liveTv || !limited) && (
+            {(Object.values(shows).some(Boolean) || liveTvLink) && (
               <h2 className="sidebar-heading">
                 <span className="sidebar-label">Browse</span>
               </h2>
             )}
             {/* A child's profile has no watchlist or collections. */}
-            {!kids && (
-              <>
-                <NavLink to="/watchlist" className="sidebar-link" title={tip('Watchlist')}>
-                  <Bookmark />
-                  <span className="sidebar-label">Watchlist</span>
-                </NavLink>
-                <NavLink to="/collections" className="sidebar-link" title={tip('Collections')}>
-                  <Stack />
-                  <span className="sidebar-label">Collections</span>
-                </NavLink>
-              </>
+            {shows.watchlist && (
+              <NavLink to="/watchlist" className="sidebar-link" title={tip('Watchlist')}>
+                <Bookmark />
+                <span className="sidebar-label">Watchlist</span>
+              </NavLink>
             )}
-            {hasMusic && (
+            {shows.collections && (
+              <NavLink to="/collections" className="sidebar-link" title={tip('Collections')}>
+                <Stack />
+                <span className="sidebar-label">Collections</span>
+              </NavLink>
+            )}
+            {shows.playlists && (
               <NavLink to="/playlists" className="sidebar-link" title={tip('Playlists')}>
                 <Playlist />
                 <span className="sidebar-label">Playlists</span>
               </NavLink>
             )}
-            {liveTv && (
+            {liveTvLink && (
               <NavLink to="/livetv" className="sidebar-link" title={tip('Live TV')}>
                 <Antenna />
                 <span className="sidebar-label">Live TV</span>
               </NavLink>
             )}
-            {!limited && (
-              <>
-                <NavLink to="/discover" className="sidebar-link" title={tip('Discover')}>
-                  <Sparkles />
-                  <span className="sidebar-label">Discover</span>
-                </NavLink>
-                <NavLink to="/upcoming" className="sidebar-link" title={tip('Coming soon')}>
-                  <Calendar />
-                  <span className="sidebar-label">Coming soon</span>
-                </NavLink>
-              </>
+            {shows.discover && (
+              <NavLink to="/discover" className="sidebar-link" title={tip('Discover')}>
+                <Sparkles />
+                <span className="sidebar-label">Discover</span>
+              </NavLink>
+            )}
+            {shows.upcoming && (
+              <NavLink to="/upcoming" className="sidebar-link" title={tip('Coming soon')}>
+                <Calendar />
+                <span className="sidebar-label">Coming soon</span>
+              </NavLink>
             )}
           </nav>
           <button className="sidebar-link sidebar-toggle" aria-expanded={!rail} title={tip('Expand sidebar')} onClick={toggleRail}>

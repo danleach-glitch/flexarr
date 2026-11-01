@@ -1,5 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
-import { clearApiCache, getPodcastPreferences, getProfiles, savePodcastPreferences, setLibraryOrder } from '../../api/client'
+import {
+  clearApiCache,
+  getLiveTvStatus,
+  getPodcastPreferences,
+  getProfiles,
+  PROFILES_CHANGED,
+  savePodcastPreferences,
+  setHiddenNavigation,
+  setLibraryOrder,
+  type NavigationItem,
+  type Profile,
+} from '../../api/client'
+import { useAgeLimits } from '../../hooks/sessionContext'
 import { useApi } from '../../hooks/useApi'
 import { useLibraries } from '../../hooks/librariesContext'
 import { reorderedLibraries } from '../../lib/libraryOrder'
@@ -8,8 +20,8 @@ import { RowList } from './LayoutSection'
 import { SaveStatus, SettingsGroup, SettingsHeader, ToggleRow } from './shared'
 import { errorText } from './useSettings'
 
-/** The profile's own: the order of its libraries in the sidebar here and in every app's menu. */
-export function SidebarSection() {
+/** The profile's own: the order of its libraries in the sidebar here and in every app's menu, and what else is in it. */
+export function NavigationSection() {
   const profiles = useApi(getProfiles, [])
   const { libraries, reload } = useLibraries()
   // The order moved to here, until the library list comes back in it.
@@ -51,7 +63,7 @@ export function SidebarSection() {
 
   return (
     <section>
-      <SettingsHeader title="Sidebar">The order of libraries in the sidebar and the apps’ menus. Drag one to move it.</SettingsHeader>
+      <SettingsHeader title="Navigation">The sidebar here and the apps’ menus. Drag a library to move it.</SettingsHeader>
       {shown.length > 1 ? (
         <RowList
           title={`${me.name}’s libraries`}
@@ -75,7 +87,61 @@ export function SidebarSection() {
           <ToggleRow label="Show in the sidebar" help="Either way, Home has a New podcasts row." checked={podcastsShown.on} onChange={(v) => void podcastsShown.change(v)} />
         </SettingsGroup>
       )}
+      <BrowseItems profile={me} />
     </section>
+  )
+}
+
+const items: { id: NavigationItem; label: string }[] = [
+  { id: 'watchlist', label: 'Watchlist' },
+  { id: 'collections', label: 'Collections' },
+  { id: 'playlists', label: 'Playlists' },
+  { id: 'live-tv', label: 'Live TV' },
+  { id: 'discover', label: 'Discover' },
+  { id: 'upcoming', label: 'Coming soon' },
+]
+
+/** The rest of the menu, each on or off: the ones this profile has (Playlists with music, Live TV once it's set up). */
+function BrowseItems({ profile }: { profile: Profile }) {
+  const { libraries } = useLibraries()
+  const { limited } = useAgeLimits()
+  const liveTv = useApi((signal) => getLiveTvStatus(signal).then((s) => s.configured, () => false), [])
+  const [hidden, setHidden] = useState<string[]>(profile.hiddenNavigation ?? [])
+  const [error, setError] = useState<string>()
+  // Servers before 0.58 can't leave anything out.
+  if (profile.hiddenNavigation === undefined || liveTv.loading) return null
+
+  const has: Record<NavigationItem, boolean> = {
+    watchlist: true,
+    collections: true,
+    playlists: libraries.some((l) => l.type === 'Music'),
+    'live-tv': liveTv.data === true,
+    discover: !limited,
+    upcoming: !limited,
+  }
+
+  async function change(id: NavigationItem, shown: boolean) {
+    const before = hidden
+    const next = shown ? hidden.filter((h) => h !== id) : [...hidden, id]
+    setHidden(next)
+    setError(undefined)
+    try {
+      await setHiddenNavigation(profile.id, next as NavigationItem[])
+      window.dispatchEvent(new Event(PROFILES_CHANGED))
+    } catch (e) {
+      setHidden(before)
+      setError(errorText(e))
+    }
+  }
+
+  return (
+    <SettingsGroup title="Browse" note={error ? <SaveStatus error={error} /> : 'Hidden ones still open from Home and links.'}>
+      {items
+        .filter((i) => has[i.id])
+        .map((i) => (
+          <ToggleRow key={i.id} label={i.label} checked={!hidden.includes(i.id)} onChange={(on) => void change(i.id, on)} />
+        ))}
+    </SettingsGroup>
   )
 }
 

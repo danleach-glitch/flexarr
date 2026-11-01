@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { RequestDestination } from '../../api/client'
 import { hasRequestChoice, requestChoices } from '../../lib/requestLibraries'
-import { RequestLibrarySelect } from './RequestsSection'
+import { RequestLibrarySelect } from './RequestLibrarySelect'
 
 const destinations: RequestDestination[] = [
   { id: 'tv', name: 'TV Shows', mediaType: 'tv', isDefault: true },

@@ -1966,10 +1966,11 @@
   }
 }
 
-/* ---------- Profiles: one panel, a row each, the form opening in a row's place ---------- */
+/* ---------- Profiles: a card each, the form opening in a card's place ---------- */
 
 .profile-list {
-  padding-block: 4px;
+  display: grid;
+  gap: 10px;
 }
 
 .profile-row {
@@ -1977,11 +1978,7 @@
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 14px;
   align-items: center;
-  padding: 12px 0;
-}
-
-.profile-list > * + * {
-  border-top: 1px solid var(--aisle);
+  padding-block: 14px;
 }
 
 .profile-row .library-row-actions {
@@ -1996,7 +1993,6 @@
 
 .profile-form {
   display: grid;
-  padding: 20px 0 18px;
 }
 
 /* The picture, and beside it the name and colour: who the profile is, at a glance. */

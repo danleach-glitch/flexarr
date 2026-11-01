@@ -78,7 +78,7 @@ A library is a set of folders holding one kind of media. Go to **Settings › Li
 
 The setup guide does this for you; this is how to add one later. Add one library for each kind of media you have. Keep films and TV shows in separate folders: Flexarr expects a films folder to hold films and a TV folder to hold shows.
 
-You can have more than one library of a kind, such as **TV** and **Anime**, or **Films** and **Films in 4K**. Home still shows one **Latest unwatched** row for all your films and one for all your shows, and a title that's in two libraries shows once. To give each library its own row, turn off **Combine libraries of the same kind** in **Settings › Home and Browse**.
+You can have more than one library of a kind, such as **TV** and **Anime**, or **Films** and **Films in 4K**. Home still shows one **Latest unwatched** row for all your films and one for all your shows, and a title that's in two libraries shows once. To give each library its own row, turn off **Combine libraries of the same kind** in **Settings › Home & browse**.
 
 > **Important** The folder browser shows the disks as the *server* sees them. In Docker, that means the paths inside the container, such as `/data/media/movies`, not the paths on your NAS. If you can't find your media, check the volumes you gave the container in your install guide.
 

@@ -1,10 +1,9 @@
 import { useEffect, type ComponentType, type ReactNode, type SVGProps } from 'react'
 import { Navigate, NavLink, useParams } from 'react-router'
-import { clearApiCache, getMe, getRequestDestinations, getRequestStatus, getTraktStatus, getUpdates, lockAdmin } from '../../api/client'
+import { clearApiCache, getMe, getTraktStatus, getUpdates, lockAdmin } from '../../api/client'
 import { useSession } from '../../hooks/sessionContext'
 import { useApi } from '../../hooks/useApi'
-import { Antenna, Download, Film, Gauge, Globe, Headphones, History, Inbox, Info, LayoutGrid, Notes, Padlock, PanelLeft, Shield, PlayCircle, Plug, Restore, Stack, Users } from '../../components/icons'
-import { hasRequestChoice } from '../../lib/requestLibraries'
+import { Antenna, Download, Film, Gauge, Globe, Headphones, History, Info, LayoutGrid, Notes, Padlock, PanelLeft, Shield, PlayCircle, Plug, Restore, Stack, Users } from '../../components/icons'
 import { AboutSection } from './AboutSection'
 import { SecuritySection } from './SecuritySection'
 import { AdminUnlock } from './AdminUnlock'
@@ -20,11 +19,10 @@ import { OverviewSection } from './OverviewSection'
 import { PlaybackSection } from './PlaybackSection'
 import { ProfilesSection } from './ProfilesSection'
 import { RemoteAccessSection } from './RemoteAccessSection'
-import { RequestsSection } from './RequestsSection'
 import { ListeningSection } from './ListeningSection'
 import { LiveTvSection } from './LiveTvSection'
 import { StreamingSection } from './StreamingSection'
-import { SidebarSection } from './SidebarSection'
+import { NavigationSection } from './NavigationSection'
 import { TraktSection } from './TraktSection'
 import { UpdatesSection } from './UpdatesSection'
 
@@ -38,18 +36,16 @@ interface Page {
   under?: string
 }
 
-/** Every profile's own: how it watches and listens, and this browser's music. */
+/** Every profile's own: how it watches and listens, what Home and Browse show, and its menu. */
 const profilePages: Page[] = [
   { id: 'playback', label: 'Playback', icon: PlayCircle, render: () => <PlaybackSection /> },
-  { id: 'listening', label: 'Podcasts and audiobooks', icon: Headphones, render: () => <ListeningSection /> },
-  { id: 'sidebar', label: 'Sidebar', icon: PanelLeft, render: () => <SidebarSection /> },
+  { id: 'listening', label: 'Podcasts & audiobooks', icon: Headphones, render: () => <ListeningSection /> },
+  { id: 'layout', label: 'Home & browse', icon: LayoutGrid, render: () => <LayoutSection /> },
+  { id: 'navigation', label: 'Navigation', icon: PanelLeft, render: () => <NavigationSection /> },
 ]
 
 /** Listed when the server offers Trakt (from 0.57). */
 const traktPage: Page = { id: 'trakt', label: 'Trakt', icon: History, render: () => <TraktSection /> }
-
-/** Listed only when there's a choice to make: two TV or film libraries Seerr can add requests to. */
-const requestsPage: Page = { id: 'requests', label: 'Requests', icon: Inbox, render: () => <RequestsSection /> }
 
 /** The server's, for the main profile only. */
 const serverPages: Page[] = [
@@ -58,7 +54,6 @@ const serverPages: Page[] = [
   { id: 'health', label: 'Library health', render: () => <HealthSection />, under: 'libraries' },
   { id: 'import', label: 'Bring over from Plex', render: () => <ImportSection />, under: 'libraries' },
   { id: 'profiles', label: 'Profiles', icon: Users, render: () => <ProfilesSection /> },
-  { id: 'layout', label: 'Home and Browse', icon: LayoutGrid, render: () => <LayoutSection /> },
   { id: 'streaming', label: 'Streaming', icon: Film, render: () => <StreamingSection /> },
   { id: 'livetv', label: 'Live TV', icon: Antenna, render: () => <LiveTvSection /> },
   { id: 'connections', label: 'Connections', icon: Plug, render: () => <ConnectionsSection /> },
@@ -80,6 +75,9 @@ const moved: Record<string, string> = {
   changelog: 'about',
   podcasts: 'listening',
   audiobooks: 'listening',
+  sidebar: 'navigation',
+  // Where a profile's requests go is in its editor in Profiles; the book request setup, in Podcasts & audiobooks.
+  requests: 'profiles',
 }
 
 export function SettingsPage() {
@@ -88,18 +86,13 @@ export function SettingsPage() {
   const { profiles } = useSession()
   const current = profiles?.find((p) => p.isCurrent)
   const name = current?.name
-  const destinations = useApi(getRequestDestinations, [])
-  const requestStatus = useApi((signal) => getRequestStatus(signal).catch(() => undefined), [])
   const trakt = useApi((signal) => getTraktStatus(signal), [])
   const reloadTrakt = trakt.reload
   useEffect(() => {
     window.addEventListener(TRAKT_CHANGED, reloadTrakt)
     return () => window.removeEventListener(TRAKT_CHANGED, reloadTrakt)
   }, [reloadTrakt])
-  const withTrakt = trakt.data?.available ? [...profilePages, traktPage] : profilePages
-  // Book requests have a setup of their own (and a library to choose, with two), so they list the page too.
-  const requestsListed = (destinations.data && hasRequestChoice(destinations.data, current?.hiddenLibraryIds ?? [])) || requestStatus.data?.books === true
-  const ownPages = requestsListed ? [...withTrakt, requestsPage] : withTrakt
+  const ownPages = trakt.data?.available ? [...profilePages, traktPage] : profilePages
   // Settings for the server are the main profile's, and changing them takes the admin PIN (given lately on this browser):
   // locked, the server's pages ask for it. Another profile chosen here has only its own pages. Older servers have no
   // /me: everything, as before.
@@ -129,7 +122,7 @@ export function SettingsPage() {
   if (!section) return me.loading ? null : <Navigate to={`/settings/${isAdmin ? 'overview' : 'playback'}`} replace />
   if (moved[section]) return <Navigate to={`/settings/${moved[section]}`} replace />
 
-  const profilePage = [...profilePages, traktPage, requestsPage].find((p) => p.id === section)
+  const profilePage = [...profilePages, traktPage].find((p) => p.id === section)
   const serverPage = serverPages.find((p) => p.id === section)
   // A server page (an old link, say) waits to know whose profile this is, and sends anyone else to their own pages.
   if (!profilePage && me.loading) return null

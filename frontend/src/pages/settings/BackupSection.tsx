@@ -41,7 +41,7 @@ const sections: { id: string; label: string; help: string; off?: boolean }[] = [
   { id: 'connections', label: 'Connections', help: 'Sonarr, Radarr, Lidarr, Seerr and path mappings, with their keys.' },
   { id: 'liveTv', label: 'Live TV', help: 'The Dispatcharr source and the DVR’s settings.' },
   { id: 'streaming', label: 'Streaming', help: 'Hardware acceleration and limits.' },
-  { id: 'layout', label: 'Home and Browse', help: 'Which rows show, in what order.' },
+  { id: 'layout', label: 'Home & browse', help: 'The rows for profiles that haven’t chosen their own.' },
   { id: 'podcasts', label: 'Podcasts', help: 'The country for charts.' },
   { id: 'notifications', label: 'Notifications', help: 'Push notifications to phones.' },
   { id: 'access', label: 'Access', help: 'When to ask for the API key, and trusted proxies. Asks for the admin PIN.' },
