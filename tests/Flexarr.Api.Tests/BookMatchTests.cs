@@ -92,6 +92,29 @@ public class BookMatchTests(FlexarrApiFactory factory) : IClassFixture<FlexarrAp
     }
 
     [Fact]
+    public async Task Edit_FixingCapitals_RenamesThem_AndReusesAGenreInAnyCase()
+    {
+        using var app = Serve();
+        var client = Client(app);
+        var book = await SeedAsync(app, "TMC", 3600, series: ("thursday murder club", "1"));
+        var genre = $"Mystery {Guid.NewGuid():N}";
+        var first = await client.PutAsJsonAsync(new Uri($"/api/v1/items/{book}/book-details", UriKind.Relative),
+            new { title = "TMC", authors = new[] { "richard osman" }, series = new[] { new { name = "thursday murder club", sequence = "1" } }, genres = new[] { genre } });
+        var fixedCaps = await client.PutAsJsonAsync(new Uri($"/api/v1/items/{book}/book-details", UriKind.Relative),
+            new { title = "TMC", authors = new[] { "Richard Osman" }, series = new[] { new { name = "Thursday Murder Club", sequence = "1" } }, genres = new[] { genre.ToLowerInvariant() } });
+
+        Assert.Equal(HttpStatusCode.NoContent, first.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, fixedCaps.StatusCode);
+        using var scope = app.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        var item = await db.MediaItems.Include(i => i.Genres).Include(i => i.Credits).ThenInclude(c => c.Person).SingleAsync(i => i.Id == book);
+        Assert.Equal("Richard Osman", item.Credits.Single(c => c.Role == CreditRole.Author).Person!.Name);
+        Assert.Equal("Thursday Murder Club", (await db.BookSeriesEntries.Include(e => e.Series).SingleAsync(e => e.BookId == book)).Series!.Name);
+        Assert.Equal([genre.ToLowerInvariant()], item.Genres.Select(g => g.Name));
+        Assert.Equal(1, await db.Genres.CountAsync(g => EF.Functions.Collate(g.Name, "NOCASE") == genre));
+    }
+
+    [Fact]
     public async Task Chapters_RenamedAndRetimed_ThenShifted_ThenAudibles()
     {
         using var app = Serve();

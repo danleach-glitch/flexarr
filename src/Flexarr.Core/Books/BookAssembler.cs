@@ -281,6 +281,17 @@ public sealed partial class BookAssembler(FlexarrDbContext db, IMediaProbe probe
         else
         {
             await SetSeriesAsync(book, parts, ct).ConfigureAwait(false);
+            // A series' capitals fixed: named as typed (for every book in it).
+            foreach (var part in parts)
+            {
+                var series = await SeriesAsync(book.LibraryId, part.Name, ct).ConfigureAwait(false);
+                if (CaseOnly(series.Name, part.Name))
+                {
+                    series.Name = part.Name;
+                    series.SortName = SortTitle.For(part.Name);
+                }
+            }
+
             // A number taken away stays away (a scan keeps the one it had).
             foreach (var entry in db.BookSeriesEntries.Local.Where(e => e.BookId == book.Id))
             {
@@ -301,6 +312,23 @@ public sealed partial class BookAssembler(FlexarrDbContext db, IMediaProbe probe
         else
         {
             await SetGenresAsync(book, genres, ct).ConfigureAwait(false);
+            // A genre's capitals fixed: named as typed, unless another genre is written just so already.
+            foreach (var genre in book.Genres.ToList())
+            {
+                if (genres.FirstOrDefault(n => CaseOnly(genre.Name, n)) is { } typed)
+                {
+                    var exact = await db.Genres.FirstOrDefaultAsync(g => g.Name == typed, ct).ConfigureAwait(false);
+                    if (exact is null)
+                    {
+                        genre.Name = typed;
+                    }
+                    else
+                    {
+                        book.Genres.Remove(genre);
+                        book.Genres.Add(exact);
+                    }
+                }
+            }
         }
 
         book.MatchLocked = edit.Locked;
@@ -308,12 +336,26 @@ public sealed partial class BookAssembler(FlexarrDbContext db, IMediaProbe probe
 
     private static string? Blank(string? text) => string.IsNullOrWhiteSpace(text) ? null : text.Trim();
 
+    /// <summary>The same name written with other capitals.</summary>
+    private static bool CaseOnly(string stored, string typed) =>
+        !string.Equals(stored, typed, StringComparison.Ordinal) && string.Equals(stored, typed, StringComparison.OrdinalIgnoreCase);
+
     private async Task ReplaceCreditsAsync(MediaItem book, CreditRole role, IReadOnlyList<string> names, CancellationToken ct)
     {
         var kept = names.Select(n => n.Trim()).Where(n => n.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         if (kept.Count > 0)
         {
             await SetCreditsAsync(book, role, kept, ct).ConfigureAwait(false);
+            // "j.k. rowling" written "J.K. Rowling": the same person, named as typed (on every book of theirs).
+            var credited = book.Credits.Where(c => c.Role == role).OrderBy(c => c.Order).ToList();
+            for (var i = 0; i < Math.Min(credited.Count, kept.Count); i++)
+            {
+                if (credited[i].Person is { } person && CaseOnly(person.Name, kept[i]))
+                {
+                    person.Name = kept[i];
+                }
+            }
+
             return;
         }
 
@@ -471,10 +513,7 @@ public sealed partial class BookAssembler(FlexarrDbContext db, IMediaProbe probe
         book.Genres.Clear();
         foreach (var name in names)
         {
-            var genre = await db.Genres.FirstOrDefaultAsync(g => g.Name == name, ct).ConfigureAwait(false)
-                ?? db.Genres.Local.FirstOrDefault(g => string.Equals(g.Name, name, StringComparison.OrdinalIgnoreCase))
-                ?? db.Genres.Add(new Genre { Name = name }).Entity;
-            book.Genres.Add(genre);
+            book.Genres.Add(await BookGenres.FindAsync(db, name, ct).ConfigureAwait(false));
         }
     }
 

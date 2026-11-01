@@ -279,9 +279,7 @@ public sealed partial class MetadataRefresher
         {
             foreach (var name in readarrGenres.Take(5))
             {
-                book.Genres.Add(await db.Genres.FirstOrDefaultAsync(g => g.Name == name, ct).ConfigureAwait(false)
-                    ?? db.Genres.Local.FirstOrDefault(g => string.Equals(g.Name, name, StringComparison.OrdinalIgnoreCase))
-                    ?? db.Genres.Add(new Genre { Name = name }).Entity);
+                book.Genres.Add(await BookGenres.FindAsync(db, name, ct).ConfigureAwait(false));
             }
         }
 
@@ -337,9 +335,7 @@ public sealed partial class MetadataRefresher
             book.Genres.Clear();
             foreach (var name in foundGenres.Take(5))
             {
-                book.Genres.Add(await db.Genres.FirstOrDefaultAsync(g => g.Name == name, ct).ConfigureAwait(false)
-                    ?? db.Genres.Local.FirstOrDefault(g => string.Equals(g.Name, name, StringComparison.OrdinalIgnoreCase))
-                    ?? db.Genres.Add(new Genre { Name = name }).Entity);
+                book.Genres.Add(await BookGenres.FindAsync(db, name, ct).ConfigureAwait(false));
             }
         }
 
