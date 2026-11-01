@@ -51,6 +51,16 @@ describe('PersonEditor', () => {
     expect(screen.getByRole<HTMLInputElement>('switch', { name: 'Locked' }).checked).toBe(false)
   })
 
+  it('marks the photo the server says is current, even without a photo source', async () => {
+    mockApi({ 'GET /people/p1/candidates': { ...candidates, photos: [candidates.photos[0], { ...candidates.photos[1], current: true }] } })
+    render(<PersonEditor person={{ ...person, photoSource: null }} onSaved={() => undefined} onClose={() => undefined} />)
+
+    const openLibrary = await screen.findByRole('radio', { name: /Open Library/ })
+    expect(openLibrary.getAttribute('aria-checked')).toBe('true')
+    expect(openLibrary.textContent).toContain('Current')
+    expect(screen.getByRole('radio', { name: 'Audible' }).getAttribute('aria-checked')).toBe('false')
+  })
+
   it('saves the chosen photo and biography, locking the person', async () => {
     const sent: unknown[] = []
     mockApi({

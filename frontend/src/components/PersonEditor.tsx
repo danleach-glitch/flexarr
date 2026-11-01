@@ -31,8 +31,10 @@ const LOOK_AGAIN_MS = 9 * 60_000
  */
 export function PersonEditor({ person, onSaved, onClose }: { person: Person; onSaved: (person: Person) => void; onClose: () => void }) {
   const candidates = useApi((signal) => getPersonCandidates(person.id, signal), [person.id])
-  const current = person.photoSource ?? undefined
-  const [chosen, setChosen] = useState(current)
+  // The photo shown now: the one the server marks, or (before it marked them) the one from the person's photo source.
+  const current = candidates.data?.photos.find((p) => p.current)?.source ?? person.photoSource ?? undefined
+  const [picked, setPicked] = useState<string>()
+  const chosen = picked ?? current
   const [file, setFile] = useState<File>()
   const preview = usePreviewUrl(file)
   const original = person.biography ?? ''
@@ -59,13 +61,13 @@ export function PersonEditor({ person, onSaved, onClose }: { person: Person; onS
   const biographies = (candidates.data?.biographies ?? []).filter((b) => b.text.trim() !== biography.trim())
 
   function choose(source: string) {
-    setChosen(source)
+    setPicked(source)
     if (source !== current && !lockSet) setLocked(true)
   }
 
   function failed(source: string) {
     setBroken((b) => new Set(b).add(source))
-    if (chosen === source) setChosen(undefined)
+    if (picked === source) setPicked(undefined)
   }
 
   function write(text: string) {
