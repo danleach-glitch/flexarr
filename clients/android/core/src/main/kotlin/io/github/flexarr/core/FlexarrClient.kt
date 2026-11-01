@@ -383,7 +383,10 @@ class FlexarrClient(
     ): String {
         val response = try {
             if (simulatesOffline) throw ConnectException("No network (simulated)")
-            reach(method, path, query, body, racesAlternate, http)
+            reach(method, path, query, body, racesAlternate, http).also {
+                lastAnsweredAtMs = System.currentTimeMillis()
+                onAnswered?.invoke()
+            }
         } catch (e: IOException) {
             if (couldNotConnect(e)) onCouldNotConnect?.invoke(addresses.home)
             throw FlexarrException.Unreachable(e)
@@ -417,26 +420,46 @@ class FlexarrClient(
     }
 
     /**
-     * Whether the server answers at all within [limitMs]: `system/status` at every address at once, the first answer
-     * winning (and becoming the address in use). Any answer counts, even an error: the server is there. Used at launch
-     * and while offline, so a missing server shows in seconds rather than after every request's own timeout.
+     * Whether the server answers at all within [limitMs]. The address in use is asked first and the other one a moment
+     * later (or as soon as the first can't connect), as ordinary requests do, so a phone at home stays on its home
+     * address; whichever answers becomes the address in use. Asked without the sign-in, so nothing is given away to
+     * whatever is at the home address on someone else's network: Flexarr answers `system/status` with a 401, which
+     * counts, while a web page or a redirect (a hotel's sign-in page) doesn't. Used at launch and while offline, so a
+     * missing server shows in seconds rather than after every request's own timeout.
      */
     suspend fun isReachable(limitMs: Long = REACHABLE_LIMIT_MS): Boolean {
         if (simulatesOffline) return false
-        val quick = http.newBuilder().callTimeout(limitMs, TimeUnit.MILLISECONDS).build()
-        val targets = listOfNotNull(addresses.current, addresses.alternate(addresses.current))
+        // Its own dispatcher, so it never waits in line behind artwork for the same server.
+        val quick = http.newBuilder().dispatcher(probeDispatcher).followRedirects(false).followSslRedirects(false)
+            .callTimeout(limitMs, TimeUnit.MILLISECONDS).build()
+        val primary = addresses.current
+        val alternate = addresses.alternate(primary)
+        fun probe(base: HttpUrl) = Request.Builder().url(base.newBuilder().addPathSegments("api/v1/system/status").build())
+            .header("Accept", "application/json").build()
+        suspend fun answers(base: HttpUrl): Boolean = runCatching {
+            quick.newCall(probe(base)).await().use { it.code !in 300..399 && it.header("Content-Type")?.contains("text/html") != true }
+        }.getOrDefault(false)
         val reached = withContext(Dispatchers.IO) {
             withTimeoutOrNull(limitMs) {
                 coroutineScope {
-                    val answers = Channel<HttpUrl?>(capacity = targets.size)
-                    val jobs = targets.map { url ->
+                    val answers = Channel<HttpUrl?>(capacity = 2)
+                    val firstFailed = CompletableDeferred<Unit>()
+                    val jobs = listOfNotNull(
                         launch {
-                            val answered = runCatching { quick.newCall(request("GET", "system/status", emptyMap(), null, url)).await().close() }.isSuccess
-                            answers.send(url.takeIf { answered })
-                        }
-                    }
+                            val ok = answers(primary)
+                            if (!ok) firstFailed.complete(Unit)
+                            answers.send(primary.takeIf { ok })
+                        },
+                        alternate?.let { other ->
+                            launch {
+                                // A head start for the address in use, unless it's already failed.
+                                withTimeoutOrNull(ServerAddresses.PROBE_HEAD_START_MS) { firstFailed.await() }
+                                answers.send(other.takeIf { answers(other) })
+                            }
+                        },
+                    )
                     var found: HttpUrl? = null
-                    for (i in targets.indices) {
+                    for (i in jobs.indices) {
                         found = answers.receive()
                         if (found != null) break
                     }
@@ -445,7 +468,8 @@ class FlexarrClient(
                 }
             }
         } ?: return false
-        addresses.reached(reached)
+        if (reached != addresses.current) addresses.reached(reached)
+        lastAnsweredAtMs = System.currentTimeMillis()
         return true
     }
 
@@ -595,6 +619,21 @@ class FlexarrClient(
         @Volatile
         var onCouldNotConnect: ((HttpUrl) -> Unit)? = null
 
+        /**
+         * Called whenever a request got an answer from the server (any answer: it's there), so an app in offline mode can
+         * come back at once rather than at its next check. Set once at launch.
+         */
+        @Volatile
+        var onAnswered: (() -> Unit)? = null
+
+        /** When a server last answered a request (or the reachability check) from this app; 0 if none has yet. */
+        @Volatile
+        var lastAnsweredAtMs = 0L
+            private set
+
+        /** The reachability check's own dispatcher. */
+        private val probeDispatcher by lazy { okhttp3.Dispatcher() }
+
         /** Debug builds' "act offline": every request fails as if there were no network, and [isReachable] says no. */
         @Volatile
         var simulatesOffline = false
@@ -732,7 +771,8 @@ class FlexarrClient(
 /** Runs the call without blocking, cancelling it if the coroutine is cancelled. */
 private suspend fun Call.await(): Response = suspendCancellableCoroutine { continuation ->
     enqueue(object : Callback {
-        override fun onResponse(call: Call, response: Response) = continuation.resume(response)
+        // Closed if it arrives as the caller is cancelled (the losing reachability check), rather than leaked.
+        override fun onResponse(call: Call, response: Response) = continuation.resume(response) { _ -> response.close() }
         override fun onFailure(call: Call, e: IOException) = continuation.resumeWithException(e)
     })
     continuation.invokeOnCancellation { runCatching { cancel() } }

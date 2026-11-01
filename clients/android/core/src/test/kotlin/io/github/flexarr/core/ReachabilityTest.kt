@@ -6,7 +6,9 @@ import mockwebserver3.MockWebServer
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -38,6 +40,35 @@ class ReachabilityTest {
         server.enqueue(MockResponse.Builder().code(401).build())
         assertTrue(FlexarrClient(server.url("/")).isReachable(2_000))
         assertTrue(server.takeRequest().url.encodedPath == "/api/v1/system/status")
+    }
+
+    @Test
+    fun `asked without the sign-in`() = runBlocking {
+        server.enqueue(MockResponse.Builder().code(401).build())
+        assertTrue(FlexarrClient(server.url("/"), apiKey = "device-token").isReachable(2_000))
+        assertNull(server.takeRequest().headers["X-Api-Key"])
+    }
+
+    @Test
+    fun `a web page is not the server`() = runBlocking {
+        // A hotel's sign-in page at the home address.
+        server.enqueue(MockResponse.Builder().code(200).addHeader("Content-Type", "text/html").body("<html>").build())
+        assertFalse(FlexarrClient(server.url("/")).isReachable(2_000))
+    }
+
+    @Test
+    fun `home gets a head start`() = runBlocking {
+        val away = MockWebServer().apply { start() }
+        try {
+            server.enqueue(MockResponse.Builder().code(401).build())
+            away.enqueue(MockResponse.Builder().code(401).build())
+            val addresses = ServerAddresses(server.url("/"), away.url("/"))
+            assertTrue(FlexarrClient(addresses).isReachable(4_000))
+            assertFalse(addresses.isAway)
+            assertEquals(0, away.requestCount)
+        } finally {
+            away.close()
+        }
     }
 
     @Test

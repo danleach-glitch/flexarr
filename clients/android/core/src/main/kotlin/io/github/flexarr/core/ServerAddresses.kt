@@ -52,6 +52,9 @@ class ServerAddresses(val home: HttpUrl, remote: HttpUrl?) {
         /** How long to wait for the current address before also asking the other one (GETs only). */
         const val ALTERNATE_DELAY_MS = 2_500L
 
+        /** How long the reachability check gives the address in use before asking the other one too. */
+        const val PROBE_HEAD_START_MS = 1_500L
+
         /** While away, how often home is tried again. */
         const val HOME_CHECK_INTERVAL_MS = 5 * 60_000L
 

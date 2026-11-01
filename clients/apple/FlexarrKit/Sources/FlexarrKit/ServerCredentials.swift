@@ -102,7 +102,8 @@ public struct CredentialStore: Sendable {
     }
 
     /// The profile list as the server last gave it (names, colours, which is watching, which are kids), so the app
-    /// still knows who's watching while it can't reach the server.
+    /// still knows who's watching while it can't reach the server. `Profile` is saved as it is, so its new fields must
+    /// stay optional, or a list saved by the version before can't be read and offline mode starts with none.
     public func saveProfiles(_ profiles: [Profile]) {
         defaults.set(try? JSONEncoder().encode(profiles), forKey: "\(addressKey).profiles")
     }

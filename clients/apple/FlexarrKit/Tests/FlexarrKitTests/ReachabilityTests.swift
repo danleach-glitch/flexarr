@@ -45,6 +45,35 @@ struct ReachabilityTests {
         #expect(await client(home: .init(status: 401, body: Data())).isReachable(within: .seconds(2)))
     }
 
+    @Test func askedWithoutTheSignIn() async {
+        let client = client(home: ok, hasRemote: false)
+        #expect(await client.isReachable(within: .seconds(2)))
+        let host = client.addresses.home.host ?? ""
+        let probe = StubProtocol.recorded(host: host).last
+        #expect(probe?.url?.path == "/api/v1/system/status")
+        #expect(probe?.value(forHTTPHeaderField: "X-Api-Key") == nil)
+    }
+
+    @Test func aWebPageIsNotTheServer() async {
+        // A hotel's sign-in page at the home address.
+        let portal = StubProtocol.Stub(status: 200, body: Data("<html>".utf8), contentType: "text/html")
+        #expect(!(await client(home: portal, hasRemote: false).isReachable(within: .seconds(2))))
+    }
+
+    @Test func homeGetsAHeadStart() async {
+        // Both answer: home, the address in use, wins, and the app stays at home.
+        let client = client(home: ok, remote: ok)
+        #expect(await client.isReachable(within: .seconds(4)))
+        #expect(!client.addresses.isAway)
+    }
+
+    @Test func aSuccessfulRequestIsReported() async throws {
+        let before = Date()
+        let (client, _) = stubbedClient(.init(status: 200, body: Data("[]".utf8)))
+        _ = try await client.libraries()
+        #expect((FlexarrClient.lastAnsweredAt ?? .distantPast) >= before)
+    }
+
     @Test func awayAddressAnswersAndIsUsedFromThen() async {
         let client = client(home: nil, remote: ok)
         #expect(await client.isReachable(within: .seconds(2)))
