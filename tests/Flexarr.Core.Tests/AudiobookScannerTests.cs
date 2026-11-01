@@ -300,6 +300,23 @@ public sealed class AudiobookScannerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AReplacedCover_ChangesTheArtworkVersion()
+    {
+        Touch("A/Book/01.mp3", "A/Book/cover.jpg");
+        await ScanAsync();
+        var looked = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        await _db.MediaItems.ExecuteUpdateAsync(u => u.SetProperty(i => i.MetadataUpdatedAt, looked));
+        File.SetLastWriteTimeUtc(Path.Combine(Books, "A/Book/cover.jpg"), looked.AddDays(-1));
+
+        await ScanAsync();
+        Assert.Equal(looked, (await _db.MediaItems.AsNoTracking().SingleAsync()).MetadataUpdatedAt);
+
+        File.SetLastWriteTimeUtc(Path.Combine(Books, "A/Book/cover.jpg"), looked.AddDays(1));
+        await ScanAsync();
+        Assert.True((await _db.MediaItems.AsNoTracking().SingleAsync()).MetadataUpdatedAt > looked);
+    }
+
+    [Fact]
     public async Task EmbeddedArtwork_WhenTheFolderHasNoCover()
     {
         Touch("A/Book/01.m4b");

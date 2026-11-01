@@ -328,6 +328,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
 
         // Ids from folder names are known now; those from Radarr/Sonarr after the metadata refresh, which does this again.
         await WatchHistoryCarryOver.CarryOverAsync(db, cancellationToken).ConfigureAwait(false);
+        await NoticeReplacedArtworkAsync(library.Id, cancellationToken).ConfigureAwait(false);
 
         library.LastScannedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
@@ -533,6 +534,31 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
     }
 
     /// <summary>Removes files missing for longer than <see cref="MissingGracePeriod"/>.</summary>
+    /// <summary>
+    /// A cover.jpg or poster.jpg replaced beside the files: its title's artwork address changes (it carries
+    /// <see cref="MediaItem.MetadataUpdatedAt"/>), so apps and browsers fetch the new picture rather than keep the old
+    /// one they cached. Titles never looked up yet are left alone, as a null there means "look it up".
+    /// </summary>
+    private async Task NoticeReplacedArtworkAsync(Guid libraryId, CancellationToken ct)
+    {
+        var local = await db.MediaItems
+            .Where(i => i.LibraryId == libraryId && i.MetadataUpdatedAt != null
+                && ((i.PosterUrl != null && i.PosterUrl.StartsWith("file://")) || (i.BackdropUrl != null && i.BackdropUrl.StartsWith("file://"))
+                    || (i.LogoUrl != null && i.LogoUrl.StartsWith("file://")) || (i.ThumbUrl != null && i.ThumbUrl.StartsWith("file://"))))
+            .Select(i => new { i.Id, i.MetadataUpdatedAt, Urls = new[] { i.PosterUrl, i.BackdropUrl, i.LogoUrl, i.ThumbUrl } })
+            .ToListAsync(ct).ConfigureAwait(false);
+        var changed = local
+            .Where(i => i.Urls.OfType<string>().Where(u => u.StartsWith("file://", StringComparison.Ordinal))
+                .Select(u => File.GetLastWriteTimeUtc(u["file://".Length..]))
+                .Any(at => at.Year > 1601 && at > i.MetadataUpdatedAt!.Value))
+            .Select(i => i.Id).ToList();
+        if (changed.Count > 0)
+        {
+            var now = DateTime.UtcNow;
+            await db.MediaItems.Where(i => changed.Contains(i.Id)).ExecuteUpdateAsync(u => u.SetProperty(i => i.MetadataUpdatedAt, now), ct).ConfigureAwait(false);
+        }
+    }
+
     private async Task<int> RemoveExpiredAsync(Guid libraryId, CancellationToken ct)
     {
         var cutoff = DateTime.UtcNow - MissingGracePeriod;
