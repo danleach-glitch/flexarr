@@ -128,10 +128,10 @@ final class AppModel {
     #endif
 
     init() {
+        let defaults = UserDefaults.standard
         #if DEBUG
         // `-FlexarrServer <url> -FlexarrApiKey <key>` launch arguments sign in directly
         // (used for simulator runs and screenshots).
-        let defaults = UserDefaults.standard
         // `-FlexarrSignedOut YES` starts on the connect screen (keeps the last address).
         if defaults.bool(forKey: "FlexarrSignedOut") { store.clear() }
         if let server = defaults.string(forKey: "FlexarrServer"), let url = FlexarrClient.normalizeAddress(server) {
