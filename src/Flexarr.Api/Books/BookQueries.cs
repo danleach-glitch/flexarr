@@ -212,7 +212,7 @@ public static class BookQueries
         var series = await SeriesListAsync(db, libraryId, null, 0, Shelf, profileId, ct);
         var authors = await PeopleAsync(db, libraryId, CreditRole.Author, null, 0, Shelf, ct);
         var narrators = await PeopleAsync(db, libraryId, CreditRole.Narrator, null, 0, Shelf, ct);
-        var genres = await GenreCounts(db, books).OrderByDescending(g => g.Count).ThenBy(g => g.Name).Take(200)
+        var genres = await GenreCounts(books).OrderByDescending(g => g.Count).ThenBy(g => g.Name).Take(200)
             .Select(g => new GenreCountDto(g.Name, g.Count)).ToListAsync(ct);
 
         var languages = await LanguagesAsync(books, ct);
@@ -229,7 +229,7 @@ public static class BookQueries
 
     /// <summary>A library's book genres and how many books are in each, A to Z (the Genres view).</summary>
     public static Task<List<GenreCountDto>> GenresAsync(FlexarrDbContext db, Guid libraryId, CancellationToken ct) =>
-        GenreCounts(db, Books(db, libraryId)).OrderBy(g => g.Name).Select(g => new GenreCountDto(g.Name, g.Count)).ToListAsync(ct);
+        GenreCounts(Books(db, libraryId)).OrderBy(g => g.Name).Select(g => new GenreCountDto(g.Name, g.Count)).ToListAsync(ct);
 
     private sealed class GenreCount
     {
@@ -237,8 +237,10 @@ public static class BookQueries
         public int Count { get; init; }
     }
 
-    private static IQueryable<GenreCount> GenreCounts(FlexarrDbContext db, IQueryable<MediaItem> books) =>
-        db.Genres.Select(g => new GenreCount { Name = g.Name, Count = g.Items.Count(i => books.Any(b => b.Id == i.Id)) }).Where(g => g.Count > 0);
+    // From the library's books, grouped by name: only their genre links are read, rather than every genre on the server
+    // (films' and shows' too) checked against the library.
+    private static IQueryable<GenreCount> GenreCounts(IQueryable<MediaItem> books) =>
+        books.SelectMany(b => b.Genres).GroupBy(g => g.Name).Select(g => new GenreCount { Name = g.Key, Count = g.Count() });
 
     /// <summary>
     /// For each series this profile has finished a book of, the next one it hasn't started: most recently finished
