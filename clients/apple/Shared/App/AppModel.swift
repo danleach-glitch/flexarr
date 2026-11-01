@@ -1131,6 +1131,8 @@ final class AppModel {
 
     func removeFromContinueWatching(_ item: ItemSummary) async {
         guard let client else { return }
+        // Loaded in the audio player, its next report would put it back: it stops without one.
+        music.discard(item.id)
         try? await client.removeFromContinueWatching(item.id)
         player.offlineLibrary?.forgetPosition(itemId: item.id)
         invalidate()
