@@ -186,11 +186,14 @@ struct BookView: View {
 
             HStack(alignment: .top, spacing: 8) {
                 BookDownloadButton(item: item)
-                if !model.isKids {
-                    Button { Task { await setFinished(!item.isFinishedBook) } } label: {
-                        Label(item.isFinishedBook ? "Not finished" : "Finished", systemImage: item.isFinishedBook ? "arrow.uturn.backward" : "checkmark")
-                    }
-                    .accessibilityLabel(item.isFinishedBook ? "Mark as not finished" : "Mark as finished")
+                if !model.isKids, !item.isFinishedBook {
+                    Button { Task { await setFinished(true) } } label: { Label("Finished", systemImage: "checkmark") }
+                        .accessibilityLabel("Mark as finished")
+                }
+                // Unread: no place and not finished, as if never started. Not while it plays, which would set the place again.
+                if !model.isKids, item.isFinishedBook || (resumable && !playingThis) {
+                    Button { Task { await setFinished(false) } } label: { Label("Unread", systemImage: "arrow.uturn.backward") }
+                        .accessibilityLabel("Mark as unread")
                 }
                 // Only with somewhere to start over from; part way through, it asks first.
                 if item.isFinishedBook || resumable {
