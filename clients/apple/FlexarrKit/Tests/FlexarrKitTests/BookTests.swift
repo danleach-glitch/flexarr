@@ -81,6 +81,25 @@ struct BookDecodingTests {
         #expect(detail.book?.chapterSource == .embedded)
         #expect(detail.book?.series.first?.placeLabel == "Book 3 of 7")
         #expect(detail.book?.byAuthor.count == 1)
+        #expect(detail.book?.authors == nil)
+        #expect(detail.book?.authorCards.isEmpty == true)
+    }
+
+    @Test func aBookPageCarriesItsAuthorsFromNewerServers() throws {
+        let json = ##"""
+        {"subtitle":null,"asin":null,"isbn":null,"publisher":null,"language":null,"abridged":false,"explicit":false,
+         "durationSeconds":100,"chapterSource":"None","finishedAt":null,"speed":null,"series":[],"chapters":[],"bookmarks":[],
+         "moreInSeries":[],"byAuthor":[],"readByNarrator":[],
+         "authors":[{"id":"p1","name":"Andy Weir","image":"/api/v1/images/people/p1?v=1730000000","biography":"Writes science fiction."},
+                    {"id":"p2","name":"Lee Child","image":null,"biography":null},
+                    {"id":"p3","name":"Someone","image":null,"biography":"  "},
+                    {"id":"p4","name":"Pictured","image":"/api/v1/images/people/p4?v=1","biography":null}]}
+        """##
+        let book = try FlexarrClient.decoder.decode(BookDetail.self, from: Data(json.utf8))
+        #expect(book.authors?.map(\.id) == ["p1", "p2", "p3", "p4"])
+        #expect(book.authors?.first?.image == "/api/v1/images/people/p1?v=1730000000")
+        #expect(book.authors?.first?.biography == "Writes science fiction.")
+        #expect(book.authorCards.map(\.id) == ["p1", "p4"])
     }
 
     @Test func shelvesSeriesAndPeopleDecode() throws {

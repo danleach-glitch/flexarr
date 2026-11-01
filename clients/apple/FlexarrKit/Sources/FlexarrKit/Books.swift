@@ -81,6 +81,29 @@ public struct BookSeriesRef: Codable, Sendable, Hashable, Identifiable {
     }
 }
 
+/// One of a book's credited authors with their photo and biography, for the author card on its page.
+public struct BookAuthor: Codable, Sendable, Hashable, Identifiable {
+    /// The person's id: their page is `GET /people/{id}`.
+    public let id: String
+    public let name: String
+    /// A server URL, versioned so a new photo isn't served from a cache.
+    public let image: String?
+    /// The whole biography; the apps clamp it.
+    public let biography: String?
+
+    public init(id: String, name: String, image: String? = nil, biography: String? = nil) {
+        self.id = id
+        self.name = name
+        self.image = image
+        self.biography = biography
+    }
+
+    /// Whether there's anything to show beyond the name already under the title.
+    public var hasCard: Bool {
+        !(image ?? "").isEmpty || !(biography ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+}
+
 /// A book's own page (`ItemDetail.book`).
 public struct BookDetail: Codable, Sendable {
     public let subtitle: String?
@@ -101,6 +124,11 @@ public struct BookDetail: Codable, Sendable {
     public let moreInSeries: [ItemSummary]
     public let byAuthor: [ItemSummary]
     public let readByNarrator: [ItemSummary]
+    /// Its credited authors in order, with photos and biographies. Absent from servers before 0.58.
+    public var authors: [BookAuthor]? = nil
+
+    /// The authors that get a card: those with a photo or a biography. None from older servers.
+    public var authorCards: [BookAuthor] { (authors ?? []).filter(\.hasCard) }
 }
 
 /// One of a book's files on its timeline. `url` serves it as it is, or converted to AAC (`converted`) when the

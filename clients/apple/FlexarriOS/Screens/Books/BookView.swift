@@ -230,6 +230,12 @@ struct BookView: View {
                 .accessibilityAddTraits(.isButton)
                 .accessibilityHint(overviewExpanded ? "Shows less" : "Shows the whole description")
         }
+        if let authors = book?.authorCards, !authors.isEmpty {
+            VStack(spacing: 10) {
+                ForEach(authors) { authorCard($0) }
+            }
+            .padding(.horizontal, Layout.edge)
+        }
         if let book {
             if book.chapters.count > 1 { chapters(book.chapters, item: item) }
             if !book.bookmarks.isEmpty { bookmarks(book.bookmarks, chapters: book.chapters, item: item) }
@@ -238,6 +244,44 @@ struct BookView: View {
             bookRow(firstName(.narrator).map { "More read by \($0)" } ?? "More from the narrator", book.readByNarrator)
             details(book)
         }
+    }
+
+    /// An author's photo, name and the start of their biography: tapping opens their page.
+    private func authorCard(_ author: BookAuthor) -> some View {
+        Button { router.push(.person(id: author.id, name: author.name)) } label: {
+            HStack(alignment: .top, spacing: 14) {
+                Color.seat
+                    .frame(width: 56, height: 56)
+                    .overlay {
+                        RemoteImage(url: model.client?.imageURL(author.image, width: 168)) {
+                            Image(systemName: "person.fill").font(.title3).foregroundStyle(Color.usher)
+                        }
+                    }
+                    .clipShape(Circle())
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(author.name)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.screen)
+                    if let biography = author.biography?.trimmingCharacters(in: .whitespacesAndNewlines), !biography.isEmpty {
+                        Text(biography)
+                            .font(.footnote)
+                            .lineSpacing(2)
+                            .foregroundStyle(Color.screen.opacity(0.75))
+                            .lineLimit(3)
+                    }
+                }
+                .multilineTextAlignment(.leading)
+                Spacer(minLength: 0)
+            }
+            .padding(14)
+            .background(Color.seat.opacity(0.6), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(author.name)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityHint("Opens their page")
     }
 
     private func firstName(_ role: CreditRole) -> String? {
