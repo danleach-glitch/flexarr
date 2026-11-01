@@ -79,7 +79,7 @@ public static partial class BookLayout
 
         var authors = folders.Length > 0 ? SplitAuthors(folders[0]) : [];
         var series = folders.Length > 1 ? Clean(folders[^1]) : null;
-        var parsed = ParseName(name, authors);
+        var parsed = ParseName(name, authors, inSeries: series is not null);
         return new BookPlace(key, parsed.Title, parsed.Authors ?? authors, series, parsed.Sequence, parsed.Year, parsed.Narrator, parsed.Asin, null);
     }
 
@@ -99,7 +99,10 @@ public static partial class BookLayout
     private sealed record Parsed(string Title, string? Sequence, int? Year, string? Narrator, string? Asin, IReadOnlyList<string>? Authors);
 
     /// <summary>Takes a book folder or file name apart: "Vol. 1.5 - 2004 - Title {Narrator} [ASIN]".</summary>
-    private static Parsed ParseName(string name, IReadOnlyList<string> folderAuthors)
+    /// <param name="name">The folder or file name.</param>
+    /// <param name="folderAuthors">The authors the author folder names.</param>
+    /// <param name="inSeries">The book is in a series folder, so a number before its title ("3 The Title") can be its place.</param>
+    private static Parsed ParseName(string name, IReadOnlyList<string> folderAuthors, bool inSeries)
     {
         string? asin = null, narrator = null, sequence = null;
         int? year = null;
@@ -135,16 +138,16 @@ public static partial class BookLayout
             parts.RemoveAt(0);
         }
 
-        // Leading "Vol. 1.5", "Book 3", "1" and "2004" parts, in any order.
+        // Leading "Vol. 1.5", "Book 3", "1" and "2004" parts, in any order: a bare year is a year, not a number.
         while (parts.Count > 1)
         {
-            if (sequence is null && Numbered().Match(parts[0]) is { Success: true } s)
-            {
-                sequence = s.Groups["n"].Value.Replace(',', '.');
-            }
-            else if (year is null && YearOnly().IsMatch(parts[0]))
+            if (year is null && YearOnly().IsMatch(parts[0]))
             {
                 year = int.Parse(parts[0], CultureInfo.InvariantCulture);
+            }
+            else if (sequence is null && Numbered().Match(parts[0]) is { Success: true } s)
+            {
+                sequence = s.Groups["n"].Value.Replace(',', '.');
             }
             else
             {
@@ -154,8 +157,10 @@ public static partial class BookLayout
             parts.RemoveAt(0);
         }
 
+        // "3 The Title" in a series folder: its place in the series. Not outside one, and never a year: "2001 A Space
+        // Odyssey" keeps its number.
         var title = string.Join(" - ", parts);
-        if (sequence is null && LeadingNumber().Match(title) is { Success: true } ln)
+        if (sequence is null && inSeries && LeadingNumber().Match(title) is { Success: true } ln && !LooksLikeAYear(ln.Groups["n"].Value))
         {
             sequence = ln.Groups["n"].Value;
             title = title[ln.Length..];
@@ -177,6 +182,10 @@ public static partial class BookLayout
 
         return parts.Count > 0 ? parts : [value.Trim()];
     }
+
+    /// <summary>"1984", "2001": four digits that could be a year rather than a place in a series.</summary>
+    private static bool LooksLikeAYear(string number) =>
+        int.TryParse(number, NumberStyles.None, CultureInfo.InvariantCulture, out var n) && n is >= 1000 and <= 2099;
 
     /// <summary>A disc number from a "1-01 Title" or "CD2 - 03" file name, as music rippers name them.</summary>
     private static int? DiscFromFileName(string name) =>
