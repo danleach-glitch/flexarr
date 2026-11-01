@@ -215,8 +215,12 @@ function BookMatchDialog({ item, onFixed, onClose }: Props) {
                       {m.year && <span className="muted"> ({m.year})</span>}
                     </strong>
                     {m.subtitle && <span className="muted">{m.subtitle}</span>}
-                    <span className="muted">
-                      {[m.authors.join(', '), m.narrators.length ? `read by ${m.narrators.join(', ')}` : null, m.series, formatDuration(m.durationSeconds)].filter(Boolean).join(' · ')}
+                    <span className="muted meta-line">
+                      {[m.authors.join(', '), m.narrators.length ? `Read by ${m.narrators.join(', ')}` : null, m.series, m.durationSeconds ? formatDuration(m.durationSeconds) : null]
+                        .filter((fact): fact is string => !!fact)
+                        .map((fact) => (
+                          <span key={fact}>{fact}</span>
+                        ))}
                     </span>
                   </span>
                   <span className="tag">{providerName[m.provider] ?? m.provider}</span>

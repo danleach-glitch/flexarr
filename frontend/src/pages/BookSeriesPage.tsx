@@ -59,7 +59,11 @@ export function BookSeriesPage() {
                 <Link to={`/item/${book.id}`} className="series-book-title">
                   {book.title}
                 </Link>
-                <span className="muted">{[authorsLine(book), formatDuration(book.book?.durationSeconds ?? book.durationSeconds), book.year].filter(Boolean).join(' · ')}</span>
+                <span className="muted meta-line">
+                  {[authorsLine(book), formatDuration(book.book?.durationSeconds ?? book.durationSeconds), book.year?.toString()].filter(Boolean).map((fact) => (
+                    <span key={fact}>{fact}</span>
+                  ))}
+                </span>
                 {progress !== null && !book.userData.watched && (
                   <span className="detail-progress" aria-label={`${Math.round(progress * 100)}% listened`}>
                     <span style={{ width: `${progress * 100}%` }} />

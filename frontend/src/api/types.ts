@@ -1098,6 +1098,8 @@ export interface BookShelves {
   narrators: BookPerson[]
   genres: { name: string; count: number }[]
   finished: ItemSummary[]
+  /** The languages its books are in, as their tags have them ("en", "eng"); optional, absent from servers that don't send it. */
+  languages?: string[]
 }
 
 export interface BookSeriesSearch {
