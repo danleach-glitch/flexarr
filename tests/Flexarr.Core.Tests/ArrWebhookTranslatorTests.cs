@@ -97,6 +97,17 @@ public class ArrWebhookTranslatorTests
         Assert.Equal("/music/Radiohead", request.Path);
     }
 
+    [Fact]
+    public void LidarrRetag_ScansArtistFolder()
+    {
+        // Lidarr names its On Track Retag event "Retag".
+        var payload = new ArrWebhookPayload { EventType = "Retag", Artist = new("Radiohead", "/music/Radiohead") };
+
+        var request = Assert.Single(ArrWebhookTranslator.ToScanRequests(ArrKind.Lidarr, payload));
+
+        Assert.Equal(("/music/Radiohead", "Lidarr Retag"), (request.Path, request.Reason));
+    }
+
     [Theory]
     [InlineData("Grab")]
     [InlineData("Health")]

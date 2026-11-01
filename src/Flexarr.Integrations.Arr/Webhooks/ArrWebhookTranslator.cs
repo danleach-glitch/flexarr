@@ -20,7 +20,7 @@ public static class ArrWebhookTranslator
         "ArtistAdd",
         "ArtistDelete",
         "AlbumDelete",
-        "TrackRetag",
+        "Retag",             // Lidarr: a track's tags rewritten (its On Track Retag trigger)
     };
 
     public static bool IsTest(ArrWebhookPayload payload) =>
