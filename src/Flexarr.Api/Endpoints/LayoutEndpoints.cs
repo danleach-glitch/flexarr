@@ -280,7 +280,7 @@ public static class LayoutEndpoints
     private static List<RowChoiceDto> HomeRows(IEnumerable<Library> libraries, bool combine, bool music, bool books, bool podcasts) =>
     [
         new("continue", "Continue watching (and listening)", true),
-        .. podcasts ? [new RowChoiceDto(PodcastsRowId, "New podcast episodes", true)] : Array.Empty<RowChoiceDto>(),
+        .. podcasts ? [new RowChoiceDto(PodcastsRowId, "New podcasts", true)] : Array.Empty<RowChoiceDto>(),
         new(Watchlist.WatchlistService.HomeRowId, "Ready from your watchlist", true),
         new("live-tv", "Live TV (your favourite channels)", true),
         .. RecentRows(libraries.ToList(), combine),

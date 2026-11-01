@@ -92,7 +92,7 @@ export function BackupSection() {
 
   return (
     <section>
-      <SettingsHeader title="Backup and restore">
+      <SettingsHeader title="Backup & restore">
         Everything Flexarr can’t rebuild from your media: profiles, watch history, playlists, collections, settings and sign-ins.
       </SettingsHeader>
 

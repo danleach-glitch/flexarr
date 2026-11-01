@@ -2118,7 +2118,7 @@
   font-weight: 700;
 }
 
-/* Backup and restore */
+/* Backup & restore */
 .backup-row h3 {
   font-family: var(--text);
   font-size: var(--step-0);

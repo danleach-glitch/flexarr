@@ -68,7 +68,12 @@ export function NavigationSection() {
         <RowList
           title={`${me.name}’s libraries`}
           // Podcasts' switch: whether it's in the web sidebar at all (Home's New podcasts row is in Home & browse).
-          rows={shown.map((l) => ({ id: l.id, label: l.name, enabled: l.type !== 'Podcasts' || podcastsShown.on !== false }))}
+          // Its switch only reaches the web sidebar, so its name says so.
+          rows={shown.map((l) => ({
+            id: l.id,
+            label: l.type === 'Podcasts' && podcastsShown.on !== undefined ? `${l.name} (on the web)` : l.name,
+            enabled: l.type !== 'Podcasts' || podcastsShown.on !== false,
+          }))}
           onChange={(rows) => {
             const podcasts = rows.find((r) => byId.get(r.id)?.type === 'Podcasts')
             if (podcasts && podcastsShown.on !== undefined && podcasts.enabled !== podcastsShown.on) return podcastsShown.change(podcasts.enabled)
@@ -84,7 +89,7 @@ export function NavigationSection() {
       {/* Podcasts alone have no list to sit in: their switch on its own. */}
       {shown.length === 1 && shown[0].type === 'Podcasts' && podcastsShown.on !== undefined && (
         <SettingsGroup title="Podcasts">
-          <ToggleRow label="Show in the sidebar" checked={podcastsShown.on} onChange={(v) => void podcastsShown.change(v)} />
+          <ToggleRow label="Show in the sidebar" help="On the web." checked={podcastsShown.on} onChange={(v) => void podcastsShown.change(v)} />
         </SettingsGroup>
       )}
       <BrowseItems profile={me} />
@@ -135,7 +140,7 @@ function BrowseItems({ profile }: { profile: Profile }) {
   }
 
   return (
-    <SettingsGroup title="Browse" note={error ? <SaveStatus error={error} /> : 'Hidden ones still open from Home and links.'}>
+    <SettingsGroup title="Browse" note={error ? <SaveStatus error={error} /> : undefined}>
       {items
         .filter((i) => has[i.id])
         .map((i) => (

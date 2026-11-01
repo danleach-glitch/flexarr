@@ -392,7 +392,6 @@ function ProfileForm({
           <legend className="visually-hidden">Requests</legend>
           <span className="setting-text">
             <strong>Where {profile ? `${profile.name}’s` : 'this profile’s'} requests go</strong>
-            <span className="muted">The library what they request is added to.</span>
           </span>
           <div className="profile-library-list">
             {requestFields.map((r) => (

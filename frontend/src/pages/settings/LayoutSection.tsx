@@ -23,7 +23,7 @@ export function LayoutSection() {
 
   const save = (next: Layout) =>
     saveLayout(next).then(
-      () => setStatus({ saved: 'Saved. Home and Browse show it next time they load.' }),
+      () => setStatus({ saved: 'Saved. Home & browse show it next time they load.' }),
       (e: unknown) => setStatus({ error: errorText(e) }),
     )
   const change = (key: 'home' | 'movies' | 'shows' | 'music' | 'audiobooks', rows: RowChoice[]) => {
@@ -42,7 +42,7 @@ export function LayoutSection() {
     saveLayout(next).then(
       (saved) => {
         setDraft(saved)
-        setStatus({ saved: 'Saved. Home and Browse show it next time they load.' })
+        setStatus({ saved: 'Saved. Home & browse show it next time they load.' })
       },
       (e: unknown) => {
         setDraft(layout)
