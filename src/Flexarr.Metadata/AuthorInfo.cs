@@ -2,8 +2,6 @@ using Flexarr.Core.Books;
 using Flexarr.Core.Data;
 using Flexarr.Core.Media;
 using Flexarr.Core.Paths;
-using Flexarr.Integrations.Arr;
-using Flexarr.Integrations.Arr.Models;
 using Flexarr.Metadata.Books;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -15,13 +13,11 @@ public sealed record AuthorCandidate(string Source, string? Image, string? Biogr
 
 /// <summary>
 /// Authors' photos and biographies. A photo in the author's own folder (author.jpg, folder.jpg) wins over any found
-/// online; what's still missing comes from Readarr, then Audible (by ASIN, then by name), then Open Library, and only
-/// fills gaps. An author is looked up online at most once a month, and one an admin fixed by hand
-/// (<see cref="Person.InfoLocked"/>) never is.
+/// online; what's still missing comes from Audible (by ASIN, then by name), then Open Library, and only fills gaps. An
+/// author is looked up online at most once a month, and one an admin fixed by hand (<see cref="Person.InfoLocked"/>)
+/// never is.
 /// </summary>
-/// <param name="readarrAuthors">Readarr's authors kept a few minutes between requests (the editor's); none in a refresh.</param>
-public sealed partial class AuthorInfo(FlexarrDbContext db, ArrClient arr, IMetadataSettings settings, BookProviders? providers, ILogger logger,
-    ReadarrAuthorCache? readarrAuthors = null)
+public sealed partial class AuthorInfo(FlexarrDbContext db, BookProviders? providers, ILogger logger)
 {
     /// <summary>How long an author's online lookup stands before they're looked up again.</summary>
     public static readonly TimeSpan LookAgainAfter = TimeSpan.FromDays(30);
@@ -36,35 +32,24 @@ public sealed partial class AuthorInfo(FlexarrDbContext db, ArrClient arr, IMeta
     private sealed record AuthorBook(string Title, string? Path, Guid LibraryId);
 
     /// <summary>
-    /// Every credited author of a book just refreshed. <paramref name="readarr"/> are the authors the Readarr-compatible
-    /// apps know (one of the same name is the author's), <paramref name="matched"/> the author of the app's book it was
-    /// matched to (taken for a book's only author when the names don't agree: "Sir Terry Pratchett" for "Terry
-    /// Pratchett"; with several, it's no telling whose it is), and <paramref name="knownAsins"/> the authors'
-    /// ASINs an online match listed.
+    /// Every credited author of a book just refreshed. <paramref name="knownAsins"/> are the authors' ASINs an online
+    /// match listed.
     /// </summary>
-    public Task FillBookAsync(MediaItem book, IReadOnlyList<ReadarrAuthor> readarr, ReadarrAuthor? matched, IReadOnlyCollection<string> knownAsins, CancellationToken ct) =>
-        FillBookAsync(book, new ReadarrAuthorIndex(readarr), matched, knownAsins, ct);
-
-    /// <inheritdoc cref="FillBookAsync(MediaItem, IReadOnlyList{ReadarrAuthor}, ReadarrAuthor?, IReadOnlyCollection{string}, CancellationToken)"/>
-    /// <remarks>The index is made once a refresh, not once a book.</remarks>
-    public async Task FillBookAsync(MediaItem book, ReadarrAuthorIndex readarr, ReadarrAuthor? matched, IReadOnlyCollection<string> knownAsins, CancellationToken ct)
+    public async Task FillBookAsync(MediaItem book, IReadOnlyCollection<string> knownAsins, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(book);
-        ArgumentNullException.ThrowIfNull(readarr);
         var authors = book.Credits.Where(c => c.Role == CreditRole.Author && c.Person is not null).OrderBy(c => c.Order).Select(c => c.Person!).Distinct().ToList();
-        for (var i = 0; i < authors.Count; i++)
+        foreach (var person in authors)
         {
-            var person = authors[i];
-            var fromArr = readarr.Find(person.Name) ?? (authors.Count == 1 ? matched : null);
             var standing = await StandingAsync(person, new AuthorBook(book.Title, book.Path, book.LibraryId), ct).ConfigureAwait(false);
-            await FillAsync(person, fromArr, knownAsins, standing, force: false, ct).ConfigureAwait(false);
+            await FillAsync(person, knownAsins, standing, force: false, ct).ConfigureAwait(false);
         }
     }
 
     /// <summary>
-    /// One person, now (an admin unlocked them): their folder, then online, whenever they were last looked up. Readarr's
-    /// authors are asked for; an app that doesn't answer is skipped. Only for someone credited on a book (an author,
-    /// narrator or translator), and never for someone from films or TV (see <see cref="Standing"/>).
+    /// One person, now (an admin unlocked them): their folder, then online, whenever they were last looked up. Only for
+    /// someone credited on a book (an author, narrator or translator), and never for someone from films or TV (see
+    /// <see cref="Standing"/>).
     /// </summary>
     public async Task RefreshPersonAsync(Person person, CancellationToken ct)
     {
@@ -75,12 +60,10 @@ public sealed partial class AuthorInfo(FlexarrDbContext db, ArrClient arr, IMeta
             return;
         }
 
-        var readarr = await ReadarrAuthorsAsync(ct).ConfigureAwait(false);
-        var fromArr = new ReadarrAuthorIndex(readarr).Find(person.Name);
-        await FillAsync(person, fromArr, [], standing, force: true, ct).ConfigureAwait(false);
+        await FillAsync(person, [], standing, force: true, ct).ConfigureAwait(false);
     }
 
-    private async Task FillAsync(Person person, ReadarrAuthor? fromArr, IReadOnlyCollection<string> knownAsins, Standing standing, bool force, CancellationToken ct)
+    private async Task FillAsync(Person person, IReadOnlyCollection<string> knownAsins, Standing standing, bool force, CancellationToken ct)
     {
         // Someone from films or TV keeps their photo from there (TMDB can't take a book's back), and no namesake's biography.
         if (person.InfoLocked || standing.Screen)
@@ -105,11 +88,6 @@ public sealed partial class AuthorInfo(FlexarrDbContext db, ArrClient arr, IMeta
         if ((person.ImageUrl is not null && person.Biography is not null) || (!force && person.InfoCheckedAt > now - LookAgainAfter))
         {
             return;
-        }
-
-        if (fromArr is not null)
-        {
-            Take(person, Plain(fromArr.Overview), ArrPhoto(fromArr.Images), PersonSources.Readarr, now);
         }
 
         // A provider that failed (down, slow, or asking to be left alone) isn't asked again for the rest of the refresh:
@@ -229,7 +207,7 @@ public sealed partial class AuthorInfo(FlexarrDbContext db, ArrClient arr, IMeta
 
     /// <summary>
     /// Every photo and biography an admin could choose from for a person: what they have now (under its own source),
-    /// their folder's photo, Readarr's, Audible's and Open Library's, at most one of each from each source. A source
+    /// their folder's photo, Audible's and Open Library's, at most one of each from each source. A source
     /// that can't be asked is left out.
     /// </summary>
     public async Task<(List<AuthorCandidate> Photos, List<AuthorCandidate> Biographies)> CandidatesAsync(Person person, CancellationToken ct)
@@ -262,11 +240,6 @@ public sealed partial class AuthorInfo(FlexarrDbContext db, ArrClient arr, IMeta
 
         var books = standing.Books;
         Add(PersonSources.Folder, (await FolderPhotoAsync(person.Name, books, ct).ConfigureAwait(false)).Photo, null);
-        if (new ReadarrAuthorIndex(await ReadarrAuthorsAsync(ct).ConfigureAwait(false)).Find(person.Name) is { } fromArr)
-        {
-            Add(PersonSources.Readarr, OnlinePhoto(ArrPhoto(fromArr.Images), PersonSources.Readarr), Plain(fromArr.Overview));
-        }
-
         if (providers is not null)
         {
             try
@@ -546,33 +519,6 @@ public sealed partial class AuthorInfo(FlexarrDbContext db, ArrClient arr, IMeta
         return file.Exists ? $"{file.LastWriteTimeUtc.Ticks:x}-{file.Length:x}" : null;
     }
 
-    /// <summary>The authors every Readarr-compatible app knows; one that doesn't answer is skipped.</summary>
-    private async Task<List<ReadarrAuthor>> ReadarrAuthorsAsync(CancellationToken ct)
-    {
-        var authors = new List<ReadarrAuthor>();
-        foreach (var readarr in settings.ArrInstances.Where(a => a.Kind == ArrKind.Readarr))
-        {
-            try
-            {
-                authors.AddRange(readarrAuthors is null
-                    ? await arr.GetAuthorsAsync(readarr, ct).ConfigureAwait(false)
-                    : await readarrAuthors.GetAsync(readarr, () => arr.GetAuthorsAsync(readarr, ct)).ConfigureAwait(false));
-            }
-            catch (Exception ex) when (IsFailure(ex, ct))
-            {
-                LogLookupFailed(readarr.Name, readarr.Name, ex.Message);
-            }
-        }
-
-        return authors;
-    }
-
-    /// <summary>The app's photo of an author, when it points at one on the web (its own /MediaCover paths need its key).</summary>
-    /// <remarks>Goodreads' "nophoto" placeholder isn't a photo, and would keep a real one out for good.</remarks>
-    internal static string? ArrPhoto(IReadOnlyList<ArrImage> images) =>
-        images.Where(i => i.CoverType is "poster" or "headshot" or "cover").Select(i => i.RemoteUrl)
-            .FirstOrDefault(u => ArtworkUrl.IsHttps(u) && !u!.Contains("nophoto", StringComparison.OrdinalIgnoreCase));
-
     private static string? Plain(string? html) => string.IsNullOrWhiteSpace(html) ? null : BookSidecars.PlainText(html);
 
     /// <summary>A provider that couldn't be asked, or answered nonsense; not the refresh being stopped.</summary>
@@ -584,55 +530,4 @@ public sealed partial class AuthorInfo(FlexarrDbContext db, ArrClient arr, IMeta
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Looking up {Author} on {Source} failed: {Error}")]
     private partial void LogLookupFailed(string author, string source, string error);
-}
-
-/// <summary>
-/// Every author each Readarr-compatible app knows, kept for a few minutes: opening the author editor (and looking again)
-/// would otherwise fetch the whole list from each app every time. One for the whole server.
-/// </summary>
-public sealed class ReadarrAuthorCache(TimeProvider? time = null)
-{
-    public static readonly TimeSpan KeepFor = TimeSpan.FromMinutes(5);
-
-    private readonly TimeProvider _time = time ?? TimeProvider.System;
-    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, (DateTimeOffset At, IReadOnlyList<ReadarrAuthor> Authors)> _kept = new(StringComparer.Ordinal);
-
-    /// <summary>The app's authors, as fetched in the last few minutes, else fetched now (a failure isn't kept).</summary>
-    public async Task<IReadOnlyList<ReadarrAuthor>> GetAsync(ArrInstance instance, Func<Task<IReadOnlyList<ReadarrAuthor>>> fetch)
-    {
-        ArgumentNullException.ThrowIfNull(instance);
-        ArgumentNullException.ThrowIfNull(fetch);
-        var key = $"{instance.Name}\n{instance.BaseUrl}\n{instance.ApiKey}";
-        var now = _time.GetUtcNow();
-        if (_kept.TryGetValue(key, out var kept) && now - kept.At < KeepFor)
-        {
-            return kept.Authors;
-        }
-
-        var authors = await fetch().ConfigureAwait(false);
-        _kept[key] = (now, authors);
-        return authors;
-    }
-}
-
-/// <summary>Readarr's authors by name, folded as <see cref="AuthorInfo.Fold"/> folds them; the first of a name wins.</summary>
-public sealed class ReadarrAuthorIndex
-{
-    public static ReadarrAuthorIndex Empty { get; } = new([]);
-
-    private readonly Dictionary<string, ReadarrAuthor> _byName = new(StringComparer.Ordinal);
-
-    public ReadarrAuthorIndex(IEnumerable<ReadarrAuthor> authors)
-    {
-        ArgumentNullException.ThrowIfNull(authors);
-        foreach (var author in authors)
-        {
-            if (author.AuthorName is { } name)
-            {
-                _byName.TryAdd(AuthorInfo.Fold(name), author);
-            }
-        }
-    }
-
-    public ReadarrAuthor? Find(string name) => _byName.GetValueOrDefault(AuthorInfo.Fold(name));
 }

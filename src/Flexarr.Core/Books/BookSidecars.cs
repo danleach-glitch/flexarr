@@ -9,7 +9,8 @@ namespace Flexarr.Core.Books;
 
 /// <summary>
 /// Reads the files beside a book that describe it, most trusted first: Audiobookshelf's <c>metadata.json</c>, the
-/// <c>metadata.opf</c> Readarr, Bookshelf and Calibre write, <c>desc.txt</c> and <c>reader.txt</c>, and a cover image.
+/// <c>metadata.opf</c> Calibre and other book managers (Readarr among them) write, <c>desc.txt</c> and
+/// <c>reader.txt</c>, and a cover image.
 /// Only a book that's a folder has sidecars; files beside a single-file book could be any book's.
 /// </summary>
 public static partial class BookSidecars

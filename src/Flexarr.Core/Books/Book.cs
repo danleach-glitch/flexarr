@@ -29,20 +29,6 @@ public sealed class BookDetails
     /// <summary>The whole book's length: its files' durations added up.</summary>
     public double DurationSeconds { get; set; }
 
-    /// <summary>
-    /// The book's id in Readarr, Bookshelf or Chaptarr. Text, because Chaptarr's carry a provider prefix ("hc:123").
-    /// </summary>
-    public string? ArrBookId { get; set; }
-
-    /// <summary>The book's author's id in the *arr, as text for the same reason as <see cref="ArrBookId"/>.</summary>
-    public string? ArrAuthorId { get; set; }
-
-    /// <summary>
-    /// The name of the Readarr-compatible app <see cref="ArrBookId"/> came from. Ids aren't unique across apps (an
-    /// ebook Readarr and an audiobook one both have a book 12), so the id is only ever used with this app.
-    /// </summary>
-    public string? ArrInstance { get; set; }
-
     /// <summary>Where <see cref="MediaChapter"/>s came from last. Edited chapters are kept over rescans.</summary>
     public ChapterSource ChapterSource { get; set; }
 }

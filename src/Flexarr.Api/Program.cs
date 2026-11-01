@@ -47,9 +47,16 @@ var userConfig = new ConfigurationBuilder()
     .Build();
 
 // config.json overrides appsettings and is reloaded when it changes, so settings apply without a restart.
+// Connections of a kind Flexarr doesn't know are skipped rather than stopping the server (see FlexarrConfigBinder).
 builder.Services.AddOptions<FlexarrOptions>()
-    .BindConfiguration(FlexarrOptions.SectionName)
-    .Configure(options => userConfig.Bind(options));
+    .Configure<ILoggerFactory>((options, logs) =>
+    {
+        var logger = logs.CreateLogger("Flexarr.Configuration");
+        FlexarrConfigBinder.Bind(builder.Configuration.GetSection(FlexarrOptions.SectionName), options, logger);
+        FlexarrConfigBinder.Bind(userConfig, options, logger, dataDirectory);
+    });
+builder.Services.AddSingleton<IOptionsChangeTokenSource<FlexarrOptions>>(
+    new ConfigurationChangeTokenSource<FlexarrOptions>(Options.DefaultName, builder.Configuration.GetSection(FlexarrOptions.SectionName)));
 builder.Services.AddSingleton<IOptionsChangeTokenSource<FlexarrOptions>>(new ConfigurationChangeTokenSource<FlexarrOptions>(userConfig));
 builder.Services.AddSingleton<IPostConfigureOptions<FlexarrOptions>, ServerConfigStore>();
 
@@ -238,10 +245,8 @@ builder.Services.AddHttpClient("books", c => c.Timeout = TimeSpan.FromSeconds(20
 builder.Services.AddScoped(sp => new Flexarr.Metadata.Books.BookProviders(
     sp.GetRequiredService<IHttpClientFactory>().CreateClient("books"), sp.GetRequiredService<IMetadataSettings>));
 builder.Services.AddScoped<MetadataRefresher>();
-builder.Services.AddSingleton<ReadarrAuthorCache>();
-builder.Services.AddScoped(sp => new AuthorInfo(sp.GetRequiredService<Flexarr.Core.Data.FlexarrDbContext>(), sp.GetRequiredService<Flexarr.Integrations.Arr.ArrClient>(),
-    sp.GetRequiredService<IMetadataSettings>(), sp.GetRequiredService<Flexarr.Metadata.Books.BookProviders>(), sp.GetRequiredService<ILogger<AuthorInfo>>(),
-    sp.GetRequiredService<ReadarrAuthorCache>()));
+builder.Services.AddScoped(sp => new AuthorInfo(sp.GetRequiredService<Flexarr.Core.Data.FlexarrDbContext>(),
+    sp.GetRequiredService<Flexarr.Metadata.Books.BookProviders>(), sp.GetRequiredService<ILogger<AuthorInfo>>()));
 builder.Services.AddScoped<PathMappingFinder>();
 
 builder.Services.AddDbContext<FlexarrDbContext>((sp, db) =>
@@ -434,7 +439,6 @@ app.MapGroup("/api/v1")
     .MapPodcastEndpoints()
     .MapBookEndpoints()
     .MapBookMatchEndpoints()
-    .MapBookRequestEndpoints()
     .MapLiveTvEndpoints()
     .MapDvrEndpoints()
     .MapMusicMixEndpoints()

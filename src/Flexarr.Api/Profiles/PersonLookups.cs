@@ -8,7 +8,7 @@ using Microsoft.Extensions.Caching.Memory;
 namespace Flexarr.Api.Profiles;
 
 /// <summary>
-/// Looking a person up again after an admin unlocked them: their folder, Readarr, Audible and Open Library, which can
+/// Looking a person up again after an admin unlocked them: their folder, Audible and Open Library, which can
 /// take minutes when a provider is slow. It runs on its own, after the reply, in a scope of its own; one at a time for
 /// each person.
 /// </summary>

@@ -237,8 +237,6 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
             e.HasOne(d => d.MediaItem).WithOne(i => i.Book).HasForeignKey<Books.BookDetails>(d => d.MediaItemId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(d => d.Asin);
             e.HasIndex(d => d.Isbn);
-            e.HasIndex(d => d.ArrBookId);
-            e.Property(d => d.ArrInstance).HasMaxLength(200);
         });
 
         modelBuilder.Entity<Books.MediaChapter>(e =>
@@ -380,10 +378,6 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
             e.Property(r => r.ProfileId).HasMaxLength(64);
             e.HasOne<Profile>().WithMany().HasForeignKey(r => r.ProfileId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(r => new { r.FulfilledAt, r.Kind, r.TmdbId });
-            e.Property(r => r.BookForeignId).HasMaxLength(100);
-            e.Property(r => r.BookArrId).HasMaxLength(100);
-            e.Property(r => r.BookArrInstance).HasMaxLength(200);
-            e.Property(r => r.Title).HasMaxLength(500);
         });
 
         modelBuilder.Entity<TraktConnection>(e =>
