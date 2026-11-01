@@ -130,7 +130,7 @@ struct TraktSettingsView: View {
             return SettingsRow(title: TraktWords.imported, symbol: "checkmark.circle", value: importedAt.formatted(.relative(presentation: .named))) {}
         }
         if let preview {
-            let counts = "\(preview.traktFilms.formatted()) films · \(preview.traktEpisodes.formatted()) episodes"
+            let counts = "\(preview.traktFilms.formatted()) movies and \(preview.traktEpisodes.formatted()) episodes"
             return SettingsRow(title: TraktWords.importAction, symbol: "arrow.down.circle", value: counts,
                                help: "\(preview.summary). \(preview.details) Nothing is marked unwatched, on either side.") {
                 run { try await $0.confirmTraktImport() }

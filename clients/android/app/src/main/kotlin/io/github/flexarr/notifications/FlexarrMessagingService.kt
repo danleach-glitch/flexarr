@@ -36,6 +36,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import io.github.flexarr.ui.theme.Tokens
+import androidx.compose.ui.graphics.toArgb
 
 private val log = FlexarrLog("notifications")
 
@@ -67,7 +69,7 @@ class FlexarrMessagingService : FirebaseMessagingService() {
         fun createChannels(context: Context) {
             val manager = context.getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(NotificationChannel(CHANNEL, "New in your library", NotificationManager.IMPORTANCE_DEFAULT).apply {
-                description = "Films, shows, podcast episodes, recordings and requests as they arrive"
+                description = "Movies, shows, podcast episodes, recordings and requests as they arrive"
             })
             manager.createNotificationChannel(NotificationChannel(UPCOMING_CHANNEL, "Upcoming", NotificationManager.IMPORTANCE_LOW).apply {
                 description = "Each morning, what's airing today"
@@ -92,7 +94,7 @@ class FlexarrMessagingService : FirebaseMessagingService() {
             } ?: AppLink.Home
             val builder = NotificationCompat.Builder(context, if (payload.category == PushPayload.UPCOMING) UPCOMING_CHANNEL else CHANNEL)
                 .setSmallIcon(R.drawable.ic_brand_mark)
-                .setColor(0xFFA9C2EC.toInt())
+                .setColor(Tokens.silver.toArgb())
                 .setContentTitle(payload.title)
                 .setContentText(payload.body)
                 .setStyle(NotificationCompat.BigTextStyle().bigText(payload.body))
@@ -138,7 +140,7 @@ class FlexarrMessagingService : FirebaseMessagingService() {
             val id = code?.let(::pairingId) ?: listOf(payload.category, payload.title, payload.body).hashCode()
             val builder = NotificationCompat.Builder(context, DEVICES_CHANNEL)
                 .setSmallIcon(R.drawable.ic_brand_mark)
-                .setColor(0xFFA9C2EC.toInt())
+                .setColor(Tokens.silver.toArgb())
                 .setContentTitle(payload.title)
                 .setContentText(payload.body)
                 .setStyle(NotificationCompat.BigTextStyle().bigText(payload.body))
@@ -172,7 +174,7 @@ class FlexarrMessagingService : FirebaseMessagingService() {
             val id = "pairing-answer:$code".hashCode()
             val notification = NotificationCompat.Builder(context, DEVICES_CHANNEL)
                 .setSmallIcon(R.drawable.ic_brand_mark)
-                .setColor(0xFFA9C2EC.toInt())
+                .setColor(Tokens.silver.toArgb())
                 .setContentTitle(title)
                 .setContentText(text)
                 .setStyle(NotificationCompat.BigTextStyle().bigText(text))
@@ -197,7 +199,7 @@ class FlexarrMessagingService : FirebaseMessagingService() {
         private fun summary(context: Context, payload: PushPayload, thread: String, opens: AppLink) =
             NotificationCompat.Builder(context, if (payload.category == PushPayload.UPCOMING) UPCOMING_CHANNEL else CHANNEL)
                 .setSmallIcon(R.drawable.ic_brand_mark)
-                .setColor(0xFFA9C2EC.toInt())
+                .setColor(Tokens.silver.toArgb())
                 .setContentTitle(payload.title)
                 .setContentText(payload.body)
                 .setGroup(thread)

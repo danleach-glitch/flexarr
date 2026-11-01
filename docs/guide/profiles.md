@@ -1,25 +1,25 @@
 ---
 title: Profiles
-description: Give everyone in the house their own Continue Watching, history and settings, with an optional PIN, and choose which libraries each profile sees.
+description: Give everyone in the house their own Continue watching, history and settings, with an optional PIN, and choose which libraries each profile sees.
 ---
 
-A profile is one person's view of Flexarr. Everyone in the household can have their own, so your half-watched film doesn't turn up in someone else's Continue Watching, and their cartoons don't fill your "Because you watched" row.
+A profile is one person's view of Flexarr. Everyone in the household can have their own, so your half-watched movie doesn't turn up in someone else's Continue watching, and their cartoons don't fill your "Because you watched" row.
 
 ## What each profile keeps to itself
 
 Each profile has its own:
 
-- **Continue Watching**, watched history and Up Next
+- **Continue watching**, watched history and Up next
 - **Playback settings**: auto-play the next episode, skip intros, recaps and credits, and subtitle size. These follow the profile to every device, the Apple TV included.
 - **Watchlist**, and its own [Trakt](trakt.md) account
-- **Podcasts**: the shows it follows, its Up Next queue and its podcast settings
+- **Podcasts**: the shows it follows, its Up next queue and its podcast settings
 - **Audiobooks** (in the next release): where it is in each book, its bookmarks and its listening settings
 - **Music**: playlists, daily mixes, and recently and most played
 - **Collections** of its own (the main profile can also make collections for the whole household)
 - **Live TV favourites** and the channel it watched last
 - **Recent searches**, which follow it from device to device
 - **Libraries**: which ones it can see at all (see below), and the order they're listed in
-- **Requests**: which library what it asks for goes to, when you have two TV or film libraries
+- **Requests**: which library what it asks for goes to, when you have two TV or movie libraries
 - A picture, a name and a colour
 
 Things that belong to the server, such as your libraries, connections to Sonarr, Radarr and Lidarr, and the layout of Home, are the same for everyone.
@@ -85,7 +85,7 @@ When you have more than one library, each profile has a switch for each. A libra
 
 ### Age limits
 
-Any profile except the main one can have an age limit, in **Settings › Profiles**: **U**, **PG**, **12**, **15** or **18**. Titles rated above it are hidden from that profile on every device: Home, the libraries, search, Continue Watching, the next episode, collections, Siri and notifications. Opening one by its link says it isn't there.
+Any profile except the main one can have an age limit, in **Settings › Profiles**: **U**, **PG**, **12**, **15** or **18**. Titles rated above it are hidden from that profile on every device: Home, the libraries, search, Continue watching, the next episode, collections, Siri and notifications. Opening one by its link says it isn't there.
 
 Ratings from any country count. An age is rounded up to the next UK step, so Germany's 16 counts as 18, and a few have a UK equivalent: PG-13 is 12, TV-14 is 15, and R and TV-MA are 18. A rating with its reasons ("Rated R for violence") counts by its first word. A show's seasons and episodes follow the show.
 
@@ -101,7 +101,7 @@ A profile with an age limit:
 ### Letting things through, or keeping them out
 
 - **A whole library:** switch on **Fine for kids** under it in **Settings › Libraries**. Everything in it shows, rated or not. Good for a folder of cartoons or family videos.
-- **One film or show:** on its page, choose **⋯** then **Allow for kids** or **Block for kids**. Block wins even in a library that's fine for kids.
+- **One movie or show:** on its page, choose **⋯** then **Allow for kids** or **Block for kids**. Block wins even in a library that's fine for kids.
 - **Live TV:** switch channels on under **Channels for kids** in **Settings › Live TV**. Until you pick some, a profile with an age limit doesn't see Live TV.
 
 ### Kids profiles
@@ -110,7 +110,7 @@ Switch on **Kids profile** for a child's profile (it comes on by itself for a ne
 
 - has no Settings, and no signing out on the web
 - has no Podcasts, Watchlist, Collections, Live TV, Trakt or subtitle search (nor, from the next release, audiobooks)
-- has no scores, no score-ranked rows such as Top 10, and a **Watch again** row on Home for the films and shows they've finished; on the web, bigger artwork too
+- has no scores, no score-ranked rows such as Top 10, and a **Watch again** row on Home for the movies and shows they've finished; on the web, bigger artwork too
 - can't mark things watched, and has no trailers
 
 Setting one up needs an admin PIN.

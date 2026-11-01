@@ -150,7 +150,7 @@ fun NotificationSettingsScreen(model: AppModel) {
                 item {
                     val settings = notifications.settings
                     Group(header = "Tell me about") {
-                        Toggle("Films", settings.films, { save(settings.copy(films = it)) })
+                        Toggle("Movies", settings.films, { save(settings.copy(films = it)) })
                         Divider()
                         Toggle("Shows", settings.shows, { save(settings.copy(shows = it)) })
                         if (model.podcastStatus?.available != false) {

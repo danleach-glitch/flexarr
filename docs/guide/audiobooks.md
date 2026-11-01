@@ -6,7 +6,7 @@ description: An audiobooks library with chapters, series, authors and narrators,
 > **Note**
 > Audiobooks arrive in the next release of Flexarr.
 
-Audiobooks are a library like films, TV and music. Flexarr finds the books in your folders, reads their chapters and details, and plays each book as one, however many files it has. A folder of audiobooks is all it needs.
+Audiobooks are a library like movies, TV and music. Flexarr finds the books in your folders, reads their chapters and details, and plays each book as one, however many files it has. A folder of audiobooks is all it needs.
 
 Books are on the web, iPhone, iPad and the Apple TV. Kids profiles don't see them.
 
@@ -34,7 +34,7 @@ Author - Title [B0DPXK6Y7B].m4b                  an Audible id in the name
 
 The library's front page has **Continue listening**, **Next in series**, **Recently added**, your series and authors, and what you've finished. **All books** lists every book, with filters for what you haven't started, are part way through or have finished, and by narrator, length and language. **Genres**, **Series** and **Authors** list those; pick a genre to see its books.
 
-Books you're part way through also show on Home, in **Continue watching or listening** with your films, shows and podcast episodes. To keep them in their own **Continue listening** row instead, turn off **Books and podcasts in Continue watching** in **Settings › Podcasts & audiobooks** (on the web it's in **Settings › Home & browse**, and on the Apple TV in **Settings › Playback**).
+Books you're part way through also show on Home, in **Continue watching or listening** with your movies, shows and podcast episodes. To keep them in their own **Continue listening** row instead, turn off **Books and podcasts in Continue watching** in **Settings › Podcasts & audiobooks** (on the web it's in **Settings › Home & browse**, and on the Apple TV in **Settings › Playback**).
 
 A book's page shows its series ("Book 3 of 7"), authors and narrators, how long it is and how long is left at your speed, its chapters, and more in the series, by the author and read by the narrator. A series' page lists its books in order with the next one to hear picked out.
 

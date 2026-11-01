@@ -165,7 +165,7 @@ private struct LyricLineStyle: ButtonStyle {
                 .padding(.vertical, LyricLineStyle.verticalPadding)
                 .background {
                     if isFocused {
-                        RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color.screen.opacity(0.12))
+                        RoundedRectangle(cornerRadius: Radius.panel, style: .continuous).fill(Color.screen.opacity(0.12))
                     }
                 }
                 .opacity(configuration.isPressed ? 0.6 : 1)

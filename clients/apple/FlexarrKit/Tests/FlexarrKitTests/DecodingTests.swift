@@ -46,7 +46,7 @@ struct DecodingTests {
         let episode = continueRow.items[0]
         #expect(episode.kind == .episode)
         #expect(episode.seriesTitle == "Breaking Bad")
-        #expect(episode.episodeCode == "S2 E3")
+        #expect(episode.episodeCode == "S2E3")
         #expect(episode.userData.lastPlayedAt != nil, "no-offset .NET timestamp with 6 fractional digits")
         let progress = try #require(episode.progress)
         #expect(progress > 0.5 && progress < 0.55)

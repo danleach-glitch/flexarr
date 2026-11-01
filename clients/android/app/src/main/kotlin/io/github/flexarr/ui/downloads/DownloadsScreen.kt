@@ -81,6 +81,8 @@ import io.github.flexarr.ui.components.pressable
 import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.RoomBackground
 import kotlinx.coroutines.launch
+import io.github.flexarr.ui.theme.Tokens
+import io.github.flexarr.ui.theme.FlexarrIcons
 
 // The iPhone app's DownloadsView: everything downloaded (or on its way), playable with no connection; and the download
 // button a title's page and a podcast episode's row carry.
@@ -100,7 +102,7 @@ fun DownloadsScreen(model: AppModel) {
             PageTitle("Downloads")
             if (store.downloads.isEmpty() && store.musicCollections.isEmpty() && model.bookDownloads.books.isEmpty()) {
                 StatusView(
-                    "Download films, episodes, albums, playlists and podcast episodes to watch and listen with no connection. Look for Download on a title’s page.",
+                    "Download movies, episodes, albums, playlists and podcast episodes to watch and listen with no connection. Look for Download on a title’s page.",
                     empty = true,
                 )
                 return@Column
@@ -116,7 +118,7 @@ fun DownloadsScreen(model: AppModel) {
                 },
             ) {
                 LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
-                    section("Films", store.films) { DownloadRow(model, it) }
+                    section("Movies", store.films) { DownloadRow(model, it) }
                     store.shows.forEach { (show, episodes) -> section(show, episodes) { DownloadRow(model, it) } }
                     section("Music", store.musicCollections) { CollectionRow(model, it, onOpen = { opened = it.id }) }
                     section("Audiobooks", model.bookDownloads.books) { BookDownloadRow(model, it) }
@@ -139,7 +141,7 @@ private fun <T> LazyListScope.section(title: String, downloads: List<T>, row: @C
     if (downloads.isEmpty()) return
     item(key = "heading-$title") { SectionHeading(title) }
     item(key = "rows-$title") {
-        Column(Modifier.padding(horizontal = Edge).clip(RoundedCornerShape(12.dp)).background(Flexarr.seat)) {
+        Column(Modifier.padding(horizontal = Edge).clip(RoundedCornerShape(Tokens.radiusPanel)).background(Flexarr.seat)) {
             downloads.forEach { row(it) }
         }
     }
@@ -172,7 +174,7 @@ private fun BookDownloadRow(model: AppModel, book: io.github.flexarr.core.LocalB
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(63.dp).clip(RoundedCornerShape(6.dp)).background(Flexarr.aisle), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(63.dp).clip(RoundedCornerShape(Tokens.radiusArt)).background(Flexarr.aisle), contentAlignment = Alignment.Center) {
             Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null, tint = Flexarr.usher)
             store.image(book)?.let { AsyncImage(model = it, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()) }
             val duration = book.manifest.durationSeconds
@@ -192,7 +194,7 @@ private fun BookDownloadRow(model: AppModel, book: io.github.flexarr.core.LocalB
                     LinearProgressIndicator(progress = { progress.toFloat() }, color = Flexarr.silver, trackColor = Flexarr.aisle, modifier = Modifier.fillMaxWidth().padding(end = 4.dp))
                 }
                 else -> Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Filled.ArrowCircleDown, contentDescription = "Downloaded", tint = Flexarr.downloaded, modifier = Modifier.size(14.dp))
+                    Icon(Icons.Filled.ArrowCircleDown, contentDescription = "Downloaded", tint = Flexarr.go, modifier = Modifier.size(14.dp))
                     caption(listOfNotNull(Format.bytes(book.estimatedBytes), if (book.finishedAtMillis != null) "Finished" else null).joinToString("   "))
                 }
             }
@@ -245,7 +247,7 @@ private fun DownloadListRow(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(artWidth, 63.dp).clip(RoundedCornerShape(6.dp)).background(Flexarr.aisle), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(artWidth, 63.dp).clip(RoundedCornerShape(Tokens.radiusArt)).background(Flexarr.aisle), contentAlignment = Alignment.Center) {
             Icon(placeholder, contentDescription = null, tint = Flexarr.usher)
             store.image(download)?.let { AsyncImage(model = it, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()) }
             val shown = download.position
@@ -290,7 +292,7 @@ private fun DownloadStatusLine(model: AppModel, download: LocalDownload, doneLin
         }
         download.phase == LocalPhase.Failed -> Text(download.failure ?: "Couldn’t download this.", fontSize = 12.sp, color = Flexarr.danger)
         else -> Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Filled.ArrowCircleDown, contentDescription = "Downloaded", tint = Flexarr.downloaded, modifier = Modifier.size(14.dp))
+            Icon(Icons.Filled.ArrowCircleDown, contentDescription = "Downloaded", tint = Flexarr.go, modifier = Modifier.size(14.dp))
             caption(doneLine.joinToString("   "))
         }
     }
@@ -316,11 +318,11 @@ fun DownloadStateIcon(
     Box(Modifier.size(size), contentAlignment = Alignment.Center) {
         when {
             waitingForWiFi -> Icon(Icons.Filled.Wifi, contentDescription = null, tint = Flexarr.usher)
-            download == null -> Icon(Icons.Filled.Download, contentDescription = null, tint = Flexarr.screen)
+            download == null -> Icon(FlexarrIcons.download, contentDescription = null, tint = Flexarr.screen)
             download.phase == LocalPhase.Preparing && ringWhilePreparing -> DownloadRing(progress.toFloat())
             download.phase == LocalPhase.Preparing -> Icon(Icons.Filled.HourglassTop, contentDescription = null, tint = Flexarr.usher)
             download.phase == LocalPhase.Downloading -> DownloadRing(progress.toFloat())
-            download.phase == LocalPhase.Downloaded -> Icon(Icons.Filled.ArrowCircleDown, contentDescription = null, tint = Flexarr.downloaded)
+            download.phase == LocalPhase.Downloaded -> Icon(Icons.Filled.ArrowCircleDown, contentDescription = null, tint = Flexarr.go)
             else -> Icon(Icons.Filled.ErrorOutline, contentDescription = null, tint = Flexarr.danger)
         }
     }

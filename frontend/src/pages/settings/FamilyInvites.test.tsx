@@ -233,7 +233,7 @@ describe('Settings › Remote access › Family invites', () => {
     })
     render(<FamilyInvites />)
 
-    expect(await screen.findByText(/^Slow relay · last used/)).toBeVisible()
+    expect(await screen.findByText(/^Slow relay last used/)).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: 'Remove Gran’s iPad' }))
     // Asked first.
     expect(await screen.findByText('Remove Gran’s iPad?')).toBeVisible()
@@ -336,7 +336,7 @@ describe('Settings › Remote access › Family invites', () => {
   })
 
   it('names each connection plainly', () => {
-    expect(describeGuest(device({ path: 'Direct' }))).toMatch(/^Gran · Direct · last used/)
+    expect(describeGuest(device({ path: 'Direct' }))).toMatch(/^Gran\sDirect\slast used/)
     expect(describeGuest(device({ path: 'PeerRelay' }))).toMatch(/Through your relay/)
     expect(describeGuest(device({ online: false }))).toMatch(/Offline/)
   })

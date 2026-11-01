@@ -239,6 +239,7 @@ struct FlexarriOSApp: App {
     @State private var model: AppModel
 
     init() {
+        Symbol.checkAll()
         ThisDevice.identify()
         // Artwork is fetched constantly while browsing; give it a generous disk cache.
         URLCache.shared = URLCache(memoryCapacity: 48 * 1024 * 1024, diskCapacity: 384 * 1024 * 1024)
@@ -259,6 +260,8 @@ struct FlexarriOSApp: App {
                 .environment(delegate.remote)
                 .preferredColorScheme(.dark)
                 .tint(.silver)
+                // Switches that are on are green, as everywhere in Flexarr; everything else takes the silver accent.
+                .toggleStyle(GoSwitchStyle())
                 .onOpenURL { model.open(url: $0) }
                 // flexarr.io/join links (family invites) open the app straight from Messages or the Camera.
                 .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in

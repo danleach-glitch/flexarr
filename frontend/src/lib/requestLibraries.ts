@@ -12,5 +12,5 @@ export function hasRequestChoice(destinations: RequestDestination[], hiddenLibra
 
 export const requestRows = [
   { mediaType: 'tv', key: 'requestShowsLibraryId', label: 'New shows go to', help: 'The library a show is added to when you request it.' },
-  { mediaType: 'movie', key: 'requestFilmsLibraryId', label: 'New films go to', help: 'The library a film is added to when you request it.' },
+  { mediaType: 'movie', key: 'requestFilmsLibraryId', label: 'New movies go to', help: 'The library a movie is added to when you request it.' },
 ] as const

@@ -20,7 +20,7 @@ export function DeleteDialog({ item, onDeleted, onClose }: { item: ItemSummary; 
   const app = arrFor(item.kind)
   const what =
     item.kind === 'Movie'
-      ? { name: item.title, noun: 'film', detail: 'Radarr deletes the film’s files from disk and stops tracking it.' }
+      ? { name: item.title, noun: 'movie', detail: 'Radarr deletes the movie’s files from disk and stops tracking it.' }
       : item.kind === 'Audiobook'
         ? { name: item.title, noun: 'book', detail: '' } // no app manages books: the file list below says it all
       : item.kind === 'Series'

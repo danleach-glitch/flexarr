@@ -163,69 +163,30 @@ struct DetailView: View {
         .padding(.bottom, 10)
     }
 
+    private func isWatched(_ item: ItemSummary) -> Bool { item.userData.watched || item.userData.unwatchedCount == 0 }
+
+    /// The buttons in the order every client shares (`DetailActions`).
+    private func detailActions(_ item: ItemSummary, playable: ItemSummary?) -> DetailActions {
+        let kind: DetailActions.Kind = item.kind == .series ? .show : item.kind == .episode ? .episode : .movie
+        return DetailActions(kind: kind, hasProgress: playable?.isResumable == true && item.kind != .series,
+                             watched: isWatched(item), hasTrailer: trailer != nil, isKids: model.isKids,
+                             platform: .tv, canPlayTrailers: canPlayTrailers, canDownload: false,
+                             canSearchSubtitles: detail?.canSearchSubtitles == true && detail?.files.first != nil)
+    }
+
+    private var trailer: YouTubeTrailer? { YouTubeTrailer(id: detail?.trailerYouTubeId) }
+
+    /// Trailers open in the YouTube app, so only when it's installed (youtube is in LSApplicationQueriesSchemes).
+    private var canPlayTrailers: Bool { trailer.map { UIApplication.shared.canOpenURL($0.appURL) } ?? false }
+
     /// Play and Start over spelled out; the rest round icons, named underneath while focused.
     private func actions(_ item: ItemSummary) -> some View {
         let playable = playTarget(item)
-        let watched = item.userData.watched || item.userData.unwatchedCount == 0
-        // Part way through: forget the place without marking it watched (it leaves Continue Watching).
-        let canForget = !model.isKids && item.isResumable && !watched
-        let subtitleFile = !model.isKids && detail?.canSearchSubtitles == true ? detail?.files.first : nil
+        let actions = detailActions(item, playable: playable)
         return VStack(alignment: .leading, spacing: 18) {
             HStack(spacing: 26) {
-                if let playable {
-                    Button { model.play(playable) } label: {
-                        Label(playLabel(playable, container: item), systemImage: "play.fill")
-                    }
-                    .buttonStyle(ActionButtonStyle(ambient: ambient, prominent: true))
-                    .monospacedDigit()
-                    .takesFocusFromLink()
-
-                    if playable.isResumable {
-                        Button { model.play(playable, fromBeginning: true) } label: {
-                            Label("Start over", systemImage: "arrow.counterclockwise")
-                        }
-                        .buttonStyle(ActionButtonStyle(ambient: ambient))
-                    }
-                }
-
-                // A child's history keeps itself: watching is the only way to change it.
-                if !model.isKids {
-                    let name = watched ? "Mark as unwatched" : "Mark as watched"
-                    Button { Task { await model.setWatched(item, !watched) } } label: {
-                        Label(name, systemImage: watched ? "eye.slash" : "checkmark")
-                    }
-                    .buttonStyle(ActionButtonStyle(ambient: ambient, iconOnly: true))
-                    .focused($focusedAction, equals: name)
-                }
-
-                if model.hasWatchlist, item.kind == .movie || item.kind == .series, let onList = detail?.onWatchlist {
-                    WatchlistActionButton(key: .library(item.id), on: onList, ambient: ambient, iconOnly: true)
-                        .focused($focusedAction, equals: "Watchlist")
-                }
-
-                if item.kind == .episode, let series {
-                    Button { router.push(.item(series)) } label: {
-                        Label("Go to show", systemImage: "rectangle.stack")
-                    }
-                    .buttonStyle(ActionButtonStyle(ambient: ambient, iconOnly: true))
-                    .focused($focusedAction, equals: "Go to show")
-                }
-
-                // Things done now and then, out of the way of the row above.
-                if canForget || subtitleFile != nil {
-                    Button { showingMore = true } label: {
-                        Label("More", systemImage: "ellipsis")
-                    }
-                    .buttonStyle(ActionButtonStyle(ambient: ambient, iconOnly: true))
-                    .focused($focusedAction, equals: "More")
-                    .confirmationDialog(item.title, isPresented: $showingMore) {
-                        if canForget {
-                            Button("Mark as unwatched") { Task { await model.setWatched(item, false) } }
-                        }
-                        if let subtitleFile {
-                            Button("Search for subtitles…") { subtitleSearchFile = SubtitleSearchFile(id: subtitleFile.id) }
-                        }
-                    }
+                ForEach(actions.buttons, id: \.self) { button in
+                    actionButton(button, item: item, playable: playable, menu: actions.menu)
                 }
             }
             .focusSection()
@@ -237,6 +198,81 @@ struct DetailView: View {
                 .animation(.easeOut(duration: 0.15), value: focusedAction)
                 .accessibilityHidden(true)
         }
+    }
+
+    @ViewBuilder
+    private func actionButton(_ button: DetailActions.Button, item: ItemSummary, playable: ItemSummary?,
+                              menu: [DetailActions.MenuItem]) -> some View {
+        let watched = isWatched(item)
+        switch button {
+        case .play:
+            if let playable {
+                Button { model.play(playable) } label: {
+                    Label(playLabel(playable, container: item), systemImage: Symbol.play)
+                }
+                .buttonStyle(ActionButtonStyle(ambient: item.ambientColor ?? series?.ambientColor, prominent: true))
+                .monospacedDigit()
+                .takesFocusFromLink()
+            }
+        case .startOver:
+            if let playable {
+                Button { model.play(playable, fromBeginning: true) } label: {
+                    Label("Start over", systemImage: Symbol.startOver)
+                }
+                .buttonStyle(ActionButtonStyle(ambient: ambient))
+            }
+        case .shuffle:
+            if item.childCount > 0 {
+                roundButton("Shuffle", systemImage: Symbol.shuffle) { model.shuffle(item) }
+            }
+        case .trailer:
+            roundButton("Trailer", systemImage: Symbol.trailer) { openTrailer() }
+        case .watched:
+            // Pressed when watched, like the iPhone's and the web's: a filled tick that says Watched, and pressing it again unmarks.
+            let name = watched ? "Watched" : "Mark as watched"
+            roundButton(name, systemImage: watched ? Symbol.isWatched : Symbol.watched) {
+                Task { await model.setWatched(item, !watched) }
+            }
+        case .watchlist:
+            // Only what the server can put on a watchlist: films and shows, from servers that have one.
+            if model.hasWatchlist, item.kind == .movie || item.kind == .series, let onList = detail?.onWatchlist {
+                WatchlistActionButton(key: .library(item.id), on: onList, ambient: ambient, iconOnly: true)
+                    .focused($focusedAction, equals: "Watchlist")
+            }
+        case .download:
+            EmptyView()
+        case .more:
+            // Things done now and then, out of the way of the row above.
+            roundButton("More", systemImage: Symbol.more) { showingMore = true }
+                .confirmationDialog(item.title, isPresented: $showingMore) {
+                    ForEach(menu, id: \.self) { entry in
+                        switch entry {
+                        case .markUnwatched:
+                            Button("Mark as unwatched") { Task { await model.setWatched(item, false) } }
+                        case .subtitles:
+                            if let file = detail?.files.first {
+                                Button("Search for subtitles…") { subtitleSearchFile = SubtitleSearchFile(id: file.id) }
+                            }
+                        case .goToShow:
+                            if let series {
+                                Button("Go to show") { router.push(.item(series)) }
+                            }
+                        }
+                    }
+                }
+        }
+    }
+
+    /// A round icon button, named under the row while it's focused.
+    private func roundButton(_ name: String, systemImage: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) { Label(name, systemImage: systemImage) }
+            .buttonStyle(ActionButtonStyle(ambient: ambient, iconOnly: true))
+            .focused($focusedAction, equals: name)
+    }
+
+    private func openTrailer() {
+        guard let trailer else { return }
+        UIApplication.shared.open(trailer.appURL)
     }
 
     /// What Play starts: the item itself, or for a series the next-up episode (falling
@@ -491,7 +527,7 @@ struct EpisodeCard: View {
             RemoteImage(url: model.client?.imageURL(episode.artwork.thumb ?? episode.artwork.backdrop, width: 640)) {
                 ZStack {
                     Color.seat
-                    Image(systemName: "play.fill").font(.system(size: 40)).foregroundStyle(Color.usher)
+                    Image(systemName: Symbol.play).font(.system(size: 40)).foregroundStyle(Color.usher)
                 }
             }
             .frame(width: width, height: width * 9 / 16)
@@ -506,7 +542,7 @@ struct EpisodeCard: View {
             .overlay(alignment: .topTrailing) {
                 if episode.userData.watched { WatchedBadge().padding(12) }
             }
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
         } caption: { focused in
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 14) {

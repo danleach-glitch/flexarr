@@ -48,7 +48,7 @@ struct LibraryView: View {
             VStack(alignment: .leading, spacing: 12) {
                 if hasGenres {
                     Picker("Show", selection: $showing) {
-                        Text(library.type == .tvShows ? "All shows" : "All films").tag(Showing.all)
+                        Text(library.type == .tvShows ? "All shows" : "All movies").tag(Showing.all)
                         Text("Genres").tag(Showing.genres)
                     }
                     .pickerStyle(.segmented)
@@ -258,7 +258,7 @@ private struct LibraryGenreGrid: View {
     }
 
     private func caption(_ genre: GenreCount) -> String {
-        let noun = library.type == .tvShows ? (genre.count == 1 ? "show" : "shows") : (genre.count == 1 ? "film" : "films")
+        let noun = library.type == .tvShows ? (genre.count == 1 ? "show" : "shows") : (genre.count == 1 ? "movie" : "movies")
         return "\(genre.count) \(noun)"
     }
 }
@@ -283,7 +283,7 @@ struct GenreTile: View {
             .overlay(alignment: .bottomLeading) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(genre.name)
-                        .font(.marquee(20, weight: .heavy))
+                        .font(.marquee(20, weight: .heavy, scales: false))
                         .foregroundStyle(Color.screen)
                     Text(caption)
                         .font(.caption.weight(.medium))
@@ -292,6 +292,6 @@ struct GenreTile: View {
                 .lineLimit(1)
                 .padding(10)
             }
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
     }
 }

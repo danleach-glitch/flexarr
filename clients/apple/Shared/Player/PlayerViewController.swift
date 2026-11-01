@@ -968,7 +968,7 @@ final class PlayerViewController: UIViewController {
             }
         }
         sleepMinutesShown = sleep.remaining.map { Int(($0 / 60).rounded(.up)) }
-        let title = sleepMinutesShown.map { "Sleep timer · \($0) min left" } ?? "Sleep timer"
+        let title = sleepMinutesShown.map { "Sleep timer (\($0) min left)" } ?? "Sleep timer"
         controls.sleepButton.isHidden = false
         controls.sleepButton.menu = UIMenu(title: title, children: [UIMenu(options: .displayInline, children: [off])] + [UIMenu(options: .displayInline, children: items)])
         controls.setSleepActive(current != nil)

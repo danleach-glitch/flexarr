@@ -24,8 +24,8 @@ struct HomeScreenSettingsView: View {
 private extension TopShelfStyle {
     var help: String {
         switch self {
-        case .wide: "Continue Watching on the Top Shelf as wide artwork, with each title's logo on it."
-        case .posters: "Continue Watching on the Top Shelf as posters, which fit more titles in."
+        case .wide: "Continue watching on the Top Shelf as wide artwork, with each title's logo on it."
+        case .posters: "Continue watching on the Top Shelf as posters, which fit more titles in."
         }
     }
 }

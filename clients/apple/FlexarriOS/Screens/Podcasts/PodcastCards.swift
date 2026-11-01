@@ -8,7 +8,7 @@ struct PodcastArtwork: View {
     var title = ""
     var accent: String?
     var imageWidth = 500
-    var cornerRadius: CGFloat = 8
+    var cornerRadius: CGFloat = Radius.art
 
     var body: some View {
         Color.seat
@@ -18,7 +18,7 @@ struct PodcastArtwork: View {
                     ZStack {
                         LinearGradient(colors: [podcastGlow(accent).opacity(0.4), Color.seat], startPoint: .top, endPoint: .bottom)
                         Text(title)
-                            .font(.marquee(15, weight: .bold))
+                            .font(.marquee(15, weight: .bold, scales: false))
                             .foregroundStyle(Color.screen.opacity(0.8))
                             .multilineTextAlignment(.center)
                             .padding(8)
@@ -88,7 +88,7 @@ struct DirectoryCard: View {
                                 Color.black.opacity(0.45)
                                 ProgressView().tint(Color.screen)
                             }
-                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
                         }
                     }
                     .overlay(alignment: .topTrailing) {
@@ -164,10 +164,10 @@ struct PodcastEpisodeRow: View {
         }
         .swipeActions(edge: .trailing, allowsFullSwipe: removeFromUpNext != nil) {
             if let removeFromUpNext {
-                Button(role: .destructive, action: removeFromUpNext) { Label("Remove from Up Next", systemImage: "minus.circle") }
+                Button(role: .destructive, action: removeFromUpNext) { Label("Remove from Up next", systemImage: "minus.circle") }
             } else {
                 Button { Task { await model.addToUpNext(episode.id, next: false) } } label: {
-                    Label("Add to Up Next", systemImage: "text.line.last.and.arrowtriangle.forward")
+                    Label("Add to Up next", systemImage: "text.line.last.and.arrowtriangle.forward")
                 }
                 .tint(Color.upNext)
                 downloadSwipe
@@ -179,10 +179,10 @@ struct PodcastEpisodeRow: View {
                 Label("Play next", systemImage: "text.line.first.and.arrowtriangle.forward")
             }
             Button { Task { await model.addToUpNext(episode.id, next: false) } } label: {
-                Label("Add to Up Next", systemImage: "text.line.last.and.arrowtriangle.forward")
+                Label("Add to Up next", systemImage: "text.line.last.and.arrowtriangle.forward")
             }
             if let removeFromUpNext {
-                Button(role: .destructive, action: removeFromUpNext) { Label("Remove from Up Next", systemImage: "minus.circle") }
+                Button(role: .destructive, action: removeFromUpNext) { Label("Remove from Up next", systemImage: "minus.circle") }
             }
             Button { togglePlayed() } label: {
                 Label(episode.isPlayed ? "Mark as unplayed" : "Mark as played", systemImage: episode.isPlayed ? "circle" : "checkmark.circle")
@@ -232,7 +232,7 @@ struct PodcastEpisodeRow: View {
 
     private var artwork: some View {
         PodcastArtwork(path: episode.artwork.thumb ?? episode.artwork.poster, title: episode.podcastTitle, accent: episode.accentColor,
-                       imageWidth: 185, cornerRadius: 6)
+                       imageWidth: 185, cornerRadius: Radius.art)
             .frame(width: 56, height: 56)
     }
 
@@ -302,10 +302,10 @@ extension VerticalAlignment {
 }
 
 extension Color {
-    /// A swipe's "played" tint, as podcast apps use.
-    static let played = Color(rgb: RGB(hex: "#6B5BB5")!)
-    /// A swipe's "Up Next" tint.
-    static let upNext = Color(rgb: RGB(hex: "#4A6FA5")!)
+    /// A swipe's "played" tint.
+    static let played = Color.usher
+    /// A swipe's "Up next" tint.
+    static let upNext = Color.silver
 }
 
 extension View {
@@ -485,7 +485,7 @@ struct EpisodeSheet: View {
                             if isPlayed {
                                 Image(systemName: "checkmark.circle.fill")
                                     .symbolRenderingMode(.palette)
-                                    .foregroundStyle(Color.room, Color.downloaded)
+                                    .foregroundStyle(Color.room, Color.go)
                                     .font(.title2)
                             } else {
                                 Image(systemName: "checkmark.circle")

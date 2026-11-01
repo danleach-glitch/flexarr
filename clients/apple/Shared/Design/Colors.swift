@@ -1,23 +1,9 @@
 import FlexarrKit
 import SwiftUI
 
-// Tokens from docs/design.md. The room is a dim plum, never pure black, and the only
+// The tokens themselves are in Tokens.swift (generated from design/tokens.json). The room is a dim plum, never pure black, and the only
 // loud colour on screen is each title's own ambient colour.
 extension Color {
-    static let room = Color(rgb: RGB(hex: "#1B1720")!)
-    static let seat = Color(rgb: RGB(hex: "#25202C")!)
-    static let aisle = Color(rgb: RGB(hex: "#3A3343")!)
-    static let screen = Color(rgb: RGB(hex: "#F2EEE7")!)
-    static let usher = Color(rgb: RGB(hex: "#A39AAE")!)
-    static let silver = Color(rgb: .silver)
-    /// Errors, as the web app's `--danger`: a soft coral that reads on the room without shouting.
-    static let danger = Color(rgb: RGB(hex: "#F08A7E")!)
-    /// Downloaded, wherever it's shown: a calm green that reads on the room, with the room's own colour for a glyph on it.
-    static let downloaded = Color(rgb: RGB(hex: "#6FCF97")!)
-    /// In the library, on Discover's posters: a warm marquee gold, with the room's own colour for a glyph on it. Not
-    /// the green, which is downloaded's.
-    static let inLibrary = Color(rgb: RGB(hex: "#E8B84A")!)
-
     init(rgb: RGB) {
         self.init(.sRGB, red: rgb.red, green: rgb.green, blue: rgb.blue)
     }
@@ -26,13 +12,61 @@ extension Color {
 extension ItemSummary {
     /// Ambient colour lifted so it reads as a glow on the room background.
     var glowColor: Color { Color(rgb: ambient.glow) }
+    /// The title's own ambient colour, or nil when it has none (the main button is silver then).
+    var ambientColor: Color? { accentColor.flatMap(RGB.init(hex:)).map(Color.init(rgb:)) }
+}
+
+extension Color {
+    /// The main button's fill (Play, Resume): `ambient` mixed with projected white so a dark or dull colour still
+    /// reads, with room-coloured words on it; silver when there's no ambient colour. The same on every client.
+    static func mainButton(_ ambient: Color?) -> Color {
+        ambient?.mix(with: .screen, by: 1 - MainButton.ambientMix) ?? .silver
+    }
 }
 
 extension Font {
-    /// Marquee display type: tall, condensed and heavy, standing in for Big Shoulders Display.
-    static func marquee(_ size: CGFloat, weight: Font.Weight = .heavy) -> Font {
-        .system(size: size, weight: weight).width(.condensed)
+    /// Marquee display type: Big Shoulders Display (Shared/Fonts, OFL), tall and condensed like a cinema marquee, for
+    /// titles, row headings and Top 10 numerals. Bold, extra bold (`.heavy`) and black are bundled; lighter weights
+    /// take the bold and heavier ones the black.
+    ///
+    /// On iPhone and iPad it grows and shrinks with Dynamic Type, relative to the text style nearest its size; `scales:
+    /// false` keeps it fixed, for type inside artwork or another box of fixed size (a poster's placeholder title, a
+    /// profile's initial). The TV has no Dynamic Type.
+    static func marquee(_ size: CGFloat, weight: Font.Weight = .heavy, scales: Bool = true) -> Font {
+        let name = MarqueeFace(weight).postScriptName
+        #if os(iOS)
+        if scales { return .custom(name, size: size, relativeTo: marqueeStyle(size)) }
+        #endif
+        return .custom(name, fixedSize: size)
     }
+
+    /// The text style a marquee size scales with: big headings grow less than small ones, as Apple's own do.
+    private static func marqueeStyle(_ size: CGFloat) -> Font.TextStyle {
+        switch size {
+        case 34...: .largeTitle
+        case 28..<34: .title
+        case 22..<28: .title2
+        case 20..<22: .title3
+        default: .headline
+        }
+    }
+}
+
+/// The bundled Big Shoulders Display files (listed in each app's UIAppFonts).
+enum MarqueeFace: String, CaseIterable {
+    case bold = "BigShouldersDisplay-Bold"
+    case extraBold = "BigShouldersDisplay-ExtraBold"
+    case black = "BigShouldersDisplay-Black"
+
+    init(_ weight: Font.Weight) {
+        switch weight {
+        case .black: self = .black
+        case .heavy: self = .extraBold
+        default: self = .bold
+        }
+    }
+
+    var postScriptName: String { rawValue }
 }
 
 /// The room background with an optional ambient wash bleeding in from the top-left,
@@ -55,5 +89,19 @@ struct RoomBackground: View {
             }
         }
         .ignoresSafeArea()
+    }
+}
+
+/// A soft pool of the room behind a title or logo, so it reads over a bright backdrop without a drop shadow.
+struct TitleScrim: ViewModifier {
+    var reach: CGFloat
+
+    func body(content: Content) -> some View {
+        content.background {
+            // The frame reaches past the gradient's edge, so it fades out to nothing rather than stopping at a line.
+            RadialGradient(colors: [Color.room.opacity(0.5), .clear], center: .center, startRadius: 0, endRadius: reach)
+                .padding(-reach)
+                .allowsHitTesting(false)
+        }
     }
 }

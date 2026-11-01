@@ -131,6 +131,8 @@ class Navigator(private val nav: NavHostController, private val model: AppModel,
 
     fun openWatchlist() = nav.navigate("watchlist")
 
+    fun openComingSoon() = nav.navigate("coming-soon")
+
     fun openRecordings() = nav.navigate("livetv/recordings")
 
     /** Watches a live channel; Previous and Next go through [order], as the screen listed them. */
@@ -186,7 +188,7 @@ class Navigator(private val nav: NavHostController, private val model: AppModel,
     fun removeFromContinueWatching(item: ItemSummary) {
         if (model.books.current?.id == item.id) model.books.stop(reportsPlace = false)
         if (model.podcasts.current?.id == item.id) model.podcasts.stop(reportsPlace = false)
-        changeWatchState("Couldn’t remove this from Continue Watching") { it.removeFromContinueWatching(item.id) }
+        changeWatchState("Couldn’t remove this from Continue watching") { it.removeFromContinueWatching(item.id) }
     }
 
     /** A film or episode downloaded at Settings' size. */

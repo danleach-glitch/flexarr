@@ -82,7 +82,6 @@ struct BookView: View {
         VStack(spacing: 16) {
             BookCover(item: item, imageWidth: 800)
                 .frame(maxWidth: sizeClass == .regular ? 320 : 240)
-                .shadow(color: .black.opacity(0.5), radius: 24, y: 12)
                 .shadow(color: ambient.opacity(0.35), radius: 40)
             VStack(spacing: 6) {
                 Text(item.title)
@@ -176,7 +175,7 @@ struct BookView: View {
                       systemImage: playingThis && model.music.isPlaying ? "pause.fill" : "play.fill")
                     .frame(maxWidth: .infinity)
             }
-            .buttonStyle(ActionButtonStyle(ambient: ambient, prominent: true))
+            .buttonStyle(ActionButtonStyle(ambient: item.ambientColor, prominent: true))
             .monospacedDigit()
 
             HStack(alignment: .top, spacing: 8) {
@@ -275,8 +274,8 @@ struct BookView: View {
                 Spacer(minLength: 0)
             }
             .padding(14)
-            .background(Color.seat.opacity(0.6), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .background(Color.seat.opacity(0.6), in: RoundedRectangle(cornerRadius: Radius.panel, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: Radius.panel, style: .continuous))
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .ignore)

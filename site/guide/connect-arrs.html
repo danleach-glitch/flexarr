@@ -75,7 +75,7 @@
               <li><a href="/guide/finding-things">Finding things</a></li>
               <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
               <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
-              <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
+              <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up next</a></li>
               <li><a href="/guide/music">Music</a></li>
               <li><a href="/guide/podcasts">Podcasts</a></li>
               <li><a href="/guide/audiobooks">Audiobooks</a></li>
@@ -139,7 +139,7 @@
 </thead>
 <tbody><tr>
 <td><strong>Radarr</strong></td>
-<td>Titles, posters, backgrounds, overviews, genres, ratings and trailers for films. Upcoming films in <strong>Coming soon</strong>. Deleting a film from Flexarr goes through Radarr. Film series for collections.</td>
+<td>Titles, posters, backgrounds, overviews, genres, ratings and trailers for movies. Upcoming movies in <strong>Coming soon</strong>. Deleting a movie from Flexarr goes through Radarr. Movie series for collections.</td>
 </tr>
 <tr>
 <td><strong>Sonarr</strong></td>
@@ -159,7 +159,7 @@
 </tr>
 <tr>
 <td><strong>TMDB</strong></td>
-<td>Details, artwork and cast for films Radarr doesn&#39;t have, with a free key of your own. See <a href="/guide/without-arrs#films-from-tmdb">Films from TMDB</a>.</td>
+<td>Details, artwork and cast for movies Radarr doesn&#39;t have, with a free key of your own. See <a href="/guide/without-arrs#movies-from-tmdb">Movies from TMDB</a>.</td>
 </tr>
 <tr>
 <td><strong>Trakt</strong></td>
@@ -170,7 +170,7 @@
 <td>Live TV channels and their guide. See <a href="/guide/live-tv">Live TV</a>.</td>
 </tr>
 </tbody></table></div>
-<p>Films and shows that Radarr or Sonarr don&#39;t manage are still looked up through their search, so a connected Radarr fills in artwork even for films it didn&#39;t download.</p>
+<p>Movies and shows that Radarr or Sonarr don&#39;t manage are still looked up through their search, so a connected Radarr fills in artwork even for movies it didn&#39;t download.</p>
 <h2 id="add-a-connection"><a class="anchor" href="#add-a-connection" aria-hidden="true" tabindex="-1">#</a>Add a connection</h2>
 <p>You need two things for each app: its <strong>address</strong> and its <strong>API key</strong>.</p>
 <figure><img src="/guide/img/connections.webp" alt="Settings › Connections with Sonarr, Radarr, Lidarr, Seerr, Bazarr and Dispatcharr connected, and TMDB and Trakt" data-caption="Settings › Connections" loading="lazy" decoding="async"></figure>
@@ -184,7 +184,7 @@
 </ol>
 <p>Flexarr then adds its own webhook to Sonarr, Radarr and Lidarr, so new downloads show up straight away (see <a href="#webhooks-new-downloads-appear-straight-away">Webhooks</a>).</p>
 <p>Repeat for each app. Each one then shows a green dot, its version, and a link to open it. Choose the pencil to change it, or <strong>Disconnect</strong> in it to stop using it; its titles stay in your libraries.</p>
-<p>If you run more than one Sonarr, Radarr or Lidarr, such as a second Radarr for 4K films, choose <strong>+</strong> beside the one already connected and give the new one a <strong>Name</strong> of its own, such as &quot;Radarr 4K&quot;. A second one has <strong>Remove</strong> in place of <strong>Disconnect</strong>.</p>
+<p>If you run more than one Sonarr, Radarr or Lidarr, such as a second Radarr for 4K movies, choose <strong>+</strong> beside the one already connected and give the new one a <strong>Name</strong> of its own, such as &quot;Radarr 4K&quot;. A second one has <strong>Remove</strong> in place of <strong>Disconnect</strong>.</p>
 <h3 id="the-address"><a class="anchor" href="#the-address" aria-hidden="true" tabindex="-1">#</a>The address</h3>
 <p>Use the address Flexarr can reach the app on, with its port. The usual ports are:</p>
 <div class="table"><table>
@@ -263,7 +263,7 @@ http://&lt;flexarr-host&gt;:8383/api/v1/webhooks/lidarr?secret=&lt;webhook-secre
 <ol>
 <li>Go to <strong>Settings › Connect</strong>, choose <strong>+</strong>, then <strong>Webhook</strong>.</li>
 <li>Give it a name, such as &quot;Flexarr&quot;.</li>
-<li>Under triggers, turn on the ones for <strong>importing</strong>, <strong>upgrading</strong>, <strong>renaming</strong> and <strong>deleting</strong> files. Their names vary a little between apps and versions, such as <strong>On File Import</strong>, <strong>On File Upgrade</strong>, <strong>On Rename</strong>, and the <strong>Delete</strong> triggers. Adding a series, film or artist works too. Other triggers, such as <strong>On Grab</strong> or health events, are accepted and ignored.</li>
+<li>Under triggers, turn on the ones for <strong>importing</strong>, <strong>upgrading</strong>, <strong>renaming</strong> and <strong>deleting</strong> files. Their names vary a little between apps and versions, such as <strong>On File Import</strong>, <strong>On File Upgrade</strong>, <strong>On Rename</strong>, and the <strong>Delete</strong> triggers. Adding a series, movie or artist works too. Other triggers, such as <strong>On Grab</strong> or health events, are accepted and ignored.</li>
 <li>Paste the address for that app into <strong>Webhook URL</strong>.</li>
 <li>Leave <strong>Method</strong> as <strong>POST</strong>.</li>
 <li>Choose <strong>Test</strong>, then <strong>Save</strong>.</li>
@@ -276,7 +276,7 @@ http://&lt;flexarr-host&gt;:8383/api/v1/webhooks/lidarr?secret=&lt;webhook-secre
 <h2 id="checking-it-works"><a class="anchor" href="#checking-it-works" aria-hidden="true" tabindex="-1">#</a>Checking it works</h2>
 <ul>
 <li><strong>Settings › Connections</strong> shows each app&#39;s dot: green when Flexarr can reach it.</li>
-<li><strong>Coming soon</strong> in the sidebar lists upcoming episodes and films from Sonarr and Radarr.</li>
+<li><strong>Coming soon</strong> in the sidebar lists upcoming episodes and movies from Sonarr and Radarr.</li>
 <li>Download something, and it should appear in Flexarr within a few seconds of the *arr importing it.</li>
 </ul>
 <p>If artwork is missing on titles that were already there before you connected Radarr or Sonarr, choose <strong>Refresh artwork and details</strong> on the library in <strong>Settings › Libraries</strong>.</p>

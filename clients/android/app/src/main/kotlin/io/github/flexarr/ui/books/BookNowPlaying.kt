@@ -107,6 +107,7 @@ import io.github.flexarr.ui.theme.RoomBackground
 import io.github.flexarr.ui.theme.glowColor
 import io.github.flexarr.ui.theme.marquee
 import java.util.Date
+import io.github.flexarr.ui.theme.Tokens
 
 // A book playing, as the podcast player's bar and sheet on the phone: above the tabs on every screen, and opened into
 // the cover, chapter, scrubber and controls, with speed, the sleep timer, bookmarks and the chapter list.
@@ -119,14 +120,14 @@ fun BookNowPlayingBar(model: AppModel) {
     Column {
         Offers(player)
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp).shadow(12.dp, RoundedCornerShape(14.dp)).clip(RoundedCornerShape(14.dp)).background(Flexarr.seat).padding(end = 6.dp),
+            Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp).shadow(12.dp, RoundedCornerShape(Tokens.radiusPanel)).clip(RoundedCornerShape(Tokens.radiusPanel)).background(Flexarr.seat).padding(end = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(Modifier.minimumInteractiveComponentSize().size(width = 36.dp, height = 56.dp).pressable(player::stop), contentAlignment = Alignment.Center) {
                 Icon(Icons.Filled.Close, contentDescription = "Stop and close", tint = Flexarr.usher, modifier = Modifier.size(16.dp))
             }
             Row(Modifier.weight(1f).pressable({ model.showsBookPlayer = true }).padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                BookCover(book.artwork.poster, book.title, book.accentColor, Modifier.size(44.dp), imageWidth = 185, corner = 6.dp)
+                BookCover(book.artwork.poster, book.title, book.accentColor, Modifier.size(44.dp), imageWidth = 185)
                 Column(Modifier.weight(1f)) {
                     Text(book.title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(player.chapter?.title ?: book.book?.authors.orEmpty(), fontSize = 12.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -159,7 +160,7 @@ private fun Offers(player: BookPlayer) {
 @Composable
 private fun Offer(text: String, action: String, onAction: () -> Unit, onDismiss: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 8.dp).padding(top = 6.dp).clip(RoundedCornerShape(14.dp)).background(Flexarr.aisle).padding(start = 14.dp),
+        Modifier.fillMaxWidth().padding(horizontal = 8.dp).padding(top = 6.dp).clip(RoundedCornerShape(Tokens.radiusPanel)).background(Flexarr.aisle).padding(start = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(text, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Flexarr.screen, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
@@ -235,8 +236,8 @@ fun BookPlayerSheet(model: AppModel, onDismiss: () -> Unit) {
                                 BookCover(
                                     book.artwork.poster, book.title, book.accentColor,
                                     Modifier.sizeIn(maxWidth = 320.dp, maxHeight = 320.dp).aspectRatio(1f, matchHeightConstraintsFirst = true).scale(scale)
-                                        .shadow(24.dp, RoundedCornerShape(12.dp), ambientColor = ambient.copy(alpha = 0.35f), spotColor = Color.Black.copy(alpha = 0.5f)),
-                                    imageWidth = 800, corner = 12.dp,
+                                        .shadow(24.dp, RoundedCornerShape(Tokens.radiusArt), ambientColor = ambient.copy(alpha = 0.35f), spotColor = Color.Black.copy(alpha = 0.5f)),
+                                    imageWidth = 800,
                                 )
                             }
                             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {

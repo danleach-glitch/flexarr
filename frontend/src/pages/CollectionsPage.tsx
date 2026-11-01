@@ -1,4 +1,5 @@
 import { useState, type DragEvent } from 'react'
+import { PageError, PageLoading } from '../components/PageStatus'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import {
   ApiError,
@@ -54,7 +55,7 @@ export function CollectionsPage() {
       <header className="library-header">
         <div>
           <h1>Collections</h1>
-          <p className="muted">Your own, smart ones that keep themselves up to date, and the film series you have.</p>
+          <p className="muted">Your own, smart ones that keep themselves up to date, and the movie series you have.</p>
         </div>
         <button className="button" onClick={() => setCreating(true)}>
           New collection
@@ -175,14 +176,14 @@ export function CollectionPage() {
     setVersion((v) => v + 1)
   }
 
-  if (error) return <p className="page-message error">{error.message.includes('404') ? 'That collection isn’t here any more.' : error.message}</p>
-  if (!data) return <p className="page-message muted">Loading…</p>
+  if (error) return <PageError error={error} message={error.message.includes('404') ? 'That collection isn’t here any more.' : undefined} onRetry={reload} />
+  if (!data) return <PageLoading />
 
   const c = data.summary
   const items = order ?? data.items
   const manual = c.kind === 'Manual' && c.canEdit
   const next = items.find((i) => !i.userData.watched) ?? items[0]
-  const kindLabel = { Manual: 'Collection', Smart: 'Smart collection', Franchise: 'Film series', TraktList: 'Trakt list' }[c.kind]
+  const kindLabel = { Manual: 'Collection', Smart: 'Smart collection', Franchise: 'Movie series', TraktList: 'Trakt list' }[c.kind]
 
   async function act(work: () => Promise<unknown>) {
     try {

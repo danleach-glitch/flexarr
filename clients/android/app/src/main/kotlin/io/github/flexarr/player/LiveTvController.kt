@@ -223,7 +223,7 @@ class LiveTvController(context: Context, private val model: AppModel, val client
 
     private fun showTitle(channel: LiveChannel, programme: LiveProgramme?) {
         title = programme?.displayTitle ?: channel.name
-        subtitle = "${channel.numberText} ${channel.name}" + (programme?.let { " · " + timeRange(it) } ?: "")
+        subtitle = "${channel.numberText} ${channel.name}" + (programme?.let { "   " + timeRange(it) } ?: "")
     }
 
     /** Paused players fetch nothing, so the server is told the viewer is still here. What's on is refreshed with it. */

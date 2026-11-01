@@ -122,7 +122,7 @@ public static partial class DiscoveryEndpoints
                 var movies = first.Type == LibraryType.Movies;
                 var ids = group.Select(l => l.Id).ToList();
                 // "in {library}" only when there's more than one library of the kind to tell apart.
-                var title = $"Latest unwatched {(movies ? "films" : first.Type == LibraryType.HomeVideos ? "home videos" : "shows")}"
+                var title = $"Latest unwatched {(movies ? "movies" : first.Type == LibraryType.HomeVideos ? "home videos" : "shows")}"
                     + (!combine && libraries.Count(l => l.Type == first.Type) > 1 ? $" in {first.Name}" : "");
                 // Combined, there's no one library to open, so the title isn't a link.
                 rows.Add(new HomeRowDto(combine ? LayoutEndpoints.CombinedRowId(first.Type) : $"recent-{first.Id}", title, "poster",
@@ -136,7 +136,7 @@ public static partial class DiscoveryEndpoints
             // Rows ranked by critics' and audiences' scores aren't for children, who aren't shown scores.
             if (!kids && On("top-movies"))
             {
-                rows.Add(new HomeRowDto("top-movies", "Top 10 films in your library", "top10",
+                rows.Add(new HomeRowDto("top-movies", "Top 10 movies in your library", "top10",
                     await TopRated(topLevel.Where(i => i.Kind == MediaKind.Movie)).Take(10).Summaries(me).ToListAsync(ct)));
             }
 
@@ -291,7 +291,7 @@ public static partial class DiscoveryEndpoints
             }
 
             var movies = library.Type == LibraryType.Movies;
-            var noun = movies ? "films" : library.Type == LibraryType.HomeVideos ? "home videos" : "shows";
+            var noun = movies ? "movies" : library.Type == LibraryType.HomeVideos ? "home videos" : "shows";
             var topLevel = db.MediaItems.Where(i => i.LibraryId == id && i.ParentId == null);
             var unwatched = topLevel.Where(i => !i.PlaybackStates.Any(p => p.UserId == me && p.Watched));
             var rows = new List<HomeRowDto>();

@@ -194,7 +194,7 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
         {
             if (item is null && (await LibraryVisibility.HiddenTypesAsync(db, ct)).Hides(existing.Kind))
             {
-                return (null, new WatchlistRefusal(403, existing.Kind == MediaKind.Movie ? "This profile can't add films." : "This profile can't add shows."));
+                return (null, new WatchlistRefusal(403, existing.Kind == MediaKind.Movie ? "This profile can't add movies." : "This profile can't add shows."));
             }
 
             entry = existing;
@@ -231,7 +231,7 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
             var kind = add.MediaType == "movie" ? MediaKind.Movie : MediaKind.Series;
             if ((await LibraryVisibility.HiddenTypesAsync(db, ct)).Hides(kind))
             {
-                return (null, new WatchlistRefusal(403, kind == MediaKind.Movie ? "This profile can't add films." : "This profile can't add shows."));
+                return (null, new WatchlistRefusal(403, kind == MediaKind.Movie ? "This profile can't add movies." : "This profile can't add shows."));
             }
 
             if (options.CurrentValue.Seerr?.Instance is not { } instance)

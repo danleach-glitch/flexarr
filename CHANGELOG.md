@@ -4,6 +4,20 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ## Unreleased
 
+### Look and feel
+- Every app now has the same buttons on a movie or show page, in the same order: Play, Start over (once you've started), Shuffle, Trailer, Watched, Watchlist, then ⋯ for the rest. On the web, Start over has moved out of the ⋯ menu.
+- The same words everywhere: *Movies* rather than *Films*, *Start over* rather than *Play from the start*, and episodes written *S1E3* or *Season 1, Episode 3*. Details sit side by side without dots between them.
+- On the web, a page that couldn't load now says so with a **Try again** button, and pages that are loading all show the same spinner.
+- **Trailer** on iPhone, Apple TV, Android phone and Android TV. The phones play it on the page; the TVs open it in the YouTube app, so the button shows only when YouTube is installed. Kids profiles don't have it.
+- **Coming soon** in every app: **See all** on the Home row opens the whole list, day by day. A title already in your library opens its page.
+- **Watchlist** on Android TV: in the sidebar, on a title's page and in its press-and-hold menu.
+- The iPhone, Apple TV and Android apps use Flexarr's marquee type for titles, row headings and Top 10 numbers, as the web does. On iPhone they grow and shrink with your text size.
+- The Play button on a title's page and the Home hero takes the title's own colour (silver when it has none). On the TV apps it turns white when it's focused.
+- Colours and corners match across the apps: the gold *In library* badge and favourite stars are now green and white, Live TV's recording mark is one red everywhere, switches that are on are green, and posters, buttons and panels have the same corners.
+- On iPhone, notices such as *Subtitles saved* show as a banner that goes by itself, rather than a box to dismiss.
+- On Android, the back gesture shows the screen you're going back to, and Android TV's settings use switches.
+- Android TV gets **Shuffle** on shows and a ⋯ menu on a title's page, like the Apple TV.
+
 ### Audiobooks
 - A new kind of library: **Audiobooks**. Add one in **Settings › Libraries** and point it at your books. A folder of files is one book, disc folders are parts of it, and the files play back to back as one book. Series and their numbers, authors and narrators come from the folders, the files' tags, and files beside them (`metadata.opf`, Audiobookshelf's `metadata.json`, `desc.txt`, `reader.txt`, a cover).
 - Chapters come from the files, a `.cue` sheet, or one per file. Audible's replace guessed ones when they match, and the main profile can rename, move or shift a book's chapters, or start from Audible's.

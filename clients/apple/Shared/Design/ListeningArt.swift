@@ -10,7 +10,7 @@ struct ListeningArt: View {
     var imageWidth = 400
     /// Space around the cover, top and bottom.
     var inset: CGFloat = 10
-    var cornerRadius: CGFloat = 4
+    var cornerRadius: CGFloat = Radius.art
 
     var body: some View {
         let url = model.client?.imageURL(path, width: imageWidth)
@@ -28,7 +28,7 @@ struct ListeningArt: View {
                     ZStack {
                         Color.seat
                         Text(item.title)
-                            .font(.marquee(side / 8, weight: .bold))
+                            .font(.marquee(side / 8, weight: .bold, scales: false))
                             .foregroundStyle(Color.screen.opacity(0.8))
                             .multilineTextAlignment(.center)
                             .padding(side / 16)
@@ -36,7 +36,6 @@ struct ListeningArt: View {
                 }
                 .frame(width: side, height: side)
                 .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-                .shadow(color: .black.opacity(0.35), radius: 8)
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
         }

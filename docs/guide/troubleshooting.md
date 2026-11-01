@@ -59,9 +59,9 @@ To pick something up now, use the **Scan for new and changed files** icon on the
 
 ### Artwork or details are missing
 
-Films and shows get their artwork and details from `.nfo` files and pictures beside them first, then from Radarr and Sonarr. Shows they don't know are looked up on TVmaze, and films on TMDB if you've added a TMDB key.
+Movies and shows get their artwork and details from `.nfo` files and pictures beside them first, then from Radarr and Sonarr. Shows they don't know are looked up on TVmaze, and movies on TMDB if you've added a TMDB key.
 
-- **Are they connected?** Check **Settings › Connections**. Without Sonarr and Radarr, a film needs a TMDB key (or its own `.nfo` and poster) to get artwork. See [Without Sonarr and Radarr](without-arrs.md).
+- **Are they connected?** Check **Settings › Connections**. Without Sonarr and Radarr, a movie needs a TMDB key (or its own `.nfo` and poster) to get artwork. See [Without Sonarr and Radarr](without-arrs.md).
 - **Is it the wrong title?** Open **Settings › Libraries › Library health** and look under **Missing artwork** and **Check these matches**. Use **Fix match** to pick the right one. See [Library health](library-health.md).
 - **Is the folder named clearly?** For titles Sonarr and Radarr don't manage, Flexarr searches by the folder's name. `Title (Year)` works best, or an `.nfo` with the title's IDs.
 - **Refresh it.** In **Settings › Libraries**, use **Refresh artwork and details** on the library.
@@ -86,7 +86,7 @@ If it still won't play, set the **Playback** area to Debug in **Settings › Log
 
 - **On Apple TV, turn on Match Content.** In the Apple TV's own **Settings › Video and Audio › Match Content**, turn on **Match Dynamic Range**. Flexarr's player then asks the TV to switch to HDR or Dolby Vision for titles that have it, and back for ones that don't.
 - **Leave Play files directly on**, so HDR10, HLG and Dolby Vision reach the TV untouched.
-- **In a web browser,** HDR films are converted to standard dynamic range so they look right on any screen. For HDR, watch on the Apple TV.
+- **In a web browser,** HDR movies are converted to standard dynamic range so they look right on any screen. For HDR, watch on the Apple TV.
 
 More in [HDR and Dolby Atmos](hdr-and-atmos.md).
 

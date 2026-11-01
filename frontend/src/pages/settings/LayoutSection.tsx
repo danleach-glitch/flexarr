@@ -60,7 +60,7 @@ export function LayoutSection() {
             {layout.combinable && (
               <ToggleRow
                 label="Combine libraries of the same kind"
-                help="One Latest unwatched row for all your film libraries and one for all your TV ones. A title in more than one library shows once."
+                help="One Latest unwatched row for all your movie libraries and one for all your TV ones. A title in more than one library shows once."
                 checked={layout.combineLibraries}
                 onChange={combine}
               />
@@ -69,7 +69,7 @@ export function LayoutSection() {
           </div>
         )}
       </RowList>
-      <RowList title="Film libraries" rows={layout.movies} onChange={(rows) => change('movies', rows)} />
+      <RowList title="Movie libraries" rows={layout.movies} onChange={(rows) => change('movies', rows)} />
       <RowList title="TV libraries" rows={layout.shows} onChange={(rows) => change('shows', rows)} />
       {layout.music && <RowList title="Music" rows={layout.music} onChange={(rows) => change('music', rows)} />}
       {layout.audiobooks && <RowList title="Audiobooks" rows={layout.audiobooks} onChange={(rows) => change('audiobooks', rows)} />}

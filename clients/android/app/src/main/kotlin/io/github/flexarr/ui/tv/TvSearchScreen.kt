@@ -89,6 +89,7 @@ import io.github.flexarr.ui.theme.glowColor
 import io.github.flexarr.ui.theme.marquee
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
+import io.github.flexarr.ui.theme.Tokens
 
 /**
  * Search, as the Apple TV's: the field at the top (OK opens the TV's keyboard; the microphone listens instead), then
@@ -331,7 +332,7 @@ private fun TvBiography(name: String, text: String, modifier: Modifier = Modifie
         onClick = { open = true },
         // The text lines up with the name; the padding is the focus highlight's.
         modifier = modifier.offset(x = (-12).dp).widthIn(max = 640.dp),
-        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(10.dp)),
+        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(Tokens.radiusControl)),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = Color.Transparent,
             contentColor = Flexarr.screen.copy(alpha = 0.88f),
@@ -350,7 +351,7 @@ private fun TvBiography(name: String, text: String, modifier: Modifier = Modifie
         val scope = rememberCoroutineScope()
         Dialog(onDismissRequest = { open = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
             Column(
-                Modifier.width(580.dp).heightIn(max = 470.dp).background(Flexarr.seat, RoundedCornerShape(14.dp)).padding(24.dp),
+                Modifier.width(580.dp).heightIn(max = 470.dp).background(Flexarr.seat, RoundedCornerShape(Tokens.radiusPanel)).padding(24.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 Text(name, style = marquee(26).copy(fontWeight = FontWeight.ExtraBold))

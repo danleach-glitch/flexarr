@@ -57,7 +57,7 @@ export function ProfilesSection() {
           )
         }
       >
-        Everyone gets their own Continue Watching, history and Up Next. A PIN keeps a profile private.
+        Everyone gets their own Continue watching, history and Up next. A PIN keeps a profile private.
       </SettingsHeader>
       <div className="profile-list">
         {editing === 'new' && (
@@ -98,7 +98,7 @@ export function ProfilesSection() {
                   {p.isCurrent && <span className="tag profile-you">You</span>}
                 </strong>
                 <span className="muted">
-                  {[p.isMain ? 'Main profile, manages the server' : p.isKids ? null : 'Profile', p.hasPin ? 'PIN' : 'No PIN', ageLimitText(p)].filter(Boolean).join(' · ')}
+                  {[p.isMain ? 'Main profile, manages the server' : p.isKids ? null : 'Profile', p.hasPin ? 'PIN' : 'No PIN', ageLimitText(p)].filter(Boolean).join('\u2003')}
                 </span>
               </span>
               <span className="library-row-actions">

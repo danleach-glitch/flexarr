@@ -283,7 +283,12 @@ data class ItemDetail(
     val onWatchlist: Boolean? = null,
     /** A book's edition, series, chapters and bookmarks. Absent from servers before 0.58. */
     val book: BookDetail? = null,
-)
+    /** Films and shows: the trailer on YouTube, when the server knows one. Read through [trailerId]. */
+    val trailerYouTubeId: String? = null,
+) {
+    /** The trailer's YouTube id, only when it is one: anything else from metadata never reaches a player's address. */
+    val trailerId: String? get() = youTubeId(trailerYouTubeId)
+}
 
 // People and search
 
@@ -390,6 +395,10 @@ data class UpcomingItem(
     /** The title in the library, when it's there already (a show with a new episode). */
     val libraryItemId: String? = null,
     val download: UpcomingDownload? = null,
+    /** What it's about, when Sonarr or Radarr know. */
+    val overview: String? = null,
+    /** It's downloaded and ready to watch. */
+    val available: Boolean? = null,
 )
 
 /** How far a download of something coming has got, 0 to 1. */
@@ -399,10 +408,10 @@ data class UpcomingDownload(val progress: Double)
 /** The card's title: the show or the film. */
 val UpcomingItem.cardTitle: String get() = seriesTitle ?: title
 
-/** The card's second line: the episode ("S01E03 Title") or how a film comes out ("In cinemas"). */
+/** The card's second line: the episode ("S1E3 Title") or how a movie comes out ("In cinemas"). */
 val UpcomingItem.cardDetail: String
     get() = when (kind) {
-        MediaKind.Episode -> "S%02dE%02d %s".format(seasonNumber ?: 0, episodeNumber ?: 0, title)
+        MediaKind.Episode -> "$code $title"
         else -> `when`
     }
 

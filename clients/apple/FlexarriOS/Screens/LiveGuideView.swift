@@ -76,11 +76,7 @@ struct LiveGuideView: View {
         } message: {
             if let programme = details?.programme { Text(describe(programme)) }
         }
-        .alert("Recording", isPresented: Binding(get: { notice != nil }, set: { if !$0 { notice = nil } })) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(notice ?? "")
-        }
+        .banner($notice, systemImage: "record.circle")
     }
 
     private var timeline: some View {
@@ -97,13 +93,13 @@ struct LiveGuideView: View {
 
     private func channelCell(_ channel: LiveChannel) -> some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.seat)
+            RoundedRectangle(cornerRadius: Radius.art, style: .continuous).fill(Color.seat)
             RemoteImage(url: model.client?.imageURL(channel.logoUrl, width: 300), contentMode: .fit) {
-                Text(channel.name.prefix(4)).font(.marquee(14, weight: .bold)).foregroundStyle(Color.usher)
+                Text(channel.name.prefix(4)).font(.marquee(14, weight: .bold, scales: false)).foregroundStyle(Color.usher)
             }
             .padding(8)
             if model.liveTv.startingChannel == channel.id {
-                RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.black.opacity(0.45))
+                RoundedRectangle(cornerRadius: Radius.art, style: .continuous).fill(.black.opacity(0.45))
                 ProgressView()
             }
         }
@@ -189,12 +185,12 @@ struct LiveGuideView: View {
         .padding(.horizontal, 8)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .background {
-            RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.seat.opacity(onNow ? 1 : 0.55))
+            RoundedRectangle(cornerRadius: Radius.control, style: .continuous).fill(Color.seat.opacity(onNow ? 1 : 0.55))
         }
         // Set to record: outlined in red, so it stands out across the grid.
         .overlay {
             if programme.isSetToRecord {
-                RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Self.recordRed, lineWidth: 2)
+                RoundedRectangle(cornerRadius: Radius.control, style: .continuous).strokeBorder(Self.recordRed, lineWidth: 2)
             }
         }
         .overlay(alignment: .leading) {
@@ -210,7 +206,7 @@ struct LiveGuideView: View {
         let offset = CGFloat(now.timeIntervalSince(windowStart) / 60) * perMinute
         if offset >= 0, now < windowEnd {
             Rectangle()
-                .fill(Color(red: 0.94, green: 0.54, blue: 0.49))
+                .fill(Color.record)
                 .frame(width: 2)
                 .frame(maxHeight: .infinity)
                 .offset(x: offset)
@@ -218,7 +214,7 @@ struct LiveGuideView: View {
         }
     }
 
-    private static let recordRed = Color(red: 0.9, green: 0.28, blue: 0.3)
+    private static let recordRed = Color.record
 
     private func load() async {
         if let client = model.client,

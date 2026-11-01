@@ -160,7 +160,7 @@ fun ListeningSettingsScreen(model: AppModel, onNotifications: () -> Unit) {
 
     RoomBackground(ambient = null) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
-            item { PageTitle("Podcasts & audiobooks", onBack = { navigator.back() }) }
+            item { PageTitle("Podcasts and audiobooks", onBack = { navigator.back() }) }
             val speed = podcasts?.speed ?: books?.speed
             if (speed == null) item { loadFailed?.let { StatusView(it, retry = { attempt++ }) } ?: StatusView() }
             if (speed != null) item {

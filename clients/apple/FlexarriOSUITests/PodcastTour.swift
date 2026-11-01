@@ -94,7 +94,7 @@ final class PodcastTour: XCTestCase {
         episodeRow.press(forDuration: 1.2)
         pause(1)
         shot("43e-episode-menu")
-        app.buttons["Add to Up Next"].firstMatch.tap()
+        app.buttons["Add to Up next"].firstMatch.tap()
         pause(2)
 
         let play = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Play '")).firstMatch
@@ -137,7 +137,7 @@ final class PodcastTour: XCTestCase {
         app.navigationBars.buttons.element(boundBy: 0).tap()
         pause(4)
         shot("48-up-next")
-        XCTAssertTrue(app.staticTexts["Up Next"].exists, "Up Next shows on Podcasts")
+        XCTAssertTrue(app.staticTexts["Up next"].exists, "Up next shows on Podcasts")
     }
 
     /// Turns on notifications in Settings (new episodes come with them), allowing them when the system asks.

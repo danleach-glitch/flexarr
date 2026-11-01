@@ -74,6 +74,7 @@ import io.github.flexarr.ui.theme.glowColor
 import io.github.flexarr.ui.theme.marquee
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import io.github.flexarr.ui.theme.Tokens
 
 private const val PAGE_SIZE = 40
 
@@ -253,7 +254,7 @@ fun PodcastScreen(model: AppModel, id: String) {
                         runCatching { client.setWatched(id, true) }.onSuccess { model.downloads.markedPlayed(id) }
                         model.watchStateChanged()
                     }
-                }) { Text("Mark as Played") }
+                }) { Text("Mark as played") }
             },
             dismissButton = { TextButton(onClick = { markingAllPlayed = false }) { Text("Cancel") } },
             containerColor = Flexarr.seat,
@@ -280,7 +281,7 @@ private fun Header(model: AppModel, podcast: Podcast, episodes: List<PodcastEpis
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        PodcastArtwork(podcast.artwork.poster, podcast.title, podcast.accentColor, Modifier.width(220.dp).shadow(20.dp, RoundedCornerShape(12.dp)), imageWidth = 780, cornerRadius = 12.dp)
+        PodcastArtwork(podcast.artwork.poster, podcast.title, podcast.accentColor, Modifier.width(220.dp).shadow(20.dp, RoundedCornerShape(Tokens.radiusArt)), imageWidth = 780)
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(podcast.title, style = marquee(28).copy(fontWeight = FontWeight.ExtraBold), textAlign = TextAlign.Center, maxLines = 3, overflow = TextOverflow.Ellipsis)
             podcast.author?.let { Text(it, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen.copy(alpha = 0.9f), textAlign = TextAlign.Center) }

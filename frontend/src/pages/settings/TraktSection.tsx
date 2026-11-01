@@ -137,7 +137,7 @@ function Connect({ status, reload }: { status: TraktStatus; reload: () => void }
 function Connected({ status, reload }: { status: TraktStatus; reload: () => void }) {
   const { error, act } = useAction(reload)
   const synced = status.lastSyncAt ? `Synced ${relativeTime(status.lastSyncAt)}` : 'Not synced yet'
-  const queued = status.queued > 0 ? ` · ${status.queued} waiting to send` : ''
+  const queued = status.queued > 0 ? `\u2003${status.queued} waiting to send` : ''
   return (
     <SettingsGroup title="Account" note={error ? <SaveStatus error={error} /> : undefined}>
       <SettingRow as="div" label={status.username ?? 'Connected'} help={status.lastError ?? synced + queued}>
@@ -195,7 +195,7 @@ function History({ status, reload }: { status: TraktStatus; reload: () => void }
 const n = (count: number, one: string, many = `${one}s`) => `${count.toLocaleString()} ${count === 1 ? one : many}`
 
 function summary(p: TraktImportPreview) {
-  return `Trakt has ${n(p.traktFilms, 'film')} and ${n(p.traktEpisodes, 'episode')}`
+  return `Trakt has ${n(p.traktFilms, 'movie')} and ${n(p.traktEpisodes, 'episode')}`
 }
 
 function details(p: TraktImportPreview) {
@@ -243,7 +243,7 @@ function Lists() {
         <ToggleRow
           key={l.id}
           label={l.name}
-          help={l.owner ? `${l.owner} · ${n(l.itemCount, 'title')}` : n(l.itemCount, 'title')}
+          help={l.owner ? `${l.owner}\u2003${n(l.itemCount, 'title')}` : n(l.itemCount, 'title')}
           checked={selected.includes(l.id)}
           disabled={saving}
           onChange={(on) => void toggle(l.id, on)}
@@ -265,7 +265,7 @@ function Profiles({ me }: { me: string }) {
           key={p.profileId}
           as="div"
           label={p.profileName}
-          help={p.state === 'needsSignIn' ? 'Signed out' : (p.lastError ?? (p.lastSyncAt ? `${p.username} · synced ${relativeTime(p.lastSyncAt)}` : `${p.username} · not synced yet`))}
+          help={p.state === 'needsSignIn' ? 'Signed out' : (p.lastError ?? (p.lastSyncAt ? `${p.username}\u2003synced ${relativeTime(p.lastSyncAt)}` : `${p.username}\u2003not synced yet`))}
         />
       ))}
     </SettingsGroup>

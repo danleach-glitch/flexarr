@@ -37,8 +37,8 @@ struct LiveRecordingsView: View {
                             ForEach(recordings.series) { series in
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text(series.title).font(.body.weight(.semibold))
-                                    Text("\(series.channelName.map { "On \($0)" } ?? "On any channel") · \(series.upcoming) coming up · \(series.recorded) recorded"
-                                         + (series.newOnly ? " · New only" : ""))
+                                    Text("\(series.channelName.map { "On \($0)" } ?? "On any channel"), \(series.upcoming) coming up, \(series.recorded) recorded"
+                                         + (series.newOnly ? ", new only" : ""))
                                         .font(.caption).foregroundStyle(Color.usher)
                                 }
                                 .swipeActions {
@@ -84,13 +84,13 @@ struct LiveRecordingsView: View {
     private func row(_ recording: Recording) -> some View {
         HStack(spacing: 10) {
             if recording.isRecordingNow {
-                Circle().fill(Color(red: 0.9, green: 0.28, blue: 0.3)).frame(width: 9, height: 9).accessibilityLabel("Recording now")
+                Circle().fill(Color.record).frame(width: 9, height: 9).accessibilityLabel("Recording now")
             }
             VStack(alignment: .leading, spacing: 3) {
                 Text(recording.title).font(.body.weight(.semibold)).foregroundStyle(Color.screen)
                 Text(detail(recording)).font(.caption).foregroundStyle(Color.usher).lineLimit(1)
                 if recording.clashes {
-                    Text("Won't record: every stream is wanted by recordings scheduled before it.").font(.caption).foregroundStyle(.red)
+                    Text("Won't record: every stream is wanted by recordings scheduled before it.").font(.caption).foregroundStyle(Color.danger)
                 } else if let reason = recording.reason, recording.state != "scheduled" {
                     Text(reason).font(.caption).foregroundStyle(Color.usher)
                 }
@@ -100,12 +100,12 @@ struct LiveRecordingsView: View {
 
     private func detail(_ recording: Recording) -> String {
         var parts: [String] = []
-        if let season = recording.season, let episode = recording.episode { parts.append("S\(season) E\(episode)") }
+        if let season = recording.season, let episode = recording.episode { parts.append("S\(season)E\(episode)") }
         if let subtitle = recording.subtitle { parts.append(subtitle) }
         parts.append(recording.channelName)
         parts.append(Self.day.string(from: recording.start))
         if let size = recording.size { parts.append(ByteCountFormatter.string(fromByteCount: size, countStyle: .file)) }
-        return parts.joined(separator: " · ")
+        return parts.joined(separator: "   ")
     }
 
     private func load() async {

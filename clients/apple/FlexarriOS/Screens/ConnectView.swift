@@ -147,7 +147,7 @@ private struct NewToFlexarr: View {
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(Color.silver)
                     .frame(width: 44, height: 44)
-                    .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.silver.opacity(0.16)))
+                    .background(RoundedRectangle(cornerRadius: Radius.control, style: .continuous).fill(Color.silver.opacity(0.16)))
                 VStack(alignment: .leading, spacing: 4) {
                     Text("New to Flexarr?")
                         .font(.headline)
@@ -171,9 +171,9 @@ private struct NewToFlexarr: View {
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: Radius.panel, style: .continuous)
                 .fill(Color.seat)
-                .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Color.silver.opacity(0.22)))
+                .overlay(RoundedRectangle(cornerRadius: Radius.panel, style: .continuous).strokeBorder(Color.silver.opacity(0.22)))
         }
     }
 
@@ -385,10 +385,10 @@ private struct ManualConnect: View {
             if let error {
                 Label(error, systemImage: "exclamationmark.triangle.fill")
                     .font(.subheadline.weight(.medium))
-                    .foregroundStyle(Color.screen)
+                    .foregroundStyle(Color.danger)
                     .padding(14)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(RoundedRectangle(cornerRadius: 12).fill(Color(red: 0.42, green: 0.2, blue: 0.28).opacity(0.6)))
+                    .background(RoundedRectangle(cornerRadius: Radius.panel).fill(Color.seat))
             }
 
             if !usesKey {
@@ -412,7 +412,7 @@ private struct ManualConnect: View {
                 .foregroundStyle(Color.usher)
             content()
                 .padding(12)
-                .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.seat))
+                .background(RoundedRectangle(cornerRadius: Radius.control, style: .continuous).fill(Color.seat))
         }
     }
 
@@ -461,7 +461,7 @@ struct ChoiceRow: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 13)
-            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.seat))
+            .background(RoundedRectangle(cornerRadius: Radius.panel, style: .continuous).fill(Color.seat))
             .contentShape(Rectangle())
         }
         .buttonStyle(CardButtonStyle())

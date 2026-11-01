@@ -1,6 +1,6 @@
 ---
 title: First setup
-description: Open your new Flexarr server in a browser, make yourself its owner, add your films, shows and music, and find the API key if you ever need it.
+description: Open your new Flexarr server in a browser, make yourself its owner, add your movies, shows and music, and find the API key if you ever need it.
 ---
 
 Once the server is installed and running, everything else happens in a web browser. There's no account to make and no key to copy: the first browser on your home network to enter the server's setup code becomes its owner.
@@ -71,14 +71,14 @@ A library is a set of folders holding one kind of media. Go to **Settings › Li
 
 ![Settings › Libraries listing each library with its folder and a Fine for kids switch](../../site/guide/img/libraries.webp "Settings › Libraries")
 
-1. Pick the **Kind**: **Films**, **TV shows**, **Music**, **Home videos** (videos of your own, arranged by folder; see [Without Sonarr and Radarr](without-arrs.md#home-videos)) or, in the next release, **Audiobooks** (see [Audiobooks](audiobooks.md)).
+1. Pick the **Kind**: **Movies**, **TV shows**, **Music**, **Home videos** (videos of your own, arranged by folder; see [Without Sonarr and Radarr](without-arrs.md#home-videos)) or, in the next release, **Audiobooks** (see [Audiobooks](audiobooks.md)).
 2. Give it a **Name** if you like. Left blank, it's named after its kind. You can rename it later.
-3. Under **Folders**, browse the server's disks and choose **Use this folder** on the folder that holds that media. Add more than one folder if your films are spread across drives.
+3. Under **Folders**, browse the server's disks and choose **Use this folder** on the folder that holds that media. Add more than one folder if your movies are spread across drives.
 4. Choose **Add library**.
 
-The setup guide does this for you; this is how to add one later. Add one library for each kind of media you have. Keep films and TV shows in separate folders: Flexarr expects a films folder to hold films and a TV folder to hold shows.
+The setup guide does this for you; this is how to add one later. Add one library for each kind of media you have. Keep movies and TV shows in separate folders: Flexarr expects a movies folder to hold movies and a TV folder to hold shows.
 
-You can have more than one library of a kind, such as **TV** and **Anime**, or **Films** and **Films in 4K**. Home still shows one **Latest unwatched** row for all your films and one for all your shows, and a title that's in two libraries shows once. To give each library its own row, turn off **Combine libraries of the same kind** in **Settings › Home & browse**.
+You can have more than one library of a kind, such as **TV** and **Anime**, or **Movies** and **Movies in 4K**. Home still shows one **Latest unwatched** row for all your movies and one for all your shows, and a title that's in two libraries shows once. To give each library its own row, turn off **Combine libraries of the same kind** in **Settings › Home & browse**.
 
 > **Important** The folder browser shows the disks as the *server* sees them. In Docker, that means the paths inside the container, such as `/data/media/movies`, not the paths on your NAS. If you can't find your media, check the volumes you gave the container in your install guide.
 
@@ -94,7 +94,7 @@ How long it takes depends on the size of your library and how fast the disks are
 
 After that, Flexarr rescans every 12 hours, and straight away whenever Sonarr, Radarr or Lidarr tell it about a new download. Each library has buttons to scan it now, refresh its artwork and details, rename it or remove it. Removing a library never deletes your files.
 
-> **Tip** Films and TV shows get their artwork and details through Radarr and Sonarr. If you run them, [connect them](connect-arrs.md) next. Without them, films and episodes still play, named from their files, with artwork and details from any `.nfo` files and images (`poster.jpg`, `fanart.jpg`) beside them, from TVmaze for shows, and from TMDB for films if you add a free key. See [Without Sonarr and Radarr](without-arrs.md). Music reads the tags and cover images in your files, and Lidarr adds more.
+> **Tip** Movies and TV shows get their artwork and details through Radarr and Sonarr. If you run them, [connect them](connect-arrs.md) next. Without them, movies and episodes still play, named from their files, with artwork and details from any `.nfo` files and images (`poster.jpg`, `fanart.jpg`) beside them, from TVmaze for shows, and from TMDB for movies if you add a free key. See [Without Sonarr and Radarr](without-arrs.md). Music reads the tags and cover images in your files, and Lidarr adds more.
 
 ## The API key
 

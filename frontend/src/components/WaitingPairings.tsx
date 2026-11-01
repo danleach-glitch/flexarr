@@ -8,7 +8,7 @@ import { AsyncButton } from './AsyncButton'
 import { DeviceTypeIcon } from './DeviceTypeIcon'
 
 /** "Apple TV · from your home network (192.168.1.70)", or just where from when it hasn't said what it is. */
-const where = (details: PairingDetails) => [deviceTypeName(details.deviceType), askedFrom(details)].filter(Boolean).join(' · ')
+const where = (details: PairingDetails) => [deviceTypeName(details.deviceType), askedFrom(details)].filter(Boolean).join(', ')
 
 /**
  * Every device showing a code right now, to allow without typing the code (main profile only, and not from servers

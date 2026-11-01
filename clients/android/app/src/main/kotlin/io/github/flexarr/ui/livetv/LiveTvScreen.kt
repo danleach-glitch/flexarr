@@ -79,7 +79,7 @@ import io.github.flexarr.core.recordings
 import io.github.flexarr.core.removeRecording
 import io.github.flexarr.core.removeSeries
 import io.github.flexarr.core.setFavouriteChannel
-import io.github.flexarr.player.LiveGold
+import io.github.flexarr.player.LiveStar
 import io.github.flexarr.player.LiveTvController
 import io.github.flexarr.ui.components.Edge
 import io.github.flexarr.ui.components.LocalClient
@@ -94,9 +94,10 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.temporal.ChronoUnit
+import io.github.flexarr.ui.theme.Tokens
 
 /** The red of a programme set to record. */
-internal val RecordRed = Color(0xFFE6474D)
+internal val RecordRed = Flexarr.record
 
 private sealed interface Filter {
     data object Favourites : Filter
@@ -257,7 +258,7 @@ private fun Chip(title: String, selected: Boolean, star: Boolean = false, onClic
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (star) Icon(Icons.Filled.Star, contentDescription = null, tint = LiveGold, modifier = Modifier.size(16.dp))
+        if (star) Icon(Icons.Filled.Star, contentDescription = null, tint = LiveStar, modifier = Modifier.size(16.dp))
         Text(title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = if (selected) Flexarr.screen else Flexarr.usher)
     }
 }
@@ -266,7 +267,7 @@ private fun Chip(title: String, selected: Boolean, star: Boolean = false, onClic
 @Composable
 internal fun ChannelLogo(channel: LiveChannel, width: Dp, starting: Boolean, modifier: Modifier = Modifier, textSize: Int = 18) {
     val client = LocalClient.current
-    Box(modifier.size(width, width * 9 / 16).clip(RoundedCornerShape(8.dp)).background(Flexarr.seat), contentAlignment = Alignment.Center) {
+    Box(modifier.size(width, width * 9 / 16).clip(RoundedCornerShape(Tokens.radiusArt)).background(Flexarr.seat), contentAlignment = Alignment.Center) {
         Text(channel.name.take(4), fontFamily = Flexarr.marquee, fontSize = textSize.sp, color = Flexarr.usher)
         AsyncImage(client.imageUrl(channel.logoUrl, 300), contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize().background(Flexarr.seat).padding(8.dp))
         if (starting) {
@@ -289,7 +290,7 @@ private fun ChannelRow(channel: LiveChannel, starting: Boolean, onWatch: () -> U
         ) {
             Box {
                 ChannelLogo(channel, 104.dp, starting)
-                if (channel.isFavourite) Icon(Icons.Filled.Star, contentDescription = "Favourite", tint = LiveGold, modifier = Modifier.align(Alignment.TopEnd).padding(5.dp).size(10.dp))
+                if (channel.isFavourite) Icon(Icons.Filled.Star, contentDescription = "Favourite", tint = LiveStar, modifier = Modifier.align(Alignment.TopEnd).padding(5.dp).size(10.dp))
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -427,7 +428,7 @@ private fun LiveGuideView(
                     contentAlignment = Alignment.Center,
                 ) {
                     ChannelLogo(channel, channelWidth - 12.dp, model.liveStartingChannel == channel.id, textSize = 14)
-                    if (channel.isFavourite) Icon(Icons.Filled.Star, contentDescription = null, tint = LiveGold, modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).size(9.dp))
+                    if (channel.isFavourite) Icon(Icons.Filled.Star, contentDescription = null, tint = LiveStar, modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).size(9.dp))
                 }
                 Box(Modifier.weight(1f).horizontalScroll(across)) {
                     val programmes = byChannel[channel.id]?.programmes.orEmpty().filter { it.end > windowStart && it.start < windowEnd }
@@ -510,7 +511,7 @@ private fun GuideCell(
     menu: @Composable (close: () -> Unit) -> Unit,
 ) {
     var open by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(8.dp)
+    val shape = RoundedCornerShape(Tokens.radiusControl)
     Box(
         modifier.alpha(if (past) 0.55f else 1f).clip(shape).background(Flexarr.seat.copy(alpha = if (onNow) 1f else 0.55f))
             .then(if (programme.isSetToRecord) Modifier.border(2.dp, RecordRed, shape) else Modifier)

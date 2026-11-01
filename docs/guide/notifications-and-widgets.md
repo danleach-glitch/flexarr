@@ -19,17 +19,17 @@ If iOS has notifications switched off for Flexarr, the page says so and offers *
 
 ### What you can be told about
 
-- **Films** and **Shows**: something new in the library that you haven't seen, in a library your profile can see. A brand-new show says so, and several episodes of one show arriving together are one notification. Upgrades and replacements of things you already have don't count.
+- **Movies** and **Shows**: something new in the library that you haven't seen, in a library your profile can see. A brand-new show says so, and several episodes of one show arriving together are one notification. Upgrades and replacements of things you already have don't count.
 - **Podcasts**: a new episode of a show you follow.
 - **Recordings**: a Live TV recording has finished. This appears when Live TV is set up.
 - **Requests**: something you asked for through Flexarr is ready, or a title on your [watchlist](watchlist.md) has arrived (**From your watchlist**). This takes the place of the ordinary "new" notification for it.
-- **Upcoming** (off to start with): each morning, at the hour you choose under **At**, what's airing or out today from the shows you watch and the films you asked for.
+- **Upcoming** (off to start with): each morning, at the hour you choose under **At**, what's airing or out today from the shows you watch and the movies you asked for.
 
 Phones on the main profile also hear, whatever they've chosen, when a device asks to connect (with **Allow** and **Don't allow** buttons: press and hold the notification) and when wrong guesses at the admin PIN lock someone out, naming the device.
 
 A library's first scan never notifies, and a big batch arriving at once is summed up in one notification, so adding a new library or a season pack won't flood your phone.
 
-Notifications have buttons. Films and episodes have **Play**, **Download** and **Play on Apple TV**. Podcast episodes have **Play** and **Download**. Tapping the notification opens the title.
+Notifications have buttons. Movies and episodes have **Play**, **Download** and **Play on Apple TV**. Podcast episodes have **Play** and **Download**. Tapping the notification opens the title.
 
 ### One profile per phone
 
@@ -63,14 +63,14 @@ The one exception is the Lock Screen panel for [a TV you're following](iphone-re
 Flexarr has three widgets. Add them the usual way: touch and hold an empty part of the Home Screen, tap **Edit › Add Widget**, and search for Flexarr.
 
 - **Continue listening** shows the episode you're on (in the next release, or the audiobook), with a play and pause button. Small and medium sizes for the Home Screen, and a Lock Screen size too.
-- **Up Next** shows the episodes waiting in your Up Next queue. Small and medium sizes.
+- **Up next** shows the episodes waiting in your Up next queue. Small and medium sizes.
 - **Watchlist** shows what's on your [watchlist](watchlist.md) and ready to watch. Tap it to open your watchlist, or, in the medium size, a poster to open that title. Small and medium sizes.
 
-On iPhone and iPad the widgets show what the app last saved, and update when your podcasts or watchlist change in the app; they don't fetch anything from your server themselves. See [Podcasts](podcasts.md) for Up Next.
+On iPhone and iPad the widgets show what the app last saved, and update when your podcasts or watchlist change in the app; they don't fetch anything from your server themselves. See [Podcasts](podcasts.md) for Up next.
 
 ## Top Shelf (Apple TV)
 
-Put Flexarr in the top row of the Apple TV's Home screen, and the Top Shelf above it shows your **Continue Watching**, with **Recently Added** below it. Select a title to open it in Flexarr, or press Play on the remote to carry on watching straight away. With nothing in either, it shows featured titles instead.
+Put Flexarr in the top row of the Apple TV's Home screen, and the Top Shelf above it shows your **Continue watching**, with **Recently Added** below it. Select a title to open it in Flexarr, or press Play on the remote to carry on watching straight away. With nothing in either, it shows featured titles instead.
 
 To choose how it looks:
 

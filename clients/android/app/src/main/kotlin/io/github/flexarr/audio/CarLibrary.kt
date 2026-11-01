@@ -135,13 +135,13 @@ class CarLibrary(private val model: AppModel) : MediaLibrarySession.Callback {
         parentId == ROOT -> if (model.hasAudiobooks || model.bookDownloads.books.isNotEmpty()) {
             listOf(
                 folder(BOOKS, "Books"),
-                folder(UP_NEXT, "Up Next", list = true),
+                folder(UP_NEXT, "Up next", list = true),
                 folder(PODCASTS, "Podcasts"),
                 folder(MUSIC, "Music"),
             )
         } else {
             listOf(
-                folder(UP_NEXT, "Up Next", list = true),
+                folder(UP_NEXT, "Up next", list = true),
                 folder(NEW, "New episodes", list = true),
                 folder(PODCASTS, "Podcasts"),
                 folder(MUSIC, "Music"),
@@ -233,7 +233,7 @@ class CarLibrary(private val model: AppModel) : MediaLibrarySession.Callback {
         }
         val tracks = found.tracks.map { match ->
             foundTracks[match.item.id] = match.item
-            val subtitle = listOfNotNull(match.item.artistName, match.album).joinToString(" · ").ifEmpty { null }
+            val subtitle = listOfNotNull(match.item.artistName, match.album).joinToString(", ").ifEmpty { null }
             playable("song:${match.item.id}", match.item.title, subtitle, client.imageUrl(match.item.artwork.poster, 400), MediaMetadata.MEDIA_TYPE_MUSIC)
         }
         return podcasts + books + playlists + artists + albums + tracks

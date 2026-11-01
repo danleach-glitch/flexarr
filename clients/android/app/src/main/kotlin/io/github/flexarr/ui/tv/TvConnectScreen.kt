@@ -76,6 +76,8 @@ import io.github.flexarr.ui.theme.RoomBackground
 import io.github.flexarr.ui.theme.marquee
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import io.github.flexarr.ui.theme.Tokens
+import androidx.compose.foundation.border
 
 private sealed interface Step {
     data object Choose : Step
@@ -392,7 +394,7 @@ private fun NumberedStep(number: Int, text: androidx.compose.ui.text.AnnotatedSt
 @Composable
 internal fun QrCode(text: String, modifier: Modifier = Modifier) {
     val bitmap = remember(text) { qrBitmap(text) }
-    Box(modifier.background(Color.White, RoundedCornerShape(9.dp)).padding(9.dp)) {
+    Box(modifier.background(Color.White, RoundedCornerShape(Tokens.radiusPanel)).padding(9.dp)) {
         Image(bitmap, contentDescription = "QR code", filterQuality = FilterQuality.None, modifier = Modifier.fillMaxSize())
     }
 }
@@ -409,11 +411,12 @@ private fun qrBitmap(text: String): ImageBitmap {
 @Composable
 private fun ErrorNote(message: String) {
     Row(
-        Modifier.fillMaxWidth().background(Color(0x996B3347), RoundedCornerShape(7.dp)).padding(12.dp),
+        Modifier.fillMaxWidth().background(Flexarr.seat, RoundedCornerShape(Tokens.radiusPanel))
+            .border(1.dp, Flexarr.danger.copy(alpha = 0.5f), RoundedCornerShape(Tokens.radiusPanel)).padding(12.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(Icons.Filled.Warning, contentDescription = null, modifier = Modifier.size(15.dp))
+        Icon(Icons.Filled.Warning, contentDescription = null, tint = Flexarr.danger, modifier = Modifier.size(15.dp))
         Text(message, fontSize = 13.sp, fontWeight = FontWeight.Medium)
     }
 }

@@ -19,7 +19,8 @@ Like ambient TV backlighting, every title carries an **ambient colour** extracte
 | `--usher` | `#A39AAE` | Secondary text |
 | `--silver` | `#A9C2EC` | Fallback accent (silver screen) when a title has no ambient colour |
 | `--go` | `#7FD1A0` | Connected, on, set up: status dots, switches that are on, Connect buttons |
-| `--danger` | `#F08A7E` | Destructive actions only (delete, remove, sign out everywhere), never decoration |
+| `--danger` | `#F08A7E` | Destructive actions (delete, remove, sign out everywhere) and error messages, never decoration |
+| `--record` | `#E5484D` | The live and recording dot on Live TV, and nothing else: the one red that isn't for deleting |
 | `--well` | `#141118` | Inside text fields and menus, below the panel, with a light hairline border |
 | `--ambient` | per title | Set inline from artwork; drives glows, focus and primary buttons |
 
@@ -32,6 +33,7 @@ Like ambient TV backlighting, every title carries an **ambient colour** extracte
 - Posters and stills: 4px radius, like a printed one-sheet.
 - Buttons and inputs: 10px.
 - Panels: 14px.
+- Pills (chips, season pickers) and circles (round icon buttons, avatars) are the only other shapes.
 - There are no drop shadows on cards. Elevation comes from ambient glow on focus and hover only.
 
 ## Layout
@@ -67,4 +69,68 @@ Content is left-aligned throughout and shares one 4vw left edge, so heroes, rows
 3. Motion only answers an action: focus glow, a hero crossfade, a row scroll. There are no entrance animations, and `prefers-reduced-motion` is respected.
 4. Plain words: "Play", "Resume from 32:10", "Skip intro". Failures say what happened and what to do.
 5. Colour means something in controls: the ambient/silver fill is the one main action, green sets something up or is on, coral-red deletes, and outlined buttons are everything else. A row's own icon buttons stay quiet until pointed at.
-6. Avoid these: amber accents (Plex), red as an accent (Netflix; red is only for deleting), all-caps labels, eyebrow text, middle-dot meta strings and arrow-suffixed links.
+6. Avoid these: amber or gold accents (Plex), red as an accent (Netflix; red is only for deleting, plus the `--record` dot), all-caps labels, eyebrow text, middle-dot meta strings and arrow-suffixed links.
+
+## Tokens in code
+
+The colours, radii and type scale live in one file, `design/tokens.json`. `make tokens` writes them out for every client: `frontend/src/styles/tokens.generated.css`, `clients/apple/Shared/Design/Tokens.swift` and `clients/android/app/src/main/kotlin/io/github/flexarr/ui/theme/Tokens.kt`. CI fails if they're out of date. Change a value there, never in a client.
+
+The same file names the **icon** for each action and place (Play, Start over, Trailer, Watchlist, the menu's destinations, each kind of library): the web's icon from `icons.tsx`, an SF Symbol and a Material icon. `make tokens` writes `icons.generated.ts`, `Icons.swift` (`Symbol.trailer`) and `FlexarrIcons.kt`, so changing an icon is one edit. `make tokens` refuses a web icon that doesn't exist, and a debug build of the Apple apps stops at launch on an SF Symbol name it doesn't have. One-off decorative icons stay in each client.
+
+## Platforms
+
+Flexarr looks like one product everywhere, and behaves like it belongs on each device. What's shared and what's native:
+
+**Shared on every client**
+- The tokens above, the ambient colour, and the 4 / 10 / 14 shapes.
+- Big Shoulders Display for titles, row headings and Top 10 numerals.
+- The main button's look: the ambient fill (silver when a title has none). On the TVs it's ambient at rest and projected white when focused, as tvOS and Google TV expect focus to look.
+- The film and show page's actions, in this order: **Play** or **Resume from 32:10**, **Start over** (only once there's progress), **Shuffle** (shows), **Trailer** (not for children), **Watched**, **Watchlist**, **Download** (phones only), then **⋯**. The ⋯ menu holds the rest: subtitles, add to a collection, fix match, allow or block for kids, delete. The order is defined once in `DetailActions` (FlexarrKit and Android `core`) and on web in `ItemPage`.
+- The words (below).
+
+**Native on each**
+
+| | Web and Mac | iPhone | Apple TV | Android phone | Android TV |
+| --- | --- | --- | --- | --- | --- |
+| Navigation | Sidebar, drawer on small screens | Tab bar (sidebar on iPad) | Sidebar | Bottom bar (rail on tablets) | Sidebar |
+| Body font | Atkinson Hyperlegible Next | SF, with Dynamic Type | SF | Roboto | Roboto |
+| Focus | Ambient glow | Press dims | System card lift plus ambient glow | Press dims | Scale plus ambient glow |
+| Back | Browser | Swipe from the edge | Menu button | Predictive back | Back button |
+| Notices | Toast at the bottom | Banner at the top | Alert | Snackbar | Snackbar |
+| Trailer | Embedded player | Sheet with the embedded player | YouTube app, when installed | Sheet with the embedded player | YouTube app, when installed |
+| Player | Custom controls | Custom controls, AirPlay, PiP | Custom controls | Custom controls, PiP | Custom controls |
+
+## Words
+
+The same words on every client and in the guide:
+
+- **Movies** (never "Films"), **shows**, **episodes**. Library names people chose themselves are theirs.
+- **Play**, **Resume from 32:10**, **Resume S1E3**, **Start over** (never "Play from beginning" or "Play from the start").
+- **Skip intro**, **Skip recap**, **Next episode in 5**: sentence case, like every label.
+- **Mark as watched** and **Mark as unwatched** for video, **Mark as played** for podcasts, **Mark as finished** and **Mark as unread** for books. **Mark season as watched**.
+- **Watchlist**, **Continue watching**, **Up next**, **Coming soon**, **Discover**, **Cast and crew**, **More like this**.
+- Episodes: **S1E3** where space is short, **Season 1, Episode 3** in headings. No zero padding, no pipes.
+- Facts sit side by side with space between them, never joined with middle dots.
+
+## What each client has
+
+What's on each client today. The gaps are for future briefs.
+
+| Screen | Web | iPhone | Apple TV | Android phone | Android TV |
+| --- | --- | --- | --- | --- | --- |
+| Home, libraries, detail, search, player | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Trailer | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Coming soon page | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Watchlist | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Music | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Audiobooks | ✅ | ✅ | ✅ | ✅ | 🟡 points to the phone |
+| Podcasts | ✅ | ✅ | ❌ | ✅ | ❌ by design |
+| Live TV | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Discover | ✅ | ❌ | ✅ | ❌ | ✅ |
+| Collections | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Playlists and mixes pages | ✅ | 🟡 in Music | 🟡 in Music | 🟡 in Music | 🟡 in Music |
+| Downloads | ❌ | ✅ | ❌ | ✅ | ❌ |
+| A–Z rail | ✅ | ❌ | ❌ | ❌ | ✅ |
+| Server settings (libraries, backups, logs…) | ✅ | ❌ | ❌ | ❌ | ❌ by design |
+
+✅ there, 🟡 partly, ❌ missing.

@@ -62,6 +62,8 @@ targets:
       path: FlexarrTV/Info.plist
       properties:
         CFBundleDisplayName: Flexarr
+        # Big Shoulders Display, the marquee type (Shared/Fonts; SIL Open Font License, OFL.txt beside them).
+        UIAppFonts: [BigShouldersDisplay-Bold.ttf, BigShouldersDisplay-ExtraBold.ttf, BigShouldersDisplay-Black.ttf]
         # Export compliance: exempt. Besides Apple's own HTTPS and CryptoKit, the apps carry Tailscale for family
         # guests (WireGuard: standard ChaCha20-Poly1305 and Curve25519, from open-source code). Flexarr's primary
         # function is playing the user's own media, not information security, so under Category 5 Part 2's Note 4
@@ -77,9 +79,11 @@ targets:
         # Self-hosted servers are usually plain HTTP on the LAN.
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
-        NSLocalNetworkUsageDescription: "Flexarr looks for your Flexarr server on your home network so you can connect without typing an address, then streams from it. For example, it finds the server on your Mac and plays your films, shows and music from it."
+        NSLocalNetworkUsageDescription: "Flexarr looks for your Flexarr server on your home network so you can connect without typing an address, then streams from it. For example, it finds the server on your Mac and plays your movies, shows and music from it."
         # Servers announce themselves (Bonjour) so the connect screen can list them.
         NSBonjourServices: [_flexarr._tcp]
+        # A title's Trailer opens the YouTube app, and shows only when it's installed.
+        LSApplicationQueriesSchemes: [youtube]
         # flexarr://item/<id> opens a title, flexarr://play/<id> plays it.
         CFBundleURLTypes:
           - CFBundleURLName: io.github.flexarr.tv
@@ -144,6 +148,8 @@ targets:
       path: FlexarriOS/Info.plist
       properties:
         CFBundleDisplayName: Flexarr
+        # Big Shoulders Display, the marquee type (Shared/Fonts; SIL Open Font License, OFL.txt beside them).
+        UIAppFonts: [BigShouldersDisplay-Bold.ttf, BigShouldersDisplay-ExtraBold.ttf, BigShouldersDisplay-Black.ttf]
         FlexarrAppGroup: group.$(FLEXARR_IOS_BUNDLE_ID)
         FlexarrGuestInvites: $(FLEXARR_GUEST_INVITES)
         CFBundleShortVersionString: $(MARKETING_VERSION)
@@ -172,7 +178,7 @@ targets:
         # Self-hosted servers are usually plain HTTP on the LAN.
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
-        NSLocalNetworkUsageDescription: "Flexarr looks for your Flexarr server on your home network so you can connect without typing an address, then streams from it. For example, it finds the server on your Mac and plays your films, shows, music and podcasts from it."
+        NSLocalNetworkUsageDescription: "Flexarr looks for your Flexarr server on your home network so you can connect without typing an address, then streams from it. For example, it finds the server on your Mac and plays your movies, shows, music and podcasts from it."
         # Servers announce themselves (Bonjour) so the connect screen can list them.
         NSBonjourServices: [_flexarr._tcp]
         # flexarr://item/<id> opens a title, flexarr://play/<id> plays it.
@@ -209,7 +215,8 @@ targets:
   FlexarrWidgets:
     type: app-extension
     platform: iOS
-    sources: [Widgets, WidgetShared]
+    # Tokens.swift is the design tokens (colours, radii) the app uses, so the widgets match it.
+    sources: [Widgets, WidgetShared, Shared/Design/Tokens.swift]
     info:
       path: Widgets/Info.plist
       properties:

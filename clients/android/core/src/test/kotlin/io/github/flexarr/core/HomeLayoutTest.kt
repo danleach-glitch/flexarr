@@ -136,7 +136,7 @@ class HomeLayoutTest {
         assertEquals("Tonight", at(2, 20).dayLabel(now))
         assertEquals("Tomorrow", at(3, 9).dayLabel(now))
         assertEquals("Friday", at(6, 9).dayLabel(now))
-        assertEquals("S01E03 Pilot", at(2, 9).cardDetail)
+        assertEquals("S1E3 Pilot", at(2, 9).cardDetail)
         assertEquals("Show", at(2, 9).cardTitle)
     }
 }

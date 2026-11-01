@@ -95,6 +95,7 @@ import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.ambientColor
 import io.github.flexarr.ui.theme.marquee
 import kotlin.math.roundToInt
+import io.github.flexarr.ui.theme.Tokens
 
 /**
  * The music that's playing, above the tabs on every screen: close, the cover and track (opening Now Playing), play or
@@ -105,7 +106,7 @@ fun MusicNowPlayingBar(model: AppModel) {
     val music = model.music
     val track = music.current ?: return
     Column(
-        Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp).shadow(12.dp, RoundedCornerShape(14.dp)).clip(RoundedCornerShape(14.dp)).background(Flexarr.seat)
+        Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp).shadow(12.dp, RoundedCornerShape(Tokens.radiusPanel)).clip(RoundedCornerShape(Tokens.radiusPanel)).background(Flexarr.seat)
             .semantics { contentDescription = "Now playing: ${track.title}${track.artistName?.let { " by $it" }.orEmpty()}" },
     ) {
         Row(Modifier.padding(end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -204,7 +205,7 @@ fun MusicNowPlayingSheet(model: AppModel, onDismiss: () -> Unit) {
                     val scale by animateFloatAsState(if (music.isPlaying) 1f else 0.9f, spring(dampingRatio = 0.8f, stiffness = 300f), label = "cover")
                     SquareArtwork(
                         track,
-                        Modifier.padding(top = 8.dp).widthIn(max = 320.dp).fillMaxWidth().scale(scale).shadow(24.dp, RoundedCornerShape(12.dp)),
+                        Modifier.padding(top = 8.dp).widthIn(max = 320.dp).fillMaxWidth().scale(scale).shadow(24.dp, RoundedCornerShape(Tokens.radiusArt)),
                         imageWidth = 800,
                     )
                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {

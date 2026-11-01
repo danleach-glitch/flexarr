@@ -63,7 +63,7 @@ export function SubtitleSearchDialog({ itemId, fileId, title, onDownloaded, onCl
                     <strong>{r.languageLabel}</strong>
                     <span className="subtitle-release">{r.release || 'Release not named'}</span>
                     <span className="muted">
-                      {[r.provider, r.uploader && `by ${r.uploader}`, `${r.score}% match`].filter(Boolean).join(' · ')}
+                      {[r.provider, r.uploader && `by ${r.uploader}`, `${r.score}% match`].filter(Boolean).join('\u2003')}
                     </span>
                   </span>
                   {r.matchesFile && <span className="tag keep">Matches your file</span>}

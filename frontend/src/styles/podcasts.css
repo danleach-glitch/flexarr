@@ -113,7 +113,7 @@
   top: 8px;
   min-width: 26px;
   padding: 2px 6px;
-  border-radius: 6px;
+  border-radius: var(--radius-art);
   background: color-mix(in srgb, var(--room) 78%, transparent);
   backdrop-filter: blur(8px);
   font-weight: 800;
@@ -295,9 +295,7 @@
   padding: 0 6px;
   border: 1px solid var(--aisle);
   border-radius: 4px;
-  font-size: 0.7rem;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-size: var(--step--1);
 }
 
 .podcast-episode-title {

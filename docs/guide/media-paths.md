@@ -3,7 +3,7 @@ title: Media paths
 description: Why Flexarr needs to see your files at the same paths as Sonarr, Radarr and Lidarr, how to line them up in Docker, and how to use path mappings when you can't.
 ---
 
-Sonarr, Radarr and Lidarr talk to Flexarr about files by their **path**. When Sonarr imports an episode, its webhook says "I've just put a file in `/tv/Some Show/Season 1`", and Flexarr rescans that folder. When you delete a film, Flexarr works out whether Radarr manages it by comparing paths. If Flexarr sees the same file somewhere else, say `/data/media/tv/Some Show/Season 1`, it can't tell they're the same folder.
+Sonarr, Radarr and Lidarr talk to Flexarr about files by their **path**. When Sonarr imports an episode, its webhook says "I've just put a file in `/tv/Some Show/Season 1`", and Flexarr rescans that folder. When you delete a movie, Flexarr works out whether Radarr manages it by comparing paths. If Flexarr sees the same file somewhere else, say `/data/media/tv/Some Show/Season 1`, it can't tell they're the same folder.
 
 This mostly matters in Docker, where each container sees your disks at whatever paths its volumes give it. There are two ways to fix it: give every container the same paths (best), or tell Flexarr how to translate them.
 
@@ -56,7 +56,7 @@ Sometimes you can't change the volumes, or the *arrs run in Docker and Flexarr r
 
 Go to **Settings › Connections** and find **Media folders**. Each root folder of a connected Sonarr, Radarr or Lidarr has a line saying where it is on this server.
 
-Usually Flexarr works this out by itself. It compares the folders the apps keep their shows, films and artists in with the folders Flexarr found the same titles in. Sonarr's `/tv/Severance (2022)` and Flexarr's `/data/media/tv/Severance (2022)` mean `/tv` is `/data/media/tv`. When enough titles agree, Flexarr saves the mapping itself, on its next library scan, and the line goes green.
+Usually Flexarr works this out by itself. It compares the folders the apps keep their shows, movies and artists in with the folders Flexarr found the same titles in. Sonarr's `/tv/Severance (2022)` and Flexarr's `/data/media/tv/Severance (2022)` mean `/tv` is `/data/media/tv`. When enough titles agree, Flexarr saves the mapping itself, on its next library scan, and the line goes green.
 
 When it's less sure, the line is amber:
 
@@ -114,7 +114,7 @@ Sonarr and Radarr run in Docker Desktop with `-v /Volumes/Media/data:/data`. Fle
 ## Signs the paths don't match
 
 - **New downloads don't appear until the next scan.** Webhooks arrive, but Flexarr can't find the folder they name, so nothing happens until its scheduled scan every 12 hours.
-- **Deleting a film or show offers to delete the files itself.** The delete box says Radarr or Sonarr "doesn't manage" a title you know it does, because Flexarr couldn't match the paths.
+- **Deleting a movie or show offers to delete the files itself.** The delete box says Radarr or Sonarr "doesn't manage" a title you know it does, because Flexarr couldn't match the paths.
 - **Importing your history from Plex** matches fewer titles than expected, if Plex saw your files at other paths too.
 - **Albums don't pick up Lidarr's artwork**, because Flexarr matches them to Lidarr by folder.
 

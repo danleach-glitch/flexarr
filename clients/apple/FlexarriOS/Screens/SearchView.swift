@@ -55,7 +55,7 @@ struct SearchView: View {
                                     .lineLimit(1)
                                     .padding(.horizontal, 16)
                                     .padding(.vertical, 12)
-                                    .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.seat))
+                                    .background(RoundedRectangle(cornerRadius: Radius.control, style: .continuous).fill(Color.seat))
                                 }
                                 .buttonStyle(CardButtonStyle())
                             }
@@ -94,7 +94,7 @@ struct SearchView: View {
                 } else if query.isEmpty && !recents.isEmpty {
                     recentSections
                 } else {
-                    StatusView(state: .empty("Find films, shows, episodes and people in your libraries."))
+                    StatusView(state: .empty("Find movies, shows, episodes and people in your libraries."))
                         .frame(height: 240)
                 }
             }
@@ -377,13 +377,13 @@ private struct OutsideTitleCard: View {
                     .overlay {
                         RemoteImage(url: model.client?.imageURL(title.poster, width: 342)) {
                             Text(title.title)
-                                .font(.marquee(18, weight: .bold))
+                                .font(.marquee(18, weight: .bold, scales: false))
                                 .foregroundStyle(Color.screen.opacity(0.8))
                                 .multilineTextAlignment(.center)
                                 .padding(8)
                         }
                     }
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
                     .overlay(alignment: .topTrailing) {
                         if isOn {
                             Image(systemName: "bookmark.fill")
@@ -398,7 +398,7 @@ private struct OutsideTitleCard: View {
                     Text(title.title)
                         .font(.footnote.weight(.semibold))
                         .foregroundStyle(Color.screen.opacity(0.9))
-                    Text([title.isShow ? "Show" : "Film", title.year.map(String.init), requested || title.availability == .requested ? "Requested" : nil]
+                    Text([title.isShow ? "Show" : "Movie", title.year.map(String.init), requested || title.availability == .requested ? "Requested" : nil]
                         .compactMap { $0 }.joined(separator: ", "))
                         .font(.caption)
                         .foregroundStyle(Color.usher)

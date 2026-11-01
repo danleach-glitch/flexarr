@@ -113,14 +113,14 @@ struct LiveRecordingsView: View {
     private func row(_ recording: Recording) -> some View {
         HStack(spacing: 18) {
             Circle()
-                .fill(recording.isRecordingNow ? Color(red: 0.9, green: 0.28, blue: 0.3) : Color.clear)
+                .fill(recording.isRecordingNow ? Color.record : Color.clear)
                 .frame(width: 16, height: 16)
             VStack(alignment: .leading, spacing: 4) {
                 Text(recording.title).font(.system(size: 27, weight: .semibold)).lineLimit(1)
                 Text(detail(recording)).font(.system(size: 21)).opacity(0.7).lineLimit(1)
                 if recording.clashes {
                     Text("Won't record: every stream is wanted by recordings scheduled before it.")
-                        .font(.system(size: 21)).foregroundStyle(Color(red: 0.95, green: 0.55, blue: 0.5))
+                        .font(.system(size: 21)).foregroundStyle(Color.danger)
                 } else if let reason = recording.reason, recording.state != "scheduled" {
                     Text(reason).font(.system(size: 21)).opacity(0.7).lineLimit(1)
                 }
@@ -134,8 +134,8 @@ struct LiveRecordingsView: View {
     private func seriesRow(_ series: RecordingSeries) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(series.title).font(.system(size: 27, weight: .semibold)).lineLimit(1)
-            Text("\(series.channelName.map { "On \($0)" } ?? "On any channel") · \(series.upcoming) coming up · \(series.recorded) recorded"
-                 + (series.newOnly ? " · New episodes only" : ""))
+            Text("\(series.channelName.map { "On \($0)" } ?? "On any channel"), \(series.upcoming) coming up, \(series.recorded) recorded"
+                 + (series.newOnly ? ", new episodes only" : ""))
                 .font(.system(size: 21)).opacity(0.7).lineLimit(1)
         }
         .padding(.horizontal, 22)
@@ -145,11 +145,11 @@ struct LiveRecordingsView: View {
 
     private func detail(_ recording: Recording) -> String {
         var parts: [String] = []
-        if let season = recording.season, let episode = recording.episode { parts.append("S\(season) E\(episode)") }
+        if let season = recording.season, let episode = recording.episode { parts.append("S\(season)E\(episode)") }
         if let subtitle = recording.subtitle { parts.append(subtitle) }
         parts.append(recording.channelName)
         parts.append(Self.day.string(from: recording.start))
-        return parts.joined(separator: " · ")
+        return parts.joined(separator: "   ")
     }
 
     private func load() async {
@@ -188,7 +188,7 @@ private struct RecordingRowStyle: ButtonStyle {
             configuration.label
                 .foregroundStyle(isFocused ? Color.room : Color.screen)
                 .background {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous).fill(isFocused ? Color.screen : Color.seat.opacity(0.7))
+                    RoundedRectangle(cornerRadius: Radius.panel, style: .continuous).fill(isFocused ? Color.screen : Color.seat.opacity(0.7))
                 }
                 .scaleEffect(isFocused ? 1.02 : 1)
                 .animation(.spring(response: 0.25, dampingFraction: 0.8), value: isFocused)

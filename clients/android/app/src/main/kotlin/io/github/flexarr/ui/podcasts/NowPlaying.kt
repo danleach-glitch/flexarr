@@ -139,6 +139,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.Date
+import io.github.flexarr.ui.theme.Tokens
 
 /** Digits that keep their width as they count. */
 internal val Tabular = TextStyle(fontFeatureSettings = "tnum")
@@ -152,14 +153,14 @@ fun NowPlayingBar(model: AppModel) {
     val player = model.podcasts
     val episode = player.current ?: return
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp).shadow(12.dp, RoundedCornerShape(14.dp)).clip(RoundedCornerShape(14.dp)).background(Flexarr.seat).padding(end = 6.dp),
+        Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp).shadow(12.dp, RoundedCornerShape(Tokens.radiusPanel)).clip(RoundedCornerShape(Tokens.radiusPanel)).background(Flexarr.seat).padding(end = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.minimumInteractiveComponentSize().size(width = 36.dp, height = 56.dp).pressable(player::stop), contentAlignment = Alignment.Center) {
             Icon(Icons.Filled.Close, contentDescription = "Stop and close", tint = Flexarr.usher, modifier = Modifier.size(16.dp))
         }
         Row(Modifier.weight(1f).pressable({ model.showsNowPlaying = true }).padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            PodcastArtwork(episode.artwork.thumb ?: episode.artwork.poster, episode.podcastTitle, episode.accentColor, Modifier.size(44.dp), imageWidth = 185, cornerRadius = 6.dp)
+            PodcastArtwork(episode.artwork.thumb ?: episode.artwork.poster, episode.podcastTitle, episode.accentColor, Modifier.size(44.dp), imageWidth = 185)
             Column(Modifier.weight(1f)) {
                 Text(episode.title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(episode.podcastTitle, fontSize = 12.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -278,8 +279,8 @@ fun NowPlayingSheet(model: AppModel, onDismiss: () -> Unit) {
                                 PodcastArtwork(
                                     episode.artwork.poster ?: episode.artwork.thumb, episode.podcastTitle, episode.accentColor,
                                     Modifier.sizeIn(maxWidth = 320.dp, maxHeight = 320.dp).aspectRatio(1f, matchHeightConstraintsFirst = true).scale(scale)
-                                        .shadow(24.dp, RoundedCornerShape(12.dp), ambientColor = ambient.copy(alpha = 0.35f), spotColor = Color.Black.copy(alpha = 0.5f)),
-                                    imageWidth = 800, cornerRadius = 12.dp,
+                                        .shadow(24.dp, RoundedCornerShape(Tokens.radiusArt), ambientColor = ambient.copy(alpha = 0.35f), spotColor = Color.Black.copy(alpha = 0.5f)),
+                                    imageWidth = 800,
                                 )
                             }
                             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -335,7 +336,7 @@ private fun SmallHeader(episode: PodcastEpisode, modifier: Modifier = Modifier, 
         horizontalArrangement = Arrangement.spacedBy(14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        PodcastArtwork(episode.artwork.thumb ?: episode.artwork.poster, episode.podcastTitle, episode.accentColor, Modifier.size(56.dp), imageWidth = 185, cornerRadius = 8.dp)
+        PodcastArtwork(episode.artwork.thumb ?: episode.artwork.poster, episode.podcastTitle, episode.accentColor, Modifier.size(56.dp), imageWidth = 185)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(episode.title, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(episode.podcastTitle, fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -682,14 +683,14 @@ private fun UpNext(model: AppModel) {
     val next = model.upNext.filter { it.id != model.podcasts.current?.id }
     if (next.isEmpty()) return
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        SectionTitle("Up Next")
+        SectionTitle("Up next")
         next.take(20).forEach { episode ->
             Row(
                 Modifier.fillMaxWidth().pressable({ model.podcasts.play(episode) }).padding(horizontal = 12.dp, vertical = 6.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                PodcastArtwork(episode.artwork.thumb ?: episode.artwork.poster, episode.podcastTitle, episode.accentColor, Modifier.size(44.dp), imageWidth = 185, cornerRadius = 6.dp)
+                PodcastArtwork(episode.artwork.thumb ?: episode.artwork.poster, episode.podcastTitle, episode.accentColor, Modifier.size(44.dp), imageWidth = 185)
                 Column(Modifier.weight(1f)) {
                     Text(episode.title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(episode.podcastTitle, fontSize = 12.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis)

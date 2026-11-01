@@ -3,19 +3,19 @@ title: Bring your history over from Plex
 description: Copy what each person has watched, and where they stopped, from Plex Media Server into Flexarr, matched by file and without changing Plex.
 ---
 
-If you've been using Plex Media Server, Flexarr can copy across what you've watched and where you stopped, so Continue Watching and the watched ticks pick up where you left off. Plex itself is never changed: Flexarr takes a private copy of Plex's database, reads it, and deletes the copy.
+If you've been using Plex Media Server, Flexarr can copy across what you've watched and where you stopped, so Continue watching and the watched ticks pick up where you left off. Plex itself is never changed: Flexarr takes a private copy of Plex's database, reads it, and deletes the copy.
 
 ## What comes over
 
-- **Watched films and episodes**, with how many times each was played.
-- **Resume points** for anything part-watched, so it shows in Continue Watching.
+- **Watched movies and episodes**, with how many times each was played.
+- **Resume points** for anything part-watched, so it shows in Continue watching.
 - **Profile pictures**, if you use Plex Home (a separate button, below).
 
 Each Plex user's history goes into the Flexarr profile you choose, so the household's histories stay apart.
 
 ## What doesn't
 
-- **Music and audiobooks.** Only films and episodes are brought over.
+- **Music and audiobooks.** Only movies and episodes are brought over.
 - **Files Flexarr doesn't have.** Titles are matched by the file on disk, not by name. If a file Plex knows about isn't in one of your Flexarr libraries, it's skipped and counted in the summary.
 - **Anything else in Plex**: playlists, collections, ratings, server settings and users. Create profiles in Flexarr yourself ([Profiles](profiles.md)).
 

@@ -74,7 +74,7 @@ struct FormatTests {
     @Test func episodeTitles() throws {
         let episode = try Fixture.decode(Home.self, "home").rows[0].items[0]
         #expect(episode.displayTitle == "Breaking Bad")
-        #expect(episode.episodeSubtitle == "S2 E3  Bit by a Dead Bee")
+        #expect(episode.episodeSubtitle == "S2E3  Bit by a Dead Bee")
     }
 }
 
@@ -225,6 +225,6 @@ struct EmptyHomeMessageTests {
         @Test func saysAFirstScanIsUnderWay() throws {
         let message = try #require(EmptyHomeMessage(libraries: [library("Films", .movies, scan: ScanStatus(path: "/media/films", total: 10, processed: 4))]))
         #expect(message.title == "Looking through your library")
-        #expect(message.body == "Flexarr is reading the files in Films (4 of 10). Your films appear here as they’re recognised.")
+        #expect(message.body == "Flexarr is reading the files in Films (4 of 10). Your movies appear here as they’re recognised.")
     }
 }

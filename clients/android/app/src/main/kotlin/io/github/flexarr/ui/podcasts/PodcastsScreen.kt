@@ -133,7 +133,7 @@ fun PodcastsScreen(model: AppModel) {
                         }
                         // Up Next, the same on every device: Play next moves one to the top, and its menu takes one off.
                         if (model.upNext.isNotEmpty()) {
-                            item(key = "upnext-heading") { SectionHeading("Up Next", Modifier.padding(top = 20.dp)) }
+                            item(key = "upnext-heading") { SectionHeading("Up next", Modifier.padding(top = 20.dp)) }
                             items(model.upNext, key = { "upnext-${it.id}" }) { episode ->
                                 EpisodeListRow {
                                     PodcastEpisodeRow(model, episode, showsPodcast = true, compact = true, setPlayed = { setEpisodePlayed(model, episode, it) }, removeFromUpNext = { model.removeFromUpNext(episode.id) })

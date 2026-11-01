@@ -9,7 +9,7 @@ Flexarr is an MCP server. MCP (the [Model Context Protocol](https://modelcontext
 
 | Tool | What it does |
 | --- | --- |
-| `search_library` | Finds films, shows and episodes by title. |
+| `search_library` | Finds movies, shows and episodes by title. |
 | `continue_watching` | What you're in the middle of, most recent first. |
 | `next_up` | The episode to watch next in a show. |
 | `list_devices` | The TVs, phones and tablets signed in, whether Flexarr is open on each, and what each is playing. |
@@ -17,14 +17,14 @@ Flexarr is an MCP server. MCP (the [Model Context Protocol](https://modelcontext
 | `play_on_device` | Plays a title on a device. A show plays the episode you're up to; it can shuffle a show or start from the beginning. |
 | `control_device` | Pauses, resumes or stops a device. |
 | `set_device_sound` | Changes a device's dialogue boost, night mode or speakers, while Flexarr is open on it. |
-| `mark_watched` | Marks a film or episode watched or unwatched; a show or season marks every episode. Unwatched also forgets how far in it was, taking it out of Continue Watching. |
-| `remove_from_continue_watching` | Takes a film or episode out of Continue Watching without marking it watched. A show stays out until you play another episode of it. |
+| `mark_watched` | Marks a movie or episode watched or unwatched; a show or season marks every episode. Unwatched also forgets how far in it was, taking it out of Continue watching. |
+| `remove_from_continue_watching` | Takes a movie or episode out of Continue watching without marking it watched. A show stays out until you play another episode of it. |
 | `watchlist` | Your watchlist, with whether each title is ready to play, on its way, coming out later, or not available. |
-| `add_to_watchlist` | Adds a film or show to your watchlist: one from your library, or any title by name (that needs Seerr). Says if it was requested too. |
+| `add_to_watchlist` | Adds a movie or show to your watchlist: one from your library, or any title by name (that needs Seerr). Says if it was requested too. |
 | `remove_from_watchlist` | Takes a title off your watchlist. It doesn't cancel a request. |
 | `podcasts` | The podcasts you follow, with how many episodes you haven't heard. |
 | `new_podcast_episodes` | The newest episodes you haven't heard. |
-| `podcast_up_next` | Your podcast Up Next queue. |
+| `podcast_up_next` | Your podcast Up next queue. |
 | `add_to_up_next` | Queues an episode, at the end or to play next. |
 | `live_channels` | Live TV channels with what's on now and next. |
 | `watch_channel_on_device` | Puts a channel on a device. |
@@ -39,7 +39,7 @@ The Live TV tools are only useful once Live TV is set up. See [Live TV](live-tv.
 
 As with Siri, a device only plays what it's told while Flexarr is open on it. If it isn't, the command waits two minutes for Flexarr to be opened there, and the assistant is told so.
 
-The assistant acts as the main profile, since it signs in with the API key. Its Continue Watching, podcasts and marks are the main profile's.
+The assistant acts as the main profile, since it signs in with the API key. Its Continue watching, podcasts and marks are the main profile's.
 
 ## What you'll need
 

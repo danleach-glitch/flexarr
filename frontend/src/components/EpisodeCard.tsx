@@ -26,7 +26,7 @@ export function EpisodeCard({ episode }: { episode: PodcastEpisode }) {
         <Link to={`/podcasts/episode/${episode.id}`}>{episode.title}</Link>
       </span>
       <span className="card-subtitle">
-        <Link to={`/podcasts/${episode.podcastId}`}>{episode.podcastTitle}</Link> · {episodeLength(episode)}
+        <Link to={`/podcasts/${episode.podcastId}`}>{episode.podcastTitle}</Link>{'\u2003'}{episodeLength(episode)}
       </span>
     </article>
   )

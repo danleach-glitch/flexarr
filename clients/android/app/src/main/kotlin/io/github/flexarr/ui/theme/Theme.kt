@@ -1,6 +1,5 @@
 package io.github.flexarr.ui.theme
 
-import android.graphics.Typeface
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -13,38 +12,54 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.em
+import io.github.flexarr.R
 import androidx.compose.ui.text.font.FontWeight
 
-// Tokens from docs/design.md, as the Apple apps' Colors.swift. The room is a dim plum, never pure black, and the only
+// Tokens from design/tokens.json (Tokens.kt, `make tokens`), as the Apple apps' Colors.swift. The room is a dim plum, never pure black, and the only
 // loud colour on screen is each title's own ambient colour.
 object Flexarr {
-    val room = Color(0xFF1B1720)
-    val seat = Color(0xFF25202C)
-    val aisle = Color(0xFF3A3343)
-    val screen = Color(0xFFF2EEE7)
-    val usher = Color(0xFFA39AAE)
+    val room = Tokens.room
+    val seat = Tokens.seat
+    val aisle = Tokens.aisle
+    val screen = Tokens.screen
+    val usher = Tokens.usher
     /** Fallback accent when a title has no ambient colour. */
-    val silver = Color(0xFFA9C2EC)
+    val silver = Tokens.silver
     /** Errors: a soft coral that reads on the room without shouting. */
-    val danger = Color(0xFFF08A7E)
-    /** On the phone, or a good match: the one green. */
-    val downloaded = Color(0xFF6FCF97)
-    /** Ready to watch: Discover's badge on a poster the library has. */
-    val inLibrary = Color(0xFFE8B84A)
+    val danger = Tokens.danger
+    /** A surface on a surface: a menu over a panel. */
+    val seatRaised = Tokens.seatRaised
+    /** Connected, on, set up, downloaded, in the library: the one green. */
+    val go = Tokens.go
+    /** The live and recording dot on Live TV, and nothing else. */
+    val record = Tokens.record
+    /** Inside text fields and menus, below the panel. */
+    val well = Tokens.well
 
-    /** Marquee display type: tall, condensed and heavy, standing in for Big Shoulders Display. */
-    val marquee = FontFamily(Typeface.create("sans-serif-condensed", Typeface.BOLD))
+    /**
+     * Marquee display type, Big Shoulders Display (SIL Open Font License, assets/licenses): tall and condensed like a
+     * cinema marquee, for titles, row headings and Top 10 numerals.
+     */
+    val marquee = FontFamily(
+        Font(R.font.big_shoulders_display_bold, FontWeight.Bold),
+        Font(R.font.big_shoulders_display_extrabold, FontWeight.ExtraBold),
+        Font(R.font.big_shoulders_display_black, FontWeight.Black),
+    )
 }
 
+/** Marquee type at [size]: extra bold with the design's tight tracking (-0.01em). */
 fun marquee(size: Int, color: Color = Flexarr.screen) =
-    TextStyle(fontFamily = Flexarr.marquee, fontSize = size.sp, fontWeight = FontWeight.Black, color = color)
+    TextStyle(fontFamily = Flexarr.marquee, fontSize = size.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.01).em, color = color)
 
 /** A title's ambient colour ("#3a6b8c"), or silver when it has none. */
 fun ambientColor(hex: String?): Color {
@@ -70,6 +85,13 @@ fun Color.glow(): Color {
     }
     return colour
 }
+
+/**
+ * The main button's fill on every client: the title's ambient colour mixed with projected white
+ * ([Tokens.MAIN_BUTTON_AMBIENT_MIX] of the ambient, in Oklab as the web's color-mix), so a dark or dull colour still
+ * reads under room-coloured text.
+ */
+fun mainButtonFill(ambient: Color): Color = lerp(Flexarr.screen, ambient, Tokens.MAIN_BUTTON_AMBIENT_MIX)
 
 /** A title's colour lifted to glow on the room. */
 fun glowColor(hex: String?): Color = ambientColor(hex).glow()

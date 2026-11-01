@@ -99,9 +99,9 @@ function LibraryTools() {
         help={
           score
             ? score.withProblems === 0
-              ? `Score ${score.score}. Every film and episode is in good shape.`
+              ? `Score ${score.score}. Every movie and episode is in good shape.`
               : `Score ${score.score}. ${score.withProblems.toLocaleString()} ${score.withProblems === 1 ? 'title needs' : 'titles need'} a look.`
-            : 'Spare copies, unreadable files, films only in SD and wrong matches.'
+            : 'Spare copies, unreadable files, movies only in SD and wrong matches.'
         }
       />
       <SettingLink to="/settings/import" label="Bring over from Plex" help="Watch history, where you stopped, and profile pictures." />
@@ -216,7 +216,7 @@ function LibraryRow({ library, onChange }: { library: Library; onChange: () => v
           </h3>
         )}
         <p className="muted">
-          {libraryTypeLabel[library.type]} · {library.itemCount.toLocaleString()} {library.type === 'Audiobooks' ? (library.itemCount === 1 ? 'book' : 'books') : library.itemCount === 1 ? 'title' : 'titles'} ·{' '}
+          {libraryTypeLabel[library.type]}{'\u2003'}{library.itemCount.toLocaleString()} {library.type === 'Audiobooks' ? (library.itemCount === 1 ? 'book' : 'books') : library.itemCount === 1 ? 'title' : 'titles'}{'\u2003'}
           {scanning ? <span className="now-scanning">Now scanning…</span> : `scanned ${relativeTime(library.lastScannedAt)}`}
         </p>
         {library.folders.map((f) => (
@@ -337,7 +337,7 @@ function AddLibraryForm({ onDone, onCancel }: { onDone: () => void; onCancel: ()
         <label>
           Kind
           <select value={type} onChange={(e) => setType(e.target.value as LibraryType)}>
-            <option value="Movies">Films</option>
+            <option value="Movies">Movies</option>
             <option value="TvShows">TV shows</option>
             <option value="Music">Music</option>
             <option value="HomeVideos">Home videos</option>

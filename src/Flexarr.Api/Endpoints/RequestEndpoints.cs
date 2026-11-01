@@ -82,7 +82,7 @@ public static class RequestEndpoints
     private static readonly (string Id, string List, string Title)[] Lists =
     [
         ("trending", "trending", "Trending this week"),
-        ("movies", "movies", "Popular films"),
+        ("movies", "movies", "Popular movies"),
         ("tv", "tv", "Popular new shows"),
         ("upcoming", "movies/upcoming", "Coming to cinemas"),
     ];
@@ -240,7 +240,7 @@ public static class RequestEndpoints
         {
             if ((await LibraryVisibility.HiddenTypesAsync(db, ct)).Hides(KindOf(request.MediaType)))
             {
-                return Results.Problem(request.MediaType == "movie" ? "This profile can't request films." : "This profile can't request shows.", statusCode: 403);
+                return Results.Problem(request.MediaType == "movie" ? "This profile can't request movies." : "This profile can't request shows.", statusCode: 403);
             }
 
             if (options.CurrentValue.Seerr?.Instance is not { } instance)

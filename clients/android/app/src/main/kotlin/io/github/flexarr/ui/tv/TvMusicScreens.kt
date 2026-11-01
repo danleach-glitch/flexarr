@@ -73,6 +73,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import io.github.flexarr.ui.theme.Tokens
 
 // The music screens, as the Apple TV's: a library (playlists, new albums, every artist), an artist, an album and a
 // playlist. Each title page has Play and Shuffle, which also bring up Now Playing over everything; pressing a track plays
@@ -418,7 +419,7 @@ fun TvAlbumScreen(model: AppModel, id: String) {
                                 music.play(tracks, shuffled = true, albums = listOf(item))
                                 model.showNowPlaying()
                             },
-                            art = { Box(Modifier.shadow(15.dp, RoundedCornerShape(5.dp))) { TvSquareArtwork(item, 210.dp) } },
+                            art = { Box(Modifier.shadow(15.dp, RoundedCornerShape(Tokens.radiusArt))) { TvSquareArtwork(item, 210.dp) } },
                             below = {
                                 if (artist != null) {
                                     TvPill(artist.title, selected = false, onClick = { navigator.open(artist) }, ambient = ambient)
@@ -504,7 +505,7 @@ fun TvPlaylistScreen(model: AppModel, id: String) {
                                 music.play(tracks, shuffled = true)
                                 model.showNowPlaying()
                             },
-                            art = { Box(Modifier.shadow(15.dp, RoundedCornerShape(5.dp))) { TvPlaylistArtwork(summary, 210.dp) } },
+                            art = { Box(Modifier.shadow(15.dp, RoundedCornerShape(Tokens.radiusArt))) { TvPlaylistArtwork(summary, 210.dp) } },
                             below = { TvFactsLine(listOfNotNull(summary.trackCountLabel, Format.runtime(summary.durationSeconds))) },
                         )
                     }

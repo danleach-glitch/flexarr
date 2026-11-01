@@ -126,6 +126,8 @@ import androidx.compose.foundation.layout.width
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import io.github.flexarr.ui.theme.Tokens
+import io.github.flexarr.ui.theme.FlexarrIcons
 
 private class HomeContent(val home: Home, val newEpisodes: List<PodcastEpisode>, val isEmpty: Boolean, val emptyMessage: EmptyHomeMessage?)
 
@@ -309,7 +311,7 @@ private fun HeroSlide(home: Home, item: ItemSummary, height: Dp) {
                 ActionButton(
                     if (resume != null || item.isResumable) "Resume" else "Play",
                     onClick = { if (resume != null) navigator.play(resume) else navigator.playBest(item) },
-                    icon = Icons.Filled.PlayArrow,
+                    icon = FlexarrIcons.play,
                     prominent = true,
                     ambient = glow,
                 )
@@ -399,17 +401,18 @@ private fun NewEpisodesRow(model: AppModel, episodes: List<PodcastEpisode>) {
 private fun ComingSoonRow(items: List<UpcomingItem>, downloading: Int) {
     val navigator = LocalNavigator.current
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        SectionHeading(if (downloading > 0) "Coming soon ($downloading downloading)" else "Coming soon")
+        SectionHeading(if (downloading > 0) "Coming soon ($downloading downloading)" else "Coming soon", onSeeAll = navigator::openComingSoon)
         LazyRow(contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(RowSpacing), verticalAlignment = Alignment.Top) {
             items(items, key = { it.id }) { item ->
                 val opens = item.libraryItemId
+                // Every card does something: one in the library opens, anything else the full page, where it's described.
                 Column(
                     Modifier.width(WideWidth)
-                        .then(if (opens != null) Modifier.pressable({ navigator.openItem(opens) }, onClickLabel = "Open") else Modifier)
+                        .pressable({ if (opens != null) navigator.openItem(opens) else navigator.openComingSoon() }, onClickLabel = if (opens != null) "Open" else "See all")
                         .semantics(mergeDescendants = true) {},
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(6.dp)).background(Flexarr.seat)) {
+                    Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(Tokens.radiusArt)).background(Flexarr.seat)) {
                         RemoteImage(item.still ?: item.poster, 640, Modifier.fillMaxSize()) {
                             Text(item.cardTitle, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, modifier = Modifier.align(Alignment.Center).padding(10.dp))
                         }

@@ -155,7 +155,7 @@ struct NowPlayingView: View {
             HStack(spacing: 14) {
                 artwork(track)
                     .frame(width: 56, height: 56)
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
                 VStack(alignment: .leading, spacing: 2) {
                     Text(track.title)
                         .font(.headline)
@@ -180,7 +180,7 @@ struct NowPlayingView: View {
             HStack(spacing: 14) {
                 artwork(track)
                     .frame(width: 56, height: 56)
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
                 VStack(alignment: .leading, spacing: 2) {
                     Text(track.title)
                         .font(.headline)
@@ -221,8 +221,7 @@ struct NowPlayingView: View {
         artwork(track)
             .aspectRatio(1, contentMode: .fit)
             .frame(maxWidth: sizeClass == .regular ? 420 : 320)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .shadow(color: .black.opacity(0.5), radius: 24, y: 12)
+            .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
             .shadow(color: track.glowColor.opacity(0.35), radius: 40)
             // Smaller while paused, as every music app does.
             .scaleEffect(music.isPlaying ? 1 : 0.9)
@@ -613,7 +612,7 @@ struct NowPlayingView: View {
                         // Played: on to what comes next, as if it had finished.
                         music.seek(to: max(0, music.duration - 0.5))
                     }
-                } label: { Label("Mark as Played", systemImage: "checkmark.circle") }
+                } label: { Label("Mark as played", systemImage: "checkmark.circle") }
                 if let download = downloads.entry(for: track.id) {
                     Button(role: .destructive) { downloads.remove(download.id) } label: {
                         Label(download.isDownloaded ? "Remove Download" : "Stop Download", systemImage: "trash")
@@ -730,12 +729,12 @@ struct NowPlayingView: View {
         let next = model.upNext.filter { $0.id != music.current?.id }
         if !next.isEmpty {
             VStack(alignment: .leading, spacing: 4) {
-                sectionTitle("Up Next")
+                sectionTitle("Up next")
                 ForEach(next.prefix(20)) { episode in
                     Button { model.playEpisode(episode.summary) } label: {
                         HStack(spacing: 12) {
                             PodcastArtwork(path: episode.artwork.thumb ?? episode.artwork.poster, title: episode.podcastTitle,
-                                           accent: episode.accentColor, imageWidth: 185, cornerRadius: 6)
+                                           accent: episode.accentColor, imageWidth: 185, cornerRadius: Radius.art)
                                 .frame(width: 44, height: 44)
                             VStack(alignment: .leading, spacing: 1) {
                                 Text(episode.title)

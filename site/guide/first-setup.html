@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>First setup · Flexarr guide</title>
-  <meta name="description" content="Open your new Flexarr server in a browser, make yourself its owner, add your films, shows and music, and find the API key if you ever need it.">
+  <meta name="description" content="Open your new Flexarr server in a browser, make yourself its owner, add your movies, shows and music, and find the API key if you ever need it.">
   <meta name="theme-color" content="#1b1720">
   <meta name="color-scheme" content="dark">
   <meta name="apple-itunes-app" content="app-id=6826618084">
@@ -12,7 +12,7 @@
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <meta property="og:title" content="First setup · Flexarr guide">
-  <meta property="og:description" content="Open your new Flexarr server in a browser, make yourself its owner, add your films, shows and music, and find the API key if you ever need it.">
+  <meta property="og:description" content="Open your new Flexarr server in a browser, make yourself its owner, add your movies, shows and music, and find the API key if you ever need it.">
   <meta property="og:image" content="https://flexarr.io/shots/og.jpg">
   <meta property="og:url" content="https://flexarr.io/guide/first-setup">
   <meta name="twitter:card" content="summary_large_image">
@@ -75,7 +75,7 @@
               <li><a href="/guide/finding-things">Finding things</a></li>
               <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
               <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
-              <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
+              <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up next</a></li>
               <li><a href="/guide/music">Music</a></li>
               <li><a href="/guide/podcasts">Podcasts</a></li>
               <li><a href="/guide/audiobooks">Audiobooks</a></li>
@@ -115,7 +115,7 @@
       <article>
         <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Getting started</p>
         <h1>First setup</h1>
-        <p class="lede">Open your new Flexarr server in a browser, make yourself its owner, add your films, shows and music, and find the API key if you ever need it.</p>
+        <p class="lede">Open your new Flexarr server in a browser, make yourself its owner, add your movies, shows and music, and find the API key if you ever need it.</p>
         <p class="meta">8 min read</p>
         <nav class="toc" aria-label="On this page">
           <p>On this page</p>
@@ -179,13 +179,13 @@
 <p>A library is a set of folders holding one kind of media. Go to <strong>Settings › Libraries</strong> and choose <strong>Add library</strong>.</p>
 <figure><img src="/guide/img/libraries.webp" alt="Settings › Libraries listing each library with its folder and a Fine for kids switch" data-caption="Settings › Libraries" loading="lazy" decoding="async"></figure>
 <ol>
-<li>Pick the <strong>Kind</strong>: <strong>Films</strong>, <strong>TV shows</strong>, <strong>Music</strong>, <strong>Home videos</strong> (videos of your own, arranged by folder; see <a href="/guide/without-arrs#home-videos">Without Sonarr and Radarr</a>) or, in the next release, <strong>Audiobooks</strong> (see <a href="/guide/audiobooks">Audiobooks</a>).</li>
+<li>Pick the <strong>Kind</strong>: <strong>Movies</strong>, <strong>TV shows</strong>, <strong>Music</strong>, <strong>Home videos</strong> (videos of your own, arranged by folder; see <a href="/guide/without-arrs#home-videos">Without Sonarr and Radarr</a>) or, in the next release, <strong>Audiobooks</strong> (see <a href="/guide/audiobooks">Audiobooks</a>).</li>
 <li>Give it a <strong>Name</strong> if you like. Left blank, it&#39;s named after its kind. You can rename it later.</li>
-<li>Under <strong>Folders</strong>, browse the server&#39;s disks and choose <strong>Use this folder</strong> on the folder that holds that media. Add more than one folder if your films are spread across drives.</li>
+<li>Under <strong>Folders</strong>, browse the server&#39;s disks and choose <strong>Use this folder</strong> on the folder that holds that media. Add more than one folder if your movies are spread across drives.</li>
 <li>Choose <strong>Add library</strong>.</li>
 </ol>
-<p>The setup guide does this for you; this is how to add one later. Add one library for each kind of media you have. Keep films and TV shows in separate folders: Flexarr expects a films folder to hold films and a TV folder to hold shows.</p>
-<p>You can have more than one library of a kind, such as <strong>TV</strong> and <strong>Anime</strong>, or <strong>Films</strong> and <strong>Films in 4K</strong>. Home still shows one <strong>Latest unwatched</strong> row for all your films and one for all your shows, and a title that&#39;s in two libraries shows once. To give each library its own row, turn off <strong>Combine libraries of the same kind</strong> in <strong>Settings › Home &amp; browse</strong>.</p>
+<p>The setup guide does this for you; this is how to add one later. Add one library for each kind of media you have. Keep movies and TV shows in separate folders: Flexarr expects a movies folder to hold movies and a TV folder to hold shows.</p>
+<p>You can have more than one library of a kind, such as <strong>TV</strong> and <strong>Anime</strong>, or <strong>Movies</strong> and <strong>Movies in 4K</strong>. Home still shows one <strong>Latest unwatched</strong> row for all your movies and one for all your shows, and a title that&#39;s in two libraries shows once. To give each library its own row, turn off <strong>Combine libraries of the same kind</strong> in <strong>Settings › Home &amp; browse</strong>.</p>
 <blockquote class="callout important"><p><strong>Important</strong> The folder browser shows the disks as the <em>server</em> sees them. In Docker, that means the paths inside the container, such as <code>/data/media/movies</code>, not the paths on your NAS. If you can&#39;t find your media, check the volumes you gave the container in your install guide.</p>
 </blockquote>
 <h3 id="podcasts-are-built-in"><a class="anchor" href="#podcasts-are-built-in" aria-hidden="true" tabindex="-1">#</a>Podcasts are built in</h3>
@@ -194,7 +194,7 @@
 <p>Adding a library starts a scan straight away. You&#39;ll see its progress in <strong>Settings › Libraries</strong>, and titles appear on Home and in the sidebar as they&#39;re found.</p>
 <p>How long it takes depends on the size of your library and how fast the disks are, and artwork keeps arriving for a while after the files are found. You can start watching as soon as something shows up.</p>
 <p>After that, Flexarr rescans every 12 hours, and straight away whenever Sonarr, Radarr or Lidarr tell it about a new download. Each library has buttons to scan it now, refresh its artwork and details, rename it or remove it. Removing a library never deletes your files.</p>
-<blockquote class="callout tip"><p><strong>Tip</strong> Films and TV shows get their artwork and details through Radarr and Sonarr. If you run them, <a href="/guide/connect-arrs">connect them</a> next. Without them, films and episodes still play, named from their files, with artwork and details from any <code>.nfo</code> files and images (<code>poster.jpg</code>, <code>fanart.jpg</code>) beside them, from TVmaze for shows, and from TMDB for films if you add a free key. See <a href="/guide/without-arrs">Without Sonarr and Radarr</a>. Music reads the tags and cover images in your files, and Lidarr adds more.</p>
+<blockquote class="callout tip"><p><strong>Tip</strong> Movies and TV shows get their artwork and details through Radarr and Sonarr. If you run them, <a href="/guide/connect-arrs">connect them</a> next. Without them, movies and episodes still play, named from their files, with artwork and details from any <code>.nfo</code> files and images (<code>poster.jpg</code>, <code>fanart.jpg</code>) beside them, from TVmaze for shows, and from TMDB for movies if you add a free key. See <a href="/guide/without-arrs">Without Sonarr and Radarr</a>. Music reads the tags and cover images in your files, and Lidarr adds more.</p>
 </blockquote>
 <h2 id="the-api-key"><a class="anchor" href="#the-api-key" aria-hidden="true" tabindex="-1">#</a>The API key</h2>
 <p>Flexarr still has an API key. You won&#39;t need it for everyday use at home, but it&#39;s there for:</p>

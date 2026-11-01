@@ -52,7 +52,6 @@ struct AlbumView: View {
         VStack(spacing: 16) {
             SquareArtwork(item: item, imageWidth: 800)
                 .frame(width: sizeClass == .regular ? 320 : 240)
-                .shadow(color: .black.opacity(0.45), radius: 20, y: 10)
             VStack(spacing: 6) {
                 Text(item.title)
                     .font(.marquee(sizeClass == .regular ? 40 : 30, weight: .heavy))
@@ -75,7 +74,7 @@ struct AlbumView: View {
                 Button { model.playTracks(tracks, albums: [item], showingNowPlaying: router) } label: {
                     Label("Play", systemImage: "play.fill")
                 }
-                .buttonStyle(ActionButtonStyle(ambient: ambient, prominent: true))
+                .buttonStyle(ActionButtonStyle(ambient: page.item?.ambientColor, prominent: true))
                 Button { model.playTracks(tracks, shuffled: true, albums: [item], showingNowPlaying: router) } label: {
                     Label("Shuffle", systemImage: "shuffle")
                 }

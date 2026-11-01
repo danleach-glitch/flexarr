@@ -109,7 +109,7 @@ struct DiscoverView: View {
 
     /// "12 films and 3 shows".
     private static func counts(_ genre: Genre) -> String {
-        [genre.movies > 0 ? (genre.movies == 1 ? "1 film" : "\(genre.movies) films") : nil,
+        [genre.movies > 0 ? (genre.movies == 1 ? "1 movie" : "\(genre.movies) movies") : nil,
          genre.shows > 0 ? (genre.shows == 1 ? "1 show" : "\(genre.shows) shows") : nil]
             .compactMap { $0 }.joined(separator: " and ")
     }
@@ -118,7 +118,7 @@ struct DiscoverView: View {
     private var seerrNote: String? {
         guard let status, rows.allSatisfy(\.items.isEmpty) else { return nil }
         if !status.configured {
-            return "Connect Seerr under Settings › Connections on the web to find new films and shows here and request them."
+            return "Connect Seerr under Settings › Connections on the web to find new movies and shows here and request them."
         }
         return status.reachable ? nil : "Seerr isn’t answering, so there’s nothing new to request just now."
     }
@@ -177,7 +177,7 @@ struct DiscoverSearchView: View {
                         let shows = results.filter(\.isShow)
                         let films = results.filter { !$0.isShow }
                         if !shows.isEmpty { DiscoverRow(title: "Shows", titles: shows) }
-                        if !films.isEmpty { DiscoverRow(title: "Films", titles: films) }
+                        if !films.isEmpty { DiscoverRow(title: "Movies", titles: films) }
                     }
                 } else if let error {
                     StatusView(state: .failed(error) { Task { await search() } })
@@ -189,7 +189,7 @@ struct DiscoverSearchView: View {
         .scrollClipDisabled()
         .ignoresSafeArea(edges: .horizontal)
         .background(RoomBackground(ambient: nil))
-        .searchable(text: $query, prompt: "Any film or show")
+        .searchable(text: $query, prompt: "Any movie or show")
         .task(id: query) {
             // Once typing pauses, so each letter doesn't go to Seerr.
             try? await Task.sleep(for: .milliseconds(350))
@@ -278,7 +278,7 @@ struct ExternalCard: View {
             .overlay(alignment: .topLeading) {
                 if title.isInLibrary { LibraryBadge().padding(10) }
             }
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
         } caption: { focused in
             VStack(alignment: .leading, spacing: 4) {
                 Text(title.title)
@@ -327,7 +327,7 @@ private struct LibraryBadge: View {
             .foregroundStyle(Color.room)
             .offset(x: 1)
             .frame(width: 36, height: 36)
-            .background(Circle().fill(Color.inLibrary))
+            .background(Circle().fill(Color.go))
             .accessibilityLabel("In your library")
     }
 }
@@ -366,7 +366,7 @@ struct GenreTile: View {
                 LinearGradient(colors: [Color.silver.opacity(0.3), Color.seat], startPoint: .topLeading, endPoint: .bottomTrailing)
             }
             .frame(width: Self.width, height: Self.width * 9 / 16)
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
         } caption: { focused in
             VStack(alignment: .leading, spacing: 4) {
                 Text(name)
@@ -503,12 +503,12 @@ struct ExternalTitleView: View {
 
     /// "R   2026   1h 59m   Film".
     private var facts: [String] {
-        guard let detail else { return [title.year.map(String.init), title.isShow ? "Series" : "Film"].compactMap { $0 } }
+        guard let detail else { return [title.year.map(String.init), title.isShow ? "Show" : "Movie"].compactMap { $0 } }
         let length: String? = detail.isShow
             ? detail.seasons.map { $0 == 1 ? "1 season" : "\($0) seasons" }
             : detail.runtimeMinutes.flatMap { Format.runtime(minutes: $0) }
         let status = detail.status.flatMap { ["Released", "Ended"].contains($0) ? nil : $0 }
-        return [detail.certification, detail.year.map(String.init), length, detail.isShow ? "Series" : "Film", status].compactMap { $0 }
+        return [detail.certification, detail.year.map(String.init), length, detail.isShow ? "Show" : "Movie", status].compactMap { $0 }
     }
 
     /// The scores people check before watching: TMDB, IMDb, Rotten Tomatoes critics and audience.
@@ -697,7 +697,7 @@ struct GenreView: View {
                     }
                     Spacer()
                     HStack(spacing: 16) {
-                        ForEach([(nil, "Everything"), (MediaKind.movie, "Films"), (MediaKind.series, "Shows")], id: \.1) { choice, label in
+                        ForEach([(nil, "Everything"), (MediaKind.movie, "Movies"), (MediaKind.series, "Shows")], id: \.1) { choice, label in
                             Button(label) { kind = choice }
                                 .buttonStyle(PillButtonStyle(selected: kind == choice))
                         }

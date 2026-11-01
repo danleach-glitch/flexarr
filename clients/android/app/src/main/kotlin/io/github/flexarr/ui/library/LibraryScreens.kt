@@ -98,6 +98,8 @@ import io.github.flexarr.ui.theme.glowColor
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import java.text.NumberFormat
+import io.github.flexarr.ui.theme.Tokens
+import io.github.flexarr.ui.theme.FlexarrIcons
 
 /** The libraries this profile can see, each opening its poster grid. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -117,7 +119,7 @@ fun LibrariesScreen(model: AppModel) {
                     val showsWatchlist = model.hasWatchlist && profile?.hidesFromMenu(MenuItem.WATCHLIST) != true
                     LazyColumn(contentPadding = PaddingValues(horizontal = Edge, vertical = 8.dp), modifier = Modifier.fillMaxSize()) {
                         item {
-                            Column(Modifier.clip(RoundedCornerShape(12.dp)).background(Flexarr.seat)) {
+                            Column(Modifier.clip(RoundedCornerShape(Tokens.radiusPanel)).background(Flexarr.seat)) {
                                 // The watchlist first, ahead of the profile's own order of libraries.
                                 if (showsWatchlist) {
                                     LibraryRow("Watchlist", Icons.Filled.Bookmark) { navigator.openWatchlist() }
@@ -181,13 +183,13 @@ internal sealed interface LibraryMenuEntry {
     /** Podcasts are one place however many libraries hold them; [id] is their library's, when there is one. */
     data class Podcasts(override val id: String) : LibraryMenuEntry {
         override val title get() = "Podcasts"
-        override val icon get() = Icons.Filled.Mic
+        override val icon get() = FlexarrIcons.podcasts
     }
 
     data object LiveTv : LibraryMenuEntry {
         override val id get() = LIVE_TV_ORDER_ID
         override val title get() = "Live TV"
-        override val icon get() = Icons.Filled.SettingsInputAntenna
+        override val icon get() = FlexarrIcons.liveTv
     }
 
     companion object {
@@ -209,14 +211,14 @@ internal sealed interface LibraryMenuEntry {
 
 internal val Library.icon
     get() = when (type) {
-        LibraryType.Movies -> Icons.Filled.Movie
-        LibraryType.TvShows -> Icons.Filled.Tv
-        LibraryType.Music -> Icons.Filled.MusicNote
-        LibraryType.Podcasts -> Icons.Filled.Mic
-        LibraryType.HomeVideos -> Icons.Filled.Folder
-        LibraryType.Audiobooks -> Icons.AutoMirrored.Filled.MenuBook
+        LibraryType.Movies -> FlexarrIcons.movies
+        LibraryType.TvShows -> FlexarrIcons.shows
+        LibraryType.Music -> FlexarrIcons.music
+        LibraryType.Podcasts -> FlexarrIcons.podcasts
+        LibraryType.HomeVideos -> FlexarrIcons.homeVideos
+        LibraryType.Audiobooks -> FlexarrIcons.audiobooks
         // Never listed (see [inMenu]).
-        LibraryType.Unknown -> Icons.Filled.Folder
+        LibraryType.Unknown -> FlexarrIcons.homeVideos
     }
 
 private const val PAGE_SIZE = 60
@@ -370,7 +372,7 @@ fun LibraryScreen(model: AppModel, libraryId: String, initialSort: LibrarySort, 
                 if (shows == Showing.All) SortAndFilter(sort, { sort = it }, genre, { genre = it }, genreList)
             }
             if (hasGenres) {
-                ShowingSwitch(if (loadedLibrary?.type == LibraryType.TvShows) "All shows" else "All films", shows) { showing = it }
+                ShowingSwitch(if (loadedLibrary?.type == LibraryType.TvShows) "All shows" else "All movies", shows) { showing = it }
             }
             val failed = error
             when {
@@ -498,7 +500,7 @@ private fun LibraryGenreGrid(library: Library, genres: List<GenreCount>) {
         items(genres, key = { it.name }) { genre ->
             val caption = genreCaption(library, genre)
             Box(
-                Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(10.dp)).background(Flexarr.seat)
+                Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(Tokens.radiusArt)).background(Flexarr.seat)
                     .pressable({ navigator.openLibrary(library.id, LibrarySort.Title, genre.name) })
                     .clearAndSetSemantics {
                         contentDescription = "${genre.name}, $caption"
@@ -520,6 +522,6 @@ private fun LibraryGenreGrid(library: Library, genres: List<GenreCount>) {
 
 /** "12 films", "1 show". */
 private fun genreCaption(library: Library, genre: GenreCount): String {
-    val noun = if (library.type == LibraryType.TvShows) (if (genre.count == 1) "show" else "shows") else (if (genre.count == 1) "film" else "films")
+    val noun = if (library.type == LibraryType.TvShows) (if (genre.count == 1) "show" else "shows") else (if (genre.count == 1) "movie" else "movies")
     return "${genre.count} $noun"
 }

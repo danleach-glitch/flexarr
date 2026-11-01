@@ -150,6 +150,9 @@ class FlexarrClient(
 
     suspend fun item(id: String): ItemDetail = get("items/$id")
 
+    /** What Sonarr and Radarr expect over the next [days] days (and what came yesterday), for Coming soon. */
+    suspend fun upcoming(days: Int = 30): List<UpcomingItem> = get("upcoming", mapOf("days" to "$days"))
+
     suspend fun similar(id: String): List<ItemSummary> = get("items/$id/similar")
 
     /**

@@ -152,12 +152,12 @@ describe('App', () => {
     })
 
     render(<App />)
-    fireEvent.click(await screen.findByRole('button', { name: 'More for Severance S01E05' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'More for Severance S1E5' }))
     const menu = screen.getByRole('menu')
-    expect(within(menu).getByRole('menuitem', { name: 'Resume S01E05' })).toBeInTheDocument()
+    expect(within(menu).getByRole('menuitem', { name: 'Resume S1E5' })).toBeInTheDocument()
     // The card's text links to the show, the season and the episode.
     expect(screen.getByRole('link', { name: 'Severance' })).toHaveAttribute('href', '/item/s1')
-    expect(screen.getByRole('link', { name: 'Season 01 | Episode 05' })).toHaveAttribute('href', '/item/s1?season=1')
+    expect(screen.getByRole('link', { name: 'Season 1, Episode 5' })).toHaveAttribute('href', '/item/s1?season=1')
     expect(screen.getByRole('link', { name: 'Pilot' })).toHaveAttribute('href', '/item/e5')
     fireEvent.click(within(menu).getByRole('menuitem', { name: 'Mark episode as watched' }))
 
@@ -186,19 +186,19 @@ describe('App', () => {
     })
 
     render(<App />)
-    fireEvent.click(await screen.findByRole('button', { name: 'More for Severance S01E05' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'More for Severance S1E5' }))
     let menu = screen.getByRole('menu')
     // Part way through: either way. Not next up, so no Remove.
     expect(within(menu).getByRole('menuitem', { name: 'Mark episode as watched' })).toBeInTheDocument()
     expect(within(menu).queryByRole('menuitem', { name: 'Remove' })).not.toBeInTheDocument()
     fireEvent.click(within(menu).getByRole('menuitem', { name: 'Mark episode as unwatched' }))
-    await vi.waitFor(() => expect(screen.queryByRole('button', { name: 'More for Severance S01E05' })).not.toBeInTheDocument())
+    await vi.waitFor(() => expect(screen.queryByRole('button', { name: 'More for Severance S1E5' })).not.toBeInTheDocument())
 
-    fireEvent.click(screen.getByRole('button', { name: 'More for Slow Horses S01E02' }))
+    fireEvent.click(screen.getByRole('button', { name: 'More for Slow Horses S1E2' }))
     menu = screen.getByRole('menu')
     expect(within(menu).queryByRole('menuitem', { name: 'Mark episode as unwatched' })).not.toBeInTheDocument()
     fireEvent.click(within(menu).getByRole('menuitem', { name: 'Remove' }))
-    await vi.waitFor(() => expect(screen.queryByRole('button', { name: 'More for Slow Horses S01E02' })).not.toBeInTheDocument())
+    await vi.waitFor(() => expect(screen.queryByRole('button', { name: 'More for Slow Horses S1E2' })).not.toBeInTheDocument())
     expect(calls).toEqual(['watched false', 'removed f2'])
   })
 
@@ -446,7 +446,7 @@ describe('Library page', () => {
     expect(await screen.findByRole('link', { name: /The Nice Guys/ })).toBeInTheDocument()
     expect(await screen.findByRole('button', { name: 'Crime' })).toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent('4 of 10')
-    expect(screen.getByRole('link', { name: 'All films' })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByRole('link', { name: 'All movies' })).toHaveAttribute('aria-current', 'page')
   })
 
   it('opens on Browse: rows for just this library, with a way to every title', async () => {
@@ -465,7 +465,7 @@ describe('Library page', () => {
 
     expect(await screen.findByRole('heading', { name: 'Crime' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Browse' })).toHaveAttribute('aria-current', 'page')
-    expect(screen.getByRole('link', { name: 'All films' })).toHaveAttribute('href', '/library/lib-movies?view=all')
+    expect(screen.getByRole('link', { name: 'All movies' })).toHaveAttribute('href', '/library/lib-movies?view=all')
   })
 
   it('puts focus back on the card opened from Browse, in the row it was opened from', async () => {
@@ -525,7 +525,7 @@ describe('Series page', () => {
     expect(await screen.findByRole('tab', { name: 'Season 1' })).toHaveAttribute('aria-selected', 'true')
     expect(await screen.findByRole('link', { name: 'Pilot' })).toBeInTheDocument()
     expect(screen.getByText('Liz meets Jack.')).toBeInTheDocument()
-    expect(await screen.findByRole('button', { name: /Play Season 01 \| Episode 01/ })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /Play Season 1, Episode 1/ })).toBeInTheDocument()
     const paths = fetchMock.mock.calls.map(([input]) => new URL(String(input), 'http://localhost'))
     expect(paths.filter((u) => u.pathname.startsWith('/api/v1/items/')).map((u) => u.pathname + u.search)).toEqual([
       '/api/v1/items/s?includeSeason=true',
@@ -1005,7 +1005,7 @@ describe('Settings', () => {
     expect(await screen.findByText(/folder on hold/)).toHaveTextContent('1 folder on hold')
     expect(screen.getByText(/without artwork/)).toHaveTextContent('4 without artwork: connect Radarr or Sonarr to fill it in')
     fireEvent.click(screen.getByRole('button', { name: 'Confirm removal' }))
-    const dialog = await screen.findByRole('alertdialog', { name: 'Remove 4 films from Films?' })
+    const dialog = await screen.findByRole('alertdialog', { name: 'Remove 4 movies from Films?' })
     expect(within(dialog).getByText('/Volumes/Media/films')).toBeInTheDocument()
     expect(within(dialog).getByRole('button', { name: 'Not yet' })).toHaveFocus()
     fireEvent.keyDown(document.activeElement!, { key: 'Escape' })

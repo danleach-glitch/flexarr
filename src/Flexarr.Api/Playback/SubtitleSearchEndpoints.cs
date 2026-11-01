@@ -280,7 +280,7 @@ public static partial class SubtitleSearchEndpoints
 
         if (item.Kind is not (MediaKind.Movie or MediaKind.Episode))
         {
-            return new Found(Results.Problem("Subtitles can be found for films and episodes.", statusCode: StatusCodes.Status400BadRequest));
+            return new Found(Results.Problem("Subtitles can be found for movies and episodes.", statusCode: StatusCodes.Status400BadRequest));
         }
 
         if (item.ArrId is not { } arrId)

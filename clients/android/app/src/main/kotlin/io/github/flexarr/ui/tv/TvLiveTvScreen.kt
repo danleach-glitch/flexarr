@@ -102,6 +102,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
+import io.github.flexarr.ui.theme.Tokens
 
 /** A list down Live TV's left: Favourites, Recordings, every channel, or one of the source's groups. */
 private sealed interface Category {
@@ -140,11 +141,11 @@ internal object TvGuideCache {
     private val MAX_AGE: Duration = Duration.ofMinutes(4)
 }
 
-/** Favourites' star and the row's gold. */
-private val Gold = Color(0xFFF2C473)
+/** Favourites' star: projected white, never gold. */
+private val StarColor = Flexarr.screen
 
 /** A programme set to record. */
-private val RecordRed = Color(0xFFE6474D)
+private val RecordRed = Flexarr.record
 
 /**
  * Live TV, as the Apple TV's: categories down the left (Favourites, Recordings, All, the source's groups) and the guide
@@ -278,7 +279,7 @@ private fun CategoryButton(title: String, selected: Boolean, icon: androidx.comp
         onClick = onClick,
         interactionSource = source,
         modifier = modifier.fillMaxWidth().height(35.dp).onFocusChanged { if (it.isFocused) onFocus() },
-        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(7.dp)),
+        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(Tokens.radiusControl)),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = if (selected) Flexarr.screen.copy(alpha = 0.12f) else Color.Transparent,
             contentColor = if (selected) Flexarr.screen else Flexarr.usher,
@@ -289,7 +290,7 @@ private fun CategoryButton(title: String, selected: Boolean, icon: androidx.comp
     ) {
         Row(Modifier.fillMaxSize().padding(horizontal = 11.dp), horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.width(16.dp)) {
-                if (icon != null) Icon(icon, contentDescription = null, tint = if (icon == Icons.Filled.Star && !focused) Gold else androidx.tv.material3.LocalContentColor.current, modifier = Modifier.size(15.dp))
+                if (icon != null) Icon(icon, contentDescription = null, tint = if (icon == Icons.Filled.Star && !focused) StarColor else androidx.tv.material3.LocalContentColor.current, modifier = Modifier.size(15.dp))
             }
             Text(title, fontSize = 14.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             count?.let { Text("%,d".format(it), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.alpha(0.6f)) }
@@ -529,7 +530,7 @@ private fun ChannelLabel(channel: LiveChannel, client: FlexarrClient) {
             client.imageUrl(channel.logoUrl, 160)?.let { url ->
                 AsyncImage(url, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize().background(Flexarr.room))
             }
-            if (channel.isFavourite) Icon(Icons.Filled.Star, contentDescription = "Favourite", tint = Gold, modifier = Modifier.size(8.dp).align(Alignment.TopEnd).offset(x = 5.dp, y = (-3).dp))
+            if (channel.isFavourite) Icon(Icons.Filled.Star, contentDescription = "Favourite", tint = StarColor, modifier = Modifier.size(8.dp).align(Alignment.TopEnd).offset(x = 5.dp, y = (-3).dp))
         }
     }
 }
@@ -553,8 +554,8 @@ private fun GuideCell(
         onLongClick = onLongClick,
         interactionSource = source,
         modifier = modifier.alpha(if (past && !focused) 0.55f else 1f)
-            .then(if (programme.isSetToRecord) Modifier.border(1.5.dp, RecordRed, RoundedCornerShape(5.dp)) else Modifier),
-        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(5.dp)),
+            .then(if (programme.isSetToRecord) Modifier.border(1.5.dp, RecordRed, RoundedCornerShape(Tokens.radiusControl)) else Modifier),
+        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(Tokens.radiusControl)),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = Flexarr.seat.copy(alpha = if (onNow) 0.95f else 0.6f),
             contentColor = Flexarr.screen,
@@ -583,7 +584,7 @@ private fun NoListingsCell(onClick: () -> Unit, modifier: Modifier) {
     Surface(
         onClick = onClick,
         modifier = modifier,
-        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(5.dp)),
+        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(Tokens.radiusControl)),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = Flexarr.seat.copy(alpha = 0.3f),
             contentColor = Flexarr.usher,
@@ -603,7 +604,7 @@ private fun NoListingsCell(onClick: () -> Unit, modifier: Modifier) {
 private fun GuideDialog(title: String, message: String, onDismiss: () -> Unit, actions: List<MenuAction>) {
     val first = remember { FocusRequester() }
     Dialog(onDismissRequest = onDismiss) {
-        Column(Modifier.width(380.dp).background(Flexarr.seat, RoundedCornerShape(14.dp)).padding(22.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.width(380.dp).background(Flexarr.seat, RoundedCornerShape(Tokens.radiusPanel)).padding(22.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(title, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Text(message, fontSize = 13.sp, color = Flexarr.usher)
             Spacer(Modifier.height(4.dp))
@@ -689,11 +690,11 @@ private fun TvLiveRecordings(model: AppModel, onChanged: () -> Unit, onUpcoming:
     }
 
     fun detail(recording: Recording) = listOfNotNull(
-        if (recording.season != null && recording.episode != null) "S${recording.season} E${recording.episode}" else null,
+        if (recording.season != null && recording.episode != null) "S${recording.season}E${recording.episode}" else null,
         recording.subtitle,
         recording.channelName,
         day(recording.start),
-    ).joinToString(" · ")
+    ).joinToString("   ")
 
     val loaded = recordings
     when {
@@ -712,8 +713,8 @@ private fun TvLiveRecordings(model: AppModel, onChanged: () -> Unit, onUpcoming:
             if (loaded.series.isNotEmpty()) {
                 item { Heading("Series", Modifier.padding(top = 12.dp)) }
                 items(loaded.series, key = { "s" + it.id }) { series ->
-                    val line = "${series.channelName?.let { "On $it" } ?: "On any channel"} · ${series.upcoming} coming up · ${series.recorded} recorded" +
-                        if (series.newOnly) " · New episodes only" else ""
+                    val line = "${series.channelName?.let { "On $it" } ?: "On any channel"}, ${series.upcoming} coming up, ${series.recorded} recorded" +
+                        if (series.newOnly) ", new episodes only" else ""
                     RecordingRow(series.title, line, recordingNow = false, warning = null) { confirmingSeries = series }
                 }
             }
@@ -763,7 +764,7 @@ private fun RecordingRow(title: String, detail: String, recordingNow: Boolean, w
         onClick = onClick,
         enabled = enabled,
         modifier = Modifier.fillMaxWidth(),
-        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(7.dp)),
+        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(Tokens.radiusControl)),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = Flexarr.seat.copy(alpha = 0.7f),
             contentColor = Flexarr.screen,

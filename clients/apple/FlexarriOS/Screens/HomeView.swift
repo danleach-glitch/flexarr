@@ -281,7 +281,7 @@ struct HomeHero: View {
                     } label: {
                         Label(resume != nil || item.isResumable ? "Resume" : "Play", systemImage: "play.fill")
                     }
-                    .buttonStyle(ActionButtonStyle(ambient: item.glowColor, prominent: true))
+                    .buttonStyle(ActionButtonStyle(ambient: item.ambientColor, prominent: true))
                     Button { router.push(.item(item)) } label: {
                         Label("More info", systemImage: "info.circle")
                     }
@@ -408,16 +408,17 @@ private extension View {
     }
 }
 
-/// What Sonarr and Radarr expect soon: episodes airing and films coming out, with any download under way.
-/// One already in the library (a show's next episode) opens it.
+/// What Sonarr and Radarr expect soon: episodes airing and movies coming out, with any download under way.
+/// One already in the library (a show's next episode) opens it; See all opens the Coming soon page.
 private struct ComingSoonRow: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(Router.self) private var router
     let items: [UpcomingItem]
     let downloading: Int
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            SectionHeading(title: downloading > 0 ? "Coming soon (\(downloading) downloading)" : "Coming soon")
+            SectionHeading(title: downloading > 0 ? "Coming soon (\(downloading) downloading)" : "Coming soon") { router.push(.comingSoon) }
             ScrollView(.horizontal) {
                 LazyHStack(alignment: .top, spacing: Layout.rowSpacing) {
                     ForEach(items) { ComingSoonCard(item: $0, width: Layout.wideWidth(sizeClass)) }
@@ -434,13 +435,18 @@ private struct ComingSoonCard: View {
     @Environment(Router.self) private var router
     let item: UpcomingItem
     let width: CGFloat
+    @State private var showingAbout = false
 
+    /// One in the library opens it; anything else opens what's known about it.
     var body: some View {
-        if let id = item.libraryItemId {
-            Button { router.push(.itemID(id)) } label: { card }
-                .buttonStyle(CardButtonStyle())
-        } else {
-            card
+        Button {
+            if let id = item.libraryItemId { router.push(.itemID(id)) } else { showingAbout = true }
+        } label: { card }
+        .buttonStyle(CardButtonStyle())
+        .sheet(isPresented: $showingAbout) {
+            UpcomingAboutSheet(item: item, detail: UpcomingDay.detail(item))
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
         }
     }
 
@@ -471,7 +477,7 @@ private struct ComingSoonCard: View {
                         ProgressBar(value: progress).padding(8)
                     }
                 }
-                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
             VStack(alignment: .leading, spacing: 1) {
                 Text(UpcomingDay.title(item))
                     .font(.footnote.weight(.semibold))

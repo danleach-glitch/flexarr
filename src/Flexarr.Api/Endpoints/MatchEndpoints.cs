@@ -92,7 +92,7 @@ public static partial class MatchEndpoints
 
             var config = options.CurrentValue;
             var kind = KindFor(item);
-            var noun = item.Kind == MediaKind.Movie ? "film" : "show";
+            var noun = item.Kind == MediaKind.Movie ? "movie" : "show";
             var instances = config.Arr.Where(a => a.Kind == kind).ToList();
             if (instances.Count == 0)
             {
@@ -145,7 +145,7 @@ public static partial class MatchEndpoints
                     {
                         if (await arr.LookupMoviesAsync(instance, $"tmdb:{request.Id}", ct) is not [var found, ..])
                         {
-                            return Results.Problem($"{instance.Name} couldn't find that film any more.", statusCode: 404);
+                            return Results.Problem($"{instance.Name} couldn't find that movie any more.", statusCode: 404);
                         }
 
                         var movie = await arr.AddMovieAsync(instance, request.Id, found.Title, arrPath, profile, ct);
@@ -244,7 +244,7 @@ public static partial class MatchEndpoints
     /// <summary>Without Radarr, films are found on TMDB, which needs the owner's key.</summary>
     private static IResult? OnlineUnavailable(MediaItem item, FlexarrOptions config) =>
         item.Kind == MediaKind.Movie && config.Tmdb?.ApiKey is not { Length: > 0 }
-            ? Results.Problem("Fixing a film's match needs Radarr, or a TMDB key. Add either under Settings › Connections.", statusCode: 409)
+            ? Results.Problem("Fixing a movie's match needs Radarr, or a TMDB key. Add either under Settings › Connections.", statusCode: 409)
             : null;
 
     /// <summary>Without Radarr or Sonarr: films from TMDB's search, shows from TVmaze's.</summary>

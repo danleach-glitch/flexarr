@@ -68,6 +68,7 @@ import io.github.flexarr.ui.theme.RoomBackground
 import io.github.flexarr.ui.theme.ambientColor
 import io.github.flexarr.ui.theme.marquee
 import kotlinx.coroutines.launch
+import io.github.flexarr.ui.theme.Tokens
 
 /** First launch, when the household has several profiles: choose who's watching. */
 @Composable
@@ -403,7 +404,7 @@ private fun PinEntry(
             keyboardActions = KeyboardActions(onDone = { submit() }),
             textStyle = TextStyle(fontSize = 22.sp, color = Flexarr.screen, textAlign = TextAlign.Center),
             cursorBrush = SolidColor(Flexarr.screen),
-            modifier = Modifier.width(220.dp).clip(RoundedCornerShape(12.dp)).background(Flexarr.seat).padding(vertical = 12.dp).focusRequester(focus)
+            modifier = Modifier.width(220.dp).clip(RoundedCornerShape(Tokens.radiusControl)).background(Flexarr.seat).padding(vertical = 12.dp).focusRequester(focus)
                 .semantics { contentDescription = "PIN" },
         )
         Text(

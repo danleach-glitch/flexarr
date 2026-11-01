@@ -38,7 +38,7 @@ struct BookSeriesView: View {
                             .lineLimit(1)
                             .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(ActionButtonStyle(ambient: next.glowColor, prominent: true))
+                    .buttonStyle(ActionButtonStyle(ambient: next.ambientColor, prominent: true))
                     .frame(maxWidth: 520)
                     .padding(.horizontal, Layout.edge)
                 }

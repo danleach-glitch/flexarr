@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { PageError } from '../components/PageStatus'
 import { Link, Navigate, useParams } from 'react-router'
 import { getExternalTitle, imageUrl, type ExternalDetail } from '../api/client'
 import { Artwork } from '../components/Artwork'
@@ -15,9 +16,9 @@ import { Overview } from '../components/Overview'
 /** A film or show from Discover that isn't in the library: what it is, how it's rated, its trailer, and a request. */
 export function ExternalTitlePage() {
   const { mediaType = '', tmdbId = '' } = useParams()
-  const { data, error } = useApi((signal) => getExternalTitle(mediaType, tmdbId, signal), [mediaType, tmdbId])
+  const { data, error, reload } = useApi((signal) => getExternalTitle(mediaType, tmdbId, signal), [mediaType, tmdbId])
 
-  if (error) return <p className="page-message error">{error.message.includes('404') ? 'Flexarr can’t find that title.' : error.message}</p>
+  if (error) return <PageError error={error} message={error.message.includes('404') ? 'Flexarr can’t find that title.' : undefined} onRetry={reload} />
   if (!data) return <div className="detail-hero hero-loading" aria-busy="true" />
   // Something you have opens as itself.
   if (data.libraryItemId) return <Navigate to={`/item/${data.libraryItemId}`} replace />
@@ -31,7 +32,7 @@ function ExternalTitle({ title }: { title: ExternalDetail }) {
   const facts = [
     title.year?.toString(),
     title.mediaType === 'tv' ? (title.seasons ? (title.seasons === 1 ? '1 season' : `${title.seasons} seasons`) : null) : title.runtimeMinutes ? formatDuration(title.runtimeMinutes * 60) : null,
-    title.mediaType === 'tv' ? 'Series' : 'Film',
+    title.mediaType === 'tv' ? 'Series' : 'Movie',
     title.status && !['Released', 'Ended'].includes(title.status) ? title.status : null,
   ].filter(Boolean)
 

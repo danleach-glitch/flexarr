@@ -4,7 +4,6 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
@@ -54,6 +53,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import java.io.File
+import io.github.flexarr.ui.theme.Tokens
 
 private val log = FlexarrLog("widget")
 
@@ -181,9 +181,9 @@ class WatchlistWidget : GlanceAppWidget() {
         val posterWidth = (size.width - 24.dp - GAP * (across - 1)) / across
         val pictureHeight = minOf(posterWidth * 1.5f, size.height - if (titled) 80.dp else 56.dp).coerceIn(40.dp, 220.dp)
         Column(modifier.clickable(actionStartActivity(AppLink.Item(shown.entry.itemId).intent(context)))) {
-            Box(GlanceModifier.fillMaxWidth().height(pictureHeight).cornerRadius(8.dp).background(SEAT), contentAlignment = Alignment.Center) {
+            Box(GlanceModifier.fillMaxWidth().height(pictureHeight).cornerRadius(Tokens.radiusArt).background(SEAT), contentAlignment = Alignment.Center) {
                 if (shown.picture != null) {
-                    Image(ImageProvider(shown.picture), contentDescription = if (titled) null else shown.entry.title, contentScale = ContentScale.Crop, modifier = GlanceModifier.fillMaxSize().cornerRadius(8.dp))
+                    Image(ImageProvider(shown.picture), contentDescription = if (titled) null else shown.entry.title, contentScale = ContentScale.Crop, modifier = GlanceModifier.fillMaxSize().cornerRadius(Tokens.radiusArt))
                 } else {
                     Image(ImageProvider(R.drawable.ic_brand_mark), contentDescription = null, modifier = GlanceModifier.width(24.dp).height(24.dp))
                 }
@@ -211,10 +211,10 @@ class WatchlistWidget : GlanceAppWidget() {
         private fun folder(context: Context) = File(context.cacheDir, "widget-watchlist")
 
         // The app's own colours (Theme.kt), as the other widgets have them.
-        private val ROOM = ColorProvider(Color(0xFF1B1720))
-        private val SEAT = ColorProvider(Color(0xFF25202C))
-        private val SCREEN = ColorProvider(Color(0xFFF2EEE7))
-        private val USHER = ColorProvider(Color(0xFFA39AAE))
+        private val ROOM = ColorProvider(Tokens.room)
+        private val SEAT = ColorProvider(Tokens.seat)
+        private val SCREEN = ColorProvider(Tokens.screen)
+        private val USHER = ColorProvider(Tokens.usher)
 
         /** The watchlist changed, something was watched, or who's watching changed: the widget asks again. */
         suspend fun refresh(context: Context) {

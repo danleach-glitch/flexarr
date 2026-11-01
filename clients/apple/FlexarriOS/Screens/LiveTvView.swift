@@ -65,11 +65,7 @@ struct LiveTvView: View {
             }
         }
         .refreshable { await load() }
-        .alert("Recording", isPresented: Binding(get: { notice != nil }, set: { if !$0 { notice = nil } })) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(notice ?? "")
-        }
+        .banner($notice, systemImage: "record.circle")
     }
 
     private var favourites: [LiveChannel] { (channels ?? []).filter(\.isFavourite) }
@@ -143,7 +139,7 @@ struct LiveTvView: View {
         .scrollContentBackground(.hidden)
     }
 
-    static let gold = Color(red: 0.95, green: 0.77, blue: 0.45)
+    static let gold = Color.screen
 
     private var chips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -221,15 +217,15 @@ private struct ChannelRow: View {
     var body: some View {
         HStack(spacing: 14) {
             ZStack {
-                RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.seat)
+                RoundedRectangle(cornerRadius: Radius.art, style: .continuous).fill(Color.seat)
                 RemoteImage(url: model.client?.imageURL(channel.logoUrl, width: 300), contentMode: .fit) {
                     Text(channel.name.prefix(4))
-                        .font(.marquee(18, weight: .bold))
+                        .font(.marquee(18, weight: .bold, scales: false))
                         .foregroundStyle(Color.usher)
                 }
                 .padding(8)
                 if starting {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.black.opacity(0.45))
+                    RoundedRectangle(cornerRadius: Radius.art, style: .continuous).fill(.black.opacity(0.45))
                     ProgressView()
                 }
             }
@@ -299,7 +295,7 @@ struct HomeChannelCard: View {
                     Color.seat
                     RemoteImage(url: model.client?.imageURL(channel.logoUrl, width: 400), contentMode: .fit) {
                         Text(channel.name.prefix(4))
-                            .font(.marquee(22, weight: .bold))
+                            .font(.marquee(22, weight: .bold, scales: false))
                             .foregroundStyle(Color.usher)
                     }
                     .padding(.horizontal, width * 0.18)
@@ -321,7 +317,7 @@ struct HomeChannelCard: View {
                         ProgressView(value: now.progress()).tint(.silver).padding(10)
                     }
                 }
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
                 Text(channel.now?.displayTitle ?? channel.name)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Color.screen)
@@ -341,7 +337,7 @@ struct HomeChannelCard: View {
 struct RecordMark: View {
     let recordingNow: Bool
 
-    static let red = Color(red: 0.9, green: 0.28, blue: 0.3)
+    static let red = Color.record
 
     var body: some View {
         if recordingNow {

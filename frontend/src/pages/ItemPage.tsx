@@ -1,4 +1,5 @@
 import { useMemo, useState, type CSSProperties } from 'react'
+import { PageError } from '../components/PageStatus'
 import { openAddToCollection } from '../components/AddToCollection'
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router'
 import {
@@ -19,7 +20,7 @@ import { Artwork } from '../components/Artwork'
 import { AsyncButton } from '../components/AsyncButton'
 import { PosterCard } from '../components/Cards'
 import { Facts } from '../components/Hero'
-import { Check, Film, More, Play, Shuffle } from '../components/icons'
+import { icon } from '../components/icons.generated'
 import { Menu, type MenuAction, type MenuPoint } from '../components/ItemMenu'
 import { Row } from '../components/Row'
 import { TrailerDialog } from '../components/TrailerDialog'
@@ -50,9 +51,9 @@ export function ItemPage() {
   const [version, setVersion] = useState(0)
   const [params] = useSearchParams()
   // A series comes with its Up Next and the season to show (picking another season later fetches just that one).
-  const { data, error } = useApi((signal) => getItemPage(id, params.get('season'), signal), [id, version])
+  const { data, error, reload } = useApi((signal) => getItemPage(id, params.get('season'), signal), [id, version])
 
-  if (error) return <p className="page-message error">{error.message}</p>
+  if (error) return <PageError error={error} onRetry={reload} />
   if (!data) return <div className="detail-hero detail-loading" aria-busy="true" />
 
   // Seasons live on their series' page, tracks on their album's.
@@ -93,9 +94,9 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
   const backdrop = item.artwork.backdrop ?? series?.artwork.backdrop
   const logo = item.kind === 'Episode' ? series?.artwork.logo : item.artwork.logo
   const progress = progressOf(item)
-  // Play, the trailer and watched stay as buttons; everything else waits behind the ellipsis so the row doesn't wrap.
+  // The order every client shares (docs/design.md › Platforms): Play, Start over, Shuffle, Trailer, Watched, Watchlist,
+  // then the ellipsis for everything else, so the row doesn't wrap.
   const more: MenuAction[] = []
-  if (progress !== null) more.push({ label: 'Play from the start', run: () => navigate(`/play/${item.id}?t=0`) })
   // Part way through: forget the place without marking it watched, which also takes it out of Continue Watching.
   if (progress !== null && !item.userData.watched && !kids) more.push({ label: 'Mark as unwatched', run: () => markUnwatched() })
   // A child's profile has no collections and doesn't find subtitles.
@@ -173,22 +174,27 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
           <div className="detail-actions">
             {playTarget && (
               <button className="button" onClick={() => navigate(`/play/${playTarget.id}`)}>
-                <Play /> {playLabel}
+                <icon.play /> {playLabel}
+              </button>
+            )}
+            {progress !== null && (
+              <button className="button quiet" onClick={() => navigate(`/play/${item.id}?t=0`)}>
+                <icon.startOver /> Start over
               </button>
             )}
             {item.kind === 'Series' && item.childCount > 0 && (
               <button className="button quiet" onClick={() => navigate(`/play/${item.id}?shuffle=1`)}>
-                <Shuffle /> Shuffle
+                <icon.shuffle /> Shuffle
               </button>
             )}
             {detail.trailerYouTubeId && !kids && (
               <button className="button quiet" onClick={() => setTrailer(true)}>
-                <Film /> Trailer
+                <icon.trailer /> Trailer
               </button>
             )}
             {!kids && (
               <AsyncButton className="button quiet" aria-pressed={item.userData.watched} onClick={toggleWatched}>
-                <Check /> {item.userData.watched ? 'Watched' : 'Mark as watched'}
+                <icon.watched /> {item.userData.watched ? 'Watched' : 'Mark as watched'}
               </AsyncButton>
             )}
             {detail.onWatchlist != null && !kids && <WatchlistButton titleKey={{ libraryItemId: item.id }} title={item.title} on={detail.onWatchlist} />}
@@ -203,7 +209,7 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
                   setMoreAt(moreAt ? null : { x: r.left, y: r.bottom + 6 })
                 }}
               >
-                <More />
+                <icon.more />
               </button>
             )}
             {moreAt && <Menu label={`More for ${item.title}`} at={moreAt} actions={more} onClose={() => setMoreAt(null)} />}
@@ -299,7 +305,7 @@ function Seasons({ series, onChange }: { series: ItemDetail; onChange: () => voi
             onClick={() => setParams({ season: String(s.seasonNumber) }, { replace: true })}
           >
             {s.homeVideo ? s.title : s.seasonNumber === 0 ? 'Specials' : `Season ${s.seasonNumber}`}
-            {s.userData.watched && <Check aria-label="watched" />}
+            {s.userData.watched && <icon.watched aria-label="watched" />}
           </button>
         ))}
       </div>
@@ -313,7 +319,7 @@ function Seasons({ series, onChange }: { series: ItemDetail; onChange: () => voi
             onChange()
           }}
         >
-          {selected.userData.watched ? 'Mark season unwatched' : 'Mark season watched'}
+          {selected.userData.watched ? 'Mark season as unwatched' : 'Mark season as watched'}
         </AsyncButton>
       </div>
       <ol className="episode-list">
@@ -340,7 +346,7 @@ function Episode({ episode, overview, onChange }: { episode: ItemSummary; overvi
       <Link to={`/play/${episode.id}`} className="episode-still" aria-label={`Play ${episode.title}`}>
         <Artwork src={episode.artwork.thumb} fallback={episode.artwork.backdrop} title={episode.title} width={500} shape="wide" />
         <span className="episode-play" aria-hidden="true">
-          <Play />
+          <icon.play />
         </span>
         {progress !== null && (
           <span className="progress">

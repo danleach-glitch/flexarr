@@ -10,12 +10,12 @@ struct DownloadsView: View {
     var body: some View {
         Group {
             if store.videoDownloads.isEmpty, store.musicCollections.isEmpty, store.podcastDownloads.isEmpty, store.bookDownloads.isEmpty {
-                StatusView(state: .empty("Download films, episodes, albums, playlists and podcasts to watch and listen with no connection. Look for the download button on a title’s page."))
+                StatusView(state: .empty("Download movies, episodes, albums, playlists and podcasts to watch and listen with no connection. Look for the download button on a title’s page."))
             } else {
                 List {
                     let films = store.videoDownloads.filter { $0.item.kind != .episode }
                     if !films.isEmpty {
-                        Section("Films") {
+                        Section("Movies") {
                             ForEach(films) { DownloadRow(download: $0) }
                                 .onDelete { remove(films, at: $0) }
                         }
@@ -97,7 +97,7 @@ private struct DownloadRow: View {
                             ProgressBar(value: download.position / download.durationSeconds).padding(5)
                         }
                     }
-                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
                 VStack(alignment: .leading, spacing: 3) {
                     Text(download.item.kind == .episode ? (download.item.episodeSubtitle ?? download.item.title) : download.item.title)
                         .font(.subheadline.weight(.semibold))
@@ -123,7 +123,7 @@ private struct DownloadRow: View {
         case _ where store.isWaitingForWiFi(download):
             caption("Waiting for Wi-Fi")
         case .preparing(let progress):
-            caption(progress > 0 && progress < 1 ? "Getting ready · \(Int(progress * 100))%" : "Getting ready")
+            caption(progress > 0 && progress < 1 ? "Getting ready, \(Int(progress * 100))%" : "Getting ready")
         case .downloading(let progress):
             VStack(alignment: .leading, spacing: 4) {
                 caption("Downloading, \(Int(progress * 100))%")
@@ -176,7 +176,7 @@ private struct PodcastDownloadRow: View {
                             ProgressBar(value: min(1, download.position / download.durationSeconds)).padding(5)
                         }
                     }
-                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
                 VStack(alignment: .leading, spacing: 3) {
                     Text(download.item.title)
                         .font(.subheadline.weight(.semibold))
@@ -204,7 +204,7 @@ private struct PodcastDownloadRow: View {
         case _ where store.isWaitingForWiFi(download):
             caption("Waiting for Wi-Fi")
         case .preparing(let progress):
-            caption(progress > 0 && progress < 1 ? "Getting ready · \(Int(progress * 100))%" : "Getting ready")
+            caption(progress > 0 && progress < 1 ? "Getting ready, \(Int(progress * 100))%" : "Getting ready")
         case .downloading(let progress):
             VStack(alignment: .leading, spacing: 4) {
                 caption("Downloading, \(Int(progress * 100))%")
@@ -288,7 +288,7 @@ struct DownloadButton: View {
     private func label(_ download: LocalDownload?) -> String {
         switch download?.state {
         case nil: "Download"
-        case .preparing(let progress): progress > 0 && progress < 1 ? "Getting ready · \(Int(progress * 100))%" : "Getting ready"
+        case .preparing(let progress): progress > 0 && progress < 1 ? "Getting ready, \(Int(progress * 100))%" : "Getting ready"
         case .downloading(let progress): "\(Int(progress * 100))%"
         case .downloaded: "Downloaded"
         case .failed: "Couldn't download"
@@ -323,7 +323,7 @@ struct DownloadStateIcon: View {
             case .downloaded:
                 Image(systemName: "arrow.down.circle.fill")
                     .symbolRenderingMode(.palette)
-                    .foregroundStyle(Color.room, Color.downloaded)
+                    .foregroundStyle(Color.room, Color.go)
             case .failed:
                 Image(systemName: "exclamationmark.circle").foregroundStyle(Color.danger)
             }

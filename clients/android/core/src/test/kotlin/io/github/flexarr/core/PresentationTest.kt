@@ -49,8 +49,8 @@ class PresentationTest {
     fun episodeTitles() {
         val episode = fixture<Home>("home").rows[0].items[0]
         assertEquals("Breaking Bad", episode.displayTitle)
-        assertEquals("S2 E3  Bit by a Dead Bee", episode.episodeSubtitle)
-        assertEquals("S2 E3", episode.episodeCode)
+        assertEquals("S2E3  Bit by a Dead Bee", episode.episodeSubtitle)
+        assertEquals("S2E3", episode.episodeCode)
     }
 
     @Test

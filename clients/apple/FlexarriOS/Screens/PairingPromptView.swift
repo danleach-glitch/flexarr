@@ -103,7 +103,7 @@ struct PairingPromptView: View {
         VStack(spacing: 14) {
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 52))
-                .foregroundStyle(Color.downloaded)
+                .foregroundStyle(Color.go)
             Text("Connected")
                 .font(.title2.weight(.bold))
                 .foregroundStyle(Color.screen)
@@ -131,12 +131,7 @@ extension View {
                 .presentationDragIndicator(.visible)
                 .interactiveDismissDisabled(prompts.step == .working)
         }
-        .alert(prompts.notice ?? "", isPresented: Binding(
-            get: { prompts.notice != nil },
-            set: { if !$0 { prompts.notice = nil } }
-        )) {
-            Button("OK", role: .cancel) {}
-        }
+        .banner(Binding(get: { prompts.notice }, set: { prompts.notice = $0 }), systemImage: "info.circle")
     }
 }
 
@@ -175,7 +170,7 @@ struct MainProfilePinField: View {
                 .font(.title3.monospacedDigit())
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
-                .background(RoundedRectangle(cornerRadius: 12).fill(Color.seat))
+                .background(RoundedRectangle(cornerRadius: Radius.control).fill(Color.seat))
                 .focused($focused)
                 .submitLabel(.done)
                 .onSubmit { if Self.isComplete(pin) { submit() } }

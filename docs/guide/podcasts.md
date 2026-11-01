@@ -1,6 +1,6 @@
 ---
 title: Podcasts
-description: Follow podcasts from Apple's directory or any feed, with Up Next, speeds, a sleep timer, offline episodes on iPhone and iPad, and OPML import.
+description: Follow podcasts from Apple's directory or any feed, with Up next, speeds, a sleep timer, offline episodes on iPhone and iPad, and OPML import.
 ---
 
 Podcasts are built into Flexarr. There's no library to add and nothing to set up: they sit with your libraries, and each profile follows its own shows. They're on the web, iPhone and iPad. They aren't on the Apple TV, and kids profiles don't have them.
@@ -9,7 +9,7 @@ Podcasts are built into Flexarr. There's no library to add and nothing to set up
 
 Open **Podcasts** and choose **Browse**.
 
-![The Podcasts screen with your podcasts, Up Next and Continue listening, beside a podcast's Now Playing with its end time](../../site/guide/img/phones-podcasts.webp "Podcasts and the player on iPhone")
+![The Podcasts screen with your podcasts, Up next and Continue listening, beside a podcast's Now Playing with its end time](../../site/guide/img/phones-podcasts.webp "Podcasts and the player on iPhone")
 
 - **Top charts**, by category, come from Apple's podcast directory.
 - **Search** finds any show in that directory.
@@ -42,9 +42,9 @@ Episodes play in the same bar as music, and pick up where you left off on any de
 
 Episodes play through your server rather than straight from the podcast's host. That means they work [away from home](away-from-home.md) over Tailscale as they do at home, and podcast hosts don't see where each listener is.
 
-## Up Next
+## Up next
 
-Up Next is your own queue of episodes, shared between the web and your phone. Use **Play next** or **Add to Up Next** on any episode. Reorder or remove episodes on the Podcasts page, or in Now Playing on iPhone and iPad. An episode leaves Up Next once it starts playing.
+Up next is your own queue of episodes, shared between the web and your phone. Use **Play next** or **Add to Up next** on any episode. Reorder or remove episodes on the Podcasts page, or in Now Playing on iPhone and iPad. An episode leaves Up next once it starts playing.
 
 Episodes you're part way through also show on Home, in **Continue watching or listening**, on the web, iPhone, iPad and Android. To leave them out, turn off **Books and podcasts in Continue watching** in **Settings › Podcasts & audiobooks** (on the web it's in **Settings › Home & browse**, and on the Apple TV in **Settings › Playback**).
 
@@ -76,12 +76,12 @@ Most podcast apps can export the shows you follow as an OPML file. In Flexarr on
 
 ## Notifications and widgets
 
-On iPhone and iPad, Flexarr can tell you when a show you follow has a new episode, with buttons to play or download it. Turn this on in **Settings › Notifications**. There are widgets for **Continue listening** and **Up Next** too. See [Notifications and widgets](notifications-and-widgets.md).
+On iPhone and iPad, Flexarr can tell you when a show you follow has a new episode, with buttons to play or download it. Turn this on in **Settings › Notifications**. There are widgets for **Continue listening** and **Up next** too. See [Notifications and widgets](notifications-and-widgets.md).
 
 ## Siri
 
-Siri plays podcasts on iPhone and iPad: "Play *The Rest Is History* in Flexarr" plays the episode you'd hear next. "Play the latest …", "What's new in my podcasts", "Add … to Up Next" and "Play my Up Next" work too. See [Siri and Shortcuts](siri-and-shortcuts.md).
+Siri plays podcasts on iPhone and iPad: "Play *The Rest Is History* in Flexarr" plays the episode you'd hear next. "Play the latest …", "What's new in my podcasts", "Add … to Up next" and "Play my Up next" work too. See [Siri and Shortcuts](siri-and-shortcuts.md).
 
 ## CarPlay
 
-The iPhone app has a CarPlay view for podcasts, with Up Next, new episodes and your shows, plus speed and skips. It switches on once Apple approves Flexarr for CarPlay, which hasn't happened yet.
+The iPhone app has a CarPlay view for podcasts, with Up next, new episodes and your shows, plus speed and skips. It switches on once Apple approves Flexarr for CarPlay, which hasn't happened yet.

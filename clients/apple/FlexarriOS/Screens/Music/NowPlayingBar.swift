@@ -35,7 +35,7 @@ struct NowPlayingBar: View {
                             }
                         }
                         .frame(width: 44, height: 44)
-                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
                         VStack(alignment: .leading, spacing: 1) {
                             Text(track.title)
                                 .font(.subheadline.weight(.semibold))
@@ -81,7 +81,7 @@ struct NowPlayingBar: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .background {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: Radius.panel, style: .continuous)
                     .fill(Color.seat)
                     .overlay(alignment: .bottom) {
                         // How far the track has got, along the bottom edge.

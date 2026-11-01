@@ -109,13 +109,13 @@ class TraktTest {
     @Test
     fun `the import preview in words`() {
         val preview = TraktImportPreview(traktFilms = 12, traktEpisodes = 1340, inLibrary = 900, newToFlexarr = 210, notOnServer = 40, unmatched = 2, toTrakt = 1)
-        assertEquals("Trakt has 12 films and 1,340 episodes", preview.summary(Locale.UK))
+        assertEquals("Trakt has 12 movies and 1,340 episodes", preview.summary(Locale.UK))
         assertEquals(
             "900 are here, 210 not yet watched in Flexarr. 40 will show as watched if they arrive. 1 play from Flexarr goes to Trakt.",
             preview.details(Locale.UK),
         )
         val small = TraktImportPreview(traktFilms = 1, traktEpisodes = 0, inLibrary = 1, newToFlexarr = 0, toTrakt = 3)
-        assertEquals("Trakt has 1 film and 0 episodes", small.summary(Locale.UK))
+        assertEquals("Trakt has 1 movie and 0 episodes", small.summary(Locale.UK))
         assertEquals("1 are here. 3 plays from Flexarr go to Trakt.", small.details(Locale.UK))
         val none = TraktImportPreview(traktFilms = 200, traktEpisodes = 54, inLibrary = 0, newToFlexarr = 0, notOnServer = 254)
         assertEquals("None are here yet. 254 will show as watched if they arrive.", none.details(Locale.UK))
@@ -210,7 +210,7 @@ class TraktTest {
         val lists = client().traktLists()
         assertEquals(listOf("dan/1", "someone/2"), lists.map { it.id })
         assertEquals("24 titles", lists[0].detail)
-        assertEquals("Someone · 1 title", lists[1].detail)
+        assertEquals("Someone, 1 title", lists[1].detail)
         server.takeRequest()
 
         server.enqueue(MockResponse.Builder().code(204).build())

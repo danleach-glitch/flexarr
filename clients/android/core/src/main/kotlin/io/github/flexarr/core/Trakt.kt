@@ -135,7 +135,7 @@ data class TraktImportPreview(
 ) {
     /** "Trakt has 12 films and 340 episodes". */
     fun summary(locale: Locale = Locale.getDefault()): String =
-        "Trakt has ${count(traktFilms, "film", locale)} and ${count(traktEpisodes, "episode", locale)}"
+        "Trakt has ${count(traktFilms, "movie", locale)} and ${count(traktEpisodes, "episode", locale)}"
 
     /** What changes, in a line or two. */
     fun details(locale: Locale = Locale.getDefault()): String {
@@ -164,7 +164,7 @@ data class TraktList(
 ) {
     /** "24 titles", or "Someone · 24 titles" for a liked list (owner first, as on the web). */
     val detail: String
-        get() = listOfNotNull(owner?.takeIf { liked && it.isNotBlank() }, "$itemCount ${if (itemCount == 1) "title" else "titles"}").joinToString(" · ")
+        get() = listOfNotNull(owner?.takeIf { liked && it.isNotBlank() }, "$itemCount ${if (itemCount == 1) "title" else "titles"}").joinToString(", ")
 }
 
 @Serializable

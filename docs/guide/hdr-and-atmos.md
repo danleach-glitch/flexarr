@@ -12,21 +12,21 @@ If you have a 4K HDR television and a soundbar or receiver, you want the picture
 
 These are Apple's own settings, in the Apple TV's **Settings › Video and Audio**. They matter more than anything in Flexarr.
 
-1. **Format:** set it to the best your television supports. Apple recommends **4K SDR** (or **4K SDR 60Hz**) when you turn on matching below, so menus look right and HDR switches on only for HDR films.
-2. **Match Content › Match Dynamic Range:** turn this on. The Apple TV then switches the television into HDR10, HLG or Dolby Vision to suit each film, and back again afterwards.
-3. **Match Content › Match Frame Rate:** turn this on too. Films shot at 24 frames a second then play at 24, without judder.
+1. **Format:** set it to the best your television supports. Apple recommends **4K SDR** (or **4K SDR 60Hz**) when you turn on matching below, so menus look right and HDR switches on only for HDR movies.
+2. **Match Content › Match Dynamic Range:** turn this on. The Apple TV then switches the television into HDR10, HLG or Dolby Vision to suit each movie, and back again afterwards.
+3. **Match Content › Match Frame Rate:** turn this on too. Movies shot at 24 frames a second then play at 24, without judder.
 4. **Audio Format:** leave this on its automatic setting so the Apple TV sends Dolby Atmos to equipment that takes it. If Atmos isn't showing on your soundbar or receiver, check here that Dolby Atmos is available.
 
 Flexarr follows Match Content: when it's on, the Apple TV switches mode for each title Flexarr plays.
 
 > **Tip**
-> Without Match Dynamic Range, an Apple TV set to a fixed Dolby Vision output has no HDR10 mode. A plain HDR10 film may then be converted to SDR when it reaches the Apple TV as a stream from the server. Turning on Match Dynamic Range avoids this.
+> Without Match Dynamic Range, an Apple TV set to a fixed Dolby Vision output has no HDR10 mode. A plain HDR10 movie may then be converted to SDR when it reaches the Apple TV as a stream from the server. Turning on Match Dynamic Range avoids this.
 
 ## HDR: what reaches your TV
 
 With **Play files directly** on (the default on Apple TV, iPhone and iPad), the Apple TV plays the file itself. HDR10, HLG and Dolby Vision reach the television untouched.
 
-![Dredd's page on Apple TV, showing 4K, with Play and round Watched, Watchlist and ⋯ buttons](../../site/guide/img/tv-movie.webp "A film's page on Apple TV")
+![Dredd's page on Apple TV, showing 4K, with Play and round Watched, Watchlist and ⋯ buttons](../../site/guide/img/tv-movie.webp "A movie’s page on Apple TV")
 
 With **Play files directly** off, the server [repackages](playback-and-transcoding.md) the original picture into a stream without re-encoding it. Here's what the television gets:
 
@@ -39,7 +39,7 @@ With **Play files directly** off, the server [repackages](playback-and-transcodi
 | Dolby Vision profile 7 (UHD Blu-ray) | Its HDR10 base layer |
 | HDR10+ | HDR10, with its HDR10+ scene-by-scene metadata kept for televisions that use it |
 
-A film's details say **HDR10+** when its file carries HDR10+, and **Dolby Vision, HDR10+** when it has both.
+A movie's details say **HDR10+** when its file carries HDR10+, and **Dolby Vision, HDR10+** when it has both.
 
 HDR is only converted to SDR when it has to be: when the television doesn't show HDR, when the stream is limited in size (see **Limit each stream to** in [Playback and transcoding](playback-and-transcoding.md)), or when the video itself has to be converted.
 
@@ -70,14 +70,14 @@ Plain DTS is decoded with nothing more lost on the way.
 
 **Lossless surround** comes on by itself when the Apple TV is connected to a receiver or soundbar that takes it. To change it, open Flexarr's **Settings › Playback** on the Apple TV: it's under **This Apple TV**, while **Play files directly** is on. The iPhone and iPad app has the same switch, for AirPlay or a connected display.
 
-Turn it off if your television is plugged straight into a soundbar over ordinary ARC (not eARC), or if you hear nothing on TrueHD or DTS films with it on.
+Turn it off if your television is plugged straight into a soundbar over ordinary ARC (not eARC), or if you hear nothing on TrueHD or DTS movies with it on.
 
 ### Dialogue boost and night mode
 
 The player's audio menu, and **Settings › Playback**, have three sound settings that each device keeps for itself:
 
 - **Dialogue boost** (Low, Medium or High) raises the centre channel, where the voices are, and the speech frequencies.
-- **Night mode** squeezes loud and quiet together, so explosions don't wake the house and whispers stay audible. **On a schedule** turns it on between set times, even in the middle of a film.
+- **Night mode** squeezes loud and quiet together, so explosions don't wake the house and whispers stay audible. **On a schedule** turns it on between set times, even in the middle of a movie.
 - **Speakers** folds the sound to **Stereo** or **5.1**. **Auto** plays every channel your equipment takes; leave it there for headphones, so the iPhone's Spatial Audio gets the whole mix.
 
 On Apple TV and iPhone they need **Play files directly**. While any is on, Atmos plays without its height channels, so leave them off (and **Speakers** on **Auto**) for the full Atmos. Over AirPlay the sound plays as it is. The web has them too, for live TV as well, except in Safari.

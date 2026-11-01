@@ -71,7 +71,7 @@ struct BookNowPlaying<Cover: View>: View {
                 Button { music.acceptJump() } label: {
                     Label("Jump to \(Format.timestamp(offer.positionSeconds))\(offer.device.map { " from \($0)" } ?? "")", systemImage: "arrow.uturn.forward")
                 }
-                .buttonStyle(ActionButtonStyle(ambient: track.glowColor, prominent: true))
+                .buttonStyle(ActionButtonStyle(ambient: track.ambientColor, prominent: true))
                 .focused($focused, equals: .offer)
                 Button { music.dismissJump() } label: { Label("Not now", systemImage: "xmark") }
                     .buttonStyle(ActionButtonStyle(iconOnly: true))
@@ -80,7 +80,7 @@ struct BookNowPlaying<Cover: View>: View {
         } else if let next = music.nextBookOffer {
             HStack(spacing: 24) {
                 Button { music.playNextBook() } label: { Label("Play \(next.title)", systemImage: "play.fill") }
-                    .buttonStyle(ActionButtonStyle(ambient: next.glowColor, prominent: true))
+                    .buttonStyle(ActionButtonStyle(ambient: next.ambientColor, prominent: true))
                     .focused($focused, equals: .offer)
             }
             .focusSection()
@@ -209,7 +209,7 @@ private struct TimelineStyle: ButtonStyle {
         var body: some View {
             configuration.label
                 .background {
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    RoundedRectangle(cornerRadius: Radius.panel, style: .continuous)
                         .fill(Color.screen.opacity(isFocused ? 0.16 : 0))
                 }
                 .scaleEffect(isFocused ? 1.02 : 1)

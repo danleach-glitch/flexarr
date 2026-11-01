@@ -962,7 +962,7 @@ export function PlayerPage() {
   const sleepEnd = credits?.start ?? duration
   const sleepLeft = secondsLeft(sleep, clock, duration > 0 ? Math.max(0, (sleepEnd - time) / speed) : Infinity)
   const stillWatching = sleepLeft !== null && sleepLeft <= STILL_WATCHING_SECONDS && playing && !error
-  const sleepWhat = info?.item.kind === 'Episode' ? 'episode' : 'film'
+  const sleepWhat = info?.item.kind === 'Episode' ? 'episode' : 'movie'
 
   /** The volume back where it was before the timer faded it. */
   const unfade = () => {

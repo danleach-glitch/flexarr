@@ -1,11 +1,12 @@
 import FlexarrKit
 import SwiftUI
 
-/// Primary/secondary action buttons (Play, More info, Mark watched). Unfocused they sit
-/// quietly on a translucent seat; focused they light up in projected white with an
+/// Primary/secondary action buttons (Play, More info, Mark watched). The main one rests in the title's ambient fill
+/// (`Color.mainButton`) and the rest quietly on a translucent seat; focused, they light up in projected white with an
 /// ambient glow, the way a first-party Apple TV button does.
 struct ActionButtonStyle: ButtonStyle {
-    var ambient: Color = .silver
+    /// The title's ambient colour, for the glow and the main button's fill; nil gives silver.
+    var ambient: Color? = nil
     var prominent = false
     /// A round button showing only the label's icon; the title still names it for VoiceOver.
     var iconOnly = false
@@ -16,7 +17,7 @@ struct ActionButtonStyle: ButtonStyle {
 
     private struct ActionButtonBody: View {
         let configuration: Configuration
-        let ambient: Color
+        let ambient: Color?
         let prominent: Bool
         let iconOnly: Bool
         @Environment(\.isFocused) private var isFocused
@@ -29,12 +30,12 @@ struct ActionButtonStyle: ButtonStyle {
                 .fixedSize()
                 .padding(.horizontal, iconOnly ? 0 : 36)
                 .frame(width: iconOnly ? 76 : nil, height: 76)
-                .foregroundStyle(isFocused ? Color.room : Color.screen)
+                .foregroundStyle(isFocused || prominent ? Color.room : Color.screen)
                 .background {
-                    RoundedRectangle(cornerRadius: iconOnly ? 38 : 14, style: .continuous)
-                        .fill(isFocused ? AnyShapeStyle(Color.screen) : AnyShapeStyle(prominent ? ambient.opacity(0.42) : Color.screen.opacity(0.14)))
+                    RoundedRectangle(cornerRadius: iconOnly ? 38 : Radius.control, style: .continuous)
+                        .fill(isFocused ? AnyShapeStyle(Color.screen) : AnyShapeStyle(prominent ? Color.mainButton(ambient) : Color.screen.opacity(0.14)))
                 }
-                .shadow(color: isFocused ? ambient.opacity(0.65) : .clear, radius: 28)
+                .shadow(color: isFocused ? (ambient ?? .silver).opacity(0.65) : .clear, radius: 28)
                 .scaleEffect(configuration.isPressed ? 0.97 : (isFocused ? 1.07 : 1))
                 .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isFocused)
                 .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
@@ -117,7 +118,7 @@ struct ArtworkButton<Artwork: View, Caption: View>: View {
             .modifier(SharedFocus(binding: focus, id: focusID))
             .modifier(OptionalAccessibilityLabel(text: accessibilityText))
             .background {
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: Radius.art)
                     .fill(ambient)
                     .blur(radius: 34)
                     .opacity(focused ? 0.55 : 0)
@@ -157,8 +158,8 @@ struct SharedFocus: ViewModifier {
     }
 }
 
-/// A round picture as a button (an artist, a person): it lifts and gains a ring when focused, as the square cards
-/// light up; the system's borderless style barely changes a picture that isn't an Image.
+/// A round picture as a button (an artist, a person): it lifts and gains a ring and a glow when focused, as the square
+/// cards light up; the system's borderless style barely changes a picture that isn't an Image.
 struct CircleCardStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         CircleBody(configuration: configuration)
@@ -172,7 +173,7 @@ struct CircleCardStyle: ButtonStyle {
             configuration.label
                 .clipShape(Circle())
                 .overlay { Circle().strokeBorder(Color.screen, lineWidth: isFocused ? 5 : 0) }
-                .shadow(color: .black.opacity(isFocused ? 0.5 : 0), radius: 24, y: 14)
+                .shadow(color: isFocused ? Color.silver.opacity(0.45) : .clear, radius: 24)
                 .scaleEffect(configuration.isPressed ? 1.04 : (isFocused ? 1.12 : 1))
                 .animation(.spring(response: 0.3, dampingFraction: 0.75), value: isFocused)
                 .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
@@ -222,7 +223,7 @@ struct TextCardStyle: ButtonStyle {
                 .padding(.vertical, 24)
                 .foregroundStyle(isFocused ? Color.room : Color.screen)
                 .background {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    RoundedRectangle(cornerRadius: Radius.panel, style: .continuous)
                         .fill(isFocused ? AnyShapeStyle(Color.screen) : AnyShapeStyle(filled ? Color.screen.opacity(0.08) : Color.clear))
                 }
                 .shadow(color: isFocused ? ambient.opacity(0.5) : .clear, radius: 24)

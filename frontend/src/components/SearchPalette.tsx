@@ -40,7 +40,7 @@ interface Result {
 function titleDetail(t: ItemSummary): string {
   if (t.kind === 'Artist') return t.childCount === 1 ? '1 album' : `${t.childCount} albums`
   if (t.kind === 'Audiobook') return authorsLine(t) ?? 'Audiobook'
-  return [t.kind === 'Series' ? 'Series' : 'Film', year(t)].filter(Boolean).join(', ')
+  return [t.kind === 'Series' ? 'Series' : 'Movie', year(t)].filter(Boolean).join(', ')
 }
 
 function flatten(results: SearchResults): Result[] {
@@ -281,7 +281,7 @@ export function SearchPalette({ onClose }: { onClose: () => void }) {
           <input
             ref={input}
             type="search"
-            placeholder="Films, shows, music, books, people, genres"
+            placeholder="Movies, shows, music, books, people, genres"
             value={query}
             onChange={(e) => {
               setQuery(e.target.value)

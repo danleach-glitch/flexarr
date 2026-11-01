@@ -66,7 +66,7 @@ struct PosterArtwork: View {
         .overlay(alignment: .topTrailing) {
             if item.userData.watched { WatchedBadge().padding(10) }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
     }
 }
 
@@ -84,12 +84,12 @@ struct WideCard: View {
         ArtworkButton(ambient: item.glowColor, focus: focus, focusID: item.id, action: action) {
             Group {
                 if item.isListening {
-                    ListeningArt(item: item, imageWidth: 500, inset: 20, cornerRadius: 6)
+                    ListeningArt(item: item, imageWidth: 500, inset: 20, cornerRadius: Radius.art)
                 } else {
                     RemoteImage(url: model.client?.imageURL(stillPath, width: 780)) {
                         ZStack {
                             LinearGradient(colors: [item.glowColor.opacity(0.4), Color.seat], startPoint: .topLeading, endPoint: .bottomTrailing)
-                            Image(systemName: "play.fill").font(.system(size: 44)).foregroundStyle(Color.screen.opacity(0.5))
+                            Image(systemName: Symbol.play).font(.system(size: 44)).foregroundStyle(Color.screen.opacity(0.5))
                         }
                     }
                 }
@@ -104,7 +104,7 @@ struct WideCard: View {
                     }
                 }
             }
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
         } caption: { focused in
             VStack(alignment: .leading, spacing: 4) {
                 Text(item.isListening ? item.title : item.displayTitle)
@@ -171,7 +171,7 @@ struct OutlinedNumeral: View {
 
 struct WatchedBadge: View {
     var body: some View {
-        Image(systemName: "checkmark")
+        Image(systemName: Symbol.watched)
             .font(.system(size: 18, weight: .heavy))
             .foregroundStyle(Color.room)
             .frame(width: 36, height: 36)
@@ -242,7 +242,7 @@ struct ItemContextMenu: View {
     @ViewBuilder
     private var listeningMenu: some View {
         Button { model.play(item) } label: {
-            Label(item.isResumable ? "Resume" : "Play", systemImage: "play.fill")
+            Label(item.isResumable ? "Resume" : "Play", systemImage: Symbol.play)
         }
         if item.kind == .audiobook {
             Button { goToDetails() } label: { Label("Go to book", systemImage: "info.circle") }
@@ -268,11 +268,11 @@ struct ItemContextMenu: View {
     private var menu: some View {
         if item.kind == .movie || item.kind == .episode {
             Button { model.play(item) } label: {
-                Label(item.isResumable ? "Resume" : "Play", systemImage: "play.fill")
+                Label(item.isResumable ? "Resume" : "Play", systemImage: Symbol.play)
             }
             if item.isResumable {
                 Button { model.play(item, fromBeginning: true) } label: {
-                    Label("Play from beginning", systemImage: "arrow.counterclockwise")
+                    Label("Start over", systemImage: Symbol.startOver)
                 }
             }
         }
@@ -289,13 +289,13 @@ struct ItemContextMenu: View {
                 leavesRow?(item.id)
                 Task { await model.setWatched(item, !watched) }
             } label: {
-                Label(watched ? "Mark as unwatched" : "Mark as watched", systemImage: watched ? "eye.slash" : "checkmark.circle")
+                Label(watched ? "Mark as unwatched" : "Mark as watched", systemImage: watched ? Symbol.markUnwatched : "checkmark.circle")
             }
         }
         if model.hasWatchlist, item.kind == .movie || item.kind == .series {
             let onList = model.watchlistItems.contains(item.id)
             Button { Task { await model.setOnWatchlist(.library(item.id), !onList) } } label: {
-                Label(onList ? "Remove from watchlist" : "Add to watchlist", systemImage: onList ? "bookmark.slash" : "bookmark")
+                Label(onList ? "Remove from watchlist" : "Add to watchlist", systemImage: onList ? "bookmark.slash" : Symbol.watchlist)
             }
         }
         // Part way through: unwatched forgets the place, which takes it out of Continue Watching.
@@ -304,7 +304,7 @@ struct ItemContextMenu: View {
                 leavesRow?(item.id)
                 Task { await model.setWatched(item, false) }
             } label: {
-                Label("Mark as unwatched", systemImage: "eye.slash")
+                Label("Mark as unwatched", systemImage: Symbol.markUnwatched)
             }
         } else if inContinueWatching, item.kind == .episode, !watched {
             Button {

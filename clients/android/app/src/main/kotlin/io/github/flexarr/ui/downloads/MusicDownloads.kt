@@ -85,6 +85,7 @@ import io.github.flexarr.ui.theme.glowColor
 import io.github.flexarr.ui.theme.marquee
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import io.github.flexarr.ui.theme.Tokens
 
 // The iPhone app's MusicDownloads.swift: albums and playlists downloaded whole, from the download button beside Play and
 // Shuffle; their rows in Downloads' Music section, and their page there, playable with no connection.
@@ -197,7 +198,7 @@ private fun CollectionStateIcon(status: CollectionStatus?, modifier: Modifier = 
             null -> Icon(Icons.Filled.Download, contentDescription = null, tint = Flexarr.screen)
             CollectionStatus.Preparing -> Icon(Icons.Filled.HourglassTop, contentDescription = null, tint = Flexarr.usher)
             is CollectionStatus.Downloading -> DownloadRing(status.fraction.toFloat())
-            CollectionStatus.Downloaded -> Icon(Icons.Filled.ArrowCircleDown, contentDescription = null, tint = Flexarr.downloaded)
+            CollectionStatus.Downloaded -> Icon(Icons.Filled.ArrowCircleDown, contentDescription = null, tint = Flexarr.go)
             is CollectionStatus.Failed -> Icon(Icons.Filled.ErrorOutline, contentDescription = null, tint = Flexarr.danger)
         }
     }
@@ -214,14 +215,14 @@ private fun collectionDescription(status: CollectionStatus?): String = when (sta
 /** A small filled green arrow that marks something downloaded (a track, an album). */
 @Composable
 fun DownloadedMark(modifier: Modifier = Modifier, size: Dp = 14.dp) {
-    Icon(Icons.Filled.ArrowCircleDown, contentDescription = "Downloaded", tint = Flexarr.downloaded, modifier = modifier.size(size))
+    Icon(Icons.Filled.ArrowCircleDown, contentDescription = "Downloaded", tint = Flexarr.go, modifier = modifier.size(size))
 }
 
 /** An album's or playlist's saved picture: its cover, or for a playlist without one a mosaic of its tracks' covers. */
 @Composable
 fun CollectionArtwork(model: AppModel, collection: LocalCollection, modifier: Modifier = Modifier) {
     val store = model.downloads
-    Box(modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(6.dp)).background(Flexarr.seat), contentAlignment = Alignment.Center) {
+    Box(modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(Tokens.radiusArt)).background(Flexarr.seat), contentAlignment = Alignment.Center) {
         val own = store.image(collection.imageFileName)
         val covers = remember(collection, store.all) { store.tracks(collection).mapNotNull { it.imageFileName }.distinct().mapNotNull(store::image) }
         when {
@@ -322,7 +323,7 @@ fun OfflineCollectionScreen(model: AppModel, collectionId: String, onBack: () ->
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(16.dp),
                     ) {
-                        CollectionArtwork(model, collection, Modifier.width(240.dp).shadow(20.dp, RoundedCornerShape(6.dp)))
+                        CollectionArtwork(model, collection, Modifier.width(240.dp).shadow(20.dp, RoundedCornerShape(Tokens.radiusArt)))
                         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Text(collection.title, style = marquee(30), textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis)
                             collection.subtitle?.let { Text(it, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen.copy(alpha = 0.9f)) }

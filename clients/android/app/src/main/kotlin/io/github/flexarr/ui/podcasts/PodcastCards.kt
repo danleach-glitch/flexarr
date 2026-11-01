@@ -86,13 +86,14 @@ import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.time.temporal.ChronoUnit
 import java.util.Locale
+import io.github.flexarr.ui.theme.Tokens
 
 // The iPhone app's PodcastCards.swift: a show's artwork and card, a show from Apple's directory, an episode's row with
 // Play ringed by how far it's got, and an episode's notes.
 
 /** A show's square artwork, from the server's image cache, with its name on a gradient until it arrives. */
 @Composable
-fun PodcastArtwork(path: String?, title: String, accent: String? = null, modifier: Modifier = Modifier, imageWidth: Int = 500, cornerRadius: Dp = 8.dp) {
+fun PodcastArtwork(path: String?, title: String, accent: String? = null, modifier: Modifier = Modifier, imageWidth: Int = 500, cornerRadius: Dp = Tokens.radiusArt) {
     RemoteImage(path, imageWidth, modifier.aspectRatio(1f).clip(RoundedCornerShape(cornerRadius)).background(Flexarr.seat)) {
         Box(
             Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(glowColor(accent).copy(alpha = 0.4f), Flexarr.seat))),
@@ -132,7 +133,7 @@ fun DirectoryCard(show: DirectoryPodcast, isAdding: Boolean, onClick: () -> Unit
         Box {
             PodcastArtwork(show.artwork, show.title)
             if (isAdding) {
-                Box(Modifier.matchParentSize().clip(RoundedCornerShape(8.dp)).background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.45f)), contentAlignment = Alignment.Center) {
+                Box(Modifier.matchParentSize().clip(RoundedCornerShape(Tokens.radiusArt)).background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.45f)), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = Flexarr.screen, modifier = Modifier.size(28.dp))
                 }
             }
@@ -168,8 +169,8 @@ fun PodcastEpisodeRow(
     val actions = buildList {
         add(MenuAction(if (episode.progress != null) "Resume" else "Play") { model.podcasts.play(episode) })
         add(MenuAction("Play next") { model.addToUpNext(episode.id, next = true) })
-        add(MenuAction("Add to Up Next") { model.addToUpNext(episode.id, next = false) })
-        removeFromUpNext?.let { add(MenuAction("Remove from Up Next", it)) }
+        add(MenuAction("Add to Up next") { model.addToUpNext(episode.id, next = false) })
+        removeFromUpNext?.let { add(MenuAction("Remove from Up next", it)) }
         add(MenuAction(if (episode.isPlayed) "Mark as unplayed" else "Mark as played") { setPlayed(!episode.isPlayed) })
         if (download == null) {
             add(MenuAction("Download") { model.scope.launch { runCatching { model.downloads.downloadEpisode(episode.id) } } })
@@ -183,15 +184,15 @@ fun PodcastEpisodeRow(
     val startSwipe = buildList {
         add(
             if (episode.isPlayed) SwipeAction("Unplayed", Icons.AutoMirrored.Filled.Undo, Flexarr.aisle) { setPlayed(false) }
-            else SwipeAction("Played", Icons.Filled.CheckCircle, Flexarr.played) { setPlayed(true) },
+            else SwipeAction("Played", Icons.Filled.CheckCircle, Flexarr.usher, Flexarr.room) { setPlayed(true) },
         )
-        if (removeFromUpNext == null) add(SwipeAction("Play next", Icons.Filled.QueuePlayNext, Flexarr.upNext) { model.addToUpNext(episode.id, next = true) })
+        if (removeFromUpNext == null) add(SwipeAction("Play next", Icons.Filled.QueuePlayNext, Flexarr.silver, Flexarr.room) { model.addToUpNext(episode.id, next = true) })
     }
     val endSwipe = buildList {
         if (removeFromUpNext != null) {
-            add(SwipeAction("Remove from Up Next", Icons.Filled.RemoveCircleOutline, Flexarr.danger, Flexarr.room, removeFromUpNext))
+            add(SwipeAction("Remove from Up next", Icons.Filled.RemoveCircleOutline, Flexarr.danger, Flexarr.room, removeFromUpNext))
         } else {
-            add(SwipeAction("Add to Up Next", Icons.AutoMirrored.Filled.PlaylistAdd, Flexarr.upNext) { model.addToUpNext(episode.id, next = false) })
+            add(SwipeAction("Add to Up next", Icons.AutoMirrored.Filled.PlaylistAdd, Flexarr.silver, Flexarr.room) { model.addToUpNext(episode.id, next = false) })
             if (download == null) {
                 add(SwipeAction("Download", Icons.Outlined.ArrowCircleDown, Flexarr.aisle) { model.scope.launch { runCatching { model.downloads.downloadEpisode(episode.id) } } })
             } else {
@@ -208,7 +209,7 @@ fun PodcastEpisodeRow(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 if (showsPodcast) {
-                    PodcastArtwork(episode.artwork.thumb ?: episode.artwork.poster, episode.podcastTitle, episode.accentColor, Modifier.size(56.dp), imageWidth = 185, cornerRadius = 6.dp)
+                    PodcastArtwork(episode.artwork.thumb ?: episode.artwork.poster, episode.podcastTitle, episode.accentColor, Modifier.size(56.dp), imageWidth = 185)
                 }
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     val meta = listOfNotNull(if (showsPodcast) episode.podcastTitle else null, dateLine(episode.publishedAt)).joinToString("  ")
@@ -298,7 +299,7 @@ internal fun EpisodeSheet(model: AppModel, episode: PodcastEpisode, setPlayed: (
                         setPlayed(!isPlayed)
                         played = !isPlayed
                     },
-                    tint = if (isPlayed) Flexarr.downloaded else Flexarr.screen,
+                    tint = if (isPlayed) Flexarr.go else Flexarr.screen,
                     iconSize = if (isPlayed) 30.dp else 22.dp,
                 )
                 if (shown.progress != null && played == null) {
@@ -327,11 +328,6 @@ fun dateLine(published: String?): String? {
         else -> date.format(DateTimeFormatter.ofPattern("d MMM yyyy", Locale.getDefault()))
     }
 }
-
-/** A swipe's "played" colour, as podcast apps use (the iPhone's Color.played). */
-val Flexarr.played: Color get() = Color(0xFF6B5BB5)
-/** A swipe's "Up Next" colour (the iPhone's Color.upNext). */
-val Flexarr.upNext: Color get() = Color(0xFF4A6FA5)
 
 /** Marks an episode played or unplayed for screens that don't keep their own list: sent, then screens reload. */
 fun setEpisodePlayed(model: AppModel, episode: PodcastEpisode, played: Boolean) {

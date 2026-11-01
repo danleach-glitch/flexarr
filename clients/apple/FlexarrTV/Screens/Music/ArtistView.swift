@@ -63,7 +63,6 @@ struct ArtistView: View {
     private func header(_ item: ItemSummary) -> some View {
         HStack(alignment: .center, spacing: 60) {
             SquareArtwork(item: item, size: 360, circular: true)
-                .shadow(color: .black.opacity(0.4), radius: 30, y: 16)
             VStack(alignment: .leading, spacing: 22) {
                 Text(item.title)
                     .font(.marquee(84, weight: .heavy))
@@ -91,7 +90,7 @@ struct ArtistView: View {
                     Button { Task { await model.playAll(of: page, shuffled: false, router: router) } } label: {
                         Label("Play", systemImage: "play.fill")
                     }
-                    .buttonStyle(ActionButtonStyle(ambient: ambient, prominent: true))
+                    .buttonStyle(ActionButtonStyle(ambient: page.item?.ambientColor, prominent: true))
                     .takesFocusFromLink()
                     Button { Task { await model.playAll(of: page, shuffled: true, router: router) } } label: {
                         Label("Shuffle", systemImage: "shuffle")

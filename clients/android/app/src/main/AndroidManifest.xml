@@ -16,7 +16,17 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
-    <!-- The app is upright on phones (MainActivity says so, so tablets can turn); the player turns sideways. Home servers answer over plain http on the local network (network_security_config). The sign-in isn't backed
+    <!-- On a TV, a trailer opens in the YouTube app: the Trailer button shows only when it's there. -->
+    <queries>
+        <package android:name="com.google.android.youtube.tv" />
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="vnd.youtube" />
+        </intent>
+    </queries>
+
+    <!-- Back is predictive (Android 13 on: the screen behind shows as you swipe); every Back goes through Compose's
+         BackHandler, which takes part. The app is upright on phones (MainActivity says so, so tablets can turn); the player turns sideways. Home servers answer over plain http on the local network (network_security_config). The sign-in isn't backed
          up: its key lives in this device's Keystore and would be no use anywhere else. -->
     <application
         android:name=".FlexarrApplication"
@@ -27,6 +37,7 @@
         android:label="@string/app_name"
         android:networkSecurityConfig="@xml/network_security_config"
         android:supportsRtl="true"
+        android:enableOnBackInvokedCallback="true"
         android:theme="@style/Theme.Flexarr">
 
         <!-- Music and podcasts in the car. -->

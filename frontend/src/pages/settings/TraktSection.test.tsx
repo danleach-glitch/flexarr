@@ -58,7 +58,7 @@ describe('Settings › Trakt', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'See what changes' }))
 
-    expect(await screen.findByText('Trakt has 12 films and 340 episodes')).toBeVisible()
+    expect(await screen.findByText('Trakt has 12 movies and 340 episodes')).toBeVisible()
     expect(screen.getByText(/41 not yet watched in Flexarr/)).toBeVisible()
     expect(confirmed).toBe(false)
     fireEvent.click(screen.getByRole('button', { name: 'Bring across' }))
@@ -87,7 +87,7 @@ describe('Settings › Trakt', () => {
     })
 
     const toggle = await screen.findByRole('switch', { name: /Sci-fi night/ })
-    expect(screen.getByText('Sam · 1 title')).toBeVisible()
+    expect(screen.getByText('Sam 1 title')).toBeVisible()
     fireEvent.click(toggle)
 
     await vi.waitFor(() => expect(saved).toEqual({ ids: ['sam/77', 'dan/55'] }))

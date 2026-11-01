@@ -123,7 +123,7 @@ final class LiveTvController: NSObject {
     }
 
     private func showTitle(for channel: LiveChannel, programme: LiveProgramme?) {
-        let times = programme.map { " · " + Self.timeRange($0) } ?? ""
+        let times = programme.map { "   " + Self.timeRange($0) } ?? ""
         screen?.setTitle(programme?.displayTitle ?? channel.name, subtitle: "\(channel.numberText) \(channel.name)\(times)")
     }
 

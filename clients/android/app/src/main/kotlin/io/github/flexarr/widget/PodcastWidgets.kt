@@ -4,7 +4,6 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
@@ -71,6 +70,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import java.io.File
+import io.github.flexarr.ui.theme.Tokens
 
 private val log = FlexarrLog("widget")
 
@@ -229,11 +229,11 @@ object PodcastWidgets {
     internal val episodeKey = ActionParameters.Key<String>("episode")
 
     // The app's own colours (Theme.kt), as Continue Watching's widget has them.
-    internal val ROOM = ColorProvider(Color(0xFF1B1720))
-    internal val SEAT = ColorProvider(Color(0xFF25202C))
-    internal val AISLE = ColorProvider(Color(0xFF3A3343))
-    internal val SCREEN = ColorProvider(Color(0xFFF2EEE7))
-    internal val USHER = ColorProvider(Color(0xFFA39AAE))
+    internal val ROOM = ColorProvider(Tokens.room)
+    internal val SEAT = ColorProvider(Tokens.seat)
+    internal val AISLE = ColorProvider(Tokens.aisle)
+    internal val SCREEN = ColorProvider(Tokens.screen)
+    internal val USHER = ColorProvider(Tokens.usher)
 
     /** "25m left", "1h 5m left"; nothing under a minute. */
     internal fun remaining(seconds: Double?): String? {
@@ -258,7 +258,7 @@ class TogglePodcast : ActionCallback {
 
 /** An episode's saved square picture, or a quiet tile with the mark. */
 @Composable
-private fun Artwork(shown: PodcastWidgets.Shown, size: Dp, corner: Dp = 10.dp) {
+private fun Artwork(shown: PodcastWidgets.Shown, size: Dp, corner: Dp = Tokens.radiusArt) {
     Box(GlanceModifier.size(size).cornerRadius(corner).background(PodcastWidgets.SEAT), contentAlignment = Alignment.Center) {
         if (shown.picture != null) {
             Image(ImageProvider(shown.picture), contentDescription = null, contentScale = ContentScale.Crop, modifier = GlanceModifier.fillMaxSize().cornerRadius(corner))
@@ -319,7 +319,7 @@ class ContinueListeningWidget : GlanceAppWidget() {
     private fun Wide(context: Context, shown: PodcastWidgets.Shown, isPlaying: Boolean) {
         val picture = (LocalSize.current.height - 24.dp).coerceIn(56.dp, 140.dp)
         Row(GlanceModifier.fillMaxSize()) {
-            Artwork(shown, picture, corner = 12.dp)
+            Artwork(shown, picture)
             Spacer(GlanceModifier.width(14.dp))
             Column(GlanceModifier.defaultWeight().fillMaxSize()) {
                 Text(shown.entry.show, style = TextStyle(color = PodcastWidgets.USHER, fontSize = 12.sp, fontWeight = FontWeight.Bold), maxLines = 1)
@@ -383,11 +383,11 @@ class UpNextWidget : GlanceAppWidget() {
             GlanceModifier.fillMaxSize().background(PodcastWidgets.ROOM).cornerRadius(20.dp).padding(12.dp)
                 .clickable(episodes.firstOrNull()?.let { PodcastWidgets.play(context, it.entry.id) } ?: actionStartActivity(AppLink.Home.intent(context))),
         ) {
-            Text("Up Next", style = TextStyle(color = PodcastWidgets.USHER, fontSize = 12.sp, fontWeight = FontWeight.Bold), maxLines = 1)
+            Text("Up next", style = TextStyle(color = PodcastWidgets.USHER, fontSize = 12.sp, fontWeight = FontWeight.Bold), maxLines = 1)
             Spacer(GlanceModifier.height(8.dp))
             when {
                 state == PodcastWidgets.State.SignedOut -> Note("Open Flexarr to connect it to your server.")
-                episodes.isEmpty() -> Note("Nothing in Up Next")
+                episodes.isEmpty() -> Note("Nothing in Up next")
                 small -> {
                     val first = episodes.first()
                     Artwork(first, 56.dp)
@@ -397,7 +397,7 @@ class UpNextWidget : GlanceAppWidget() {
                 else -> episodes.forEachIndexed { index, shown ->
                     if (index > 0) Spacer(GlanceModifier.height(8.dp))
                     Row(GlanceModifier.fillMaxWidth().clickable(PodcastWidgets.play(context, shown.entry.id)), verticalAlignment = Alignment.CenterVertically) {
-                        Artwork(shown, 32.dp, corner = 6.dp)
+                        Artwork(shown, 32.dp)
                         Spacer(GlanceModifier.width(10.dp))
                         Column(GlanceModifier.defaultWeight()) {
                             Text(shown.entry.title, style = TextStyle(color = PodcastWidgets.SCREEN, fontSize = 12.sp, fontWeight = FontWeight.Bold), maxLines = 1)

@@ -185,7 +185,7 @@ describe('Age limits', () => {
     })
 
     renderAt('/settings/profiles')
-    expect(await screen.findByText(/Kids profile · up to PG/)).toBeInTheDocument()
+    expect(await screen.findByText(/Kids profile, up to PG/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Edit Mum' }))
     const form = await screen.findByRole('form', { name: 'Edit Mum' })
     fireEvent.change(within(form).getByRole('combobox', { name: 'Up to' }), { target: { value: '15' } })

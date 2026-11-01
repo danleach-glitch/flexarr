@@ -75,7 +75,7 @@
               <li><a href="/guide/finding-things">Finding things</a></li>
               <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
               <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
-              <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
+              <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up next</a></li>
               <li><a href="/guide/music">Music</a></li>
               <li><a href="/guide/podcasts">Podcasts</a></li>
               <li><a href="/guide/audiobooks">Audiobooks</a></li>
@@ -127,7 +127,7 @@
           </ol>
         </nav>
         <div class="prose">
-<p>Sonarr, Radarr and Lidarr talk to Flexarr about files by their <strong>path</strong>. When Sonarr imports an episode, its webhook says &quot;I&#39;ve just put a file in <code>/tv/Some Show/Season 1</code>&quot;, and Flexarr rescans that folder. When you delete a film, Flexarr works out whether Radarr manages it by comparing paths. If Flexarr sees the same file somewhere else, say <code>/data/media/tv/Some Show/Season 1</code>, it can&#39;t tell they&#39;re the same folder.</p>
+<p>Sonarr, Radarr and Lidarr talk to Flexarr about files by their <strong>path</strong>. When Sonarr imports an episode, its webhook says &quot;I&#39;ve just put a file in <code>/tv/Some Show/Season 1</code>&quot;, and Flexarr rescans that folder. When you delete a movie, Flexarr works out whether Radarr manages it by comparing paths. If Flexarr sees the same file somewhere else, say <code>/data/media/tv/Some Show/Season 1</code>, it can&#39;t tell they&#39;re the same folder.</p>
 <p>This mostly matters in Docker, where each container sees your disks at whatever paths its volumes give it. There are two ways to fix it: give every container the same paths (best), or tell Flexarr how to translate them.</p>
 <h2 id="the-best-fix-the-same-paths-everywhere"><a class="anchor" href="#the-best-fix-the-same-paths-everywhere" aria-hidden="true" tabindex="-1">#</a>The best fix: the same paths everywhere</h2>
 <p>Mount your media at the same path in every container. A common layout is one parent folder, <code>/data/media</code>, with a folder for each kind:</p>
@@ -169,7 +169,7 @@
 <p>Sometimes you can&#39;t change the volumes, or the *arrs run in Docker and Flexarr runs natively on a Mac. Then add a <strong>path mapping</strong>: &quot;what Sonarr calls <em>this</em>, Flexarr calls <em>that</em>&quot;.</p>
 <h3 id="in-settings"><a class="anchor" href="#in-settings" aria-hidden="true" tabindex="-1">#</a>In Settings</h3>
 <p>Go to <strong>Settings › Connections</strong> and find <strong>Media folders</strong>. Each root folder of a connected Sonarr, Radarr or Lidarr has a line saying where it is on this server.</p>
-<p>Usually Flexarr works this out by itself. It compares the folders the apps keep their shows, films and artists in with the folders Flexarr found the same titles in. Sonarr&#39;s <code>/tv/Severance (2022)</code> and Flexarr&#39;s <code>/data/media/tv/Severance (2022)</code> mean <code>/tv</code> is <code>/data/media/tv</code>. When enough titles agree, Flexarr saves the mapping itself, on its next library scan, and the line goes green.</p>
+<p>Usually Flexarr works this out by itself. It compares the folders the apps keep their shows, movies and artists in with the folders Flexarr found the same titles in. Sonarr&#39;s <code>/tv/Severance (2022)</code> and Flexarr&#39;s <code>/data/media/tv/Severance (2022)</code> mean <code>/tv</code> is <code>/data/media/tv</code>. When enough titles agree, Flexarr saves the mapping itself, on its next library scan, and the line goes green.</p>
 <p>When it&#39;s less sure, the line is amber:</p>
 <ul>
 <li><strong>Use this</strong> saves the folder Flexarr suggests.</li>
@@ -228,7 +228,7 @@
 <h2 id="signs-the-paths-don-t-match"><a class="anchor" href="#signs-the-paths-don-t-match" aria-hidden="true" tabindex="-1">#</a>Signs the paths don&#39;t match</h2>
 <ul>
 <li><strong>New downloads don&#39;t appear until the next scan.</strong> Webhooks arrive, but Flexarr can&#39;t find the folder they name, so nothing happens until its scheduled scan every 12 hours.</li>
-<li><strong>Deleting a film or show offers to delete the files itself.</strong> The delete box says Radarr or Sonarr &quot;doesn&#39;t manage&quot; a title you know it does, because Flexarr couldn&#39;t match the paths.</li>
+<li><strong>Deleting a movie or show offers to delete the files itself.</strong> The delete box says Radarr or Sonarr &quot;doesn&#39;t manage&quot; a title you know it does, because Flexarr couldn&#39;t match the paths.</li>
 <li><strong>Importing your history from Plex</strong> matches fewer titles than expected, if Plex saw your files at other paths too.</li>
 <li><strong>Albums don&#39;t pick up Lidarr&#39;s artwork</strong>, because Flexarr matches them to Lidarr by folder.</li>
 </ul>

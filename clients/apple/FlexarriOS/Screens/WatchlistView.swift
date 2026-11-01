@@ -72,8 +72,8 @@ struct WatchlistView: View {
                         Text("Not available").tag(WatchlistStatus?.some(.notAvailable))
                     }
                     Picker("Kind", selection: $kind) {
-                        Text("Films and shows").tag(String?.none)
-                        Text("Films").tag(String?.some("movie"))
+                        Text("Movies and shows").tag(String?.none)
+                        Text("Movies").tag(String?.some("movie"))
                         Text("Shows").tag(String?.some("tv"))
                     }
                     Picker("Sort", selection: $sort) {
@@ -129,18 +129,18 @@ private struct WatchlistCard: View {
                     .overlay {
                         RemoteImage(url: model.client?.imageURL(entry.poster, width: 342)) {
                             Text(entry.title)
-                                .font(.marquee(18, weight: .bold))
+                                .font(.marquee(18, weight: .bold, scales: false))
                                 .foregroundStyle(Color.screen.opacity(0.8))
                                 .multilineTextAlignment(.center)
                                 .padding(8)
                         }
                     }
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
                 VStack(alignment: .leading, spacing: 1) {
                     Text(entry.title)
                         .font(.footnote.weight(.semibold))
                         .foregroundStyle(Color.screen.opacity(0.9))
-                    Text([entry.isShow ? "Show" : "Film", entry.year.map(String.init)].compactMap { $0 }.joined(separator: ", "))
+                    Text([entry.isShow ? "Show" : "Movie", entry.year.map(String.init)].compactMap { $0 }.joined(separator: ", "))
                         .font(.caption)
                         .foregroundStyle(Color.usher)
                     if let streaming = entry.streamingLabel {

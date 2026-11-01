@@ -11,15 +11,15 @@ struct TVPlayingLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: TVPlayingAttributes.self) { context in
             LockScreenView(context: context)
-                .activityBackgroundTint(TVPalette.room.opacity(0.92))
-                .activitySystemActionForegroundColor(TVPalette.screen)
+                .activityBackgroundTint(Color.room.opacity(0.92))
+                .activitySystemActionForegroundColor(Color.screen)
                 .widgetURL(TVPalette.remoteURL(context.attributes))
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
                     TVArtwork(file: context.attributes.artworkFile, accent: context.attributes.accent)
                         .frame(width: 64, height: 36)
-                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
                         .padding(.leading, 4)
                 }
                 DynamicIslandExpandedRegion(.center) {
@@ -45,10 +45,10 @@ struct TVPlayingLiveActivity: Widget {
             } compactTrailing: {
                 // What it's doing, not a button: a pause sign while paused, the waveform while it plays.
                 Image(systemName: context.state.paused ? "pause.fill" : "waveform")
-                    .foregroundStyle(TVPalette.usher)
+                    .foregroundStyle(Color.usher)
             } minimal: {
                 Image(systemName: context.state.paused ? "pause.fill" : "waveform")
-                    .foregroundStyle(TVPalette.screen)
+                    .foregroundStyle(Color.screen)
             }
             .widgetURL(TVPalette.remoteURL(context.attributes))
             .keylineTint(TVPalette.accent(context.attributes.accent))
@@ -64,18 +64,18 @@ private struct LockScreenView: View {
             HStack(spacing: 12) {
                 TVArtwork(file: context.attributes.artworkFile, accent: context.attributes.accent)
                     .frame(width: 80, height: 45)
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
                 VStack(alignment: .leading, spacing: 2) {
                     Text(context.attributes.title)
                         .font(.headline)
-                        .foregroundStyle(TVPalette.screen)
+                        .foregroundStyle(Color.screen)
                     // The episode and the TV on one line under the title (beside it, a long TV name squeezed the title;
                     // on lines of their own, the panel was close to the Lock Screen's height limit).
                     HStack(spacing: 6) {
                         if let subtitle = context.attributes.subtitle {
                             Text(subtitle)
                                 .font(.caption)
-                                .foregroundStyle(TVPalette.usher)
+                                .foregroundStyle(Color.usher)
                         }
                         // The TV whole; the episode gives way.
                         TVLabel(name: context.attributes.deviceName, isAppleTV: context.attributes.isAppleTV)
@@ -103,7 +103,7 @@ private struct TVLabel: View {
     var body: some View {
         Label { Text(name) } icon: { TVIcon(isAppleTV: isAppleTV) }
             .font(.caption.weight(.semibold))
-            .foregroundStyle(TVPalette.usher)
+            .foregroundStyle(Color.usher)
             .lineLimit(1)
     }
 }
@@ -153,7 +153,7 @@ private struct TVProgress: View {
             }
         }
         .progressViewStyle(.linear)
-        .tint(TVPalette.screen)
+        .tint(Color.screen)
         .opacity(stale ? 0.4 : 1)
     }
 }
@@ -177,7 +177,7 @@ private struct TVButtons: View {
         }
         .font(.title3.weight(.semibold))
         .buttonStyle(.plain)
-        .foregroundStyle(TVPalette.screen)
+        .foregroundStyle(Color.screen)
     }
 
     private func button(_ action: String, _ symbol: String, label: String) -> some View {
@@ -199,16 +199,12 @@ private struct TVArtwork: View {
         if let url = PodcastSnapshot.artwork(file), let image = UIImage(contentsOfFile: url.path(percentEncoded: false)) {
             Image(uiImage: image).resizable().aspectRatio(contentMode: .fill)
         } else {
-            LinearGradient(colors: [TVPalette.accent(accent).opacity(0.7), TVPalette.seat], startPoint: .topLeading, endPoint: .bottomTrailing)
+            LinearGradient(colors: [TVPalette.accent(accent).opacity(0.7), Color.seat], startPoint: .topLeading, endPoint: .bottomTrailing)
         }
     }
 }
 
 private enum TVPalette {
-    static let room = Color(red: 0x1B / 255, green: 0x17 / 255, blue: 0x20 / 255)
-    static let seat = Color(red: 0x25 / 255, green: 0x20 / 255, blue: 0x2C / 255)
-    static let screen = Color(red: 0xF2 / 255, green: 0xEE / 255, blue: 0xE7 / 255)
-    static let usher = Color(red: 0xA3 / 255, green: 0x9A / 255, blue: 0xAE / 255)
 
     /// The link a tap on the activity opens: the remote, on this TV.
     static func remoteURL(_ attributes: TVPlayingAttributes) -> URL? {
@@ -217,7 +213,7 @@ private enum TVPalette {
 
     /// "#rrggbb", or the app's silver-grey.
     static func accent(_ hex: String?) -> Color {
-        guard let hex, hex.count == 7, hex.hasPrefix("#"), let value = UInt32(hex.dropFirst(), radix: 16) else { return usher }
+        guard let hex, hex.count == 7, hex.hasPrefix("#"), let value = UInt32(hex.dropFirst(), radix: 16) else { return Color.usher }
         return Color(red: Double(value >> 16 & 0xFF) / 255, green: Double(value >> 8 & 0xFF) / 255, blue: Double(value & 0xFF) / 255)
     }
 }

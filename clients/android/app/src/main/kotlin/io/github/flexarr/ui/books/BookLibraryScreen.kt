@@ -102,6 +102,7 @@ import io.github.flexarr.ui.theme.glowColor
 import io.github.flexarr.ui.theme.marquee
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import io.github.flexarr.ui.theme.Tokens
 
 // An audiobooks library, as the iPhone app's music library is laid out: shelves to browse, then every book (with filters
 // and orders), the series, the authors and the genres.
@@ -250,8 +251,8 @@ private fun StackedCovers(covers: List<Artwork>, name: String, accent: String?) 
             val step = (index * 7).dp
             Box(
                 Modifier.fillMaxSize(0.86f).align(Alignment.BottomStart).offset(x = step, y = -step)
-                    .shadow(if (index == 0) 6.dp else 2.dp, RoundedCornerShape(6.dp))
-                    .clip(RoundedCornerShape(6.dp))
+                    .shadow(if (index == 0) 6.dp else 2.dp, RoundedCornerShape(Tokens.radiusArt))
+                    .clip(RoundedCornerShape(Tokens.radiusArt))
                     .background(Flexarr.seat),
             ) {
                 RemoteImage(shown[index].poster, 342, Modifier.fillMaxSize()) {
@@ -480,7 +481,7 @@ private fun GenreList(model: AppModel, libraryId: String, openGenre: (String) ->
         PullToRefreshBox(isRefreshing = loader.refreshing, onRefresh = loader.retry) {
             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = Edge, end = Edge, bottom = 24.dp)) {
                 item {
-                    Column(Modifier.clip(RoundedCornerShape(12.dp)).background(Flexarr.seat)) {
+                    Column(Modifier.clip(RoundedCornerShape(Tokens.radiusPanel)).background(Flexarr.seat)) {
                         genres.forEachIndexed { index, genre ->
                             if (index > 0) HorizontalDivider(Modifier.padding(start = 16.dp), color = Flexarr.aisle.copy(alpha = 0.6f))
                             GenreRow(genre) { openGenre(genre.name) }

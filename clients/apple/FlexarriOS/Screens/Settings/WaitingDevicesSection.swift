@@ -68,7 +68,7 @@ private struct WaitingDeviceRow: View {
             case .allowed:
                 Label("Connected", systemImage: "checkmark.circle.fill")
                     .font(.subheadline.weight(.medium))
-                    .foregroundStyle(Color.downloaded)
+                    .foregroundStyle(Color.go)
             default:
                 if case .failed(let message) = step {
                     Label(message, systemImage: "exclamationmark.triangle.fill")

@@ -82,6 +82,7 @@ import io.github.flexarr.ui.tv.TvProgressBar
 import io.github.flexarr.ui.tv.TvTheme
 import kotlinx.coroutines.delay
 import java.time.Instant
+import io.github.flexarr.ui.theme.Tokens
 
 /**
  * A live channel on a TV, worked with the remote as on the Apple TV. With the controls away: OK pauses and plays, left
@@ -231,7 +232,7 @@ internal fun TvLivePlayerScreen(controller: LiveTvController, onClose: () -> Uni
         val watch = remember { FocusRequester() }
         Dialog(onDismissRequest = controller::dismissRecordingChoice) {
             TvTheme {
-                Column(Modifier.width(400.dp).background(Flexarr.seat, RoundedCornerShape(14.dp)).padding(22.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(Modifier.width(400.dp).background(Flexarr.seat, RoundedCornerShape(Tokens.radiusPanel)).padding(22.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Recording", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                     Text(recording.message, fontSize = 13.sp, color = Flexarr.usher)
                     TvActionButton("Watch ${recording.channelName}", onClick = controller::watchRecorded, prominent = true, modifier = Modifier.fillMaxWidth().focusRequester(watch))
@@ -256,7 +257,7 @@ private fun LiveControls(controller: LiveTvController, timeline: FocusRequester,
         Column(Modifier.padding(horizontal = 40.dp, vertical = 28.dp)) {
             Text(controller.title, fontSize = 22.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(controller.subtitle, fontSize = 15.sp, color = Flexarr.screen.copy(alpha = 0.8f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            controller.detail?.let { Text(it.uppercase(java.util.Locale.ROOT), fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, maxLines = 1, modifier = Modifier.padding(top = 4.dp)) }
+            controller.detail?.let { Text(it, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, maxLines = 1, modifier = Modifier.padding(top = 4.dp)) }
         }
         Column(Modifier.align(Alignment.BottomCenter).padding(horizontal = 40.dp, vertical = 26.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             LiveTimeline(controller, timeline, onInteract)
@@ -348,7 +349,7 @@ private fun ChannelPanel(controller: LiveTvController, onPick: (LiveChannel) -> 
                     Surface(
                         onClick = { onPick(channel) },
                         modifier = Modifier.fillMaxWidth().then(if (isCurrent) Modifier.focusRequester(currentFocus) else Modifier),
-                        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(8.dp)),
+                        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(Tokens.radiusControl)),
                         colors = ClickableSurfaceDefaults.colors(
                             containerColor = if (isCurrent) Flexarr.screen.copy(alpha = 0.1f) else Color.Transparent,
                             contentColor = Flexarr.screen,
@@ -359,16 +360,16 @@ private fun ChannelPanel(controller: LiveTvController, onPick: (LiveChannel) -> 
                     ) {
                         Row(Modifier.padding(horizontal = 9.dp, vertical = 5.dp), horizontalArrangement = Arrangement.spacedBy(9.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text(channel.numberText, fontSize = 11.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End, modifier = Modifier.width(26.dp))
-                            Box(Modifier.size(56.dp, 32.dp).background(Flexarr.seat, RoundedCornerShape(5.dp)), contentAlignment = Alignment.Center) {
+                            Box(Modifier.size(56.dp, 32.dp).background(Flexarr.seat, RoundedCornerShape(Tokens.radiusArt)), contentAlignment = Alignment.Center) {
                                 Text(channel.name.take(4), style = marquee(12, Flexarr.usher))
                                 controller.client.imageUrl(channel.logoUrl, 300)?.let { url ->
-                                    AsyncImage(url, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize().background(Flexarr.seat, RoundedCornerShape(5.dp)).padding(4.dp))
+                                    AsyncImage(url, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize().background(Flexarr.seat, RoundedCornerShape(Tokens.radiusArt)).padding(4.dp))
                                 }
                             }
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                                 Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
                                     Text(channel.now?.displayTitle ?: "No listings", fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                                    if (channel.isFavourite) Icon(Icons.Filled.Star, contentDescription = "Favourite", tint = LiveGold, modifier = Modifier.size(9.dp))
+                                    if (channel.isFavourite) Icon(Icons.Filled.Star, contentDescription = "Favourite", tint = LiveStar, modifier = Modifier.size(9.dp))
                                 }
                                 Text(channel.name, fontSize = 10.sp, maxLines = 1)
                                 channel.now?.let { TvProgressBar(it.progress().toDouble(), Modifier.width(70.dp), tint = Flexarr.silver) }

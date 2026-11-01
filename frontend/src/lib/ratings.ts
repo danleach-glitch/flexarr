@@ -14,5 +14,5 @@ export const ratingLabel = (age: number) => ratingSteps.find((s) => s.age === ag
 export function ageLimitText(limit: { maxRatingAge?: number | null; isKids?: boolean }) {
   if (limit.maxRatingAge == null) return null
   const upTo = `up to ${ratingLabel(limit.maxRatingAge)}`
-  return limit.isKids ? `Kids profile · ${upTo}` : upTo[0].toUpperCase() + upTo.slice(1)
+  return limit.isKids ? `Kids profile, ${upTo}` : upTo[0].toUpperCase() + upTo.slice(1)
 }

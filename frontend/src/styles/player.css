@@ -123,7 +123,7 @@
   min-height: 36px;
   padding: 0 10px;
   border: 1px solid rgb(255 255 255 / 0.3);
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background: none;
   font-size: var(--step--1);
   font-weight: 700;
@@ -155,7 +155,7 @@
   right: 0;
   min-width: 16px;
   padding: 0 4px;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background: var(--ambient);
   color: var(--room);
   font-size: 10px;
@@ -243,7 +243,7 @@
   align-items: center;
   gap: 6px;
   padding: 4px 10px;
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   background: rgb(20 16 24 / 0.92);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -253,7 +253,7 @@
 .scrubber-preview {
   display: block;
   margin: 4px -6px 0;
-  border-radius: 6px;
+  border-radius: var(--radius-art);
   background-repeat: no-repeat;
   box-shadow: 0 0 0 2px var(--ambient);
 }
@@ -299,7 +299,7 @@
   width: 100%;
   padding: 9px 12px 9px 34px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background: none;
   text-align: left;
   cursor: pointer;
@@ -340,7 +340,7 @@
   width: 40px;
   height: 36px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background: rgb(255 255 255 / 0.1);
   font-size: 1.2rem;
   cursor: pointer;
@@ -584,7 +584,7 @@
 .player-menu-segments button {
   padding: 7px 11px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background: rgb(255 255 255 / 0.1);
   font-variant-numeric: tabular-nums;
   cursor: pointer;

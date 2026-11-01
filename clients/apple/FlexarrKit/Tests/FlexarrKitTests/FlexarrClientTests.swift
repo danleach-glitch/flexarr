@@ -335,7 +335,7 @@ struct FlexarrClientTests {
         let next = try #require(try await client.nextUp("01a16beb-0034-7d4e-8037-c249052ffa37"))
 
         #expect(next.kind == .episode)
-        #expect(next.episodeCode == "S1 E1")
+        #expect(next.episodeCode == "S1E1")
         #expect(StubProtocol.recorded(host: host).first?.url?.path == "/api/v1/items/01a16beb-0034-7d4e-8037-c249052ffa37/next-up")
     }
 

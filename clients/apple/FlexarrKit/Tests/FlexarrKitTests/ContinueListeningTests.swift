@@ -86,3 +86,15 @@ struct ContinueListeningTests {
         #expect(home.upcoming?.last?.libraryItemId == "01a1")
     }
 }
+
+struct UpcomingTests {
+    @Test func decodesTheComingSoonPage() throws {
+        let json = #"[{"id":"sonarr-Sonarr-7","kind":"Episode","title":"Pilot","seriesTitle":"Brand New","seasonNumber":1,"episodeNumber":1,"date":"2026-11-03T20:00:00Z","when":"Airs","overview":"It starts.","poster":null,"still":null,"libraryItemId":null,"available":false,"download":null,"source":"Sonarr","manageUrl":"http://sonarr.local/series/brand-new"},{"id":"radarr-1","kind":"Movie","title":"A Film","date":"2026-11-04T00:00:00Z","when":"In cinemas"}]"#
+        let items = try FlexarrClient.decoder.decode([UpcomingItem].self, from: Data(json.utf8))
+        #expect(items.first?.overview == "It starts.")
+        #expect(items.first?.available == false)
+        #expect(items.first?.manageUrl == "http://sonarr.local/series/brand-new")
+        #expect(items.last?.overview == nil)
+        #expect(items.last?.available == nil)
+    }
+}

@@ -65,6 +65,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.Duration
 import java.time.Instant
+import io.github.flexarr.ui.theme.Tokens
 
 /**
  * A device asking to connect, for the main profile to let in from this phone: its name, where it's asking from, and
@@ -151,7 +152,7 @@ fun MainPinField(
             textStyle = TextStyle(fontSize = 20.sp, color = Flexarr.screen),
             cursorBrush = SolidColor(Flexarr.screen),
             decorationBox = { field ->
-                Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(fieldColor).padding(horizontal = 16.dp, vertical = 12.dp)) {
+                Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(Tokens.radiusControl)).background(fieldColor).padding(horizontal = 16.dp, vertical = 12.dp)) {
                     if (pin.isEmpty()) Text("Admin PIN", fontSize = 17.sp, color = Flexarr.usher)
                     field()
                 }

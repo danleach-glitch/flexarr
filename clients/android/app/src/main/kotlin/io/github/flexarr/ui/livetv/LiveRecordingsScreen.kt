@@ -65,6 +65,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import io.github.flexarr.ui.theme.Tokens
 
 /**
  * The DVR: what's coming up, the series being recorded, and what's been recorded. Each row's menu takes one off (or
@@ -132,8 +133,8 @@ fun LiveRecordingsScreen(model: AppModel) {
                                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                                             Text(series.title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen)
                                             Text(
-                                                "${series.channelName?.let { "On $it" } ?: "On any channel"} · ${series.upcoming} coming up · ${series.recorded} recorded" +
-                                                    if (series.newOnly) " · New only" else "",
+                                                "${series.channelName?.let { "On $it" } ?: "On any channel"}, ${series.upcoming} coming up, ${series.recorded} recorded" +
+                                                    if (series.newOnly) ", new only" else "",
                                                 fontSize = 12.sp,
                                                 color = Flexarr.usher,
                                             )
@@ -166,7 +167,7 @@ private fun LazyListScope.section(title: String, content: @Composable () -> Unit
     item(key = title) {
         Column(Modifier.padding(horizontal = Edge)) {
             SectionHeading(title, Modifier.padding(bottom = 8.dp))
-            Column(Modifier.clip(RoundedCornerShape(12.dp)).background(Flexarr.seat)) { content() }
+            Column(Modifier.clip(RoundedCornerShape(Tokens.radiusPanel)).background(Flexarr.seat)) { content() }
         }
     }
 }
@@ -186,13 +187,13 @@ private fun RecordingRow(recording: Recording, action: String, onOpen: (() -> Un
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(recording.title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen)
             val parts = buildList {
-                if (recording.season != null && recording.episode != null) add("S${recording.season} E${recording.episode}")
+                if (recording.season != null && recording.episode != null) add("S${recording.season}E${recording.episode}")
                 recording.subtitle?.let(::add)
                 add(recording.channelName)
                 add(dayFormat(context).format(recording.start.atZone(ZoneId.systemDefault())))
                 recording.size?.let { add(Formatter.formatShortFileSize(context, it)) }
             }
-            Text(parts.joinToString(" · "), fontSize = 12.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(parts.joinToString("   "), fontSize = 12.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis)
             when {
                 recording.clashes -> Text("Won’t record: every stream is wanted by recordings scheduled before it.", fontSize = 12.sp, color = Flexarr.danger)
                 recording.reason != null && recording.state != "scheduled" -> Text(recording.reason!!, fontSize = 12.sp, color = Flexarr.usher)

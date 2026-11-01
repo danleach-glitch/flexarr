@@ -29,6 +29,7 @@ jobs:
       android: ${{ steps.diff.outputs.android }}
       guide: ${{ steps.diff.outputs.guide }}
       apps: ${{ steps.diff.outputs.apps }}
+      tokens: ${{ steps.diff.outputs.tokens }}
       relay: ${{ steps.diff.outputs.relay }}
       tunnel: ${{ steps.diff.outputs.tunnel }}
     steps:
@@ -54,6 +55,7 @@ jobs:
           echo "android=$(has '^(clients/android/|clients/tunnel/|Directory\.Build\.props|clients/apple/FlexarrKit/Tests/FlexarrKitTests/Fixtures/)')" >>"$GITHUB_OUTPUT"
           echo "guide=$(has '^(docs/guide/|scripts/guide/|site/guide/)')" >>"$GITHUB_OUTPUT"
           echo "apps=$(has '^(site/apps\.|scripts/apps/)')" >>"$GITHUB_OUTPUT"
+          echo "tokens=$(has '^(design/|scripts/design/|frontend/src/styles/tokens\.generated\.css|frontend/src/components/icons(\.generated\.ts|\.tsx)|clients/apple/Shared/Design/(Tokens|Icons)\.swift|clients/android/app/src/main/kotlin/io/github/flexarr/ui/theme/(Tokens|FlexarrIcons)\.kt)')" >>"$GITHUB_OUTPUT"
           echo "relay=$(has '^relay/')" >>"$GITHUB_OUTPUT"
           echo "tunnel=$(has '^clients/tunnel/')" >>"$GITHUB_OUTPUT"
           cat "$GITHUB_OUTPUT"
@@ -123,6 +125,17 @@ jobs:
         with:
           node-version-file: .nvmrc
       - run: node scripts/apps/build.mjs --check
+
+  # The clients' colours and radii are generated from design/tokens.json; this fails when someone forgot `make tokens`.
+  tokens:
+    name: Design tokens
+    needs: changes
+    if: needs.changes.outputs.tokens == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: python3 scripts/design/tokens.py --check
+      - run: python3 -m unittest discover -s scripts/design
 
   # The apps' notification relay (push.flexarr.io), deployed by Vercel when relay/ changes.
   relay:
@@ -266,7 +279,7 @@ jobs:
   # skipped matrix job never reports under its real name, so requiring them directly would block every merge.
   passed:
     name: CI passed
-    needs: [changes, server, web, guide, apps, relay, tunnel, apple, android]
+    needs: [changes, server, web, guide, apps, tokens, relay, tunnel, apple, android]
     if: always()
     runs-on: ubuntu-latest
     steps:

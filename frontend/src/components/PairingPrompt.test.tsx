@@ -119,7 +119,7 @@ describe('Pairing prompt', () => {
   it('says what kind of device is asking', async () => {
     mockApi({ '/pairing/waiting': [{ ...livingRoom(), deviceType: 'AppleTv' }] })
     renderAs(admin)
-    expect(await screen.findByText('Apple TV · asking from your home network (192.168.1.70)')).toBeInTheDocument()
+    expect(await screen.findByText('Apple TV, asking from your home network (192.168.1.70)')).toBeInTheDocument()
   })
 
   it('ignores a kind of device newer than this page', async () => {

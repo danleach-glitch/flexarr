@@ -109,9 +109,9 @@ class PairingTest {
     fun `what kind of device is asking, from servers that say and ones that don't`() {
         val tv = FlexarrClient.json.decodeFromString(WaitingDevice.serializer(), waiting.replace("}", ""","deviceType":"AppleTv"}"""))
         assertEquals("Apple TV", tv.kind)
-        assertEquals("Apple TV · asking from your home network (192.168.1.70)", tv.summary)
-        assertEquals("Apple TV · home network", tv.shortSummary)
-        assertEquals("Android phone · Tailscale", tv.copy(deviceType = "AndroidPhone", zone = "Tailscale").shortSummary)
+        assertEquals("Apple TV, asking from your home network (192.168.1.70)", tv.summary)
+        assertEquals("Apple TV, home network", tv.shortSummary)
+        assertEquals("Android phone, Tailscale", tv.copy(deviceType = "AndroidPhone", zone = "Tailscale").shortSummary)
         // Before servers said: the sentence as it was.
         val older = FlexarrClient.json.decodeFromString(WaitingDevice.serializer(), waiting)
         assertEquals(null, older.deviceType)

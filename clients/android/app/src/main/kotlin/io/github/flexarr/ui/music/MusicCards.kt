@@ -50,6 +50,7 @@ import io.github.flexarr.ui.podcasts.Tabular
 import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.glowColor
 import io.github.flexarr.ui.theme.marquee
+import io.github.flexarr.ui.theme.Tokens
 
 // The music screens' pieces, as the iPhone app's MusicCards.swift draws them.
 
@@ -59,7 +60,7 @@ import io.github.flexarr.ui.theme.marquee
  */
 @Composable
 fun SquareArtwork(item: ItemSummary, modifier: Modifier = Modifier, circular: Boolean = false, imageWidth: Int = 500) {
-    val shape: Shape = if (circular) CircleShape else RoundedCornerShape(6.dp)
+    val shape: Shape = if (circular) CircleShape else RoundedCornerShape(Tokens.radiusArt)
     Box(modifier.fillMaxWidth().aspectRatio(1f).clip(shape).background(Flexarr.seat)) {
         RemoteImage(item.artwork.poster, imageWidth, Modifier.fillMaxSize()) {
             Box(
@@ -143,7 +144,7 @@ fun PlaylistArtwork(playlist: PlaylistSummary, modifier: Modifier = Modifier) = 
 /** A mosaic of up to four album covers (one fills it when there are fewer), or [cover] instead. Fills the width it's given. */
 @Composable
 fun CoverMosaic(covers: List<String>, modifier: Modifier = Modifier, cover: String? = null) {
-    Box(modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(6.dp)).background(Flexarr.seat), contentAlignment = Alignment.Center) {
+    Box(modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(Tokens.radiusArt)).background(Flexarr.seat), contentAlignment = Alignment.Center) {
         when {
             cover != null -> RemoteImage(cover, 500, Modifier.fillMaxSize()) { Placeholder() }
             covers.size >= 4 -> Column(Modifier.fillMaxSize()) {
@@ -202,7 +203,7 @@ fun TrackRow(
     onClick: () -> Unit,
 ) {
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(Tokens.radiusControl))
             .then(if (isCurrent) Modifier.background(Flexarr.screen.copy(alpha = 0.1f)) else Modifier)
             .alpha(if (isDimmed) 0.45f else 1f)
             .pressable(onClick, enabled = !isDimmed)

@@ -87,6 +87,7 @@ import io.github.flexarr.ui.theme.glowColor
 import io.github.flexarr.ui.theme.marquee
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
+import io.github.flexarr.ui.theme.Tokens
 
 /**
  * The music that's playing, over the cover's light, as the Apple TV's NowPlayingView: the cover, the track's name, how
@@ -181,7 +182,7 @@ fun TvNowPlayingScreen(model: AppModel, onClose: () -> Unit) {
 
 @Composable
 private fun Cover(track: ItemSummary, size: Dp) {
-    Box(Modifier.shadow(20.dp, RoundedCornerShape(9.dp), ambientColor = glowColor(track.accentColor), spotColor = Color.Black)) {
+    Box(Modifier.shadow(20.dp, RoundedCornerShape(Tokens.radiusArt), ambientColor = glowColor(track.accentColor), spotColor = Color.Black)) {
         TvSquareArtwork(track, size)
     }
 }
@@ -326,7 +327,7 @@ private fun TvLyrics(lyrics: Lyrics, position: () -> Double, onSeek: (Double) ->
             Surface(
                 onClick = { if (lyrics.synced && time != null) onSeek(time) },
                 modifier = Modifier.fillMaxWidth().then(if (index == (active ?: 0)) Modifier.focusRequester(following) else Modifier),
-                shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(8.dp)),
+                shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(Tokens.radiusControl)),
                 colors = ClickableSurfaceDefaults.colors(
                     containerColor = Color.Transparent,
                     contentColor = Flexarr.screen.copy(alpha = alpha),
@@ -365,9 +366,9 @@ fun TvNowPlayingBar(model: AppModel, modifier: Modifier = Modifier, onShown: (Bo
         if (track == null) return@AnimatedVisibility
         Row(
             Modifier.fillMaxWidth().padding(start = TvLayout.Edge, end = TvLayout.Edge, bottom = 10.dp)
-                .shadow(12.dp, RoundedCornerShape(8.dp))
-                .background(Flexarr.seat.copy(alpha = 0.96f), RoundedCornerShape(8.dp))
-                .border(BorderStroke(1.dp, Flexarr.aisle), RoundedCornerShape(8.dp))
+                .shadow(12.dp, RoundedCornerShape(Tokens.radiusPanel))
+                .background(Flexarr.seat.copy(alpha = 0.96f), RoundedCornerShape(Tokens.radiusPanel))
+                .border(BorderStroke(1.dp, Flexarr.aisle), RoundedCornerShape(Tokens.radiusPanel))
                 .padding(horizontal = 12.dp, vertical = 6.dp)
                 .semantics { contentDescription = "Now playing: ${track.title}${track.artistName?.let { " by $it" }.orEmpty()}" },
             horizontalArrangement = Arrangement.spacedBy(12.dp),

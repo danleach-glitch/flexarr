@@ -133,8 +133,8 @@ export function BackupSection() {
             <div>
               <h3>{when(b.createdAt)}</h3>
               <p className="muted">
-                {kindLabel[b.kind]} · {formatSize(b.size)}
-                {b.flexarrVersion && ` · Flexarr ${b.flexarrVersion}`}
+                {kindLabel[b.kind]}{'\u2003'}{formatSize(b.size)}
+                {b.flexarrVersion && `\u2003Flexarr ${b.flexarrVersion}`}
               </p>
             </div>
             <div className="library-row-actions">
@@ -528,7 +528,7 @@ function UploadedSettings({ id, file, mainHasPin, onCancel }: { id: string; file
                     <strong>{l.name}</strong>
                     <span className="muted">
                       {libraryTypeLabel[l.type]}
-                      {l.alreadyHere && ' · already here'}
+                      {l.alreadyHere && '\u2003already here'}
                     </span>
                   </label>
                   {l.include &&

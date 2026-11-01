@@ -78,6 +78,7 @@ import io.github.flexarr.ui.podcasts.PodcastsScreen
 import io.github.flexarr.ui.search.PersonScreen
 import io.github.flexarr.ui.search.SearchScreen
 import io.github.flexarr.ui.watchlist.WatchlistScreen
+import io.github.flexarr.ui.home.ComingSoonScreen
 import io.github.flexarr.ui.pairing.PairingPrompt
 import io.github.flexarr.AppLink
 import io.github.flexarr.PairingPrompts
@@ -97,6 +98,7 @@ import io.github.flexarr.ui.settings.ListeningSettingsScreen
 import io.github.flexarr.ui.settings.ServerSettingsScreen
 import io.github.flexarr.ui.settings.SettingsScreen
 import io.github.flexarr.ui.theme.Flexarr
+import io.github.flexarr.ui.theme.FlexarrIcons
 
 private enum class Tab(val route: String, val label: String) {
     Home("home", "Home"),
@@ -345,6 +347,7 @@ fun MainScreen(model: AppModel) {
                 }
                 composable("livetv") { LiveTvScreen(model) }
                 composable("watchlist") { WatchlistScreen(model) }
+                composable("coming-soon") { ComingSoonScreen(model) }
                 composable("livetv/recordings") { LiveRecordingsScreen(model) }
                 composable("music/{id}") { MusicLibraryScreen(model, it.arguments?.getString("id")!!) }
                 composable("artist/{id}") { ArtistScreen(model, it.arguments?.getString("id")!!) }
@@ -397,8 +400,8 @@ private const val MAX_TAB_SCALE = 1.3f
 private fun Tab.icon(): Painter = when (this) {
     // The Flexarr mark stands in for a house.
     Tab.Home -> painterResource(R.drawable.ic_brand_mark)
-    Tab.Libraries -> rememberVectorPainter(Icons.Filled.GridView)
-    Tab.Downloads -> rememberVectorPainter(Icons.Filled.DownloadForOffline)
-    Tab.Search -> rememberVectorPainter(Icons.Filled.Search)
-    Tab.Settings -> rememberVectorPainter(Icons.Filled.Settings)
+    Tab.Libraries -> rememberVectorPainter(FlexarrIcons.libraries)
+    Tab.Downloads -> rememberVectorPainter(FlexarrIcons.downloads)
+    Tab.Search -> rememberVectorPainter(FlexarrIcons.search)
+    Tab.Settings -> rememberVectorPainter(FlexarrIcons.settings)
 }

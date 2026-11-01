@@ -37,25 +37,24 @@ export function formatChannels(channels: number | null): string | null {
   return { 1: 'Mono', 2: 'Stereo', 6: '5.1', 8: '7.1' }[channels] ?? `${channels} channels`
 }
 
-const pad = (n: number) => String(n).padStart(2, '0')
 
 type EpisodeNumbers = Pick<ItemSummary, 'seasonNumber' | 'episodeNumber' | 'episodeNumberEnd' | 'airDate'> & { homeVideo?: boolean; title?: string }
 
-/** "S01E06", "S01E06–E07", or the air date for daily shows. Nothing for a home video, which goes by its name. */
+/** "S1E6", "S1E6–E7", or the air date for daily shows. Nothing for a home video, which goes by its name. */
 export function episodeCode(item: EpisodeNumbers): string {
   if (item.homeVideo) return ''
   if (item.airDate) return item.airDate
-  const code = `S${pad(item.seasonNumber ?? 0)}E${pad(item.episodeNumber ?? 0)}`
-  return item.episodeNumberEnd ? `${code}–E${pad(item.episodeNumberEnd)}` : code
+  const code = `S${item.seasonNumber ?? 0}E${item.episodeNumber ?? 0}`
+  return item.episodeNumberEnd ? `${code}–E${item.episodeNumberEnd}` : code
 }
 
-/** "Season 01 | Episode 10" for buttons and headings on a show's pages (dated shows give the date; a home video its name). */
+/** "Season 1, Episode 10" for buttons and headings on a show's pages (dated shows give the date; a home video its name). */
 export function episodeHeading(item: EpisodeNumbers): string {
   if (item.homeVideo) return item.title ?? ''
   if (item.airDate) return new Date(item.airDate).toLocaleDateString(undefined, { dateStyle: 'long' })
-  const season = item.seasonNumber === 0 ? 'Specials' : `Season ${pad(item.seasonNumber ?? 0)}`
-  const episode = item.episodeNumberEnd ? `Episodes ${pad(item.episodeNumber ?? 0)}–${pad(item.episodeNumberEnd)}` : `Episode ${pad(item.episodeNumber ?? 0)}`
-  return `${season} | ${episode}`
+  const season = item.seasonNumber === 0 ? 'Specials' : `Season ${item.seasonNumber ?? 0}`
+  const episode = item.episodeNumberEnd ? `episodes ${item.episodeNumber ?? 0}–${item.episodeNumberEnd}` : `Episode ${item.episodeNumber ?? 0}`
+  return `${season}, ${episode.replace(/^episodes/, 'Episodes')}`
 }
 
 const rangeLabel: Record<VideoRange, string | null> = {

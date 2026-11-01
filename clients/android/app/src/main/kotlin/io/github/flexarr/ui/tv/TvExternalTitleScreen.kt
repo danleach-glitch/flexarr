@@ -188,14 +188,14 @@ private fun Header(title: ExternalTitle, preview: ExternalTitle, detail: Externa
 
 /** "R   2026   1h 59m   Film". */
 private fun facts(title: ExternalTitle, detail: ExternalDetail?): List<String> {
-    if (detail == null) return listOfNotNull(title.year?.toString(), if (title.isShow) "Series" else "Film")
+    if (detail == null) return listOfNotNull(title.year?.toString(), if (title.isShow) "Show" else "Movie")
     val length = if (detail.isShow) {
         detail.seasons?.let { if (it == 1) "1 season" else "$it seasons" }
     } else {
         detail.runtimeMinutes?.let { Format.runtime(minutes = it) }
     }
     val status = detail.status?.takeIf { it != "Released" && it != "Ended" }
-    return listOfNotNull(detail.certification, detail.year?.toString(), length, if (detail.isShow) "Series" else "Film", status)
+    return listOfNotNull(detail.certification, detail.year?.toString(), length, if (detail.isShow) "Show" else "Movie", status)
 }
 
 /** The scores people check before watching: TMDB, IMDb, Rotten Tomatoes critics and audience. */
@@ -395,7 +395,7 @@ internal fun TvGenreScreen(client: FlexarrClient, name: String) {
                     }
                     Spacer(Modifier.weight(1f))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf(null to "Everything", MediaKind.Movie to "Films", MediaKind.Series to "Shows").forEach { (choice, label) ->
+                        listOf(null to "Everything", MediaKind.Movie to "Movies", MediaKind.Series to "Shows").forEach { (choice, label) ->
                             TvPill(label, selected = kind == choice, onClick = { kind = choice })
                         }
                     }

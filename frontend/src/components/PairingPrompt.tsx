@@ -62,7 +62,7 @@ export function PairingPrompt() {
 /** "Apple TV · asking from your home network (192.168.1.70)", or "It’s asking …" when it hasn't said what it is. */
 const asking = (details: PairingDetails) => {
   const type = deviceTypeName(details.deviceType)
-  return type ? `${type} · asking ${askedFrom(details)}` : `It’s asking ${askedFrom(details)}.`
+  return type ? `${type}, asking ${askedFrom(details)}` : `It’s asking ${askedFrom(details)}.`
 }
 
 function Prompt({

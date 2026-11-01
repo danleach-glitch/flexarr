@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Home Assistant · Flexarr guide</title>
-  <meta name="description" content="Add Flexarr to Home Assistant so every Apple TV, iPhone and iPad becomes a media player, and dim the lights when a film starts.">
+  <meta name="description" content="Add Flexarr to Home Assistant so every Apple TV, iPhone and iPad becomes a media player, and dim the lights when a movie starts.">
   <meta name="theme-color" content="#1b1720">
   <meta name="color-scheme" content="dark">
   <meta name="apple-itunes-app" content="app-id=6826618084">
@@ -12,7 +12,7 @@
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <meta property="og:title" content="Home Assistant · Flexarr guide">
-  <meta property="og:description" content="Add Flexarr to Home Assistant so every Apple TV, iPhone and iPad becomes a media player, and dim the lights when a film starts.">
+  <meta property="og:description" content="Add Flexarr to Home Assistant so every Apple TV, iPhone and iPad becomes a media player, and dim the lights when a movie starts.">
   <meta property="og:image" content="https://flexarr.io/shots/og.jpg">
   <meta property="og:url" content="https://flexarr.io/guide/home-assistant">
   <meta name="twitter:card" content="summary_large_image">
@@ -75,7 +75,7 @@
               <li><a href="/guide/finding-things">Finding things</a></li>
               <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
               <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
-              <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
+              <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up next</a></li>
               <li><a href="/guide/music">Music</a></li>
               <li><a href="/guide/podcasts">Podcasts</a></li>
               <li><a href="/guide/audiobooks">Audiobooks</a></li>
@@ -115,7 +115,7 @@
       <article>
         <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Around the house</p>
         <h1>Home Assistant</h1>
-        <p class="lede">Add Flexarr to Home Assistant so every Apple TV, iPhone and iPad becomes a media player, and dim the lights when a film starts.</p>
+        <p class="lede">Add Flexarr to Home Assistant so every Apple TV, iPhone and iPad becomes a media player, and dim the lights when a movie starts.</p>
         <p class="meta">3 min read</p>
         <nav class="toc" aria-label="On this page">
           <p>On this page</p>
@@ -124,12 +124,12 @@
             <li><a href="#install-it">Install it</a></li>
             <li><a href="#play-something-from-home-assistant">Play something from Home Assistant</a></li>
             <li><a href="#the-playback-event">The playback event</a></li>
-            <li><a href="#example-lights-down-for-films">Example: lights down for films</a></li>
+            <li><a href="#example-lights-down-for-movies">Example: lights down for movies</a></li>
             <li><a href="#for-other-automation-tools">For other automation tools</a></li>
           </ol>
         </nav>
         <div class="prose">
-<p><a href="https://www.home-assistant.io" rel="noopener">Home Assistant</a> is a popular app for running your smart home yourself. Flexarr has an integration for it, so your home can react to what you&#39;re watching: lights down when a film starts, up again when the credits roll.</p>
+<p><a href="https://www.home-assistant.io" rel="noopener">Home Assistant</a> is a popular app for running your smart home yourself. Flexarr has an integration for it, so your home can react to what you&#39;re watching: lights down when a movie starts, up again when the credits roll.</p>
 <p>The integration lives in its own repository, <a href="https://github.com/danleach-glitch/flexarr-home-assistant" rel="noopener">flexarr-home-assistant</a>, and needs Flexarr 0.45.0 or later.</p>
 <h2 id="what-you-get"><a class="anchor" href="#what-you-get" aria-hidden="true" tabindex="-1">#</a>What you get</h2>
 <ul>
@@ -203,10 +203,10 @@ data:
 </tbody></table></div>
 <p><em>Credits</em> fires where Flexarr has found the end credits, within about ten seconds of them starting. A title without credits found goes straight to <em>ended</em>. See <a href="/guide/subtitles-and-skipping">Subtitles and skipping</a> for how credits are found.</p>
 <p>A playback that stops reporting counts as stopped after two minutes, or fifteen if it was paused.</p>
-<h2 id="example-lights-down-for-films"><a class="anchor" href="#example-lights-down-for-films" aria-hidden="true" tabindex="-1">#</a>Example: lights down for films</h2>
-<p>This dims the living room when a film starts on the living room TV, and brings the lights up at the credits or when you stop.</p>
+<h2 id="example-lights-down-for-movies"><a class="anchor" href="#example-lights-down-for-movies" aria-hidden="true" tabindex="-1">#</a>Example: lights down for movies</h2>
+<p>This dims the living room when a movie starts on the living room TV, and brings the lights up at the credits or when you stop.</p>
 <pre><code class="language-yaml">automation:
-  - alias: Lights down for a film
+  - alias: Lights down for a movie
     triggers:
       - trigger: event
         event_type: flexarr_playback

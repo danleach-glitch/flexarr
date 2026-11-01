@@ -58,7 +58,7 @@ struct PosterArtwork: View {
                     ZStack {
                         LinearGradient(colors: [item.glowColor.opacity(0.35), Color.seat], startPoint: .top, endPoint: .bottom)
                         Text(item.title)
-                            .font(.marquee(18, weight: .bold))
+                            .font(.marquee(18, weight: .bold, scales: false))
                             .foregroundStyle(Color.screen.opacity(0.8))
                             .multilineTextAlignment(.center)
                             .padding(8)
@@ -73,7 +73,7 @@ struct PosterArtwork: View {
             .overlay(alignment: .topTrailing) {
                 if item.userData.watched { WatchedBadge(label: item.isBook ? "Finished" : "Watched").padding(6) }
             }
-            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
     }
 }
 
@@ -100,7 +100,7 @@ struct WideCard: View {
                         }
                     }
                     .overlay {
-                        Image(systemName: "play.fill")
+                        Image(systemName: Symbol.play)
                             .font(.title3)
                             .foregroundStyle(Color.screen)
                             .frame(width: 44, height: 44)
@@ -111,7 +111,7 @@ struct WideCard: View {
                             ProgressBar(value: progress).padding(8)
                         }
                     }
-                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
                 VStack(alignment: .leading, spacing: 1) {
                     Text(item.isListening ? item.title : item.displayTitle)
                         .font(.footnote.weight(.semibold))
@@ -158,9 +158,12 @@ struct Top10Card: View {
 struct OutlinedNumeral: View {
     let text: String
     let size: CGFloat
+    /// Grows with Dynamic Type like the headings, within reason: the poster beside it stays the same size.
+    @ScaledMetric(relativeTo: .largeTitle) private var scale: CGFloat = 1
 
     var body: some View {
-        let glyph = Text(text).font(.marquee(size, weight: .black)).kerning(-size * 0.04)
+        let size = size * min(scale, 1.4)
+        let glyph = Text(text).font(.marquee(size, weight: .black, scales: false)).kerning(-size * 0.04)
         ZStack {
             // An outline drawn by stamping the glyph around a ring, then knocking out the middle.
             ForEach(0..<12, id: \.self) { index in
@@ -181,7 +184,7 @@ struct WatchedBadge: View {
     var label = "Watched"
 
     var body: some View {
-        Image(systemName: "checkmark")
+        Image(systemName: Symbol.watched)
             .font(.system(size: 10, weight: .heavy))
             .foregroundStyle(Color.room)
             .frame(width: 20, height: 20)
@@ -211,7 +214,7 @@ struct PersonCard: View {
                     .frame(width: 84, height: 84)
                     .overlay {
                         RemoteImage(url: model.client?.imageURL(image, width: 200)) {
-                            Text(initials).font(.marquee(28, weight: .bold)).foregroundStyle(Color.usher)
+                            Text(initials).font(.marquee(28, weight: .bold, scales: false)).foregroundStyle(Color.usher)
                         }
                     }
                     .clipShape(Circle())
@@ -263,7 +266,7 @@ struct ItemContextMenu: View {
     @ViewBuilder
     private var listeningMenu: some View {
         Button { model.play(item) } label: {
-            Label(item.isResumable ? "Resume" : "Play", systemImage: "play.fill")
+            Label(item.isResumable ? "Resume" : "Play", systemImage: Symbol.play)
         }
         if item.kind == .audiobook {
             Button { router.push(.item(item)) } label: { Label("Go to book", systemImage: "info.circle") }
@@ -287,11 +290,11 @@ struct ItemContextMenu: View {
     private var menu: some View {
         if item.kind == .movie || item.kind == .episode {
             Button { model.play(item) } label: {
-                Label(item.isResumable ? "Resume" : "Play", systemImage: "play.fill")
+                Label(item.isResumable ? "Resume" : "Play", systemImage: Symbol.play)
             }
             if item.isResumable {
                 Button { model.play(item, fromBeginning: true) } label: {
-                    Label("Play from beginning", systemImage: "arrow.counterclockwise")
+                    Label("Start over", systemImage: Symbol.startOver)
                 }
             }
         }
@@ -305,19 +308,19 @@ struct ItemContextMenu: View {
         let marks = !model.isKids
         if marks {
             Button { Task { await model.setWatched(item, !watched) } } label: {
-                Label(watched ? "Mark as unwatched" : "Mark as watched", systemImage: watched ? "eye.slash" : "checkmark.circle")
+                Label(watched ? "Mark as unwatched" : "Mark as watched", systemImage: watched ? Symbol.markUnwatched : "checkmark.circle")
             }
         }
         if model.hasWatchlist, item.kind == .movie || item.kind == .series {
             let onList = model.watchlistItems.contains(item.id)
             Button { Task { await model.setOnWatchlist(.library(item.id), !onList) } } label: {
-                Label(onList ? "Remove from watchlist" : "Add to watchlist", systemImage: onList ? "bookmark.slash" : "bookmark")
+                Label(onList ? "Remove from watchlist" : "Add to watchlist", systemImage: onList ? "bookmark.slash" : Symbol.watchlist)
             }
         }
         // Part way through: unwatched forgets the place, which takes it out of Continue Watching.
         if marks && item.isResumable && !watched {
             Button { Task { await model.setWatched(item, false) } } label: {
-                Label("Mark as unwatched", systemImage: "eye.slash")
+                Label("Mark as unwatched", systemImage: Symbol.markUnwatched)
             }
         } else if inContinueWatching, item.kind == .episode, !watched {
             Button { Task { await model.removeFromContinueWatching(item) } } label: {
@@ -346,7 +349,7 @@ struct TitleArt: View {
                 title
             }
             .frame(maxWidth: maxWidth, maxHeight: maxHeight, alignment: .bottomLeading)
-            .shadow(color: .black.opacity(0.35), radius: 10)
+            .modifier(TitleScrim(reach: maxWidth * 0.6))
             .accessibilityLabel(item.title)
         } else {
             title
@@ -360,6 +363,6 @@ struct TitleArt: View {
             .lineLimit(2)
             .minimumScaleFactor(0.6)
             .frame(maxWidth: maxWidth * 1.2, alignment: .leading)
-            .shadow(color: .black.opacity(0.35), radius: 10)
+            .modifier(TitleScrim(reach: maxWidth * 0.6))
     }
 }

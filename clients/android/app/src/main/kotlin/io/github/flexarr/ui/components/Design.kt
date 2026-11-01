@@ -50,10 +50,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.draw.dropShadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
-import androidx.compose.ui.graphics.shadow.Shadow as Glow
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -74,6 +72,8 @@ import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.displayTitle
 import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.marquee
+import io.github.flexarr.ui.theme.Tokens
+import io.github.flexarr.ui.theme.mainButtonFill
 
 // The Apple apps' shared pieces (Theme.swift and Cards.swift on iPhone), for the phone.
 
@@ -129,8 +129,8 @@ fun Modifier.pressable(
 }
 
 /**
- * Play and the other actions on heroes and details: the main one in projected white, the rest quieter on a
- * translucent seat, with the title's ambient colour in the glow.
+ * Play and the other actions on heroes and details: the main one filled with the title's ambient colour (silver when
+ * it has none), the rest quieter on a translucent seat. No shadow: elevation is for focus only.
  */
 @Composable
 fun ActionButton(
@@ -145,10 +145,9 @@ fun ActionButton(
     Row(
         modifier
             .heightIn(min = 48.dp)
-            // A soft glow, as iPhone's 16pt shadow. Elevation shadows in a light colour draw as a solid slab on Samsung phones.
-            .then(if (prominent) Modifier.dropShadow(RoundedCornerShape(12.dp), Glow(radius = 16.dp, color = ambient.copy(alpha = 0.45f))) else Modifier)
-            .clip(RoundedCornerShape(12.dp))
-            .background(if (prominent) Flexarr.screen else Flexarr.screen.copy(alpha = 0.14f))
+            .clip(RoundedCornerShape(Tokens.radiusControl))
+            // The main one in the title's colour lifted towards white, so room-coloured text reads on any of them.
+            .background(if (prominent) mainButtonFill(ambient) else Flexarr.screen.copy(alpha = 0.14f))
             .alpha(if (enabled) 1f else 0.5f)
             .pressable(onClick, enabled)
             .padding(horizontal = 20.dp),
@@ -164,16 +163,16 @@ fun ActionButton(
 
 /** A round action with its name underneath (the row under Play on a title's page). */
 @Composable
-fun LabeledAction(label: String, icon: ImageVector, onClick: () -> Unit, modifier: Modifier = Modifier, tint: Color = Flexarr.screen, iconSize: Dp = 22.dp) {
+fun LabeledAction(label: String, icon: ImageVector, onClick: () -> Unit, modifier: Modifier = Modifier, tint: Color = Flexarr.screen, iconSize: Dp = 22.dp, maxLines: Int = 1) {
     Column(modifier.pressable(onClick), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Box(Modifier.size(48.dp).clip(CircleShape).background(Flexarr.screen.copy(alpha = 0.14f)), contentAlignment = Alignment.Center) {
             Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(iconSize))
         }
-        // One line, smaller if it must be, so a long word is never split.
+        // One line (or [maxLines], breaking between words), smaller if it must be, so a long word is never split.
         BasicText(
             label,
-            style = TextStyle(fontWeight = FontWeight.Medium, color = Flexarr.usher, textAlign = TextAlign.Center, fontSize = 12.sp),
-            maxLines = 1,
+            style = TextStyle(fontWeight = FontWeight.Medium, color = Flexarr.usher, textAlign = TextAlign.Center, fontSize = 12.sp, lineHeight = 14.sp),
+            maxLines = maxLines,
             autoSize = TextAutoSize.StepBased(minFontSize = 9.sp, maxFontSize = 12.sp),
         )
     }

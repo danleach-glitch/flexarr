@@ -104,6 +104,7 @@ import androidx.compose.ui.semantics.stateDescription
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import io.github.flexarr.ui.theme.Tokens
 
 /**
  * A live channel, full screen and sideways, with the rewind window as its timeline. Closing it lets the channel go.
@@ -333,7 +334,7 @@ private fun LiveControls(controller: LiveTvController, onClose: () -> Unit, onPi
             Column(Modifier.weight(1f).padding(top = 2.dp)) {
                 Text(controller.title, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Flexarr.screen, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(controller.subtitle, fontSize = 15.sp, color = Flexarr.screen.copy(alpha = 0.8f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                controller.detail?.let { Text(it.uppercase(), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, maxLines = 1, modifier = Modifier.padding(top = 4.dp)) }
+                controller.detail?.let { Text(it, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, maxLines = 1, modifier = Modifier.padding(top = 4.dp)) }
             }
             GlassButton(Icons.AutoMirrored.Filled.List, "Channels", size = 44) { onChannels(); onInteract() }
             if (LocalContext.current.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
@@ -446,19 +447,19 @@ private fun PickerHeading(text: String) {
 @Composable
 private fun PickerRow(controller: LiveTvController, channel: LiveChannel, current: Boolean, onPick: (LiveChannel) -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(if (current) Flexarr.screen.copy(alpha = 0.07f) else Color.Transparent)
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(Tokens.radiusControl)).background(if (current) Flexarr.screen.copy(alpha = 0.07f) else Color.Transparent)
             .pressable({ onPick(channel) }).padding(horizontal = 14.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(channel.numberText, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Flexarr.usher, modifier = Modifier.width(36.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End)
-        Box(Modifier.size(76.dp, 43.dp).clip(RoundedCornerShape(6.dp)).background(Flexarr.room.copy(alpha = 0.8f)), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(76.dp, 43.dp).clip(RoundedCornerShape(Tokens.radiusArt)).background(Flexarr.room.copy(alpha = 0.8f)), contentAlignment = Alignment.Center) {
             AsyncImage(controller.client.imageUrl(channel.logoUrl, 300), contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize().padding(6.dp))
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(channel.now?.displayTitle ?: "No listings", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                if (channel.isFavourite) Icon(Icons.Filled.Star, contentDescription = "Favourite", tint = LiveGold, modifier = Modifier.size(12.dp))
+                if (channel.isFavourite) Icon(Icons.Filled.Star, contentDescription = "Favourite", tint = LiveStar, modifier = Modifier.size(12.dp))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(channel.name, fontSize = 12.sp, color = Flexarr.usher, maxLines = 1)
@@ -471,5 +472,5 @@ private fun PickerRow(controller: LiveTvController, channel: LiveChannel, curren
     }
 }
 
-/** Favourites' star. */
-internal val LiveGold = Color(0xFFF2C473)
+/** Favourites' star: projected white, never gold. */
+internal val LiveStar = Flexarr.screen

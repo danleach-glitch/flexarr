@@ -108,6 +108,7 @@ import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
+import io.github.flexarr.ui.theme.Tokens
 
 /**
  * Settings as a short list of pages, the way the system's own Settings works: each row says where it's set now, and
@@ -226,7 +227,7 @@ fun SettingsScreen(
                     // With podcasts, or an audiobooks library to listen to (none for a kids profile, or before 0.58).
                     if (model.podcastStatus?.available == true || model.hasAudiobooks) {
                         Divider()
-                        SettingsLink("Podcasts & audiobooks", Icons.Filled.Headphones, value = null, onClick = onListening)
+                        SettingsLink("Podcasts and audiobooks", Icons.Filled.Headphones, value = null, onClick = onListening)
                     }
                     // Only from servers that can save an order (0.54 on), and with more than one place to put in order.
                     val order = model.currentProfile?.libraryOrder
@@ -332,7 +333,7 @@ private fun ExternalLink(title: String, icon: ImageVector, onClick: () -> Unit) 
         horizontalArrangement = Arrangement.spacedBy(14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(29.dp).clip(RoundedCornerShape(7.dp)).background(Flexarr.aisle), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(29.dp).clip(RoundedCornerShape(Tokens.radiusControl)).background(Flexarr.aisle), contentAlignment = Alignment.Center) {
             Icon(icon, contentDescription = null, tint = Flexarr.screen, modifier = Modifier.size(17.dp))
         }
         Text(title, fontSize = 17.sp, color = Flexarr.screen, modifier = Modifier.weight(1f))
@@ -360,7 +361,7 @@ fun DownloadSettingsScreen(model: AppModel) {
             item { PageTitle("Downloads", onBack = { navigator.back() }) }
             item {
                 Group(
-                    header = "Films and episodes",
+                    header = "Movies and episodes",
                     footer = "The size Download starts with; a title’s page offers the others too. Original keeps the full picture and sound but takes the most space. Podcasts always come as their files are.",
                 ) {
                     listOf(DownloadQuality.Medium to "Automatic (720p)", DownloadQuality.Original to "Original", DownloadQuality.Small to "Small (480p)").forEachIndexed { index, (quality, label) ->
@@ -450,8 +451,8 @@ internal fun Toggle(label: String, on: Boolean, onChange: (Boolean) -> Unit, det
             onCheckedChange = null,
             enabled = enabled,
             colors = SwitchDefaults.colors(
-                checkedTrackColor = Flexarr.downloaded, checkedThumbColor = Flexarr.screen, uncheckedTrackColor = Flexarr.aisle, uncheckedThumbColor = Flexarr.usher, uncheckedBorderColor = Flexarr.aisle,
-                disabledCheckedTrackColor = Flexarr.downloaded.copy(alpha = 0.38f), disabledCheckedThumbColor = Flexarr.screen.copy(alpha = 0.6f),
+                checkedTrackColor = Flexarr.go, checkedThumbColor = Flexarr.screen, uncheckedTrackColor = Flexarr.aisle, uncheckedThumbColor = Flexarr.usher, uncheckedBorderColor = Flexarr.aisle,
+                disabledCheckedTrackColor = Flexarr.go.copy(alpha = 0.38f), disabledCheckedThumbColor = Flexarr.screen.copy(alpha = 0.6f),
                 disabledUncheckedTrackColor = Flexarr.aisle.copy(alpha = 0.38f), disabledUncheckedThumbColor = Flexarr.usher.copy(alpha = 0.38f),
                 disabledUncheckedBorderColor = Flexarr.aisle.copy(alpha = 0.38f),
             ),
@@ -705,8 +706,8 @@ private fun <T> List<T>.moved(from: Int, to: Int): List<T> = toMutableList().app
 @Composable
 internal fun Group(header: String? = null, footer: String? = null, content: @Composable () -> Unit) {
     Column(Modifier.padding(horizontal = Edge), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        header?.let { Text(it.uppercase(), fontSize = 13.sp, color = Flexarr.usher, modifier = Modifier.padding(horizontal = 16.dp)) }
-        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Flexarr.seat)) { content() }
+        header?.let { Text(it, fontSize = 13.sp, color = Flexarr.usher, modifier = Modifier.padding(horizontal = 16.dp)) }
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(Tokens.radiusPanel)).background(Flexarr.seat)) { content() }
         footer?.let { Text(it, fontSize = 13.sp, color = Flexarr.usher, modifier = Modifier.padding(horizontal = 16.dp)) }
     }
 }
@@ -722,7 +723,7 @@ internal fun SettingsLink(title: String, icon: ImageVector, value: String?, onCl
         horizontalArrangement = Arrangement.spacedBy(14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(29.dp).clip(RoundedCornerShape(7.dp)).background(Flexarr.aisle), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(29.dp).clip(RoundedCornerShape(Tokens.radiusControl)).background(Flexarr.aisle), contentAlignment = Alignment.Center) {
             Icon(icon, contentDescription = null, tint = Flexarr.screen, modifier = Modifier.size(17.dp))
         }
         Text(title, fontSize = 17.sp, color = Flexarr.screen, modifier = Modifier.weight(1f))

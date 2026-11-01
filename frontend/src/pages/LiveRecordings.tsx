@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { PageLoading } from '../components/PageStatus'
 import { Link } from 'react-router'
 import { ApiError, getRecordings, removeRecording, removeSeries, updateSeries, type Recording, type RecordingSeries } from '../api/client'
 import { AsyncButton, IconButton } from '../components/AsyncButton'
@@ -12,7 +13,7 @@ const day = new Intl.DateTimeFormat(undefined, { weekday: 'short', day: 'numeric
 
 function episode(r: Pick<Recording, 'season' | 'episode' | 'subtitle'>) {
   const number = r.season != null && r.episode != null ? `S${r.season} E${r.episode}` : null
-  return [number, r.subtitle].filter(Boolean).join(' · ')
+  return [number, r.subtitle].filter(Boolean).join('\u2003')
 }
 
 /** The DVR: what's coming up (and what clashes), the series being recorded, and what's been recorded. */
@@ -34,13 +35,13 @@ export default function LiveRecordings() {
 
   const data = recordings.data
   if (recordings.error && !data) return <p className="error">Couldn’t load the recordings: {recordings.error.message}</p>
-  if (!data) return <p className="page-message muted">Loading…</p>
+  if (!data) return <PageLoading />
 
   return (
     <div className="recordings">
       <p className="muted recordings-summary">
         Recordings go to <code>{data.folder}</code>
-        {data.freeBytes != null && <> · {formatSize(data.freeBytes)} free</>} · {data.streams === 1 ? 'one channel at a time' : `${data.streams} channels at a time`}
+        {data.freeBytes != null && <>{'\u2003'}{formatSize(data.freeBytes)} free</>}{'\u2003'}{data.streams === 1 ? 'one channel at a time' : `${data.streams} channels at a time`}
       </p>
       {error && (
         <p className="error" role="alert">
@@ -61,7 +62,7 @@ export default function LiveRecordings() {
                     {r.state === 'recording' && <RecordDot className="record-dot live" aria-label="Recording now" />} {r.title}
                   </strong>
                   <span className="muted">
-                    {[episode(r), r.channelName, `${day.format(new Date(r.start))} ${programmeTime(r)}`].filter(Boolean).join(' · ')}
+                    {[episode(r), r.channelName, `${day.format(new Date(r.start))} ${programmeTime(r)}`].filter(Boolean).join('\u2003')}
                   </span>
                   {r.clashes && <span className="error">Won’t record: every stream is wanted by recordings scheduled before it.</span>}
                 </div>
@@ -98,7 +99,7 @@ export default function LiveRecordings() {
                 <div>
                   <strong>{r.title}</strong>
                   <span className="muted">
-                    {[episode(r), r.channelName, day.format(new Date(r.start)), r.size != null && formatSize(r.size)].filter(Boolean).join(' · ')}
+                    {[episode(r), r.channelName, day.format(new Date(r.start)), r.size != null && formatSize(r.size)].filter(Boolean).join('\u2003')}
                   </span>
                   {r.reason && <span className={r.state === 'completed' ? 'muted' : 'error'}>{r.state === 'skipped' ? 'Not recorded: ' : r.state === 'failed' ? 'Failed: ' : ''}{r.reason}</span>}
                 </div>
@@ -130,7 +131,7 @@ function SeriesRow({ series, act }: { series: RecordingSeries; act: (action: () 
       <div>
         <strong>{series.title}</strong>
         <span className="muted">
-          {series.channelName ? `On ${series.channelName}` : 'On any channel'} · {series.upcoming} coming up · {series.recorded} recorded
+          {series.channelName ? `On ${series.channelName}` : 'On any channel'}{'\u2003'}{series.upcoming} coming up{'\u2003'}{series.recorded} recorded
         </span>
         <div className="record-options">
           <label>

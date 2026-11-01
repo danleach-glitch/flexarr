@@ -247,7 +247,7 @@ class WatchlistTest {
         assertEquals("inter stellar", server.takeRequest().url.queryParameter("q"))
         assertEquals(true, titles[0].onWatchlist)
         assertEquals("movie:157336", titles[0].key)
-        assertEquals("Film, 2014", titles[0].kindLine)
+        assertEquals("Movie, 2014", titles[0].kindLine)
         assertTrue(titles[0].canRequest)
         // A server before watchlists doesn't say.
         assertNull(titles[1].onWatchlist)
@@ -279,7 +279,7 @@ class WatchlistTest {
 
     @Test
     fun `an entry the library hasn't got says what it is`() {
-        assertEquals("Film, 2014", entry("a", "NotAvailable", null, year = 2014).kindLine)
+        assertEquals("Movie, 2014", entry("a", "NotAvailable", null, year = 2014).kindLine)
         assertEquals("Show, 2011", entry("b", "Coming", null, mediaType = "tv", year = 2011).kindLine)
     }
 }

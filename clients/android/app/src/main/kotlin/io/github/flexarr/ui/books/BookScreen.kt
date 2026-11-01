@@ -102,6 +102,7 @@ import io.github.flexarr.ui.theme.RoomBackground
 import io.github.flexarr.ui.theme.glowColor
 import io.github.flexarr.ui.theme.marquee
 import kotlinx.coroutines.launch
+import io.github.flexarr.ui.theme.Tokens
 
 // A book's page and a series' page, as the iPhone app's album and podcast pages are laid out: the square cover, the
 // title, who wrote and reads it, Play, then its chapters, bookmarks, notes and more like it.
@@ -130,7 +131,7 @@ fun bookActions(item: ItemSummary, showsDetails: Boolean, downloads: Boolean): L
 
 /** A square cover, with the title on the book's colour while it loads or when there's none. */
 @Composable
-internal fun BookCover(path: String?, title: String, accent: String?, modifier: Modifier = Modifier, imageWidth: Int = 600, corner: Dp = 8.dp) {
+internal fun BookCover(path: String?, title: String, accent: String?, modifier: Modifier = Modifier, imageWidth: Int = 600, corner: Dp = Tokens.radiusArt) {
     Box(modifier.aspectRatio(1f).clip(RoundedCornerShape(corner)).background(Flexarr.seat)) {
         RemoteImage(path, imageWidth, Modifier.fillMaxSize()) {
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(glowColor(accent).copy(alpha = 0.4f), Flexarr.seat))), contentAlignment = Alignment.Center) {
@@ -191,8 +192,7 @@ private fun BookPage(model: AppModel, detail: ItemDetail, defaultSpeed: Double, 
             Column(Modifier.fillMaxWidth().padding(horizontal = Edge), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 BookCover(
                     item.artwork.poster, item.title, item.accentColor,
-                    Modifier.widthIn(max = 260.dp).fillMaxWidth(0.68f).shadow(20.dp, RoundedCornerShape(10.dp), spotColor = Color.Black.copy(alpha = 0.5f)),
-                    corner = 10.dp,
+                    Modifier.widthIn(max = 260.dp).fillMaxWidth(0.68f).shadow(20.dp, RoundedCornerShape(Tokens.radiusArt), spotColor = Color.Black.copy(alpha = 0.5f)),
                 )
                 Box(Modifier.height(10.dp))
                 Text(item.title, style = marquee(28).copy(fontWeight = FontWeight.ExtraBold), textAlign = TextAlign.Center, maxLines = 3, overflow = TextOverflow.Ellipsis)
@@ -286,7 +286,7 @@ private fun BookPage(model: AppModel, detail: ItemDetail, defaultSpeed: Double, 
             item("chapters") {
                 val current = chapters.chapterAt(position).takeIf { position > 0 && !finished }
                 val shown = if (allChapters || chapters.size <= 8) chapters else chapters.take(maxOf(8, (current ?: 0) + 3))
-                Column(Modifier.padding(horizontal = Edge).clip(RoundedCornerShape(12.dp)).background(Flexarr.seat)) {
+                Column(Modifier.padding(horizontal = Edge).clip(RoundedCornerShape(Tokens.radiusPanel)).background(Flexarr.seat)) {
                     shown.forEachIndexed { index, chapter ->
                         ChapterRow(chapter, index, current, finished, position) { navigator.playBook(item, from = chapter.startSeconds) }
                     }
@@ -302,7 +302,7 @@ private fun BookPage(model: AppModel, detail: ItemDetail, defaultSpeed: Double, 
         if (bookmarks.isNotEmpty()) {
             item("bookmarks-heading") { SectionHeading("Bookmarks") }
             item("bookmarks") {
-                Column(Modifier.padding(horizontal = Edge).clip(RoundedCornerShape(12.dp)).background(Flexarr.seat)) {
+                Column(Modifier.padding(horizontal = Edge).clip(RoundedCornerShape(Tokens.radiusPanel)).background(Flexarr.seat)) {
                     bookmarks.forEach { bookmark ->
                         BookmarkRow(bookmark, onPlay = { navigator.playBook(item, from = bookmark.positionSeconds) }) {
                             if (playingThis) player.deleteBookmark(bookmark) else {
@@ -378,7 +378,7 @@ private fun People(people: List<Pair<String, String>>, prefix: String?) {
 private fun AuthorCard(author: BookAuthor) {
     val navigator = LocalNavigator.current
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Flexarr.seat)
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(Tokens.radiusPanel)).background(Flexarr.seat)
             .pressable({ navigator.openPerson(author.id, author.name) }, onClickLabel = "Open ${author.name}").padding(12.dp),
         horizontalArrangement = Arrangement.spacedBy(14.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -452,7 +452,7 @@ private fun BookDownloadAction(model: AppModel, item: ItemSummary) {
     Box {
         when {
             download == null -> LabeledAction("Download", Icons.Outlined.Download, { navigator.downloadBook(item) })
-            download.isDownloaded -> LabeledAction("Downloaded", Icons.Filled.ArrowCircleDown, { menu = true }, tint = Flexarr.downloaded)
+            download.isDownloaded -> LabeledAction("Downloaded", Icons.Filled.ArrowCircleDown, { menu = true }, tint = Flexarr.go)
             download.phase == LocalPhase.Failed -> LabeledAction("Try again", Icons.Outlined.Download, { navigator.downloadBook(item) }, tint = Flexarr.danger)
             else -> Column(Modifier.pressable({ menu = true }), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Box(Modifier.size(48.dp).clip(CircleShape).background(Flexarr.screen.copy(alpha = 0.14f)), contentAlignment = Alignment.Center) {
@@ -518,14 +518,14 @@ private fun SeriesPage(model: AppModel, series: BookSeries) {
             val book = entry.book
             val isNext = book.id == series.nextId
             Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(if (isNext) Flexarr.screen.copy(alpha = 0.08f) else Color.Transparent)
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(Tokens.radiusControl)).background(if (isNext) Flexarr.screen.copy(alpha = 0.08f) else Color.Transparent)
                     .pressable({ navigator.openBook(book.id) }).padding(8.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(entry.sequence ?: "", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Flexarr.usher, style = Tabular, modifier = Modifier.widthIn(min = 28.dp))
                 Box(Modifier.size(64.dp)) {
-                    BookCover(book.artwork.poster, book.title, book.accentColor, Modifier.fillMaxSize(), imageWidth = 185, corner = 6.dp)
+                    BookCover(book.artwork.poster, book.title, book.accentColor, Modifier.fillMaxSize(), imageWidth = 185)
                     if (book.isBookFinished) WatchedBadge(Modifier.align(Alignment.TopEnd).padding(3.dp))
                 }
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {

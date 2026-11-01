@@ -101,7 +101,7 @@ struct PodcastsView: View {
     @ViewBuilder
     private var upNextSection: some View {
         HStack(alignment: .firstTextBaseline) {
-            Text("Up Next")
+            Text("Up next")
                 .font(.marquee(26, weight: .bold))
                 .foregroundStyle(Color.screen)
             Spacer()

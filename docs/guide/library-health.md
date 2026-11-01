@@ -1,23 +1,23 @@
 ---
 title: Library health
-description: Find spare copies and the space they use, files that can't be read, standard-definition films and wrong matches, and fix them with Sonarr and Radarr.
+description: Find spare copies and the space they use, files that can't be read, standard-definition movies and wrong matches, and fix them with Sonarr and Radarr.
 ---
 
-Library health is a check-up for your films and TV. It shows what's wrong, how much space spare copies take, and a button to fix each problem, usually by asking Sonarr or Radarr to do the work.
+Library health is a check-up for your movies and TV. It shows what's wrong, how much space spare copies take, and a button to fix each problem, usually by asking Sonarr or Radarr to do the work.
 
 Open it in the web app from **Settings › Libraries › Library health**, as the main profile with settings unlocked. The **Overview** page in Settings links to it too.
 
-![Library health with a score of 99, Run health check, a film that only exists in standard definition and one missing artwork](../../site/guide/img/health.webp "Settings › Libraries › Library health")
+![Library health with a score of 99, Run health check, a movie that only exists in standard definition and one missing artwork](../../site/guide/img/health.webp "Settings › Libraries › Library health")
 
 ## The health score
 
-At the top is a score out of 100: the share of your films and episodes with nothing wrong. Next to it is a breakdown of what's affecting the rest, such as spare copies, unreadable files or missing artwork.
+At the top is a score out of 100: the share of your movies and episodes with nothing wrong. Next to it is a breakdown of what's affecting the rest, such as spare copies, unreadable files or missing artwork.
 
-Groups with nothing in them are left out, and a line underneath says what's all clear ("every title has a single copy", "every film has an HD copy").
+Groups with nothing in them are left out, and a line underneath says what's all clear ("every title has a single copy", "every movie has an HD copy").
 
 ## Spare copies
 
-Sometimes a film or episode ends up with more than one file: an upgrade that didn't replace the old one, or the same file in two folders. **Spare copies** lists each one, how many copies it has and how much space the spares use. The total you'd free is in the group's description.
+Sometimes a movie or episode ends up with more than one file: an upgrade that didn't replace the old one, or the same file in two folders. **Spare copies** lists each one, how many copies it has and how much space the spares use. The total you'd free is in the group's description.
 
 - **Remove spares** on a title deletes its extra files.
 - **Remove all spare copies** does the whole list, after asking first, with a progress bar.
@@ -38,28 +38,28 @@ Files Flexarr couldn't open when it scanned them are listed under **Files that c
 
 From the next release, audiobooks bought from Audible as `.aax` or `.aaxc` files are listed here too, as protected by Audible's DRM. Flexarr can't play them. Convert them to `.m4b` with a tool that uses your own Audible account, put the `.m4b` in the book's folder in place of the original, and rescan.
 
-## Standard-definition films
+## Standard-definition movies
 
-**Only in standard definition** lists films whose best copy is below 720p. **Find a better copy** asks Radarr to search for the film again, so it can upgrade it within the quality profile you've set in Radarr.
+**Only in standard definition** lists movies whose best copy is below 720p. **Find a better copy** asks Radarr to search for the movie again, so it can upgrade it within the quality profile you've set in Radarr.
 
 When Sonarr or Radarr are already fetching a new copy, the row shows how far along it is ("Downloading 45%") instead of the button.
 
 ## Check these matches
 
-Films and shows that Sonarr and Radarr don't manage get their details by searching for the folder's name. That can find the wrong title: an older show with the same name, or a remake. They're listed under **Check these matches**.
+Movies and shows that Sonarr and Radarr don't manage get their details by searching for the folder's name. That can find the wrong title: an older show with the same name, or a remake. They're listed under **Check these matches**.
 
 - If a match is right, choose **Ignore**. It leaves the list and stays as it is.
 - If it's wrong, choose **Fix match** (below).
 
 ## Missing artwork
 
-Titles with no poster or details are listed under **Missing artwork**. Artwork comes from `.nfo` files and pictures beside the title, from Radarr and Sonarr, from TVmaze for shows, and from TMDB for films if you've added a key. If Radarr and Sonarr aren't connected, connect them in **Settings › Connections** ([Connect Sonarr, Radarr, Lidarr and Seerr](connect-arrs.md)), or see [Without Sonarr and Radarr](without-arrs.md). Otherwise the title wasn't found: fix its match, or rename its folder to the form `Title (Year)` and rescan.
+Titles with no poster or details are listed under **Missing artwork**. Artwork comes from `.nfo` files and pictures beside the title, from Radarr and Sonarr, from TVmaze for shows, and from TMDB for movies if you've added a key. If Radarr and Sonarr aren't connected, connect them in **Settings › Connections** ([Connect Sonarr, Radarr, Lidarr and Seerr](connect-arrs.md)), or see [Without Sonarr and Radarr](without-arrs.md). Otherwise the title wasn't found: fix its match, or rename its folder to the form `Title (Year)` and rescan.
 
 ## Fix match
 
-**Fix match** puts right a film or show that's been matched to the wrong title. It's on each row in Check these matches and Missing artwork, and in the **⋯** menu on any film's or show's page (main profile only).
+**Fix match** puts right a movie or show that's been matched to the wrong title. It's on each row in Check these matches and Missing artwork, and in the **⋯** menu on any movie's or show's page (main profile only).
 
-1. Choose **Fix match**. The dialog shows the full path of the film's files, or the show's folder, so you can see what's being matched.
+1. Choose **Fix match**. The dialog shows the full path of the movie's files, or the show's folder, so you can see what's being matched.
 2. Search for the right title. Try the title as it was first released, or add the year.
 3. Pick it. Each result says whether it's the **Current match**, already in Sonarr or Radarr, or would be added to them.
 
@@ -71,9 +71,9 @@ To undo a fix, open Fix match again and choose **Match automatically again**.
 
 ## Deleting a title
 
-To delete a film, show, episode or audiobook, open its page, then **⋯ › Delete…** (main profile only). The dialog says who'll do the deleting before you confirm:
+To delete a movie, show, episode or audiobook, open its page, then **⋯ › Delete…** (main profile only). The dialog says who'll do the deleting before you confirm:
 
-- **A film Radarr manages:** Radarr deletes the film's files from disk and stops tracking it.
+- **A movie Radarr manages:** Radarr deletes the movie's files from disk and stops tracking it.
 - **A show Sonarr manages:** Sonarr deletes every episode's files and stops tracking the show.
 - **An episode:** Sonarr deletes the episode's file and stops downloading it, so it doesn't come back.
 - **A title neither manages, or an audiobook** (from the next release): Flexarr deletes the files itself and lists them first. It also removes folders left empty, but never a library's own folder or anything outside it.

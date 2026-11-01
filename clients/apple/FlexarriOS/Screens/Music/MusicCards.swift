@@ -18,14 +18,14 @@ struct SquareArtwork: View {
                     ZStack {
                         LinearGradient(colors: [item.glowColor.opacity(0.4), Color.seat], startPoint: .top, endPoint: .bottom)
                         Text(circular ? initials : item.title)
-                            .font(.marquee(circular ? 28 : 16, weight: .bold))
+                            .font(.marquee(circular ? 28 : 16, weight: .bold, scales: false))
                             .foregroundStyle(Color.screen.opacity(0.8))
                             .multilineTextAlignment(.center)
                             .padding(8)
                     }
                 }
             }
-            .clipShape(circular ? AnyShape(Circle()) : AnyShape(RoundedRectangle(cornerRadius: 6, style: .continuous)))
+            .clipShape(circular ? AnyShape(Circle()) : AnyShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous)))
     }
 
     private var initials: String {
@@ -202,7 +202,7 @@ struct TrackRow: View {
             .padding(.horizontal, 12)
             .background {
                 if isCurrent {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.screen.opacity(0.1))
+                    RoundedRectangle(cornerRadius: Radius.panel, style: .continuous).fill(Color.screen.opacity(0.1))
                 }
             }
             .opacity(isDimmed ? 0.45 : 1)

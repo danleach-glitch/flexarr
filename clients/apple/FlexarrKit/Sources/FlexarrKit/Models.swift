@@ -441,6 +441,14 @@ public struct UpcomingItem: Codable, Sendable, Identifiable, Hashable {
     /// The title in the library, when it's there already (a show with a new episode).
     public var libraryItemId: String? = nil
     public var download: UpcomingDownload? = nil
+    /// The episode's or film's overview. Optional: not every server sends it.
+    public var overview: String? = nil
+    /// In the library and ready to watch. Optional: not every server sends it.
+    public var available: Bool? = nil
+    /// The Sonarr or Radarr it comes from, by name. Absent from older servers.
+    public var source: String? = nil
+    /// Its page in that app's web UI. Absent from older servers.
+    public var manageUrl: String? = nil
 
     public init(id: String, kind: MediaKind, title: String, seriesTitle: String? = nil, seasonNumber: Int? = nil, episodeNumber: Int? = nil,
                 date: Date, when: String, poster: String? = nil, still: String? = nil, libraryItemId: String? = nil, download: UpcomingDownload? = nil) {

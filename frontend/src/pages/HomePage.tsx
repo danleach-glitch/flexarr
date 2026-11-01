@@ -1,4 +1,5 @@
 import { Fragment, useEffect } from 'react'
+import { PageError } from '../components/PageStatus'
 import { Link, Navigate } from 'react-router'
 import { getHome, getNewEpisodes, getSetupGuide, type Library } from '../api/client'
 import { EpisodeCard } from '../components/EpisodeCard'
@@ -36,7 +37,7 @@ export function HomePage() {
   const admin = me?.isAdmin === true
   const guide = useApi((signal) => (main ? getSetupGuide(signal).catch(() => null) : Promise.resolve(null)), [main])
 
-  if (error) return <p className="page-message error">{error.message}</p>
+  if (error) return <PageError error={error} onRetry={reload} />
   if (!data || guide.loading) return <div className="hero hero-loading" aria-busy="true" />
   // A new server, with nothing set up and the guide never opened: start there.
   if (guide.data && !guide.data.opened && !guide.data.dismissed && !guide.data.apps && !guide.data.libraries && !data.rows.some((r) => r.style === 'live')) return <Navigate to="/setup" replace />
@@ -49,7 +50,7 @@ export function HomePage() {
     return (
       <section className="welcome">
         <h1>Nothing to watch yet</h1>
-        <p>Point Flexarr at the folders where your films and shows live, and they'll appear here with artwork.</p>
+        <p>Point Flexarr at the folders where your movies and shows live, and they'll appear here with artwork.</p>
         <div className="welcome-actions">
           {admin && (
             <Link className="button" to="/setup">
@@ -109,7 +110,7 @@ export function HomePage() {
   )
 }
 
-const kinds: Record<Library['type'], string> = { Movies: 'films', TvShows: 'shows', Music: 'music', Podcasts: 'podcasts', HomeVideos: 'home videos', Audiobooks: 'audiobooks' }
+const kinds: Record<Library['type'], string> = { Movies: 'movies', TvShows: 'shows', Music: 'music', Podcasts: 'podcasts', HomeVideos: 'home videos', Audiobooks: 'audiobooks' }
 
 /** Libraries are there but hold nothing Flexarr recognised: still scanning, or nothing found in their folders. */
 /** A child's Home with nothing to watch yet: one line. */

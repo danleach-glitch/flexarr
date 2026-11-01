@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { PageLoading } from '../components/PageStatus'
 import { Link, useSearchParams } from 'react-router'
 import { getWatchlist, imageUrl, type WatchlistEntry, type WatchlistStatus } from '../api/client'
 import { PosterCard } from '../components/Cards'
@@ -81,8 +82,8 @@ export function WatchlistPage() {
             <div className="watchlist-tools">
               <div className="genre-chips" role="group" aria-label="Kind">
                 {[
-                  ['', 'Films and shows'],
-                  ['movie', 'Films'],
+                  ['', 'Movies and shows'],
+                  ['movie', 'Movies'],
                   ['tv', 'Shows'],
                 ].map(([value, label]) => (
                   <button key={value} className="chip" aria-pressed={kind === value} onClick={() => setParam('kind', value)}>
@@ -101,7 +102,7 @@ export function WatchlistPage() {
         )}
       </header>
       {error && <p className="error">{error.message}</p>}
-      {!data && !error && <p className="page-message muted">Loading…</p>}
+      {!data && !error && <PageLoading />}
       {data && data.length === 0 && <p className="muted">Nothing here yet.</p>}
       {data && data.length > 0 && shown.length === 0 && <p className="muted">Nothing on your watchlist matches.</p>}
       <div className="poster-grid">
@@ -148,7 +149,7 @@ function WatchlistCard({ entry, onRemoved }: { entry: WatchlistEntry; onRemoved:
         </div>
       </Link>
       <span className="card-title">{entry.title}</span>
-      <span className="card-subtitle">{[entry.mediaType === 'tv' ? 'Show' : 'Film', entry.year].filter(Boolean).join(', ')}</span>
+      <span className="card-subtitle">{[entry.mediaType === 'tv' ? 'Show' : 'Movie', entry.year].filter(Boolean).join(', ')}</span>
       {entry.streaming && entry.streaming.length > 0 && (
         <span className="card-subtitle watchlist-streaming" title={entry.streaming.join(', ')}>
           {entry.streaming.length === 1 ? `On ${entry.streaming[0]}` : entry.streaming.join(', ')}

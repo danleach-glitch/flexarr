@@ -83,7 +83,7 @@ class SleepTimer(private val scope: CoroutineScope) {
 
     /** "Sleep timer · 12 min left" while minutes run. */
     val menuTitle: String
-        get() = remaining?.let { "Sleep timer · ${kotlin.math.ceil(it / 60).toInt()} min left" } ?: "Sleep timer"
+        get() = remaining?.let { "Sleep timer, ${kotlin.math.ceil(it / 60).toInt()} min left" } ?: "Sleep timer"
 
     companion object {
         /** The lengths offered, in minutes. */

@@ -13,7 +13,7 @@ import Foundation
 /// A film, show or followed podcast in the library, as Siri and Shortcuts see it. A podcast's id is marked
 /// (`podcast:…`), so it's looked up as one: its page would carry every episode.
 struct TitleEntity: AppEntity {
-    static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Film, show or podcast")
+    static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Movie, show or podcast")
     static let defaultQuery = TitleQuery()
     static let podcastPrefix = "podcast:"
 
@@ -40,8 +40,8 @@ struct TitleEntity: AppEntity {
     var podcastId: String? { id.hasPrefix(Self.podcastPrefix) ? String(id.dropFirst(Self.podcastPrefix.count)) : nil }
 
     var displayRepresentation: DisplayRepresentation {
-        let what = kind == .series ? "Show" : kind == .movie ? "Film" : kind == .podcast ? "Podcast" : nil
-        let subtitle = [year.map(String.init), what].compactMap { $0 }.joined(separator: " · ")
+        let what = kind == .series ? "Show" : kind == .movie ? "Movie" : kind == .podcast ? "Podcast" : nil
+        let subtitle = [year.map(String.init), what].compactMap { $0 }.joined(separator: ", ")
         return DisplayRepresentation(title: "\(title)", subtitle: subtitle.isEmpty ? nil : "\(subtitle)")
     }
 }
@@ -92,7 +92,7 @@ struct TitleQuery: EntityStringQuery {
 /// A film or show for the watchlist: one in the library, or one Flexarr can find that you don't have yet ("Add
 /// Severance to my watchlist" for a show not in the library). Play keeps to `TitleEntity`, the library's.
 struct WatchlistTitleEntity: AppEntity {
-    static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Film or show")
+    static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Movie or show")
     static let defaultQuery = WatchlistTitleQuery()
     static let outsidePrefix = "tmdb:"
 
@@ -131,8 +131,8 @@ struct WatchlistTitleEntity: AppEntity {
     }
 
     var displayRepresentation: DisplayRepresentation {
-        let what = kind == .series ? "Show" : "Film"
-        return DisplayRepresentation(title: "\(title)", subtitle: "\([year.map(String.init), what].compactMap { $0 }.joined(separator: " · "))")
+        let what = kind == .series ? "Show" : "Movie"
+        return DisplayRepresentation(title: "\(title)", subtitle: "\([year.map(String.init), what].compactMap { $0 }.joined(separator: ", "))")
     }
 }
 
@@ -430,11 +430,11 @@ enum Play {
 /// "Play the next episode of Curb Your Enthusiasm in Flexarr": a show plays the episode this profile is up to, a film
 /// plays (resuming where it was left).
 struct PlayTitleIntent: AppIntent {
-    static let title: LocalizedStringResource = "Play a film or show"
-    static let description = IntentDescription("Plays a film, or the next episode of a show: here, or on another device signed in to your Flexarr server.",
+    static let title: LocalizedStringResource = "Play a movie or show"
+    static let description = IntentDescription("Plays a movie, or the next episode of a show: here, or on another device signed in to your Flexarr server.",
                                                categoryName: "Playback")
 
-    @Parameter(title: "Film or show", requestValueDialog: "What would you like to watch?")
+    @Parameter(title: "Movie or show", requestValueDialog: "What would you like to watch?")
     var title: TitleEntity
 
     @Parameter(title: "On")
@@ -443,7 +443,7 @@ struct PlayTitleIntent: AppIntent {
     @Parameter(title: "From the beginning", default: false)
     var fromBeginning: Bool
 
-    @Parameter(title: "As", description: "The profile to play it as: its next episode, and its Continue Watching. It asks for the PIN if the profile has one.")
+    @Parameter(title: "As", description: "The profile to play it as: its next episode, and its Continue watching. It asks for the PIN if the profile has one.")
     var profile: ProfileEntity?
 
     @Dependency private var model: AppModel
@@ -509,10 +509,10 @@ struct NewPodcastEpisodesIntent: AppIntent {
     }
 }
 
-/// "Add The Rest Is History to Up Next in Flexarr": its episode to hear next goes at the end of Up Next.
+/// "Add The Rest Is History to Up Next in Flexarr": its episode to hear next goes at the end of Up next.
 struct AddToUpNextIntent: AppIntent {
-    static let title: LocalizedStringResource = "Add a podcast to Up Next"
-    static let description = IntentDescription("Puts the next episode of a podcast you follow at the end of Up Next.", categoryName: "Podcasts")
+    static let title: LocalizedStringResource = "Add a podcast to Up next"
+    static let description = IntentDescription("Puts the next episode of a podcast you follow at the end of Up next.", categoryName: "Podcasts")
 
     @Parameter(title: "Podcast", requestValueDialog: "Which podcast?")
     var podcast: PodcastEntity
@@ -520,7 +520,7 @@ struct AddToUpNextIntent: AppIntent {
     @Dependency private var model: AppModel
 
     static var parameterSummary: some ParameterSummary {
-        Summary("Add \(\.$podcast) to Up Next")
+        Summary("Add \(\.$podcast) to Up next")
     }
 
     @MainActor
@@ -528,16 +528,16 @@ struct AddToUpNextIntent: AppIntent {
         guard let client = model.client else { throw FlexarrIntentError.notConnected }
         guard let episode = try await Podcasts.nextToHear(podcast.id, client: client) else { throw FlexarrIntentError.nothingToPlay(podcast.title) }
         await model.addToUpNext(episode.id, next: false)
-        return .result(dialog: "Added \(episode.title) to Up Next.")
+        return .result(dialog: "Added \(episode.title) to Up next.")
     }
 }
 
 /// "Add Severance to my watchlist in Flexarr": a film or show from the library, for this profile to watch later.
 struct AddToWatchlistIntent: AppIntent {
     static let title: LocalizedStringResource = "Add to watchlist"
-    static let description = IntentDescription("Puts a film or show on your watchlist, to watch later, whether you have it yet or not.", categoryName: "Watchlist")
+    static let description = IntentDescription("Puts a movie or show on your watchlist, to watch later, whether you have it yet or not.", categoryName: "Watchlist")
 
-    @Parameter(title: "Film or show", requestValueDialog: "What would you like to add?")
+    @Parameter(title: "Movie or show", requestValueDialog: "What would you like to add?")
     var title: WatchlistTitleEntity
 
     @Dependency private var model: AppModel
@@ -565,8 +565,8 @@ struct AddToWatchlistIntent: AppIntent {
 
 /// "Play my Up Next in Flexarr": the first episode in Up Next (the rest follow by themselves).
 struct PlayUpNextIntent: AppIntent {
-    static let title: LocalizedStringResource = "Play Up Next"
-    static let description = IntentDescription("Plays the podcast episodes in your Up Next, from the first.", categoryName: "Podcasts")
+    static let title: LocalizedStringResource = "Play Up next"
+    static let description = IntentDescription("Plays the podcast episodes in your Up next, from the first.", categoryName: "Podcasts")
 
     @Parameter(title: "On")
     var device: DeviceEntity?
@@ -574,13 +574,13 @@ struct PlayUpNextIntent: AppIntent {
     @Dependency private var model: AppModel
 
     static var parameterSummary: some ParameterSummary {
-        Summary("Play Up Next on \(\.$device)")
+        Summary("Play Up next on \(\.$device)")
     }
 
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog & OpensIntent {
         guard let client = model.client else { throw FlexarrIntentError.notConnected }
-        guard let first = try await client.upNext().first else { throw FlexarrIntentError.nothingToPlay("Up Next") }
+        guard let first = try await client.upNext().first else { throw FlexarrIntentError.nothingToPlay("Up next") }
         return try await Play.start(first.summary, on: Play.target(device), model: model)
     }
 }
@@ -619,7 +619,7 @@ struct ShuffleTitleIntent: AppIntent {
 /// "Continue watching in Flexarr": the top of Continue Watching.
 struct ContinueWatchingIntent: AppIntent {
     static let title: LocalizedStringResource = "Continue watching"
-    static let description = IntentDescription("Picks up the film or episode you were in the middle of most recently.", categoryName: "Playback")
+    static let description = IntentDescription("Picks up the movie or episode you were in the middle of most recently.", categoryName: "Playback")
 
     @Parameter(title: "On")
     var device: DeviceEntity?
@@ -635,7 +635,7 @@ struct ContinueWatchingIntent: AppIntent {
         guard let client = model.client else { throw FlexarrIntentError.notConnected }
         let home = try await client.home()
         guard let item = home.rows.first(where: { $0.id == "continue" })?.items.first ?? home.featured.first else {
-            throw FlexarrIntentError.nothingToPlay("Continue Watching")
+            throw FlexarrIntentError.nothingToPlay("Continue watching")
         }
         return try await Play.start(item, on: Play.target(device), model: model)
     }
@@ -1018,7 +1018,7 @@ struct FlexarrShortcuts: AppShortcutsProvider {
                 "Play \(\.$title) with \(.applicationName)",
                 "Play something in \(.applicationName)",
             ],
-            shortTitle: "Play a film or show",
+            shortTitle: "Play a movie or show",
             systemImageName: "play.fill"
         )
         AppShortcut(
@@ -1089,7 +1089,7 @@ struct FlexarrShortcuts: AppShortcutsProvider {
                 "Add \(\.$podcast) to Up Next in \(.applicationName)",
                 "Add \(\.$podcast) to my Up Next in \(.applicationName)",
             ],
-            shortTitle: "Add to Up Next",
+            shortTitle: "Add to Up next",
             systemImageName: "text.line.last.and.arrowtriangle.forward"
         )
         // Books and podcast episodes share this one (Apple allows ten): whichever played last. Play Up Next stays in the

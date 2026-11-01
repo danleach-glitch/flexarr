@@ -47,7 +47,7 @@ public static partial class DeleteEndpoints
 
             if (item.Kind is not (MediaKind.Movie or MediaKind.Series or MediaKind.Episode or MediaKind.Audiobook))
             {
-                return Results.Problem("Only films, shows, episodes and audiobooks can be deleted.", statusCode: 400);
+                return Results.Problem("Only movies, shows, episodes and audiobooks can be deleted.", statusCode: 400);
             }
 
             if (item.Kind == MediaKind.Audiobook)

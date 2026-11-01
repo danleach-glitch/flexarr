@@ -83,6 +83,7 @@ import io.github.flexarr.ui.theme.RoomBackground
 import io.github.flexarr.ui.theme.marquee
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import io.github.flexarr.ui.theme.Tokens
 
 private sealed interface Step {
     data object Choose : Step
@@ -218,7 +219,7 @@ private fun ChooseServer(
 @Composable
 private fun ChoiceRow(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, detail: String?, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Flexarr.seat).pressable(onClick).padding(horizontal = 16.dp, vertical = 13.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(Tokens.radiusPanel)).background(Flexarr.seat).pressable(onClick).padding(horizontal = 16.dp, vertical = 13.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -236,12 +237,12 @@ private fun ChoiceRow(icon: androidx.compose.ui.graphics.vector.ImageVector, tit
 private fun NewToFlexarr(modifier: Modifier = Modifier) {
     val uri = LocalUriHandler.current
     Column(
-        modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Flexarr.seat)
-            .border(1.dp, Flexarr.silver.copy(alpha = 0.22f), RoundedCornerShape(18.dp)).padding(18.dp),
+        modifier.fillMaxWidth().clip(RoundedCornerShape(Tokens.radiusPanel)).background(Flexarr.seat)
+            .border(1.dp, Flexarr.silver.copy(alpha = 0.22f), RoundedCornerShape(Tokens.radiusPanel)).padding(18.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            Box(Modifier.size(44.dp).clip(RoundedCornerShape(12.dp)).background(Flexarr.silver.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(44.dp).clip(RoundedCornerShape(Tokens.radiusControl)).background(Flexarr.silver.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
                 Icon(Icons.Filled.Dns, contentDescription = null, tint = Flexarr.silver)
             }
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -402,10 +403,11 @@ private fun NumberedStep(number: Int, content: @Composable () -> Unit) {
 private fun ErrorNote(message: String) {
     Row(
         // Read out when it appears.
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0x996B3347)).padding(14.dp).semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(Tokens.radiusPanel)).background(Flexarr.seat)
+            .border(1.dp, Flexarr.danger.copy(alpha = 0.5f), RoundedCornerShape(Tokens.radiusPanel)).padding(14.dp).semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Icon(Icons.Filled.Warning, contentDescription = null, tint = Flexarr.screen, modifier = Modifier.size(18.dp))
+        Icon(Icons.Filled.Warning, contentDescription = null, tint = Flexarr.danger, modifier = Modifier.size(18.dp))
         Text(message, fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Flexarr.screen)
     }
 }
@@ -505,7 +507,7 @@ private fun ManualConnect(model: AppModel, onPair: (DiscoveredServer) -> Unit, o
 private fun Field(title: String, content: @Composable () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher)
-        Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Flexarr.seat).padding(12.dp)) { content() }
+        Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(Tokens.radiusPanel)).background(Flexarr.seat).padding(12.dp)) { content() }
     }
 }
 

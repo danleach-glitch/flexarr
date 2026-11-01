@@ -54,6 +54,7 @@ import io.github.flexarr.core.relativeTime
 import io.github.flexarr.core.syncTraktNow
 import io.github.flexarr.ui.settings.rememberTrakt
 import io.github.flexarr.ui.theme.Flexarr
+import io.github.flexarr.ui.theme.Tokens
 
 /**
  * This profile's Trakt account on the TV, as the Apple TV's TraktSettingsView: connect with a code and a QR code of
@@ -200,7 +201,7 @@ internal fun TvTraktSettings(model: AppModel) {
     if (confirmDisconnect) {
         val cancel = remember { FocusRequester() }
         Dialog(onDismissRequest = { confirmDisconnect = false }) {
-            Column(Modifier.width(400.dp).background(Flexarr.seat, RoundedCornerShape(14.dp)).padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Column(Modifier.width(400.dp).background(Flexarr.seat, RoundedCornerShape(Tokens.radiusPanel)).padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Text(TraktWords.DISCONNECT_TITLE, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 Text(TraktWords.DISCONNECT_TEXT, fontSize = 14.sp, color = Flexarr.usher)
                 Row(Modifier.fillMaxWidth().height(44.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
