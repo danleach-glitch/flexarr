@@ -3,21 +3,21 @@ title: Downloads
 description: Keep films, episodes, albums, playlists and podcasts on your iPhone or iPad to watch and listen with no connection.
 ---
 
-The iPhone and iPad app can keep films, episodes, albums, playlists and podcast episodes on the device, for a flight, a train or anywhere without a signal. Downloads are on iPhone and iPad only.
+The iPhone and iPad app can keep films, episodes, albums, playlists and podcast episodes on the device, for a flight, a train or anywhere without a signal. In the next release, [audiobooks](audiobooks.md) too.
 
 ## Downloading something
 
-Tap the download button on a film's or episode's page, on an album or playlist, or on a podcast episode. It starts straight away.
+Tap the download button on a film's or episode's page, on an album or playlist, or on a podcast episode. It starts straight away, at the size you chose (see [Picture size](#picture-size)).
 
 The button shows how it's going:
 
 - **An hourglass, "Getting ready":** your server is preparing it.
 - **Wi-Fi:** it's waiting for Wi-Fi.
-- **A filling ring:** it's coming down to the device.
-- **A green tick:** it's ready to play with no connection.
+- **A filling ring:** it's coming down to the device. Podcast episodes show the ring from the start.
+- **A green arrow:** it's ready to play with no connection. (A tick means watched or played.)
 - **An exclamation mark:** it failed. Tap it to see why, and to **Try again**.
 
-Tap the button while a download is under way to stop or remove it. Downloads carry on with the app closed, and pick up where they left off if interrupted.
+Tap the button while a download is under way, or once it's here, to remove it. Downloads carry on with the app closed, and pick up where they left off if the connection drops or the phone locks.
 
 Everything you've downloaded is in the **Downloads** tab, where it plays with Skip Intro and the countdown to the next episode as usual.
 
@@ -48,6 +48,11 @@ In **Settings › Downloads**:
 - **Download the next episode:** on by default. Once you've downloaded an episode, the next one downloads too. Episodes are deleted a day after you finish them.
 - **Automatic downloads on Wi-Fi only:** on by default. Downloads the app starts by itself, like the next episode or new podcast episodes, wait for Wi-Fi. Turn this off to let them use mobile data too.
 
+In the next release, two more for audiobooks, both off to start with:
+
+- **Download the next book in a series:** when you finish a book, the next one in its series downloads.
+- **Remove books once finished:** a book is deleted once you've heard it.
+
 Automatic downloads never use Low Data Mode. Downloads you start yourself use mobile data as well as Wi-Fi.
 
 For podcasts, **Auto-download new episodes** in **Settings › Podcasts** keeps the newest unplayed episodes of every show you follow on the device. See [Podcasts](podcasts.md).
@@ -57,6 +62,8 @@ For podcasts, **Auto-download new episodes** in **Settings › Podcasts** keeps 
 **Settings › Downloads** shows the space your downloads use, under **Storage**, and has **Delete all downloads**.
 
 To remove one thing, tap its download button and remove it. A podcast episode you delete is never downloaded again by itself.
+
+A podcast episode is deleted as soon as you've heard it to the end or marked it played, here or on another device.
 
 Signing out of the server on the device deletes its downloads.
 

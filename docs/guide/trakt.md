@@ -7,9 +7,9 @@ Connect a profile to your [Trakt](https://trakt.tv) account and Flexarr keeps th
 
 ## Connecting
 
-1. Open **Settings › Trakt** in the web app, on iPhone, iPad or Android, or on the Apple TV or Android TV.
+1. Open **Settings › Trakt** in the web app, on iPhone or iPad, or on the Apple TV.
 2. Choose **Connect**. Flexarr shows a code.
-3. On any phone or computer, go to **trakt.tv/activate** and enter the code. On a TV, scan the QR code to open that page on your phone. On iPhone and Android, **Copy code and open Trakt** copies the code and opens the page; on the web, **Copy code**.
+3. On any phone or computer, go to **trakt.tv/activate** and enter the code. On a TV, scan the QR code to open that page on your phone. On iPhone, **Copy code and open Trakt** copies the code and opens the page; on the web, **Copy code**.
 
 You don't need to wait on that screen: your server waits for the code for 10 minutes. Once you've entered it, Settings › Trakt shows your Trakt name.
 
@@ -47,7 +47,7 @@ Everything a connected profile watches goes to Trakt, whichever library it's in,
 ## Lists and picks
 
 - **Lists**: in **Settings › Trakt**, choose any of your Trakt lists, or ones you've liked, and each shows up in **Collections** on the web, just for you, kept in step with Trakt. Titles on the list that are here show as usual. Films that aren't here show with **Request**.
-- **For you, from Trakt**: once you're connected, Discover on the web, Apple TV and Android TV has a row of Trakt's picks for you, with titles you have first and ones you've watched left out.
+- **For you, from Trakt**: once you're connected, Discover on the web and Apple TV has a row of Trakt's picks for you, with titles you have first and ones you've watched left out.
 
 ## If something's wrong
 
@@ -56,7 +56,7 @@ Everything a connected profile watches goes to Trakt, whichever library it's in,
 | **Trakt signed Flexarr out** | You revoked Flexarr on trakt.tv, or it wasn't used for months. Choose **Connect** again; your history stays. |
 | **Trakt's watchlist is full** | A free Trakt account holds a limited number of titles. New titles stay on Flexarr's watchlist; make room on Trakt and they'll go across. |
 | **Waiting to send** | Trakt or your internet is down. Flexarr keeps the changes and sends them when it can. |
-| No **Trakt** in Settings | Kids profiles don't have Trakt. Otherwise, your server can't reach Flexarr's Trakt service. Check it can reach the internet. |
+| No **Trakt** in Settings, or **Trakt isn't available on this server.** on the web | Kids profiles don't have Trakt. Otherwise, your server can't reach Flexarr's Trakt service. Check it can reach the internet. |
 
 **Disconnect** in **Settings › Trakt** stops it all and makes Trakt forget Flexarr. What you've watched stays as it is, in both places. Making a profile a kids profile, or removing it, disconnects it too.
 
