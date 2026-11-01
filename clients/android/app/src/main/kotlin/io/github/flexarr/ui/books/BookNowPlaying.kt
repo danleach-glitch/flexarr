@@ -38,7 +38,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.MoreHoriz
-import androidx.compose.material.icons.automirrored.outlined.MenuBook
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.outlined.Bedtime
 import androidx.compose.material.icons.outlined.BookmarkAdd
 import androidx.compose.material.icons.outlined.CheckCircle
@@ -490,7 +490,7 @@ private fun BookMenu(model: AppModel, closeSheet: () -> Unit, modifier: Modifier
     Box(modifier, contentAlignment = Alignment.Center) {
         Extra(false, "More", { open = true }) { tint -> Icon(Icons.Filled.MoreHoriz, contentDescription = null, tint = tint, modifier = Modifier.size(24.dp)) }
         DropdownMenu(open, onDismissRequest = { open = false }, containerColor = Flexarr.seat) {
-            Entry("Go to book", Icons.AutoMirrored.Outlined.MenuBook) { open = false; closeSheet(); navigator.openBook(book.id) }
+            Entry("Go to book", Icons.AutoMirrored.Filled.MenuBook) { open = false; closeSheet(); navigator.openBook(book.id) }
             Entry("Mark as finished", Icons.Outlined.CheckCircle) {
                 open = false
                 navigator.setBookFinished(book, true)

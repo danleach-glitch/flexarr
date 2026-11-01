@@ -20,7 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowCircleDown
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.ErrorOutline
-import androidx.compose.material.icons.filled.Headphones
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.HourglassTop
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Movie
@@ -173,7 +173,7 @@ private fun BookDownloadRow(model: AppModel, book: io.github.flexarr.core.LocalB
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.size(63.dp).clip(RoundedCornerShape(6.dp)).background(Flexarr.aisle), contentAlignment = Alignment.Center) {
-            Icon(Icons.Filled.Headphones, contentDescription = null, tint = Flexarr.usher)
+            Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null, tint = Flexarr.usher)
             store.image(book)?.let { AsyncImage(model = it, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()) }
             val duration = book.manifest.durationSeconds
             if (book.isDownloaded && book.finishedAtMillis == null && duration > 0 && book.position > 0) {
