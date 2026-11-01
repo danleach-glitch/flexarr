@@ -48,6 +48,7 @@ import io.github.flexarr.data.SoundSettings
 import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.tv.TakeFocus
 import io.github.flexarr.ui.tv.TvActionButton
+import io.github.flexarr.ui.theme.Tokens
 
 // The player's menus for the remote, as the Apple TV's: a button for each beneath the timeline, opening a panel down
 // the right of the picture, with a page for each submenu. The same choices as the phone's dropdowns (PlayerMenus.kt).
@@ -115,7 +116,7 @@ internal fun TvMenuPanel(
     val focus = remember(menu, page) { FocusRequester() }
     TakeFocus(focus, key = page)
     Column(
-        modifier.fillMaxHeight().width(340.dp).padding(20.dp).glass(RoundedCornerShape(22.dp)).padding(vertical = 18.dp),
+        modifier.fillMaxHeight().width(340.dp).padding(20.dp).glass(RoundedCornerShape(Tokens.radiusPanel)).padding(vertical = 18.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Text(pageTitle(menu, page), fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, modifier = Modifier.padding(horizontal = 20.dp))
@@ -259,7 +260,7 @@ private fun PanelRow(
         // Kept focusable when it can't be chosen (a track while the title reopens), so focus never lands on nothing.
         onClick = { if (enabled) onClick() },
         modifier = modifier.fillMaxWidth().heightIn(min = 40.dp),
-        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(10.dp)),
+        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(Tokens.radiusControl)),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = Flexarr.screen.copy(alpha = 0.07f),
             contentColor = Flexarr.screen,

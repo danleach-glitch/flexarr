@@ -94,6 +94,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.temporal.ChronoUnit
+import io.github.flexarr.ui.theme.Tokens
 
 /** The red of a programme set to record. */
 internal val RecordRed = Flexarr.record
@@ -266,7 +267,7 @@ private fun Chip(title: String, selected: Boolean, star: Boolean = false, onClic
 @Composable
 internal fun ChannelLogo(channel: LiveChannel, width: Dp, starting: Boolean, modifier: Modifier = Modifier, textSize: Int = 18) {
     val client = LocalClient.current
-    Box(modifier.size(width, width * 9 / 16).clip(RoundedCornerShape(8.dp)).background(Flexarr.seat), contentAlignment = Alignment.Center) {
+    Box(modifier.size(width, width * 9 / 16).clip(RoundedCornerShape(Tokens.radiusArt)).background(Flexarr.seat), contentAlignment = Alignment.Center) {
         Text(channel.name.take(4), fontFamily = Flexarr.marquee, fontSize = textSize.sp, color = Flexarr.usher)
         AsyncImage(client.imageUrl(channel.logoUrl, 300), contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize().background(Flexarr.seat).padding(8.dp))
         if (starting) {
@@ -510,7 +511,7 @@ private fun GuideCell(
     menu: @Composable (close: () -> Unit) -> Unit,
 ) {
     var open by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(8.dp)
+    val shape = RoundedCornerShape(Tokens.radiusControl)
     Box(
         modifier.alpha(if (past) 0.55f else 1f).clip(shape).background(Flexarr.seat.copy(alpha = if (onNow) 1f else 0.55f))
             .then(if (programme.isSetToRecord) Modifier.border(2.dp, RecordRed, shape) else Modifier)

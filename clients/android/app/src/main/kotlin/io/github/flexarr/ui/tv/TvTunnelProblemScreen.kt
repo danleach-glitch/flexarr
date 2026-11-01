@@ -32,6 +32,7 @@ import androidx.tv.material3.Text
 import io.github.flexarr.AppModel
 import io.github.flexarr.ui.connect.tunnelProblemWords
 import io.github.flexarr.ui.theme.Flexarr
+import io.github.flexarr.ui.theme.Tokens
 
 /**
  * A family guest's tunnel couldn't reach its host's server ([AppModel.tunnelProblem]), on the TV: Try again (focused)
@@ -61,7 +62,7 @@ fun TvTunnelProblemScreen(model: AppModel) {
         val cancel = remember { FocusRequester() }
         val owner = model.credentials?.guest?.ownerName?.ifEmpty { null }
         Dialog(onDismissRequest = { confirmLeave = false }) {
-            Column(Modifier.width(400.dp).background(Flexarr.seat, RoundedCornerShape(14.dp)).padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Column(Modifier.width(400.dp).background(Flexarr.seat, RoundedCornerShape(Tokens.radiusPanel)).padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Text(owner?.let { "Leave $it’s Flexarr?" } ?: "Leave this Flexarr?", fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 Text("Joining again takes a new code.", fontSize = 14.sp, color = Flexarr.usher)
                 // As the Apple TV: Cancel first, and where focus starts; Leave after it.

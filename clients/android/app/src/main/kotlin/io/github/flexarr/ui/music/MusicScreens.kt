@@ -97,6 +97,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import io.github.flexarr.ui.theme.Tokens
 
 // The music screens, as the iPhone app's: a library (the server's rows, every artist), an artist, an album and a
 // playlist. Each title page has Play and Shuffle; tapping a track plays from it, and tapping the one playing pauses it.
@@ -380,7 +381,7 @@ fun AlbumScreen(model: AppModel, id: String) {
                 androidx.compose.foundation.lazy.LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp)) {
                     item {
                         MusicHeader(
-                            art = { SquareArtwork(item, it.width(240.dp).shadow(20.dp, RoundedCornerShape(6.dp)), imageWidth = 800) },
+                            art = { SquareArtwork(item, it.width(240.dp).shadow(20.dp, RoundedCornerShape(Tokens.radiusArt)), imageWidth = 800) },
                             title = item.title,
                             ambient = ambient,
                             below = {
@@ -459,7 +460,7 @@ fun PlaylistScreen(model: AppModel, id: String) {
                 androidx.compose.foundation.lazy.LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp)) {
                     item {
                         MusicHeader(
-                            art = { PlaylistArtwork(summary, it.width(240.dp).shadow(20.dp, RoundedCornerShape(6.dp))) },
+                            art = { PlaylistArtwork(summary, it.width(240.dp).shadow(20.dp, RoundedCornerShape(Tokens.radiusArt))) },
                             title = summary.name,
                             ambient = Flexarr.silver,
                             below = { FactsLine(listOfNotNull(summary.trackCountLabel, Format.runtime(summary.durationSeconds))) },

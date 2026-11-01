@@ -126,6 +126,7 @@ import androidx.compose.foundation.layout.width
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import io.github.flexarr.ui.theme.Tokens
 
 private class HomeContent(val home: Home, val newEpisodes: List<PodcastEpisode>, val isEmpty: Boolean, val emptyMessage: EmptyHomeMessage?)
 
@@ -409,7 +410,7 @@ private fun ComingSoonRow(items: List<UpcomingItem>, downloading: Int) {
                         .semantics(mergeDescendants = true) {},
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(6.dp)).background(Flexarr.seat)) {
+                    Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(Tokens.radiusArt)).background(Flexarr.seat)) {
                         RemoteImage(item.still ?: item.poster, 640, Modifier.fillMaxSize()) {
                             Text(item.cardTitle, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, modifier = Modifier.align(Alignment.Center).padding(10.dp))
                         }

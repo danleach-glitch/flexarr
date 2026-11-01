@@ -102,6 +102,7 @@ import io.github.flexarr.ui.components.LocalNavigator
 import io.github.flexarr.ui.profiles.ProfileAvatar
 import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.marquee
+import io.github.flexarr.ui.theme.Tokens
 
 /** A screen of its own in the sidebar: Home, a library, Discover, Search or Settings. [route] is its first screen's. */
 private data class TvTab(val route: String, val title: String, val icon: ImageVector) {
@@ -400,7 +401,7 @@ private fun Sidebar(model: AppModel, open: Boolean, tabs: List<TvTab>, selected:
         val activity = LocalActivity.current
         BackHandler { if (closesOnBack) onClose() else activity?.finish() }
         Column(
-            Modifier.fillMaxHeight().width(230.dp).padding(12.dp).background(Flexarr.seat.copy(alpha = 0.92f), RoundedCornerShape(16.dp)).padding(vertical = 18.dp, horizontal = 10.dp)
+            Modifier.fillMaxHeight().width(230.dp).padding(12.dp).background(Flexarr.seat.copy(alpha = 0.92f), RoundedCornerShape(Tokens.radiusPanel)).padding(vertical = 18.dp, horizontal = 10.dp)
                 .onFocusChanged {
                     // Focus gone from it by any other way than choosing (up past the top, or Now Playing taking it):
                     // put it away too, leaving focus where it went.
@@ -455,7 +456,7 @@ private fun SidebarRow(title: String, selected: Boolean, onClick: () -> Unit, mo
     Surface(
         onClick = onClick,
         modifier = modifier.fillMaxWidth().height(40.dp),
-        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(10.dp)),
+        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(Tokens.radiusControl)),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = if (selected) Flexarr.screen.copy(alpha = 0.14f) else Color.Transparent,
             contentColor = if (selected) Flexarr.screen else Flexarr.screen.copy(alpha = 0.8f),

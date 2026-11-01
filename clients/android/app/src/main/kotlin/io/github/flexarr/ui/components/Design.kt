@@ -74,6 +74,7 @@ import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.displayTitle
 import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.marquee
+import io.github.flexarr.ui.theme.Tokens
 
 // The Apple apps' shared pieces (Theme.swift and Cards.swift on iPhone), for the phone.
 
@@ -146,8 +147,8 @@ fun ActionButton(
         modifier
             .heightIn(min = 48.dp)
             // A soft glow, as iPhone's 16pt shadow. Elevation shadows in a light colour draw as a solid slab on Samsung phones.
-            .then(if (prominent) Modifier.dropShadow(RoundedCornerShape(12.dp), Glow(radius = 16.dp, color = ambient.copy(alpha = 0.45f))) else Modifier)
-            .clip(RoundedCornerShape(12.dp))
+            .then(if (prominent) Modifier.dropShadow(RoundedCornerShape(Tokens.radiusControl), Glow(radius = 16.dp, color = ambient.copy(alpha = 0.45f))) else Modifier)
+            .clip(RoundedCornerShape(Tokens.radiusControl))
             .background(if (prominent) Flexarr.screen else Flexarr.screen.copy(alpha = 0.14f))
             .alpha(if (enabled) 1f else 0.5f)
             .pressable(onClick, enabled)

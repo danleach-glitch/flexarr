@@ -42,6 +42,7 @@ import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.RoomBackground
 import kotlinx.coroutines.launch
 import java.time.Instant
+import io.github.flexarr.ui.theme.Tokens
 
 /**
  * Send diagnostics: this phone's recent log, to the server only, for looking into a problem, with a note saying what
@@ -117,7 +118,7 @@ fun DiagnosticsSettingsScreen(model: AppModel) {
 @Composable
 private fun Notes(footer: String?, content: @Composable () -> Unit) {
     Column(Modifier.padding(horizontal = Edge), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Flexarr.seat)) { content() }
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(Tokens.radiusPanel)).background(Flexarr.seat)) { content() }
         footer?.let { Text(it, fontSize = 13.sp, color = Flexarr.usher, modifier = Modifier.padding(horizontal = 16.dp)) }
     }
 }

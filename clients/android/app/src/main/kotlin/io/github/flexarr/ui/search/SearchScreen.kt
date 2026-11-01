@@ -398,7 +398,7 @@ private fun ExternalCard(model: AppModel, title: ExternalTitle) {
                 .menuActions(actions),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f).clip(RoundedCornerShape(6.dp)).background(Flexarr.seat)) {
+            Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f).clip(RoundedCornerShape(Tokens.radiusArt)).background(Flexarr.seat)) {
                 RemoteImage(title.poster, 342, Modifier.fillMaxSize()) {
                     Box(
                         Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Flexarr.silver.copy(alpha = 0.3f), Flexarr.seat))),

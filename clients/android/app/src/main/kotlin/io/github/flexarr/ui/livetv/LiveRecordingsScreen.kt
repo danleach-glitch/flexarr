@@ -65,6 +65,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import io.github.flexarr.ui.theme.Tokens
 
 /**
  * The DVR: what's coming up, the series being recorded, and what's been recorded. Each row's menu takes one off (or
@@ -166,7 +167,7 @@ private fun LazyListScope.section(title: String, content: @Composable () -> Unit
     item(key = title) {
         Column(Modifier.padding(horizontal = Edge)) {
             SectionHeading(title, Modifier.padding(bottom = 8.dp))
-            Column(Modifier.clip(RoundedCornerShape(12.dp)).background(Flexarr.seat)) { content() }
+            Column(Modifier.clip(RoundedCornerShape(Tokens.radiusPanel)).background(Flexarr.seat)) { content() }
         }
     }
 }

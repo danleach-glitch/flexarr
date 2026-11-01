@@ -68,6 +68,7 @@ import io.github.flexarr.ui.tv.TvActionButton
 import io.github.flexarr.ui.tv.TvTheme
 import kotlinx.coroutines.delay
 import java.util.Locale
+import io.github.flexarr.ui.theme.Tokens
 
 /**
  * The player on a TV, worked with the remote as on the Apple TV. With the controls away: OK or play/pause pauses and
@@ -359,8 +360,8 @@ private fun Timeline(controller: PlaybackController, scrubTo: Double?, onScrub: 
                 val x = (maxWidth * fraction - width / 2).coerceIn(0.dp, (maxWidth - width).coerceAtLeast(0.dp))
                 Box(
                     // Taller than the timeline's row, so sized regardless of it, and lifted clear of the track.
-                    Modifier.offset(x = x, y = -height / 2 - 16.dp).requiredSize(width, height).background(Color.Black, RoundedCornerShape(8.dp))
-                        .border(1.dp, Flexarr.screen.copy(alpha = 0.6f), RoundedCornerShape(8.dp)),
+                    Modifier.offset(x = x, y = -height / 2 - 16.dp).requiredSize(width, height).background(Color.Black, RoundedCornerShape(Tokens.radiusArt))
+                        .border(1.dp, Flexarr.screen.copy(alpha = 0.6f), RoundedCornerShape(Tokens.radiusArt)),
                 ) {
                     image?.let { Image(it, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()) }
                 }
@@ -388,14 +389,14 @@ private fun TvAudioSync(controller: PlaybackController, onDone: () -> Unit, modi
     LaunchedEffect(Unit) { runCatching { value.requestFocus() } }
     fun step(by: Double) = controller.audioSync?.let { controller.setAudioDelay(it + by) }
     Column(
-        modifier.glass(RoundedCornerShape(22.dp)).padding(horizontal = 24.dp, vertical = 18.dp),
+        modifier.glass(RoundedCornerShape(Tokens.radiusPanel)).padding(horizontal = 24.dp, vertical = 18.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text("Audio sync", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.White.copy(alpha = 0.7f))
         Column(
             Modifier.focusRequester(value).focusable(interactionSource = source)
-                .border(2.dp, if (focused) Flexarr.screen else Color.Transparent, RoundedCornerShape(14.dp))
+                .border(2.dp, if (focused) Flexarr.screen else Color.Transparent, RoundedCornerShape(Tokens.radiusPanel))
                 .onKeyEvent { event ->
                     if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
                     // A press moves it a little; held, it moves in bigger steps.

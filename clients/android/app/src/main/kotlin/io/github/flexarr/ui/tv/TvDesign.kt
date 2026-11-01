@@ -120,7 +120,7 @@ fun TvActionButton(
         onClick = { if (enabled) onClick() },
         onLongClick = onLongClick?.let { long -> { if (enabled) long() } },
         modifier = modifier.height(38.dp).semantics { if (!enabled) disabled() },
-        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(7.dp)),
+        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(Tokens.radiusControl)),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = if (!enabled) Flexarr.screen.copy(alpha = 0.08f) else if (prominent) ambient.copy(alpha = 0.42f) else Flexarr.screen.copy(alpha = 0.14f),
             contentColor = if (enabled) Flexarr.screen else Flexarr.usher,
@@ -179,7 +179,7 @@ fun TvArtworkButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     onLongClick: (() -> Unit)? = null,
-    shape: Shape = RoundedCornerShape(4.dp),
+    shape: Shape = RoundedCornerShape(Tokens.radiusArt),
     /** What TalkBack says for the card: its focusable part holds only the artwork, so the title has to be given. */
     contentDescription: String? = null,
     artwork: @Composable () -> Unit,

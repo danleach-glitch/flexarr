@@ -68,6 +68,7 @@ import io.github.flexarr.ui.Navigator
 import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.glowColor
 import io.github.flexarr.ui.theme.marquee
+import io.github.flexarr.ui.theme.Tokens
 
 /** The signed-in client, for artwork; every screen inside the app has one. */
 val LocalClient = staticCompositionLocalOf<FlexarrClient> { error("No client") }
@@ -125,7 +126,7 @@ private fun posterSubtitle(item: ItemSummary): String? {
 fun PosterArtwork(item: ItemSummary, modifier: Modifier = Modifier) {
     // Album covers, artist pictures and book covers are square; everything else is a 2:3 poster.
     val ratio = if (item.kind == MediaKind.Album || item.kind == MediaKind.Artist || item.kind == MediaKind.Track || item.kind == MediaKind.Audiobook) 1f else 2f / 3f
-    Box(modifier.fillMaxWidth().aspectRatio(ratio).clip(RoundedCornerShape(6.dp)).background(Flexarr.seat)) {
+    Box(modifier.fillMaxWidth().aspectRatio(ratio).clip(RoundedCornerShape(Tokens.radiusArt)).background(Flexarr.seat)) {
         RemoteImage(item.artwork.poster, 342, Modifier.fillMaxSize()) {
             Box(
                 Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(glowColor(item.accentColor).copy(alpha = 0.35f), Flexarr.seat))),
@@ -160,7 +161,7 @@ fun WideCard(item: ItemSummary, width: Dp = WideWidth, onClick: (() -> Unit)? = 
             Modifier.width(width).pressable(onClick = { onClick?.invoke() ?: play() }, onLongClick = { menu = true }).menuActions(actions),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(6.dp)).background(Flexarr.seat)) {
+            Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(Tokens.radiusArt)).background(Flexarr.seat)) {
                 if (item.isListening) {
                     SquareArtInWide(item)
                 } else {
@@ -197,7 +198,7 @@ private fun SquareArtInWide(item: ItemSummary) {
             Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(glow.copy(alpha = 0.4f), Flexarr.seat))))
         }
         Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) 0.35f else 0.6f)))
-        Box(Modifier.align(Alignment.Center).fillMaxHeight().padding(vertical = 10.dp).aspectRatio(1f).clip(RoundedCornerShape(4.dp)).background(Flexarr.seat)) {
+        Box(Modifier.align(Alignment.Center).fillMaxHeight().padding(vertical = 10.dp).aspectRatio(1f).clip(RoundedCornerShape(Tokens.radiusArt)).background(Flexarr.seat)) {
             RemoteImage(art, 342, Modifier.fillMaxSize()) {
                 Box(
                     Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(glow.copy(alpha = 0.4f), Flexarr.seat))),

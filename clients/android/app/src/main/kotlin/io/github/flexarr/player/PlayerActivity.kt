@@ -121,6 +121,7 @@ import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.FlexarrTheme
 import kotlinx.coroutines.delay
 import java.util.Locale
+import io.github.flexarr.ui.theme.Tokens
 
 /**
  * Full screen, sideways, the picture edge to edge. Closing it ends the session and tells the server where it got to.
@@ -413,7 +414,7 @@ private fun PlayerScreen(controller: PlaybackController, onClose: () -> Unit, in
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 if (controller.countingDown) {
-                    Text("Cancel", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, modifier = Modifier.glass(RoundedCornerShape(12.dp)).clickableNoRipple(controller::cancelNext).padding(horizontal = 18.dp, vertical = 12.dp))
+                    Text("Cancel", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, modifier = Modifier.glass(RoundedCornerShape(Tokens.radiusControl)).clickableNoRipple(controller::cancelNext).padding(horizontal = 18.dp, vertical = 12.dp))
                 }
                 ActionButton(title, onClick = controller::promptTapped, icon = if (title.startsWith("Skip")) Icons.Filled.SkipNext else Icons.Filled.PlayArrow, prominent = true)
             }
@@ -532,8 +533,8 @@ private fun Timeline(controller: PlaybackController, onInteract: () -> Unit, mod
                 val fraction = (scrubTo / duration.toFloat()).coerceIn(0f, 1f)
                 val x = (maxWidth * fraction - width / 2).coerceIn(0.dp, (maxWidth - width).coerceAtLeast(0.dp))
                 Box(
-                    Modifier.offset(x = x, y = -height - 8.dp).size(width, height).clip(RoundedCornerShape(8.dp))
-                        .background(Color.Black).border(1.dp, Flexarr.screen.copy(alpha = 0.6f), RoundedCornerShape(8.dp)),
+                    Modifier.offset(x = x, y = -height - 8.dp).size(width, height).clip(RoundedCornerShape(Tokens.radiusArt))
+                        .background(Color.Black).border(1.dp, Flexarr.screen.copy(alpha = 0.6f), RoundedCornerShape(Tokens.radiusArt)),
                 ) {
                     image?.let { Image(it, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()) }
                 }

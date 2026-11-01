@@ -104,6 +104,7 @@ import androidx.compose.ui.semantics.stateDescription
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import io.github.flexarr.ui.theme.Tokens
 
 /**
  * A live channel, full screen and sideways, with the rewind window as its timeline. Closing it lets the channel go.
@@ -446,13 +447,13 @@ private fun PickerHeading(text: String) {
 @Composable
 private fun PickerRow(controller: LiveTvController, channel: LiveChannel, current: Boolean, onPick: (LiveChannel) -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(if (current) Flexarr.screen.copy(alpha = 0.07f) else Color.Transparent)
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(Tokens.radiusControl)).background(if (current) Flexarr.screen.copy(alpha = 0.07f) else Color.Transparent)
             .pressable({ onPick(channel) }).padding(horizontal = 14.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(channel.numberText, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Flexarr.usher, modifier = Modifier.width(36.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End)
-        Box(Modifier.size(76.dp, 43.dp).clip(RoundedCornerShape(6.dp)).background(Flexarr.room.copy(alpha = 0.8f)), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(76.dp, 43.dp).clip(RoundedCornerShape(Tokens.radiusArt)).background(Flexarr.room.copy(alpha = 0.8f)), contentAlignment = Alignment.Center) {
             AsyncImage(controller.client.imageUrl(channel.logoUrl, 300), contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize().padding(6.dp))
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {

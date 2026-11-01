@@ -72,6 +72,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
+import io.github.flexarr.ui.theme.Tokens
 
 /**
  * A film or TV library's tab, as the Apple TV's LibraryTab: Browse, All or Genres, switched with the words at the top.
@@ -476,7 +477,7 @@ fun <T> TvChoiceMenu(title: String, choices: List<Pair<String, T>>, selected: T,
     val current = remember { FocusRequester() }
     androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
         androidx.compose.foundation.lazy.LazyColumn(
-            Modifier.width(320.dp).background(Flexarr.seat, RoundedCornerShape(14.dp)),
+            Modifier.width(320.dp).background(Flexarr.seat, RoundedCornerShape(Tokens.radiusPanel)),
             contentPadding = PaddingValues(20.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {

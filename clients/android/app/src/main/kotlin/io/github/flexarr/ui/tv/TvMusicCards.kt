@@ -51,13 +51,14 @@ import io.github.flexarr.ui.podcasts.Tabular
 import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.glowColor
 import io.github.flexarr.ui.theme.marquee
+import io.github.flexarr.ui.theme.Tokens
 
 // The music screens' pieces, as the Apple TV's MusicCards.swift draws them.
 
 /** Album covers and artist pictures are square; the title stands in on a wash of the item's colour until one arrives. */
 @Composable
 fun TvSquareArtwork(item: ItemSummary, size: Dp, circular: Boolean = false) {
-    Box(Modifier.size(size).clip(if (circular) CircleShape else RoundedCornerShape(5.dp)).background(Flexarr.seat)) {
+    Box(Modifier.size(size).clip(if (circular) CircleShape else RoundedCornerShape(Tokens.radiusArt)).background(Flexarr.seat)) {
         RemoteImage(item.artwork.poster, if (size > 200.dp) 800 else 500, Modifier.fillMaxSize()) {
             Box(
                 Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(glowColor(item.accentColor).copy(alpha = 0.4f), Flexarr.seat))),
@@ -93,7 +94,7 @@ fun TvAlbumCard(item: ItemSummary, onClick: () -> Unit, modifier: Modifier = Mod
         ambient = glowColor(item.accentColor),
         onClick = onClick,
         modifier = modifier,
-        shape = RoundedCornerShape(5.dp),
+        shape = RoundedCornerShape(Tokens.radiusArt),
         contentDescription = listOfNotNull(item.title, item.artistName).joinToString(", "),
         artwork = { TvSquareArtwork(item, width) },
         caption = { focused ->
@@ -111,7 +112,7 @@ fun TvTrackCard(model: AppModel, item: ItemSummary, onClick: () -> Unit) {
     TvArtworkButton(
         ambient = glowColor(item.accentColor),
         onClick = onClick,
-        shape = RoundedCornerShape(5.dp),
+        shape = RoundedCornerShape(Tokens.radiusArt),
         contentDescription = listOfNotNull(item.title, item.artistName).joinToString(", "),
         artwork = {
             Box {
@@ -149,7 +150,7 @@ fun TvPlaylistArtwork(playlist: PlaylistSummary, size: Dp) = TvCoverMosaic(playl
 /** A mosaic of up to four album covers (one fills it when there are fewer), or [cover] instead. */
 @Composable
 fun TvCoverMosaic(covers: List<String>, size: Dp, cover: String? = null) {
-    Box(Modifier.size(size).clip(RoundedCornerShape(5.dp)).background(Flexarr.seat), contentAlignment = Alignment.Center) {
+    Box(Modifier.size(size).clip(RoundedCornerShape(Tokens.radiusArt)).background(Flexarr.seat), contentAlignment = Alignment.Center) {
         val half = size / 2
         when {
             cover != null -> RemoteImage(cover, if (size > 200.dp) 800 else 500, Modifier.fillMaxSize()) { PlaylistPlaceholder(size) }
@@ -180,7 +181,7 @@ fun TvPlaylistCard(playlist: PlaylistSummary, onClick: () -> Unit) {
     TvArtworkButton(
         ambient = Flexarr.silver,
         onClick = onClick,
-        shape = RoundedCornerShape(5.dp),
+        shape = RoundedCornerShape(Tokens.radiusArt),
         contentDescription = playlist.name,
         artwork = { TvPlaylistArtwork(playlist, width) },
         caption = { focused -> CardCaption(playlist.name, playlist.trackCountLabel, focused, width) },
@@ -194,7 +195,7 @@ fun TvMixCard(mix: MixSummary, onClick: () -> Unit) {
     TvArtworkButton(
         ambient = Flexarr.silver,
         onClick = onClick,
-        shape = RoundedCornerShape(5.dp),
+        shape = RoundedCornerShape(Tokens.radiusArt),
         contentDescription = mix.name,
         artwork = { TvCoverMosaic(mix.covers, width) },
         caption = { focused -> CardCaption(mix.name, mix.description.ifEmpty { null }, focused, width) },
@@ -219,7 +220,7 @@ fun TvTrackRow(
     Surface(
         onClick = onClick,
         modifier = modifier.height(40.dp),
-        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(7.dp)),
+        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(Tokens.radiusControl)),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = if (isCurrent) Flexarr.screen.copy(alpha = 0.12f) else Color.Transparent,
             contentColor = if (isCurrent) Flexarr.screen else Flexarr.screen.copy(alpha = 0.82f),

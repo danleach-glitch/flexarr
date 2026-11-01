@@ -52,6 +52,7 @@ import io.github.flexarr.ui.profiles.ProfileAvatar
 import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.RoomBackground
 import kotlinx.coroutines.delay
+import io.github.flexarr.ui.theme.Tokens
 
 // The Apple TV's Settings pieces (FlexarrTV/Screens/Settings/SettingsComponents.swift), halved.
 
@@ -95,7 +96,7 @@ internal fun TvSettingsPage(title: String, summary: String?, rows: LazyListScope
 private fun SettingHelpPanel(help: TvSettingHelp?) {
     Column(verticalArrangement = Arrangement.spacedBy(15.dp)) {
         help?.icon?.let { icon ->
-            Box(Modifier.size(84.dp).background(Flexarr.aisle, RoundedCornerShape(18.dp)), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(84.dp).background(Flexarr.aisle, RoundedCornerShape(Tokens.radiusPanel)), contentAlignment = Alignment.Center) {
                 Icon(icon, contentDescription = null, tint = Flexarr.screen, modifier = Modifier.size(38.dp))
             }
         }
@@ -153,7 +154,7 @@ internal fun TvSettingsRow(
     Surface(
         onClick = onClick,
         modifier = modifier.fillMaxWidth().heightIn(min = 39.dp).onFocusChanged { focused = it.isFocused },
-        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(8.dp)),
+        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(Tokens.radiusControl)),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = Flexarr.screen.copy(alpha = 0.07f),
             contentColor = if (destructive) Flexarr.danger else Flexarr.screen,

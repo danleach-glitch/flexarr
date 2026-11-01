@@ -108,6 +108,7 @@ import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
+import io.github.flexarr.ui.theme.Tokens
 
 /**
  * Settings as a short list of pages, the way the system's own Settings works: each row says where it's set now, and
@@ -332,7 +333,7 @@ private fun ExternalLink(title: String, icon: ImageVector, onClick: () -> Unit) 
         horizontalArrangement = Arrangement.spacedBy(14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(29.dp).clip(RoundedCornerShape(7.dp)).background(Flexarr.aisle), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(29.dp).clip(RoundedCornerShape(Tokens.radiusControl)).background(Flexarr.aisle), contentAlignment = Alignment.Center) {
             Icon(icon, contentDescription = null, tint = Flexarr.screen, modifier = Modifier.size(17.dp))
         }
         Text(title, fontSize = 17.sp, color = Flexarr.screen, modifier = Modifier.weight(1f))
@@ -706,7 +707,7 @@ private fun <T> List<T>.moved(from: Int, to: Int): List<T> = toMutableList().app
 internal fun Group(header: String? = null, footer: String? = null, content: @Composable () -> Unit) {
     Column(Modifier.padding(horizontal = Edge), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         header?.let { Text(it.uppercase(), fontSize = 13.sp, color = Flexarr.usher, modifier = Modifier.padding(horizontal = 16.dp)) }
-        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Flexarr.seat)) { content() }
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(Tokens.radiusPanel)).background(Flexarr.seat)) { content() }
         footer?.let { Text(it, fontSize = 13.sp, color = Flexarr.usher, modifier = Modifier.padding(horizontal = 16.dp)) }
     }
 }
@@ -722,7 +723,7 @@ internal fun SettingsLink(title: String, icon: ImageVector, value: String?, onCl
         horizontalArrangement = Arrangement.spacedBy(14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(29.dp).clip(RoundedCornerShape(7.dp)).background(Flexarr.aisle), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(29.dp).clip(RoundedCornerShape(Tokens.radiusControl)).background(Flexarr.aisle), contentAlignment = Alignment.Center) {
             Icon(icon, contentDescription = null, tint = Flexarr.screen, modifier = Modifier.size(17.dp))
         }
         Text(title, fontSize = 17.sp, color = Flexarr.screen, modifier = Modifier.weight(1f))

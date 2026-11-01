@@ -160,9 +160,9 @@ class ContinueWatchingWidget : GlanceAppWidget() {
         // The picture takes what the header and the two lines of text leave.
         val pictureHeight = (LocalSize.current.height - 104.dp).coerceIn(48.dp, 160.dp)
         Column(modifier.clickable(actionStartActivity(AppLink.Play(shown.entry.id).intent(context)))) {
-            Box(GlanceModifier.fillMaxWidth().height(pictureHeight).cornerRadius(10.dp).background(SEAT), contentAlignment = Alignment.Center) {
+            Box(GlanceModifier.fillMaxWidth().height(pictureHeight).cornerRadius(Tokens.radiusArt).background(SEAT), contentAlignment = Alignment.Center) {
                 if (shown.picture != null) {
-                    Image(ImageProvider(shown.picture), contentDescription = null, contentScale = ContentScale.Crop, modifier = GlanceModifier.fillMaxSize().cornerRadius(10.dp))
+                    Image(ImageProvider(shown.picture), contentDescription = null, contentScale = ContentScale.Crop, modifier = GlanceModifier.fillMaxSize().cornerRadius(Tokens.radiusArt))
                 } else {
                     Image(ImageProvider(R.drawable.ic_brand_mark), contentDescription = null, modifier = GlanceModifier.width(28.dp).height(28.dp))
                 }

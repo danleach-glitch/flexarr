@@ -86,13 +86,14 @@ import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.time.temporal.ChronoUnit
 import java.util.Locale
+import io.github.flexarr.ui.theme.Tokens
 
 // The iPhone app's PodcastCards.swift: a show's artwork and card, a show from Apple's directory, an episode's row with
 // Play ringed by how far it's got, and an episode's notes.
 
 /** A show's square artwork, from the server's image cache, with its name on a gradient until it arrives. */
 @Composable
-fun PodcastArtwork(path: String?, title: String, accent: String? = null, modifier: Modifier = Modifier, imageWidth: Int = 500, cornerRadius: Dp = 8.dp) {
+fun PodcastArtwork(path: String?, title: String, accent: String? = null, modifier: Modifier = Modifier, imageWidth: Int = 500, cornerRadius: Dp = Tokens.radiusArt) {
     RemoteImage(path, imageWidth, modifier.aspectRatio(1f).clip(RoundedCornerShape(cornerRadius)).background(Flexarr.seat)) {
         Box(
             Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(glowColor(accent).copy(alpha = 0.4f), Flexarr.seat))),
@@ -132,7 +133,7 @@ fun DirectoryCard(show: DirectoryPodcast, isAdding: Boolean, onClick: () -> Unit
         Box {
             PodcastArtwork(show.artwork, show.title)
             if (isAdding) {
-                Box(Modifier.matchParentSize().clip(RoundedCornerShape(8.dp)).background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.45f)), contentAlignment = Alignment.Center) {
+                Box(Modifier.matchParentSize().clip(RoundedCornerShape(Tokens.radiusArt)).background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.45f)), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = Flexarr.screen, modifier = Modifier.size(28.dp))
                 }
             }
@@ -208,7 +209,7 @@ fun PodcastEpisodeRow(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 if (showsPodcast) {
-                    PodcastArtwork(episode.artwork.thumb ?: episode.artwork.poster, episode.podcastTitle, episode.accentColor, Modifier.size(56.dp), imageWidth = 185, cornerRadius = 6.dp)
+                    PodcastArtwork(episode.artwork.thumb ?: episode.artwork.poster, episode.podcastTitle, episode.accentColor, Modifier.size(56.dp), imageWidth = 185)
                 }
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     val meta = listOfNotNull(if (showsPodcast) episode.podcastTitle else null, dateLine(episode.publishedAt)).joinToString("  ")

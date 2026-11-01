@@ -394,7 +394,7 @@ private fun NumberedStep(number: Int, text: androidx.compose.ui.text.AnnotatedSt
 @Composable
 internal fun QrCode(text: String, modifier: Modifier = Modifier) {
     val bitmap = remember(text) { qrBitmap(text) }
-    Box(modifier.background(Color.White, RoundedCornerShape(9.dp)).padding(9.dp)) {
+    Box(modifier.background(Color.White, RoundedCornerShape(Tokens.radiusPanel)).padding(9.dp)) {
         Image(bitmap, contentDescription = "QR code", filterQuality = FilterQuality.None, modifier = Modifier.fillMaxSize())
     }
 }

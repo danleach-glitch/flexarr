@@ -75,6 +75,7 @@ import io.github.flexarr.ui.theme.RoomBackground
 import io.github.flexarr.ui.theme.marquee
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
+import io.github.flexarr.ui.theme.Tokens
 
 /**
  * The profile's watchlist: what's ready plays from the usual poster card, and the rest says where it's got to (on its
@@ -165,7 +166,7 @@ private fun EntryCard(model: AppModel, entry: WatchlistEntry) {
                 .menuActions(actions),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f).clip(RoundedCornerShape(6.dp)).background(Flexarr.seat)) {
+            Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f).clip(RoundedCornerShape(Tokens.radiusArt)).background(Flexarr.seat)) {
                 RemoteImage(entry.poster, 342, Modifier.fillMaxSize().alpha(0.75f)) {
                     Box(
                         Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Flexarr.silver.copy(alpha = 0.3f), Flexarr.seat))),

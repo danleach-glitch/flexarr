@@ -98,6 +98,7 @@ import io.github.flexarr.ui.theme.glowColor
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import java.text.NumberFormat
+import io.github.flexarr.ui.theme.Tokens
 
 /** The libraries this profile can see, each opening its poster grid. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -117,7 +118,7 @@ fun LibrariesScreen(model: AppModel) {
                     val showsWatchlist = model.hasWatchlist && profile?.hidesFromMenu(MenuItem.WATCHLIST) != true
                     LazyColumn(contentPadding = PaddingValues(horizontal = Edge, vertical = 8.dp), modifier = Modifier.fillMaxSize()) {
                         item {
-                            Column(Modifier.clip(RoundedCornerShape(12.dp)).background(Flexarr.seat)) {
+                            Column(Modifier.clip(RoundedCornerShape(Tokens.radiusPanel)).background(Flexarr.seat)) {
                                 // The watchlist first, ahead of the profile's own order of libraries.
                                 if (showsWatchlist) {
                                     LibraryRow("Watchlist", Icons.Filled.Bookmark) { navigator.openWatchlist() }
@@ -498,7 +499,7 @@ private fun LibraryGenreGrid(library: Library, genres: List<GenreCount>) {
         items(genres, key = { it.name }) { genre ->
             val caption = genreCaption(library, genre)
             Box(
-                Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(10.dp)).background(Flexarr.seat)
+                Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(Tokens.radiusArt)).background(Flexarr.seat)
                     .pressable({ navigator.openLibrary(library.id, LibrarySort.Title, genre.name) })
                     .clearAndSetSemantics {
                         contentDescription = "${genre.name}, $caption"

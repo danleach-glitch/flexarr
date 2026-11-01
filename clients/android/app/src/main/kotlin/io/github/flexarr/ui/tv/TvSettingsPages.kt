@@ -87,6 +87,7 @@ import io.github.flexarr.ui.theme.Flexarr
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import io.github.flexarr.ui.theme.Tokens
 
 // Settings' pages after the first, as the Apple TV's (FlexarrTV/Screens/Settings).
 
@@ -601,7 +602,7 @@ private fun NoteDialog(initial: String, onDone: (String) -> Unit, onCancel: () -
     var draft by remember { mutableStateOf(initial) }
     val field = remember { FocusRequester() }
     Dialog(onDismissRequest = onCancel) {
-        Column(Modifier.width(440.dp).background(Flexarr.seat, RoundedCornerShape(14.dp)).padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(Modifier.width(440.dp).background(Flexarr.seat, RoundedCornerShape(Tokens.radiusPanel)).padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Text("Note", fontSize = 18.sp, fontWeight = FontWeight.Bold)
             TvTextField(draft, { draft = it }, "What happened?", Modifier.fillMaxWidth().focusRequester(field))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {

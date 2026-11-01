@@ -54,6 +54,7 @@ import io.github.flexarr.ui.components.itemActions
 import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.glowColor
 import io.github.flexarr.ui.theme.marquee
+import io.github.flexarr.ui.theme.Tokens
 
 /** A 2:3 poster with the title and year beneath it (text never sits on artwork). */
 @Composable
@@ -240,7 +241,7 @@ fun TvItemMenu(title: String, actions: List<MenuAction>, onDismiss: () -> Unit) 
     val first = remember { FocusRequester() }
     Dialog(onDismissRequest = onDismiss) {
         Column(
-            Modifier.width(320.dp).background(Flexarr.seat, RoundedCornerShape(14.dp)).padding(20.dp),
+            Modifier.width(320.dp).background(Flexarr.seat, RoundedCornerShape(Tokens.radiusPanel)).padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text(title, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(bottom = 4.dp))

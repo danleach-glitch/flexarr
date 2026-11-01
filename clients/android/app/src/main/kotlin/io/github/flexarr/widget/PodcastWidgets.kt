@@ -258,7 +258,7 @@ class TogglePodcast : ActionCallback {
 
 /** An episode's saved square picture, or a quiet tile with the mark. */
 @Composable
-private fun Artwork(shown: PodcastWidgets.Shown, size: Dp, corner: Dp = 10.dp) {
+private fun Artwork(shown: PodcastWidgets.Shown, size: Dp, corner: Dp = Tokens.radiusArt) {
     Box(GlanceModifier.size(size).cornerRadius(corner).background(PodcastWidgets.SEAT), contentAlignment = Alignment.Center) {
         if (shown.picture != null) {
             Image(ImageProvider(shown.picture), contentDescription = null, contentScale = ContentScale.Crop, modifier = GlanceModifier.fillMaxSize().cornerRadius(corner))
@@ -319,7 +319,7 @@ class ContinueListeningWidget : GlanceAppWidget() {
     private fun Wide(context: Context, shown: PodcastWidgets.Shown, isPlaying: Boolean) {
         val picture = (LocalSize.current.height - 24.dp).coerceIn(56.dp, 140.dp)
         Row(GlanceModifier.fillMaxSize()) {
-            Artwork(shown, picture, corner = 12.dp)
+            Artwork(shown, picture)
             Spacer(GlanceModifier.width(14.dp))
             Column(GlanceModifier.defaultWeight().fillMaxSize()) {
                 Text(shown.entry.show, style = TextStyle(color = PodcastWidgets.USHER, fontSize = 12.sp, fontWeight = FontWeight.Bold), maxLines = 1)
@@ -397,7 +397,7 @@ class UpNextWidget : GlanceAppWidget() {
                 else -> episodes.forEachIndexed { index, shown ->
                     if (index > 0) Spacer(GlanceModifier.height(8.dp))
                     Row(GlanceModifier.fillMaxWidth().clickable(PodcastWidgets.play(context, shown.entry.id)), verticalAlignment = Alignment.CenterVertically) {
-                        Artwork(shown, 32.dp, corner = 6.dp)
+                        Artwork(shown, 32.dp)
                         Spacer(GlanceModifier.width(10.dp))
                         Column(GlanceModifier.defaultWeight()) {
                             Text(shown.entry.title, style = TextStyle(color = PodcastWidgets.SCREEN, fontSize = 12.sp, fontWeight = FontWeight.Bold), maxLines = 1)

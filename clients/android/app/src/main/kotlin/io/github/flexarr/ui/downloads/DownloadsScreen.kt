@@ -81,6 +81,7 @@ import io.github.flexarr.ui.components.pressable
 import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.RoomBackground
 import kotlinx.coroutines.launch
+import io.github.flexarr.ui.theme.Tokens
 
 // The iPhone app's DownloadsView: everything downloaded (or on its way), playable with no connection; and the download
 // button a title's page and a podcast episode's row carry.
@@ -139,7 +140,7 @@ private fun <T> LazyListScope.section(title: String, downloads: List<T>, row: @C
     if (downloads.isEmpty()) return
     item(key = "heading-$title") { SectionHeading(title) }
     item(key = "rows-$title") {
-        Column(Modifier.padding(horizontal = Edge).clip(RoundedCornerShape(12.dp)).background(Flexarr.seat)) {
+        Column(Modifier.padding(horizontal = Edge).clip(RoundedCornerShape(Tokens.radiusPanel)).background(Flexarr.seat)) {
             downloads.forEach { row(it) }
         }
     }
@@ -172,7 +173,7 @@ private fun BookDownloadRow(model: AppModel, book: io.github.flexarr.core.LocalB
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(63.dp).clip(RoundedCornerShape(6.dp)).background(Flexarr.aisle), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(63.dp).clip(RoundedCornerShape(Tokens.radiusArt)).background(Flexarr.aisle), contentAlignment = Alignment.Center) {
             Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null, tint = Flexarr.usher)
             store.image(book)?.let { AsyncImage(model = it, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()) }
             val duration = book.manifest.durationSeconds
@@ -245,7 +246,7 @@ private fun DownloadListRow(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(artWidth, 63.dp).clip(RoundedCornerShape(6.dp)).background(Flexarr.aisle), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(artWidth, 63.dp).clip(RoundedCornerShape(Tokens.radiusArt)).background(Flexarr.aisle), contentAlignment = Alignment.Center) {
             Icon(placeholder, contentDescription = null, tint = Flexarr.usher)
             store.image(download)?.let { AsyncImage(model = it, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()) }
             val shown = download.position

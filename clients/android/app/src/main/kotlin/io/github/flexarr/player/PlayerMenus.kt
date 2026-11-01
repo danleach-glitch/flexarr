@@ -72,6 +72,7 @@ import io.github.flexarr.ui.theme.Flexarr
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import io.github.flexarr.ui.theme.Tokens
 
 // The player's menus for audio, subtitles, speed and the sleep timer, and what they open: the iPhone player's
 // UIMenus, Audio sync panel and "Still watching?" question (PlayerViewController and PlayerPanels.swift).
@@ -378,7 +379,7 @@ private fun SleepMenu(sleep: VideoSleep, offersEndOfEpisode: Boolean, close: () 
 internal fun AudioSyncPanel(controller: PlaybackController, onDone: () -> Unit, modifier: Modifier = Modifier) {
     val seconds = controller.audioSync ?: return
     Column(
-        modifier.glass(RoundedCornerShape(22.dp)).padding(horizontal = 16.dp, vertical = 14.dp),
+        modifier.glass(RoundedCornerShape(Tokens.radiusPanel)).padding(horizontal = 16.dp, vertical = 14.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {

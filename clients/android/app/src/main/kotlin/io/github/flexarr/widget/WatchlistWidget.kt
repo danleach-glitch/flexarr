@@ -181,9 +181,9 @@ class WatchlistWidget : GlanceAppWidget() {
         val posterWidth = (size.width - 24.dp - GAP * (across - 1)) / across
         val pictureHeight = minOf(posterWidth * 1.5f, size.height - if (titled) 80.dp else 56.dp).coerceIn(40.dp, 220.dp)
         Column(modifier.clickable(actionStartActivity(AppLink.Item(shown.entry.itemId).intent(context)))) {
-            Box(GlanceModifier.fillMaxWidth().height(pictureHeight).cornerRadius(8.dp).background(SEAT), contentAlignment = Alignment.Center) {
+            Box(GlanceModifier.fillMaxWidth().height(pictureHeight).cornerRadius(Tokens.radiusArt).background(SEAT), contentAlignment = Alignment.Center) {
                 if (shown.picture != null) {
-                    Image(ImageProvider(shown.picture), contentDescription = if (titled) null else shown.entry.title, contentScale = ContentScale.Crop, modifier = GlanceModifier.fillMaxSize().cornerRadius(8.dp))
+                    Image(ImageProvider(shown.picture), contentDescription = if (titled) null else shown.entry.title, contentScale = ContentScale.Crop, modifier = GlanceModifier.fillMaxSize().cornerRadius(Tokens.radiusArt))
                 } else {
                     Image(ImageProvider(R.drawable.ic_brand_mark), contentDescription = null, modifier = GlanceModifier.width(24.dp).height(24.dp))
                 }

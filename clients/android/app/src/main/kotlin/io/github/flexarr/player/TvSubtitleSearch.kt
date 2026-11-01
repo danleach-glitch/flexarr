@@ -47,6 +47,7 @@ import io.github.flexarr.ui.tv.TakeFocus
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlin.coroutines.cancellation.CancellationException
+import io.github.flexarr.ui.theme.Tokens
 
 /**
  * The phone's SubtitleSearchSheet for the remote: a panel down the right of the paused picture, Best match first and
@@ -105,7 +106,7 @@ internal fun TvSubtitleSearch(
 
     BackHandler(onBack = ::close)
     Column(
-        modifier.fillMaxHeight().width(380.dp).padding(20.dp).glass(RoundedCornerShape(22.dp)).padding(vertical = 18.dp),
+        modifier.fillMaxHeight().width(380.dp).padding(20.dp).glass(RoundedCornerShape(Tokens.radiusPanel)).padding(vertical = 18.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Text("Search for subtitles", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, modifier = Modifier.padding(horizontal = 20.dp))
@@ -140,7 +141,7 @@ private fun ResultRow(title: String, detail: String, provider: String?, matchesF
     Surface(
         onClick = onClick,
         modifier = modifier.fillMaxWidth().heightIn(min = 44.dp),
-        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(10.dp)),
+        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(Tokens.radiusControl)),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = Flexarr.screen.copy(alpha = 0.07f),
             contentColor = Flexarr.screen,

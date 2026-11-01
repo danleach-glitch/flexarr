@@ -102,6 +102,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
+import io.github.flexarr.ui.theme.Tokens
 
 /** A list down Live TV's left: Favourites, Recordings, every channel, or one of the source's groups. */
 private sealed interface Category {
@@ -278,7 +279,7 @@ private fun CategoryButton(title: String, selected: Boolean, icon: androidx.comp
         onClick = onClick,
         interactionSource = source,
         modifier = modifier.fillMaxWidth().height(35.dp).onFocusChanged { if (it.isFocused) onFocus() },
-        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(7.dp)),
+        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(Tokens.radiusControl)),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = if (selected) Flexarr.screen.copy(alpha = 0.12f) else Color.Transparent,
             contentColor = if (selected) Flexarr.screen else Flexarr.usher,
@@ -553,8 +554,8 @@ private fun GuideCell(
         onLongClick = onLongClick,
         interactionSource = source,
         modifier = modifier.alpha(if (past && !focused) 0.55f else 1f)
-            .then(if (programme.isSetToRecord) Modifier.border(1.5.dp, RecordRed, RoundedCornerShape(5.dp)) else Modifier),
-        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(5.dp)),
+            .then(if (programme.isSetToRecord) Modifier.border(1.5.dp, RecordRed, RoundedCornerShape(Tokens.radiusControl)) else Modifier),
+        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(Tokens.radiusControl)),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = Flexarr.seat.copy(alpha = if (onNow) 0.95f else 0.6f),
             contentColor = Flexarr.screen,
@@ -583,7 +584,7 @@ private fun NoListingsCell(onClick: () -> Unit, modifier: Modifier) {
     Surface(
         onClick = onClick,
         modifier = modifier,
-        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(5.dp)),
+        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(Tokens.radiusControl)),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = Flexarr.seat.copy(alpha = 0.3f),
             contentColor = Flexarr.usher,
@@ -603,7 +604,7 @@ private fun NoListingsCell(onClick: () -> Unit, modifier: Modifier) {
 private fun GuideDialog(title: String, message: String, onDismiss: () -> Unit, actions: List<MenuAction>) {
     val first = remember { FocusRequester() }
     Dialog(onDismissRequest = onDismiss) {
-        Column(Modifier.width(380.dp).background(Flexarr.seat, RoundedCornerShape(14.dp)).padding(22.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.width(380.dp).background(Flexarr.seat, RoundedCornerShape(Tokens.radiusPanel)).padding(22.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(title, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Text(message, fontSize = 13.sp, color = Flexarr.usher)
             Spacer(Modifier.height(4.dp))
@@ -763,7 +764,7 @@ private fun RecordingRow(title: String, detail: String, recordingNow: Boolean, w
         onClick = onClick,
         enabled = enabled,
         modifier = Modifier.fillMaxWidth(),
-        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(7.dp)),
+        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(Tokens.radiusControl)),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = Flexarr.seat.copy(alpha = 0.7f),
             contentColor = Flexarr.screen,

@@ -45,6 +45,7 @@ import io.github.flexarr.ui.components.rememberLoader
 import io.github.flexarr.ui.library.LibraryMenuEntry
 import io.github.flexarr.ui.library.onTv
 import io.github.flexarr.ui.theme.Flexarr
+import io.github.flexarr.ui.theme.Tokens
 
 /** Settings' pages, opened from the first and from each other; Back goes to the one before. */
 internal enum class TvSettingsPageId { Main, Playback, Libraries, Sidebar, Trakt, Server, Diagnostics }
@@ -199,7 +200,7 @@ private fun MainPage(
     if (confirmSignOut) {
         val cancel = remember { FocusRequester() }
         Dialog(onDismissRequest = { confirmSignOut = false }) {
-            Column(Modifier.width(400.dp).background(Flexarr.seat, RoundedCornerShape(14.dp)).padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Column(Modifier.width(400.dp).background(Flexarr.seat, RoundedCornerShape(Tokens.radiusPanel)).padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 val guest = model.isGuest
                 Text(
                     if (guest) owner?.let { "Leave $it’s Flexarr?" } ?: "Leave this Flexarr?" else "Sign out of this server?",
