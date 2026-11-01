@@ -35,6 +35,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Forward10
 import androidx.compose.material.icons.filled.Forward30
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.MoreHoriz
@@ -192,9 +193,11 @@ private fun RoundButton(icon: ImageVector, label: String, onClick: () -> Unit) {
 @Composable
 private fun ForwardButton(seconds: Int, onClick: () -> Unit) {
     if (seconds == 30) return RoundButton(Icons.Filled.Forward30, "Forward 30 seconds", onClick)
+    if (seconds == 10) return RoundButton(Icons.Filled.Forward10, "Forward 10 seconds", onClick)
     Box(Modifier.minimumInteractiveComponentSize().size(40.dp).clip(CircleShape).pressable(onClick), contentAlignment = Alignment.Center) {
-        Icon(Icons.Filled.Replay, contentDescription = "Forward $seconds seconds", tint = Flexarr.screen, modifier = Modifier.size(24.dp).scale(scaleX = -1f, scaleY = 1f))
-        Text("$seconds", fontSize = 7.sp, fontWeight = FontWeight.Bold, color = Flexarr.screen, modifier = Modifier.padding(top = 2.dp))
+        Icon(Icons.Filled.Replay, contentDescription = "Forward $seconds seconds", tint = Flexarr.screen, modifier = Modifier.size(28.dp).scale(scaleX = -1f, scaleY = 1f))
+        // The number is in the label already: TalkBack reads it once.
+        Text("$seconds", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Flexarr.screen, modifier = Modifier.padding(top = 3.dp).clearAndSetSemantics {})
     }
 }
 
@@ -526,7 +529,7 @@ private fun Transport(icon: ImageVector, label: String, badge: String? = null, m
     Box(Modifier.size(56.dp).clip(CircleShape).pressable(onClick), contentAlignment = Alignment.Center) {
         Icon(icon, contentDescription = label, tint = Flexarr.screen, modifier = Modifier.size(30.dp).then(if (mirrored) Modifier.scale(scaleX = -1f, scaleY = 1f) else Modifier))
         // Material has a 30 but no 15: the number goes inside the arrow.
-        badge?.let { Text(it, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Flexarr.screen, modifier = Modifier.padding(top = 3.dp)) }
+        badge?.let { Text(it, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Flexarr.screen, modifier = Modifier.padding(top = 3.dp).clearAndSetSemantics {}) }
     }
 }
 
