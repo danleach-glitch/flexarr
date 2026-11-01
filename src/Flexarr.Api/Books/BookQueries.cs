@@ -61,10 +61,12 @@ public static class BookQueries
 
         if (filter.Language is { Length: > 0 } language)
         {
-            // "en", "eng" and "English" are one language: books tagged with any of them (as written: en, En, EN) match.
+            // "en", "eng" and "English" are one language: books tagged with any of them, in any case, match. SQL's
+            // lower(), which ToLower becomes, has no culture to pass.
             var names = LanguageNames(language);
-            var written = names.Concat(names.Select(n => n.Length > 0 ? char.ToUpperInvariant(n[0]) + n[1..] : n)).Concat(names.Select(n => n.ToUpperInvariant())).Append(language).Distinct().ToList();
-            books = books.Where(i => written.Contains(i.Book!.Language!));
+#pragma warning disable CA1304, CA1311
+            books = books.Where(i => names.Contains(i.Book!.Language!.ToLower()));
+#pragma warning restore CA1304, CA1311
         }
 
         if (filter.Abridged is { } abridged)
@@ -296,11 +298,18 @@ public static class BookQueries
 
     /// <summary>
     /// The ways one language is written in tags, lower case: <paramref name="language"/> itself, and when it names a
-    /// known language, its two- and three-letter codes and its English and own names.
+    /// known language, its two- and three-letter codes (the older bibliographic one too, "ger" beside "deu") and its
+    /// English and own names.
     /// </summary>
     internal static List<string> LanguageNames(string language)
     {
-        var names = new HashSet<string>(StringComparer.Ordinal) { language.Trim().ToLowerInvariant() };
+        language = language.Trim();
+        var names = new HashSet<string>(StringComparer.Ordinal) { language.ToLowerInvariant() };
+        if (Terminological.TryGetValue(language, out var terminological))
+        {
+            language = terminological;
+        }
+
         var culture = System.Globalization.CultureInfo.GetCultures(System.Globalization.CultureTypes.NeutralCultures)
             .FirstOrDefault(c => c.Name.Length > 0 && (string.Equals(c.TwoLetterISOLanguageName, language, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(c.ThreeLetterISOLanguageName, language, StringComparison.OrdinalIgnoreCase)
@@ -312,8 +321,28 @@ public static class BookQueries
             {
                 names.Add(name.ToLowerInvariant());
             }
+
+            if (Bibliographic.TryGetValue(culture.ThreeLetterISOLanguageName, out var bibliographic))
+            {
+                names.Add(bibliographic);
+            }
         }
 
         return [.. names];
     }
+
+    /// <summary>
+    /// ISO 639-2's bibliographic codes, by the terminological code .NET knows each language by: older tags (and
+    /// libraries' catalogues) say "ger" and "fre" where .NET says "deu" and "fra".
+    /// </summary>
+    private static readonly Dictionary<string, string> Bibliographic = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["deu"] = "ger", ["fra"] = "fre", ["zho"] = "chi", ["nld"] = "dut", ["ces"] = "cze", ["ell"] = "gre", ["fas"] = "per",
+        ["ron"] = "rum", ["slk"] = "slo", ["cym"] = "wel", ["hye"] = "arm", ["eus"] = "baq", ["mya"] = "bur", ["kat"] = "geo",
+        ["isl"] = "ice", ["mkd"] = "mac", ["mri"] = "mao", ["msa"] = "may", ["sqi"] = "alb", ["bod"] = "tib",
+    };
+
+    /// <summary><see cref="Bibliographic"/> the other way round.</summary>
+    private static readonly Dictionary<string, string> Terminological =
+        Bibliographic.ToDictionary(p => p.Value, p => p.Key, StringComparer.OrdinalIgnoreCase);
 }
