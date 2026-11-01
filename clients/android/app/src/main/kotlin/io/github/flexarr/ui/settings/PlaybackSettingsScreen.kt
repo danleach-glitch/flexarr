@@ -89,7 +89,7 @@ fun PlaybackSettingsScreen(model: AppModel) {
                 item {
                     Group(
                         header = "Your profile, on every device",
-                        footer = "Auto-play counts down five seconds, then starts the next episode. Subtitles that run early or late can be moved on Apple TV or the web. In the black bars puts subtitles below the picture of films wider than the screen.",
+                        footer = "Auto-play counts down five seconds, then starts the next episode. Subtitles that run early or late can be moved on Apple TV or the web. In the black bars puts subtitles below the picture of movies wider than the screen.",
                     ) {
                         Toggle("Auto-play the next episode", current.autoPlayNext, { save(current.copy(autoPlayNext = it), current) })
                         Divider()

@@ -371,7 +371,7 @@ fun LibraryScreen(model: AppModel, libraryId: String, initialSort: LibrarySort, 
                 if (shows == Showing.All) SortAndFilter(sort, { sort = it }, genre, { genre = it }, genreList)
             }
             if (hasGenres) {
-                ShowingSwitch(if (loadedLibrary?.type == LibraryType.TvShows) "All shows" else "All films", shows) { showing = it }
+                ShowingSwitch(if (loadedLibrary?.type == LibraryType.TvShows) "All shows" else "All movies", shows) { showing = it }
             }
             val failed = error
             when {
@@ -521,6 +521,6 @@ private fun LibraryGenreGrid(library: Library, genres: List<GenreCount>) {
 
 /** "12 films", "1 show". */
 private fun genreCaption(library: Library, genre: GenreCount): String {
-    val noun = if (library.type == LibraryType.TvShows) (if (genre.count == 1) "show" else "shows") else (if (genre.count == 1) "film" else "films")
+    val noun = if (library.type == LibraryType.TvShows) (if (genre.count == 1) "show" else "shows") else (if (genre.count == 1) "movie" else "movies")
     return "${genre.count} $noun"
 }

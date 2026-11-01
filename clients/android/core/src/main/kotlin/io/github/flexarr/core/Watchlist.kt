@@ -95,8 +95,8 @@ enum class WatchlistFilter(val label: String) {
 
 /** Films, shows, or both: the Watchlist screen's kind filter, as the web's. */
 enum class WatchlistKind(val label: String) {
-    All("Films and shows"),
-    Films("Films"),
+    All("Movies and shows"),
+    Films("Movies"),
     Shows("Shows");
 
     fun matches(entry: WatchlistEntry): Boolean = when (this) {
@@ -156,7 +156,7 @@ internal data class TitleRequestBody(val mediaType: String, val tmdbId: Int)
 
 /** "Film, 2014" or "Show, 2011" (just "Film" or "Show" without a year), for "movie" or "tv". */
 fun kindLine(mediaType: String, year: Int?): String =
-    listOfNotNull(if (mediaType == "tv") "Show" else "Film", year?.toString()).joinToString(", ")
+    listOfNotNull(if (mediaType == "tv") "Show" else "Movie", year?.toString()).joinToString(", ")
 
 /** Whether Seerr is set up on the server (and answering), so search can look beyond the library. */
 @Serializable

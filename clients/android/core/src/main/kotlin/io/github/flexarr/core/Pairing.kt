@@ -49,7 +49,7 @@ data class WaitingDevice(
     val whereFrom: String get() = "It’s $asking."
 
     /** What it is and where it's asking from: "Apple TV · asking from your home network (192.168.1.70)", else [whereFrom]. */
-    val summary: String get() = kind?.let { "$it · $asking" } ?: whereFrom
+    val summary: String get() = kind?.let { "$it, $asking" } ?: whereFrom
 
     /** Short, for a list: "Apple TV · home network", "Tailscale", "outside your home network". */
     val shortSummary: String
@@ -59,7 +59,7 @@ data class WaitingDevice(
                 "Tailscale" -> "Tailscale"
                 else -> "outside your home network"
             }
-            return listOfNotNull(kind, network).joinToString(" · ")
+            return listOfNotNull(kind, network).joinToString(", ")
         }
 }
 

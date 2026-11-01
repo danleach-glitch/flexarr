@@ -260,7 +260,7 @@ fun SearchScreen(model: AppModel) {
                         onClear = ::clear,
                         onReopen = { record(null, it.id) },
                     )
-                    else -> item { StatusView("Find films, shows, episodes and people in your libraries.", empty = true, modifier = Modifier.height(240.dp)) }
+                    else -> item { StatusView("Find movies, shows, episodes and people in your libraries.", empty = true, modifier = Modifier.height(240.dp)) }
                 }
             }
         }

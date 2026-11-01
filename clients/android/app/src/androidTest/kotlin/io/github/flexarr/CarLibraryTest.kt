@@ -49,7 +49,7 @@ class CarLibraryTest {
             val root = onBrowser { browser.getLibraryRoot(null) }.get(10, TimeUnit.SECONDS).value!!
             assertEquals(CarLibrary.ROOT, root.mediaId)
             val tabs = children(root.mediaId)
-            assertEquals(listOf("Up Next", "New episodes", "Podcasts", "Music"), tabs.map { it.mediaMetadata.title.toString() })
+            assertEquals(listOf("Up next", "New episodes", "Podcasts", "Music"), tabs.map { it.mediaMetadata.title.toString() })
 
             val shows = children(CarLibrary.PODCASTS)
             assertTrue("No podcasts followed", shows.isNotEmpty())

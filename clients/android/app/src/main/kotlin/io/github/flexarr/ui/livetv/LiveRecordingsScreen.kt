@@ -133,8 +133,8 @@ fun LiveRecordingsScreen(model: AppModel) {
                                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                                             Text(series.title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen)
                                             Text(
-                                                "${series.channelName?.let { "On $it" } ?: "On any channel"} · ${series.upcoming} coming up · ${series.recorded} recorded" +
-                                                    if (series.newOnly) " · New only" else "",
+                                                "${series.channelName?.let { "On $it" } ?: "On any channel"}, ${series.upcoming} coming up, ${series.recorded} recorded" +
+                                                    if (series.newOnly) ", new only" else "",
                                                 fontSize = 12.sp,
                                                 color = Flexarr.usher,
                                             )
@@ -187,13 +187,13 @@ private fun RecordingRow(recording: Recording, action: String, onOpen: (() -> Un
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(recording.title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen)
             val parts = buildList {
-                if (recording.season != null && recording.episode != null) add("S${recording.season} E${recording.episode}")
+                if (recording.season != null && recording.episode != null) add("S${recording.season}E${recording.episode}")
                 recording.subtitle?.let(::add)
                 add(recording.channelName)
                 add(dayFormat(context).format(recording.start.atZone(ZoneId.systemDefault())))
                 recording.size?.let { add(Formatter.formatShortFileSize(context, it)) }
             }
-            Text(parts.joinToString(" · "), fontSize = 12.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(parts.joinToString("   "), fontSize = 12.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis)
             when {
                 recording.clashes -> Text("Won’t record: every stream is wanted by recordings scheduled before it.", fontSize = 12.sp, color = Flexarr.danger)
                 recording.reason != null && recording.state != "scheduled" -> Text(recording.reason!!, fontSize = 12.sp, color = Flexarr.usher)

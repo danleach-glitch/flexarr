@@ -125,7 +125,7 @@ private fun MainPage(
                 if (switches) {
                     TvSettingsRow(
                         profile.name, onClick = onSwitchProfile, modifier = Modifier.focusFor(null), profile = model to profile, value = "Switch",
-                        help = "Switch to another profile. Each has its own Continue Watching, watch history and playback settings.",
+                        help = "Switch to another profile. Each has its own Continue watching, watch history and playback settings.",
                     )
                 } else {
                     TvSettingsFact("Profile", profile.name, profile = model to profile)

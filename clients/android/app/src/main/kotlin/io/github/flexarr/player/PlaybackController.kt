@@ -767,10 +767,10 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
 
     private fun updatePrompt() {
         // "Next Episode in 4" (on shuffle too: the next one just happens to be random).
-        val nextTitle = countdown?.let { "Next Episode in $it" } ?: "Next Episode"
+        val nextTitle = countdown?.let { "Next episode in $it" } ?: "Next episode"
         promptTitle = if (isFinishing) nextTitle else when (val current = prompt) {
             PlaybackPrompt.None -> null
-            is PlaybackPrompt.Skip -> if (current.type == MarkerType.Recap) "Skip Recap" else "Skip Intro"
+            is PlaybackPrompt.Skip -> if (current.type == MarkerType.Recap) "Skip recap" else "Skip intro"
             // The sleep timer stops this episode at its end: there's no next one to offer.
             PlaybackPrompt.NextEpisode -> if (sleepHoldsEpisode) null else nextTitle
         }

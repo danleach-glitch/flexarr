@@ -254,7 +254,7 @@ fun PodcastScreen(model: AppModel, id: String) {
                         runCatching { client.setWatched(id, true) }.onSuccess { model.downloads.markedPlayed(id) }
                         model.watchStateChanged()
                     }
-                }) { Text("Mark as Played") }
+                }) { Text("Mark as played") }
             },
             dismissButton = { TextButton(onClick = { markingAllPlayed = false }) { Text("Cancel") } },
             containerColor = Flexarr.seat,

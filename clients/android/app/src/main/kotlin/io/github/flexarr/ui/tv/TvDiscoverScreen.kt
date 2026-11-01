@@ -270,14 +270,14 @@ private fun DiscoverBrowse(
 /** "12 films and 3 shows". */
 private fun genreCounts(genre: Genre): String =
     listOfNotNull(
-        if (genre.movies > 0) (if (genre.movies == 1) "1 film" else "${genre.movies} films") else null,
+        if (genre.movies > 0) (if (genre.movies == 1) "1 movie" else "${genre.movies} movies") else null,
         if (genre.shows > 0) (if (genre.shows == 1) "1 show" else "${genre.shows} shows") else null,
     ).joinToString(" and ")
 
 /** Why there are no rows to request from: Seerr isn't connected, or isn't answering. */
 private fun seerrNote(content: DiscoverContent, rows: List<ExternalRow>): String? {
     if (rows.isNotEmpty()) return null
-    if (!content.status.configured) return "Connect Seerr under Settings › Connections on the web to find new films and shows here and request them."
+    if (!content.status.configured) return "Connect Seerr under Settings › Connections on the web to find new movies and shows here and request them."
     return if (content.status.reachable) null else "Seerr isn’t answering, so there’s nothing new to request just now."
 }
 
@@ -342,7 +342,7 @@ private fun DiscoverSearch(client: FlexarrClient, open: (ExternalTitle) -> Unit)
                     val shows = found.filter { it.isShow }
                     val films = found.filter { !it.isShow }
                     if (shows.isNotEmpty()) item(key = "shows") { DiscoverRow("Shows", shows, open, cardModifier = { Modifier.focusMemory(focus, "shows/${it.id}") }) }
-                    if (films.isNotEmpty()) item(key = "films") { DiscoverRow("Films", films, open, cardModifier = { Modifier.focusMemory(focus, "films/${it.id}") }) }
+                    if (films.isNotEmpty()) item(key = "films") { DiscoverRow("Movies", films, open, cardModifier = { Modifier.focusMemory(focus, "films/${it.id}") }) }
                 }
                 error != null -> item(key = "error") {
                     Box(Modifier.fillMaxWidth().height(150.dp)) { TvStatusView(error, retry = { attempt++ }) }
@@ -358,7 +358,7 @@ private fun SearchField(value: String, onValue: (String) -> Unit, modifier: Modi
     val keyboard = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
     TvTextField(
-        value, onValue, "Any film or show", modifier.widthIn(max = 520.dp).fillMaxWidth(), icon = Icons.Filled.Search,
+        value, onValue, "Any movie or show", modifier.widthIn(max = 520.dp).fillMaxWidth(), icon = Icons.Filled.Search,
         keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, imeAction = ImeAction.Search),
         keyboardActions = KeyboardActions(onSearch = {
             keyboard?.hide()

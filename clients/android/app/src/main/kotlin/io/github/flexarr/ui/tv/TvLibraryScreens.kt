@@ -114,7 +114,7 @@ private fun LibraryViewSwitch(library: Library, selected: TvLibraryOpening, hasG
     val all = when (library.type) {
         LibraryType.TvShows -> "All shows"
         LibraryType.HomeVideos -> "All folders"
-        else -> "All films"
+        else -> "All movies"
     }
     val choices = listOf(TvLibraryOpening.Browse to "Browse", TvLibraryOpening.All to all) +
         (if (hasGenres) listOf(TvLibraryOpening.Genres to "Genres") else emptyList())
@@ -199,7 +199,7 @@ private fun LibraryGenres(model: AppModel, library: Library, takeFocus: Boolean,
 }
 
 private fun genreCaption(library: Library, genre: GenreCount): String {
-    val noun = if (library.type == LibraryType.TvShows) (if (genre.count == 1) "show" else "shows") else (if (genre.count == 1) "film" else "films")
+    val noun = if (library.type == LibraryType.TvShows) (if (genre.count == 1) "show" else "shows") else (if (genre.count == 1) "movie" else "movies")
     return "${genre.count} $noun"
 }
 

@@ -683,7 +683,7 @@ private fun UpNext(model: AppModel) {
     val next = model.upNext.filter { it.id != model.podcasts.current?.id }
     if (next.isEmpty()) return
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        SectionTitle("Up Next")
+        SectionTitle("Up next")
         next.take(20).forEach { episode ->
             Row(
                 Modifier.fillMaxWidth().pressable({ model.podcasts.play(episode) }).padding(horizontal = 12.dp, vertical = 6.dp),

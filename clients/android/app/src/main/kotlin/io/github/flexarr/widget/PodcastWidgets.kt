@@ -383,11 +383,11 @@ class UpNextWidget : GlanceAppWidget() {
             GlanceModifier.fillMaxSize().background(PodcastWidgets.ROOM).cornerRadius(20.dp).padding(12.dp)
                 .clickable(episodes.firstOrNull()?.let { PodcastWidgets.play(context, it.entry.id) } ?: actionStartActivity(AppLink.Home.intent(context))),
         ) {
-            Text("Up Next", style = TextStyle(color = PodcastWidgets.USHER, fontSize = 12.sp, fontWeight = FontWeight.Bold), maxLines = 1)
+            Text("Up next", style = TextStyle(color = PodcastWidgets.USHER, fontSize = 12.sp, fontWeight = FontWeight.Bold), maxLines = 1)
             Spacer(GlanceModifier.height(8.dp))
             when {
                 state == PodcastWidgets.State.SignedOut -> Note("Open Flexarr to connect it to your server.")
-                episodes.isEmpty() -> Note("Nothing in Up Next")
+                episodes.isEmpty() -> Note("Nothing in Up next")
                 small -> {
                     val first = episodes.first()
                     Artwork(first, 56.dp)

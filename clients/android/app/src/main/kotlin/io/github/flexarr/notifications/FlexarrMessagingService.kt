@@ -69,7 +69,7 @@ class FlexarrMessagingService : FirebaseMessagingService() {
         fun createChannels(context: Context) {
             val manager = context.getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(NotificationChannel(CHANNEL, "New in your library", NotificationManager.IMPORTANCE_DEFAULT).apply {
-                description = "Films, shows, podcast episodes, recordings and requests as they arrive"
+                description = "Movies, shows, podcast episodes, recordings and requests as they arrive"
             })
             manager.createNotificationChannel(NotificationChannel(UPCOMING_CHANNEL, "Upcoming", NotificationManager.IMPORTANCE_LOW).apply {
                 description = "Each morning, what's airing today"

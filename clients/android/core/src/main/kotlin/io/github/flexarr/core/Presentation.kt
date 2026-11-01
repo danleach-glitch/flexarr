@@ -50,12 +50,12 @@ val ItemSummary.progress: Double?
 
 val ItemSummary.isResumable: Boolean get() = progress != null
 
-/** "S2 E3", "S1 E1–E2", or null for anything but episodes, and for home videos (which go by their names). */
+/** "S2E3", "S1E1–E2", or null for anything but episodes, and for home videos (which go by their names). */
 val ItemSummary.episodeCode: String?
     get() {
         if (kind != MediaKind.Episode || homeVideo == true) return null
         val episode = episodeNumber ?: return null
-        val season = seasonNumber?.let { "S$it " }.orEmpty()
+        val season = seasonNumber?.let { "S$it" }.orEmpty()
         val end = episodeNumberEnd
         return if (end != null && end > episode) "${season}E$episode–E$end" else "${season}E$episode"
     }
@@ -63,7 +63,7 @@ val ItemSummary.episodeCode: String?
 /** The headline for cards and the player: the series name for episodes, else the title. */
 val ItemSummary.displayTitle: String get() = if (kind == MediaKind.Episode) seriesTitle ?: title else title
 
-/** The second line for episodes: "S2 E3  Bit by a Dead Bee". */
+/** The second line for episodes: "S2E3  Bit by a Dead Bee". */
 val ItemSummary.episodeSubtitle: String?
     get() = if (kind != MediaKind.Episode) null else listOfNotNull(episodeCode, title).joinToString("  ")
 
@@ -171,7 +171,7 @@ data class EmptyHomeMessage(val title: String, val body: String, val folders: Li
         }
 
         private fun kind(type: LibraryType) = when (type) {
-            LibraryType.Movies -> "films"
+            LibraryType.Movies -> "movies"
             LibraryType.TvShows -> "shows"
             LibraryType.Music -> "music"
             LibraryType.Podcasts -> "podcasts"

@@ -231,7 +231,7 @@ internal fun TvPlaybackSettings(model: AppModel) {
             item {
                 TvSettingsToggle(
                     "Skip intros", current.skipIntros, { save(current.copy(skipIntros = !current.skipIntros), current) }, icon = Icons.Filled.FastForward,
-                    help = "Jumps past a show’s opening titles by itself. Off, a Skip Intro button shows instead.",
+                    help = "Jumps past a show’s opening titles by itself. Off, a Skip intro button shows instead.",
                 )
             }
             item {
@@ -264,7 +264,7 @@ internal fun TvPlaybackSettings(model: AppModel) {
                 val inBars = current.subtitlesInBlackBars ?: false
                 TvSettingsToggle(
                     "Subtitles in the black bars", inBars, { save(current.copy(subtitlesInBlackBars = !inBars), current) }, icon = Icons.Filled.CallToAction,
-                    help = "In films wider than the TV, subtitles go in the black bar below the picture rather than over it.",
+                    help = "In movies wider than the TV, subtitles go in the black bar below the picture rather than over it.",
                 )
             }
         } else if (!loaded) {
@@ -357,7 +357,7 @@ private val TvLibraryOpening.help: String
     get() = when (this) {
         TvLibraryOpening.Browse -> "A library opens on its highlights: what you’re watching in it, the latest, the best not yet watched and its biggest genres."
         TvLibraryOpening.All -> "A library opens on every title, A to Z, with sorting, genres and a letter rail to jump through it."
-        TvLibraryOpening.Genres -> "A film or TV library opens on its genres, each with a picture from one of its titles. Home videos open on Browse."
+        TvLibraryOpening.Genres -> "A movie or TV library opens on its genres, each with a picture from one of its titles. Home videos open on Browse."
     }
 
 private val TvLibraryOpening.icon: ImageVector

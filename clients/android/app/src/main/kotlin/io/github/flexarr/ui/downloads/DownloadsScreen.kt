@@ -101,7 +101,7 @@ fun DownloadsScreen(model: AppModel) {
             PageTitle("Downloads")
             if (store.downloads.isEmpty() && store.musicCollections.isEmpty() && model.bookDownloads.books.isEmpty()) {
                 StatusView(
-                    "Download films, episodes, albums, playlists and podcast episodes to watch and listen with no connection. Look for Download on a title’s page.",
+                    "Download movies, episodes, albums, playlists and podcast episodes to watch and listen with no connection. Look for Download on a title’s page.",
                     empty = true,
                 )
                 return@Column
@@ -117,7 +117,7 @@ fun DownloadsScreen(model: AppModel) {
                 },
             ) {
                 LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
-                    section("Films", store.films) { DownloadRow(model, it) }
+                    section("Movies", store.films) { DownloadRow(model, it) }
                     store.shows.forEach { (show, episodes) -> section(show, episodes) { DownloadRow(model, it) } }
                     section("Music", store.musicCollections) { CollectionRow(model, it, onOpen = { opened = it.id }) }
                     section("Audiobooks", model.bookDownloads.books) { BookDownloadRow(model, it) }

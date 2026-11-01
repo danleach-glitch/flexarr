@@ -690,11 +690,11 @@ private fun TvLiveRecordings(model: AppModel, onChanged: () -> Unit, onUpcoming:
     }
 
     fun detail(recording: Recording) = listOfNotNull(
-        if (recording.season != null && recording.episode != null) "S${recording.season} E${recording.episode}" else null,
+        if (recording.season != null && recording.episode != null) "S${recording.season}E${recording.episode}" else null,
         recording.subtitle,
         recording.channelName,
         day(recording.start),
-    ).joinToString(" · ")
+    ).joinToString("   ")
 
     val loaded = recordings
     when {
@@ -713,8 +713,8 @@ private fun TvLiveRecordings(model: AppModel, onChanged: () -> Unit, onUpcoming:
             if (loaded.series.isNotEmpty()) {
                 item { Heading("Series", Modifier.padding(top = 12.dp)) }
                 items(loaded.series, key = { "s" + it.id }) { series ->
-                    val line = "${series.channelName?.let { "On $it" } ?: "On any channel"} · ${series.upcoming} coming up · ${series.recorded} recorded" +
-                        if (series.newOnly) " · New episodes only" else ""
+                    val line = "${series.channelName?.let { "On $it" } ?: "On any channel"}, ${series.upcoming} coming up, ${series.recorded} recorded" +
+                        if (series.newOnly) ", new episodes only" else ""
                     RecordingRow(series.title, line, recordingNow = false, warning = null) { confirmingSeries = series }
                 }
             }

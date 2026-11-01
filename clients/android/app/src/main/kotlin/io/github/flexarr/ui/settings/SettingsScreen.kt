@@ -227,7 +227,7 @@ fun SettingsScreen(
                     // With podcasts, or an audiobooks library to listen to (none for a kids profile, or before 0.58).
                     if (model.podcastStatus?.available == true || model.hasAudiobooks) {
                         Divider()
-                        SettingsLink("Podcasts & audiobooks", Icons.Filled.Headphones, value = null, onClick = onListening)
+                        SettingsLink("Podcasts and audiobooks", Icons.Filled.Headphones, value = null, onClick = onListening)
                     }
                     // Only from servers that can save an order (0.54 on), and with more than one place to put in order.
                     val order = model.currentProfile?.libraryOrder
@@ -361,7 +361,7 @@ fun DownloadSettingsScreen(model: AppModel) {
             item { PageTitle("Downloads", onBack = { navigator.back() }) }
             item {
                 Group(
-                    header = "Films and episodes",
+                    header = "Movies and episodes",
                     footer = "The size Download starts with; a title’s page offers the others too. Original keeps the full picture and sound but takes the most space. Podcasts always come as their files are.",
                 ) {
                     listOf(DownloadQuality.Medium to "Automatic (720p)", DownloadQuality.Original to "Original", DownloadQuality.Small to "Small (480p)").forEachIndexed { index, (quality, label) ->
