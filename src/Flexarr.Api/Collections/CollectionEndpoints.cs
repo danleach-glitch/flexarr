@@ -343,7 +343,7 @@ public static class CollectionEndpoints
     }
 
     private static List<string> Posters(IEnumerable<ItemFact> items) =>
-        items.Select(i => ArtworkUrls.For(i.Id, i.MetadataUpdatedAt == null ? 0 : i.MetadataUpdatedAt.Value.Ticks / 10_000_000, true, false, false, false).Poster!).ToList();
+        items.Select(i => ArtworkUrls.For(i.Id, ArtworkUrls.Version(i.MetadataUpdatedAt, i.ArtworkChangedAt), true, false, false, false).Poster!).ToList();
 
     /// <summary>Watched as <see cref="FactOf"/> works it out: a show once every episode is.</summary>
     private static System.Linq.Expressions.Expression<Func<MediaItem, bool>> WatchedBy(string profileId) => i =>
@@ -352,10 +352,10 @@ public static class CollectionEndpoints
             : i.PlaybackStates.Any(p => p.UserId == profileId && p.Watched);
 
     /// <summary>Just enough of a title for a collection's counts and poster: watched works as it does in summaries.</summary>
-    private sealed record ItemFact(Guid Id, bool HasPoster, DateTime? MetadataUpdatedAt, bool Watched);
+    private sealed record ItemFact(Guid Id, bool HasPoster, DateTime? MetadataUpdatedAt, DateTime? ArtworkChangedAt, bool Watched);
 
     private static System.Linq.Expressions.Expression<Func<MediaItem, ItemFact>> FactOf(string profileId) => i => new ItemFact(
-        i.Id, i.PosterUrl != null, i.MetadataUpdatedAt,
+        i.Id, i.PosterUrl != null, i.MetadataUpdatedAt, i.ArtworkChangedAt,
         i.Kind == MediaKind.Series
             ? !i.Children.SelectMany(s => s.Children).Any(e => !e.PlaybackStates.Any(p => p.UserId == profileId && p.Watched))
             : i.PlaybackStates.Any(p => p.UserId == profileId && p.Watched));

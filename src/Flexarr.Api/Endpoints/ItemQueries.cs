@@ -55,7 +55,7 @@ public static class ItemQueries
                 x.Book != null ? x.Book.Duration : x.Best == null ? x.PodcastDuration : x.Best.DurationSeconds,
                 x.Best == null ? null : Resolution.Label(x.Best.Width, x.Best.Height),
                 x.Item.AddedAt,
-                ArtworkUrls.For(x.Item.Id, x.Item.MetadataUpdatedAt == null ? 0 : x.Item.MetadataUpdatedAt.Value.Ticks / 10_000_000,
+                ArtworkUrls.For(x.Item.Id, ArtworkUrls.Version(x.Item.MetadataUpdatedAt, x.Item.ArtworkChangedAt),
                     x.Poster, x.Backdrop, x.Logo, x.Item.ThumbUrl != null),
                 x.Accent,
                 x.Item.CommunityRating,

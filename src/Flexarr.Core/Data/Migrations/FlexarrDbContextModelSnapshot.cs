@@ -829,6 +829,12 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<int?>("ArrId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<DateTime?>("ArtworkChangedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ArtworkStamp")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("BackdropUrl")
                         .HasColumnType("TEXT");
 

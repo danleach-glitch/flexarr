@@ -780,8 +780,9 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
     }
 
     /// <summary>
-    /// The cache's name for <paramref name="remoteUrl"/>: a local cover or track also by when it last changed, so a
-    /// replaced cover.jpg (or a retagged file) is read again rather than served from the copy of the old one.
+    /// The cache's name for <paramref name="remoteUrl"/>: a local cover or track also by when it last changed and its
+    /// size, so a replaced cover.jpg (or a retagged file) is read again rather than served from the copy of the old
+    /// one, even when the new file kept an older date.
     /// </summary>
     private static string Versioned(string remoteUrl)
     {
@@ -791,8 +792,14 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
         }
 
         var local = remoteUrl.StartsWith("embedded://", StringComparison.Ordinal) ? remoteUrl["embedded://".Length..] : remoteUrl["file://".Length..];
-        var changed = File.GetLastWriteTimeUtc(local); // 1601 when it's gone; the read then finds nothing either way
-        return $"{remoteUrl}\n{changed.Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
+        var file = new FileInfo(local);
+        if (!file.Exists)
+        {
+            return remoteUrl; // the read then finds nothing either way
+        }
+
+        var invariant = System.Globalization.CultureInfo.InvariantCulture;
+        return $"{remoteUrl}\n{file.LastWriteTimeUtc.Ticks.ToString(invariant)}\n{file.Length.ToString(invariant)}";
     }
 
     private static string Hash(string value) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(value)));

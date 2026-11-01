@@ -139,6 +139,18 @@ public sealed class MediaItem
     public string? MetadataSource { get; set; }
     public DateTime? MetadataUpdatedAt { get; set; }
 
+    /// <summary>
+    /// A short hash of each local artwork source (file:// and embedded://): its path, when it last changed and its
+    /// size. The library scan compares it to notice a replaced cover, whatever the new file's date.
+    /// </summary>
+    public string? ArtworkStamp { get; set; }
+
+    /// <summary>
+    /// When the scan last saw <see cref="ArtworkStamp"/> change. Artwork addresses carry the later of this and
+    /// <see cref="MetadataUpdatedAt"/>, so apps fetch a replaced picture; it never stands in for a metadata refresh.
+    /// </summary>
+    public DateTime? ArtworkChangedAt { get; set; }
+
     public List<Genre> Genres { get; set; } = [];
     public List<Credit> Credits { get; set; } = [];
     public List<PlaybackState> PlaybackStates { get; set; } = [];

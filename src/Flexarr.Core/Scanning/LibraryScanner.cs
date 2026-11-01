@@ -533,32 +533,78 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
         target.AudioChannels = audio?.Channels;
     }
 
-    /// <summary>Removes files missing for longer than <see cref="MissingGracePeriod"/>.</summary>
     /// <summary>
-    /// A cover.jpg or poster.jpg replaced beside the files: its title's artwork address changes (it carries
-    /// <see cref="MediaItem.MetadataUpdatedAt"/>), so apps and browsers fetch the new picture rather than keep the old
-    /// one they cached. Titles never looked up yet are left alone, as a null there means "look it up".
+    /// A cover.jpg or poster.jpg replaced beside the files, or a file whose own artwork is read (embedded://) retagged:
+    /// each title's local artwork sources are stamped by path, when they last changed and size, and a stamp different
+    /// from last time's sets <see cref="MediaItem.ArtworkChangedAt"/>. Artwork addresses carry it, so apps and browsers
+    /// fetch the new picture rather than keep the one they cached. A replacement keeping an older date (a Finder copy)
+    /// still counts. A first stamp is only recorded, and <see cref="MediaItem.MetadataUpdatedAt"/> is never touched:
+    /// that says when the title was last looked up.
     /// </summary>
     private async Task NoticeReplacedArtworkAsync(Guid libraryId, CancellationToken ct)
     {
         var local = await db.MediaItems
-            .Where(i => i.LibraryId == libraryId && i.MetadataUpdatedAt != null
-                && ((i.PosterUrl != null && i.PosterUrl.StartsWith("file://")) || (i.BackdropUrl != null && i.BackdropUrl.StartsWith("file://"))
-                    || (i.LogoUrl != null && i.LogoUrl.StartsWith("file://")) || (i.ThumbUrl != null && i.ThumbUrl.StartsWith("file://"))))
-            .Select(i => new { i.Id, i.MetadataUpdatedAt, Urls = new[] { i.PosterUrl, i.BackdropUrl, i.LogoUrl, i.ThumbUrl } })
+            .Where(i => i.LibraryId == libraryId
+                && ((i.PosterUrl != null && (i.PosterUrl.StartsWith("file://") || i.PosterUrl.StartsWith("embedded://")))
+                    || (i.BackdropUrl != null && (i.BackdropUrl.StartsWith("file://") || i.BackdropUrl.StartsWith("embedded://")))
+                    || (i.LogoUrl != null && (i.LogoUrl.StartsWith("file://") || i.LogoUrl.StartsWith("embedded://")))
+                    || (i.ThumbUrl != null && (i.ThumbUrl.StartsWith("file://") || i.ThumbUrl.StartsWith("embedded://")))))
+            .Select(i => new { i.Id, i.ArtworkStamp, Urls = new[] { i.PosterUrl, i.BackdropUrl, i.LogoUrl, i.ThumbUrl } })
             .ToListAsync(ct).ConfigureAwait(false);
-        var changed = local
-            .Where(i => i.Urls.OfType<string>().Where(u => u.StartsWith("file://", StringComparison.Ordinal))
-                .Select(u => File.GetLastWriteTimeUtc(u["file://".Length..]))
-                .Any(at => at.Year > 1601 && at > i.MetadataUpdatedAt!.Value))
-            .Select(i => i.Id).ToList();
-        if (changed.Count > 0)
+        var changed = local.Select(i => (i.Id, Old: i.ArtworkStamp, New: ArtworkStamp(i.Urls)))
+            .Where(i => i.New != i.Old)
+            .ToDictionary(i => i.Id, i => (i.Old, i.New));
+        if (changed.Count == 0)
         {
-            var now = DateTime.UtcNow;
-            await db.MediaItems.Where(i => changed.Contains(i.Id)).ExecuteUpdateAsync(u => u.SetProperty(i => i.MetadataUpdatedAt, now), ct).ConfigureAwait(false);
+            return;
         }
+
+        var now = DateTime.UtcNow;
+        foreach (var chunk in changed.Keys.Chunk(500))
+        {
+            var items = await db.MediaItems.Where(i => chunk.Contains(i.Id)).ToListAsync(ct).ConfigureAwait(false);
+            foreach (var item in items)
+            {
+                var (old, stamp) = changed[item.Id];
+                if (old is not null)
+                {
+                    item.ArtworkChangedAt = now;
+                }
+
+                item.ArtworkStamp = stamp;
+            }
+        }
+
+        await db.SaveChangesAsync(ct).ConfigureAwait(false);
     }
 
+    /// <summary>The <see cref="MediaItem.ArtworkStamp"/> of these artwork addresses: their local files' paths, dates and sizes.</summary>
+    internal static string ArtworkStamp(IEnumerable<string?> urls)
+    {
+        var text = new System.Text.StringBuilder();
+        foreach (var url in urls)
+        {
+            var path = url is null ? null
+                : url.StartsWith("file://", StringComparison.Ordinal) ? url["file://".Length..]
+                : url.StartsWith("embedded://", StringComparison.Ordinal) ? url["embedded://".Length..]
+                : null;
+            if (path is null)
+            {
+                continue;
+            }
+
+            var file = new FileInfo(path);
+            var invariant = System.Globalization.CultureInfo.InvariantCulture;
+            text.Append(url).Append('\n')
+                .Append(file.Exists ? file.LastWriteTimeUtc.Ticks.ToString(invariant) : "-").Append('\n')
+                .Append(file.Exists ? file.Length.ToString(invariant) : "-").Append('\n');
+        }
+
+        var hash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(text.ToString()));
+        return Convert.ToHexStringLower(hash.AsSpan(0, 8));
+    }
+
+    /// <summary>Removes files missing for longer than <see cref="MissingGracePeriod"/>.</summary>
     private async Task<int> RemoveExpiredAsync(Guid libraryId, CancellationToken ct)
     {
         var cutoff = DateTime.UtcNow - MissingGracePeriod;

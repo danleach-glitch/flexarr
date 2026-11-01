@@ -231,6 +231,7 @@ public static class MusicMixes
                 AlbumId = t.ParentId!.Value,
                 HasCover = t.Parent.PosterUrl != null,
                 CoverVersion = t.Parent.MetadataUpdatedAt,
+                CoverChanged = t.Parent.ArtworkChangedAt,
                 Plays = t.PlaybackStates.Where(p => p.UserId == profileId).Select(p => p.PlayCount).FirstOrDefault(),
             })
             .ToListAsync(ct);
@@ -250,7 +251,7 @@ public static class MusicMixes
             }
 
             var covers = picks.Select(id => byId[id]).Where(t => t.HasCover).DistinctBy(t => t.AlbumId).Take(4)
-                .Select(t => ArtworkUrls.For(t.AlbumId, t.CoverVersion == null ? 0 : t.CoverVersion.Value.Ticks / 10_000_000, true, false, false, false).Poster!)
+                .Select(t => ArtworkUrls.For(t.AlbumId, ArtworkUrls.Version(t.CoverVersion, t.CoverChanged), true, false, false, false).Poster!)
                 .ToList();
             mixes.Add(new Mix(new MixSummaryDto(plan.Id, plan.Name, plan.Description, covers, picks.Count), picks));
         }
