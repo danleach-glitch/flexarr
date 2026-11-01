@@ -110,6 +110,9 @@ class Navigator(private val nav: NavHostController, private val model: AppModel,
         else -> openLibrary(library.id)
     }
 
+    /** An audiobooks library's books in one genre, on a screen of their own (Back goes to the genres). */
+    fun openBookGenre(libraryId: String, genre: String) = nav.navigate("books/$libraryId?view=&genre=${Uri.encode(genre)}")
+
     fun openPlaylist(id: String) = nav.navigate("playlist/$id")
 
     /** A library's poster grid; with [genre], just its titles in that genre (from a Genres tile or a genre row). */

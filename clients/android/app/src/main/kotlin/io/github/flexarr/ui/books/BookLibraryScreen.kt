@@ -1,7 +1,6 @@
 package io.github.flexarr.ui.books
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -74,6 +73,7 @@ import io.github.flexarr.core.Format
 import io.github.flexarr.core.GenreCount
 import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.Paged
+import io.github.flexarr.core.bookGenres
 import io.github.flexarr.core.bookPeople
 import io.github.flexarr.core.bookSeriesList
 import io.github.flexarr.core.bookShelves
@@ -106,51 +106,58 @@ import kotlinx.coroutines.launch
 // An audiobooks library, as the iPhone app's music library is laid out: shelves to browse, then every book (with filters
 // and orders), the series, the authors and the genres.
 
-private enum class BooksView(val label: String) { Shelves("Browse"), All("All books"), Series("Series"), Authors("Authors"), Genres("Genres") }
+private enum class BooksView(val label: String) { Shelves("Browse"), All("All books"), Genres("Genres"), Series("Series"), Authors("Authors") }
 
-/** An audiobooks library; [view] "" opens its shelves, or a [BookSort]'s raw value every book in that order. */
+/**
+ * An audiobooks library; [view] "" opens its shelves, or a [BookSort]'s raw value every book in that order. With a
+ * [genre], it's that genre's books alone, under its name, with no views to switch between: Back goes to the genres.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BookLibraryScreen(model: AppModel, libraryId: String, view: String) {
+fun BookLibraryScreen(model: AppModel, libraryId: String, view: String, genre: String? = null) {
     val client = model.client ?: return
     val navigator = LocalNavigator.current
     val library = rememberLoader(libraryId) { client.libraries().firstOrNull { it.id == libraryId } }
     val initialSort = BookSort.entries.firstOrNull { it.raw == view }
-    var shown by rememberSaveable { mutableStateOf(if (initialSort != null) BooksView.All else BooksView.Shelves) }
-    var query by remember { mutableStateOf(BookQuery(sort = initialSort ?: BookSort.Title, descending = initialSort == BookSort.Added)) }
+    var shown by rememberSaveable { mutableStateOf(if (initialSort != null || genre != null) BooksView.All else BooksView.Shelves) }
+    var query by remember { mutableStateOf(BookQuery(sort = initialSort ?: BookSort.Title, descending = initialSort == BookSort.Added, genre = genre)) }
+    // A genre's own screen keeps its genre whatever the filters do.
+    val change: (BookQuery) -> Unit = { query = if (genre != null) it.copy(genre = genre) else it }
     val shelvesLoader = rememberLoader(libraryId, model.watchStateVersion) { client.bookShelves(libraryId) }
     // Every shelf switched off, or only empty ones left on: there's no front page, so the library opens to its books.
     val noFrontPage = (shelvesLoader.state as? Load.Loaded)?.value?.let { !it.isEmpty && it.shownShelves.isEmpty() } == true
     val views = if (noFrontPage) BooksView.entries - BooksView.Shelves else BooksView.entries
     val showing = if (noFrontPage && shown == BooksView.Shelves) BooksView.All else shown
-    val name = (library.state as? Load.Loaded)?.value?.name.orEmpty()
+    val name = genre ?: (library.state as? Load.Loaded)?.value?.name.orEmpty()
     RoomBackground(ambient = null) {
         Column {
             PageTitle(name, onBack = { navigator.back() }) {
                 if (showing == BooksView.All) {
-                    FilterMenu(query) { query = it }
-                    SortMenu(query) { query = it }
+                    FilterMenu(query, fixedGenre = genre != null, onChange = change)
+                    SortMenu(query, change)
                 }
             }
-            Row(
-                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = Edge).padding(bottom = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                views.forEach { view -> PillButton(view.label, view == showing, { shown = view }) }
+            if (genre == null) {
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = Edge).padding(bottom = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    views.forEach { view -> PillButton(view.label, view == showing, { shown = view }) }
+                }
             }
             when (showing) {
                 BooksView.Shelves -> Shelves(model, shelvesLoader)
-                BooksView.All -> AllBooks(model, libraryId, query) { query = BookQuery(sort = query.sort, descending = query.descending) }
+                BooksView.All -> AllBooks(model, libraryId, query, fixedGenre = genre != null) { change(BookQuery(sort = query.sort, descending = query.descending)) }
                 BooksView.Series -> SeriesGrid(model, libraryId)
                 BooksView.Authors -> AuthorsGrid(model, libraryId)
-                BooksView.Genres -> GenreList(model, libraryId) { genre ->
-                    query = BookQuery(genre = genre)
-                    shown = BooksView.All
-                }
+                BooksView.Genres -> GenreList(model, libraryId) { navigator.openBookGenre(libraryId, it) }
             }
         }
     }
 }
+
+/** Whether a list is narrowed beyond its order; on a genre's own screen, beyond its genre. */
+private fun BookQuery.narrowed(fixedGenre: Boolean) = (if (fixedGenre) copy(genre = null) else this).isFiltered
 
 /** The library's front page: what's on the go, what's next, what's new, its series and authors, and what's done. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -348,19 +355,20 @@ private fun <T> PagedGrid(
 
 /** Every book, in the order and with the filters chosen. */
 @Composable
-private fun AllBooks(model: AppModel, libraryId: String, query: BookQuery, clearFilters: () -> Unit) {
+private fun AllBooks(model: AppModel, libraryId: String, query: BookQuery, fixedGenre: Boolean, clearFilters: () -> Unit) {
     val client = model.client ?: return
     val pager = remember(libraryId, query) { Pager<ItemSummary>({ it.id }) { skip, take -> client.books(libraryId, query, skip, take) } }
     var attempt by remember { mutableIntStateOf(0) }
     LaunchedEffect(pager, attempt, model.watchStateVersion) { pager.reload() }
     PagedGrid(
         pager,
-        if (query.isFiltered) "No books match." else "No books yet.",
+        if (query.narrowed(fixedGenre)) "No books match." else "No books yet.",
         retry = { attempt++ },
-        emptyAction = if (query.isFiltered) "Clear filters" to clearFilters else null,
+        emptyAction = if (query.narrowed(fixedGenre)) "Clear filters" to clearFilters else null,
         header = {
             item(span = { GridItemSpan(maxLineSpan) }) {
-                val words = listOfNotNull(query.genre, query.progress?.label, lengthLabel(query)).joinToString("   ")
+                // A genre's own screen has its name for a title already.
+                val words = listOfNotNull(query.genre.takeUnless { fixedGenre }, query.progress?.label, lengthLabel(query)).joinToString("   ")
                 Text(
                     listOfNotNull(bookCount(pager.total), words.ifEmpty { null }).joinToString("   "),
                     fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher, style = Tabular,
@@ -381,14 +389,14 @@ private val lengths = listOf(
 private fun lengthLabel(query: BookQuery): String? = lengths.firstOrNull { it.second == (query.minHours to query.maxHours) }?.first
 
 @Composable
-private fun FilterMenu(query: BookQuery, onChange: (BookQuery) -> Unit) {
+private fun FilterMenu(query: BookQuery, fixedGenre: Boolean, onChange: (BookQuery) -> Unit) {
     var open by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { open = true }) {
-            Icon(Icons.Filled.FilterList, contentDescription = "Filter", tint = if (query.isFiltered) Flexarr.silver else Flexarr.screen)
+            Icon(Icons.Filled.FilterList, contentDescription = "Filter", tint = if (query.narrowed(fixedGenre)) Flexarr.silver else Flexarr.screen)
         }
         DropdownMenu(open, onDismissRequest = { open = false }, containerColor = Flexarr.seat) {
-            Choice("All books", !query.isFiltered) { open = false; onChange(BookQuery(sort = query.sort, descending = query.descending)) }
+            Choice("All books", !query.narrowed(fixedGenre)) { open = false; onChange(BookQuery(sort = query.sort, descending = query.descending)) }
             HorizontalDivider(color = Flexarr.aisle)
             BookProgressFilter.entries.forEach { filter ->
                 Choice(filter.label, query.progress == filter) { open = false; onChange(query.copy(progress = if (query.progress == filter) null else filter)) }
@@ -460,14 +468,13 @@ private fun AuthorsGrid(model: AppModel, libraryId: String) {
     }
 }
 
-/** The library's genres, A to Z, each opening every book in it. */
+/** The library's genres, A to Z, each opening a screen of its books. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun GenreList(model: AppModel, libraryId: String, openGenre: (String) -> Unit) {
     val client = model.client ?: return
-    val loader = rememberLoader(libraryId, model.watchStateVersion) { client.bookShelves(libraryId) }
-    Loaded(loader) { shelves: BookShelves ->
-        val genres = shelves.genres.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name })
+    val loader = rememberLoader(libraryId, model.watchStateVersion) { client.bookGenres(libraryId) }
+    Loaded(loader) { genres: List<GenreCount> ->
         if (genres.isEmpty()) return@Loaded StatusView("No genres yet.", empty = true)
         PullToRefreshBox(isRefreshing = loader.refreshing, onRefresh = loader.retry) {
             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = Edge, end = Edge, bottom = 24.dp)) {

@@ -351,9 +351,17 @@ fun MainScreen(model: AppModel) {
                 composable("album/{id}") { AlbumScreen(model, it.arguments?.getString("id")!!) }
                 composable("playlist/{id}") { PlaylistScreen(model, it.arguments?.getString("id")!!) }
                 composable(
-                    "books/{id}?view={view}",
-                    arguments = listOf(navArgument("view") { type = NavType.StringType; defaultValue = "" }),
-                ) { entry -> BookLibraryScreen(model, entry.arguments?.getString("id")!!, entry.arguments?.getString("view").orEmpty()) }
+                    "books/{id}?view={view}&genre={genre}",
+                    arguments = listOf(
+                        navArgument("view") { type = NavType.StringType; defaultValue = "" },
+                        navArgument("genre") { type = NavType.StringType; defaultValue = "" },
+                    ),
+                ) { entry ->
+                    BookLibraryScreen(
+                        model, entry.arguments?.getString("id")!!, entry.arguments?.getString("view").orEmpty(),
+                        entry.arguments?.getString("genre")?.takeIf { it.isNotEmpty() },
+                    )
+                }
                 composable("book/{id}") { BookScreen(model, it.arguments?.getString("id")!!) }
                 composable("book-series/{id}") { BookSeriesScreen(model, it.arguments?.getString("id")!!) }
                 composable("podcasts") { PodcastsScreen(model) }

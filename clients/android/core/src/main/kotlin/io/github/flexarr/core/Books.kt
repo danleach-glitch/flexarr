@@ -291,6 +291,16 @@ internal data class BookmarkNoteBody(val note: String?)
 /** An audiobooks library's shelves. */
 suspend fun FlexarrClient.bookShelves(libraryId: String): BookShelves = get("libraries/$libraryId/book-shelves")
 
+/** The library's genres, A to Z, with how many books are in each. Servers before 0.58 have no such call: their shelves carry them. */
+suspend fun FlexarrClient.bookGenres(libraryId: String): List<GenreCount> {
+    val genres = try {
+        get<List<GenreCount>>("libraries/$libraryId/book-genres")
+    } catch (e: FlexarrException.Http) {
+        if (e.status == 404) bookShelves(libraryId).genres else throw e
+    }
+    return genres.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name })
+}
+
 suspend fun FlexarrClient.books(libraryId: String, query: BookQuery = BookQuery(), skip: Int = 0, take: Int = 60): Paged<ItemSummary> =
     get("libraries/$libraryId/books", query.parameters() + buildMap { if (skip > 0) put("skip", "$skip"); put("take", "$take") })
 
