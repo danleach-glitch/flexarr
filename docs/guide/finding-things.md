@@ -69,7 +69,7 @@ Put your libraries in the order you like, and every app follows it. Each profile
 - **Apple TV:** **Settings › Sidebar**.
 - **iPhone and iPad:** **Settings › Library order**. Drag a library by its handle. Podcasts and Live TV are in the list too.
 
-Under **Browse** on the same web page, turn off what you don't use: **Watchlist**, **Collections**, **Playlists**, **Live TV**, **Discover** and **Coming soon**. They leave the menu in every app that has them, for your profile only, and still open from Home and links.
+Under **Browse** on the same web page, turn off what you don't use: **Watchlist**, **Collections**, **Playlists**, **Live TV**, **Discover** and **Coming soon**. They leave the menu in every app that has them, for your profile only, and still open from Home and links. Hiding isn't a restriction: to keep something from a child, use a kids profile or an age limit.
 
 ## Continue Watching
 
