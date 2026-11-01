@@ -892,6 +892,11 @@ export const opmlUrl = '/api/v1/podcasts/opml'
 export const startPlayback = (body: PlaybackRequest) => request<PlaybackInfo>('POST', '/playback', body)
 export const getPlaybackPreferences = (signal?: AbortSignal) => apiGet<PlaybackPreferences>('/me/playback-preferences', signal)
 export const setPlaybackPreferences = (preferences: PlaybackPreferences) => request<PlaybackPreferences>('PUT', '/me/playback-preferences', preferences)
+/**
+ * The player's save of a choice made while watching. Settings alone sets whether books and podcasts are in the continue
+ * row, so that's left out (a PUT without it leaves it as it is) rather than put back as it was when playback started.
+ */
+export const savePlayerPreferences = (preferences: PlaybackPreferences) => setPlaybackPreferences({ ...preferences, listeningInContinue: undefined })
 export const setSubtitleDelay = (itemId: string, seconds: number) => request<void>('PUT', `/items/${itemId}/subtitle-delay`, { seconds })
 /** Moves the file's sound to match its picture, for the household. */
 export const setAudioDelay = (itemId: string, seconds: number) => request<void>('PUT', `/items/${itemId}/audio-delay`, { seconds })

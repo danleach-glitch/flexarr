@@ -263,7 +263,7 @@ function ListenCard({ item, continueWatching }: { item: ItemSummary; continueWat
       continueWatching={continueWatching}
       art={
         <div className="card-frame listen-frame">
-          {cover && <img className="listen-backdrop" src={imageUrl(cover, 185)} alt="" aria-hidden="true" loading="lazy" />}
+          {cover && <img className="listen-backdrop" src={imageUrl(cover, 92)} alt="" aria-hidden="true" loading="lazy" />}
           <div className="listen-cover">
             <Artwork src={cover} title={book ? item.title : (item.seriesTitle ?? item.title)} width={342} shape="square" accent={item.accentColor} />
           </div>

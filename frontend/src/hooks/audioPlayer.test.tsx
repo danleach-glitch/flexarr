@@ -535,6 +535,25 @@ describe('AudioPlayerProvider', () => {
       expect(result.current.sleep).toBeNull()
       expect(requests.map((r) => r.itemId)).toEqual(['e1', 'e2'])
     })
+
+    it('stop without saying where when taken out of Continue, and leave another episode playing', async () => {
+      const { progress } = podcastApi(null)
+      const { result } = renderHook(useAudioPlayer, { wrapper: AudioPlayerProvider })
+      act(() => result.current.play([first] as unknown as ItemSummary[], 0))
+      const [a] = elements()
+      await waitFor(() => expect(a.getAttribute('src')).toBe('/stream/e1'))
+      act(() => void a.dispatchEvent(new Event('loadedmetadata')))
+
+      act(() => result.current.forget(second as unknown as ItemSummary))
+      expect(result.current.current?.id).toBe('e1')
+
+      act(() => result.current.forget(first as unknown as ItemSummary))
+      expect(result.current.current).toBeUndefined()
+      expect(result.current.playing).toBe(false)
+      act(() => void window.dispatchEvent(new Event('pagehide')))
+      await new Promise((r) => setTimeout(r, 20))
+      expect(progress).toEqual([])
+    })
   })
 
   describe('books', () => {
@@ -647,6 +666,25 @@ describe('AudioPlayerProvider', () => {
       act(() => result.current.seek(120))
       expect(result.current.sleep).toEqual({ endOfChapter: true, at: 200 })
       expect(result.current.playing).toBe(true)
+    })
+
+    it('stop without sending the place when taken out of Continue, so neither the stop nor the page closing puts it back', async () => {
+      const { progress, direct } = bookApi()
+      const beacon = vi.fn(() => true)
+      vi.stubGlobal('navigator', { ...navigator, sendBeacon: beacon })
+      const { result, a } = await start()
+      tick(a, 40)
+
+      act(() => result.current.forget(book))
+      expect(result.current.current).toBeUndefined()
+      expect(result.current.book).toBeNull()
+      act(() => void window.dispatchEvent(new Event('pagehide')))
+      await new Promise((r) => setTimeout(r, 20))
+      expect(progress).toEqual([])
+      expect(direct).toEqual([])
+      expect(beacon).not.toHaveBeenCalled()
+      // This browser's own place is forgotten too, so the next start doesn't bring it back.
+      expect(JSON.parse(localStorage.getItem('flexarr.bookPlace.b1') ?? 'null')).toMatchObject({ position: 0 })
     })
 
     it('send the place to the book itself once the session has expired', async () => {

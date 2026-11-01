@@ -34,6 +34,16 @@ describe('Playback settings', () => {
     expect(toggle).not.toBeChecked()
   })
 
+  it('puts the switch in its own Home group, not with the player’s settings', async () => {
+    mockApi({ '/me/playback-preferences': { ...preferences, listeningInContinue: true } })
+    renderPlayback()
+
+    const toggle = await screen.findByRole('switch', { name: 'Books and podcasts in Continue watching' })
+    const group = (heading: string) => screen.getByRole('heading', { name: heading }).closest('.settings-group')
+    expect(group('Home')).toContainElement(toggle)
+    expect(group('While watching')).not.toContainElement(toggle)
+  })
+
   it('leaves the switch out for a server without it', async () => {
     mockApi({ '/me/playback-preferences': preferences })
     renderPlayback()
