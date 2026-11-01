@@ -111,7 +111,8 @@ public sealed partial class BookFileConverter : IDisposable
         }
 
         var now = DateTime.UtcNow;
-        var files = directory.EnumerateFiles().ToList();
+        // Only the converter's own files: whatever else is in the folder isn't the prune's to delete.
+        var files = directory.EnumerateFiles().Where(f => OwnName().IsMatch(f.Name)).ToList();
         foreach (var part in files.Where(f => f.Extension == ".part" && now - f.LastWriteTimeUtc > TimeSpan.FromDays(1)))
         {
             TryDelete(part.FullName); // ffmpeg writes as it goes, so one this old was abandoned.
@@ -306,6 +307,10 @@ public sealed partial class BookFileConverter : IDisposable
             return false;
         }
     }
+
+    /// <summary>A copy's name, <c>{file id}-{ticks}-{length}.m4a</c>, or one being written, with <c>.{guid}.part</c> after it.</summary>
+    [System.Text.RegularExpressions.GeneratedRegex(@"^[0-9a-f]{32}-[0-9]+-[0-9]+\.m4a(\.[0-9a-f]{32}\.part)?$")]
+    private static partial System.Text.RegularExpressions.Regex OwnName();
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Could not convert book file {File}: {Error}")]
     private partial void LogFailed(string file, string error);

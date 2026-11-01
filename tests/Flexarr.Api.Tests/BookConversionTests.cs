@@ -132,21 +132,25 @@ public sealed class BookConversionTests : IDisposable
         var directory = Directory.CreateDirectory(Converter.Directory).FullName;
         var old = Path.Combine(directory, $"{Guid.NewGuid():N}-1-1.m4a");
         var recent = Path.Combine(directory, $"{Guid.NewGuid():N}-1-1.m4a");
-        var abandoned = Path.Combine(directory, $"{Guid.NewGuid():N}-1-1.m4a.x.part");
+        var abandoned = Path.Combine(directory, $"{Guid.NewGuid():N}-1-1.m4a.{Guid.NewGuid():N}.part");
+        var notOurs = Path.Combine(directory, "Somebody's book.m4a"); // old, but not a copy the converter made
+        var notOursEither = Path.Combine(directory, "notes.part");
         var deleted = Guid.NewGuid();
         var ofDeletedBook = Path.Combine(directory, $"{deleted:N}-1-1.m4a");
-        foreach (var file in new[] { old, recent, abandoned, ofDeletedBook })
+        foreach (var file in new[] { old, recent, abandoned, ofDeletedBook, notOurs, notOursEither })
         {
             await File.WriteAllTextAsync(file, "x");
         }
 
         File.SetLastWriteTimeUtc(old, DateTime.UtcNow - BookFileConverter.UnusedFor - TimeSpan.FromDays(1));
         File.SetLastWriteTimeUtc(abandoned, DateTime.UtcNow.AddDays(-2));
+        File.SetLastWriteTimeUtc(notOurs, DateTime.UtcNow - BookFileConverter.UnusedFor - TimeSpan.FromDays(1));
+        File.SetLastWriteTimeUtc(notOursEither, DateTime.UtcNow.AddDays(-2));
 
-        Converter.Prune();
+        Converter.Prune(maxBytes: 0);
         Converter.RemoveCopies([deleted]);
 
-        Assert.Equal([recent], Directory.EnumerateFiles(directory));
+        Assert.Equal(new[] { recent, notOurs, notOursEither }.Order(), Directory.EnumerateFiles(directory).Order());
     }
 
     [Fact]
