@@ -154,6 +154,8 @@ final class AppModel {
         // real server don't change its watch history.
         player.recordsHistory = !defaults.bool(forKey: "FlexarrNoHistory")
         music.recordsHistory = player.recordsHistory
+        // `-FlexarrSimulateOffline YES` acts as if the server couldn't be reached (offline mode, for tests and screenshots).
+        FlexarrClient.simulatesOffline = defaults.bool(forKey: "FlexarrSimulateOffline")
         #endif
         phase = store.load().map(Phase.signedIn) ?? .signedOut
         #if DEBUG
