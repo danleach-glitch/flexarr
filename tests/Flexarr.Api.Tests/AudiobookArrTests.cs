@@ -435,7 +435,7 @@ public class AudiobookArrTests(FlexarrApiFactory factory) : IClassFixture<Flexar
     }
 
     [Fact]
-    public async Task ComingSoon_DoesntPointIntoALibraryTheProfileCantSee()
+    public async Task ComingSoon_LeavesOutBooksInALibraryTheProfileCantSee()
     {
         await LibraryAsync();
         Guid hidden;
@@ -465,9 +465,8 @@ public class AudiobookArrTests(FlexarrApiFactory factory) : IClassFixture<Flexar
         var forSam = await sam.GetFromJsonAsync<JsonElement>(new Uri("/api/v1/upcoming?days=14", UriKind.Relative));
         var forMain = await admin.GetFromJsonAsync<JsonElement>(new Uri("/api/v1/upcoming?days=14", UriKind.Relative));
 
-        static JsonElement Hidden(JsonElement list) => list.EnumerateArray().Single(u => u.GetProperty("title").GetString() == "Hidden Away");
-        Assert.True(Hidden(forSam).GetProperty("libraryItemId").ValueKind == JsonValueKind.Null);
-        Assert.Equal(book, Hidden(forMain).GetProperty("libraryItemId").GetGuid());
+        Assert.DoesNotContain(forSam.EnumerateArray(), u => u.GetProperty("title").GetString() == "Hidden Away");
+        Assert.Equal(book, forMain.EnumerateArray().Single(u => u.GetProperty("title").GetString() == "Hidden Away").GetProperty("libraryItemId").GetGuid());
     }
 
     [Theory]

@@ -4,6 +4,7 @@ using Flexarr.Api.Profiles;
 using Flexarr.Core.Data;
 using Flexarr.Core.Libraries;
 using Flexarr.Core.Media;
+using Flexarr.Core.Paths;
 using Flexarr.Integrations.Arr;
 using Flexarr.Integrations.Arr.Models;
 using Microsoft.EntityFrameworkCore;
@@ -94,6 +95,9 @@ public static class UpcomingEndpoints
         {
             movies.TryAdd(m.TmdbId!, m.Id);
         }
+        var bookIds = bookCalendars.SelectMany(c => c).Select(b => b.Id).OfType<string>().Distinct().ToList();
+        var elsewhere = await HiddenTitles.ForAsync(db, options.PathMappings,
+            episodeCalendars.SelectMany(c => c).Select(e => e.Series?.TvdbId), tmdbIds, bookIds, ct);
         var results = new List<UpcomingDto>();
 
         foreach (var (sonarr, calendar) in sonarrs.Zip(episodeCalendars))
@@ -101,6 +105,11 @@ public static class UpcomingEndpoints
             foreach (var episode in calendar)
             {
                 var show = episode.Series;
+                if (elsewhere.HidesSeries(show?.TvdbId, show?.Path, series))
+                {
+                    continue;
+                }
+
                 var itemId = show is null ? null : series.GetValueOrDefault(show.TvdbId.ToString(CultureInfo.InvariantCulture));
                 var date = episode.AirDateUtc ?? DateTime.Parse(episode.AirDate ?? DateTime.UtcNow.ToString("O"), CultureInfo.InvariantCulture,
                     DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal);
@@ -117,7 +126,7 @@ public static class UpcomingEndpoints
 
         foreach (var (radarr, calendar) in radarrs.Zip(movieCalendars))
         {
-            foreach (var movie in calendar)
+            foreach (var movie in calendar.Where(m => !elsewhere.HidesMovie(m.TmdbId, m.Path, movies)))
             {
                 // A film appears once, on its next release in the window: cinema, then digital, then disc.
                 var (date, when) = new[] { (movie.InCinemas, "In cinemas"), (movie.DigitalRelease, "Digital release"), (movie.PhysicalRelease, "On disc") }
@@ -136,7 +145,6 @@ public static class UpcomingEndpoints
         }
 
         // Books by authors the app follows, on their release day. Shown only to profiles that can see an audiobooks library.
-        var bookIds = bookCalendars.SelectMany(c => c).Select(b => b.Id).OfType<string>().Distinct().ToList();
         // Through MediaItems, whose filter hides the libraries this profile can't see: no id of a book in one.
         var ownBooks = bookIds.Count == 0 ? [] : await (
             from d in db.BookDetails
@@ -147,16 +155,22 @@ public static class UpcomingEndpoints
         {
             foreach (var book in calendar.Where(b => b.ReleaseDate is not null))
             {
+                var own = ownBooks.FirstOrDefault(o => o.ArrBookId == book.Id && o.ArrInstance == readarr.Name)?.MediaItemId;
+                if (own is null && elsewhere.HidesBook(book.Id, book.Author?.Path))
+                {
+                    continue;
+                }
+
                 queue.TryGetValue($"readarr-{book.Id}", out var download);
                 var cover = book.Images.Concat(book.Edition?.Images ?? []).FirstOrDefault(i => i.CoverType is "cover" or "poster")?.RemoteUrl;
                 results.Add(new UpcomingDto(
                     $"readarr-{readarr.Name}-{book.Id}", MediaKind.Audiobook, book.Title ?? "Untitled", book.Author?.AuthorName ?? book.AuthorTitle,
                     null, null, book.ReleaseDate!.Value, "Out", book.Overview, Remote(cover), null,
-                    ownBooks.FirstOrDefault(o => o.ArrBookId == book.Id && o.ArrInstance == readarr.Name)?.MediaItemId, false, download, readarr.Name, null));
+                    own, false, download, readarr.Name, null));
             }
         }
 
-        // Something not in a library this profile can see is shown unless the profile can't see any library of its kind.
+        // Something in no library yet is shown unless the profile can't see any library of its kind.
         var hidden = await LibraryVisibility.HiddenTypesAsync(db, ct);
         var noBooks = !await db.Libraries.AnyAsync(l => l.Type == LibraryType.Audiobooks, ct);
         return results.Where(r => r.LibraryItemId is not null || !hidden.Hides(r.Kind))
@@ -168,11 +182,26 @@ public static class UpcomingEndpoints
         var instances = options.Arr.Where(a => a.Kind is ArrKind.Sonarr or ArrKind.Radarr or ArrKind.Readarr).ToList();
         var queues = await Task.WhenAll(instances.Select(instance => QueueOfAsync(instance, arr, cache, ct)));
         var series = await SeriesIndexAsync(db, queues.SelectMany(q => q).Select(q => q.Series?.TvdbId), ct);
+        var queued = queues.SelectMany(q => q).ToList();
+        var elsewhere = await HiddenTitles.ForAsync(db, options.PathMappings, queued.Select(q => q.Series?.TvdbId),
+            queued.Select(q => q.Movie?.TmdbId.ToString(CultureInfo.InvariantCulture)).OfType<string>(),
+            queued.Select(q => q.BookId ?? q.Book?.Id).OfType<string>(), ct);
         var downloads = new List<DownloadDto>();
         foreach (var (instance, queue) in instances.Zip(queues))
         {
             foreach (var q in queue)
             {
+                var hiddenHere = instance.Kind switch
+                {
+                    ArrKind.Sonarr => elsewhere.HidesSeries(q.Series?.TvdbId, q.Series?.Path, series),
+                    ArrKind.Readarr => elsewhere.HidesBook(q.BookId ?? q.Book?.Id, q.Book?.Author?.Path),
+                    _ => q.Movie is { } m && elsewhere.HidesMovie(m.TmdbId, m.Path, null),
+                };
+                if (hiddenHere)
+                {
+                    continue;
+                }
+
                 var state = new DownloadStateDto(Math.Round(q.Progress, 3), q.Timeleft, q.TrackedDownloadState ?? q.Status);
                 var queuePage = WebUrl(instance, host, "activity/queue");
                 if (instance.Kind == ArrKind.Readarr)
@@ -242,6 +271,80 @@ public static class UpcomingEndpoints
         }
 
         return map;
+    }
+
+    /// <summary>
+    /// Titles in a library hidden from this profile (someone else's shows), which Coming soon and Downloads leave out
+    /// rather than show as new: known by their id there, or by the *arr keeping them in one of its folders.
+    /// </summary>
+    private sealed class HiddenTitles
+    {
+        private static readonly HiddenTitles None = new([], [], [], [], [], []);
+        private readonly HashSet<string> _series;
+        private readonly HashSet<string> _movies;
+        private readonly HashSet<string> _books;
+        private readonly List<string> _hiddenFolders;
+        private readonly List<string> _visibleFolders;
+        private readonly IReadOnlyList<PathMapping> _mappings;
+
+        private HiddenTitles(HashSet<string> series, HashSet<string> movies, HashSet<string> books, List<string> hiddenFolders, List<string> visibleFolders, IReadOnlyList<PathMapping> mappings)
+        {
+            (_series, _movies, _books, _hiddenFolders, _visibleFolders, _mappings) = (series, movies, books, hiddenFolders, visibleFolders, mappings);
+        }
+
+        public static async Task<HiddenTitles> ForAsync(FlexarrDbContext db, IReadOnlyList<PathMapping> mappings, IEnumerable<int?> tvdbIds, IEnumerable<string> tmdbIds,
+            IEnumerable<string> bookIds, CancellationToken ct)
+        {
+            var hidden = db.HiddenLibraryIds.ToList();
+            if (hidden.Count == 0)
+            {
+                return None;
+            }
+
+            var tvdb = tvdbIds.OfType<int>().Distinct().Select(id => id.ToString(CultureInfo.InvariantCulture)).ToList();
+            var tmdb = tmdbIds.Distinct().ToList();
+            var books = bookIds.Distinct().ToList();
+            var items = db.MediaItems.IgnoreQueryFilters().Where(i => hidden.Contains(i.LibraryId));
+            var series = tvdb.Count == 0 ? [] : await items.Where(i => i.Kind == MediaKind.Series && i.TvdbId != null && tvdb.Contains(i.TvdbId)).Select(i => i.TvdbId!).ToListAsync(ct);
+            var movies = tmdb.Count == 0 ? [] : await items.Where(i => i.Kind == MediaKind.Movie && i.TmdbId != null && tmdb.Contains(i.TmdbId)).Select(i => i.TmdbId!).ToListAsync(ct);
+            var ownBooks = books.Count == 0 ? [] : await (
+                from d in db.BookDetails
+                join i in items on d.MediaItemId equals i.Id
+                where d.ArrBookId != null && books.Contains(d.ArrBookId)
+                select d.ArrBookId!).ToListAsync(ct);
+            var folders = await db.LibraryFolders.Select(f => new { f.LibraryId, f.Path }).ToListAsync(ct);
+            return new HiddenTitles([.. series], [.. movies], [.. ownBooks],
+                [.. folders.Where(f => hidden.Contains(f.LibraryId)).Select(f => f.Path)],
+                [.. folders.Where(f => !hidden.Contains(f.LibraryId)).Select(f => f.Path)], mappings);
+        }
+
+        /// <param name="visible">The profile's own shows by TVDB id: one it can see somewhere is never hidden.</param>
+        public bool HidesSeries(int? tvdbId, string? path, Dictionary<string, Guid?> visible)
+        {
+            var id = tvdbId?.ToString(CultureInfo.InvariantCulture);
+            return !(id is not null && visible.ContainsKey(id)) && ((id is not null && _series.Contains(id)) || InHiddenFolder(path));
+        }
+
+        public bool HidesMovie(int tmdbId, string? path, Dictionary<string, Guid?>? visible)
+        {
+            var id = tmdbId.ToString(CultureInfo.InvariantCulture);
+            return !(visible?.ContainsKey(id) ?? false) && (_movies.Contains(id) || InHiddenFolder(path));
+        }
+
+        public bool HidesBook(string? arrBookId, string? authorPath) => (arrBookId is not null && _books.Contains(arrBookId)) || InHiddenFolder(authorPath);
+
+        /// <summary>Where the *arr keeps it is in a hidden library's folder, and not also in one the profile can see.</summary>
+        private bool InHiddenFolder(string? arrPath)
+        {
+            if (string.IsNullOrEmpty(arrPath) || _hiddenFolders.Count == 0)
+            {
+                return false;
+            }
+
+            var path = PathMapper.Map(arrPath, _mappings);
+            return _hiddenFolders.Any(f => PathComparison.IsUnder(path, f, PathComparison.FileSystemComparison))
+                && !_visibleFolders.Any(f => PathComparison.IsUnder(path, f, PathComparison.FileSystemComparison));
+        }
     }
 
     private static string Key(ArrInstance instance, string what) => $"arr:{instance.Kind}:{instance.Name}:{instance.BaseUrl}:{what}";

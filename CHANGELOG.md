@@ -23,6 +23,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Home
 - **Continue watching or listening**: books and podcast episodes you're part way through now sit in the same row as your films and shows, on the web, iPhone, iPad and Android (books only on the Apple TV). To keep them apart, turn off **Books and podcasts in Continue watching** in **Settings › Podcasts & audiobooks** (on the web it's in **Settings › Home & browse**, and on the Apple TV in **Settings › Playback**).
+- **Coming soon** and **Downloads** no longer show titles from a library hidden from your profile, such as someone else's shows.
 
 ### Settings
 - **Home & browse** is now each profile's own: everyone chooses which rows their Home and each library's Browse show, and every app follows. Existing profiles keep the rows they had; new ones start with a shorter Home they can add to. Kids profiles always have the standard Home and menu.
