@@ -1036,6 +1036,16 @@ export interface BookDetail {
   moreInSeries: ItemSummary[]
   byAuthor: ItemSummary[]
   readByNarrator: ItemSummary[]
+  /** Its credited authors in order, with photo and biography. Absent from servers before 0.58. */
+  authors?: BookAuthor[]
+}
+
+/** An author on a book's page. */
+export interface BookAuthor {
+  id: string
+  name: string
+  image: string | null
+  biography: string | null
 }
 
 /** One of a book's files on its timeline. */
