@@ -406,8 +406,10 @@ public sealed partial class AuthorInfo(FlexarrDbContext db, ArrClient arr, IMeta
     }
 
     /// <summary>The app's photo of an author, when it points at one on the web (its own /MediaCover paths need its key).</summary>
-    private static string? ArrPhoto(IReadOnlyList<ArrImage> images) =>
-        images.Where(i => i.CoverType is "poster" or "headshot" or "cover").Select(i => i.RemoteUrl).FirstOrDefault(ArtworkUrl.IsHttps);
+    /// <remarks>Goodreads' "nophoto" placeholder isn't a photo, and would keep a real one out for good.</remarks>
+    internal static string? ArrPhoto(IReadOnlyList<ArrImage> images) =>
+        images.Where(i => i.CoverType is "poster" or "headshot" or "cover").Select(i => i.RemoteUrl)
+            .FirstOrDefault(u => ArtworkUrl.IsHttps(u) && !u!.Contains("nophoto", StringComparison.OrdinalIgnoreCase));
 
     private static string? Plain(string? html) => string.IsNullOrWhiteSpace(html) ? null : BookSidecars.PlainText(html);
 

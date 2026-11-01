@@ -4,6 +4,7 @@ using Flexarr.Core.Libraries;
 using Flexarr.Core.Media;
 using Flexarr.Core.Paths;
 using Flexarr.Integrations.Arr;
+using Flexarr.Integrations.Arr.Models;
 using Flexarr.Metadata;
 using Flexarr.Metadata.Books;
 using Microsoft.EntityFrameworkCore;
@@ -282,6 +283,14 @@ public sealed class AuthorInfoTests : IAsyncLifetime
         await Refresher().RefreshLibraryAsync(library, force: true, default);
 
         Assert.Equal((AudiblePhoto, "audible"), ((await PersonAsync(Osman)).ImageUrl, (await PersonAsync(Osman)).PhotoSource));
+    }
+
+    [Fact]
+    public void ReadarrsPlaceholder_IsntAPhoto()
+    {
+        Assert.Null(AuthorInfo.ArrPhoto([new ArrImage("poster", "https://s.gr-assets.com/assets/nophoto/user/u_200x266-e183445fd1a1b5cc7075bb1cf7043306.png", null)]));
+        Assert.Equal("https://images.gr-assets.com/authors/1.jpg",
+            AuthorInfo.ArrPhoto([new ArrImage("poster", "https://s.gr-assets.com/assets/nophoto/author.png", null), new ArrImage("poster", "https://images.gr-assets.com/authors/1.jpg", null)]));
     }
 
     /// <summary>Just the authors, online providers left out.</summary>
