@@ -30,7 +30,7 @@ struct MusicLibraryView: View {
                     StatusView(state: .empty("Nothing in this library yet."))
                         .frame(height: 500)
                 } else {
-                    ForEach(browse.rows) { MusicRowView(row: $0) }
+                    ForEach(browse.rows) { MusicRowView(row: $0) { Task { await load() } } }
                     if browse.rows.isEmpty, !browse.playlists.isEmpty {
                         VStack(alignment: .leading, spacing: 0) {
                             Text("Your playlists")
@@ -129,6 +129,8 @@ private struct MusicRowView: View {
     @Environment(AppModel.self) private var model
     @Environment(Router.self) private var router
     let row: HomeRow
+    /// Loads the page again, when a mix in the row turns out to be yesterday's.
+    let onStale: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -140,7 +142,7 @@ private struct MusicRowView: View {
                     ForEach(row.playlists ?? []) { playlist in
                         PlaylistCard(playlist: playlist) { router.push(.playlist(playlist)) }
                     }
-                    ForEach(row.mixes ?? []) { MixCard(mix: $0) }
+                    ForEach(row.mixes ?? []) { MixCard(mix: $0, onStale: onStale) }
                     ForEach(Array(row.items.enumerated()), id: \.element.id) { index, item in
                         if row.style == .tracks || item.kind == .track {
                             TrackCard(item: item) { model.playTracks(row.items, from: index) }

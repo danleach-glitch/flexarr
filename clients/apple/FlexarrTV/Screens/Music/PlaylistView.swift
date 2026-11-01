@@ -87,6 +87,8 @@ struct MixCard: View {
     @Environment(Router.self) private var router
     let mix: MixSummary
     var width: CGFloat = Layout.posterWidth
+    /// Called when the mix is gone (a new day's mixes replaced it), to load the rows again. Home's reload otherwise.
+    var onStale: (() -> Void)?
     @State private var isStarting = false
 
     var body: some View {
@@ -116,8 +118,15 @@ struct MixCard: View {
         isStarting = true
         Task {
             defer { isStarting = false }
-            if let detail = try? await client.mix(mix.id) {
+            do {
+                let detail = try await client.mix(mix.id)
                 model.playTracks(detail.tracks, showingNowPlaying: router)
+            } catch FlexarrClientError.http(status: 404, _) {
+                // Yesterday's mix: the day's mixes have been made afresh since the page loaded.
+                model.player.showFailure("Today's mixes have changed. Try again.")
+                if let onStale { onStale() } else { model.invalidate() }
+            } catch {
+                model.player.showFailure(ConnectionError(error).message)
             }
         }
     }
