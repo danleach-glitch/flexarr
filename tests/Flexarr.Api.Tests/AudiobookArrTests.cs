@@ -222,6 +222,24 @@ public class AudiobookArrTests(FlexarrApiFactory factory) : IClassFixture<Flexar
             arr.Requests.Where(r => r.Contains("book", StringComparison.Ordinal)));
     }
 
+    [Fact]
+    public async Task TheDeletePreview_NamesAnAppThatTimesOut_RatherThanFailing()
+    {
+        var library = await LibraryAsync();
+        var bookId = await BookAsync(library, managedBy: "Bookshelf", arrId: "21", file: "t.m4b");
+        var arr = new FakeArr
+        {
+            // What HttpClient throws when its timeout runs out.
+            OnRequest = r => throw new TaskCanceledException("The request was canceled due to the configured HttpClient.Timeout"),
+        };
+        using var app = arr.Serve(factory, bookshelf: true);
+        var client = Client(app.CreateClient());
+
+        var preview = await client.GetFromJsonAsync<JsonElement>(new Uri($"/api/v1/items/{bookId}/deletion", UriKind.Relative));
+
+        Assert.Equal("Bookshelf", preview.GetProperty("managedBy").GetString());
+    }
+
     /// <summary>Book One at root/Author (its one file straight in it), beside another book's folder root/Author/Two.</summary>
     private async Task<(Guid Id, string One, string Two)> OneAndTwoAsync(string root, string arrId)
     {

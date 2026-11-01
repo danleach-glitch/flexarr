@@ -115,7 +115,8 @@ public static partial class DeleteEndpoints
     /// <summary>
     /// The app that would delete a book's files: its app, when that has the book's own files. Otherwise
     /// (no app, an app that has no files for it, or a link to some other book there) Flexarr deletes it: null. An app
-    /// that doesn't answer is still named: deleting would fail there rather than go behind its back.
+    /// that doesn't answer (within <see cref="PreviewTimeout"/>: someone's waiting on the dialog) is still named:
+    /// deleting would fail there rather than go behind its back.
     /// </summary>
     private static async Task<ArrInstance?> BookDeleterAsync(FlexarrDbContext db, MediaItem book, FlexarrOptions options, ArrClient arr, CancellationToken ct)
     {
@@ -125,15 +126,20 @@ public static partial class DeleteEndpoints
             return null;
         }
 
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(PreviewTimeout);
         try
         {
-            return (await BookFilesThereAsync(db, book, instance, bookId, options, arr, ct)).Ours.Count > 0 ? instance : null;
+            return (await BookFilesThereAsync(db, book, instance, bookId, options, arr, timeout.Token)).Ours.Count > 0 ? instance : null;
         }
-        catch (HttpRequestException)
+        catch (Exception ex) when (ex is HttpRequestException || (ex is OperationCanceledException && !ct.IsCancellationRequested))
         {
             return instance;
         }
     }
+
+    /// <summary>How long the delete preview waits for a book's app.</summary>
+    private static readonly TimeSpan PreviewTimeout = TimeSpan.FromSeconds(5);
 
     /// <summary>The app's files for its book, sorted as <see cref="BookFilesThere"/> says.</summary>
     private static async Task<BookFilesThere> BookFilesThereAsync(FlexarrDbContext db, MediaItem book, ArrInstance instance, string bookId,
