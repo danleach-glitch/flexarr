@@ -139,4 +139,26 @@ struct BookDecodingTests {
         #expect(query["progress"] == nil)
         #expect(query["descending"] == "false")
     }
+
+    @Test func onlyTheServersOwnAddressesCarryTheKey() throws {
+        let client = FlexarrClient(baseURL: URL(string: "http://192.168.1.20:8383")!, apiKey: "secret")
+        func file(_ url: String) -> BookFile { BookFile(index: 0, fileId: "f", offsetSeconds: 0, durationSeconds: 1, url: url) }
+
+        let relative = try #require(client.bookFileRequest(file("/api/v1/items/b1/book/0")))
+        #expect(relative.url?.absoluteString == "http://192.168.1.20:8383/api/v1/items/b1/book/0")
+        #expect(relative.value(forHTTPHeaderField: "X-Api-Key") == "secret")
+        #expect(client.bookFileRequest(file("http://192.168.1.20:8383/api/v1/items/b1/book/1"))?.value(forHTTPHeaderField: "X-Api-Key") == "secret")
+        #expect(client.bookFileRequest(file("HTTP://192.168.1.20:8383/x")) != nil)
+
+        // Another host, or another port on the same host, gets nothing (and so never the key).
+        #expect(client.bookFileRequest(file("https://example.com/book.mp3")) == nil)
+        #expect(client.bookFileRequest(file("http://192.168.1.20:9000/book.mp3")) == nil)
+        #expect(client.bookFileRequest(file("http://192.168.1.20/book.mp3")) == nil)
+        #expect(client.bookFileRequest(file("http://192.168.1.20.evil.com:8383/book.mp3")) == nil)
+
+        // A scheme's own port matches the address written without one.
+        let https = FlexarrClient(baseURL: URL(string: "https://flexarr.example.com")!, apiKey: "secret")
+        #expect(https.bookFileRequest(file("https://flexarr.example.com:443/a.mp3")) != nil)
+        #expect(https.bookFileRequest(file("http://flexarr.example.com/a.mp3")) == nil)
+    }
 }

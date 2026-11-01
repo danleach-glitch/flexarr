@@ -543,14 +543,24 @@ extension FlexarrClient {
         try await get("items/\(itemId)/book", query: [.init(name: "codecs", value: codecs.joined(separator: ","))])
     }
 
-    /// The request for one of a book's files, signed in, for a background download session.
+    /// The request for one of a book's files, signed in, for a background download session. Only the server's own
+    /// address carries the sign-in: a file elsewhere (an absolute address in the manifest) gets no request at all.
     public func bookFileRequest(_ file: BookFile) -> URLRequest? {
-        guard let url = url(for: file.url) else { return nil }
+        guard let url = url(for: file.url), isServer(url) else { return nil }
         var request = URLRequest(url: url)
         if let apiKey, !apiKey.isEmpty { request.setValue(apiKey, forHTTPHeaderField: "X-Api-Key") }
         if let profileToken, !profileToken.isEmpty { request.setValue(profileToken, forHTTPHeaderField: "X-Flexarr-Profile") }
         if let deviceType = Self.deviceType { request.setValue(deviceType, forHTTPHeaderField: "X-Flexarr-Device") }
         return request
+    }
+
+    /// Whether `url` is on this server: the same host and port as `baseURL` (the scheme's port when none is written).
+    func isServer(_ url: URL) -> Bool {
+        func port(_ url: URL) -> Int? {
+            url.port ?? (url.scheme?.lowercased() == "https" ? 443 : url.scheme?.lowercased() == "http" ? 80 : nil)
+        }
+        guard let host = url.host()?.lowercased(), host == baseURL.host()?.lowercased() else { return false }
+        return port(url) == port(baseURL)
     }
 
     /// A place reached without a session (offline, from a download); the newest `recordedAt` wins on the server.
