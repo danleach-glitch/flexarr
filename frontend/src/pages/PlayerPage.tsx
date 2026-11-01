@@ -783,7 +783,7 @@ export function PlayerPage() {
   const credits = info?.markers.find((m) => m.type === 'Credits')
   const skippable = [recap, intro].find((m) => m && time >= m.start && time < m.end - 1)
   const upNextAt = credits?.start ?? (duration ? duration - unmarkedCreditsSeconds(duration) : Infinity)
-  // Offered from the credits on, as a button; once the episode is over, with the countdown if auto-play is on.
+  // Offered from the credits on, as a button; once the episode is over, with the countdown (auto-play off closes).
   const showUpNext = !!info?.next && !upNextCancelled && (finished || (time >= upNextAt && duration > 0))
   const counting = finished && preferences.autoPlayNext && showUpNext
 
@@ -827,6 +827,12 @@ export function PlayerPage() {
   useEffect(() => {
     if (finished) setCountdown(UP_NEXT_SECONDS)
   }, [finished])
+
+  // Over with auto-play off (at the credits with Skip credits on, else at the end): back to where it was played from.
+  useEffect(() => {
+    if (finished && !preferences.autoPlayNext) exit()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- exit is a plain function of this render
+  }, [finished, preferences.autoPlayNext])
 
   useEffect(() => {
     if (!counting) return

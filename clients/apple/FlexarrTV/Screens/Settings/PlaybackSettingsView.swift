@@ -30,7 +30,7 @@ struct PlaybackSettingsView: View {
                     change(\.skipRecaps)
                 }
                 SettingsRow.toggle("Skip credits", isOn: preferences.skipCredits, symbol: "text.append",
-                                   help: "Goes on to the next episode when the credits start, rather than when they end.") {
+                                   help: "Ends the episode when the credits start, rather than when they end.") {
                     change(\.skipCredits)
                 }
                 SettingsLinkRow(title: "Subtitle size", symbol: "captions.bubble", value: subtitleSize.label,

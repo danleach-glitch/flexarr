@@ -242,7 +242,7 @@ internal fun TvPlaybackSettings(model: AppModel) {
             item {
                 TvSettingsToggle(
                     "Skip credits", current.skipCredits, { save(current.copy(skipCredits = !current.skipCredits), current) }, icon = Icons.Filled.Theaters,
-                    help = "Goes on to the next episode when the credits start, rather than when they end.",
+                    help = "Ends the episode when the credits start, rather than when they end.",
                 )
             }
             item {

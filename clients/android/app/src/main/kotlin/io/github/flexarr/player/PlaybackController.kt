@@ -577,12 +577,17 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
             seekTo(next.to)
             return
         }
-        // Skip credits: the episode is over as soon as they start (unless the sleep timer stops it there).
+        // Skip credits: the episode is over as soon as they start (unless the sleep timer stops it there). With
+        // auto-play off, that closes the player.
         val credits = info.markers.firstOrNull { it.type == MarkerType.Credits }
         if (preferences.skipCredits && info.next != null && !nextCancelled && !isFinishing && !sleepHoldsEpisode && credits != null && seconds >= credits.start) {
             player.pause()
             report(paused = true, ended = true)
-            beginFinishing()
+            if (preferences.autoPlayNext) {
+                beginFinishing()
+            } else {
+                return onClose()
+            }
         }
         if (next != prompt) {
             prompt = next
@@ -734,12 +739,12 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         report(paused = true, ended = true)
         when {
             sleepHoldsEpisode -> sleep.fallAsleep()
-            info?.next != null && !nextCancelled -> beginFinishing()
+            info?.next != null && !nextCancelled && preferences.autoPlayNext -> beginFinishing()
             else -> onClose()
         }
     }
 
-    /** The episode is over: count down to the next one if auto-play is on, else wait to be asked. */
+    /** The episode is over (with auto-play on): count down to the next one. */
     private fun beginFinishing() {
         if (info?.next == null || isFinishing) return
         isFinishing = true
