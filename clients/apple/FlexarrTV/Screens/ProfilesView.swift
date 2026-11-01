@@ -307,7 +307,8 @@ private struct ProfileChoice: View {
     let caption: String?
     let busy: Bool
     let isFocused: Bool
-    /// Child lock's padlock over a kids profile: closed (true) while it's on, open (false) while it can be; nil, none.
+    /// Child lock's padlock at the corner of a kids profile, clear of its initial: closed (true) while it's on, open
+    /// (false) while it can be; nil, none.
     var padlock: Bool? = nil
 
     var body: some View {
@@ -317,12 +318,18 @@ private struct ProfileChoice: View {
                     if busy {
                         Circle().fill(Color.black.opacity(0.45))
                         ProgressView()
-                    } else if let closed = padlock {
-                        Circle().fill(Color.black.opacity(0.35))
+                    }
+                }
+                .overlay(alignment: .bottomTrailing) {
+                    if !busy, let closed = padlock {
                         Image(systemName: closed ? "lock.fill" : "lock.open.fill")
-                            .font(.system(size: 64, weight: .bold))
+                            .font(.system(size: 30, weight: .bold))
                             .foregroundStyle(Color.screen)
-                            .shadow(color: .black.opacity(0.4), radius: 6)
+                            .frame(width: 72, height: 72)
+                            .background(Circle().fill(Color.seatRaised))
+                            .overlay(Circle().strokeBorder(Color.room, lineWidth: 5))
+                            .offset(x: 6, y: 6)
+                            .accessibilityHidden(true)
                     }
                 }
             VStack(spacing: 8) {

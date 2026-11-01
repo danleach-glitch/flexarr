@@ -125,7 +125,7 @@ struct ProfilePickerView: View {
                                             Circle().strokeBorder(Color.screen, lineWidth: 3).padding(-6)
                                         }
                                     }
-                                    .overlay {
+                                    .overlay(alignment: .bottomTrailing) {
                                         if lockBadge(for: profile) { padlock }
                                     }
                                 VStack(spacing: 2) {
@@ -168,8 +168,8 @@ struct ProfilePickerView: View {
         }
     }
 
-    /// The padlock over each kids profile's picture: open while child lock can be turned on (it locks to that
-    /// profile), closed while it's on.
+    /// The padlock at the corner of each kids profile's picture, clear of its initial: open while child lock can be
+    /// turned on (it locks to that profile), closed while it's on.
     private func lockBadge(for profile: Profile) -> Bool {
         guard profile.isKidsProfile else { return false }
         // In the picker at launch too, not only when it's opened to switch.
@@ -178,16 +178,18 @@ struct ProfilePickerView: View {
 
     private var padlock: some View {
         ZStack {
-            Circle().fill(Color.black.opacity(0.35))
+            Circle().fill(Color.seatRaised)
+            Circle().strokeBorder(Color.room, lineWidth: 3)
             if locking {
                 ProgressView().tint(Color.screen)
             } else {
                 Image(systemName: model.kidsLock ? "lock.fill" : "lock.open.fill")
-                    .font(.system(size: 30, weight: .bold))
+                    .font(.system(size: 16, weight: .bold))
                     .foregroundStyle(Color.screen)
-                    .shadow(color: .black.opacity(0.4), radius: 4)
             }
         }
+        .frame(width: 38, height: 38)
+        .offset(x: 4, y: 4)
         .accessibilityHidden(true)
     }
 
