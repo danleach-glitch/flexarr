@@ -42,10 +42,8 @@
   margin: 0 0 8px;
   padding: 0 14px;
   font-family: var(--text);
-  font-size: 0.7rem;
+  font-size: var(--step--1);
   font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
   color: color-mix(in srgb, var(--usher) 65%, transparent);
 }
 
@@ -63,7 +61,7 @@
   padding: 7px 14px;
   /* One line each, so the row of sections on phones scrolls rather than wraps. */
   white-space: nowrap;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   color: color-mix(in srgb, var(--screen) 70%, var(--usher));
   font-size: 0.94rem;
   font-weight: 500;
@@ -368,7 +366,7 @@
   width: 100%;
   padding: 7px 10px;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   background: none;
   text-align: left;
   cursor: pointer;
@@ -499,7 +497,7 @@
   place-items: center;
   width: 26px;
   height: 26px;
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   flex: none;
   color: var(--usher);
   text-decoration: none;
@@ -894,7 +892,7 @@
 
 .remote-url-row code {
   padding: 8px 12px;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background: var(--room);
   font-size: var(--step-0);
 }
@@ -1786,7 +1784,7 @@
 .settings .button {
   min-height: 40px;
   padding: 0 18px;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   font-weight: 600;
 }
 
@@ -1834,7 +1832,7 @@
 .settings select {
   min-height: 36px;
   padding-left: 12px;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   font-size: 0.94rem;
 }
 
@@ -1847,7 +1845,7 @@
 .settings .icon-button {
   width: 32px;
   height: 32px;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
 }
 
 .settings .icon-button svg {
@@ -2323,7 +2321,7 @@
 .log-exception {
   margin: 8px 0 0;
   padding: 10px 12px;
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   background: var(--room);
   overflow-x: auto;
   white-space: pre;
@@ -2469,7 +2467,7 @@
 .update-command {
   margin: 0;
   padding: 10px 12px;
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   background: var(--room);
   overflow-x: auto;
   font-family: var(--mono);
@@ -2602,7 +2600,7 @@
   height: 168px;
   padding: 8px;
   background: #fff;
-  border-radius: 12px;
+  border-radius: var(--radius-panel);
 }
 
 .guest-qr svg {
@@ -2633,7 +2631,7 @@
   text-overflow: ellipsis;
   padding: 8px 10px;
   border: 1px solid var(--aisle);
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   font-size: 0.8rem;
   color: var(--usher);
 }

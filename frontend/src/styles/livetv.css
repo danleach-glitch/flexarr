@@ -282,7 +282,7 @@
 .livetv-row-logo {
   position: relative;
   height: 52px;
-  border-radius: 6px;
+  border-radius: var(--radius-art);
   background: var(--room);
   overflow: hidden;
 }
@@ -481,7 +481,7 @@
   gap: 2px;
   padding: 0 10px;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   background: var(--seat-raised);
   color: inherit;
   text-align: left;

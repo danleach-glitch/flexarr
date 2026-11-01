@@ -152,10 +152,8 @@
 .sidebar-heading {
   margin: 18px 12px 6px;
   font-family: var(--text);
-  font-size: 0.72rem;
+  font-size: var(--step--1);
   font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
   color: var(--usher);
 }
 
@@ -327,7 +325,7 @@
 kbd {
   padding: 1px 6px;
   border: 1px solid var(--aisle);
-  border-radius: 5px;
+  border-radius: var(--radius-art);
   font-family: var(--text);
   font-size: 0.72rem;
   color: var(--usher);
@@ -753,7 +751,7 @@ kbd {
   min-width: 26px;
   height: 26px;
   padding: 0 7px;
-  border-radius: 13px;
+  border-radius: 999px;
   /* Solid rather than blurred: a backdrop blur on every card is re-rendered each frame while a row scrolls. */
   background: rgb(14 11 17 / 0.82);
   font-size: 0.75rem;
@@ -766,7 +764,7 @@ kbd {
   height: 28px;
   padding: 0;
   background: var(--screen);
-  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.35), 0 2px 8px rgb(0 0 0 / 0.4);
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.35);
 }
 
 .watched-mark svg {
@@ -1180,7 +1178,7 @@ kbd {
   height: 24px;
   padding: 0;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   background: none;
   color: var(--usher);
   font-size: var(--step--1);
@@ -1199,7 +1197,7 @@ kbd {
   color: var(--screen);
   outline: 2px solid var(--screen);
   outline-offset: -2px;
-  border-radius: 6px;
+  border-radius: var(--radius-control);
 }
 
 /* No titles start with it. */
@@ -1742,7 +1740,7 @@ kbd {
 .profile-menu a {
   padding: 9px 10px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background: none;
   text-align: left;
   text-decoration: none;
@@ -1903,7 +1901,7 @@ kbd {
   left: 8px;
   top: 8px;
   padding: 2px 9px;
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   background: rgb(14 11 17 / 0.84); /* solid, like .watched-mark */
   font-size: var(--step--1);
   font-weight: 800;
@@ -2509,7 +2507,7 @@ a.download-attention {
   min-width: 220px;
   max-width: min(320px, calc(100vw - 16px));
   padding: 6px;
-  border-radius: 12px;
+  border-radius: var(--radius-panel);
   background: var(--seat);
   border: 1px solid var(--aisle);
   box-shadow: 0 18px 48px rgb(0 0 0 / 0.5);
@@ -2518,7 +2516,7 @@ a.download-attention {
 .item-menu button {
   padding: 9px 12px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background: none;
   color: var(--screen);
   font: inherit;
@@ -2613,7 +2611,7 @@ a.download-attention {
   border-color: transparent;
   background: var(--screen);
   color: var(--room);
-  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.35), 0 2px 8px rgb(0 0 0 / 0.4);
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.35);
   opacity: 1;
 }
 

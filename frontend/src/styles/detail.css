@@ -975,10 +975,8 @@ a.np-view-artist:hover {
 
 .np-view-next span {
   margin-right: 8px;
-  font-size: 11px;
+  font-size: var(--step--1);
   font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
   color: rgb(255 255 255 / 0.5);
 }
 
@@ -1153,7 +1151,7 @@ a.np-view-artist:hover {
   width: 100%;
   padding: 8px 10px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background: none;
   color: rgb(255 255 255 / 0.85);
   font: inherit;
@@ -1484,7 +1482,7 @@ a.np-view-artist:hover {
   right: 3px;
   min-width: 16px;
   padding: 0 4px;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background: var(--ambient);
   color: var(--room);
   font-size: 10px;
@@ -1533,8 +1531,6 @@ a.np-view-artist:hover {
   margin: 12px 8px 4px;
   font-size: var(--step--1);
   font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
   color: var(--usher);
 }
 
@@ -1589,7 +1585,7 @@ a.np-view-artist:hover {
   min-width: 0;
   padding: 6px 4px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background: none;
   color: inherit;
   font: inherit;
