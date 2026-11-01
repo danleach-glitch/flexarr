@@ -293,7 +293,7 @@ private fun ChapterStrip(player: BookPlayer, chapters: List<BookChapter>, scrubb
     Row(Modifier.fillMaxWidth().clip(CircleShape).background(Flexarr.screen.copy(alpha = 0.08f)).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         Step(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "Previous chapter", onClick = player::previousChapter)
         Crossfade(current, Modifier.weight(1f), animationSpec = tween(200), label = "chapter") { index ->
-            Box(Modifier.fillMaxWidth().height(36.dp).pressable(openList), contentAlignment = Alignment.Center) {
+            Box(Modifier.fillMaxWidth().height(48.dp).pressable(openList), contentAlignment = Alignment.Center) {
                 Text(chapters[index ?: 0].title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
@@ -303,7 +303,7 @@ private fun ChapterStrip(player: BookPlayer, chapters: List<BookChapter>, scrubb
 
 @Composable
 private fun Step(icon: ImageVector, label: String, enabled: Boolean = true, onClick: () -> Unit) {
-    Box(Modifier.size(width = 40.dp, height = 36.dp).pressable(onClick, enabled), contentAlignment = Alignment.Center) {
+    Box(Modifier.minimumInteractiveComponentSize().size(48.dp).clip(CircleShape).pressable(onClick, enabled), contentAlignment = Alignment.Center) {
         Icon(icon, contentDescription = label, tint = Flexarr.screen.copy(alpha = if (enabled) 0.85f else 0.3f), modifier = Modifier.size(20.dp))
     }
 }
