@@ -606,7 +606,7 @@ function TmdbRow({
               themoviedb.org
             </a>{' '}
             by registering an app for personal use.{' '}
-            <a href="https://flexarr.io/guide/without-arrs#films-from-tmdb" target="_blank" rel="noreferrer">
+            <a href="https://flexarr.io/guide/without-arrs#movies-from-tmdb" target="_blank" rel="noreferrer">
               How to get a key
             </a>
           </p>

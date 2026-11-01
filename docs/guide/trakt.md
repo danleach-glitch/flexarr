@@ -17,7 +17,7 @@ A Trakt account can be connected to one profile only, so nothing is counted twic
 
 ## Bringing your history across
 
-Once you're connected, **Bring your Trakt history across** shows you what would change before anything does (**See what changes** on the web). For example: *Trakt has 12 films and 340 episodes. 200 are here, 41 not yet watched in Flexarr*. Choose **Bring across** to go ahead.
+Once you're connected, **Bring your Trakt history across** shows you what would change before anything does (**See what changes** on the web). For example: *Trakt has 12 movies and 340 episodes. 200 are here, 41 not yet watched in Flexarr*. Choose **Bring across** to go ahead.
 
 - Anything watched on Trakt is marked watched in Flexarr, with the date you watched it.
 - Anything watched in Flexarr that Trakt doesn't have goes to Trakt.
@@ -32,7 +32,7 @@ After that, it all happens by itself:
 
 | What | How |
 | --- | --- |
-| Watching | Trakt shows what you're watching while it plays. When Flexarr counts a film or episode as watched (near the end, or once the end credits start), so does Trakt. |
+| Watching | Trakt shows what you're watching while it plays. When Flexarr counts a movie or episode as watched (near the end, or once the end credits start), so does Trakt. |
 | Marking watched | **Mark as watched** in Flexarr goes to Trakt, and so does anything you watched on a download away from the server. |
 | Watched elsewhere | Plays in other apps connected to Trakt come to Flexarr within a few minutes. |
 | Where you're up to | Stop part way and Trakt keeps your place. Stop in another app connected to Trakt, and Flexarr picks up from there. |
@@ -46,7 +46,7 @@ Everything a connected profile watches goes to Trakt, whichever library it's in,
 
 ## Lists and picks
 
-- **Lists**: in **Settings › Trakt**, choose any of your Trakt lists, or ones you've liked, and each shows up in **Collections** on the web, just for you, kept in step with Trakt. Titles on the list that are here show as usual. Films that aren't here show with **Request**.
+- **Lists**: in **Settings › Trakt**, choose any of your Trakt lists, or ones you've liked, and each shows up in **Collections** on the web, just for you, kept in step with Trakt. Titles on the list that are here show as usual. Movies that aren't here show with **Request**.
 - **For you, from Trakt**: once you're connected, Discover on the web and Apple TV has a row of Trakt's picks for you, with titles you have first and ones you've watched left out.
 
 ## If something's wrong

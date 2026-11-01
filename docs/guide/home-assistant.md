@@ -1,9 +1,9 @@
 ---
 title: Home Assistant
-description: Add Flexarr to Home Assistant so every Apple TV, iPhone and iPad becomes a media player, and dim the lights when a film starts.
+description: Add Flexarr to Home Assistant so every Apple TV, iPhone and iPad becomes a media player, and dim the lights when a movie starts.
 ---
 
-[Home Assistant](https://www.home-assistant.io) is a popular app for running your smart home yourself. Flexarr has an integration for it, so your home can react to what you're watching: lights down when a film starts, up again when the credits roll.
+[Home Assistant](https://www.home-assistant.io) is a popular app for running your smart home yourself. Flexarr has an integration for it, so your home can react to what you're watching: lights down when a movie starts, up again when the credits roll.
 
 The integration lives in its own repository, [flexarr-home-assistant](https://github.com/danleach-glitch/flexarr-home-assistant), and needs Flexarr 0.45.0 or later.
 
@@ -63,13 +63,13 @@ As with Siri, Flexarr has to be open on the device for it to play.
 
 A playback that stops reporting counts as stopped after two minutes, or fifteen if it was paused.
 
-## Example: lights down for films
+## Example: lights down for movies
 
-This dims the living room when a film starts on the living room TV, and brings the lights up at the credits or when you stop.
+This dims the living room when a movie starts on the living room TV, and brings the lights up at the credits or when you stop.
 
 ```yaml
 automation:
-  - alias: Lights down for a film
+  - alias: Lights down for a movie
     triggers:
       - trigger: event
         event_type: flexarr_playback

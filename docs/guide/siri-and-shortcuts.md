@@ -1,6 +1,6 @@
 ---
 title: Siri and Shortcuts
-description: Ask Siri on your iPhone or iPad to play a film, the next episode of a show or a podcast, here or on your Apple TV, and build your own shortcuts.
+description: Ask Siri on your iPhone or iPad to play a movie, the next episode of a show or a podcast, here or on your Apple TV, and build your own shortcuts.
 ---
 
 Once the Flexarr app on your iPhone or iPad has signed in to your server, Siri understands it. There's nothing to set up. Siri learns the titles in your library when the app signs in, so it knows what you mean by "*The Traitors*" or "*Heat*".
@@ -9,7 +9,7 @@ Every phrase needs the word **Flexarr** in it, so Siri knows which app you mean.
 
 ## Things to say
 
-### Films and shows
+### Movies and shows
 
 - "Play the next episode of *Curb Your Enthusiasm* in Flexarr"
 - "Play *Heat* in Flexarr" or "Watch *Heat* in Flexarr"
@@ -17,7 +17,7 @@ Every phrase needs the word **Flexarr** in it, so Siri knows which app you mean.
 - "Continue watching in Flexarr"
 - "Save *Severance* in Flexarr" for a title in your library, or "Add to my watchlist in Flexarr" and then any title (see [Watchlist](watchlist.md))
 
-A show plays the episode you're up to. A film carries on from where you left off. Shuffle plays a show's episodes in a random order, one after another. Continue watching picks up whatever you were in the middle of most recently.
+A show plays the episode you're up to. A movie carries on from where you left off. Shuffle plays a show's episodes in a random order, one after another. Continue watching picks up whatever you were in the middle of most recently.
 
 Don't say "Add *Severance* to my watchlist": iOS keeps that sentence for itself.
 
@@ -26,8 +26,8 @@ Don't say "Add *Severance* to my watchlist": iOS keeps that sentence for itself.
 - "Play *The Rest Is History* in Flexarr" plays the episode you'd hear next
 - "Play the latest *The Rest Is History* in Flexarr" plays the newest one you haven't heard
 - "What's new in my podcasts in Flexarr" reads out the newest episodes, without opening anything
-- "Add *The Rest Is History* to Up Next in Flexarr"
-- "Play my Up Next in Flexarr", until the next release. From then on it's the **Play Up Next** action in the Shortcuts app.
+- "Add *The Rest Is History* to Up next in Flexarr"
+- "Play my Up next in Flexarr", until the next release. From then on it's the **Play Up next** action in the Shortcuts app.
 
 These work for podcasts the profile follows. See [Podcasts](podcasts.md).
 
@@ -69,25 +69,25 @@ Everything Siri can do is also in the Shortcuts app on iPhone and iPad, as actio
 
 | Action | What it does |
 | --- | --- |
-| **Play a film or show** | Plays a film, or the next episode of a show. Can start from the beginning. |
+| **Play a movie or show** | Plays a movie, or the next episode of a show. Can start from the beginning. |
 | **Shuffle a show** | Plays a show's episodes in a random order. |
 | **Continue watching** | Picks up what you were in the middle of. |
-| **Add to watchlist** | Puts a film or show from your library on your watchlist. |
+| **Add to watchlist** | Puts a movie or show from your library on your watchlist. |
 | **Control playback** | Pauses, resumes or stops, skips the intro, moves on to the next episode, or skips back or forward. |
 | **Subtitles** | Turns subtitles on or off. |
 | **Night mode** | Turns night mode on or off, here or on another device with Flexarr open. |
 | **Dialogue boost** | Sets dialogue boost to off, low, medium or high, here or on another device with Flexarr open. |
 | **Play a podcast's latest episode** | The newest episode you haven't heard. |
 | **What's new in my podcasts** | Says the newest episodes you haven't heard. |
-| **Add a podcast to Up Next** | Puts the next episode at the end of Up Next. |
-| **Play Up Next** | Plays your podcast queue from the start. |
+| **Add a podcast to Up next** | Puts the next episode at the end of Up next. |
+| **Play Up next** | Plays your podcast queue from the start. |
 | **Search Flexarr** | Opens the app on a search. |
 
 In the next release, three more arrive with [audiobooks](audiobooks.md): **Resume listening**, **Play a book**, and **Sleep at the end of the chapter**.
 
-The play and control actions have an **On** setting, where you choose this device or another one signed in to your server. That's handy for a shortcut of your own. A "Film night" shortcut could use Apple's own actions to dim the lights and wake the Apple TV, open Flexarr on it, then use **Play a film or show** with **On** set to that TV.
+The play and control actions have an **On** setting, where you choose this device or another one signed in to your server. That's handy for a shortcut of your own. A "Movie night" shortcut could use Apple's own actions to dim the lights and wake the Apple TV, open Flexarr on it, then use **Play a movie or show** with **On** set to that TV.
 
-**Play a film or show** and **Shuffle a show** also have an **As** setting, for the profile to watch as. The device switches to that profile first, so the next episode is that person's and what they watch lands in their Continue Watching, whoever used the TV last. A "Kids' bedtime episode" shortcut can play their show on the TV as their profile. If the profile has a PIN, the device asks for it before playing.
+**Play a movie or show** and **Shuffle a show** also have an **As** setting, for the profile to watch as. The device switches to that profile first, so the next episode is that person's and what they watch lands in their Continue watching, whoever used the TV last. A "Kids' bedtime episode" shortcut can play their show on the TV as their profile. If the profile has a PIN, the device asks for it before playing.
 
 > **Tip**
 > A shortcut you make can have a phrase of its own. Name it, and Siri runs it when you say that name.
@@ -99,7 +99,7 @@ Flexarr's links open the app on the iPhone, iPad or Apple TV they're opened on. 
 | Link | What it does |
 | --- | --- |
 | `flexarr://item/<id>` | Shows a title's page. |
-| `flexarr://play/<id>` | Plays a film or episode, or a show's next episode. Add `?t=<seconds>` to start at a time, or `?shuffle=1` to shuffle a show. |
+| `flexarr://play/<id>` | Plays a movie or episode, or a show's next episode. Add `?t=<seconds>` to start at a time, or `?shuffle=1` to shuffle a show. |
 
 Add `profile=<name>` (or the profile's id) to either to switch to that profile first, for example `flexarr://play/<id>?profile=Sam`. If the profile has a PIN, Flexarr asks for it before going on. A title's id is the last part of its address on the web, after `/item/`.
 

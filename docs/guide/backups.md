@@ -3,7 +3,7 @@ title: Backups
 description: How Flexarr backs itself up every night, where backups are kept, and how to restore one or move your settings to another server.
 ---
 
-Your films, shows and music live on your own drives, and Flexarr can always scan them again. What it can't rebuild is everything you've added on top: profiles, what everyone has watched, watchlists, playlists, collections, settings and signed-in devices. That's what a backup holds.
+Your movies, shows and music live on your own drives, and Flexarr can always scan them again. What it can't rebuild is everything you've added on top: profiles, what everyone has watched, watchlists, playlists, collections, settings and signed-in devices. That's what a backup holds.
 
 Everything here is in the web app under **Settings › Backup & restore**, as the main profile with settings unlocked.
 

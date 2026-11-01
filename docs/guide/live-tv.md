@@ -3,7 +3,7 @@ title: Live TV and recording
 description: Watch TV channels in Flexarr with a guide, favourites and rewind, and record programmes and series, using Dispatcharr as the source.
 ---
 
-Flexarr can show TV channels next to your films and shows, with a programme guide, favourites, pause and rewind, and recording. It doesn't come with any channels. You bring your own, through Dispatcharr.
+Flexarr can show TV channels next to your movies and shows, with a programme guide, favourites, pause and rewind, and recording. It doesn't come with any channels. You bring your own, through Dispatcharr.
 
 Live TV is on the web, Apple TV, iPhone and iPad. Kids profiles don't have it, and a profile with an age limit sees only the channels the main profile picks under **Channels for kids** in **Settings › Live TV**.
 
@@ -94,7 +94,7 @@ A programme set to record has a red dot, and one a series covers has two. While 
 
 Recordings are saved as MKV files, with the picture and every soundtrack as they came, nothing converted. They're named like TV episodes, for example `Show/Season 2/Show - S02E05 - Episode.mkv`, or by date when the guide doesn't number them.
 
-By default they go in a `DVR` folder at the top of the drive your TV library is on. To choose another, set **Folder** in **Settings › Live TV**. Recordings play like anything else in Flexarr, with resume and Continue Watching, from **Live TV › Recordings**.
+By default they go in a `DVR` folder at the top of the drive your TV library is on. To choose another, set **Folder** in **Settings › Live TV**. Recordings play like anything else in Flexarr, with resume and Continue watching, from **Live TV › Recordings**.
 
 ### Recording settings
 

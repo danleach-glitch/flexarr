@@ -75,7 +75,7 @@
               <li><a href="/guide/finding-things">Finding things</a></li>
               <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
               <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
-              <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
+              <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up next</a></li>
               <li><a href="/guide/music">Music</a></li>
               <li><a href="/guide/podcasts">Podcasts</a></li>
               <li><a href="/guide/audiobooks">Audiobooks</a></li>
@@ -127,7 +127,7 @@
           </ol>
         </nav>
         <div class="prose">
-<p>Flexarr comes in two halves. The <strong>server</strong> runs on a computer in your home and keeps your films, TV shows, music and podcasts. The <strong>apps</strong> on your iPhone, iPad, Apple TV and web browser connect to it and play from it. There&#39;s no account and no cloud service in the middle: your library stays on your own disk.</p>
+<p>Flexarr comes in two halves. The <strong>server</strong> runs on a computer in your home and keeps your movies, TV shows, music and podcasts. The <strong>apps</strong> on your iPhone, iPad, Apple TV and web browser connect to it and play from it. There&#39;s no account and no cloud service in the middle: your library stays on your own disk.</p>
 <figure><img src="/shots/hero.webp" alt="Flexarr on an Apple TV and an iPhone" data-caption="Flexarr on Apple TV and iPhone, both playing from your own server" loading="lazy" decoding="async" class="device"></figure>
 <p>If you&#39;ve installed the iPhone app and it sent you here, this is the part you&#39;re missing. Set up the server once, then connect your phone to it with a short code.</p>
 <p>Flexarr is free for personal and other noncommercial use under the <a href="https://github.com/danleach-glitch/flexarr/blob/main/LICENSE" rel="noopener">PolyForm Noncommercial licence</a>.</p>
@@ -151,7 +151,7 @@
 </ul>
 <p>A modest machine is fine if you mostly watch on Apple devices at home. If you plan to stream to browsers or over a slow connection a lot, a faster processor (or a Mac) helps. Flexarr converts at most three videos at once by default and tells anyone beyond that the server is busy, rather than slowing everybody down.</p>
 <h2 id="do-you-need-sonarr-radarr-and-lidarr"><a class="anchor" href="#do-you-need-sonarr-radarr-and-lidarr" aria-hidden="true" tabindex="-1">#</a>Do you need Sonarr, Radarr and Lidarr?</h2>
-<p>Flexarr is built to sit alongside Sonarr (TV), Radarr (films), Lidarr (music) and Seerr (requests). It doesn&#39;t download anything itself, and it takes its titles, artwork and details from those apps rather than asking you for API keys to online databases.</p>
+<p>Flexarr is built to sit alongside Sonarr (TV), Radarr (movies), Lidarr (music) and Seerr (requests). It doesn&#39;t download anything itself, and it takes its titles, artwork and details from those apps rather than asking you for API keys to online databases.</p>
 <p>You can run Flexarr without them, but what you get differs by library.</p>
 <div class="table"><table>
 <thead>
@@ -162,9 +162,9 @@
 </tr>
 </thead>
 <tbody><tr>
-<td>Films</td>
-<td>Radarr supplies titles, posters, backgrounds, overviews, genres, ratings, trailers and cast. Films Radarr doesn&#39;t manage are looked up through its search.</td>
-<td>Films are found and play, named from their folders and files. Artwork and details come from any <code>.nfo</code> file and images (<code>poster.jpg</code>, <code>fanart.jpg</code>) in the film&#39;s folder, or from TMDB with a free key of your own.</td>
+<td>Movies</td>
+<td>Radarr supplies titles, posters, backgrounds, overviews, genres, ratings, trailers and cast. Movies Radarr doesn&#39;t manage are looked up through its search.</td>
+<td>Movies are found and play, named from their folders and files. Artwork and details come from any <code>.nfo</code> file and images (<code>poster.jpg</code>, <code>fanart.jpg</code>) in the movie&#39;s folder, or from TMDB with a free key of your own.</td>
 </tr>
 <tr>
 <td>TV shows</td>
@@ -183,7 +183,7 @@
 </tr>
 <tr>
 <td>Requests</td>
-<td>Seerr lets you search for and request films and shows from any of the apps.</td>
+<td>Seerr lets you search for and request movies and shows from any of the apps.</td>
 <td>No requests.</td>
 </tr>
 <tr>
@@ -195,7 +195,7 @@
 <p>A few other things depend on the *arrs too:</p>
 <ul>
 <li><strong>New downloads appear straight away</strong> when Sonarr, Radarr or Lidarr tell Flexarr about them with a webhook, which Flexarr adds to each app for you. Without that, Flexarr finds new files on its own scan, every 12 hours, or when you start one in <strong>Settings › Libraries</strong>.</li>
-<li><strong>Coming soon</strong>, showing episodes about to air and films about to be released, comes from Sonarr and Radarr (and, in the next release, books on the way from Readarr).</li>
+<li><strong>Coming soon</strong>, showing episodes about to air and movies about to be released, comes from Sonarr and Radarr (and, in the next release, books on the way from Readarr).</li>
 </ul>
 <p>Some features don&#39;t need any of them: podcasts are built in, <a href="/guide/live-tv">Live TV</a> uses Dispatcharr, and the web app, profiles, downloads to your phone and <a href="/guide/import-from-plex">importing your history from Plex</a> all work on their own.</p>
 <blockquote class="callout tip"><p><strong>Tip</strong> If you don&#39;t run the *arrs yet, you can start with Flexarr and a folder of media, then add Sonarr and Radarr later. Flexarr tries unmatched titles again within a day, or straight away when you choose <strong>Refresh artwork and details</strong> on a library in <strong>Settings › Libraries</strong>.</p>

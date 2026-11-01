@@ -3,17 +3,17 @@ title: Your iPhone as a remote
 description: Control what's playing on your Apple TV from your iPhone or iPad: pause, scrub, skip the intro, change subtitles and sound, pick another episode, and carry on watching on the phone.
 ---
 
-When an Apple TV in your home is playing something from Flexarr, the iPhone and iPad apps show a **Playing on TV** bar above the tabs. It shows the TVs playing for the profile chosen on the phone, so each person sees their own: Claire's film on the bedroom TV doesn't show on Dan's phone. There's nothing to set up: the TV and the phone only need to be signed in to the same server, with the TV's Flexarr app open.
+When an Apple TV in your home is playing something from Flexarr, the iPhone and iPad apps show a **Playing on TV** bar above the tabs. It shows the TVs playing for the profile chosen on the phone, so each person sees their own: Claire's movie on the bedroom TV doesn't show on Dan's phone. There's nothing to set up: the TV and the phone only need to be signed in to the same server, with the TV's Flexarr app open.
 
-The bar has play/pause. Tap it for the remote. The **×** hides the bar until that TV plays a different show or film; it doesn't stop anything, so it's safe while someone else is watching.
+The bar has play/pause. Tap it for the remote. The **×** hides the bar until that TV plays a different show or movie; it doesn't stop anything, so it's safe while someone else is watching.
 
 ## The remote
 
-- **Scrubber**: drag to anywhere in the film or episode. Underneath is how far in it is, how long is left and when it ends.
+- **Scrubber**: drag to anywhere in the movie or episode. Underneath is how far in it is, how long is left and when it ends.
 - **Back and forward 10 seconds**, and **previous** and **next episode**. Previous starts the episode again, or goes to the one before if you're near the start.
-- **Skip Intro**, **Skip Recap** and **Next Episode** appear here whenever the TV shows them.
+- **Skip intro**, **Skip Recap** and **Next Episode** appear here whenever the TV shows them.
 - **Audio and subtitles**, **speed** and **sound** (dialogue boost, night mode and speakers). Subtitles are lit while they're on, speed while it isn't 1×, and sound while any of it is changed.
-- **Continue on iPhone** (**Continue on iPad** on an iPad) stops the film or episode on the TV and carries on from the same moment on your phone. The TV goes back to the title's page and says it's now playing on your phone, by name.
+- **Continue on iPhone** (**Continue on iPad** on an iPad) stops the movie or episode on the TV and carries on from the same moment on your phone. The TV goes back to the title's page and says it's now playing on your phone, by name.
 - **Stop** stops it on the TV. For a few seconds you can **Undo**, which starts it again from where it stopped.
 - **Episodes** lists the season: tap one to play it on the TV.
 

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Without Sonarr and Radarr · Flexarr guide</title>
-  <meta name="description" content="Artwork and details for films and shows that Sonarr and Radarr don&#39;t manage, from the files beside them, TVmaze and TMDB, and home video libraries.">
+  <meta name="description" content="Artwork and details for movies and shows that Sonarr and Radarr don&#39;t manage, from the files beside them, TVmaze and TMDB, and home video libraries.">
   <meta name="theme-color" content="#1b1720">
   <meta name="color-scheme" content="dark">
   <meta name="apple-itunes-app" content="app-id=6826618084">
@@ -12,7 +12,7 @@
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <meta property="og:title" content="Without Sonarr and Radarr · Flexarr guide">
-  <meta property="og:description" content="Artwork and details for films and shows that Sonarr and Radarr don&#39;t manage, from the files beside them, TVmaze and TMDB, and home video libraries.">
+  <meta property="og:description" content="Artwork and details for movies and shows that Sonarr and Radarr don&#39;t manage, from the files beside them, TVmaze and TMDB, and home video libraries.">
   <meta property="og:image" content="https://flexarr.io/shots/og.jpg">
   <meta property="og:url" content="https://flexarr.io/guide/without-arrs">
   <meta name="twitter:card" content="summary_large_image">
@@ -75,7 +75,7 @@
               <li><a href="/guide/finding-things">Finding things</a></li>
               <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
               <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
-              <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
+              <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up next</a></li>
               <li><a href="/guide/music">Music</a></li>
               <li><a href="/guide/podcasts">Podcasts</a></li>
               <li><a href="/guide/audiobooks">Audiobooks</a></li>
@@ -115,24 +115,24 @@
       <article>
         <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Getting started</p>
         <h1>Without Sonarr and Radarr</h1>
-        <p class="lede">Artwork and details for films and shows that Sonarr and Radarr don&#39;t manage, from the files beside them, TVmaze and TMDB, and home video libraries.</p>
+        <p class="lede">Artwork and details for movies and shows that Sonarr and Radarr don&#39;t manage, from the files beside them, TVmaze and TMDB, and home video libraries.</p>
         <p class="meta">3 min read</p>
         <nav class="toc" aria-label="On this page">
           <p>On this page</p>
           <ol>
             <li><a href="#artwork-and-nfo-files-in-your-folders">Artwork and .nfo files in your folders</a></li>
             <li><a href="#shows-from-tvmaze">Shows from TVmaze</a></li>
-            <li><a href="#films-from-tmdb">Films from TMDB</a></li>
+            <li><a href="#movies-from-tmdb">Movies from TMDB</a></li>
             <li><a href="#when-the-match-is-wrong">When the match is wrong</a></li>
             <li><a href="#home-videos">Home videos</a></li>
           </ol>
         </nav>
         <div class="prose">
-<p>Flexarr works best alongside Sonarr and Radarr, but it doesn&#39;t need them. Films and shows they don&#39;t manage, or every film and show if you don&#39;t run them, get their artwork and details in three ways, best first:</p>
+<p>Flexarr works best alongside Sonarr and Radarr, but it doesn&#39;t need them. Movies and shows they don&#39;t manage, or every movie and show if you don&#39;t run them, get their artwork and details in three ways, best first:</p>
 <ol>
-<li><strong>What&#39;s in their folders.</strong> A <code>.nfo</code> file and artwork beside a film or show always win, even over Sonarr&#39;s and Radarr&#39;s.</li>
+<li><strong>What&#39;s in their folders.</strong> A <code>.nfo</code> file and artwork beside a movie or show always win, even over Sonarr&#39;s and Radarr&#39;s.</li>
 <li><strong>TVmaze, for shows.</strong> It needs no account or key.</li>
-<li><strong>TMDB, for films</strong>, with a free key of your own.</li>
+<li><strong>TMDB, for movies</strong>, with a free key of your own.</li>
 </ol>
 <p>Anything none of these find still plays, named from its folder and files.</p>
 <h2 id="artwork-and-nfo-files-in-your-folders"><a class="anchor" href="#artwork-and-nfo-files-in-your-folders" aria-hidden="true" tabindex="-1">#</a>Artwork and .nfo files in your folders</h2>
@@ -146,7 +146,7 @@
 </thead>
 <tbody><tr>
 <td>Details (title, year, plot, genres, rating, age rating, IDs)</td>
-<td><code>movie.nfo</code> (or <code>Film name.nfo</code>) beside a film, <code>tvshow.nfo</code> in a show&#39;s folder, <code>Episode name.nfo</code> beside an episode</td>
+<td><code>movie.nfo</code> (or <code>Movie name.nfo</code>) beside a movie, <code>tvshow.nfo</code> in a show&#39;s folder, <code>Episode name.nfo</code> beside an episode</td>
 </tr>
 <tr>
 <td>Poster</td>
@@ -169,30 +169,30 @@
 <td><code>Episode name-thumb.jpg</code> or <code>Episode name.jpg</code> beside the episode</td>
 </tr>
 </tbody></table></div>
-<p>A film on its own in the library&#39;s folder, rather than in a folder of its own, uses the same names with its file name in front: <code>Heat (1995)-poster.jpg</code>, <code>Heat (1995)-fanart.jpg</code>.</p>
+<p>A movie on its own in the library&#39;s folder, rather than in a folder of its own, uses the same names with its file name in front: <code>Heat (1995)-poster.jpg</code>, <code>Heat (1995)-fanart.jpg</code>.</p>
 <p>Images can be JPEG, PNG or WebP. Flexarr only reads these files: it never writes or changes anything in your media folders.</p>
 <blockquote class="callout tip"><p><strong>Tip</strong> The IDs in a <code>.nfo</code> file (TMDB, IMDb or TheTVDB) help Flexarr find exactly the right title, in Sonarr and Radarr as well as online. A <code>.nfo</code> that holds only a link to the title&#39;s IMDb or TMDB page works too.</p>
 </blockquote>
 <h2 id="shows-from-tvmaze"><a class="anchor" href="#shows-from-tvmaze" aria-hidden="true" tabindex="-1">#</a>Shows from TVmaze</h2>
 <p>Shows Sonarr doesn&#39;t know are looked up on <a href="https://www.tvmaze.com" rel="noopener">TVmaze</a>, by the show&#39;s folder name (and its IDs, when there are any). They get a poster, background, overview, genres, rating and cast, with episode titles, descriptions and stills. There&#39;s nothing to set up.</p>
-<h2 id="films-from-tmdb"><a class="anchor" href="#films-from-tmdb" aria-hidden="true" tabindex="-1">#</a>Films from TMDB</h2>
-<p>For films Radarr doesn&#39;t know, Flexarr can ask <a href="https://www.themoviedb.org" rel="noopener">TMDB</a>, using a key of your own:</p>
+<h2 id="movies-from-tmdb"><a class="anchor" href="#movies-from-tmdb" aria-hidden="true" tabindex="-1">#</a>Movies from TMDB</h2>
+<p>For movies Radarr doesn&#39;t know, Flexarr can ask <a href="https://www.themoviedb.org" rel="noopener">TMDB</a>, using a key of your own:</p>
 <ol>
 <li>Sign up at <a href="https://www.themoviedb.org/signup" rel="noopener">themoviedb.org</a> (it&#39;s free) and open <strong>Settings › API</strong>.</li>
 <li>Ask for a key. TMDB asks you to register an application first; that&#39;s the form for everyone, not something only developers do:<ul>
 <li>Choose personal (non-commercial) use.</li>
 <li><strong>Application name</strong>: something like <em>Flexarr at home</em>.</li>
 <li><strong>Application URL</strong>: your Flexarr&#39;s address, or <code>https://flexarr.io</code>.</li>
-<li><strong>Application summary</strong>: something like <em>My own media server, showing details and artwork for films I own.</em></li>
+<li><strong>Application summary</strong>: something like <em>My own media server, showing details and artwork for movies I own.</em></li>
 <li>Fill in your contact details and accept the terms. The key appears straight away.</li>
 </ul>
 </li>
 <li>In Flexarr, open <strong>Settings › Connections</strong>, choose <strong>Connect</strong> on <strong>TMDB</strong>, and paste the <strong>API key</strong> or the <strong>API read access token</strong>.</li>
 <li>Choose <strong>Test</strong>, then <strong>Connect</strong>.</li>
 </ol>
-<p>Films that weren&#39;t matched are looked up again straight away. They get a poster, background, logo, overview, genres, age rating, rating, trailer and cast.</p>
+<p>Movies that weren&#39;t matched are looked up again straight away. They get a poster, background, logo, overview, genres, age rating, rating, trailer and cast.</p>
 <h2 id="when-the-match-is-wrong"><a class="anchor" href="#when-the-match-is-wrong" aria-hidden="true" tabindex="-1">#</a>When the match is wrong</h2>
-<p>A title search can pick the wrong one: a remake, or an older show of the same name. Titles matched by searching are listed under <strong>Check these matches</strong> in <a href="/guide/library-health">Library health</a>. To choose the right one, open the title, choose <strong>Fix match…</strong> in its <strong>⋯</strong> menu, and search. Without Sonarr and Radarr, the search is TVmaze&#39;s (shows) or TMDB&#39;s (films), and your choice is kept in Flexarr through every refresh. Fixing a film&#39;s match without Radarr needs a TMDB key.</p>
+<p>A title search can pick the wrong one: a remake, or an older show of the same name. Titles matched by searching are listed under <strong>Check these matches</strong> in <a href="/guide/library-health">Library health</a>. To choose the right one, open the title, choose <strong>Fix match…</strong> in its <strong>⋯</strong> menu, and search. Without Sonarr and Radarr, the search is TVmaze&#39;s (shows) or TMDB&#39;s (movies), and your choice is kept in Flexarr through every refresh. Fixing a movie&#39;s match without Radarr needs a TMDB key.</p>
 <h2 id="home-videos"><a class="anchor" href="#home-videos" aria-hidden="true" tabindex="-1">#</a>Home videos</h2>
 <p>For videos of your own, add a library of the kind <strong>Home videos</strong> in <strong>Settings › Libraries</strong>. Nothing in it is looked up online. Flexarr arranges it by folder:</p>
 <ul>

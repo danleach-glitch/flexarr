@@ -75,7 +75,7 @@
               <li><a href="/guide/finding-things">Finding things</a></li>
               <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
               <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
-              <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
+              <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up next</a></li>
               <li><a href="/guide/music">Music</a></li>
               <li><a href="/guide/podcasts">Podcasts</a></li>
               <li><a href="/guide/audiobooks">Audiobooks</a></li>
@@ -180,9 +180,9 @@
 <p>If the webhook arrives but nothing appears, the paths probably don&#39;t match. Sonarr tells Flexarr the folder by its own path, such as <code>/data/tv/Show</code>, and Flexarr has to see the same folder at that path. Either mount your media at the same path in both, or check <strong>Settings › Connections › Media folders</strong>: an amber line there is a folder Flexarr hasn&#39;t found yet, with a suggestion or a folder to choose. See <a href="/guide/media-paths">Media paths</a>.</p>
 <p>To pick something up now, use the <strong>Scan for new and changed files</strong> icon on the library in <strong>Settings › Libraries</strong>.</p>
 <h3 id="artwork-or-details-are-missing"><a class="anchor" href="#artwork-or-details-are-missing" aria-hidden="true" tabindex="-1">#</a>Artwork or details are missing</h3>
-<p>Films and shows get their artwork and details from <code>.nfo</code> files and pictures beside them first, then from Radarr and Sonarr. Shows they don&#39;t know are looked up on TVmaze, and films on TMDB if you&#39;ve added a TMDB key.</p>
+<p>Movies and shows get their artwork and details from <code>.nfo</code> files and pictures beside them first, then from Radarr and Sonarr. Shows they don&#39;t know are looked up on TVmaze, and movies on TMDB if you&#39;ve added a TMDB key.</p>
 <ul>
-<li><strong>Are they connected?</strong> Check <strong>Settings › Connections</strong>. Without Sonarr and Radarr, a film needs a TMDB key (or its own <code>.nfo</code> and poster) to get artwork. See <a href="/guide/without-arrs">Without Sonarr and Radarr</a>.</li>
+<li><strong>Are they connected?</strong> Check <strong>Settings › Connections</strong>. Without Sonarr and Radarr, a movie needs a TMDB key (or its own <code>.nfo</code> and poster) to get artwork. See <a href="/guide/without-arrs">Without Sonarr and Radarr</a>.</li>
 <li><strong>Is it the wrong title?</strong> Open <strong>Settings › Libraries › Library health</strong> and look under <strong>Missing artwork</strong> and <strong>Check these matches</strong>. Use <strong>Fix match</strong> to pick the right one. See <a href="/guide/library-health">Library health</a>.</li>
 <li><strong>Is the folder named clearly?</strong> For titles Sonarr and Radarr don&#39;t manage, Flexarr searches by the folder&#39;s name. <code>Title (Year)</code> works best, or an <code>.nfo</code> with the title&#39;s IDs.</li>
 <li><strong>Refresh it.</strong> In <strong>Settings › Libraries</strong>, use <strong>Refresh artwork and details</strong> on the library.</li>
@@ -203,7 +203,7 @@
 <ul>
 <li><strong>On Apple TV, turn on Match Content.</strong> In the Apple TV&#39;s own <strong>Settings › Video and Audio › Match Content</strong>, turn on <strong>Match Dynamic Range</strong>. Flexarr&#39;s player then asks the TV to switch to HDR or Dolby Vision for titles that have it, and back for ones that don&#39;t.</li>
 <li><strong>Leave Play files directly on</strong>, so HDR10, HLG and Dolby Vision reach the TV untouched.</li>
-<li><strong>In a web browser,</strong> HDR films are converted to standard dynamic range so they look right on any screen. For HDR, watch on the Apple TV.</li>
+<li><strong>In a web browser,</strong> HDR movies are converted to standard dynamic range so they look right on any screen. For HDR, watch on the Apple TV.</li>
 </ul>
 <p>More in <a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a>.</p>
 <h3 id="no-sound-or-dolby-atmos-is-missing"><a class="anchor" href="#no-sound-or-dolby-atmos-is-missing" aria-hidden="true" tabindex="-1">#</a>No sound, or Dolby Atmos is missing</h3>

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Library health · Flexarr guide</title>
-  <meta name="description" content="Find spare copies and the space they use, files that can&#39;t be read, standard-definition films and wrong matches, and fix them with Sonarr and Radarr.">
+  <meta name="description" content="Find spare copies and the space they use, files that can&#39;t be read, standard-definition movies and wrong matches, and fix them with Sonarr and Radarr.">
   <meta name="theme-color" content="#1b1720">
   <meta name="color-scheme" content="dark">
   <meta name="apple-itunes-app" content="app-id=6826618084">
@@ -12,7 +12,7 @@
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <meta property="og:title" content="Library health · Flexarr guide">
-  <meta property="og:description" content="Find spare copies and the space they use, files that can&#39;t be read, standard-definition films and wrong matches, and fix them with Sonarr and Radarr.">
+  <meta property="og:description" content="Find spare copies and the space they use, files that can&#39;t be read, standard-definition movies and wrong matches, and fix them with Sonarr and Radarr.">
   <meta property="og:image" content="https://flexarr.io/shots/og.jpg">
   <meta property="og:url" content="https://flexarr.io/guide/library-health">
   <meta name="twitter:card" content="summary_large_image">
@@ -75,7 +75,7 @@
               <li><a href="/guide/finding-things">Finding things</a></li>
               <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
               <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
-              <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
+              <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up next</a></li>
               <li><a href="/guide/music">Music</a></li>
               <li><a href="/guide/podcasts">Podcasts</a></li>
               <li><a href="/guide/audiobooks">Audiobooks</a></li>
@@ -115,7 +115,7 @@
       <article>
         <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Looking after it</p>
         <h1>Library health</h1>
-        <p class="lede">Find spare copies and the space they use, files that can&#39;t be read, standard-definition films and wrong matches, and fix them with Sonarr and Radarr.</p>
+        <p class="lede">Find spare copies and the space they use, files that can&#39;t be read, standard-definition movies and wrong matches, and fix them with Sonarr and Radarr.</p>
         <p class="meta">5 min read</p>
         <nav class="toc" aria-label="On this page">
           <p>On this page</p>
@@ -124,7 +124,7 @@
             <li><a href="#spare-copies">Spare copies</a></li>
             <li><a href="#run-a-health-check">Run a health check</a></li>
             <li><a href="#files-that-can-t-be-read">Files that can&#39;t be read</a></li>
-            <li><a href="#standard-definition-films">Standard-definition films</a></li>
+            <li><a href="#standard-definition-movies">Standard-definition movies</a></li>
             <li><a href="#check-these-matches">Check these matches</a></li>
             <li><a href="#missing-artwork">Missing artwork</a></li>
             <li><a href="#fix-match">Fix match</a></li>
@@ -133,14 +133,14 @@
           </ol>
         </nav>
         <div class="prose">
-<p>Library health is a check-up for your films and TV. It shows what&#39;s wrong, how much space spare copies take, and a button to fix each problem, usually by asking Sonarr or Radarr to do the work.</p>
+<p>Library health is a check-up for your movies and TV. It shows what&#39;s wrong, how much space spare copies take, and a button to fix each problem, usually by asking Sonarr or Radarr to do the work.</p>
 <p>Open it in the web app from <strong>Settings › Libraries › Library health</strong>, as the main profile with settings unlocked. The <strong>Overview</strong> page in Settings links to it too.</p>
-<figure><img src="/guide/img/health.webp" alt="Library health with a score of 99, Run health check, a film that only exists in standard definition and one missing artwork" data-caption="Settings › Libraries › Library health" loading="lazy" decoding="async"></figure>
+<figure><img src="/guide/img/health.webp" alt="Library health with a score of 99, Run health check, a movie that only exists in standard definition and one missing artwork" data-caption="Settings › Libraries › Library health" loading="lazy" decoding="async"></figure>
 <h2 id="the-health-score"><a class="anchor" href="#the-health-score" aria-hidden="true" tabindex="-1">#</a>The health score</h2>
-<p>At the top is a score out of 100: the share of your films and episodes with nothing wrong. Next to it is a breakdown of what&#39;s affecting the rest, such as spare copies, unreadable files or missing artwork.</p>
-<p>Groups with nothing in them are left out, and a line underneath says what&#39;s all clear (&quot;every title has a single copy&quot;, &quot;every film has an HD copy&quot;).</p>
+<p>At the top is a score out of 100: the share of your movies and episodes with nothing wrong. Next to it is a breakdown of what&#39;s affecting the rest, such as spare copies, unreadable files or missing artwork.</p>
+<p>Groups with nothing in them are left out, and a line underneath says what&#39;s all clear (&quot;every title has a single copy&quot;, &quot;every movie has an HD copy&quot;).</p>
 <h2 id="spare-copies"><a class="anchor" href="#spare-copies" aria-hidden="true" tabindex="-1">#</a>Spare copies</h2>
-<p>Sometimes a film or episode ends up with more than one file: an upgrade that didn&#39;t replace the old one, or the same file in two folders. <strong>Spare copies</strong> lists each one, how many copies it has and how much space the spares use. The total you&#39;d free is in the group&#39;s description.</p>
+<p>Sometimes a movie or episode ends up with more than one file: an upgrade that didn&#39;t replace the old one, or the same file in two folders. <strong>Spare copies</strong> lists each one, how many copies it has and how much space the spares use. The total you&#39;d free is in the group&#39;s description.</p>
 <ul>
 <li><strong>Remove spares</strong> on a title deletes its extra files.</li>
 <li><strong>Remove all spare copies</strong> does the whole list, after asking first, with a progress bar.</li>
@@ -154,21 +154,21 @@
 <p>Files Flexarr couldn&#39;t open when it scanned them are listed under <strong>Files that can&#39;t be read</strong>, with the reason. This is usually a damaged or unfinished download. <strong>Get a new copy</strong> asks Sonarr or Radarr to search for the title again; a fresh copy fixes playback.</p>
 <h3 id="audible-books"><a class="anchor" href="#audible-books" aria-hidden="true" tabindex="-1">#</a>Audible books</h3>
 <p>From the next release, audiobooks bought from Audible as <code>.aax</code> or <code>.aaxc</code> files are listed here too, as protected by Audible&#39;s DRM. Flexarr can&#39;t play them. Convert them to <code>.m4b</code> with a tool that uses your own Audible account, put the <code>.m4b</code> in the book&#39;s folder in place of the original, and rescan.</p>
-<h2 id="standard-definition-films"><a class="anchor" href="#standard-definition-films" aria-hidden="true" tabindex="-1">#</a>Standard-definition films</h2>
-<p><strong>Only in standard definition</strong> lists films whose best copy is below 720p. <strong>Find a better copy</strong> asks Radarr to search for the film again, so it can upgrade it within the quality profile you&#39;ve set in Radarr.</p>
+<h2 id="standard-definition-movies"><a class="anchor" href="#standard-definition-movies" aria-hidden="true" tabindex="-1">#</a>Standard-definition movies</h2>
+<p><strong>Only in standard definition</strong> lists movies whose best copy is below 720p. <strong>Find a better copy</strong> asks Radarr to search for the movie again, so it can upgrade it within the quality profile you&#39;ve set in Radarr.</p>
 <p>When Sonarr or Radarr are already fetching a new copy, the row shows how far along it is (&quot;Downloading 45%&quot;) instead of the button.</p>
 <h2 id="check-these-matches"><a class="anchor" href="#check-these-matches" aria-hidden="true" tabindex="-1">#</a>Check these matches</h2>
-<p>Films and shows that Sonarr and Radarr don&#39;t manage get their details by searching for the folder&#39;s name. That can find the wrong title: an older show with the same name, or a remake. They&#39;re listed under <strong>Check these matches</strong>.</p>
+<p>Movies and shows that Sonarr and Radarr don&#39;t manage get their details by searching for the folder&#39;s name. That can find the wrong title: an older show with the same name, or a remake. They&#39;re listed under <strong>Check these matches</strong>.</p>
 <ul>
 <li>If a match is right, choose <strong>Ignore</strong>. It leaves the list and stays as it is.</li>
 <li>If it&#39;s wrong, choose <strong>Fix match</strong> (below).</li>
 </ul>
 <h2 id="missing-artwork"><a class="anchor" href="#missing-artwork" aria-hidden="true" tabindex="-1">#</a>Missing artwork</h2>
-<p>Titles with no poster or details are listed under <strong>Missing artwork</strong>. Artwork comes from <code>.nfo</code> files and pictures beside the title, from Radarr and Sonarr, from TVmaze for shows, and from TMDB for films if you&#39;ve added a key. If Radarr and Sonarr aren&#39;t connected, connect them in <strong>Settings › Connections</strong> (<a href="/guide/connect-arrs">Connect Sonarr, Radarr, Lidarr and Seerr</a>), or see <a href="/guide/without-arrs">Without Sonarr and Radarr</a>. Otherwise the title wasn&#39;t found: fix its match, or rename its folder to the form <code>Title (Year)</code> and rescan.</p>
+<p>Titles with no poster or details are listed under <strong>Missing artwork</strong>. Artwork comes from <code>.nfo</code> files and pictures beside the title, from Radarr and Sonarr, from TVmaze for shows, and from TMDB for movies if you&#39;ve added a key. If Radarr and Sonarr aren&#39;t connected, connect them in <strong>Settings › Connections</strong> (<a href="/guide/connect-arrs">Connect Sonarr, Radarr, Lidarr and Seerr</a>), or see <a href="/guide/without-arrs">Without Sonarr and Radarr</a>. Otherwise the title wasn&#39;t found: fix its match, or rename its folder to the form <code>Title (Year)</code> and rescan.</p>
 <h2 id="fix-match"><a class="anchor" href="#fix-match" aria-hidden="true" tabindex="-1">#</a>Fix match</h2>
-<p><strong>Fix match</strong> puts right a film or show that&#39;s been matched to the wrong title. It&#39;s on each row in Check these matches and Missing artwork, and in the <strong>⋯</strong> menu on any film&#39;s or show&#39;s page (main profile only).</p>
+<p><strong>Fix match</strong> puts right a movie or show that&#39;s been matched to the wrong title. It&#39;s on each row in Check these matches and Missing artwork, and in the <strong>⋯</strong> menu on any movie&#39;s or show&#39;s page (main profile only).</p>
 <ol>
-<li>Choose <strong>Fix match</strong>. The dialog shows the full path of the film&#39;s files, or the show&#39;s folder, so you can see what&#39;s being matched.</li>
+<li>Choose <strong>Fix match</strong>. The dialog shows the full path of the movie&#39;s files, or the show&#39;s folder, so you can see what&#39;s being matched.</li>
 <li>Search for the right title. Try the title as it was first released, or add the year.</li>
 <li>Pick it. Each result says whether it&#39;s the <strong>Current match</strong>, already in Sonarr or Radarr, or would be added to them.</li>
 </ol>
@@ -177,9 +177,9 @@
 </blockquote>
 <p>To undo a fix, open Fix match again and choose <strong>Match automatically again</strong>.</p>
 <h2 id="deleting-a-title"><a class="anchor" href="#deleting-a-title" aria-hidden="true" tabindex="-1">#</a>Deleting a title</h2>
-<p>To delete a film, show or episode, open its page, then <strong>⋯ › Delete…</strong> (main profile only). The dialog says who&#39;ll do the deleting before you confirm:</p>
+<p>To delete a movie, show or episode, open its page, then <strong>⋯ › Delete…</strong> (main profile only). The dialog says who&#39;ll do the deleting before you confirm:</p>
 <ul>
-<li><strong>A film Radarr manages:</strong> Radarr deletes the film&#39;s files from disk and stops tracking it.</li>
+<li><strong>A movie Radarr manages:</strong> Radarr deletes the movie&#39;s files from disk and stops tracking it.</li>
 <li><strong>A show Sonarr manages:</strong> Sonarr deletes every episode&#39;s files and stops tracking the show.</li>
 <li><strong>An episode:</strong> Sonarr deletes the episode&#39;s file and stops downloading it, so it doesn&#39;t come back.</li>
 <li><strong>An audiobook</strong> (from the next release) <strong>that Readarr, Bookshelf or Chaptarr manage:</strong> it deletes the book&#39;s files and unmonitors the book there, so it isn&#39;t fetched again.</li>

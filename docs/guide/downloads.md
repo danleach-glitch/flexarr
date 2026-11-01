@@ -1,13 +1,13 @@
 ---
 title: Downloads
-description: Keep films, episodes, albums, playlists and podcasts on your iPhone or iPad to watch and listen with no connection.
+description: Keep movies, episodes, albums, playlists and podcasts on your iPhone or iPad to watch and listen with no connection.
 ---
 
-The iPhone and iPad app can keep films, episodes, albums, playlists and podcast episodes on the device, for a flight, a train or anywhere without a signal. In the next release, [audiobooks](audiobooks.md) too.
+The iPhone and iPad app can keep movies, episodes, albums, playlists and podcast episodes on the device, for a flight, a train or anywhere without a signal. In the next release, [audiobooks](audiobooks.md) too.
 
 ## Downloading something
 
-Tap the download button on a film's or episode's page, on an album or playlist, or on a podcast episode. It starts straight away, at the size you chose (see [Picture size](#picture-size)).
+Tap the download button on a movie's or episode's page, on an album or playlist, or on a podcast episode. It starts straight away, at the size you chose (see [Picture size](#picture-size)).
 
 The button shows how it's going:
 
@@ -19,13 +19,13 @@ The button shows how it's going:
 
 Tap the button while a download is under way, or once it's here, to remove it. Downloads carry on with the app closed, and pick up where they left off if the connection drops or the phone locks.
 
-Everything you've downloaded is in the **Downloads** tab, where it plays with Skip Intro and the countdown to the next episode as usual.
+Everything you've downloaded is in the **Downloads** tab, where it plays with Skip intro and the countdown to the next episode as usual.
 
 ![The Downloads tab on an iPhone with podcast episodes marked by green arrows, beside Ted Lasso's page with Resume and round buttons](../../site/guide/img/phones-downloads.webp "Downloads on iPhone")
 
 ## What your server does first
 
-Your server gets each download ready before it's sent, one at a time. It converts a film or episode to a size and format the phone plays, or sends it as it is when it can. It does this quietly in the background and waits while anyone is watching something that's being converted, so a download never slows someone's film down.
+Your server gets each download ready before it's sent, one at a time. It converts a movie or episode to a size and format the phone plays, or sends it as it is when it can. It does this quietly in the background and waits while anyone is watching something that's being converted, so a download never slows someone's movie down.
 
 A prepared download that isn't collected within a week is deleted from the server.
 
@@ -69,7 +69,7 @@ Signing out of the server on the device deletes its downloads.
 
 ## Watch progress
 
-What you watch and hear offline is sent to your server when the device is back online. Resume points, watched ticks and Continue Watching then catch up on every other screen.
+What you watch and hear offline is sent to your server when the device is back online. Resume points, watched ticks and Continue watching then catch up on every other screen.
 
 ## Two devices on one profile
 

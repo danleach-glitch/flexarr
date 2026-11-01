@@ -9,17 +9,17 @@ Flexarr is built to sit alongside Sonarr, Radarr, Lidarr and Seerr. It doesn't d
 
 | App | What Flexarr gets from it |
 | --- | --- |
-| **Radarr** | Titles, posters, backgrounds, overviews, genres, ratings and trailers for films. Upcoming films in **Coming soon**. Deleting a film from Flexarr goes through Radarr. Film series for collections. |
+| **Radarr** | Titles, posters, backgrounds, overviews, genres, ratings and trailers for movies. Upcoming movies in **Coming soon**. Deleting a movie from Flexarr goes through Radarr. Movie series for collections. |
 | **Sonarr** | Show and episode details and artwork. Upcoming episodes in **Coming soon**. Deleting a show or episode goes through Sonarr. |
 | **Lidarr** | Artist pictures, album covers, canonical names and years, and albums, EPs and singles sorted apart. |
 | **Readarr, Bookshelf or Chaptarr** (in the next release) | Audiobook details, covers and series, author photos and biographies, upcoming books in **Coming soon**, deleting books, and book requests. See [Audiobooks](audiobooks.md). |
 | **Seerr** | **Discover** and requests. Seerr, Overseerr and Jellyseerr all work. See [Requests](requests.md). |
 | **Bazarr** | **Search for subtitles** from the player and a title's page, and re-syncing subtitles that are out of time. See [Finding subtitles](subtitles-and-skipping.md#finding-subtitles). |
-| **TMDB** | Details, artwork and cast for films Radarr doesn't have, with a free key of your own. See [Films from TMDB](without-arrs.md#films-from-tmdb). |
+| **TMDB** | Details, artwork and cast for movies Radarr doesn't have, with a free key of your own. See [Movies from TMDB](without-arrs.md#movies-from-tmdb). |
 | **Trakt** | Nothing to set up: Flexarr uses its own Trakt app. You can enter your own app's details here instead. See [Trakt](trakt.md#your-own-trakt-app). |
 | **Dispatcharr** | Live TV channels and their guide. See [Live TV](live-tv.md). |
 
-Films and shows that Radarr or Sonarr don't manage are still looked up through their search, so a connected Radarr fills in artwork even for films it didn't download.
+Movies and shows that Radarr or Sonarr don't manage are still looked up through their search, so a connected Radarr fills in artwork even for movies it didn't download.
 
 ## Add a connection
 
@@ -38,7 +38,7 @@ Flexarr then adds its own webhook to Sonarr, Radarr, Lidarr and Readarr, so new 
 
 Repeat for each app. Each one then shows a green dot, its version, and a link to open it. Choose the pencil to change it, or **Disconnect** in it to stop using it; its titles stay in your libraries.
 
-If you run more than one Sonarr, Radarr or Lidarr, such as a second Radarr for 4K films, choose **+** beside the one already connected and give the new one a **Name** of its own, such as "Radarr 4K". A second one has **Remove** in place of **Disconnect**.
+If you run more than one Sonarr, Radarr or Lidarr, such as a second Radarr for 4K movies, choose **+** beside the one already connected and give the new one a **Name** of its own, such as "Radarr 4K". A second one has **Remove** in place of **Disconnect**.
 
 ### The address
 
@@ -100,7 +100,7 @@ In each app:
 
 1. Go to **Settings › Connect**, choose **+**, then **Webhook**.
 2. Give it a name, such as "Flexarr".
-3. Under triggers, turn on the ones for **importing**, **upgrading**, **renaming** and **deleting** files. Their names vary a little between apps and versions, such as **On File Import**, **On File Upgrade**, **On Rename**, and the **Delete** triggers. Adding a series, film or artist works too. Other triggers, such as **On Grab** or health events, are accepted and ignored.
+3. Under triggers, turn on the ones for **importing**, **upgrading**, **renaming** and **deleting** files. Their names vary a little between apps and versions, such as **On File Import**, **On File Upgrade**, **On Rename**, and the **Delete** triggers. Adding a series, movie or artist works too. Other triggers, such as **On Grab** or health events, are accepted and ignored.
 4. Paste the address for that app into **Webhook URL**.
 5. Leave **Method** as **POST**.
 6. Choose **Test**, then **Save**.
@@ -116,7 +116,7 @@ When Sonarr says "I've imported `/tv/Show/Season 1/episode.mkv`", Flexarr has to
 ## Checking it works
 
 - **Settings › Connections** shows each app's dot: green when Flexarr can reach it.
-- **Coming soon** in the sidebar lists upcoming episodes and films from Sonarr and Radarr.
+- **Coming soon** in the sidebar lists upcoming episodes and movies from Sonarr and Radarr.
 - Download something, and it should appear in Flexarr within a few seconds of the *arr importing it.
 
 If artwork is missing on titles that were already there before you connected Radarr or Sonarr, choose **Refresh artwork and details** on the library in **Settings › Libraries**.

@@ -21,7 +21,7 @@ MKV files can be repackaged straight away. Other files are indexed in the backgr
 
 ### Transcoding: converting as it plays
 
-When the device can't decode the picture, or the stream has to be smaller, Flexarr converts the file as you watch, to H.264 video. It converts only what you're about to watch, so you can still jump anywhere in a film instantly. HDR is converted to SDR on the way.
+When the device can't decode the picture, or the stream has to be smaller, Flexarr converts the file as you watch, to H.264 video. It converts only what you're about to watch, so you can still jump anywhere in a movie instantly. HDR is converted to SDR on the way.
 
 Converting is real work for the server. By default it converts at most three videos at once. Beyond that, the player says the server is busy rather than slowing everyone down.
 
@@ -64,10 +64,10 @@ In the web player, the quality button in the corner chooses **Best for this devi
 
 - **Audio sync:** when the sound and picture are out of step, open the player's audio menu (the **Audio** button, a waveform) and use **Audio sync**. Each press of − or + moves the sound 10 ms; hold one (a long press on the Apple TV remote) to move 50 ms at a time. It's saved for that file, for everyone in the household. Downloads play as they were made.
 - **Sleep timer:** stop in 15, 30, 45 or 60 minutes, or at the end of the episode. In the last minute the picture dims and asks **Still watching?**. Any button adds 15 minutes (on iPhone, a tap or a shake). Otherwise the sound fades out and playback pauses.
-- **Speed:** from 0.5× to 2×. A speed chosen during an episode is kept for the rest of the show, on every device. A film's is for this time only.
-- **Previous:** a few seconds in, it starts the episode again. Press it again to go to the episode before. In a film, or a first episode, it starts again.
+- **Speed:** from 0.5× to 2×. A speed chosen during an episode is kept for the rest of the show, on every device. A movie's is for this time only.
+- **Previous:** a few seconds in, it starts the episode again. Press it again to go to the episode before. In a movie, or a first episode, it starts again.
 
-The audio menu also has the soundtrack, and [dialogue boost, night mode and speakers](hdr-and-atmos.md#dialogue-boost-and-night-mode). Subtitles have a menu of their own: see [Subtitles, skipping and Up Next](subtitles-and-skipping.md).
+The audio menu also has the soundtrack, and [dialogue boost, night mode and speakers](hdr-and-atmos.md#dialogue-boost-and-night-mode). Subtitles have a menu of their own: see [Subtitles, skipping and Up next](subtitles-and-skipping.md).
 
 ## Settings that are per device
 

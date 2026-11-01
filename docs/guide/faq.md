@@ -7,7 +7,7 @@ description: Short answers about Flexarr's cost and licence, what you need to ru
 
 ### What is Flexarr?
 
-Flexarr is a media server you run yourself, on a computer at home. It organises your films, TV, home videos, music and podcasts, and live TV from an IPTV source, and plays them on the web, Apple TV, iPhone and iPad. Audiobooks arrive in the next release. There's no Flexarr account and no cloud service in the middle: your library and everything about it stays on your server.
+Flexarr is a media server you run yourself, on a computer at home. It organises your movies, TV, home videos, music and podcasts, and live TV from an IPTV source, and plays them on the web, Apple TV, iPhone and iPad. Audiobooks arrive in the next release. There's no Flexarr account and no cloud service in the middle: your library and everything about it stays on your server.
 
 It's built to sit alongside Sonarr, Radarr and Lidarr, which fetch and organise your media, and Seerr, which handles requests.
 
@@ -25,9 +25,9 @@ If you'd like to support it, see [flexarr.io/donate](https://flexarr.io/donate).
 
 Flexarr works best with them, and they're where most of its information comes from. Here's what each one adds:
 
-- **Sonarr and Radarr** supply the posters, artwork and details for your shows and films, with no extra accounts or API keys. Without them, Flexarr still finds and plays your video files, and takes artwork and details from any `.nfo` files and images beside them (as Kodi, Jellyfin and Plex users often have), from TVmaze for shows, and from TMDB for films with a free key of your own. See [Without Sonarr and Radarr](without-arrs.md). They also power **Coming soon**, deleting through Sonarr and Radarr, and "find a better copy" in [Library health](library-health.md).
+- **Sonarr and Radarr** supply the posters, artwork and details for your shows and movies, with no extra accounts or API keys. Without them, Flexarr still finds and plays your video files, and takes artwork and details from any `.nfo` files and images beside them (as Kodi, Jellyfin and Plex users often have), from TVmaze for shows, and from TMDB for movies with a free key of your own. See [Without Sonarr and Radarr](without-arrs.md). They also power **Coming soon**, deleting through Sonarr and Radarr, and "find a better copy" in [Library health](library-health.md).
 - **Lidarr** supplies artist pictures, album covers and the split into albums, EPs and singles. Music works without it, using the tags in your files and any artwork in their folders.
-- **Seerr** lets you request films and shows from **Discover**. Without it, Discover shows your own library by genre.
+- **Seerr** lets you request movies and shows from **Discover**. Without it, Discover shows your own library by genre.
 - **Bazarr** finds subtitles from the player when a title has none in your language.
 
 Cast and crew for TV shows come from TVmaze, which needs no setup. Podcasts are built in and need none of these apps. See [Connect Sonarr, Radarr, Lidarr and Seerr](connect-arrs.md).
@@ -39,7 +39,7 @@ Any computer that stays on at home and can see your media:
 - **A Mac**, Apple silicon or Intel. Flexarr runs natively, and uses the Mac's graphics chip to convert video when a device needs it. See [Install on a Mac](install-macos.md).
 - **A NAS or Linux machine with Docker.** The image runs on Intel/AMD (x86-64) and ARM (arm64) machines. See [Synology](install-synology.md), [Unraid](install-unraid.md) and [Docker](install-docker.md).
 
-Most of the time the server does very little: the Apple TV, iPhone and iPad play files as they are, and the server sends the bytes. It works harder when it has to convert a video for a device that can't play it, such as a web browser with a 4K HEVC film. A graphics chip that can do this (Apple's VideoToolbox, Intel Quick Sync, VA-API or NVIDIA NVENC) makes a big difference.
+Most of the time the server does very little: the Apple TV, iPhone and iPad play files as they are, and the server sends the bytes. It works harder when it has to convert a video for a device that can't play it, such as a web browser with a 4K HEVC movie. A graphics chip that can do this (Apple's VideoToolbox, Intel Quick Sync, VA-API or NVIDIA NVENC) makes a big difference.
 
 The apps need iOS, iPadOS or tvOS 18.2 or later. More in [What you need](what-you-need.md).
 
@@ -47,7 +47,7 @@ The apps need iOS, iPadOS or tvOS 18.2 or later. More in [What you need](what-yo
 
 ### Can several people use it?
 
-Yes. Each person gets a **profile** with their own Continue Watching, watched history, watchlist, playlists, podcasts and settings, which follow them from device to device. Profiles can have a PIN, an age limit, and be kept out of particular libraries; kids profiles see only what suits them. A shared Apple TV can ask who's watching each time Flexarr opens.
+Yes. Each person gets a **profile** with their own Continue watching, watched history, watchlist, playlists, podcasts and settings, which follow them from device to device. Profiles can have a PIN, an age limit, and be kept out of particular libraries; kids profiles see only what suits them. A shared Apple TV can ask who's watching each time Flexarr opens.
 
 The **main profile** manages the server, with an admin PIN guarding its settings; the others can change their own playback and podcast settings. See [Profiles](profiles.md).
 
@@ -67,7 +67,7 @@ If you'd rather use your own HTTPS reverse proxy, that works too. See [Away from
 
 ### Can I watch offline?
 
-On iPhone and iPad, yes: download films, episodes, albums, playlists and podcast episodes. What you watch offline counts once you're back online. See [Downloads](downloads.md).
+On iPhone and iPad, yes: download movies, episodes, albums, playlists and podcast episodes. What you watch offline counts once you're back online. See [Downloads](downloads.md).
 
 ## Privacy
 
@@ -75,7 +75,7 @@ On iPhone and iPad, yes: download films, episodes, albums, playlists and podcast
 
 Your library, what everyone watches, your profiles and your logs stay on your server. Flexarr has no account, analytics or adverts. A few things do go out, each for a reason:
 
-- **Artwork and details.** The server downloads posters and artwork from the image addresses Sonarr, Radarr and Lidarr give it, looks up shows on TVmaze, and films on TMDB if you add a TMDB key.
+- **Artwork and details.** The server downloads posters and artwork from the image addresses Sonarr, Radarr and Lidarr give it, looks up shows on TVmaze, and movies on TMDB if you add a TMDB key.
 - **Audiobook details** (from the next release) come from Audible and Open Library, and from Google Books and Hardcover if you add their keys.
 - **Updates.** Once a day the server asks GitHub whether there's a newer version.
 - **Trakt**, if a profile connects to it. Signing in goes through the relay at push.flexarr.io unless you use your own Trakt app.

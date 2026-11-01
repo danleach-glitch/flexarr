@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Subtitles, skipping and Up Next · Flexarr guide</title>
+  <title>Subtitles, skipping and Up next · Flexarr guide</title>
   <meta name="description" content="Subtitles of every kind, skipping intros, recaps and credits, the next-episode countdown and scrubbing previews.">
   <meta name="theme-color" content="#1b1720">
   <meta name="color-scheme" content="dark">
@@ -11,7 +11,7 @@
   <link rel="canonical" href="https://flexarr.io/guide/subtitles-and-skipping">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-  <meta property="og:title" content="Subtitles, skipping and Up Next · Flexarr guide">
+  <meta property="og:title" content="Subtitles, skipping and Up next · Flexarr guide">
   <meta property="og:description" content="Subtitles of every kind, skipping intros, recaps and credits, the next-episode countdown and scrubbing previews.">
   <meta property="og:image" content="https://flexarr.io/shots/og.jpg">
   <meta property="og:url" content="https://flexarr.io/guide/subtitles-and-skipping">
@@ -75,7 +75,7 @@
               <li><a href="/guide/finding-things">Finding things</a></li>
               <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
               <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
-              <li><a href="/guide/subtitles-and-skipping" aria-current="page">Subtitles, skipping and Up Next</a></li>
+              <li><a href="/guide/subtitles-and-skipping" aria-current="page">Subtitles, skipping and Up next</a></li>
               <li><a href="/guide/music">Music</a></li>
               <li><a href="/guide/podcasts">Podcasts</a></li>
               <li><a href="/guide/audiobooks">Audiobooks</a></li>
@@ -114,7 +114,7 @@
     <main id="main">
       <article>
         <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Watching and listening</p>
-        <h1>Subtitles, skipping and Up Next</h1>
+        <h1>Subtitles, skipping and Up next</h1>
         <p class="lede">Subtitles of every kind, skipping intros, recaps and credits, the next-episode countdown and scrubbing previews.</p>
         <p class="meta">7 min read</p>
         <nav class="toc" aria-label="On this page">
@@ -122,7 +122,7 @@
           <ol>
             <li><a href="#subtitles">Subtitles</a></li>
             <li><a href="#skipping-intros-recaps-and-credits">Skipping intros, recaps and credits</a></li>
-            <li><a href="#up-next">Up Next</a></li>
+            <li><a href="#up-next">Up next</a></li>
             <li><a href="#scrubbing-previews">Scrubbing previews</a></li>
           </ol>
         </nav>
@@ -151,32 +151,32 @@ Heat (1995).en.forced.srt
 <li><strong>Teletext</strong> subtitles, as European TV recordings carry them, show on Apple TV, iPhone and iPad with <strong>Play files directly</strong> on. The subtitles menu there has a <strong>Teletext page</strong> choice for channels that don&#39;t use the usual page, such as 888 in the UK or 150 and 777 in Germany. In a web browser, teletext shows only when the server&#39;s FFmpeg can read it, as the Docker image&#39;s can; a server on a Mac can&#39;t.</li>
 </ul>
 <h3 id="finding-subtitles"><a class="anchor" href="#finding-subtitles" aria-hidden="true" tabindex="-1">#</a>Finding subtitles</h3>
-<p>When a film or episode has no subtitles in your language, or the ones it has are out of time, Flexarr can fetch some through <a href="/guide/connect-arrs#bazarr">Bazarr</a>. It works for what Sonarr and Radarr manage, in the languages Bazarr is set up for, and every profile but kids profiles can use it.</p>
+<p>When a movie or episode has no subtitles in your language, or the ones it has are out of time, Flexarr can fetch some through <a href="/guide/connect-arrs#bazarr">Bazarr</a>. It works for what Sonarr and Radarr manage, in the languages Bazarr is set up for, and every profile but kids profiles can use it.</p>
 <ol>
 <li>In the player, open the subtitles menu and choose <strong>Search for subtitles…</strong>. On a title&#39;s page, it&#39;s under <strong>⋯</strong> on the web and Apple TV, and the <strong>Subtitles</strong> button on iPhone and iPad.</li>
 <li>Wait while Bazarr asks its subtitle sites. It can take a minute.</li>
 <li>Choose one and <strong>Download</strong>, or <strong>Pick the best for me</strong>. Those marked <strong>Matches your file</strong> were made for your exact copy, so they should be in time.</li>
 </ol>
 <p>The subtitles are saved beside the video, so every app sees them. In the player, the title carries on where it was with them on.</p>
-<blockquote class="callout note"><p><strong>Note</strong> Bazarr only searches for a film or show that has a languages profile. If it has none, the first search from Flexarr gives it Bazarr&#39;s first profile; for an episode, that&#39;s the whole show. From then on Bazarr looks after it like anything else with a profile, so if Bazarr is set to search for missing subtitles on a schedule, it will fetch them for that title by itself. To keep Bazarr to what you ask for, go to <strong>Settings › Scheduler</strong> in Bazarr and set <strong>Search for Missing Series Subtitles</strong> and <strong>Search for Missing Movies Subtitles</strong> to <strong>Never</strong>.</p>
+<blockquote class="callout note"><p><strong>Note</strong> Bazarr only searches for a movie or show that has a languages profile. If it has none, the first search from Flexarr gives it Bazarr&#39;s first profile; for an episode, that&#39;s the whole show. From then on Bazarr looks after it like anything else with a profile, so if Bazarr is set to search for missing subtitles on a schedule, it will fetch them for that title by itself. To keep Bazarr to what you ask for, go to <strong>Settings › Scheduler</strong> in Bazarr and set <strong>Search for Missing Series Subtitles</strong> and <strong>Search for Missing Movies Subtitles</strong> to <strong>Never</strong>.</p>
 </blockquote>
 <p>If subtitles beside the video drift out of time, choose them, then <strong>Re-sync to audio</strong>. Bazarr lines them up with the soundtrack, which takes a minute or so, and the player picks up the new timing when it&#39;s done. For an offset that&#39;s the same all the way through, <strong>Timing</strong> in the subtitles menu is quicker.</p>
 <h3 id="turning-them-on-and-off"><a class="anchor" href="#turning-them-on-and-off" aria-hidden="true" tabindex="-1">#</a>Turning them on and off</h3>
-<p>Choose a subtitle track, or <strong>Off</strong>, from the subtitles menu in the player. Flexarr remembers your choice for that film or show, so the next episode and the next sitting start the same way. That includes Off. The same goes for the audio track, chosen from the audio menu: pick another language once and the rest of the series follows.</p>
+<p>Choose a subtitle track, or <strong>Off</strong>, from the subtitles menu in the player. Flexarr remembers your choice for that movie or show, so the next episode and the next sitting start the same way. That includes Off. The same goes for the audio track, chosen from the audio menu: pick another language once and the rest of the series follows.</p>
 <p><strong>Forced</strong> subtitles, the ones that translate the odd line of foreign dialogue, come on by themselves when they match the soundtrack&#39;s language. They don&#39;t count as you choosing subtitles, so the full subtitles won&#39;t switch themselves on next time.</p>
 <h3 id="size"><a class="anchor" href="#size" aria-hidden="true" tabindex="-1">#</a>Size</h3>
 <p>Choose <strong>Small</strong>, <strong>Standard</strong>, <strong>Large</strong> or <strong>Extra large</strong> in <strong>Settings › Playback › Subtitle size</strong>, or the player&#39;s subtitles menu. It&#39;s your profile&#39;s setting on every device.</p>
 <h3 id="position"><a class="anchor" href="#position" aria-hidden="true" tabindex="-1">#</a>Position</h3>
-<p>Subtitles sit at the bottom of the picture. If they cover text in the picture, or your TV cuts off its edges, choose <strong>Raised</strong>, <strong>Higher</strong> or <strong>Top</strong> under <strong>Subtitle position</strong>. With <strong>Subtitles in the black bars</strong> on, films wider than the screen get their subtitles in the black bar below the picture instead of over it, whenever they fit there. Both are your profile&#39;s settings on every device, in <strong>Settings › Playback</strong> and the player&#39;s subtitles menu. Styled subtitles that place themselves keep their own places.</p>
+<p>Subtitles sit at the bottom of the picture. If they cover text in the picture, or your TV cuts off its edges, choose <strong>Raised</strong>, <strong>Higher</strong> or <strong>Top</strong> under <strong>Subtitle position</strong>. With <strong>Subtitles in the black bars</strong> on, movies wider than the screen get their subtitles in the black bar below the picture instead of over it, whenever they fit there. Both are your profile&#39;s settings on every device, in <strong>Settings › Playback</strong> and the player&#39;s subtitles menu. Styled subtitles that place themselves keep their own places.</p>
 <h3 id="timing"><a class="anchor" href="#timing" aria-hidden="true" tabindex="-1">#</a>Timing</h3>
-<p>If subtitles come too early or too late, choose <strong>Timing</strong> in the player&#39;s subtitles menu and move them to match the speech: a quarter of a second at a time on the web, or from half a second to two seconds on Apple TV, iPhone and iPad. Each film or episode remembers its own timing.</p>
+<p>If subtitles come too early or too late, choose <strong>Timing</strong> in the player&#39;s subtitles menu and move them to match the speech: a quarter of a second at a time on the web, or from half a second to two seconds on Apple TV, iPhone and iPad. Each movie or episode remembers its own timing.</p>
 <p>On Apple devices, <strong>Timing</strong> isn&#39;t offered for a download, for subtitles burned into the picture, or when <strong>Play files directly</strong> is on and the file plays as it is. For the last of these, turning <strong>Play files directly</strong> off brings <strong>Timing</strong> back.</p>
 <figure><img src="/guide/img/tv-player.webp" alt="The Apple TV player paused, with the Audio, subtitles, sleep timer and speakers buttons above the progress bar" data-caption="The Apple TV player, with subtitles and audio at the bottom right" loading="lazy" decoding="async" class="device"></figure>
 <h2 id="skipping-intros-recaps-and-credits"><a class="anchor" href="#skipping-intros-recaps-and-credits" aria-hidden="true" tabindex="-1">#</a>Skipping intros, recaps and credits</h2>
 <h3 id="how-flexarr-finds-them"><a class="anchor" href="#how-flexarr-finds-them" aria-hidden="true" tabindex="-1">#</a>How Flexarr finds them</h3>
 <p>Flexarr looks for intros, recaps and credits in two ways:</p>
 <ol>
-<li><strong>Chapter names.</strong> If a file has chapters called &quot;Intro&quot;, &quot;Opening&quot;, &quot;Recap&quot;, &quot;Previously&quot; or &quot;Credits&quot;, Flexarr uses them. This is the only way it finds recaps, and the only way it finds credits in films.</li>
+<li><strong>Chapter names.</strong> If a file has chapters called &quot;Intro&quot;, &quot;Opening&quot;, &quot;Recap&quot;, &quot;Previously&quot; or &quot;Credits&quot;, Flexarr uses them. This is the only way it finds recaps, and the only way it finds credits in movies.</li>
 <li><strong>Audio fingerprinting.</strong> For episodes without useful chapters, Flexarr listens to each episode of a season and compares it with the episodes either side. A theme tune and credits music repeat while everything else changes, so the shared stretch is the intro or the credits. A season needs at least two episodes for this to work.</li>
 </ol>
 <p>Opening credits early in an episode count as an intro to skip, not as the end of the episode.</p>
@@ -184,19 +184,19 @@ Heat (1995).en.forced.srt
 <p>The analysis runs in the background while the server is quiet, a season at a time. When someone starts watching a season that hasn&#39;t been analysed yet, that season jumps the queue, so skipping is usually ready by the next episode. <strong>Settings › Overview</strong> shows how far it has got under <strong>Background work</strong>.</p>
 <p>The player&#39;s timeline shades the intro and credits once they&#39;re known.</p>
 <h3 id="skip-buttons-or-skipping-by-itself"><a class="anchor" href="#skip-buttons-or-skipping-by-itself" aria-hidden="true" tabindex="-1">#</a>Skip buttons, or skipping by itself</h3>
-<p>By default, a <strong>Skip Intro</strong> or <strong>Skip Recap</strong> button appears when one starts. On iPhone and Apple TV it shows by itself, without the rest of the controls. To skip without pressing anything, turn these on in <strong>Settings › Playback</strong> on any device, or from the player&#39;s menu on the web:</p>
+<p>By default, a <strong>Skip intro</strong> or <strong>Skip Recap</strong> button appears when one starts. On iPhone and Apple TV it shows by itself, without the rest of the controls. To skip without pressing anything, turn these on in <strong>Settings › Playback</strong> on any device, or from the player&#39;s menu on the web:</p>
 <ul>
 <li><strong>Skip intros</strong>: jumps past the opening titles.</li>
 <li><strong>Skip recaps</strong>: jumps past &quot;Previously on…&quot;.</li>
 <li><strong>Skip credits</strong>: ends the episode as the credits start, rather than when they end.</li>
 </ul>
 <p>They&#39;re your profile&#39;s own, on every device.</p>
-<h2 id="up-next"><a class="anchor" href="#up-next" aria-hidden="true" tabindex="-1">#</a>Up Next</h2>
+<h2 id="up-next"><a class="anchor" href="#up-next" aria-hidden="true" tabindex="-1">#</a>Up next</h2>
 <p>When the credits start, a <strong>Next Episode</strong> card offers the next one. For a show with no credits found, it comes a little before the end instead: up to two minutes for an hour-long episode. When the episode ends, a five-second countdown starts the next one. Press <strong>Cancel</strong> to stop it. Flexarr gets the next episode ready while the credits play, so it starts straight away. If the server is busy with other people&#39;s streams, it starts the usual way instead.</p>
-<p>Turn the countdown off with <strong>Auto-play the next episode</strong> in <strong>Settings › Playback</strong>: the player then closes when the episode ends, or as the credits start with <strong>Skip credits</strong> on. If you watch a special in the middle of a season, Up Next carries on with the regular episodes afterwards. When you&#39;re shuffling a show, the countdown plays another random episode.</p>
+<p>Turn the countdown off with <strong>Auto-play the next episode</strong> in <strong>Settings › Playback</strong>: the player then closes when the episode ends, or as the credits start with <strong>Skip credits</strong> on. If you watch a special in the middle of a season, Up next carries on with the regular episodes afterwards. When you&#39;re shuffling a show, the countdown plays another random episode.</p>
 <p>The player also has previous and next episode buttons: see <a href="/guide/playback-and-transcoding#in-the-player">In the player</a>.</p>
 <h2 id="scrubbing-previews"><a class="anchor" href="#scrubbing-previews" aria-hidden="true" tabindex="-1">#</a>Scrubbing previews</h2>
-<p>Drag along the timeline and small pictures show where you&#39;ll land. Flexarr makes these the first time a file is played, so on a film&#39;s very first viewing they may not be there yet.</p>
+<p>Drag along the timeline and small pictures show where you&#39;ll land. Flexarr makes these the first time a file is played, so on a movie&#39;s very first viewing they may not be there yet.</p>
 <p>On Apple TV, hold the left or right of the remote&#39;s touch surface to scan at 2×. Each further click doubles the speed, up to 16×. The other side turns it round, and Select lands.</p>
 
         </div>
@@ -204,7 +204,7 @@ Heat (1995).en.forced.srt
           <a class="prev" href="/guide/hdr-and-atmos"><span>Previous</span>HDR and Dolby Atmos</a>
           <a class="next" href="/guide/music"><span>Next</span>Music</a>
         </nav>
-        <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/subtitles-and-skipping.md">Edit this page on GitHub</a> <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20Subtitles%2C%20skipping%20and%20Up%20Next">Report something wrong or missing</a></p>
+        <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/subtitles-and-skipping.md">Edit this page on GitHub</a> <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20Subtitles%2C%20skipping%20and%20Up%20next">Report something wrong or missing</a></p>
       </article>
     </main>
   </div>

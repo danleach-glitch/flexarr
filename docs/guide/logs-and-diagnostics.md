@@ -3,7 +3,7 @@ title: Logs and diagnostics
 description: Read Flexarr's log, turn up the detail for one area, follow a single playback, collect diagnostics from the apps, and choose whether to send error reports.
 ---
 
-Flexarr keeps a log of what the server and its apps do. When a film won't play, a scan stalls or Sonarr can't be reached, the log usually says why. It stays on your server: nothing in it is sent anywhere unless you download it and send it yourself.
+Flexarr keeps a log of what the server and its apps do. When a movie won't play, a scan stalls or Sonarr can't be reached, the log usually says why. It stays on your server: nothing in it is sent anywhere unless you download it and send it yourself.
 
 ## Reading the log
 

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Requests · Flexarr guide</title>
-  <meta name="description" content="Find films and shows you don&#39;t have yet, request them through Seerr from any of the apps, and choose which library they go to.">
+  <meta name="description" content="Find movies and shows you don&#39;t have yet, request them through Seerr from any of the apps, and choose which library they go to.">
   <meta name="theme-color" content="#1b1720">
   <meta name="color-scheme" content="dark">
   <meta name="apple-itunes-app" content="app-id=6826618084">
@@ -12,7 +12,7 @@
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <meta property="og:title" content="Requests · Flexarr guide">
-  <meta property="og:description" content="Find films and shows you don&#39;t have yet, request them through Seerr from any of the apps, and choose which library they go to.">
+  <meta property="og:description" content="Find movies and shows you don&#39;t have yet, request them through Seerr from any of the apps, and choose which library they go to.">
   <meta property="og:image" content="https://flexarr.io/shots/og.jpg">
   <meta property="og:url" content="https://flexarr.io/guide/requests">
   <meta name="twitter:card" content="summary_large_image">
@@ -75,7 +75,7 @@
               <li><a href="/guide/finding-things">Finding things</a></li>
               <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
               <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
-              <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
+              <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up next</a></li>
               <li><a href="/guide/music">Music</a></li>
               <li><a href="/guide/podcasts">Podcasts</a></li>
               <li><a href="/guide/audiobooks">Audiobooks</a></li>
@@ -115,7 +115,7 @@
       <article>
         <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Your *arrs</p>
         <h1>Requests</h1>
-        <p class="lede">Find films and shows you don&#39;t have yet, request them through Seerr from any of the apps, and choose which library they go to.</p>
+        <p class="lede">Find movies and shows you don&#39;t have yet, request them through Seerr from any of the apps, and choose which library they go to.</p>
         <p class="meta">5 min read</p>
         <nav class="toc" aria-label="On this page">
           <p>On this page</p>
@@ -133,12 +133,12 @@
           </ol>
         </nav>
         <div class="prose">
-<p>With Seerr connected, Flexarr can show you films and shows you don&#39;t have yet, and request them in one go. Seerr passes the request to Radarr or Sonarr, they download it, and it turns up in your library.</p>
+<p>With Seerr connected, Flexarr can show you movies and shows you don&#39;t have yet, and request them in one go. Seerr passes the request to Radarr or Sonarr, they download it, and it turns up in your library.</p>
 <p>Seerr, Overseerr and Jellyseerr all work.</p>
 <h2 id="before-you-start"><a class="anchor" href="#before-you-start" aria-hidden="true" tabindex="-1">#</a>Before you start</h2>
 <p>Connect Seerr in <strong>Settings › Connections</strong>: under <strong>Apps &amp; Integrations</strong>, choose <strong>Connect</strong> beside <strong>Seerr</strong>, type its <strong>Address</strong> (usually <code>http://&lt;host&gt;:5055</code>) and its <strong>API key</strong> (in Seerr, under <strong>Settings › General</strong>), and choose <strong>Connect</strong>. See <a href="/guide/connect-arrs">Connect Sonarr, Radarr, Lidarr and Seerr</a>.</p>
 <p>Seerr itself needs Radarr and Sonarr set up in its own settings, since it hands requests to them. Connect Sonarr and Radarr to Flexarr too, so requested titles show up the moment they&#39;re downloaded (see <a href="/guide/connect-arrs#webhooks-new-downloads-appear-straight-away">Webhooks</a>).</p>
-<blockquote class="callout note"><p><strong>Note</strong> Seerr requests are for films and shows. In the next release, audiobooks can be requested through Readarr, Bookshelf or Chaptarr: see <a href="#audiobooks">Audiobooks</a>. Music isn&#39;t requested.</p>
+<blockquote class="callout note"><p><strong>Note</strong> Seerr requests are for movies and shows. In the next release, audiobooks can be requested through Readarr, Bookshelf or Chaptarr: see <a href="#audiobooks">Audiobooks</a>. Music isn&#39;t requested.</p>
 </blockquote>
 <h2 id="where-you-can-request"><a class="anchor" href="#where-you-can-request" aria-hidden="true" tabindex="-1">#</a>Where you can request</h2>
 <div class="table"><table>
@@ -169,34 +169,34 @@
 <p>Choose <strong>Discover</strong> in the sidebar. With Seerr connected, it starts with rows from Seerr:</p>
 <ul>
 <li><strong>Trending this week</strong></li>
-<li><strong>Popular films</strong></li>
+<li><strong>Popular movies</strong></li>
 <li><strong>Popular new shows</strong></li>
 <li><strong>Coming to cinemas</strong></li>
 </ul>
 <p>Below them is <strong>Your library by genre</strong>, which is everything you already have.</p>
 <p>Each poster is marked if you already have it or it&#39;s already been asked for. For anything else, choose <strong>Request</strong> under the poster, or open it to see more about it first and choose <strong>Request</strong> there.</p>
 <h3 id="search-for-anything"><a class="anchor" href="#search-for-anything" aria-hidden="true" tabindex="-1">#</a>Search for anything</h3>
-<p>The search box at the top of Discover, <strong>Search for any film or show</strong>, looks beyond your library. Type a title and you get every matching film and show, with the ones you already have marked. Request anything else from the results.</p>
-<h3 id="missing-films-in-a-collection"><a class="anchor" href="#missing-films-in-a-collection" aria-hidden="true" tabindex="-1">#</a>Missing films in a collection</h3>
-<p>A film series collection lists the films you don&#39;t have under <strong>Not in your library</strong>, each with its own <strong>Request</strong> button.</p>
+<p>The search box at the top of Discover, <strong>Search for any movie or show</strong>, looks beyond your library. Type a title and you get every matching movie and show, with the ones you already have marked. Request anything else from the results.</p>
+<h3 id="missing-movies-in-a-collection"><a class="anchor" href="#missing-movies-in-a-collection" aria-hidden="true" tabindex="-1">#</a>Missing movies in a collection</h3>
+<p>A movie series collection lists the movies you don&#39;t have under <strong>Not in your library</strong>, each with its own <strong>Request</strong> button.</p>
 <figure><img src="/guide/img/web-discover.webp" alt="The Discover page with Trending this week and a Request button under each poster" data-caption="Discover in the web app" loading="lazy" decoding="async"></figure>
 <h2 id="on-the-apple-tv"><a class="anchor" href="#on-the-apple-tv" aria-hidden="true" tabindex="-1">#</a>On the Apple TV</h2>
-<p><strong>Discover</strong> is in the sidebar, above <strong>Search</strong>. It shows the same rows as the web: what&#39;s trending, popular films, popular new shows, and what&#39;s coming to cinemas.</p>
+<p><strong>Discover</strong> is in the sidebar, above <strong>Search</strong>. It shows the same rows as the web: what&#39;s trending, popular movies, popular new shows, and what&#39;s coming to cinemas.</p>
 <ol>
 <li>Select a title you don&#39;t have to open it. You&#39;ll see its ratings, cast, who made it, and more like it.</li>
 <li>Select <strong>Request</strong>.</li>
 <li>Press <strong>Menu</strong> to go back to Discover.</li>
 </ol>
 <p>A title you already have is marked with a gold play badge on its poster, and opens as itself.</p>
-<p><strong>Search</strong>, at the top of Discover next to <strong>Browse</strong>, finds any film or show, not only what&#39;s in your library, so you can request it from there.</p>
+<p><strong>Search</strong>, at the top of Discover next to <strong>Browse</strong>, finds any movie or show, not only what&#39;s in your library, so you can request it from there.</p>
 <p>Without Seerr connected, Discover on the Apple TV shows your library by genre, and says where to connect Seerr.</p>
 <h2 id="on-iphone-and-ipad"><a class="anchor" href="#on-iphone-and-ipad" aria-hidden="true" tabindex="-1">#</a>On iPhone and iPad</h2>
-<p>With Seerr connected, <strong>Search</strong> looks beyond your library too. Films and shows you don&#39;t have are listed under <strong>Not in your library</strong>. Tap one and choose <strong>Request</strong>. Once it&#39;s asked for, it&#39;s marked <strong>Requested</strong>.</p>
+<p>With Seerr connected, <strong>Search</strong> looks beyond your library too. Movies and shows you don&#39;t have are listed under <strong>Not in your library</strong>. Tap one and choose <strong>Request</strong>. Once it&#39;s asked for, it&#39;s marked <strong>Requested</strong>.</p>
 <h2 id="who-can-request"><a class="anchor" href="#who-can-request" aria-hidden="true" tabindex="-1">#</a>Who can request</h2>
-<p>Any profile can request, with two exceptions. Kids profiles, and any profile with an age limit, can&#39;t request at all. A profile that can&#39;t see any of your film libraries can&#39;t request films, and one that can&#39;t see any TV libraries can&#39;t request shows. Libraries a profile sees are set in <strong>Settings › Profiles</strong>. Hidden libraries are left out of Discover and requests for that profile too. See <a href="/guide/profiles">Profiles</a>.</p>
+<p>Any profile can request, with two exceptions. Kids profiles, and any profile with an age limit, can&#39;t request at all. A profile that can&#39;t see any of your movie libraries can&#39;t request movies, and one that can&#39;t see any TV libraries can&#39;t request shows. Libraries a profile sees are set in <strong>Settings › Profiles</strong>. Hidden libraries are left out of Discover and requests for that profile too. See <a href="/guide/profiles">Profiles</a>.</p>
 <p>Flexarr sends every request to Seerr with its own API key. Seerr doesn&#39;t know which profile asked: it handles the request under the rules of the Seerr account that key belongs to, which decides whether it&#39;s approved automatically. Shows are requested with all their seasons.</p>
 <h2 id="where-requests-go"><a class="anchor" href="#where-requests-go" aria-hidden="true" tabindex="-1">#</a>Where requests go</h2>
-<p>With two or more TV or film libraries Seerr can add to, the main profile chooses which one each profile&#39;s requests land in, by editing the profile in <strong>Settings › Profiles</strong>: <strong>New shows go to</strong> and <strong>New films go to</strong>. When two people have a TV library each, the shows each of them asks for go to their own. The choice applies to requests from every device. With one library of each kind there&#39;s nothing to choose.</p>
+<p>With two or more TV or movie libraries Seerr can add to, the main profile chooses which one each profile&#39;s requests land in, by editing the profile in <strong>Settings › Profiles</strong>: <strong>New shows go to</strong> and <strong>New movies go to</strong>. When two people have a TV library each, the shows each of them asks for go to their own. The choice applies to requests from every device. With one library of each kind there&#39;s nothing to choose.</p>
 <h2 id="status-and-when-it-arrives"><a class="anchor" href="#status-and-when-it-arrives" aria-hidden="true" tabindex="-1">#</a>Status and when it arrives</h2>
 <p>A title&#39;s button changes to show where it stands:</p>
 <div class="table"><table>
@@ -227,18 +227,18 @@
 <td>The request didn&#39;t go through, perhaps because it&#39;s already been requested.</td>
 </tr>
 </tbody></table></div>
-<p>Flexarr remembers who asked for what. When the film or show arrives, whoever requested it gets a <strong>Your request is ready</strong> notification on their iPhone or iPad, if notifications are on for that profile. See <a href="/guide/notifications-and-widgets">Notifications and widgets</a>.</p>
+<p>Flexarr remembers who asked for what. When the movie or show arrives, whoever requested it gets a <strong>Your request is ready</strong> notification on their iPhone or iPad, if notifications are on for that profile. See <a href="/guide/notifications-and-widgets">Notifications and widgets</a>.</p>
 <p>To follow a request while it downloads, use Seerr itself, or <strong>Coming soon</strong> in Flexarr&#39;s sidebar for what Sonarr and Radarr are expecting.</p>
 <h2 id="if-requests-don-t-work"><a class="anchor" href="#if-requests-don-t-work" aria-hidden="true" tabindex="-1">#</a>If requests don&#39;t work</h2>
 <ul>
 <li><strong>Discover has no Seerr rows:</strong> check Seerr shows a green dot in <strong>Settings › Connections</strong>. If it says it can&#39;t be reached, or the API key isn&#39;t right, edit it there.</li>
 <li><strong>&quot;Requests need a Seerr server&quot;:</strong> Seerr isn&#39;t connected yet.</li>
-<li><strong>&quot;This profile can&#39;t request films&quot; (or shows):</strong> that kind of library is hidden from the profile you&#39;re using.</li>
+<li><strong>&quot;This profile can&#39;t request movies&quot; (or shows):</strong> that kind of library is hidden from the profile you&#39;re using.</li>
 <li><strong>&quot;Seerr didn&#39;t accept the request&quot;:</strong> it may already be requested, or Seerr turned it down. Seerr&#39;s own requests page says why.</li>
 </ul>
 <h2 id="audiobooks"><a class="anchor" href="#audiobooks" aria-hidden="true" tabindex="-1">#</a>Audiobooks</h2>
 <p>Book requests arrive in the next release, on the web only. Seerr doesn&#39;t handle books, so Flexarr asks Readarr, Bookshelf or Chaptarr itself. Connect one in <strong>Settings › Connections</strong>, then under <strong>Requests</strong> in <strong>Settings › Libraries</strong> choose its <strong>Quality</strong>, <strong>Metadata</strong> and <strong>Folder</strong>.</p>
-<p>In Discover&#39;s search, <strong>Search for any film, show or book</strong>, find a book you don&#39;t have and choose <strong>Request</strong>. Each result says whether it&#39;s <strong>In your library</strong>, <strong>Requested</strong> or available to request. Flexarr adds the book (and its author, if they&#39;re new, without following their other books), then asks for it to be found. When it arrives, whoever asked hears that it&#39;s ready to listen.</p>
+<p>In Discover&#39;s search, <strong>Search for any movie, show or book</strong>, find a book you don&#39;t have and choose <strong>Request</strong>. Each result says whether it&#39;s <strong>In your library</strong>, <strong>Requested</strong> or available to request. Flexarr adds the book (and its author, if they&#39;re new, without following their other books), then asks for it to be found. When it arrives, whoever asked hears that it&#39;s ready to listen.</p>
 <p>With more than one audiobooks library, the main profile chooses where each profile&#39;s books go with <strong>New books go to</strong>, in the profile&#39;s editor in <strong>Settings › Profiles</strong>.</p>
 
         </div>

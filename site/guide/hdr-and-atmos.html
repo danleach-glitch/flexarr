@@ -75,7 +75,7 @@
               <li><a href="/guide/finding-things">Finding things</a></li>
               <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
               <li><a href="/guide/hdr-and-atmos" aria-current="page">HDR and Dolby Atmos</a></li>
-              <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
+              <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up next</a></li>
               <li><a href="/guide/music">Music</a></li>
               <li><a href="/guide/podcasts">Podcasts</a></li>
               <li><a href="/guide/audiobooks">Audiobooks</a></li>
@@ -135,17 +135,17 @@
 <h2 id="set-up-the-apple-tv-first"><a class="anchor" href="#set-up-the-apple-tv-first" aria-hidden="true" tabindex="-1">#</a>Set up the Apple TV first</h2>
 <p>These are Apple&#39;s own settings, in the Apple TV&#39;s <strong>Settings › Video and Audio</strong>. They matter more than anything in Flexarr.</p>
 <ol>
-<li><strong>Format:</strong> set it to the best your television supports. Apple recommends <strong>4K SDR</strong> (or <strong>4K SDR 60Hz</strong>) when you turn on matching below, so menus look right and HDR switches on only for HDR films.</li>
-<li><strong>Match Content › Match Dynamic Range:</strong> turn this on. The Apple TV then switches the television into HDR10, HLG or Dolby Vision to suit each film, and back again afterwards.</li>
-<li><strong>Match Content › Match Frame Rate:</strong> turn this on too. Films shot at 24 frames a second then play at 24, without judder.</li>
+<li><strong>Format:</strong> set it to the best your television supports. Apple recommends <strong>4K SDR</strong> (or <strong>4K SDR 60Hz</strong>) when you turn on matching below, so menus look right and HDR switches on only for HDR movies.</li>
+<li><strong>Match Content › Match Dynamic Range:</strong> turn this on. The Apple TV then switches the television into HDR10, HLG or Dolby Vision to suit each movie, and back again afterwards.</li>
+<li><strong>Match Content › Match Frame Rate:</strong> turn this on too. Movies shot at 24 frames a second then play at 24, without judder.</li>
 <li><strong>Audio Format:</strong> leave this on its automatic setting so the Apple TV sends Dolby Atmos to equipment that takes it. If Atmos isn&#39;t showing on your soundbar or receiver, check here that Dolby Atmos is available.</li>
 </ol>
 <p>Flexarr follows Match Content: when it&#39;s on, the Apple TV switches mode for each title Flexarr plays.</p>
-<blockquote class="callout tip"><p><strong>Tip</strong> Without Match Dynamic Range, an Apple TV set to a fixed Dolby Vision output has no HDR10 mode. A plain HDR10 film may then be converted to SDR when it reaches the Apple TV as a stream from the server. Turning on Match Dynamic Range avoids this.</p>
+<blockquote class="callout tip"><p><strong>Tip</strong> Without Match Dynamic Range, an Apple TV set to a fixed Dolby Vision output has no HDR10 mode. A plain HDR10 movie may then be converted to SDR when it reaches the Apple TV as a stream from the server. Turning on Match Dynamic Range avoids this.</p>
 </blockquote>
 <h2 id="hdr-what-reaches-your-tv"><a class="anchor" href="#hdr-what-reaches-your-tv" aria-hidden="true" tabindex="-1">#</a>HDR: what reaches your TV</h2>
 <p>With <strong>Play files directly</strong> on (the default on Apple TV, iPhone and iPad), the Apple TV plays the file itself. HDR10, HLG and Dolby Vision reach the television untouched.</p>
-<figure><img src="/guide/img/tv-movie.webp" alt="Dredd&#39;s page on Apple TV, showing 4K, with Play and round Watched, Watchlist and ⋯ buttons" data-caption="A film&#39;s page on Apple TV" loading="lazy" decoding="async" class="device"></figure>
+<figure><img src="/guide/img/tv-movie.webp" alt="Dredd&#39;s page on Apple TV, showing 4K, with Play and round Watched, Watchlist and ⋯ buttons" data-caption="A movie’s page on Apple TV" loading="lazy" decoding="async" class="device"></figure>
 <p>With <strong>Play files directly</strong> off, the server <a href="/guide/playback-and-transcoding">repackages</a> the original picture into a stream without re-encoding it. Here&#39;s what the television gets:</p>
 <div class="table"><table>
 <thead>
@@ -179,7 +179,7 @@
 <td>HDR10, with its HDR10+ scene-by-scene metadata kept for televisions that use it</td>
 </tr>
 </tbody></table></div>
-<p>A film&#39;s details say <strong>HDR10+</strong> when its file carries HDR10+, and <strong>Dolby Vision, HDR10+</strong> when it has both.</p>
+<p>A movie&#39;s details say <strong>HDR10+</strong> when its file carries HDR10+, and <strong>Dolby Vision, HDR10+</strong> when it has both.</p>
 <p>HDR is only converted to SDR when it has to be: when the television doesn&#39;t show HDR, when the stream is limited in size (see <strong>Limit each stream to</strong> in <a href="/guide/playback-and-transcoding">Playback and transcoding</a>), or when the video itself has to be converted.</p>
 <p>On iPhone and iPad, HDR shows on screens that support it.</p>
 <h2 id="sound-atmos-truehd-and-dts"><a class="anchor" href="#sound-atmos-truehd-and-dts" aria-hidden="true" tabindex="-1">#</a>Sound: Atmos, TrueHD and DTS</h2>
@@ -198,12 +198,12 @@
 </blockquote>
 <h3 id="lossless-surround"><a class="anchor" href="#lossless-surround" aria-hidden="true" tabindex="-1">#</a>Lossless surround</h3>
 <p><strong>Lossless surround</strong> comes on by itself when the Apple TV is connected to a receiver or soundbar that takes it. To change it, open Flexarr&#39;s <strong>Settings › Playback</strong> on the Apple TV: it&#39;s under <strong>This Apple TV</strong>, while <strong>Play files directly</strong> is on. The iPhone and iPad app has the same switch, for AirPlay or a connected display.</p>
-<p>Turn it off if your television is plugged straight into a soundbar over ordinary ARC (not eARC), or if you hear nothing on TrueHD or DTS films with it on.</p>
+<p>Turn it off if your television is plugged straight into a soundbar over ordinary ARC (not eARC), or if you hear nothing on TrueHD or DTS movies with it on.</p>
 <h3 id="dialogue-boost-and-night-mode"><a class="anchor" href="#dialogue-boost-and-night-mode" aria-hidden="true" tabindex="-1">#</a>Dialogue boost and night mode</h3>
 <p>The player&#39;s audio menu, and <strong>Settings › Playback</strong>, have three sound settings that each device keeps for itself:</p>
 <ul>
 <li><strong>Dialogue boost</strong> (Low, Medium or High) raises the centre channel, where the voices are, and the speech frequencies.</li>
-<li><strong>Night mode</strong> squeezes loud and quiet together, so explosions don&#39;t wake the house and whispers stay audible. <strong>On a schedule</strong> turns it on between set times, even in the middle of a film.</li>
+<li><strong>Night mode</strong> squeezes loud and quiet together, so explosions don&#39;t wake the house and whispers stay audible. <strong>On a schedule</strong> turns it on between set times, even in the middle of a movie.</li>
 <li><strong>Speakers</strong> folds the sound to <strong>Stereo</strong> or <strong>5.1</strong>. <strong>Auto</strong> plays every channel your equipment takes; leave it there for headphones, so the iPhone&#39;s Spatial Audio gets the whole mix.</li>
 </ul>
 <p>On Apple TV and iPhone they need <strong>Play files directly</strong>. While any is on, Atmos plays without its height channels, so leave them off (and <strong>Speakers</strong> on <strong>Auto</strong>) for the full Atmos. Over AirPlay the sound plays as it is. The web has them too, for live TV as well, except in Safari.</p>
@@ -222,7 +222,7 @@
         </div>
         <nav class="pager" aria-label="More of the guide">
           <a class="prev" href="/guide/playback-and-transcoding"><span>Previous</span>Playback and transcoding</a>
-          <a class="next" href="/guide/subtitles-and-skipping"><span>Next</span>Subtitles, skipping and Up Next</a>
+          <a class="next" href="/guide/subtitles-and-skipping"><span>Next</span>Subtitles, skipping and Up next</a>
         </nav>
         <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/hdr-and-atmos.md">Edit this page on GitHub</a> <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20HDR%20and%20Dolby%20Atmos">Report something wrong or missing</a></p>
       </article>
