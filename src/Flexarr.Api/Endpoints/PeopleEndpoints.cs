@@ -68,7 +68,7 @@ public static class PeopleEndpoints
                 var found = await FindCandidatesAsync(person, authors, memory, ct);
                 if (found.Photos.FirstOrDefault(p => p.Source == source) is not { Image: { } image })
                 {
-                    return Results.Problem("That photo can't be found any more. Look again.", statusCode: 409);
+                    return Results.Problem("That photo’s gone. Choose again.", statusCode: 409);
                 }
 
                 PersonSources.SetPhoto(person, image, source == AuthorInfo.Current ? person.PhotoSource : source, now);
