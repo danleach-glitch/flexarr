@@ -115,6 +115,25 @@ public class BookMatchTests(FlexarrApiFactory factory) : IClassFixture<FlexarrAp
     }
 
     [Fact]
+    public async Task Edit_TheSameSeriesTwice_IsKeptOnce()
+    {
+        using var app = Serve();
+        var client = Client(app);
+        var book = await SeedAsync(app, "Leviathan Wakes", 3600);
+
+        var saved = await client.PutAsJsonAsync(new Uri($"/api/v1/items/{book}/book-details", UriKind.Relative), new
+        {
+            title = "Leviathan Wakes", authors = new[] { "James S. A. Corey" },
+            series = new[] { new { name = "The Expanse", sequence = "1" }, new { name = "Expanse", sequence = "9" } },
+        });
+
+        Assert.Equal(HttpStatusCode.NoContent, saved.StatusCode);
+        using var scope = app.Services.CreateScope();
+        var entry = await scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().BookSeriesEntries.Include(e => e.Series).SingleAsync(e => e.BookId == book);
+        Assert.Equal(("The Expanse", "1"), (entry.Series!.Name, entry.Sequence!));
+    }
+
+    [Fact]
     public async Task Chapters_RenamedAndRetimed_ThenShifted_ThenAudibles()
     {
         using var app = Serve();

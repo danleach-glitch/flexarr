@@ -273,7 +273,16 @@ public sealed partial class BookAssembler(FlexarrDbContext db, IMediaProbe probe
         await ReplaceCreditsAsync(book, CreditRole.Author, edit.Authors, ct).ConfigureAwait(false);
         await ReplaceCreditsAsync(book, CreditRole.Narrator, edit.Narrators, ct).ConfigureAwait(false);
 
-        var parts = edit.Series.Where(p => p.Name.Trim().Length > 0).Select(p => new SeriesPart(p.Name.Trim(), Blank(p.Sequence))).ToList();
+        // Each series once ("The Expanse" and "Expanse" are one): the first one given wins.
+        var parts = new List<SeriesPart>();
+        foreach (var part in edit.Series.Where(p => p.Name.Trim().Length > 0).Select(p => new SeriesPart(p.Name.Trim(), Blank(p.Sequence))))
+        {
+            if (!parts.Any(p => BookInfo.SameSeries(p.Name, part.Name)))
+            {
+                parts.Add(part);
+            }
+        }
+
         if (parts.Count == 0)
         {
             db.BookSeriesEntries.RemoveRange(await db.BookSeriesEntries.Where(e => e.BookId == book.Id).ToListAsync(ct).ConfigureAwait(false));
