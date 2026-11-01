@@ -53,6 +53,16 @@ import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.RoomBackground
 import kotlinx.coroutines.delay
 import io.github.flexarr.ui.theme.Tokens
+import androidx.tv.material3.Switch
+import androidx.tv.material3.SwitchDefaults
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
 
 // The Apple TV's Settings pieces (FlexarrTV/Screens/Settings/SettingsComponents.swift), halved.
 
@@ -127,6 +137,10 @@ internal enum class TvSettingAccessory {
 
     /** Picked up: up and down move it. */
     Moving,
+
+    /** A switch, on or off. */
+    SwitchOn,
+    SwitchOff,
 }
 
 /**
@@ -184,15 +198,39 @@ internal fun TvSettingsRow(
                 TvSettingAccessory.Checkmark -> Icon(Icons.Filled.Check, contentDescription = "Chosen", modifier = Modifier.size(15.dp))
                 TvSettingAccessory.Handle -> Icon(Icons.Filled.DragHandle, contentDescription = null, modifier = Modifier.size(15.dp).alpha(0.55f))
                 TvSettingAccessory.Moving -> Icon(Icons.Filled.SwapVert, contentDescription = null, modifier = Modifier.size(15.dp))
+                TvSettingAccessory.SwitchOn, TvSettingAccessory.SwitchOff -> Switch(
+                    checked = accessory == TvSettingAccessory.SwitchOn,
+                    onCheckedChange = null,
+                    // The row takes focus and presses; the switch only shows how it's set.
+                    modifier = Modifier.focusProperties { canFocus = false }.scale(0.75f).clearAndSetSemantics {},
+                    colors = SwitchDefaults.colors(
+                        checkedTrackColor = Flexarr.go,
+                        checkedThumbColor = Flexarr.screen,
+                        checkedBorderColor = Flexarr.go,
+                        uncheckedTrackColor = Flexarr.aisle,
+                        uncheckedThumbColor = Flexarr.usher,
+                        uncheckedBorderColor = Flexarr.usher.copy(alpha = 0.6f),
+                    ),
+                )
             }
         }
     }
 }
 
-/** A switch: the row says On or Off and a press flips it. */
+/** A switch: the row shows it, green when on, and a press anywhere on the row flips it. */
 @Composable
 internal fun TvSettingsToggle(title: String, isOn: Boolean, flip: () -> Unit, modifier: Modifier = Modifier, icon: ImageVector? = null, help: String? = null) {
-    TvSettingsRow(title, onClick = flip, modifier = modifier, icon = icon, value = if (isOn) "On" else "Off", help = help)
+    TvSettingsRow(
+        title,
+        onClick = flip,
+        modifier = modifier.semantics {
+            role = Role.Switch
+            toggleableState = ToggleableState(isOn)
+        },
+        icon = icon,
+        help = help,
+        accessory = if (isOn) TvSettingAccessory.SwitchOn else TvSettingAccessory.SwitchOff,
+    )
 }
 
 /** A fact on a page, not a control: the same band as a row, without focus. [profile]: their picture before the label. */
