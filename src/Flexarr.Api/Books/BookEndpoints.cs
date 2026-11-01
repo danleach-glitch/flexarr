@@ -156,7 +156,7 @@ public static class BookEndpoints
 
         // How this profile listens to books: default speed, skip steps, smart rewind.
         api.MapGet("/books/listening", async (FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
-            Results.Ok(await BookPlayback.ListeningAsync(db, profile.Id, ct))).WithTags("Audiobooks");
+            Results.Ok(await BookPlayback.ListeningAsync(db, profile.Id, ct))).WithTags("Audiobooks").NotForKids();
 
         api.MapPut("/books/listening", async (BookListeningRequest request, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
         {
@@ -183,7 +183,7 @@ public static class BookEndpoints
             me.AudiobookSmartRewind = request.SmartRewind ?? me.AudiobookSmartRewind;
             await db.SaveChangesAsync(ct);
             return Results.Ok(await BookPlayback.ListeningAsync(db, profile.Id, ct));
-        }).WithTags("Audiobooks");
+        }).WithTags("Audiobooks").NotForKids();
 
         var admin = api.MapGroup("/settings/book-metadata").WithTags("Settings").RequireAuthorization(Security.FlexarrClaims.AdminPolicy);
         admin.MapGet("/", (Microsoft.Extensions.Options.IOptionsMonitor<Configuration.FlexarrOptions> options) => Results.Ok(MetadataSettings(options.CurrentValue)));
