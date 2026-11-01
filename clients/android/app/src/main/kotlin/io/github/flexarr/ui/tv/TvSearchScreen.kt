@@ -54,6 +54,26 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.tv.material3.ClickableSurfaceDefaults
+import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import io.github.flexarr.AppModel
 import io.github.flexarr.core.Person
@@ -251,10 +271,13 @@ fun TvPersonScreen(model: AppModel, id: String, name: String) {
     val loader = rememberLoader(id) { client.person(id) }
     val person = (loader.state as? Load.Loaded)?.value
     val first = remember { FocusRequester() }
-    LaunchedEffect(person?.credits?.firstOrNull()?.item?.id) {
-        if (person == null || titles(person).isEmpty()) return@LaunchedEffect
+    val biographyFocus = remember { FocusRequester() }
+    val biography = person?.biography?.takeIf { it.isNotBlank() }
+    LaunchedEffect(person) {
+        if (person == null) return@LaunchedEffect
         delay(50)
-        runCatching { first.requestFocus() }
+        // An author's books aren't on the TV, so with no titles the biography takes focus.
+        runCatching { if (titles(person).isNotEmpty()) first.requestFocus() else if (biography != null) biographyFocus.requestFocus() }
     }
     RoomBackground(ambient = person?.credits?.firstOrNull()?.item?.let { glowColor(it.accentColor) }, intensity = 0.22f) {
         LazyVerticalGrid(
@@ -264,15 +287,17 @@ fun TvPersonScreen(model: AppModel, id: String, name: String) {
             verticalArrangement = Arrangement.spacedBy(28.dp),
         ) {
             item(span = { GridItemSpan(maxLineSpan) }) {
-                Row(Modifier.padding(bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.CenterVertically) {
-                    RemoteImage(person?.image, 300, Modifier.size(85.dp).background(Flexarr.seat, CircleShape).clip(CircleShape)) {}
-                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Text(name, style = marquee(36).copy(fontWeight = FontWeight.ExtraBold))
-                        person?.let {
-                            val count = titles(it).size
-                            Text(if (count == 1) "1 title in your library" else "$count titles in your library", fontSize = 13.sp, color = Flexarr.usher)
+                Column(Modifier.padding(bottom = 6.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.CenterVertically) {
+                        RemoteImage(person?.image, 300, Modifier.size(85.dp).background(Flexarr.seat, CircleShape).clip(CircleShape)) {}
+                        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text(name, style = marquee(36).copy(fontWeight = FontWeight.ExtraBold))
+                            person?.let { titles(it).size }?.takeIf { it > 0 }?.let { count ->
+                                Text(if (count == 1) "1 title in your library" else "$count titles in your library", fontSize = 13.sp, color = Flexarr.usher)
+                            }
                         }
                     }
+                    biography?.let { TvBiography(name, it, Modifier.focusRequester(biographyFocus)) }
                 }
             }
             when (val state = loader.state) {
@@ -286,6 +311,66 @@ fun TvPersonScreen(model: AppModel, id: String, name: String) {
                 is Load.Failed -> item(span = { GridItemSpan(maxLineSpan) }) { Box(Modifier.height(300.dp)) { TvStatusView(state.message, retry = loader.retry) } }
                 Load.Loading -> item(span = { GridItemSpan(maxLineSpan) }) { Box(Modifier.height(300.dp)) { TvStatusView() } }
             }
+        }
+    }
+}
+
+/**
+ * An author's or narrator's biography, three lines of it under their name. It takes focus like a quiet button, and OK
+ * opens all of it, Up and Down scrolling, Close or Back to return.
+ */
+@Composable
+private fun TvBiography(name: String, text: String, modifier: Modifier = Modifier) {
+    var open by remember { mutableStateOf(false) }
+    Surface(
+        onClick = { open = true },
+        // The text lines up with the name; the padding is the focus highlight's.
+        modifier = modifier.offset(x = (-12).dp).widthIn(max = 640.dp),
+        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(10.dp)),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = Color.Transparent,
+            contentColor = Flexarr.screen.copy(alpha = 0.88f),
+            focusedContainerColor = Flexarr.screen.copy(alpha = 0.12f),
+            focusedContentColor = Flexarr.screen,
+            pressedContainerColor = Flexarr.screen.copy(alpha = 0.18f),
+            pressedContentColor = Flexarr.screen,
+        ),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.02f),
+    ) {
+        Text(text, fontSize = 14.sp, lineHeight = 20.sp, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp))
+    }
+    if (open) {
+        val close = remember { FocusRequester() }
+        val scroll = rememberScrollState()
+        val scope = rememberCoroutineScope()
+        Dialog(onDismissRequest = { open = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+            Column(
+                Modifier.width(580.dp).heightIn(max = 470.dp).background(Flexarr.seat, RoundedCornerShape(14.dp)).padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                Text(name, style = marquee(26).copy(fontWeight = FontWeight.ExtraBold))
+                Text(
+                    text, fontSize = 14.5.sp, lineHeight = 21.sp, color = Flexarr.screen.copy(alpha = 0.9f),
+                    modifier = Modifier.weight(1f, fill = false).verticalScroll(scroll),
+                )
+                TvActionButton(
+                    "Close", onClick = { open = false },
+                    modifier = Modifier.focusRequester(close).onPreviewKeyEvent { event ->
+                        if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                        val step = when (event.key) {
+                            Key.DirectionDown -> 160f
+                            Key.DirectionUp -> -160f
+                            else -> return@onPreviewKeyEvent false
+                        }
+                        scope.launch { scroll.animateScrollBy(step) }
+                        true
+                    },
+                )
+            }
+        }
+        LaunchedEffect(Unit) {
+            delay(50)
+            runCatching { close.requestFocus() }
         }
     }
 }
