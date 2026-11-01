@@ -170,8 +170,10 @@ jobs:
             scheme: ""
           - name: tvOS
             scheme: FlexarrTV
+          # Release, as the App Store and device installs build it: code under #if DEBUG can't hide a Release-only error.
           - name: iOS
             scheme: FlexarriOS
+            configuration: Release
     defaults:
       run:
         working-directory: clients/apple
@@ -211,7 +213,7 @@ jobs:
           xcodegen generate
           xcodebuild -project Flexarr.xcodeproj -scheme ${{ matrix.scheme }} \
             -destination 'generic/platform=${{ matrix.name }}' -derivedDataPath build/DerivedData \
-            CODE_SIGNING_ALLOWED=NO COMPILER_INDEX_STORE_ENABLE=NO build
+            -configuration ${{ matrix.configuration || 'Debug' }} CODE_SIGNING_ALLOWED=NO COMPILER_INDEX_STORE_ENABLE=NO build
 
   # The Android app (clients/android, in development), as three jobs side by side: the core's and the app's unit tests
   # with the debug build; the release build as Google Play gets it, minified but unsigned (the upload key isn't here)
