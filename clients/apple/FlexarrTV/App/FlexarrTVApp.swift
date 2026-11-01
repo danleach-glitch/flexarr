@@ -48,6 +48,10 @@ struct RootView: View {
                 if model.tunnelProblem != nil {
                     TunnelProblemView()
                         .transition(.opacity)
+                } else if model.isOffline && !model.hasBeenOnline {
+                    // Offline from the start: nothing to keep underneath.
+                    OfflineView()
+                        .transition(.opacity)
                 } else if !model.profilesLoaded {
                     ProgressView().scaleEffect(1.4)
                 } else if model.needsProfileChoice {
@@ -55,14 +59,25 @@ struct RootView: View {
                         .transition(.opacity)
                 } else {
                     // A new profile rebuilds every tab, so nothing from the last one lingers.
+                    // Offline after the server had answered: the notice covers the screens rather than replace them, so the
+                    // TV carries on where it was once the server's back.
                     MainTabView()
                         .id("\(credentials.address)#\(credentials.profileToken ?? "")")
+                        .disabled(model.isOffline)
+                        .overlay {
+                            if model.isOffline {
+                                OfflineView()
+                                    .background(Color.room.ignoresSafeArea())
+                                    .transition(.opacity)
+                            }
+                        }
                         .transition(.opacity)
                 }
             }
         }
         .animation(.easeInOut(duration: 0.35), value: model.phase)
         .animation(.easeInOut(duration: 0.35), value: model.needsProfileChoice)
+        .animation(.easeInOut(duration: 0.35), value: model.isOffline)
         .task(id: model.credentials?.address) { await model.loadProfiles() }
         // Top Shelf follows whoever's signed in here; after watching, its Continue Watching is refreshed.
         .task(id: model.credentials) {
@@ -76,9 +91,13 @@ struct RootView: View {
             model.listenForCommands(scenePhase == .active)
         }
         .onChange(of: scenePhase) { _, phase in
+            // Offline mode only tries the server again while the app is in front.
+            if phase != .inactive { model.setInFront(phase == .active) }
             if phase == .active {
                 // A guest's tunnel may have stopped while the app was away: back up before anything asks.
                 Task { await model.ensureGuestTunnel() }
+                // Offline ends (or starts) as soon as it's known whether the server answers now.
+                Task { await model.checkConnection() }
                 Task { await model.refreshErrorReports() }
             }
         }

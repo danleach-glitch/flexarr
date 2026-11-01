@@ -101,8 +101,29 @@ public struct CredentialStore: Sendable {
         defaults.set(token, forKey: "\(addressKey).profile")
     }
 
+    /// The profile list as the server last gave it (names, colours, which is watching, which are kids), so the app
+    /// still knows who's watching while it can't reach the server. `Profile` is saved as it is, so its new fields must
+    /// stay optional, or a list saved by the version before can't be read and offline mode starts with none.
+    public func saveProfiles(_ profiles: [Profile]) {
+        defaults.set(try? JSONEncoder().encode(profiles), forKey: "\(addressKey).profiles")
+    }
+
+    /// The profile list last saved for this sign-in; empty if there's none.
+    public var savedProfiles: [Profile] {
+        defaults.data(forKey: "\(addressKey).profiles").flatMap { try? JSONDecoder().decode([Profile].self, from: $0) } ?? []
+    }
+
+    /// Whether this device was locked to kids profiles when the server last said, so offline it stays a child's.
+    public func saveKidsLock(_ locked: Bool) {
+        defaults.set(locked, forKey: "\(addressKey).kidsLock")
+    }
+
+    public var savedKidsLock: Bool { defaults.bool(forKey: "\(addressKey).kidsLock") }
+
     public func clear() {
         if let text = defaults.string(forKey: addressKey) { deleteKey(account: text) }
+        defaults.removeObject(forKey: "\(addressKey).profiles")
+        defaults.removeObject(forKey: "\(addressKey).kidsLock")
         defaults.removeObject(forKey: addressKey)
         defaults.removeObject(forKey: "\(addressKey).profile")
         defaults.removeObject(forKey: "\(addressKey).remote")

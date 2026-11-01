@@ -14,6 +14,8 @@ public final class ServerAddresses: @unchecked Sendable {
 
     /// How long to wait for the current address before also asking the other one (GETs only).
     public static let alternateDelay: Duration = .milliseconds(2500)
+    /// How long the reachability check gives the address in use before asking the other one too.
+    public static let probeHeadStart: Duration = .milliseconds(1500)
     /// While away, how often home is tried again.
     public static let homeCheckInterval: TimeInterval = 5 * 60
 

@@ -367,9 +367,13 @@ struct RootView: View {
         // Back in front: anything that's due, and Apple's device token again in case it changed. Leaving: a wake-up
         // for later.
         .onChange(of: scenePhase) { _, phase in
+            // Offline mode only tries the server again while the app is in front.
+            if phase != .inactive { model.setInFront(phase == .active) }
             if phase == .active, model.credentials != nil {
                 // A guest's tunnel may have stopped while the app was away: back up before anything asks.
                 Task { await model.ensureGuestTunnel() }
+                // Offline mode ends (or starts) as soon as it's known whether the server answers now.
+                Task { await model.checkConnection() }
                 Task { await downloads.catchUp() }
                 Task { await model.loadUpNext() }
                 notifications.refresh()

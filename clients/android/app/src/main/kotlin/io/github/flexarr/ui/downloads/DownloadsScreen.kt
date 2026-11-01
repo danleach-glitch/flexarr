@@ -102,7 +102,9 @@ fun DownloadsScreen(model: AppModel) {
             PageTitle("Downloads")
             if (store.downloads.isEmpty() && store.musicCollections.isEmpty() && model.bookDownloads.books.isEmpty()) {
                 StatusView(
-                    "Download movies, episodes, albums, playlists and podcast episodes to watch and listen with no connection. Look for Download on a title’s page.",
+                    // Offline there's nothing to be done about it.
+                    if (model.serverUnreachable) "Nothing downloaded."
+                    else "Download movies, episodes, albums, playlists and podcast episodes to watch and listen with no connection. Look for Download on a title’s page.",
                     empty = true,
                 )
                 return@Column

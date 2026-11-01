@@ -20,19 +20,25 @@ struct MainTabView: View {
     var body: some View {
         TabView(selection: $selection) {
             Tab(value: TabID.home) {
-                TabStack(handlesDeepLinks: true) { HomeView() }
+                TabStack(handlesDeepLinks: true) {
+                    if model.isOffline { OfflineView(title: "Home") { selection = .downloads } } else { HomeView() }
+                }
             } label: {
                 // The Flexarr mark stands in for a house.
                 Label { Text("Home") } icon: { Image(uiImage: BrandMark.tabImage) }
             }
             Tab("Libraries", systemImage: Symbol.libraries, value: TabID.libraries) {
-                TabStack { LibrariesView() }
+                TabStack {
+                    if model.isOffline { OfflineView(title: "Libraries") { selection = .downloads } } else { LibrariesView() }
+                }
             }
             Tab("Downloads", systemImage: Symbol.downloads, value: TabID.downloads) {
                 TabStack { DownloadsView() }
             }
             Tab("Search", systemImage: Symbol.search, value: TabID.search, role: .search) {
-                TabStack { SearchView() }
+                TabStack {
+                    if model.isOffline { OfflineView(title: "Search") { selection = .downloads } } else { SearchView() }
+                }
             }
             // The kids app has no Settings: a child's choices are a parent's to make.
             if !model.isKids {
@@ -42,9 +48,17 @@ struct MainTabView: View {
             }
         }
         .tabViewStyle(.sidebarAdaptable)
-        .task {
+        // Opened offline: straight to what can be watched, if there's anything. Going offline later leaves you where you are.
+        .onAppear { if model.isOffline, downloads.hasAnything { selection = .downloads } }
+        // Said aloud too, as the bar comes and goes.
+        .onChange(of: model.isOffline) { _, offline in
+            AccessibilityNotification.Announcement(offline ? "Offline" : "Back online").post()
+        }
+        // The libraries load now, and again once the server's back after offline mode.
+        .task(id: model.isOffline) {
+            guard !model.isOffline else { return }
             await model.loadLibraries()
-            // Opened with no connection: straight to what can be watched.
+            // Opened with no connection the check didn't catch: straight to what can be watched.
             if model.libraries.isEmpty, model.librariesError != nil, !downloads.downloads.isEmpty { selection = .downloads }
         }
         // What the TVs are playing, followed while the app is in front.
@@ -95,13 +109,18 @@ struct TabStack<Content: View>: View {
                     destination(route)
                 }
         }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if model.isOffline { OfflineBar() }
+        }
+        .animation(.easeInOut(duration: 0.25), value: model.isOffline)
         // Music carries on under every screen; the bar sits above the tab bar and opens Now Playing.
         // So does a TV's: its bar opens the remote.
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 0) {
                 // The remote has its own (on iPad its sheet doesn't cover the bars: one notice, not two).
-                if !remote.showsRemote { RemoteNoticeView() }
-                TVPlayingBar()
+                // Neither while offline: what the TVs are doing can't be known, or changed.
+                if !remote.showsRemote, !model.isOffline { RemoteNoticeView() }
+                if !model.isOffline { TVPlayingBar() }
                 NowPlayingBar()
             }
         }

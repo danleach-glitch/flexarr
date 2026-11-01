@@ -299,6 +299,11 @@ fun StatusView(message: String? = null, retry: (() -> Unit)? = null, empty: Bool
         when {
             message == null -> CircularProgressIndicator(color = Flexarr.screen)
             empty -> Text(message, fontSize = 17.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher, textAlign = TextAlign.Center)
+            // Offline, a failure is just that: the Offline bar says the rest, and the screen loads again once it's back.
+            LocalOffline.current -> {
+                Icon(Icons.Filled.WifiOff, contentDescription = null, tint = Flexarr.usher, modifier = Modifier.size(40.dp))
+                Text("You’re offline", fontSize = 17.sp, fontWeight = FontWeight.Medium, color = Flexarr.screen)
+            }
             else -> {
                 Icon(Icons.Filled.WifiOff, contentDescription = null, tint = Flexarr.usher, modifier = Modifier.size(40.dp))
                 Text(message, fontSize = 17.sp, fontWeight = FontWeight.Medium, color = Flexarr.screen, textAlign = TextAlign.Center, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })

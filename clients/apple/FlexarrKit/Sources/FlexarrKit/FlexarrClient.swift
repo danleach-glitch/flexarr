@@ -56,6 +56,17 @@ public struct FlexarrClient: Sendable {
     /// server's lists of devices can name and draw it. Set once at launch; nil sends nothing.
     public nonisolated(unsafe) static var deviceType: String?
 
+    /// Called whenever a request couldn't reach the server at either address (not when the server answered with an
+    /// error), so an app can check whether it's gone offline. Given the server's home address. Set once at launch.
+    public nonisolated(unsafe) static var onCouldNotConnect: (@Sendable (URL) -> Void)?
+
+    /// Called whenever a request got an answer from the server (any answer: it's there), so an app in offline mode can
+    /// come back at once rather than at its next check. Set once at launch.
+    public nonisolated(unsafe) static var onAnswered: (@Sendable () -> Void)?
+
+    /// Debug builds' "act offline": every request fails as if there were no network, and `isReachable` says no.
+    public nonisolated(unsafe) static var simulatesOffline = false
+
     /// The server's addresses; requests go to whichever answered last (see `ServerAddresses`).
     public let addresses: ServerAddresses
     /// The address in use now: streams and artwork are resolved against it.
@@ -100,7 +111,113 @@ public struct FlexarrClient: Sendable {
         return components.url
     }
 
-    // MARK: Endpoints
+    // MARK: Reachability
+
+    /// Whether the server answers at all within `limit`. The address in use is asked first and the other one a moment
+    /// later (or as soon as the first can't connect), as ordinary requests do, so a phone at home stays on its home
+    /// address; whichever answers becomes the address in use. Asked without the sign-in, so nothing is given away to
+    /// whatever is at the home address on someone else's network: Flexarr answers `system/status` with a 401, which
+    /// counts, while a web page or a redirect (a hotel's sign-in page) doesn't. Used at launch and while offline, so a
+    /// missing server shows in seconds rather than after every request's own timeout.
+    public func isReachable(within limit: Duration = .seconds(4)) async -> Bool {
+        if Self.simulatesOffline { return false }
+        let seconds = Double(limit.components.seconds) + Double(limit.components.attoseconds) / 1e18
+        let primary = addresses.current
+        let alternate = addresses.alternate(to: primary)
+        // Its own session, so it never waits in line behind artwork for the same server.
+        let session = session === URLSession.shared ? Self.probeSession : session
+        func probe(_ url: URL) -> URLRequest {
+            var request = URLRequest(url: url.appending(path: "api/v1/system/status"))
+            request.timeoutInterval = seconds
+            request.setValue("application/json", forHTTPHeaderField: "Accept")
+            return request
+        }
+        enum Outcome: Sendable { case reached(URL), failed(URL), timeUp }
+        let firstFailed = AsyncStream<Void>.makeStream()
+        let reached: URL? = await withTaskGroup(of: Outcome.self) { group in
+            group.addTask {
+                let answered = await Self.answersAsFlexarr(probe(primary), session: session)
+                if !answered { firstFailed.continuation.yield() }
+                return answered ? .reached(primary) : .failed(primary)
+            }
+            if let alternate {
+                group.addTask {
+                    // A head start for the address in use, unless it's already failed.
+                    await withTaskGroup(of: Void.self) { wait in
+                        wait.addTask { try? await Task.sleep(for: ServerAddresses.probeHeadStart) }
+                        wait.addTask { for await _ in firstFailed.stream { return } }
+                        await wait.next()
+                        wait.cancelAll()
+                    }
+                    if Task.isCancelled { return .failed(alternate) }
+                    return await Self.answersAsFlexarr(probe(alternate), session: session) ? .reached(alternate) : .failed(alternate)
+                }
+            }
+            // The time limit itself: URLSession's timeout is between bytes, not for the whole request.
+            group.addTask {
+                try? await Task.sleep(for: limit)
+                return .timeUp
+            }
+            var failed = 0
+            let total = alternate == nil ? 1 : 2
+            defer {
+                group.cancelAll()
+                firstFailed.continuation.finish()
+            }
+            for await outcome in group {
+                switch outcome {
+                case .reached(let url): return url
+                case .timeUp: return nil
+                case .failed:
+                    failed += 1
+                    // Every address has failed: no point waiting out the time.
+                    if failed == total { return nil }
+                }
+            }
+            return nil
+        }
+        guard let reached else { return false }
+        if reached != addresses.current { addresses.reached(reached) }
+        Self.answerLock.withLock { Self.lastAnswer = Date() }
+        return true
+    }
+
+    /// The server answered: anything but a web page or a redirect.
+    private static func answersAsFlexarr(_ request: URLRequest, session: URLSession) async -> Bool {
+        guard let (_, response) = try? await session.data(for: request, delegate: NoRedirects.shared),
+              let http = response as? HTTPURLResponse else { return false }
+        if (300..<400).contains(http.statusCode) { return false }
+        return http.value(forHTTPHeaderField: "Content-Type")?.contains("text/html") != true
+    }
+
+    /// The reachability check's own connections.
+    private static let probeSession: URLSession = {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.httpMaximumConnectionsPerHost = 2
+        configuration.urlCache = nil
+        return URLSession(configuration: configuration)
+    }()
+
+    private final class NoRedirects: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+        static let shared = NoRedirects()
+        func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
+                        newRequest request: URLRequest) async -> URLRequest? { nil }
+    }
+
+    // MARK: Answers
+
+    private static let answerLock = NSLock()
+    nonisolated(unsafe) private static var lastAnswer: Date?
+
+    /// When any server last answered a request (or the reachability check) from this app; nil if none has yet.
+    public static var lastAnsweredAt: Date? { answerLock.withLock { lastAnswer } }
+
+    private static func answered() {
+        answerLock.withLock { lastAnswer = Date() }
+        onAnswered?()
+    }
+
+        // MARK: Endpoints
 
     public func systemStatus() async throws -> SystemStatus {
         try await get("system/status")
@@ -800,6 +917,19 @@ public struct FlexarrClient: Sendable {
     /// twice. Whichever address answers is used from then on.
     private func exchange(_ method: String, _ path: String, query: [URLQueryItem], bodyData: Data?,
                           contentType: String, timeout: TimeInterval, racesAlternate: Bool) async throws -> Answer {
+        do {
+            let answer = try await reach(method, path, query: query, bodyData: bodyData, contentType: contentType, timeout: timeout,
+                                         racesAlternate: racesAlternate)
+            Self.answered()
+            return answer
+        } catch let error where Self.couldNotConnect(error) || (error as? FlexarrClientError) == .unreachable {
+            Self.onCouldNotConnect?(addresses.home)
+            throw error
+        }
+    }
+
+    private func reach(_ method: String, _ path: String, query: [URLQueryItem], bodyData: Data?,
+                       contentType: String, timeout: TimeInterval, racesAlternate: Bool) async throws -> Answer {
         let primary = addresses.current
         let first = request(method, path, query: query, bodyData: bodyData, at: primary, contentType: contentType, timeout: timeout)
         guard let alternate = addresses.alternate(to: primary) else {
@@ -827,6 +957,7 @@ public struct FlexarrClient: Sendable {
     }
 
     private func exchange(_ request: URLRequest) async throws -> Answer {
+        if Self.simulatesOffline { throw URLError(.notConnectedToInternet) }
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw FlexarrClientError.invalidResponse }
         return (data, http)

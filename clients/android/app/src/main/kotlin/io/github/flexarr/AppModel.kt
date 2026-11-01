@@ -60,6 +60,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -101,8 +102,16 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     var signedOutAsGuest = false
         private set
 
-    var profiles: List<Profile> by mutableStateOf(emptyList())
-        private set
+    private var profileList: List<Profile> by mutableStateOf(emptyList())
+
+    var profiles: List<Profile>
+        get() = profileList
+        private set(value) {
+            // Kept on the device, so who's watching (and whether it's a child) is still known offline. Never a list with
+            // nobody watching (on its way to "Who's watching?"): offline goes on as the profile last chosen.
+            if (value != profileList && value.any { it.isCurrent } && saved && credentials != null) store.saveProfiles(value)
+            profileList = value
+        }
 
     /** The profiles have been asked for since signing in (whether or not the server answered). */
     var profilesLoaded by mutableStateOf(false)
@@ -156,8 +165,15 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     val isMainProfile: Boolean get() = isAdmin || canUnlock
 
     /** This device is locked to kids profiles: the picker offers only them, until the admin PIN releases it. */
-    var kidsLock by mutableStateOf(false)
-        private set
+    private var kidsLockState by mutableStateOf(false)
+
+    var kidsLock: Boolean
+        get() = kidsLockState
+        private set(value) {
+            // Remembered, so offline a kids-locked device stays a child's.
+            if (value != kidsLockState && saved && credentials != null) store.saveKidsLock(value)
+            kidsLockState = value
+        }
 
     /** A child is watching: the kids app (no Settings). */
     val isKids: Boolean get() = currentProfile?.isKids == true
@@ -252,9 +268,34 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     /** Whole audiobooks kept on this phone. */
     val bookDownloads = BookDownloads(context, this)
 
-    /** The server couldn't be reached when the profiles were asked for: the app opens on Downloads, if there are any. */
+    /**
+     * Offline mode: the server can't be reached (no network, or no answer within a few seconds). The phone opens on
+     * Downloads under an Offline bar and the TV says it can't reach the server; cleared by itself once it answers.
+     */
     var serverUnreachable by mutableStateOf(false)
         private set
+
+    /** Whether this device has a network at all. */
+    private val network = NetworkWatch(context)
+
+    /**
+     * The server has answered since signing in, this launch: the Android TV keeps its screens under the offline notice
+     * rather than start again from Home when the server's back.
+     */
+    var hasBeenOnline by mutableStateOf(false)
+        private set
+
+    /** While offline, tries the server again every so often (only while the app is in front). */
+    private var offlineRetry: Job? = null
+
+    /** How many times offline mode has tried since it began, for backing off. */
+    private var retryAttempt = 0
+
+    /** The check under way, which any other asking joins rather than start another. */
+    private var connectionCheck: Deferred<Unit>? = null
+
+    /** The profile load under way, which anyone else asking joins. */
+    private var profilesLoad: Deferred<Unit>? = null
 
     /** Whether this profile has podcasts (null: not known, or a server from before them). */
     var podcastStatus: PodcastStatus? by mutableStateOf(null)
@@ -477,7 +518,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     val currentProfile: Profile? get() = profiles.firstOrNull { it.isCurrent }
 
     /** Someone has to choose who's watching: more than one profile, and none chosen on this device yet. */
-    val needsProfile: Boolean get() = profilesLoaded && credentials?.profileToken == null && profiles.size > 1
+    val needsProfile: Boolean get() = profilesLoaded && !serverUnreachable && credentials?.profileToken == null && profiles.size > 1
 
     /** This device's name, as the server's list of signed-in devices shows it. */
     val deviceName: String
@@ -671,8 +712,10 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         forgetSignIn()
         tunnelProblem = null
         offlineAsGuest = false
+        leaveOfflineMode()
         profiles = emptyList()
         profilesLoaded = false
+        hasBeenOnline = false
         signedOutNotice = null
         signedOutAsGuest = false
         phase = Phase.SignedIn(credentials)
@@ -729,6 +772,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         forgetSignIn()
         tunnelProblem = null
         offlineAsGuest = false
+        leaveOfflineMode()
         music.stop()
         podcasts.stop()
         books.stop()
@@ -738,6 +782,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         if (saved) store.clear()
         profiles = emptyList()
         profilesLoaded = false
+        hasBeenOnline = false
         phase = Phase.SignedOut
         scope.launch {
             ContinueWatchingWidget.refresh(context)
@@ -767,8 +812,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     fun browseOfflineAsGuest() {
         offlineAsGuest = true
         tunnelProblem = null
-        serverUnreachable = true
-        profilesLoaded = true
+        goOffline()
     }
 
     /**
@@ -789,8 +833,13 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     private suspend fun startGuestTunnel(): Boolean {
         val guest = credentials?.guest ?: return true
         val early = scope.launch {
-            delay(15_000)
-            if (tunnelProblem == null && !offlineAsGuest && credentials?.guest == guest) tunnelProblem = "Still connecting"
+            // With no network at all that's offline mode now; still nothing after a while, the problem shows.
+            for (second in 1..15) {
+                delay(1_000)
+                if (credentials?.guest != guest) return@launch
+                if (network.isOffline) return@launch goOffline()
+            }
+            if (tunnelProblem == null && !offlineAsGuest && !serverUnreachable && credentials?.guest == guest) tunnelProblem = "Still connecting"
         }
         try {
             withContext(Dispatchers.IO) { tunnel.port() }
@@ -802,19 +851,45 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         } catch (e: TunnelException) {
             if (credentials?.guest != guest || e.needsLogin) return false
             flexarrLog.warning("The guest tunnel didn't start: ${e.message}")
-            if (offlineAsGuest) serverUnreachable = true else tunnelProblem = e.message ?: "The tunnel didn't start"
+            if (offlineAsGuest || network.isOffline) goOffline() else tunnelProblem = e.message ?: "The tunnel didn't start"
             return false
         } finally {
             early.cancel()
         }
     }
 
-    suspend fun loadProfiles() {
-        val client = client ?: return
+    /** Loads who's watching (and the sign-in), or joins the load already under way. */
+    suspend fun loadProfiles() = loadProfiles(serverAnswered = false)
+
+    /** [serverAnswered]: it has just answered (coming back online), so it isn't asked again. */
+    private suspend fun loadProfiles(serverAnswered: Boolean) {
+        profilesLoad?.takeIf { it.isActive }?.let { return it.await() }
+        // Its own job, so it finishes even when whatever asked is cancelled (a screen going away).
+        val load = scope.async { loadProfilesNow(serverAnswered) }
+        profilesLoad = load
+        load.await()
+    }
+
+    private suspend fun loadProfilesNow(serverAnswered: Boolean) {
+        // A guest with no network at all needn't wait for its tunnel to give up.
+        if (credentials?.isGuest == true && network.isOffline) return goOffline()
         // A guest reaches the server only through its tunnel: if that can't start, its problem screen says so.
         if (!ensureGuestTunnel()) return
+        val client = client ?: return
         try {
-            val list = client.profiles()
+            // All at once rather than one after another: the profiles, the sign-in, and whether the server answers.
+            val listed = scope.async { runCatching { client.profiles() } }
+            val signIn = scope.async { runCatching { client.me() }.getOrNull() }
+            // No network, or no answer within a few seconds: offline mode now, not after each request's timeout.
+            if (!serverAnswered && !serverAnswers(client)) {
+                signIn.cancel()
+                goOffline()
+                // A slow server may answer after all: the list arriving brings the app back at once.
+                scope.launch { if (listed.await().isSuccess) checkConnection(knownReachable = true) }
+                return
+            }
+            val list = listed.await().getOrThrow()
+            val me = signIn.await()
             // A token for a profile that's since been removed acts as nobody: forget it and ask again.
             val credentials = credentials
             if (list.none { it.isCurrent } && credentials?.profileToken != null) {
@@ -822,19 +897,20 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
                 phase = Phase.SignedIn(credentials.copy(profileToken = null))
             }
             profiles = list
+            hasBeenOnline = true
             // Locked to kids profiles, the first Who's watching offers Unlock, before anyone is chosen.
-            runCatching { client.me() }.getOrNull()?.let {
+            me?.let {
                 kidsLock = it.kidsLock
                 hasOwnSignIn = it.method == "device"
                 serverSaysGuest = it.isGuest
             }
-            serverUnreachable = false
+            leaveOfflineMode()
         } catch (e: FlexarrException) {
             // A guest's device the host has removed is turned away (403) whatever it asks: back to joining.
             if (e is FlexarrException.Http && e.guestRemoved && credentials?.isGuest == true) return removedAsGuest()
-            // Unreachable for now: the screens say so and try again (opening on Downloads, once the list's been read).
-            if (e is FlexarrException.Unreachable) downloads.ready()
-            serverUnreachable = e is FlexarrException.Unreachable
+            // Reached, but the list didn't come: the one kept from last time, so the right profile (a child's) shows.
+            if (profiles.isEmpty() && saved) profiles = store.savedProfiles()
+            if (e is FlexarrException.Unreachable) goOffline()
         } finally {
             profilesLoaded = true
         }
@@ -1103,6 +1179,10 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
 
     init {
         signInChanged()
+        // Offline mode follows the network, and any request that can't reach the server has it checked.
+        network.onChange(::networkChanged)
+        FlexarrClient.onCouldNotConnect = { scope.launch { connectionTrouble() } }
+        FlexarrClient.onAnswered = { scope.launch { serverAnswered() } }
         tunnel.onPort = ::tunnelMoved
         // The host deleted this device from its tailnet: as good as removing it from Flexarr.
         tunnel.onRefused = { scope.launch { if (credentials?.isGuest == true) removedAsGuest() } }
@@ -1118,6 +1198,134 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     fun cameToFront() {
         tunnelIdle?.cancel()
         if (credentials?.isGuest == true) scope.launch(Dispatchers.IO) { tunnel.ensureRunning() }
+        // Offline mode ends (or starts) as soon as it's known whether the server answers now, and tries again while
+        // the app's in front.
+        scheduleRetry()
+        scope.launch { checkConnection() }
+    }
+
+    // Offline mode
+
+    /**
+     * Whether the server answers: never with no network (unless [ignoringNetwork], in case that reading is wrong),
+     * otherwise within a few seconds.
+     */
+    private suspend fun serverAnswers(client: FlexarrClient, ignoringNetwork: Boolean = false): Boolean =
+        (ignoringNetwork || !network.isOffline) && client.isReachable()
+
+    /** Into offline mode: the profile last known, nobody asked who's watching, and the server tried again now and then. */
+    private fun goOffline() {
+        if (credentials == null) return
+        settleOfflineProfile()
+        profilesLoaded = true
+        if (!serverUnreachable) {
+            flexarrLog.info("Offline: the server can't be reached")
+            serverUnreachable = true
+            retryAttempt = 0
+        }
+        scheduleRetry()
+    }
+
+    /**
+     * Who's watching offline: the list as last known, with the profile last chosen. With nobody chosen, or a device
+     * locked to kids profiles, a child if the household has one: offline is never a way out of the kids app.
+     */
+    private fun settleOfflineProfile() {
+        if (saved && profiles.none { it.isCurrent }) store.savedProfiles().takeIf { it.isNotEmpty() }?.let { profiles = it }
+        if (saved && store.savedKidsLock()) kidsLock = true
+        val current = currentProfile
+        if (current != null && (current.isKids || !kidsLock)) return
+        if (current == null && profiles.size <= 1) return
+        val child = profiles.firstOrNull { it.isKids } ?: return
+        profiles = profiles.map { it.copy(isCurrent = it.id == child.id) }
+    }
+
+    /** While in front, tries again after 15 seconds, then less and less often, up to every 5 minutes. */
+    private fun scheduleRetry() {
+        if (!serverUnreachable || !inFront || offlineRetry?.isActive == true) return
+        offlineRetry = scope.launch {
+            while (true) {
+                delay(RETRY_WAITS_MS[retryAttempt.coerceAtMost(RETRY_WAITS_MS.lastIndex)])
+                retryAttempt++
+                // Every third try asks the server even if the network says there's none, in case that's wrong.
+                checkConnection(ignoringNetwork = retryAttempt % 3 == 0)
+            }
+        }
+    }
+
+    private fun leaveOfflineMode() {
+        offlineRetry?.cancel()
+        offlineRetry = null
+        serverUnreachable = false
+        retryAttempt = 0
+    }
+
+    /**
+     * Offline: whether the server answers again (the network changed, the app came to the front, a request was
+     * answered, Try again, or now and then), and if it does, back to normal where you are. Online: whether it's still
+     * there. One check at a time: anyone asking meanwhile waits for that one. [knownReachable]: something has just been
+     * answered, so there's no need to ask.
+     */
+    suspend fun checkConnection(ignoringNetwork: Boolean = false, knownReachable: Boolean = false) {
+        connectionCheck?.takeIf { it.isActive }?.let { return it.await() }
+        // Its own job, so it finishes even when whatever asked is cancelled (the retry as offline mode ends, or the TV's
+        // offline screen going away).
+        val check = scope.async { checkConnectionNow(ignoringNetwork, knownReachable) }
+        connectionCheck = check
+        check.await()
+    }
+
+    private suspend fun checkConnectionNow(ignoringNetwork: Boolean, knownReachable: Boolean) {
+        if (credentials == null) return
+        if (serverUnreachable) {
+            // A guest's server is only there once its tunnel is.
+            if (credentials?.isGuest == true && (network.isOffline || !ensureGuestTunnel())) return
+            val client = client ?: return
+            if (!knownReachable && !serverAnswers(client, ignoringNetwork)) return
+            flexarrLog.info("Back online")
+            offlineAsGuest = false
+            // Who's watching and child lock are read again before the screens come back.
+            loadProfiles(serverAnswered = true)
+            leaveOfflineMode()
+            // Whatever failed while offline loads again.
+            watchStateChanged()
+        } else if (profilesLoaded) {
+            // Answered a moment ago: it's there.
+            if (System.currentTimeMillis() - FlexarrClient.lastAnsweredAtMs < 20_000) return
+            val client = client ?: return
+            if (serverAnswers(client, ignoringNetwork)) return
+            // One miss could be a moment's trouble (a busy server): offline only if it misses again shortly after.
+            delay(3_000)
+            if (credentials == null || serverUnreachable || serverAnswers(client)) return
+            goOffline()
+        }
+    }
+
+    /** A request couldn't reach the server: see whether it's gone (one slow request alone doesn't mean offline). */
+    private fun connectionTrouble() {
+        if (serverUnreachable || !profilesLoaded || credentials == null) return
+        scope.launch { checkConnection() }
+    }
+
+    /** A request was answered: offline mode ends now rather than at its next check. */
+    private fun serverAnswered() {
+        if (!serverUnreachable || credentials == null || connectionCheck?.isActive == true) return
+        scope.launch { checkConnection(knownReachable = true) }
+    }
+
+    private fun networkChanged(offline: Boolean) {
+        if (credentials == null) return
+        scope.launch {
+            if (offline) {
+                // A moment's grace: moving from Wi-Fi to mobile data drops the network briefly.
+                delay(2_000)
+                if (network.isOffline && profilesLoaded && !serverUnreachable) goOffline()
+            } else if (serverUnreachable) {
+                // Once the new network has settled.
+                delay(1_000)
+                checkConnection()
+            }
+        }
     }
 
     private var tunnelIdle: Job? = null
@@ -1127,6 +1335,11 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
      * download coming in), so it doesn't keep the phone's radio busy. Anything that needs it later starts it again.
      */
     fun wentToBackground() {
+        // Offline mode doesn't keep trying in the background: coming back to the front checks.
+        if (!inFront) {
+            offlineRetry?.cancel()
+            offlineRetry = null
+        }
         if (!tunnel.isInUse) return
         tunnelIdle?.cancel()
         tunnelIdle = scope.launch {
@@ -1143,6 +1356,9 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     companion object {
         /** How long [refreshWatchlistSoon] waits for changes to stop coming. */
         private const val WATCHLIST_SETTLE_MS = 750L
+
+        /** While offline, how long to wait before each try: 15 seconds at first, then less and less often. */
+        private val RETRY_WAITS_MS = longArrayOf(15_000, 30_000, 60_000, 120_000, 300_000)
 
         /** How long a guest's tunnel stays up with the app in the background and nothing using it. */
         private const val TUNNEL_IDLE_MS = 60_000L

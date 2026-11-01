@@ -12,31 +12,6 @@ enum GuestMode {
     nonisolated(unsafe) static var isActive = false
 }
 
-/// Whether this device has a network at all, so a family guest's app can say it can't reach its host straight away
-/// rather than after the tunnel's minute of trying, and try again as soon as there's one.
-@MainActor
-final class NetworkWatch {
-    static let shared = NetworkWatch()
-    private let monitor = NWPathMonitor()
-    private(set) var isOffline = false
-    /// The network came back.
-    var onReturn: (() -> Void)?
-
-    private init() {
-        monitor.pathUpdateHandler = { path in
-            let offline = path.status != .satisfied
-            Task { @MainActor in NetworkWatch.shared.changed(offline: offline) }
-        }
-        monitor.start(queue: .main)
-    }
-
-    private func changed(offline: Bool) {
-        let back = isOffline && !offline
-        isOffline = offline
-        if back { onReturn?() }
-    }
-}
-
 /// The tunnel a family guest's app reaches its host's server through: Tailscale built in (clients/tunnel), joined to
 /// the host's tailnet with the invite's one-use key, and opened here as a port on 127.0.0.1 that every request,
 /// artwork fetch and player uses as the server's address. See docs/remote-guests.md.

@@ -7,6 +7,8 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.focusGroup
+import androidx.compose.ui.focus.focusProperties
 import io.github.flexarr.AppModel
 import io.github.flexarr.ui.LoadProfiles
 import io.github.flexarr.ui.theme.Flexarr
@@ -22,9 +24,21 @@ fun TvRoot(model: AppModel) {
                     LoadProfiles(model, phase)
                     when {
                         model.tunnelProblem != null -> TvTunnelProblemScreen(model)
+                        // Offline from the start: nothing to keep underneath.
+                        model.serverUnreachable && !model.hasBeenOnline -> TvOfflineScreen(model)
                         !model.profilesLoaded -> CircularProgressIndicator(Modifier.align(Alignment.Center), color = Flexarr.screen)
                         model.needsProfile -> TvProfilePicker(model)
-                        else -> TvMainScreen(model)
+                        else -> {
+                            TvMainScreen(model)
+                            // Offline after the server had answered: the notice covers the screens rather than replace
+                            // them, so the TV carries on where it was once the server's back. Focus stays in it.
+                            if (model.serverUnreachable) {
+                                Box(
+                                    Modifier.fillMaxSize().background(Flexarr.room)
+                                        .focusProperties { onExit = { cancelFocusChange() } }.focusGroup(),
+                                ) { TvOfflineScreen(model) }
+                            }
+                        }
                     }
                 }
             }

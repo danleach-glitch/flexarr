@@ -1,6 +1,19 @@
 package io.github.flexarr.ui
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.statusBars
+import io.github.flexarr.ui.components.OfflineBar
+import io.github.flexarr.ui.components.LocalOffline
+import io.github.flexarr.ui.components.hasDownloads
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import io.github.flexarr.ui.components.OfflineScreen
 import androidx.compose.foundation.layout.padding
 import androidx.activity.compose.LocalActivity
 import androidx.compose.runtime.LaunchedEffect
@@ -144,7 +157,7 @@ fun MainScreen(model: AppModel) {
         ReviewPrompt.ask(activity)
     }
 
-    CompositionLocalProvider(LocalClient provides client, LocalNavigator provides navigator) {
+    CompositionLocalProvider(LocalClient provides client, LocalNavigator provides navigator, LocalOffline provides model.serverUnreachable) {
         // Back can leave a tab's page for another's: the lit tab follows whichever tab's page is showing.
         val entry by nav.currentBackStackEntryAsState()
         LaunchedEffect(entry) {
@@ -246,9 +259,9 @@ fun MainScreen(model: AppModel) {
                 is AppLink.Join -> Unit
             } } }
         }
-        // With no connection to the server, the app opens on what's downloaded.
-        LaunchedEffect(model.serverUnreachable) {
-            if (model.serverUnreachable && model.downloads.downloads.isNotEmpty() && currentTab == Tab.Home) select(Tab.Downloads)
+        // Opened offline: straight to what can be watched, if there's anything. Going offline later leaves you where you are.
+        LaunchedEffect(Unit) {
+            if (model.serverUnreachable && model.hasDownloads && currentTab == Tab.Home) select(Tab.Downloads)
         }
         // A tablet has the tabs down the side, as iPad's sidebar-style tab bar keeps the width for the screens.
         val rail = isWide
@@ -309,11 +322,25 @@ fun MainScreen(model: AppModel) {
                     Spacer(Modifier.weight(1f))
                 }
             }
-            NavHost(nav, startDestination = Tab.Home.route, modifier = Modifier.padding(bottom = padding.calculateBottomPadding())) {
-                composable(Tab.Home.route) { HomeScreen(model) }
-                composable(Tab.Libraries.route) { LibrariesScreen(model) }
+            Column(Modifier.weight(1f)) {
+            val offline = model.serverUnreachable
+            AnimatedVisibility(offline, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) { OfflineBar() }
+            NavHost(
+                nav,
+                startDestination = Tab.Home.route,
+                modifier = Modifier.padding(bottom = padding.calculateBottomPadding())
+                    .then(if (offline) Modifier.consumeWindowInsets(WindowInsets.statusBars) else Modifier),
+            ) {
+                composable(Tab.Home.route) {
+                    Crossfade(model.serverUnreachable, label = "offline") { if (it) OfflineScreen(model, "Home") { select(Tab.Downloads) } else HomeScreen(model) }
+                }
+                composable(Tab.Libraries.route) {
+                    Crossfade(model.serverUnreachable, label = "offline") { if (it) OfflineScreen(model, "Libraries") { select(Tab.Downloads) } else LibrariesScreen(model) }
+                }
                 composable(Tab.Downloads.route) { DownloadsScreen(model) }
-                composable(Tab.Search.route) { SearchScreen(model) }
+                composable(Tab.Search.route) {
+                    Crossfade(model.serverUnreachable, label = "offline") { if (it) OfflineScreen(model, "Search") { select(Tab.Downloads) } else SearchScreen(model) }
+                }
                 composable(Tab.Settings.route) {
                     SettingsScreen(
                         model,
@@ -375,6 +402,7 @@ fun MainScreen(model: AppModel) {
                     "person/{id}?name={name}",
                     arguments = listOf(navArgument("name") { type = NavType.StringType; defaultValue = "" }),
                 ) { entry -> PersonScreen(model, entry.arguments?.getString("id")!!, entry.arguments?.getString("name").orEmpty()) }
+            }
             }
           }
         }

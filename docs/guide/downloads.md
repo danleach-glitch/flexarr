@@ -67,6 +67,14 @@ A podcast episode is deleted as soon as you've heard it to the end or marked it 
 
 Signing out of the server on the device deletes its downloads.
 
+## Offline
+
+With no connection to your server (airplane mode, or away from home with the server out of reach), the app opens on **Downloads** within a few seconds, under an **Offline** bar. Home, Libraries and Search wait for the server, and point you to your downloads.
+
+Everything you've downloaded plays as usual. When the server answers again, the bar goes and the rest of the app fills in by itself, without moving you from where you are.
+
+The Apple TV and Android TV keep nothing downloaded, so they say they can't reach the server, and carry on by themselves once it's back. If the server has moved or gone, **Sign out** there connects the TV again.
+
 ## Watch progress
 
 What you watch and hear offline is sent to your server when the device is back online. Resume points, watched ticks and Continue watching then catch up on every other screen.
