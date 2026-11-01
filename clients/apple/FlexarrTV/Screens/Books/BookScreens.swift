@@ -280,7 +280,7 @@ struct BookView: View {
                             if position > 0, !item.userData.watched { confirmingStartOver = true } else { Task { await model.listenAgain(item) } }
                         } label: { Label("Start over", systemImage: "arrow.counterclockwise") }
                             .buttonStyle(ActionButtonStyle(iconOnly: true))
-                            .alert("Start over from the beginning?", isPresented: $confirmingStartOver) {
+                            .alert("Start over?", isPresented: $confirmingStartOver) {
                                 Button("Start over", role: .destructive) { Task { await model.listenAgain(item) } }
                                 Button("Cancel", role: .cancel) {}
                             } message: {
