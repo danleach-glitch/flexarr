@@ -42,8 +42,8 @@ export function NowPlayingView({ onClose }: { onClose: () => void }) {
   const chapters = podcast ? (details?.chapters ?? []) : (player.book?.chapters ?? [])
   const duration = player.duration || track?.durationSeconds || 0
   const chapter = chapterAt(chapters, time)
-  // A book's scrubber can cover just the chapter playing.
-  const [scope, setScope] = useState<'book' | 'chapter'>('book')
+  // A book's scrubber covers the chapter playing, or the whole book.
+  const [scope, setScope] = useState<'book' | 'chapter'>('chapter')
   const ranged = book && scope === 'chapter' && chapter !== null && player.book !== null
   const from = ranged ? chapters[chapter].startSeconds : 0
   const to = ranged ? chapterEnd(player.book!.chapters, chapter, duration) : duration
@@ -198,7 +198,8 @@ export function NowPlayingView({ onClose }: { onClose: () => void }) {
             <div className="np-view-times">
               <span>{formatClock(scrub.shown)}</span>
               {skips && duration > 0 && <EndsAt remaining={Math.max(0, duration - (from + scrub.shown)) / player.speed} />}
-              <span>-{formatClock(Math.max(0, length - scrub.shown))}</span>
+              {/* Time left, at the speed it plays at. */}
+              <span>-{formatClock(Math.max(0, length - scrub.shown) / (skips ? player.speed || 1 : 1))}</span>
             </div>
           </div>
 
@@ -239,14 +240,13 @@ export function NowPlayingView({ onClose }: { onClose: () => void }) {
                 <Notes />
               </button>
               {chapters.length > 0 && (
-                <button
-                  className={ranged ? 'icon-button np-view-tool np-view-scope active' : 'icon-button np-view-tool np-view-scope'}
-                  onClick={() => setScope(scope === 'book' ? 'chapter' : 'book')}
-                  aria-pressed={ranged}
-                  title={ranged ? 'The bar covers this chapter' : 'The bar covers the whole book'}
-                >
-                  {ranged ? 'Chapter' : 'Book'}
-                </button>
+                <span className="np-view-scopes" role="group" aria-label="Seek bar covers">
+                  {(['chapter', 'book'] as const).map((s) => (
+                    <button key={s} className="icon-button np-view-tool np-view-scope" onClick={() => setScope(s)} aria-pressed={s === 'chapter' ? ranged : !ranged}>
+                      {s === 'chapter' ? 'Chapter' : 'Book'}
+                    </button>
+                  ))}
+                </span>
               )}
             </div>
           )}
