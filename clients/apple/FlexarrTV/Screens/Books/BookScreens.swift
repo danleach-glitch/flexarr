@@ -69,6 +69,8 @@ struct BooksLibraryView: View {
     @State private var books: [ItemSummary] = []
     @State private var booksTotal = 0
     @State private var isLoadingMore = false
+    /// Where across a shelf focus last was, so up and down keep to it (see `RowFocus`).
+    @State private var column = 0
 
     private static let pageSize = 60
     private let columns = Array(repeating: GridItem(.fixed(Layout.posterWidth), spacing: Layout.gridSpacing, alignment: .top), count: 6)
@@ -121,9 +123,9 @@ struct BooksLibraryView: View {
         case .recentlyAdded: bookRow("Recently added", shelves.recentlyAdded)
         case .series:
             if !shelves.series.isEmpty {
-                row("Series") {
+                ShelfRow(title: "Series", ids: shelves.series.map(\.id), column: $column) { focus in
                     ForEach(shelves.series) { series in
-                        SeriesCard(series: series) { router.push(.bookSeries(id: series.id, name: series.name)) }
+                        SeriesCard(series: series, focus: focus) { router.push(.bookSeries(id: series.id, name: series.name)) }
                     }
                 }
             }
@@ -135,8 +137,8 @@ struct BooksLibraryView: View {
     @ViewBuilder
     private func bookRow(_ title: String, _ items: [ItemSummary]) -> some View {
         if !items.isEmpty {
-            row(title) {
-                ForEach(items) { book in BookCard(item: book) { router.push(.item(book)) } }
+            ShelfRow(title: title, ids: items.map(\.id), column: $column) { focus in
+                ForEach(items) { book in BookCard(item: book, focus: focus) { router.push(.item(book)) } }
             }
         }
     }
@@ -144,27 +146,14 @@ struct BooksLibraryView: View {
     @ViewBuilder
     private func peopleRow(_ title: String, _ people: [BookPerson]) -> some View {
         if !people.isEmpty {
-            row(title) {
+            ShelfRow(title: title, ids: people.map(\.id), column: $column) { focus in
                 ForEach(people) { person in
-                    PersonCard(name: person.name, detail: person.bookCount == 1 ? "1 book" : "\(person.bookCount) books", image: person.image) {
+                    PersonCard(name: person.name, detail: person.bookCount == 1 ? "1 book" : "\(person.bookCount) books", image: person.image,
+                               focus: focus, focusID: person.id) {
                         router.push(.person(id: person.id, name: person.name))
                     }
                 }
             }
-        }
-    }
-
-    private func row(_ title: String, @ViewBuilder content: () -> some View) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            RowHeading(title: title)
-            ScrollView(.horizontal) {
-                LazyHStack(alignment: .top, spacing: Layout.rowSpacing) { content() }
-                    .padding(.horizontal, Layout.edge)
-                    .padding(.top, 28)
-                    .padding(.bottom, 40)
-            }
-            .scrollClipDisabled()
-            .focusSection()
         }
     }
 
@@ -216,14 +205,41 @@ struct BooksLibraryView: View {
     }
 }
 
+/// One of the library page's shelves: its heading and cards in a row, the cards taking the row's own focus state
+/// (a book can be on more than one shelf) so up and down land in the column focus left (see `RowFocus`).
+private struct ShelfRow<Content: View>: View {
+    let title: String
+    let ids: [String]
+    @Binding var column: Int
+    @ViewBuilder let content: (FocusState<String?>.Binding) -> Content
+    @FocusState private var focusedCard: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            RowHeading(title: title)
+            ScrollView(.horizontal) {
+                LazyHStack(alignment: .top, spacing: Layout.rowSpacing) { content($focusedCard) }
+                    .padding(.horizontal, Layout.edge)
+                    .padding(.top, 28)
+                    .padding(.bottom, 40)
+            }
+            .scrollClipDisabled()
+            .focusSection()
+            .modifier(RowFocus(ids: ids, column: $column, focus: $focusedCard))
+        }
+    }
+}
+
 /// A series: its first book's cover with the name and how many books beneath.
 struct SeriesCard: View {
     @Environment(AppModel.self) private var model
     let series: BookSeriesSummary
+    /// Shared focus state, so the row can steer focus to this card (see `RowFocus`).
+    var focus: FocusState<String?>.Binding? = nil
     let action: () -> Void
 
     var body: some View {
-        ArtworkButton(ambient: .silver, action: action) {
+        ArtworkButton(ambient: .silver, focus: focus, focusID: series.id, action: action) {
             RemoteImage(url: model.client?.imageURL(series.covers.first?.poster, width: 500)) {
                 ZStack {
                     Color.seat

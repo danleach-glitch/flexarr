@@ -34,10 +34,12 @@ struct AlbumCard: View {
     var width: CGFloat = Layout.posterWidth
     /// The artist under the title, where the albums are from several; the year on an artist's own page.
     var showsArtist = false
+    /// Shared focus state, so the row can steer focus to this card (see `RowFocus`).
+    var focus: FocusState<String?>.Binding? = nil
     let action: () -> Void
 
     var body: some View {
-        ArtworkButton(ambient: item.glowColor, action: action) {
+        ArtworkButton(ambient: item.glowColor, focus: focus, focusID: item.id, action: action) {
             SquareArtwork(item: item, size: width)
         } caption: { focused in
             VStack(alignment: .leading, spacing: 4) {
@@ -67,10 +69,12 @@ struct TrackCard: View {
     @Environment(AppModel.self) private var model
     let item: ItemSummary
     var width: CGFloat = Layout.posterWidth
+    /// Shared focus state, so the row can steer focus to this card (see `RowFocus`).
+    var focus: FocusState<String?>.Binding? = nil
     let action: () -> Void
 
     var body: some View {
-        ArtworkButton(ambient: item.glowColor, action: action) {
+        ArtworkButton(ambient: item.glowColor, focus: focus, focusID: item.id, action: action) {
             SquareArtwork(item: item, size: width)
                 .overlay(alignment: .bottomTrailing) {
                     Image(systemName: model.music.current?.id == item.id && model.music.isPlaying ? "speaker.wave.2.fill" : "play.fill")
@@ -102,6 +106,8 @@ struct TrackCard: View {
 struct ArtistCard: View {
     let item: ItemSummary
     var size: CGFloat = 220
+    /// Shared focus state, so the row can steer focus to this card (see `RowFocus`).
+    var focus: FocusState<String?>.Binding? = nil
     let action: () -> Void
 
     var body: some View {
@@ -109,8 +115,8 @@ struct ArtistCard: View {
             Button(action: action) {
                 SquareArtwork(item: item, size: size, circular: true)
             }
-            .buttonStyle(.borderless)
-            .clipShape(Circle())
+            .buttonStyle(CircleCardStyle())
+            .modifier(SharedFocus(binding: focus, id: item.id))
             VStack(spacing: 2) {
                 Text(item.title)
                     .font(.system(size: 24, weight: .semibold))

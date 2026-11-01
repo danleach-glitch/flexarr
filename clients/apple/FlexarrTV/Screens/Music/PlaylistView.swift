@@ -59,10 +59,12 @@ struct PlaylistArtwork: View {
 struct PlaylistCard: View {
     let playlist: PlaylistSummary
     var width: CGFloat = Layout.posterWidth
+    /// Shared focus state, so the row can steer focus to this card (see `RowFocus`).
+    var focus: FocusState<String?>.Binding? = nil
     let action: () -> Void
 
     var body: some View {
-        ArtworkButton(ambient: .silver, accessibilityText: "\(playlist.name), \(playlist.trackCountLabel)", action: action) {
+        ArtworkButton(ambient: .silver, focus: focus, focusID: playlist.id, accessibilityText: "\(playlist.name), \(playlist.trackCountLabel)", action: action) {
             PlaylistArtwork(playlist: playlist, size: width)
         } caption: { focused in
             VStack(alignment: .leading, spacing: 4) {
@@ -87,12 +89,14 @@ struct MixCard: View {
     @Environment(Router.self) private var router
     let mix: MixSummary
     var width: CGFloat = Layout.posterWidth
+    /// Shared focus state, so the row can steer focus to this card (see `RowFocus`).
+    var focus: FocusState<String?>.Binding? = nil
     /// Called when the mix is gone (a new day's mixes replaced it), to load the rows again. Home's reload otherwise.
     var onStale: (() -> Void)?
     @State private var isStarting = false
 
     var body: some View {
-        ArtworkButton(ambient: .silver, accessibilityText: "\(mix.name), \(mix.description)", action: play) {
+        ArtworkButton(ambient: .silver, focus: focus, focusID: mix.id, accessibilityText: "\(mix.name), \(mix.description)", action: play) {
             PlaylistArtwork(covers: mix.covers, size: width)
                 .overlay {
                     if isStarting { ProgressView() }

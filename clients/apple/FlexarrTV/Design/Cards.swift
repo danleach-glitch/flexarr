@@ -185,6 +185,10 @@ struct PersonCard: View {
     let name: String
     let detail: String?
     let image: String?
+    /// Shared focus state, so the row can steer focus to this card (see `RowFocus`).
+    var focus: FocusState<String?>.Binding? = nil
+    /// Which card `focus` means by this one: the person's id where the row steers focus.
+    var focusID: String? = nil
     let action: () -> Void
 
     var body: some View {
@@ -199,8 +203,8 @@ struct PersonCard: View {
                 .frame(width: 180, height: 180)
                 .clipShape(Circle())
             }
-            .buttonStyle(.borderless)
-            .clipShape(Circle())
+            .buttonStyle(CircleCardStyle())
+            .modifier(SharedFocus(binding: focus, id: focusID))
 
             VStack(spacing: 2) {
                 Text(name).font(.system(size: 23, weight: .semibold)).foregroundStyle(Color.screen)
