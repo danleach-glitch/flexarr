@@ -38,11 +38,11 @@ public sealed class RemoveReadarrMigrationTests : IAsyncLifetime
 
         // The columns this migration drops aren't in today's model, so the old schema is seeded by hand.
         var library = Guid.NewGuid();
-        var (matched, plain, byLocked) = (Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+        var (matched, plain, byLocked, second) = (Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
         var (fromArr, locked, audible) = (Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
         var then = new DateTime(2026, 10, 31, 12, 0, 0, DateTimeKind.Utc);
         await InsertAsync("Libraries", new() { ["Id"] = library, ["Name"] = "Books", ["Type"] = "Audiobooks" });
-        foreach (var (id, title, source) in new[] { (matched, "Dracula", "Bookshelf"), (plain, "Emma", "Audible"), (byLocked, "Persuasion", "Audible") })
+        foreach (var (id, title, source) in new[] { (matched, "Dracula", "Bookshelf"), (plain, "Emma", "Audible"), (byLocked, "Persuasion", "Audible"), (second, "Lady Susan", "Audible") })
         {
             await InsertAsync("MediaItems", new()
             {
@@ -59,6 +59,7 @@ public sealed class RemoveReadarrMigrationTests : IAsyncLifetime
         await InsertAsync("People", new() { ["Id"] = audible, ["Name"] = "Someone Else", ["ImageUrl"] = "https://m.media-amazon.com/images/I/c.jpg", ["PhotoSource"] = "audible",
             ["Biography"] = "From Audible.", ["BiographySource"] = "audible", ["InfoCheckedAt"] = then });
         await InsertAsync("Credits", new() { ["MediaItemId"] = plain, ["PersonId"] = fromArr, ["Role"] = "Author", ["Order"] = 0 });
+        await InsertAsync("Credits", new() { ["MediaItemId"] = second, ["PersonId"] = fromArr, ["Role"] = "Author", ["Order"] = 0 });
         await InsertAsync("Credits", new() { ["MediaItemId"] = byLocked, ["PersonId"] = locked, ["Role"] = "Author", ["Order"] = 0 });
 
         var profile = await _db.Database.SqlQueryRaw<string>("SELECT Id AS Value FROM Profiles LIMIT 1").FirstOrDefaultAsync();
@@ -78,7 +79,8 @@ public sealed class RemoveReadarrMigrationTests : IAsyncLifetime
         var books = await _db.MediaItems.AsNoTracking().ToDictionaryAsync(i => i.Title);
         Assert.Null(books["Dracula"].MetadataSource); // its source was the app
         Assert.Null(books["Dracula"].MetadataUpdatedAt);
-        Assert.Null(books["Emma"].MetadataUpdatedAt); // due, so its author is looked up again
+        // One of the author's books is due, so they're looked up again; the other isn't looked up online for nothing.
+        Assert.Single(new[] { books["Emma"], books["Lady Susan"] }, b => b.MetadataUpdatedAt is null);
         Assert.Equal("Audible", books["Emma"].MetadataSource);
         Assert.NotNull(books["Persuasion"].MetadataUpdatedAt); // a locked author's book isn't
 

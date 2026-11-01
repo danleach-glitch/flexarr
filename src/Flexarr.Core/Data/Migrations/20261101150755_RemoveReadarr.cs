@@ -19,17 +19,21 @@ namespace Flexarr.Core.Data.Migrations
             // Books whose details came from the app are looked up online again, without its name as their source.
             migrationBuilder.Sql("""
                 UPDATE MediaItems SET MetadataSource = NULL, MetadataUpdatedAt = NULL
-                WHERE Kind = 'Audiobook' AND Id IN (
-                    SELECT d.MediaItemId FROM BookDetails d WHERE d.ArrInstance IS NOT NULL AND d.ArrInstance = MediaItems.MetadataSource);
+                WHERE Kind = 'Audiobook' AND EXISTS (
+                    SELECT 1 FROM BookDetails d
+                    WHERE d.MediaItemId = MediaItems.Id AND d.ArrInstance IS NOT NULL AND d.ArrInstance = MediaItems.MetadataSource);
                 """);
 
             // Authors' photos and biographies from the app are cleared, unless an admin locked them, and looked up again
-            // (folder, Audible, Open Library): due now, and so are their books, whose refresh fills them.
+            // (folder, Audible, Open Library): due now, with one book of each, whose refresh fills them (the rest of their
+            // books needn't be looked up online again for that).
             migrationBuilder.Sql("""
                 UPDATE MediaItems SET MetadataUpdatedAt = NULL
                 WHERE Kind = 'Audiobook' AND Id IN (
-                    SELECT c.MediaItemId FROM Credits c JOIN People p ON p.Id = c.PersonId
-                    WHERE c.Role = 'Author' AND p.InfoLocked = 0 AND (p.PhotoSource = 'readarr' OR p.BiographySource = 'readarr'));
+                    SELECT MIN(c.MediaItemId) FROM Credits c JOIN People p ON p.Id = c.PersonId
+                    JOIN MediaItems i ON i.Id = c.MediaItemId AND i.Kind = 'Audiobook'
+                    WHERE c.Role = 'Author' AND p.InfoLocked = 0 AND (p.PhotoSource = 'readarr' OR p.BiographySource = 'readarr')
+                    GROUP BY c.PersonId);
                 UPDATE People SET ImageUrl = NULL, PhotoSource = NULL, ImageStamp = NULL, ImageChangedAt = strftime('%Y-%m-%d %H:%M:%f', 'now'), InfoCheckedAt = NULL
                 WHERE PhotoSource = 'readarr' AND InfoLocked = 0;
                 UPDATE People SET Biography = NULL, BiographySource = NULL, InfoCheckedAt = NULL
