@@ -65,6 +65,7 @@ describe('ChapterEditor', () => {
   it('fills the form with Audible’s chapters, saved only with Save', async () => {
     const sent: unknown[] = []
     mockApi({
+      'GET /me': () => ({ isAdmin: true }),
       'GET /items/b1/chapters/audible': () => [
         { index: 0, title: 'Opening Credits', startSeconds: 0, endSeconds: 20 },
         { index: 1, title: 'Chapter 1', startSeconds: 20, endSeconds: 200 },

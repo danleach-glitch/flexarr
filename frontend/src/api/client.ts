@@ -237,6 +237,19 @@ async function freshMe() {
   }
 }
 
+const lapsedListeners = new Set<() => void>()
+
+/**
+ * Told when a read was refused because settings are locked here after all: the PIN ran out, or the server restarted,
+ * since /me was read. The session reads /me again, so admin-only parts of pages give way to Unlock.
+ */
+export function onAdminLapsed(listener: () => void) {
+  lapsedListeners.add(listener)
+  return () => {
+    lapsedListeners.delete(listener)
+  }
+}
+
 /**
  * For a dialog whose reads need the admin (a person's photos): asks for the PIN first when the main profile is chosen
  * but settings are locked here. True once it may go ahead.
@@ -267,6 +280,12 @@ async function request<T>(method: string, path: string, body?: unknown, signal?:
 
   // Locked: the PIN, then the same change again (once).
   if (response.status === 403 && changes && !retried && (await lockedHere(path)) && (await askToUnlock!())) return request(method, path, body, signal, true)
+  // A read only the admin may make, with settings locked here since the page knew: said plainly, and the page catches up.
+  if (response.status === 403 && !changes && (await lockedHere(path))) {
+    clearApiCache()
+    lapsedListeners.forEach((listener) => listener())
+    throw new ApiError(403, 'Forbidden', ['Settings are locked here. Unlock them to see this.'])
+  }
   if (!response.ok) throw await failure(response)
   if (response.status === 202 || response.status === 204) {
     return undefined as T

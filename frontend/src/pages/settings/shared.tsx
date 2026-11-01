@@ -1,7 +1,9 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router'
+import { unlockFirst } from '../../api/client'
 import { AsyncButton } from '../../components/AsyncButton'
 import { ChevronLeft, ChevronRight, External } from '../../components/icons'
+import { useSession } from '../../hooks/sessionContext'
 import { appLink } from '../../lib/apps'
 
 export function SaveBar({ saved, error, busy, label = 'Save changes' }: { saved?: string; error?: string; busy?: boolean; label?: string }) {
@@ -122,5 +124,24 @@ export function SettingLink({ to, label, help }: { to: string; label: ReactNode;
       </span>
       <ChevronRight />
     </Link>
+  )
+}
+
+/**
+ * Settings only the admin may see, on a page every profile has: shown when settings are unlocked here, and for the
+ * main profile with them locked, a row that asks for the PIN.
+ */
+export function AdminOnly({ title, children }: { title: string; children: ReactNode }) {
+  const { me } = useSession()
+  if (me?.isAdmin === true) return <>{children}</>
+  if (me?.canUnlock !== true) return null
+  return (
+    <SettingsGroup title={title}>
+      <SettingRow as="div" label="Locked" help="Give the admin PIN to see and change these.">
+        <button type="button" className="button quiet" onClick={() => void unlockFirst().then((unlocked) => unlocked && window.location.reload())}>
+          Unlock
+        </button>
+      </SettingRow>
+    </SettingsGroup>
   )
 }
