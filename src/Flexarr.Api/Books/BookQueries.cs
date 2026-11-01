@@ -275,7 +275,10 @@ public static class BookQueries
             .Select(e => new BookSeriesRefDto(e.SeriesId, e.Series!.Name, e.Sequence, e.Series.Entries.Count(x => books.Any(b => b.Id == x.BookId)) + 1))
             .ToListAsync(ct);
         var seriesIds = series.Select(s => s.Id).ToList();
-        var authors = await db.Credits.Where(c => c.MediaItemId == book.Id && c.Role == CreditRole.Author).Select(c => c.PersonId).ToListAsync(ct);
+        var credited = (await db.Credits.Where(c => c.MediaItemId == book.Id && c.Role == CreditRole.Author).OrderBy(c => c.Order)
+                .Select(c => new { c.PersonId, c.Person!.Name, HasImage = c.Person.ImageUrl != null, c.Person.ImageChangedAt, c.Person.Biography }).ToListAsync(ct))
+            .DistinctBy(c => c.PersonId).ToList();
+        var authors = credited.Select(c => c.PersonId).ToList();
         var narrators = await db.Credits.Where(c => c.MediaItemId == book.Id && c.Role == CreditRole.Narrator).Select(c => c.PersonId).ToListAsync(ct);
         var state = await db.PlaybackStates.AsNoTracking().FirstOrDefaultAsync(p => p.UserId == profileId && p.MediaItemId == book.Id, ct);
         var speed = await db.ShowPlaybackSpeeds.Where(s => s.ProfileId == profileId && s.SeriesId == book.Id).Select(s => (double?)s.Speed).FirstOrDefaultAsync(ct);
@@ -295,7 +298,8 @@ public static class BookQueries
                 .OrderByDescending(i => i.ReleaseDate).Take(Row).Summaries(profileId).ToListAsync(ct),
             await books.Where(i => i.Credits.Any(c => c.Role == CreditRole.Narrator && narrators.Contains(c.PersonId))
                     && !i.Credits.Any(c => c.Role == CreditRole.Author && authors.Contains(c.PersonId)))
-                .OrderByDescending(i => i.AddedAt).Take(Row).Summaries(profileId).ToListAsync(ct));
+                .OrderByDescending(i => i.AddedAt).Take(Row).Summaries(profileId).ToListAsync(ct),
+            [.. credited.Select(c => new BookAuthorDto(c.PersonId, c.Name, ArtworkUrls.Person(c.PersonId, c.HasImage, c.ImageChangedAt), c.Biography))]);
     }
 
     /// <summary>
