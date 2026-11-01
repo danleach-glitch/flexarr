@@ -174,9 +174,9 @@ public sealed partial class AuthorInfo(FlexarrDbContext db, ArrClient arr, IMeta
                 photos.Add(new AuthorCandidate(source, image, null));
             }
 
-            if (!string.IsNullOrWhiteSpace(biography) && biographies.All(b => b.Source != source))
+            if (PersonSources.Biography(biography) is { } text && biographies.All(b => b.Source != source))
             {
-                biographies.Add(new AuthorCandidate(source, null, biography.Trim()));
+                biographies.Add(new AuthorCandidate(source, null, text));
             }
         }
 
@@ -255,9 +255,9 @@ public sealed partial class AuthorInfo(FlexarrDbContext db, ArrClient arr, IMeta
     /// <summary>Fills only what's missing, noting where it came from.</summary>
     private static void Take(Person person, string? biography, string? image, string source, DateTime now)
     {
-        if (person.Biography is null && !string.IsNullOrWhiteSpace(biography))
+        if (person.Biography is null && PersonSources.Biography(biography) is { } text)
         {
-            person.Biography = biography.Trim();
+            person.Biography = text;
             person.BiographySource = source;
         }
 

@@ -322,6 +322,20 @@ public sealed class AuthorInfoTests : IAsyncLifetime
         Assert.Equal(("From Audible.", null), (osman.Biography, osman.ImageUrl));
     }
 
+    [Fact]
+    public async Task AProvidersBiography_IsCutShort()
+    {
+        var huge = string.Join(' ', Enumerable.Repeat("word", 10_000));
+        _web.Answers[("api.audnex.us", "/authors/B074KL81KM")] = $$"""{"asin": "B074KL81KM", "name": "Richard Osman", "description": "{{huge}}"}""";
+        var library = await SeedAsync(new Person { Name = Osman });
+
+        await Refresher().RefreshLibraryAsync(library, force: true, default);
+
+        var biography = (await PersonAsync(Osman)).Biography!;
+        Assert.True(biography.Length <= PersonSources.MaxBiography, $"{biography.Length}");
+        Assert.EndsWith("word…", biography, StringComparison.Ordinal);
+    }
+
     /// <summary>Just the authors, online providers left out.</summary>
     private AuthorInfo Authors(BookProviders? providers = null) =>
         new(_db, new ArrClient(new HttpClient(_web)), new Settings(_dir, []), providers, NullLogger.Instance);

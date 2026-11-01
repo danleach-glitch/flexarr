@@ -14,7 +14,7 @@ public static class PeopleEndpoints
     private static readonly TimeSpan CandidatesFor = TimeSpan.FromMinutes(10);
 
     /// <summary>The longest biography an admin can write.</summary>
-    private const int MaxBiography = 20_000;
+    private const int MaxBiography = PersonSources.MaxBiography;
 
     /// <summary>A person's candidates, as last found for an admin.</summary>
     internal sealed record Candidates(List<AuthorCandidate> Photos, List<AuthorCandidate> Biographies);
