@@ -511,13 +511,16 @@ class BookPlayer(private val context: Context, private val model: AppModel) {
         nextOffer = null
     }
 
-    /** The bar's close: stops, reports where it got to, and puts the controls away. */
-    fun stop() {
+    /**
+     * The bar's close: stops, reports where it got to, and puts the controls away. Without [reportsPlace] (the book
+     * taken out of Continue watching) the place isn't sent, so it can't put the book back.
+     */
+    fun stop(reportsPlace: Boolean = true) {
         generation++
         sleep.set(null)
         chapterSleep.clear()
         listenForShakes()
-        endSession()
+        endSession(reportsPlace = reportsPlace)
         if (created) {
             player.stop()
             player.clearMediaItems()
@@ -680,14 +683,17 @@ class BookPlayer(private val context: Context, private val model: AppModel) {
         }
     }
 
-    /** Reports the last place (the end, with [ended]) and stops the session, one after the other. */
-    private fun endSession(ended: Boolean = false) {
+    /**
+     * Reports the last place (the end, with [ended]) and stops the session, one after the other; without
+     * [reportsPlace], only stops it.
+     */
+    private fun endSession(ended: Boolean = false, reportsPlace: Boolean = true) {
         ticker?.cancel()
         sessionClock.clear()
         if (playingDownload) {
             playingDownload = false
             val book = current
-            if (book != null && model.recordsHistory && created && player.playbackState != Player.STATE_ENDED && timelinePosition() > 0) {
+            if (book != null && reportsPlace && model.recordsHistory && created && player.playbackState != Player.STATE_ENDED && timelinePosition() > 0) {
                 model.bookDownloads.record(book.id, timelinePosition(), finished = false)
             }
             model.watchStateChanged()
@@ -698,7 +704,7 @@ class BookPlayer(private val context: Context, private val model: AppModel) {
         val book = current ?: return
         sessionId = null
         val at = if (ended) duration else timelinePosition()
-        val records = model.recordsHistory
+        val records = model.recordsHistory && reportsPlace
         val gone = sessionGone
         sessionGone = false
         if (records) recordedAt = System.currentTimeMillis()

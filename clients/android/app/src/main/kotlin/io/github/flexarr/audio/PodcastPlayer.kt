@@ -252,11 +252,14 @@ class PodcastPlayer(private val context: Context, private val model: AppModel) {
         }
     }
 
-    /** The bar's close: stops, reports where it got to, and puts the controls away. */
-    fun stop() {
+    /**
+     * The bar's close: stops, reports where it got to, and puts the controls away. Without [reportsPlace] (the episode
+     * taken out of Continue watching) the place isn't sent, so it can't put the episode back.
+     */
+    fun stop(reportsPlace: Boolean = true) {
         generation++
         sleep.set(null)
-        endSession()
+        endSession(reportsPlace)
         player.stop()
         player.clearMediaItems()
         current = null
@@ -299,13 +302,16 @@ class PodcastPlayer(private val context: Context, private val model: AppModel) {
         scope.launch { runCatching { client.reportProgress(session, at, paused, ended) } }
     }
 
-    /** Reports where it got to and ends the session (best effort; the server times abandoned ones out). */
-    private fun endSession() {
+    /**
+     * Reports where it got to (unless not [reportsPlace]) and ends the session (best effort; the server times
+     * abandoned ones out).
+     */
+    private fun endSession(reportsPlace: Boolean = true) {
         if (playingDownload) {
             playingDownload = false
             ticker?.cancel()
             val episode = current
-            if (episode != null && model.recordsHistory && player.playbackState != Player.STATE_ENDED && player.currentPosition > 0) {
+            if (episode != null && reportsPlace && model.recordsHistory && player.playbackState != Player.STATE_ENDED && player.currentPosition > 0) {
                 model.downloads.record(episode.id, player.currentPosition / 1000.0, finished = false)
             }
             model.watchStateChanged()
@@ -316,7 +322,7 @@ class PodcastPlayer(private val context: Context, private val model: AppModel) {
         sessionId = null
         ticker?.cancel()
         val at = player.currentPosition / 1000.0
-        val records = model.recordsHistory
+        val records = model.recordsHistory && reportsPlace
         scope.launch {
             if (records) runCatching { client.reportProgress(session, at, paused = true) }
             runCatching { client.stopPlayback(session) }
