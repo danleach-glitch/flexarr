@@ -6,64 +6,112 @@ namespace Flexarr.Metadata;
 /// <summary>A book of ours, as the matcher needs to know it.</summary>
 /// <param name="Path">Its folder (or file, for a book that's one file beside others).</param>
 /// <param name="Authors">Its authors' names.</param>
-public sealed record BookToMatch(string? Path, string Title, IReadOnlyList<string> Authors, string? Asin, string? Isbn, string? ArrBookId);
+/// <param name="ArrBookId">Its id in the app it was matched in before.</param>
+/// <param name="ArrInstance">The app <paramref name="ArrBookId"/> belongs to: an id means nothing in any other.</param>
+public sealed record BookToMatch(string? Path, string Title, IReadOnlyList<string> Authors, string? Asin, string? Isbn, string? ArrBookId, string? ArrInstance = null);
+
+/// <summary>What one Readarr-compatible app has: its books (each with its editions), their files and its authors.</summary>
+/// <param name="Instance">The app's name in Flexarr's settings.</param>
+public sealed record ReadarrShelf(string Instance, IReadOnlyList<ReadarrBook> Books, IReadOnlyList<ReadarrBookFile> Files, IReadOnlyList<ReadarrAuthor> Authors);
 
 /// <summary>
-/// Pairs the books the scanner found with what a Readarr-compatible app manages. The app knows exactly where each of
-/// its book's files lives, so the files decide first; then the ids the files carry (ASIN, ISBN), then title and
-/// author. A book once matched keeps its id, as long as the app still has it.
+/// Pairs the books the scanner found with what Readarr-compatible apps manage. A household may run several (one for
+/// ebooks, one for audiobooks), and their ids overlap, so a book once matched keeps its id only in the app it came
+/// from. Otherwise an app's files decide first, in every app (they say exactly where each book lives); then the ids the
+/// files carry (ASIN, ISBN); then title and author, never title alone.
 /// </summary>
 public static class ReadarrMatcher
 {
     /// <param name="book">Ours.</param>
-    /// <param name="books">The app's books (each with its editions).</param>
-    /// <param name="files">The app's book files.</param>
-    /// <param name="authors">The app's authors, for their names.</param>
-    /// <param name="mappings">Path mappings from the app's paths to Flexarr's.</param>
-    public static ReadarrBook? Match(BookToMatch book, IReadOnlyList<ReadarrBook> books, IReadOnlyList<ReadarrBookFile> files,
-        IReadOnlyList<ReadarrAuthor> authors, IReadOnlyList<PathMapping> mappings)
+    /// <param name="shelves">Each app's books, files and authors, in the order the apps are set up.</param>
+    /// <param name="mappings">Path mappings from the apps' paths to Flexarr's.</param>
+    /// <returns>The app (its index in <paramref name="shelves"/>) and its book; null if none has it.</returns>
+    public static (int Shelf, ReadarrBook Book)? Match(BookToMatch book, IReadOnlyList<ReadarrShelf> shelves, IReadOnlyList<PathMapping> mappings)
     {
         ArgumentNullException.ThrowIfNull(book);
-        ArgumentNullException.ThrowIfNull(books);
-        ArgumentNullException.ThrowIfNull(files);
-        ArgumentNullException.ThrowIfNull(authors);
+        ArgumentNullException.ThrowIfNull(shelves);
         ArgumentNullException.ThrowIfNull(mappings);
 
-        if (book.ArrBookId is { } known && books.FirstOrDefault(b => b.Id == known) is { } stillThere)
+        // The id it had, in the app it had it from (and only there: another app's book 12 is another book).
+        if (book.ArrBookId is { } known && book.ArrInstance is { } instance)
         {
-            return stillThere;
+            for (var i = 0; i < shelves.Count; i++)
+            {
+                if (string.Equals(shelves[i].Instance, instance, StringComparison.OrdinalIgnoreCase)
+                    && shelves[i].Books.FirstOrDefault(b => b.Id == known) is { } stillThere)
+                {
+                    return (i, stillThere);
+                }
+            }
         }
 
-        // Its files: one of the app's files is the book's file, or inside the book's folder.
+        // Its files: one of an app's files is the book's file, or inside the book's folder. Every app is asked before
+        // anything less certain is tried in any of them.
         if (book.Path is { Length: > 0 } path)
         {
-            var hit = files.Where(f => f.Path is { Length: > 0 } && f.BookId is not null)
-                .FirstOrDefault(f => PathComparison.IsUnder(PathMapper.Map(f.Path!, mappings), path));
-            if (hit is not null && books.FirstOrDefault(b => b.Id == hit.BookId) is { } byFile)
+            for (var i = 0; i < shelves.Count; i++)
             {
-                return byFile;
+                var hit = shelves[i].Files.Where(f => f.Path is { Length: > 0 } && f.BookId is not null)
+                    .FirstOrDefault(f => PathComparison.IsUnder(PathMapper.Map(f.Path!, mappings), path));
+                if (hit is not null && shelves[i].Books.FirstOrDefault(b => b.Id == hit.BookId) is { } byFile)
+                {
+                    return (i, byFile);
+                }
             }
         }
 
         if (book.Asin is { Length: > 0 } asin
-            && books.FirstOrDefault(b => b.Editions.Any(e => string.Equals(e.Asin, asin, StringComparison.OrdinalIgnoreCase))) is { } byAsin)
+            && First(shelves, b => b.Editions.Any(e => string.Equals(e.Asin, asin, StringComparison.OrdinalIgnoreCase))) is { } byAsin)
         {
             return byAsin;
         }
 
         if (book.Isbn is { Length: > 0 } isbn
-            && books.FirstOrDefault(b => b.Editions.Any(e => e.Isbn13 is { } i && i.Replace("-", "", StringComparison.Ordinal) == isbn)) is { } byIsbn)
+            && First(shelves, b => b.Editions.Any(e => e.Isbn13 is { } i && i.Replace("-", "", StringComparison.Ordinal) == isbn)) is { } byIsbn)
         {
             return byIsbn;
         }
 
+        // Title and author. A book with no author has nothing to tell one "Dune" from another.
+        if (book.Authors.Count == 0)
+        {
+            return null;
+        }
+
         var title = Fold(book.Title);
-        var names = book.Authors.Select(Fold).ToHashSet(StringComparer.Ordinal);
-        var authorNames = authors.Where(a => a.Id is not null).ToDictionary(a => a.Id!, a => Fold(a.AuthorName ?? ""), StringComparer.Ordinal);
-        return books.Where(b => b.Title is { } t && Fold(t) == title)
-            .FirstOrDefault(b => names.Count == 0
-                || (b.AuthorId is { } id && authorNames.TryGetValue(id, out var name) && names.Contains(name))
-                || (b.AuthorTitle is { } at && names.Any(n => Fold(at).Contains(n, StringComparison.Ordinal))));
+        var names = book.Authors.Select(Fold).Where(n => n.Length > 0).ToHashSet(StringComparer.Ordinal);
+        if (title.Length == 0 || names.Count == 0)
+        {
+            return null;
+        }
+
+        for (var i = 0; i < shelves.Count; i++)
+        {
+            var authorNames = shelves[i].Authors.Where(a => a.Id is not null).GroupBy(a => a.Id!, StringComparer.Ordinal)
+                .ToDictionary(g => g.Key, g => Fold(g.First().AuthorName ?? ""), StringComparer.Ordinal);
+            var byTitle = shelves[i].Books.Where(b => b.Title is { } t && Fold(t) == title)
+                .FirstOrDefault(b => (b.AuthorId is { } id && authorNames.TryGetValue(id, out var name) && names.Contains(name))
+                    || (b.AuthorTitle is { } at && names.Any(n => Fold(at).Contains(n, StringComparison.Ordinal))));
+            if (byTitle is not null)
+            {
+                return (i, byTitle);
+            }
+        }
+
+        return null;
+    }
+
+    private static (int Shelf, ReadarrBook Book)? First(IReadOnlyList<ReadarrShelf> shelves, Func<ReadarrBook, bool> predicate)
+    {
+        for (var i = 0; i < shelves.Count; i++)
+        {
+            if (shelves[i].Books.FirstOrDefault(predicate) is { } found)
+            {
+                return (i, found);
+            }
+        }
+
+        return null;
     }
 
     /// <summary>Lower case, letters and digits only: "The Man Who Died Twice" and "the man who died twice!" are one.</summary>

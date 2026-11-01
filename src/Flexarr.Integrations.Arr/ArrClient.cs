@@ -113,6 +113,10 @@ public sealed class ArrClient(HttpClient httpClient)
     public Task<IReadOnlyList<ReadarrBook>> GetBooksAsync(ArrInstance readarr, CancellationToken ct = default) =>
         GetAsync<IReadOnlyList<ReadarrBook>>(readarr, "book", ct);
 
+    /// <summary>One author's books.</summary>
+    public Task<IReadOnlyList<ReadarrBook>> GetAuthorBooksAsync(ArrInstance readarr, string authorId, CancellationToken ct = default) =>
+        GetAsync<IReadOnlyList<ReadarrBook>>(readarr, $"book?authorId={Uri.EscapeDataString(authorId)}", ct);
+
     /// <summary>The files an author's books have, by book.</summary>
     public Task<IReadOnlyList<ReadarrBookFile>> GetBookFilesAsync(ArrInstance readarr, string authorId, CancellationToken ct = default) =>
         GetAsync<IReadOnlyList<ReadarrBookFile>>(readarr, $"bookfile?authorId={Uri.EscapeDataString(authorId)}", ct);

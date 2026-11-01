@@ -29,7 +29,38 @@ public sealed record ProbeResult(
 public sealed record ProbedChapter(double StartSeconds, double EndSeconds, string? Title);
 
 /// <summary>What a book's file says about the book: its length, tags, chapters and whether it carries a cover.</summary>
-public sealed record BookFileProbe(double? DurationSeconds, IReadOnlyDictionary<string, string> Tags, IReadOnlyList<ProbedChapter> Chapters, bool HasCoverArt);
+public sealed record BookFileProbe(double? DurationSeconds, IReadOnlyDictionary<string, string> Tags, IReadOnlyList<ProbedChapter> Chapters, bool HasCoverArt)
+{
+    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
+
+    /// <summary>The same reading's streams and container, for the file's row; null from probes that don't give them.</summary>
+    public ProbeResult? Result { get; init; }
+
+    /// <summary>As kept with the file (<see cref="MediaFile.BookProbe"/>), so the book is put together without reading it again.</summary>
+    public string ToJson() => JsonSerializer.Serialize(new Stored(DurationSeconds, new Dictionary<string, string>(Tags, StringComparer.OrdinalIgnoreCase), [.. Chapters], HasCoverArt), Json);
+
+    /// <summary>A reading kept by <see cref="ToJson"/>; null if there's none, or it can't be read.</summary>
+    public static BookFileProbe? FromJson(string? json)
+    {
+        if (string.IsNullOrEmpty(json))
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<Stored>(json, Json) is { } stored
+                ? new BookFileProbe(stored.DurationSeconds, new Dictionary<string, string>(stored.Tags ?? [], StringComparer.OrdinalIgnoreCase), stored.Chapters ?? [], stored.HasCoverArt)
+                : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private sealed record Stored(double? DurationSeconds, Dictionary<string, string>? Tags, List<ProbedChapter>? Chapters, bool HasCoverArt);
+}
 
 public interface IMediaProbe
 {
@@ -42,7 +73,7 @@ public interface IMediaProbe
     async Task<BookFileProbe> ProbeBookFileAsync(string path, CancellationToken cancellationToken)
     {
         var result = await ProbeAsync(path, cancellationToken).ConfigureAwait(false);
-        return new BookFileProbe(result.DurationSeconds, result.Tags, [], result.HasCoverArt);
+        return new BookFileProbe(result.DurationSeconds, result.Tags, [], result.HasCoverArt) { Result = result };
     }
 }
 
@@ -92,7 +123,7 @@ public sealed class FfprobeMediaProbe(string ffprobePath = "ffprobe") : IMediaPr
     {
         var json = await RunAsync(BookFile, path, cancellationToken).ConfigureAwait(false);
         var result = Parse(json);
-        return new BookFileProbe(result.DurationSeconds, result.Tags, ParseChapters(json), result.HasCoverArt);
+        return new BookFileProbe(result.DurationSeconds, result.Tags, ParseChapters(json), result.HasCoverArt) { Result = result };
     }
 
     /// <summary>The <c>chapters</c> of <c>-show_chapters</c> output, in order, with blank titles as null.</summary>

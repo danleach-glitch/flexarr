@@ -136,6 +136,20 @@ public sealed class BookLayoutTests
         Assert.Equal("11-22-63", Locate("Stephen King/11-22-63/a.mp3", "a.mp3", "b.mp3").Title);
     }
 
+    [Fact]
+    public void ALeadingNumber_IsASeriesPlace_OnlyInASeries_AndNeverAYear()
+    {
+        Assert.Equal(("2001 A Space Odyssey", null), Place(Locate("Arthur C. Clarke/2001 A Space Odyssey/a.mp3", "a.mp3", "b.mp3")));
+        Assert.Equal(("2001 A Space Odyssey", null), Place(Locate("Arthur C. Clarke/Space Odyssey/2001 A Space Odyssey/a.mp3", "a.mp3", "b.mp3")));
+        Assert.Equal(("3 Body Problem", null), Place(Locate("Cixin Liu/3 Body Problem/a.mp3", "a.mp3", "b.mp3")));
+        Assert.Equal(("The Final Empire", "1"), Place(Locate("Brandon Sanderson/Mistborn/1 The Final Empire/a.mp3", "a.mp3", "b.mp3")));
+
+        var dated = Locate("Frank Herbert/2004 - Dune/a.mp3", "a.mp3", "b.mp3");
+        Assert.Equal(("Dune", null, 2004), (dated.Title, dated.Sequence, dated.Year));
+
+        static (string, string?) Place(BookPlace place) => (place.Title, place.Sequence);
+    }
+
     [Theory]
     [InlineData("1.5", 1.5)]
     [InlineData("0", 0.0)]

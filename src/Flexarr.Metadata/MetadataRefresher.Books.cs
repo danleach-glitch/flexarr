@@ -1,5 +1,6 @@
 using Flexarr.Core.Books;
 using Flexarr.Core.Media;
+using Flexarr.Core.Paths;
 using Flexarr.Integrations.Arr;
 using Flexarr.Integrations.Arr.Models;
 using Microsoft.EntityFrameworkCore;
@@ -10,110 +11,184 @@ namespace Flexarr.Metadata;
 public sealed partial class MetadataRefresher
 {
     /// <summary>What one app knows, fetched once per refresh.</summary>
+    /// <param name="Complete">Every author's books, not just those of the authors of the books due.</param>
     private sealed record ReadarrCatalogue(ArrInstance Instance, IReadOnlyList<ReadarrAuthor> Authors, IReadOnlyList<ReadarrBook> Books,
-        IReadOnlyList<ReadarrBookFile> Files, IReadOnlyDictionary<string, List<(ReadarrSeries Series, string? Position)>> SeriesByBook);
+        IReadOnlyList<ReadarrBookFile> Files, IReadOnlyDictionary<string, List<(ReadarrSeries Series, string? Position)>> SeriesByBook, bool Complete);
+
+    /// <summary>A book due a refresh, as working out its author in an app needs it.</summary>
+    private sealed record DueBook(string? Path, string? ArrAuthorId, string? ArrInstance, List<string> Authors);
+
+    /// <summary>Calls made at once to one app, for each author's files and series.</summary>
+    private const int ArrConcurrency = 4;
+
+    /// <summary>At most this many books due (a webhook's) are fetched by their authors rather than the whole catalogue.</summary>
+    private const int FewBooks = 10;
+
+    private enum BookOutcome { FromArr, LookedUp, Unmatched, Local }
 
     private async Task<MetadataRefreshResult> RefreshBooksAsync(Guid libraryId, bool force, IReadOnlyCollection<string> within, CancellationToken ct)
     {
         var also = await WithinAsync(libraryId, MediaKind.Audiobook, within, ct).ConfigureAwait(false);
-        var books = await Stale(libraryId, MediaKind.Audiobook, force, also)
-            .Include(i => i.Book).Include(i => i.Genres).Include(i => i.Credits).ThenInclude(c => c.Person)
-            .AsSplitQuery().ToListAsync(ct).ConfigureAwait(false);
-        if (books.Count == 0)
+        var ids = await Stale(libraryId, MediaKind.Audiobook, force, also).OrderBy(i => i.SortTitle).Select(i => i.Id).ToListAsync(ct).ConfigureAwait(false);
+        if (ids.Count == 0)
         {
             return new MetadataRefreshResult(0, 0, 0);
+        }
+
+        // Just a webhook's books due: only their authors' books are asked for, not every author's.
+        List<DueBook>? only = null;
+        if (within.Count > 0 && ids.Count <= FewBooks && ids.All(also.Contains))
+        {
+            only = await db.MediaItems.Where(i => ids.Contains(i.Id))
+                .Select(i => new DueBook(i.Path, i.Book!.ArrAuthorId, i.Book.ArrInstance,
+                    i.Credits.Where(c => c.Role == CreditRole.Author).Select(c => c.Person!.Name).ToList()))
+                .ToListAsync(ct).ConfigureAwait(false);
         }
 
         var catalogues = new List<ReadarrCatalogue>();
         foreach (var readarr in settings.ArrInstances.Where(a => a.Kind == ArrKind.Readarr))
         {
-            if (await CatalogueAsync(readarr, ct).ConfigureAwait(false) is { } catalogue)
+            if (await CatalogueAsync(readarr, only, ct).ConfigureAwait(false) is { } catalogue)
             {
                 catalogues.Add(catalogue);
             }
         }
 
+        var shelves = catalogues.Select(c => new ReadarrShelf(c.Instance.Name, c.Books, c.Files, c.Authors)).ToList();
         int fromArr = 0, lookedUp = 0, unmatched = 0, local = 0;
-        foreach (var book in books)
+        // A few books at a time, each saved as it's done: one that fails is logged and the rest go on.
+        for (var next = 0; next < ids.Count;)
         {
-            var details = book.Book ??= new BookDetails { MediaItemId = book.Id };
-            var wanted = new BookToMatch(book.Path, book.Title,
-                [.. book.Credits.Where(c => c.Role == CreditRole.Author).OrderBy(c => c.Order).Select(c => c.Person!.Name)],
-                details.Asin, details.Isbn, details.ArrBookId);
-            var hit = catalogues.Select(c => (Catalogue: c, Book: ReadarrMatcher.Match(wanted, c.Books, c.Files, c.Authors, settings.PathMappings)))
-                .FirstOrDefault(h => h.Book is not null);
-            if (hit.Book is { } match)
+            var chunk = ids.Skip(next).Take(25).ToList();
+            var books = await db.MediaItems.Where(i => chunk.Contains(i.Id))
+                .Include(i => i.Book).Include(i => i.Genres).Include(i => i.Credits).ThenInclude(c => c.Person)
+                .AsSplitQuery().ToListAsync(ct).ConfigureAwait(false);
+            var failed = false;
+            foreach (var id in chunk)
             {
-                await ApplyReadarrAsync(book, details, match, hit.Catalogue, ct).ConfigureAwait(false);
-                fromArr++;
-            }
+                next++;
+                if (books.FirstOrDefault(b => b.Id == id) is not { } book)
+                {
+                    continue; // gone since
+                }
 
-            // Online: by its ids, else (unless it was matched by hand) by title and author.
-            var online = false;
-            if (bookProviders is not null)
-            {
                 try
                 {
-                    var found = await bookProviders.LookupAsync(details.Asin, details.Isbn, ct).ConfigureAwait(false)
-                        ?? (book.MatchLocked ? null : await bookProviders.FindAsync(book.Title, wanted.Authors, ct).ConfigureAwait(false));
-                    if (found is not null)
+                    var outcome = await RefreshBookAsync(book, catalogues, shelves, ct).ConfigureAwait(false);
+                    book.MetadataUpdatedAt = DateTime.UtcNow;
+                    await db.SaveChangesAsync(ct).ConfigureAwait(false);
+                    _ = outcome switch
                     {
-                        await ApplyOnlineAsync(book, details, found, overwrite: false, ct).ConfigureAwait(false);
-                        online = true;
-                    }
+                        BookOutcome.FromArr => fromArr++,
+                        BookOutcome.LookedUp => lookedUp++,
+                        BookOutcome.Unmatched => unmatched++,
+                        _ => local++,
+                    };
                 }
-                catch (Exception ex) when (ex is System.Text.Json.JsonException || IsNetworkFailure(ex, ct))
+                catch (Exception ex) when (ex is InvalidOperationException or DbUpdateException or System.Text.Json.JsonException || IsNetworkFailure(ex, ct))
                 {
+                    // What it left half done is dropped; it's tried again when it's next due, not on every refresh.
                     LogItemFailed(ex, book.Title);
-                }
-            }
-
-            if (hit.Book is null)
-            {
-                if (online)
-                {
-                    lookedUp++;
-                }
-                else if (catalogues.Count > 0 || bookProviders is not null)
-                {
+                    db.ChangeTracker.Clear();
+                    _series.Clear();
+                    var now = DateTime.UtcNow;
+                    await db.MediaItems.Where(i => i.Id == id).ExecuteUpdateAsync(u => u.SetProperty(i => i.MetadataUpdatedAt, now), ct).ConfigureAwait(false);
                     unmatched++;
-                }
-                else
-                {
-                    local++;
+                    failed = true;
+                    break; // the rest of the chunk is loaded again, clean
                 }
             }
 
-            book.MetadataUpdatedAt = DateTime.UtcNow;
-            await SaveEveryAsync(fromArr + lookedUp + unmatched + local, ct).ConfigureAwait(false);
+            if (!failed)
+            {
+                db.ChangeTracker.Clear(); // done with these; keeps each save from looking over every book so far
+                _series.Clear();
+            }
         }
 
-        await db.SaveChangesAsync(ct).ConfigureAwait(false);
         return new MetadataRefreshResult(fromArr, lookedUp, unmatched, local);
     }
 
-    /// <summary>An app's authors, books, files and series; null if it can't be asked right now.</summary>
-    private async Task<ReadarrCatalogue?> CatalogueAsync(ArrInstance readarr, CancellationToken ct)
+    /// <summary>One book: matched in a Readarr-compatible app, then looked up online.</summary>
+    private async Task<BookOutcome> RefreshBookAsync(MediaItem book, List<ReadarrCatalogue> catalogues, List<ReadarrShelf> shelves, CancellationToken ct)
+    {
+        var details = book.Book ??= new BookDetails { MediaItemId = book.Id };
+        var wanted = new BookToMatch(book.Path, book.Title,
+            [.. book.Credits.Where(c => c.Role == CreditRole.Author).OrderBy(c => c.Order).Select(c => c.Person!.Name)],
+            details.Asin, details.Isbn, details.ArrBookId, details.ArrInstance);
+        // The app it came from is set up but didn't answer: its link stands rather than one guessed in another app.
+        var unanswered = details.ArrInstance is { } from
+            && settings.ArrInstances.Any(a => a.Kind == ArrKind.Readarr && SameInstance(a.Name, from))
+            && !catalogues.Any(c => SameInstance(c.Instance.Name, from));
+        var hit = unanswered ? null : ReadarrMatcher.Match(wanted, shelves, settings.PathMappings);
+        if (hit is { } matched)
+        {
+            await ApplyReadarrAsync(book, details, matched.Book, catalogues[matched.Shelf], ct).ConfigureAwait(false);
+        }
+        else if (!unanswered && details.ArrBookId is not null && catalogues.All(c => c.Complete))
+        {
+            // Its app no longer has it (or is gone): the old id would only reach some other book there.
+            details.ArrBookId = null;
+            details.ArrAuthorId = null;
+            details.ArrInstance = null;
+        }
+
+        // Online: by its ids, else (unless it was matched by hand) by title and author.
+        var online = false;
+        if (bookProviders is not null)
+        {
+            try
+            {
+                var found = await bookProviders.LookupAsync(details.Asin, details.Isbn, ct).ConfigureAwait(false)
+                    ?? (book.MatchLocked ? null : await bookProviders.FindAsync(book.Title, wanted.Authors, ct).ConfigureAwait(false));
+                if (found is not null)
+                {
+                    await ApplyOnlineAsync(book, details, found, overwrite: false, ct).ConfigureAwait(false);
+                    online = true;
+                }
+            }
+            catch (Exception ex) when (ex is System.Text.Json.JsonException || IsNetworkFailure(ex, ct))
+            {
+                LogItemFailed(ex, book.Title);
+            }
+        }
+
+        return hit is not null ? BookOutcome.FromArr
+            : online ? BookOutcome.LookedUp
+            : catalogues.Count > 0 || bookProviders is not null ? BookOutcome.Unmatched
+            : BookOutcome.Local;
+    }
+
+    /// <summary>
+    /// An app's authors, books, files and series; null if it can't be asked right now. With <paramref name="only"/>
+    /// (a webhook's few books), just their authors' books, files and series. Files and series are asked for author by
+    /// author, a few at a time.
+    /// </summary>
+    private async Task<ReadarrCatalogue?> CatalogueAsync(ArrInstance readarr, IReadOnlyList<DueBook>? only, CancellationToken ct)
     {
         try
         {
             var authors = await arr.GetAuthorsAsync(readarr, ct).ConfigureAwait(false);
-            var books = await arr.GetBooksAsync(readarr, ct).ConfigureAwait(false);
-            var files = new List<ReadarrBookFile>();
+            var wanted = only is null ? null : AuthorsOf(readarr, authors, only);
+            var authorIds = (wanted ?? authors.Where(a => a.Id is not null).Select(a => a.Id!)).Distinct(StringComparer.Ordinal).ToList();
+            var perAuthor = new (IReadOnlyList<ReadarrBook> Books, IReadOnlyList<ReadarrBookFile> Files, IReadOnlyList<ReadarrSeries> Series)[authorIds.Count];
+            await Parallel.ForEachAsync(Enumerable.Range(0, authorIds.Count), new ParallelOptions { MaxDegreeOfParallelism = ArrConcurrency, CancellationToken = ct },
+                async (i, token) => perAuthor[i] = (
+                    wanted is null ? [] : await arr.GetAuthorBooksAsync(readarr, authorIds[i], token).ConfigureAwait(false),
+                    await arr.GetBookFilesAsync(readarr, authorIds[i], token).ConfigureAwait(false),
+                    await arr.GetBookSeriesAsync(readarr, authorIds[i], token).ConfigureAwait(false))).ConfigureAwait(false);
+
+            var books = wanted is null ? await arr.GetBooksAsync(readarr, ct).ConfigureAwait(false) : [.. perAuthor.SelectMany(a => a.Books)];
             var series = new Dictionary<string, List<(ReadarrSeries, string?)>>(StringComparer.Ordinal);
-            foreach (var author in authors.Where(a => a.Id is not null))
+            foreach (var s in perAuthor.SelectMany(a => a.Series))
             {
-                files.AddRange(await arr.GetBookFilesAsync(readarr, author.Id!, ct).ConfigureAwait(false));
-                foreach (var s in await arr.GetBookSeriesAsync(readarr, author.Id!, ct).ConfigureAwait(false))
+                foreach (var link in s.Links.Where(l => l.BookId is not null))
                 {
-                    foreach (var link in s.Links.Where(l => l.BookId is not null))
-                    {
-                        (series.TryGetValue(link.BookId!, out var list) ? list : series[link.BookId!] = []).Add((s, link.Position));
-                    }
+                    (series.TryGetValue(link.BookId!, out var list) ? list : series[link.BookId!] = []).Add((s, link.Position));
                 }
             }
 
-            return new ReadarrCatalogue(readarr, authors, books, files, series);
+            return new ReadarrCatalogue(readarr, authors, books, [.. perAuthor.SelectMany(a => a.Files)], series, Complete: wanted is null);
         }
         catch (Exception ex) when (ex is System.Text.Json.JsonException || IsNetworkFailure(ex, ct))
         {
@@ -122,12 +197,40 @@ public sealed partial class MetadataRefresher
         }
     }
 
+    /// <summary>
+    /// The app's ids for the authors of <paramref name="due"/>: the one each was matched to before, else the author
+    /// whose folder holds the book, else one of the same name. A book none of them fits isn't this app's.
+    /// </summary>
+    private List<string> AuthorsOf(ArrInstance readarr, IReadOnlyList<ReadarrAuthor> authors, IReadOnlyList<DueBook> due)
+    {
+        var ids = new List<string>();
+        foreach (var book in due)
+        {
+            if (book.ArrAuthorId is { } known && book.ArrInstance is { } from && SameInstance(from, readarr.Name))
+            {
+                ids.Add(known);
+                continue;
+            }
+
+            var names = book.Authors.Select(FoldName).ToHashSet(StringComparer.Ordinal);
+            ids.AddRange(authors.Where(a => a.Id is not null
+                    && ((book.Path is { } path && a.Path is { Length: > 0 } folder && PathComparison.IsUnder(path, PathMapper.Map(folder, settings.PathMappings)))
+                        || (a.AuthorName is { } name && names.Contains(FoldName(name)))))
+                .Select(a => a.Id!));
+        }
+
+        return ids;
+
+        static string FoldName(string value) => new([.. value.Normalize(System.Text.NormalizationForm.FormC).ToLowerInvariant().Where(char.IsLetterOrDigit)]);
+    }
+
     /// <summary>Fills the book's gaps from the app: never over what the files said.</summary>
     private async Task ApplyReadarrAsync(MediaItem book, BookDetails details, ReadarrBook match, ReadarrCatalogue catalogue, CancellationToken ct)
     {
         var edition = match.Edition;
         details.ArrBookId = match.Id;
         details.ArrAuthorId = match.AuthorId;
+        details.ArrInstance = catalogue.Instance.Name;
         details.Asin ??= edition?.Asin is { Length: > 0 } asin ? asin.ToUpperInvariant() : null;
         details.Isbn ??= edition?.Isbn13;
         details.Publisher ??= edition?.Publisher;
@@ -137,7 +240,7 @@ public sealed partial class MetadataRefresher
         book.Year ??= book.ReleaseDate?.Year;
         book.Studio ??= details.Publisher;
         book.PosterUrl ??= Cover(match.Images) ?? Cover(edition?.Images ?? []);
-        // Which app has it: deleting it goes through that one.
+        // Where its details came from, as shown; deleting it goes through ArrInstance.
         book.MetadataSource = catalogue.Instance.Name;
 
         if (book.Genres.Count == 0 && match.Genres.Count > 0)
@@ -160,14 +263,16 @@ public sealed partial class MetadataRefresher
 
         // Its series and place in them, when the files didn't say.
         if (match.Id is { } id && catalogue.SeriesByBook.TryGetValue(id, out var places)
-            && !await db.BookSeriesEntries.AnyAsync(e => e.BookId == book.Id, ct).ConfigureAwait(false))
+            && (await SeriesEntriesAsync(book.Id, ct).ConfigureAwait(false)).Count == 0)
         {
+            var added = new List<BookSeriesEntry>();
             foreach (var (series, position) in places.Where(p => p.Series.Title is { Length: > 0 }))
             {
-                var stored = await db.BookSeries.FirstOrDefaultAsync(s => s.LibraryId == book.LibraryId && s.Name == series.Title, ct).ConfigureAwait(false)
-                    ?? db.BookSeries.Local.FirstOrDefault(s => s.LibraryId == book.LibraryId && s.Name == series.Title)
-                    ?? db.BookSeries.Add(new BookSeries { LibraryId = book.LibraryId, Name = series.Title!, SortName = SortTitle.For(series.Title!), Description = Plain(series.Description), ExternalId = series.Id }).Entity;
-                db.BookSeriesEntries.Add(new BookSeriesEntry { SeriesId = stored.Id, BookId = book.Id, Sequence = position, SortOrder = BookAssembler.SequenceOrder(position) });
+                var stored = await SeriesAsync(book.LibraryId, series.Title!, ct, Plain(series.Description), series.Id).ConfigureAwait(false);
+                if (added.All(e => e.SeriesId != stored.Id))
+                {
+                    added.Add(db.BookSeriesEntries.Add(new BookSeriesEntry { SeriesId = stored.Id, Series = stored, BookId = book.Id, Sequence = position, SortOrder = BookAssembler.SequenceOrder(position) }).Entity);
+                }
             }
         }
     }
@@ -217,14 +322,15 @@ public sealed partial class MetadataRefresher
         await CreditsAsync(book, CreditRole.Author, found.Authors, overwrite, ct).ConfigureAwait(false);
         await CreditsAsync(book, CreditRole.Narrator, found.Narrators, overwrite, ct).ConfigureAwait(false);
 
-        // A series the files named without a number takes the provider's, for the same series or when each has one.
-        var unnumbered = await db.BookSeriesEntries.Include(e => e.Series).Where(e => e.BookId == book.Id).ToListAsync(ct).ConfigureAwait(false);
-        if (!overwrite && found.Series.Count > 0 && unnumbered.Count > 0)
+        // Its series so far: saved, or just given by Readarr and not saved yet. A series the files (or Readarr) named
+        // without a number takes the provider's, for the same series or when each has one.
+        var entries = await SeriesEntriesAsync(book.Id, ct).ConfigureAwait(false);
+        if (!overwrite && found.Series.Count > 0 && entries.Count > 0)
         {
-            foreach (var entry in unnumbered.Where(e => e.Sequence is null))
+            foreach (var entry in entries.Where(e => e.Sequence is null))
             {
                 var part = found.Series.FirstOrDefault(p => p.Sequence is not null && BookInfo.SameSeries(p.Name, entry.Series!.Name))
-                    ?? (unnumbered.Count == 1 && found.Series.Count == 1 ? found.Series[0] : null);
+                    ?? (entries.Count == 1 && found.Series.Count == 1 ? found.Series[0] : null);
                 if (part?.Sequence is { } sequence)
                 {
                     entry.Sequence = sequence;
@@ -233,16 +339,27 @@ public sealed partial class MetadataRefresher
             }
         }
 
-        if (found.Series.Count > 0 && (overwrite || unnumbered.Count == 0))
+        // The provider's series in place of the book's: when it had none, or this is the match chosen by hand. An
+        // entry for a series it's already in is updated where it is (deleting and adding it again would clash).
+        if (found.Series.Count > 0 && (overwrite || entries.Count == 0))
         {
-            await db.BookSeriesEntries.Where(e => e.BookId == book.Id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
+            var kept = new List<BookSeriesEntry>();
             foreach (var part in found.Series)
             {
-                var stored = await db.BookSeries.FirstOrDefaultAsync(s => s.LibraryId == book.LibraryId && s.Name == part.Name, ct).ConfigureAwait(false)
-                    ?? db.BookSeries.Local.FirstOrDefault(s => s.LibraryId == book.LibraryId && s.Name == part.Name)
-                    ?? db.BookSeries.Add(new BookSeries { LibraryId = book.LibraryId, Name = part.Name, SortName = SortTitle.For(part.Name) }).Entity;
-                db.BookSeriesEntries.Add(new BookSeriesEntry { SeriesId = stored.Id, BookId = book.Id, Sequence = part.Sequence, SortOrder = BookAssembler.SequenceOrder(part.Sequence) });
+                var stored = await SeriesAsync(book.LibraryId, part.Name, ct).ConfigureAwait(false);
+                if (kept.Any(e => e.SeriesId == stored.Id))
+                {
+                    continue; // the same series twice (Audible's primary and secondary)
+                }
+
+                var entry = entries.FirstOrDefault(e => e.SeriesId == stored.Id)
+                    ?? db.BookSeriesEntries.Add(new BookSeriesEntry { SeriesId = stored.Id, Series = stored, BookId = book.Id }).Entity;
+                entry.Sequence = part.Sequence;
+                entry.SortOrder = BookAssembler.SequenceOrder(part.Sequence);
+                kept.Add(entry);
             }
+
+            db.BookSeriesEntries.RemoveRange(entries.Where(e => !kept.Contains(e)));
         }
 
         // The first author's photo and biography, from Audible.
@@ -262,6 +379,45 @@ public sealed partial class MetadataRefresher
         {
             await UseAudibleChaptersAsync(book.Id, details, asin, shift: 0, ct).ConfigureAwait(false);
         }
+    }
+
+    /// <summary>A book's series entries, saved or only added so far, each with its series.</summary>
+    private async Task<List<BookSeriesEntry>> SeriesEntriesAsync(Guid bookId, CancellationToken ct)
+    {
+        var saved = (await db.BookSeriesEntries.Include(e => e.Series).Where(e => e.BookId == bookId).ToListAsync(ct).ConfigureAwait(false))
+            .Where(e => db.Entry(e).State != EntityState.Deleted);
+        var entries = saved.Concat(db.BookSeriesEntries.Local.Where(e => e.BookId == bookId)).Distinct().ToList();
+        foreach (var entry in entries.Where(e => e.Series is null))
+        {
+            entry.Series = await db.BookSeries.FindAsync([entry.SeriesId], ct).ConfigureAwait(false);
+        }
+
+        return entries;
+    }
+
+    private readonly Dictionary<Guid, List<BookSeries>> _series = [];
+
+    /// <summary>
+    /// The library's series called <paramref name="name"/> ("The Thursday Murder Club" is "Thursday Murder Club"), or
+    /// a new one. The library's series are read once a refresh, not once a book.
+    /// </summary>
+    private async Task<BookSeries> SeriesAsync(Guid libraryId, string name, CancellationToken ct, string? description = null, string? externalId = null)
+    {
+        if (!_series.TryGetValue(libraryId, out var all))
+        {
+            all = await db.BookSeries.Where(s => s.LibraryId == libraryId).ToListAsync(ct).ConfigureAwait(false);
+            all.AddRange(db.BookSeries.Local.Where(s => s.LibraryId == libraryId && !all.Contains(s)));
+            _series[libraryId] = all;
+        }
+
+        if (all.FirstOrDefault(s => BookInfo.SameSeries(s.Name, name)) is { } known)
+        {
+            return known;
+        }
+
+        var series = db.BookSeries.Add(new BookSeries { LibraryId = libraryId, Name = name.Trim(), SortName = SortTitle.For(name), Description = description, ExternalId = externalId }).Entity;
+        all.Add(series);
+        return series;
     }
 
     /// <summary>Replaces a book's chapters with Audible's for <paramref name="asin"/>, moved by <paramref name="shift"/> seconds; false if they don't fit.</summary>
@@ -320,6 +476,8 @@ public sealed partial class MetadataRefresher
     private static string? Cover(IReadOnlyList<ArrImage> images) =>
         images.Where(i => i.CoverType is "cover" or "poster").Select(i => i.RemoteUrl)
             .FirstOrDefault(u => u is not null && u.StartsWith("http", StringComparison.OrdinalIgnoreCase));
+
+    private static bool SameInstance(string a, string b) => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
 
     private static string? Plain(string? html) => string.IsNullOrWhiteSpace(html) ? null : BookSidecars.PlainText(html);
 }

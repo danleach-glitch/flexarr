@@ -43,7 +43,7 @@ public sealed class ReadarrMetadataTests : IAsyncLifetime
         Assert.Equal(1, result.FromArr);
         var book = await _db.MediaItems.Include(i => i.Book).SingleAsync();
         Assert.Equal("Local description", book.Overview); // the files' word stands
-        Assert.Equal(("12", "3", "B07QL7C4NL", "Viking", "Bookshelf"), (book.Book!.ArrBookId, book.Book.ArrAuthorId, book.Book.Asin, book.Book.Publisher, book.MetadataSource));
+        Assert.Equal(("12", "3", "Bookshelf", "B07QL7C4NL", "Viking", "Bookshelf"), (book.Book!.ArrBookId, book.Book.ArrAuthorId, book.Book.ArrInstance, book.Book.Asin, book.Book.Publisher, book.MetadataSource));
         Assert.Equal(new DateOnly(2020, 9, 3), book.ReleaseDate);
         Assert.Equal("https://covers.example/tmc.jpg", book.PosterUrl);
         var entry = await _db.BookSeriesEntries.Include(e => e.Series).SingleAsync();
@@ -86,13 +86,57 @@ public sealed class ReadarrMetadataTests : IAsyncLifetime
         Assert.Null((await _db.MediaItems.SingleAsync()).Overview);
     }
 
-    private MetadataRefresher Refresher()
+    [Fact]
+    public async Task ASeriesFromTheApp_AndTheSameOneOnline_IsOneEntry()
+    {
+        // Bookshelf puts it in Thursday Murder Club; Audible says the same. Both used to be added, and the refresh failed.
+        var library = await SeedAsync(("The Thursday Murder Club", "Richard Osman", "Richard Osman/The Thursday Murder Club", null),
+            ("The Man Who Died Twice", "Richard Osman", "Elsewhere/TMC2", null));
+
+        var result = await Refresher(online: true).RefreshLibraryAsync(library, force: true, default);
+
+        Assert.Equal((2, 0, 0, 0), (result.FromArr, result.FromLookup, result.Unmatched, result.FromLocal));
+        var entries = await _db.BookSeriesEntries.Include(e => e.Series).Include(e => e.Book).OrderBy(e => e.SortOrder).ToListAsync();
+        Assert.Equal([("Thursday Murder Club", "The Thursday Murder Club", "1"), ("Thursday Murder Club", "The Man Who Died Twice", "2")],
+            entries.Select(e => (e.Series!.Name, e.Book!.Title, e.Sequence!)));
+        Assert.Equal(1, await _db.BookSeries.CountAsync());
+        Assert.All(await _db.MediaItems.ToListAsync(), b => Assert.NotNull(b.MetadataUpdatedAt));
+    }
+
+    [Fact]
+    public async Task AWebhooksBook_AsksForItsAuthorsBooksOnly()
+    {
+        var library = await SeedAsync(("The Thursday Murder Club", "Richard Osman", "Richard Osman/The Thursday Murder Club", null),
+            ("Project Hail Mary", "Andy Weir", "Andy Weir/Project Hail Mary", null));
+        await _db.MediaItems.Where(i => i.Title == "Project Hail Mary").ExecuteUpdateAsync(u => u.SetProperty(i => i.MetadataUpdatedAt, DateTime.UtcNow));
+
+        var result = await Refresher().RefreshLibraryAsync(library, force: false, [Path.Combine(Books, "Richard Osman/The Thursday Murder Club")], default);
+
+        Assert.Equal(1, result.FromArr);
+        Assert.Contains("/api/v1/book?authorId=3", _arr.Requests);
+        Assert.DoesNotContain("/api/v1/book", _arr.Requests);
+        Assert.Equal("12", (await _db.BookDetails.SingleAsync(d => d.ArrBookId != null)).ArrBookId);
+    }
+
+    private MetadataRefresher Refresher(bool online = false)
     {
         var settings = new Settings(_dir,
             [new ArrInstance { Name = "Bookshelf", Kind = ArrKind.Readarr, BaseUrl = new Uri("http://bookshelf.test"), ApiKey = "k" }],
             [new PathMapping { From = "/data/audiobooks", To = Books }]);
         return new MetadataRefresher(_db, new ArrClient(new HttpClient(_arr)), new TvMazeClient(new HttpClient(_arr)),
-            new ImageCache(new HttpClient(_arr), settings, NullLogger<ImageCache>.Instance), settings, NullLogger<MetadataRefresher>.Instance);
+            new ImageCache(new HttpClient(_arr), settings, NullLogger<ImageCache>.Instance), settings, new Throwing(),
+            bookProviders: online ? new Flexarr.Metadata.Books.BookProviders(new HttpClient(_arr), () => settings) : null);
+    }
+
+    /// <summary>A log that fails the test on any exception logged: a book whose refresh failed is logged and skipped.</summary>
+    private sealed class Throwing : Microsoft.Extensions.Logging.ILogger<MetadataRefresher>
+    {
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel) => true;
+        public void Log<TState>(Microsoft.Extensions.Logging.LogLevel logLevel, Microsoft.Extensions.Logging.EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            if (exception is not null) throw new InvalidProgramException(formatter(state, exception), exception);
+        }
     }
 
     private async Task<Library> SeedAsync(params (string Title, string Author, string Folder, string? Overview)[] books)
@@ -127,6 +171,7 @@ public sealed class ReadarrMetadataTests : IAsyncLifetime
     private sealed class Bookshelf : HttpMessageHandler
     {
         public bool Down;
+        public System.Collections.Concurrent.ConcurrentQueue<string> Requests { get; } = new();
 
         private static readonly Dictionary<string, string> Responses = new()
         {
@@ -147,14 +192,25 @@ public sealed class ReadarrMetadataTests : IAsyncLifetime
             ["/api/v1/series?authorId=3"] = """
                 [{"id": 5, "title": "Thursday Murder Club", "links": [{"position": "1", "seriesPosition": 1, "bookId": 12}, {"position": "2", "bookId": 13}]}]
                 """,
+            // Audible, through Audnexus: the first book, in the same series as Bookshelf has it.
+            ["/books/B07QL7C4NL?region=us"] = """
+                {"asin": "B07QL7C4NL", "title": "The Thursday Murder Club", "authors": [{"name": "Richard Osman"}],
+                 "seriesPrimary": {"name": "Thursday Murder Club", "position": "1"}}
+                """,
         };
 
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
-            Task.FromResult(Down
+        // One author's books, asked for on their own.
+        static Bookshelf() => Responses["/api/v1/book?authorId=3"] = Responses["/api/v1/book"];
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Requests.Enqueue(request.RequestUri!.PathAndQuery);
+            return Task.FromResult(Down
                 ? new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)
                 : new HttpResponseMessage(HttpStatusCode.OK)
                 {
-                    Content = new StringContent(Responses.GetValueOrDefault(request.RequestUri!.PathAndQuery, "[]"), System.Text.Encoding.UTF8, "application/json"),
+                    Content = new StringContent(Responses.GetValueOrDefault(request.RequestUri.PathAndQuery, "[]"), System.Text.Encoding.UTF8, "application/json"),
                 });
+        }
     }
 }

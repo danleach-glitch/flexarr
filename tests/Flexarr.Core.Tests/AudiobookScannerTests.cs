@@ -130,6 +130,43 @@ public sealed class AudiobookScannerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task EachFileIsReadOnce_AndOnlyFilesWithNoReadingKeptAreReadAgain()
+    {
+        Touch("A/Book/01.mp3", "A/Book/02.mp3");
+        await ScanAsync();
+        Assert.Equal(2, _probe.BookCalls); // the scanner's reading, kept for putting the book together
+        Assert.All(await _db.MediaFiles.AsNoTracking().ToListAsync(), f => Assert.NotNull(f.BookProbe));
+
+        // A file scanned before readings were kept, and a new file joining the book.
+        await _db.MediaFiles.Where(f => f.Path.EndsWith("02.mp3")).ExecuteUpdateAsync(u => u.SetProperty(f => f.BookProbe, (string?)null));
+        _db.ChangeTracker.Clear();
+        Touch("A/Book/03.mp3");
+        await ScanAsync();
+
+        Assert.Equal(4, _probe.BookCalls); // 03 by the scanner, 02 by the assembler; never 01 again
+        Assert.All(await _db.MediaFiles.AsNoTracking().ToListAsync(), f => Assert.NotNull(f.BookProbe));
+        Assert.Equal(3 * BookProbe.Length, (await _db.BookDetails.AsNoTracking().SingleAsync()).DurationSeconds);
+    }
+
+    [Fact]
+    public async Task AFileBackAfterGoingMissing_JoinsItsBookAgain()
+    {
+        Touch("A/Book/01.mp3", "A/Book/02.mp3");
+        await ScanAsync();
+        var away = Path.Combine(_dir, "02.mp3");
+        File.Move(Path.Combine(Books, "A/Book/02.mp3"), away);
+        await ScanAsync();
+        Assert.Equal(BookProbe.Length, (await _db.BookDetails.AsNoTracking().SingleAsync()).DurationSeconds);
+
+        File.Move(away, Path.Combine(Books, "A/Book/02.mp3")); // unchanged: same size and time
+        var result = await ScanAsync();
+
+        Assert.Equal(2, result.Unchanged);
+        Assert.Equal(2 * BookProbe.Length, (await _db.BookDetails.AsNoTracking().SingleAsync()).DurationSeconds);
+        Assert.Equal([0, 1], (await _db.MediaFiles.AsNoTracking().OrderBy(f => f.Path).ToListAsync()).Select(f => f.BookOrder ?? -1));
+    }
+
+    [Fact]
     public async Task TagsDescribeTheBook_OverItsPath()
     {
         Touch("Unsorted/rip 4/Richard Osman - TMC1 The Thursday Murder Club.m4b");
@@ -342,6 +379,34 @@ public sealed class AudiobookScannerTests : IAsyncLifetime
         Assert.Equal("the beetles", (await _db.Bookmarks.SingleAsync()).Note);
         Assert.Equal(book.Id, (await _db.Bookmarks.AsNoTracking().SingleAsync()).MediaItemId);
         Assert.Equal(1.35, (await _db.ShowPlaybackSpeeds.SingleAsync(s => s.SeriesId == book.Id)).Speed);
+    }
+
+    [Fact]
+    public async Task TwoMissingCopies_HandOverToOneBook()
+    {
+        // Two copies of one book, each listened to, both replaced by one new copy.
+        Touch("Andy Weir/Project Hail Mary/a.m4b", "Andy Weir/Project Hail Mary (2)/b.m4b");
+        foreach (var file in new[] { "a.m4b", "b.m4b", "c.m4b" })
+        {
+            _probe.Tags[file] = new() { ["album"] = "Project Hail Mary", ["artist"] = "Andy Weir", ["asin"] = "B08G9PRS1K" };
+        }
+
+        await ScanAsync();
+        var old = await _db.MediaItems.OrderBy(i => i.Path).ToListAsync();
+        Assert.Equal(2, old.Count);
+        _db.PlaybackStates.AddRange(new PlaybackState { MediaItemId = old[0].Id, PositionSeconds = 100 }, new PlaybackState { MediaItemId = old[1].Id, PositionSeconds = 200 });
+        _db.ShowPlaybackSpeeds.AddRange(new ShowPlaybackSpeed { SeriesId = old[0].Id, Speed = 1.2 }, new ShowPlaybackSpeed { SeriesId = old[1].Id, Speed = 1.5 });
+        await _db.SaveChangesAsync();
+        Directory.Delete(Path.Combine(Books, "Andy Weir/Project Hail Mary"), recursive: true);
+        Directory.Delete(Path.Combine(Books, "Andy Weir/Project Hail Mary (2)"), recursive: true);
+        Touch("Andy Weir/Project Hail Mary (2021)/c.m4b");
+
+        await ScanAsync();
+
+        var book = await _db.MediaItems.AsNoTracking().SingleAsync(i => i.MissingSince == null);
+        Assert.Contains((await _db.PlaybackStates.AsNoTracking().SingleAsync(p => p.MediaItemId == book.Id)).PositionSeconds, new[] { 100.0, 200.0 }); // one copy's, whichever went first
+        Assert.Contains((await _db.ShowPlaybackSpeeds.AsNoTracking().SingleAsync(s => s.SeriesId == book.Id)).Speed, new[] { 1.2, 1.5 });
+        Assert.Equal(2, await _db.MediaItems.IgnoreQueryFilters().CountAsync(i => i.HandedOverAt != null));
     }
 
     [Fact]

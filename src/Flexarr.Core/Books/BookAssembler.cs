@@ -11,13 +11,15 @@ namespace Flexarr.Core.Books;
 /// <summary>
 /// Puts books together once a scan has found their files: the files in order on one timeline, the book's details,
 /// authors, narrators and series from what the files say (sidecars, then tags, then the path), and its chapters. Runs
-/// only for books whose files changed, and reads every file of such a book again, since the order and chapters depend
-/// on all of them. Local always wins: what's found here replaces what's stored, and what isn't found is left alone
-/// for the *arr and online providers to fill.
+/// only for books whose files changed, from what the scanner read of each file when it last changed
+/// (<see cref="MediaFile.BookProbe"/>): only files with no such reading (scanned before it was kept) are read here, a
+/// few at a time. Local always wins: what's found here replaces what's stored, and what isn't found is left alone for
+/// the *arr and online providers to fill.
 /// </summary>
 public sealed partial class BookAssembler(FlexarrDbContext db, IMediaProbe probe, ILogger logger)
 {
     private static readonly StringComparer Natural = StringComparer.Create(CultureInfo.InvariantCulture, CompareOptions.NumericOrdering | CompareOptions.IgnoreCase);
+    private const int ProbeConcurrency = 4;
 
     public async Task AssembleAsync(IReadOnlyCollection<Guid> bookIds, CancellationToken ct)
     {
@@ -63,17 +65,37 @@ public sealed partial class BookAssembler(FlexarrDbContext db, IMediaProbe probe
         }
 
         var probes = new Dictionary<Guid, BookFileProbe?>();
+        var unread = new List<MediaFile>();
         foreach (var file in files)
+        {
+            if (BookFileProbe.FromJson(file.BookProbe) is { } kept)
+            {
+                probes[file.Id] = kept;
+            }
+            else
+            {
+                unread.Add(file);
+            }
+        }
+
+        // Files scanned before their readings were kept: read now, and kept.
+        var read = new System.Collections.Concurrent.ConcurrentDictionary<Guid, BookFileProbe?>();
+        await Parallel.ForEachAsync(unread, new ParallelOptions { MaxDegreeOfParallelism = ProbeConcurrency, CancellationToken = ct }, async (file, token) =>
         {
             try
             {
-                probes[file.Id] = await probe.ProbeBookFileAsync(file.Path, ct).ConfigureAwait(false);
+                read[file.Id] = await probe.ProbeBookFileAsync(file.Path, token).ConfigureAwait(false);
             }
             catch (MediaProbeException ex)
             {
-                probes[file.Id] = null;
+                read[file.Id] = null;
                 LogProbeFailed(PathComparison.Printable(file.Path), PathComparison.Printable(ex.Message));
             }
+        }).ConfigureAwait(false);
+        foreach (var file in unread)
+        {
+            probes[file.Id] = read[file.Id];
+            file.BookProbe = read[file.Id]?.ToJson();
         }
 
         var key = book.Path!;
@@ -285,6 +307,7 @@ public sealed partial class BookAssembler(FlexarrDbContext db, IMediaProbe probe
     }
 
     private readonly Dictionary<(Guid Library, string Name), BookSeries> _series = [];
+    private readonly Dictionary<Guid, List<BookSeries>> _librarySeries = [];
 
     /// <summary>Puts the book in <paramref name="parts"/>' series (and only those) when there are any.</summary>
     private async Task SetSeriesAsync(MediaItem book, IReadOnlyList<SeriesPart> parts, CancellationToken ct)
@@ -323,12 +346,20 @@ public sealed partial class BookAssembler(FlexarrDbContext db, IMediaProbe probe
             return known;
         }
 
-        var all = await db.BookSeries.Where(s => s.LibraryId == libraryId).ToListAsync(ct).ConfigureAwait(false);
-        var series = all.Concat(db.BookSeries.Local.Where(s => s.LibraryId == libraryId)).FirstOrDefault(s => BookInfo.SameSeries(s.Name, name));
+        // The library's series, read once a run; new ones join the list as they're made.
+        if (!_librarySeries.TryGetValue(libraryId, out var all))
+        {
+            all = await db.BookSeries.Where(s => s.LibraryId == libraryId).ToListAsync(ct).ConfigureAwait(false);
+            all.AddRange(db.BookSeries.Local.Where(s => s.LibraryId == libraryId && !all.Contains(s)));
+            _librarySeries[libraryId] = all;
+        }
+
+        var series = all.FirstOrDefault(s => BookInfo.SameSeries(s.Name, name));
         if (series is null)
         {
             series = new BookSeries { LibraryId = libraryId, Name = name.Trim(), SortName = SortTitle.For(name) };
             db.BookSeries.Add(series);
+            all.Add(series);
         }
 
         _series[key] = series;
