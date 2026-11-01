@@ -145,7 +145,7 @@ export function PersonEditor({ person, onSaved, onClose }: { person: Person; onS
           <p className="person-editor-sources">
             <span className="muted">Use</span>
             {biographies.map((b) => (
-              <button key={b.source} type="button" className="text-button" disabled={saving} onClick={() => write(b.text)}>
+              <button key={b.source} type="button" className="text-button" disabled={saving} aria-label={`Use ${sourceName(b.source)}’s biography`} onClick={() => write(b.text)}>
                 {sourceName(b.source)}
               </button>
             ))}

@@ -76,7 +76,7 @@ describe('PersonEditor', () => {
 
     fireEvent.click(await screen.findByRole('radio', { name: 'Open Library' }))
     expect(screen.getByRole<HTMLInputElement>('switch', { name: 'Locked' }).checked).toBe(true)
-    fireEvent.click(screen.getByRole('button', { name: 'Open Library' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Use Open Library’s biography' }))
     expect(screen.getByLabelText<HTMLTextAreaElement>('Biography').value).toBe('Ursula Kroeber Le Guin wrote Earthsea.')
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
