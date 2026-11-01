@@ -85,6 +85,56 @@ public class AudiobookArrTests(FlexarrApiFactory factory) : IClassFixture<Flexar
     }
 
     [Fact]
+    public async Task ABookTheAppHasNoFilesFor_IsDeletedFromDisk_AndA404OnAFileIsDone()
+    {
+        var root = Directory.CreateTempSubdirectory("flexarr-book-delete-").FullName;
+        try
+        {
+            // Book 15: Bookshelf knows it but not its files (imported by hand). Book 16: its one file is already gone there.
+            var (unfiled, unfiledFile) = await BookOnDiskAsync(root, "Unfiled", "15");
+            var (gone, goneFile) = await BookOnDiskAsync(root, "Gone", "16");
+            var arr = new FakeArr();
+            arr.Responses["PUT //bookshelf.test/api/v1/book/monitor"] = "[]";
+            arr.Responses["GET //bookshelf.test/api/v1/bookfile?bookId=15"] = "[]";
+            arr.Responses["GET //bookshelf.test/api/v1/bookfile?bookId=16"] = """[{"id": 42, "bookId": 16, "path": "/data/audiobooks/gone.m4b"}]""";
+            using var app = arr.Serve(factory, bookshelf: true); // DELETE bookfile/42 is a 404
+            var client = Client(app.CreateClient());
+
+            var first = await client.DeleteAsync(new Uri($"/api/v1/items/{unfiled}", UriKind.Relative));
+            var second = await client.DeleteAsync(new Uri($"/api/v1/items/{gone}", UriKind.Relative));
+
+            Assert.Equal((HttpStatusCode.NoContent, HttpStatusCode.NoContent), (first.StatusCode, second.StatusCode));
+            Assert.False(File.Exists(unfiledFile)); // nobody else would have deleted it
+            Assert.True(File.Exists(goneFile)); // the app's to delete, not Flexarr's
+            Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync(new Uri($"/api/v1/items/{unfiled}", UriKind.Relative))).StatusCode);
+            Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync(new Uri($"/api/v1/items/{gone}", UriKind.Relative))).StatusCode);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    private async Task<(Guid Id, string File)> BookOnDiskAsync(string root, string title, string arrId)
+    {
+        var folder = Path.Combine(root, title, title); // a library of its own, at root/title
+        Directory.CreateDirectory(folder);
+        var file = Path.Combine(folder, "book.m4b");
+        await File.WriteAllTextAsync(file, "x");
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        var library = new Library { Name = $"Books {Guid.NewGuid():N}", Type = LibraryType.Audiobooks, Folders = [new LibraryFolder { Path = Path.Combine(root, title) }] };
+        var book = new MediaItem
+        {
+            LibraryId = library.Id, Kind = MediaKind.Audiobook, Title = title, SortTitle = title.ToLowerInvariant(), MetadataSource = "Bookshelf", Path = folder,
+            Book = new BookDetails { ArrBookId = arrId, ArrInstance = "Bookshelf" }, Files = [new MediaFile { Path = file, Size = 1, BookOrder = 0 }],
+        };
+        db.AddRange(library, book);
+        await db.SaveChangesAsync();
+        return (book.Id, file);
+    }
+
+    [Fact]
     public async Task ABookshelfThatRefuses_LeavesTheBookInFlexarr()
     {
         var library = await LibraryAsync();
