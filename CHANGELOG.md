@@ -17,7 +17,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Kids profiles don't see audiobooks. Audible-protected `.aax` files are listed in **Library health**, as they can't be played.
 
 ### Website
-- flexarr.io catches up: Trakt, the watchlist, kids profiles, family invites, dialogue boost and night mode, the iPhone remote, the new setup guide, and a first look at audiobooks.
+- flexarr.io catches up: Trakt, the watchlist, kids profiles, dialogue boost and night mode, the iPhone remote, the new setup guide, and a first look at audiobooks.
 
 ### Libraries
 - Replacing a `cover.jpg` or `poster.jpg` beside your files now shows the new picture in every app after the next scan, instead of the old one staying.
