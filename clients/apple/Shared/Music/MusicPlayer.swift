@@ -124,6 +124,8 @@ final class MusicPlayer {
     @ObservationIgnored var onChange: (() -> Void)?
     /// A book was heard to the end (its id): a download set to go once finished goes, and screens look again.
     @ObservationIgnored var onBookFinished: ((String) -> Void)?
+    /// A book or podcast episode paused or stopped part way, its place reported: Home's Continue row can look again.
+    @ObservationIgnored var onListeningPaused: (() -> Void)?
 
     // MARK: Book mode
 
@@ -588,7 +590,9 @@ final class MusicPlayer {
             }
         }
         if keepingPlace, isBook, let track = current, position > 0 { BookPlaces.save(track.id, position: position) }
+        let listening = keepingPlace && recordsHistory && (isBook || isPodcast) && position > 0
         endSession(reporting: keepingPlace)
+        if listening { onListeningPaused?() }
         clearItem()
         clearBook()
         cancelFade()
@@ -1167,6 +1171,7 @@ final class MusicPlayer {
         }
         if !playing, sessionId != nil || (expiredBookId != nil && expiredBookId == current?.id), player.currentItem != nil { report(paused: true) }
         if !playing, isPlayingOffline, isPodcast || isBook, player.currentItem != nil { recordOffline() }
+        if !playing, recordsHistory, isPodcast || isBook, player.currentItem != nil, position > 0 { onListeningPaused?() }
         watchShakes()
         onChange?()
         nowPlaying.setTime(position: position, duration: duration, rate: playing ? playRate : 0, defaultRate: playRate)
