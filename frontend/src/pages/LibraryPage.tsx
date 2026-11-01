@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
+import { PageError } from '../components/PageStatus'
 import { Link, Navigate, useNavigationType, useParams, useSearchParams } from 'react-router'
 import { forgetPage, freshly, getItem, getLibraryBrowse, getLibraryGenres, getLibraryItems, imageUrl, keepPage, keptPage, scanLibrary, wasDeleted, type ItemSummary, type Library } from '../api/client'
 import { AsyncButton } from '../components/AsyncButton'
@@ -70,7 +71,7 @@ function ViewSwitch({ library, view }: { library: Library; view: 'browse' | 'all
 
 /** A tile for each of the library's genres, with a backdrop from one of its titles; one opens All filtered to it. */
 function LibraryGenres({ library }: { library: Library }) {
-  const { data, error } = useApi((signal) => getLibraryGenres(library.id, signal), [library.id])
+  const { data, error, reload } = useApi((signal) => getLibraryGenres(library.id, signal), [library.id])
   const noun = library.type === 'Movies' ? ['movie', 'movies'] : ['show', 'shows']
   return (
     <div className="library-page">
@@ -81,7 +82,7 @@ function LibraryGenres({ library }: { library: Library }) {
         </div>
       </header>
       {error ? (
-        <p className="page-message error">{error.message}</p>
+        <PageError error={error} onRetry={reload} />
       ) : !data ? (
         <div className="genre-grid" aria-busy="true" />
       ) : data.length === 0 ? (
@@ -193,7 +194,7 @@ function LibraryBrowse({ library }: { library: Library }) {
     </>
   )
 
-  if (error) return <p className="page-message error">{error.message}</p>
+  if (error) return <PageError error={error} onRetry={reload} />
   if (!data) return <div className="hero hero-loading" aria-busy="true" />
   // Every row switched off in Home & browse (or none with anything in it), but the library has titles: show them all.
   if (data.rows.length === 0 && library.itemCount > 0 && !library.scan) return <LibraryAll key={library.id} />

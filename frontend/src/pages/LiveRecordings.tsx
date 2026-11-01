@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { PageLoading } from '../components/PageStatus'
 import { Link } from 'react-router'
 import { ApiError, getRecordings, removeRecording, removeSeries, updateSeries, type Recording, type RecordingSeries } from '../api/client'
 import { AsyncButton, IconButton } from '../components/AsyncButton'
@@ -34,7 +35,7 @@ export default function LiveRecordings() {
 
   const data = recordings.data
   if (recordings.error && !data) return <p className="error">Couldn’t load the recordings: {recordings.error.message}</p>
-  if (!data) return <p className="page-message muted">Loading…</p>
+  if (!data) return <PageLoading />
 
   return (
     <div className="recordings">

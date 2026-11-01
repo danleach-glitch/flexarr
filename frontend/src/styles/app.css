@@ -3160,3 +3160,30 @@ a.download-attention {
   font-size: var(--step--1);
   box-shadow: 0 8px 24px rgb(0 0 0 / 40%);
 }
+
+/* ---------- Page status: a page that's loading or couldn't load (PageStatus.tsx) ---------- */
+
+.page-status {
+  display: grid;
+  justify-items: start;
+  gap: 14px;
+}
+
+.page-status p {
+  margin: 0;
+}
+
+.page-spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--usher);
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: busy-spin 0.8s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-spinner {
+    animation-duration: 2.4s;
+  }
+}

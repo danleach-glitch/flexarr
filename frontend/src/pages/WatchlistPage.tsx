@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { PageLoading } from '../components/PageStatus'
 import { Link, useSearchParams } from 'react-router'
 import { getWatchlist, imageUrl, type WatchlistEntry, type WatchlistStatus } from '../api/client'
 import { PosterCard } from '../components/Cards'
@@ -101,7 +102,7 @@ export function WatchlistPage() {
         )}
       </header>
       {error && <p className="error">{error.message}</p>}
-      {!data && !error && <p className="page-message muted">Loading…</p>}
+      {!data && !error && <PageLoading />}
       {data && data.length === 0 && <p className="muted">Nothing here yet.</p>}
       {data && data.length > 0 && shown.length === 0 && <p className="muted">Nothing on your watchlist matches.</p>}
       <div className="poster-grid">

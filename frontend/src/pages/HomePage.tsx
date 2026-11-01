@@ -1,4 +1,5 @@
 import { Fragment, useEffect } from 'react'
+import { PageError } from '../components/PageStatus'
 import { Link, Navigate } from 'react-router'
 import { getHome, getNewEpisodes, getSetupGuide, type Library } from '../api/client'
 import { EpisodeCard } from '../components/EpisodeCard'
@@ -36,7 +37,7 @@ export function HomePage() {
   const admin = me?.isAdmin === true
   const guide = useApi((signal) => (main ? getSetupGuide(signal).catch(() => null) : Promise.resolve(null)), [main])
 
-  if (error) return <p className="page-message error">{error.message}</p>
+  if (error) return <PageError error={error} onRetry={reload} />
   if (!data || guide.loading) return <div className="hero hero-loading" aria-busy="true" />
   // A new server, with nothing set up and the guide never opened: start there.
   if (guide.data && !guide.data.opened && !guide.data.dismissed && !guide.data.apps && !guide.data.libraries && !data.rows.some((r) => r.style === 'live')) return <Navigate to="/setup" replace />

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react'
+import { PageError, PageLoading } from '../components/PageStatus'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import {
   addPodcast,
@@ -69,8 +70,8 @@ function PodcastsHeader({ view, children }: { view: 'yours' | 'browse'; children
 /** Podcasts need a Podcasts library; without one (or with it hidden from this profile) the page says what to do. */
 function PodcastsGate({ children }: { children: ReactNode }) {
   const status = useApi((signal) => getPodcastStatus(signal), [])
-  if (status.error) return <p className="page-message error">{status.error.message}</p>
-  if (!status.data) return <p className="page-message muted">Loading…</p>
+  if (status.error) return <PageError error={status.error} onRetry={status.reload} />
+  if (!status.data) return <PageLoading />
   if (status.data.available) return <>{children}</>
   return (
     <div className="podcasts-page">
@@ -620,8 +621,8 @@ function PodcastShow() {
     return () => clearTimeout(timer)
   }, [show.data, changed])
 
-  if (show.error) return <p className="page-message error">{show.error instanceof ApiError && show.error.status === 404 ? 'This podcast is no longer here.' : show.error.message}</p>
-  if (!show.data) return <p className="page-message muted">Loading…</p>
+  if (show.error) return <PageError error={show.error} message={show.error instanceof ApiError && show.error.status === 404 ? 'This podcast is no longer here.' : undefined} onRetry={show.reload} />
+  if (!show.data) return <PageLoading />
   const podcast = show.data
   const subscription = podcast.subscription
 
@@ -783,8 +784,8 @@ function EpisodeDetail() {
   const [version, setVersion] = useState(0)
   const episode = useApi((signal) => getPodcastEpisode(id, signal), [id, version])
   const player = useAudioPlayer()
-  if (episode.error) return <p className="page-message error">{episode.error instanceof ApiError && episode.error.status === 404 ? 'This episode is no longer here.' : episode.error.message}</p>
-  if (!episode.data) return <p className="page-message muted">Loading…</p>
+  if (episode.error) return <PageError error={episode.error} message={episode.error instanceof ApiError && episode.error.status === 404 ? 'This episode is no longer here.' : undefined} onRetry={episode.reload} />
+  if (!episode.data) return <PageLoading />
   const e = episode.data
   const progress = episodeProgress(e)
   const playing = player.current?.id === e.id

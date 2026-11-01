@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { PageLoading } from '../components/PageStatus'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { getLiveChannels, getLiveGuide, getLiveTvStatus, type LiveChannel, type LiveGuide, type LiveProgramme } from '../api/client'
 import { FavouriteButton } from '../components/FavouriteButton'
@@ -89,7 +90,7 @@ export default function LiveTvPage() {
       ) : view === 'guide' ? (
         <Guide />
       ) : (
-        <Suspense fallback={<p className="page-message muted">Loading…</p>}>
+        <Suspense fallback={<PageLoading />}>
           <LiveRecordings />
         </Suspense>
       )}
@@ -116,7 +117,7 @@ function OnNow() {
   )
 
   if (error) return <p className="error">Couldn’t load the channels: {error.message}</p>
-  if (!data) return <p className="page-message muted">Loading channels…</p>
+  if (!data) return <PageLoading label="Loading channels" />
   if (data.length === 0) return <p className="page-message muted">No channels yet. Dispatcharr gives Flexarr the channels it has for Flexarr’s user.</p>
 
   return (
@@ -241,7 +242,7 @@ function Guide() {
   const slots = Array.from({ length: hours * 2 }, (_, i) => new Date(from.getTime() + i * 30 * 60_000))
 
   if (failed) return <p className="error">Couldn’t load the guide: {failed}</p>
-  if (!guide) return <p className="page-message muted">Loading the guide…</p>
+  if (!guide) return <PageLoading label="Loading the guide" />
   const anyFavourite = guide.channels.some((c) => c.isFavourite)
   const favouritesOnly = favouritesChosen ?? anyFavourite
   const rows = favouritesOnly ? guide.channels.filter((c) => c.isFavourite) : guide.channels

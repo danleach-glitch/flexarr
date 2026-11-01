@@ -1,4 +1,5 @@
 import { useState, type DragEvent } from 'react'
+import { PageError, PageLoading } from '../components/PageStatus'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import {
   ApiError,
@@ -175,8 +176,8 @@ export function CollectionPage() {
     setVersion((v) => v + 1)
   }
 
-  if (error) return <p className="page-message error">{error.message.includes('404') ? 'That collection isn’t here any more.' : error.message}</p>
-  if (!data) return <p className="page-message muted">Loading…</p>
+  if (error) return <PageError error={error} message={error.message.includes('404') ? 'That collection isn’t here any more.' : undefined} onRetry={reload} />
+  if (!data) return <PageLoading />
 
   const c = data.summary
   const items = order ?? data.items

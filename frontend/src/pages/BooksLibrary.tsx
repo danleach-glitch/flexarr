@@ -1,4 +1,5 @@
 import { Fragment, useState, type ReactNode } from 'react'
+import { PageError } from '../components/PageStatus'
 import { Link, useSearchParams } from 'react-router'
 import {
   getBookGenres,
@@ -77,7 +78,7 @@ export function BooksLibrary({ library }: { library: Library }) {
 function Shelves({ library }: { library: Library }) {
   const { data, error, reload } = useApi((signal) => getBookShelves(library.id, signal), [library.id, library.itemCount])
   useWatchedChanges(reload)
-  if (error) return <p className="page-message error">{error.message}</p>
+  if (error) return <PageError error={error} onRetry={reload} />
   if (!data) return <div className="rows" aria-busy="true" />
   const all = `/library/${library.id}?view=all`
   const empty = [data.continueListening, data.nextInSeries, data.recentlyAdded, data.finished].every((s) => s.length === 0) && data.series.length === 0
@@ -125,8 +126,8 @@ function Shelves({ library }: { library: Library }) {
 
 /** The library's genres, A–Z, as a list (as in the apps), each opening a page of its books. */
 function Genres({ library }: { library: Library }) {
-  const { data, error } = useApi((signal) => getBookGenres(library.id, signal), [library.id, library.itemCount])
-  if (error) return <p className="page-message error">{error.message}</p>
+  const { data, error, reload } = useApi((signal) => getBookGenres(library.id, signal), [library.id, library.itemCount])
+  if (error) return <PageError error={error} onRetry={reload} />
   if (!data) return <div className="book-genres" aria-busy="true" />
   if (data.length === 0) return <p className="page-message muted">No genres here yet.</p>
   const genres = [...data].sort((a, b) => a.name.localeCompare(b.name))

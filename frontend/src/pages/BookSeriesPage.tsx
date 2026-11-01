@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react'
+import { PageError } from '../components/PageStatus'
 import { Link, useParams } from 'react-router'
 import { getBookSeries, imageUrl } from '../api/client'
 import { Artwork } from '../components/Artwork'
@@ -17,7 +18,7 @@ export function BookSeriesPage() {
   useWatchedChanges(reload)
   const player = useAudioPlayer()
 
-  if (error) return <p className="page-message error">{error.message}</p>
+  if (error) return <PageError error={error} onRetry={reload} />
   if (!data) return <div className="music-page" aria-busy="true" />
 
   const next = data.books.find((b) => b.book.id === data.nextId)?.book

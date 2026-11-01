@@ -1,4 +1,5 @@
 import { useMemo, useState, type CSSProperties } from 'react'
+import { PageError } from '../components/PageStatus'
 import { openAddToCollection } from '../components/AddToCollection'
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router'
 import {
@@ -50,9 +51,9 @@ export function ItemPage() {
   const [version, setVersion] = useState(0)
   const [params] = useSearchParams()
   // A series comes with its Up Next and the season to show (picking another season later fetches just that one).
-  const { data, error } = useApi((signal) => getItemPage(id, params.get('season'), signal), [id, version])
+  const { data, error, reload } = useApi((signal) => getItemPage(id, params.get('season'), signal), [id, version])
 
-  if (error) return <p className="page-message error">{error.message}</p>
+  if (error) return <PageError error={error} onRetry={reload} />
   if (!data) return <div className="detail-hero detail-loading" aria-busy="true" />
 
   // Seasons live on their series' page, tracks on their album's.

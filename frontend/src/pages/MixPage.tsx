@@ -1,4 +1,5 @@
 import { useState, type CSSProperties, type MouseEvent } from 'react'
+import { PageError, PageLoading } from '../components/PageStatus'
 import { useParams } from 'react-router'
 import { getMix, imageUrl } from '../api/client'
 import { More, Play } from '../components/icons'
@@ -15,14 +16,14 @@ import { MoreButton, queueActions, shuffled } from './MusicPages'
  */
 export function MixPage() {
   const { id = '' } = useParams()
-  const { data, error } = useApi((signal) => getMix(id, signal), [id])
+  const { data, error, reload } = useApi((signal) => getMix(id, signal), [id])
   const player = useAudioPlayer()
   useMusicPage()
   // One track's menu at a time: which, and where it opened.
   const [trackMenu, setTrackMenu] = useState<{ index: number; at: MenuPoint } | null>(null)
 
-  if (error) return <p className="page-message error">{error.message.includes('404') ? 'That mix was yesterday’s. Today’s are on Home.' : error.message}</p>
-  if (!data) return <p className="page-message muted">Loading…</p>
+  if (error) return <PageError error={error} message={error.message.includes('404') ? 'That mix was yesterday’s. Today’s are on Home.' : undefined} onRetry={reload} />
+  if (!data) return <PageLoading />
 
   const { summary, tracks } = data
   const total = tracks.reduce((sum, t) => sum + (t.durationSeconds ?? 0), 0)

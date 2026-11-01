@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { PageError, PageLoading } from '../components/PageStatus'
 import { useParams } from 'react-router'
 import { getPerson, unlockFirst, type CreditRole } from '../api/client'
 import { Artwork } from '../components/Artwork'
@@ -28,8 +29,8 @@ export function PersonPage() {
   const { me } = useSession()
   const [editing, setEditing] = useState(false)
 
-  if (error) return <p className="page-message error">{error.message}</p>
-  if (!data) return <p className="page-message muted">Loading…</p>
+  if (error) return <PageError error={error} onRetry={reload} />
+  if (!data) return <PageLoading />
 
   const byRole = (Object.entries(roleLabel) as [CreditRole, string][])
     .map(([role, label]) => ({ role, label, credits: data.credits.filter((c) => c.role === role) }))
