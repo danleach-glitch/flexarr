@@ -289,8 +289,10 @@ struct NowPlayingView: View {
                     // Which the scrubber spans: a tap switches.
                     Button(scope.isChapter ? "Chapter" : "Book") { wholeBook.toggle() }
                         .buttonStyle(.plain)
-                        .frame(minHeight: 32)
+                        // A full-size target, overlapping the space around it so the row keeps its height.
+                        .frame(minWidth: 64, minHeight: 44)
                         .contentShape(Rectangle())
+                        .padding(.vertical, -6)
                         .accessibilityLabel(scope.isChapter ? "Showing the chapter" : "Showing the whole book")
                         .accessibilityHint("Switches between the chapter and the whole book")
                 }

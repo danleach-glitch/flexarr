@@ -62,9 +62,40 @@ struct BookTimelineTests {
         #expect(timeline.previousChapterStart(from: 1) == 0)
         #expect(BookTimeline(files: []).chapter(at: 5) == nil)
     }
+
+    @Test func aChapterWithoutAnEndEndsWhereTheNextStarts() {
+        let open = BookTimeline(files: timeline.files,
+                                chapters: [BookChapter(index: 0, title: "One", startSeconds: 0, endSeconds: 0),
+                                           BookChapter(index: 1, title: "Two", startSeconds: 60, endSeconds: 0)])
+        #expect(open.chapterEnd(at: 10) == 60)
+        #expect(open.chapterEnd(at: 100) == 300)
+        #expect(BookTimeline(files: timeline.files).chapterEnd(at: 10) == 300)
+    }
 }
 
 struct BookListeningTests {
+    @Test func smartRewindStaysInTheChapterUnlessPausedAtItsStart() {
+        #expect(SmartRewind.place(from: 100, back: 0, chapterStart: 60) == 100)
+        #expect(SmartRewind.place(from: 100, back: 10, chapterStart: 60) == 90)
+        #expect(SmartRewind.place(from: 65, back: 10, chapterStart: 60) == 60)
+        // Within a second of the chapter's start: back into the one before.
+        #expect(SmartRewind.place(from: 60.5, back: 10, chapterStart: 60) == 50.5)
+        #expect(SmartRewind.place(from: 5, back: 10, chapterStart: nil) == 0)
+    }
+
+    @Test func aPlacePickedWhilePausedPlaysWithoutRewind() {
+        let start = Date(timeIntervalSince1970: 1000)
+        var pause = BookPause()
+        #expect(pause.resumed(at: start) == nil)
+        pause.paused(at: start)
+        pause.paused(at: start.addingTimeInterval(5))
+        #expect(pause.resumed(at: start.addingTimeInterval(30)) == 30)
+        #expect(pause.since == nil)
+        pause.paused(at: start)
+        pause.seeked()
+        #expect(pause.resumed(at: start.addingTimeInterval(30)) == nil)
+    }
+
     @Test func smartRewindGrowsWithThePause() {
         #expect(SmartRewind.seconds(afterPause: 5) == 0)
         #expect(SmartRewind.seconds(afterPause: 10) == 3)

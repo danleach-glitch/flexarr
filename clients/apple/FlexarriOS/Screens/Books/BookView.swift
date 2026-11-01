@@ -199,8 +199,9 @@ struct BookView: View {
                     } label: {
                         Label("Start over", systemImage: "arrow.counterclockwise")
                     }
-                    .confirmationDialog("Start over from the beginning?", isPresented: $confirmingStartOver, titleVisibility: .visible) {
+                    .confirmationDialog("Start over?", isPresented: $confirmingStartOver, titleVisibility: .visible) {
                         Button("Start over", role: .destructive) { Task { await model.listenAgain(item) } }
+                        Button("Cancel", role: .cancel) {}
                     } message: {
                         Text("You're at \(Format.timestamp(position)).")
                     }

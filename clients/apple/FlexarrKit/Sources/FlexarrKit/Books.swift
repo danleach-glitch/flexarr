@@ -467,9 +467,13 @@ public struct BookTimeline: Sendable, Hashable {
         return chapters[index + 1].startSeconds
     }
 
-    /// The end of the chapter `position` is in (the book's end without chapters).
+    /// The end of the chapter `position` is in: its own end, or (when it has none) the next chapter's start, or the
+    /// book's end (also without chapters).
     public func chapterEnd(at position: Double) -> Double {
-        chapter(at: position)?.endSeconds ?? duration
+        guard let index = chapterIndex(at: position) else { return duration }
+        let chapter = chapters[index]
+        if chapter.endSeconds > chapter.startSeconds { return chapter.endSeconds }
+        return index + 1 < chapters.count ? chapters[index + 1].startSeconds : duration
     }
 }
 
@@ -480,6 +484,38 @@ public enum SmartRewind {
         guard pause.isFinite, pause >= 10 else { return 0 }
         let grown = 3 + 27 * log(pause / 10) / log(360)
         return min(30, max(3, grown)).rounded()
+    }
+
+    /// Where playing starts again from `position`, `back` seconds earlier, not crossing back into the chapter before
+    /// (this one starts at `chapterStart`) unless the pause was within a second of this one's start.
+    public static func place(from position: Double, back: Double, chapterStart: Double?) -> Double {
+        guard back > 0 else { return position }
+        let floor = chapterStart.map { position - $0 > 1 ? $0 : 0 } ?? 0
+        return max(0, floor, position - back)
+    }
+}
+
+/// When a book was paused, for smart rewind on playing again. A place the listener goes to while it's paused (a
+/// chapter, a bookmark, Jump to, the scrubber) forgets it, so playing starts right there rather than a little before.
+public struct BookPause: Sendable {
+    public private(set) var since: Date?
+
+    public init() {}
+
+    /// Paused (or still paused): the first pause counts.
+    public mutating func paused(at now: Date) {
+        if since == nil { since = now }
+    }
+
+    /// The listener went somewhere: no rewind when it plays.
+    public mutating func seeked() {
+        since = nil
+    }
+
+    /// Playing again: how long it was paused, or nil (not paused, or moved since); forgotten after.
+    public mutating func resumed(at now: Date) -> TimeInterval? {
+        defer { since = nil }
+        return since.map { now.timeIntervalSince($0) }
     }
 }
 
