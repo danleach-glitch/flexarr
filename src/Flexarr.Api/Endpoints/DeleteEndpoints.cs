@@ -154,6 +154,16 @@ public static partial class DeleteEndpoints
             return new(own, Unmapped: false);
         }
 
+        // Renamed or upgraded there since Flexarr last scanned: none of the files it knows are on disk any more, and
+        // the app's audio files inside the book's own folder are their replacements. Only while no other book of ours
+        // is in that folder: has a file there, or its own folder at or below it (Author/One.m4b beside Author/Two/).
+        if (book.Path is { } folder && !ours.Any(File.Exists)
+            && theirs.Where(f => IsBookAudio(f.Path!) && PathComparison.IsUnder(Mapped(f), folder, PathComparison.FileSystemComparison)).ToList() is { Count: > 0 } inside
+            && !await OtherBooksInAsync(db, book, folder, ct))
+        {
+            return new(inside, Unmapped: false);
+        }
+
         // None ours. Audio files outside this library's folders are most likely ours under a path Flexarr can't map
         // (no path mapping set up, say); audio files inside them are another of our books, and other files another
         // edition (the ebook).
@@ -164,6 +174,22 @@ public static partial class DeleteEndpoints
         string Mapped(ReadarrBookFile f) => PathMapper.Map(f.Path!, options.PathMappings);
     }
 
+    /// <summary>Whether a book other than <paramref name="book"/> has a file in <paramref name="folder"/>, or its folder at or below it.</summary>
+    private static async Task<bool> OtherBooksInAsync(FlexarrDbContext db, MediaItem book, string folder, CancellationToken ct)
+    {
+        bool Inside(string path) => PathComparison.IsUnder(path, folder, PathComparison.FileSystemComparison);
+        var folders = await db.MediaItems.IgnoreQueryFilters().Where(i => i.Kind == MediaKind.Audiobook && i.Id != book.Id && i.Path != null)
+            .Select(i => i.Path!).ToListAsync(ct);
+        if (folders.Any(Inside))
+        {
+            return true;
+        }
+
+        var files = await db.MediaFiles.IgnoreQueryFilters().Where(f => f.MediaItemId != book.Id && f.MediaItem!.Kind == MediaKind.Audiobook)
+            .Select(f => f.Path).ToListAsync(ct);
+        return files.Any(Inside);
+    }
+
     private static bool IsBookAudio(string path) =>
         Path.GetExtension(path) is var extension
         && (MediaFileEnumerator.AudioExtensions.Contains(extension) || MediaFileEnumerator.ProtectedBookExtensions.Contains(extension));
@@ -172,7 +198,9 @@ public static partial class DeleteEndpoints
     /// <param name="Ours">
     /// Its files that are this book's: one of its own files, as Flexarr sees the app's paths (names compared as this
     /// machine's file system does). Not anything inside its folder: a folder holding one book's file beside other
-    /// books' folders (Author/One.m4b, Author/Two/…) is the first book's folder, and the rest aren't its. A book linked
+    /// books' folders (Author/One.m4b, Author/Two/…) is the first book's folder, and the rest aren't its. The one
+    /// exception is a book the app renamed or upgraded before Flexarr rescanned: none of its known files left, no
+    /// other book in its folder, and the app's audio files in that folder are taken as its own. A book linked
     /// only by title and author can be another edition entirely (an ebook in an ebook app, when ours is the
     /// audiobook); its files aren't ours either.
     /// </param>

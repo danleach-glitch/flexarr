@@ -172,6 +172,38 @@ public class AudiobookArrTests(FlexarrApiFactory factory) : IClassFixture<Flexar
     }
 
     [Fact]
+    public async Task ABookTheAppRenamedBeforeARescan_IsStillDeletedThroughTheApp()
+    {
+        // The app upgraded book.m4b to "Renamed (2020).m4b" in the same folder; Flexarr hasn't scanned since.
+        var root = Directory.CreateTempSubdirectory("flexarr-book-delete-").FullName;
+        try
+        {
+            var (book, file) = await BookOnDiskAsync(root, "Renamed", "21");
+            var renamed = Path.Combine(Path.GetDirectoryName(file)!, "Renamed (2020).m4b");
+            File.Move(file, renamed);
+            var arr = new FakeArr();
+            arr.Responses["PUT //bookshelf.test/api/v1/book/monitor"] = "[]";
+            arr.Responses["GET //bookshelf.test/api/v1/bookfile?bookId=21"] = $$"""[{"id": 47, "bookId": 21, "path": "{{renamed}}"}]""";
+            arr.Responses["DELETE //bookshelf.test/api/v1/bookfile/47"] = "{}";
+            using var app = arr.Serve(factory, bookshelf: true);
+            var client = Client(app.CreateClient());
+
+            var preview = await client.GetFromJsonAsync<JsonElement>(new Uri($"/api/v1/items/{book}/deletion", UriKind.Relative));
+            var deleted = await client.DeleteAsync(new Uri($"/api/v1/items/{book}", UriKind.Relative));
+
+            Assert.Equal("Bookshelf", preview.GetProperty("managedBy").GetString());
+            Assert.Equal(HttpStatusCode.NoContent, deleted.StatusCode);
+            Assert.Equal(["PUT /api/v1/book/monitor", "DELETE /api/v1/bookfile/47"],
+                arr.Requests.Where(r => r.StartsWith("PUT", StringComparison.Ordinal) || r.StartsWith("DELETE", StringComparison.Ordinal)));
+            Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync(new Uri($"/api/v1/items/{book}", UriKind.Relative))).StatusCode);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task ABookWhoseAppFilesFlexarrCantMap_IsUnmonitoredThere_ThenDeletedFromDisk()
     {
         // No path mapping for /books: the app's audio file is most likely ours, but Flexarr can't tell which file it is.
