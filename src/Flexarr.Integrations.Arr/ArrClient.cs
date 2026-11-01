@@ -6,8 +6,7 @@ using Flexarr.Integrations.Arr.Models;
 
 namespace Flexarr.Integrations.Arr;
 
-/// <param name="PackageAuthor">Who built the package: tells Bookshelf ("pennydreadful") from Readarr, whose name it keeps.</param>
-public sealed record ArrSystemStatus(string AppName, string Version, string? InstanceName, string? PackageAuthor = null);
+public sealed record ArrSystemStatus(string AppName, string Version, string? InstanceName);
 
 /// <summary>Client for the Sonarr/Radarr/Lidarr REST APIs.</summary>
 public sealed class ArrClient(HttpClient httpClient)
@@ -106,68 +105,6 @@ public sealed class ArrClient(HttpClient httpClient)
             addOptions = new { monitor = "none", searchForMovie = false },
         }, ct);
 
-    // Readarr, Bookshelf, Chaptarr
-    public Task<IReadOnlyList<ReadarrAuthor>> GetAuthorsAsync(ArrInstance readarr, CancellationToken ct = default) =>
-        GetAsync<IReadOnlyList<ReadarrAuthor>>(readarr, "author", ct);
-
-    public Task<IReadOnlyList<ReadarrBook>> GetBooksAsync(ArrInstance readarr, CancellationToken ct = default) =>
-        GetAsync<IReadOnlyList<ReadarrBook>>(readarr, "book", ct);
-
-    /// <summary>One author's books.</summary>
-    public Task<IReadOnlyList<ReadarrBook>> GetAuthorBooksAsync(ArrInstance readarr, string authorId, CancellationToken ct = default) =>
-        GetAsync<IReadOnlyList<ReadarrBook>>(readarr, $"book?authorId={Uri.EscapeDataString(authorId)}", ct);
-
-    /// <summary>The files an author's books have, by book.</summary>
-    public Task<IReadOnlyList<ReadarrBookFile>> GetBookFilesAsync(ArrInstance readarr, string authorId, CancellationToken ct = default) =>
-        GetAsync<IReadOnlyList<ReadarrBookFile>>(readarr, $"bookfile?authorId={Uri.EscapeDataString(authorId)}", ct);
-
-    /// <summary>An author's series, each with its books' places in it.</summary>
-    public Task<IReadOnlyList<ReadarrSeries>> GetBookSeriesAsync(ArrInstance readarr, string authorId, CancellationToken ct = default) =>
-        GetAsync<IReadOnlyList<ReadarrSeries>>(readarr, $"series?authorId={Uri.EscapeDataString(authorId)}", ct);
-
-    /// <summary>Books coming out between two dates by authors it follows.</summary>
-    public Task<IReadOnlyList<ReadarrBook>> GetBookCalendarAsync(ArrInstance readarr, DateTime start, DateTime end, CancellationToken ct = default) =>
-        GetAsync<IReadOnlyList<ReadarrBook>>(readarr, $"calendar?start={start:yyyy-MM-dd}&end={end:yyyy-MM-dd}&includeAuthor=true&unmonitored=false", ct);
-
-    /// <summary>The files the app has for one book.</summary>
-    public Task<IReadOnlyList<ReadarrBookFile>> GetBookFilesForBookAsync(ArrInstance readarr, string bookId, CancellationToken ct = default) =>
-        GetAsync<IReadOnlyList<ReadarrBookFile>>(readarr, $"bookfile?bookId={Uri.EscapeDataString(bookId)}", ct);
-
-    /// <summary>Monitors a book or stops: an unmonitored book isn't searched for or fetched again.</summary>
-    public async Task SetBookMonitoredAsync(ArrInstance readarr, string bookId, bool monitored, CancellationToken ct = default)
-    {
-        // Readarr's ids are numbers; anything else is sent as it came.
-        JsonNode id = long.TryParse(bookId, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var n) ? JsonValue.Create(n) : JsonValue.Create(bookId);
-        using var request = Request(readarr, HttpMethod.Put, "book/monitor");
-        request.Content = JsonContent.Create(new JsonObject { ["bookIds"] = new JsonArray(id), ["monitored"] = monitored }, options: Json);
-        using var response = await httpClient.SendAsync(request, ct).ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
-    }
-
-    /// <summary>Books it knows of matching the words, as it sent them: for adding one back exactly as it describes it.</summary>
-    public Task<JsonArray> LookupBooksRawAsync(ArrInstance readarr, string term, CancellationToken ct = default) =>
-        GetAsync<JsonArray>(readarr, $"book/lookup?term={Uri.EscapeDataString(term)}", ct);
-
-    /// <summary>Quality profiles, metadata profiles or root folders ("qualityprofile", "metadataprofile", "rootfolder").</summary>
-    public Task<JsonArray> GetListAsync(ArrInstance readarr, string what, CancellationToken ct = default) =>
-        GetAsync<JsonArray>(readarr, what, ct);
-
-    /// <summary>Adds a book (and its author, if new) as its lookup described it; the app's answer, with the book's new id.</summary>
-    public Task<JsonObject> AddBookAsync(ArrInstance readarr, JsonObject book, CancellationToken ct = default) =>
-        PostAsync<JsonObject>(readarr, "book", book, ct);
-
-    /// <summary>Asks the app to search for books now.</summary>
-    public Task<JsonObject> SearchBooksAsync(ArrInstance readarr, IReadOnlyList<string> bookIds, CancellationToken ct = default) =>
-        PostAsync<JsonObject>(readarr, "command", new JsonObject
-        {
-            ["name"] = "BookSearch",
-            ["bookIds"] = new JsonArray([.. bookIds.Select(id => long.TryParse(id, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var n) ? (JsonNode)JsonValue.Create(n) : JsonValue.Create(id))]),
-        }, ct);
-
-    /// <summary>Books it knows of matching the words, owned or not: for requests and Fix match.</summary>
-    public Task<IReadOnlyList<ReadarrBook>> LookupBooksAsync(ArrInstance readarr, string term, CancellationToken ct = default) =>
-        GetAsync<IReadOnlyList<ReadarrBook>>(readarr, $"book/lookup?term={Uri.EscapeDataString(term)}", ct);
-
     // Lidarr
     public Task<IReadOnlyList<LidarrArtist>> GetArtistsAsync(ArrInstance lidarr, CancellationToken ct = default) =>
         GetAsync<IReadOnlyList<LidarrArtist>>(lidarr, "artist", ct);
@@ -196,7 +133,6 @@ public sealed class ArrClient(HttpClient httpClient)
         var include = instance.Kind switch
         {
             ArrKind.Radarr => "includeMovie=true",
-            ArrKind.Readarr => "includeAuthor=true&includeBook=true",
             ArrKind.Lidarr => "includeArtist=true&includeAlbum=true",
             _ => "includeSeries=true&includeEpisode=true",
         };

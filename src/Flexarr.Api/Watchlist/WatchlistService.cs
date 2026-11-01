@@ -556,7 +556,7 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
     private async Task<HashSet<string>> RequestedAsync(List<WatchlistEntry> entries, CancellationToken ct)
     {
         var tmdb = entries.Where(e => e.TmdbId is not null).Select(e => e.TmdbId!.Value).ToList();
-        return (await db.MediaRequests.Where(r => r.FulfilledAt == null && r.Kind != MediaKind.Audiobook && tmdb.Contains(r.TmdbId)).Select(r => new { r.Kind, r.TmdbId }).ToListAsync(ct))
+        return (await db.MediaRequests.Where(r => r.FulfilledAt == null && tmdb.Contains(r.TmdbId)).Select(r => new { r.Kind, r.TmdbId }).ToListAsync(ct))
             .Select(r => Key(r.Kind, r.TmdbId)).ToHashSet(StringComparer.Ordinal);
     }
 

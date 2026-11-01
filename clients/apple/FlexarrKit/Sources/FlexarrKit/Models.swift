@@ -424,17 +424,17 @@ public struct PlaylistDetail: Codable, Sendable {
     public let tracks: [PlaylistTrack]
 }
 
-/// Something Sonarr, Radarr or Readarr expects soon: an episode airing, a film or a book coming out.
+/// Something Sonarr or Radarr expects soon: an episode airing or a film coming out.
 public struct UpcomingItem: Codable, Sendable, Identifiable, Hashable {
     public let id: String
     public let kind: MediaKind
     public let title: String
-    /// The show, for an episode; the author, for a book.
+    /// The show, for an episode.
     public var seriesTitle: String? = nil
     public var seasonNumber: Int? = nil
     public var episodeNumber: Int? = nil
     public let date: Date
-    /// "Airs", "In cinemas", "Digital release", "Out" and the like.
+    /// "Airs", "In cinemas", "Digital release" and the like.
     public let when: String
     public var poster: String? = nil
     public var still: String? = nil
@@ -445,7 +445,7 @@ public struct UpcomingItem: Codable, Sendable, Identifiable, Hashable {
     public var overview: String? = nil
     /// In the library and ready to watch. Optional: not every server sends it.
     public var available: Bool? = nil
-    /// The Sonarr, Radarr or Readarr it comes from, by name. Absent from older servers.
+    /// The Sonarr or Radarr it comes from, by name. Absent from older servers.
     public var source: String? = nil
     /// Its page in that app's web UI. Absent from older servers.
     public var manageUrl: String? = nil
@@ -485,9 +485,9 @@ public struct Home: Codable, Sendable {
     /// of new episodes, left out when the profile switched it off. Absent from servers before 0.58, where the app
     /// puts it after Continue watching itself.
     public var placesPodcasts: Bool? = nil
-    /// What Coming soon shows: episodes airing, films and books coming out. Empty when the row is switched off.
+    /// What Coming soon shows: episodes airing, films coming out. Empty when the row is switched off.
     public var upcoming: [UpcomingItem]? = nil
-    /// How many downloads Sonarr, Radarr and Readarr have under way, for Coming soon's heading.
+    /// How many downloads Sonarr and Radarr have under way, for Coming soon's heading.
     public var downloading: Int? = nil
 
     public func overview(for id: String) -> String? {

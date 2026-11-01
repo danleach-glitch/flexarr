@@ -1,7 +1,7 @@
 import FlexarrKit
 import SwiftUI
 
-/// Coming soon: what Sonarr, Radarr and Readarr expect over the next few weeks, a day at a time, as on the web. One in
+/// Coming soon: what Sonarr and Radarr expect over the next few weeks, a day at a time, as on the web. One in
 /// the library opens; anything else opens what's known about it.
 struct ComingSoonView: View {
     @Environment(AppModel.self) private var model

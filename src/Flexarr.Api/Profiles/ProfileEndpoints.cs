@@ -27,8 +27,6 @@ namespace Flexarr.Api.Profiles;
 public sealed record ProfileDto(string Id, string Name, string Color, bool HasPin, bool IsMain, bool IsCurrent, IReadOnlyList<Guid> HiddenLibraryIds, string? Image,
     Guid? RequestShowsLibraryId = null, Guid? RequestFilmsLibraryId = null, IReadOnlyList<string>? LibraryOrder = null, bool AsksPin = false,
     bool AutoRequestWatchlist = false, int? MaxRatingAge = null, bool IsKids = false, bool AsksAdminPin = false,
-    // The audiobooks library its book requests go to; null, the chosen root folder. Absent from servers before 0.58.
-    Guid? RequestAudiobooksLibraryId = null,
     // What's left out of its menu beside the libraries (see NavigationRequest). Absent from servers before 0.58.
     IReadOnlyList<string>? HiddenNavigation = null);
 
@@ -637,7 +635,7 @@ public static partial class ProfileEndpoints
     internal static ProfileDto ToDto(Profile p, CurrentProfile current) =>
         new(p.Id, p.Name, p.Color, p.PinHash is not null, p.IsMain, p.Id == current.Id, p.HiddenLibraryIds, current.ImageUrlFor(p), p.RequestShowsLibraryId,
             p.RequestFilmsLibraryId, p.LibraryOrder, current.AsksPinFor(p), p.AutoRequestWatchlist, p.MaxRatingAge,
-            p.IsKids, current.AsksAdminPinFor(p), p.RequestAudiobooksLibraryId,
+            p.IsKids, current.AsksAdminPinFor(p),
             p.IsKids ? [] : p.HiddenNavigation);
 
 

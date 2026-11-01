@@ -90,7 +90,7 @@ public static class PersonSources
         return text[..(cut > MaxBiography / 2 ? cut : MaxBiography - 1)].TrimEnd() + "…";
     }
 
-    public const string Folder = "folder", Readarr = "readarr", Audible = "audible", OpenLibrary = "openlibrary",
+    public const string Folder = "folder", Audible = "audible", OpenLibrary = "openlibrary",
         Tmdb = "tmdb", TvMaze = "tvmaze", Upload = "upload", Manual = "manual";
 
     /// <summary>

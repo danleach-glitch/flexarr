@@ -362,9 +362,9 @@ data class Home(
      * when the profile switched it off. Absent from servers before 0.58, where the app put it after Continue watching.
      */
     val placesPodcasts: Boolean? = null,
-    /** What Coming soon shows: episodes airing, films and books coming out. Empty when the row is switched off. */
+    /** What Coming soon shows: episodes airing, films coming out. Empty when the row is switched off. */
     val upcoming: List<UpcomingItem> = emptyList(),
-    /** How many downloads Sonarr, Radarr and Readarr have under way, for Coming soon's heading. */
+    /** How many downloads Sonarr and Radarr have under way, for Coming soon's heading. */
     val downloading: Int = 0,
 ) {
     /**
@@ -377,18 +377,18 @@ data class Home(
     }
 }
 
-/** Something Sonarr, Radarr or Readarr expects soon: an episode airing, a film or a book coming out. */
+/** Something Sonarr or Radarr expects soon: an episode airing or a film coming out. */
 @Serializable
 data class UpcomingItem(
     val id: String,
     val kind: MediaKind,
     val title: String,
-    /** The show, for an episode; the author, for a book. */
+    /** The show, for an episode. */
     val seriesTitle: String? = null,
     val seasonNumber: Int? = null,
     val episodeNumber: Int? = null,
     @Serializable(with = InstantSerializer::class) val date: java.time.Instant,
-    /** "Airs", "In cinemas", "Digital release", "Out" and the like. */
+    /** "Airs", "In cinemas", "Digital release" and the like. */
     val `when`: String = "",
     val poster: String? = null,
     val still: String? = null,
@@ -405,14 +405,13 @@ data class UpcomingItem(
 @Serializable
 data class UpcomingDownload(val progress: Double)
 
-/** The card's title: the show, the film, or the book. */
-val UpcomingItem.cardTitle: String get() = if (kind == MediaKind.Audiobook) title else seriesTitle ?: title
+/** The card's title: the show or the film. */
+val UpcomingItem.cardTitle: String get() = seriesTitle ?: title
 
-/** The card's second line: the episode ("S1E3 Title"), a book's author, or how a film comes out ("In cinemas"). */
+/** The card's second line: the episode ("S1E3 Title") or how a movie comes out ("In cinemas"). */
 val UpcomingItem.cardDetail: String
     get() = when (kind) {
         MediaKind.Episode -> "$code $title"
-        MediaKind.Audiobook -> seriesTitle ?: `when`
         else -> `when`
     }
 

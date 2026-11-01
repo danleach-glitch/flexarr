@@ -88,9 +88,6 @@ public sealed class Profile
     /// <summary>The TV library shows this profile requests are added to; null, wherever Seerr adds them by default.</summary>
     public Guid? RequestShowsLibraryId { get; set; }
 
-    /// <summary>The audiobooks library books this profile requests go to; null, the root folder chosen in Settings › Requests.</summary>
-    public Guid? RequestAudiobooksLibraryId { get; set; }
-
     /// <summary>The film library films this profile requests are added to; null, wherever Seerr adds them by default.</summary>
     public Guid? RequestFilmsLibraryId { get; set; }
 

@@ -25,16 +25,6 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<bool>("Abridged")
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("ArrAuthorId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ArrBookId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ArrInstance")
-                        .HasMaxLength(200)
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("Asin")
                         .HasColumnType("TEXT");
 
@@ -62,8 +52,6 @@ namespace Flexarr.Core.Data.Migrations
                         .HasColumnType("TEXT");
 
                     b.HasKey("MediaItemId");
-
-                    b.HasIndex("ArrBookId");
 
                     b.HasIndex("Asin");
 
@@ -1306,9 +1294,6 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<bool>("PodcastsInSidebar")
                         .HasColumnType("INTEGER");
 
-                    b.Property<Guid?>("RequestAudiobooksLibraryId")
-                        .HasColumnType("TEXT");
-
                     b.Property<Guid?>("RequestFilmsLibraryId")
                         .HasColumnType("TEXT");
 
@@ -1735,18 +1720,6 @@ namespace Flexarr.Core.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("BookArrId")
-                        .HasMaxLength(100)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("BookArrInstance")
-                        .HasMaxLength(200)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("BookForeignId")
-                        .HasMaxLength(100)
-                        .HasColumnType("TEXT");
-
                     b.Property<DateTime?>("FulfilledAt")
                         .HasColumnType("TEXT");
 
@@ -1761,10 +1734,6 @@ namespace Flexarr.Core.Data.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime>("RequestedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Title")
-                        .HasMaxLength(500)
                         .HasColumnType("TEXT");
 
                     b.Property<int>("TmdbId")

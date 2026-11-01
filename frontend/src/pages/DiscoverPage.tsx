@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
-import { getExternalDiscover, getGenreItems, getGenres, getRequestStatus, imageUrl, searchBookRequests, searchEverything } from '../api/client'
-import { BookRequestCard } from '../components/BookRequestCard'
+import { getExternalDiscover, getGenreItems, getGenres, imageUrl, searchEverything } from '../api/client'
 import { ExternalCard } from '../components/ExternalCard'
 import { Row } from '../components/Row'
 import { PosterCard } from '../components/Cards'
@@ -27,10 +26,6 @@ export function DiscoverPage() {
     return () => clearTimeout(timer)
   }, [typed, query, setParams])
   const results = useApi((signal) => (query ? searchEverything(query, signal) : Promise.resolve(undefined)), [query])
-  // Books are requested from Readarr, Bookshelf or Chaptarr, when one is set up and there's an audiobooks library.
-  const status = useApi((signal) => getRequestStatus(signal).catch(() => undefined), [])
-  const booksOn = status.data?.books === true
-  const books = useApi((signal) => (query && booksOn ? searchBookRequests(query, signal) : Promise.resolve(undefined)), [query, booksOn])
 
   if (genre) {
     return (
@@ -68,8 +63,8 @@ export function DiscoverPage() {
     <input
       type="search"
       className="discover-search"
-      placeholder={booksOn ? 'Search for any movie, show or book' : 'Search for any movie or show'}
-      aria-label={booksOn ? 'Search for any movie, show or book' : 'Search for any movie or show'}
+      placeholder="Search for any movie or show"
+      aria-label="Search for any movie or show"
       value={typed}
       onChange={(e) => setTyped(e.target.value)}
     />
@@ -115,23 +110,6 @@ export function DiscoverPage() {
               )
             })}
           </>
-        )}
-        {booksOn && (
-          <section className="discover-results">
-            <h2 className="settings-subhead">
-              Audiobooks {books.data && books.data.length > 0 && <span className="health-count">{books.data.length}</span>}
-            </h2>
-            {books.error && <p className="error">{books.error.message}</p>}
-            {books.loading && !books.data && <p className="muted">Searching…</p>}
-            {books.data?.length === 0 && <p className="muted">No books found.</p>}
-            {books.data && books.data.length > 0 && (
-              <div className="poster-grid square">
-                {books.data.map((b) => (
-                  <BookRequestCard key={b.foreignBookId} book={b} query={query} />
-                ))}
-              </div>
-            )}
-          </section>
         )}
       </div>
     )

@@ -57,7 +57,7 @@ import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import io.github.flexarr.ui.theme.FlexarrIcons
 
-/** Coming soon: what Sonarr, Radarr and Readarr expect over the next few weeks, a row a day, as the Apple TV's. */
+/** Coming soon: what Sonarr and Radarr expect over the next few weeks, a row a day, as the Apple TV's. */
 @Composable
 fun TvComingSoonScreen(model: AppModel) {
     val loader = rememberLoader(model.credentials) { UpcomingDays.days(model.client?.upcoming(30).orEmpty()) }

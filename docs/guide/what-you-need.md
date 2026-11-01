@@ -48,14 +48,14 @@ You can run Flexarr without them, but what you get differs by library.
 | Movies | Radarr supplies titles, posters, backgrounds, overviews, genres, ratings, trailers and cast. Movies Radarr doesn't manage are looked up through its search. | Movies are found and play, named from their folders and files. Artwork and details come from any `.nfo` file and images (`poster.jpg`, `fanart.jpg`) in the movie's folder, or from TMDB with a free key of your own. |
 | TV shows | Sonarr supplies show and episode details and artwork. Flexarr adds cast from TVmaze. | Episodes are found and play, organised from names like `S01E02`. Artwork and details come from any `tvshow.nfo`, episode `.nfo` files and images (`poster.jpg`, `season01-poster.jpg`, `-thumb.jpg`) beside them, or from TVmaze, which needs no setup. |
 | Music | Lidarr adds artist pictures, album details and sorts albums, EPs and singles apart. | Works well: Flexarr reads the tags in your files and uses `cover.jpg` or `folder.jpg` images, or art embedded in the files. |
-| Audiobooks (in the next release) | Readarr, Bookshelf or Chaptarr fetch books, add details and covers, and let you request books. | Works well: Flexarr reads the folders, tags and files beside each book, and looks up what's missing on Audible and Open Library. |
+| Audiobooks (in the next release) | No app needed. | Works well: Flexarr reads the folders, tags and files beside each book, and looks up what's missing on Audible and Open Library. |
 | Requests | Seerr lets you search for and request movies and shows from any of the apps. | No requests. |
 | Subtitles | Bazarr lets you search for subtitles from the player, and re-sync ones that are out of time. | Subtitles in or beside your files only. |
 
 A few other things depend on the \*arrs too:
 
 - **New downloads appear straight away** when Sonarr, Radarr or Lidarr tell Flexarr about them with a webhook, which Flexarr adds to each app for you. Without that, Flexarr finds new files on its own scan, every 12 hours, or when you start one in **Settings › Libraries**.
-- **Coming soon**, showing episodes about to air and movies about to be released, comes from Sonarr and Radarr (and, in the next release, books on the way from Readarr).
+- **Coming soon**, showing episodes about to air and movies about to be released, comes from Sonarr and Radarr.
 
 Some features don't need any of them: podcasts are built in, [Live TV](live-tv.md) uses Dispatcharr, and the web app, profiles, downloads to your phone and [importing your history from Plex](import-from-plex.md) all work on their own.
 

@@ -408,8 +408,8 @@ private extension View {
     }
 }
 
-/// What Sonarr, Radarr and Readarr expect soon: episodes airing, films and books coming out, with any download under
-/// way. One already in the library (a show's next episode) opens it; See all opens the Coming soon page.
+/// What Sonarr and Radarr expect soon: episodes airing and movies coming out, with any download under way.
+/// One already in the library (a show's next episode) opens it; See all opens the Coming soon page.
 private struct ComingSoonRow: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(Router.self) private var router

@@ -1,8 +1,0 @@
-{
-  "level": "warning",
-  "message": "No indexers available with Automatic Search enabled, Readarr will not provide any automatic search results",
-  "type": "IndexerSearchCheck",
-  "wikiUrl": "https://wiki.servarr.com/readarr/system#no-indexers-available-with-automatic-search-enabled-readarr-will-not-provide-any-automatic-search-results",
-  "eventType": "Health",
-  "instanceName": "Readarr"
-}

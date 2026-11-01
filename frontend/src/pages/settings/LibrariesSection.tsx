@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import {
-  getRequestStatus,
   ApiError,
   createLibrary,
   deleteLibrary,
@@ -24,7 +23,6 @@ import { libraryIcons } from '../../components/libraryIcons'
 import { useApi } from '../../hooks/useApi'
 import { libraryTypeLabel, relativeTime } from '../../lib/format'
 import { BookDetailsGroup } from './BookDetailsGroup'
-import { BookRequestSetupGroup } from './RequestLibrarySelect'
 import { SaveStatus, SettingLink, SettingRow, SettingsGroup, SettingsHeader } from './shared'
 import { errorText } from './useSettings'
 
@@ -34,8 +32,6 @@ export function LibrariesSection() {
   // Fetch the full list again when libraries come and go or a scan finishes; counts and progress during a scan come
   // from the nav's polled list, so its every poll doesn't send another request.
   const all = useApi(getAllLibraries, [visible.map((l) => `${l.id}:${l.lastScannedAt}`).join()])
-  // How book requests are made, once Readarr (or its like) is connected.
-  const bookRequests = useApi((signal) => getRequestStatus(signal).catch(() => undefined), []).data?.books === true
   const libraries = useMemo(() => {
     const live = new Map(visible.map((l) => [l.id, l]))
     return (all.data ?? visible).map((l) => {
@@ -86,7 +82,6 @@ export function LibrariesSection() {
       )}
       {podcasts && <PodcastLibrary library={podcasts} onMoved={() => all.reload()} />}
       {managed.some((l) => l.type === 'Audiobooks') && <BookDetailsGroup />}
-      {bookRequests && <BookRequestSetupGroup />}
       <LibraryTools />
     </section>
   )

@@ -26,7 +26,7 @@ import { CopyButton } from '../../components/CopyButton'
 import { FolderPicker } from '../../components/FolderPicker'
 import { useApi } from '../../hooks/useApi'
 import { usePolling } from '../../hooks/usePolling'
-import { appLogos, arrLabel } from '../../lib/apps'
+import { appLogos } from '../../lib/apps'
 import { OpenApp, SaveStatus, SettingsGroup, SettingsHeader } from './shared'
 import { errorText, useSettings } from './useSettings'
 
@@ -36,14 +36,13 @@ export const TRAKT_CHANGED = 'flexarr:trakt'
 /** The connections with a form of their own, by the name the open row goes by. */
 type OtherService = 'seerr' | 'bazarr' | 'tmdb' | 'livetv' | 'trakt'
 
-const arrKinds = ['Sonarr', 'Radarr', 'Lidarr', 'Readarr'] as const
+const arrKinds = ['Sonarr', 'Radarr', 'Lidarr'] as const
 
 /** What each app adds, said beside it while it isn't connected. */
 const purpose: Record<ArrKind | OtherService, string> = {
   Sonarr: 'Shows',
   Radarr: 'Movies',
   Lidarr: 'Music',
-  Readarr: 'Audiobooks',
   seerr: 'Discover and requests',
   bazarr: 'Subtitles',
   tmdb: 'Movie details without Radarr',
@@ -360,12 +359,12 @@ function ArrRow({
     void onSave(draft).finally(() => setSaving(false))
   }
 
-  const statusText = test === 'testing' ? 'Testing…' : shown?.ok ? `Connected, ${shown.app ? `${shown.app} ` : ''}version ${shown.version}` : shown ? shown.error : isNew ? notConnected(connection.kind) : 'Checking…'
+  const statusText = test === 'testing' ? 'Testing…' : shown?.ok ? `Connected, version ${shown.version}` : shown ? shown.error : isNew ? notConnected(connection.kind) : 'Checking…'
   return (
     <div className="connection">
       <ConnectionLine
         kind={draft.kind}
-        name={isNew ? arrLabel[draft.kind] : draft.name || draft.kind}
+        name={draft.name || draft.kind}
         ok={shown?.ok}
         status={statusText}
         warning={
@@ -443,7 +442,7 @@ function ArrRow({
   )
 }
 
-const placeholderUrl: Record<ArrKind, string> = { Sonarr: 'http://localhost:8989', Radarr: 'http://localhost:7878', Lidarr: 'http://localhost:8686', Readarr: 'http://localhost:8787' }
+const placeholderUrl: Record<ArrKind, string> = { Sonarr: 'http://localhost:8989', Radarr: 'http://localhost:7878', Lidarr: 'http://localhost:8686' }
 
 /** A service with an address and an API key (Seerr, Bazarr); the key is never sent back, so the form only replaces it. */
 function ServiceRow({
@@ -930,7 +929,7 @@ function FolderState({ folder: f }: { folder: ArrFolder }) {
   }
 }
 
-const titleWords: Record<ArrKind, [string, string]> = { Sonarr: ['show', 'shows'], Radarr: ['movie', 'movies'], Lidarr: ['artist', 'artists'], Readarr: ['book', 'books'] }
+const titleWords: Record<ArrKind, [string, string]> = { Sonarr: ['show', 'shows'], Radarr: ['movie', 'movies'], Lidarr: ['artist', 'artists'] }
 
 /** "the 2 artists", "all 120 shows", "110 of the 120 films": the titles behind a suggestion. */
 function titlesAgreeing(kind: ArrKind, agreeing: number, compared: number) {
@@ -1039,16 +1038,16 @@ function Webhooks({ secret: savedSecret }: { secret?: string | null }) {
         </p>
       )}
       <ul className="plain-list webhook-list">
-        {(['Sonarr', 'Radarr', 'Lidarr', 'Readarr'] as const).map((app) => {
+        {(['Sonarr', 'Radarr', 'Lidarr'] as const).map((app) => {
           const address = `${origin}/api/v1/webhooks/${app.toLowerCase()}?secret=${secret ?? '…'}`
           return (
             <li key={app}>
               <img className="app-logo" src={appLogos[app]} alt="" />
-              <span className="webhook-app">{arrLabel[app]}</span>
+              <span className="webhook-app">{app}</span>
               <code className="secret-field webhook-address" title={address}>
                 {address}
               </code>
-              {secret && <CopyButton text={address} what={`the ${arrLabel[app]} address`} />}
+              {secret && <CopyButton text={address} what={`the ${app} address`} />}
             </li>
           )
         })}

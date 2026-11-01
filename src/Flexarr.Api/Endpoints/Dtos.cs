@@ -110,7 +110,7 @@ public sealed record PersonDto(Guid Id, string Name, string? Image, IReadOnlyLis
     string? Biography = null,
     // An admin fixed the photo or biography by hand, so refreshes leave them alone. Absent from servers before 0.58.
     bool? Locked = null,
-    // Where the photo and biography came from: folder, readarr, audible, openlibrary, tmdb, tvmaze, upload, manual
+    // Where the photo and biography came from: folder, audible, openlibrary, tmdb, tvmaze, upload, manual
     // (more may come). Absent from servers before 0.58.
     string? PhotoSource = null,
     string? BiographySource = null);

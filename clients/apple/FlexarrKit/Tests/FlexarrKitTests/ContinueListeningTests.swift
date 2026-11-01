@@ -76,13 +76,13 @@ struct ContinueListeningTests {
     }
 
     @Test func homeCarriesComingSoon() throws {
-        let json = #"{"featured":[],"rows":[{"id":"upcoming","title":"Coming soon","style":"upcoming","items":[],"link":null}],"overviews":{},"downloading":2,"upcoming":[{"id":"sonarr-Sonarr-7","kind":"Episode","title":"Pilot","seriesTitle":"Brand New","seasonNumber":1,"episodeNumber":1,"date":"2026-11-03T20:00:00Z","when":"Airs","overview":null,"poster":null,"still":"/api/v1/images/remote?u=x","libraryItemId":null,"available":false,"download":{"progress":0.5,"timeLeft":null,"status":"downloading"},"source":"Sonarr","manageUrl":null,"tmdbId":null},{"id":"readarr-B-1","kind":"Audiobook","title":"A Book","seriesTitle":"An Author","seasonNumber":null,"episodeNumber":null,"date":"2026-11-04T00:00:00Z","when":"Out","poster":null,"still":null,"libraryItemId":"01a1","available":false,"download":null}]}"#
+        let json = #"{"featured":[],"rows":[{"id":"upcoming","title":"Coming soon","style":"upcoming","items":[],"link":null}],"overviews":{},"downloading":2,"upcoming":[{"id":"sonarr-Sonarr-7","kind":"Episode","title":"Pilot","seriesTitle":"Brand New","seasonNumber":1,"episodeNumber":1,"date":"2026-11-03T20:00:00Z","when":"Airs","overview":null,"poster":null,"still":"/api/v1/images/remote?u=x","libraryItemId":null,"available":false,"download":{"progress":0.5,"timeLeft":null,"status":"downloading"},"source":"Sonarr","manageUrl":null,"tmdbId":null},{"id":"radarr-Radarr-3","kind":"Movie","title":"A Film","seriesTitle":null,"seasonNumber":null,"episodeNumber":null,"date":"2026-11-04T00:00:00Z","when":"Digital release","poster":null,"still":null,"libraryItemId":"01a1","available":false,"download":null}]}"#
         let home = try FlexarrClient.decoder.decode(Home.self, from: Data(json.utf8))
         #expect(home.rows.first?.style == .upcoming)
         #expect(home.downloading == 2)
-        #expect(home.upcoming?.map(\.title) == ["Pilot", "A Book"])
+        #expect(home.upcoming?.map(\.title) == ["Pilot", "A Film"])
         #expect(home.upcoming?.first?.download?.progress == 0.5)
-        #expect(home.upcoming?.last?.kind == .audiobook)
+        #expect(home.upcoming?.last?.kind == .movie)
         #expect(home.upcoming?.last?.libraryItemId == "01a1")
     }
 }

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Media paths · Flexarr guide</title>
-  <meta name="description" content="Why Flexarr needs to see your files at the same paths as Sonarr, Radarr, Lidarr and Readarr, how to line them up in Docker, and how to use path mappings when you can&#39;t.">
+  <meta name="description" content="Why Flexarr needs to see your files at the same paths as Sonarr, Radarr and Lidarr, how to line them up in Docker, and how to use path mappings when you can&#39;t.">
   <meta name="theme-color" content="#1b1720">
   <meta name="color-scheme" content="dark">
   <meta name="apple-itunes-app" content="app-id=6826618084">
@@ -12,7 +12,7 @@
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <meta property="og:title" content="Media paths · Flexarr guide">
-  <meta property="og:description" content="Why Flexarr needs to see your files at the same paths as Sonarr, Radarr, Lidarr and Readarr, how to line them up in Docker, and how to use path mappings when you can&#39;t.">
+  <meta property="og:description" content="Why Flexarr needs to see your files at the same paths as Sonarr, Radarr and Lidarr, how to line them up in Docker, and how to use path mappings when you can&#39;t.">
   <meta property="og:image" content="https://flexarr.io/shots/og.jpg">
   <meta property="og:url" content="https://flexarr.io/guide/media-paths">
   <meta name="twitter:card" content="summary_large_image">
@@ -115,7 +115,7 @@
       <article>
         <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Your *arrs</p>
         <h1>Media paths</h1>
-        <p class="lede">Why Flexarr needs to see your files at the same paths as Sonarr, Radarr, Lidarr and Readarr, how to line them up in Docker, and how to use path mappings when you can&#39;t.</p>
+        <p class="lede">Why Flexarr needs to see your files at the same paths as Sonarr, Radarr and Lidarr, how to line them up in Docker, and how to use path mappings when you can&#39;t.</p>
         <p class="meta">4 min read</p>
         <nav class="toc" aria-label="On this page">
           <p>On this page</p>
@@ -127,7 +127,7 @@
           </ol>
         </nav>
         <div class="prose">
-<p>Sonarr, Radarr, Lidarr and (in the next release) Readarr talk to Flexarr about files by their <strong>path</strong>. When Sonarr imports an episode, its webhook says &quot;I&#39;ve just put a file in <code>/tv/Some Show/Season 1</code>&quot;, and Flexarr rescans that folder. When you delete a movie, Flexarr works out whether Radarr manages it by comparing paths. If Flexarr sees the same file somewhere else, say <code>/data/media/tv/Some Show/Season 1</code>, it can&#39;t tell they&#39;re the same folder.</p>
+<p>Sonarr, Radarr and Lidarr talk to Flexarr about files by their <strong>path</strong>. When Sonarr imports an episode, its webhook says &quot;I&#39;ve just put a file in <code>/tv/Some Show/Season 1</code>&quot;, and Flexarr rescans that folder. When you delete a movie, Flexarr works out whether Radarr manages it by comparing paths. If Flexarr sees the same file somewhere else, say <code>/data/media/tv/Some Show/Season 1</code>, it can&#39;t tell they&#39;re the same folder.</p>
 <p>This mostly matters in Docker, where each container sees your disks at whatever paths its volumes give it. There are two ways to fix it: give every container the same paths (best), or tell Flexarr how to translate them.</p>
 <h2 id="the-best-fix-the-same-paths-everywhere"><a class="anchor" href="#the-best-fix-the-same-paths-everywhere" aria-hidden="true" tabindex="-1">#</a>The best fix: the same paths everywhere</h2>
 <p>Mount your media at the same path in every container. A common layout is one parent folder, <code>/data/media</code>, with a folder for each kind:</p>
@@ -168,8 +168,8 @@
 <h2 id="when-the-paths-can-t-match-path-mappings"><a class="anchor" href="#when-the-paths-can-t-match-path-mappings" aria-hidden="true" tabindex="-1">#</a>When the paths can&#39;t match: path mappings</h2>
 <p>Sometimes you can&#39;t change the volumes, or the *arrs run in Docker and Flexarr runs natively on a Mac. Then add a <strong>path mapping</strong>: &quot;what Sonarr calls <em>this</em>, Flexarr calls <em>that</em>&quot;.</p>
 <h3 id="in-settings"><a class="anchor" href="#in-settings" aria-hidden="true" tabindex="-1">#</a>In Settings</h3>
-<p>Go to <strong>Settings › Connections</strong> and find <strong>Media folders</strong>. Each root folder of a connected Sonarr, Radarr, Lidarr or Readarr has a line saying where it is on this server.</p>
-<p>Usually Flexarr works this out by itself. It compares the folders the apps keep their shows, movies, artists and books in with the folders Flexarr found the same titles in. Sonarr&#39;s <code>/tv/Severance (2022)</code> and Flexarr&#39;s <code>/data/media/tv/Severance (2022)</code> mean <code>/tv</code> is <code>/data/media/tv</code>. When enough titles agree, Flexarr saves the mapping itself, on its next library scan, and the line goes green.</p>
+<p>Go to <strong>Settings › Connections</strong> and find <strong>Media folders</strong>. Each root folder of a connected Sonarr, Radarr or Lidarr has a line saying where it is on this server.</p>
+<p>Usually Flexarr works this out by itself. It compares the folders the apps keep their shows, movies and artists in with the folders Flexarr found the same titles in. Sonarr&#39;s <code>/tv/Severance (2022)</code> and Flexarr&#39;s <code>/data/media/tv/Severance (2022)</code> mean <code>/tv</code> is <code>/data/media/tv</code>. When enough titles agree, Flexarr saves the mapping itself, on its next library scan, and the line goes green.</p>
 <p>When it&#39;s less sure, the line is amber:</p>
 <ul>
 <li><strong>Use this</strong> saves the folder Flexarr suggests.</li>
@@ -187,7 +187,7 @@
   ]
 }
 </code></pre>
-<p><code>from</code> is the path in Sonarr, Radarr, Lidarr or Readarr; <code>to</code> is the path Flexarr sees. Leave the rest of the file as it is. Flexarr notices the change by itself; restart it if it doesn&#39;t seem to.</p>
+<p><code>from</code> is the path in Sonarr, Radarr or Lidarr; <code>to</code> is the path Flexarr sees. Leave the rest of the file as it is. Flexarr notices the change by itself; restart it if it doesn&#39;t seem to.</p>
 <h3 id="how-mappings-are-applied"><a class="anchor" href="#how-mappings-are-applied" aria-hidden="true" tabindex="-1">#</a>How mappings are applied</h3>
 <ul>
 <li>A mapping covers its folder and everything inside it: <code>/tv</code> maps <code>/tv/Some Show/Season 1/episode.mkv</code> to <code>/data/media/tv/Some Show/Season 1/episode.mkv</code>.</li>

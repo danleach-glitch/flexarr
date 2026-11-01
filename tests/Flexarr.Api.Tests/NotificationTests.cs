@@ -298,60 +298,6 @@ public sealed class NotificationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task ARequestedBookComingIn_IsReadyToListen()
-    {
-        var (_, phone) = await PhoneAsync();
-        await RegisterAsync(phone);
-        await StartAsync();
-        var library = OldLibrary(LibraryType.Audiobooks);
-        await SeedAsync(db =>
-        {
-            db.Libraries.Add(library);
-            db.MediaRequests.Add(new MediaRequest { ProfileId = PlaybackState.DefaultUser, Kind = MediaKind.Audiobook, BookForeignId = "hc:428812", BookArrId = "21",
-                Title = "The Impossible Fortune by Richard Osman", RequestedAt = _clock.Now.AddDays(-2) });
-            db.MediaItems.Add(new MediaItem
-            {
-                LibraryId = library.Id, Kind = MediaKind.Audiobook, Title = "The Impossible Fortune", SortTitle = "impossible fortune", AddedAt = _clock.Now.AddMinutes(1),
-                Book = new Flexarr.Core.Books.BookDetails { ArrBookId = "21" },
-            });
-        });
-
-        var sent = Assert.Single(await RunAtAsync(_clock.Now.AddMinutes(5)));
-
-        Assert.Equal(("Your request is ready", "The Impossible Fortune is ready to listen."), (sent.GetProperty("t").GetString(), sent.GetProperty("b").GetString()));
-    }
-
-    [Fact]
-    public async Task ARequestedBook_IsLookedForInTheAppItWasRequestedFrom()
-    {
-        // Book 21 in another app is another book: the request was made in "Spoken".
-        var (_, phone) = await PhoneAsync();
-        await RegisterAsync(phone);
-        await StartAsync();
-        var library = OldLibrary(LibraryType.Audiobooks);
-        await SeedAsync(db =>
-        {
-            db.Libraries.Add(library);
-            db.MediaRequests.Add(new MediaRequest { ProfileId = PlaybackState.DefaultUser, Kind = MediaKind.Audiobook, BookForeignId = "hc:428812", BookArrId = "21",
-                BookArrInstance = "Spoken", Title = "The Impossible Fortune by Richard Osman", RequestedAt = _clock.Now.AddDays(-2) });
-            db.MediaItems.Add(new MediaItem
-            {
-                LibraryId = library.Id, Kind = MediaKind.Audiobook, Title = "Some Other Book", SortTitle = "some other book", AddedAt = _clock.Now.AddMinutes(1),
-                Book = new Flexarr.Core.Books.BookDetails { ArrBookId = "21", ArrInstance = "Ebooks" },
-            });
-            db.MediaItems.Add(new MediaItem
-            {
-                LibraryId = library.Id, Kind = MediaKind.Audiobook, Title = "The Impossible Fortune", SortTitle = "impossible fortune", AddedAt = _clock.Now.AddMinutes(2),
-                Book = new Flexarr.Core.Books.BookDetails { ArrBookId = "21", ArrInstance = "Spoken" },
-            });
-        });
-
-        var sent = Assert.Single(await RunAtAsync(_clock.Now.AddMinutes(5)));
-
-        Assert.Equal("The Impossible Fortune is ready to listen.", sent.GetProperty("b").GetString());
-    }
-
-    [Fact]
     public async Task ARequestComingIn_TellsWhoAsked_InsteadOfTheUsualNews()
     {
         var (_, phone) = await PhoneAsync();

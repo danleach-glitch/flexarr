@@ -1,12 +1,12 @@
 # Audiobooks: plan
 
-Being built on `library/audiobooks`. Audiobooks become a library type like films, TV and music: the \*arr app finds and organises the books, Flexarr plays them, and it works without an \*arr too. It's built to stand beside the best dedicated audiobook apps, not to be music with longer tracks.
+Being built on `library/audiobooks`. Audiobooks become a library type like films, TV and music: books go in a folder, by hand or with any app, and Flexarr plays them. It's built to stand beside the best dedicated audiobook apps, not to be music with longer tracks.
 
 Decided so far:
 
-- **\*arr:** any Readarr-compatible app (Readarr, Bookshelf, Chaptarr) through one connection type. Readarr itself was retired in June 2025; the forks keep its `/api/v1` and webhooks.
+- **No \*arr connection (dropped 1 November 2026, before release).** The plan was to connect any Readarr-compatible app (Readarr, Bookshelf, Chaptarr) for imports, metadata, Coming soon, deleting and requests. It was built, then taken out: Bookshelf's metadata server can't search by title (it falls back to Goodreads, which times out), doesn't know Audible ASINs, and rate-limits, so on the household server it matched 1 book in 43 and requests, Coming soon and delete-through had nothing to work with. Online metadata (Audible, Open Library, Google Books, Hardcover) and the files themselves do the job instead. The sections below that described the connection are gone; phases 0, 2 and 5 were dropped.
 - **Ebooks:** audiobooks first. The data model leaves room for an ebook edition of the same book later.
-- **First release:** phases 1–5 below plus Android: library and web, the Readarr-compatible connection, online metadata, the iPhone and iPad app, requests, and the Android app. Chapter tools, Apple TV listening, and Home Assistant and MCP come with it. The branch lands whole, so there's no preview setting.
+- **First release:** phases 1–5 below plus Android: library and web, online metadata, the iPhone and iPad app, and the Android app. Chapter tools, Apple TV listening, and Home Assistant and MCP come with it. The branch lands whole, so there's no preview setting.
 - **Later:** the Audiobookshelf import, listening stats, voice boost and silence trimming, the automatic sleep timer, Android TV, ebooks.
 - **Kids profiles** never see audiobooks, like podcasts.
 - **The end of a book in a series** offers the next book with a Play button; it never starts by itself. A finished book leaves Continue listening straight away.
@@ -60,8 +60,6 @@ Each line lists the phase that delivers it.
 
 ### Getting books
 
-- **Readarr, Bookshelf or Chaptarr:** imports rescan the book straight away. Their metadata fills gaps. Deleting a book in Flexarr deletes it there. Coming soon shows their upcoming releases. *(2)*
-- **Requests in Flexarr:** search for a book you don't have and request it. The \*arr is told to find it, and the requester is notified when it's ready. *(5)*
 - **Import from Audiobookshelf:** progress, finished books, bookmarks and listening history for each person. *(6)*
 
 ## Library layout and scanning
@@ -82,7 +80,7 @@ Author - Title [B0DPXK6Y7B].m4b                  an Audible ASIN in the file nam
 
 - **Files:** m4b, m4a, mp3, aac, flac, ogg/opus, wma. A folder of audio files is one book, and disc-like subfolders (CD1, Disc 2, Part 3) are parts of it. Files are ordered by disc and track tag, then natural sort of the name.
 - **Order of trust, highest first:**
-  1. sidecar files: `metadata.opf` (written by Readarr, Bookshelf and Calibre), `desc.txt`, `reader.txt`, `cover.jpg/png`, and Audiobookshelf's `metadata.json`
+  1. sidecar files: `metadata.opf` (written by Calibre and other book managers), `desc.txt`, `reader.txt`, `cover.jpg/png`, and Audiobookshelf's `metadata.json`
   2. embedded tags: album for title, album artist or artist for author, composer for narrator, `MVNM`/`MVIN` or grouping for series, `ASIN`/`AUDIBLE_ASIN`, ISBN
   3. the folder path
   4. the \*arr
@@ -123,9 +121,7 @@ Things to fix along the way:
 - `LibraryVisibility.Hides` sends any unknown kind to Music. Give books their own case.
 - The web's `Record<LibraryType, …>` maps (`libraryIcons.ts`, `format.ts`) need the new value.
 - The released apps don't hide a library whose type decodes as `unknown`: iPhone, Apple TV, Android and Android TV show it as a film grid and open its items as videos. Every app now skips unknown library types.
-- `ArrId` and `MediaRequest.TmdbId` are numbers, but Chaptarr's IDs are text (`hc:`, `gr:`), so books get new text columns.
 - `ShowPlaybackSpeed` deletes a 1× row as "use the default". With a profile default other than 1×, books store an explicit 1×.
-- `ArrInstance.ApiVersion` gives every kind but Lidarr v3; Readarr needs v1.
 
 ## Playback
 
@@ -163,28 +159,6 @@ All under `/api/v1`, for the current profile. Fields new to existing DTOs are op
 
 `ItemSummaryDto.book` (`BookSummaryDto`): authors (two at most, "A, B"), authorCount, narrator, series, sequence, durationSeconds, finishedAt. `MediaKind.Audiobook`, `LibraryType.Audiobooks`. Smart rewind is the player's: none under 10 s of pause, then growing to about 30 s after an hour.
 
-## \*arr integration (Readarr-compatible)
-
-- **Connection:** `ArrKind.Readarr`, labelled *Readarr / Bookshelf / Chaptarr*, on API v1 like Lidarr. `GET /api/v1/system/status` tells which one it is.
-  - **Bookshelf:** one instance per format, so people add their audiobook instance. Flexarr already supports several instances of a kind.
-  - **Chaptarr:** handles both formats in one instance. Flexarr keeps only audiobook files, by extension and by Chaptarr's format field.
-- **Webhook** `POST /webhooks/readarr?secret=…`:
-  - **Rescan** the book's folder (from `bookFiles[].path`) on `Download` (import or upgrade), `Rename`, `Retag`, `BookFileDelete` and `BookDelete`.
-  - **Rescan** the author's folder (`author.path`) on `AuthorAdded` and `AuthorDelete`.
-  - **Reply** `200` to `Test`; ignore `Grab` and `Health`.
-  - **Paths** go through the existing path mappings.
-- **Metadata from the \*arr**, with no keys of our own (like `LidarrMatcher`):
-  - **Matching:** fetch authors and books once per refresh, then match by book file path, then ASIN/ISBN, then title and author.
-  - **Fills:** gaps only — author names, photos and biographies, book descriptions, series and order, covers, release dates.
-  - **IDs:** Chaptarr's IDs carry a provider prefix (`hc:`, `gr:`), so they're stored as plain text and never parsed as numbers.
-- **Delete:** deleting a book in Flexarr deletes its files through the \*arr and unmonitors the book, so it isn't fetched again.
-- **Coming soon and activity:** the calendar (`/api/v1/calendar`) adds upcoming books by followed authors to Coming soon. The queue shows books on their way.
-- **Requests** (phase 5): Seerr doesn't handle books, so Flexarr talks to the \*arr directly.
-  1. **Search:** `GET /api/v1/book/lookup?term=` shows results with covers and labels for "In your library", "Requested" or "Available to request".
-  2. **Request:** adds the author if they're new (with the quality profile, metadata profile and root folder chosen in Settings › Requests). It monitors only that book and starts a search.
-  3. **Storage:** requests use the existing `MediaRequest` table, permissions and notifications. Each profile gets a destination library (`RequestAudiobooksLibraryId`), as for shows and films.
-  4. **Ready:** the import webhook marks the request available and notifies the requester: "*Project Hail Mary* is ready to listen".
-
 ## Metadata providers
 
 Providers sit behind one interface, and admins set their order and region (Audible has separate stores: US, UK, CA, AU, DE, FR, …):
@@ -194,7 +168,7 @@ Providers sit behind one interface, and admins set their order and region (Audib
 | Audible, through Audnexus | title, subtitle, authors, narrators, series and order, description, cover, genres, chapters with exact times, author photos and biographies | Lookups by ASIN. Search runs on Audible's catalogue by title and author. Both are unofficial and community-run, so the results are cached and nothing depends on them staying up |
 | Open Library | ISBN lookups, covers, author data | Free, no key needed |
 | Google Books | descriptions and covers by ISBN or title | Optional key |
-| Hardcover | series, ratings, descriptions | Optional token. It's what Bookshelf uses, so IDs line up |
+| Hardcover | series, ratings, descriptions | Optional token |
 
 - **Fix match:** search every provider, pick a result, and lock it. This is the existing `MatchLocked` flow.
 - **Chapter tools** (phase 8):
@@ -226,16 +200,16 @@ Built the way the Plex history import is (`PlexImporter`):
 
 ## Phases
 
-The first release covers phases 0–5 and 7, plus chapter tools, Apple TV listening and Home Assistant/MCP from phase 8. It lands as one branch, so main never has it half-built.
+The first release covers phases 0, 1, 3, 4 and 7, plus chapter tools, Apple TV listening and Home Assistant/MCP from phase 8. It lands as one branch, so main never has it half-built.
 
 | # | Phase | Size |
 |:-:|---|:-:|
-| 0 | **Try things on the Mini:** run Bookshelf and Chaptarr, capture real webhook payloads and API responses as test fixtures, and gather a sample library covering every layout above | S |
+| 0 | **Try things on the Mini:** gather a sample library covering every layout above | S |
 | 1 | **Library and web:** library type, scanner, sidecars, tags and chapters, data model and migration, book manifest and HLS, progress, bookmarks, web browse and player | L |
-| 2 | **Readarr-compatible connection:** webhook, metadata matcher, delete, Coming soon, Settings › Connections | M |
+| 2 | ~~\*arr connection~~ (dropped, see the top) | — |
 | 3 | **Online metadata:** Audnexus/Audible, Open Library, Google Books, Hardcover; Fix match; author photos | M |
 | 4 | **iPhone and iPad:** browse, player, downloads, lock screen, CarPlay, widget, Siri. Remove the preview setting | L |
-| 5 | **Requests** through the \*arr | M |
+| 5 | ~~Requests through the \*arr~~ (dropped with it) | — |
 | 6 | **Import from Audiobookshelf** | S–M |
 | 7 | **Android** (after its audio player) | M |
 | 8 | **Polish:** listening stats, chapter tools, voice boost and silence trimming, automatic sleep timer, Apple TV | M |
@@ -244,13 +218,11 @@ The first release covers phases 0–5 and 7, plus chapter tools, Apple TV listen
 ## Testing
 
 - **Scanner:** test fixtures made with ffmpeg at test time (short tones with chapter metadata, tagged m4b and mp3, disc folders, sidecars). One test per layout above.
-- **Webhooks and API:** recorded payloads from Readarr, Bookshelf and Chaptarr from phase 0.
 - **Timeline:** position ↔ file mapping, with tests at file boundaries and for files that disagree with their tagged durations.
-- **On the Mini:** a real library, with the \*arr connected to it.
+- **On the Mini:** a real library.
 
 ## Risks and open questions
 
-- **Chaptarr is beta**, and its API may drift from Readarr's. The phase 0 fixtures and a tolerant parser (unknown fields ignored, IDs kept as text) limit the damage.
 - **Audnexus and Audible's catalogue are unofficial.** The cache, local chapters and other providers keep the library working if they change or go away.
 - **The Mac app's sandbox:** nothing here runs another program apart from ffprobe/ffmpeg, and library folders are chosen with `FolderPicker`, so it fits.
 - **Big libraries** (10,000+ books): browse queries page, and series and author pages are indexed like music's.

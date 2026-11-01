@@ -61,7 +61,7 @@ import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
 /**
- * Coming soon: what Sonarr, Radarr and Readarr expect over the next few weeks, a day at a time, as on the web and the
+ * Coming soon: what Sonarr and Radarr expect over the next few weeks, a day at a time, as on the web and the
  * iPhone. One in the library opens; anything else opens what's known about it.
  */
 @OptIn(ExperimentalMaterial3Api::class)
