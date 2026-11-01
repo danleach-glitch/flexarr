@@ -154,8 +154,15 @@ class Navigator(private val nav: NavHostController, private val model: AppModel,
         changeWatchState("Couldn’t mark the show as watched") { it.setWatched(show, true) }
     }
 
-    fun removeFromContinueWatching(item: ItemSummary) =
+    /**
+     * Takes a title out of Continue watching. A book or episode loaded in its player stops there first, without
+     * sending its place, so a later report can't put it straight back.
+     */
+    fun removeFromContinueWatching(item: ItemSummary) {
+        if (model.books.current?.id == item.id) model.books.stop(reportsPlace = false)
+        if (model.podcasts.current?.id == item.id) model.podcasts.stop(reportsPlace = false)
         changeWatchState("Couldn’t remove this from Continue Watching") { it.removeFromContinueWatching(item.id) }
+    }
 
     /** A film or episode downloaded at Settings' size. */
     fun download(item: ItemSummary) {
