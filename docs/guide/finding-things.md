@@ -41,7 +41,7 @@ A movie's or show's page has the same buttons on every app, in the same order:
 
 ## Discover
 
-**Discover** is on the web and the Apple TV. With Seerr connected, it has rows of movies and shows from beyond your library: **Trending this week**, **Popular movies**, **Popular new shows** and **Coming to cinemas**, and **For you, from Trakt** if you've connected [Trakt](trakt.md). Its search box finds any movie or show, to add to your watchlist or [request](requests.md).
+**Discover** is on the web, Apple TV and Android TV. With Seerr connected, it has rows of movies and shows from beyond your library: **Trending this week**, **Popular movies**, **Popular new shows** and **Coming to cinemas**, and **For you, from Trakt** if you've connected [Trakt](trakt.md). Its search box finds any movie or show, to add to your watchlist or [request](requests.md).
 
 Below the rows, **Your library by genre** has a tile for each genre in your libraries.
 
