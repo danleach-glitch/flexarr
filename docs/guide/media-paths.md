@@ -1,9 +1,9 @@
 ---
 title: Media paths
-description: Why Flexarr needs to see your files at the same paths as Sonarr, Radarr and Lidarr, how to line them up in Docker, and how to use path mappings when you can't.
+description: Why Flexarr needs to see your files at the same paths as Sonarr, Radarr, Lidarr and Readarr, how to line them up in Docker, and how to use path mappings when you can't.
 ---
 
-Sonarr, Radarr and Lidarr talk to Flexarr about files by their **path**. When Sonarr imports an episode, its webhook says "I've just put a file in `/tv/Some Show/Season 1`", and Flexarr rescans that folder. When you delete a film, Flexarr works out whether Radarr manages it by comparing paths. If Flexarr sees the same file somewhere else, say `/data/media/tv/Some Show/Season 1`, it can't tell they're the same folder.
+Sonarr, Radarr, Lidarr and (in the next release) Readarr talk to Flexarr about files by their **path**. When Sonarr imports an episode, its webhook says "I've just put a file in `/tv/Some Show/Season 1`", and Flexarr rescans that folder. When you delete a film, Flexarr works out whether Radarr manages it by comparing paths. If Flexarr sees the same file somewhere else, say `/data/media/tv/Some Show/Season 1`, it can't tell they're the same folder.
 
 This mostly matters in Docker, where each container sees your disks at whatever paths its volumes give it. There are two ways to fix it: give every container the same paths (best), or tell Flexarr how to translate them.
 
@@ -54,18 +54,18 @@ Sometimes you can't change the volumes, or the *arrs run in Docker and Flexarr r
 
 ### In Settings
 
-Go to **Settings › Connections** and find **Media folders**. Each of Sonarr, Radarr and Lidarr's root folders has a line saying where it is on this server.
+Go to **Settings › Connections** and find **Media folders**. Each root folder of a connected Sonarr, Radarr, Lidarr or Readarr has a line saying where it is on this server.
 
-Usually Flexarr works this out by itself. It compares the folders Sonarr, Radarr and Lidarr keep their shows, films and artists in with the folders Flexarr found the same titles in. Sonarr's `/tv/Severance (2022)` and Flexarr's `/data/media/tv/Severance (2022)` mean `/tv` is `/data/media/tv`. When enough titles agree, Flexarr saves the mapping itself, on its next library scan, and the line goes green.
+Usually Flexarr works this out by itself. It compares the folders the apps keep their shows, films, artists and books in with the folders Flexarr found the same titles in. Sonarr's `/tv/Severance (2022)` and Flexarr's `/data/media/tv/Severance (2022)` mean `/tv` is `/data/media/tv`. When enough titles agree, Flexarr saves the mapping itself, on its next library scan, and the line goes green.
 
 When it's less sure, the line is amber:
 
 - **Use this** saves the folder Flexarr suggests.
 - **Choose another** or **Choose folder** lets you pick the folder on the server yourself.
 
-The app's line under **Apps** also says when one of its folders isn't found.
+The app's line under **Apps & Integrations** also says when one of its folders isn't found, with **Find it** to jump to it.
 
-To write a mapping yourself, choose **Edit by hand** (or **Add one by hand**). In **Path in the app**, type the path the *arr app uses, such as `/tv`. In **Path on this server**, type where Flexarr sees the same folder, such as `/data/media/tv`. Then choose **Save**. Mappings apply straight away, and titles that weren't linked to Sonarr, Radarr or Lidarr are matched again.
+To write a mapping yourself, go to **Path mappings** at the bottom of **Media folders** and choose **Edit mappings** (or **Add a mapping** if there are none yet). In **Path in the app**, type the path the *arr app uses, such as `/tv`. In **Path on this server**, type where Flexarr sees the same folder, such as `/data/media/tv`. **Add a mapping** adds another line, and the bin takes one out. Then choose **Save**. Flexarr rescans your libraries straight away, and titles that weren't linked to the apps are matched again as the scan finishes.
 
 If you take out a mapping Flexarr saved itself, it doesn't add it back.
 
@@ -82,7 +82,7 @@ The same mappings are kept in the server's `config.json` (in `/config` in Docker
 }
 ```
 
-`from` is the path in Sonarr, Radarr or Lidarr; `to` is the path Flexarr sees. Leave the rest of the file as it is. Flexarr notices the change by itself; restart it if it doesn't seem to.
+`from` is the path in Sonarr, Radarr, Lidarr or Readarr; `to` is the path Flexarr sees. Leave the rest of the file as it is. Flexarr notices the change by itself; restart it if it doesn't seem to.
 
 ### How mappings are applied
 

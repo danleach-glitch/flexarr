@@ -3,9 +3,12 @@ title: Audiobooks
 description: An audiobooks library with chapters, series, authors and narrators, a player with speed, smart rewind, a sleep timer and bookmarks, and books on your phone offline.
 ---
 
+> **Note**
+> Audiobooks arrive in the next release of Flexarr.
+
 Audiobooks are a library like films, TV and music. Flexarr finds the books in your folders, reads their chapters and details, and plays each book as one, however many files it has. Readarr, Bookshelf or Chaptarr can fetch books for it, but they don't have to: a folder of audiobooks is enough.
 
-Books are on the web, iPhone and iPad, Android and the Apple TV. Kids profiles don't see them.
+Books are on the web, iPhone, iPad and the Apple TV. Kids profiles don't see them.
 
 ## Adding the library
 
@@ -29,11 +32,11 @@ Author - Title [B0DPXK6Y7B].m4b                  an Audible id in the name
 
 ## Finding books
 
-The library's front page has **Continue listening**, **Next in series**, **Recently added**, your series, authors, narrators and genres, and what you've finished. **All** lists every book, with filters for what you haven't started, are part way through or have finished, and by narrator, length and language.
+The library's front page has **Continue listening**, **Next in series**, **Recently added**, your series, authors, narrators and genres, and what you've finished. **All books** lists every book, with filters for what you haven't started, are part way through or have finished, and by narrator, length and language.
 
 A book's page shows its series ("Book 3 of 7"), authors and narrators, how long it is and how long is left at your speed, its chapters, and more in the series, by the author and read by the narrator. A series' page lists its books in order with the next one to hear picked out.
 
-**Home** can show **Continue listening**, **Next in series** and **New audiobooks**: turn them on or off in **Settings › Home**.
+**Home** can show **Continue listening**, **Next in series** and **New audiobooks**: the main profile turns them on or off in **Settings › Home and Browse** on the web.
 
 ## Listening
 
@@ -42,23 +45,25 @@ A book's page shows its series ("Book 3 of 7"), authors and narrators, how long 
 - **Smart rewind:** after a pause, a book starts a little earlier, more the longer you were away.
 - **Sleep timer:** after some minutes or at the end of the chapter. On a phone, shake it to add time.
 - **Bookmarks**, with a note if you like, are on the book's page and in the player.
-- **Finished:** a book counts as finished in its last two minutes. **Start over** goes back to the beginning and keeps the record. Part-way through a book, it asks first.
+- **Finished:** a book counts as finished in its last two minutes or last 2%, whichever comes first, or when you choose **Mark finished** on its page. **Start over** goes back to the beginning and keeps the record. Part-way through a book, it asks first.
 - **Across devices:** your place is saved as you listen. If another device got further, the player offers to jump there.
 - At the end of a book in a series, the player offers the next one.
 
 In the player, the seek bar covers the chapter playing; switch it to **Book** to see the whole book. Time left counts at your speed.
 
-Set your default speed, skip steps and smart rewind in **Settings › Audiobooks** on the web, iPhone and Android. A book you've set a speed for in the player keeps its own.
+Set your default speed, skip steps and smart rewind in **Settings › Audiobooks** on the web or iPhone. They're your profile's, on every device. A book you've set a speed for in the player keeps its own.
 
 ## On your phone
 
-**Download** a book to listen without a connection. Your place is sent when you're back online. In the car, CarPlay and Android Auto list what you're listening to and what you've downloaded.
+**Download** a book on iPhone or iPad to listen without a connection. Your place is sent when you're back online. In **Settings › Downloads**, **Download the next book in a series** fetches the next one when you finish a book, and **Remove books once finished** deletes a book when you've heard it. Both are off to start with. See [Downloads](downloads.md).
+
+The **Continue listening** widget and "Resume listening in Flexarr" with Siri pick up the book you're on. CarPlay will list books too, once Apple approves Flexarr for CarPlay.
 
 ## Details from the internet
 
-When a book's files leave gaps, Flexarr fills them from Audible (through the community-run Audnexus service), Open Library, and if you add keys, Google Books and Hardcover. Choose your Audible store in the web app's **Settings › Audiobooks**; Google Books and Hardcover turn on once their key or token is saved there.
+When a book's files leave gaps, Flexarr fills them from Audible (through the community-run Audnexus service), Open Library, and if you add keys, Google Books and Hardcover. The main profile chooses the **Audible store** in the web app's **Settings › Audiobooks**; Google Books and Hardcover turn on once their key or token is saved there.
 
-Audible's chapters replace guessed ones when they match the book's length. To change a book's chapters yourself, open its page, choose **⋯ › Edit chapters**, rename them or move them all by a few seconds, then **Save**. **Use Audible's** fills them in; **Save** keeps them. **Fix match** finds the right book when Flexarr picked the wrong one.
+Audible's chapters replace guessed ones when they match the book's length. On the web, the main profile can change a book's chapters: open its page, choose **⋯ › Edit chapters…**, rename them or **Shift all by** a few seconds, then **Save**. **Use Audible's** fills them in; **Save** keeps them. **⋯ › Fix match…** finds the right book when Flexarr picked the wrong one.
 
 ### Author photos
 

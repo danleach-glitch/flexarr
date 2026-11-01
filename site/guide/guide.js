@@ -52,20 +52,33 @@ function score(page, words) {
 
 function show(items, words) {
   active = -1;
-  if (!words.length) { list.hidden = true; input.setAttribute('aria-expanded', 'false'); return; }
+  if (!words.length) { list.hidden = true; input.setAttribute('aria-expanded', 'false'); input.removeAttribute('aria-activedescendant'); status.textContent = ''; return; }
   list.innerHTML = items.length
     ? items.map(({ page, anchor }) => {
         const href = `/guide/${page.slug}${anchor ? '#' + anchor[0] : ''}`;
         const where = anchor ? `${page.title} › ${anchor[1]}` : page.title;
-        return `<li><a href="${href}">${mark(where, words)}<small>${mark(page.description, words)}</small></a></li>`;
+        return `<li role="option" aria-selected="false"><a href="${href}" tabindex="-1">${mark(where, words)}<small>${mark(page.description, words)}</small></a></li>`;
       }).join('')
     : '<li class="none">Nothing found. Try fewer words, or look in Troubleshooting.</li>';
+  [...list.querySelectorAll('[role=option]')].forEach((li, i) => (li.id = `guide-result-${i}`));
+  input.removeAttribute('aria-activedescendant');
   list.hidden = false;
   input.setAttribute('aria-expanded', 'true');
+  status.textContent = items.length ? `${items.length} ${items.length === 1 ? 'result' : 'results'}` : 'Nothing found';
 }
 
+// Read out how many results there are, for screen readers.
+const status = Object.assign(document.createElement('p'), { className: 'visually-hidden' });
+status.setAttribute('role', 'status');
+
 if (input && list) {
+  // The search box is a combobox over a list of results, so screen readers follow the arrow keys.
+  input.setAttribute('role', 'combobox');
+  input.setAttribute('aria-autocomplete', 'list');
   input.setAttribute('aria-expanded', 'false');
+  list.setAttribute('role', 'listbox');
+  list.setAttribute('aria-label', 'Results');
+  list.after(status);
   input.addEventListener('focus', load, { once: true });
   input.addEventListener('input', async () => {
     const words = input.value.toLowerCase().split(/\s+/).filter(w => w.length > 1);
@@ -84,7 +97,8 @@ if (input && list) {
     e.preventDefault();
     if (e.key === 'Enter') { (links[active] ?? links[0]).click(); return; }
     active = (active + (e.key === 'ArrowDown' ? 1 : -1) + links.length) % links.length;
-    links.forEach((a, i) => a.setAttribute('aria-selected', i === active));
+    links.forEach((a, i) => a.parentElement.setAttribute('aria-selected', i === active));
+    input.setAttribute('aria-activedescendant', links[active].parentElement.id);
     links[active].scrollIntoView({ block: 'nearest' });
   });
   document.addEventListener('click', e => { if (!e.target.closest('.search')) list.hidden = true; });

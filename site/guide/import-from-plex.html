@@ -72,6 +72,7 @@
             <details class="section">
             <summary>Watching and listening</summary>
             <ul>
+              <li><a href="/guide/finding-things">Finding things</a></li>
               <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
               <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
               <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
@@ -115,7 +116,7 @@
         <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Looking after it</p>
         <h1>Bring your history over from Plex</h1>
         <p class="lede">Copy what each person has watched, and where they stopped, from Plex Media Server into Flexarr, matched by file and without changing Plex.</p>
-        <p class="meta">3 min read</p>
+        <p class="meta">4 min read</p>
         <nav class="toc" aria-label="On this page">
           <p>On this page</p>
           <ol>
@@ -138,14 +139,14 @@
 <p>Each Plex user&#39;s history goes into the Flexarr profile you choose, so the household&#39;s histories stay apart.</p>
 <h2 id="what-doesn-t"><a class="anchor" href="#what-doesn-t" aria-hidden="true" tabindex="-1">#</a>What doesn&#39;t</h2>
 <ul>
-<li><strong>Music.</strong> Only films and episodes are brought over.</li>
+<li><strong>Music and audiobooks.</strong> Only films and episodes are brought over.</li>
 <li><strong>Files Flexarr doesn&#39;t have.</strong> Titles are matched by the file on disk, not by name. If a file Plex knows about isn&#39;t in one of your Flexarr libraries, it&#39;s skipped and counted in the summary.</li>
 <li><strong>Anything else in Plex</strong>: playlists, collections, ratings, server settings and users. Create profiles in Flexarr yourself (<a href="/guide/profiles">Profiles</a>).</li>
 </ul>
 <h2 id="before-you-start"><a class="anchor" href="#before-you-start" aria-hidden="true" tabindex="-1">#</a>Before you start</h2>
 <p>Flexarr reads Plex&#39;s database file, <code>com.plexapp.plugins.library.db</code>, so it has to be able to see it.</p>
 <ul>
-<li><strong>Plex on the same computer.</strong> Flexarr looks in the usual places on a Mac, on Linux and on Windows, and normally finds it without help.</li>
+<li><strong>Plex on the same computer.</strong> Flexarr looks in the usual places on a Mac, on Linux and on Windows, and normally finds it without help. The Mac app (coming to the Mac App Store) can&#39;t look by itself: choose <strong>Choose Plex&#39;s folder on the Mac…</strong> and pick the <code>Plex Media Server</code> folder in your Library&#39;s Application Support folder.</li>
 <li><strong>Plex in Docker, or Flexarr in Docker.</strong> Make Plex&#39;s data folder visible to Flexarr, for example by mounting it into Flexarr&#39;s container read-only, then give Flexarr the full path to the database file when it asks. The file sits in Plex&#39;s data folder under <code>Plug-in Support/Databases/</code>.</li>
 <li><strong>Plex on a different computer.</strong> Copy its <code>Plug-in Support/Databases</code> folder to the Flexarr machine and point Flexarr at the copied <code>com.plexapp.plugins.library.db</code>.</li>
 </ul>
@@ -153,7 +154,7 @@
 </blockquote>
 <p>Matching is by file path, so your libraries need to be set up in Flexarr first, with their scans finished. If Plex saw your media under different paths from Flexarr (common when one of them runs in Docker), add a path mapping in <strong>Settings › Connections › Media folders</strong> before importing; Flexarr applies the same mappings to Plex&#39;s paths. See <a href="/guide/media-paths">Media paths</a>.</p>
 <h2 id="bring-the-history-over"><a class="anchor" href="#bring-the-history-over" aria-hidden="true" tabindex="-1">#</a>Bring the history over</h2>
-<p>You need the main profile for this.</p>
+<p>You need the main profile, with settings unlocked.</p>
 <ol>
 <li>In the web app, open <strong>Settings › Libraries</strong> and choose <strong>Bring over from Plex</strong>.</li>
 <li>Flexarr says where it found Plex. If it says Plex wasn&#39;t found, type the full path to <code>com.plexapp.plugins.library.db</code> and choose <strong>Look there</strong>.</li>
@@ -170,7 +171,7 @@
 <blockquote class="callout tip"><p><strong>Tip</strong> If a lot of files come up as not matched, check your path mappings, then rescan the libraries and run the import again.</p>
 </blockquote>
 <h2 id="profile-pictures"><a class="anchor" href="#profile-pictures" aria-hidden="true" tabindex="-1">#</a>Profile pictures</h2>
-<p>Under the import there&#39;s a <strong>Profile pictures</strong> panel. <strong>Use Plex profile pictures</strong> takes each Plex Home user&#39;s picture and puts it on the Flexarr profile with the same name, replacing any picture it has. Plex&#39;s owner is matched to the main profile if no profile shares their name.</p>
+<p>Under the import there&#39;s a <strong>Profile pictures</strong> panel (not in the Mac app). <strong>Use Plex profile pictures</strong> takes each Plex Home user&#39;s picture and puts it on the Flexarr profile with the same name, replacing any picture it has. Plex&#39;s owner is matched to the main profile if no profile shares their name.</p>
 <p>This step does go online: Flexarr reads Plex&#39;s own sign-in from its settings file and makes one request to plex.tv for the list of Home users and their pictures. The sign-in isn&#39;t stored. If Flexarr can&#39;t find the sign-in, Plex Media Server needs to be on this machine (or its data folder visible to Flexarr) and signed in to plex.tv.</p>
 <p>If a Plex user has no matching profile, the summary names them. Add a profile with that name in <strong>Settings › Profiles</strong> and run it again.</p>
 

@@ -16,17 +16,19 @@ A track by someone other than the album's artist, such as a duet or a compilatio
 
 ## Playing and the queue
 
-Every artist, album and playlist has **Play** and **Shuffle**. An artist's Play runs through their whole catalogue, oldest album first.
+Every artist, album and playlist has **Play** and **Shuffle**, which open Now Playing. An artist's Play runs through their whole catalogue, oldest album first. Picking a single song leaves you on the list.
 
-**On the web**, the now-playing bar stays with you as you browse. Tracks and albums have **Play next** and **Add to queue** in their menus. The queue panel above the bar lets you drag tracks into order, remove them, clear the lot or skip to any track. The queue and your place in it survive a page reload.
+**On the web**, the now-playing bar stays with you as you browse. Click its cover for Now Playing across the whole window: a big cover, the controls and what's up next, with light in the cover's colours moving with the music. Escape closes it. Tracks and albums have **Play next** and **Add to queue** in their menus. The queue panel above the bar lets you drag tracks into order, remove them, clear the lot or skip to any track. The queue and your place in it survive a page reload.
 
 **On Apple TV, iPhone and iPad**, the player has next and previous, seeking, shuffle and repeat, and shows the whole queue. Music carries on while you browse, and playing a film pauses it until you're done.
 
 ## Now Playing on Apple TV
 
-While music plays, a **Now Playing** entry appears in the sidebar, with the cover, controls and the queue. Play/pause on the remote works from anywhere in the app.
+While music plays, a **Now Playing** entry appears in the sidebar, with the cover, controls and the queue, and a bar along the bottom of the screen that goes away a few seconds after the music is paused. Play/pause on the remote works from anywhere in the app. **Stop** ends the music and takes the bar and Now Playing away until you play something else.
 
-![Thriller playing on Apple TV, with the album art and the track list](../../site/guide/img/tv-now-playing.webp "Music on Apple TV")
+Behind Now Playing, light in the cover's colours moves in time with the music. Turn it off with **Settings › Playback › Music visualiser**.
+
+![Thriller in Now Playing on Apple TV, with the visualiser's light behind it, the controls and Up next](../../site/guide/img/tv-now-playing.webp "Music on Apple TV")
 
 ## On iPhone and iPad
 
@@ -69,13 +71,14 @@ These are on the web for now.
 
 The web player loads the next track before the current one ends, so the switch between them takes a few milliseconds. Live albums and DJ mixes flow on almost without a gap.
 
-In the web app, **Settings › Playback › Music in this browser** has two more:
+In the web app, **Settings › Playback › Music in this browser** has three more:
 
 - **Crossfade:** **Off**, or fade the next track in over 2 to 12 seconds as the current one ends.
 - **Normalise volume:** on by default. It uses ReplayGain (and Opus R128) tags in your files to level loudness, so a quiet album and a loud one play at about the same volume. Tracks without these tags play as they are; a tagging tool can add them.
+- **Visualiser:** the moving light behind Now Playing.
 
 These are kept per browser, since speakers and taste differ by room.
 
 ## Albums offline
 
-On iPhone and iPad, every album and playlist has a **Download** button. Tracks the phone plays as they are (AAC, ALAC, MP3, FLAC, WAV and AIFF) are kept as they are. Anything else is converted to AAC. Downloaded tracks carry a green tick and play with no connection. See [Downloads](downloads.md).
+On iPhone and iPad, every album and playlist has a **Download** button. Tracks the phone plays as they are (AAC, ALAC, MP3, FLAC, WAV and AIFF) are kept as they are. Anything else is converted to AAC. Downloaded tracks carry a green arrow and play with no connection. See [Downloads](downloads.md).

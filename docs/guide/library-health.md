@@ -5,9 +5,9 @@ description: Find spare copies and the space they use, files that can't be read,
 
 Library health is a check-up for your films and TV. It shows what's wrong, how much space spare copies take, and a button to fix each problem, usually by asking Sonarr or Radarr to do the work.
 
-Open it in the web app from **Settings › Libraries › Library health**, as the main profile. The **Overview** page in Settings links to it too.
+Open it in the web app from **Settings › Libraries › Library health**, as the main profile with settings unlocked. The **Overview** page in Settings links to it too.
 
-![Library health with a score of 99, the health check and a film that only exists in standard definition](../../site/guide/img/health.webp "Settings › Libraries › Library health")
+![Library health with a score of 99, Run health check, a film that only exists in standard definition and one missing artwork](../../site/guide/img/health.webp "Settings › Libraries › Library health")
 
 ## The health score
 
@@ -34,6 +34,10 @@ The **Health check** panel looks at every file: whether it's still on disk, whet
 
 Files Flexarr couldn't open when it scanned them are listed under **Files that can't be read**, with the reason. This is usually a damaged or unfinished download. **Get a new copy** asks Sonarr or Radarr to search for the title again; a fresh copy fixes playback.
 
+### Audible books
+
+From the next release, audiobooks bought from Audible as `.aax` or `.aaxc` files are listed here too, as protected by Audible's DRM. Flexarr can't play them. Convert them to `.m4b` with a tool that uses your own Audible account, put the `.m4b` in the book's folder in place of the original, and rescan.
+
 ## Standard-definition films
 
 **Only in standard definition** lists films whose best copy is below 720p. **Find a better copy** asks Radarr to search for the film again, so it can upgrade it within the quality profile you've set in Radarr.
@@ -49,7 +53,7 @@ Films and shows that Sonarr and Radarr don't manage get their details by searchi
 
 ## Missing artwork
 
-Titles with no poster or details are listed under **Missing artwork**. Artwork comes from Radarr and Sonarr, so if they aren't connected, connect them in **Settings › Connections** ([Connect Sonarr, Radarr, Lidarr and Seerr](connect-arrs.md)). If they are, the title wasn't found: fix its match, or rename its folder to the form `Title (Year)` and rescan.
+Titles with no poster or details are listed under **Missing artwork**. Artwork comes from `.nfo` files and pictures beside the title, from Radarr and Sonarr, from TVmaze for shows, and from TMDB for films if you've added a key. If Radarr and Sonarr aren't connected, connect them in **Settings › Connections** ([Connect Sonarr, Radarr, Lidarr and Seerr](connect-arrs.md)), or see [Without Sonarr and Radarr](without-arrs.md). Otherwise the title wasn't found: fix its match, or rename its folder to the form `Title (Year)` and rescan.
 
 ## Fix match
 
@@ -72,6 +76,7 @@ To delete a film, show or episode, open its page, then **⋯ › Delete…** (ma
 - **A film Radarr manages:** Radarr deletes the film's files from disk and stops tracking it.
 - **A show Sonarr manages:** Sonarr deletes every episode's files and stops tracking the show.
 - **An episode:** Sonarr deletes the episode's file and stops downloading it, so it doesn't come back.
+- **An audiobook** (from the next release) **that Readarr, Bookshelf or Chaptarr manage:** it deletes the book's files and unmonitors the book there, so it isn't fetched again.
 - **A title neither manages:** Flexarr deletes the video files itself and lists them first. It also removes folders left empty, but never a library's own folder or anything outside it.
 
 If Sonarr or Radarr can't be reached or refuse, nothing is removed from Flexarr either.

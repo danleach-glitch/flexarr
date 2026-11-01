@@ -72,6 +72,7 @@
             <details class="section">
             <summary>Watching and listening</summary>
             <ul>
+              <li><a href="/guide/finding-things">Finding things</a></li>
               <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
               <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
               <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
@@ -130,9 +131,9 @@
           </ol>
         </nav>
         <div class="prose">
-<p>Flexarr keeps a log of what the server and its apps do. When a film won&#39;t play, a scan stalls or Sonarr can&#39;t be reached, the log usually says why. It stays on your server: nothing in it is sent anywhere unless you download it and attach it to a bug report yourself.</p>
+<p>Flexarr keeps a log of what the server and its apps do. When a film won&#39;t play, a scan stalls or Sonarr can&#39;t be reached, the log usually says why. It stays on your server: nothing in it is sent anywhere unless you download it and send it yourself.</p>
 <h2 id="reading-the-log"><a class="anchor" href="#reading-the-log" aria-hidden="true" tabindex="-1">#</a>Reading the log</h2>
-<p>Open <strong>Settings › Logs</strong> in the web app, as the main profile. The newest entries are at the top. Select an entry to see its details.</p>
+<p>Open <strong>Settings › Logs</strong> in the web app, as the main profile with settings unlocked. The newest entries are at the top. Select an entry to see its details.</p>
 <p>To narrow it down:</p>
 <ul>
 <li><strong>Minimum level</strong>: show only warnings and errors, say, or everything down to Debug.</li>
@@ -141,7 +142,7 @@
 <li><strong>Live</strong>: turn it on to watch new entries arrive as they happen. It&#39;s handy while you reproduce a problem.</li>
 </ul>
 <p><strong>Load older</strong> at the bottom goes further back.</p>
-<figure><img src="/guide/img/logs.webp" alt="The Logs page with error reports switched on, the level, area and search filters, and recent log lines" data-caption="Settings › Logs" loading="lazy" decoding="async"></figure>
+<figure><img src="/guide/img/logs.webp" alt="The Logs page with error reports switched on, and the log filtered to the Playback area" data-caption="Settings › Logs" loading="lazy" decoding="async"></figure>
 <h2 id="following-one-playback"><a class="anchor" href="#following-one-playback" aria-hidden="true" tabindex="-1">#</a>Following one playback</h2>
 <p>Every time something starts playing it gets a short id, such as <code>3f9a1c07</code>. The server&#39;s lines about that playback show it as <code>#3f9a1c07</code>, and the Apple TV, iPhone and iPad apps attach the same id to what they report. Open an entry and select its <code>playbackId</code> to see only that playback: the whole story, from the server and the device, from start to finish.</p>
 <h2 id="turning-up-the-detail"><a class="anchor" href="#turning-up-the-detail" aria-hidden="true" tabindex="-1">#</a>Turning up the detail</h2>
@@ -166,8 +167,8 @@
 <td>Scanning, reading files, imports</td>
 </tr>
 <tr>
-<td>Sonarr, Radarr and Seerr</td>
-<td>Calls to the *arr apps and Seerr</td>
+<td>Sonarr, Radarr, Seerr and Bazarr</td>
+<td>Calls to the *arr apps, Seerr and Bazarr</td>
 </tr>
 <tr>
 <td>Metadata and artwork</td>
@@ -191,7 +192,7 @@
 </tr>
 <tr>
 <td>Apps and browsers</td>
-<td>What the Apple TV, iPhone, iPad and web app report</td>
+<td>What the apps and browsers report</td>
 </tr>
 </tbody></table></div>
 <blockquote class="callout tip"><p><strong>Tip</strong> Chasing a problem? Set its area to Debug, make the problem happen again, then set the area back to Default so the log doesn&#39;t fill up.</p>
@@ -203,16 +204,17 @@
 </ul>
 <p>Diagnostics go to your server and nowhere else. They&#39;re listed under <strong>Diagnostics from apps</strong> at the bottom of the Logs page, with the device, app version, profile and when they arrived, and a <strong>Download</strong> button for each.</p>
 <h2 id="download-diagnostics"><a class="anchor" href="#download-diagnostics" aria-hidden="true" tabindex="-1">#</a>Download diagnostics</h2>
-<p><strong>Download diagnostics</strong>, at the top of the Logs page, makes a zip to attach to a bug report. It holds:</p>
+<p><strong>Download diagnostics</strong>, at the top of the Logs page, makes a zip for looking into a problem. It holds:</p>
 <ul>
-<li>the server&#39;s logs</li>
+<li>the server&#39;s logs, with titles, file names, device names and IP addresses in them</li>
 <li>diagnostics sent from the apps</li>
-<li>your settings, with every key and password blanked</li>
-<li>a description of the server: Flexarr version, operating system, ffmpeg, free space and library sizes</li>
+<li>your settings (<code>config.json</code>), with every key and password blanked but the addresses of Sonarr, Radarr and your other connections, your path mappings and the server&#39;s known host names left in</li>
+<li>a description of the server: Flexarr version, operating system, ffmpeg, free space, your libraries&#39; names and how many titles, files and profiles there are</li>
 </ul>
+<p>So it says a lot about your home network and your library. Send it privately to whoever is helping you, rather than attaching it to a public GitHub issue.</p>
 <h2 id="what-s-taken-out"><a class="anchor" href="#what-s-taken-out" aria-hidden="true" tabindex="-1">#</a>What&#39;s taken out</h2>
-<p>API keys, passwords, sign-in tokens and playback session ids are removed before anything is written: keys and passwords become <code>***</code>, and long tokens become a short <code>#id</code>. That&#39;s true of the server&#39;s log files, what the apps send and the diagnostics zip, so the zip is safe to attach to a public bug report.</p>
-<p>Titles and file names do appear in the log, because they&#39;re what you need to work out what went wrong. Look through the zip first if that matters to you.</p>
+<p>API keys, passwords, sign-in tokens and playback session ids are removed before anything is written: keys and passwords become <code>***</code>, and long tokens become a short <code>#id</code>. That&#39;s true of the server&#39;s log files, what the apps send and the diagnostics zip.</p>
+<p>Everything else stays, including titles, file names and addresses, because they&#39;re what you need to work out what went wrong.</p>
 <h2 id="how-long-logs-are-kept"><a class="anchor" href="#how-long-logs-are-kept" aria-hidden="true" tabindex="-1">#</a>How long logs are kept</h2>
 <p>Logs are kept for <strong>14 days</strong>, and the log folder is capped at <strong>100 MB</strong>, oldest files first. Change both under <strong>Retention</strong> on the Logs page: <strong>Keep for (days)</strong> and <strong>Largest size (MB)</strong>.</p>
 <p>The server starts a new file each day (<code>flexarr-20261027.log</code>, say), and another if one day&#39;s passes 10 MB. Each line is a JSON object, so other tools can read them.</p>
@@ -225,7 +227,7 @@
 </thead>
 <tbody><tr>
 <td>Mac</td>
-<td><code>~/.flexarr/logs</code></td>
+<td><code>~/.flexarr/logs</code> (in the Mac app, coming to the Mac App Store: <strong>Show Logs</strong> in its menu)</td>
 </tr>
 <tr>
 <td>Docker</td>
@@ -238,23 +240,12 @@
 </tbody></table></div>
 <h2 id="error-reports"><a class="anchor" href="#error-reports" aria-hidden="true" tabindex="-1">#</a>Error reports</h2>
 <p>You can choose to send error reports to Flexarr&#39;s developer, so bugs get found and fixed sooner. <strong>It&#39;s off unless you turn it on.</strong></p>
-<p>The switch, <strong>Send error reports to Flexarr&#39;s developer</strong>, is at the top of the Logs page. A green dot means on and a red dot off. One switch covers the server and every Apple TV, iPhone, iPad and browser connected to it, and turning it off stops it everywhere at once. <strong>What&#39;s sent, and what never is</strong> opens the full list.</p>
-<p>Reports go to Sentry, an error-tracking service, which stores them in the EU and deletes them after at most 90 days.</p>
-<p><strong>What&#39;s sent</strong>, and only when something goes wrong:</p>
+<p>The switch, <strong>Send error reports to Flexarr&#39;s developer</strong>, is at the top of the Logs page. One switch covers the server and every app and browser connected to it, and turning it off stops it everywhere at once. <strong>What&#39;s sent, and what never is</strong> opens the full list.</p>
 <ul>
-<li>what went wrong and where in Flexarr&#39;s code (the error and its stack trace)</li>
-<li>the Flexarr version, the operating system and the device model</li>
-<li>a random id for your server, made when you turn reports on, so repeats from one server can be told apart; it isn&#39;t linked to you</li>
+<li><strong>Sent</strong>, only when something goes wrong: what went wrong and where in Flexarr&#39;s code, the Flexarr version, the operating system and device model, and a random id for your server that isn&#39;t linked to you.</li>
+<li><strong>Never sent:</strong> titles, file names or paths, what anyone watches, your logs, profile and device names, addresses (IP, server, network), keys and passwords.</li>
 </ul>
-<p><strong>What&#39;s never sent:</strong></p>
-<ul>
-<li>titles, file names or paths, or anything about your library</li>
-<li>what anyone watches, and your logs</li>
-<li>profile names and device names</li>
-<li>addresses: IP addresses, your server&#39;s address, network names</li>
-<li>keys, passwords and tokens</li>
-</ul>
-<p>Reports are cleaned on your server or device before they leave it. The server sends its message templates (&quot;Couldn&#39;t scan {Folder}&quot;) without the values filled in. The apps send only the type and code of an error, never its message. A further pass removes web addresses, file paths, file names, email and IP addresses, and anything in quotes. A report that can&#39;t be cleaned isn&#39;t sent.</p>
+<p>Reports are cleaned on your server or device before they leave it, and one that can&#39;t be cleaned isn&#39;t sent. They go to Sentry, which stores them in the EU and deletes them after at most 90 days.</p>
 <p>See also <a href="/guide/troubleshooting">Troubleshooting</a>, which starts most fixes from this page.</p>
 
         </div>

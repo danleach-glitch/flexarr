@@ -29,7 +29,7 @@ On Unraid, Flexarr runs as a Docker container. There's no Community Applications
    | Variable | PUID | `PUID` | `99` |
    | Variable | PGID | `PGID` | `100` |
 
-   Change the media paths to match yours. The container path should be the one your \*arrs use inside their containers.
+   Change the media paths to match yours. The container path should be the one your \*arrs use inside their containers. With **Network Type** `Host`, leave out the Port row: Flexarr is at port 8383 on the server itself.
 5. Click **Apply**. Unraid downloads the image and starts Flexarr.
 
 

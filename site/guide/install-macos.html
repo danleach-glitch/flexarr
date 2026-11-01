@@ -72,6 +72,7 @@
             <details class="section">
             <summary>Watching and listening</summary>
             <ul>
+              <li><a href="/guide/finding-things">Finding things</a></li>
               <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
               <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
               <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
@@ -115,7 +116,7 @@
         <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Getting started</p>
         <h1>Install on a Mac</h1>
         <p class="lede">Build Flexarr from source and run it natively on a Mac as a background service, with hardware video conversion through VideoToolbox.</p>
-        <p class="meta">3 min read</p>
+        <p class="meta">4 min read</p>
         <nav class="toc" aria-label="On this page">
           <p>On this page</p>
           <ol>
@@ -133,7 +134,7 @@
         </nav>
         <div class="prose">
 <p>On a Mac, Flexarr runs natively rather than in Docker. That way it can use the Mac&#39;s graphics hardware (Apple VideoToolbox) to convert video, which Docker on macOS can&#39;t. It works on Apple silicon and Intel Macs.</p>
-<p>There&#39;s no downloadable Mac app or installer yet. You build Flexarr from its source code with one command, which installs it as a background service that starts when you log in. It takes some time in Terminal, but you only do it once.</p>
+<p>A Mac app is coming to the Mac App Store. Until then, you build Flexarr from its source code with one command, which installs it as a background service that starts when you log in. It takes some time in Terminal, but you only do it once.</p>
 <blockquote class="callout note"><p><strong>Note</strong> Prefer not to build anything? Docker Desktop for Mac runs the <a href="/guide/install-docker">Docker image</a> too, but without VideoToolbox: video is converted on the processor.</p>
 </blockquote>
 <h2 id="before-you-start"><a class="anchor" href="#before-you-start" aria-hidden="true" tabindex="-1">#</a>Before you start</h2>
@@ -159,17 +160,19 @@ ssh localhost true           # should finish without asking for a password
 </ol>
 <h2 id="build-and-install"><a class="anchor" href="#build-and-install" aria-hidden="true" tabindex="-1">#</a>Build and install</h2>
 <ol>
-<li><p>Get the source code:</p>
+<li><p>Get the source code of the latest release:</p>
 <pre><code class="language-bash">git clone https://github.com/danleach-glitch/flexarr.git
 cd flexarr
+git checkout &quot;$(git tag --list &#39;v*&#39; --sort=-v:refname | head -1)&quot;
 </code></pre>
+<p>Build a release, not the newest code on <code>main</code>: that&#39;s work in progress, and once it has changed your database you can&#39;t go back to a release.</p>
 </li>
 <li><p>Build and install:</p>
 <pre><code class="language-bash">make deploy DEPLOY_HOST=localhost
 </code></pre>
 </li>
 </ol>
-<p>The script builds the web app and the server, downloads Microsoft&#39;s ASP.NET Core runtime into <code>~/.dotnet</code> (checking it against Microsoft&#39;s published checksum), copies Flexarr into <code>~/.flexarr</code>, and starts it. It waits until Flexarr answers, then prints its address, something like <code>http://your-mac.local:8383</code>.</p>
+<p>The script builds the web app and the server, downloads Microsoft&#39;s ASP.NET Core runtime into <code>~/.dotnet</code> (checking it against Microsoft&#39;s published checksum), copies Flexarr into <code>~/.flexarr</code>, and starts it. It waits until Flexarr answers, then prints its address, something like <code>http://your-mac.local:8383</code>, and on a new server a <strong>Set it up</strong> link with the setup code filled in.</p>
 <p>To install on a different Mac, use its SSH host name in place of <code>localhost</code>, for example <code>make deploy DEPLOY_HOST=mini</code>. That Mac needs Remote Login and FFmpeg, but not the SDK or Node.js.</p>
 <h2 id="where-things-live"><a class="anchor" href="#where-things-live" aria-hidden="true" tabindex="-1">#</a>Where things live</h2>
 <div class="table"><table>
@@ -214,19 +217,20 @@ launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/io.github.flexarr.server
 <h2 id="if-your-arrs-run-in-docker-on-this-mac"><a class="anchor" href="#if-your-arrs-run-in-docker-on-this-mac" aria-hidden="true" tabindex="-1">#</a>If your *arrs run in Docker on this Mac</h2>
 <p>Sonarr, Radarr and Lidarr in Docker see your media under their own paths, such as <code>/data/tv</code>. Flexarr usually works out where those are on the Mac by itself; <strong>Settings › Connections › Media folders</strong> shows what it found, and lets you choose any it couldn&#39;t. From inside a container, the Mac is <code>host.docker.internal</code>, so webhooks go to <code>http://host.docker.internal:8383</code>. <a href="/guide/connect-arrs">Connect Sonarr, Radarr and Lidarr</a> and <a href="/guide/media-paths">Media paths</a> cover both.</p>
 <h2 id="updating"><a class="anchor" href="#updating" aria-hidden="true" tabindex="-1">#</a>Updating</h2>
-<p>Fetch the latest code and install again. Your settings and library stay as they are.</p>
+<p>The easiest way is <strong>Update now</strong> in <strong>Settings › Updates</strong>. Or check out the newest release and install again. Your settings and library stay as they are.</p>
 <pre><code class="language-bash">cd flexarr
-git pull
+git fetch --tags
+git checkout &quot;$(git tag --list &#39;v*&#39; --sort=-v:refname | head -1)&quot;
 make deploy DEPLOY_HOST=localhost
 </code></pre>
 <p>See <a href="/guide/updating">Updating</a> for more.</p>
 <h2 id="next-set-it-up"><a class="anchor" href="#next-set-it-up" aria-hidden="true" tabindex="-1">#</a>Next: set it up</h2>
-<p>Open <strong><a href="http://your-mac.local:8383" rel="noopener">http://your-mac.local:8383</a></strong> (or <strong><a href="http://localhost:8383" rel="noopener">http://localhost:8383</a></strong> on the Mac itself) in a browser and enter the setup code from <code>~/.flexarr/logs/console.log</code> (or <code>~/.flexarr/data/setup-code.txt</code>). The first browser with the code becomes the new server&#39;s owner. Carry on with <a href="/guide/first-setup">First setup</a>.</p>
+<p>Open the <strong>Set it up</strong> link the install printed, and choose a PIN: the code is already filled in. Without the link, open <strong><a href="http://your-mac.local:8383" rel="noopener">http://your-mac.local:8383</a></strong> (or <strong><a href="http://localhost:8383" rel="noopener">http://localhost:8383</a></strong> on the Mac itself) and enter the setup code from <code>~/.flexarr/data/setup-code.txt</code>. The first browser with the code becomes the new server&#39;s owner. Carry on with <a href="/guide/first-setup">First setup</a>.</p>
 
         </div>
         <nav class="pager" aria-label="More of the guide">
           <a class="prev" href="/guide/what-you-need"><span>Previous</span>What you need</a>
-          <a class="next" href="/guide/install-synology"><span>Next</span>Install on a Synology NAS</a>
+          <a class="next" href="/guide/first-setup"><span>Next</span>First setup</a>
         </nav>
         <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/install-macos.md">Edit this page on GitHub</a> <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20Install%20on%20a%20Mac">Report something wrong or missing</a></p>
       </article>

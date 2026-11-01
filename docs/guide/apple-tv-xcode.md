@@ -11,7 +11,7 @@ If you only want Flexarr on an iPhone or iPad, you don't need any of this: that 
 
 - **A Mac** that can run Xcode 26 or later.
 - **Xcode 26 or later**, free from the Mac App Store. Open it once after installing, and when it offers to download platforms, include **tvOS**. (If you skipped that, add it later in **Xcode › Settings › Components**.)
-- **XcodeGen**, which makes the Xcode project from the files in the repository. With [Homebrew](https://brew.sh): `brew install xcodegen`.
+- **XcodeGen**, which makes the Xcode project from the files in the repository, and **Go**, which builds part of the app. With [Homebrew](https://brew.sh): `brew install xcodegen go`.
 - **Git**, to download the source. macOS offers to install it the first time you type `git` in Terminal.
 - **An Apple ID.** A free one works.
 - **An Apple TV running tvOS 18.2 or later**, on the same network as the Mac.
@@ -25,7 +25,10 @@ In Terminal:
 ```bash
 git clone https://github.com/danleach-glitch/flexarr.git
 cd flexarr
+git checkout "$(git tag --list 'v*' --sort=-v:refname | head -1)"
 ```
+
+The last line picks the latest release, so the app matches the server you installed.
 
 ## 2. Sign Xcode in to your Apple ID
 
@@ -71,10 +74,11 @@ The first build takes several minutes. When Flexarr opens on the TV, [connect it
 
 ## Updating the app
 
-Download the latest source and run the same command again:
+Download the latest release and run the same command again:
 
 ```bash
-git pull
+git fetch --tags
+git checkout "$(git tag --list 'v*' --sort=-v:refname | head -1)"
 make apple-install TEAM=A1B2C3D4E5 BUNDLE_ID=com.yourname.flexarr.tv
 ```
 
@@ -86,9 +90,9 @@ Use the same bundle ID every time, so the TV treats it as the same app and keeps
 
 The Mac can't see a paired Apple TV. Check both are on the same network, the Apple TV is awake, and it's listed (and connected) in Xcode's **Devices and Simulators** window. If it's listed but greyed out, wake the TV and wait a minute.
 
-### `xcodegen: command not found`
+### `xcodegen: command not found` or `go: command not found`
 
-Install XcodeGen (`brew install xcodegen`), then open a new Terminal window.
+Install what's missing (`brew install xcodegen go`), then open a new Terminal window.
 
 ### Signing errors: "No Account for Team", "No profiles were found"
 

@@ -72,6 +72,7 @@
             <details class="section">
             <summary>Watching and listening</summary>
             <ul>
+              <li><a href="/guide/finding-things">Finding things</a></li>
               <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
               <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
               <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up Next</a></li>
@@ -150,7 +151,7 @@
 </tr>
 <tr>
 <td><code>list_devices</code></td>
-<td>The Apple TVs, iPhones and iPads signed in, whether Flexarr is open on each, and what each is playing.</td>
+<td>The TVs, phones and tablets signed in, whether Flexarr is open on each, and what each is playing.</td>
 </tr>
 <tr>
 <td><code>now_playing</code></td>
@@ -220,7 +221,16 @@
 <td><code>recordings</code></td>
 <td>What&#39;s set to record, and what&#39;s been recorded.</td>
 </tr>
+<tr>
+<td><code>audiobooks_in_progress</code></td>
+<td><em>Next release.</em> The books you&#39;re part way through, most recent first, with how far in.</td>
+</tr>
+<tr>
+<td><code>set_sleep_timer</code></td>
+<td><em>Next release.</em> Stops what a device is playing after some minutes, or at the end of the book&#39;s chapter.</td>
+</tr>
 </tbody></table></div>
+<p>In the next release, <code>play_on_device</code> also plays a book from where you left it, and <code>mark_watched</code> marks one finished. See <a href="/guide/audiobooks">Audiobooks</a>.</p>
 <p>The Live TV tools are only useful once Live TV is set up. See <a href="/guide/live-tv">Live TV</a>.</p>
 <p>As with Siri, a device only plays what it&#39;s told while Flexarr is open on it. If it isn&#39;t, the command waits two minutes for Flexarr to be opened there, and the assistant is told so.</p>
 <p>The assistant acts as the main profile, since it signs in with the API key. Its Continue Watching, podcasts and marks are the main profile&#39;s.</p>

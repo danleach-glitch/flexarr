@@ -108,7 +108,7 @@
         <p class="kicker">Why Flexarr</p>
         <h1>How Flexarr compares.</h1>
         <p class="lede">Flexarr, side by side with Plex, Jellyfin and Emby, and with the apps people use to watch them. Where another one does something better, we say so.</p>
-        <p class="stamp">Checked <strong>31 October 2026</strong> against Flexarr 0.55.0</p>
+        <p class="stamp">Checked <strong>1 November 2026</strong> against Flexarr 0.57.0</p>
       </div>
 
       <section aria-labelledby="fit">
@@ -120,15 +120,15 @@
               <li><span aria-hidden="true">✅</span><span><strong>You run Sonarr, Radarr or Lidarr.</strong> Flexarr takes its details and artwork straight from them, so there's no second library to keep in step.</span></li>
               <li><span aria-hidden="true">✅</span><span><strong>You'd rather not pay or sign up.</strong> Every feature and every app is free, with no account and no company server in the middle.</span></li>
               <li><span aria-hidden="true">✅</span><span><strong>Your household watches on Apple devices and the web.</strong> The Apple TV, iPhone and iPad apps play files as they are, HDR and Dolby Vision included.</span></li>
-              <li><span aria-hidden="true">✅</span><span><strong>You want it all in one place.</strong> Films, TV, music, podcasts, live TV, requests and downloads come with the server, not as add-ons.</span></li>
+              <li><span aria-hidden="true">✅</span><span><strong>You want it all in one place.</strong> Films, TV, music, podcasts, live TV, requests, a watchlist, Trakt and downloads come with the server, not as add-ons. Audiobooks join them in the next release.</span></li>
             </ul>
           </div>
           <div>
             <h3>Look elsewhere if</h3>
             <ul>
-              <li><span aria-hidden="true">❌</span><span><strong>You need Android, a smart TV, a games console or a desktop app.</strong> Flexarr's Android app is still being built. Plex, Jellyfin and Emby run on far more devices.</span></li>
-              <li><span aria-hidden="true">❌</span><span><strong>You want photos, audiobooks or a language other than English.</strong> Flexarr has none of these yet.</span></li>
-              <li><span aria-hidden="true">❌</span><span><strong>You track what you watch on Trakt or AniList,</strong> or want to watch together with friends elsewhere.</span></li>
+              <li><span aria-hidden="true">❌</span><span><strong>You need Android, a smart TV, a games console or a desktop app.</strong> Flexarr's Android and Google TV apps are still being built. Plex, Jellyfin and Emby run on far more devices.</span></li>
+              <li><span aria-hidden="true">❌</span><span><strong>You want photos or a language other than English.</strong> Flexarr has neither yet.</span></li>
+              <li><span aria-hidden="true">❌</span><span><strong>You track what you watch on AniList or MyAnimeList,</strong> or want to watch together with friends elsewhere.</span></li>
               <li><span aria-hidden="true">❌</span><span><strong>You want years of track record.</strong> Flexarr's first release was on 24 October 2026, and it's mostly one person's work. Plex and Emby date from around 2008, Jellyfin from 2018.</span></li>
             </ul>
           </div>
@@ -150,7 +150,7 @@
             <thead>
               <tr>
                 <th scope="col"><span class="visually-hidden">Feature</span></th>
-                <th scope="col" class="us">Flexarr<small>0.55.0</small></th>
+                <th scope="col" class="us">Flexarr<small>0.57.0</small></th>
                 <th scope="col">Plex<small>Media Server and apps</small></th>
                 <th scope="col">Jellyfin<small>12.4, with Swiftfin 1.6.1</small></th>
                 <th scope="col">Emby<small>4.10</small></th>
@@ -204,7 +204,7 @@
               <tr class="group"><th colspan="5" scope="colgroup"><span>Your library</span></th></tr>
               <tr>
                 <th scope="row">Built on Sonarr, Radarr and Lidarr</th>
-                <td class="us"><span class="m">✅</span>Details and artwork come straight from them, with no keys of its own. In the next release, setup finds them on your network and adds Flexarr's webhook to each.</td>
+                <td class="us"><span class="m">✅</span>Details and artwork come straight from them, with no keys of its own. Setup finds them on your network and adds Flexarr's webhook to each.</td>
                 <td><span class="m">❌</span>Uses its own online lookups. The *arr apps only tell it to rescan.<a class="ref" href="#s64">64</a></td>
                 <td><span class="m">❌</span>Uses its own lookups. It can read the .nfo files the *arr apps write.<a class="ref" href="#s21">21</a></td>
                 <td><span class="m">❌</span>Uses its own lookups. It can read the .nfo files the *arr apps write.</td>
@@ -225,7 +225,7 @@
               </tr>
               <tr>
                 <th scope="row">Watchlist</th>
-                <td class="us"><span class="m">✅</span>In the next release: one per profile, for titles you have or don't, with Request on the ones you don't.</td>
+                <td class="us"><span class="m">✅</span>One per profile, for titles you have or don't, with Request on the ones you don't, kept in step with Trakt.</td>
                 <td><span class="m">✅</span>Universal Watchlist, with a free Plex account.<a class="ref" href="#s73">73</a></td>
                 <td><span class="m">🟡</span>Favourites. A watchlist needs a community plugin.<a class="ref" href="#s74">74</a></td>
                 <td><span class="m">❔</span>Favourites. No watchlist that we found.</td>
@@ -246,7 +246,7 @@
               </tr>
               <tr>
                 <th scope="row">Audiobooks</th>
-                <td class="us"><span class="m">❌</span>No.</td>
+                <td class="us"><span class="m">✅</span>In the next release: a library of their own, with chapters, series, speeds, bookmarks and a sleep timer, downloads, CarPlay and Android Auto, in every app. Readarr, Bookshelf or Chaptarr bring new books in.</td>
                 <td><span class="m">❌</span>No library for them; people use music libraries instead.<a class="ref" href="#s60">60</a></td>
                 <td><span class="m">🟡</span>In a Books library, on most apps but not Swiftfin.<a class="ref" href="#s22">22</a></td>
                 <td><span class="m">🟡</span>Basic support.<a class="ref" href="#s59">59</a></td>
@@ -311,7 +311,7 @@
               </tr>
               <tr>
                 <th scope="row">Android, Android TV and Fire TV</th>
-                <td class="us"><span class="m">❌</span>Being built. The web app works in a phone's browser until then.</td>
+                <td class="us"><span class="m">❌</span>Being built, for phones and Google TV. The web app works in a phone's browser until then.</td>
                 <td><span class="m">✅</span>Yes.<a class="ref" href="#s65">65</a></td>
                 <td><span class="m">✅</span>Yes.<a class="ref" href="#s25">25</a></td>
                 <td><span class="m">🟡</span>Phones need payment; up to five TVs play free.<a class="ref" href="#s43">43</a></td>
@@ -376,7 +376,7 @@
               </tr>
               <tr>
                 <th scope="row">Dialogue boost and night mode<a class="ref" href="#dialogue-note">†</a></th>
-                <td class="us"><span class="m">✅</span>In the next release, free: dialogue boost, night mode (on a schedule if you like) and stereo or 5.1, on the web, iPhone and Apple TV.</td>
+                <td class="us"><span class="m">✅</span>Free: dialogue boost, night mode (on a schedule if you like) and stereo or 5.1, on the web, iPhone and Apple TV.</td>
                 <td><span class="m">💳</span>Boost Dialog and Normalize Loudness, with Plex Pass. The server converts the sound; not yet on the web.<a class="ref" href="#s71">71</a></td>
                 <td><span class="m">❔</span>None built in that we found.</td>
                 <td><span class="m">❔</span>None built in that we found.</td>
@@ -390,7 +390,7 @@
               </tr>
               <tr>
                 <th scope="row">Profiles and parental controls</th>
-                <td class="us"><span class="m">✅</span>Profiles with their own history, libraries and PINs. In the next release, free: age limits from U to 18, kids profiles, and child lock to keep a device on them.</td>
+                <td class="us"><span class="m">✅</span>Free: profiles with their own history, libraries and PINs, age limits from U to 18, kids profiles, and child lock to keep a device on them.</td>
                 <td><span class="m">✅</span>Plex Home with PINs and rating limits; finer controls with Plex Pass.<a class="ref" href="#s13">13</a></td>
                 <td><span class="m">🟡</span>Users with passwords, rating limits and schedules. PINs were removed in 12.0.<a class="ref" href="#s30">30</a><a class="ref" href="#s22">22</a></td>
                 <td><span class="m">✅</span>Users and parental controls, free.<a class="ref" href="#s36">36</a></td>
@@ -404,14 +404,14 @@
               </tr>
               <tr>
                 <th scope="row">Trakt</th>
-                <td class="us"><span class="m">❌</span>Not yet. It's next on the roadmap.</td>
+                <td class="us"><span class="m">✅</span>Built in, free: history both ways, watching as you watch, your watchlist kept in step, lists in Collections and picks in Discover. Each profile connects its own account.</td>
                 <td><span class="m">❌</span>Only through others' tools.</td>
                 <td><span class="m">✅</span>Official plugin.<a class="ref" href="#s31">31</a></td>
                 <td><span class="m">✅</span>Plugin.<a class="ref" href="#s45">45</a></td>
               </tr>
               <tr>
                 <th scope="row">Siri and Shortcuts</th>
-                <td class="us"><span class="m">✅</span>"Play the next episode of <i>Ted Lasso</i> in Flexarr", here or on the Apple TV. In the next release, skip intro, subtitles and night mode too.</td>
+                <td class="us"><span class="m">✅</span>"Play the next episode of <i>Ted Lasso</i> in Flexarr", here or on the Apple TV, plus skip intro, subtitles and night mode.</td>
                 <td><span class="m">🟡</span>In Plexamp.<a class="ref" href="#s8">8</a></td>
                 <td><span class="m">❔</span>None that we found.</td>
                 <td><span class="m">❔</span>None that we found. Alexa and Google Home with Premiere.<a class="ref" href="#s36">36</a></td>
@@ -576,7 +576,7 @@
               </tr>
               <tr>
                 <th scope="row">Trakt and other trackers</th>
-                <td class="us"><span class="m">❌</span>Not yet.</td>
+                <td class="us"><span class="m">✅</span>Trakt, for each profile. No other trackers.</td>
                 <td><span class="m">✅</span>Trakt.<a class="ref" href="#s47">47</a></td>
                 <td><span class="m">✅</span>Trakt, MyAnimeList, AniList and Simkl.<a class="ref" href="#s49">49</a></td>
                 <td><span class="m">❌</span>No; Jellyfin's server plugin instead.</td>
@@ -616,7 +616,7 @@
         <h2 id="method">How we checked</h2>
         <div class="method">
           <p>Every claim about another product was checked on 28 October 2026 (the dialogue row on 30 October, the watchlist row on 31 October) against that company's own pages, support articles, App Store listings and code, linked below. Where the only evidence is what users report on a forum, the table says "users report". Where we couldn't confirm something, it shows ❔ rather than a guess.</p>
-          <p>Flexarr is described as it is in version 0.55.0, the latest release, except where a row says "In the next release": that work is finished and waiting for the next version. The App Store apps can trail a release by a few days while Apple reviews them. Plans on its <a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/roadmap.md" target="_blank" rel="noopener">roadmap</a> don't count until they ship.</p>
+          <p>Flexarr is described as it is in version 0.57.0, the latest release, except where a row says "In the next release": that work is finished and waiting for the next version. The App Store apps can trail a release by a few days while Apple reviews them. Plans on its <a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/roadmap.md" target="_blank" rel="noopener">roadmap</a> don't count until they ship.</p>
           <p>Prices and features change. If something here is wrong or out of date, <a href="https://github.com/danleach-glitch/flexarr/issues" target="_blank" rel="noopener">tell us on GitHub</a> and we'll fix it.</p>
         </div>
         <ol class="sources">

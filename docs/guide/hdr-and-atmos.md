@@ -26,7 +26,7 @@ Flexarr follows Match Content: when it's on, the Apple TV switches mode for each
 
 With **Play files directly** on (the default on Apple TV, iPhone and iPad), the Apple TV plays the file itself. HDR10, HLG and Dolby Vision reach the television untouched.
 
-![Barbie's page on Apple TV, showing 1080p, its genres and the Play button](../../site/guide/img/tv-movie.webp "A film's page on Apple TV")
+![Dredd's page on Apple TV, showing 4K, with Play and round Watched, Watchlist and ⋯ buttons](../../site/guide/img/tv-movie.webp "A film's page on Apple TV")
 
 With **Play files directly** off, the server [repackages](playback-and-transcoding.md) the original picture into a stream without re-encoding it. Here's what the television gets:
 
@@ -66,11 +66,11 @@ Plain DTS is decoded with nothing more lost on the way.
 > **Note**
 > TrueHD soundtracks with Atmos currently play as lossless surround without Atmos's height channels. Keeping them is on the [roadmap](https://github.com/danleach-glitch/flexarr/blob/main/docs/roadmap.md).
 
-### Turning on Lossless surround
+### Lossless surround
 
-On the Apple TV, open Flexarr's **Settings › Playback**. Under **This Apple TV**, turn on **Play files directly** if it's off, then **Lossless surround**. The same switches are in the iPhone and iPad app's **Settings › Playback**, for AirPlay or a connected display.
+**Lossless surround** comes on by itself when the Apple TV is connected to a receiver or soundbar that takes it. To change it, open Flexarr's **Settings › Playback** on the Apple TV: it's under **This Apple TV**, while **Play files directly** is on. The iPhone and iPad app has the same switch, for AirPlay or a connected display.
 
-Leave **Lossless surround** off if your television is plugged straight into a soundbar over ordinary ARC (not eARC), or if you hear nothing on TrueHD or DTS films with it on.
+Turn it off if your television is plugged straight into a soundbar over ordinary ARC (not eARC), or if you hear nothing on TrueHD or DTS films with it on.
 
 ### Dialogue boost and night mode
 
@@ -78,9 +78,9 @@ The player's audio menu, and **Settings › Playback**, have three sound setting
 
 - **Dialogue boost** (Low, Medium or High) raises the centre channel, where the voices are, and the speech frequencies.
 - **Night mode** squeezes loud and quiet together, so explosions don't wake the house and whispers stay audible. **On a schedule** turns it on between set times, even in the middle of a film.
-- **Speakers** folds the sound to **Stereo** or **5.1**. **Auto** plays every channel your equipment takes; leave it there for headphones, so the iPhone's Spatial Audio (or Android's) gets the whole mix.
+- **Speakers** folds the sound to **Stereo** or **5.1**. **Auto** plays every channel your equipment takes; leave it there for headphones, so the iPhone's Spatial Audio gets the whole mix.
 
-To change the sound, the Apple TV and iPhone have to work on it as PCM, so while any of these is on, nothing is passed through to your receiver: Atmos plays without its height channels. Leave them off (and **Speakers** on **Auto**) for the full Atmos. They need **Play files directly**. When the server converts a film for the app anyway (one the Apple TV can't show as it is), the server shapes the sound before sending it. Over AirPlay, sound the app shapes itself plays as it is. The web and Android apps have the same settings, and use them for live TV too, except live TV in Safari.
+On Apple TV and iPhone they need **Play files directly**. While any is on, Atmos plays without its height channels, so leave them off (and **Speakers** on **Auto**) for the full Atmos. Over AirPlay the sound plays as it is. The web has them too, for live TV as well, except in Safari.
 
 ## Watching away from home
 

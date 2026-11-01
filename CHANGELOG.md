@@ -16,6 +16,10 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Every author gets a photo and a biography, from a picture in the author's folder, Readarr, Audible or Open Library, a book's page shows its authors, and author pages on the Apple TV and Android TV now show the biography too. On the web, the main profile can pick another photo, upload one or rewrite the biography.
 - Kids profiles don't see audiobooks. Audible-protected `.aax` files are listed in **Library health**, as they can't be played.
 
+### Website
+- flexarr.io catches up: Trakt, the watchlist, kids profiles, dialogue boost and night mode, the iPhone remote, the new setup guide, and a first look at audiobooks.
+- The guide at flexarr.io/guide is up to date with this version, with a new **Finding things** page, fresh screenshots, and search that reads whole pages, troubleshooting questions included.
+
 ### Libraries
 - Replacing a `cover.jpg` or `poster.jpg` beside your files now shows the new picture in every app after the next scan, instead of the old one staying.
 - Adding a library on the web has one button: open its folder in the picker and press **Add library**.
