@@ -56,7 +56,7 @@ Set your default speed, skip steps and smart rewind in **Settings › Audiobooks
 
 ## Details from the internet
 
-When a book's files leave gaps, Flexarr fills them from Audible (through the community-run Audnexus service), Open Library, and if you add keys, Google Books and Hardcover. Choose your Audible store in **Settings › Audiobooks**; Google Books and Hardcover turn on once their key or token is saved there.
+When a book's files leave gaps, Flexarr fills them from Audible (through the community-run Audnexus service), Open Library, and if you add keys, Google Books and Hardcover. Choose your Audible store in the web app's **Settings › Audiobooks**; Google Books and Hardcover turn on once their key or token is saved there.
 
 Audible's chapters replace guessed ones when they match the book's length. To change a book's chapters yourself, open its page, choose **⋯ › Edit chapters**, rename them or move them all by a few seconds, then **Save**. **Use Audible's** fills them in; **Save** keeps them. **Fix match** finds the right book when Flexarr picked the wrong one.
 
