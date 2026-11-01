@@ -217,7 +217,7 @@
 
   <main id="main">
     <div class="wrap hero">
-      <a class="news off-phone" href="https://github.com/danleach-glitch/flexarr/blob/main/CHANGELOG.md"><b>New:</b> set up in your browser <span>0.49</span></a>
+      <a class="news off-phone" href="https://github.com/danleach-glitch/flexarr/blob/main/CHANGELOG.md"><b>New:</b> Trakt, a watchlist and kids profiles <span>0.57</span></a>
       <h1><span>Your entertainment.</span> <span>Every screen.</span></h1>
       <p class="lede off-phone">Your own streaming service for the <strong>films, TV, music and podcasts you already have</strong>, on Apple TV, iPhone, iPad and the web. Built for Sonarr, Radarr and Lidarr. No ads, no account, no subscription.</p>
       <p class="lede on-phone">Your own streaming service for the <strong>films, TV, music and podcasts you already have</strong>. No ads, no account, no subscription.</p>
@@ -264,7 +264,8 @@
               <li><span><strong>HDR10, HLG and Dolby Vision</strong> reach the TV untouched; <strong>Dolby Atmos</strong> passes through intact</span></li>
               <li><span><strong>Skip intro, recap and credits</strong>, found automatically, then Up Next with a countdown</span></li>
               <li><span>Plays AV1, VC-1, XviD and the rest, and <strong>converts on the fly</strong> only when it has to</span></li>
-              <li><span>Scrubbing previews, subtitles that remember your choice, Picture in Picture and AirPlay</span></li>
+              <li><span><strong>Dialogue boost and night mode</strong>, so voices stay clear and explosions don't wake the house</span></li>
+            <li><span>Scrubbing previews, subtitles that remember your choice (or find them through Bazarr), Picture in Picture and AirPlay</span></li>
             </ul>
             <a class="more" href="/guide/hdr-and-atmos">Getting the best picture and sound</a>
           </div>
@@ -285,8 +286,22 @@
           </div>
           <img class="shot" src="/shots/listen.webp" width="1600" height="1316" srcset="/shots/listen-1000.webp 900w, /shots/listen.webp 1600w" sizes="(min-width: 1260px) 690px, (min-width: 860px) 56vw, 92vw" loading="lazy" alt="Michael Jackson's Thriller playing on Apple TV, with an iPhone in front showing the Podcasts screen: followed shows, Up Next and Continue listening.">
         </div>
-
         <div class="row">
+          <div>
+            <h3>Audiobooks, chapter by chapter. <span class="tag">Next release</span></h3>
+            <p>Point Flexarr at your books and they arrive with covers, series and narrators, then play like a proper audiobook app on every screen.</p>
+            <ul class="ticks">
+              <li><span><strong>Chapters, bookmarks and speeds</strong> up to 3.5×, with smart rewind and a sleep timer that stops at the end of the chapter</span></li>
+              <li><span><strong>Your place follows you</strong> from the TV to your phone, and the next book in the series is ready when you finish</span></li>
+              <li><span><strong>Downloads, CarPlay and Android Auto</strong> for the commute</span></li>
+              <li><span>Works with <strong>Readarr, Bookshelf or Chaptarr</strong>, or just a folder of books</span></li>
+            </ul>
+            <a class="more" href="/guide/audiobooks">How audiobooks work</a>
+          </div>
+          <img class="shot" src="/shots/books.webp" width="1600" height="1316" srcset="/shots/books-1000.webp 900w, /shots/books.webp 1600w" sizes="(min-width: 1260px) 690px, (min-width: 860px) 56vw, 92vw" loading="lazy" alt="Flexarr's Audiobooks library on an Apple TV, with recently added books and series such as Jack Reacher and the Thursday Murder Club, and Slaughterhouse-Five playing on an iPhone at Chapter 2.">
+        </div>
+
+        <div class="row flip">
           <div>
             <h3>Watch live. Record anything.</h3>
             <p>Bring your own TV tuner or IPTV service through Dispatcharr, and Flexarr gives it a proper home: a full guide, favourites and recordings that sit with the rest of your library.</p>
@@ -300,14 +315,15 @@
           <img class="shot" src="/shots/live.webp" width="1600" height="1316" srcset="/shots/live-1000.webp 900w, /shots/live.webp 1600w" sizes="(min-width: 1260px) 690px, (min-width: 860px) 56vw, 92vw" loading="lazy" alt="Flexarr's live TV guide on an Apple TV, with channel groups down the side and programmes across the evening, and the channel list on an iPhone.">
         </div>
 
-        <div class="row flip">
+        <div class="row">
           <div>
             <h3>On the train, or the other side of the world.</h3>
-            <p>Download what you want for the journey, or watch from anywhere over Tailscale without opening a single port on your router.</p>
+            <p>Download what you want for the journey, watch from anywhere over Tailscale without opening a single port on your router, or invite family to watch from their own homes.</p>
             <ul class="ticks">
               <li><span><strong>Downloads</strong> of films, episodes, albums and playlists on iPhone and iPad</span></li>
               <li><span>New episodes of the podcasts you follow <strong>download by themselves</strong> on Wi-Fi</span></li>
               <li><span><strong>Away from home over Tailscale</strong>: the apps switch over by themselves</span></li>
+              <li><span><strong>Family invites</strong>: Tailscale is built into the apps, so grandparents install nothing else</span></li>
             </ul>
             <a class="more" href="/guide/away-from-home">Watching away from home</a>
           </div>
@@ -323,8 +339,8 @@
         <div class="tiles">
           <a class="tile" href="/guide/profiles">
             <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5a6.5 6.5 0 0 1 3.5 5.5"/></svg></div>
-            <h3>Profiles</h3>
-            <p>Each with its own history, Continue Watching, libraries and an optional PIN.</p>
+            <h3>Profiles and kids</h3>
+            <p>Each with its own history, libraries and PIN, plus kids profiles with age limits and child lock.</p>
           </a>
           <a class="tile" href="/guide/siri-and-shortcuts">
             <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2.5" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg></div>
@@ -333,13 +349,23 @@
           </a>
           <a class="tile" href="/guide/notifications-and-widgets">
             <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="1.8"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.8"/><rect x="3.5" y="13.5" width="17" height="7" rx="1.8"/></svg></div>
-            <h3>Widgets and Top Shelf</h3>
-            <p>Continue Watching on the Apple TV Home Screen, and Up Next widgets on your phone.</p>
+            <h3>Widgets and alerts</h3>
+            <p>Continue Watching in the Top Shelf, Up Next widgets, and a nudge when a new episode is ready.</p>
           </a>
-          <a class="tile" href="/guide/notifications-and-widgets">
-            <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg></div>
-            <h3>Notifications</h3>
-            <p>New episodes, films and recordings, the moment they're ready to play.</p>
+          <a class="tile" href="/guide/watchlist">
+            <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 3.5h11v17l-5.5-4-5.5 4Z"/></svg></div>
+            <h3>Watchlist</h3>
+            <p>Save what you want to watch, whether you have it yet or not, and request the rest.</p>
+          </a>
+          <a class="tile" href="/guide/trakt">
+            <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg></div>
+            <h3>Trakt</h3>
+            <p>History both ways, scrobbling as you watch, and your Trakt lists and picks.</p>
+          </a>
+          <a class="tile" href="/guide/iphone-remote">
+            <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="2.5" width="10" height="19" rx="3"/><circle cx="12" cy="8" r="2"/><path d="M10 14h4M10 17h4"/></svg></div>
+            <h3>iPhone remote</h3>
+            <p>Scrub, skip and change subtitles on the TV, or carry on watching on your phone.</p>
           </a>
           <a class="tile" href="/guide/home-assistant">
             <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11 12 3.5l9 7.5M5.5 9v11h13V9"/><path d="M10 20v-5h4v5"/></svg></div>
@@ -363,7 +389,7 @@
           <a class="tile" href="/guide/connect-arrs">
             <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7Z"/></svg></div>
             <h3>New in seconds</h3>
-            <p>A webhook from each *arr, and new downloads appear the moment they land.</p>
+            <p>Setup finds your *arrs and adds Flexarr's webhook, so new downloads appear the moment they land.</p>
           </a>
           <a class="tile" href="/guide/requests">
             <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg></div>
@@ -405,7 +431,7 @@
           <a class="card" href="/guide/podcasts">
             <img src="/shots/listen-1000.webp" width="900" height="741" loading="lazy" alt="Thriller playing on Apple TV, with the Podcasts screen on an iPhone.">
             <h3>Music and podcasts</h3>
-            <p>Synced lyrics, mixes and radio from your library, and podcasts that follow you between devices.</p>
+            <p>Synced lyrics, mixes and radio from your library, podcasts that follow you between devices, and audiobooks in the next release.</p>
           </a>
           <a class="card" href="/guide/live-tv">
             <img src="/shots/live-1000.webp" width="900" height="741" loading="lazy" alt="Flexarr's live TV guide on an Apple TV, and the channel list on an iPhone.">
@@ -415,12 +441,12 @@
           <a class="card" href="/guide/away-from-home">
             <img src="/shots/offline-1000.webp" width="900" height="961" loading="lazy" alt="The Downloads screen on an iPad and an iPhone.">
             <h3>Offline and away</h3>
-            <p>Downloads for the journey, and Tailscale for anywhere else, with no ports to open.</p>
+            <p>Downloads for the journey, Tailscale for anywhere else, and invites for family far away.</p>
           </a>
           <a class="card" href="/guide/profiles">
             <div class="icons" aria-hidden="true"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5a6.5 6.5 0 0 1 3.5 5.5"/></svg></span><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2.5" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg></span><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="1.8"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.8"/><rect x="3.5" y="13.5" width="17" height="7" rx="1.8"/></svg></span><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg></span><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11 12 3.5l9 7.5M5.5 9v11h13V9"/><path d="M10 20v-5h4v5"/></svg></span><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><rect x="7" y="7" width="10" height="10" rx="3"/><circle cx="12" cy="12" r="1.5"/></svg></span></div>
             <h3>For everyone at home</h3>
-            <p>Profiles with PINs, Siri, widgets, notifications, Home Assistant and your AI assistant.</p>
+            <p>Profiles and kids profiles, a watchlist, Trakt, Siri, widgets, an iPhone remote and Home Assistant.</p>
           </a>
           <a class="card" href="/guide/connect-arrs">
             <div class="icons" aria-hidden="true"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7Z"/></svg></span><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg></span><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l2-5 4 10 2-5h6"/></svg></span><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h12M12 6l6 6-6 6"/><path d="M20 4v16"/></svg></span><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 6v6c0 4.5 3.4 8.2 8 9 4.6-.8 8-4.5 8-9V6Z"/><path d="m9 12 2 2 4-4"/></svg></span><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg></span></div>
@@ -445,7 +471,7 @@
         <div class="apps">
           <div class="app">
             <h3><span class="app-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2.5" width="12" height="19" rx="3"/><path d="M10.5 18.5h3"/></svg></span>iPhone and iPad</h3>
-            <p>Downloads for offline, podcasts with widgets and alerts, Siri, Picture in Picture and AirPlay.</p>
+            <p>Downloads for offline, podcasts with widgets and alerts, Siri, AirPlay, and a remote for your Apple TV.</p>
             <a class="badge ready" href="https://apps.apple.com/app/flexarr/id6826618084" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.4 12.6c0-2.4 2-3.6 2.1-3.7a4.5 4.5 0 0 0-3.5-1.9c-1.5-.2-2.9.9-3.7.9-.8 0-1.9-.9-3.2-.8a4.7 4.7 0 0 0-4 2.4c-1.7 3-.4 7.4 1.2 9.8.8 1.2 1.8 2.5 3 2.4 1.2 0 1.7-.8 3.1-.8 1.5 0 1.9.8 3.2.8 1.3 0 2.2-1.2 3-2.4a10 10 0 0 0 1.4-2.8 4.3 4.3 0 0 1-2.6-3.9ZM14 5.4a4.3 4.3 0 0 0 1-3.1 4.4 4.4 0 0 0-2.9 1.5 4.1 4.1 0 0 0-1 3 3.6 3.6 0 0 0 2.9-1.4Z"/></svg><span class="off-phone">Download on the App Store</span><span class="on-phone">App Store</span></a>
           </div>
           <div class="app">
@@ -514,16 +540,16 @@
           <div class="step">
             <div>
               <h3>Open it in your browser</h3>
-              <p class="on-phone">Go to <strong>http://&lt;your-server&gt;:8383</strong> and choose <strong>Set up Flexarr</strong>.</p>
-              <p class="off-phone">On a computer at home, go to <strong>http://&lt;your-server&gt;:8383</strong> and choose <strong>Set up Flexarr</strong>. The first browser to reach a new server becomes its owner: no account, no key. Then add your film, TV and music folders in <strong>Settings › Libraries</strong>.</p>
+              <p class="on-phone">Open the setup link from the server, choose a PIN, and follow the short setup guide.</p>
+              <p class="off-phone">Open the setup link in the server's log (or go to <strong>http://&lt;your-server&gt;:8383</strong> and type its setup code), choose a PIN for its settings, and you're in: no account, no key. A short setup guide then finds your Sonarr, Radarr and Lidarr, offers their folders as libraries, and adds everyone who watches.</p>
               <p class="note off-phone"><a href="/guide/first-setup">First setup, in detail</a></p>
             </div>
           </div>
           <div class="step">
             <div>
               <h3>Connect your Apple TV and iPhone</h3>
-              <p class="on-phone">Open the app on the same Wi&#8209;Fi and enter the code it shows on your computer.</p>
-              <p class="off-phone">Open the app on the same Wi-Fi. It looks for your server, or you can type in its address. Then it shows a short code: enter it on your computer under <strong>Settings › Access › Connect a device</strong>, and that device is signed in for good.</p>
+              <p class="on-phone">Open the app on the same Wi&#8209;Fi and tap <strong>Allow</strong> on your phone.</p>
+              <p class="off-phone">Open the app on the same Wi-Fi. It finds your server and shows a short code, and your phone asks <strong>Connect “Living room”?</strong>: tap <strong>Allow</strong>, and that device is signed in for good. Or enter the code on your computer under <strong>Settings › Security › Connect a device</strong>.</p>
               <p class="note off-phone"><a href="/guide/connect-devices">Connecting devices, and what to do if one can't see your server</a></p>
             </div>
           </div>
@@ -531,7 +557,7 @@
             <div>
               <h3>Add your *arrs <span class="tag">Recommended</span></h3>
               <p class="on-phone">For artwork, details and new downloads in seconds.</p>
-              <p class="off-phone">In <strong>Settings › Connections</strong>, add Sonarr, Radarr and Lidarr (and Seerr, for requests) for artwork, details and new downloads in seconds. Mount your media at <strong>the same path they use</strong>, so their paths match what Flexarr sees.</p>
+              <p class="off-phone">The setup guide connects Sonarr, Radarr and Lidarr for artwork, details and new downloads in seconds; add Seerr in <strong>Settings › Connections</strong> for requests. Mount your media at <strong>the same path they use</strong>, so their paths match what Flexarr sees.</p>
               <p class="note links off-phone"><a href="/guide/connect-arrs">Connecting your *arrs</a> <a href="/guide/media-paths">Getting the paths right</a></p>
             </div>
           </div>
