@@ -19,6 +19,9 @@ import { errorText } from './useSettings'
  * How this profile listens to podcasts and books: one speed, skip steps and smart rewind for both (a book with a
  * speed of its own keeps it), whether they join Continue watching, and what phones download by themselves.
  */
+/** The settings books share: a change to one of them reaches a book playing too. */
+const listeningKeys = ['speed', 'skipBackSeconds', 'skipForwardSeconds', 'smartRewind'] as const
+
 export function ListeningSection() {
   const name = useSession().profiles?.find((p) => p.isCurrent)?.name
   const preferences = useApi((signal) => getPodcastPreferences(signal), [])
@@ -46,9 +49,9 @@ export function ListeningSection() {
       return
     }
     settle()
-    // The sidebar and a player already playing (a podcast or a book) pick the change up.
+    // The sidebar and a podcast playing pick the change up; a book playing only when it's how books play too.
     window.dispatchEvent(new Event(PODCAST_PREFERENCES_CHANGED))
-    window.dispatchEvent(new Event(BOOK_LISTENING_CHANGED))
+    if (listeningKeys.some((key) => key in changes)) window.dispatchEvent(new Event(BOOK_LISTENING_CHANGED))
   }
 
   const select = (value: number, choices: number[], label: (n: number) => string, onChange: (n: number) => void) => (
