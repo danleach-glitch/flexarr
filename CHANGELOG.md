@@ -17,8 +17,8 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Kids profiles don't see audiobooks. Audible-protected `.aax` files are listed in **Library health**, as they can't be played.
 
 ### Podcasts
-- Podcast and audiobook settings are now one page, **Settings › Podcasts and audiobooks**, on the web, iPhone, iPad and Android. Podcasts and books share one speed, skip steps and smart rewind (a book with its own speed keeps it).
-- Podcasts now skip by your steps and, with **Smart rewind**, start a little earlier after a pause, on the lock screen and headphones too. They skip 30 seconds back by default, not 15: change it on the new page.
+- Podcast settings are now **Settings › Podcasts and audiobooks** on the web, iPhone, iPad and Android, and cover audiobooks too: one speed, skip steps and smart rewind for both (a book with its own speed keeps it).
+- Podcasts now skip by your steps, on the lock screen and headphones too, and **Smart rewind** (on to start with) picks up a little earlier after a pause. Skip back is now 30 seconds, not 15: change either on that page.
 - On the web, **Show in the sidebar** for podcasts is now in **Settings › Sidebar**, and where book details come from (the Audible store, Google Books and Hardcover keys) is in **Settings › Libraries**.
 
 ### Home
