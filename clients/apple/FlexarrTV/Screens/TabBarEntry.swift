@@ -48,13 +48,14 @@ enum TabBarEntry: Identifiable, Hashable {
     }
 
     /// What's in the sidebar, in the server's order, then Live TV. Podcasts are on iPhone, iPad and the web, not here;
-    /// recordings are in Live TV › Recordings, so their library has no tab of its own while Live TV has one.
+    /// recordings are in Live TV › Recordings, so their library has no tab of its own while Live TV has one. A profile
+    /// that hid Live TV from the menu has no tab for it (Home's rows and links still open it).
     @MainActor
     static func available(model: AppModel) -> [TabBarEntry] {
         // A type this app doesn't know (from a newer server) gets no tab rather than a film grid.
         model.libraries.filter { $0.type != .podcasts && $0.type != .unknown && !(model.hasLiveTv && isRecordings($0)) }
             .map(TabBarEntry.library)
-            + (model.hasLiveTv ? [.liveTv] : [])
+            + (model.hasLiveTv && !model.hidesFromMenu(.liveTv) ? [.liveTv] : [])
     }
 
     /// The library the server makes for the DVR's recordings when the first one's done (Dvr.EnsureLibraryAsync): a TV

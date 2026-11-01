@@ -99,15 +99,14 @@ struct MainTabView: View {
             // Discover, Search and Settings after the libraries. In a section of their own, since the sidebar puts tabs
             // outside a section above them.
             TabSection {
-                // Discover's titles aren't in the library, so they have no age a profile's limit could be checked against.
-                if !model.hasAgeLimit {
+                if showsDiscover {
                     Tab(value: TabID.discover) {
                         TabStack(router: routers[.discover]) { DiscoverView() }
                     } label: {
                         Label("Discover", systemImage: "sparkles")
                     }
                 }
-                if model.hasWatchlist {
+                if showsWatchlist {
                     Tab(value: TabID.watchlist) {
                         TabStack(router: routers[.watchlist]) { WatchlistView() }
                     } label: {
@@ -155,7 +154,12 @@ struct MainTabView: View {
             librariesLoaded = true
             TabBarEntry.adoptStoredOrder(model: model, stored: tabBarOrder)
         }
-        .onChange(of: model.currentProfile?.id) { _, _ in TabBarEntry.adoptStoredOrder(model: model, stored: tabBarOrder) }
+        .onChange(of: model.currentProfile?.id) { _, _ in
+            TabBarEntry.adoptStoredOrder(model: model, stored: tabBarOrder)
+            keepSelectionShown()
+        }
+        // What the profile hides from the menu can change with the profile list reloading, as its order does.
+        .onChange(of: model.currentProfile?.hiddenNavigation) { _, _ in keepSelectionShown() }
         .onAppear(perform: routeLink)
         .onChange(of: model.pendingRoute) { _, _ in routeLink() }
         .onChange(of: librariesLoaded) { _, _ in routeLink() }
@@ -176,6 +180,25 @@ struct MainTabView: View {
     }
 
     private var tabLibraries: [Library] { TabBarEntry.libraries(model: model) }
+
+    /// Discover has a tab: not for a profile with an age limit (its titles aren't in the library, so they have no age
+    /// the limit could be checked against), nor one that hid it from the menu.
+    private var showsDiscover: Bool { !model.hasAgeLimit && !model.hidesFromMenu(.discover) }
+
+    /// The watchlist has a tab: the server keeps one and the profile didn't hide it from the menu (Home's row and
+    /// links still open it then).
+    private var showsWatchlist: Bool { model.hasWatchlist && !model.hidesFromMenu(.watchlist) }
+
+    /// The selected tab is still in the sidebar; one that went (another profile, or one that hid it) goes back to Home.
+    private func keepSelectionShown() {
+        let shown = switch selection {
+        case .discover: showsDiscover
+        case .watchlist: showsWatchlist
+        case .liveTv: TabBarEntry.available(model: model).contains(.liveTv)
+        default: true
+        }
+        if !shown { selection = .home }
+    }
 
     /// Adds or takes away the Now Playing tab, building the sidebar afresh. A stack built afresh with screens already on
     /// it builds them without its router and crashes, so the tabs' screens come off for the rebuild and go back on as
@@ -226,15 +249,19 @@ struct MainTabView: View {
             linkTab = nil
             return
         }
-        // The watchlist has a tab of its own.
+        // The watchlist has a tab of its own, unless the profile hid it from the menu: then it opens on Home.
         if case .watchlist = route {
             guard librariesLoaded else { return }
-            model.pendingRoute = nil
-            if model.hasWatchlist {
+            guard model.hasWatchlist else {
+                model.pendingRoute = nil
+                return
+            }
+            if showsWatchlist {
+                model.pendingRoute = nil
                 selection = .watchlist
                 startFocus = false
+                return
             }
-            return
         }
         var tab = TabID.home
         if case .item(let item) = route {

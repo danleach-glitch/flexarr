@@ -953,10 +953,15 @@ public struct Profile: Codable, Sendable, Hashable, Identifiable {
     /// The PIN choosing it here asks for is the admin PIN, not its own. Absent from servers before 0.57: see
     /// `asksAdminPinToChoose`.
     public var asksAdminPin: Bool? = nil
+    /// The menu items this profile leaves out (`NavigationItem`'s raw values; any this app doesn't know mean nothing),
+    /// chosen in Settings on the web. Only off the menu: still reachable from Home's rows, links and Siri. Absent from
+    /// servers before 0.58: nothing hidden.
+    public var hiddenNavigation: [String]? = nil
 
     public init(id: String, name: String, color: String, hasPin: Bool = false, isMain: Bool = false,
                 isCurrent: Bool = false, hiddenLibraryIds: [String] = [], image: String? = nil, libraryOrder: [String]? = nil,
-                asksPin: Bool? = nil, maxRatingAge: Int? = nil, isKids: Bool? = nil, asksAdminPin: Bool? = nil) {
+                asksPin: Bool? = nil, maxRatingAge: Int? = nil, isKids: Bool? = nil, asksAdminPin: Bool? = nil,
+                hiddenNavigation: [String]? = nil) {
         self.id = id
         self.name = name
         self.color = color
@@ -970,6 +975,12 @@ public struct Profile: Codable, Sendable, Hashable, Identifiable {
         self.maxRatingAge = maxRatingAge
         self.isKids = isKids
         self.asksAdminPin = asksAdminPin
+        self.hiddenNavigation = hiddenNavigation
+    }
+
+    /// The profile leaves this out of the menu.
+    public func hidesFromMenu(_ item: NavigationItem) -> Bool {
+        hiddenNavigation?.contains(item.rawValue) == true
     }
 
     /// A child's profile (servers before 0.56 have none).
@@ -989,6 +1000,16 @@ public struct Profile: Codable, Sendable, Hashable, Identifiable {
     public var initial: String {
         name.trimmingCharacters(in: .whitespaces).first.map { String($0).uppercased() } ?? "?"
     }
+}
+
+/// A menu item a profile can hide (`Profile.hiddenNavigation`). Not every app has every one in its menu.
+public enum NavigationItem: String, Sendable, CaseIterable {
+    case watchlist
+    case collections
+    case playlists
+    case liveTv = "live-tv"
+    case discover
+    case upcoming
 }
 
 public enum LibraryOrder {

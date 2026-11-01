@@ -1,7 +1,7 @@
 import FlexarrKit
 import SwiftUI
 
-/// Settings › Podcasts and audiobooks: one speed, skip steps and smart rewind for both (a book with a speed of its own
+/// Settings › Podcasts & audiobooks: one speed, skip steps and smart rewind for both (a book with a speed of its own
 /// keeps it), whether they join Continue watching, and what this phone downloads by itself. The web's page of the
 /// same name. On a server from before 0.58 podcasts have only their speed here.
 struct ListeningSettingsView: View {
@@ -100,7 +100,7 @@ struct ListeningSettingsView: View {
                 }
             }
         }
-        .settingsPage("Podcasts and audiobooks")
+        .settingsPage("Podcasts & audiobooks")
         .task { await load() }
     }
 
