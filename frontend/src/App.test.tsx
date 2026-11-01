@@ -160,14 +160,14 @@ describe('App', () => {
     let menu = screen.getByRole('menu')
     // Part way through: either way. Not next up, so no Remove.
     expect(within(menu).getByRole('menuitem', { name: 'Mark episode as watched' })).toBeInTheDocument()
-    expect(within(menu).queryByRole('menuitem', { name: 'Remove from Continue Watching' })).not.toBeInTheDocument()
+    expect(within(menu).queryByRole('menuitem', { name: 'Remove' })).not.toBeInTheDocument()
     fireEvent.click(within(menu).getByRole('menuitem', { name: 'Mark episode as unwatched' }))
     await vi.waitFor(() => expect(screen.queryByRole('button', { name: 'More for Severance S01E05' })).not.toBeInTheDocument())
 
     fireEvent.click(screen.getByRole('button', { name: 'More for Slow Horses S01E02' }))
     menu = screen.getByRole('menu')
     expect(within(menu).queryByRole('menuitem', { name: 'Mark episode as unwatched' })).not.toBeInTheDocument()
-    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Remove from Continue Watching' }))
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Remove' }))
     await vi.waitFor(() => expect(screen.queryByRole('button', { name: 'More for Slow Horses S01E02' })).not.toBeInTheDocument())
     expect(calls).toEqual(['watched false', 'removed f2'])
   })
@@ -198,13 +198,13 @@ describe('App', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'More for Project Hail Mary' }))
     let menu = screen.getByRole('menu')
     expect(within(menu).getByRole('menuitem', { name: 'Resume' })).toBeInTheDocument()
-    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Remove from Continue Watching' }))
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Remove' }))
     await vi.waitFor(() => expect(screen.queryByRole('button', { name: 'More for Project Hail Mary' })).not.toBeInTheDocument())
 
     fireEvent.click(screen.getByRole('button', { name: 'More for The long one' }))
     menu = screen.getByRole('menu')
     expect(within(menu).getByRole('menuitem', { name: 'Resume' })).toBeInTheDocument()
-    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Remove from Continue Watching' }))
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Remove' }))
     await vi.waitFor(() => expect(screen.queryByRole('button', { name: 'More for The long one' })).not.toBeInTheDocument())
 
     expect(calls).toEqual(['removed b1', 'removed p1'])

@@ -79,7 +79,7 @@ export function ItemMenu({ item, at, onClose, continueWatching = false }: { item
       if (resumable) actions.push({ label: 'Play from the start', run: go(`/play/${item.id}?t=0`) })
       actions.push('divider', { label: item.userData.watched ? 'Mark episode as unwatched' : 'Mark episode as watched', run: mark(item, !item.userData.watched) })
       if (started) actions.push({ label: 'Mark episode as unwatched', run: mark(item, false) })
-      else if (continueWatching && !item.userData.watched) actions.push({ label: 'Remove from Continue Watching', run: remove })
+      else if (continueWatching && !item.userData.watched) actions.push({ label: 'Remove', run: remove })
       if (showId) actions.push({ label: `Mark all of ${show} as watched`, run: mark({ id: showId, parentId: null, seriesId: null }, true) })
       break
     case 'Season':
@@ -112,13 +112,13 @@ export function ItemMenu({ item, at, onClose, continueWatching = false }: { item
         },
       })
       // Forgets the place without marking it finished.
-      if (continueWatching && started) actions.push({ label: 'Remove from Continue Watching', run: remove })
+      if (continueWatching && started) actions.push({ label: 'Remove', run: remove })
       if (!kids) actions.push({ label: 'Add to collection…', run: () => openAddToCollection(item) })
       break
     }
     case 'PodcastEpisode':
       actions.push({ label: started ? 'Resume' : 'Play', run: () => music.play([item]) })
-      if (continueWatching) actions.push('divider', { label: 'Remove from Continue Watching', run: remove })
+      if (continueWatching) actions.push('divider', { label: 'Remove', run: remove })
       break
   }
 
