@@ -8,7 +8,13 @@ namespace Flexarr.Metadata;
 /// <param name="Authors">Its authors' names.</param>
 /// <param name="ArrBookId">Its id in the app it was matched in before.</param>
 /// <param name="ArrInstance">The app <paramref name="ArrBookId"/> belongs to: an id means nothing in any other.</param>
-public sealed record BookToMatch(string? Path, string Title, IReadOnlyList<string> Authors, string? Asin, string? Isbn, string? ArrBookId, string? ArrInstance = null);
+/// <param name="Files">
+/// Its files. When known, an app's file matches only if it's one of them: a folder that holds one book's file beside
+/// other books' folders (Author/One.m4b, Author/Two/…) is "the book's folder" to the scanner, and every file below it
+/// isn't this book's.
+/// </param>
+public sealed record BookToMatch(string? Path, string Title, IReadOnlyList<string> Authors, string? Asin, string? Isbn, string? ArrBookId, string? ArrInstance = null,
+    IReadOnlyList<string>? Files = null);
 
 /// <summary>What one Readarr-compatible app has: its books (each with its editions), their files and its authors.</summary>
 /// <param name="Instance">The app's name in Flexarr's settings.</param>
@@ -45,14 +51,16 @@ public static class ReadarrMatcher
             }
         }
 
-        // Its files: one of an app's files is the book's file, or inside the book's folder. Every app is asked before
-        // anything less certain is tried in any of them.
+        // Its files: one of an app's files is one of the book's files (or, when they aren't known, inside the book's
+        // folder). Every app is asked before anything less certain is tried in any of them.
+        var files = book.Files is { Count: > 0 } ours ? ours.Select(PathComparison.Key).ToHashSet(PathComparison.FileSystemKeyComparer) : null;
         if (book.Path is { Length: > 0 } path)
         {
             for (var i = 0; i < shelves.Count; i++)
             {
                 var hit = shelves[i].Files.Where(f => f.Path is { Length: > 0 } && f.BookId is not null)
-                    .FirstOrDefault(f => PathComparison.IsUnder(PathMapper.Map(f.Path!, mappings), path));
+                    .FirstOrDefault(f => PathMapper.Map(f.Path!, mappings) is var mapped
+                        && (files is not null ? files.Contains(PathComparison.Key(mapped)) : PathComparison.IsUnder(mapped, path, PathComparison.FileSystemComparison)));
                 if (hit is not null && shelves[i].Books.FirstOrDefault(b => b.Id == hit.BookId) is { } byFile)
                 {
                     return (i, byFile);

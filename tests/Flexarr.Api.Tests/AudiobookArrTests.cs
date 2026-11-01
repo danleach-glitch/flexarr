@@ -46,7 +46,7 @@ public class AudiobookArrTests(FlexarrApiFactory factory) : IClassFixture<Flexar
     public async Task DeletingABook_UnmonitorsItThenDeletesItsOwnFilesInBookshelf()
     {
         var library = await LibraryAsync();
-        var bookId = await BookAsync(library, managedBy: "Bookshelf", arrId: "12");
+        var bookId = await BookAsync(library, managedBy: "Bookshelf", arrId: "12", file: "x.m4b");
         var arr = new FakeArr();
         arr.Responses["PUT //bookshelf.test/api/v1/book/monitor"] = "[]";
         arr.Responses["GET //bookshelf.test/api/v1/bookfile?bookId=12"] = """[{"id": 40, "bookId": 12, "path": "/data/audiobooks/book12/x.m4b"}]""";
@@ -69,7 +69,7 @@ public class AudiobookArrTests(FlexarrApiFactory factory) : IClassFixture<Flexar
     {
         // Fix match makes the online provider its MetadataSource; the app its id came from still owns its files.
         var library = await LibraryAsync();
-        var bookId = await BookAsync(library, managedBy: "Bookshelf", arrId: "14", source: "audible");
+        var bookId = await BookAsync(library, managedBy: "Bookshelf", arrId: "14", source: "audible", file: "y.m4b");
         var arr = new FakeArr();
         arr.Responses["PUT //bookshelf.test/api/v1/book/monitor"] = "[]";
         arr.Responses["GET //bookshelf.test/api/v1/bookfile?bookId=14"] = """[{"id": 41, "bookId": 14, "path": "/data/audiobooks/book14/y.m4b"}]""";
@@ -140,6 +140,126 @@ public class AudiobookArrTests(FlexarrApiFactory factory) : IClassFixture<Flexar
         {
             Directory.Delete(root, recursive: true);
         }
+    }
+
+    [Fact]
+    public async Task ABookWhoseFolderHoldsAnotherBook_LeavesTheOtherBookAlone()
+    {
+        // Author/One.m4b is the only audio file straight in Author/, so Author/ is One's folder; Author/Two/ is another
+        // book, which the app (wrongly linked) says is One.
+        var root = Directory.CreateTempSubdirectory("flexarr-book-delete-").FullName;
+        try
+        {
+            var (bookId, one, two) = await OneAndTwoAsync(root, "18");
+            var arr = new FakeArr();
+            arr.Responses["PUT //bookshelf.test/api/v1/book/monitor"] = "[]";
+            arr.Responses["GET //bookshelf.test/api/v1/bookfile?bookId=18"] = $$"""[{"id": 44, "bookId": 18, "path": "{{two}}"}]""";
+            arr.Responses["DELETE //bookshelf.test/api/v1/bookfile/44"] = "{}";
+            using var app = arr.Serve(factory, bookshelf: true);
+            var client = Client(app.CreateClient());
+
+            var deleted = await client.DeleteAsync(new Uri($"/api/v1/items/{bookId}", UriKind.Relative));
+
+            Assert.Equal(HttpStatusCode.NoContent, deleted.StatusCode);
+            Assert.False(File.Exists(one));
+            Assert.True(File.Exists(two));
+            Assert.DoesNotContain(arr.Requests, r => r.StartsWith("PUT", StringComparison.Ordinal) || r.StartsWith("DELETE", StringComparison.Ordinal));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task ABookWhoseAppFilesFlexarrCantMap_IsUnmonitoredThere_ThenDeletedFromDisk()
+    {
+        // No path mapping for /books: the app's audio file is most likely ours, but Flexarr can't tell which file it is.
+        var root = Directory.CreateTempSubdirectory("flexarr-book-delete-").FullName;
+        try
+        {
+            var (book, file) = await BookOnDiskAsync(root, "Unmapped", "19");
+            var arr = new FakeArr();
+            arr.Responses["PUT //bookshelf.test/api/v1/book/monitor"] = "[]";
+            arr.Responses["GET //bookshelf.test/api/v1/bookfile?bookId=19"] = """[{"id": 45, "bookId": 19, "path": "/books/Unmapped/book.m4b"}]""";
+            arr.Responses["DELETE //bookshelf.test/api/v1/bookfile/45"] = "{}";
+            using var app = arr.Serve(factory, bookshelf: true);
+            var client = Client(app.CreateClient());
+
+            var deleted = await client.DeleteAsync(new Uri($"/api/v1/items/{book}", UriKind.Relative));
+
+            Assert.Equal(HttpStatusCode.NoContent, deleted.StatusCode);
+            Assert.False(File.Exists(file));
+            Assert.Equal(["GET /api/v1/bookfile?bookId=19", "PUT /api/v1/book/monitor"], arr.Requests.Where(r => r.Contains("book", StringComparison.Ordinal)));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task AnAppPathInAnotherCase_IsOurs_WhereTheFileSystemIgnoresCase()
+    {
+        if (Flexarr.Core.Paths.PathComparison.FileSystemComparison != StringComparison.OrdinalIgnoreCase)
+        {
+            return; // Linux: another case is another file.
+        }
+
+        var library = await LibraryAsync();
+        var bookId = await BookAsync(library, managedBy: "Bookshelf", arrId: "20", file: "z.m4b");
+        var arr = new FakeArr();
+        arr.Responses["PUT //bookshelf.test/api/v1/book/monitor"] = "[]";
+        arr.Responses["GET //bookshelf.test/api/v1/bookfile?bookId=20"] = """[{"id": 46, "bookId": 20, "path": "/data/Audiobooks/BOOK20/z.m4b"}]""";
+        arr.Responses["DELETE //bookshelf.test/api/v1/bookfile/46"] = "{}";
+        using var app = arr.Serve(factory, bookshelf: true);
+        var client = Client(app.CreateClient());
+
+        var deleted = await client.DeleteAsync(new Uri($"/api/v1/items/{bookId}", UriKind.Relative));
+
+        Assert.Equal(HttpStatusCode.NoContent, deleted.StatusCode);
+        Assert.Equal(["GET /api/v1/bookfile?bookId=20", "PUT /api/v1/book/monitor", "DELETE /api/v1/bookfile/46"],
+            arr.Requests.Where(r => r.Contains("book", StringComparison.Ordinal)));
+    }
+
+    [Fact]
+    public async Task TheDeletePreview_NamesAnAppThatTimesOut_RatherThanFailing()
+    {
+        var library = await LibraryAsync();
+        var bookId = await BookAsync(library, managedBy: "Bookshelf", arrId: "21", file: "t.m4b");
+        var arr = new FakeArr
+        {
+            // What HttpClient throws when its timeout runs out.
+            OnRequest = r => throw new TaskCanceledException("The request was canceled due to the configured HttpClient.Timeout"),
+        };
+        using var app = arr.Serve(factory, bookshelf: true);
+        var client = Client(app.CreateClient());
+
+        var preview = await client.GetFromJsonAsync<JsonElement>(new Uri($"/api/v1/items/{bookId}/deletion", UriKind.Relative));
+
+        Assert.Equal("Bookshelf", preview.GetProperty("managedBy").GetString());
+    }
+
+    /// <summary>Book One at root/Author (its one file straight in it), beside another book's folder root/Author/Two.</summary>
+    private async Task<(Guid Id, string One, string Two)> OneAndTwoAsync(string root, string arrId)
+    {
+        var folder = Path.Combine(root, "Author");
+        Directory.CreateDirectory(Path.Combine(folder, "Two"));
+        var one = Path.Combine(folder, "One.m4b");
+        var two = Path.Combine(folder, "Two", "two.mp3");
+        await File.WriteAllTextAsync(one, "x");
+        await File.WriteAllTextAsync(two, "x");
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        var library = new Library { Name = $"Books {Guid.NewGuid():N}", Type = LibraryType.Audiobooks, Folders = [new LibraryFolder { Path = root }] };
+        var book = new MediaItem
+        {
+            LibraryId = library.Id, Kind = MediaKind.Audiobook, Title = "One", SortTitle = "one", MetadataSource = "Bookshelf", Path = folder,
+            Book = new BookDetails { ArrBookId = arrId, ArrInstance = "Bookshelf" }, Files = [new MediaFile { Path = one, Size = 1, BookOrder = 0 }],
+        };
+        db.AddRange(library, book);
+        await db.SaveChangesAsync();
+        return (book.Id, one, two);
     }
 
     private async Task<(Guid Id, string File)> BookOnDiskAsync(string root, string title, string arrId)
@@ -261,6 +381,28 @@ public class AudiobookArrTests(FlexarrApiFactory factory) : IClassFixture<Flexar
     }
 
     [Fact]
+    public async Task RequestingABookAgain_AfterRequestsMovedApp_PointsTheOpenRequestAtTheNewApp()
+    {
+        await LibraryAsync();
+        var arr = BookshelfForRequests();
+        using var app = arr.Serve(factory, bookshelf: true);
+        var client = Client(app.CreateClient());
+        (await client.PostAsJsonAsync(new Uri("/api/v1/requests/books", UriKind.Relative), new { foreignBookId = "hc:2", query = "osman" })).EnsureSuccessStatusCode();
+        using (var scope = app.Services.CreateScope())
+        {
+            // As if it had been asked of another app, before book requests were moved to Bookshelf.
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            await db.MediaRequests.Where(r => r.BookForeignId == "hc:2").ExecuteUpdateAsync(u => u.SetProperty(r => r.BookArrId, "99").SetProperty(r => r.BookArrInstance, "Old Readarr"));
+        }
+
+        (await client.PostAsJsonAsync(new Uri("/api/v1/requests/books", UriKind.Relative), new { foreignBookId = "hc:2", query = "osman" })).EnsureSuccessStatusCode();
+
+        using var check = app.Services.CreateScope();
+        var request = await check.ServiceProvider.GetRequiredService<FlexarrDbContext>().MediaRequests.SingleAsync(r => r.BookForeignId == "hc:2" && r.FulfilledAt == null);
+        Assert.Equal(("13", "Bookshelf"), (request.BookArrId, request.BookArrInstance));
+    }
+
+    [Fact]
     public async Task ComingSoon_DoesntPointIntoALibraryTheProfileCantSee()
     {
         await LibraryAsync();
@@ -339,7 +481,7 @@ public class AudiobookArrTests(FlexarrApiFactory factory) : IClassFixture<Flexar
         return library.Id;
     }
 
-    private async Task<Guid> BookAsync(Guid library, string managedBy, string arrId, string? source = null)
+    private async Task<Guid> BookAsync(Guid library, string managedBy, string arrId, string? source = null, string? file = null)
     {
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
@@ -347,6 +489,7 @@ public class AudiobookArrTests(FlexarrApiFactory factory) : IClassFixture<Flexar
         {
             LibraryId = library, Kind = MediaKind.Audiobook, Title = "Delete Me", SortTitle = "delete me", MetadataSource = source ?? managedBy,
             Path = $"/Volumes/Media/data/audiobooks/book{arrId}", Book = new BookDetails { ArrBookId = arrId, ArrInstance = managedBy },
+            Files = file is null ? [] : [new MediaFile { Path = $"/Volumes/Media/data/audiobooks/book{arrId}/{file}", Size = 1, BookOrder = 0 }],
         };
         db.MediaItems.Add(book);
         await db.SaveChangesAsync();

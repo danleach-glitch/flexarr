@@ -61,7 +61,7 @@ public static class BookEndpoints
             var parts = await BookPlayback.PartsAsync(db, id, Codecs(codecs), ct);
             var manifest = await BookPlayback.ManifestAsync(db, book, profile.Id, parts,
                 p => $"/api/v1/items/{id}/book/files/{p.Index}{(p.Convert ? "?convert=aac" : "")}", ct);
-            converter.Prepare(parts, manifest.Progress.PositionSeconds);
+            converter.Prepare(id, parts, manifest.Progress.PositionSeconds);
             return Results.Ok(manifest);
         });
 
@@ -78,7 +78,8 @@ public static class BookEndpoints
             return index < 0 || index >= parts.Count ? Results.NotFound() : await ServeAsync(parts[index], convert == "aac" && parts[index].Convert, converter, ct);
         });
 
-        item.MapPut("/progress", async (Guid id, BookProgressRequest request, FlexarrDbContext db, CurrentProfile profile, PlaybackSessions sessions, CancellationToken ct) =>
+        item.MapPut("/progress", async (Guid id, BookProgressRequest request, FlexarrDbContext db, CurrentProfile profile, PlaybackSessions sessions,
+            BookFileConverter converter, CancellationToken ct) =>
         {
             if (!double.IsFinite(request.PositionSeconds))
             {
@@ -90,10 +91,16 @@ public static class BookEndpoints
                 return Results.NotFound();
             }
 
-            // Listening now (not listening done offline, sent later): a remote may set it past 2x.
-            if (profile.SignInId is { } signIn && (request.RecordedAt is not { } at || DateTime.UtcNow - at.ToUniversalTime() < TimeSpan.FromMinutes(1)))
+            // Listening now (not listening done offline, sent later): a remote may set it past 2x, and the files coming up
+            // that need converting are converted ahead of it.
+            if (request.RecordedAt is not { } at || DateTime.UtcNow - at.ToUniversalTime() < TimeSpan.FromMinutes(1))
             {
-                sessions.BookReported(signIn);
+                if (profile.SignInId is { } signIn)
+                {
+                    sessions.BookReported(signIn);
+                }
+
+                converter.PrepareAhead(id, request.PositionSeconds);
             }
 
             return Results.Ok(progress);

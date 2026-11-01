@@ -61,7 +61,7 @@ public sealed partial class MetadataRefresher
         {
             var chunk = ids.Skip(next).Take(25).ToList();
             var books = await db.MediaItems.Where(i => chunk.Contains(i.Id))
-                .Include(i => i.Book).Include(i => i.Genres).Include(i => i.Credits).ThenInclude(c => c.Person)
+                .Include(i => i.Book).Include(i => i.Genres).Include(i => i.Files).Include(i => i.Credits).ThenInclude(c => c.Person)
                 .AsSplitQuery().ToListAsync(ct).ConfigureAwait(false);
             var failed = false;
             foreach (var id in chunk)
@@ -115,7 +115,7 @@ public sealed partial class MetadataRefresher
         var details = book.Book ??= new BookDetails { MediaItemId = book.Id };
         var wanted = new BookToMatch(book.Path, book.Title,
             [.. book.Credits.Where(c => c.Role == CreditRole.Author).OrderBy(c => c.Order).Select(c => c.Person!.Name)],
-            details.Asin, details.Isbn, details.ArrBookId, details.ArrInstance);
+            details.Asin, details.Isbn, details.ArrBookId, details.ArrInstance, [.. book.Files.Select(f => f.Path)]);
         // The app it came from is set up but didn't answer: its link stands rather than one guessed in another app.
         var unanswered = details.ArrInstance is { } from
             && settings.ArrInstances.Any(a => a.Kind == ArrKind.Readarr && SameInstance(a.Name, from))

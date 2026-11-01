@@ -127,6 +127,40 @@ public sealed class BookConversionTests : IDisposable
     }
 
     [Fact]
+    public async Task ProgressReports_KeepConvertingAheadOfTheListener()
+    {
+        var book = await SeedAsync([.. Enumerable.Range(1, 8).Select(i => ($"{i:00}.wma", "wmav2"))]);
+        _gate.SetResult();
+
+        (await Client().GetAsync(Url($"/api/v1/items/{book}/book?codecs=aac,mp3"))).EnsureSuccessStatusCode();
+        await WaitForAsync(() => _started == BookFileConverter.MaxPrepared && _running == 0);
+
+        // Into file 4: files 4, 5 and 6 are converted ahead, without being asked for.
+        (await Client().PutAsJsonAsync(Url($"/api/v1/items/{book}/progress"), new { positionSeconds = 3 * 600 + 10 })).EnsureSuccessStatusCode();
+        await WaitForAsync(() => _started == 2 * BookFileConverter.MaxPrepared && _running == 0);
+
+        // Reported again: nothing new to start.
+        (await Client().PutAsJsonAsync(Url($"/api/v1/items/{book}/progress"), new { positionSeconds = 3 * 600 + 20 })).EnsureSuccessStatusCode();
+        await Task.Delay(300);
+        Assert.Equal(2 * BookFileConverter.MaxPrepared, _started);
+    }
+
+    [Fact]
+    public async Task SessionProgress_KeepsConvertingAheadOfTheListener()
+    {
+        var book = await SeedAsync([.. Enumerable.Range(1, 8).Select(i => ($"{i:00}.wma", "wmav2"))]);
+        _gate.SetResult();
+
+        var started = await Client().PostAsJsonAsync(Url("/api/v1/playback"), new { itemId = book, profile = new { audioCodecs = new[] { "aac", "mp3" } }, startPositionSeconds = 0 });
+        var session = (await started.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>()).GetProperty("sessionId").GetString();
+        await WaitForAsync(() => _started == BookFileConverter.MaxPrepared && _running == 0);
+
+        (await Client().PostAsJsonAsync(Url($"/api/v1/playback/{session}/progress"), new { positionSeconds = 3 * 600 + 10 })).EnsureSuccessStatusCode();
+
+        await WaitForAsync(() => _started == 2 * BookFileConverter.MaxPrepared && _running == 0);
+    }
+
+    [Fact]
     public async Task OldCopiesArePruned_AndABooksCopiesGoWithIt()
     {
         var directory = Directory.CreateDirectory(Converter.Directory).FullName;

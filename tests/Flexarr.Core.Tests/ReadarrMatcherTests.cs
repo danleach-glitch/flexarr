@@ -66,4 +66,19 @@ public sealed class ReadarrMatcherTests
 
         Assert.Equal(("Audiobooks", "7"), (Both[hit!.Value.Shelf].Instance, hit.Value.Book.Id));
     }
+
+    [Fact]
+    public void AFileInsideTheFolder_ButNotTheBooks_IsNoMatch()
+    {
+        // Author/ is One's folder (its file is the only one straight in it); Author/Two/ is another book.
+        var shelf = new ReadarrShelf("Audiobooks",
+            [new ReadarrBook { Id = "8", AuthorId = "3", Title = "Two" }, new ReadarrBook { Id = "9", AuthorId = "3", Title = "One" }],
+            [new ReadarrBookFile { Id = "3", BookId = "8", Path = "/audiobooks/Richard Osman/Two/two.mp3" },
+             new ReadarrBookFile { Id = "4", BookId = "9", Path = "/audiobooks/Richard Osman/One.m4b" }],
+            [Osman]);
+        var one = new BookToMatch("/audiobooks/Richard Osman", "One", ["Richard Osman"], null, null, null, Files: ["/audiobooks/Richard Osman/One.m4b"]);
+
+        Assert.Equal(("Audiobooks", "9"), Match(one, shelf));
+        Assert.Null(Match(one with { Title = "Three", Files = ["/audiobooks/Richard Osman/Three.m4b"] }, shelf));
+    }
 }

@@ -84,6 +84,18 @@ public class AudiobookApiTests(FlexarrApiFactory factory) : IClassFixture<Flexar
     }
 
     [Fact]
+    public async Task Books_ByLanguage_InAnySpellingOrCase()
+    {
+        var lib = await SeedAsync(); // every book tagged "English"
+
+        var byCode = await GetAsync<PagedDto<ItemSummaryDto>>($"/api/v1/libraries/{lib.Library}/books?language=EN");
+        var byName = await GetAsync<PagedDto<ItemSummaryDto>>($"/api/v1/libraries/{lib.Library}/books?language=english");
+        var german = await GetAsync<PagedDto<ItemSummaryDto>>($"/api/v1/libraries/{lib.Library}/books?language=ger");
+
+        Assert.Equal((6, 6, 0), (byCode.Total, byName.Total, german.Total));
+    }
+
+    [Fact]
     public async Task ASeries_InReadingOrder_WithTheNextOnePickedOut()
     {
         var lib = await SeedAsync();
