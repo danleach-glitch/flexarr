@@ -1,10 +1,13 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Person } from '../api/client'
 import { mockApi } from '../test/mockApi'
 import { PersonEditor } from './PersonEditor'
 
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => {
+  vi.unstubAllGlobals()
+  vi.useRealTimers()
+})
 
 const person: Person = {
   id: 'p1',
@@ -111,6 +114,34 @@ describe('PersonEditor', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     await waitFor(() => expect(onSaved).toHaveBeenCalled())
     expect(sent).toEqual([{ photo: 'openlibrary', biography: 'New words.', locked: false }])
+  })
+
+  it('hides a photo that fails to load', async () => {
+    mockApi({ 'GET /people/p1/candidates': candidates })
+    render(<PersonEditor person={person} onSaved={() => undefined} onClose={() => undefined} />)
+
+    const openLibrary = await screen.findByRole('radio', { name: 'Open Library' })
+    fireEvent.error(openLibrary.querySelector('img')!)
+    expect(screen.queryByRole('radio', { name: 'Open Library' })).toBeNull()
+    expect(screen.getByRole('radio', { name: /Audible/ })).toBeTruthy()
+  })
+
+  it('looks for photos again when it has been open a while, bringing back ones that failed', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    let asked = 0
+    mockApi({
+      'GET /people/p1/candidates': () => {
+        asked++
+        return candidates
+      },
+    })
+    render(<PersonEditor person={person} onSaved={() => undefined} onClose={() => undefined} />)
+
+    fireEvent.error((await screen.findByRole('radio', { name: 'Open Library' })).querySelector('img')!)
+    expect(asked).toBe(1)
+    act(() => vi.advanceTimersByTime(9 * 60_000))
+    await waitFor(() => expect(asked).toBe(2))
+    expect(await screen.findByRole('radio', { name: 'Open Library' })).toBeTruthy()
   })
 
   it('closes without a request when nothing changed', async () => {
