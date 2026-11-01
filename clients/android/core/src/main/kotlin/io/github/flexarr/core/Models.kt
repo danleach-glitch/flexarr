@@ -86,6 +86,8 @@ enum class HomeRowStyle(override val raw: String) : ForwardCompatibleEnum {
     Podcasts("podcasts"),
     /** The profile's daily music mixes ("Made for you", [MUSIC_MIXES_ROW_ID]); `items` is empty, the mixes are in `mixes`. */
     Mixes("mixes"),
+    /** Coming soon; `items` is empty, what's coming is in [Home.upcoming]. */
+    Upcoming("upcoming"),
     Unknown("");
 
     object Serializer : ForwardCompatibleEnumSerializer<HomeRowStyle>("HomeRowStyle", entries, Unknown)
@@ -355,6 +357,10 @@ data class Home(
      * when the profile switched it off. Absent from servers before 0.58, where the app put it after Continue watching.
      */
     val placesPodcasts: Boolean? = null,
+    /** What Coming soon shows: episodes airing, films and books coming out. Empty when the row is switched off. */
+    val upcoming: List<UpcomingItem> = emptyList(),
+    /** How many downloads Sonarr, Radarr and Readarr have under way, for Coming soon's heading. */
+    val downloading: Int = 0,
 ) {
     /**
      * What a featured title's Play picks up from, when it's been started: the film itself, or a show's episode. A
@@ -365,6 +371,30 @@ data class Home(
         return if (item.id == featured.firstOrNull()?.id) resume else null
     }
 }
+
+/** Something Sonarr, Radarr or Readarr expects soon: an episode airing, a film or a book coming out. */
+@Serializable
+data class UpcomingItem(
+    val id: String,
+    val kind: MediaKind,
+    val title: String,
+    /** The show, for an episode; the author, for a book. */
+    val seriesTitle: String? = null,
+    val seasonNumber: Int? = null,
+    val episodeNumber: Int? = null,
+    @Serializable(with = InstantSerializer::class) val date: java.time.Instant,
+    /** "Airs", "In cinemas", "Digital release", "Out" and the like. */
+    val `when`: String = "",
+    val poster: String? = null,
+    val still: String? = null,
+    /** The title in the library, when it's there already (a show with a new episode). */
+    val libraryItemId: String? = null,
+    val download: UpcomingDownload? = null,
+)
+
+/** How far a download of something coming has got, 0 to 1. */
+@Serializable
+data class UpcomingDownload(val progress: Double)
 
 /** Whether this Home has the New podcasts row: not when the server places it and the profile switched it off. */
 val Home.hasNewPodcasts: Boolean get() = placesPodcasts != true || rows.any { it.id == HOME_PODCASTS_ROW_ID }

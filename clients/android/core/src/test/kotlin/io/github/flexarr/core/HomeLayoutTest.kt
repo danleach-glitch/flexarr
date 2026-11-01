@@ -113,4 +113,18 @@ class HomeLayoutTest {
         memory.remember(null, older)
         assertTrue(memory.fetchesAlongside(null))
     }
+
+    @Test
+    fun homeCarriesComingSoon() {
+        val home = home(
+            """{"featured":[],"rows":[{"id":"upcoming","title":"Coming soon","style":"upcoming","items":[]}],"downloading":2,
+               "upcoming":[{"id":"sonarr-S-7","kind":"Episode","title":"Pilot","seriesTitle":"Brand New","seasonNumber":1,"episodeNumber":1,
+               "date":"2026-11-03T20:00:00Z","when":"Airs","overview":null,"poster":null,"still":"/api/v1/images/remote?u=x","libraryItemId":null,
+               "available":false,"download":{"progress":0.5,"timeLeft":null,"status":"downloading"},"source":"Sonarr"}]}""",
+        )
+        assertEquals(HomeRowStyle.Upcoming, home.rows.single().style)
+        assertEquals(2, home.downloading)
+        assertEquals("Pilot", home.upcoming.single().title)
+        assertEquals(0.5, home.upcoming.single().download?.progress)
+    }
 }
