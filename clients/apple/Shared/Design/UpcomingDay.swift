@@ -15,17 +15,16 @@ enum UpcomingDay {
         }
     }
 
-    /// The card's second line: the episode ("S01E03 Title"), a book's author, or how a film comes out ("In cinemas").
+    /// The card's second line: the episode ("S01E03 Title") or how a film comes out ("In cinemas").
     static func detail(_ item: UpcomingItem) -> String {
         switch item.kind {
         case .episode: String(format: "S%02dE%02d ", item.seasonNumber ?? 0, item.episodeNumber ?? 0) + item.title
-        case .audiobook: item.seriesTitle ?? item.when
         default: item.when
         }
     }
 
-    /// The card's title: the show, the film, or the book.
+    /// The card's title: the show or the film.
     static func title(_ item: UpcomingItem) -> String {
-        item.kind == .audiobook ? item.title : item.seriesTitle ?? item.title
+        item.seriesTitle ?? item.title
     }
 }
