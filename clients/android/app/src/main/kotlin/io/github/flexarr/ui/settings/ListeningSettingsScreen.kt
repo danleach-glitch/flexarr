@@ -21,6 +21,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.flexarr.AppModel
+import io.github.flexarr.audio.PodcastPlayer
 import io.github.flexarr.core.BookListening
 import io.github.flexarr.core.BookListeningUpdate
 import io.github.flexarr.core.BookSpeed
@@ -160,7 +161,8 @@ fun ListeningSettingsScreen(model: AppModel, onNotifications: () -> Unit) {
                     header = "Your profile, on every device",
                     footer = "A book with a speed of its own keeps it. Smart rewind starts a little earlier after a pause.",
                 ) {
-                    Picker("Speed", BookSpeed.choices(speed), BookSpeed.snapped(speed), BookSpeed::label) {
+                    // The speed as podcasts play it (up to 4×), not snapped to books' steps.
+                    Picker("Speed", (BookSpeed.presets + speed).distinct().sorted(), speed, PodcastPlayer::speedLabel) {
                         update(PodcastPreferencesUpdate(speed = it), BookListeningUpdate(speed = it))
                     }
                     listening?.let { known ->

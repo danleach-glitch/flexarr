@@ -10,8 +10,8 @@ import {
 } from '../../api/client'
 import { useSession } from '../../hooks/sessionContext'
 import { useApi } from '../../hooks/useApi'
-import { bookSpeedPresets, formatSpeed, skipSteps, withCurrent } from '../../lib/books'
-import { PODCAST_PREFERENCES_CHANGED } from '../../lib/podcasts'
+import { bookSpeedPresets, skipSteps, withCurrent } from '../../lib/books'
+import { PODCAST_PREFERENCES_CHANGED, speedLabel } from '../../lib/podcasts'
 import { SaveStatus, SettingRow, SettingsGroup, SettingsHeader, ToggleRow } from './shared'
 import { errorText } from './useSettings'
 
@@ -65,7 +65,7 @@ export function ListeningSection() {
             title="Listening"
             note={`${name ? `${name}’s` : 'This profile’s'} own, in every app. A book with a speed of its own keeps it.`}
           >
-            <SettingRow label="Speed">{select(p.speed, withCurrent(bookSpeedPresets, p.speed), formatSpeed, (speed) => void save({ speed }))}</SettingRow>
+            <SettingRow label="Speed">{select(p.speed, withCurrent(bookSpeedPresets, p.speed), speedLabel, (speed) => void save({ speed }))}</SettingRow>
             {p.skipBackSeconds !== undefined && (
               <SettingRow label="Skip back">
                 {select(p.skipBackSeconds, withCurrent(skipSteps, p.skipBackSeconds), seconds, (skipBackSeconds) => void save({ skipBackSeconds }))}
