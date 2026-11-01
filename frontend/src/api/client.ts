@@ -1350,9 +1350,11 @@ export interface BookRequestSetup {
   qualityProfileId: number | null
   metadataProfileId: number | null
   rootFolderPath: string | null
+  /** Book requests are switched on (a preview). Absent from servers before 0.58. */
+  enabled?: boolean
 }
 export const getBookRequestSetup = (signal?: AbortSignal) => apiGet<BookRequestSetup>('/requests/books/setup', signal)
-export const saveBookRequestSetup = (setup: { qualityProfileId?: number | null; metadataProfileId?: number | null; rootFolderPath?: string | null }) =>
+export const saveBookRequestSetup = (setup: { qualityProfileId?: number | null; metadataProfileId?: number | null; rootFolderPath?: string | null; enabled?: boolean }) =>
   request<BookRequestSetup>('PUT', '/requests/books/setup', setup)
 export const getExternalDiscover = (signal?: AbortSignal) =>
   apiGet<{ id: string; title: string; items: ExternalTitle[] }[]>('/requests/discover', signal)

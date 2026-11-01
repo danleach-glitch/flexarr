@@ -85,4 +85,4 @@ With one connected:
 - Their details and covers fill what your files don't say.
 - **Coming soon** lists books on their way from authors you follow.
 - Deleting a book in Flexarr deletes it there too, and it isn't fetched again.
-- You can request books from the web app: see [Requests](requests.md).
+- You can request books from the web app, a preview you switch on in **Settings › Libraries**: see [Requests](requests.md).
