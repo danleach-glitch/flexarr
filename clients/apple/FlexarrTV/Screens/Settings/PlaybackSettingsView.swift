@@ -73,9 +73,9 @@ struct PlaybackSettingsView: View {
 
             // How books play: the profile's, shared with podcasts on the other apps. With an audiobooks library only.
             if let listening = model.bookListening {
-                SettingsGroupLabel("Audiobooks, on every device")
+                SettingsGroupLabel("Audiobooks")
                 SettingsLinkRow(title: "Speed", symbol: "gauge.with.dots.needle.50percent", value: BookSpeed.label(listening.speed),
-                                help: "For books and podcasts. A book with a speed of its own keeps it.") {
+                                help: "A book with a speed of its own keeps it.") {
                     SettingsChoicePage(title: "Speed", choices: BookSpeed.choices(with: listening.speed), label: BookSpeed.label,
                                        selection: listening.speed) { speed in saveListening(.init(speed: speed)) }
                 }
@@ -95,7 +95,7 @@ struct PlaybackSettingsView: View {
 
             SettingsGroupLabel("This Apple TV")
             SettingsLinkRow(title: "Skip back and forward", symbol: "goforward.\(Int(skipSeconds))", value: "\(Int(skipSeconds)) seconds",
-                            help: "How far a click on the left or right of the remote moves while something plays.") {
+                            help: "How far a click on the left or right of the remote moves films and shows.") {
                 SettingsChoicePage(title: "Skip back and forward", summary: "A click on the left or right of the remote's touch surface.",
                                    choices: [10.0, 15.0, 30.0], label: { "\(Int($0)) seconds" }, selection: skipSeconds) { seconds in
                     skipSeconds = seconds
