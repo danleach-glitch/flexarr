@@ -364,13 +364,12 @@ public sealed partial class AuthorInfo(FlexarrDbContext db, ArrClient arr, IMeta
             return (null, true);
         }
 
-        var roots = await db.LibraryFolders.AsNoTracking().Where(f => libraries.Contains(f.LibraryId)).Select(f => new { f.LibraryId, f.Path }).ToListAsync(ct).ConfigureAwait(false);
         var sure = true;
         foreach (var book in books.Where(b => b.Path is not null))
         {
-            foreach (var root in roots.Where(r => r.LibraryId == book.LibraryId).Select(r => r.Path.TrimEnd('/')))
+            foreach (var root in await RootsAsync(book.LibraryId, ct).ConfigureAwait(false))
             {
-                var (photo, listed) = FolderPhoto(name, root, book.Path!, ListFolder);
+                var (photo, listed) = FolderPhoto(name, root, book.Path!, Listed);
                 if (photo is not null)
                 {
                     return (photo, true);
@@ -419,6 +418,35 @@ public sealed partial class AuthorInfo(FlexarrDbContext db, ArrClient arr, IMeta
         }
 
         return (null, true);
+    }
+
+    // Remembered for as long as this lives (a refresh, a request): an author of 80 books has one folder, listed once.
+    private readonly Dictionary<Guid, List<string>> _roots = [];
+    private readonly Dictionary<string, string[]?> _listings = new(StringComparer.Ordinal);
+
+    /// <summary>A library's folders.</summary>
+    private async Task<List<string>> RootsAsync(Guid libraryId, CancellationToken ct)
+    {
+        if (!_roots.TryGetValue(libraryId, out var roots))
+        {
+            roots = (await db.LibraryFolders.AsNoTracking().Where(f => f.LibraryId == libraryId).Select(f => f.Path).ToListAsync(ct).ConfigureAwait(false))
+                .Select(p => p.TrimEnd('/')).ToList();
+            _roots[libraryId] = roots;
+        }
+
+        return roots;
+    }
+
+    /// <summary>An author folder's files, listed once (see <see cref="ListFolder"/>).</summary>
+    private string[]? Listed(string folder)
+    {
+        if (!_listings.TryGetValue(folder, out var files))
+        {
+            files = ListFolder(folder);
+            _listings[folder] = files;
+        }
+
+        return files;
     }
 
     /// <summary>

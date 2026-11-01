@@ -422,6 +422,32 @@ public sealed class AuthorInfoTests : IAsyncLifetime
         await _db.SaveChangesAsync();
     }
 
+    [Fact]
+    public async Task AnAuthorsFolder_IsListedOncePerRefresh_WhateverTheirBooks()
+    {
+        var library = await SeedAsync(new Person { Name = Osman, Biography = "Known.", InfoCheckedAt = DateTime.UtcNow });
+        var osman = await _db.People.SingleAsync(p => p.Name == Osman);
+        for (var i = 0; i < 5; i++)
+        {
+            await SeedAsync(Path.Combine(Books, Osman, $"Book {i}"), osman, library);
+        }
+
+        var authors = Authors();
+        foreach (var book in await _db.MediaItems.Include(i => i.Credits).ThenInclude(c => c.Person).ToListAsync())
+        {
+            await authors.FillBookAsync(book, [], null, [], default);
+        }
+
+        // A photo put there mid-refresh is seen next time, not this: the folder was read once.
+        await AuthorPhotoAsync("author.jpg");
+        var last = await _db.MediaItems.Include(i => i.Credits).ThenInclude(c => c.Person).FirstAsync();
+        await authors.FillBookAsync(last, [], null, [], default);
+        Assert.Null(osman.ImageUrl);
+
+        await Authors().FillBookAsync(last, [], null, [], default);
+        Assert.NotNull(osman.ImageUrl);
+    }
+
     /// <summary>Just the authors, online providers left out.</summary>
     private AuthorInfo Authors(BookProviders? providers = null) =>
         new(_db, new ArrClient(new HttpClient(_web)), new Settings(_dir, []), providers, NullLogger.Instance);
