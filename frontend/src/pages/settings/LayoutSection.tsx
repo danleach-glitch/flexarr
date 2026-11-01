@@ -83,7 +83,8 @@ export function RowList({
   title: string
   rows: RowChoice[]
   onChange: (rows: RowChoice[]) => void
-  switches?: boolean
+  /** Every row has a switch, none does, or only the rows this picks. */
+  switches?: boolean | ((row: RowChoice) => boolean)
   children?: ReactNode
 }) {
   const listId = useId()
@@ -150,7 +151,7 @@ export function RowList({
                 <ChevronDown />
               </button>
             </span>
-            {switches && <input
+            {(typeof switches === 'function' ? switches(row) : switches) && <input
               id={`${listId}-${row.id}`}
               type="checkbox"
               role="switch"

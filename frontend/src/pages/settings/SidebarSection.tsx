@@ -21,6 +21,7 @@ export function SidebarSection() {
   const saved = useRef<string[]>(undefined)
   useEffect(() => () => clearTimeout(timer.current), [])
 
+  const podcastsShown = usePodcastsInSidebar()
   const me = profiles.data?.find((p) => p.isCurrent)
   if (profiles.error) return <SaveStatus error={errorText(profiles.error)} />
   if (!me) return null
@@ -54,27 +55,36 @@ export function SidebarSection() {
       {shown.length > 1 ? (
         <RowList
           title={`${me.name}’s libraries`}
-          rows={shown.map((l) => ({ id: l.id, label: l.name, enabled: true }))}
-          onChange={(rows) => change(rows.map((r) => r.id))}
-          switches={false}
+          // Podcasts' switch: whether it's in the web sidebar at all (Home has a New podcasts row either way).
+          rows={shown.map((l) => ({ id: l.id, label: l.name, enabled: l.type !== 'Podcasts' || podcastsShown.on !== false }))}
+          onChange={(rows) => {
+            const podcasts = rows.find((r) => byId.get(r.id)?.type === 'Podcasts')
+            if (podcasts && podcastsShown.on !== undefined && podcasts.enabled !== podcastsShown.on) return podcastsShown.change(podcasts.enabled)
+            change(rows.map((r) => r.id))
+          }}
+          switches={(row) => byId.get(row.id)?.type === 'Podcasts' && podcastsShown.on !== undefined}
         />
       ) : (
         <p className="muted">With two or more libraries, you can put them in order here.</p>
       )}
       {/* Only a failed save says anything, under the list so the list never moves. */}
-      <SaveStatus error={error} />
-      {libraries.some((l) => l.type === 'Podcasts') && <PodcastsInSidebar />}
+      <SaveStatus error={error ?? podcastsShown.error} />
+      {/* Podcasts alone have no list to sit in: their switch on its own. */}
+      {shown.length === 1 && shown[0].type === 'Podcasts' && podcastsShown.on !== undefined && (
+        <SettingsGroup title="Podcasts">
+          <ToggleRow label="Show in the sidebar" help="Either way, Home has a New podcasts row." checked={podcastsShown.on} onChange={(v) => void podcastsShown.change(v)} />
+        </SettingsGroup>
+      )}
     </section>
   )
 }
 
-/** Whether Podcasts has a place among the libraries: a podcast setting, kept with the profile's podcast settings. */
-function PodcastsInSidebar() {
+/** Whether Podcasts has a place among the libraries in the web sidebar: a podcast setting of the profile's. */
+function usePodcastsInSidebar() {
   const loaded = useApi((signal) => getPodcastPreferences(signal), [])
   const [chosen, setChosen] = useState<boolean>()
   const [error, setError] = useState<string>()
   const on = chosen ?? loaded.data?.showInSidebar
-  if (on === undefined) return null
 
   async function change(showInSidebar: boolean) {
     setChosen(showInSidebar)
@@ -88,9 +98,5 @@ function PodcastsInSidebar() {
     }
   }
 
-  return (
-    <SettingsGroup title="Podcasts" note={error ? <SaveStatus error={error} /> : undefined}>
-      <ToggleRow label="Show in the sidebar" help="Either way, Home has a New podcasts row." checked={on} onChange={(v) => void change(v)} />
-    </SettingsGroup>
-  )
+  return { on, change, error }
 }
