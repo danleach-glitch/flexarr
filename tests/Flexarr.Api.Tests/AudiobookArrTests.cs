@@ -381,6 +381,28 @@ public class AudiobookArrTests(FlexarrApiFactory factory) : IClassFixture<Flexar
     }
 
     [Fact]
+    public async Task RequestingABookAgain_AfterRequestsMovedApp_PointsTheOpenRequestAtTheNewApp()
+    {
+        await LibraryAsync();
+        var arr = BookshelfForRequests();
+        using var app = arr.Serve(factory, bookshelf: true);
+        var client = Client(app.CreateClient());
+        (await client.PostAsJsonAsync(new Uri("/api/v1/requests/books", UriKind.Relative), new { foreignBookId = "hc:2", query = "osman" })).EnsureSuccessStatusCode();
+        using (var scope = app.Services.CreateScope())
+        {
+            // As if it had been asked of another app, before book requests were moved to Bookshelf.
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            await db.MediaRequests.Where(r => r.BookForeignId == "hc:2").ExecuteUpdateAsync(u => u.SetProperty(r => r.BookArrId, "99").SetProperty(r => r.BookArrInstance, "Old Readarr"));
+        }
+
+        (await client.PostAsJsonAsync(new Uri("/api/v1/requests/books", UriKind.Relative), new { foreignBookId = "hc:2", query = "osman" })).EnsureSuccessStatusCode();
+
+        using var check = app.Services.CreateScope();
+        var request = await check.ServiceProvider.GetRequiredService<FlexarrDbContext>().MediaRequests.SingleAsync(r => r.BookForeignId == "hc:2" && r.FulfilledAt == null);
+        Assert.Equal(("13", "Bookshelf"), (request.BookArrId, request.BookArrInstance));
+    }
+
+    [Fact]
     public async Task ComingSoon_DoesntPointIntoALibraryTheProfileCantSee()
     {
         await LibraryAsync();

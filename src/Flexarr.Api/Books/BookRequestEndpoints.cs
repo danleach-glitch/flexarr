@@ -127,7 +127,9 @@ public static class BookRequestEndpoints
                 }
 
                 await arr.SearchBooksAsync(instance, [arrId], ct);
-                if (!await db.MediaRequests.AnyAsync(r => r.ProfileId == current.Id && r.Kind == MediaKind.Audiobook && r.BookForeignId == request.ForeignBookId && r.FulfilledAt == null, ct))
+                var open = await db.MediaRequests.FirstOrDefaultAsync(r => r.ProfileId == current.Id && r.Kind == MediaKind.Audiobook
+                    && r.BookForeignId == request.ForeignBookId && r.FulfilledAt == null, ct);
+                if (open is null)
                 {
                     db.MediaRequests.Add(new MediaRequest
                     {
@@ -135,8 +137,15 @@ public static class BookRequestEndpoints
                         BookArrInstance = instance.Name,
                         Title = author is null ? title : $"{title} by {author}",
                     });
-                    await db.SaveChangesAsync(ct);
                 }
+                else
+                {
+                    // Asked for again, perhaps of another app since requests moved: it's that app's book now.
+                    open.BookArrId = arrId;
+                    open.BookArrInstance = instance.Name;
+                }
+
+                await db.SaveChangesAsync(ct);
 
                 return Results.Accepted();
             }
