@@ -88,7 +88,7 @@ struct ListeningSettingsView: View {
                     .disabled(!podcasts.autoDownload)
                     .listRowBackground(Color.seat)
                 } header: {
-                    Text("On this \(ThisDevice.name)")
+                    Text("Automatic downloads")
                 } footer: {
                     Text("On Wi-Fi, the newest unplayed episodes of every show you follow. Played ones are deleted.")
                 }
