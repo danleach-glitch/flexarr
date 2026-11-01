@@ -170,6 +170,8 @@ struct PersonView: View {
     let name: String
     @State private var person: Person?
     @State private var error: String?
+    /// The page opens on the first title, not the biography above it; with no titles the biography takes focus.
+    @FocusState private var focusedTitle: String?
 
     private let columns = Array(repeating: GridItem(.fixed(Layout.posterWidth), spacing: Layout.gridSpacing, alignment: .top), count: 6)
 
@@ -197,7 +199,7 @@ struct PersonView: View {
                 if let person {
                     LazyVGrid(columns: columns, alignment: .leading, spacing: 64) {
                         ForEach(person.credits, id: \.item.id) { credit in
-                            PosterCard(item: credit.item) { router.push(.item(credit.item)) }
+                            PosterCard(item: credit.item, focus: $focusedTitle) { router.push(.item(credit.item)) }
                         }
                     }
                 } else if let error {
@@ -210,14 +212,22 @@ struct PersonView: View {
             .padding(.bottom, 80)
         }
         .scrollClipDisabled()
+        .defaultFocus($focusedTitle, person?.credits.first?.item.id)
         .background(RoomBackground(ambient: person?.credits.first?.item.glowColor, intensity: 0.22))
         .task { await load() }
     }
 
     private func load() async {
         guard let client = model.client else { return }
+        let firstLoad = person == nil
         do {
             person = try await client.person(id)
+            // The titles arrive after the page is shown, so steer focus to the first once; coming back from a
+            // title keeps focus where it was.
+            if firstLoad, let first = person?.credits.first?.item.id {
+                await Task.yield() // let the grid appear before focusing into it
+                focusedTitle = first
+            }
         } catch {
             self.error = ConnectionError(error).message
         }
