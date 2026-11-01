@@ -116,7 +116,8 @@ public sealed record PersonDto(Guid Id, string Name, string? Image, IReadOnlyLis
     string? BiographySource = null);
 
 /// <summary>A photo an admin can choose for a person, served through the server (<c>/images/people/{id}/candidates/{source}</c>).</summary>
-public sealed record PersonPhotoCandidateDto(string Source, string Image);
+/// <param name="Current">True on the person's photo now (null on the rest). Absent from servers before 0.58.</param>
+public sealed record PersonPhotoCandidateDto(string Source, string Image, bool? Current = null);
 
 public sealed record PersonBiographyCandidateDto(string Source, string Text);
 
@@ -126,7 +127,7 @@ public sealed record PersonCandidatesDto(IReadOnlyList<PersonPhotoCandidateDto> 
 /// <summary>
 /// An admin's change to a person: a candidate photo by its source, a biography (null or empty clears it), and the lock.
 /// Choosing a photo or writing a biography locks the person unless <see cref="Locked"/> is false; <c>locked: false</c>
-/// alone unlocks them and looks them up again.
+/// alone unlocks them and looks them up again, after the reply.
 /// </summary>
 public sealed class UpdatePersonRequest
 {

@@ -117,4 +117,53 @@ public sealed class ServerConfigStoreTests : IDisposable
         Assert.NotEqual(options.ApiKey, options.ImageSecret);
         Assert.Equal(options.ImageSecret, saved["imageSecret"]!.GetValue<string>());
     }
+
+    [Fact]
+    public async Task AWrite_WaitsForItsOwnReload_NotALateOneOfAnEarlierWrite()
+    {
+        var options = new ReloadingOptions(new FlexarrOptions { DataDirectory = _dir, ConfigRevision = "earlier" });
+        var write = ServerConfigStore.UpdateAndWaitAsync(options, _dir, config => config["podcasts"] = new JsonObject { ["country"] = "gb" }, TimeSpan.FromSeconds(10));
+
+        // A reload left over from the previous write lands first, holding the earlier settings.
+        options.Reload(new FlexarrOptions { DataDirectory = _dir, ConfigRevision = "earlier" });
+        await Task.Delay(100);
+        var waitedPastStale = !write.IsCompleted;
+
+        // Then the reload of this write.
+        var revision = JsonNode.Parse(await File.ReadAllTextAsync(Path.Combine(_dir, ServerConfigStore.FileName)))![ServerConfigStore.RevisionKey]!.GetValue<string>();
+        options.Reload(new FlexarrOptions { DataDirectory = _dir, ConfigRevision = revision });
+        await write.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.True(waitedPastStale);
+    }
+
+    /// <summary>Options that reload when told to, as the file watcher would.</summary>
+    private sealed class ReloadingOptions(FlexarrOptions initial) : Microsoft.Extensions.Options.IOptionsMonitor<FlexarrOptions>
+    {
+        private readonly List<Action<FlexarrOptions, string?>> _listeners = [];
+
+        public FlexarrOptions CurrentValue { get; private set; } = initial;
+
+        public FlexarrOptions Get(string? name) => CurrentValue;
+
+        public void Reload(FlexarrOptions options)
+        {
+            CurrentValue = options;
+            foreach (var listener in _listeners.ToList())
+            {
+                listener(options, null);
+            }
+        }
+
+        public IDisposable OnChange(Action<FlexarrOptions, string?> listener)
+        {
+            _listeners.Add(listener);
+            return new Unsubscribe(() => _listeners.Remove(listener));
+        }
+
+        private sealed class Unsubscribe(Action remove) : IDisposable
+        {
+            public void Dispose() => remove();
+        }
+    }
 }

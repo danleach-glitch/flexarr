@@ -24,6 +24,13 @@ namespace Flexarr.Core.Data.Migrations
                 type: "TEXT",
                 nullable: true);
 
+            migrationBuilder.AddColumn<string>(
+                name: "ImageStamp",
+                table: "People",
+                type: "TEXT",
+                maxLength: 64,
+                nullable: true);
+
             migrationBuilder.AddColumn<DateTime>(
                 name: "InfoCheckedAt",
                 table: "People",
@@ -54,6 +61,10 @@ namespace Flexarr.Core.Data.Migrations
 
             migrationBuilder.DropColumn(
                 name: "ImageChangedAt",
+                table: "People");
+
+            migrationBuilder.DropColumn(
+                name: "ImageStamp",
                 table: "People");
 
             migrationBuilder.DropColumn(

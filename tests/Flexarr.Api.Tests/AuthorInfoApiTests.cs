@@ -7,6 +7,7 @@ using Flexarr.Core.Libraries;
 using Flexarr.Core.Media;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Flexarr.Api.Tests;
@@ -35,19 +36,40 @@ public class AuthorInfoApiTests(FlexarrApiFactory factory) : IClassFixture<Flexa
     {
         using var app = Serve();
         var (person, _) = await SeedAsync(app, folderPhoto: true);
-        var anonymous = app.CreateClient();
+        var admin = Admin(app);
+        var guest = await OtherProfileAsync(app);
 
-        var before = await anonymous.GetAsync(Api($"/images/people/{person}/candidates/folder"));
-        var candidates = await Admin(app).GetFromJsonAsync<JsonElement>(Api($"/people/{person}/candidates"));
-        var unknown = await anonymous.GetAsync(Api($"/images/people/{person}/candidates/audible"));
-        var elsewhere = await anonymous.GetAsync(Api($"/images/people/{Guid.NewGuid()}/candidates/folder"));
+        var before = await admin.GetAsync(Api($"/images/people/{person}/candidates/folder"));
+        var candidates = await admin.GetFromJsonAsync<JsonElement>(Api($"/people/{person}/candidates"));
+        var unknown = await admin.GetAsync(Api($"/images/people/{person}/candidates/audible"));
+        var elsewhere = await admin.GetAsync(Api($"/images/people/{Guid.NewGuid()}/candidates/folder"));
+        var anonymous = await app.CreateClient().GetAsync(Api($"/images/people/{person}/candidates/folder"));
+        var notAdmin = await guest.GetAsync(Api($"/images/people/{person}/candidates/folder"));
 
         Assert.Equal(HttpStatusCode.NotFound, before.StatusCode); // nothing looked for yet
         var folder = candidates.GetProperty("photos").EnumerateArray().Single(p => p.GetProperty("source").GetString() == "folder");
         Assert.Equal($"/api/v1/images/people/{person}/candidates/folder", folder.GetProperty("image").GetString());
+        Assert.False(folder.TryGetProperty("current", out var notCurrent) && notCurrent.ValueKind == JsonValueKind.True); // no photo yet
         Assert.Contains(candidates.GetProperty("biographies").EnumerateArray(), b => b.GetProperty("text").GetString() == "A writer.");
         Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, elsewhere.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, anonymous.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, notAdmin.StatusCode);
+    }
+
+    [Fact]
+    public async Task TheCurrentPhoto_IsMarkedAmongTheCandidates()
+    {
+        using var app = Serve();
+        var (person, _) = await SeedAsync(app, folderPhoto: true);
+        var admin = Admin(app);
+        await admin.GetAsync(Api($"/people/{person}/candidates"));
+        await admin.PutAsJsonAsync(Api($"/people/{person}"), new { photo = "folder" });
+
+        var candidates = await admin.GetFromJsonAsync<JsonElement>(Api($"/people/{person}/candidates"));
+
+        var current = candidates.GetProperty("photos").EnumerateArray().Where(p => p.TryGetProperty("current", out var c) && c.ValueKind == JsonValueKind.True).ToList();
+        Assert.Equal("folder", Assert.Single(current).GetProperty("source").GetString());
     }
 
     [Fact]
@@ -124,6 +146,46 @@ public class AuthorInfoApiTests(FlexarrApiFactory factory) : IClassFixture<Flexa
         {
             Directory.Delete(outside, recursive: true);
         }
+    }
+
+    [Fact]
+    public async Task AnUploadWhoseFileIsGone_IsNoPhoto_AndUnlockingClearsIt()
+    {
+        using var app = Serve();
+        var (person, _) = await SeedAsync(app, imageUrl: "file:///elsewhere/person-images/gone.jpg");
+        using (var scope = app.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            await db.People.Where(p => p.Id == person).ExecuteUpdateAsync(u => u.SetProperty(p => p.PhotoSource, PersonSources.Upload).SetProperty(p => p.InfoLocked, true));
+        }
+
+        var admin = Admin(app);
+        var shown = await admin.GetFromJsonAsync<JsonElement>(Api($"/people/{person}"));
+        var unlocked = await (await admin.PutAsJsonAsync(Api($"/people/{person}"), new { locked = false })).Content.ReadFromJsonAsync<JsonElement>();
+
+        Assert.Equal(JsonValueKind.Null, shown.GetProperty("image").ValueKind);
+        Assert.Equal(JsonValueKind.Null, unlocked.GetProperty("photoSource").ValueKind);
+        Assert.False(unlocked.GetProperty("locked").GetBoolean());
+    }
+
+    [Fact]
+    public async Task Unlocking_RepliesAtOnce_AndLooksThemUpAfter()
+    {
+        using var app = Serve();
+        var (person, _) = await SeedAsync(app, folderPhoto: true);
+        using (var scope = app.Services.CreateScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().People.Where(p => p.Id == person)
+                .ExecuteUpdateAsync(u => u.SetProperty(p => p.InfoLocked, true));
+        }
+
+        var admin = Admin(app);
+        var unlocked = await admin.PutAsJsonAsync(Api($"/people/{person}"), new { locked = false });
+        await app.Services.GetRequiredService<Flexarr.Api.Profiles.PersonLookups>().WhenIdleAsync().WaitAsync(TimeSpan.FromSeconds(30));
+        var after = await admin.GetFromJsonAsync<JsonElement>(Api($"/people/{person}"));
+
+        Assert.Equal(HttpStatusCode.OK, unlocked.StatusCode);
+        Assert.Equal(("folder", false), (after.GetProperty("photoSource").GetString(), after.GetProperty("locked").GetBoolean()));
     }
 
     [Fact]

@@ -133,6 +133,7 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
             e.HasIndex(p => p.Name);
             e.Property(p => p.PhotoSource).HasMaxLength(32);
             e.Property(p => p.BiographySource).HasMaxLength(32);
+            e.Property(p => p.ImageStamp).HasMaxLength(64);
             e.HasMany(p => p.Credits).WithOne(c => c.Person).HasForeignKey(c => c.PersonId).OnDelete(DeleteBehavior.Cascade);
         });
 

@@ -57,12 +57,39 @@ public sealed class Person
     /// <summary>When the photo last changed, for its URL's ?v=; null for one from before this was kept.</summary>
     public DateTime? ImageChangedAt { get; set; }
 
+    /// <summary>
+    /// A photo from the author's folder, as last seen: its size and modified time. Any change (even to an older time, a
+    /// copy that kept its date) is a new ?v=.
+    /// </summary>
+    public string? ImageStamp { get; set; }
+
     public List<Credit> Credits { get; set; } = [];
 }
 
 /// <summary>Where a person's photo or biography came from (<see cref="Person.PhotoSource"/>).</summary>
 public static class PersonSources
 {
+    /// <summary>The longest biography kept, an admin's or a provider's.</summary>
+    public const int MaxBiography = 20_000;
+
+    /// <summary>A biography trimmed, and cut short (at a word, with an ellipsis) past <see cref="MaxBiography"/>.</summary>
+    public static string? Biography(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return null;
+        }
+
+        text = text.Trim();
+        if (text.Length <= MaxBiography)
+        {
+            return text;
+        }
+
+        var cut = text.LastIndexOf(' ', MaxBiography - 1);
+        return text[..(cut > MaxBiography / 2 ? cut : MaxBiography - 1)].TrimEnd() + "…";
+    }
+
     public const string Folder = "folder", Readarr = "readarr", Audible = "audible", OpenLibrary = "openlibrary",
         Tmdb = "tmdb", TvMaze = "tvmaze", Upload = "upload", Manual = "manual";
 
@@ -84,6 +111,7 @@ public static class PersonSources
         {
             person.ImageUrl = url;
             person.ImageChangedAt = now;
+            person.ImageStamp = null;
         }
 
         person.PhotoSource = url is null ? null : source;

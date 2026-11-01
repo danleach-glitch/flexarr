@@ -56,9 +56,7 @@ public static class LogEndpoints
                 }
             }
 
-            var reloaded = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-            using var watch = options.OnChange(_ => reloaded.TrySetResult());
-            ServerConfigStore.Update(current.DataDirectory, config =>
+            await ServerConfigStore.UpdateAndWaitAsync(options, current.DataDirectory, config =>
             {
                 var logs = config["logs"] as JsonObject ?? [];
                 if (update.Level is { } level)
@@ -90,8 +88,7 @@ public static class LogEndpoints
                 }
 
                 config["logs"] = logs;
-            });
-            await Task.WhenAny(reloaded.Task, Task.Delay(TimeSpan.FromSeconds(3)));
+            }, timeout: TimeSpan.FromSeconds(3));
             return Results.Ok(ToDto(options.CurrentValue.Logs));
         });
 

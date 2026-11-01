@@ -162,11 +162,9 @@ public static class SettingsEndpoints
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["podcasts"] = [$"Apple has no podcast charts for “{country}”."] });
             }
 
-            // The file watcher reloads options shortly after the write; the response waits for that (a fixed pause was
-            // too short on slower machines, and the reply showed the old settings).
-            var reloaded = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-            using var watch = options.OnChange(_ => reloaded.TrySetResult());
-            ServerConfigStore.Update(current.DataDirectory, config =>
+            // The file watcher reloads options shortly after the write; the response waits for the reload of this write
+            // (a fixed pause was too short on slower machines, and the reply showed the old settings).
+            await ServerConfigStore.UpdateAndWaitAsync(options, current.DataDirectory, config =>
             {
                 if (update.Podcasts is { } podcasts)
                 {
@@ -266,18 +264,7 @@ public static class SettingsEndpoints
                         ["apiKey"] = string.IsNullOrWhiteSpace(a.ApiKey) ? SavedKey(saved.GetValueOrDefault(a.Name), a.BaseUrl) ?? "" : a.ApiKey.Trim(),
                     })]);
                 }
-            });
-
-            try
-            {
-                await reloaded.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
-                // The watcher can fire more than once for one write; a moment more lets the last of them land.
-                await Task.Delay(100, ct);
-            }
-            catch (TimeoutException)
-            {
-                // Nothing changed on disk (an unchanged save), or the watcher is slow: answer with what there is.
-            }
+            }, ct: ct);
 
             // Only a new source (or login) needs the channels again: the rewind or the DVR's settings don't.
             if (update.LiveTv is { } savedLive && (!SameServer(current.LiveTv?.BaseUrl, savedLive.BaseUrl) || savedLive.BaseUrl.Length == 0

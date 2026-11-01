@@ -84,9 +84,10 @@ public static class ImageEndpoints
         group.MapGet("/people/{id:guid}", async (Guid id, int? w, string? v, FlexarrDbContext db, IMemoryCache memory, ImageCache cache, PersonImages uploads,
             HttpContext http, CancellationToken ct) =>
         {
-            // A ?v= other than the one remembered means the photo changed since (on another server process, a refresh).
+            // A ?v= newer than the one remembered means the photo changed since (on another server process, a refresh);
+            // an older one (a page cached before the change) is answered from memory, not the database.
             var key = PersonSourceKey(id);
-            if (!memory.TryGetValue(key, out ImageSource? source) || source is null || (v is not null && v != source.Version))
+            if (!memory.TryGetValue(key, out ImageSource? source) || source is null || IsNewer(v, source.Version))
             {
                 source = await ResolvePersonAsync(db, uploads, id, ct);
                 if (source is not null)
@@ -99,12 +100,15 @@ public static class ImageEndpoints
         });
 
         // A photo an admin could choose for a person: only one the server itself found for them, and only while it
-        // remembers what it found (ten minutes after they were looked for), never a URL from the request.
-        group.MapGet("/people/{id:guid}/candidates/{source}", async (Guid id, string source, int? w, IMemoryCache memory, ImageCache cache, HttpContext http,
+        // remembers what it found (ten minutes after they were looked for), never a URL from the request. For admins
+        // only, unlike other images: a stale candidate can be a local file the library check no longer covers. (The
+        // web's <img> is on the same site, so it sends the session.)
+        api.MapGet("/images/people/{id:guid}/candidates/{source}", async (Guid id, string source, int? w, IMemoryCache memory, ImageCache cache, HttpContext http,
             CancellationToken ct) =>
             PeopleEndpoints.CandidatePhoto(memory, id, source) is { } url
                 ? await ServeAsync(() => cache.GetAsync(url, w ?? 342, ct), http, "private, max-age=600")
-                : Results.NotFound());
+                : Results.NotFound())
+            .WithTags("Images").RequireAuthorization(Security.FlexarrClaims.AdminPolicy);
 
         return api;
     }
@@ -164,6 +168,11 @@ public static class ImageEndpoints
 
     private sealed record ImageSource(string? Url, string? Version);
 
+    /// <summary>Whether a photo's ?v= (seconds) is newer than the one remembered; one that isn't a number never is.</summary>
+    internal static bool IsNewer(string? v, string? remembered) =>
+        long.TryParse(v, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var asked)
+        && (!long.TryParse(remembered, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var known) || asked > known);
+
     /// <summary>Where the person image endpoint remembers a person's photo comes from.</summary>
     public static string PersonSourceKey(Guid id) => $"image-source:person:{id}";
 
@@ -206,7 +215,8 @@ public static class ImageEndpoints
     /// <summary>Whether a local photo of a person is a file in a folder of one of the libraries they're credited in.</summary>
     private static async Task<bool> PersonInLibraryAsync(FlexarrDbContext db, Guid personId, string url, CancellationToken ct)
     {
-        if (ArtworkUrl.LocalPath(url) is not { Length: > 0 } path)
+        // Not a link, which could lead anywhere from inside the library.
+        if (ArtworkUrl.LocalPath(url) is not { Length: > 0 } path || (File.Exists(path) && new FileInfo(path).LinkTarget is not null))
         {
             return false;
         }
@@ -227,7 +237,8 @@ public static class ImageEndpoints
             return false;
         }
 
-        if (ArtworkUrl.LocalPath(url) is not { Length: > 0 } path)
+        // Not a link, which could lead anywhere from inside the library.
+        if (ArtworkUrl.LocalPath(url) is not { Length: > 0 } path || (File.Exists(path) && new FileInfo(path).LinkTarget is not null))
         {
             return false;
         }

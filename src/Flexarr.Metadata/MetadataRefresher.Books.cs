@@ -28,6 +28,18 @@ public sealed partial class MetadataRefresher
 
     private async Task<MetadataRefreshResult> RefreshBooksAsync(Guid libraryId, bool force, IReadOnlyCollection<string> within, CancellationToken ct)
     {
+        var result = await RefreshDueBooksAsync(libraryId, force, within, ct).ConfigureAwait(false);
+
+        // A photo put in (or taken from) an author's folder shows after the scan that saw it, not when one of their
+        // books is next due.
+        await Authors.FolderPhotosAsync(libraryId, within, ct).ConfigureAwait(false);
+        await db.SaveChangesAsync(ct).ConfigureAwait(false);
+        db.ChangeTracker.Clear();
+        return result;
+    }
+
+    private async Task<MetadataRefreshResult> RefreshDueBooksAsync(Guid libraryId, bool force, IReadOnlyCollection<string> within, CancellationToken ct)
+    {
         var also = await WithinAsync(libraryId, MediaKind.Audiobook, within, ct).ConfigureAwait(false);
         var ids = await Stale(libraryId, MediaKind.Audiobook, force, also).OrderBy(i => i.SortTitle).Select(i => i.Id).ToListAsync(ct).ConfigureAwait(false);
         if (ids.Count == 0)
@@ -55,6 +67,7 @@ public sealed partial class MetadataRefresher
         }
 
         var shelves = catalogues.Select(c => new ReadarrShelf(c.Instance.Name, c.Books, c.Files, c.Authors)).ToList();
+        var readarrAuthors = new ReadarrAuthorIndex(catalogues.SelectMany(c => c.Authors)); // once, not once a book
         int fromArr = 0, lookedUp = 0, unmatched = 0, local = 0;
         // A few books at a time, each saved as it's done: one that fails is logged and the rest go on.
         for (var next = 0; next < ids.Count;)
@@ -74,7 +87,7 @@ public sealed partial class MetadataRefresher
 
                 try
                 {
-                    var outcome = await RefreshBookAsync(book, catalogues, shelves, ct).ConfigureAwait(false);
+                    var outcome = await RefreshBookAsync(book, catalogues, shelves, readarrAuthors, ct).ConfigureAwait(false);
                     book.MetadataUpdatedAt = DateTime.UtcNow;
                     await db.SaveChangesAsync(ct).ConfigureAwait(false);
                     _ = outcome switch
@@ -110,7 +123,8 @@ public sealed partial class MetadataRefresher
     }
 
     /// <summary>One book: matched in a Readarr-compatible app, then looked up online.</summary>
-    private async Task<BookOutcome> RefreshBookAsync(MediaItem book, List<ReadarrCatalogue> catalogues, List<ReadarrShelf> shelves, CancellationToken ct)
+    private async Task<BookOutcome> RefreshBookAsync(MediaItem book, List<ReadarrCatalogue> catalogues, List<ReadarrShelf> shelves, ReadarrAuthorIndex readarrAuthors,
+        CancellationToken ct)
     {
         var details = book.Book ??= new BookDetails { MediaItemId = book.Id };
         var wanted = new BookToMatch(book.Path, book.Title,
@@ -157,7 +171,7 @@ public sealed partial class MetadataRefresher
 
         // Every author's photo and biography.
         var matchedAuthor = hit is { } h ? catalogues[h.Shelf].Authors.FirstOrDefault(a => a.Id == h.Book.AuthorId) : null;
-        await Authors.FillBookAsync(book, [.. catalogues.SelectMany(c => c.Authors)], matchedAuthor, authorAsins, ct).ConfigureAwait(false);
+        await Authors.FillBookAsync(book, readarrAuthors, matchedAuthor, authorAsins, ct).ConfigureAwait(false);
 
         return hit is not null ? BookOutcome.FromArr
             : online ? BookOutcome.LookedUp
@@ -387,7 +401,7 @@ public sealed partial class MetadataRefresher
     /// The photos and biographies of a book's authors, after its match was fixed by hand. The caller saves.
     /// </summary>
     public Task FillAuthorsAsync(MediaItem book, IReadOnlyCollection<string> knownAsins, CancellationToken ct) =>
-        Authors.FillBookAsync(book, [], null, knownAsins, ct);
+        Authors.FillBookAsync(book, ReadarrAuthorIndex.Empty, null, knownAsins, ct);
 
     /// <summary>A book's series entries, saved or only added so far, each with its series.</summary>
     private async Task<List<BookSeriesEntry>> SeriesEntriesAsync(Guid bookId, CancellationToken ct)

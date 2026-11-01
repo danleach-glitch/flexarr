@@ -30,14 +30,15 @@ public sealed class AuthorProviderTests : IDisposable
     }
 
     [Fact]
-    public async Task Audible_PrefersAnAsinTheBookAlreadyLists()
+    public async Task Audible_OfSeveralNamesakes_TakesOnlyOneTheBookAlreadyLists()
     {
         _web.Answers[("api.audnex.us", "/authors")] = """
             [{"asin": "B000OSMAN1", "name": "Richard Osman"}, {"asin": "B074KL81KM", "name": "Richard Osman"}]
             """;
 
         Assert.Equal("B074KL81KM", await Providers().FindAudibleAuthorAsync("Richard Osman", ["b074kl81km"], default));
-        Assert.Equal("B000OSMAN1", await Providers().FindAudibleAuthorAsync("Richard Osman", [], default));
+        Assert.Null(await Providers().FindAudibleAuthorAsync("Richard Osman", [], default)); // either could be the comedian
+        Assert.Null(await Providers().FindAudibleAuthorAsync("Richard Osman", ["B000NOBODY"], default));
     }
 
     [Fact]
@@ -46,6 +47,17 @@ public sealed class AuthorProviderTests : IDisposable
         _web.Down = true;
 
         await Assert.ThrowsAsync<HttpRequestException>(() => Providers().AuthorAsync("B074KL81KM", default));
+    }
+
+    [Fact]
+    public async Task AnAuthorLookupThatsTooMany_DoesntHoldUpBooks()
+    {
+        var throttle = new BookProviderThrottle();
+        _web.TooManyHosts.Add("api.audnex.us");
+
+        await Assert.ThrowsAsync<HttpRequestException>(() => new BookProviders(new HttpClient(_web), () => new Settings(_dir), throttle).AuthorAsync("B074KL81KM", default));
+
+        Assert.False(throttle.IsCooling("api.audnex.us"));
     }
 
     [Fact]
@@ -107,6 +119,9 @@ public sealed class AuthorProviderTests : IDisposable
         /// <summary>Hosts that answer 503.</summary>
         public HashSet<string> DownHosts { get; } = [];
 
+        /// <summary>Hosts that answer 429.</summary>
+        public HashSet<string> TooManyHosts { get; } = [];
+
         public Dictionary<(string Host, string Path), string> Answers { get; } = [];
         public System.Collections.Concurrent.ConcurrentQueue<string> Requests { get; } = new();
 
@@ -117,6 +132,11 @@ public sealed class AuthorProviderTests : IDisposable
             if (Down || DownHosts.Contains(url.Host))
             {
                 return Task.FromResult(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
+            }
+
+            if (TooManyHosts.Contains(url.Host))
+            {
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.TooManyRequests));
             }
 
             return Task.FromResult(Answers.TryGetValue((url.Host, url.AbsolutePath), out var body)

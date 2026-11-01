@@ -62,7 +62,11 @@ public sealed class BookProviderThrottle(TimeProvider? time = null)
     public bool IsCooling(string host) => _coolingUntil.TryGetValue(host, out var until) && until > _time.GetUtcNow();
 
     /// <summary>Sends a request when its host has room; null, unsent, while the host is backing Flexarr off.</summary>
-    public async Task<HttpResponseMessage?> SendAsync(HttpClient http, HttpRequestMessage request, CancellationToken ct)
+    /// <param name="backOff">
+    /// Whether a 429 backs every request to the host off. Authors' lookups don't: they stop themselves for the rest of
+    /// the refresh, and a 429 on an author shouldn't keep a minute of books from being matched.
+    /// </param>
+    public async Task<HttpResponseMessage?> SendAsync(HttpClient http, HttpRequestMessage request, CancellationToken ct, bool backOff = true)
     {
         ArgumentNullException.ThrowIfNull(http);
         ArgumentNullException.ThrowIfNull(request);
@@ -82,7 +86,7 @@ public sealed class BookProviderThrottle(TimeProvider? time = null)
             }
 
             var response = await http.SendAsync(request, ct).ConfigureAwait(false);
-            if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+            if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests && backOff)
             {
                 var now = _time.GetUtcNow();
                 var wait = response.Headers.RetryAfter is { } retry
@@ -281,8 +285,9 @@ public sealed partial class BookProviders(HttpClient http, Func<IMetadataSetting
 
     /// <summary>
     /// Audible's ASIN for an author of exactly this name (ignoring case, spaces and punctuation, so "J.R.R. Tolkien" is
-    /// "J. R. R. Tolkien"); of several, one a book of ours already lists (<paramref name="known"/>). Null when there's
-    /// none, or Audible is switched off.
+    /// "J. R. R. Tolkien"): one a book of ours already lists (<paramref name="known"/>), else the only one of that name.
+    /// Null when there's none, when there are several and none is known (a namesake could be taken for them), or when
+    /// Audible is switched off.
     /// </summary>
     /// <exception cref="HttpRequestException">Audnexus couldn't be asked just now.</exception>
     public async Task<string?> FindAudibleAuthorAsync(string name, IReadOnlyCollection<string> known, CancellationToken ct)
@@ -298,7 +303,7 @@ public sealed partial class BookProviders(HttpClient http, Func<IMetadataSetting
         var asins = (found as JsonArray ?? []).OfType<JsonObject>()
             .Where(a => Text(a, "name") is { } theirs && Fold(theirs) == wanted).Select(a => Text(a, "asin")).OfType<string>()
             .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-        return asins.FirstOrDefault(a => known.Contains(a, StringComparer.OrdinalIgnoreCase)) ?? asins.FirstOrDefault();
+        return asins.FirstOrDefault(a => known.Contains(a, StringComparer.OrdinalIgnoreCase)) ?? (asins.Count == 1 ? asins[0] : null);
     }
 
     /// <summary>Authors with the same name looked at on Open Library, at most, for one who wrote our books.</summary>
@@ -456,7 +461,7 @@ public sealed partial class BookProviders(HttpClient http, Func<IMetadataSetting
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.UserAgent.ParseAdd("Flexarr/1.0 (+https://flexarr.io)");
-        using var response = await _throttle.SendAsync(http, request, ct).ConfigureAwait(false)
+        using var response = await _throttle.SendAsync(http, request, ct, backOff: false).ConfigureAwait(false)
             ?? throw new HttpRequestException($"{request.RequestUri!.Host} asked to be left alone for a while.");
         if (response.StatusCode is System.Net.HttpStatusCode.NotFound or System.Net.HttpStatusCode.BadRequest)
         {

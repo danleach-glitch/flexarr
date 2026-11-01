@@ -149,6 +149,31 @@ public sealed class MetadataRefresherTests : IAsyncLifetime
         Assert.NotNull(people["Anyone"].ImageChangedAt);
     }
 
+    [Fact]
+    public async Task APhotoUploadedDuringARefresh_IsntOverwritten()
+    {
+        await AddMovieAsync("Dune", null, poster: null, arrId: 7);
+        _db.People.Add(new Person { Name = "Anyone", TmdbId = "3", ImageUrl = "https://image.tmdb.org/t/p/original/3.jpg", PhotoSource = PersonSources.Tmdb });
+        await _db.SaveChangesAsync();
+        _radarr.Responses["/api/v3/movie"] = """[{"id":7,"title":"Dune","year":2021,"path":"/movies/Dune"}]""";
+        _radarr.Responses["/api/v3/credit?movieId=7"] = """
+            [{"personName":"Anyone","personTmdbId":3,"type":"cast","order":0,"images":[{"coverType":"headshot","remoteUrl":"https://image.tmdb.org/t/p/original/3.jpg"}]}]
+            """;
+        var refresher = Refresher();
+        await refresher.RefreshLibraryAsync(_library, force: true, default); // the refresh has its people now
+
+        // An admin uploads a photo meanwhile, and TMDB's changes.
+        await _db.People.ExecuteUpdateAsync(u => u.SetProperty(p => p.ImageUrl, "file:///data/person-images/anyone.jpg")
+            .SetProperty(p => p.PhotoSource, PersonSources.Upload).SetProperty(p => p.InfoLocked, true));
+        _radarr.Responses["/api/v3/credit?movieId=7"] = """
+            [{"personName":"Anyone","personTmdbId":3,"type":"cast","order":0,"images":[{"coverType":"headshot","remoteUrl":"https://image.tmdb.org/t/p/original/3-new.jpg"}]}]
+            """;
+        await refresher.RefreshLibraryAsync(_library, force: true, default);
+
+        var anyone = await _db.People.AsNoTracking().SingleAsync(p => p.Name == "Anyone");
+        Assert.Equal(("file:///data/person-images/anyone.jpg", "upload", true), (anyone.ImageUrl, anyone.PhotoSource, anyone.InfoLocked));
+    }
+
     private async Task AddMovieAsync(string title, DateTime? updatedAt, string? poster, int? arrId = null, string? tmdbId = null)
     {
         _db.MediaItems.Add(new MediaItem

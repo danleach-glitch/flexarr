@@ -242,4 +242,14 @@ public class ImageEndpointTests(FlexarrApiFactory factory) : IClassFixture<Flexa
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(jpeg) });
         }
     }
+
+    [Theory]
+    [InlineData("200", "100", true)]
+    [InlineData("100", "100", false)]
+    [InlineData("50", "100", false)] // a page cached before the photo changed
+    [InlineData("100", null, true)] // remembered from before it had a version
+    [InlineData("junk", "100", false)]
+    [InlineData(null, "100", false)]
+    public void APersonsPhoto_IsLookedUpAgain_OnlyForANewerVersion(string? asked, string? remembered, bool again) =>
+        Assert.Equal(again, ImageEndpoints.IsNewer(asked, remembered));
 }
