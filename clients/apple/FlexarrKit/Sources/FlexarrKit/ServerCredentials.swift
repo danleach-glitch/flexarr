@@ -101,8 +101,20 @@ public struct CredentialStore: Sendable {
         defaults.set(token, forKey: "\(addressKey).profile")
     }
 
+    /// The profile list as the server last gave it (names, colours, which is watching, which are kids), so the app
+    /// still knows who's watching while it can't reach the server.
+    public func saveProfiles(_ profiles: [Profile]) {
+        defaults.set(try? JSONEncoder().encode(profiles), forKey: "\(addressKey).profiles")
+    }
+
+    /// The profile list last saved for this sign-in; empty if there's none.
+    public var savedProfiles: [Profile] {
+        defaults.data(forKey: "\(addressKey).profiles").flatMap { try? JSONDecoder().decode([Profile].self, from: $0) } ?? []
+    }
+
     public func clear() {
         if let text = defaults.string(forKey: addressKey) { deleteKey(account: text) }
+        defaults.removeObject(forKey: "\(addressKey).profiles")
         defaults.removeObject(forKey: addressKey)
         defaults.removeObject(forKey: "\(addressKey).profile")
         defaults.removeObject(forKey: "\(addressKey).remote")

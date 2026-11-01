@@ -64,7 +64,16 @@ final class AppModel {
     @ObservationIgnored var onOpenRemote: (@MainActor (String) -> Void)?
     /// About to sign out, with the sign-in still working: the iPhone stops its notifications.
     @ObservationIgnored var onSignOut: (@MainActor (FlexarrClient) async -> Void)?
-    private(set) var profiles: [Profile] = []
+    private(set) var profiles: [Profile] = [] {
+        // Kept on the device, so who's watching (and whether it's a child) is still known offline.
+        didSet { if !profiles.isEmpty, profiles != oldValue, credentials != nil { store.saveProfiles(profiles) } }
+    }
+    /// The server can't be reached (no network, or no answer within a few seconds): offline mode, where the iPhone
+    /// opens on its downloads and the Apple TV says it can't reach the server. Cleared by itself once it answers again.
+    private(set) var isOffline = false
+    /// While offline, tries the server again every so often.
+    @ObservationIgnored private var offlineRetry: Task<Void, Never>?
+    @ObservationIgnored private var checkingConnection = false
     /// False until the first profile list arrives (or fails), so "Who's watching?" doesn't flash in late.
     private(set) var profilesLoaded = false
     /// The household has several profiles and nobody has chosen one on this device yet.
@@ -163,6 +172,11 @@ final class AppModel {
         // The podcast settings last known, for an episode played before they load.
         if let data = defaults.data(forKey: Self.lastPodcastPreferencesKey), let last = try? JSONDecoder().decode(PodcastPreferences.self, from: data) {
             music.podcastListening = last
+        }
+        // Offline mode follows the network, and any request that can't reach the server has it checked.
+        NetworkWatch.shared.onChange { [weak self] offline in self?.networkChanged(offline: offline) }
+        FlexarrClient.onCouldNotConnect = { [weak self] _ in
+            Task { @MainActor in self?.connectionTrouble() }
         }
         // A family guest reaches its host only through the tunnel: start it before anything asks the server.
         GuestMode.isActive = credentials?.isGuest == true
@@ -384,6 +398,7 @@ final class AppModel {
         // A guest leaving leaves its host's tailnet too: nothing of the tunnel stays on the device.
         if stoppingTunnel, credentials?.isGuest == true { GuestTunnel.shared.stop(forget: true) }
         tunnelProblem = nil
+        leaveOfflineMode()
         store.clear()
         libraries = []
         resetProfiles()
@@ -461,14 +476,100 @@ final class AppModel {
 
     /// The same sign-in with this device's own token in place of the server's API key, if it holds the key
     /// (as Apple TVs set up by earlier versions do). Unchanged if it doesn't, or the server is too old to offer one.
-    private func withOwnToken(_ credentials: ServerCredentials) async -> ServerCredentials {
+    private func withOwnToken(_ credentials: ServerCredentials, me known: SignInInfo? = nil) async -> ServerCredentials {
         guard !credentials.apiKey.isEmpty,
-              let me = try? await credentials.client.me(), me.method == "api-key",
+              let me = await Self.signIn(known, of: credentials), me.method == "api-key",
               let token = try? await credentials.client.deviceToken(deviceName: UIDevice.current.name)
         else { return credentials }
         var own = credentials
         own.apiKey = token
         return own
+    }
+
+    private static func signIn(_ known: SignInInfo?, of credentials: ServerCredentials) async -> SignInInfo? {
+        if let known { return known }
+        return try? await credentials.client.me()
+    }
+
+    // MARK: Offline mode
+
+    /// Whether the server answers: never with no network, otherwise within a few seconds.
+    private func serverAnswers(_ client: FlexarrClient) async -> Bool {
+        if await NetworkWatch.shared.isOfflineNow() { return false }
+        return await client.isReachable(within: .seconds(4))
+    }
+
+    /// Into offline mode: the profiles last known, nobody asked who's watching, and the server tried again now and then.
+    private func goOffline() {
+        guard credentials != nil else { return }
+        if profiles.isEmpty { profiles = store.savedProfiles }
+        needsProfileChoice = false
+        profilesLoaded = true
+        if !isOffline {
+            log.info("Offline: the server can't be reached")
+            isOffline = true
+        }
+        guard offlineRetry == nil else { return }
+        offlineRetry = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(15))
+                guard let self, !Task.isCancelled else { return }
+                await self.checkConnection()
+            }
+        }
+    }
+
+    private func leaveOfflineMode() {
+        offlineRetry?.cancel()
+        offlineRetry = nil
+        isOffline = false
+    }
+
+    /// Offline: whether the server answers again (the network changed, the app came to the front, or every 15
+    /// seconds), and if it does, back to normal where you are. Online: whether it's still there.
+    func checkConnection() async {
+        guard credentials != nil, !checkingConnection else { return }
+        checkingConnection = true
+        defer { checkingConnection = false }
+        if isOffline {
+            // A guest's server is only there once its tunnel is.
+            if credentials?.isGuest == true {
+                guard !(await NetworkWatch.shared.isOfflineNow()), await ensureGuestTunnel() else { return }
+            }
+            guard let client, await serverAnswers(client) else { return }
+            log.info("Back online")
+            leaveOfflineMode()
+            await loadProfiles()
+        } else if profilesLoaded {
+            guard let client, !(await serverAnswers(client)) else { return }
+            goOffline()
+        }
+    }
+
+    /// A request couldn't reach the server: see whether it's gone (one slow request alone doesn't mean offline).
+    private func connectionTrouble() {
+        guard !isOffline, profilesLoaded, credentials != nil else { return }
+        Task { await checkConnection() }
+    }
+
+    private func networkChanged(offline: Bool) {
+        guard credentials != nil else { return }
+        if offline {
+            // A moment's grace: moving from Wi-Fi to mobile data drops the network briefly.
+            Task {
+                try? await Task.sleep(for: .seconds(2))
+                if NetworkWatch.shared.isOffline, profilesLoaded, !isOffline { goOffline() }
+            }
+        } else {
+            if tunnelProblem != nil, credentials?.isGuest == true { Task { await ensureGuestTunnel() } }
+            // Once the new network has settled.
+            if isOffline {
+                Task {
+                    try? await Task.sleep(for: .seconds(1))
+                    await checkConnection()
+                }
+            }
+        }
     }
 
     /// Starts a family guest's tunnel, or finds it running (cheap), and keeps the sign-in's address in step with the
@@ -477,17 +578,17 @@ final class AppModel {
     func ensureGuestTunnel() async -> Bool {
         guard let credentials, let guest = credentials.guest else { return true }
         let network = NetworkWatch.shared
-        network.onReturn = { [weak self] in
-            guard let self, self.tunnelProblem != nil else { return }
-            Task { await self.ensureGuestTunnel() }
-        }
-        // The tunnel tries for up to a minute: with no network, or still nothing after a while, the problem shows
-        // now (Downloads are there on iPhone) while it carries on trying.
+        // The tunnel tries for up to a minute: with no network that's offline mode now, and still nothing after a
+        // while, the problem shows (Downloads are there on iPhone) while it carries on trying.
         let early = Task { @MainActor [weak self] in
             for second in 1...15 {
                 guard (try? await Task.sleep(for: .seconds(1))) != nil, let self, self.credentials?.guest == guest else { return }
-                if network.isOffline || second == 15 {
-                    if self.tunnelProblem == nil { self.tunnelProblem = network.isOffline ? "No network" : "Still connecting" }
+                if network.isOffline {
+                    self.goOffline()
+                    return
+                }
+                if second == 15 {
+                    if self.tunnelProblem == nil, !self.isOffline { self.tunnelProblem = "Still connecting" }
                     return
                 }
             }
@@ -508,6 +609,7 @@ final class AppModel {
             }
             // Back after the problem showed: whatever gave up waiting for the tunnel (the profiles) goes again.
             if recovered, profilesLoad == nil { Task { await loadProfiles() } }
+            if isOffline { Task { await checkConnection() } }
             return true
         } catch GuestTunnel.Failure.needsInvite {
             // Deleted from the host's tailnet (or its key ran out): Try again can't help, so it's as if removed.
@@ -517,7 +619,8 @@ final class AppModel {
         } catch {
             guard self.credentials?.guest == guest else { return false }
             log.warning("The guest tunnel didn't start: \(error.localizedDescription)")
-            tunnelProblem = error.localizedDescription
+            // With no network it's simply offline; the problem screen is for a tunnel that fails with one.
+            if network.isOffline { goOffline() } else { tunnelProblem = error.localizedDescription }
             return false
         }
     }
@@ -656,6 +759,8 @@ final class AppModel {
     }
 
     private func loadProfilesNow() async {
+        // A guest with no network at all needn't wait for its tunnel to give up.
+        if credentials?.isGuest == true, await NetworkWatch.shared.isOfflineNow() { return goOffline() }
         if let guest = credentials?.guest {
             guard await ensureGuestTunnel() else { return }
             upgradeChecked = true // a guest's sign-in is its own already
@@ -665,9 +770,16 @@ final class AppModel {
                 return
             }
         }
+        guard let client else { return }
+        defer { profilesLoaded = true }
+        // All at once rather than one after another: the profiles, the sign-in, and whether the server answers at all.
+        async let listed = try? client.profiles()
+        async let signIn = try? client.me()
+        // No network, or no answer within a few seconds: offline mode now, rather than after each request's timeout.
+        guard await serverAnswers(client) else { return goOffline() }
         if !upgradeChecked, let credentials {
             upgradeChecked = true
-            let own = await withOwnToken(credentials)
+            let own = await withOwnToken(credentials, me: await signIn)
             // Only switch once it's saved, so a Keychain failure leaves the working key in place, and the token
             // nobody could keep is signed out again (or every launch would add another to the server's list).
             if own != credentials {
@@ -678,11 +790,11 @@ final class AppModel {
                 }
             }
         }
-        guard let client else { return }
-        defer { profilesLoaded = true }
-        async let listed = try? client.profiles()
-        async let signIn = try? client.me()
-        guard let list = await listed else { return }
+        guard let list = await listed else {
+            // Reached, but the list didn't come: the one kept from last time, so the right profile (a child's) shows.
+            if profiles.isEmpty { profiles = store.savedProfiles }
+            return
+        }
         // A token for a profile that's since been removed acts as nobody: forget it and ask again.
         if !list.contains(where: \.isCurrent), var credentials, credentials.profileToken != nil {
             credentials.profileToken = nil

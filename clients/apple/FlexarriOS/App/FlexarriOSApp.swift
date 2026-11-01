@@ -370,6 +370,8 @@ struct RootView: View {
             if phase == .active, model.credentials != nil {
                 // A guest's tunnel may have stopped while the app was away: back up before anything asks.
                 Task { await model.ensureGuestTunnel() }
+                // Offline mode ends (or starts) as soon as it's known whether the server answers now.
+                Task { await model.checkConnection() }
                 Task { await downloads.catchUp() }
                 Task { await model.loadUpNext() }
                 notifications.refresh()
