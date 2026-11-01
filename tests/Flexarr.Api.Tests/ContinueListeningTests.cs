@@ -78,6 +78,18 @@ public class ContinueListeningTests(FlexarrApiFactory factory) : IClassFixture<F
     }
 
     [Fact]
+    public async Task SettingsHome_SaysContinueWatchingCoversListening()
+    {
+        await SeedProfileAsync(); // an audiobooks library, so its rows are offered
+
+        var layout = await Client(factory).GetFromJsonAsync<JsonElement>(Api("settings/layout"));
+        var labels = layout.GetProperty("home").EnumerateArray().ToDictionary(r => r.GetProperty("id").GetString()!, r => r.GetProperty("label").GetString());
+
+        Assert.Equal("Continue watching (and listening)", labels["continue"]);
+        Assert.Equal("Continue listening (when kept apart)", labels[BookRows.ContinueRowId]);
+    }
+
+    [Fact]
     public async Task WithNothingToListenTo_TheRowIsContinueWatching()
     {
         var (client, seeded) = await SeedProfileAsync();
