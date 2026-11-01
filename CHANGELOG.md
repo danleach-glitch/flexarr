@@ -40,6 +40,10 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Podcasts now skip by your steps, on the lock screen and headphones too, and **Smart rewind** (on to start with) picks up a little earlier after a pause. Skip back is now 30 seconds, not 15: change either on that page.
 - On the web, **Show in the sidebar** for podcasts is now in **Settings › Navigation**, and where book details come from (the Audible store, Google Books and Hardcover keys) is in **Settings › Libraries**.
 
+### Offline
+- On iPhone, iPad and Android, opening the app with no connection (airplane mode, or away with the server out of reach) now takes seconds, not a minute. It opens on your downloads under an **Offline** bar, with Home, Libraries and Search pointing there, and goes back to normal by itself once the server answers. Losing the connection while you're using the app does the same.
+- The Apple TV and Android TV say they can't reach your server within seconds, and carry on by themselves once it's back.
+
 ### Discover
 - Requesting a show Sonarr can't add (TheTVDB doesn't list it, as with some specials) now says so, rather than looking requested and never arriving.
 
