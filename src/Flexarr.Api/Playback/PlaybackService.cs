@@ -571,6 +571,8 @@ public sealed class PlaybackService(
     /// Takes a title out of Continue Watching without marking it watched: forgets the place reached in it and, for an
     /// episode (or a show), keeps the show's next episode out of the row until another episode is played. An audiobook
     /// or podcast episode (in the row for apps that ask) goes the same way: its place forgotten, not finished.
+    /// The removal is stamped as the latest play, so a place reached before it (a player's last save arriving late, or
+    /// listening done offline and sent afterwards) loses to it and doesn't put the title back.
     /// </summary>
     public async Task<bool> RemoveFromContinueWatchingAsync(Guid itemId, CancellationToken ct)
     {
@@ -580,8 +582,9 @@ public sealed class PlaybackService(
             return false;
         }
 
+        var now = DateTime.UtcNow;
         await db.PlaybackStates.Where(p => p.UserId == profile.Id && p.MediaItemId == itemId && !p.Watched)
-            .ExecuteUpdateAsync(u => u.SetProperty(p => p.PositionSeconds, 0), ct);
+            .ExecuteUpdateAsync(u => u.SetProperty(p => p.PositionSeconds, 0).SetProperty(p => p.LastPlayedAt, now), ct);
         await DismissShowAsync(item, ct);
         await db.SaveChangesAsync(ct);
         return true;

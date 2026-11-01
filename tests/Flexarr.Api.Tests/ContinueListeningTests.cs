@@ -132,6 +132,28 @@ public class ContinueListeningTests(FlexarrApiFactory factory) : IClassFixture<F
         }
     }
 
+    [Fact]
+    public async Task ARemovedBookOrEpisode_StaysOut_WhenAnOlderPlaceArrives()
+    {
+        var (client, seeded) = await SeedProfileAsync();
+        var before = DateTime.UtcNow.AddMinutes(-1);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync(Api($"home/continue/{seeded.Book}"))).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync(Api($"home/continue/{seeded.Episode}"))).StatusCode);
+
+        // A player's last save, reached before the removal and arriving after it; and listening done offline before it.
+        (await client.PutAsJsonAsync(Api($"items/{seeded.Book}/progress"), new { positionSeconds = 1500, recordedAt = before })).EnsureSuccessStatusCode();
+        (await client.PostAsJsonAsync(Api($"items/{seeded.Book}/offline-progress"), new { positionSeconds = 1600, finished = false, playedAt = before })).EnsureSuccessStatusCode();
+        (await client.PostAsJsonAsync(Api($"items/{seeded.Episode}/offline-progress"), new { positionSeconds = 900, finished = false, playedAt = before })).EnsureSuccessStatusCode();
+
+        var rows = await RowsAsync(client, "home?listening=books,podcasts");
+        Assert.Equal([seeded.Film], rows["continue"].Ids);
+
+        // Listening after the removal brings it back.
+        (await client.PutAsJsonAsync(Api($"items/{seeded.Book}/progress"), new { positionSeconds = 1700 })).EnsureSuccessStatusCode();
+        rows = await RowsAsync(client, "home?listening=books,podcasts");
+        Assert.Equal([seeded.Book, seeded.Film], rows["continue"].Ids);
+    }
+
     private sealed record Seeded(string Profile, Guid Film, Guid Book, Guid Episode, Guid Podcast);
 
     private sealed record Row(string Title, List<Guid> Ids);
