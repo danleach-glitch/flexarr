@@ -2,7 +2,7 @@ import FlexarrKit
 import SwiftUI
 
 /// A music library: the server's Browse rows in the profile's order (Settings › Home & browse › Music), then every
-/// artist as a round picture. Without rows, the playlists and the albums that arrived most recently instead.
+/// artist as a round picture. When Browse fails, the playlists and the albums that arrived most recently instead.
 struct MusicLibraryView: View {
     @Environment(AppModel.self) private var model
     @State private var browse: MusicBrowseModel
@@ -54,7 +54,7 @@ struct MusicLibraryView: View {
                     }
                     if browse.rows.isEmpty, !browse.recentAlbums.isEmpty {
                         VStack(alignment: .leading, spacing: 10) {
-                            SectionHeading(title: "Recently added")
+                            SectionHeading(title: "New albums")
                             ScrollView(.horizontal) {
                                 LazyHStack(alignment: .top, spacing: Layout.rowSpacing) {
                                     ForEach(browse.recentAlbums) { album in
