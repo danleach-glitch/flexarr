@@ -11,11 +11,15 @@ Each profile has its own:
 
 - **Continue Watching**, watched history and Up Next
 - **Playback settings**: auto-play the next episode, skip intros, recaps and credits, and subtitle size. These follow the profile to every device, the Apple TV included.
+- **Watchlist**, and its own [Trakt](trakt.md) account
 - **Podcasts**: the shows it follows, its Up Next queue and its podcast settings
+- **Audiobooks** (in the next release): where it is in each book, its bookmarks and its listening settings
 - **Music**: playlists, daily mixes, and recently and most played
 - **Collections** of its own (the main profile can also make collections for the whole household)
 - **Live TV favourites** and the channel it watched last
-- **Libraries**: which ones it can see at all (see below)
+- **Recent searches**, which follow it from device to device
+- **Libraries**: which ones it can see at all (see below), and the order they're listed in
+- **Requests**: which library what it asks for goes to, when you have two TV or film libraries
 - A picture, a name and a colour
 
 Things that belong to the server, such as your libraries, connections to Sonarr, Radarr and Lidarr, and the layout of Home, are the same for everyone.
@@ -33,7 +37,7 @@ Only the main profile can:
 - make and change the household's collections
 - allow or block a title for kids, analyse a title, or scan a library for changes
 
-Every other profile can browse, watch, listen, make requests through Seerr, and open **Settings** to change its own playback and podcast settings.
+Every other profile can browse, watch, listen, make requests through Seerr, and open **Settings** to change its own settings: playback, podcasts, the sidebar's order, Trakt and where its requests go.
 
 ### Unlocking settings
 
@@ -54,7 +58,7 @@ On the web, signed in as the main profile:
 1. Go to **Settings › Profiles** and choose **Add a profile**.
 2. Give it a name, and if you like a picture and a colour.
 3. Choose **Add a PIN** if it should be private.
-4. Untick any libraries it shouldn't see.
+4. Switch off any libraries it shouldn't see.
 5. Choose **Add profile**.
 
 ![Settings › Profiles listing three profiles with edit and delete buttons](../../site/guide/img/profiles.webp "Settings › Profiles")
@@ -66,7 +70,7 @@ If you bring your history over from Plex, your Plex Home profile pictures can co
 A PIN is 4 to 8 digits. Without one, anyone can switch to that profile. With one, Flexarr asks for it whenever someone chooses the profile.
 
 - The main profile's PIN works like anyone's: add it, change it or remove it in **Settings › Profiles**. It can be the same as the admin PIN or different.
-- The admin PIN is in **Settings › Security**. It can be changed but not removed, and changing it takes the current one. If you've forgotten it, see [I forgot a profile's PIN](troubleshooting.md#i-forgot-a-profiles-pin).
+- The admin PIN is in **Settings › Security**. It can be changed but not removed, and changing it takes the current one. If you've forgotten it, see [I forgot a profile's PIN](troubleshooting.md#i-forgot-a-profile-s-pin).
 - Without a PIN of its own, the main profile is chosen freely on browsers and devices you signed in. Someone coming in over Tailscale with their own account, or a browser at home that isn't signed in while there are kids profiles, is asked for the admin PIN instead, even when the main profile has a PIN of its own.
 - Forgotten a profile's PIN? Choose **Forgot PIN?** under its PIN pad and enter the admin PIN: the PIN comes off, and you can give it a new one in **Settings › Profiles**.
 - On a server from before the two were apart, the PIN you had became the admin PIN. The main profile kept it as its own too only if **Ask for the PIN when someone chooses the main profile** was on. Changing the admin PIN later doesn't change that one: change it in **Settings › Profiles** too.
@@ -105,6 +109,7 @@ A profile with an age limit:
 Switch on **Kids profile** for a child's profile (it comes on by itself for a new profile limited to U or PG). A kids profile:
 
 - has no Settings, and no signing out on the web
+- has no Podcasts, Watchlist, Collections, Live TV, Trakt or subtitle search (nor, from the next release, audiobooks)
 - has no scores, no score-ranked rows such as Top 10, and a **Watch again** row on Home for the films and shows they've finished; on the web, bigger artwork too
 - can't mark things watched, and has no trailers
 
@@ -116,11 +121,11 @@ For the playroom TV or a child's tablet, turn on **Child lock**, so only kids pr
 
 - **Web:** the profile menu, then **Child lock**.
 - **Apple TV:** **Settings › Profiles**, or press and hold a kids profile in the profile picker.
-- **iPhone, iPad and Android:** **Settings**, under **Watching as**, or hold the padlock on a kids profile's picture in the profile picker: child lock goes on with that profile.
+- **iPhone and iPad:** **Settings**, under **Watching as**, or hold the padlock on a kids profile's picture in the profile picker: child lock goes on with that profile.
 
 Turning it on from the main profile takes no PIN (from any other profile, the admin PIN). To turn it off, hold the padlock in the profile picker (on Apple TV, press and hold the kids profile), or choose **Turn off child lock** in the web's profile menu, and enter the admin PIN. You can also turn it off for any device from **Settings › Security** on the web, which marks those with **Child lock on**.
 
-Deleting the kids profile a device with child lock is on moves it to another kids profile. If it was the last one, turn off child lock first.
+Deleting the kids profile a device with child lock is on moves that device to another kids profile. If it was the last one, turn off child lock first.
 
 > **Note**
 > Child lock needs the device's own sign-in: a browser signed in with the API key once, or an app connected with a code. An app still connected with the API key itself is the server, so kids profiles can't hold a child there at all: connect it again with a code. With **Only away from home** in **Settings › Security**, a browser at home that hasn't chosen a profile starts on a kids profile, and choosing the main profile there takes the admin PIN. Giving it signs that browser in, so it doesn't ask again: turn on Child lock on a browser children share.
@@ -131,7 +136,7 @@ When a household has more than one profile, Flexarr asks who's watching the firs
 
 ### On the web
 
-The page is called **Choose a profile**. Profiles with a PIN say **Needs a PIN**. To switch later, open the menu under your profile picture at the top right and choose **Switch profile**. With two profiles, it says **Switch to** and the other person's name, and switches straight away unless that profile has a PIN. A non-main profile also has **Switch to the main profile** in Settings.
+The page is called **Choose a profile**. Profiles with a PIN say **Needs a PIN**. To switch later, open the menu under your profile picture at the top right and choose **Switch profile**. With two profiles, it says **Switch to** and the other person's name, and switches straight away unless that profile has a PIN.
 
 ### On iPhone and iPad
 
@@ -150,4 +155,4 @@ Profiles with a PIN then ask for it every time too.
 
 ## Notifications and profiles
 
-An iPhone or iPad gets notifications for one profile: whichever it was on when notifications were turned on. Switching profile on the phone doesn't change that, though **Settings › Notifications** offers to move them to the profile you're on now. See [Notifications and widgets](notifications-and-widgets.md).
+An iPhone or iPad gets notifications for one profile: whichever it was on when notifications were turned on. Switching profile on the phone doesn't change that, though **Settings › Notifications** offers to move them to the profile you're on now. While child lock is on, they follow the phone to the kids profile, and go back when it's turned off. See [Notifications and widgets](notifications-and-widgets.md).

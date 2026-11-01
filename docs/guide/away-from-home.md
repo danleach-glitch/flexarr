@@ -12,7 +12,7 @@ At home, your devices find Flexarr on the Wi-Fi. Away from home, they need a saf
 ### Set it up
 
 1. **On the server**, install Tailscale from [tailscale.com/download](https://tailscale.com/download) and sign in.
-2. In Flexarr on the web, signed in as the main profile, go to **Settings › Remote access**. Under **Away from home**, Tailscale should say it's connected. Choose **Turn on**.
+2. In Flexarr on the web, signed in as the main profile, go to **Settings › Remote access**. Under **Away from home**, Tailscale should say **Off. Connected as** and your server's name. Choose **Turn on**.
 3. Flexarr shows its **Private address**, something like `https://your-server.your-tailnet.ts.net:8443`. It's HTTPS, with a real certificate from Tailscale.
 4. **On your iPhone or iPad**, install Tailscale from the App Store and sign in with the same account. Leave it connected.
 5. Open the Flexarr app once while you're at home, so it learns the private address.
@@ -24,16 +24,16 @@ From then on, the iPhone, iPad and Apple TV apps switch by themselves. When the 
 In a browser away from home, open the private address instead of the usual one.
 
 > **Note**
+> The Mac app (coming to the Mac App Store) can't turn Tailscale on. Install Tailscale on that Mac and sign in, and **Settings › Remote access** shows the Mac's own Tailscale address to use.
+
+> **Note**
 > Flexarr needs the `tailscale` command on the same computer it runs on to turn this on. In Docker it can't see the Tailscale installed around it, so **Settings › Remote access** says **Not available in Docker**. To use Flexarr away from home from Docker, put it behind an [HTTPS reverse proxy](#an-https-reverse-proxy-instead), or run Flexarr without Docker on a computer with Tailscale.
 
 ### Who can get in
 
 When you first turn it on, your own Tailscale account is linked to the main profile. Anyone else you invite to your tailnet appears under **People with their own Tailscale** in **Settings › Remote access**. Choose a profile for each person. Anyone set to **Not allowed** is turned away, even though Tailscale lets them reach the server.
 
-Over Tailscale, watching works as it does at home. Changing settings is stricter: you'll be asked to choose the main profile with the admin PIN. That browser then stays signed in until it's signed out, or left unused for two weeks. See [Unlocking settings](profiles.md#unlocking-settings) for the admin PIN.
-
-> **Important**
-> Someone on your tailnet whose account is linked to another profile can only choose the main profile with the admin PIN, even if it has a PIN of its own. Changing settings over Tailscale asks for the admin PIN, as it does at home.
+Over Tailscale, watching works as it does at home. Someone whose account is linked to another profile can only choose the main profile with the admin PIN, even if the main profile has a PIN of its own. That browser then stays signed in until it's signed out, or left unused for two weeks. Changing settings asks for the admin PIN, as it does at home: see [Unlocking settings](profiles.md#unlocking-settings).
 
 Don't use **Tailscale Funnel** for Flexarr. Funnel publishes an address to the whole internet. If Flexarr spots it, Settings warns you; turn remote access off and on again to make it private.
 
@@ -89,8 +89,8 @@ Plain `http://` is fine on a home network you trust. Anywhere else, use Tailscal
 
 Devices normally connect with a code you approve in **Settings › Security › Connect a device**, and that only works from your home network or over Tailscale. To connect an app through a reverse proxy instead, use the API key:
 
-- **iPhone and iPad:** on the connect screen, choose **Enter an address instead**, then **Connecting from outside your home? Use an API key**.
-- **Apple TV:** the same: **Enter an address instead**, then **Connecting from outside your home? Use an API key**.
+- **iPhone and iPad:** on the connect screen, choose **Enter its address** (under any servers it found, or once it has looked for a while), then **Connecting from outside your home? Use an API key**.
+- **Apple TV:** **Enter an address instead**, then **Connecting from outside your home? Use an API key**.
 
 The API key is in **Settings › Security** under **API key**. Showing it asks for the admin PIN. It's also in `config.json`.
 
