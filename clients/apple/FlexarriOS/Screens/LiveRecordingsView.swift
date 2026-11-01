@@ -37,8 +37,8 @@ struct LiveRecordingsView: View {
                             ForEach(recordings.series) { series in
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text(series.title).font(.body.weight(.semibold))
-                                    Text("\(series.channelName.map { "On \($0)" } ?? "On any channel") · \(series.upcoming) coming up · \(series.recorded) recorded"
-                                         + (series.newOnly ? " · New only" : ""))
+                                    Text("\(series.channelName.map { "On \($0)" } ?? "On any channel"), \(series.upcoming) coming up, \(series.recorded) recorded"
+                                         + (series.newOnly ? ", new only" : ""))
                                         .font(.caption).foregroundStyle(Color.usher)
                                 }
                                 .swipeActions {
@@ -100,12 +100,12 @@ struct LiveRecordingsView: View {
 
     private func detail(_ recording: Recording) -> String {
         var parts: [String] = []
-        if let season = recording.season, let episode = recording.episode { parts.append("S\(season) E\(episode)") }
+        if let season = recording.season, let episode = recording.episode { parts.append("S\(season)E\(episode)") }
         if let subtitle = recording.subtitle { parts.append(subtitle) }
         parts.append(recording.channelName)
         parts.append(Self.day.string(from: recording.start))
         if let size = recording.size { parts.append(ByteCountFormatter.string(fromByteCount: size, countStyle: .file)) }
-        return parts.joined(separator: " · ")
+        return parts.joined(separator: "   ")
     }
 
     private func load() async {

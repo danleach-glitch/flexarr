@@ -30,7 +30,7 @@ struct TraktTests {
 
     @Test func previewSaysWhatChanges() {
         let preview = TraktImportPreview(traktFilms: 1, traktEpisodes: 340, inLibrary: 200, newToFlexarr: 41, notOnServer: 0, unmatched: 2, toTrakt: 1)
-        #expect(preview.summary == "Trakt has 1 film and 340 episodes")
+        #expect(preview.summary == "Trakt has 1 movie and 340 episodes")
         #expect(preview.details == "200 are here, 41 not yet watched in Flexarr. 1 play from Flexarr goes to Trakt.")
     }
 
@@ -45,7 +45,7 @@ struct TraktTests {
          {"id":"sam/77","name":"Best of 2024","owner":"Sam","itemCount":1,"liked":true,"selected":false}]
         """
         let lists = try FlexarrClient.decoder.decode([TraktList].self, from: Data(json.utf8))
-        #expect(lists.map(\.detail) == ["12 titles", "Sam · 1 title"])
+        #expect(lists.map(\.detail) == ["12 titles", "Sam, 1 title"])
     }
 
     @Test func problemsUseTheServersWords() {

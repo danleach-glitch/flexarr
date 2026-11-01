@@ -94,7 +94,7 @@ struct SearchView: View {
                 } else if query.isEmpty && !recents.isEmpty {
                     recentSections
                 } else {
-                    StatusView(state: .empty("Find films, shows, episodes and people in your libraries."))
+                    StatusView(state: .empty("Find movies, shows, episodes and people in your libraries."))
                         .frame(height: 240)
                 }
             }
@@ -398,7 +398,7 @@ private struct OutsideTitleCard: View {
                     Text(title.title)
                         .font(.footnote.weight(.semibold))
                         .foregroundStyle(Color.screen.opacity(0.9))
-                    Text([title.isShow ? "Show" : "Film", title.year.map(String.init), requested || title.availability == .requested ? "Requested" : nil]
+                    Text([title.isShow ? "Show" : "Movie", title.year.map(String.init), requested || title.availability == .requested ? "Requested" : nil]
                         .compactMap { $0 }.joined(separator: ", "))
                         .font(.caption)
                         .foregroundStyle(Color.usher)

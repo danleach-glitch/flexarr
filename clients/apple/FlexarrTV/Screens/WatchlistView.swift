@@ -99,8 +99,8 @@ struct WatchlistView: View {
             }
             Menu {
                 Picker("Kind", selection: $kind) {
-                    Text("Films and shows").tag(String?.none)
-                    Text("Films").tag(String?.some("movie"))
+                    Text("Movies and shows").tag(String?.none)
+                    Text("Movies").tag(String?.some("movie"))
                     Text("Shows").tag(String?.some("tv"))
                 }
                 Picker("Sort", selection: $sort) {
@@ -108,7 +108,7 @@ struct WatchlistView: View {
                 }
             } label: {
                 // The kind shows here too, so a filtered list says why shows (or films) are missing.
-                Label([kind == "movie" ? "Films" : kind == "tv" ? "Shows" : nil, sort.label].compactMap { $0 }.joined(separator: " · "),
+                Label([kind == "movie" ? "Movies" : kind == "tv" ? "Shows" : nil, sort.label].compactMap { $0 }.joined(separator: ", "),
                       systemImage: "line.3.horizontal.decrease")
             }
             .buttonStyle(PillButtonStyle(selected: kind != nil || sort != .status))
@@ -157,7 +157,7 @@ struct WatchlistView: View {
         }
     }
 
-    /// Where it's got to, then where it streams: "On its way · On Netflix", "Request · On Prime Video".
+    /// Where it's got to, then where it streams: "On its way   On Netflix", "Request   On Prime Video".
     private func note(_ entry: WatchlistEntry) -> String {
         let status: String? = switch entry.status {
         case .onItsWay: "On its way"
@@ -166,7 +166,7 @@ struct WatchlistView: View {
         case .notAvailable: "Request"
         default: nil
         }
-        return [status, entry.streamingLabel].compactMap { $0 }.joined(separator: " · ")
+        return [status, entry.streamingLabel].compactMap { $0 }.joined(separator: "   ")
     }
 
     /// "Out 5 Mar 2027" (a calendar day, read and shown in UTC).

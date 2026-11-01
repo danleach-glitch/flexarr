@@ -199,8 +199,8 @@ struct UpNextWidget: Widget {
             UpNextView(snapshot: entry.snapshot)
                 .containerBackground(for: .widget) { Color.room }
         }
-        .configurationDisplayName("Up Next")
-        .description("The podcast episodes waiting in Up Next.")
+        .configurationDisplayName("Up next")
+        .description("The podcast episodes waiting in Up next.")
         .supportedFamilies([.systemSmall, .systemMedium])
     }
 }
@@ -212,12 +212,12 @@ struct UpNextView: View {
     var body: some View {
         let episodes = Array(snapshot.upNext.prefix(family == .systemSmall ? 1 : 3))
         VStack(alignment: .leading, spacing: 8) {
-            Text("Up Next")
+            Text("Up next")
                 .font(.caption.weight(.bold))
                 .foregroundStyle(Color.usher)
             if episodes.isEmpty {
                 Spacer(minLength: 0)
-                Text("Nothing in Up Next").font(.caption).foregroundStyle(Color.usher)
+                Text("Nothing in Up next").font(.caption).foregroundStyle(Color.usher)
                 Spacer(minLength: 0)
             } else if family == .systemSmall, let first = episodes.first {
                 EpisodeArtwork(episode: first).frame(width: 56, height: 56)

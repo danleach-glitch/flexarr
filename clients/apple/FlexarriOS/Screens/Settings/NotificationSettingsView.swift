@@ -50,7 +50,7 @@ struct NotificationSettingsView: View {
                 }
 
                 Section("Tell me about") {
-                    toggle("Films", \.films)
+                    toggle("Movies", \.films)
                     toggle("Shows", \.shows)
                     if model.podcastStatus?.available != false { toggle("Podcasts", \.podcasts) }
                     if model.hasLiveTv { toggle("Recordings", \.recordings) }

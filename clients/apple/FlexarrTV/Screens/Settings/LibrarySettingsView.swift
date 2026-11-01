@@ -22,7 +22,7 @@ private extension LibraryOpening {
         switch self {
         case .browse: "A library opens on its highlights: what you're watching in it, the latest, the best not yet watched and its biggest genres."
         case .all: "A library opens on every title, A to Z, with sorting, genres and a letter rail to jump through it."
-        case .genres: "A film or TV library opens on its genres, each with a picture from one of its titles. Home videos open on Browse."
+        case .genres: "A movie or TV library opens on its genres, each with a picture from one of its titles. Home videos open on Browse."
         }
     }
 

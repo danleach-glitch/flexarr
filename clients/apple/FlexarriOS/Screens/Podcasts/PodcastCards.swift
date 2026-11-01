@@ -164,10 +164,10 @@ struct PodcastEpisodeRow: View {
         }
         .swipeActions(edge: .trailing, allowsFullSwipe: removeFromUpNext != nil) {
             if let removeFromUpNext {
-                Button(role: .destructive, action: removeFromUpNext) { Label("Remove from Up Next", systemImage: "minus.circle") }
+                Button(role: .destructive, action: removeFromUpNext) { Label("Remove from Up next", systemImage: "minus.circle") }
             } else {
                 Button { Task { await model.addToUpNext(episode.id, next: false) } } label: {
-                    Label("Add to Up Next", systemImage: "text.line.last.and.arrowtriangle.forward")
+                    Label("Add to Up next", systemImage: "text.line.last.and.arrowtriangle.forward")
                 }
                 .tint(Color.upNext)
                 downloadSwipe
@@ -179,10 +179,10 @@ struct PodcastEpisodeRow: View {
                 Label("Play next", systemImage: "text.line.first.and.arrowtriangle.forward")
             }
             Button { Task { await model.addToUpNext(episode.id, next: false) } } label: {
-                Label("Add to Up Next", systemImage: "text.line.last.and.arrowtriangle.forward")
+                Label("Add to Up next", systemImage: "text.line.last.and.arrowtriangle.forward")
             }
             if let removeFromUpNext {
-                Button(role: .destructive, action: removeFromUpNext) { Label("Remove from Up Next", systemImage: "minus.circle") }
+                Button(role: .destructive, action: removeFromUpNext) { Label("Remove from Up next", systemImage: "minus.circle") }
             }
             Button { togglePlayed() } label: {
                 Label(episode.isPlayed ? "Mark as unplayed" : "Mark as played", systemImage: episode.isPlayed ? "circle" : "checkmark.circle")

@@ -333,7 +333,7 @@ public struct EmptyHomeMessage: Sendable, Hashable {
 
     private static func kind(_ type: LibraryType) -> String {
         switch type {
-        case .movies: "films"
+        case .movies: "movies"
         case .tvShows: "shows"
         case .music: "music"
         case .podcasts: "podcasts"

@@ -240,10 +240,10 @@ extension PairingRequest {
         default: requestedFrom.map { "asking from \($0)" }
         }
         guard let kind else { return asking.map { $0.prefix(1).uppercased() + $0.dropFirst() } }
-        return asking.map { "\(kind) · \($0)" } ?? kind
+        return asking.map { "\(kind), \($0)" } ?? kind
     }
 
-    /// "Apple TV · home network", for a row in a list.
+    /// "Apple TV, home network", for a row in a list.
     var kindAndNetwork: String? {
         let network: String? = switch zone?.lowercased() {
         case "local": "home network"
@@ -251,7 +251,7 @@ extension PairingRequest {
         default: nil
         }
         let parts = [kind, network].compactMap(\.self)
-        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+        return parts.isEmpty ? nil : parts.joined(separator: ", ")
     }
 
     /// What kind of device it is, as people say it. Nil when its app doesn't say (or the server is newer than this app).

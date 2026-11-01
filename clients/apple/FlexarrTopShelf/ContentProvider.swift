@@ -15,8 +15,8 @@ final class ContentProvider: TVTopShelfContentProvider {
         var seen = Set(watching.map(\.id))
         let recent = home.rows.filter { $0.id.hasPrefix("recent-") }.flatMap(\.items)
             .sorted { $0.addedAt > $1.addedAt }.filter { seen.insert($0.id).inserted }
-        var sections = [section("Continue Watching", watching, style: style, client: client),
-                        section("Recently Added", recent, style: style, client: client)].compactMap { $0 }
+        var sections = [section("Continue watching", watching, style: style, client: client),
+                        section("Recently added", recent, style: style, client: client)].compactMap { $0 }
         if sections.isEmpty, let featured = section("Featured", home.featured, style: style, client: client) {
             sections = [featured]
         }
@@ -39,8 +39,8 @@ final class ContentProvider: TVTopShelfContentProvider {
         item.setImageURL(small, for: .screenScale1x)
         item.setImageURL(large, for: .screenScale2x)
         if summary.kind == .episode {
-            let number = [summary.seasonNumber.map { "S\($0)" }, summary.episodeNumber.map { "E\($0)" }].compactMap { $0 }.joined(separator: " ")
-            item.title = [summary.seriesTitle ?? summary.title, number].filter { !$0.isEmpty }.joined(separator: " · ")
+            let number = [summary.seasonNumber.map { "S\($0)" }, summary.episodeNumber.map { "E\($0)" }].compactMap { $0 }.joined()
+            item.title = [summary.seriesTitle ?? summary.title, number].filter { !$0.isEmpty }.joined(separator: "  ")
         } else {
             item.title = summary.title
         }

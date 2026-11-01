@@ -942,9 +942,9 @@ final class PlaybackController: NSObject {
         if !ended { transport?.play() }
     }
 
-    /// "Next Episode in 4" (on shuffle too: the next one just happens to be random).
+    /// "Next episode in 4" (on shuffle too: the next one just happens to be random).
     private var nextTitle: String {
-        countdown.map { "Next Episode in \($0)" } ?? "Next Episode"
+        countdown.map { "Next episode in \($0)" } ?? "Next episode"
     }
 
     private func updatePrompt() {
@@ -953,7 +953,7 @@ final class PlaybackController: NSObject {
         } else {
             switch prompt {
             case .none: nil
-            case .skip(let type, _): type == .recap ? "Skip Recap" : "Skip Intro"
+            case .skip(let type, _): type == .recap ? "Skip recap" : "Skip intro"
             // Not over the sleep timer's question, or for an episode it's stopping at the end of.
             case .nextEpisode: screen?.sleepHoldsEpisode == true ? nil : nextTitle
             }
@@ -1203,7 +1203,7 @@ final class PlaybackController: NSObject {
             return [codec, channels].filter { !$0.isEmpty }.joined(separator: " ")
         }
         let parts = [info.item.resolution, sound, info.isOffline ? "Downloaded" : info.method == .directPlay ? "Original" : nil].compactMap { $0 }.filter { !$0.isEmpty }
-        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+        return parts.isEmpty ? nil : parts.joined(separator: "   ")
     }
 
     /// The poster for the lock screen and Now Playing.

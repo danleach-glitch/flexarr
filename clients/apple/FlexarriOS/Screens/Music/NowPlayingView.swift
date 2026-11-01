@@ -612,7 +612,7 @@ struct NowPlayingView: View {
                         // Played: on to what comes next, as if it had finished.
                         music.seek(to: max(0, music.duration - 0.5))
                     }
-                } label: { Label("Mark as Played", systemImage: "checkmark.circle") }
+                } label: { Label("Mark as played", systemImage: "checkmark.circle") }
                 if let download = downloads.entry(for: track.id) {
                     Button(role: .destructive) { downloads.remove(download.id) } label: {
                         Label(download.isDownloaded ? "Remove Download" : "Stop Download", systemImage: "trash")
@@ -729,7 +729,7 @@ struct NowPlayingView: View {
         let next = model.upNext.filter { $0.id != music.current?.id }
         if !next.isEmpty {
             VStack(alignment: .leading, spacing: 4) {
-                sectionTitle("Up Next")
+                sectionTitle("Up next")
                 ForEach(next.prefix(20)) { episode in
                     Button { model.playEpisode(episode.summary) } label: {
                         HStack(spacing: 12) {

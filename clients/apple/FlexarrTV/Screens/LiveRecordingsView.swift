@@ -134,8 +134,8 @@ struct LiveRecordingsView: View {
     private func seriesRow(_ series: RecordingSeries) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(series.title).font(.system(size: 27, weight: .semibold)).lineLimit(1)
-            Text("\(series.channelName.map { "On \($0)" } ?? "On any channel") · \(series.upcoming) coming up · \(series.recorded) recorded"
-                 + (series.newOnly ? " · New episodes only" : ""))
+            Text("\(series.channelName.map { "On \($0)" } ?? "On any channel"), \(series.upcoming) coming up, \(series.recorded) recorded"
+                 + (series.newOnly ? ", new episodes only" : ""))
                 .font(.system(size: 21)).opacity(0.7).lineLimit(1)
         }
         .padding(.horizontal, 22)
@@ -145,11 +145,11 @@ struct LiveRecordingsView: View {
 
     private func detail(_ recording: Recording) -> String {
         var parts: [String] = []
-        if let season = recording.season, let episode = recording.episode { parts.append("S\(season) E\(episode)") }
+        if let season = recording.season, let episode = recording.episode { parts.append("S\(season)E\(episode)") }
         if let subtitle = recording.subtitle { parts.append(subtitle) }
         parts.append(recording.channelName)
         parts.append(Self.day.string(from: recording.start))
-        return parts.joined(separator: " · ")
+        return parts.joined(separator: "   ")
     }
 
     private func load() async {

@@ -72,8 +72,8 @@ struct WatchlistView: View {
                         Text("Not available").tag(WatchlistStatus?.some(.notAvailable))
                     }
                     Picker("Kind", selection: $kind) {
-                        Text("Films and shows").tag(String?.none)
-                        Text("Films").tag(String?.some("movie"))
+                        Text("Movies and shows").tag(String?.none)
+                        Text("Movies").tag(String?.some("movie"))
                         Text("Shows").tag(String?.some("tv"))
                     }
                     Picker("Sort", selection: $sort) {
@@ -140,7 +140,7 @@ private struct WatchlistCard: View {
                     Text(entry.title)
                         .font(.footnote.weight(.semibold))
                         .foregroundStyle(Color.screen.opacity(0.9))
-                    Text([entry.isShow ? "Show" : "Film", entry.year.map(String.init)].compactMap { $0 }.joined(separator: ", "))
+                    Text([entry.isShow ? "Show" : "Movie", entry.year.map(String.init)].compactMap { $0 }.joined(separator: ", "))
                         .font(.caption)
                         .foregroundStyle(Color.usher)
                     if let streaming = entry.streamingLabel {

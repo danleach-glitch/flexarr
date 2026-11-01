@@ -21,7 +21,7 @@ struct SettingsView: View {
             if let profile = model.currentProfile {
                 SettingsGroupLabel("Watching as")
                 if model.offersProfilePicker {
-                    SettingsRow(title: profile.name, profile: profile, value: "Switch", help: "Switch to another profile. Each has its own Continue Watching, watch history and playback settings.") {
+                    SettingsRow(title: profile.name, profile: profile, value: "Switch", help: "Switch to another profile. Each has its own Continue watching, watch history and playback settings.") {
                         choosingProfile = true
                     }
                 } else {

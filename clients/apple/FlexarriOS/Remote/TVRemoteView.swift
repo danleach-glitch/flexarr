@@ -225,13 +225,13 @@ struct TVRemoteView: View {
         .frame(maxWidth: .infinity)
     }
 
-    /// The TV's Skip Intro, Skip Recap or Next Episode, here too.
+    /// The TV's Skip intro, Skip recap or Next episode, here too.
     @ViewBuilder
     private func promptButton(_ device: Device, _ prompt: PlayerPrompt) -> some View {
         let next = prompt == .nextEpisode
         if device.takes(next ? .next : .skipSegment) {
             Button { remote.control(next ? .next : .skipSegment) } label: {
-                Text(next ? "Next Episode" : prompt == .skipRecap ? "Skip Recap" : "Skip Intro")
+                Text(next ? "Next episode" : prompt == .skipRecap ? "Skip recap" : "Skip intro")
                     .font(.subheadline.weight(.bold))
                     .foregroundStyle(Color.room)
                     .padding(.horizontal, 22)

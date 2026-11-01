@@ -394,7 +394,10 @@ final class EngineTransport: PlayerTransport {
         } else if isPicture(track.codec) || track.isForced || track.isHearingImpaired {
             parts.append([isPicture(track.codec) ? codec : nil, track.isForced ? "forced" : nil, track.isHearingImpaired ? "SDH" : nil].compactMap { $0 }.joined(separator: ", "))
         }
-        return parts.filter { !$0.isEmpty }.joined(separator: " · ")
+        // "English (E-AC-3 5.1, CC)": the name, then the facts in brackets, never joined with middle dots.
+        let shown = parts.filter { !$0.isEmpty }
+        guard let first = shown.first else { return "" }
+        return shown.count == 1 ? first : "\(first) (\(shown.dropFirst().joined(separator: ", ")))"
     }
 
     // MARK: Picture in Picture

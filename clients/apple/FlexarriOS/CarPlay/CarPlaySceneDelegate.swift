@@ -15,7 +15,7 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
     static weak var model: AppModel?
 
     private var interfaceController: CPInterfaceController?
-    private let upNext = CPListTemplate(title: "Up Next", sections: [])
+    private let upNext = CPListTemplate(title: "Up next", sections: [])
     private let fresh = CPListTemplate(title: "New episodes", sections: [])
     private let podcasts = CPListTemplate(title: "Podcasts", sections: [])
     private let books = CPListTemplate(title: "Books", sections: [])
@@ -202,7 +202,7 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         let nowPlaying = CPNowPlayingTemplate.shared
         nowPlaying.updateNowPlayingButtons([speed])
         nowPlaying.isUpNextButtonEnabled = true
-        nowPlaying.upNextTitle = "Up Next"
+        nowPlaying.upNextTitle = "Up next"
         let observer = UpNextObserver(open: { [weak self] in
             guard let self else { return }
             interfaceController?.pushTemplate(upNext, animated: true, completion: nil)

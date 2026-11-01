@@ -22,7 +22,7 @@ struct PlaybackSettingsView: View {
                     change(\.autoPlayNext)
                 }
                 SettingsRow.toggle("Skip intros", isOn: preferences.skipIntros, symbol: "forward",
-                                   help: "Jumps past a show's opening titles by itself. Off, a Skip Intro button shows instead.") {
+                                   help: "Jumps past a show's opening titles by itself. Off, a Skip intro button shows instead.") {
                     change(\.skipIntros)
                 }
                 SettingsRow.toggle("Skip recaps", isOn: preferences.skipRecaps, symbol: "clock.arrow.circlepath",
@@ -52,7 +52,7 @@ struct PlaybackSettingsView: View {
                     }
                 }
                 SettingsRow.toggle("Subtitles in the black bars", isOn: preferences.subtitlesInBlackBars ?? false, symbol: "rectangle.bottomthird.inset.filled",
-                                   help: "In films wider than the TV, subtitles go in the black bar below the picture rather than over it.") {
+                                   help: "In movies wider than the TV, subtitles go in the black bar below the picture rather than over it.") {
                     var changed = preferences
                     changed.subtitlesInBlackBars = !(preferences.subtitlesInBlackBars ?? false)
                     save(changed, over: preferences)
@@ -95,7 +95,7 @@ struct PlaybackSettingsView: View {
 
             SettingsGroupLabel("This Apple TV")
             SettingsLinkRow(title: "Skip back and forward", symbol: "goforward.\(Int(skipSeconds))", value: "\(Int(skipSeconds)) seconds",
-                            help: "How far a click on the left or right of the remote moves films and shows.") {
+                            help: "How far a click on the left or right of the remote moves movies and shows.") {
                 SettingsChoicePage(title: "Skip back and forward", summary: "A click on the left or right of the remote's touch surface.",
                                    choices: [10.0, 15.0, 30.0], label: { "\(Int($0)) seconds" }, selection: skipSeconds) { seconds in
                     skipSeconds = seconds

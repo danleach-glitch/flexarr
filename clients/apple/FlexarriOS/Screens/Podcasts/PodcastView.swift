@@ -66,7 +66,7 @@ struct PodcastView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
         .alert("Mark all as played?", isPresented: $markingAllPlayed) {
-            Button("Mark as Played") {
+            Button("Mark all as played") {
                 Task {
                     await page.markAllPlayed(model: model)
                     await downloads.reconcilePodcasts()

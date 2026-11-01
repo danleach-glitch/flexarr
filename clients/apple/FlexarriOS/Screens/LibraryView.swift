@@ -48,7 +48,7 @@ struct LibraryView: View {
             VStack(alignment: .leading, spacing: 12) {
                 if hasGenres {
                     Picker("Show", selection: $showing) {
-                        Text(library.type == .tvShows ? "All shows" : "All films").tag(Showing.all)
+                        Text(library.type == .tvShows ? "All shows" : "All movies").tag(Showing.all)
                         Text("Genres").tag(Showing.genres)
                     }
                     .pickerStyle(.segmented)
@@ -258,7 +258,7 @@ private struct LibraryGenreGrid: View {
     }
 
     private func caption(_ genre: GenreCount) -> String {
-        let noun = library.type == .tvShows ? (genre.count == 1 ? "show" : "shows") : (genre.count == 1 ? "film" : "films")
+        let noun = library.type == .tvShows ? (genre.count == 1 ? "show" : "shows") : (genre.count == 1 ? "movie" : "movies")
         return "\(genre.count) \(noun)"
     }
 }

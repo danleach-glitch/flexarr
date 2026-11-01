@@ -69,7 +69,7 @@ public struct TraktImportPreview: Codable, Sendable, Hashable {
 
     /// "Trakt has 12 films and 340 episodes".
     public var summary: String {
-        "Trakt has \(Self.count(traktFilms, "film")) and \(Self.count(traktEpisodes, "episode"))"
+        "Trakt has \(Self.count(traktFilms, "movie")) and \(Self.count(traktEpisodes, "episode"))"
     }
 
     /// What changes, in a line or two.
@@ -108,10 +108,10 @@ public struct TraktList: Codable, Sendable, Hashable, Identifiable {
     public let liked: Bool
     public let selected: Bool
 
-    /// "Sam · 12 titles", or "12 titles" for the profile's own.
+    /// "Sam, 12 titles", or "12 titles" for the profile's own.
     public var detail: String {
         let titles = TraktImportPreview.count(itemCount, "title")
-        return owner.map { "\($0) · \(titles)" } ?? titles
+        return owner.map { "\($0), \(titles)" } ?? titles
     }
 }
 

@@ -53,7 +53,7 @@ struct LibraryTab: View {
     }
 }
 
-/// "Browse", "All films" (or "All shows") and "Genres" as quiet text at the top-left of both views. Plain words rather than
+/// "Browse", "All movies" (or "All shows") and "Genres" as quiet text at the top-left of both views. Plain words rather than
 /// pills, so it doesn't read as a second row of tabs; the sidebar's label above already names the library.
 struct LibraryViewSwitch: View {
     let library: Library
@@ -65,7 +65,7 @@ struct LibraryViewSwitch: View {
     static let topInset: CGFloat = 150
 
     var body: some View {
-        let all = library.type == .tvShows ? "All shows" : library.type == .homeVideos ? "All folders" : "All films"
+        let all = library.type == .tvShows ? "All shows" : library.type == .homeVideos ? "All folders" : "All movies"
         ViewSwitch(choices: [(.browse, "Browse"), (.all, all)] + (LibraryOpening.hasGenres(library) ? [(.genres, "Genres")] : []),
                    selection: Binding { view == .genres && !LibraryOpening.hasGenres(library) ? .browse : view } set: { view = $0 },
                    focusChanged: focusChanged)
