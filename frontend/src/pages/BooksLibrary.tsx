@@ -106,10 +106,12 @@ function Shelves({ library }: { library: Library }) {
     finished: books('Finished', data.finished, `${all}&progress=finished`),
   }
   // In the profile's order, without the ones it switched off (Settings › Home & browse).
-  const order = data.order ?? Object.keys(shelves)
+  const order = (data.order ?? Object.keys(shelves)).filter((id) => id in shelves)
+  // None left with anything on it: the whole library instead.
+  if (!order.some((id) => shelves[id])) return <AllBooks library={library} />
   return (
     <div className="book-shelves">
-      {order.filter((id) => id in shelves).map((id) => (
+      {order.map((id) => (
         <Fragment key={id}>{shelves[id]}</Fragment>
       ))}
     </div>

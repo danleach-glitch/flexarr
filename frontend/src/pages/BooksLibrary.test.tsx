@@ -68,6 +68,18 @@ describe('Audiobooks library', () => {
     expect(screen.queryByText('Dune')).not.toBeInTheDocument()
   })
 
+  it('shows every book when no shelf with books on it is left on', async () => {
+    const series = [{ id: 's1', name: 'Dune', bookCount: 2, finishedCount: 0, covers: [], next: null }]
+    mockApi({
+      '/libraries/lib-books/book-shelves': { ...shelves, series, order: ['finished'] },
+      '/libraries/lib-books/books': { total: 0, items: [] },
+    })
+    show('/library/lib-books')
+
+    expect(await screen.findByRole('searchbox')).toBeInTheDocument()
+    expect(screen.queryByText('Dune')).not.toBeInTheDocument()
+  })
+
   it('still opens narrators by their old address', async () => {
     mockApi({ '/libraries/lib-books/book-people': { total: 0, items: [] } })
     show('/library/lib-books?view=narrators')
