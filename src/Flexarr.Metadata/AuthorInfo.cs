@@ -10,6 +10,9 @@ using Microsoft.Extensions.Logging;
 
 namespace Flexarr.Metadata;
 
+/// <summary>A photo or biography an author could have, and where it's from (one of <see cref="PersonSources"/>).</summary>
+public sealed record AuthorCandidate(string Source, string? Image, string? Biography);
+
 /// <summary>
 /// Authors' photos and biographies. A photo in the author's own folder (author.jpg, folder.jpg) wins over any found
 /// online; what's still missing comes from Readarr, then Audible (by ASIN, then by name), then Open Library, and only
@@ -20,6 +23,9 @@ public sealed partial class AuthorInfo(FlexarrDbContext db, ArrClient arr, IMeta
 {
     /// <summary>How long an author's online lookup stands before they're looked up again.</summary>
     public static readonly TimeSpan LookAgainAfter = TimeSpan.FromDays(30);
+
+    /// <summary>The source of a candidate that's what the person has now, from before sources were kept.</summary>
+    public const string Current = "current";
 
     private static readonly string[] PhotoNames = ["author", "folder"];
     private static readonly string[] PhotoExtensions = [".jpg", ".jpeg", ".png", ".webp"];
@@ -136,6 +142,78 @@ public sealed partial class AuthorInfo(FlexarrDbContext db, ArrClient arr, IMeta
             person.InfoCheckedAt = now;
         }
     }
+
+    /// <summary>
+    /// Every photo and biography an admin could choose from for a person: what they have now (under its own source),
+    /// their folder's photo, Readarr's, Audible's and Open Library's, at most one of each from each source. A source
+    /// that can't be asked is left out.
+    /// </summary>
+    public async Task<(List<AuthorCandidate> Photos, List<AuthorCandidate> Biographies)> CandidatesAsync(Person person, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(person);
+        var photos = new List<AuthorCandidate>();
+        var biographies = new List<AuthorCandidate>();
+        void Add(string source, string? image, string? biography)
+        {
+            if (image is not null && (ArtworkUrl.IsHttps(image) || ArtworkUrl.IsLocal(image)) && photos.All(p => p.Source != source))
+            {
+                photos.Add(new AuthorCandidate(source, image, null));
+            }
+
+            if (!string.IsNullOrWhiteSpace(biography) && biographies.All(b => b.Source != source))
+            {
+                biographies.Add(new AuthorCandidate(source, null, biography.Trim()));
+            }
+        }
+
+        Add(person.PhotoSource ?? GuessSource(person.ImageUrl), person.ImageUrl, null);
+        Add(person.BiographySource ?? Current, null, person.Biography);
+
+        var books = await BooksAsync(person, null, ct).ConfigureAwait(false);
+        Add(PersonSources.Folder, await FolderPhotoAsync(person.Name, books, ct).ConfigureAwait(false), null);
+        if ((await ReadarrAuthorsAsync(ct).ConfigureAwait(false)).FirstOrDefault(a => a.AuthorName is { } name && Fold(name) == Fold(person.Name)) is { } fromArr)
+        {
+            Add(PersonSources.Readarr, ArrPhoto(fromArr.Images), Plain(fromArr.Overview));
+        }
+
+        if (providers is not null)
+        {
+            try
+            {
+                if (await AudibleAsync(person, [], ct).ConfigureAwait(false) is { } audible)
+                {
+                    Add(PersonSources.Audible, audible.Image, audible.Biography);
+                }
+            }
+            catch (Exception ex) when (IsFailure(ex, ct))
+            {
+                LogLookupFailed(person.Name, "Audible", ex.Message);
+            }
+
+            try
+            {
+                if (await providers.OpenLibraryAuthorAsync(person.Name, [.. books.Select(b => b.Title)], ct).ConfigureAwait(false) is { } openLibrary)
+                {
+                    Add(PersonSources.OpenLibrary, openLibrary.Image, openLibrary.Biography);
+                }
+            }
+            catch (Exception ex) when (IsFailure(ex, ct))
+            {
+                LogLookupFailed(person.Name, "Open Library", ex.Message);
+            }
+        }
+
+        return (photos, biographies);
+    }
+
+    /// <summary>Where a photo from before sources were kept came from, by its address.</summary>
+    private static string GuessSource(string? url) =>
+        url is null ? Current
+        : url.StartsWith("file://", StringComparison.Ordinal) ? PersonSources.Folder
+        : Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Host == "image.tmdb.org" ? PersonSources.Tmdb
+        : uri?.Host == "static.tvmaze.com" ? PersonSources.TvMaze
+        : uri?.Host == "covers.openlibrary.org" ? PersonSources.OpenLibrary
+        : Current;
 
     /// <summary>Audible's photo and biography: by the ASIN the person has, else (or when that's unknown there) by name.</summary>
     private async Task<BookAuthorInfo?> AudibleAsync(Person person, IReadOnlyCollection<string> knownAsins, CancellationToken ct)

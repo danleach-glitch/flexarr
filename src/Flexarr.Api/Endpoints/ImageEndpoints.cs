@@ -98,6 +98,14 @@ public static class ImageEndpoints
             return source?.Url is { } url ? await ServeAsync(cache, url, w ?? 185, http, ct) : Results.NotFound();
         });
 
+        // A photo an admin could choose for a person: only one the server itself found for them, and only while it
+        // remembers what it found (ten minutes after they were looked for), never a URL from the request.
+        group.MapGet("/people/{id:guid}/candidates/{source}", async (Guid id, string source, int? w, IMemoryCache memory, ImageCache cache, HttpContext http,
+            CancellationToken ct) =>
+            PeopleEndpoints.CandidatePhoto(memory, id, source) is { } url
+                ? await ServeAsync(() => cache.GetAsync(url, w ?? 342, ct), http, "private, max-age=600")
+                : Results.NotFound());
+
         return api;
     }
 
@@ -252,7 +260,7 @@ public static class ImageEndpoints
         ServeAsync(() => cache.GetAsync(url, width, ct), http);
 
     /// <param name="fetch">The cached copy's path; asked for again (once) if a trim deletes it before it's opened.</param>
-    private static async Task<IResult> ServeAsync(Func<Task<string?>> fetch, HttpContext http)
+    private static async Task<IResult> ServeAsync(Func<Task<string?>> fetch, HttpContext http, string cacheControl = "public, max-age=2592000, immutable")
     {
         // Opened here rather than when the response is written: a trim of the cache can delete the file in between,
         // and then it's fetched again, once. Once open, a trim can't take it away.
@@ -285,7 +293,7 @@ public static class ImageEndpoints
                 continue;
             }
 
-            http.Response.Headers[HeaderNames.CacheControl] = "public, max-age=2592000, immutable";
+            http.Response.Headers[HeaderNames.CacheControl] = cacheControl;
             return Results.File(file, path.EndsWith(".png", StringComparison.Ordinal) ? "image/png" : "image/jpeg", enableRangeProcessing: false);
         }
     }

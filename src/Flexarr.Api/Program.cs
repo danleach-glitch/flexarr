@@ -237,6 +237,8 @@ builder.Services.AddHttpClient("books", c => c.Timeout = TimeSpan.FromSeconds(20
 builder.Services.AddScoped(sp => new Flexarr.Metadata.Books.BookProviders(
     sp.GetRequiredService<IHttpClientFactory>().CreateClient("books"), sp.GetRequiredService<IMetadataSettings>));
 builder.Services.AddScoped<MetadataRefresher>();
+builder.Services.AddScoped(sp => new AuthorInfo(sp.GetRequiredService<Flexarr.Core.Data.FlexarrDbContext>(), sp.GetRequiredService<Flexarr.Integrations.Arr.ArrClient>(),
+    sp.GetRequiredService<IMetadataSettings>(), sp.GetRequiredService<Flexarr.Metadata.Books.BookProviders>(), sp.GetRequiredService<ILogger<AuthorInfo>>()));
 builder.Services.AddScoped<PathMappingFinder>();
 
 builder.Services.AddDbContext<FlexarrDbContext>((sp, db) =>
