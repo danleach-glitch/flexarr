@@ -133,6 +133,26 @@ public class ContinueListeningTests(FlexarrApiFactory factory) : IClassFixture<F
     }
 
     [Fact]
+    public async Task APlayersSave_LeavesTheSwitchAlone()
+    {
+        var (client, seeded) = await SeedProfileAsync();
+        (await client.PutAsJsonAsync(Api("me/playback-preferences"), new { autoPlayNext = true, skipIntros = false, skipRecaps = false, skipCredits = false, listeningInContinue = false }))
+            .EnsureSuccessStatusCode();
+
+        // A podcast player gets the preferences without the switch, and saves them back as it got them.
+        var started = await client.PostAsJsonAsync(Api("playback"), new { itemId = seeded.Episode, profile = new { } });
+        started.EnsureSuccessStatusCode();
+        var info = await started.Content.ReadFromJsonAsync<JsonElement>();
+        var given = info.GetProperty("preferences");
+        Assert.True(!given.TryGetProperty("listeningInContinue", out var listening) || listening.ValueKind == JsonValueKind.Null);
+        (await client.PutAsJsonAsync(Api("me/playback-preferences"), given)).EnsureSuccessStatusCode();
+        await client.DeleteAsync(Api($"playback/{info.GetProperty("sessionId").GetString()}"));
+
+        var preferences = await client.GetFromJsonAsync<JsonElement>(Api("me/playback-preferences"));
+        Assert.False(preferences.GetProperty("listeningInContinue").GetBoolean());
+    }
+
+    [Fact]
     public async Task ARemovedBookOrEpisode_StaysOut_WhenAnOlderPlaceArrives()
     {
         var (client, seeded) = await SeedProfileAsync();

@@ -54,6 +54,20 @@ public sealed class ShuffleTests : IDisposable
     }
 
     [Fact]
+    public async Task ThePreferencesHandedToAPlayer_LeaveOutHomesContinueSwitch()
+    {
+        // A player saves back the preferences it was given; without the switch in them, its saves leave it alone.
+        var show = await SeedAsync(regular: 1, specials: 0, unreadable: 0);
+        var client = Client();
+
+        var info = await StartAsync(client, new { itemId = show.Regular[0], profile = Mp4 });
+        var preferences = info.GetProperty("preferences");
+        Assert.True(preferences.GetProperty("autoPlayNext").GetBoolean());
+        Assert.True(!preferences.TryGetProperty("listeningInContinue", out var listening) || listening.ValueKind == JsonValueKind.Null);
+        await StopAsync(client, info);
+    }
+
+    [Fact]
     public void ThePick_LeavesOutTheCurrentEpisode_SpecialsAndOnesFinishedToday()
     {
         var now = DateTime.UtcNow;

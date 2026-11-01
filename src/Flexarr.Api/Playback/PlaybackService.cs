@@ -214,8 +214,9 @@ public sealed class PlaybackService(
         }
 
         var shuffling = request.Shuffle && item.Kind == MediaKind.Episode;
+        // Without ListeningInContinue: players save back what they were given, and mustn't switch Home's row back.
         var watching = await db.Profiles.AsNoTracking().Where(p => p.Id == profile.Id)
-            .Select(p => new PlaybackPreferencesDto(p.AutoPlayNext, p.SkipIntros, p.SkipRecaps, p.SkipCredits, p.SubtitleSize, p.SubtitlePosition, p.SubtitlesInBlackBars, p.ListeningInContinue)).FirstOrDefaultAsync(ct);
+            .Select(p => new PlaybackPreferencesDto(p.AutoPlayNext, p.SkipIntros, p.SkipRecaps, p.SkipCredits, p.SubtitleSize, p.SubtitlePosition, p.SubtitlesInBlackBars)).FirstOrDefaultAsync(ct);
         var next = shuffling ? await ShuffleNextAsync(item, ct) : await NextEpisodeAsync(item, ct);
         // On shuffle the player keeps its own trail of what it played; in order, the episode before this one.
         var before = shuffling ? null : await PreviousEpisodeAsync(item, ct);
@@ -302,8 +303,9 @@ public sealed class PlaybackService(
             ?? (state is { Watched: false, PositionSeconds: > 0 } && (duration <= 0 || state.PositionSeconds < duration * WatchedThreshold) ? state.PositionSeconds : 0);
         var summary = await db.MediaItems.Where(i => i.Id == item.Id).Summaries(profile.Id).FirstAsync(ct);
         var ancestors = item.ParentId is { } podcastId ? await db.MediaItems.Where(i => i.Id == podcastId).Summaries(profile.Id).ToListAsync(ct) : [];
+        // Without ListeningInContinue: players save back what they were given, and mustn't switch Home's row back.
         var watching = await db.Profiles.AsNoTracking().Where(p => p.Id == profile.Id)
-            .Select(p => new PlaybackPreferencesDto(p.AutoPlayNext, p.SkipIntros, p.SkipRecaps, p.SkipCredits, p.SubtitleSize, p.SubtitlePosition, p.SubtitlesInBlackBars, p.ListeningInContinue)).FirstOrDefaultAsync(ct);
+            .Select(p => new PlaybackPreferencesDto(p.AutoPlayNext, p.SkipIntros, p.SkipRecaps, p.SkipCredits, p.SubtitleSize, p.SubtitlePosition, p.SubtitlesInBlackBars)).FirstOrDefaultAsync(ct);
         return new PlaybackInfoDto(id, PlaybackMethod.DirectPlay, $"/api/v1/playback/{id}/stream", [], duration, Math.Max(0, start), Guid.Empty,
             [], null, [], null, false, [], summary, ancestors, null, null, false, watching);
     }
