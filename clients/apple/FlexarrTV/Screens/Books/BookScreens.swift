@@ -82,7 +82,6 @@ struct BooksLibraryView: View {
                     Text(library.name)
                         .font(.marquee(76, weight: .heavy))
                         .foregroundStyle(Color.screen)
-                        .padding(.horizontal, Layout.edge)
                         .padding(.top, 20)
                 }
                 if let shelves {
@@ -100,9 +99,13 @@ struct BooksLibraryView: View {
                     StatusView(state: .loading).frame(height: 500)
                 }
             }
+            .padding(.horizontal, Layout.edge)
             .padding(.bottom, 80)
         }
         .scrollClipDisabled()
+        // Layout.edge from the screen's edge, as on the music and film pages (whose full-width grids reach past the
+        // safe area): without this the screen's safe area comes on top of it.
+        .ignoresSafeArea(edges: .horizontal)
         .background(RoomBackground(ambient: shelves?.continueListening.first?.glowColor ?? shelves?.recentlyAdded.first?.glowColor ?? books.first?.glowColor, intensity: 0.18))
         .task(id: model.refreshToken) {
             guard loadedToken != model.refreshToken || Freshness.isStale(loadedAt) else { return }
@@ -164,7 +167,6 @@ struct BooksLibraryView: View {
                     .onAppear { loadMoreIfNeeded(at: index) }
             }
         }
-        .padding(.horizontal, Layout.edge)
         .padding(.top, 20)
         .focusSection()
     }
@@ -216,10 +218,11 @@ private struct ShelfRow<Content: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            RowHeading(title: title)
+            Text(title)
+                .font(.marquee(40, weight: .bold))
+                .foregroundStyle(Color.screen)
             ScrollView(.horizontal) {
                 LazyHStack(alignment: .top, spacing: Layout.rowSpacing) { content($focusedCard) }
-                    .padding(.horizontal, Layout.edge)
                     .padding(.top, 28)
                     .padding(.bottom, 40)
             }
