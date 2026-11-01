@@ -151,13 +151,15 @@ internal fun TvHomeRows(home: Home, emptyMessage: EmptyHomeMessage?, takeFocus: 
 }
 
 /**
- * What the TV shows of a row: everything but podcasts, which stay on the phone and the web; a row with nothing in it
- * would be a bare heading.
+ * What the TV shows of a row: everything but podcasts (nor the empty row placing New podcasts), which stay on the phone
+ * and the web; a row with nothing in it would be a bare heading.
  */
 private val HomeRow.shows: Boolean
     get() = when (style) {
         HomeRowStyle.Live -> !channels.isNullOrEmpty()
         HomeRowStyle.Playlists -> !playlists.isNullOrEmpty()
+        // Where New podcasts goes, an empty row; the TV has no podcasts.
+        HomeRowStyle.Podcasts -> false
         else -> items.any { it.showsOnTv }
     }
 

@@ -82,6 +82,8 @@ enum class HomeRowStyle(override val raw: String) : ForwardCompatibleEnum {
     Playlists("playlists"),
     /** Favourite TV channels; `items` is empty. */
     Live("live"),
+    /** Where the app's own New podcasts row goes ([HOME_PODCASTS_ROW_ID]); `items` is empty. Absent from servers before 0.58. */
+    Podcasts("podcasts"),
     Unknown("");
 
     object Serializer : ForwardCompatibleEnumSerializer<HomeRowStyle>("HomeRowStyle", entries, Unknown)
@@ -332,6 +334,9 @@ data class HomeRow(
     val playlists: List<PlaylistSummary>? = null,
 )
 
+/** The id of the empty Home row that says where the New podcasts row goes ([Home.placesPodcasts]). */
+const val HOME_PODCASTS_ROW_ID = "podcasts-new"
+
 @Serializable
 data class Home(
     val featured: List<ItemSummary>,
@@ -341,6 +346,11 @@ data class Home(
     val resume: ItemSummary? = null,
     /** What each part-played featured title resumes, by its id. Absent from servers before 0.53. */
     val resumes: Map<String, ItemSummary>? = null,
+    /**
+     * True: [rows] place the New podcasts row (an empty [HOME_PODCASTS_ROW_ID] row the app fills), and leave it out
+     * when the profile switched it off. Absent from servers before 0.58, where the app put it after Continue watching.
+     */
+    val placesPodcasts: Boolean? = null,
 ) {
     /**
      * What a featured title's Play picks up from, when it's been started: the film itself, or a show's episode. A
@@ -350,6 +360,32 @@ data class Home(
         resumes?.let { return it[item.id] }
         return if (item.id == featured.firstOrNull()?.id) resume else null
     }
+}
+
+/** A place in Home's list: one of the server's rows, or the app's own New podcasts row. */
+sealed interface HomeSlot {
+    data class Row(val row: HomeRow) : HomeSlot
+    data object NewPodcasts : HomeSlot
+}
+
+/**
+ * Home's rows that [shows] keeps, with the New podcasts row where it goes: at the server's [HOME_PODCASTS_ROW_ID] row
+ * when it [Home.placesPodcasts] (not at all without that row), otherwise after Continue watching (or first), as
+ * before 0.58.
+ */
+fun Home.slots(shows: (HomeRow) -> Boolean): List<HomeSlot> {
+    if (placesPodcasts == true) {
+        return rows.mapNotNull { row ->
+            when {
+                row.id == HOME_PODCASTS_ROW_ID -> HomeSlot.NewPodcasts
+                shows(row) -> HomeSlot.Row(row)
+                else -> null
+            }
+        }
+    }
+    val shown = rows.filter { it.id != HOME_PODCASTS_ROW_ID && shows(it) }.map(HomeSlot::Row)
+    val continuing = if (shown.firstOrNull()?.row?.id == "continue") 1 else 0
+    return shown.take(continuing) + HomeSlot.NewPodcasts + shown.drop(continuing)
 }
 
 // Playback

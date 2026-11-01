@@ -189,7 +189,21 @@ data class BookShelves(
     val narrators: List<BookPerson> = emptyList(),
     val genres: List<GenreCount> = emptyList(),
     val finished: List<ItemSummary> = emptyList(),
-)
+    /**
+     * The front page's shelves in the profile's order, switched-off ones left out (see [BookShelf]). Absent from
+     * servers before 0.58: every shelf, in [BookShelf]'s order.
+     */
+    val order: List<String>? = null,
+) {
+    /** The front page's shelves to show, in order: [order]'s (ids this app doesn't know left out), or all of them. */
+    val frontPage: List<BookShelf>
+        get() = order?.mapNotNull { id -> BookShelf.entries.firstOrNull { it.id == id } }?.distinct() ?: BookShelf.entries
+}
+
+/** A shelf on an audiobooks library's front page, by the id [BookShelves.order] names it with. */
+enum class BookShelf(val id: String) {
+    ContinueListening("continue"), NextInSeries("next"), RecentlyAdded("recent"), Series("series"), Authors("authors"), Finished("finished"),
+}
 
 /** A series a search found, with how many of its books this profile can see. */
 @Serializable

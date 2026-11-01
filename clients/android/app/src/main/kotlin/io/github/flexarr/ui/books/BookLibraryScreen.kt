@@ -67,6 +67,7 @@ import io.github.flexarr.core.BookPersonRole
 import io.github.flexarr.core.BookProgressFilter
 import io.github.flexarr.core.BookQuery
 import io.github.flexarr.core.BookSeriesSummary
+import io.github.flexarr.core.BookShelf
 import io.github.flexarr.core.BookShelves
 import io.github.flexarr.core.BookSort
 import io.github.flexarr.core.Format
@@ -157,19 +158,24 @@ private fun Shelves(model: AppModel, libraryId: String) {
         if (empty) return@Loaded StatusView("No books yet.", empty = true)
         PullToRefreshBox(isRefreshing = loader.refreshing, onRefresh = loader.retry) {
             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
-                bookShelf("Continue listening", shelves.continueListening, plays = { navigator.playBook(it) })
-                bookShelf("Next in series", shelves.nextInSeries)
-                bookShelf("Recently added", shelves.recentlyAdded)
-                if (shelves.series.isNotEmpty()) item("series") {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        SectionHeading("Series")
-                        LazyRow(contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(RowSpacing)) {
-                            items(shelves.series, key = { it.id }) { SeriesCard(it, PosterWidth * 1.15f) { navigator.openBookSeries(it.id) } }
+                // In the profile's order, without the ones it switched off (a server before 0.58: all, in this order).
+                shelves.frontPage.forEach { shelf ->
+                    when (shelf) {
+                        BookShelf.ContinueListening -> bookShelf("Continue listening", shelves.continueListening, plays = { navigator.playBook(it) })
+                        BookShelf.NextInSeries -> bookShelf("Next in series", shelves.nextInSeries)
+                        BookShelf.RecentlyAdded -> bookShelf("Recently added", shelves.recentlyAdded)
+                        BookShelf.Series -> if (shelves.series.isNotEmpty()) item("series") {
+                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                SectionHeading("Series")
+                                LazyRow(contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(RowSpacing)) {
+                                    items(shelves.series, key = { it.id }) { SeriesCard(it, PosterWidth * 1.15f) { navigator.openBookSeries(it.id) } }
+                                }
+                            }
                         }
+                        BookShelf.Authors -> peopleShelf("Authors", shelves.authors)
+                        BookShelf.Finished -> bookShelf("Finished", shelves.finished)
                     }
                 }
-                peopleShelf("Authors", shelves.authors)
-                bookShelf("Finished", shelves.finished)
             }
         }
     }
