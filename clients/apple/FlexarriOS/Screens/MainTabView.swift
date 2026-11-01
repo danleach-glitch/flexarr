@@ -25,18 +25,18 @@ struct MainTabView: View {
                 // The Flexarr mark stands in for a house.
                 Label { Text("Home") } icon: { Image(uiImage: BrandMark.tabImage) }
             }
-            Tab("Libraries", systemImage: "square.grid.2x2.fill", value: TabID.libraries) {
+            Tab("Libraries", systemImage: Symbol.libraries, value: TabID.libraries) {
                 TabStack { LibrariesView() }
             }
-            Tab("Downloads", systemImage: "arrow.down.circle.fill", value: TabID.downloads) {
+            Tab("Downloads", systemImage: Symbol.downloads, value: TabID.downloads) {
                 TabStack { DownloadsView() }
             }
-            Tab("Search", systemImage: "magnifyingglass", value: TabID.search, role: .search) {
+            Tab("Search", systemImage: Symbol.search, value: TabID.search, role: .search) {
                 TabStack { SearchView() }
             }
             // The kids app has no Settings: a child's choices are a parent's to make.
             if !model.isKids {
-                Tab("Settings", systemImage: "gearshape.fill", value: TabID.settings) {
+                Tab("Settings", systemImage: Symbol.settings, value: TabID.settings) {
                     TabStack { SettingsView() }
                 }
             }
@@ -186,7 +186,7 @@ struct LibrariesView: View {
                     // Not for a profile that hid it from the menu: Home's row and links still open it.
                     if model.hasWatchlist && !model.hidesFromMenu(.watchlist) {
                         Section {
-                            row("Watchlist", icon: "bookmark.fill") { router.push(.watchlist) }
+                            row("Watchlist", icon: Symbol.watchlist) { router.push(.watchlist) }
                         }
                     }
                     // In the profile's order (Settings › Library order). Podcasts are one place however many libraries hold

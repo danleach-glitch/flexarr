@@ -239,6 +239,7 @@ struct FlexarriOSApp: App {
     @State private var model: AppModel
 
     init() {
+        Symbol.checkAll()
         ThisDevice.identify()
         // Artwork is fetched constantly while browsing; give it a generous disk cache.
         URLCache.shared = URLCache(memoryCapacity: 48 * 1024 * 1024, diskCapacity: 384 * 1024 * 1024)

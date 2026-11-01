@@ -100,7 +100,7 @@ struct WideCard: View {
                         }
                     }
                     .overlay {
-                        Image(systemName: "play.fill")
+                        Image(systemName: Symbol.play)
                             .font(.title3)
                             .foregroundStyle(Color.screen)
                             .frame(width: 44, height: 44)
@@ -184,7 +184,7 @@ struct WatchedBadge: View {
     var label = "Watched"
 
     var body: some View {
-        Image(systemName: "checkmark")
+        Image(systemName: Symbol.watched)
             .font(.system(size: 10, weight: .heavy))
             .foregroundStyle(Color.room)
             .frame(width: 20, height: 20)
@@ -266,7 +266,7 @@ struct ItemContextMenu: View {
     @ViewBuilder
     private var listeningMenu: some View {
         Button { model.play(item) } label: {
-            Label(item.isResumable ? "Resume" : "Play", systemImage: "play.fill")
+            Label(item.isResumable ? "Resume" : "Play", systemImage: Symbol.play)
         }
         if item.kind == .audiobook {
             Button { router.push(.item(item)) } label: { Label("Go to book", systemImage: "info.circle") }
@@ -290,11 +290,11 @@ struct ItemContextMenu: View {
     private var menu: some View {
         if item.kind == .movie || item.kind == .episode {
             Button { model.play(item) } label: {
-                Label(item.isResumable ? "Resume" : "Play", systemImage: "play.fill")
+                Label(item.isResumable ? "Resume" : "Play", systemImage: Symbol.play)
             }
             if item.isResumable {
                 Button { model.play(item, fromBeginning: true) } label: {
-                    Label("Start over", systemImage: "arrow.counterclockwise")
+                    Label("Start over", systemImage: Symbol.startOver)
                 }
             }
         }
@@ -308,19 +308,19 @@ struct ItemContextMenu: View {
         let marks = !model.isKids
         if marks {
             Button { Task { await model.setWatched(item, !watched) } } label: {
-                Label(watched ? "Mark as unwatched" : "Mark as watched", systemImage: watched ? "eye.slash" : "checkmark.circle")
+                Label(watched ? "Mark as unwatched" : "Mark as watched", systemImage: watched ? Symbol.markUnwatched : "checkmark.circle")
             }
         }
         if model.hasWatchlist, item.kind == .movie || item.kind == .series {
             let onList = model.watchlistItems.contains(item.id)
             Button { Task { await model.setOnWatchlist(.library(item.id), !onList) } } label: {
-                Label(onList ? "Remove from watchlist" : "Add to watchlist", systemImage: onList ? "bookmark.slash" : "bookmark")
+                Label(onList ? "Remove from watchlist" : "Add to watchlist", systemImage: onList ? "bookmark.slash" : Symbol.watchlist)
             }
         }
         // Part way through: unwatched forgets the place, which takes it out of Continue Watching.
         if marks && item.isResumable && !watched {
             Button { Task { await model.setWatched(item, false) } } label: {
-                Label("Mark as unwatched", systemImage: "eye.slash")
+                Label("Mark as unwatched", systemImage: Symbol.markUnwatched)
             }
         } else if inContinueWatching, item.kind == .episode, !watched {
             Button { Task { await model.removeFromContinueWatching(item) } } label: {

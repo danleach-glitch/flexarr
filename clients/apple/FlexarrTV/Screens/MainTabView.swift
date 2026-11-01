@@ -61,7 +61,7 @@ struct MainTabView: View {
                         .environment(\.focusesContent, $startFocus)
                 }
             } label: {
-                Label("Home", systemImage: "house")
+                Label("Home", systemImage: Symbol.home)
             }
             // Music that's playing gets a tab of its own, as the Music app does: the surest way to reach it with
             // the remote from anywhere.
@@ -69,7 +69,7 @@ struct MainTabView: View {
                 Tab(value: TabID.nowPlaying) {
                     NowPlayingView()
                 } label: {
-                    Label("Now Playing", systemImage: "waveform")
+                    Label("Now Playing", systemImage: Symbol.nowPlaying)
                 }
             }
             // The libraries and Live TV, in the order chosen in Settings › Sidebar: however many there are, the
@@ -103,27 +103,27 @@ struct MainTabView: View {
                     Tab(value: TabID.discover) {
                         TabStack(router: routers[.discover]) { DiscoverView() }
                     } label: {
-                        Label("Discover", systemImage: "sparkles")
+                        Label("Discover", systemImage: Symbol.discover)
                     }
                 }
                 if showsWatchlist {
                     Tab(value: TabID.watchlist) {
                         TabStack(router: routers[.watchlist]) { WatchlistView() }
                     } label: {
-                        Label("Watchlist", systemImage: "bookmark")
+                        Label("Watchlist", systemImage: Symbol.watchlist)
                     }
                 }
                 Tab(value: TabID.search, role: .search) {
                     TabStack(router: routers[.search]) { SearchView() }
                 } label: {
-                    Label("Search", systemImage: "magnifyingglass")
+                    Label("Search", systemImage: Symbol.search)
                 }
                 // The kids app has no Settings: a child's choices are a parent's to make.
                 if !model.isKids {
                     Tab(value: TabID.settings) {
                         TabStack(router: routers[.settings]) { SettingsView() }
                     } label: {
-                        Label("Settings", systemImage: "gearshape")
+                        Label("Settings", systemImage: Symbol.settings)
                     }
                 }
             } header: {

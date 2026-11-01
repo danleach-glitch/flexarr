@@ -208,7 +208,7 @@ struct DetailView: View {
         case .play:
             if let playable {
                 Button { model.play(playable) } label: {
-                    Label(playLabel(playable, container: item), systemImage: "play.fill")
+                    Label(playLabel(playable, container: item), systemImage: Symbol.play)
                 }
                 .buttonStyle(ActionButtonStyle(ambient: item.ambientColor ?? series?.ambientColor, prominent: true))
                 .monospacedDigit()
@@ -217,19 +217,19 @@ struct DetailView: View {
         case .startOver:
             if let playable {
                 Button { model.play(playable, fromBeginning: true) } label: {
-                    Label("Start over", systemImage: "arrow.counterclockwise")
+                    Label("Start over", systemImage: Symbol.startOver)
                 }
                 .buttonStyle(ActionButtonStyle(ambient: ambient))
             }
         case .shuffle:
             if item.childCount > 0 {
-                roundButton("Shuffle", systemImage: "shuffle") { model.shuffle(item) }
+                roundButton("Shuffle", systemImage: Symbol.shuffle) { model.shuffle(item) }
             }
         case .trailer:
-            roundButton("Trailer", systemImage: "film") { openTrailer() }
+            roundButton("Trailer", systemImage: Symbol.trailer) { openTrailer() }
         case .watched:
             let name = watched ? "Mark as unwatched" : "Mark as watched"
-            roundButton(name, systemImage: watched ? "eye.slash" : "checkmark") {
+            roundButton(name, systemImage: watched ? Symbol.markUnwatched : Symbol.watched) {
                 Task { await model.setWatched(item, !watched) }
             }
         case .watchlist:
@@ -242,7 +242,7 @@ struct DetailView: View {
             EmptyView()
         case .more:
             // Things done now and then, out of the way of the row above.
-            roundButton("More", systemImage: "ellipsis") { showingMore = true }
+            roundButton("More", systemImage: Symbol.more) { showingMore = true }
                 .confirmationDialog(item.title, isPresented: $showingMore) {
                     ForEach(menu, id: \.self) { entry in
                         switch entry {
@@ -526,7 +526,7 @@ struct EpisodeCard: View {
             RemoteImage(url: model.client?.imageURL(episode.artwork.thumb ?? episode.artwork.backdrop, width: 640)) {
                 ZStack {
                     Color.seat
-                    Image(systemName: "play.fill").font(.system(size: 40)).foregroundStyle(Color.usher)
+                    Image(systemName: Symbol.play).font(.system(size: 40)).foregroundStyle(Color.usher)
                 }
             }
             .frame(width: width, height: width * 9 / 16)

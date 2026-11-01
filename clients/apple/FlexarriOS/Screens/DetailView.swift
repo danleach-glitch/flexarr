@@ -189,7 +189,7 @@ struct DetailView: View {
         VStack(spacing: 18) {
             if let playable {
                 Button { model.play(playable) } label: {
-                    Label(playLabel(playable, container: item), systemImage: "play.fill")
+                    Label(playLabel(playable, container: item), systemImage: Symbol.play)
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(ActionButtonStyle(ambient: item.ambientColor ?? series?.ambientColor, prominent: true))
@@ -215,18 +215,18 @@ struct DetailView: View {
         case .startOver:
             if let playable {
                 Button { model.play(playable, fromBeginning: true) } label: {
-                    Label("Start over", systemImage: "arrow.counterclockwise")
+                    Label("Start over", systemImage: Symbol.startOver)
                 }
             }
         case .shuffle:
             if item.childCount > 0 {
-                Button { model.shuffle(item) } label: { Label("Shuffle", systemImage: "shuffle") }
+                Button { model.shuffle(item) } label: { Label("Shuffle", systemImage: Symbol.shuffle) }
             }
         case .trailer:
-            Button { showingTrailer = true } label: { Label("Trailer", systemImage: "film") }
+            Button { showingTrailer = true } label: { Label("Trailer", systemImage: Symbol.trailer) }
         case .watched:
             Button { Task { await model.setWatched(item, !watched) } } label: {
-                Label(watched ? "Watched" : "Mark as watched", systemImage: watched ? "checkmark.circle.fill" : "checkmark")
+                Label(watched ? "Watched" : "Mark as watched", systemImage: watched ? "checkmark.circle.fill" : Symbol.watched)
             }
             .accessibilityLabel(watched ? "Mark as unwatched" : "Mark as watched")
             .accessibilityAddTraits(watched ? .isSelected : [])
@@ -236,7 +236,7 @@ struct DetailView: View {
                 Button {
                     Task { if await model.setOnWatchlist(.library(item.id), !onList) != nil { onWatchlist = !onList } }
                 } label: {
-                    Label("Watchlist", systemImage: onList ? "bookmark.fill" : "bookmark")
+                    Label("Watchlist", systemImage: onList ? Symbol.onWatchlist : Symbol.watchlist)
                 }
                 .accessibilityLabel(onList ? "Remove from watchlist" : "Add to watchlist")
             }
@@ -248,22 +248,22 @@ struct DetailView: View {
                     switch entry {
                     case .markUnwatched:
                         Button { Task { await model.setWatched(item, false) } } label: {
-                            Label("Mark as unwatched", systemImage: "eye.slash")
+                            Label("Mark as unwatched", systemImage: Symbol.markUnwatched)
                         }
                     case .subtitles:
                         if let file = detail?.files.first {
                             Button { subtitleSearchFile = SubtitleSearchFile(id: file.id) } label: {
-                                Label("Search for subtitles", systemImage: "captions.bubble")
+                                Label("Search for subtitles", systemImage: Symbol.subtitles)
                             }
                         }
                     case .goToShow:
                         if let series {
-                            Button { router.push(.item(series)) } label: { Label("Go to show", systemImage: "rectangle.stack") }
+                            Button { router.push(.item(series)) } label: { Label("Go to show", systemImage: Symbol.goToShow) }
                         }
                     }
                 }
             } label: {
-                Label("More", systemImage: "ellipsis")
+                Label("More", systemImage: Symbol.more)
             }
             .accessibilityLabel("More actions")
         }
@@ -486,7 +486,7 @@ struct EpisodeRow: View {
                         .frame(width: 140, height: 140 * 9 / 16)
                         .overlay {
                             RemoteImage(url: model.client?.imageURL(episode.artwork.thumb ?? episode.artwork.backdrop, width: 400)) {
-                                Image(systemName: "play.fill").foregroundStyle(Color.usher)
+                                Image(systemName: Symbol.play).foregroundStyle(Color.usher)
                             }
                         }
                         .overlay(alignment: .bottom) {
