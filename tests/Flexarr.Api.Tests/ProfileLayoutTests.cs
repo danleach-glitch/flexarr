@@ -66,6 +66,15 @@ public sealed class ProfileLayoutTests : IDisposable
     public async Task NewPodcasts_IsAHomeRow_AfterContinueWatching_ThatCanBeSwitchedOff()
     {
         await AddLibraryAsync(LibraryType.Podcasts);
+        // A film, so Home has rows of its own for New podcasts to go before.
+        var films = await AddLibraryAsync(LibraryType.Movies);
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            db.Add(new Flexarr.Core.Media.MediaItem { LibraryId = films, Kind = Flexarr.Core.Media.MediaKind.Movie, Title = "Film", SortTitle = "film", CommunityRating = 8 });
+            await db.SaveChangesAsync();
+        }
+
         var client = Client(await NewProfileTokenAsync());
 
         var home = await client.GetFromJsonAsync<JsonElement>(Api("/home"));
@@ -73,6 +82,10 @@ public sealed class ProfileLayoutTests : IDisposable
         Assert.True(home.GetProperty("placesPodcasts").GetBoolean());
         Assert.Contains(home.GetProperty("rows").EnumerateArray(), r => r.GetProperty("id").GetString() == "podcasts-new");
         Assert.Equal(ids.IndexOf("continue") + 1, ids.IndexOf("podcasts-new"));
+        // With nothing saved, Home puts it where Settings lists it: first here, as there's nothing to continue.
+        var rows = home.GetProperty("rows").EnumerateArray().Select(r => r.GetProperty("id").GetString()).ToList();
+        Assert.True(rows.Count > 1);
+        Assert.Equal("podcasts-new", rows[0]);
 
         (await client.PutAsJsonAsync(Api("/settings/layout"), new { home = new[] { new { id = "podcasts-new", enabled = false } }, movies = Array.Empty<object>(), shows = Array.Empty<object>() })).EnsureSuccessStatusCode();
 

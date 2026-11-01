@@ -218,10 +218,11 @@ public static partial class DiscoveryEndpoints
 
             // Coming soon is a row like the others (its titles travel in Upcoming), so it can be moved or switched off.
             rows.Add(new HomeRowDto("upcoming", "Coming soon", "upcoming", []));
-            // New podcast episodes: the apps fetch them; Home only says where they go.
+            // New podcast episodes: the apps fetch them; Home only says where they go. Built in, straight after Continue
+            // watching (or first, without one), where the apps put it before the server placed it.
             if (libraries.Any(l => l.Type == LibraryType.Podcasts))
             {
-                rows.Add(new HomeRowDto(LayoutEndpoints.PodcastsRowId, "New podcasts", "podcasts", [], "/podcasts"));
+                rows.Insert(rows.FindIndex(r => r.Id == "continue") + 1, new HomeRowDto(LayoutEndpoints.PodcastsRowId, "New podcasts", "podcasts", [], "/podcasts"));
             }
 
             var shown = rows.Where(r => r.HasContent || (r.Id == "upcoming" && upcoming.Count > 0) || r.Id == LayoutEndpoints.PodcastsRowId);
