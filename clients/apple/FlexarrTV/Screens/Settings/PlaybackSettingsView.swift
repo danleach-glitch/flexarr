@@ -59,8 +59,7 @@ struct PlaybackSettingsView: View {
                 }
                 // Servers before 0.58 don't have it.
                 if let listening = preferences.listeningInContinue {
-                    SettingsRow.toggle("Books and podcasts in Continue watching", isOn: listening, symbol: "headphones",
-                                       help: "Audiobooks you're part way through join Continue watching on Home.") {
+                    SettingsRow.toggle("Books and podcasts in Continue watching", isOn: listening, symbol: "headphones") {
                         var changed = preferences
                         changed.listeningInContinue = !listening
                         save(changed, over: preferences)
