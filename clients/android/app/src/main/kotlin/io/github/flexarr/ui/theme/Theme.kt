@@ -1,6 +1,5 @@
 package io.github.flexarr.ui.theme
 
-import android.graphics.Typeface
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -19,7 +18,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.em
+import io.github.flexarr.R
 import androidx.compose.ui.text.font.FontWeight
 
 // Tokens from design/tokens.json (Tokens.kt, `make tokens`), as the Apple apps' Colors.swift. The room is a dim plum, never pure black, and the only
@@ -43,12 +45,20 @@ object Flexarr {
     /** Inside text fields and menus, below the panel. */
     val well = Tokens.well
 
-    /** Marquee display type: tall, condensed and heavy, standing in for Big Shoulders Display. */
-    val marquee = FontFamily(Typeface.create("sans-serif-condensed", Typeface.BOLD))
+    /**
+     * Marquee display type, Big Shoulders Display (SIL Open Font License, assets/licenses): tall and condensed like a
+     * cinema marquee, for titles, row headings and Top 10 numerals.
+     */
+    val marquee = FontFamily(
+        Font(R.font.big_shoulders_display_bold, FontWeight.Bold),
+        Font(R.font.big_shoulders_display_extrabold, FontWeight.ExtraBold),
+        Font(R.font.big_shoulders_display_black, FontWeight.Black),
+    )
 }
 
+/** Marquee type at [size]: extra bold with the design's tight tracking (-0.01em). */
 fun marquee(size: Int, color: Color = Flexarr.screen) =
-    TextStyle(fontFamily = Flexarr.marquee, fontSize = size.sp, fontWeight = FontWeight.Black, color = color)
+    TextStyle(fontFamily = Flexarr.marquee, fontSize = size.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.01).em, color = color)
 
 /** A title's ambient colour ("#3a6b8c"), or silver when it has none. */
 fun ambientColor(hex: String?): Color {
