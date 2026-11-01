@@ -36,12 +36,15 @@ public class AuthorInfoApiTests(FlexarrApiFactory factory) : IClassFixture<Flexa
     {
         using var app = Serve();
         var (person, _) = await SeedAsync(app, folderPhoto: true);
-        var anonymous = app.CreateClient();
+        var admin = Admin(app);
+        var guest = await OtherProfileAsync(app);
 
-        var before = await anonymous.GetAsync(Api($"/images/people/{person}/candidates/folder"));
-        var candidates = await Admin(app).GetFromJsonAsync<JsonElement>(Api($"/people/{person}/candidates"));
-        var unknown = await anonymous.GetAsync(Api($"/images/people/{person}/candidates/audible"));
-        var elsewhere = await anonymous.GetAsync(Api($"/images/people/{Guid.NewGuid()}/candidates/folder"));
+        var before = await admin.GetAsync(Api($"/images/people/{person}/candidates/folder"));
+        var candidates = await admin.GetFromJsonAsync<JsonElement>(Api($"/people/{person}/candidates"));
+        var unknown = await admin.GetAsync(Api($"/images/people/{person}/candidates/audible"));
+        var elsewhere = await admin.GetAsync(Api($"/images/people/{Guid.NewGuid()}/candidates/folder"));
+        var anonymous = await app.CreateClient().GetAsync(Api($"/images/people/{person}/candidates/folder"));
+        var notAdmin = await guest.GetAsync(Api($"/images/people/{person}/candidates/folder"));
 
         Assert.Equal(HttpStatusCode.NotFound, before.StatusCode); // nothing looked for yet
         var folder = candidates.GetProperty("photos").EnumerateArray().Single(p => p.GetProperty("source").GetString() == "folder");
@@ -49,6 +52,8 @@ public class AuthorInfoApiTests(FlexarrApiFactory factory) : IClassFixture<Flexa
         Assert.Contains(candidates.GetProperty("biographies").EnumerateArray(), b => b.GetProperty("text").GetString() == "A writer.");
         Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, elsewhere.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, anonymous.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, notAdmin.StatusCode);
     }
 
     [Fact]

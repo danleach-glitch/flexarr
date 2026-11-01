@@ -100,12 +100,15 @@ public static class ImageEndpoints
         });
 
         // A photo an admin could choose for a person: only one the server itself found for them, and only while it
-        // remembers what it found (ten minutes after they were looked for), never a URL from the request.
-        group.MapGet("/people/{id:guid}/candidates/{source}", async (Guid id, string source, int? w, IMemoryCache memory, ImageCache cache, HttpContext http,
+        // remembers what it found (ten minutes after they were looked for), never a URL from the request. For admins
+        // only, unlike other images: a stale candidate can be a local file the library check no longer covers. (The
+        // web's <img> is on the same site, so it sends the session.)
+        api.MapGet("/images/people/{id:guid}/candidates/{source}", async (Guid id, string source, int? w, IMemoryCache memory, ImageCache cache, HttpContext http,
             CancellationToken ct) =>
             PeopleEndpoints.CandidatePhoto(memory, id, source) is { } url
                 ? await ServeAsync(() => cache.GetAsync(url, w ?? 342, ct), http, "private, max-age=600")
-                : Results.NotFound());
+                : Results.NotFound())
+            .WithTags("Images").RequireAuthorization(Security.FlexarrClaims.AdminPolicy);
 
         return api;
     }
