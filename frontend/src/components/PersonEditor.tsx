@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { ApiError, getPersonCandidates, updatePerson, uploadPersonImage, type Person, type PersonUpdate } from '../api/client'
 import { useApi } from '../hooks/useApi'
 import { useModal } from '../hooks/useModal'
@@ -65,6 +65,20 @@ export function PersonEditor({ person, onSaved, onClose }: { person: Person; onS
     if (source !== current && !lockSet) setLocked(true)
   }
 
+  // One Tab stop for the photos (the chosen one, else the first); the arrow keys move between them and choose, as radios do.
+  const chosenShown = chosen === FILE ? !!preview : photos.some((p) => p.source === chosen)
+  function moveChoice(e: KeyboardEvent<HTMLDivElement>) {
+    const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key]
+    const radios = [...e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]:not(:disabled)')]
+    const at = radios.indexOf(document.activeElement as HTMLButtonElement)
+    if (at < 0 || radios.length === 0) return
+    const to = e.key === 'Home' ? 0 : e.key === 'End' ? radios.length - 1 : step ? (at + step + radios.length) % radios.length : -1
+    if (to < 0) return
+    e.preventDefault()
+    radios[to].focus()
+    radios[to].click()
+  }
+
   function failed(source: string) {
     setBroken((b) => new Set(b).add(source))
     if (picked === source) setPicked(undefined)
@@ -113,14 +127,28 @@ export function PersonEditor({ person, onSaved, onClose }: { person: Person; onS
       >
         <h2 id="person-editor-title">Edit {person.name}</h2>
 
-        <div className="person-editor-photos" role="radiogroup" aria-label="Photo" aria-busy={candidates.loading}>
+        <div className="person-editor-photos">
           {candidates.loading && !candidates.data && <p className="muted">Loading…</p>}
           {loadError && <p className="error">{loadError}</p>}
           {candidates.data && photos.length === 0 && !file && <p className="muted">No photos found.</p>}
-          {photos.map((p) => (
-            <PhotoChoice key={p.source} image={p.image} label={sourceName(p.source)} current={p.source === current} checked={chosen === p.source} disabled={saving} onChoose={() => choose(p.source)} onError={() => failed(p.source)} />
-          ))}
-          {preview && <PhotoChoice image={preview} label="Yours" current={false} checked={chosen === FILE} disabled={saving} onChoose={() => choose(FILE)} />}
+          <div className="person-editor-choices" role="radiogroup" aria-label="Photo" aria-busy={candidates.loading} onKeyDown={moveChoice}>
+            {photos.map((p, i) => (
+              <PhotoChoice
+                key={p.source}
+                image={p.image}
+                label={sourceName(p.source)}
+                current={p.source === current}
+                checked={chosen === p.source}
+                tabbable={chosen === p.source || (!chosenShown && i === 0)}
+                disabled={saving}
+                onChoose={() => choose(p.source)}
+                onError={() => failed(p.source)}
+              />
+            ))}
+            {preview && (
+              <PhotoChoice image={preview} label="Yours" current={false} checked={chosen === FILE} tabbable={chosen === FILE || (!chosenShown && photos.length === 0)} disabled={saving} onChoose={() => choose(FILE)} />
+            )}
+          </div>
           <label className="person-editor-upload file-button">
             Upload
             <input
@@ -128,9 +156,9 @@ export function PersonEditor({ person, onSaved, onClose }: { person: Person; onS
               accept="image/jpeg,image/png,image/webp"
               disabled={saving}
               onChange={(e) => {
-                const picked = e.target.files?.[0]
-                if (!picked) return
-                setFile(picked)
+                const upload = e.target.files?.[0]
+                if (!upload) return
+                setFile(upload)
                 choose(FILE)
               }}
             />
@@ -139,7 +167,7 @@ export function PersonEditor({ person, onSaved, onClose }: { person: Person; onS
 
         <label className="field">
           <span className="field-label">Biography</span>
-          <textarea value={biography} rows={8} onChange={(e) => write(e.target.value)} disabled={saving} />
+          <textarea value={biography} rows={8} autoFocus onChange={(e) => write(e.target.value)} disabled={saving} />
         </label>
         {biographies.length > 0 && (
           <p className="person-editor-sources">
@@ -190,6 +218,7 @@ function PhotoChoice({
   label,
   current,
   checked,
+  tabbable,
   disabled,
   onChoose,
   onError,
@@ -198,12 +227,13 @@ function PhotoChoice({
   label: string
   current: boolean
   checked: boolean
+  tabbable: boolean
   disabled: boolean
   onChoose: () => void
   onError?: () => void
 }) {
   return (
-    <button type="button" role="radio" aria-checked={checked} className="person-editor-photo" disabled={disabled} onClick={onChoose}>
+    <button type="button" role="radio" aria-checked={checked} tabIndex={tabbable ? 0 : -1} className="person-editor-photo" disabled={disabled} onClick={onChoose}>
       <img src={image} alt="" onError={onError} />
       <span>
         {label}

@@ -61,6 +61,26 @@ describe('PersonEditor', () => {
     expect(screen.getByRole('radio', { name: 'Audible' }).getAttribute('aria-checked')).toBe('false')
   })
 
+  it('starts on the biography, and keeps the photos to one Tab stop that arrow keys move through', async () => {
+    mockApi({ 'GET /people/p1/candidates': candidates })
+    render(<PersonEditor person={person} onSaved={() => undefined} onClose={() => undefined} />)
+    expect(document.activeElement).toBe(screen.getByLabelText('Biography'))
+
+    const group = await screen.findByRole('radiogroup', { name: 'Photo' })
+    const audible = screen.getByRole('radio', { name: /Audible/ })
+    const openLibrary = screen.getByRole('radio', { name: 'Open Library' })
+    expect([audible.tabIndex, openLibrary.tabIndex]).toEqual([0, -1])
+    expect(group.contains(screen.getByLabelText('Upload'))).toBe(false)
+
+    audible.focus()
+    fireEvent.keyDown(audible, { key: 'ArrowRight' })
+    expect(document.activeElement).toBe(openLibrary)
+    expect(openLibrary.getAttribute('aria-checked')).toBe('true')
+    expect([audible.tabIndex, openLibrary.tabIndex]).toEqual([-1, 0])
+    fireEvent.keyDown(openLibrary, { key: 'ArrowRight' })
+    expect(document.activeElement).toBe(audible)
+  })
+
   it('saves the chosen photo and biography, locking the person', async () => {
     const sent: unknown[] = []
     mockApi({
