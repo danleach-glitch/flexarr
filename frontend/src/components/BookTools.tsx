@@ -1,7 +1,7 @@
 import { useEffect, useState, type MouseEvent } from 'react'
 import type { AudioPlayer } from '../hooks/audioPlayerContext'
 import { useAudioTime } from '../hooks/audioPlayerContext'
-import { bookSpeedPresets, chapterEnd, chapterIndexAt, formatSpeed, stepSpeed } from '../lib/books'
+import { bookSpeedPresets, chapterEnd, chapterIndexAt, formatSpeed, isBook, stepSpeed } from '../lib/books'
 import { formatClock } from '../lib/format'
 import { showNotice } from '../lib/notice'
 import { bookSleepChoices, minutesLeft, sleepLabel } from '../lib/sleepTimer'
@@ -56,7 +56,7 @@ export function BookTools({ player }: { player: AudioPlayer }) {
         className="icon-button now-playing-bookmark"
         aria-label="Add a bookmark"
         title="Add a bookmark"
-        disabled={!book}
+        disabled={!book && !isBook(player.current)}
         onClick={() =>
           player.addBookmark().then(
             () => showNotice(`Bookmarked ${formatClock(time)}`),

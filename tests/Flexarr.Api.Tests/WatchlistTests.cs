@@ -102,6 +102,23 @@ public sealed class WatchlistTests : IAsyncLifetime
     private int Requests() => _seerr.Requests.Count(r => r == "POST /api/v1/request");
 
     [Fact]
+    public async Task AShowTheTvdbDoesntList_IsntSentToSeerr_AndSaysWhy()
+    {
+        // As TMDB has "LOL: Last One Laughing Halloween UK": TheTVDB files it as specials of the UK show.
+        _seerr.Responses["GET /api/v1/tv/339754"] = """{"id": 339754, "name": "LOL Halloween", "externalIds": {"tvdbId": null, "imdbId": null}}""";
+        _seerr.Responses["GET /api/v1/tv/261"] = """{"id": 261, "name": "A Show", "externalIds": {"tvdbId": 461637}}""";
+
+        var refused = await Client().PostAsJsonAsync(Api("/requests"), new { mediaType = "tv", tmdbId = 339754 });
+        var sent = await Client().PostAsJsonAsync(Api("/requests"), new { mediaType = "tv", tmdbId = 261 });
+
+        Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+        Assert.Contains("TheTVDB", (await refused.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("detail").GetString(), StringComparison.Ordinal);
+        Assert.Equal(HttpStatusCode.Accepted, sent.StatusCode);
+        Assert.Equal(1, Requests());
+        Assert.False(await InDbAsync(db => db.MediaRequests.AnyAsync(r => r.TmdbId == 339754)));
+    }
+
+    [Fact]
     public async Task ALibraryFilm_IsReady_OnItsPage_AndComesOff()
     {
         var library = Films();

@@ -79,6 +79,8 @@ public enum HomeRowStyle: String, ForwardCompatibleEnum {
     case live
     /// The profile's daily music mixes ("Made for you"); `items` is empty, the mixes are in `mixes`.
     case mixes
+    /// Coming soon; `items` is empty, what's coming is in `Home.upcoming`.
+    case upcoming
     case unknown
 }
 
@@ -422,6 +424,47 @@ public struct PlaylistDetail: Codable, Sendable {
     public let tracks: [PlaylistTrack]
 }
 
+/// Something Sonarr, Radarr or Readarr expects soon: an episode airing, a film or a book coming out.
+public struct UpcomingItem: Codable, Sendable, Identifiable, Hashable {
+    public let id: String
+    public let kind: MediaKind
+    public let title: String
+    /// The show, for an episode; the author, for a book.
+    public var seriesTitle: String? = nil
+    public var seasonNumber: Int? = nil
+    public var episodeNumber: Int? = nil
+    public let date: Date
+    /// "Airs", "In cinemas", "Digital release", "Out" and the like.
+    public let when: String
+    public var poster: String? = nil
+    public var still: String? = nil
+    /// The title in the library, when it's there already (a show with a new episode).
+    public var libraryItemId: String? = nil
+    public var download: UpcomingDownload? = nil
+
+    public init(id: String, kind: MediaKind, title: String, seriesTitle: String? = nil, seasonNumber: Int? = nil, episodeNumber: Int? = nil,
+                date: Date, when: String, poster: String? = nil, still: String? = nil, libraryItemId: String? = nil, download: UpcomingDownload? = nil) {
+        self.id = id
+        self.kind = kind
+        self.title = title
+        self.seriesTitle = seriesTitle
+        self.seasonNumber = seasonNumber
+        self.episodeNumber = episodeNumber
+        self.date = date
+        self.when = when
+        self.poster = poster
+        self.still = still
+        self.libraryItemId = libraryItemId
+        self.download = download
+    }
+}
+
+/// How far a download of something coming has got.
+public struct UpcomingDownload: Codable, Sendable, Hashable {
+    /// 0 to 1.
+    public let progress: Double
+}
+
 public struct Home: Codable, Sendable {
     public let featured: [ItemSummary]
     public let overviews: [String: String?]
@@ -434,6 +477,10 @@ public struct Home: Codable, Sendable {
     /// of new episodes, left out when the profile switched it off. Absent from servers before 0.58, where the app
     /// puts it after Continue watching itself.
     public var placesPodcasts: Bool? = nil
+    /// What Coming soon shows: episodes airing, films and books coming out. Empty when the row is switched off.
+    public var upcoming: [UpcomingItem]? = nil
+    /// How many downloads Sonarr, Radarr and Readarr have under way, for Coming soon's heading.
+    public var downloading: Int? = nil
 
     public func overview(for id: String) -> String? {
         overviews[id] ?? nil

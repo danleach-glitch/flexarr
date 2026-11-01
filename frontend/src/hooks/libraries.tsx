@@ -58,7 +58,9 @@ export function LibrariesProvider({ children }: { children: ReactNode }) {
     return () => inFlight.current?.abort()
   }, [reload])
 
-  const scanning = libraries.some((l) => l.scan)
+  // A library just added counts from the start: its first scan waits its turn before it shows progress. Not Podcasts,
+  // which is built in and never scanned.
+  const scanning = libraries.some((l) => l.scan || (!l.lastScannedAt && l.type !== 'Podcasts'))
   usePolling(reload, scanning ? SCAN_POLL_MS : idleMs)
 
   const value = useMemo(() => ({ libraries, reload }), [libraries, reload])

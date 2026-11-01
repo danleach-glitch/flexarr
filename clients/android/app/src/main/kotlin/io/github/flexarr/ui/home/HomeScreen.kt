@@ -76,6 +76,13 @@ import io.github.flexarr.core.Home
 import io.github.flexarr.core.HomeRow
 import io.github.flexarr.core.HomeRowStyle
 import io.github.flexarr.core.HomeSlot
+import io.github.flexarr.core.UpcomingItem
+import io.github.flexarr.core.cardDetail
+import io.github.flexarr.core.cardTitle
+import io.github.flexarr.core.dayLabel
+import io.github.flexarr.ui.components.WideWidth
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.shape.RoundedCornerShape
 import io.github.flexarr.core.slots
 import io.github.flexarr.ui.livetv.HomeChannelCard
 import io.github.flexarr.core.ItemSummary
@@ -150,7 +157,7 @@ fun HomeScreen(model: AppModel) {
             }
             // Nothing at all yet: the libraries say whether a scan is under way or their folders hold nothing. Not to a
             // profile with an age limit, for whom it's only that nothing's within it.
-            val isEmpty = home.featured.isEmpty() && newEpisodes.isEmpty() && home.rows.none { it.hasContent }
+            val isEmpty = home.featured.isEmpty() && newEpisodes.isEmpty() && home.rows.none { it.hasContent } && home.upcoming.isEmpty()
             val empty = if (isEmpty && model.currentProfile?.hasAgeLimit != true) {
                 runCatching { EmptyHomeMessage.of(client.libraries()) }.getOrNull()
             } else {
@@ -190,11 +197,16 @@ fun HomeScreen(model: AppModel) {
                     }
                     // A row with nothing in it (a kind this app doesn't show yet, say) would be a bare heading. New
                     // podcasts goes where the server places it, or after Continue watching for a server before 0.58.
-                    val slots = home.slots { it.hasContent }.filter { it !is HomeSlot.NewPodcasts || content.newEpisodes.isNotEmpty() }
+                    // Coming soon's titles come separately, in `upcoming`.
+                    val slots = home.slots { it.hasContent || (it.style == HomeRowStyle.Upcoming && home.upcoming.isNotEmpty()) }.filter { it !is HomeSlot.NewPodcasts || content.newEpisodes.isNotEmpty() }
                     items(slots, key = { slot -> if (slot is HomeSlot.Row) slot.row.id else "new-podcasts" }) { slot ->
                         when (slot) {
                             HomeSlot.NewPodcasts -> NewEpisodesRow(model, content.newEpisodes)
-                            is HomeSlot.Row -> if (slot.row.style == HomeRowStyle.Live) LiveRowView(slot.row) else HomeRowView(model, slot.row)
+                            is HomeSlot.Row -> when (slot.row.style) {
+                                HomeRowStyle.Live -> LiveRowView(slot.row)
+                                HomeRowStyle.Upcoming -> ComingSoonRow(home.upcoming, home.downloading)
+                                else -> HomeRowView(model, slot.row)
+                            }
                         }
                     }
                 }
@@ -376,6 +388,45 @@ private fun NewEpisodesRow(model: AppModel, episodes: List<PodcastEpisode>) {
     }
     opened?.let { episode ->
         EpisodeSheet(model, episode, setPlayed = { setEpisodePlayed(model, episode, it) }, onDismiss = { opened = null })
+    }
+}
+
+/**
+ * What Sonarr, Radarr and Readarr expect soon: episodes airing, films and books coming out, with any download under
+ * way. One already in the library (a show's next episode) opens it.
+ */
+@Composable
+private fun ComingSoonRow(items: List<UpcomingItem>, downloading: Int) {
+    val navigator = LocalNavigator.current
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        SectionHeading(if (downloading > 0) "Coming soon ($downloading downloading)" else "Coming soon")
+        LazyRow(contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(RowSpacing), verticalAlignment = Alignment.Top) {
+            items(items, key = { it.id }) { item ->
+                val opens = item.libraryItemId
+                Column(
+                    Modifier.width(WideWidth)
+                        .then(if (opens != null) Modifier.pressable({ navigator.openItem(opens) }, onClickLabel = "Open") else Modifier)
+                        .semantics(mergeDescendants = true) {},
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(6.dp)).background(Flexarr.seat)) {
+                        RemoteImage(item.still ?: item.poster, 640, Modifier.fillMaxSize()) {
+                            Text(item.cardTitle, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, modifier = Modifier.align(Alignment.Center).padding(10.dp))
+                        }
+                        Text(
+                            item.dayLabel(), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen,
+                            modifier = Modifier.align(Alignment.TopStart).padding(8.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.6f)).padding(horizontal = 8.dp, vertical = 4.dp),
+                        )
+                        item.download?.let { ProgressBar(it.progress, Modifier.align(Alignment.BottomCenter).padding(8.dp)) }
+                    }
+                    Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                        Text(item.cardTitle, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                            color = Flexarr.screen.copy(alpha = 0.9f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(item.cardDetail, fontSize = 12.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+            }
+        }
     }
 }
 

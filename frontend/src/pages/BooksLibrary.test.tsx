@@ -85,7 +85,7 @@ describe('Audiobooks library', () => {
     })
     show('/library/lib-books')
 
-    expect(await screen.findByRole('searchbox')).toBeInTheDocument()
+    expect(await screen.findByText('No books yet.')).toBeInTheDocument()
     expect(screen.queryByText('Dune')).not.toBeInTheDocument()
   })
 
@@ -93,6 +93,13 @@ describe('Audiobooks library', () => {
     mockApi({ '/libraries/lib-books/book-people': { total: 0, items: [] } })
     show('/library/lib-books?view=narrators')
     expect(await screen.findByText('No narrators here yet.')).toBeInTheDocument()
-    expect(screen.getByRole('searchbox', { name: 'Search narrators' })).toBeInTheDocument()
+  })
+
+  it('has no search or filters on All books, only the sort', async () => {
+    mockApi({ '/libraries/lib-books/books': { total: 0, items: [] } })
+    show('/library/lib-books?view=all&progress=finished')
+    expect(await screen.findByRole('button', { name: 'Finished: clear' })).toBeInTheDocument()
+    expect(screen.queryByRole('searchbox')).not.toBeInTheDocument()
+    expect(screen.getAllByRole('combobox').map((c) => c.getAttribute('aria-label'))).toEqual(['Sort by'])
   })
 })

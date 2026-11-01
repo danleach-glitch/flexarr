@@ -88,7 +88,7 @@ export function ListeningSection() {
             )}
           </SettingsGroup>
           <SettingsGroup
-            title="Phones and tablets"
+            title="Automatic downloads"
             note="On Wi-Fi, the newest unplayed episodes of every show you follow. Played ones are deleted. Notifications for new episodes are in each phone’s Settings."
           >
             <ToggleRow label="Download new episodes" checked={p.autoDownload} onChange={(autoDownload) => void save({ autoDownload })} />

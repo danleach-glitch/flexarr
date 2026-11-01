@@ -21,7 +21,6 @@ struct BookView: View {
     /// Start over was tapped part way through: it asks first.
     @State private var confirmingStartOver = false
     /// What the Bookmark button came to, for a moment.
-    @State private var notice: BookmarkNotice?
     /// The bookmark whose note is being written.
     @State private var editing: Bookmark?
     @State private var note = ""
@@ -61,10 +60,6 @@ struct BookView: View {
             }
         }
         .navigationBarTitleDisplayMode(.inline)
-        .overlay(alignment: .top) {
-            if let notice { NoticeCapsule(notice: notice).padding(.top, 8) }
-        }
-        .animation(.easeInOut(duration: 0.25), value: notice)
         .alert("Note", isPresented: Binding(get: { editing != nil }, set: { if !$0 { editing = nil } })) {
             TextField("Note", text: $note)
             Button("Save") { if let editing { save(note, for: editing) } }
@@ -214,8 +209,6 @@ struct BookView: View {
                         Text("You're at \(Format.timestamp(position)).")
                     }
                 }
-                Button { addBookmark() } label: { Label("Bookmark", systemImage: "bookmark") }
-                    .accessibilityLabel("Add a bookmark here")
             }
             .buttonStyle(LabeledActionStyle())
         }
@@ -343,7 +336,7 @@ struct BookView: View {
         }
     }
 
-    /// Bookmarks: each plays from its place; a long press writes its note or deletes it.
+    /// Bookmarks (added in the player): each plays from its place, × deletes it, and a long press writes its note.
     private func bookmarks(_ marks: [Bookmark], chapters: [BookChapter], item: ItemSummary) -> some View {
         let timeline = BookTimeline(files: [], chapters: chapters, duration: duration)
         return VStack(alignment: .leading, spacing: 4) {
@@ -366,6 +359,7 @@ struct BookView: View {
                             }
                         }
                         Spacer(minLength: 0)
+                        DeleteBookmarkButton(mark: mark) { delete(mark) }
                     }
                     .padding(.horizontal, Layout.edge)
                     .padding(.vertical, 8)
@@ -420,38 +414,6 @@ struct BookView: View {
         guard let item else { return }
         await model.setBookFinished(item, finished)
         await load()
-    }
-
-    /// A bookmark where the player is (playing this book) or where this profile got to, with a moment's notice.
-    private func addBookmark() {
-        let place = position
-        if model.music.current?.id == id, model.music.book != nil {
-            Task {
-                let added = await model.music.addBookmark()
-                show(added != nil ? .added(place) : model.music.bookmarkNotice ?? BookmarkNotice(text: "Bookmark not added", isError: true))
-                await load()
-            }
-            return
-        }
-        guard let client = model.client else { return }
-        Task {
-            do {
-                _ = try await client.addBookmark(id, positionSeconds: place)
-                show(.added(place))
-            } catch {
-                show(.failed(error))
-            }
-            await load()
-        }
-    }
-
-    private func show(_ shown: BookmarkNotice) {
-        if model.music.current?.id != id { shown.tap() } // the player taps for its own
-        notice = shown
-        Task {
-            try? await Task.sleep(for: .seconds(shown.isError ? 4 : 2))
-            if notice == shown { notice = nil }
-        }
     }
 
     private func save(_ note: String, for mark: Bookmark) {

@@ -144,6 +144,23 @@ public sealed class BookProviderTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task FixMatch_AsksAgainWithoutTheArticleThenTheAuthor_WhenNothingIsFound()
+    {
+        _books = new("uk", ["openlibrary"]);
+        _web.OnlyTitle = "Short History of the World in 50 Failures";
+        var providers = new BookProviders(new HttpClient(_web), () => new Settings(_dir, _books));
+
+        var found = await providers.SearchAsync("A Short History of the World in 50 Failures", "Malk Williams", default);
+
+        Assert.NotEmpty(found);
+        var asked = _web.Requests.Where(r => r.Contains("openlibrary.org", StringComparison.Ordinal)).Select(r => Uri.UnescapeDataString(new Uri(r).Query)).ToList();
+        // As given, without "A", without the author, then without both.
+        Assert.Equal(4, asked.Count);
+        Assert.Contains("title=Short History", asked[3], StringComparison.Ordinal);
+        Assert.DoesNotContain("author=", asked[3], StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task AProviderThatSaysTooMany_IsLeftAloneForAWhile()
     {
         _web.TooMany = "api.audible.co.uk";
@@ -200,6 +217,9 @@ public sealed class BookProviderTests : IAsyncLifetime
 
         /// <summary>A host that answers 429, asking to be left alone for two minutes.</summary>
         public string? TooMany;
+
+        /// <summary>Open Library's search finds something only for this title, and no author.</summary>
+        public string? OnlyTitle;
         public List<string> Requests { get; } = [];
 
         private static string Fixture(string name) => File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "Books", name));
@@ -218,6 +238,12 @@ public sealed class BookProviderTests : IAsyncLifetime
                 var tooMany = new HttpResponseMessage(HttpStatusCode.TooManyRequests);
                 tooMany.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(TimeSpan.FromMinutes(2));
                 return Task.FromResult(tooMany);
+            }
+
+            if (OnlyTitle is not null && url.AbsolutePath == "/search.json"
+                && (Uri.UnescapeDataString(url.Query).Contains("author=", StringComparison.Ordinal) || !Uri.UnescapeDataString(url.Query).Contains($"title={OnlyTitle}&", StringComparison.Ordinal)))
+            {
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("""{"docs": []}""", System.Text.Encoding.UTF8, "application/json") });
             }
 
             var body = (url.Host, url.AbsolutePath) switch

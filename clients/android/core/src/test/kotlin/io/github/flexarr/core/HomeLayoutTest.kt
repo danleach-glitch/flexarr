@@ -113,4 +113,30 @@ class HomeLayoutTest {
         memory.remember(null, older)
         assertTrue(memory.fetchesAlongside(null))
     }
+
+    @Test
+    fun homeCarriesComingSoon() {
+        val home = home(
+            """{"featured":[],"rows":[{"id":"upcoming","title":"Coming soon","style":"upcoming","items":[]}],"downloading":2,
+               "upcoming":[{"id":"sonarr-S-7","kind":"Episode","title":"Pilot","seriesTitle":"Brand New","seasonNumber":1,"episodeNumber":1,
+               "date":"2026-11-03T20:00:00Z","when":"Airs","overview":null,"poster":null,"still":"/api/v1/images/remote?u=x","libraryItemId":null,
+               "available":false,"download":{"progress":0.5,"timeLeft":null,"status":"downloading"},"source":"Sonarr"}]}""",
+        )
+        assertEquals(HomeRowStyle.Upcoming, home.rows.single().style)
+        assertEquals(2, home.downloading)
+        assertEquals("Pilot", home.upcoming.single().title)
+        assertEquals(0.5, home.upcoming.single().download?.progress)
+    }
+
+    @Test
+    fun comingSoonSaysWhenInAWord() {
+        val now = java.time.ZonedDateTime.of(2026, 11, 2, 12, 0, 0, 0, java.time.ZoneOffset.UTC) // a Monday
+        fun at(day: Int, hour: Int) = UpcomingItem("x", MediaKind.Episode, "Pilot", "Show", 1, 3, java.time.Instant.parse("2026-11-%02dT%02d:00:00Z".format(day, hour)), "Airs")
+        assertEquals("Today", at(2, 9).dayLabel(now))
+        assertEquals("Tonight", at(2, 20).dayLabel(now))
+        assertEquals("Tomorrow", at(3, 9).dayLabel(now))
+        assertEquals("Friday", at(6, 9).dayLabel(now))
+        assertEquals("S01E03 Pilot", at(2, 9).cardDetail)
+        assertEquals("Show", at(2, 9).cardTitle)
+    }
 }

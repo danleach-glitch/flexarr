@@ -205,7 +205,7 @@ fun ListeningSettingsScreen(model: AppModel, onNotifications: () -> Unit) {
             }
             podcasts?.let { known ->
                 item {
-                    Group(header = "On this phone", footer = "On Wi-Fi, the newest unplayed episodes of every show you follow. Played ones are deleted.") {
+                    Group(header = "Automatic downloads", footer = "On Wi-Fi, the newest unplayed episodes of every show you follow. Played ones are deleted.") {
                         Toggle("Download new episodes", known.autoDownload, { updatePodcasts(PodcastPreferencesUpdate(autoDownload = it), reconciles = true) })
                         Divider()
                         Stepper("Keep the newest ${known.keepEpisodes}", known.keepEpisodes, 1..50, enabled = known.autoDownload) {

@@ -2897,3 +2897,26 @@
   letter-spacing: 0.08em;
   white-space: nowrap;
 }
+
+.now-scanning {
+  color: var(--go);
+}
+
+/* Scanning, the button's own arrows turn rather than give way to the spinner. */
+.library-row .scan-button[aria-busy='true'] {
+  color: inherit !important;
+}
+
+.library-row .scan-button[aria-busy='true']::after {
+  content: none;
+}
+
+.library-row .scan-button[aria-busy='true'] svg {
+  animation: busy-spin 1.2s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .library-row .scan-button[aria-busy='true'] svg {
+    animation: none;
+  }
+}

@@ -61,7 +61,7 @@ struct HomeView: View {
             ScrollView(.vertical) {
                 // The whole screen when there's nothing else. With something to play (podcasts, Coming soon, channels) it
                 // stays out of the way: "nothing to watch" would be wrong.
-                if home.featured.isEmpty, !showsNewEpisodes(home), !home.rows.contains(where: \.hasContent),
+                if home.featured.isEmpty, !showsNewEpisodes(home), !home.rows.contains(where: \.hasContent), (home.upcoming ?? []).isEmpty,
                    let message = EmptyHomeMessage(libraries: model.libraries, limitedProfile: model.hasAgeLimit ? model.currentProfile?.name : nil) {
                     EmptyHome(message: message)
                         .containerRelativeFrame(.vertical)
@@ -72,23 +72,23 @@ struct HomeView: View {
                     }
                     if home.placesPodcasts == true {
                         // The server places New podcasts: an empty row where it goes (none when the profile switched it off).
-                        ForEach(home.rows.filter { $0.hasContent || $0.id == HomeRow.podcastsRowId }) { row in
+                        ForEach(home.rows.filter { shows($0, in: home) || $0.id == HomeRow.podcastsRowId }) { row in
                             if row.id == HomeRow.podcastsRowId {
                                 if !newEpisodes.isEmpty { NewEpisodesRow(episodes: newEpisodes) }
                             } else {
-                                HomeRowView(row: row)
+                                rowView(row, in: home)
                             }
                         }
                     } else {
                         // A row with nothing in it (a kind this app doesn't show yet, say) would be a bare heading.
                         // Servers before 0.58 leave New podcasts to the app: after Continue watching.
-                        let rows = home.rows.filter(\.hasContent)
+                        let rows = home.rows.filter { shows($0, in: home) }
                         let continuing = rows.first?.id == "continue" ? 1 : 0
-                        ForEach(rows.prefix(continuing)) { HomeRowView(row: $0) }
+                        ForEach(rows.prefix(continuing)) { rowView($0, in: home) }
                         if !newEpisodes.isEmpty {
                             NewEpisodesRow(episodes: newEpisodes)
                         }
-                        ForEach(rows.dropFirst(continuing)) { HomeRowView(row: $0) }
+                        ForEach(rows.dropFirst(continuing)) { rowView($0, in: home) }
                     }
                 }
                 .padding(.bottom, 32)
@@ -101,6 +101,20 @@ struct HomeView: View {
             .ignoresSafeArea(edges: home.featured.isEmpty ? [] : .top)
             .withoutTopEdgeEffect()
             .refreshable { await load() }
+        }
+    }
+
+    /// Whether a row has something to show. Coming soon's titles come separately, in `Home.upcoming`.
+    private func shows(_ row: HomeRow, in home: Home) -> Bool {
+        row.style == .upcoming ? !(home.upcoming ?? []).isEmpty : row.hasContent
+    }
+
+    @ViewBuilder
+    private func rowView(_ row: HomeRow, in home: Home) -> some View {
+        if row.style == .upcoming {
+            ComingSoonRow(items: home.upcoming ?? [], downloading: home.downloading ?? 0)
+        } else {
+            HomeRowView(row: row)
         }
     }
 
@@ -391,5 +405,85 @@ private extension View {
         } else {
             self
         }
+    }
+}
+
+/// What Sonarr, Radarr and Readarr expect soon: episodes airing, films and books coming out, with any download under
+/// way. One already in the library (a show's next episode) opens it.
+private struct ComingSoonRow: View {
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    let items: [UpcomingItem]
+    let downloading: Int
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SectionHeading(title: downloading > 0 ? "Coming soon (\(downloading) downloading)" : "Coming soon")
+            ScrollView(.horizontal) {
+                LazyHStack(alignment: .top, spacing: Layout.rowSpacing) {
+                    ForEach(items) { ComingSoonCard(item: $0, width: Layout.wideWidth(sizeClass)) }
+                }
+                .padding(.horizontal, Layout.edge)
+            }
+            .scrollIndicators(.hidden)
+        }
+    }
+}
+
+private struct ComingSoonCard: View {
+    @Environment(AppModel.self) private var model
+    @Environment(Router.self) private var router
+    let item: UpcomingItem
+    let width: CGFloat
+
+    var body: some View {
+        if let id = item.libraryItemId {
+            Button { router.push(.itemID(id)) } label: { card }
+                .buttonStyle(CardButtonStyle())
+        } else {
+            card
+        }
+    }
+
+    private var card: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Color.seat
+                .frame(width: width, height: width * 9 / 16)
+                .overlay {
+                    RemoteImage(url: model.client?.imageURL(item.still ?? item.poster, width: 640)) {
+                        Text(item.seriesTitle ?? item.title)
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(Color.usher)
+                            .multilineTextAlignment(.center)
+                            .padding(10)
+                    }
+                }
+                .overlay(alignment: .topLeading) {
+                    Text(UpcomingDay.label(item.date))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.screen)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Capsule().fill(.black.opacity(0.6)))
+                        .padding(8)
+                }
+                .overlay(alignment: .bottom) {
+                    if let progress = item.download?.progress {
+                        ProgressBar(value: progress).padding(8)
+                    }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            VStack(alignment: .leading, spacing: 1) {
+                Text(UpcomingDay.title(item))
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(Color.screen.opacity(0.9))
+                Text(UpcomingDay.detail(item))
+                    .font(.caption)
+                    .foregroundStyle(Color.usher)
+            }
+            .lineLimit(1)
+            .frame(width: width, alignment: .leading)
+        }
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
     }
 }

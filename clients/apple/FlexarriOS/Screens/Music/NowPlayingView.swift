@@ -520,7 +520,7 @@ struct NowPlayingView: View {
         router.push(.item(track))
     }
 
-    /// The book's bookmarks: tapping one goes there; a long press deletes it.
+    /// The book's bookmarks: tapping one goes there; × deletes it.
     @ViewBuilder
     private var bookmarkList: some View {
         let marks = music.bookmarks.sorted { $0.positionSeconds < $1.positionSeconds }
@@ -547,6 +547,7 @@ struct NowPlayingView: View {
                             .foregroundStyle(Color.screen.opacity(0.85))
                             .multilineTextAlignment(.leading)
                         Spacer(minLength: 0)
+                        DeleteBookmarkButton(mark: mark) { Task { await music.deleteBookmark(mark) } }
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)

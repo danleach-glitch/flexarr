@@ -550,7 +550,7 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
 
     /// <summary>A timeout, a refusal, or an answer that isn't Seerr's (a proxy's login page): not this request being cancelled.</summary>
     private static bool SeerrFailed(Exception ex, CancellationToken ct) =>
-        ex is HttpRequestException or JsonException || (ex is TaskCanceledException && !ct.IsCancellationRequested);
+        ex is HttpRequestException or JsonException or NotRequestableException || (ex is TaskCanceledException && !ct.IsCancellationRequested);
 
     /// <summary>Titles asked for through Flexarr and not in yet: "movie:123" / "tv:456".</summary>
     private async Task<HashSet<string>> RequestedAsync(List<WatchlistEntry> entries, CancellationToken ct)

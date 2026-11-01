@@ -15,14 +15,26 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - **Request books** from Discover's search when one of them is connected. Whoever asked hears when it's ready to listen.
 - Every author gets a photo and a biography, from a picture in the author's folder, Readarr, Audible or Open Library, a book's page shows its authors, and author pages on the Apple TV and Android TV now show the biography too. On the web, the main profile can pick another photo, upload one or rewrite the biography.
 - Kids profiles don't see audiobooks. Audible-protected `.aax` files are listed in **Library health**, as they can't be played.
+- On the web, **All books** and a genre's page keep just the sort, and **Series** and **Authors** just the grid: no search box or filter menus.
+- On Android, a series' Play button names the book it plays, as on the web and iPhone, rather than its number.
+- **Fix match** finds more books: when a search comes back empty it tries again without a leading "A" or "The", then without the author, which may be the wrong one.
+- On the web, a book's bookmarks show under the chapter they're in, each ready to jump to or remove.
+- On iPhone, iPad and Android each bookmark has a × to delete it, and bookmarks are added from the player, no longer from a book's page.
+- On the web, the player can bookmark a book while it's paused, and a new bookmark shows on the book's page straight away.
+- On iPhone and iPad, a downloaded book's **Downloaded** tick is green, as downloads are everywhere else.
 
 ### Podcasts
 - Podcast settings are now **Settings › Podcasts & audiobooks** on the web, iPhone, iPad and Android, and cover audiobooks too: one speed, skip steps and smart rewind for both (a book with its own speed keeps it).
 - Podcasts now skip by your steps, on the lock screen and headphones too, and **Smart rewind** (on to start with) picks up a little earlier after a pause. Skip back is now 30 seconds, not 15: change either on that page.
 - On the web, **Show in the sidebar** for podcasts is now in **Settings › Navigation**, and where book details come from (the Audible store, Google Books and Hardcover keys) is in **Settings › Libraries**.
 
+### Discover
+- Requesting a show Sonarr can't add (TheTVDB doesn't list it, as with some specials) now says so, rather than looking requested and never arriving.
+
 ### Home
 - **Continue watching or listening**: books and podcast episodes you're part way through now sit in the same row as your films and shows, on the web, iPhone, iPad and Android (books only on the Apple TV). To keep them apart, turn off **Books and podcasts in Continue watching** in **Settings › Podcasts & audiobooks** (on the web it's in **Settings › Home & browse**, and on the Apple TV in **Settings › Playback**).
+- **Coming soon** and **Downloads** no longer show titles from a library hidden from your profile, such as someone else's shows.
+- **Coming soon** is now on Home on iPhone, iPad, Android, Android TV and the Apple TV too, where your Home & browse settings put it.
 
 ### Settings
 - **Home & browse** is now each profile's own: everyone chooses which rows their Home and each library's Browse show, and every app follows. Existing profiles keep the rows they had; new ones start with a shorter Home they can add to. Kids profiles always have the standard Home and menu.
@@ -44,6 +56,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ### Libraries
 - Replacing a `cover.jpg` or `poster.jpg` beside your files now shows the new picture in every app after the next scan, instead of the old one staying.
 - Adding a library on the web has one button: open its folder in the picker and press **Add library**.
+- On the web, **Settings › Libraries** says **Now scanning…** with its scan button turning while a library is scanned, from the moment it's added.
 
 ### Backups
 - Restoring a backup now keeps every setting, including error reports, automatic updates and audiobook keys, and the server keeps its identity, so apps carry on without signing in again.

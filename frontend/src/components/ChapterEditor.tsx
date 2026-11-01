@@ -3,7 +3,7 @@ import { ApiError, audibleChapters, saveChapters, unlockFirst, type BookChapter 
 import { useModal } from '../hooks/useModal'
 import { clockText, parseClock } from '../lib/books'
 import { AsyncButton } from './AsyncButton'
-import { Close, Plus } from './icons'
+import { AudibleLogo, Close, Plus } from './icons'
 
 interface Draft {
   key: number
@@ -175,7 +175,7 @@ export function ChapterEditor({
           </button>
           {hasAsin && (
             <AsyncButton className="button quiet small" disabled={busy} onClick={fillFromAudible}>
-              Use Audible’s
+              <AudibleLogo /> Use Audible’s
             </AsyncButton>
           )}
         </div>

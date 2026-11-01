@@ -200,6 +200,8 @@ function LibraryRow({ library, onChange }: { library: Library; onChange: () => v
   }
 
   const Icon = libraryIcons[library.type] ?? Film
+  // Just added, its first scan is queued before it starts: scanning too.
+  const scanning = !!library.scan || !library.lastScannedAt
   return (
     <div className="library-row">
       <div>
@@ -219,7 +221,8 @@ function LibraryRow({ library, onChange }: { library: Library; onChange: () => v
           </h3>
         )}
         <p className="muted">
-          {libraryTypeLabel[library.type]} · {library.itemCount.toLocaleString()} {library.type === 'Audiobooks' ? (library.itemCount === 1 ? 'book' : 'books') : library.itemCount === 1 ? 'title' : 'titles'} · scanned {relativeTime(library.lastScannedAt)}
+          {libraryTypeLabel[library.type]} · {library.itemCount.toLocaleString()} {library.type === 'Audiobooks' ? (library.itemCount === 1 ? 'book' : 'books') : library.itemCount === 1 ? 'title' : 'titles'} ·{' '}
+          {scanning ? <span className="now-scanning">Now scanning…</span> : `scanned ${relativeTime(library.lastScannedAt)}`}
         </p>
         {library.folders.map((f) => (
           <code key={f} className="folder">
@@ -249,7 +252,8 @@ function LibraryRow({ library, onChange }: { library: Library; onChange: () => v
           <IconButton
             label="Scan for new and changed files"
             icon={<Refresh />}
-            busy={!!library.scan}
+            className="button quiet small icon scan-button"
+            busy={scanning}
             onClick={() => scanLibrary(library.id).then(() => new Promise((done) => setTimeout(done, 2500))).then(onChange)}
           />
           <IconButton
