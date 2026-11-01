@@ -104,6 +104,37 @@ public static class PeopleEndpoints
             return Results.Ok(await ToDtoAsync(db, person, profile, ct));
         });
 
+        // The photo is the request body: a JPEG, PNG or WebP.
+        admin.MapPut("/image", async (Guid id, HttpRequest http, FlexarrDbContext db, PersonImages images, IMemoryCache memory, CurrentProfile profile,
+            CancellationToken ct) =>
+        {
+            var person = await db.People.FirstOrDefaultAsync(p => p.Id == id, ct);
+            if (person is null)
+            {
+                return Results.NotFound();
+            }
+
+            if (http.ContentLength is not > 0 || http.ContentLength > PersonImages.MaxUploadBytes)
+            {
+                return Results.Problem("Photos can be up to 10 MB.", statusCode: 413);
+            }
+
+            if (!await images.SaveAsync(id, http.Body, ct))
+            {
+                return Results.Problem("That file isn't a picture Flexarr can read. Try a JPEG or PNG.", statusCode: 400);
+            }
+
+            // Always a new ?v=: the file is replaced in place, so the URL alone wouldn't change.
+            person.ImageUrl = images.UrlFor(id);
+            person.PhotoSource = PersonSources.Upload;
+            person.ImageChangedAt = DateTime.UtcNow;
+            person.InfoLocked = true;
+            await db.SaveChangesAsync(ct);
+            memory.Remove(ImageEndpoints.PersonSourceKey(id));
+            memory.Remove(CandidatesKey(id));
+            return Results.Ok(await ToDtoAsync(db, person, profile, ct));
+        });
+
         return api;
     }
 
