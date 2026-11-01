@@ -48,6 +48,18 @@ struct PlaybackSettingsView: View {
                         }
                     ))
                     .settingsRow()
+                    // Servers before 0.58 don't have it.
+                    if let listening = preferences.listeningInContinue {
+                        Toggle("Books and podcasts in Continue watching", isOn: Binding(
+                            get: { listening },
+                            set: { on in
+                                var changed = preferences
+                                changed.listeningInContinue = on
+                                save(changed, over: preferences)
+                            }
+                        ))
+                        .settingsRow()
+                    }
                 } header: {
                     Text("Your profile, on every device")
                 } footer: {
@@ -151,6 +163,8 @@ struct PlaybackSettingsView: View {
         Task {
             do {
                 try await model.client?.setPlaybackPreferences(changed)
+                // Home's Continue watching row changes with it.
+                if changed.listeningInContinue != current.listeningInContinue { model.invalidate() }
             } catch {
                 preferences = current
             }
