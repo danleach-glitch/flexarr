@@ -103,6 +103,21 @@ public sealed class ReadarrMetadataTests : IAsyncLifetime
         Assert.All(await _db.MediaItems.ToListAsync(), b => Assert.NotNull(b.MetadataUpdatedAt));
     }
 
+    [Fact]
+    public async Task AWebhooksBook_AsksForItsAuthorsBooksOnly()
+    {
+        var library = await SeedAsync(("The Thursday Murder Club", "Richard Osman", "Richard Osman/The Thursday Murder Club", null),
+            ("Project Hail Mary", "Andy Weir", "Andy Weir/Project Hail Mary", null));
+        await _db.MediaItems.Where(i => i.Title == "Project Hail Mary").ExecuteUpdateAsync(u => u.SetProperty(i => i.MetadataUpdatedAt, DateTime.UtcNow));
+
+        var result = await Refresher().RefreshLibraryAsync(library, force: false, [Path.Combine(Books, "Richard Osman/The Thursday Murder Club")], default);
+
+        Assert.Equal(1, result.FromArr);
+        Assert.Contains("/api/v1/book?authorId=3", _arr.Requests);
+        Assert.DoesNotContain("/api/v1/book", _arr.Requests);
+        Assert.Equal("12", (await _db.BookDetails.SingleAsync(d => d.ArrBookId != null)).ArrBookId);
+    }
+
     private MetadataRefresher Refresher(bool online = false)
     {
         var settings = new Settings(_dir,
@@ -156,6 +171,7 @@ public sealed class ReadarrMetadataTests : IAsyncLifetime
     private sealed class Bookshelf : HttpMessageHandler
     {
         public bool Down;
+        public System.Collections.Concurrent.ConcurrentQueue<string> Requests { get; } = new();
 
         private static readonly Dictionary<string, string> Responses = new()
         {
@@ -183,12 +199,18 @@ public sealed class ReadarrMetadataTests : IAsyncLifetime
                 """,
         };
 
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
-            Task.FromResult(Down
+        // One author's books, asked for on their own.
+        static Bookshelf() => Responses["/api/v1/book?authorId=3"] = Responses["/api/v1/book"];
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Requests.Enqueue(request.RequestUri!.PathAndQuery);
+            return Task.FromResult(Down
                 ? new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)
                 : new HttpResponseMessage(HttpStatusCode.OK)
                 {
-                    Content = new StringContent(Responses.GetValueOrDefault(request.RequestUri!.PathAndQuery, "[]"), System.Text.Encoding.UTF8, "application/json"),
+                    Content = new StringContent(Responses.GetValueOrDefault(request.RequestUri.PathAndQuery, "[]"), System.Text.Encoding.UTF8, "application/json"),
                 });
+        }
     }
 }

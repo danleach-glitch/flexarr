@@ -1,5 +1,6 @@
 using Flexarr.Core.Books;
 using Flexarr.Core.Media;
+using Flexarr.Core.Paths;
 using Flexarr.Integrations.Arr;
 using Flexarr.Integrations.Arr.Models;
 using Microsoft.EntityFrameworkCore;
@@ -10,8 +11,18 @@ namespace Flexarr.Metadata;
 public sealed partial class MetadataRefresher
 {
     /// <summary>What one app knows, fetched once per refresh.</summary>
+    /// <param name="Complete">Every author's books, not just those of the authors of the books due.</param>
     private sealed record ReadarrCatalogue(ArrInstance Instance, IReadOnlyList<ReadarrAuthor> Authors, IReadOnlyList<ReadarrBook> Books,
-        IReadOnlyList<ReadarrBookFile> Files, IReadOnlyDictionary<string, List<(ReadarrSeries Series, string? Position)>> SeriesByBook);
+        IReadOnlyList<ReadarrBookFile> Files, IReadOnlyDictionary<string, List<(ReadarrSeries Series, string? Position)>> SeriesByBook, bool Complete);
+
+    /// <summary>A book due a refresh, as working out its author in an app needs it.</summary>
+    private sealed record DueBook(string? Path, string? ArrAuthorId, string? ArrInstance, List<string> Authors);
+
+    /// <summary>Calls made at once to one app, for each author's files and series.</summary>
+    private const int ArrConcurrency = 4;
+
+    /// <summary>At most this many books due (a webhook's) are fetched by their authors rather than the whole catalogue.</summary>
+    private const int FewBooks = 10;
 
     private enum BookOutcome { FromArr, LookedUp, Unmatched, Local }
 
@@ -24,10 +35,20 @@ public sealed partial class MetadataRefresher
             return new MetadataRefreshResult(0, 0, 0);
         }
 
+        // Just a webhook's books due: only their authors' books are asked for, not every author's.
+        List<DueBook>? only = null;
+        if (within.Count > 0 && ids.Count <= FewBooks && ids.All(also.Contains))
+        {
+            only = await db.MediaItems.Where(i => ids.Contains(i.Id))
+                .Select(i => new DueBook(i.Path, i.Book!.ArrAuthorId, i.Book.ArrInstance,
+                    i.Credits.Where(c => c.Role == CreditRole.Author).Select(c => c.Person!.Name).ToList()))
+                .ToListAsync(ct).ConfigureAwait(false);
+        }
+
         var catalogues = new List<ReadarrCatalogue>();
         foreach (var readarr in settings.ArrInstances.Where(a => a.Kind == ArrKind.Readarr))
         {
-            if (await CatalogueAsync(readarr, ct).ConfigureAwait(false) is { } catalogue)
+            if (await CatalogueAsync(readarr, only, ct).ConfigureAwait(false) is { } catalogue)
             {
                 catalogues.Add(catalogue);
             }
@@ -104,7 +125,7 @@ public sealed partial class MetadataRefresher
         {
             await ApplyReadarrAsync(book, details, matched.Book, catalogues[matched.Shelf], ct).ConfigureAwait(false);
         }
-        else if (!unanswered && details.ArrBookId is not null)
+        else if (!unanswered && details.ArrBookId is not null && catalogues.All(c => c.Complete))
         {
             // Its app no longer has it (or is gone): the old id would only reach some other book there.
             details.ArrBookId = null;
@@ -138,34 +159,69 @@ public sealed partial class MetadataRefresher
             : BookOutcome.Local;
     }
 
-    /// <summary>An app's authors, books, files and series; null if it can't be asked right now.</summary>
-    private async Task<ReadarrCatalogue?> CatalogueAsync(ArrInstance readarr, CancellationToken ct)
+    /// <summary>
+    /// An app's authors, books, files and series; null if it can't be asked right now. With <paramref name="only"/>
+    /// (a webhook's few books), just their authors' books, files and series. Files and series are asked for author by
+    /// author, a few at a time.
+    /// </summary>
+    private async Task<ReadarrCatalogue?> CatalogueAsync(ArrInstance readarr, IReadOnlyList<DueBook>? only, CancellationToken ct)
     {
         try
         {
             var authors = await arr.GetAuthorsAsync(readarr, ct).ConfigureAwait(false);
-            var books = await arr.GetBooksAsync(readarr, ct).ConfigureAwait(false);
-            var files = new List<ReadarrBookFile>();
+            var wanted = only is null ? null : AuthorsOf(readarr, authors, only);
+            var authorIds = (wanted ?? authors.Where(a => a.Id is not null).Select(a => a.Id!)).Distinct(StringComparer.Ordinal).ToList();
+            var perAuthor = new (IReadOnlyList<ReadarrBook> Books, IReadOnlyList<ReadarrBookFile> Files, IReadOnlyList<ReadarrSeries> Series)[authorIds.Count];
+            await Parallel.ForEachAsync(Enumerable.Range(0, authorIds.Count), new ParallelOptions { MaxDegreeOfParallelism = ArrConcurrency, CancellationToken = ct },
+                async (i, token) => perAuthor[i] = (
+                    wanted is null ? [] : await arr.GetAuthorBooksAsync(readarr, authorIds[i], token).ConfigureAwait(false),
+                    await arr.GetBookFilesAsync(readarr, authorIds[i], token).ConfigureAwait(false),
+                    await arr.GetBookSeriesAsync(readarr, authorIds[i], token).ConfigureAwait(false))).ConfigureAwait(false);
+
+            var books = wanted is null ? await arr.GetBooksAsync(readarr, ct).ConfigureAwait(false) : [.. perAuthor.SelectMany(a => a.Books)];
             var series = new Dictionary<string, List<(ReadarrSeries, string?)>>(StringComparer.Ordinal);
-            foreach (var author in authors.Where(a => a.Id is not null))
+            foreach (var s in perAuthor.SelectMany(a => a.Series))
             {
-                files.AddRange(await arr.GetBookFilesAsync(readarr, author.Id!, ct).ConfigureAwait(false));
-                foreach (var s in await arr.GetBookSeriesAsync(readarr, author.Id!, ct).ConfigureAwait(false))
+                foreach (var link in s.Links.Where(l => l.BookId is not null))
                 {
-                    foreach (var link in s.Links.Where(l => l.BookId is not null))
-                    {
-                        (series.TryGetValue(link.BookId!, out var list) ? list : series[link.BookId!] = []).Add((s, link.Position));
-                    }
+                    (series.TryGetValue(link.BookId!, out var list) ? list : series[link.BookId!] = []).Add((s, link.Position));
                 }
             }
 
-            return new ReadarrCatalogue(readarr, authors, books, files, series);
+            return new ReadarrCatalogue(readarr, authors, books, [.. perAuthor.SelectMany(a => a.Files)], series, Complete: wanted is null);
         }
         catch (Exception ex) when (ex is System.Text.Json.JsonException || IsNetworkFailure(ex, ct))
         {
             LogArrUnavailable(readarr.Name, ex.Message);
             return null;
         }
+    }
+
+    /// <summary>
+    /// The app's ids for the authors of <paramref name="due"/>: the one each was matched to before, else the author
+    /// whose folder holds the book, else one of the same name. A book none of them fits isn't this app's.
+    /// </summary>
+    private List<string> AuthorsOf(ArrInstance readarr, IReadOnlyList<ReadarrAuthor> authors, IReadOnlyList<DueBook> due)
+    {
+        var ids = new List<string>();
+        foreach (var book in due)
+        {
+            if (book.ArrAuthorId is { } known && book.ArrInstance is { } from && SameInstance(from, readarr.Name))
+            {
+                ids.Add(known);
+                continue;
+            }
+
+            var names = book.Authors.Select(FoldName).ToHashSet(StringComparer.Ordinal);
+            ids.AddRange(authors.Where(a => a.Id is not null
+                    && ((book.Path is { } path && a.Path is { Length: > 0 } folder && PathComparison.IsUnder(path, PathMapper.Map(folder, settings.PathMappings)))
+                        || (a.AuthorName is { } name && names.Contains(FoldName(name)))))
+                .Select(a => a.Id!));
+        }
+
+        return ids;
+
+        static string FoldName(string value) => new([.. value.Normalize(System.Text.NormalizationForm.FormC).ToLowerInvariant().Where(char.IsLetterOrDigit)]);
     }
 
     /// <summary>Fills the book's gaps from the app: never over what the files said.</summary>
