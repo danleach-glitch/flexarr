@@ -327,7 +327,7 @@ private struct LibraryBadge: View {
             .foregroundStyle(Color.room)
             .offset(x: 1)
             .frame(width: 36, height: 36)
-            .background(Circle().fill(Color.inLibrary))
+            .background(Circle().fill(Color.go))
             .accessibilityLabel("In your library")
     }
 }

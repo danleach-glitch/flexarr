@@ -16,7 +16,7 @@ struct LiveChannelPicker: View {
     @State private var all: [LiveChannel]?
     @FocusState private var focused: String?
 
-    private static let gold = Color(red: 0.95, green: 0.77, blue: 0.45)
+    private static let gold = Color.screen
 
     var body: some View {
         #if os(tvOS)

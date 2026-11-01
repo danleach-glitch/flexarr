@@ -4,12 +4,6 @@ import SwiftUI
 // The tokens themselves are in Tokens.swift (generated from design/tokens.json). The room is a dim plum, never pure black, and the only
 // loud colour on screen is each title's own ambient colour.
 extension Color {
-    /// Downloaded, wherever it's shown: a calm green that reads on the room, with the room's own colour for a glyph on it.
-    static let downloaded = Color(rgb: RGB(hex: "#6FCF97")!)
-    /// In the library, on Discover's posters: a warm marquee gold, with the room's own colour for a glyph on it. Not
-    /// the green, which is downloaded's.
-    static let inLibrary = Color(rgb: RGB(hex: "#E8B84A")!)
-
     init(rgb: RGB) {
         self.init(.sRGB, red: rgb.red, green: rgb.green, blue: rgb.blue)
     }

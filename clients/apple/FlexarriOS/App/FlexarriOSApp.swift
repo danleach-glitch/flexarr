@@ -259,6 +259,8 @@ struct FlexarriOSApp: App {
                 .environment(delegate.remote)
                 .preferredColorScheme(.dark)
                 .tint(.silver)
+                // Switches that are on are green, as everywhere in Flexarr; everything else takes the silver accent.
+                .toggleStyle(GoSwitchStyle())
                 .onOpenURL { model.open(url: $0) }
                 // flexarr.io/join links (family invites) open the app straight from Messages or the Camera.
                 .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in

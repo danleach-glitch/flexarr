@@ -53,13 +53,7 @@ extension PodcastSnapshot {
 
 // MARK: - Look
 
-/// The app's colours, as the widgets use them.
-private enum Palette {
-    static let room = Color(red: 0x1B / 255, green: 0x17 / 255, blue: 0x20 / 255)
-    static let seat = Color(red: 0x25 / 255, green: 0x20 / 255, blue: 0x2C / 255)
-    static let screen = Color(red: 0xF2 / 255, green: 0xEE / 255, blue: 0xE7 / 255)
-    static let usher = Color(red: 0xA3 / 255, green: 0x9A / 255, blue: 0xAE / 255)
-}
+// The app's colours come from Shared/Design/Tokens.swift, compiled into the widgets too.
 
 /// An episode's saved square picture, or a quiet tile.
 private struct EpisodeArtwork: View {
@@ -72,8 +66,8 @@ private struct EpisodeArtwork: View {
                 Image(uiImage: image).resizable().aspectRatio(contentMode: .fill)
             } else {
                 ZStack {
-                    Palette.seat
-                    Image(systemName: "mic.fill").foregroundStyle(Palette.usher)
+                    Color.seat
+                    Image(systemName: "mic.fill").foregroundStyle(Color.usher)
                 }
             }
         }
@@ -94,7 +88,7 @@ struct ContinueListeningWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "io.github.flexarr.continue-listening", provider: SnapshotProvider()) { entry in
             ContinueListeningView(snapshot: entry.snapshot)
-                .containerBackground(for: .widget) { Palette.room }
+                .containerBackground(for: .widget) { Color.room }
         }
         .configurationDisplayName("Continue listening")
         .description("The book or podcast episode you're on, to carry on with.")
@@ -118,7 +112,7 @@ struct ContinueListeningView: View {
                 Image(systemName: "mic.fill").font(.title3)
                 Text("Nothing to carry on with").font(.caption).multilineTextAlignment(.center)
             }
-            .foregroundStyle(family == .accessoryRectangular ? Color.primary : Palette.usher)
+            .foregroundStyle(family == .accessoryRectangular ? Color.primary : Color.usher)
         }
     }
 
@@ -132,7 +126,7 @@ struct ContinueListeningView: View {
             Spacer(minLength: 0)
             Text(episode.title)
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(Palette.screen)
+                .foregroundStyle(Color.screen)
                 .lineLimit(2)
             progress(episode)
         }
@@ -145,11 +139,11 @@ struct ContinueListeningView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(episode.show)
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(Palette.usher)
+                    .foregroundStyle(Color.usher)
                     .lineLimit(1)
                 Text(episode.title)
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Palette.screen)
+                    .foregroundStyle(Color.screen)
                     .lineLimit(3)
                 Spacer(minLength: 0)
                 HStack {
@@ -176,10 +170,10 @@ struct ContinueListeningView: View {
     private func progress(_ episode: PodcastSnapshot.Episode) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             if let progress = episode.progress {
-                ProgressView(value: progress).tint(Palette.screen)
+                ProgressView(value: progress).tint(Color.screen)
             }
             if let left = remaining(episode.remainingSeconds) {
-                Text(left).font(.caption2.weight(.semibold)).foregroundStyle(Palette.usher).monospacedDigit()
+                Text(left).font(.caption2.weight(.semibold)).foregroundStyle(Color.usher).monospacedDigit()
             }
         }
     }
@@ -188,9 +182,9 @@ struct ContinueListeningView: View {
         Button(intent: TogglePodcastIntent(episodeId: episode.id)) {
             Image(systemName: snapshot.isPlaying ? "pause.fill" : "play.fill")
                 .font(.body.weight(.bold))
-                .foregroundStyle(Palette.room)
+                .foregroundStyle(Color.room)
                 .frame(width: 36, height: 36)
-                .background(Circle().fill(Palette.screen))
+                .background(Circle().fill(Color.screen))
         }
         .buttonStyle(.plain)
         .accessibilityLabel(snapshot.isPlaying ? "Pause" : "Play")
@@ -203,7 +197,7 @@ struct UpNextWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "io.github.flexarr.up-next", provider: SnapshotProvider()) { entry in
             UpNextView(snapshot: entry.snapshot)
-                .containerBackground(for: .widget) { Palette.room }
+                .containerBackground(for: .widget) { Color.room }
         }
         .configurationDisplayName("Up Next")
         .description("The podcast episodes waiting in Up Next.")
@@ -220,23 +214,23 @@ struct UpNextView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Up Next")
                 .font(.caption.weight(.bold))
-                .foregroundStyle(Palette.usher)
+                .foregroundStyle(Color.usher)
             if episodes.isEmpty {
                 Spacer(minLength: 0)
-                Text("Nothing in Up Next").font(.caption).foregroundStyle(Palette.usher)
+                Text("Nothing in Up Next").font(.caption).foregroundStyle(Color.usher)
                 Spacer(minLength: 0)
             } else if family == .systemSmall, let first = episodes.first {
                 EpisodeArtwork(episode: first).frame(width: 56, height: 56)
                 Spacer(minLength: 0)
-                Text(first.title).font(.caption.weight(.semibold)).foregroundStyle(Palette.screen).lineLimit(2)
+                Text(first.title).font(.caption.weight(.semibold)).foregroundStyle(Color.screen).lineLimit(2)
             } else {
                 ForEach(episodes) { episode in
                     Link(destination: PodcastSnapshot.playURL(episode.id)) {
                         HStack(spacing: 10) {
                             EpisodeArtwork(episode: episode, cornerRadius: 6).frame(width: 32, height: 32)
                             VStack(alignment: .leading, spacing: 0) {
-                                Text(episode.title).font(.caption.weight(.semibold)).foregroundStyle(Palette.screen)
-                                Text(episode.show).font(.caption2).foregroundStyle(Palette.usher)
+                                Text(episode.title).font(.caption.weight(.semibold)).foregroundStyle(Color.screen)
+                                Text(episode.show).font(.caption2).foregroundStyle(Color.usher)
                             }
                             .lineLimit(1)
                             Spacer(minLength: 0)
@@ -287,7 +281,7 @@ struct WatchlistWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: WatchlistSnapshot.widgetKind, provider: WatchlistProvider()) { entry in
             WatchlistWidgetView(snapshot: entry.snapshot)
-                .containerBackground(for: .widget) { Palette.room }
+                .containerBackground(for: .widget) { Color.room }
                 .widgetURL(WatchlistSnapshot.watchlistURL)
         }
         .configurationDisplayName("Watchlist")
@@ -306,12 +300,12 @@ struct WatchlistWidgetView: View {
                 Image(systemName: "bookmark").font(.title3)
                 Text("Nothing here yet").font(.caption).multilineTextAlignment(.center)
             }
-            .foregroundStyle(Palette.usher)
+            .foregroundStyle(Color.usher)
         } else {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Ready to watch")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(Palette.usher)
+                    .foregroundStyle(Color.usher)
                     .lineLimit(1)
                 HStack(spacing: 8) {
                     ForEach(snapshot.ready.prefix(family == .systemMedium ? 4 : 2)) { title in
@@ -333,10 +327,10 @@ struct WatchlistWidgetView: View {
                 Image(uiImage: image).resizable().aspectRatio(contentMode: .fill)
             } else {
                 ZStack {
-                    Palette.seat
+                    Color.seat
                     Text(title.title)
                         .font(.caption2.weight(.semibold))
-                        .foregroundStyle(Palette.screen)
+                        .foregroundStyle(Color.screen)
                         .multilineTextAlignment(.center)
                         .padding(4)
                 }

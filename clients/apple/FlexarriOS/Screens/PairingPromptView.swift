@@ -103,7 +103,7 @@ struct PairingPromptView: View {
         VStack(spacing: 14) {
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 52))
-                .foregroundStyle(Color.downloaded)
+                .foregroundStyle(Color.go)
             Text("Connected")
                 .font(.title2.weight(.bold))
                 .foregroundStyle(Color.screen)

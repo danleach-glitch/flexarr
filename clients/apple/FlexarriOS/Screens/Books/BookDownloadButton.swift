@@ -26,7 +26,7 @@ struct BookDownloadButton: View {
                     Text("Downloaded")
                 } icon: {
                     // Green, as downloads are everywhere else.
-                    Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.downloaded)
+                    Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.go)
                 }
             case .failed:
                 Label("Try again", systemImage: "exclamationmark.arrow.circlepath")

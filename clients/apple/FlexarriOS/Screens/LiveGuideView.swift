@@ -210,7 +210,7 @@ struct LiveGuideView: View {
         let offset = CGFloat(now.timeIntervalSince(windowStart) / 60) * perMinute
         if offset >= 0, now < windowEnd {
             Rectangle()
-                .fill(Color(red: 0.94, green: 0.54, blue: 0.49))
+                .fill(Color.record)
                 .frame(width: 2)
                 .frame(maxHeight: .infinity)
                 .offset(x: offset)
@@ -218,7 +218,7 @@ struct LiveGuideView: View {
         }
     }
 
-    private static let recordRed = Color(red: 0.9, green: 0.28, blue: 0.3)
+    private static let recordRed = Color.record
 
     private func load() async {
         if let client = model.client,

@@ -209,7 +209,8 @@ targets:
   FlexarrWidgets:
     type: app-extension
     platform: iOS
-    sources: [Widgets, WidgetShared]
+    # Tokens.swift is the design tokens (colours, radii) the app uses, so the widgets match it.
+    sources: [Widgets, WidgetShared, Shared/Design/Tokens.swift]
     info:
       path: Widgets/Info.plist
       properties:

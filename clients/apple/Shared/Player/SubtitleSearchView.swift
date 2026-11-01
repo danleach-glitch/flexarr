@@ -120,7 +120,7 @@ struct SubtitleSearchView: View {
                         if let provider { Text(provider) }
                         if matchesFile {
                             Label("Matches your file", systemImage: "checkmark.seal.fill")
-                                .foregroundStyle(Color.downloaded)
+                                .foregroundStyle(Color.go)
                         }
                     }
                     .font(detailFont)

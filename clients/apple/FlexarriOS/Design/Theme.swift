@@ -200,3 +200,10 @@ struct StatusView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
+
+/// A switch that's green when on, whatever the surrounding tint (the app's is silver).
+struct GoSwitchStyle: ToggleStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        Toggle(configuration).toggleStyle(.switch).tint(Color.go)
+    }
+}

@@ -385,10 +385,10 @@ private struct ManualConnect: View {
             if let error {
                 Label(error, systemImage: "exclamationmark.triangle.fill")
                     .font(.subheadline.weight(.medium))
-                    .foregroundStyle(Color.screen)
+                    .foregroundStyle(Color.danger)
                     .padding(14)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(RoundedRectangle(cornerRadius: 12).fill(Color(red: 0.42, green: 0.2, blue: 0.28).opacity(0.6)))
+                    .background(RoundedRectangle(cornerRadius: Radius.panel).fill(Color.seat))
             }
 
             if !usesKey {

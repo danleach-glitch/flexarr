@@ -46,7 +46,7 @@ struct MusicDownloadButton: View {
                 case .preparing:
                     Image(systemName: "hourglass").foregroundStyle(Color.usher)
                 case .downloaded:
-                    Image(systemName: "checkmark").foregroundStyle(Color.downloaded)
+                    Image(systemName: "checkmark").foregroundStyle(Color.go)
                 case .failed:
                     Image(systemName: "exclamationmark.circle").foregroundStyle(Color.danger)
                 case nil:
@@ -107,7 +107,7 @@ struct DownloadedMark: View {
         Image(systemName: "arrow.down.circle.fill")
             .font(.caption.weight(.semibold))
             .symbolRenderingMode(.palette)
-            .foregroundStyle(Color.room, Color.downloaded)
+            .foregroundStyle(Color.room, Color.go)
             .accessibilityLabel("Downloaded")
     }
 }

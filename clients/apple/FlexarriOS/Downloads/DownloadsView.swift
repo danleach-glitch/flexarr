@@ -323,7 +323,7 @@ struct DownloadStateIcon: View {
             case .downloaded:
                 Image(systemName: "arrow.down.circle.fill")
                     .symbolRenderingMode(.palette)
-                    .foregroundStyle(Color.room, Color.downloaded)
+                    .foregroundStyle(Color.room, Color.go)
             case .failed:
                 Image(systemName: "exclamationmark.circle").foregroundStyle(Color.danger)
             }

@@ -133,7 +133,7 @@ struct LiveGuideGrid: View {
                     if channel.isFavourite {
                         Image(systemName: "star.fill")
                             .font(.system(size: 14))
-                            .foregroundStyle(Color(red: 0.95, green: 0.77, blue: 0.45))
+                            .foregroundStyle(Color.screen)
                             .offset(x: 10, y: -6)
                     }
                 }
@@ -226,7 +226,7 @@ struct LiveGuideGrid: View {
         let offset = CGFloat(now.timeIntervalSince(windowStart)) * perSecond
         if offset >= 0, now < windowStart.addingTimeInterval(Self.window) {
             Rectangle()
-                .fill(Color(red: 0.94, green: 0.54, blue: 0.49))
+                .fill(Color.record)
                 .frame(width: 3)
                 .frame(maxHeight: .infinity)
                 .offset(x: Self.channelWidth + offset)
@@ -236,7 +236,7 @@ struct LiveGuideGrid: View {
 
     // MARK: Behaviour
 
-    private static let recordRed = Color(red: 0.9, green: 0.28, blue: 0.3)
+    private static let recordRed = Color.record
 
     private func toggleRecording(_ programme: LiveProgramme, on channel: LiveChannel) async throws {
         guard let client else { return }
@@ -350,7 +350,7 @@ private struct GuideCellStyle: ButtonStyle {
                 .overlay {
                     if recording {
                         RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .strokeBorder(Color(red: 0.9, green: 0.28, blue: 0.3), lineWidth: 3)
+                            .strokeBorder(Color.record, lineWidth: 3)
                     }
                 }
                 .opacity(past && !isFocused ? 0.55 : 1)

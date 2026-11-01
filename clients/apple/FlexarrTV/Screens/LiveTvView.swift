@@ -161,7 +161,7 @@ struct LiveTvView: View {
         .padding(.top, 60)
     }
 
-    static let gold = Color(red: 0.95, green: 0.77, blue: 0.45)
+    static let gold = Color.screen
 
     private func loadGuide() async {
         guard let client = model.client else { return }

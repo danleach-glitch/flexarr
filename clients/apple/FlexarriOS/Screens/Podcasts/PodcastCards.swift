@@ -302,10 +302,10 @@ extension VerticalAlignment {
 }
 
 extension Color {
-    /// A swipe's "played" tint, as podcast apps use.
-    static let played = Color(rgb: RGB(hex: "#6B5BB5")!)
-    /// A swipe's "Up Next" tint.
-    static let upNext = Color(rgb: RGB(hex: "#4A6FA5")!)
+    /// A swipe's "played" tint.
+    static let played = Color.usher
+    /// A swipe's "Up next" tint.
+    static let upNext = Color.silver
 }
 
 extension View {
@@ -485,7 +485,7 @@ struct EpisodeSheet: View {
                             if isPlayed {
                                 Image(systemName: "checkmark.circle.fill")
                                     .symbolRenderingMode(.palette)
-                                    .foregroundStyle(Color.room, Color.downloaded)
+                                    .foregroundStyle(Color.room, Color.go)
                                     .font(.title2)
                             } else {
                                 Image(systemName: "checkmark.circle")

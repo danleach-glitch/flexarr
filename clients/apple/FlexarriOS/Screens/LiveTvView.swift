@@ -143,7 +143,7 @@ struct LiveTvView: View {
         .scrollContentBackground(.hidden)
     }
 
-    static let gold = Color(red: 0.95, green: 0.77, blue: 0.45)
+    static let gold = Color.screen
 
     private var chips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -341,7 +341,7 @@ struct HomeChannelCard: View {
 struct RecordMark: View {
     let recordingNow: Bool
 
-    static let red = Color(red: 0.9, green: 0.28, blue: 0.3)
+    static let red = Color.record
 
     var body: some View {
         if recordingNow {

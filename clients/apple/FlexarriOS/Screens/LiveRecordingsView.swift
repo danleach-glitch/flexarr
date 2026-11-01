@@ -84,13 +84,13 @@ struct LiveRecordingsView: View {
     private func row(_ recording: Recording) -> some View {
         HStack(spacing: 10) {
             if recording.isRecordingNow {
-                Circle().fill(Color(red: 0.9, green: 0.28, blue: 0.3)).frame(width: 9, height: 9).accessibilityLabel("Recording now")
+                Circle().fill(Color.record).frame(width: 9, height: 9).accessibilityLabel("Recording now")
             }
             VStack(alignment: .leading, spacing: 3) {
                 Text(recording.title).font(.body.weight(.semibold)).foregroundStyle(Color.screen)
                 Text(detail(recording)).font(.caption).foregroundStyle(Color.usher).lineLimit(1)
                 if recording.clashes {
-                    Text("Won't record: every stream is wanted by recordings scheduled before it.").font(.caption).foregroundStyle(.red)
+                    Text("Won't record: every stream is wanted by recordings scheduled before it.").font(.caption).foregroundStyle(Color.danger)
                 } else if let reason = recording.reason, recording.state != "scheduled" {
                     Text(reason).font(.caption).foregroundStyle(Color.usher)
                 }
