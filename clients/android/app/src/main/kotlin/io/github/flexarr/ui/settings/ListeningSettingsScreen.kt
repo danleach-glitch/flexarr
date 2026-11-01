@@ -141,12 +141,14 @@ fun ListeningSettingsScreen(model: AppModel, onNotifications: () -> Unit) {
 
     fun savePlayback(changed: PlaybackPreferences, over: PlaybackPreferences) {
         playback = changed
+        saveFailed = false
         model.scope.launch {
             try {
                 client.setPlaybackPreferences(changed.forSaving())
                 model.watchStateChanged() // Home's rows follow it.
             } catch (_: FlexarrException) {
                 playback = over
+                saveFailed = true
             }
         }
     }

@@ -139,6 +139,7 @@ struct ListeningSettingsView: View {
 
     private func savePlayback(_ changed: PlaybackPreferences, over current: PlaybackPreferences) {
         playback = changed
+        failed = false
         Task {
             do {
                 try await model.client?.setPlaybackPreferences(changed)
@@ -146,6 +147,7 @@ struct ListeningSettingsView: View {
                 model.invalidate()
             } catch {
                 playback = current
+                failed = true
             }
         }
     }
