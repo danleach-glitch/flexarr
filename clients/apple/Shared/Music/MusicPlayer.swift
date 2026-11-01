@@ -144,8 +144,8 @@ final class MusicPlayer {
     @ObservationIgnored private var bookURLs: [URL] = []
     /// Where `playBook` was asked to start (a chapter, a bookmark); nil: where this profile is.
     @ObservationIgnored private var bookStart: Double?
-    /// When the book was paused (or, paused, last moved by the listener), for smart rewind.
-    @ObservationIgnored private var pausedAt: Date?
+    /// When the book was paused, for smart rewind (forgotten when the listener moves it while paused).
+    @ObservationIgnored private var bookPause = BookPause()
     @ObservationIgnored private var speedSave: Task<Void, Never>?
     /// Where an End of chapter timer stops: the end of the chapter playing (worked out again after every seek).
     @ObservationIgnored private var sleepChapterEnd: Double?
@@ -454,30 +454,27 @@ final class MusicPlayer {
         } else if isBook, !isPlayingOffline, let track = current,
                   expiredBookId == track.id || (sessionId != nil && Date().timeIntervalSince(lastReport) > Self.sessionIdleLimit) {
             // Paused so long the server has forgotten the session (and its file addresses): a new one, from here.
-            var place = position
-            if let pausedAt, book?.listening.smartRewind ?? true {
-                let back = SmartRewind.seconds(afterPause: Date().timeIntervalSince(pausedAt))
-                place = max(chapterStartNear(position - back), position - back)
-            }
+            let place = smartRewindPlace()
             if position > 0 { BookPlaces.save(track.id, position: place) }
             bookStart = place
             startCurrent()
         } else {
-            // A book starts a little earlier after a pause, more the longer it was.
-            if isBook, let pausedAt, book?.listening.smartRewind ?? true {
-                let back = SmartRewind.seconds(afterPause: Date().timeIntervalSince(pausedAt))
-                if back > 0 { seek(to: max(chapterStartNear(position - back), position - back)) }
+            // A book starts a little earlier after a pause, more the longer it was. Not a seek: the End of chapter
+            // timer keeps the chapter it was set for.
+            if isBook {
+                let place = smartRewindPlace()
+                if place < position { moveBook(to: place) }
             }
-            pausedAt = nil
             player.play()
             if nowPlayingIsIdle { pushNowPlaying() }
         }
     }
 
-    /// Smart rewind doesn't cross back into the chapter before, unless the pause was right at its start.
-    private func chapterStartNear(_ target: Double) -> Double {
-        guard let chapter, position - chapter.startSeconds > 1 else { return 0 }
-        return chapter.startSeconds
+    /// Where a book plays again from after a pause (forgetting the pause): a little earlier, more the longer it was,
+    /// not crossing back into the chapter before unless the pause was right at its start.
+    private func smartRewindPlace() -> Double {
+        guard let pause = bookPause.resumed(at: Date()), book?.listening.smartRewind ?? true else { return position }
+        return SmartRewind.place(from: position, back: SmartRewind.seconds(afterPause: pause), chapterStart: chapter?.startSeconds)
     }
 
     func next() {
@@ -519,18 +516,24 @@ final class MusicPlayer {
         startCurrent()
     }
 
+    /// Moves the book to `place` without it counting as the listener's choice (smart rewind's step back): the pause
+    /// and the End of chapter stop stay as they are.
+    private func moveBook(to place: Double) {
+        guard bookTimeline != nil, player.currentItem != nil else { return }
+        loadBookFile(at: max(0, min(place, max(0, duration - 0.5))), play: isPlaying)
+        nowPlaying.setTime(position: position, duration: duration, rate: isPlaying ? playRate : 0, defaultRate: playRate)
+    }
+
     func seek(to seconds: Double) {
         guard current != nil else { return }
         if isBook {
             guard let timeline = bookTimeline, player.currentItem != nil else { return }
             let target = max(0, min(seconds, max(0, duration - 0.5)))
-            loadBookFile(at: target, play: isPlaying)
-            // Smart rewind counts from the listener's last choice of place: a chapter or bookmark picked while paused
-            // plays from there, not half a minute before it.
-            if pausedAt != nil { pausedAt = Date() }
+            moveBook(to: target)
+            // A chapter or bookmark picked while paused plays from there, not a little before it.
+            bookPause.seeked()
             // An End of chapter timer stops at the end of the chapter now playing (Next chapter lands on the old end).
             if sleep.setting == .endOfChapter, fade == nil { sleepChapterEnd = timeline.chapterEnd(at: target) }
-            nowPlaying.setTime(position: position, duration: duration, rate: isPlaying ? playRate : 0, defaultRate: playRate)
             return
         }
         let target = max(0, min(seconds, duration > 0 ? duration : seconds))
@@ -765,7 +768,7 @@ final class MusicPlayer {
         player.defaultRate = playRate
         duration = manifest.durationSeconds
         nextBookOffer = nil
-        pausedAt = nil
+        bookPause = BookPause()
         bookFile = -1
         loadBookFile(at: min(max(0, place), max(0, duration - 1)), play: true)
         isLoading = false
@@ -816,7 +819,7 @@ final class MusicPlayer {
         bookFile = 0
         jumpOffer = nil
         nextBookOffer = nil
-        pausedAt = nil
+        bookPause = BookPause()
         sleepChapterEnd = nil
         speedSave = nil
     }
@@ -1137,7 +1140,9 @@ final class MusicPlayer {
         let playing = status == .playing
         guard playing != isPlaying else { return }
         isPlaying = playing
-        if isBook { pausedAt = playing ? nil : pausedAt ?? Date() }
+        if isBook {
+            if playing { bookPause = BookPause() } else { bookPause.paused(at: Date()) }
+        }
         if !playing, sessionId != nil || (expiredBookId != nil && expiredBookId == current?.id), player.currentItem != nil { report(paused: true) }
         if !playing, isPlayingOffline, isPodcast || isBook, player.currentItem != nil { recordOffline() }
         watchShakes()
