@@ -106,7 +106,7 @@ public sealed class BookProviderThrottle(TimeProvider? time = null)
 /// are kept on disk for a month and nothing depends on any of them staying up: a provider that fails is skipped, and
 /// one that says it's had too many requests is left alone for a while (see <see cref="BookProviderThrottle"/>).
 /// </summary>
-public sealed class BookProviders(HttpClient http, Func<IMetadataSettings> settings, BookProviderThrottle? throttle = null)
+public sealed partial class BookProviders(HttpClient http, Func<IMetadataSettings> settings, BookProviderThrottle? throttle = null)
 {
     private readonly BookProviderThrottle _throttle = throttle ?? BookProviderThrottle.Shared;
 
@@ -300,6 +300,65 @@ public sealed class BookProviders(HttpClient http, Func<IMetadataSettings> setti
             .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         return asins.FirstOrDefault(a => known.Contains(a, StringComparer.OrdinalIgnoreCase)) ?? asins.FirstOrDefault();
     }
+
+    /// <summary>Authors with the same name looked at on Open Library, at most, for one who wrote our books.</summary>
+    private const int OpenLibraryNamesakes = 5;
+
+    /// <summary>
+    /// An author's biography and photo from Open Library: someone of exactly this name who wrote one of
+    /// <paramref name="titles"/> (by their main title, case and punctuation aside), so a namesake isn't taken for them.
+    /// The photo only when Open Library has one. Null when there's no such author, or Open Library is switched off.
+    /// </summary>
+    /// <exception cref="HttpRequestException">Open Library couldn't be asked just now.</exception>
+    public async Task<BookAuthorInfo?> OpenLibraryAuthorAsync(string name, IReadOnlyCollection<string> titles, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        ArgumentNullException.ThrowIfNull(titles);
+        var ours = titles.Select(t => Fold(MainTitle(t))).Where(t => t.Length > 0).ToHashSet(StringComparer.Ordinal);
+        if (!Uses("openlibrary") || Fold(name) is not { Length: > 0 } wanted || ours.Count == 0)
+        {
+            return null;
+        }
+
+        var found = await GetOrThrowAsync($"https://openlibrary.org/search/authors.json?q={Uri.EscapeDataString(name.Trim())}", ct).ConfigureAwait(false);
+        var namesakes = (found?["docs"] as JsonArray ?? []).OfType<JsonObject>()
+            .Where(d => Text(d, "name") is { } theirs && Fold(theirs) == wanted)
+            .Select(d => (Key: Text(d, "key")?.Replace("/authors/", "", StringComparison.Ordinal), Doc: d))
+            .Where(d => d.Key is not null && OpenLibraryAuthorKey().IsMatch(d.Key))
+            .Take(OpenLibraryNamesakes);
+        foreach (var (key, doc) in namesakes)
+        {
+            var wrote = Text(doc, "top_work") is { } top && ours.Contains(Fold(MainTitle(top)));
+            if (!wrote)
+            {
+                var works = await GetOrThrowAsync($"https://openlibrary.org/authors/{key}/works.json?limit=50", ct).ConfigureAwait(false);
+                wrote = (works?["entries"] as JsonArray ?? []).OfType<JsonObject>()
+                    .Any(w => Text(w, "title") is { } title && ours.Contains(Fold(MainTitle(title))));
+            }
+
+            if (!wrote)
+            {
+                continue; // someone else of the same name
+            }
+
+            var author = await GetOrThrowAsync($"https://openlibrary.org/authors/{key}.json", ct).ConfigureAwait(false);
+            if (author is null)
+            {
+                continue;
+            }
+
+            var bio = author["bio"] is JsonObject b ? Text(b, "value") : Text(author, "bio");
+            var photo = (author["photos"] as JsonArray ?? []).OfType<JsonValue>()
+                .Any(p => p.GetValueKind() == JsonValueKind.Number && p.GetValue<long>() > 0);
+            return new BookAuthorInfo(Text(author, "name") ?? Text(doc, "name")!, bio,
+                photo ? $"https://covers.openlibrary.org/a/olid/{key}-L.jpg?default=false" : null);
+        }
+
+        return null;
+    }
+
+    [System.Text.RegularExpressions.GeneratedRegex("^OL[0-9]+A$")]
+    private static partial System.Text.RegularExpressions.Regex OpenLibraryAuthorKey();
 
     // ---- Open Library ----
 
