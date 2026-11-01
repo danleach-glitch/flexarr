@@ -231,3 +231,13 @@ struct BookDecodingTests {
         #expect(saved.withSpeed(1.5).files == saved.files)
     }
 }
+
+struct BookGenresTests {
+    @Test func genresComeAToZFromTheirOwnCall() async throws {
+        let body = Data(#"[{"name":"science fiction","count":2},{"name":"Biography","count":1}]"#.utf8)
+        let (client, host) = stubbedClient(.init(status: 200, body: body))
+        let genres = try await client.bookGenres("lib")
+        #expect(genres.map(\.name) == ["Biography", "science fiction"])
+        #expect(StubProtocol.recorded(host: host).first?.url?.path == "/api/v1/libraries/lib/book-genres")
+    }
+}

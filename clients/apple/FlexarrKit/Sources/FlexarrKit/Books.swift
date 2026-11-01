@@ -633,6 +633,18 @@ extension FlexarrClient {
         try await get("libraries/\(libraryId)/book-shelves")
     }
 
+    /// The library's genres, A to Z, with how many books are in each. Servers before 0.58 have no such call: their
+    /// shelves carry the genres instead.
+    public func bookGenres(_ libraryId: String) async throws -> [GenreCount] {
+        let genres: [GenreCount]
+        do {
+            genres = try await get("libraries/\(libraryId)/book-genres")
+        } catch FlexarrClientError.http(status: 404, _), FlexarrClientError.unexpectedResponse {
+            genres = try await bookShelves(libraryId).genres
+        }
+        return genres.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+    }
+
     public func books(_ libraryId: String, filter: BookFilter = BookFilter(), skip: Int = 0, take: Int = 60) async throws -> Paged<ItemSummary> {
         var query = filter.query
         if skip > 0 { query.append(.init(name: "skip", value: String(skip))) }

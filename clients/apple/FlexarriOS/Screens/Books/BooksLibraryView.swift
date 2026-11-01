@@ -1,9 +1,10 @@
 import FlexarrKit
 import SwiftUI
 
-/// What an audiobooks library shows: its shelves, or every book, series, author or genre.
+/// What an audiobooks library shows: its shelves, or every book, genre, series or author (in that order, as on the
+/// web and Android).
 enum BookBrowse: String, CaseIterable, Identifiable {
-    case shelves = "Browse", all = "All books", series = "Series", authors = "Authors", genres = "Genres"
+    case shelves = "Browse", all = "All books", genres = "Genres", series = "Series", authors = "Authors"
     var id: String { rawValue }
 }
 
@@ -21,6 +22,7 @@ final class BooksLibraryModel {
     private(set) var seriesTotal = 0
     private(set) var people: [BookPerson] = []
     private(set) var peopleTotal = 0
+    private(set) var genres: [GenreCount] = []
     private(set) var isLoading = false
     private(set) var error: String?
     private(set) var loadedAt: Date?
@@ -44,7 +46,7 @@ final class BooksLibraryModel {
                 }
                 shelves = loaded
             case .genres:
-                shelves = try await client.bookShelves(library.id)
+                genres = try await client.bookGenres(library.id)
             case .all:
                 let page = try await client.books(library.id, filter: filter, take: 60)
                 books = page.items
@@ -104,16 +106,25 @@ final class BooksLibraryModel {
 }
 
 /// An audiobooks library: shelves to start (Continue listening, Next in series, new books, series, authors,
-/// finished, in the profile's order), and the whole library as books, series, authors or genres.
+/// finished, in the profile's order), and the whole library as books, genres, series or authors. Opened for a genre,
+/// it's that genre's books alone, under its name, with no views to switch between: Back goes to the genres.
 struct BooksLibraryView: View {
     @Environment(AppModel.self) private var model
+    @Environment(Router.self) private var router
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(\.scenePhase) private var scenePhase
     @State private var browse: BooksLibraryModel
     @State private var isVisible = false
+    private let genre: String?
 
-    init(library: Library) {
-        _browse = State(initialValue: BooksLibraryModel(library: library))
+    init(library: Library, genre: String? = nil) {
+        let browse = BooksLibraryModel(library: library)
+        if let genre {
+            browse.browse = .all
+            browse.filter = BookFilter(genre: genre)
+        }
+        _browse = State(initialValue: browse)
+        self.genre = genre
     }
 
     private var columns: [GridItem] {
@@ -124,7 +135,7 @@ struct BooksLibraryView: View {
     var body: some View {
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 24) {
-                tabs
+                if genre == nil { tabs }
                 if let error = browse.error, isEmpty {
                     StatusView(state: .failed(error) { Task { await load() } }).frame(height: 400)
                 } else if isEmpty, !browse.isLoading, browse.loadedAt != nil {
@@ -144,7 +155,7 @@ struct BooksLibraryView: View {
             .padding(.bottom, 24)
         }
         .background(RoomBackground(ambient: browse.shelves?.continueListening.first?.glowColor, intensity: 0.18))
-        .navigationTitle(browse.library.name)
+        .navigationTitle(genre ?? browse.library.name)
         .toolbar {
             if browse.browse == .all {
                 ToolbarItem(placement: .topBarTrailing) { filterMenu }
@@ -166,7 +177,7 @@ struct BooksLibraryView: View {
         case .all: browse.books.isEmpty
         case .series: browse.series.isEmpty
         case .authors: browse.people.isEmpty
-        case .genres: browse.shelves?.genres.isEmpty ?? true
+        case .genres: browse.genres.isEmpty
         }
     }
 
@@ -190,7 +201,7 @@ struct BooksLibraryView: View {
         case .all: allBooks
         case .series: seriesGrid
         case .authors: peopleGrid
-        case .genres: genreGrid
+        case .genres: genreList
         }
     }
 
@@ -284,7 +295,8 @@ struct BooksLibraryView: View {
     private var summary: String {
         var parts = [bookCount(browse.booksTotal)]
         if browse.filter.progress != .any { parts.append(browse.filter.progress.label.lowercased()) }
-        if let genre = browse.filter.genre { parts.append(genre) }
+        // A genre's own screen has its name for a title already.
+        if let genre = browse.filter.genre, self.genre == nil { parts.append(genre) }
         return parts.joined(separator: ", ")
     }
 
@@ -308,20 +320,34 @@ struct BooksLibraryView: View {
         .padding(.horizontal, Layout.edge)
     }
 
-    /// The library's genres, A to Z: each opens All books narrowed to it.
-    private var genreGrid: some View {
-        let genres = (browse.shelves?.genres ?? []).sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
-        let minimum: CGFloat = sizeClass == .regular ? 240 : 150
-        return LazyVGrid(columns: [GridItem(.adaptive(minimum: minimum), spacing: 12)], spacing: 12) {
-            ForEach(genres, id: \.name) { genre in
-                Button {
-                    browse.filter = BookFilter(genre: genre.name)
-                    browse.browse = .all
-                } label: { GenreTile(genre: genre, caption: bookCount(genre.count)) }
-                    .buttonStyle(CardButtonStyle())
-                    .accessibilityLabel("\(genre.name), \(bookCount(genre.count))")
+    /// The library's genres, A to Z, as a list (as on Android): each opens a screen of its books.
+    private var genreList: some View {
+        VStack(spacing: 0) {
+            ForEach(Array(browse.genres.enumerated()), id: \.element.name) { index, genre in
+                if index > 0 { Divider().overlay(Color.aisle).padding(.leading, 16) }
+                Button { router.push(.library(browse.library, .title, genre: genre.name)) } label: {
+                    HStack(spacing: 12) {
+                        Text(genre.name)
+                            .font(.body.weight(.medium))
+                            .foregroundStyle(Color.screen)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Text(bookCount(genre.count))
+                            .font(.subheadline)
+                            .foregroundStyle(Color.usher)
+                            .monospacedDigit()
+                        Image(systemName: "chevron.right")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(Color.usher)
+                    }
+                    .padding(.horizontal, 16)
+                    .frame(minHeight: 52)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(genre.name), \(bookCount(genre.count))")
             }
         }
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.seat))
         .padding(.horizontal, Layout.edge)
     }
 
@@ -337,7 +363,7 @@ struct BooksLibraryView: View {
             }
             .pickerStyle(.menu)
             Toggle("Unabridged only", isOn: Binding(get: { browse.filter.abridged == false }, set: { browse.filter.abridged = $0 ? false : nil }))
-            if browse.filter.genre != nil {
+            if browse.filter.genre != nil, genre == nil {
                 Button("All genres") { browse.filter.genre = nil }
             }
             Section("Sort by") {
@@ -359,7 +385,8 @@ struct BooksLibraryView: View {
             Text("No books match.")
                 .font(.body.weight(.medium))
                 .foregroundStyle(Color.usher)
-            Button("Clear filters") { browse.filter = BookFilter(sort: browse.filter.sort, descending: browse.filter.descending) }
+            // A genre's own screen keeps its genre.
+            Button("Clear filters") { browse.filter = BookFilter(genre: genre, sort: browse.filter.sort, descending: browse.filter.descending) }
                 .buttonStyle(ActionButtonStyle(prominent: true))
         }
         .padding(32)
@@ -367,7 +394,7 @@ struct BooksLibraryView: View {
     }
 
     private var isFiltered: Bool {
-        browse.filter.progress != .any || browse.filter.genre != nil || browse.filter.abridged != nil || browse.filter.minHours != nil || browse.filter.maxHours != nil
+        browse.filter.progress != .any || (browse.filter.genre != nil && genre == nil) || browse.filter.abridged != nil || browse.filter.minHours != nil || browse.filter.maxHours != nil
     }
 
     private func load() async {

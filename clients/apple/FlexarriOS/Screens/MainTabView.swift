@@ -140,8 +140,9 @@ struct TabStack<Content: View>: View {
             EmptyView()
         case .library(let library, _, _) where library.type == .music:
             MusicLibraryView(library: library)
-        case .library(let library, _, _) where library.type == .audiobooks:
-            BooksLibraryView(library: library)
+        case .library(let library, _, let genre) where library.type == .audiobooks:
+            // A genre opens a screen of its own, above the library's (Back goes to its genres).
+            BooksLibraryView(library: library, genre: genre)
         case .bookSeries(let id, let name):
             BookSeriesView(id: id, name: name)
         case .library(let library, _, _) where library.type == .podcasts:
