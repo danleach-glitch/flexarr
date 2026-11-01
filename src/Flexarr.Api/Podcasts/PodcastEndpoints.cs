@@ -34,8 +34,15 @@ public sealed record SubscriptionRequest(bool? OldestFirst = null);
 public sealed record PodcastPreferencesDto(bool AutoDownload, int KeepEpisodes, double Speed, bool ShowInSidebar = true,
     int SkipBackSeconds = 30, int SkipForwardSeconds = 30, bool SmartRewind = true)
 {
-    public static PodcastPreferencesDto Of(Profile p) => new(p.PodcastAutoDownload, p.PodcastKeepEpisodes, p.PodcastSpeed, p.PodcastsInSidebar,
-        BookPlayback.SkipOrDefault(p.AudiobookSkipBackSeconds), BookPlayback.SkipOrDefault(p.AudiobookSkipForwardSeconds), p.AudiobookSmartRewind);
+    /// <summary>A profile's podcast settings, read in the query (only their columns); 0 skips are 30 seconds.</summary>
+    public static readonly System.Linq.Expressions.Expression<Func<Profile, PodcastPreferencesDto>> Projection = p =>
+        new PodcastPreferencesDto(p.PodcastAutoDownload, p.PodcastKeepEpisodes, p.PodcastSpeed, p.PodcastsInSidebar,
+            p.AudiobookSkipBackSeconds > 0 ? p.AudiobookSkipBackSeconds : 30, p.AudiobookSkipForwardSeconds > 0 ? p.AudiobookSkipForwardSeconds : 30,
+            p.AudiobookSmartRewind);
+
+    private static readonly Func<Profile, PodcastPreferencesDto> Compiled = Projection.Compile();
+
+    public static PodcastPreferencesDto Of(Profile p) => Compiled(p);
 }
 
 /// <summary>Changes podcast settings; fields left out keep what they were. Speed, skips and smart rewind are books' too.</summary>
@@ -312,7 +319,9 @@ public static class PodcastEndpoints
         });
 
         group.MapGet("/preferences", async (FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
-            await db.Profiles.AsNoTracking().FirstOrDefaultAsync(p => p.Id == profile.Id, ct) is { } me ? Results.Ok(PodcastPreferencesDto.Of(me)) : Results.NotFound());
+            await db.Profiles.Where(p => p.Id == profile.Id).Select(PodcastPreferencesDto.Projection).FirstOrDefaultAsync(ct) is { } preferences
+                ? Results.Ok(preferences)
+                : Results.NotFound());
 
         group.MapPut("/preferences", async (PodcastPreferencesRequest request, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
         {
