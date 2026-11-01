@@ -518,7 +518,22 @@ data class PlaybackPreferences(
     val subtitlePosition: SubtitlePosition? = null,
     /** In films wider than the screen, subtitles go in the black bar below the picture. Absent from servers before 0.53. */
     val subtitlesInBlackBars: Boolean? = null,
+    /**
+     * Books and podcast episodes in progress join Continue watching (on unless switched off). Absent from servers
+     * before 0.58; left out when saving, the server keeps the profile's own.
+     */
+    val listeningInContinue: Boolean? = null,
 )
+
+/** What Home's Continue watching may also hold, for an app that can play it from there: `?listening=books,podcasts`. */
+enum class ContinueListening(val raw: String) {
+    Books("books"), Podcasts("podcasts");
+
+    companion object {
+        /** The query's value, in a steady order. */
+        fun query(kinds: Set<ContinueListening>): String = entries.filter { it in kinds }.joinToString(",") { it.raw }
+    }
+}
 
 @Serializable(with = SubtitleSize.Serializer::class)
 enum class SubtitleSize(override val raw: String, val label: String, val percent: Int) : ForwardCompatibleEnum {

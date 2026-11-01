@@ -67,6 +67,17 @@ val ItemSummary.displayTitle: String get() = if (kind == MediaKind.Episode) seri
 val ItemSummary.episodeSubtitle: String?
     get() = if (kind != MediaKind.Episode) null else listOfNotNull(episodeCode, title).joinToString("  ")
 
+/** A book or podcast episode: listened to, with square artwork, in Continue watching or listening. */
+val ItemSummary.isListening: Boolean get() = kind == MediaKind.Audiobook || kind == MediaKind.PodcastEpisode
+
+/** The second line for a book (its authors) or a podcast episode (its podcast); null for anything else. */
+val ItemSummary.listeningSubtitle: String?
+    get() = when (kind) {
+        MediaKind.Audiobook -> book?.authorLine
+        MediaKind.PodcastEpisode -> seriesTitle?.takeIf { it.isNotBlank() }
+        else -> null
+    }
+
 val ItemSummary.releaseYear: Int?
     get() = year ?: releaseDate?.take(4)?.toIntOrNull() ?: airDate?.take(4)?.toIntOrNull()
 
