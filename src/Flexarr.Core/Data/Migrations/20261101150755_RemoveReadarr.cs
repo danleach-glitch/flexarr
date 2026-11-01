@@ -31,7 +31,7 @@ namespace Flexarr.Core.Data.Migrations
                 UPDATE MediaItems SET MetadataUpdatedAt = NULL
                 WHERE Kind = 'Audiobook' AND Id IN (
                     SELECT MIN(c.MediaItemId) FROM Credits c JOIN People p ON p.Id = c.PersonId
-                    JOIN MediaItems i ON i.Id = c.MediaItemId AND i.Kind = 'Audiobook'
+                    JOIN MediaItems i ON i.Id = c.MediaItemId AND i.Kind = 'Audiobook' AND i.MissingSince IS NULL
                     WHERE c.Role = 'Author' AND p.InfoLocked = 0 AND (p.PhotoSource = 'readarr' OR p.BiographySource = 'readarr')
                     GROUP BY c.PersonId);
                 UPDATE People SET ImageUrl = NULL, PhotoSource = NULL, ImageStamp = NULL, ImageChangedAt = strftime('%Y-%m-%d %H:%M:%f', 'now'), InfoCheckedAt = NULL

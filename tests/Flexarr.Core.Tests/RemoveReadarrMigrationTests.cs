@@ -52,6 +52,10 @@ public sealed class RemoveReadarrMigrationTests : IAsyncLifetime
             await InsertAsync("BookDetails", new() { ["MediaItemId"] = id, ["ArrBookId"] = id == matched ? "12" : null, ["ArrInstance"] = id == matched ? "Bookshelf" : null });
         }
 
+        // The author's book with the lower id is missing from disk: the refresh never sees it, so the other is picked.
+        var (gone, there) = string.CompareOrdinal(plain.ToString().ToUpperInvariant(), second.ToString().ToUpperInvariant()) < 0 ? (plain, second) : (second, plain);
+        await _db.Database.ExecuteSqlRawAsync("UPDATE MediaItems SET MissingSince = '2026-10-31 12:00:00' WHERE Id = {0}", gone.ToString().ToUpperInvariant());
+
         await InsertAsync("People", new() { ["Id"] = fromArr, ["Name"] = "Bram Stoker", ["ImageUrl"] = "https://images.gr-assets.com/a.jpg", ["PhotoSource"] = "readarr",
             ["Biography"] = "From Goodreads.", ["BiographySource"] = "readarr", ["InfoCheckedAt"] = then });
         await InsertAsync("People", new() { ["Id"] = locked, ["Name"] = "Jane Austen", ["ImageUrl"] = "https://images.gr-assets.com/b.jpg", ["PhotoSource"] = "readarr",
@@ -76,11 +80,13 @@ public sealed class RemoveReadarrMigrationTests : IAsyncLifetime
 
         Assert.Equal(["Movie"], (await _db.MediaRequests.AsNoTracking().ToListAsync()).Select(r => r.Kind.ToString()));
 
-        var books = await _db.MediaItems.AsNoTracking().ToDictionaryAsync(i => i.Title);
+        var books = await _db.MediaItems.IgnoreQueryFilters().AsNoTracking().ToDictionaryAsync(i => i.Title);
         Assert.Null(books["Dracula"].MetadataSource); // its source was the app
         Assert.Null(books["Dracula"].MetadataUpdatedAt);
         // One of the author's books is due, so they're looked up again; the other isn't looked up online for nothing.
-        Assert.Single(new[] { books["Emma"], books["Lady Susan"] }, b => b.MetadataUpdatedAt is null);
+        var due = await _db.MediaItems.IgnoreQueryFilters().AsNoTracking().Where(i => i.MetadataUpdatedAt == null).Select(i => i.Id).ToListAsync();
+        Assert.Contains(there, due);
+        Assert.DoesNotContain(gone, due);
         Assert.Equal("Audible", books["Emma"].MetadataSource);
         Assert.NotNull(books["Persuasion"].MetadataUpdatedAt); // a locked author's book isn't
 
