@@ -171,17 +171,21 @@ public static class BookQueries
 
     public static async Task<PagedDto<BookPersonDto>> PeopleAsync(FlexarrDbContext db, Guid libraryId, CreditRole role, string? search, int skip, int take, CancellationToken ct)
     {
-        var books = Books(db, libraryId);
-        var people = db.People.Where(p => p.Credits.Any(c => c.Role == role && books.Any(b => b.Id == c.MediaItemId)));
+        // From the library's book credits, grouped by person, rather than from everyone the server knows.
+        var books = Books(db, libraryId).Select(b => b.Id);
+        var counts = db.Credits.Where(c => c.Role == role && books.Contains(c.MediaItemId))
+            .GroupBy(c => c.PersonId)
+            .Select(g => new { PersonId = g.Key, Count = g.Count() });
+        var people = from c in counts
+                     join p in db.People on c.PersonId equals p.Id
+                     select new { p.Id, p.Name, HasImage = p.ImageUrl != null, c.Count };
         if (search is { Length: > 0 })
         {
             people = people.Where(p => EF.Functions.Like(p.Name, $"%{search.Trim()}%"));
         }
 
         var total = await people.CountAsync(ct);
-        var page = await people.OrderBy(p => p.Name).Skip(skip).Take(take)
-            .Select(p => new { p.Id, p.Name, HasImage = p.ImageUrl != null, Count = p.Credits.Count(c => c.Role == role && books.Any(b => b.Id == c.MediaItemId)) })
-            .ToListAsync(ct);
+        var page = await people.OrderBy(p => p.Name).Skip(skip).Take(take).ToListAsync(ct);
         return new PagedDto<BookPersonDto>(total, [.. page.Select(p => new BookPersonDto(p.Id, p.Name, ArtworkUrls.Person(p.Id, p.HasImage), p.Count))]);
     }
 
