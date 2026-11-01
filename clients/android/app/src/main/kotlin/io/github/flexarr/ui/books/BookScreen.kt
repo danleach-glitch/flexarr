@@ -504,9 +504,9 @@ private fun SeriesPage(model: AppModel, series: BookSeries) {
                     fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher, style = Tabular,
                 )
                 if (next != null) {
-                    val number = series.books.firstOrNull { it.book.id == next.id }?.sequence
+                    // The book by name, as on the web and iPhone.
                     ActionButton(
-                        listOfNotNull(if (next.userData.positionSeconds > 0) "Resume" else "Play", number?.let { "Book $it" }).joinToString(" "),
+                        "${if (next.userData.positionSeconds > 0) "Resume" else "Play"} ${next.title}",
                         onClick = { navigator.playBook(next) },
                         modifier = Modifier.fillMaxWidth(),
                         icon = Icons.Filled.PlayArrow,
