@@ -76,8 +76,8 @@ enum BookPlaces {
 @MainActor
 @Observable
 final class MusicPlayer {
-    /// The speeds a podcast can play at.
-    static let speeds: [Double] = [0.8, 1, 1.2, 1.5, 1.75, 2, 2.5, 3]
+    /// The speeds a podcast can play at: books' choices, as they share one speed.
+    static let speeds: [Double] = BookSpeed.presets
 
     enum RepeatMode {
         case off, all, one
