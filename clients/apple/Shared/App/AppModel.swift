@@ -1071,7 +1071,7 @@ final class AppModel {
         if let preferences = try? await client.podcastPreferences() { podcastPreferences = preferences }
     }
 
-    /// How this profile listens to books, asked again (Settings › Audiobooks).
+    /// How this profile listens to books, asked again (Settings › Podcasts and audiobooks).
     func loadBookListening() async {
         guard let client else { return }
         if let listening = try? await client.bookListening() { bookListening = listening }
