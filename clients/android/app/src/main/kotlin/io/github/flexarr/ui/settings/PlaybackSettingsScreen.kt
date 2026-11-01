@@ -108,11 +108,6 @@ fun PlaybackSettingsScreen(model: AppModel) {
                         }
                         Divider()
                         Toggle("Subtitles in the black bars", current.subtitlesInBlackBars ?: false, { save(current.copy(subtitlesInBlackBars = it), current) })
-                        // Only from a server that has the switch (0.58 and later).
-                        current.listeningInContinue?.let { on ->
-                            Divider()
-                            Toggle("Books and podcasts in Continue watching", on, { save(current.copy(listeningInContinue = it), current, refreshesHome = true) })
-                        }
                     }
                 }
             }

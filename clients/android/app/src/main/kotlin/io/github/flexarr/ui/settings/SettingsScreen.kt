@@ -48,7 +48,6 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import io.github.flexarr.ReviewPrompt
 import io.github.flexarr.ui.library.LibraryMenuEntry
 import androidx.compose.material.icons.filled.Headphones
-import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material.icons.filled.Notifications
@@ -122,10 +121,9 @@ fun SettingsScreen(
     onLibraryOrder: () -> Unit,
     onPlayback: () -> Unit,
     onDownloads: () -> Unit,
-    onPodcasts: () -> Unit,
+    onListening: () -> Unit,
     onNotifications: () -> Unit,
     onTrakt: () -> Unit,
-    onAudiobooks: () -> Unit,
 ) {
     var confirmSignOut by remember { mutableStateOf(false) }
     var choosingProfile by remember { mutableStateOf(false) }
@@ -225,14 +223,10 @@ fun SettingsScreen(
                     Divider()
                     val downloads = model.downloads
                     SettingsLink("Downloads", Icons.Filled.DownloadForOffline, value = if (downloads.bytesUsed > 0) Format.bytes(downloads.bytesUsed) else downloads.quality.shortLabel, onClick = onDownloads)
-                    if (model.podcastStatus?.available == true) {
+                    // With podcasts, or an audiobooks library to listen to (none for a kids profile, or before 0.58).
+                    if (model.podcastStatus?.available == true || model.hasAudiobooks) {
                         Divider()
-                        SettingsLink("Podcasts", Icons.Filled.Mic, value = null, onClick = onPodcasts)
-                    }
-                    // With an audiobooks library to listen to (none for a kids profile, or before 0.58).
-                    if (model.hasAudiobooks) {
-                        Divider()
-                        SettingsLink("Audiobooks", Icons.Filled.Headphones, value = null, onClick = onAudiobooks)
+                        SettingsLink("Podcasts and audiobooks", Icons.Filled.Headphones, value = null, onClick = onListening)
                     }
                     // Only from servers that can save an order (0.54 on), and with more than one place to put in order.
                     val order = model.currentProfile?.libraryOrder
