@@ -1,6 +1,7 @@
-import { memo, use, useState, type CSSProperties } from 'react'
+import { memo, use, useCallback, useState, type CSSProperties } from 'react'
 import { Link, useNavigate } from 'react-router'
 import {
+  clearApiCache,
   deleteBookmark,
   getBookListening,
   imageUrl,
@@ -54,7 +55,12 @@ export function BookPage({ detail, onChange }: { detail: ItemDetail; onChange: (
   const [editing, setEditing] = useState<'details' | 'chapters' | 'match' | null>(null)
   const [startingOver, setStartingOver] = useState(false)
   // A bookmark added or removed in the player shows here too.
-  useBookmarkChanges(item.id, onChange)
+  // Its page is kept a while: fetched afresh, not from there, so the change shows straight away.
+  const bookmarksChanged = useCallback(() => {
+    clearApiCache((path) => path.startsWith(`/items/${item.id}`))
+    onChange()
+  }, [item.id, onChange])
+  useBookmarkChanges(item.id, bookmarksChanged)
 
   if (!book) return <p className="page-message muted">This book can’t be shown by this version of the app.</p>
 

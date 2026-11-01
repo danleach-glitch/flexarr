@@ -20,6 +20,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - **Fix match** finds more books: when a search comes back empty it tries again without a leading "A" or "The", then without the author, which may be the wrong one.
 - On the web, a book's bookmarks show under the chapter they're in, each ready to jump to or remove.
 - On iPhone, iPad and Android each bookmark has a × to delete it, and bookmarks are added from the player, no longer from a book's page.
+- On the web, the player can bookmark a book while it's paused, and a new bookmark shows on the book's page straight away.
 
 ### Podcasts
 - Podcast settings are now **Settings › Podcasts & audiobooks** on the web, iPhone, iPad and Android, and cover audiobooks too: one speed, skip steps and smart rewind for both (a book with its own speed keeps it).

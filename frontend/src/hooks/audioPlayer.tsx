@@ -452,12 +452,15 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   const dismissNextBook = useCallback(() => setNextBook(null), [])
   const addBookmark = useCallback(
     async (note?: string) => {
-      if (!book) return
-      const added = await saveBookmark(book.itemId, Math.floor(engine().currentTime()), note?.trim() || undefined)
-      setBook((b) => (b && b.itemId === book.itemId ? { ...b, bookmarks: [...b.bookmarks, added] } : b))
-      announceBookmarks(book.itemId, true)
+      // Paused too: a book put back paused (a reload) hasn't loaded its manifest yet, but it has its place.
+      const bookId = book?.itemId ?? (isBook(current) ? current.id : undefined)
+      if (!bookId) return
+      const at = engine().currentTime() || resumeAt.current || position.current
+      const added = await saveBookmark(bookId, Math.floor(at), note?.trim() || undefined)
+      setBook((b) => (b && b.itemId === bookId ? { ...b, bookmarks: [...b.bookmarks, added] } : b))
+      announceBookmarks(bookId, true)
     },
-    [book, engine],
+    [book, current, engine],
   )
   const removeBookmark = useCallback(async (id: string) => {
     await deleteBookmark(id)
