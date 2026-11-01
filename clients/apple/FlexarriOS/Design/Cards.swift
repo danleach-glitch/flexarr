@@ -279,7 +279,7 @@ struct ItemContextMenu: View {
         }
         // Forgets the place without marking it finished.
         Button { Task { await model.removeFromContinueWatching(item) } } label: {
-            Label("Remove from Continue Watching", systemImage: "minus.circle")
+            Label("Remove", systemImage: "minus.circle")
         }
     }
 
@@ -321,7 +321,7 @@ struct ItemContextMenu: View {
             }
         } else if inContinueWatching, item.kind == .episode, !watched {
             Button { Task { await model.removeFromContinueWatching(item) } } label: {
-                Label("Remove from Continue Watching", systemImage: "minus.circle")
+                Label("Remove", systemImage: "minus.circle")
             }
         }
         if marks, item.kind == .episode, item.seriesId != nil, let show = item.seriesTitle {
