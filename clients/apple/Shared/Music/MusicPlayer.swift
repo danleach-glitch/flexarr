@@ -135,6 +135,9 @@ final class MusicPlayer {
     private(set) var jumpOffer: BookProgress?
     /// The book has ended and its series has another: offered with a Play button, never started alone.
     private(set) var nextBookOffer: ItemSummary?
+    /// What adding a bookmark came to, shown for a moment: "Bookmarked 1:23:04", or that it couldn't be.
+    private(set) var bookmarkNotice: BookmarkNotice?
+    @ObservationIgnored private var noticeClear: Task<Void, Never>?
     @ObservationIgnored private var bookTimeline: BookTimeline?
     /// Which of the book's files is in the player.
     @ObservationIgnored private var bookFile = 0
@@ -387,6 +390,11 @@ final class MusicPlayer {
         jumpOffer = nil
     }
 
+    /// Not now: the next book's offer goes, and the book that ended stays, ready to play again.
+    func dismissNextBook() {
+        nextBookOffer = nil
+    }
+
     /// Plays the next book in the series, offered at the end of this one.
     func playNextBook() {
         guard let next = nextBookOffer, let client else { return }
@@ -394,13 +402,32 @@ final class MusicPlayer {
         playBook(next, client: client)
     }
 
-    /// A bookmark where the book is now, with an optional note.
+    /// A bookmark where the book is now, with an optional note; a tap and a moment's notice say it's done (or not).
     @discardableResult
     func addBookmark(note: String? = nil) async -> Bookmark? {
         guard isBook, let id = current?.id, let client else { return nil }
-        guard let mark = try? await client.addBookmark(id, positionSeconds: position, note: note) else { return nil }
-        bookmarks.append(mark)
-        return mark
+        let at = position
+        do {
+            let mark = try await client.addBookmark(id, positionSeconds: at, note: note)
+            bookmarks.append(mark)
+            show(.added(at))
+            return mark
+        } catch {
+            log.warning("Couldn't add a bookmark", error: error)
+            show(.failed(error))
+            return nil
+        }
+    }
+
+    private func show(_ notice: BookmarkNotice) {
+        bookmarkNotice = notice
+        notice.tap()
+        noticeClear?.cancel()
+        noticeClear = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(notice.isError ? 4 : 2))
+            guard !Task.isCancelled else { return }
+            self?.bookmarkNotice = nil
+        }
     }
 
     func deleteBookmark(_ mark: Bookmark) async {
@@ -1221,6 +1248,28 @@ final class MusicPlayer {
         return profile
         #else
         .iOS(hdr: false)
+        #endif
+    }
+}
+
+/// What adding a bookmark came to: where it was put, or why it wasn't (bookmarks need the server).
+struct BookmarkNotice: Equatable {
+    let text: String
+    let isError: Bool
+
+    static func added(_ position: Double) -> BookmarkNotice {
+        BookmarkNotice(text: "Bookmarked \(Format.timestamp(position))", isError: false)
+    }
+
+    static func failed(_ error: Error) -> BookmarkNotice {
+        let offline = (error as? URLError).map { [.notConnectedToInternet, .networkConnectionLost, .cannotConnectToHost, .timedOut, .cannotFindHost].contains($0.code) } ?? false
+        return BookmarkNotice(text: offline ? "No connection: bookmark not added" : "Bookmark not added", isError: true)
+    }
+
+    /// A light tap for one added, the warning buzz for one that wasn't.
+    func tap() {
+        #if os(iOS)
+        UINotificationFeedbackGenerator().notificationOccurred(isError ? .error : .success)
         #endif
     }
 }

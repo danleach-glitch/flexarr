@@ -71,6 +71,10 @@ struct NowPlayingView: View {
         .task(id: music.current?.id) {
             await playing.load(music.isPodcast ? music.current?.id : nil, client: model.client)
         }
+        .overlay(alignment: .top) {
+            if let notice = music.bookmarkNotice { NoticeCapsule(notice: notice).padding(.top, 28) }
+        }
+        .animation(.easeInOut(duration: 0.25), value: music.bookmarkNotice)
         .task(id: music.artwork) { artworkGlow = music.artwork?.averageColor.map { Color(rgb: $0.glow) } }
         .onChange(of: music.current == nil) { _, empty in if empty { dismiss() } }
     }
@@ -338,7 +342,7 @@ struct NowPlayingView: View {
                 music.acceptJump()
             } dismiss: { music.dismissJump() }
         } else if let next = music.nextBookOffer {
-            offerBar(text: next.title, action: "Play", icon: "play.fill") { music.playNextBook() } dismiss: { music.stop() }
+            offerBar(text: next.title, action: "Play", icon: "play.fill") { music.playNextBook() } dismiss: { music.dismissNextBook() }
         }
     }
 
@@ -354,13 +358,19 @@ struct NowPlayingView: View {
                 .buttonStyle(.borderedProminent)
                 .tint(Color.silver)
                 .foregroundStyle(Color.room)
-            Button(action: dismiss) { Image(systemName: "xmark").font(.footnote.weight(.semibold)).foregroundStyle(Color.usher) }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Not now")
+            Button(action: dismiss) {
+                Image(systemName: "xmark")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(Color.usher)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Not now")
         }
         .padding(.leading, 16)
-        .padding(.trailing, 12)
-        .padding(.vertical, 8)
+        .padding(.trailing, 2)
+        .padding(.vertical, 2)
         .background(Capsule().fill(Color.screen.opacity(0.1)))
         .transition(.opacity)
     }

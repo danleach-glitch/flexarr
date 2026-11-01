@@ -204,3 +204,22 @@ extension ItemSummary {
         return Format.runtime(seconds: duration)
     }
 }
+
+/// A moment's word at the top of the screen: a bookmark added, or why it wasn't.
+struct NoticeCapsule: View {
+    let notice: BookmarkNotice
+
+    var body: some View {
+        Label(notice.text, systemImage: notice.isError ? "exclamationmark.triangle.fill" : "bookmark.fill")
+            .font(.subheadline.weight(.semibold))
+            .monospacedDigit()
+            .foregroundStyle(notice.isError ? Color.room : Color.screen)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(Capsule().fill(notice.isError ? Color.danger : Color.seat))
+            .shadow(color: .black.opacity(0.3), radius: 12, y: 4)
+            .transition(.move(edge: .top).combined(with: .opacity))
+            .accessibilityAddTraits(.updatesFrequently)
+            .onAppear { UIAccessibility.post(notification: .announcement, argument: notice.text) }
+    }
+}
