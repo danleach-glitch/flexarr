@@ -52,7 +52,7 @@ public static partial class PlaybackEndpoints
         // Each profile's own: anyone signed in as it may change them, admin or not.
         api.MapGet("/me/playback-preferences", async (FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
             await db.Profiles.AsNoTracking().Where(p => p.Id == profile.Id)
-                .Select(p => new PlaybackPreferencesDto(p.AutoPlayNext, p.SkipIntros, p.SkipRecaps, p.SkipCredits, p.SubtitleSize, p.SubtitlePosition, p.SubtitlesInBlackBars)).FirstOrDefaultAsync(ct) is { } found
+                .Select(p => new PlaybackPreferencesDto(p.AutoPlayNext, p.SkipIntros, p.SkipRecaps, p.SkipCredits, p.SubtitleSize, p.SubtitlePosition, p.SubtitlesInBlackBars, p.ListeningInContinue)).FirstOrDefaultAsync(ct) is { } found
                 ? Results.Ok(found)
                 : Results.NotFound()).WithTags("Playback");
 
@@ -70,10 +70,12 @@ public static partial class PlaybackEndpoints
             found.SubtitleSize = preferences.SubtitleSize ?? found.SubtitleSize;
             found.SubtitlePosition = preferences.SubtitlePosition ?? found.SubtitlePosition;
             found.SubtitlesInBlackBars = preferences.SubtitlesInBlackBars ?? found.SubtitlesInBlackBars;
+            found.ListeningInContinue = preferences.ListeningInContinue ?? found.ListeningInContinue;
             await db.SaveChangesAsync(ct);
             return Results.Ok(preferences with
             {
                 SubtitleSize = found.SubtitleSize, SubtitlePosition = found.SubtitlePosition, SubtitlesInBlackBars = found.SubtitlesInBlackBars,
+                ListeningInContinue = found.ListeningInContinue,
             });
         }).WithTags("Playback");
 

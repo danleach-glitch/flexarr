@@ -79,6 +79,12 @@ public sealed class Profile
     /// <summary>After a pause, a book picks up a little earlier: more the longer the pause.</summary>
     public bool AudiobookSmartRewind { get; set; } = true;
 
+    /// <summary>
+    /// Home's Continue watching row also holds the audiobooks and podcast episodes this profile is part-way through
+    /// (in apps that ask for them), and becomes "Continue watching or listening".
+    /// </summary>
+    public bool ListeningInContinue { get; set; } = true;
+
     /// <summary>The TV library shows this profile requests are added to; null, wherever Seerr adds them by default.</summary>
     public Guid? RequestShowsLibraryId { get; set; }
 
