@@ -484,3 +484,108 @@
   max-width: 44rem;
   margin-top: 12px;
 }
+
+.person-edit {
+  margin-top: 12px;
+}
+
+/* ---------- Edit a person ---------- */
+
+.person-editor {
+  width: min(640px, 100%);
+  max-height: 84vh;
+  overflow-y: auto;
+  display: grid;
+  gap: 16px;
+}
+
+.person-editor h2 {
+  font-size: var(--step-3);
+}
+
+.person-editor-photos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 12px;
+}
+
+.person-editor-photos > p {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.person-editor-photo,
+.person-editor-upload {
+  display: grid;
+  gap: 6px;
+  padding: 6px;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  background: none;
+  color: var(--usher);
+  font-size: var(--step--1);
+  text-align: left;
+  cursor: pointer;
+}
+
+.person-editor-photo img {
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  border-radius: var(--radius-art);
+  background: var(--well);
+}
+
+.person-editor-photo > span {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.person-editor-photo[aria-checked='true'] {
+  border-color: var(--ambient);
+  color: var(--screen);
+}
+
+.person-editor .tag.keep {
+  border-color: var(--go);
+  color: var(--go);
+}
+
+/* The upload tile is a dashed empty frame the size of a photo. */
+.person-editor-upload {
+  place-items: center;
+  align-self: start;
+  aspect-ratio: 2 / 3;
+  border: 2px dashed var(--aisle);
+  color: var(--screen);
+  font-weight: 700;
+}
+
+.person-editor textarea {
+  width: 100%;
+  resize: vertical;
+  font: inherit;
+  font-weight: 400;
+}
+
+.person-editor-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: -8px 0 0;
+  font-size: var(--step--1);
+}
+
+.person-editor-lock {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-weight: 700;
+}
+
+.person-editor .form-actions {
+  margin-top: 0;
+}

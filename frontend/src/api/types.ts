@@ -203,6 +203,29 @@ export interface Person {
   credits: { item: ItemSummary; role: CreditRole; character: string | null }[]
   /** An author's or narrator's biography. Absent from servers before 0.58. */
   biography?: string | null
+  /** An admin fixed this author by hand, so refreshes leave them alone. Absent from servers before 0.58. */
+  locked?: boolean
+  /** Where the photo came from (a PersonSource, or a newer one). Absent from servers before 0.58. */
+  photoSource?: string | null
+  /** Where the biography came from. Absent from servers before 0.58. */
+  biographySource?: string | null
+}
+
+/** Where an author's photo or biography came from; servers may add more. */
+export type PersonSource = 'folder' | 'readarr' | 'audible' | 'openlibrary' | 'tmdb' | 'tvmaze' | 'upload' | 'manual'
+
+/** The photos and biographies an admin can choose from for an author: one of each per source at most. */
+export interface PersonCandidates {
+  photos: { source: string; image: string }[]
+  biographies: { source: string; text: string }[]
+}
+
+/** An admin's change to an author. Choosing a photo or writing a biography locks them unless `locked` is false. */
+export interface PersonUpdate {
+  /** A candidate's source. */
+  photo?: string
+  biography?: string | null
+  locked?: boolean
 }
 
 export interface HomeRow {
