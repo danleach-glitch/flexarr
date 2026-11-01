@@ -363,6 +363,34 @@ public sealed class AudiobookScannerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task TwoMissingCopies_HandOverToOneBook()
+    {
+        // Two copies of one book, each listened to, both replaced by one new copy.
+        Touch("Andy Weir/Project Hail Mary/a.m4b", "Andy Weir/Project Hail Mary (2)/b.m4b");
+        foreach (var file in new[] { "a.m4b", "b.m4b", "c.m4b" })
+        {
+            _probe.Tags[file] = new() { ["album"] = "Project Hail Mary", ["artist"] = "Andy Weir", ["asin"] = "B08G9PRS1K" };
+        }
+
+        await ScanAsync();
+        var old = await _db.MediaItems.OrderBy(i => i.Path).ToListAsync();
+        Assert.Equal(2, old.Count);
+        _db.PlaybackStates.AddRange(new PlaybackState { MediaItemId = old[0].Id, PositionSeconds = 100 }, new PlaybackState { MediaItemId = old[1].Id, PositionSeconds = 200 });
+        _db.ShowPlaybackSpeeds.AddRange(new ShowPlaybackSpeed { SeriesId = old[0].Id, Speed = 1.2 }, new ShowPlaybackSpeed { SeriesId = old[1].Id, Speed = 1.5 });
+        await _db.SaveChangesAsync();
+        Directory.Delete(Path.Combine(Books, "Andy Weir/Project Hail Mary"), recursive: true);
+        Directory.Delete(Path.Combine(Books, "Andy Weir/Project Hail Mary (2)"), recursive: true);
+        Touch("Andy Weir/Project Hail Mary (2021)/c.m4b");
+
+        await ScanAsync();
+
+        var book = await _db.MediaItems.AsNoTracking().SingleAsync(i => i.MissingSince == null);
+        Assert.Contains((await _db.PlaybackStates.AsNoTracking().SingleAsync(p => p.MediaItemId == book.Id)).PositionSeconds, new[] { 100.0, 200.0 }); // one copy's, whichever went first
+        Assert.Contains((await _db.ShowPlaybackSpeeds.AsNoTracking().SingleAsync(s => s.SeriesId == book.Id)).Speed, new[] { 1.2, 1.5 });
+        Assert.Equal(2, await _db.MediaItems.IgnoreQueryFilters().CountAsync(i => i.HandedOverAt != null));
+    }
+
+    [Fact]
     public async Task ARenamedFolderWithoutIds_IsMatchedByTitleAndAuthor()
     {
         Touch("Kurt Vonnegut/Cat's Cradle/a.mp3");

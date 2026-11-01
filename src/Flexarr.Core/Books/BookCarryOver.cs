@@ -38,9 +38,10 @@ public static class BookCarryOver
 
             carried += await HandOverAsync(db, from.Id, to.Id, ct).ConfigureAwait(false);
             handedOver.Add(from.Id);
+            // Saved before the next: two missing copies may hand over to one book, and each must see what the other gave.
+            await db.SaveChangesAsync(ct).ConfigureAwait(false);
         }
 
-        await db.SaveChangesAsync(ct).ConfigureAwait(false);
         if (handedOver.Count > 0)
         {
             var now = DateTime.UtcNow;
