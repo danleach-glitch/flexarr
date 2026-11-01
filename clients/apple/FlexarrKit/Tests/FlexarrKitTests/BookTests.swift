@@ -138,6 +138,13 @@ struct BookDecodingTests {
         // Every shelf switched off.
         let none = try FlexarrClient.decoder.decode(BookShelves.self, from: Data((shelves + #","order":[]}"#).utf8))
         #expect(none.shelfOrder.isEmpty)
+        #expect(none.shownShelves.isEmpty)
+
+        // Only empty shelves left on: nothing to show either, but a shelf with books on it is shown.
+        #expect(newer.shownShelves.isEmpty)
+        let recent = shelves.replacingOccurrences(of: #""recentlyAdded":[]"#, with: #""recentlyAdded":[\#(BookJSON.summary)]"#)
+        let some = try FlexarrClient.decoder.decode(BookShelves.self, from: Data((recent + #","order":["continue","recent"]}"#).utf8))
+        #expect(some.shownShelves == [.recentlyAdded])
     }
 
     @Test func searchAndPersonHaveBooksFromNewerServers() throws {

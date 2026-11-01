@@ -52,7 +52,8 @@ struct BookCard: View {
 }
 
 /// An audiobooks library's tab: Continue listening, Next in series, Recently added, series, authors and finished books,
-/// each a row, in the profile's order (Settings › Home & browse).
+/// each a row, in the profile's order (Settings › Home & browse). With no shelf left to show (all switched off, or only
+/// empty ones on), every book in a grid instead.
 struct BooksLibraryView: View {
     @Environment(AppModel.self) private var model
     @Environment(Router.self) private var router
@@ -64,6 +65,13 @@ struct BooksLibraryView: View {
     @State private var loadedAt: Date?
     @State private var loadedToken: Int?
     @State private var isVisible = false
+    /// Every book (paged, by title), loaded only when no shelf has anything to show.
+    @State private var books: [ItemSummary] = []
+    @State private var booksTotal = 0
+    @State private var isLoadingMore = false
+
+    private static let pageSize = 60
+    private let columns = Array(repeating: GridItem(.fixed(Layout.posterWidth), spacing: Layout.gridSpacing, alignment: .top), count: 6)
 
     var body: some View {
         ScrollView(.vertical) {
@@ -76,11 +84,14 @@ struct BooksLibraryView: View {
                         .padding(.top, 20)
                 }
                 if let shelves {
-                    if shelves.isEmpty {
+                    if !shelves.shownShelves.isEmpty {
+                        // In the profile's order, without the shelves it switched off.
+                        ForEach(shelves.shownShelves, id: \.self) { shelf(shelf: $0, shelves) }
+                    } else if !books.isEmpty {
+                        allBooks
+                    } else {
                         StatusView(state: .empty("No books yet.")).frame(height: 500)
                     }
-                    // In the profile's order, without the shelves it switched off.
-                    ForEach(shelves.shelfOrder, id: \.self) { shelf(shelf: $0, shelves) }
                 } else if let error {
                     StatusView(state: .failed(error) { Task { await load() } }).frame(height: 500)
                 } else {
@@ -90,7 +101,7 @@ struct BooksLibraryView: View {
             .padding(.bottom, 80)
         }
         .scrollClipDisabled()
-        .background(RoomBackground(ambient: shelves?.continueListening.first?.glowColor ?? shelves?.recentlyAdded.first?.glowColor, intensity: 0.18))
+        .background(RoomBackground(ambient: shelves?.continueListening.first?.glowColor ?? shelves?.recentlyAdded.first?.glowColor ?? books.first?.glowColor, intensity: 0.18))
         .task(id: model.refreshToken) {
             guard loadedToken != model.refreshToken || Freshness.isStale(loadedAt) else { return }
             await load()
@@ -157,11 +168,45 @@ struct BooksLibraryView: View {
         }
     }
 
+    private var allBooks: some View {
+        LazyVGrid(columns: columns, alignment: .leading, spacing: 56) {
+            ForEach(Array(books.enumerated()), id: \.element.id) { index, book in
+                BookCard(item: book) { router.push(.item(book)) }
+                    .onAppear { loadMoreIfNeeded(at: index) }
+            }
+        }
+        .padding(.horizontal, Layout.edge)
+        .padding(.top, 20)
+        .focusSection()
+    }
+
+    private func loadMoreIfNeeded(at index: Int) {
+        guard let client = model.client, !isLoadingMore, books.count < booksTotal, index >= books.count - 18 else { return }
+        isLoadingMore = true
+        let skip = books.count
+        Task {
+            defer { isLoadingMore = false }
+            guard let page = try? await client.books(library.id, skip: skip, take: Self.pageSize), skip == books.count else { return }
+            let known = Set(books.map(\.id))
+            books += page.items.filter { !known.contains($0.id) }
+            booksTotal = page.total
+        }
+    }
+
     private func load() async {
         guard let client = model.client else { return }
         let token = model.refreshToken
         do {
-            shelves = try await client.bookShelves(library.id)
+            let loaded = try await client.bookShelves(library.id)
+            if loaded.shownShelves.isEmpty {
+                let page = try await client.books(library.id, take: Self.pageSize)
+                books = page.items
+                booksTotal = page.total
+            } else {
+                books = []
+                booksTotal = 0
+            }
+            shelves = loaded
             error = nil
             loadedAt = Date()
             loadedToken = token

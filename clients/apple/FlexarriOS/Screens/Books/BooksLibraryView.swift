@@ -34,7 +34,16 @@ final class BooksLibraryModel {
         defer { isLoading = false }
         do {
             switch browse {
-            case .shelves, .genres:
+            case .shelves:
+                let loaded = try await client.bookShelves(library.id)
+                // No shelf left to show (all switched off, or only empty ones on): the whole library instead.
+                if loaded.shownShelves.isEmpty {
+                    let page = try await client.books(library.id, filter: filter, take: 60)
+                    books = page.items
+                    booksTotal = page.total
+                }
+                shelves = loaded
+            case .genres:
                 shelves = try await client.bookShelves(library.id)
             case .all:
                 let page = try await client.books(library.id, filter: filter, take: 60)
@@ -60,7 +69,8 @@ final class BooksLibraryModel {
     func loadMoreIfNeeded(at index: Int, client: FlexarrClient) {
         guard !isLoading else { return }
         switch browse {
-        case .all where index >= books.count - 10 && books.count < booksTotal:
+        case .all where index >= books.count - 10 && books.count < booksTotal,
+             .shelves where showsAllBooks && index >= books.count - 10 && books.count < booksTotal:
             more { [library, filter, books] in
                 let page = try await client.books(library.id, filter: filter, skip: books.count, take: 60)
                 self.books += page.items
@@ -80,6 +90,9 @@ final class BooksLibraryModel {
             break
         }
     }
+
+    /// The Browse tab has no shelf to show, so it shows every book (as All books does).
+    var showsAllBooks: Bool { browse == .shelves && shelves?.shownShelves.isEmpty == true }
 
     private func more(_ work: @escaping @MainActor () async throws -> Void) {
         isLoading = true
@@ -149,7 +162,7 @@ struct BooksLibraryView: View {
 
     private var isEmpty: Bool {
         switch browse.browse {
-        case .shelves: browse.shelves?.isEmpty ?? true
+        case .shelves: browse.showsAllBooks ? browse.books.isEmpty : browse.shelves?.isEmpty ?? true
         case .all: browse.books.isEmpty
         case .series: browse.series.isEmpty
         case .authors: browse.people.isEmpty
@@ -173,7 +186,7 @@ struct BooksLibraryView: View {
     @ViewBuilder
     private var content: some View {
         switch browse.browse {
-        case .shelves: shelves
+        case .shelves: if browse.showsAllBooks { allBooks } else { shelves }
         case .all: allBooks
         case .series: seriesGrid
         case .authors: peopleGrid

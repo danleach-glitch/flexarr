@@ -345,6 +345,21 @@ public struct BookShelves: Codable, Sendable {
         var seen = Set<BookShelf>()
         return order.compactMap(BookShelf.init(rawValue:)).filter { seen.insert($0).inserted }
     }
+
+    /// The shelves in `shelfOrder` with something on them. Empty means the front page would be blank (every shelf
+    /// switched off, or only empty ones left on), so the apps show the whole library instead.
+    public var shownShelves: [BookShelf] { shelfOrder.filter(hasBooks) }
+
+    public func hasBooks(_ shelf: BookShelf) -> Bool {
+        switch shelf {
+        case .continueListening: !continueListening.isEmpty
+        case .nextInSeries: !nextInSeries.isEmpty
+        case .recentlyAdded: !recentlyAdded.isEmpty
+        case .series: !series.isEmpty
+        case .authors: !authors.isEmpty
+        case .finished: !finished.isEmpty
+        }
+    }
 }
 
 /// One of an audiobooks library's front-page shelves, as `BookShelves.order` names it.
