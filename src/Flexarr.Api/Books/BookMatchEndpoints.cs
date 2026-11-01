@@ -2,6 +2,7 @@ using Flexarr.Api.Security;
 using Flexarr.Core.Books;
 using Flexarr.Core.Data;
 using Flexarr.Core.Media;
+using Flexarr.Core.Probing;
 using Flexarr.Metadata;
 using Flexarr.Metadata.Books;
 using Microsoft.EntityFrameworkCore;
@@ -21,6 +22,20 @@ public sealed record ChapterEditRequest(IReadOnlyList<ChapterEdit> Chapters);
 public sealed record ChapterEdit(string Title, double StartSeconds);
 
 public sealed record ChapterShiftRequest(double Seconds);
+
+/// <summary>A book's details as edited by hand. Empty lists clear (no narrators, no series). Locked: rescans and refreshes keep them.</summary>
+public sealed record BookEditRequest(
+    string Title,
+    string? Subtitle = null,
+    IReadOnlyList<string>? Authors = null,
+    IReadOnlyList<string>? Narrators = null,
+    IReadOnlyList<BookEditSeries>? Series = null,
+    IReadOnlyList<string>? Genres = null,
+    string? Overview = null,
+    int? Year = null,
+    bool Locked = true);
+
+public sealed record BookEditSeries(string Name, string? Sequence = null);
 
 /// <summary>Audible's chapters, moved by some seconds (its times often run ahead by the length of the opening credits).</summary>
 public sealed record AudibleChaptersRequest(double ShiftSeconds = 0);
@@ -67,6 +82,29 @@ public static class BookMatchEndpoints
             await refresher.FillAuthorsAsync(book, chosen.AuthorAsins ?? [], ct);
             book.MatchLocked = true;
             book.MetadataSource = chosen.Provider;
+            book.MetadataUpdatedAt = DateTime.UtcNow;
+            await db.SaveChangesAsync(ct);
+            return Results.NoContent();
+        });
+
+        // Edit a book's details by hand. Added in 0.58.
+        item.MapPut("/book-details", async (Guid id, BookEditRequest request, FlexarrDbContext db, IMediaProbe probe, ILoggerFactory loggers, CancellationToken ct) =>
+        {
+            if (Invalid(request) is { } problem)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["book"] = [problem] });
+            }
+
+            var book = await db.MediaItems.Include(i => i.Book).Include(i => i.Genres).Include(i => i.Credits).ThenInclude(c => c.Person)
+                .FirstOrDefaultAsync(i => i.Id == id && i.Kind == MediaKind.Audiobook, ct);
+            if (book is null)
+            {
+                return Results.NotFound();
+            }
+
+            var edit = new BookEdit(request.Title, request.Subtitle, request.Authors ?? [], request.Narrators ?? [],
+                [.. (request.Series ?? []).Select(s => new SeriesPart(s.Name, s.Sequence))], request.Genres ?? [], request.Overview, request.Year, request.Locked);
+            await new BookAssembler(db, probe, loggers.CreateLogger<BookAssembler>()).EditAsync(book, edit, ct);
             book.MetadataUpdatedAt = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
@@ -165,6 +203,31 @@ public static class BookMatchEndpoints
     private static IResult? BadShift(double seconds) => !double.IsFinite(seconds) || Math.Abs(seconds) > 600
         ? Results.ValidationProblem(new Dictionary<string, string[]> { ["shiftSeconds"] = ["Shift by up to ten minutes either way."] })
         : null;
+
+    private const int MaxNames = 20;
+
+    /// <summary>What's wrong with an edit, or null: a title, sensible lengths, a year that could be one.</summary>
+    internal static string? Invalid(BookEditRequest r)
+    {
+        static bool Names(IReadOnlyList<string>? names) => names is null || (names.Count <= MaxNames && names.All(n => n is not null && n.Length <= 200));
+        if (string.IsNullOrWhiteSpace(r.Title) || r.Title.Length > 500 || r.Subtitle?.Length > 500)
+        {
+            return "A title of up to 500 characters.";
+        }
+
+        if (!Names(r.Authors) || !Names(r.Narrators) || !Names(r.Genres)
+            || r.Series is { } series && (series.Count > MaxNames || series.Any(s => s?.Name is null || s.Name.Length > 200 || s.Sequence?.Length > 20)))
+        {
+            return "Up to 20 authors, narrators, series and genres, each up to 200 characters.";
+        }
+
+        if (r.Overview?.Length > 20_000)
+        {
+            return "A description of up to 20,000 characters.";
+        }
+
+        return r.Year is < 1 or > 3000 ? "A year such as 2016." : null;
+    }
 
     private static BookMatchDto ToDto(BookMatch m) => new(m.Provider, m.Id, m.Title, m.Subtitle, m.Authors, m.Narrators,
         m.Series.Count > 0 ? m.Series[0].Sequence is null ? m.Series[0].Name : $"{m.Series[0].Name} #{m.Series[0].Sequence}" : null, m.ReleaseDate?.Year, m.Cover, m.DurationSeconds);

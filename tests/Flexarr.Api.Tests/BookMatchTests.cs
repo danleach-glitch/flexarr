@@ -55,6 +55,43 @@ public class BookMatchTests(FlexarrApiFactory factory) : IClassFixture<FlexarrAp
     }
 
     [Fact]
+    public async Task Edit_ReplacesTheDetails_DropsFormatGenres_AndLocks()
+    {
+        using var app = Serve();
+        var client = Client(app);
+        var book = await SeedAsync(app, "TMC (rip)", 3600, series: ("Thursday Murder Club", "7"));
+
+        var bad = await client.PutAsJsonAsync(new Uri($"/api/v1/items/{book}/book-details", UriKind.Relative), new { title = " " });
+        var saved = await client.PutAsJsonAsync(new Uri($"/api/v1/items/{book}/book-details", UriKind.Relative), new
+        {
+            title = "The Thursday Murder Club", subtitle = "A Novel", authors = new[] { "Richard Osman" }, narrators = new[] { "Lesley Manville" },
+            series = new[] { new { name = "Thursday Murder Club", sequence = "1" } }, genres = new[] { "Audiobook", "Mystery", "Audiobooks" },
+            overview = "Four friends.", year = 2020, locked = true,
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, bad.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, saved.StatusCode);
+        using var scope = app.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        var item = await db.MediaItems.Include(i => i.Book).Include(i => i.Genres).Include(i => i.Credits).ThenInclude(c => c.Person).SingleAsync(i => i.Id == book);
+        Assert.Equal(("The Thursday Murder Club", "A Novel", 2020, true), (item.Title, item.Book!.Subtitle!, item.Year!.Value, item.MatchLocked));
+        Assert.Equal(["Mystery"], item.Genres.Select(g => g.Name));
+        Assert.Equal(["Richard Osman"], item.Credits.Where(c => c.Role == CreditRole.Author).Select(c => c.Person!.Name));
+        var entry = await db.BookSeriesEntries.Include(e => e.Series).SingleAsync(e => e.BookId == book);
+        Assert.Equal(("Thursday Murder Club", "1"), (entry.Series!.Name, entry.Sequence!));
+
+        // Emptied lists clear: no series, no narrators.
+        var cleared = await client.PutAsJsonAsync(new Uri($"/api/v1/items/{book}/book-details", UriKind.Relative),
+            new { title = "The Thursday Murder Club", authors = new[] { "Richard Osman" }, locked = false });
+        Assert.Equal(HttpStatusCode.NoContent, cleared.StatusCode);
+        using var after = app.Services.CreateScope();
+        var db2 = after.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        Assert.False(await db2.BookSeriesEntries.AnyAsync(e => e.BookId == book));
+        Assert.False(await db2.Credits.AnyAsync(c => c.MediaItemId == book && c.Role == CreditRole.Narrator));
+        Assert.False((await db2.MediaItems.SingleAsync(i => i.Id == book)).MatchLocked);
+    }
+
+    [Fact]
     public async Task Chapters_RenamedAndRetimed_ThenShifted_ThenAudibles()
     {
         using var app = Serve();

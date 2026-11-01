@@ -251,6 +251,79 @@ public sealed partial class BookAssembler(FlexarrDbContext db, IMediaProbe probe
         await SetGenresAsync(book, info.Genres, ct).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Stores a book's details as edited by hand: unlike a scan, what's left empty is cleared (no narrators, no series).
+    /// <paramref name="book"/> needs its book details, credits (with people) and genres loaded.
+    /// </summary>
+    public async Task EditAsync(MediaItem book, BookEdit edit, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(book);
+        ArgumentNullException.ThrowIfNull(edit);
+        var details = book.Book ??= new BookDetails { MediaItemId = book.Id };
+        book.Title = edit.Title.Trim();
+        book.SortTitle = SortTitle.For(book.Title);
+        details.Subtitle = Blank(edit.Subtitle);
+        book.Overview = Blank(edit.Overview);
+        if (book.Year != edit.Year)
+        {
+            book.Year = edit.Year;
+            book.ReleaseDate = book.ReleaseDate?.Year == edit.Year ? book.ReleaseDate : null;
+        }
+
+        await ReplaceCreditsAsync(book, CreditRole.Author, edit.Authors, ct).ConfigureAwait(false);
+        await ReplaceCreditsAsync(book, CreditRole.Narrator, edit.Narrators, ct).ConfigureAwait(false);
+
+        var parts = edit.Series.Where(p => p.Name.Trim().Length > 0).Select(p => new SeriesPart(p.Name.Trim(), Blank(p.Sequence))).ToList();
+        if (parts.Count == 0)
+        {
+            db.BookSeriesEntries.RemoveRange(await db.BookSeriesEntries.Where(e => e.BookId == book.Id).ToListAsync(ct).ConfigureAwait(false));
+        }
+        else
+        {
+            await SetSeriesAsync(book, parts, ct).ConfigureAwait(false);
+            // A number taken away stays away (a scan keeps the one it had).
+            foreach (var entry in db.BookSeriesEntries.Local.Where(e => e.BookId == book.Id))
+            {
+                var part = parts.FirstOrDefault(p => entry.Series is { } s ? BookInfo.SameSeries(p.Name, s.Name) : false);
+                if (part is not null && part.Sequence is null)
+                {
+                    entry.Sequence = null;
+                    entry.SortOrder = null;
+                }
+            }
+        }
+
+        var genres = BookGenres.Clean(edit.Genres);
+        if (genres.Count == 0)
+        {
+            book.Genres.Clear();
+        }
+        else
+        {
+            await SetGenresAsync(book, genres, ct).ConfigureAwait(false);
+        }
+
+        book.MatchLocked = edit.Locked;
+    }
+
+    private static string? Blank(string? text) => string.IsNullOrWhiteSpace(text) ? null : text.Trim();
+
+    private async Task ReplaceCreditsAsync(MediaItem book, CreditRole role, IReadOnlyList<string> names, CancellationToken ct)
+    {
+        var kept = names.Select(n => n.Trim()).Where(n => n.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        if (kept.Count > 0)
+        {
+            await SetCreditsAsync(book, role, kept, ct).ConfigureAwait(false);
+            return;
+        }
+
+        foreach (var credit in book.Credits.Where(c => c.Role == role).ToList())
+        {
+            book.Credits.Remove(credit);
+            db.Credits.Remove(credit);
+        }
+    }
+
     private readonly Dictionary<string, Person> _people = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Replaces the book's credits in <paramref name="role"/> when <paramref name="names"/> has any.</summary>
