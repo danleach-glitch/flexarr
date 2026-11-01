@@ -62,7 +62,7 @@ struct PlaylistCard: View {
     let action: () -> Void
 
     var body: some View {
-        ArtworkButton(ambient: .silver, action: action) {
+        ArtworkButton(ambient: .silver, accessibilityText: "\(playlist.name), \(playlist.trackCountLabel)", action: action) {
             PlaylistArtwork(playlist: playlist, size: width)
         } caption: { focused in
             VStack(alignment: .leading, spacing: 4) {
@@ -92,7 +92,7 @@ struct MixCard: View {
     @State private var isStarting = false
 
     var body: some View {
-        ArtworkButton(ambient: .silver, action: play) {
+        ArtworkButton(ambient: .silver, accessibilityText: "\(mix.name), \(mix.description)", action: play) {
             PlaylistArtwork(covers: mix.covers, size: width)
                 .overlay {
                     if isStarting { ProgressView() }

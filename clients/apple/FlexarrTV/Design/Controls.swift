@@ -99,6 +99,8 @@ struct ArtworkButton<Artwork: View, Caption: View>: View {
     /// Optional shared focus state so a row can steer focus to a particular card.
     var focus: FocusState<String?>.Binding?
     var focusID: String?
+    /// What VoiceOver reads for the button, where its artwork has no words of its own (a mosaic of covers).
+    var accessibilityText: String?
     let action: () -> Void
     @ViewBuilder var artwork: () -> Artwork
     @ViewBuilder var caption: (_ focused: Bool) -> Caption
@@ -113,6 +115,7 @@ struct ArtworkButton<Artwork: View, Caption: View>: View {
             .buttonStyle(.card)
             .focused($focused)
             .modifier(SharedFocus(binding: focus, id: focusID))
+            .modifier(OptionalAccessibilityLabel(text: accessibilityText))
             .background {
                 RoundedRectangle(cornerRadius: 12)
                     .fill(ambient)
@@ -125,6 +128,18 @@ struct ArtworkButton<Artwork: View, Caption: View>: View {
             caption(focused)
                 .offset(y: focused ? 14 : 0)
                 .animation(.spring(response: 0.3, dampingFraction: 0.8), value: focused)
+        }
+    }
+}
+
+private struct OptionalAccessibilityLabel: ViewModifier {
+    let text: String?
+
+    func body(content: Content) -> some View {
+        if let text {
+            content.accessibilityLabel(text)
+        } else {
+            content
         }
     }
 }
