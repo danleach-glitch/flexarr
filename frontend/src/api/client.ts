@@ -41,6 +41,8 @@ import type {
   OpmlImport,
   Paged,
   Person,
+  PersonCandidates,
+  PersonUpdate,
   PlaybackInfo,
   SubtitleResult,
   SubtitleSync,
@@ -653,6 +655,12 @@ export async function deleteItem(id: string) {
 export const wasDeleted = (id: string) => deleted.has(id)
 export const analyzeItem = (id: string) => request<void>('POST', `/items/${id}/analyze`)
 export const getPerson = (id: string, signal?: AbortSignal) => cachedGet<Person>(`/people/${id}`, signal)
+/** Admin only. */
+export const getPersonCandidates = (id: string, signal?: AbortSignal) => timedGet<PersonCandidates>(`/people/${id}/candidates`, signal)
+/** Admin only. */
+export const updatePerson = (id: string, update: PersonUpdate) => request<Person>('PUT', `/people/${id}`, update)
+/** Admin only: the image's own bytes (JPEG, PNG or WebP). */
+export const uploadPersonImage = (id: string, image: Blob) => request<Person>('PUT', `/people/${id}/image`, image)
 export const search = (q: string, signal?: AbortSignal) => apiGet<SearchResults>(`/search?q=${encodeURIComponent(q)}`, signal)
 export const getRecentSearches = (signal?: AbortSignal) => apiGet<RecentSearches>('/search/recent', signal)
 /** Remembers a search when something's picked from it (not as it's typed), with the item opened if it was one. */

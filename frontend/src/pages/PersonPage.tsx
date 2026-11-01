@@ -1,8 +1,11 @@
+import { useState } from 'react'
 import { useParams } from 'react-router'
 import { getPerson, type CreditRole } from '../api/client'
 import { Artwork } from '../components/Artwork'
 import { PosterCard } from '../components/Cards'
 import { Overview } from '../components/Overview'
+import { PersonEditor } from '../components/PersonEditor'
+import { useSession } from '../hooks/sessionContext'
 import { useApi } from '../hooks/useApi'
 
 const roleLabel: Record<CreditRole, string> = {
@@ -21,7 +24,9 @@ const bookRoles = new Set<CreditRole>(['Author', 'Narrator', 'Translator'])
 
 export function PersonPage() {
   const { id = '' } = useParams()
-  const { data, error } = useApi((signal) => getPerson(id, signal), [id])
+  const { data, error, reload } = useApi((signal) => getPerson(id, signal), [id])
+  const { me } = useSession()
+  const [editing, setEditing] = useState(false)
 
   if (error) return <p className="page-message error">{error.message}</p>
   if (!data) return <p className="page-message muted">Loading…</p>
@@ -43,6 +48,11 @@ export function PersonPage() {
         <div>
           <h1>{data.name}</h1>
           <p className="muted">{count === 1 ? `${one} in your library` : `${many} in your library`}</p>
+          {me?.isAdmin === true && (
+            <button className="button quiet person-edit" onClick={() => setEditing(true)}>
+              Edit
+            </button>
+          )}
           {data.biography && (
             <div className="person-biography">
               <Overview text={data.biography} />
@@ -63,6 +73,8 @@ export function PersonPage() {
           </div>
         </section>
       ))}
+      {/* The saved photo has a new ?v=, so the page reloads to show it (the save cleared the cache). */}
+      {editing && <PersonEditor person={data} onSaved={reload} onClose={() => setEditing(false)} />}
     </article>
   )
 }

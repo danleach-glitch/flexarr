@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
 import {
   ApiError,
@@ -22,6 +22,7 @@ import { AsyncButton, IconButton } from '../../components/AsyncButton'
 import { Crown, Pencil, Trash } from '../../components/icons'
 import { Avatar } from '../../components/ProfilePicker'
 import { useApi } from '../../hooks/useApi'
+import { usePreviewUrl } from '../../hooks/usePreviewUrl'
 import { freeColour, profileColours } from '../../lib/profileColours'
 import { ageLimitText, ratingSteps } from '../../lib/ratings'
 import { requestChoices, requestRows } from '../../lib/requestLibraries'
@@ -118,18 +119,6 @@ export function ProfilesSection() {
       </div>
     </section>
   )
-}
-
-/** An object URL for previewing a chosen file, released when it changes. */
-function usePreviewUrl(file: File | null | undefined) {
-  const url = useMemo(() => (file ? URL.createObjectURL(file) : undefined), [file])
-  useEffect(
-    () => () => {
-      if (url) URL.revokeObjectURL(url)
-    },
-    [url],
-  )
-  return url
 }
 
 function ProfileForm({
