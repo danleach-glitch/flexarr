@@ -45,7 +45,7 @@ export function UpcomingPage() {
         </section>
       )}
 
-      {upcoming.data && upcoming.data.length === 0 && <p className="muted">Nothing is scheduled. Monitored shows and films will appear here as their dates approach.</p>}
+      {upcoming.data && upcoming.data.length === 0 && <p className="muted">Nothing is scheduled. Monitored shows and movies will appear here as their dates approach.</p>}
 
       {upcoming.data && upcoming.data.length > 0 && (
         <ol className="day-rows" aria-label="Release calendar">

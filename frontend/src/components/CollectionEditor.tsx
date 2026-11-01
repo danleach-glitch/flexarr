@@ -57,7 +57,7 @@ export function CollectionEditor({
         <h2>{collection ? `Edit ${collection.name}` : 'New collection'}</h2>
         <label className="field">
           Name
-          <input type="text" value={name} onChange={(e) => setName(e.target.value)} required maxLength={120} autoFocus placeholder="Sunday films" />
+          <input type="text" value={name} onChange={(e) => setName(e.target.value)} required maxLength={120} autoFocus placeholder="Sunday movies" />
         </label>
         <label className="field">
           Description (optional)
@@ -95,8 +95,8 @@ export function CollectionEditor({
               <label>
                 Type
                 <select value={rules.type ?? ''} onChange={(e) => set({ type: (e.target.value || null) as SmartRules['type'] })}>
-                  <option value="">Films and shows</option>
-                  <option value="movie">Films</option>
+                  <option value="">Movies and shows</option>
+                  <option value="movie">Movies</option>
                   <option value="series">Shows</option>
                   <option value="book">Audiobooks</option>
                 </select>
@@ -172,7 +172,7 @@ export function CollectionEditor({
                 <input type="number" min={1} max={200} value={rules.limit ?? 50} onChange={(e) => set({ limit: number(e.target.value) ?? 50 })} />
               </label>
             </div>
-            {rules.personId && <p className="muted">Also limited to one person’s films and shows (from the suggestion this came from).</p>}
+            {rules.personId && <p className="muted">Also limited to one person’s movies and shows (from the suggestion this came from).</p>}
           </fieldset>
         )}
 

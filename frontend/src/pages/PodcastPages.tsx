@@ -199,7 +199,7 @@ function PodcastsHome() {
 
       {(upNext.data?.length ?? 0) > 0 && (
         <section className="podcast-section">
-          <h2>Up Next</h2>
+          <h2>Up next</h2>
           <UpNextList key={upNext.data!.map((e) => e.id).join()} episodes={upNext.data!} onChanged={changed} />
         </section>
       )}
@@ -316,7 +316,7 @@ function EpisodeRow({
           {showPodcast && (
             <>
               <Link to={`/podcasts/${episode.podcastId}`}>{episode.podcastTitle}</Link>
-              <span aria-hidden="true"> · </span>
+              <span aria-hidden="true">{'\u2003'}</span>
             </>
           )}
           {episodeDate(episode.publishedAt)}
@@ -822,7 +822,7 @@ function EpisodeDetail() {
                 className="button quiet"
                 onClick={() => player.play([{ ...episodeAsTrack(e), playFrom: 0 }])}
               >
-                Play from the start
+                Start over
               </button>
             )}
             {progress !== null && !e.userData.watched && (

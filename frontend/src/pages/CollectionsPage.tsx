@@ -54,7 +54,7 @@ export function CollectionsPage() {
       <header className="library-header">
         <div>
           <h1>Collections</h1>
-          <p className="muted">Your own, smart ones that keep themselves up to date, and the film series you have.</p>
+          <p className="muted">Your own, smart ones that keep themselves up to date, and the movie series you have.</p>
         </div>
         <button className="button" onClick={() => setCreating(true)}>
           New collection
@@ -182,7 +182,7 @@ export function CollectionPage() {
   const items = order ?? data.items
   const manual = c.kind === 'Manual' && c.canEdit
   const next = items.find((i) => !i.userData.watched) ?? items[0]
-  const kindLabel = { Manual: 'Collection', Smart: 'Smart collection', Franchise: 'Film series', TraktList: 'Trakt list' }[c.kind]
+  const kindLabel = { Manual: 'Collection', Smart: 'Smart collection', Franchise: 'Movie series', TraktList: 'Trakt list' }[c.kind]
 
   async function act(work: () => Promise<unknown>) {
     try {

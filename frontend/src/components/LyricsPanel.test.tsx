@@ -37,7 +37,7 @@ describe('LyricsPanel', () => {
     const seek = vi.fn()
     const { rerender } = render(<LyricsPanel trackId="t1" currentTime={13} title="News" onSeek={seek} />)
 
-    expect(await screen.findByRole('heading', { name: 'Lyrics · News' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Lyrics for News' })).toBeInTheDocument()
     expect(screen.getByText('He sticks to his guns').closest('li')).toHaveAttribute('aria-current', 'true')
     expect(screen.getByText('He takes the road as it comes').closest('li')).not.toHaveAttribute('aria-current')
 

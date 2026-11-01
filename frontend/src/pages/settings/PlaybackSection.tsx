@@ -73,7 +73,7 @@ function WhileWatching({ name }: { name?: string }) {
         </SettingRow>
         <ToggleRow
           label="Subtitles in the black bars"
-          help="In films wider than the screen, subtitles go in the black bar below the picture rather than over it."
+          help="In movies wider than the screen, subtitles go in the black bar below the picture rather than over it."
           checked={preferences.subtitlesInBlackBars ?? false}
           onChange={(on) => void change({ ...preferences, subtitlesInBlackBars: on })}
         />

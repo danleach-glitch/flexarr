@@ -25,7 +25,7 @@ export function FixMatchDialog(props: Props) {
 function TitleMatchDialog({ item, onFixed, onClose }: Props) {
   // Whose title it is: films are Radarr's and shows Sonarr's.
   const arr = arrFor(item.kind as MediaKind)
-  const noun = item.kind === 'Movie' ? 'film' : item.kind === 'Audiobook' ? 'book' : 'show'
+  const noun = item.kind === 'Movie' ? 'movie' : item.kind === 'Audiobook' ? 'book' : 'show'
   const [draft, setDraft] = useState(item.title)
   const [query, setQuery] = useState(item.title)
   const [chosen, setChosen] = useState<MatchCandidate>()

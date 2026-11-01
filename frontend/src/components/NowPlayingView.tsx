@@ -300,7 +300,7 @@ export function NowPlayingView({ onClose }: { onClose: () => void }) {
           {upNext && (
             <p className="np-view-next">
               <span>Up next</span> {upNext.title}
-              {upNext.trackArtist || upNext.seriesTitle ? ` · ${upNext.trackArtist ?? upNext.seriesTitle}` : ''}
+              {upNext.trackArtist || upNext.seriesTitle ? `\u2003${upNext.trackArtist ?? upNext.seriesTitle}` : ''}
             </p>
           )}
         </div>
@@ -395,7 +395,7 @@ function EpisodeDetails({
         {episode ? (
           <>
             <p className="np-view-facts">
-              {[episodeDate(episode.publishedAt), formatDuration(episode.durationSeconds ?? 0), episode.explicit ? 'Explicit' : null].filter(Boolean).join(' · ')}
+              {[episodeDate(episode.publishedAt), formatDuration(episode.durationSeconds ?? 0), episode.explicit ? 'Explicit' : null].filter(Boolean).join('\u2003')}
             </p>
             {episode.overview ? (
               <EpisodeNotes text={episode.overview} duration={episode.durationSeconds} onSeek={onSeek} />

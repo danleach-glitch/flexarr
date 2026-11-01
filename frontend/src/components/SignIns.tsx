@@ -25,7 +25,7 @@ const signedIn = (s: SignIn) => (s.kind === 'Device' ? 'connected' : 'signed in'
  * in the house); the rest of the detail is on hover.
  */
 const summary = (s: SignIn) =>
-  [s.profileName, s.zone === 'Internet' && s.address ? `Internet (${s.address})` : where(s), `last used ${relativeTime(s.lastUsedAt)}`].filter(Boolean).join(' · ')
+  [s.profileName, s.zone === 'Internet' && s.address ? `Internet (${s.address})` : where(s), `last used ${relativeTime(s.lastUsedAt)}`].filter(Boolean).join('\u2003')
 
 /** "Android phone", when the device's app has said what it is. */
 const deviceType = (s: SignIn) => deviceTypeName(s.deviceType)

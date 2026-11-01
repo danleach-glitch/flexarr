@@ -295,7 +295,7 @@ export default function LivePlayerPage() {
               <span>{now?.title ?? channel.name}</span>
               <span className="muted">
                 {channel.number} {channel.name}
-                {now && ` · ${programmeTime(now)}`}
+                {now && `\u2003${programmeTime(now)}`}
               </span>
             </div>
           </div>

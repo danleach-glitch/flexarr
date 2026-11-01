@@ -81,8 +81,8 @@ export function WatchlistPage() {
             <div className="watchlist-tools">
               <div className="genre-chips" role="group" aria-label="Kind">
                 {[
-                  ['', 'Films and shows'],
-                  ['movie', 'Films'],
+                  ['', 'Movies and shows'],
+                  ['movie', 'Movies'],
                   ['tv', 'Shows'],
                 ].map(([value, label]) => (
                   <button key={value} className="chip" aria-pressed={kind === value} onClick={() => setParam('kind', value)}>
@@ -148,7 +148,7 @@ function WatchlistCard({ entry, onRemoved }: { entry: WatchlistEntry; onRemoved:
         </div>
       </Link>
       <span className="card-title">{entry.title}</span>
-      <span className="card-subtitle">{[entry.mediaType === 'tv' ? 'Show' : 'Film', entry.year].filter(Boolean).join(', ')}</span>
+      <span className="card-subtitle">{[entry.mediaType === 'tv' ? 'Show' : 'Movie', entry.year].filter(Boolean).join(', ')}</span>
       {entry.streaming && entry.streaming.length > 0 && (
         <span className="card-subtitle watchlist-streaming" title={entry.streaming.join(', ')}>
           {entry.streaming.length === 1 ? `On ${entry.streaming[0]}` : entry.streaming.join(', ')}

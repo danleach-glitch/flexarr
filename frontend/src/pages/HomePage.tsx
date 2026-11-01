@@ -49,7 +49,7 @@ export function HomePage() {
     return (
       <section className="welcome">
         <h1>Nothing to watch yet</h1>
-        <p>Point Flexarr at the folders where your films and shows live, and they'll appear here with artwork.</p>
+        <p>Point Flexarr at the folders where your movies and shows live, and they'll appear here with artwork.</p>
         <div className="welcome-actions">
           {admin && (
             <Link className="button" to="/setup">
@@ -109,7 +109,7 @@ export function HomePage() {
   )
 }
 
-const kinds: Record<Library['type'], string> = { Movies: 'films', TvShows: 'shows', Music: 'music', Podcasts: 'podcasts', HomeVideos: 'home videos', Audiobooks: 'audiobooks' }
+const kinds: Record<Library['type'], string> = { Movies: 'movies', TvShows: 'shows', Music: 'music', Podcasts: 'podcasts', HomeVideos: 'home videos', Audiobooks: 'audiobooks' }
 
 /** Libraries are there but hold nothing Flexarr recognised: still scanning, or nothing found in their folders. */
 /** A child's Home with nothing to watch yet: one line. */

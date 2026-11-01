@@ -62,14 +62,14 @@ export function OverviewSection() {
         <SettingLink
           to="/settings/libraries"
           label="Libraries"
-          help={libraries ? `${libraries.length.toLocaleString()} ${libraries.length === 1 ? 'library' : 'libraries'} · ${titles.toLocaleString()} titles` : '…'}
+          help={libraries ? `${libraries.length.toLocaleString()} ${libraries.length === 1 ? 'library' : 'libraries'}\u2003${titles.toLocaleString()} titles` : '…'}
         />
         <SettingLink
           to="/settings/health"
           label="Library health"
           help={
             health
-              ? `Score ${health.score}${health.withProblems > 0 ? ` · ${health.withProblems.toLocaleString()} ${health.withProblems === 1 ? 'title needs' : 'titles need'} a look` : ' · all in good shape'}`
+              ? `Score ${health.score}${health.withProblems > 0 ? `{'\u2003'}${health.withProblems.toLocaleString()} ${health.withProblems === 1 ? 'title needs' : 'titles need'} a look` : '\u2003all in good shape'}`
               : '…'
           }
         />

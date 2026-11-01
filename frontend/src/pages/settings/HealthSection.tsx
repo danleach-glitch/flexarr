@@ -161,7 +161,7 @@ export function HealthSection() {
   const clear = [
     data.duplicates.length === 0 && 'every title has a single copy',
     data.unreadable.length === 0 && 'every file opened cleanly',
-    data.standardDefinitionTotal === 0 && 'every film has an HD copy',
+    data.standardDefinitionTotal === 0 && 'every movie has an HD copy',
   ].filter((s): s is string => !!s)
 
   return (
@@ -176,8 +176,8 @@ export function HealthSection() {
         <div>
           <p className="health-score-summary">
             {score.withProblems === 0
-              ? `All ${score.titles.toLocaleString()} films and episodes are in good shape.`
-              : `${(score.titles - score.withProblems).toLocaleString()} of ${score.titles.toLocaleString()} films and episodes have no problems.`}
+              ? `All ${score.titles.toLocaleString()} movies and episodes are in good shape.`
+              : `${(score.titles - score.withProblems).toLocaleString()} of ${score.titles.toLocaleString()} movies and episodes have no problems.`}
           </p>
           <ul className="health-score-breakdown">
             {breakdown
@@ -213,7 +213,7 @@ export function HealthSection() {
         count={data.duplicates.length}
         // Stays while spares are removed, so the last of them going doesn't take the progress with it.
         shown={removing !== null}
-        lede={`More than one file for the same film or episode. Removing spares frees ${formatSize(data.reclaimableBytes)}; the best copy, and the one Sonarr or Radarr use, always stay.`}
+        lede={`More than one file for the same movie or episode. Removing spares frees ${formatSize(data.reclaimableBytes)}; the best copy, and the one Sonarr or Radarr use, always stay.`}
         action={
           data.duplicates.length > 0 && (
             <AsyncButton className="button danger small" busy={removing !== null && removing.done < removing.total} onClick={() => setConfirmAll(true)}>
@@ -486,7 +486,7 @@ function HeldFolders({ folders, onConfirmed }: { folders: HeldFolder[]; onConfir
 function heldNoun(f: HeldFolder) {
   const one = f.missing === 1
   const nouns: Partial<Record<string, [string, string]>> = {
-    Movies: ['film', 'films'],
+    Movies: ['movie', 'movies'],
     TvShows: ['episode', 'episodes'],
     HomeVideos: ['video', 'videos'],
     Music: ['track', 'tracks'],
@@ -544,7 +544,7 @@ function HealthRowMain({ item, file, detail }: { item: ItemSummary | null; file?
           {detail}
           {file && (
             <>
-              {' · '}
+              {'\u2003'}
               <span title={file}>{fileName(file)}</span>
             </>
           )}

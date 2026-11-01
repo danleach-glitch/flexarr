@@ -24,7 +24,7 @@ export function ExternalCard({ title }: { title: ExternalTitle }) {
         {poster}
       </Link>
       <span className="card-title">{title.title}</span>
-      <span className="card-subtitle">{[title.mediaType === 'tv' ? 'Series' : 'Film', title.year].filter(Boolean).join(', ')}</span>
+      <span className="card-subtitle">{[title.mediaType === 'tv' ? 'Series' : 'Movie', title.year].filter(Boolean).join(', ')}</span>
       <div className="external-card-actions">
         <RequestButton key={requested ? 'requested' : 'asked'} title={requested ? { ...title, availability: 'Requested' } : title} />
         <WatchlistButton

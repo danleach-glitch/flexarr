@@ -31,9 +31,9 @@ describe('Waiting to connect', () => {
     mockApi({ '/pairing/waiting': [livingRoom(), pixel(), old()] })
     renderAs(admin)
     expect(await screen.findByText('Living room')).toBeInTheDocument()
-    expect(within(row('Living room')).getByText('Apple TV · from your home network (192.168.1.70)')).toBeInTheDocument()
+    expect(within(row('Living room')).getByText('Apple TV, from your home network (192.168.1.70)')).toBeInTheDocument()
     expect(within(row('Living room')).getByText('ABC-DEF')).toBeInTheDocument()
-    expect(within(row('Pixel')).getByText('Android phone · over Tailscale (100.64.0.7)')).toBeInTheDocument()
+    expect(within(row('Pixel')).getByText('Android phone, over Tailscale (100.64.0.7)')).toBeInTheDocument()
     // An app that hasn't said what it is: just where from, with a word of caution off the home network.
     expect(within(row('Bedroom')).getByText('from the internet')).toBeInTheDocument()
     expect(within(row('Bedroom')).getByText(/Not from your home network/)).toBeInTheDocument()

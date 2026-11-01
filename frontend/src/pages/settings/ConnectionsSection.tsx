@@ -41,17 +41,17 @@ const arrKinds = ['Sonarr', 'Radarr', 'Lidarr', 'Readarr'] as const
 /** What each app adds, said beside it while it isn't connected. */
 const purpose: Record<ArrKind | OtherService, string> = {
   Sonarr: 'Shows',
-  Radarr: 'Films',
+  Radarr: 'Movies',
   Lidarr: 'Music',
   Readarr: 'Audiobooks',
   seerr: 'Discover and requests',
   bazarr: 'Subtitles',
-  tmdb: 'Film details without Radarr',
+  tmdb: 'Movie details without Radarr',
   livetv: 'Live TV',
   trakt: 'Trakt',
 }
 
-const notConnected = (service: ArrKind | OtherService) => `Not connected · ${purpose[service]}`
+const notConnected = (service: ArrKind | OtherService) => `Not connected, ${purpose[service]}`
 
 interface DraftConnection {
   name: string
@@ -360,7 +360,7 @@ function ArrRow({
     void onSave(draft).finally(() => setSaving(false))
   }
 
-  const statusText = test === 'testing' ? 'Testing…' : shown?.ok ? `Connected · ${shown.app ? `${shown.app} ` : ''}version ${shown.version}` : shown ? shown.error : isNew ? notConnected(connection.kind) : 'Checking…'
+  const statusText = test === 'testing' ? 'Testing…' : shown?.ok ? `Connected, ${shown.app ? `${shown.app} ` : ''}version ${shown.version}` : shown ? shown.error : isNew ? notConnected(connection.kind) : 'Checking…'
   return (
     <div className="connection">
       <ConnectionLine
@@ -582,7 +582,7 @@ function TmdbRow({
           }}
         >
           <p className="muted">
-            {hasRadarr ? 'Details, artwork and cast for films Radarr doesn’t have.' : 'Details, artwork and cast for your films.'} Shows come from TVmaze and
+            {hasRadarr ? 'Details, artwork and cast for movies Radarr doesn’t have.' : 'Details, artwork and cast for your movies.'} Shows come from TVmaze and
             need no key.
           </p>
           <div className="field-row">
@@ -621,7 +621,7 @@ function TmdbRow({
                 type="button"
                 className="button danger small form-actions-start"
                 aria-label="Disconnect TMDB"
-                onClick={() => (confirm('Disconnect TMDB? Its key is forgotten, and films already filled in keep their details.') ? onSave('') : undefined)}
+                onClick={() => (confirm('Disconnect TMDB? Its key is forgotten, and movies already filled in keep their details.') ? onSave('') : undefined)}
               >
                 Disconnect
               </AsyncButton>
@@ -834,7 +834,7 @@ function testSummary(t: LiveTvTest) {
   const parts = [`Connected: ${(t.channels ?? 0).toLocaleString()} channels`]
   if (t.maxConnections) parts.push(`${t.maxConnections} ${t.maxConnections === 1 ? 'connection' : 'connections'} at a time`)
   if (t.expiresAt) parts.push(`subscription ends ${new Date(t.expiresAt).toLocaleDateString()}`)
-  return parts.join(' · ')
+  return parts.join(', ')
 }
 
 /**
@@ -930,7 +930,7 @@ function FolderState({ folder: f }: { folder: ArrFolder }) {
   }
 }
 
-const titleWords: Record<ArrKind, [string, string]> = { Sonarr: ['show', 'shows'], Radarr: ['film', 'films'], Lidarr: ['artist', 'artists'], Readarr: ['book', 'books'] }
+const titleWords: Record<ArrKind, [string, string]> = { Sonarr: ['show', 'shows'], Radarr: ['movie', 'movies'], Lidarr: ['artist', 'artists'], Readarr: ['book', 'books'] }
 
 /** "the 2 artists", "all 120 shows", "110 of the 120 films": the titles behind a suggestion. */
 function titlesAgreeing(kind: ArrKind, agreeing: number, compared: number) {

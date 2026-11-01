@@ -187,7 +187,7 @@ function ChannelRow({ channel: c, favourite, onToggle }: { channel: LiveChannel;
         <span className="livetv-row-next">
           {c.next && (
             <>
-              <span className="muted">Next · {clock.format(new Date(c.next.start))}</span>
+              <span className="muted">Next{'\u2003'}{clock.format(new Date(c.next.start))}</span>
               <span>
                 {c.next.title} <RecordMark programme={c.next} />
               </span>
@@ -293,7 +293,7 @@ function Guide() {
                         .filter(Boolean)
                         .join(' ')}
                       style={{ left, width: Math.max(0, right - left - 2) }}
-                      title={`${p.title} · ${programmeTime(p)}${p.recording ? (p.recording === 'recording' ? ' · Recording now' : ' · Set to record') : ''}`}
+                      title={`${p.title}\u2003${programmeTime(p)}${p.recording ? (p.recording === 'recording' ? '\u2003Recording now' : '\u2003Set to record') : ''}`}
                       onClick={() => setSelected({ channel: c, programme: p })}
                     >
                       <strong>
@@ -322,9 +322,9 @@ function Guide() {
         <aside className="panel livetv-details" aria-live="polite">
           <h2>{selected.programme.title}</h2>
           <p className="muted">
-            {selected.channel.name} · {new Date(selected.programme.start).toLocaleDateString(undefined, { weekday: 'long' })} {programmeTime(selected.programme)}
-            {selected.programme.season != null && ` · Series ${selected.programme.season}${selected.programme.episode != null ? `, episode ${selected.programme.episode}` : ''}`}
-            {selected.programme.isNew && ' · New'}
+            {selected.channel.name}{'\u2003'}{new Date(selected.programme.start).toLocaleDateString(undefined, { weekday: 'long' })} {programmeTime(selected.programme)}
+            {selected.programme.season != null && `\u2003Series ${selected.programme.season}${selected.programme.episode != null ? `, episode ${selected.programme.episode}` : ''}`}
+            {selected.programme.isNew && '\u2003New'}
           </p>
           {selected.programme.subtitle && <p>{selected.programme.subtitle}</p>}
           {selected.programme.description && <p>{selected.programme.description}</p>}

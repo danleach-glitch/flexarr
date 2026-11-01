@@ -31,7 +31,7 @@ function ExternalTitle({ title }: { title: ExternalDetail }) {
   const facts = [
     title.year?.toString(),
     title.mediaType === 'tv' ? (title.seasons ? (title.seasons === 1 ? '1 season' : `${title.seasons} seasons`) : null) : title.runtimeMinutes ? formatDuration(title.runtimeMinutes * 60) : null,
-    title.mediaType === 'tv' ? 'Series' : 'Film',
+    title.mediaType === 'tv' ? 'Series' : 'Movie',
     title.status && !['Released', 'Ended'].includes(title.status) ? title.status : null,
   ].filter(Boolean)
 

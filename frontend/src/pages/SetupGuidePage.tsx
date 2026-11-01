@@ -48,7 +48,7 @@ const steps: { id: SetupStep | 'name'; title: string; lede: string; icon: ReactN
     icon: <Stack />,
     summary: 'Connect Sonarr, Radarr or Lidarr',
   },
-  { id: 'libraries', title: 'Add your libraries', lede: 'Choose the folders that hold your films, shows and music.', icon: <Film />, summary: 'Add your films, shows and music' },
+  { id: 'libraries', title: 'Add your libraries', lede: 'Choose the folders that hold your movies, shows and music.', icon: <Film />, summary: 'Add your movies, shows and music' },
   { id: 'profiles', title: 'Who’s watching?', lede: 'Everyone gets their own Continue watching and history.', icon: <Home />, summary: 'Add everyone who watches' },
   { id: 'devices', title: 'Watch on all your devices', lede: 'Get the app and open it at home. When it asks to connect, choose Allow here.', icon: <Tv />, summary: 'Watch on all your devices' },
   { id: 'away', title: 'Watch away from home', lede: 'Tailscale lets your devices reach Flexarr from anywhere, privately.', icon: <Antenna />, summary: 'Watch away from home' },
@@ -149,7 +149,7 @@ function Welcome({ onStart }: { onStart: () => void }) {
       <img className="onboard-hero-mark" src="/logo-mark.svg" alt="" />
       <h1 id="onboard-title">Welcome to Flexarr</h1>
       <p className="onboard-lede">
-        Let’s get your films, shows and music ready to watch.
+        Let’s get your movies, shows and music ready to watch.
         <br />
         It takes just 2 minutes.
       </p>
@@ -263,7 +263,7 @@ function NameStep({ nav }: { nav: StepNav }) {
 }
 
 const arrKinds: ArrKind[] = ['Sonarr', 'Radarr', 'Lidarr', 'Readarr']
-const arrPurpose: Record<ArrKind, string> = { Sonarr: 'TV shows', Radarr: 'Films', Lidarr: 'Music', Readarr: 'Audiobooks' }
+const arrPurpose: Record<ArrKind, string> = { Sonarr: 'TV shows', Radarr: 'Movies', Lidarr: 'Music', Readarr: 'Audiobooks' }
 const usualUrl: Record<ArrKind, string> = { Sonarr: 'http://localhost:8989', Radarr: 'http://localhost:7878', Lidarr: 'http://localhost:8686', Readarr: 'http://localhost:8787' }
 
 function AppsStep({ nav }: { nav: StepNav }) {

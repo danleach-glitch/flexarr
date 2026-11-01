@@ -318,7 +318,7 @@ function Seasons({ series, onChange }: { series: ItemDetail; onChange: () => voi
             onChange()
           }}
         >
-          {selected.userData.watched ? 'Mark season unwatched' : 'Mark season watched'}
+          {selected.userData.watched ? 'Mark season as unwatched' : 'Mark season as watched'}
         </AsyncButton>
       </div>
       <ol className="episode-list">

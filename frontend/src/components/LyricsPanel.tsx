@@ -48,8 +48,8 @@ export function LyricsPanel({ trackId, currentTime, title, onSeek }: LyricsPanel
   if (!data) return null
 
   return (
-    <section className="lyrics" aria-label={title ? `Lyrics · ${title}` : 'Lyrics'}>
-      {title && <h2 className="lyrics-heading">Lyrics · {title}</h2>}
+    <section className="lyrics" aria-label={title ? `Lyrics for ${title}` : 'Lyrics'}>
+      {title && <h2 className="lyrics-heading">Lyrics for {title}</h2>}
       <ol ref={list} className={data.synced ? 'lyrics-lines synced' : 'lyrics-lines'}>
         {data.lines.map((line, i) => {
           const isActive = i === active

@@ -46,7 +46,7 @@ export function DiscoverPage() {
           <div className="genre-chips" role="group" aria-label="Show">
             {[
               ['', 'Everything'],
-              ['Movie', 'Films'],
+              ['Movie', 'Movies'],
               ['Series', 'Shows'],
             ].map(([value, label]) => (
               <button key={value} className="chip" aria-pressed={kind === value} onClick={() => setParams(value ? { genre, kind: value } : { genre })}>
@@ -68,8 +68,8 @@ export function DiscoverPage() {
     <input
       type="search"
       className="discover-search"
-      placeholder={booksOn ? 'Search for any film, show or book' : 'Search for any film or show'}
-      aria-label={booksOn ? 'Search for any film, show or book' : 'Search for any film or show'}
+      placeholder={booksOn ? 'Search for any movie, show or book' : 'Search for any movie or show'}
+      aria-label={booksOn ? 'Search for any movie, show or book' : 'Search for any movie or show'}
       value={typed}
       onChange={(e) => setTyped(e.target.value)}
     />
@@ -95,7 +95,7 @@ export function DiscoverPage() {
             {(
               [
                 ['tv', 'Shows'],
-                ['movie', 'Films'],
+                ['movie', 'Movies'],
               ] as const
             ).map(([type, label]) => {
               const found = results.data!.filter((t) => t.mediaType === type)
@@ -161,7 +161,7 @@ export function DiscoverPage() {
             {g.backdrop && <img src={imageUrl(g.backdrop, 780)} alt="" loading="lazy" />}
             <span className="genre-name">{g.name}</span>
             <span className="genre-count">
-              {[g.movies && `${g.movies} films`, g.shows && `${g.shows} shows`].filter(Boolean).join(' and ')}
+              {[g.movies && `${g.movies} movies`, g.shows && `${g.shows} shows`].filter(Boolean).join(' and ')}
             </span>
           </Link>
         ))}

@@ -56,7 +56,7 @@ function ViewSwitch({ library, view }: { library: Library; view: 'browse' | 'all
         Browse
       </Link>
       <Link to={`/library/${library.id}?view=all`} aria-current={current('all')}>
-        {{ Movies: 'All films', TvShows: 'All shows', Music: 'All artists', Podcasts: 'All podcasts', HomeVideos: 'All folders', Audiobooks: 'All books' }[library.type]}
+        {{ Movies: 'All movies', TvShows: 'All shows', Music: 'All artists', Podcasts: 'All podcasts', HomeVideos: 'All folders', Audiobooks: 'All books' }[library.type]}
       </Link>
       {hasGenres(library) && (
         <Link to={`/library/${library.id}?view=genres`} aria-current={current('genres')}>
@@ -71,7 +71,7 @@ function ViewSwitch({ library, view }: { library: Library; view: 'browse' | 'all
 /** A tile for each of the library's genres, with a backdrop from one of its titles; one opens All filtered to it. */
 function LibraryGenres({ library }: { library: Library }) {
   const { data, error } = useApi((signal) => getLibraryGenres(library.id, signal), [library.id])
-  const noun = library.type === 'Movies' ? ['film', 'films'] : ['show', 'shows']
+  const noun = library.type === 'Movies' ? ['movie', 'movies'] : ['show', 'shows']
   return (
     <div className="library-page">
       <header className="library-header">
@@ -524,7 +524,7 @@ function LibraryAll() {
             <ViewSwitch library={library} view="all" />
           </div>
           <p className="muted">
-            {(total ?? library.itemCount).toLocaleString()} {query || genre ? 'matching' : { Movies: 'films', TvShows: 'shows', Music: 'artists', Podcasts: 'podcasts', HomeVideos: 'folders', Audiobooks: 'books' }[library.type]}
+            {(total ?? library.itemCount).toLocaleString()} {query || genre ? 'matching' : { Movies: 'movies', TvShows: 'shows', Music: 'artists', Podcasts: 'podcasts', HomeVideos: 'folders', Audiobooks: 'books' }[library.type]}
           </p>
         </div>
         <div className="library-tools">

@@ -261,7 +261,7 @@ function LogViewer({ areaNames }: { areaNames: Record<string, string> }) {
       <div className="log-foot">
         <p className="muted settings-status" role="status">
           {live ? (streamState === 'reconnecting' ? 'Reconnecting…' : 'Live') : ''}
-          {live && entries.length >= MAX_ENTRIES ? ` · showing the newest ${MAX_ENTRIES}` : ''}
+          {live && entries.length >= MAX_ENTRIES ? `\u2003showing the newest ${MAX_ENTRIES}` : ''}
         </p>
         {cursor && entries.length < MAX_ENTRIES && (
           <AsyncButton className="button quiet small" onClick={loadOlder}>
@@ -473,7 +473,7 @@ function DeviceUploads() {
             key={u.id}
             as="div"
             label={u.device}
-            help={[u.platform, u.profile, u.appVersion && `v${u.appVersion}`, relativeTime(u.uploadedAt), formatSize(u.sizeBytes)].filter(Boolean).join(' · ')}
+            help={[u.platform, u.profile, u.appVersion && `v${u.appVersion}`, relativeTime(u.uploadedAt), formatSize(u.sizeBytes)].filter(Boolean).join('\u2003')}
           >
             <a className="button quiet small" href={logUploadUrl(u.id)} download>
               Download
