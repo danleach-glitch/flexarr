@@ -5,23 +5,28 @@ namespace Flexarr.Metadata;
 public static partial class ArtworkUrl
 {
     /// <summary>Artwork hosts the anonymous remote-image endpoint fetches from, and the paths their images live under.</summary>
-    private static readonly Dictionary<string, string> TrustedHosts = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly Dictionary<string, string[]> TrustedHosts = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["image.tmdb.org"] = "/t/p/",
-        ["artworks.thetvdb.com"] = "/banners/",
-        ["thetvdb.com"] = "/banners/",
-        ["static.tvmaze.com"] = "/uploads/images/",
-        ["assets.fanart.tv"] = "/fanart/",
+        ["image.tmdb.org"] = ["/t/p/"],
+        ["artworks.thetvdb.com"] = ["/banners/"],
+        ["thetvdb.com"] = ["/banners/"],
+        ["static.tvmaze.com"] = ["/uploads/images/"],
+        ["assets.fanart.tv"] = ["/fanart/"],
         // Apple's podcast directory (search and charts).
-        ["is1-ssl.mzstatic.com"] = "/image/thumb/",
-        ["is2-ssl.mzstatic.com"] = "/image/thumb/",
-        ["is3-ssl.mzstatic.com"] = "/image/thumb/",
-        ["is4-ssl.mzstatic.com"] = "/image/thumb/",
-        ["is5-ssl.mzstatic.com"] = "/image/thumb/",
+        ["is1-ssl.mzstatic.com"] = ["/image/thumb/"],
+        ["is2-ssl.mzstatic.com"] = ["/image/thumb/"],
+        ["is3-ssl.mzstatic.com"] = ["/image/thumb/"],
+        ["is4-ssl.mzstatic.com"] = ["/image/thumb/"],
+        ["is5-ssl.mzstatic.com"] = ["/image/thumb/"],
         // Book covers: Audible's (through Audnexus and its catalogue) and Open Library's (Fix match, book requests).
-        ["m.media-amazon.com"] = "/images/I/",
-        ["images-na.ssl-images-amazon.com"] = "/images/I/",
-        ["covers.openlibrary.org"] = "/b/",
+        // Goodreads' covers (Readarr's, for requests) live on Amazon's hosts too, and on their own.
+        ["m.media-amazon.com"] = ["/images/I/", "/images/S/compressed.photo.goodreads.com/"],
+        ["images-na.ssl-images-amazon.com"] = ["/images/I/", "/images/S/compressed.photo.goodreads.com/"],
+        ["i.gr-assets.com"] = ["/images/S/compressed.photo.goodreads.com/"],
+        ["covers.openlibrary.org"] = ["/b/"],
+        ["assets.hardcover.app"] = ["/"],
+        // Google Books' thumbnails: no file name, only the volume's id (see GoogleCover).
+        ["books.google.com"] = ["/books/content"],
     };
 
     /// <summary>
@@ -32,14 +37,19 @@ public static partial class ArtworkUrl
     public static string? TrustedRemote(string? url)
     {
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps || !uri.IsDefaultPort
-            || !string.IsNullOrEmpty(uri.UserInfo) || !TrustedHosts.TryGetValue(uri.Host, out var prefix))
+            || !string.IsNullOrEmpty(uri.UserInfo) || !TrustedHosts.TryGetValue(uri.Host, out var prefixes))
         {
             return null;
         }
 
         var host = uri.Host.ToLowerInvariant();
         var path = uri.AbsolutePath;
-        if (!path.StartsWith(prefix, StringComparison.Ordinal) || !ImagePath().IsMatch(path) || path.Contains("..", StringComparison.Ordinal))
+        if (host == "books.google.com")
+        {
+            return GoogleCover(path, uri.Query);
+        }
+
+        if (!prefixes.Any(p => path.StartsWith(p, StringComparison.Ordinal)) || !ImagePath().IsMatch(path) || path.Contains("..", StringComparison.Ordinal))
         {
             return null;
         }
@@ -52,6 +62,24 @@ public static partial class ArtworkUrl
 
         return $"https://{host}{path}";
     }
+
+    /// <summary>
+    /// A Google Books cover: /books/content?id=…, kept to the volume's id and the front cover (its other parameters
+    /// dropped, so one book is one cache entry); null for anything else there.
+    /// </summary>
+    private static string? GoogleCover(string path, string query)
+    {
+        if (path != "/books/content")
+        {
+            return null;
+        }
+
+        var id = query.TrimStart('?').Split('&').Select(p => p.Split('=', 2)).FirstOrDefault(p => p.Length == 2 && p[0] == "id")?[1];
+        return id is { Length: > 0 and <= 40 } && GoogleId().IsMatch(id) ? $"https://books.google.com/books/content?id={id}&printsec=frontcover&img=1&zoom=1" : null;
+    }
+
+    [GeneratedRegex("^[A-Za-z0-9_-]+$")]
+    private static partial Regex GoogleId();
 
     /// <summary>Artwork from a metadata source (Sonarr, Radarr, TVmaze, Seerr): only ever fetched over https.</summary>
     public static bool IsHttps(string? url) => Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps;
