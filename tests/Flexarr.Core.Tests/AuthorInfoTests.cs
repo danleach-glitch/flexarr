@@ -207,6 +207,59 @@ public sealed class AuthorInfoTests : IAsyncLifetime
         Assert.NotNull(osman.ImageStamp);
     }
 
+    [Fact]
+    public async Task AFolderPhoto_StaysWhileItsShareIsOffline()
+    {
+        var photo = await AuthorPhotoAsync("author.jpg");
+        var library = await SeedAsync(new Person { Name = Osman, Biography = "Known.", InfoCheckedAt = DateTime.UtcNow });
+        await Refresher().RefreshLibraryAsync(library, force: true, default);
+        var before = await PersonAsync(Osman);
+        _db.ChangeTracker.Clear();
+
+        // The share goes away (unmounted): its folder is missing altogether.
+        var offline = Books + "-offline";
+        Directory.Move(Books, offline);
+        try
+        {
+            await Refresher().RefreshLibraryAsync(library, force: true, default);
+        }
+        finally
+        {
+            Directory.Move(offline, Books);
+        }
+
+        var after = await PersonAsync(Osman);
+        Assert.Equal(($"file://{photo}", "folder"), (after.ImageUrl, after.PhotoSource));
+        Assert.Equal(before.ImageChangedAt, after.ImageChangedAt);
+    }
+
+    [Fact]
+    public async Task ARemovedFolderPhoto_IsFilledOnlineStraightAway()
+    {
+        var photo = await AuthorPhotoAsync("author.jpg");
+        var library = await SeedAsync(new Person { Name = Osman, Biography = "Known.", InfoCheckedAt = DateTime.UtcNow });
+        await Refresher().RefreshLibraryAsync(library, force: true, default);
+        _db.ChangeTracker.Clear();
+
+        File.Delete(photo);
+        await Refresher().RefreshLibraryAsync(library, force: true, default);
+
+        var osman = await PersonAsync(Osman);
+        Assert.Equal((AudiblePhoto, "audible"), (osman.ImageUrl, osman.PhotoSource)); // not a month on
+    }
+
+    [Theory]
+    [InlineData(true, "author.jpg", true, true)]
+    [InlineData(true, null, false, true)]
+    [InlineData(false, null, false, false)]
+    public void TheFolderCheck_TellsGoneFromUnreadable(bool readable, string? file, bool found, bool listed)
+    {
+        var (photo, wasListed) = AuthorInfo.FolderPhoto(Osman, "/books", $"/books/{Osman}/{Title}",
+            folder => readable ? file is null ? [] : [Path.Combine(folder, file)] : null);
+
+        Assert.Equal((found, listed), (photo is not null, wasListed));
+    }
+
     /// <summary>Just the authors, online providers left out.</summary>
     private AuthorInfo Authors(BookProviders? providers = null) =>
         new(_db, new ArrClient(new HttpClient(_web)), new Settings(_dir, []), providers, NullLogger.Instance);

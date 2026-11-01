@@ -77,7 +77,7 @@ public sealed partial class AuthorInfo(FlexarrDbContext db, ArrClient arr, IMeta
         var books = await BooksAsync(person, current, ct).ConfigureAwait(false);
 
         // Their own folder's photo, looked for every time (it's only a look on disk).
-        var local = await FolderPhotoAsync(person.Name, books, ct).ConfigureAwait(false);
+        var (local, sure) = await FolderPhotoAsync(person.Name, books, ct).ConfigureAwait(false);
         if (local is not null && (PersonSources.PhotoReplaceable(person) || person.PhotoSource == PersonSources.Folder))
         {
             var stamp = FileStamp(local);
@@ -92,9 +92,11 @@ public sealed partial class AuthorInfo(FlexarrDbContext db, ArrClient arr, IMeta
 
             person.ImageStamp = stamp;
         }
-        else if (local is null && person.PhotoSource == PersonSources.Folder)
+        else if (local is null && sure && person.PhotoSource == PersonSources.Folder)
         {
-            PersonSources.SetPhoto(person, null, null, now); // taken away: online can fill it again
+            // Taken away (not just out of reach, a share that's offline): online fills it again, now.
+            PersonSources.SetPhoto(person, null, null, now);
+            person.InfoCheckedAt = null;
         }
 
         if ((person.ImageUrl is not null && person.Biography is not null) || (!force && person.InfoCheckedAt > now - LookAgainAfter))
@@ -174,7 +176,7 @@ public sealed partial class AuthorInfo(FlexarrDbContext db, ArrClient arr, IMeta
         Add(person.BiographySource ?? Current, null, person.Biography);
 
         var books = await BooksAsync(person, null, ct).ConfigureAwait(false);
-        Add(PersonSources.Folder, await FolderPhotoAsync(person.Name, books, ct).ConfigureAwait(false), null);
+        Add(PersonSources.Folder, (await FolderPhotoAsync(person.Name, books, ct).ConfigureAwait(false)).Photo, null);
         if ((await ReadarrAuthorsAsync(ct).ConfigureAwait(false)).FirstOrDefault(a => a.AuthorName is { } name && Fold(name) == Fold(person.Name)) is { } fromArr)
         {
             Add(PersonSources.Readarr, ArrPhoto(fromArr.Images), Plain(fromArr.Overview));
@@ -275,53 +277,58 @@ public sealed partial class AuthorInfo(FlexarrDbContext db, ArrClient arr, IMeta
     /// <summary>
     /// A photo in the author's own folder: author.jpg (or .jpeg, .png, .webp), else folder.jpg, in the top folder of a
     /// book of theirs that's under an author folder (Author/Title, Author/Series/Title) named for them alone.
+    /// <c>Sure</c> is false when a folder that could hold one couldn't be read (a share that's offline), so no photo
+    /// doesn't mean it's gone.
     /// </summary>
-    private async Task<string?> FolderPhotoAsync(string name, List<AuthorBook> books, CancellationToken ct)
+    private async Task<(string? Photo, bool Sure)> FolderPhotoAsync(string name, List<AuthorBook> books, CancellationToken ct)
     {
         var libraries = books.Where(b => b.Path is not null).Select(b => b.LibraryId).Distinct().ToList();
         if (libraries.Count == 0)
         {
-            return null;
+            return (null, true);
         }
 
         var roots = await db.LibraryFolders.AsNoTracking().Where(f => libraries.Contains(f.LibraryId)).Select(f => new { f.LibraryId, f.Path }).ToListAsync(ct).ConfigureAwait(false);
+        var sure = true;
         foreach (var book in books.Where(b => b.Path is not null))
         {
             foreach (var root in roots.Where(r => r.LibraryId == book.LibraryId).Select(r => r.Path.TrimEnd('/')))
             {
-                if (FolderPhoto(name, root, book.Path!) is { } photo)
+                var (photo, listed) = FolderPhoto(name, root, book.Path!, ListFolder);
+                if (photo is not null)
                 {
-                    return photo;
+                    return (photo, true);
                 }
+
+                sure &= listed;
             }
         }
 
-        return null;
+        return (null, sure);
     }
 
-    /// <summary>The photo in <paramref name="bookPath"/>'s author folder under <paramref name="root"/>, as a file:// URL.</summary>
-    internal static string? FolderPhoto(string name, string root, string bookPath)
+    /// <summary>
+    /// The photo in <paramref name="bookPath"/>'s author folder under <paramref name="root"/>, as a file:// URL.
+    /// <c>Listed</c> is false when the folder couldn't be read.
+    /// </summary>
+    /// <param name="list">The files in a folder; null when it can't be read (see <see cref="ListFolder"/>).</param>
+    internal static (string? Photo, bool Listed) FolderPhoto(string name, string root, string bookPath, Func<string, string[]?> list)
     {
+        ArgumentNullException.ThrowIfNull(list);
         if (root.Length == 0 || !PathComparison.IsUnder(bookPath, root))
         {
-            return null;
+            return (null, true);
         }
 
         var relative = Path.GetRelativePath(root, bookPath).Split(Path.DirectorySeparatorChar);
         if (relative.Length < 2 || relative[0] is "." or ".." || BookLayout.SplitAuthors(relative[0]) is not [var only] || Fold(only) != Fold(name))
         {
-            return null;
+            return (null, true);
         }
 
-        var folder = Path.Combine(root, relative[0]);
-        string[] files;
-        try
+        if (list(Path.Combine(root, relative[0])) is not { } files)
         {
-            files = Directory.Exists(folder) ? Directory.GetFiles(folder) : [];
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            return null;
+            return (null, false);
         }
 
         foreach (var wanted in PhotoNames)
@@ -330,12 +337,34 @@ public sealed partial class AuthorInfo(FlexarrDbContext db, ArrClient arr, IMeta
             {
                 if (files.FirstOrDefault(f => string.Equals(Path.GetFileName(f), wanted + extension, StringComparison.OrdinalIgnoreCase)) is { } file)
                 {
-                    return $"file://{file}";
+                    return ($"file://{file}", true);
                 }
             }
         }
 
-        return null;
+        return (null, true);
+    }
+
+    /// <summary>
+    /// The files in an author folder: none when it's gone from a library folder that's there, null when it can't be
+    /// read or its library folder is missing or empty (a share that isn't mounted).
+    /// </summary>
+    internal static string[]? ListFolder(string folder)
+    {
+        try
+        {
+            if (Directory.Exists(folder))
+            {
+                return Directory.GetFiles(folder);
+            }
+
+            var root = Path.GetDirectoryName(folder);
+            return root is not null && Directory.Exists(root) && Directory.EnumerateFileSystemEntries(root).Any() ? [] : null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
     }
 
     /// <summary>
