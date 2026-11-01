@@ -81,6 +81,11 @@ struct DetailView: View {
                 .presentationDragIndicator(.visible)
             }
         }
+        .sheet(isPresented: $showingTrailer) {
+            if let trailer, let item {
+                TrailerSheet(trailer: trailer, title: item.title)
+            }
+        }
         .alert(savedSubtitles ?? "", isPresented: Binding(get: { savedSubtitles != nil }, set: { if !$0 { savedSubtitles = nil } })) {
             Button("OK", role: .cancel) {}
         }
@@ -164,7 +169,7 @@ struct DetailView: View {
     private func detailActions(_ item: ItemSummary, playable: ItemSummary?) -> DetailActions {
         let kind: DetailActions.Kind = item.kind == .series ? .show : item.kind == .episode ? .episode : .movie
         return DetailActions(kind: kind, hasProgress: playable?.isResumable == true && item.kind != .series,
-                             watched: isWatched(item), hasTrailer: detail?.trailerYouTubeId != nil, isKids: model.isKids,
+                             watched: isWatched(item), hasTrailer: trailer != nil, isKids: model.isKids,
                              platform: .phone, canPlayTrailers: canPlayTrailers,
                              canDownload: item.kind == .movie || item.kind == .episode,
                              canSearchSubtitles: detail?.canSearchSubtitles == true && detail?.files.first != nil)
@@ -172,8 +177,10 @@ struct DetailView: View {
 
     private func isWatched(_ item: ItemSummary) -> Bool { item.userData.watched || item.userData.unwatchedCount == 0 }
 
-    /// Trailers play in a sheet on the phone.
-    private var canPlayTrailers: Bool { false }
+    private var trailer: YouTubeTrailer? { YouTubeTrailer(id: detail?.trailerYouTubeId) }
+
+    /// Trailers play in a sheet on the phone, wherever there's one.
+    private var canPlayTrailers: Bool { true }
 
     @ViewBuilder
     private func actions(_ item: ItemSummary) -> some View {
