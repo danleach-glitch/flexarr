@@ -254,7 +254,7 @@ fun itemActions(item: ItemSummary, showsDetails: Boolean = false, downloads: Boo
     val inContinueWatching = LocalInContinueWatching.current
     val model = androidx.compose.ui.platform.LocalContext.current.appModel
     // In Continue watching, a book or podcast episode can leave it without being marked finished.
-    val leave = if (inContinueWatching) listOf(MenuAction("Remove from Continue Watching") { navigator.removeFromContinueWatching(item) }) else emptyList()
+    val leave = if (inContinueWatching) listOf(MenuAction("Remove") { navigator.removeFromContinueWatching(item) }) else emptyList()
     if (item.kind == MediaKind.Audiobook) return bookActions(item, showsDetails, downloads) + leave
     if (item.kind == MediaKind.PodcastEpisode) return podcastEpisodeActions(item, showsDetails, kids = model.isKids) + leave
     return buildList {
@@ -280,7 +280,7 @@ fun itemActions(item: ItemSummary, showsDetails: Boolean = false, downloads: Boo
         if (item.isResumable && !watched) {
             if (!kids) add(MenuAction("Mark as unwatched") { navigator.setWatched(item, false) })
         } else if (inContinueWatching && item.kind == MediaKind.Episode && !watched) {
-            add(MenuAction("Remove from Continue Watching") { navigator.removeFromContinueWatching(item) })
+            add(MenuAction("Remove") { navigator.removeFromContinueWatching(item) })
         }
         val show = item.seriesTitle
         if (!kids && item.kind == MediaKind.Episode && item.seriesId != null && show != null) {
