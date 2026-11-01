@@ -569,7 +569,8 @@ public sealed class PlaybackService(
 
     /// <summary>
     /// Takes a title out of Continue Watching without marking it watched: forgets the place reached in it and, for an
-    /// episode (or a show), keeps the show's next episode out of the row until another episode is played.
+    /// episode (or a show), keeps the show's next episode out of the row until another episode is played. An audiobook
+    /// or podcast episode (in the row for apps that ask) goes the same way: its place forgotten, not finished.
     /// </summary>
     public async Task<bool> RemoveFromContinueWatchingAsync(Guid itemId, CancellationToken ct)
     {

@@ -235,7 +235,8 @@ public static partial class DiscoveryEndpoints
         api.MapGet("/home/continue", async (int? take, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
             await ContinueWatchingAsync(db, profile.Id, Math.Clamp(take ?? 20, 1, 50), null, ct)).WithTags("Discovery");
 
-        // Takes a title out of Continue Watching without marking it watched (see PlaybackService).
+        // Takes a title (a film, episode, audiobook or podcast episode) out of Continue Watching without marking it
+        // watched (see PlaybackService).
         api.MapDelete("/home/continue/{id:guid}", async (Guid id, Playback.PlaybackService playback, CancellationToken ct) =>
             await playback.RemoveFromContinueWatchingAsync(id, ct) ? Results.NoContent() : Results.NotFound()).WithTags("Discovery");
 
