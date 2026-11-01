@@ -475,6 +475,8 @@ struct TabStack<Content: View>: View {
             PersonView(id: id, name: name)
         case .library(let library, _, _) where library.type == .music:
             MusicLibraryView(library: library)
+        case .library(let library, _, let genre?) where library.type == .audiobooks:
+            BookGenreView(library: library, genre: genre)
         case .library(let library, _, _) where library.type == .audiobooks:
             BooksLibraryView(library: library)
         case .bookSeries(let id, let name):

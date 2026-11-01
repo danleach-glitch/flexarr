@@ -172,10 +172,64 @@
   padding: 0 var(--edge);
 }
 
-.book-genres .chip-count {
-  margin-left: 8px;
-  opacity: 0.6;
+/* A genre's page: the way back to Genres sits above its name, where the views are on the library's. */
+.genre-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--usher);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.genre-back:hover {
+  color: var(--screen);
+}
+
+.genre-back svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* The Genres view: one panel of rows, each a genre, how many books and a chevron, as in the apps. */
+.book-genres {
+  max-width: 640px;
+  padding: 0;
+  overflow: hidden;
+}
+
+.book-genres a {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 0 16px;
+  color: var(--screen);
+  text-decoration: none;
   font-variant-numeric: tabular-nums;
+}
+
+.book-genres a + a {
+  border-top: 1px solid var(--aisle);
+}
+
+.book-genres a:hover {
+  background: color-mix(in srgb, var(--screen) 6%, transparent);
+}
+
+.book-genre-name {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.book-genres svg {
+  width: 16px;
+  height: 16px;
+  color: var(--usher);
 }
 
 .book-filters {
@@ -536,6 +590,82 @@
   line-clamp: 3;
   overflow: hidden;
   font-size: var(--step--1);
+}
+
+/* ---------- Edit a book ---------- */
+
+/* The fields scroll between the title and the actions, so Save is always in view. */
+.book-editor {
+  width: min(680px, 100%);
+  max-height: 84vh;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.book-editor-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  gap: 16px;
+  /* Room for the focus ring, which the scrolling would clip. */
+  margin: -6px;
+  padding: 6px;
+}
+
+.book-editor h2 {
+  font-size: var(--step-3);
+}
+
+.book-editor-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 120px;
+  gap: 14px 12px;
+}
+
+/* Settings' fields, laid out in a grid here: no gap of their own, and as wide as their column. */
+.book-editor-fields .field + .field {
+  margin-top: 0;
+}
+
+.book-editor-fields .field input {
+  max-width: none;
+}
+
+/* The labels are bold; what's typed isn't. */
+.book-editor-fields input,
+.book-editor-fields textarea {
+  font-weight: 400;
+}
+
+.book-editor-fields textarea {
+  padding: 10px 14px;
+  border: 1px solid var(--field-line);
+  border-radius: var(--radius-control);
+  background-color: var(--well);
+  color: var(--screen);
+  resize: vertical;
+}
+
+.book-editor-fields .wide {
+  grid-column: 1 / -1;
+}
+
+.book-editor-names {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.book-editor-names input {
+  flex: 1;
+  min-width: 140px;
+}
+
+.book-editor .form-actions {
+  margin-top: 0;
 }
 
 /* ---------- Edit a person ---------- */

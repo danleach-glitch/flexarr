@@ -23,8 +23,10 @@ public enum BookAvailability
 /// <summary>A book a search found, and whether it can be requested.</summary>
 /// <param name="ForeignBookId">Its id with the app's metadata source: what a request names.</param>
 /// <param name="ItemId">The book in the library, when it's there.</param>
+/// <param name="Image">The cover through the server's image proxy (web pages can't load other sites' images); null
+/// when its host isn't one the proxy fetches from. Absent from servers before 0.58.</param>
 public sealed record BookRequestResultDto(string ForeignBookId, string Title, string? Author, int? Year, string? Cover, string? Overview,
-    BookAvailability Availability, Guid? ItemId);
+    BookAvailability Availability, Guid? ItemId, string? Image = null);
 
 /// <param name="Query">The search the book was found with, to find it again.</param>
 public sealed record BookRequestRequest(string ForeignBookId, string Query);
@@ -89,7 +91,8 @@ public static class BookRequestEndpoints
                 var released = Text(b, "releaseDate");
                 return new BookRequestResultDto(fid, Text(b, "title") ?? "Untitled", (b["author"] as JsonObject) is { } a ? Text(a, "authorName") : Text(b, "authorTitle"),
                     released is { Length: >= 4 } && int.TryParse(released[..4], System.Globalization.CultureInfo.InvariantCulture, out var y) ? y : null,
-                    Cover(b), Text(b, "overview") is { } o ? Flexarr.Core.Books.BookSidecars.PlainText(o) : null, availability, mine);
+                    Cover(b), Text(b, "overview") is { } o ? Flexarr.Core.Books.BookSidecars.PlainText(o) : null, availability, mine,
+                    Endpoints.ImageEndpoints.RemoteUrl(Cover(b)));
             }).ToList());
         });
 

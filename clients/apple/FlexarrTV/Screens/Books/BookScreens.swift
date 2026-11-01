@@ -43,8 +43,12 @@ struct BookCard: View {
         .contextMenu {
             Button { model.playBook(item) } label: { Label(item.isResumable ? "Resume" : "Play", systemImage: "play.fill") }
             if !model.isKids {
-                Button { Task { await model.setBookFinished(item, !item.userData.watched) } } label: {
-                    Label(item.userData.watched ? "Mark as not finished" : "Mark as finished", systemImage: "checkmark.circle")
+                if !item.userData.watched {
+                    Button { Task { await model.setBookFinished(item, true) } } label: { Label("Mark as finished", systemImage: "checkmark.circle") }
+                }
+                // Unread: no place and not finished, as if never started. Not while it plays, which would set the place again.
+                if item.userData.watched || item.isResumable, model.music.current?.id != item.id {
+                    Button { Task { await model.setBookFinished(item, false) } } label: { Label("Mark as unread", systemImage: "book.closed") }
                 }
             }
         }
@@ -52,8 +56,8 @@ struct BookCard: View {
 }
 
 /// An audiobooks library's tab: Continue listening, Next in series, Recently added, series, authors and finished books,
-/// each a row, in the profile's order (Settings › Home & browse). With no shelf left to show (all switched off, or only
-/// empty ones on), every book in a grid instead.
+/// each a row, in the profile's order (Settings › Home & browse), then its genres, each opening a page of its books. With
+/// no shelf left to show (all switched off, or only empty ones on), every book in a grid instead.
 struct BooksLibraryView: View {
     @Environment(AppModel.self) private var model
     @Environment(Router.self) private var router
@@ -92,6 +96,17 @@ struct BooksLibraryView: View {
                         allBooks
                     } else {
                         StatusView(state: .empty("No books yet.")).frame(height: 500)
+                    }
+                    // The shelves carry the genres (the most-used 200), so the row costs nothing more to show.
+                    let genres = shelves.genres.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+                    if !shelves.shownShelves.isEmpty, !genres.isEmpty {
+                        ShelfRow(title: "Genres", ids: genres.map(\.name), column: $column) { focus in
+                            ForEach(genres, id: \.name) { genre in
+                                GenreTile(name: genre.name, caption: genre.count == 1 ? "1 book" : "\(genre.count) books", backdrop: nil, focus: focus) {
+                                    router.push(.library(library, .title, genre: genre.name))
+                                }
+                            }
+                        }
                     }
                 } else if let error {
                     StatusView(state: .failed(error) { Task { await load() } }).frame(height: 500)
@@ -361,16 +376,29 @@ struct BookView: View {
                             }
                     }
                     if !model.isKids {
+                        // Finished, or (when it isn't) unread: no place and not finished, as if never started. Not
+                        // while it plays, which would set the place again.
+                        let unread = item.userData.watched || (position > 0 && model.music.current?.id != item.id)
                         Button {
                             Task {
                                 await model.setBookFinished(item, !item.userData.watched)
                                 await load()
                             }
                         } label: {
-                            Label(item.userData.watched ? "Mark as not finished" : "Mark as finished",
-                                  systemImage: item.userData.watched ? "arrow.uturn.backward" : "checkmark")
+                            // A closed book for unread: an arrow would look like Start over's beside it.
+                            Label(item.userData.watched ? "Mark as unread" : "Mark as finished",
+                                  systemImage: item.userData.watched ? "book.closed" : "checkmark")
                         }
                         .buttonStyle(ActionButtonStyle(iconOnly: true))
+                        if unread, !item.userData.watched {
+                            Button {
+                                Task {
+                                    await model.setBookFinished(item, false)
+                                    await load()
+                                }
+                            } label: { Label("Mark as unread", systemImage: "book.closed") }
+                                .buttonStyle(ActionButtonStyle(iconOnly: true))
+                        }
                     }
                 }
                 .padding(.top, 20)
@@ -616,6 +644,84 @@ struct BookSeriesView: View {
             focused = series?.nextId
         } catch {
             self.error = ConnectionError(error).message
+        }
+    }
+}
+
+/// One genre's books in an audiobooks library, under its name: Back goes to the library.
+struct BookGenreView: View {
+    @Environment(AppModel.self) private var model
+    @Environment(Router.self) private var router
+    let library: Library
+    let genre: String
+    @State private var books: [ItemSummary] = []
+    @State private var total = 0
+    @State private var loaded = false
+    @State private var loadedToken: Int?
+    @State private var loadingMore = false
+    @State private var error: String?
+    @FocusState private var focused: String?
+
+    private let columns = Array(repeating: GridItem(.fixed(Layout.posterWidth), spacing: Layout.gridSpacing, alignment: .top), count: 6)
+
+    var body: some View {
+        ScrollView(.vertical) {
+            VStack(alignment: .leading, spacing: 40) {
+                Text(genre)
+                    .font(.marquee(76, weight: .heavy))
+                    .foregroundStyle(Color.screen)
+                    .padding(.top, 20)
+                if loaded, books.isEmpty {
+                    StatusView(state: .empty("No books yet.")).frame(height: 500)
+                } else if loaded {
+                    LazyVGrid(columns: columns, alignment: .leading, spacing: 56) {
+                        ForEach(Array(books.enumerated()), id: \.element.id) { index, book in
+                            BookCard(item: book, focus: $focused) { router.push(.item(book)) }
+                                .onAppear { if index >= books.count - 12 { Task { await more() } } }
+                        }
+                    }
+                    .focusSection()
+                } else if let error {
+                    StatusView(state: .failed(error) { Task { await load() } }).frame(height: 500)
+                } else {
+                    StatusView(state: .loading).frame(height: 500)
+                }
+            }
+            .padding(.horizontal, Layout.edge)
+            .padding(.bottom, 80)
+        }
+        .scrollClipDisabled()
+        .background(RoomBackground(ambient: books.first?.glowColor, intensity: 0.2))
+        // Once, and again when something changed (a book marked finished): not on every return from a book, which would
+        // drop the pages scrolled through and the focus with them.
+        .task(id: model.refreshToken) {
+            guard loadedToken != model.refreshToken else { return }
+            await load()
+        }
+    }
+
+    private func load() async {
+        guard let client = model.client else { return }
+        let token = model.refreshToken
+        do {
+            // As many as were showing, so a refresh keeps the place.
+            let page = try await client.books(library.id, filter: BookFilter(genre: genre), take: min(200, max(60, books.count)))
+            books = page.items
+            total = page.total
+            loaded = true
+            error = nil
+            loadedToken = token
+        } catch {
+            if !loaded { self.error = ConnectionError(error).message }
+        }
+    }
+
+    private func more() async {
+        guard let client = model.client, !loadingMore, books.count < total else { return }
+        loadingMore = true
+        defer { loadingMore = false }
+        if let page = try? await client.books(library.id, filter: BookFilter(genre: genre), skip: books.count, take: 60) {
+            books += page.items
         }
     }
 }

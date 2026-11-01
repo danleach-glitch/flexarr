@@ -32,7 +32,7 @@ Author - Title [B0DPXK6Y7B].m4b                  an Audible id in the name
 
 ## Finding books
 
-The library's front page has **Continue listening**, **Next in series**, **Recently added**, your series and authors, and what you've finished. **All books** lists every book, with filters for what you haven't started, are part way through or have finished, and by narrator, length and language. **Series**, **Authors** and **Genres** list those; pick a genre to see its books.
+The library's front page has **Continue listening**, **Next in series**, **Recently added**, your series and authors, and what you've finished. **All books** lists every book, with filters for what you haven't started, are part way through or have finished, and by narrator, length and language. **Genres**, **Series** and **Authors** list those; pick a genre to see its books.
 
 Books you're part way through also show on Home, in **Continue watching or listening** with your films, shows and podcast episodes. To keep them in their own **Continue listening** row instead, turn off **Books and podcasts in Continue watching** in **Settings › Podcasts & audiobooks** (on the web it's in **Settings › Home & browse**, and on the Apple TV in **Settings › Playback**).
 
@@ -47,7 +47,7 @@ A book's page shows its series ("Book 3 of 7"), authors and narrators, how long 
 - **Smart rewind:** after a pause, a book starts a little earlier, more the longer you were away.
 - **Sleep timer:** after some minutes or at the end of the chapter. On a phone, shake it to add time.
 - **Bookmarks**, with a note if you like, are on the book's page and in the player.
-- **Finished:** a book counts as finished in its last two minutes or last 2%, whichever comes first, or when you choose **Mark finished** on its page. **Start over** goes back to the beginning and keeps the record. Part-way through a book, it asks first.
+- **Finished:** a book counts as finished in its last two minutes or last 2%, whichever comes first, or when you choose **Mark finished** on its page. **Start over** goes back to the beginning and keeps the record. Part-way through a book, it asks first. **Mark as unread** forgets your place and that you finished it, as if you'd never started.
 - **Across devices:** your place is saved as you listen. If another device got further, the player offers to jump there.
 - At the end of a book in a series, the player offers the next one.
 
@@ -66,6 +66,8 @@ The **Continue listening** widget and "Resume listening in Flexarr" with Siri pi
 When a book's files leave gaps, Flexarr fills them from Audible (through the community-run Audnexus service), Open Library, and if you add keys, Google Books and Hardcover. The main profile chooses the **Audible store** under **Audiobook details** in the web app's **Settings › Libraries**; Google Books and Hardcover turn on once their key or token is saved there.
 
 Audible's chapters replace guessed ones when they match the book's length. On the web, the main profile can change a book's chapters: open its page, choose **⋯ › Edit chapters…**, rename them or **Shift all by** a few seconds, then **Save**. **Use Audible's** fills them in; **Save** keeps them. **⋯ › Fix match…** finds the right book when Flexarr picked the wrong one.
+
+To fix a book's details yourself, choose **⋯ › Edit…** (it asks for the admin PIN): change its title, authors, narrators, series, genres, description or year. **Locked** keeps your changes when the library is scanned again. Genres that only say it's an audiobook, such as *Audiobook* or *Spoken Word*, are left out.
 
 ### Author photos
 

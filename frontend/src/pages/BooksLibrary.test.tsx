@@ -33,22 +33,31 @@ const show = (url: string) =>
   )
 
 describe('Audiobooks library', () => {
-  it('has pills for Browse, All books, Series, Authors and Genres, and none for narrators', () => {
+  it('has pills for Browse, All books, Genres, Series and Authors, as in the apps, and none for narrators', () => {
     mockApi({ '/libraries/lib-books/book-shelves': shelves })
     show('/library/lib-books')
     const pills = within(screen.getByRole('navigation', { name: 'Audiobooks views' })).getAllByRole('link')
-    expect(pills.map((p) => p.textContent)).toEqual(['Browse', 'All books', 'Series', 'Authors', 'Genres'])
-    expect(pills[4]).toHaveAttribute('href', '/library/lib-books?view=genres')
+    expect(pills.map((p) => p.textContent)).toEqual(['Browse', 'All books', 'Genres', 'Series', 'Authors'])
+    expect(pills[2]).toHaveAttribute('href', '/library/lib-books?view=genres')
   })
 
-  it('lists genres A–Z with their counts, each opening All books filtered to it', async () => {
-    mockApi({ '/libraries/lib-books/book-shelves': shelves })
+  it('lists genres A–Z with their counts, each opening a page of its own', async () => {
+    mockApi({ '/libraries/lib-books/book-genres': shelves.genres })
     show('/library/lib-books?view=genres')
     const list = await screen.findByRole('navigation', { name: 'Genres' })
     const links = within(list).getAllByRole('link')
-    expect(links.map((l) => l.textContent)).toEqual(['Biography1', 'Fantasy3', 'Science Fiction12'])
-    expect(links[2]).toHaveAttribute('href', '/library/lib-books?view=all&genre=Science%20Fiction')
+    expect(links.map((l) => l.textContent)).toEqual(['Biography1 book', 'Fantasy3 books', 'Science Fiction12 books'])
+    expect(links[2]).toHaveAttribute('href', '/library/lib-books?view=genre&genre=Science%20Fiction')
     expect(screen.getByRole('link', { name: 'Genres' })).toHaveAttribute('aria-current', 'page')
+  })
+
+  it('shows a genre’s books under its name, with no views and a way back to Genres', async () => {
+    mockApi({ '/libraries/lib-books/books': { total: 0, items: [] }, '/libraries/lib-books/book-shelves': shelves, '/libraries/lib-books/book-people': { total: 0, items: [] } })
+    show('/library/lib-books?view=genre&genre=Fantasy')
+    expect(screen.getByRole('heading', { name: 'Fantasy' })).toBeInTheDocument()
+    expect(screen.queryByRole('navigation', { name: 'Audiobooks views' })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Genres' })).toHaveAttribute('href', '/library/lib-books?view=genres')
+    expect(await screen.findByText('No books yet.')).toBeInTheDocument()
   })
 
   it('leaves genres off Browse', async () => {

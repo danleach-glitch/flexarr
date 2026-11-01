@@ -42,7 +42,8 @@ export function PersonPage() {
   // photo would stop updating once saved. The main profile, locked here, gives the PIN first.
   const canEdit = (me?.isAdmin === true || me?.canUnlock === true) && data.credits.some((c) => bookRoles.has(c.role))
   const edit = async () => {
-    if (me?.isAdmin === true || (await unlockFirst())) setEditing(true)
+    // Asked afresh: the PIN given here may have run out since the page opened.
+    if (await unlockFirst()) setEditing(true)
   }
 
   return (

@@ -1,6 +1,8 @@
 import { Fragment, useEffect, useState, type ReactNode } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import {
+  getBookGenres,
+  getBookLanguages,
   getBookPeople,
   getBookSeriesList,
   getBookShelves,
@@ -15,6 +17,7 @@ import {
 import { AsyncButton } from '../components/AsyncButton'
 import { BookPersonCard, BookSeriesCard } from '../components/BookCards'
 import { PosterCard } from '../components/Cards'
+import { ChevronLeft, ChevronRight } from '../components/icons'
 import { Row } from '../components/Row'
 import { ScanProgress } from '../components/ScanProgress'
 import { useLibraries } from '../hooks/librariesContext'
@@ -24,18 +27,19 @@ import { languageOptions } from '../lib/books'
 
 const PAGE_SIZE = 60
 
-type View = 'browse' | 'all' | 'series' | 'authors' | 'genres' | 'narrators'
+type View = 'browse' | 'all' | 'series' | 'authors' | 'genres' | 'narrators' | 'genre'
 
+/** The same views, in the same order, as the iPhone and Android apps. */
 const views: { view: View; label: string }[] = [
   { view: 'browse', label: 'Browse' },
   { view: 'all', label: 'All books' },
+  { view: 'genres', label: 'Genres' },
   { view: 'series', label: 'Series' },
   { view: 'authors', label: 'Authors' },
-  { view: 'genres', label: 'Genres' },
 ]
 
-/** Views without a pill, still opened by their address. */
-const hidden: View[] = ['narrators']
+/** Views without a pill, still opened by their address: one genre's books has a page of its own. */
+const hidden: View[] = ['narrators', 'genre']
 
 /**
  * An audiobooks library: shelves (Browse), every book with filters and sorts (All), and its series, authors and
@@ -44,7 +48,10 @@ const hidden: View[] = ['narrators']
 export function BooksLibrary({ library }: { library: Library }) {
   const [params] = useSearchParams()
   const asked = params.get('view')
-  const view: View = views.some((v) => v.view === asked) || hidden.includes(asked as View) ? (asked as View) : params.has('sort') || params.has('genre') ? 'all' : 'browse'
+  const asking: View = views.some((v) => v.view === asked) || hidden.includes(asked as View) ? (asked as View) : params.has('sort') || params.has('genre') ? 'all' : 'browse'
+  const genre = params.get('genre')
+  const view: View = asking === 'genre' && !genre ? 'genres' : asking
+  if (view === 'genre' && genre) return <GenrePage library={library} genre={genre} />
   return (
     <div className="library-page books-library">
       <header className="library-header">
@@ -61,7 +68,7 @@ export function BooksLibrary({ library }: { library: Library }) {
       </header>
       {library.scan && <ScanProgress scan={library.scan} />}
       {view === 'browse' && <Shelves key={library.id} library={library} />}
-      {view === 'all' && <AllBooks key={library.id} library={library} />}
+      {view === 'all' && <AllBooks key={library.id} library={library} view="all" />}
       {view === 'series' && <SeriesList key={library.id} library={library} />}
       {view === 'genres' && <Genres key={library.id} library={library} />}
       {(view === 'authors' || view === 'narrators') && <People key={`${library.id}-${view}`} library={library} role={view === 'authors' ? 'author' : 'narrator'} />}
@@ -108,7 +115,7 @@ function Shelves({ library }: { library: Library }) {
   // In the profile's order, without the ones it switched off (Settings › Home & browse).
   const order = (data.order ?? Object.keys(shelves)).filter((id) => id in shelves)
   // None left with anything on it: the whole library instead.
-  if (!order.some((id) => shelves[id])) return <AllBooks library={library} />
+  if (!order.some((id) => shelves[id])) return <AllBooks library={library} view="all" />
   return (
     <div className="book-shelves">
       {order.map((id) => (
@@ -118,22 +125,40 @@ function Shelves({ library }: { library: Library }) {
   )
 }
 
-/** The library's genres, A–Z, each opening All books filtered to it. */
+/** The library's genres, A–Z, as a list (as in the apps), each opening a page of its books. */
 function Genres({ library }: { library: Library }) {
-  const { data, error } = useApi((signal) => getBookShelves(library.id, signal), [library.id, library.itemCount])
+  const { data, error } = useApi((signal) => getBookGenres(library.id, signal), [library.id, library.itemCount])
   if (error) return <p className="page-message error">{error.message}</p>
-  if (!data) return <div className="chips" aria-busy="true" />
-  if (data.genres.length === 0) return <p className="page-message muted">No genres here yet.</p>
-  const genres = [...data.genres].sort((a, b) => a.name.localeCompare(b.name))
+  if (!data) return <div className="book-genres" aria-busy="true" />
+  if (data.length === 0) return <p className="page-message muted">No genres here yet.</p>
+  const genres = [...data].sort((a, b) => a.name.localeCompare(b.name))
   return (
-    <nav className="chips book-genres" aria-label="Genres">
+    <nav className="panel book-genres" aria-label="Genres">
       {genres.map((g) => (
-        <Link key={g.name} className="chip" to={`/library/${library.id}?view=all&genre=${encodeURIComponent(g.name)}`}>
-          {g.name}
-          <span className="chip-count">{g.count.toLocaleString()}</span>
+        <Link key={g.name} to={`/library/${library.id}?view=genre&genre=${encodeURIComponent(g.name)}`}>
+          <span className="book-genre-name">{g.name}</span>
+          <span className="muted">{g.count === 1 ? '1 book' : `${g.count.toLocaleString()} books`}</span>
+          <ChevronRight aria-hidden="true" />
         </Link>
       ))}
     </nav>
+  )
+}
+
+/** One genre's books: its name for a title and a way back to Genres in place of the views, then every book in it. */
+function GenrePage({ library, genre }: { library: Library; genre: string }) {
+  return (
+    <div className="library-page books-library">
+      <header className="library-header">
+        <div className="library-heading">
+          <Link className="genre-back" to={`/library/${library.id}?view=genres`}>
+            <ChevronLeft /> Genres
+          </Link>
+          <h1 className="library-title">{genre}</h1>
+        </div>
+      </header>
+      <AllBooks key={`${library.id}-${genre}`} library={library} view="genre" />
+    </div>
   )
 }
 
@@ -157,7 +182,7 @@ const lengths: { value: string; label: string; min?: number; max?: number }[] = 
 ]
 
 /** Every book, filtered and sorted by what the address says, so a filter can be linked to and comes back on Back. */
-function AllBooks({ library }: { library: Library }) {
+function AllBooks({ library, view }: { library: Library; view: 'all' | 'genre' }) {
   const [params, setParams] = useSearchParams()
   const { reload: reloadLibraries } = useLibraries()
   const [search, setSearch] = useState(params.get('search') ?? '')
@@ -177,10 +202,9 @@ function AllBooks({ library }: { library: Library }) {
   }
   const key = JSON.stringify(filters)
   const narrators = useApi((signal) => getBookPeople(library.id, { role: 'narrator', take: 200 }, signal), [library.id])
-  // The languages its books are in, from the shelves when the server sends them, one per name, the one chosen always
-  // among them.
-  const shelves = useApi((signal) => getBookShelves(library.id, signal), [library.id])
-  const languages = languageOptions(shelves.data?.languages ?? [], filters.language)
+  // The languages its books are in, one per name, the one chosen always among them.
+  const bookLanguages = useApi((signal) => getBookLanguages(library.id, signal), [library.id])
+  const languages = languageOptions(bookLanguages.data ?? [], filters.language)
   // The author filtered by, named (a link to it carries only the id).
   const author = useApi((signal) => (filters.author ? getPerson(filters.author, signal) : Promise.resolve(null)), [filters.author])
   const authorName = author.data?.name
@@ -200,7 +224,7 @@ function AllBooks({ library }: { library: Library }) {
 
   function set(name: string, value: string) {
     const next = new URLSearchParams(params)
-    next.set('view', 'all')
+    next.set('view', view)
     if (value) next.set(name, value)
     else next.delete(name)
     setParams(next, { replace: true })
@@ -209,7 +233,9 @@ function AllBooks({ library }: { library: Library }) {
   /** Every filter off (the search too), keeping the sort. */
   function clearFilters() {
     const next = new URLSearchParams()
-    next.set('view', 'all')
+    next.set('view', view)
+    // A genre's page keeps its genre.
+    if (view === 'genre' && filters.genre) next.set('genre', filters.genre)
     const sort = params.get('sort')
     if (sort) next.set('sort', sort)
     setSearch('')
@@ -222,7 +248,7 @@ function AllBooks({ library }: { library: Library }) {
     setPages({ key, books: { total: page.total, items: [...shown.items, ...page.items] } })
   }
 
-  const filtered = Object.entries(filters).some(([name, value]) => name !== 'sort' && value !== undefined)
+  const filtered = Object.entries(filters).some(([name, value]) => name !== 'sort' && !(view === 'genre' && name === 'genre') && value !== undefined)
   return (
     <>
       <div className="library-tools book-filters">
@@ -280,9 +306,9 @@ function AllBooks({ library }: { library: Library }) {
           Scan for changes
         </AsyncButton>
       </div>
-      {(filters.genre || filters.author) && (
+      {((filters.genre && view === 'all') || filters.author) && (
         <p className="chips">
-          {filters.genre && (
+          {filters.genre && view === 'all' && (
             <button className="chip" aria-pressed="true" onClick={() => set('genre', '')} aria-label={`Genre ${filters.genre}: clear`}>
               {filters.genre} ×
             </button>

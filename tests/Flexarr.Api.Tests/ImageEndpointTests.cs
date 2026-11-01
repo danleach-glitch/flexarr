@@ -227,6 +227,25 @@ public class ImageEndpointTests(FlexarrApiFactory factory) : IClassFixture<Flexa
     }
 
     /// <summary>TMDB, with every image the same tiny JPEG.</summary>
+    [Fact]
+    public async Task ACoverNamedWithAPlus_IsServedAsSigned_AndARawPlusIsRefused()
+    {
+        var artwork = new FakeArtwork();
+        using var server = factory.WithWebHostBuilder(b => b.UseSetting("Flexarr:FfmpegPath", "false").ConfigureTestServices(s =>
+            s.AddHttpClient<ImageCache>().ConfigurePrimaryHttpMessageHandler(() => artwork)));
+        var client = server.CreateClient();
+        const string cover = "https://m.media-amazon.com/images/I/51ef+s6y42L._SL500_.jpg";
+
+        var link = ImageEndpoints.RemoteUrl(cover)!;
+        var served = await client.GetAsync(new Uri($"{link}&w=92", UriKind.Relative));
+        // The same link with its %2B written as a raw + (a space once decoded): not an image path, so refused.
+        var raw = await client.GetAsync(new Uri($"{link.Replace("%2B", "+", StringComparison.Ordinal)}&w=92", UriKind.Relative));
+
+        Assert.Equal(HttpStatusCode.OK, served.StatusCode);
+        Assert.Equal([cover], artwork.Requested);
+        Assert.Equal(HttpStatusCode.BadRequest, raw.StatusCode);
+    }
+
     private sealed class FakeArtwork : HttpMessageHandler
     {
         public List<string> Requested { get; } = [];

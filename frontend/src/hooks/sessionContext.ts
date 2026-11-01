@@ -6,6 +6,8 @@ export interface SessionContextValue {
   me: Me | undefined
   /** The household's profiles; undefined while loading. */
   profiles: Profile[] | undefined
+  /** Reads who this is again (after the admin PIN is given, say). */
+  reloadMe?: () => void
 }
 
 export const SessionContext = createContext<SessionContextValue>({ me: undefined, profiles: undefined })

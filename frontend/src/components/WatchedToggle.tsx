@@ -33,8 +33,8 @@ export function WatchedToggle({ item, onChanged }: { item: ItemSummary; onChange
       type="button"
       className={watched ? 'watched-toggle on' : 'watched-toggle'}
       aria-pressed={watched}
-      aria-label={book ? (watched ? `Finished: mark ${name} not finished` : `Mark ${name} finished`) : watched ? `Watched: mark ${name} as unwatched` : `Mark ${name} as watched`}
-      title={book ? (watched ? 'Finished. Click to mark not finished' : 'Mark finished') : watched ? 'Watched. Click to mark unwatched' : 'Mark as watched'}
+      aria-label={book ? (watched ? `Finished: mark ${name} as unread` : `Mark ${name} finished`) : watched ? `Watched: mark ${name} as unwatched` : `Mark ${name} as watched`}
+      title={book ? (watched ? 'Finished. Click to mark as unread' : 'Mark finished') : watched ? 'Watched. Click to mark unwatched' : 'Mark as watched'}
       onClick={toggle}
     >
       <Check />

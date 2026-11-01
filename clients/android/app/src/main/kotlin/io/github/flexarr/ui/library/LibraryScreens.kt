@@ -41,7 +41,7 @@ import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.Headphones
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.SettingsInputAntenna
 import androidx.compose.material.icons.filled.Movie
@@ -214,7 +214,7 @@ internal val Library.icon
         LibraryType.Music -> Icons.Filled.MusicNote
         LibraryType.Podcasts -> Icons.Filled.Mic
         LibraryType.HomeVideos -> Icons.Filled.Folder
-        LibraryType.Audiobooks -> Icons.Filled.Headphones
+        LibraryType.Audiobooks -> Icons.AutoMirrored.Filled.MenuBook
         // Never listed (see [inMenu]).
         LibraryType.Unknown -> Icons.Filled.Folder
     }

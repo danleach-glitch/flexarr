@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
-import { ApiError, requestBook, type BookRequestResult } from '../api/client'
+import { ApiError, imageUrl, requestBook, type BookRequestResult } from '../api/client'
 import { AsyncButton } from './AsyncButton'
 
 /** A book a request search found: in the library already (its cover opens it), requested, or a Request button. */
@@ -22,7 +22,7 @@ export function BookRequestCard({ book, query }: { book: BookRequestResult; quer
   const cover = (
     <div className="card-frame">
       <div className="artwork artwork-square">
-        {book.cover ? <img src={book.cover} alt="" loading="lazy" referrerPolicy="no-referrer" /> : <span className="artwork-fallback">{book.title}</span>}
+        {book.image ? <img src={imageUrl(book.image, 342)} alt="" loading="lazy" /> : <span className="artwork-fallback">{book.title}</span>}
       </div>
     </div>
   )

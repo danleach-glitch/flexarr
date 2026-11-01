@@ -212,14 +212,35 @@ public static class BookQueries
         var series = await SeriesListAsync(db, libraryId, null, 0, Shelf, profileId, ct);
         var authors = await PeopleAsync(db, libraryId, CreditRole.Author, null, 0, Shelf, ct);
         var narrators = await PeopleAsync(db, libraryId, CreditRole.Narrator, null, 0, Shelf, ct);
-        var genres = await db.Genres.Select(g => new { g.Name, Count = g.Items.Count(i => books.Any(b => b.Id == i.Id)) })
-            .Where(g => g.Count > 0).OrderByDescending(g => g.Count).ThenBy(g => g.Name).Take(200).ToListAsync(ct);
+        var genres = await GenreCounts(books).OrderByDescending(g => g.Count).ThenBy(g => g.Name).Take(200)
+            .Select(g => new GenreCountDto(g.Name, g.Count)).ToListAsync(ct);
 
-        var languages = await books.Select(i => i.Book!.Language).Where(l => l != null && l != "").Distinct().OrderBy(l => l).ToListAsync(ct);
+        var languages = await LanguagesAsync(books, ct);
 
         return new BookShelvesDto(continuing, next, recent, series.Items, authors.Items, narrators.Items,
-            [.. genres.Select(g => new GenreCountDto(g.Name, g.Count))], finished, [.. languages.OfType<string>()]);
+            genres, finished, languages);
     }
+
+    /// <summary>The languages a library's books are in, as their tags write them, A to Z (the Language filter).</summary>
+    public static Task<List<string>> LanguagesAsync(FlexarrDbContext db, Guid libraryId, CancellationToken ct) => LanguagesAsync(Books(db, libraryId), ct);
+
+    private static async Task<List<string>> LanguagesAsync(IQueryable<MediaItem> books, CancellationToken ct) =>
+        [.. (await books.Select(i => i.Book!.Language).Where(l => l != null && l != "").Distinct().OrderBy(l => l).ToListAsync(ct)).OfType<string>()];
+
+    /// <summary>A library's book genres and how many books are in each, A to Z (the Genres view).</summary>
+    public static Task<List<GenreCountDto>> GenresAsync(FlexarrDbContext db, Guid libraryId, CancellationToken ct) =>
+        GenreCounts(Books(db, libraryId)).OrderBy(g => g.Name).Select(g => new GenreCountDto(g.Name, g.Count)).ToListAsync(ct);
+
+    private sealed class GenreCount
+    {
+        public required string Name { get; init; }
+        public int Count { get; init; }
+    }
+
+    // From the library's books, grouped by name: only their genre links are read, rather than every genre on the server
+    // (films' and shows' too) checked against the library.
+    private static IQueryable<GenreCount> GenreCounts(IQueryable<MediaItem> books) =>
+        books.SelectMany(b => b.Genres).GroupBy(g => g.Name).Select(g => new GenreCount { Name = g.Key, Count = g.Count() });
 
     /// <summary>
     /// For each series this profile has finished a book of, the next one it hasn't started: most recently finished

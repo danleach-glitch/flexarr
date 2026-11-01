@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mockApi, movies } from '../test/mockApi'
-import { clearApiCache, FETCH_TIMEOUT_MS, getLibraries, getLibraryGenres, getLibraryItems, keepPage, keptPage, savePlayerPreferences, setWatched } from './client'
+import { apiGet, clearApiCache, FETCH_TIMEOUT_MS, getLibraries, getLibraryGenres, getLibraryItems, keepPage, keptPage, onAdminLapsed, onLockedChange, savePlayerPreferences, setWatched } from './client'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -134,5 +134,24 @@ describe('Times', () => {
     expect(library.created).toBe('2026-10-27T01:53:49Z')
     expect(library.aired).toBe('2026-10-27')
     expect(library.name).toBe('2026-10-27T01:53:49 notes')
+  })
+})
+
+describe('an admin read after the PIN ran out here', () => {
+  it('says settings are locked, and tells the session to look again', async () => {
+    mockApi({
+      'GET /people/p1/candidates': () => new Response('', { status: 403, statusText: 'Forbidden' }),
+      'GET /me': () => ({ isAdmin: false, canUnlock: true }),
+    })
+    const stopAsking = onLockedChange(() => Promise.resolve(false))
+    const lapsed = vi.fn()
+    const stopListening = onAdminLapsed(lapsed)
+    try {
+      await expect(apiGet('/people/p1/candidates')).rejects.toThrow('Settings are locked here. Unlock them to see this.')
+      expect(lapsed).toHaveBeenCalledOnce()
+    } finally {
+      stopAsking()
+      stopListening()
+    }
   })
 })

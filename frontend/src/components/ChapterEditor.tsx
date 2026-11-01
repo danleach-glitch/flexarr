@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ApiError, audibleChapters, saveChapters, type BookChapter } from '../api/client'
+import { ApiError, audibleChapters, saveChapters, unlockFirst, type BookChapter } from '../api/client'
 import { useModal } from '../hooks/useModal'
 import { clockText, parseClock } from '../lib/books'
 import { AsyncButton } from './AsyncButton'
@@ -89,6 +89,8 @@ export function ChapterEditor({
     setBusy(true)
     setError(undefined)
     try {
+      // Only the admin may ask Audible: the PIN first if it's run out here.
+      if (!(await unlockFirst())) return
       const chapters = await audibleChapters(bookId)
       setLeaving(false)
       setDrafts(draftsOf(chapters).map((d, i) => ({ ...d, key: Math.max(-1, ...drafts.map((x) => x.key)) + 1 + i })))

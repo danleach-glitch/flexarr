@@ -49,6 +49,14 @@ public static class BookEndpoints
                 ? Results.Ok(await BookQueries.SeriesListAsync(db, id, search, Math.Max(0, skip ?? 0), Math.Clamp(take ?? 60, 1, MaxPage), profile.Id, ct))
                 : Results.NotFound());
 
+        // Every genre with books in the library, A to Z, with how many. Added in 0.58 (before, the shelves' genres).
+        library.MapGet("/book-genres", async (Guid id, FlexarrDbContext db, CancellationToken ct) =>
+            await IsBooksAsync(db, id, ct) ? Results.Ok(await BookQueries.GenresAsync(db, id, ct)) : Results.NotFound());
+
+        // The languages its books are in, for the Language filter, without the shelves' work. Added in 0.58.
+        library.MapGet("/book-languages", async (Guid id, FlexarrDbContext db, CancellationToken ct) =>
+            await IsBooksAsync(db, id, ct) ? Results.Ok(await BookQueries.LanguagesAsync(db, id, ct)) : Results.NotFound());
+
         // role: "author" (the default) or "narrator".
         library.MapGet("/book-people", async (Guid id, string? role, string? search, int? skip, int? take, FlexarrDbContext db, CancellationToken ct) =>
             await IsBooksAsync(db, id, ct)

@@ -2,6 +2,7 @@ using Flexarr.Api.Security;
 using Flexarr.Core.Books;
 using Flexarr.Core.Data;
 using Flexarr.Core.Media;
+using Flexarr.Core.Probing;
 using Flexarr.Metadata;
 using Flexarr.Metadata.Books;
 using Microsoft.EntityFrameworkCore;
@@ -9,8 +10,10 @@ using Microsoft.EntityFrameworkCore;
 namespace Flexarr.Api.Books;
 
 /// <summary>A result of a book search for Fix match.</summary>
+/// <param name="Image">The cover through the server's image proxy; null when its host isn't one the proxy fetches from.
+/// Absent from servers before 0.58.</param>
 public sealed record BookMatchDto(string Provider, string Id, string Title, string? Subtitle, IReadOnlyList<string> Authors, IReadOnlyList<string> Narrators,
-    string? Series, int? Year, string? Cover, double? DurationSeconds);
+    string? Series, int? Year, string? Cover, double? DurationSeconds, string? Image = null);
 
 /// <summary>The result chosen: its provider and id, and the search it came from.</summary>
 public sealed record BookMatchRequest(string Provider, string Id, string Query, string? Author = null);
@@ -21,6 +24,20 @@ public sealed record ChapterEditRequest(IReadOnlyList<ChapterEdit> Chapters);
 public sealed record ChapterEdit(string Title, double StartSeconds);
 
 public sealed record ChapterShiftRequest(double Seconds);
+
+/// <summary>A book's details as edited by hand. Empty lists clear (no narrators, no series). Locked: rescans and refreshes keep them.</summary>
+public sealed record BookEditRequest(
+    string Title,
+    string? Subtitle = null,
+    IReadOnlyList<string>? Authors = null,
+    IReadOnlyList<string>? Narrators = null,
+    IReadOnlyList<BookEditSeries>? Series = null,
+    IReadOnlyList<string>? Genres = null,
+    string? Overview = null,
+    int? Year = null,
+    bool Locked = true);
+
+public sealed record BookEditSeries(string Name, string? Sequence = null);
 
 /// <summary>Audible's chapters, moved by some seconds (its times often run ahead by the length of the opening credits).</summary>
 public sealed record AudibleChaptersRequest(double ShiftSeconds = 0);
@@ -71,6 +88,29 @@ public static class BookMatchEndpoints
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
         });
+
+        // Edit a book's details by hand. Added in 0.58. A real edit is a few kilobytes: far bigger is refused unread.
+        item.MapPut("/book-details", async (Guid id, BookEditRequest request, FlexarrDbContext db, IMediaProbe probe, ILoggerFactory loggers, CancellationToken ct) =>
+        {
+            if (Invalid(request) is { } problem)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["book"] = [problem] });
+            }
+
+            var book = await db.MediaItems.Include(i => i.Book).Include(i => i.Genres).Include(i => i.Credits).ThenInclude(c => c.Person)
+                .FirstOrDefaultAsync(i => i.Id == id && i.Kind == MediaKind.Audiobook, ct);
+            if (book is null)
+            {
+                return Results.NotFound();
+            }
+
+            var edit = new BookEdit(request.Title, request.Subtitle, request.Authors ?? [], request.Narrators ?? [],
+                [.. (request.Series ?? []).Select(s => new SeriesPart(s.Name, s.Sequence))], request.Genres ?? [], request.Overview, request.Year, request.Locked);
+            await new BookAssembler(db, probe, loggers.CreateLogger<BookAssembler>()).EditAsync(book, edit, ct);
+            book.MetadataUpdatedAt = DateTime.UtcNow;
+            await db.SaveChangesAsync(ct);
+            return Results.NoContent();
+        }).WithMetadata(new EditSizeLimit());
 
         item.MapPut("/chapters", async (Guid id, ChapterEditRequest request, FlexarrDbContext db, CancellationToken ct) =>
         {
@@ -166,8 +206,34 @@ public static class BookMatchEndpoints
         ? Results.ValidationProblem(new Dictionary<string, string[]> { ["shiftSeconds"] = ["Shift by up to ten minutes either way."] })
         : null;
 
+    private const int MaxNames = 20;
+
+    /// <summary>What's wrong with an edit, or null: a title, sensible lengths, a year that could be one.</summary>
+    internal static string? Invalid(BookEditRequest r)
+    {
+        static bool Names(IReadOnlyList<string>? names) => names is null || (names.Count <= MaxNames && names.All(n => n is not null && n.Length <= 200));
+        if (string.IsNullOrWhiteSpace(r.Title) || r.Title.Length > 500 || r.Subtitle?.Length > 500)
+        {
+            return "A title of up to 500 characters.";
+        }
+
+        if (!Names(r.Authors) || !Names(r.Narrators) || !Names(r.Genres)
+            || r.Series is { } series && (series.Count > MaxNames || series.Any(s => s?.Name is null || s.Name.Length > 200 || s.Sequence?.Length > 20)))
+        {
+            return "Up to 20 authors, narrators, series and genres, each up to 200 characters.";
+        }
+
+        if (r.Overview?.Length > 20_000)
+        {
+            return "A description of up to 20,000 characters.";
+        }
+
+        return r.Year is < 1 or > 3000 ? "A year such as 2016." : null;
+    }
+
     private static BookMatchDto ToDto(BookMatch m) => new(m.Provider, m.Id, m.Title, m.Subtitle, m.Authors, m.Narrators,
-        m.Series.Count > 0 ? m.Series[0].Sequence is null ? m.Series[0].Name : $"{m.Series[0].Name} #{m.Series[0].Sequence}" : null, m.ReleaseDate?.Year, m.Cover, m.DurationSeconds);
+        m.Series.Count > 0 ? m.Series[0].Sequence is null ? m.Series[0].Name : $"{m.Series[0].Name} #{m.Series[0].Sequence}" : null, m.ReleaseDate?.Year, m.Cover, m.DurationSeconds,
+        Endpoints.ImageEndpoints.RemoteUrl(m.Cover));
 
     /// <summary>Puts chapters in place of the book's, each running to the next one's start, the last to the end.</summary>
     private static async Task SaveAsync(FlexarrDbContext db, Guid bookId, BookDetails details, List<BookChapter> chapters, ChapterSource source, CancellationToken ct)
@@ -183,4 +249,10 @@ public static class BookMatchEndpoints
         details.ChapterSource = source;
         await db.SaveChangesAsync(ct);
     }
+}
+
+/// <summary>256 KB: room for the longest description and every name, refused before reading anything bigger.</summary>
+internal sealed class EditSizeLimit : Microsoft.AspNetCore.Http.Metadata.IRequestSizeLimitMetadata
+{
+    public long? MaxRequestBodySize => 256 * 1024;
 }

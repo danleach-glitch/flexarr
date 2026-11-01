@@ -237,6 +237,19 @@ async function freshMe() {
   }
 }
 
+const lapsedListeners = new Set<() => void>()
+
+/**
+ * Told when a read was refused because settings are locked here after all: the PIN ran out, or the server restarted,
+ * since /me was read. The session reads /me again, so admin-only parts of pages give way to Unlock.
+ */
+export function onAdminLapsed(listener: () => void) {
+  lapsedListeners.add(listener)
+  return () => {
+    lapsedListeners.delete(listener)
+  }
+}
+
 /**
  * For a dialog whose reads need the admin (a person's photos): asks for the PIN first when the main profile is chosen
  * but settings are locked here. True once it may go ahead.
@@ -267,6 +280,12 @@ async function request<T>(method: string, path: string, body?: unknown, signal?:
 
   // Locked: the PIN, then the same change again (once).
   if (response.status === 403 && changes && !retried && (await lockedHere(path)) && (await askToUnlock!())) return request(method, path, body, signal, true)
+  // A read only the admin may make, with settings locked here since the page knew: said plainly, and the page catches up.
+  if (response.status === 403 && !changes && (await lockedHere(path))) {
+    clearApiCache()
+    lapsedListeners.forEach((listener) => listener())
+    throw new ApiError(403, 'Forbidden', ['Settings are locked here. Unlock them to see this.'])
+  }
   if (!response.ok) throw await failure(response)
   if (response.status === 202 || response.status === 204) {
     return undefined as T
@@ -510,6 +529,10 @@ const queryString = (options: object) => {
 }
 
 export const getBookShelves = (libraryId: string, signal?: AbortSignal) => cachedGet<BookShelves>(`/libraries/${libraryId}/book-shelves`, signal)
+/** The languages a library's books are in, as their tags write them (the Language filter). */
+export const getBookLanguages = (libraryId: string, signal?: AbortSignal) => cachedGet<string[]>(`/libraries/${libraryId}/book-languages`, signal)
+/** A library's book genres, A–Z, with how many books are in each. */
+export const getBookGenres = (libraryId: string, signal?: AbortSignal) => cachedGet<{ name: string; count: number }[]>(`/libraries/${libraryId}/book-genres`, signal)
 export const getLibraryBooks = (libraryId: string, filters: BookFilters, signal?: AbortSignal) =>
   cachedGet<Paged<ItemSummary>>(`/libraries/${libraryId}/books${queryString(filters)}`, signal)
 export const getBookSeriesList = (libraryId: string, options: { search?: string; skip?: number; take?: number }, signal?: AbortSignal) =>
@@ -561,7 +584,22 @@ export interface BookMatch {
   year: number | null
   cover: string | null
   durationSeconds: number | null
+  /** The cover through the server's image proxy (a page can't load other sites' images). Absent before 0.58. */
+  image?: string | null
 }
+/** A book's details as edited by hand. Empty lists clear; locked keeps them through rescans and refreshes. Added in 0.58. */
+export interface BookEdit {
+  title: string
+  subtitle: string | null
+  authors: string[]
+  narrators: string[]
+  series: { name: string; sequence: string | null }[]
+  genres: string[]
+  overview: string | null
+  year: number | null
+  locked: boolean
+}
+export const editBook = (id: string, edit: BookEdit) => request<void>('PUT', `/items/${id}/book-details`, edit)
 export const searchBookMatches = (id: string, q: string, author?: string, signal?: AbortSignal) =>
   apiGet<BookMatch[]>(`/items/${id}/book-match${queryString({ q, author })}`, signal)
 export const fixBookMatch = (id: string, match: { provider: string; id: string; query: string; author?: string }) =>
@@ -1294,6 +1332,8 @@ export interface BookRequestResult {
   availability: 'Available' | 'Requested' | 'InLibrary'
   /** The book in the library, when it's there. */
   itemId: string | null
+  /** The cover through the server's image proxy (a page can't load other sites' images). Absent before 0.58. */
+  image?: string | null
 }
 export const searchBookRequests = (q: string, signal?: AbortSignal) => apiGet<BookRequestResult[]>(`/requests/books/search?q=${encodeURIComponent(q)}`, signal)
 /** `query` is the search it was found with, so the server can find it again. */

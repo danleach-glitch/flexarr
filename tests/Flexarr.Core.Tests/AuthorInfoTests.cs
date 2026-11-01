@@ -64,6 +64,31 @@ public sealed class AuthorInfoTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ALockedBook_KeepsWhatWasEmptied_ButItsAuthorsStillGetPhotos()
+    {
+        _web.Answers[("api.audnex.us", "/books/B0LOCKED01")] = """
+            {"asin": "B0LOCKED01", "title": "The Thursday Murder Club", "subtitle": "A Novel", "description": "From Audible.",
+             "authors": [{"asin": "B074KL81KM", "name": "Richard Osman"}], "narrators": [{"name": "Lesley Manville"}],
+             "seriesPrimary": {"name": "Thursday Murder Club", "position": "1"}, "releaseDate": "2020-09-03T00:00:00.000Z",
+             "genres": [{"name": "Mystery", "type": "genre"}]}
+            """;
+        var library = await SeedAsync(new Person { Name = Osman });
+        var book = await _db.MediaItems.Include(i => i.Book).SingleAsync(i => i.LibraryId == library.Id);
+        (book.MatchLocked, book.Book!.Asin) = (true, "B0LOCKED01");
+        await _db.SaveChangesAsync();
+
+        await Refresher().RefreshLibraryAsync(library, force: true, default);
+
+        _db.ChangeTracker.Clear();
+        var refreshed = await _db.MediaItems.Include(i => i.Book).Include(i => i.Genres).Include(i => i.Credits).SingleAsync(i => i.Id == book.Id);
+        Assert.Equal((null, null, null), (refreshed.Overview, refreshed.Book!.Subtitle, refreshed.Year));
+        Assert.Empty(refreshed.Genres);
+        Assert.DoesNotContain(refreshed.Credits, c => c.Role == CreditRole.Narrator);
+        Assert.False(await _db.BookSeriesEntries.AnyAsync(e => e.BookId == book.Id));
+        Assert.Equal(AudiblePhoto, (await PersonAsync(Osman)).ImageUrl);
+    }
+
+    [Fact]
     public async Task EveryAuthor_IsLookedUp_NotJustTheFirst()
     {
         var library = await SeedAsync(new Person { Name = Osman }, new Person { Name = Keyes });

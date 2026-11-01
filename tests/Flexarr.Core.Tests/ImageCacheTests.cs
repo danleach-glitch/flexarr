@@ -15,6 +15,18 @@ public class ImageCacheTests
     [InlineData("https://artworks.thetvdb.com/banners/v4/series/1/posters/a.jpg", "https://artworks.thetvdb.com/banners/v4/series/1/posters/a.jpg")]
     [InlineData("https://static.tvmaze.com/uploads/images/original_untouched/1/2.jpg", "https://static.tvmaze.com/uploads/images/original_untouched/1/2.jpg")]
     [InlineData("https://assets.fanart.tv/fanart/tv/1/clearlogo/a.png", "https://assets.fanart.tv/fanart/tv/1/clearlogo/a.png")]
+    [InlineData("https://m.media-amazon.com/images/I/51ef+s6y42L._SL500_.jpg", "https://m.media-amazon.com/images/I/51ef+s6y42L._SL500_.jpg")]
+    [InlineData("https://m.media-amazon.com/images/I/51AbcDef._SL500_.jpg", "https://m.media-amazon.com/images/I/51AbcDef._SL500_.jpg")]
+    [InlineData("https://covers.openlibrary.org/b/id/12345-L.jpg", "https://covers.openlibrary.org/b/id/12345-L.jpg")]
+    [InlineData("https://covers.openlibrary.org/a/olid/OL1A-L.jpg", null)] // authors' photos aren't book covers
+    [InlineData("https://books.google.com/books/content?id=zyTCAlFPjgYC&printsec=frontcover&img=1&zoom=1&edge=curl&source=gbs_api",
+        "https://books.google.com/books/content?id=zyTCAlFPjgYC&printsec=frontcover&img=1&zoom=1")]
+    [InlineData("https://books.google.com/books/content?id=a%2F..&img=1", null)]
+    [InlineData("https://books.google.com/books/edition/x", null)]
+    [InlineData("https://assets.hardcover.app/edition/30373442/9c2d.jpeg", "https://assets.hardcover.app/edition/30373442/9c2d.jpeg")]
+    [InlineData("https://images-na.ssl-images-amazon.com/images/S/compressed.photo.goodreads.com/books/1234i/5678.jpg",
+        "https://images-na.ssl-images-amazon.com/images/S/compressed.photo.goodreads.com/books/1234i/5678.jpg")]
+    [InlineData("https://m.media-amazon.com/images/S/something-else/a.jpg", null)]
     [InlineData("http://image.tmdb.org/t/p/w500/abc123.jpg", null)] // not https
     [InlineData("https://image.tmdb.org:8443/t/p/w500/abc123.jpg", null)]
     [InlineData("https://user@image.tmdb.org/t/p/w500/abc123.jpg", null)]

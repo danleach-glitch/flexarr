@@ -39,7 +39,7 @@ enum TabBarEntry: Identifiable, Hashable {
             case .movies: "film"
             case .tvShows: "tv"
             case .music: "music.note"
-            case .audiobooks: "headphones"
+            case .audiobooks: "book"
             case .homeVideos: "folder"
             default: "square.stack"
             }

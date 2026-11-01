@@ -251,6 +251,130 @@ public sealed partial class BookAssembler(FlexarrDbContext db, IMediaProbe probe
         await SetGenresAsync(book, info.Genres, ct).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Stores a book's details as edited by hand: unlike a scan, what's left empty is cleared (no narrators, no series).
+    /// <paramref name="book"/> needs its book details, credits (with people) and genres loaded.
+    /// </summary>
+    public async Task EditAsync(MediaItem book, BookEdit edit, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(book);
+        ArgumentNullException.ThrowIfNull(edit);
+        var details = book.Book ??= new BookDetails { MediaItemId = book.Id };
+        book.Title = edit.Title.Trim();
+        book.SortTitle = SortTitle.For(book.Title);
+        details.Subtitle = Blank(edit.Subtitle);
+        book.Overview = Blank(edit.Overview);
+        if (book.Year != edit.Year)
+        {
+            book.Year = edit.Year;
+            book.ReleaseDate = book.ReleaseDate?.Year == edit.Year ? book.ReleaseDate : null;
+        }
+
+        await ReplaceCreditsAsync(book, CreditRole.Author, edit.Authors, ct).ConfigureAwait(false);
+        await ReplaceCreditsAsync(book, CreditRole.Narrator, edit.Narrators, ct).ConfigureAwait(false);
+
+        // Each series once ("The Expanse" and "Expanse" are one): the first one given wins.
+        var parts = new List<SeriesPart>();
+        foreach (var part in edit.Series.Where(p => p.Name.Trim().Length > 0).Select(p => new SeriesPart(p.Name.Trim(), Blank(p.Sequence))))
+        {
+            if (!parts.Any(p => BookInfo.SameSeries(p.Name, part.Name)))
+            {
+                parts.Add(part);
+            }
+        }
+
+        if (parts.Count == 0)
+        {
+            db.BookSeriesEntries.RemoveRange(await db.BookSeriesEntries.Where(e => e.BookId == book.Id).ToListAsync(ct).ConfigureAwait(false));
+        }
+        else
+        {
+            await SetSeriesAsync(book, parts, ct).ConfigureAwait(false);
+            // A series' capitals fixed: named as typed (for every book in it).
+            foreach (var part in parts)
+            {
+                var series = await SeriesAsync(book.LibraryId, part.Name, ct).ConfigureAwait(false);
+                if (CaseOnly(series.Name, part.Name))
+                {
+                    series.Name = part.Name;
+                    series.SortName = SortTitle.For(part.Name);
+                }
+            }
+
+            // A number taken away stays away (a scan keeps the one it had).
+            foreach (var entry in db.BookSeriesEntries.Local.Where(e => e.BookId == book.Id))
+            {
+                var part = parts.FirstOrDefault(p => entry.Series is { } s ? BookInfo.SameSeries(p.Name, s.Name) : false);
+                if (part is not null && part.Sequence is null)
+                {
+                    entry.Sequence = null;
+                    entry.SortOrder = null;
+                }
+            }
+        }
+
+        var genres = BookGenres.Clean(edit.Genres);
+        if (genres.Count == 0)
+        {
+            book.Genres.Clear();
+        }
+        else
+        {
+            await SetGenresAsync(book, genres, ct).ConfigureAwait(false);
+            // A genre's capitals fixed: named as typed, unless another genre is written just so already.
+            foreach (var genre in book.Genres.ToList())
+            {
+                if (genres.FirstOrDefault(n => CaseOnly(genre.Name, n)) is { } typed)
+                {
+                    var exact = await db.Genres.FirstOrDefaultAsync(g => g.Name == typed, ct).ConfigureAwait(false);
+                    if (exact is null)
+                    {
+                        genre.Name = typed;
+                    }
+                    else
+                    {
+                        book.Genres.Remove(genre);
+                        book.Genres.Add(exact);
+                    }
+                }
+            }
+        }
+
+        book.MatchLocked = edit.Locked;
+    }
+
+    private static string? Blank(string? text) => string.IsNullOrWhiteSpace(text) ? null : text.Trim();
+
+    /// <summary>The same name written with other capitals.</summary>
+    private static bool CaseOnly(string stored, string typed) =>
+        !string.Equals(stored, typed, StringComparison.Ordinal) && string.Equals(stored, typed, StringComparison.OrdinalIgnoreCase);
+
+    private async Task ReplaceCreditsAsync(MediaItem book, CreditRole role, IReadOnlyList<string> names, CancellationToken ct)
+    {
+        var kept = names.Select(n => n.Trim()).Where(n => n.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        if (kept.Count > 0)
+        {
+            await SetCreditsAsync(book, role, kept, ct).ConfigureAwait(false);
+            // "j.k. rowling" written "J.K. Rowling": the same person, named as typed (on every book of theirs).
+            var credited = book.Credits.Where(c => c.Role == role).OrderBy(c => c.Order).ToList();
+            for (var i = 0; i < Math.Min(credited.Count, kept.Count); i++)
+            {
+                if (credited[i].Person is { } person && CaseOnly(person.Name, kept[i]))
+                {
+                    person.Name = kept[i];
+                }
+            }
+
+            return;
+        }
+
+        foreach (var credit in book.Credits.Where(c => c.Role == role).ToList())
+        {
+            book.Credits.Remove(credit);
+            db.Credits.Remove(credit);
+        }
+    }
+
     private readonly Dictionary<string, Person> _people = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Replaces the book's credits in <paramref name="role"/> when <paramref name="names"/> has any.</summary>
@@ -387,20 +511,18 @@ public sealed partial class BookAssembler(FlexarrDbContext db, IMediaProbe probe
         return double.TryParse(head, NumberStyles.Float, CultureInfo.InvariantCulture, out var n) ? n : null;
     }
 
-    private async Task SetGenresAsync(MediaItem book, IReadOnlyList<string> names, CancellationToken ct)
+    private async Task SetGenresAsync(MediaItem book, IReadOnlyList<string> given, CancellationToken ct)
     {
+        var names = BookGenres.Clean(given);
         if (names.Count == 0 || book.Genres.Select(g => g.Name).Order().SequenceEqual(names.Order(), StringComparer.OrdinalIgnoreCase))
         {
             return;
         }
 
         book.Genres.Clear();
-        foreach (var name in names.Distinct(StringComparer.OrdinalIgnoreCase))
+        foreach (var name in names)
         {
-            var genre = await db.Genres.FirstOrDefaultAsync(g => g.Name == name, ct).ConfigureAwait(false)
-                ?? db.Genres.Local.FirstOrDefault(g => string.Equals(g.Name, name, StringComparison.OrdinalIgnoreCase))
-                ?? db.Genres.Add(new Genre { Name = name }).Entity;
-            book.Genres.Add(genre);
+            book.Genres.Add(await BookGenres.FindAsync(db, name, ct).ConfigureAwait(false));
         }
     }
 

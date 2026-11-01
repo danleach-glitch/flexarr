@@ -3,6 +3,18 @@ namespace Flexarr.Core.Books;
 /// <summary>A book's series and its number in it, as one source gives it.</summary>
 public sealed record SeriesPart(string Name, string? Sequence);
 
+/// <summary>A book's details as edited by hand (see <see cref="BookAssembler.EditAsync"/>). Locked: scans keep them.</summary>
+public sealed record BookEdit(
+    string Title,
+    string? Subtitle,
+    IReadOnlyList<string> Authors,
+    IReadOnlyList<string> Narrators,
+    IReadOnlyList<SeriesPart> Series,
+    IReadOnlyList<string> Genres,
+    string? Overview,
+    int? Year,
+    bool Locked);
+
 /// <summary>
 /// What one source (a sidecar file, the tags, the path) says about a book. Sources are layered with <see cref="Over"/>:
 /// the more trusted one's values win, and the less trusted only fill its gaps.

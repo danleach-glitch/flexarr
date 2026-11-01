@@ -2840,11 +2840,13 @@ a.download-attention {
 
 /* ---------- Fix match ---------- */
 
+/* A column whose results take what's left and scroll, so the buttons stay in view however many there are (the book
+   dialog has no paths list, so fixed grid rows put the results in a row that grew instead). */
 .fix-match {
   width: min(640px, 100%);
   max-height: 84vh;
-  display: grid;
-  grid-template-rows: auto auto auto auto minmax(0, 1fr) auto;
+  display: flex;
+  flex-direction: column;
   gap: 12px;
 }
 
@@ -2881,6 +2883,7 @@ a.download-attention {
 }
 
 .fix-match-results {
+  flex: 1 1 auto;
   overflow-y: auto;
   min-height: 120px;
   margin: 0 -8px;
@@ -2983,10 +2986,6 @@ a.download-attention {
 }
 
 /* Subtitle search reuses Fix match's dialog: a heading, a note, then the results take the room. */
-.subtitle-search {
-  grid-template-rows: auto auto minmax(0, 1fr);
-}
-
 .subtitle-result {
   grid-template-columns: minmax(0, 1fr) auto;
 }

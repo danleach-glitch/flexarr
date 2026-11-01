@@ -116,7 +116,35 @@ public class AudiobookApiTests(FlexarrApiFactory factory) : IClassFixture<Flexar
         var books = await GetAsync<PagedDto<ItemSummaryDto>>($"/api/v1/libraries/{lib.Library}/books?language={Uri.EscapeDataString(asked)}");
 
         Assert.Contains("Русский", shelves.Languages!);
+        Assert.Contains("Русский", await GetAsync<List<string>>($"/api/v1/libraries/{lib.Library}/book-languages"));
         Assert.Equal(["Project Hail Mary"], books.Items.Select(b => b.Title));
+    }
+
+    [Fact]
+    public async Task Genres_AToZ_WithHowManyBooks()
+    {
+        var lib = await SeedAsync();
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var mystery = new Genre { Name = $"Mystery {Guid.NewGuid():N}" };
+            var scifi = new Genre { Name = $"Ab Science Fiction {Guid.NewGuid():N}" };
+            var books = await db.MediaItems.Include(i => i.Genres).Where(i => i.LibraryId == lib.Library).ToListAsync();
+            foreach (var book in books.Where(b => b.Title != "Project Hail Mary"))
+            {
+                book.Genres.Add(mystery);
+            }
+
+            books.Single(b => b.Title == "Project Hail Mary").Genres.Add(scifi);
+            await db.SaveChangesAsync();
+        }
+
+        var genres = await GetAsync<List<GenreCountDto>>($"/api/v1/libraries/{lib.Library}/book-genres");
+
+        Assert.Equal(2, genres.Count);
+        Assert.StartsWith("Ab Science Fiction", genres[0].Name);
+        Assert.Equal(1, genres[0].Count);
+        Assert.True(genres[1].Count > 1);
     }
 
     [Fact]
