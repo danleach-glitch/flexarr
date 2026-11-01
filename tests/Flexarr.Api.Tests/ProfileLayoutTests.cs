@@ -130,6 +130,29 @@ public sealed class ProfileLayoutTests : IDisposable
         Assert.Equal(["music-playlists", "music-mixes", "music-recent", "music-top", "music-artists", "recent"], music);
     }
 
+    [Fact]
+    public async Task HomeAndBrowse_OffersOnlyTheLibrariesTheProfileCanSee()
+    {
+        var shown = await AddLibraryAsync(LibraryType.Movies);
+        var secret = await AddLibraryAsync(LibraryType.Movies);
+        await AddLibraryAsync(LibraryType.Music);
+        var created = await (await Client().PostAsJsonAsync(Api("/profiles"), new { name = $"Guest {Guid.NewGuid():N}" })).Content.ReadFromJsonAsync<JsonElement>();
+        var id = created.GetProperty("id").GetString();
+        var music = (await Client().GetFromJsonAsync<JsonElement>(Api("/libraries"))).EnumerateArray().Where(l => l.GetProperty("type").GetString() == "Music").Select(l => l.GetProperty("id").GetGuid());
+        (await Client().PutAsJsonAsync(Api($"/profiles/{id}"), new { name = created.GetProperty("name").GetString(), hiddenLibraryIds = new[] { secret }.Concat(music) })).EnsureSuccessStatusCode();
+        var selected = await Client().PostAsJsonAsync(Api($"/profiles/{id}/select"), new { });
+        var guest = Client((await selected.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("token").GetString());
+        (await guest.PutAsJsonAsync(Api("/settings/layout"), new { home = Array.Empty<object>(), movies = Array.Empty<object>(), shows = Array.Empty<object>(), combineLibraries = false })).EnsureSuccessStatusCode();
+
+        var layout = await guest.GetFromJsonAsync<JsonElement>(Api("/settings/layout"));
+
+        var text = layout.GetRawText();
+        Assert.Contains($"recent-{shown}", text, StringComparison.Ordinal);
+        Assert.DoesNotContain(secret.ToString(), text, StringComparison.Ordinal);
+        Assert.Equal(JsonValueKind.Null, layout.GetProperty("music").ValueKind);
+        Assert.False(layout.GetProperty("combinable").GetBoolean());
+    }
+
     private async Task<Guid> AddLibraryAsync(LibraryType type)
     {
         using var scope = _factory.Services.CreateScope();

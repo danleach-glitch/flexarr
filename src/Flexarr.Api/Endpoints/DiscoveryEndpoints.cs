@@ -226,8 +226,8 @@ public static partial class DiscoveryEndpoints
             }
 
             var shown = rows.Where(r => r.HasContent || (r.Id == "upcoming" && upcoming.Count > 0) || r.Id == LayoutEndpoints.PodcastsRowId);
-            // Placed by every film and TV library, including ones this profile can't see, as Settings places them.
-            var placing = (await db.Libraries.IgnoreQueryFilters().OrderBy(l => l.Name).ToListAsync(ct))
+            // Placed by the film and TV libraries this profile can see, as its Home & browse places them.
+            var placing = (await db.Libraries.OrderBy(l => l.Name).ToListAsync(ct))
                 .Where(l => !(options.LiveTv?.Account is not null && RecordingsLibrary.Is(l)));
             var layout = LayoutEndpoints.WithPodcastsRow(LayoutEndpoints.WithWatchlistRow(LayoutEndpoints.ForCombining(homeLayout.Home, placing, homeLayout.CombineLibraries)));
             var arranged = LayoutEndpoints.Arrange(shown, layout);

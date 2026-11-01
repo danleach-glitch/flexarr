@@ -91,7 +91,8 @@ public static class LayoutEndpoints
 
     private static async Task<LayoutDto> LayoutAsync(FlexarrDbContext db, FlexarrOptions options, LayoutOptions layout, string me, CancellationToken ct)
     {
-        var all = await db.Libraries.IgnoreQueryFilters().OrderBy(l => l.Name).ToListAsync(ct);
+        // Only the libraries this profile can see: anyone may open their own Home & browse, kids and guests included.
+        var all = await db.Libraries.OrderBy(l => l.Name).ToListAsync(ct);
         var libraries = all.Where(l => l.Type is (LibraryType.Movies or LibraryType.TvShows or LibraryType.HomeVideos)
             && !(options.LiveTv?.Account is not null && RecordingsLibrary.Is(l))).ToList();
         var collections = await db.Collections.Where(c => c.ShowOnHome && !c.Hidden && (c.OwnerProfileId == null || c.OwnerProfileId == me))
