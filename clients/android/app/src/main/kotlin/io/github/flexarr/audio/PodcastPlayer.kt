@@ -76,9 +76,22 @@ class PodcastPlayer(private val context: Context, private val model: AppModel) {
         }
     }
 
-    /** The profile's skip steps, shared with books (15 back and 30 forward from a server before 0.58). */
-    val skipBack: Int get() = model.podcastPreferences?.podcastSkipBack ?: 15
-    val skipForward: Int get() = model.podcastPreferences?.podcastSkipForward ?: 30
+    /**
+     * The profile's skip steps, shared with books (15 back and 30 forward from a server before 0.58), or the last ones
+     * known before they load.
+     */
+    val skipBack: Int get() = model.podcastPreferences?.podcastSkipBack ?: saved.getInt(SKIP_BACK_KEY, 15)
+    val skipForward: Int get() = model.podcastPreferences?.podcastSkipForward ?: saved.getInt(SKIP_FORWARD_KEY, 30)
+    private val smartRewind: Boolean get() = model.podcastPreferences?.podcastSmartRewind ?: saved.getBoolean(SMART_REWIND_KEY, false)
+
+    /** Keeps the profile's skips and smart rewind for an episode played before they load (offline, say). */
+    fun rememberListening(preferences: io.github.flexarr.core.PodcastPreferences) {
+        saved.edit {
+            putInt(SKIP_BACK_KEY, preferences.podcastSkipBack)
+            putInt(SKIP_FORWARD_KEY, preferences.podcastSkipForward)
+            putBoolean(SMART_REWIND_KEY, preferences.podcastSmartRewind)
+        }
+    }
 
     /** When the episode was paused, for smart rewind (forgotten when the listener moves it while paused). */
     private val pause = BookPause()
@@ -131,7 +144,7 @@ class PodcastPlayer(private val context: Context, private val model: AppModel) {
             }
             val away = pause.resumed(System.currentTimeMillis()) ?: return
             // Smart rewind: a little earlier after a pause, more the longer it was (off from a server before 0.58).
-            if (model.podcastPreferences?.podcastSmartRewind == true) {
+            if (smartRewind) {
                 val back = SmartRewind.seconds(away)
                 if (back > 0) seek(position - back)
             }
@@ -420,6 +433,9 @@ class PodcastPlayer(private val context: Context, private val model: AppModel) {
         val speeds = io.github.flexarr.core.BookSpeed.presets
         private const val REPORT_INTERVAL_MS = 10_000L
         private const val SPEED_KEY = "speed"
+        private const val SKIP_BACK_KEY = "skipBack"
+        private const val SKIP_FORWARD_KEY = "skipForward"
+        private const val SMART_REWIND_KEY = "smartRewind"
 
         /** "1×", "1.5×", "1.75×". */
         fun speedLabel(speed: Double): String =

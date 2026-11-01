@@ -37,8 +37,16 @@ final class AppModel {
     /// How this profile listens to podcasts (auto-download, how many to keep, speed, and from 0.58 the skips and smart
     /// rewind it shares with books); nil until loaded. The podcast player follows it.
     private(set) var podcastPreferences: PodcastPreferences? {
-        didSet { if podcastPreferences != oldValue { music.podcastListening = podcastPreferences } }
+        didSet {
+            guard podcastPreferences != oldValue else { return }
+            music.podcastListening = podcastPreferences
+            // Kept, so an episode played before they load again (offline, from Siri) skips by them.
+            if let podcastPreferences, let data = try? JSONEncoder().encode(podcastPreferences) {
+                UserDefaults.standard.set(data, forKey: Self.lastPodcastPreferencesKey)
+            }
+        }
     }
+    private static let lastPodcastPreferencesKey = "FlexarrLastPodcastPreferences"
     /// How this profile listens to books (default speed, skip steps, smart rewind); nil without an audiobooks library.
     private(set) var bookListening: BookListening?
     /// The podcast episodes to hear next, as the server keeps them for this profile (every device sees the same).
@@ -152,6 +160,10 @@ final class AppModel {
             skipsProfileChoice = true
         }
         #endif
+        // The podcast settings last known, for an episode played before they load.
+        if let data = defaults.data(forKey: Self.lastPodcastPreferencesKey), let last = try? JSONDecoder().decode(PodcastPreferences.self, from: data) {
+            music.podcastListening = last
+        }
         // A family guest reaches its host only through the tunnel: start it before anything asks the server.
         GuestMode.isActive = credentials?.isGuest == true
         if credentials?.isGuest == true { Task { await ensureGuestTunnel() } }
