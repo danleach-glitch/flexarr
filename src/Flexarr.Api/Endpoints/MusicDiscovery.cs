@@ -29,16 +29,19 @@ public static class MusicDiscovery
     /// Your playlists, Made for you, Recently played, Most played and More from artists you play, for one music library
     /// or (null) all of them. Rows with nothing in them are left out, so a profile that hasn't played any music gets none.
     /// </summary>
-    public static async Task<List<HomeRowDto>> RowsAsync(FlexarrDbContext db, IMemoryCache cache, string profileId, Guid? libraryId, int size, CancellationToken ct)
+    /// <param name="wanted">The rows to build, by id; the rest (switched off) aren't worked out at all. Null: all.</param>
+    public static async Task<List<HomeRowDto>> RowsAsync(FlexarrDbContext db, IMemoryCache cache, string profileId, Guid? libraryId, int size, CancellationToken ct,
+        Func<string, bool>? wanted = null)
     {
+        wanted ??= _ => true;
         var rows = new List<HomeRowDto>();
         // Playlists and mixes span libraries, so every music library's Browse offers them.
-        if (await Playlists.PlaylistEndpoints.HomeRowAsync(db, profileId, size, ct) is { } playlists)
+        if (wanted(Playlists.PlaylistEndpoints.HomeRowId) && await Playlists.PlaylistEndpoints.HomeRowAsync(db, profileId, size, ct) is { } playlists)
         {
             rows.Add(playlists);
         }
 
-        if (await MusicMixes.HomeRowAsync(db, cache, profileId, ct) is { } mixes)
+        if (wanted(MusicMixes.HomeRowId) && await MusicMixes.HomeRowAsync(db, cache, profileId, ct) is { } mixes)
         {
             rows.Add(mixes);
         }
@@ -46,15 +49,26 @@ public static class MusicDiscovery
         var played = db.PlaybackStates.Where(p => p.UserId == profileId && p.MediaItem!.Kind == MediaKind.Track && (libraryId == null || p.MediaItem.LibraryId == libraryId));
 
         // Albums, most recently played first: the album is what you'd put on again, rather than the one track.
-        var recentAlbums = await played.GroupBy(p => p.MediaItem!.ParentId!.Value)
-            .Select(g => new { AlbumId = g.Key, At = g.Max(p => p.LastPlayedAt) })
-            .OrderByDescending(a => a.At).Take(size).ToListAsync(ct);
-        rows.Add(new HomeRowDto("music-recent", "Recently played", "poster", await InOrderAsync(db, recentAlbums.Select(a => a.AlbumId), profileId, ct)));
+        if (wanted("music-recent"))
+        {
+            var recentAlbums = await played.GroupBy(p => p.MediaItem!.ParentId!.Value)
+                .Select(g => new { AlbumId = g.Key, At = g.Max(p => p.LastPlayedAt) })
+                .OrderByDescending(a => a.At).Take(size).ToListAsync(ct);
+            rows.Add(new HomeRowDto("music-recent", "Recently played", "poster", await InOrderAsync(db, recentAlbums.Select(a => a.AlbumId), profileId, ct)));
+        }
 
-        var topTracks = await played.Where(p => p.PlayCount > 0)
-            .OrderByDescending(p => p.PlayCount).ThenByDescending(p => p.LastPlayedAt).Take(size)
-            .Select(p => p.MediaItemId).ToListAsync(ct);
-        rows.Add(new HomeRowDto("music-top", "Most played", "tracks", await InOrderAsync(db, topTracks, profileId, ct)));
+        if (wanted("music-top"))
+        {
+            var topTracks = await played.Where(p => p.PlayCount > 0)
+                .OrderByDescending(p => p.PlayCount).ThenByDescending(p => p.LastPlayedAt).Take(size)
+                .Select(p => p.MediaItemId).ToListAsync(ct);
+            rows.Add(new HomeRowDto("music-top", "Most played", "tracks", await InOrderAsync(db, topTracks, profileId, ct)));
+        }
+
+        if (!wanted("music-artists"))
+        {
+            return rows.Where(r => r.HasContent).ToList();
+        }
 
         // The artists you play most, taking turns, each offering the albums of theirs you haven't played lately.
         var topArtists = await played.GroupBy(p => p.MediaItem!.Parent!.ParentId!.Value)
