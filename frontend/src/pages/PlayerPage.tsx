@@ -7,8 +7,8 @@ import {
   getSubtitleSync,
   imageUrl,
   reportProgress,
+  savePlayerPreferences,
   setAudioDelay,
-  setPlaybackPreferences,
   setPlaybackSpeed,
   setSubtitleChoice,
   setSubtitleDelay,
@@ -995,23 +995,23 @@ export function PlayerPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- unfade is a plain function of this render
   }, [sleepLeft, playing])
 
-  function chooseSubtitleSize(size: SubtitleSize) {
-    const next = { ...preferences, subtitleSize: size }
+  /** Saves the profile's preferences, here and for its other devices. */
+  function savePreferences(next: PlaybackPreferences) {
     setPreferences(next)
-    void setPlaybackPreferences(next).catch(() => setPreferences(preferences))
+    void savePlayerPreferences(next).catch(() => setPreferences(preferences))
+  }
+
+  function chooseSubtitleSize(size: SubtitleSize) {
+    savePreferences({ ...preferences, subtitleSize: size })
   }
 
   function choosePlacement(change: Pick<PlaybackPreferences, 'subtitlePosition'> | Pick<PlaybackPreferences, 'subtitlesInBlackBars'>) {
-    const next = { ...preferences, ...change }
-    setPreferences(next)
-    void setPlaybackPreferences(next).catch(() => setPreferences(preferences))
+    savePreferences({ ...preferences, ...change })
   }
 
   /** Turns one of the profile's playback preferences on or off, here and for its other devices. */
   function togglePreference(key: 'autoPlayNext' | 'skipIntros' | 'skipRecaps' | 'skipCredits') {
-    const next = { ...preferences, [key]: !preferences[key] }
-    setPreferences(next)
-    void setPlaybackPreferences(next).catch(() => setPreferences(preferences))
+    savePreferences({ ...preferences, [key]: !preferences[key] })
   }
 
   /** Not now: hide the card, and if the credits were skipped, let them play. */
