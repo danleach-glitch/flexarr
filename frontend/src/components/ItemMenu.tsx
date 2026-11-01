@@ -118,7 +118,8 @@ export function ItemMenu({ item, at, onClose, continueWatching = false }: { item
     }
     case 'PodcastEpisode':
       actions.push({ label: started ? 'Resume' : 'Play', run: () => music.play([item]) })
-      if (continueWatching) actions.push('divider', { label: 'Remove', run: remove })
+      // Played takes it out of the row as well; Remove forgets the place without marking it.
+      if (continueWatching) actions.push('divider', { label: 'Mark as played', run: mark(item, true) }, { label: 'Remove', run: remove })
       break
   }
 
