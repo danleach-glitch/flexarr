@@ -360,9 +360,15 @@ public sealed class PlaybackService(
     {
         if (session.BookParts is not null)
         {
-            // A book's place is on its whole timeline, and kept by its own rules (see BookPlayback).
-            // An older app plays a book as a video, its first file only: its end isn't the book's.
-            var ended = progress.Ended && (session.PlaysBooks || session.BookParts.Count == 1);
+            // A book's place is on its whole timeline, and kept by its own rules (see BookPlayback). An older app plays
+            // a book as a video, its first file only: its places are in that file, not the book, and would overwrite
+            // the real one, so a book of several files isn't recorded from it at all.
+            if (!session.PlaysBooks && session.BookParts.Count > 1)
+            {
+                return;
+            }
+
+            var ended = progress.Ended;
             await Books.BookPlayback.RecordAsync(db, session.ItemId, session.ProfileId,
                 new Books.BookProgressRequest(progress.PositionSeconds, session.DeviceName, DateTime.UtcNow, ended), ct);
             return;

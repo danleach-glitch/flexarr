@@ -74,6 +74,19 @@ public class AudiobookPlaybackTests(FlexarrApiFactory factory) : IClassFixture<F
     }
 
     [Fact]
+    public async Task AnAppFromBeforeBooks_DoesntMoveThePlaceInABookOfSeveralFiles()
+    {
+        var book = await SeedAsync(("01.mp3", "mp3", 600), ("02.mp3", "mp3", 600));
+        (await Client().PutAsJsonAsync(Url($"/api/v1/items/{book}/progress"), new { positionSeconds = 900.0, device = "Dan's iPhone" })).EnsureSuccessStatusCode();
+        var started = await Client().PostAsJsonAsync(Url("/api/v1/playback"), new { itemId = book, profile = new { audioCodecs = new[] { "aac", "mp3" } } });
+        var info = (await started.Content.ReadFromJsonAsync<PlaybackInfoDto>(Json))!;
+
+        (await Client().PostAsJsonAsync(Url($"/api/v1/playback/{info.SessionId}/progress"), new { positionSeconds = 120 })).EnsureSuccessStatusCode();
+
+        Assert.Equal(900.0, (await GetAsync<BookManifestDto>($"/api/v1/items/{book}/book")).Progress.PositionSeconds);
+    }
+
+    [Fact]
     public async Task ADownload_GetsEachFile_AndCanResumePartWay()
     {
         var book = await SeedAsync(("01.mp3", "mp3", 600), ("02.mp3", "mp3", 600));
