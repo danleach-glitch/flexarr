@@ -7,6 +7,9 @@ struct HomeView: View {
     /// The newest unplayed episodes of the podcasts followed, for the New podcasts row: where Home's rows place it, or
     /// (servers before 0.58) after Continue watching.
     @State private var newEpisodes: [PodcastEpisode] = []
+    /// The last Home placed the rows itself and had no New podcasts among them (the profile switched it off): the next
+    /// load skips fetching episodes alongside it, and fetches them after only if that Home has the row again.
+    @State private var podcastsRowOff = false
     @State private var error: String?
     @State private var featuredIndex = 0
     @State private var choosingProfile = false
@@ -125,14 +128,21 @@ struct HomeView: View {
             // Empty without podcasts (none followed, no library, a server from before them: an error, also nothing).
             // None on a kids profile, which has no podcasts.
             let kids = model.isKids
-            async let episodes = kids ? [] : client.newPodcastEpisodes(unplayed: true, take: 20)
+            let skipped = kids || podcastsRowOff
+            async let episodes = skipped ? [] : client.newPodcastEpisodes(unplayed: true, take: 20)
             // Books and podcast episodes in progress join Continue watching (for profiles that want them there); the
             // card plays them in the audio player.
             let loaded = try await client.home(listening: [.books, .podcasts])
             // Nothing yet: the libraries say whether a scan is under way or their folders hold nothing.
             if loaded.featured.isEmpty { await model.loadLibraries() }
+            let hasRow = loaded.placesPodcasts != true || loaded.rows.contains { $0.id == HomeRow.podcastsRowId }
+            var fetched = (try? await episodes) ?? []
+            if skipped, !kids, hasRow {
+                fetched = (try? await client.newPodcastEpisodes(unplayed: true, take: 20)) ?? []
+            }
+            podcastsRowOff = !hasRow
             home = loaded
-            newEpisodes = (try? await episodes) ?? []
+            newEpisodes = hasRow ? fetched : []
             loadedToken = token
             loadedAt = Date()
             error = nil
