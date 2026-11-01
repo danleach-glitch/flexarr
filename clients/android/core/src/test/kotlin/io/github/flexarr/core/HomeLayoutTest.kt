@@ -75,4 +75,15 @@ class HomeLayoutTest {
             older.frontPage,
         )
     }
+
+    @Test
+    fun `an audiobook front page with every shelf off, or only empty ones on, has nothing to show`() {
+        val off = shelves("""{"order":[],"recentlyAdded":[$item]}""")
+        assertTrue(!off.isEmpty && off.shownShelves.isEmpty())
+        val emptyOnes = shelves("""{"order":["continue","finished"],"recentlyAdded":[$item]}""")
+        assertTrue(emptyOnes.shownShelves.isEmpty())
+        val some = shelves("""{"order":["finished","recent"],"recentlyAdded":[$item]}""")
+        assertEquals(listOf(BookShelf.RecentlyAdded), some.shownShelves)
+        assertTrue(shelves("""{"order":[]}""").isEmpty)
+    }
 }
