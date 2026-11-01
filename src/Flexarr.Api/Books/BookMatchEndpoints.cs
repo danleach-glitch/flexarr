@@ -121,6 +121,11 @@ public static class BookMatchEndpoints
                 return Results.Problem("This book has no Audible id. Fix match to find it on Audible first.", statusCode: 409);
             }
 
+            if (BadShift(shiftSeconds ?? 0) is { } bad)
+            {
+                return bad;
+            }
+
             return await refresher.AudibleChaptersAsync(details, asin, shiftSeconds ?? 0, ct, force: true) is { } chapters
                 ? Results.Ok(chapters.Select((c, i) => new BookChapterDto(i, c.Title, c.StartSeconds, c.EndSeconds)).ToList())
                 : Results.Problem("Audible has no chapters for this book.", statusCode: 404);
@@ -138,6 +143,11 @@ public static class BookMatchEndpoints
                 return Results.Problem("This book has no Audible id. Fix match to find it on Audible first.", statusCode: 409);
             }
 
+            if (BadShift(request.ShiftSeconds) is { } bad)
+            {
+                return bad;
+            }
+
             if (!await refresher.UseAudibleChaptersAsync(id, details, asin, request.ShiftSeconds, ct, force: true))
             {
                 return Results.Problem("Audible has no chapters for this book.", statusCode: 404);
@@ -149,6 +159,11 @@ public static class BookMatchEndpoints
 
         return api;
     }
+
+    /// <summary>A shift that isn't a number, or is more than ten minutes either way: refused, as <c>/chapters/shift</c> does.</summary>
+    private static IResult? BadShift(double seconds) => !double.IsFinite(seconds) || Math.Abs(seconds) > 600
+        ? Results.ValidationProblem(new Dictionary<string, string[]> { ["shiftSeconds"] = ["Shift by up to ten minutes either way."] })
+        : null;
 
     private static BookMatchDto ToDto(BookMatch m) => new(m.Provider, m.Id, m.Title, m.Subtitle, m.Authors, m.Narrators,
         m.Series.Count > 0 ? m.Series[0].Sequence is null ? m.Series[0].Name : $"{m.Series[0].Name} #{m.Series[0].Sequence}" : null, m.ReleaseDate?.Year, m.Cover, m.DurationSeconds);

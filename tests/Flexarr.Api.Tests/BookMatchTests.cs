@@ -92,6 +92,41 @@ public class BookMatchTests(FlexarrApiFactory factory) : IClassFixture<FlexarrAp
     }
 
     [Theory]
+    [InlineData("NaN")]
+    [InlineData("Infinity")]
+    [InlineData("601")]
+    [InlineData("-1e9")]
+    public async Task AudibleChapters_ShiftedOutOfRange_AreRefused(string shift)
+    {
+        using var app = Serve();
+        var client = Client(app);
+        var book = await SeedAsync(app, "The Thursday Murder Club", 600, asin: "B0TESTASIN");
+
+        var preview = await client.GetAsync(new Uri($"/api/v1/items/{book}/chapters/audible?shiftSeconds={shift}", UriKind.Relative));
+        var saved = await client.PostAsync(new Uri($"/api/v1/items/{book}/chapters/audible", UriKind.Relative),
+            new StringContent($$"""{"shiftSeconds": {{(double.TryParse(shift, out var n) && double.IsFinite(n) ? shift : "1e9")}}}""", System.Text.Encoding.UTF8, "application/json"));
+
+        Assert.Equal((HttpStatusCode.BadRequest, HttpStatusCode.BadRequest), (preview.StatusCode, saved.StatusCode));
+    }
+
+    [Fact]
+    public async Task AudibleChapters_ShiftedPastTheEnd_LeaveTheBooksOwn()
+    {
+        using var app = Serve();
+        var client = Client(app);
+        var book = await SeedAsync(app, "The Thursday Murder Club", 600, asin: "B0TESTASIN");
+        await client.PutAsJsonAsync(new Uri($"/api/v1/items/{book}/chapters", UriKind.Relative),
+            new { chapters = new[] { new { title = "One", startSeconds = 0.0 }, new { title = "Two", startSeconds = 300.0 } } });
+
+        var saved = await client.PostAsJsonAsync(new Uri($"/api/v1/items/{book}/chapters/audible", UriKind.Relative), new { shiftSeconds = 600 });
+
+        Assert.Equal(HttpStatusCode.NotFound, saved.StatusCode);
+        using var scope = app.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        Assert.Equal(["One", "Two"], await db.MediaChapters.Where(c => c.MediaItemId == book).OrderBy(c => c.Index).Select(c => c.Title).ToListAsync());
+    }
+
+    [Theory]
     [InlineData("""{"chapters": []}""")]
     [InlineData("""{"chapters": [{"title": "", "startSeconds": 0}]}""")]
     [InlineData("""{"chapters": [{"title": "A", "startSeconds": 0}, {"title": "B", "startSeconds": 0}]}""")]
