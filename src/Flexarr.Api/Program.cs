@@ -47,16 +47,12 @@ var userConfig = new ConfigurationBuilder()
     .Build();
 
 // config.json overrides appsettings and is reloaded when it changes, so settings apply without a restart.
-// Connections of a kind Flexarr doesn't know are skipped rather than stopping the server (see FlexarrConfigBinder).
 builder.Services.AddOptions<FlexarrOptions>()
-    .Configure<ILoggerFactory>((options, logs) =>
-    {
-        var logger = logs.CreateLogger("Flexarr.Configuration");
-        FlexarrConfigBinder.Bind(builder.Configuration.GetSection(FlexarrOptions.SectionName), options, logger);
-        FlexarrConfigBinder.Bind(userConfig, options, logger, dataDirectory);
-    });
-builder.Services.AddSingleton<IOptionsChangeTokenSource<FlexarrOptions>>(
-    new ConfigurationChangeTokenSource<FlexarrOptions>(Options.DefaultName, builder.Configuration.GetSection(FlexarrOptions.SectionName)));
+    .BindConfiguration(FlexarrOptions.SectionName)
+    .Configure(options => userConfig.Bind(options))
+    // Connections to apps Flexarr no longer talks to (Readarr) are left out by the binder; say so, and tidy config.json.
+    .Configure<ILoggerFactory>((_, logs) => RetiredSettings.Check(
+        [builder.Configuration.GetSection(FlexarrOptions.SectionName), userConfig], dataDirectory, logs.CreateLogger("Flexarr.Configuration")));
 builder.Services.AddSingleton<IOptionsChangeTokenSource<FlexarrOptions>>(new ConfigurationChangeTokenSource<FlexarrOptions>(userConfig));
 builder.Services.AddSingleton<IPostConfigureOptions<FlexarrOptions>, ServerConfigStore>();
 
