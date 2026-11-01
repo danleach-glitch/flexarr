@@ -65,7 +65,6 @@ struct BooksLibraryView: View {
     let library: Library
     var showsTitle = true
     @State private var shelves: BookShelves?
-    @State private var genres: [GenreCount] = []
     @State private var error: String?
     @State private var loadedAt: Date?
     @State private var loadedToken: Int?
@@ -98,6 +97,8 @@ struct BooksLibraryView: View {
                     } else {
                         StatusView(state: .empty("No books yet.")).frame(height: 500)
                     }
+                    // The shelves carry the genres (the most-used 200), so the row costs nothing more to show.
+                    let genres = shelves.genres.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
                     if !shelves.shownShelves.isEmpty, !genres.isEmpty {
                         row("Genres") {
                             ForEach(genres, id: \.name) { genre in
@@ -212,8 +213,6 @@ struct BooksLibraryView: View {
                 booksTotal = 0
             }
             shelves = loaded
-            // The genres row is extra: without it the page still shows.
-            genres = (try? await client.bookGenres(library.id)) ?? genres
             error = nil
             loadedAt = Date()
             loadedToken = token
