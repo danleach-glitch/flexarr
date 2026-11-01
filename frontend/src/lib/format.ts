@@ -102,3 +102,13 @@ export const libraryTypeLabel: Record<LibraryType, string> = {
 
 /** What an episode is called where it is: a home video's is just its name. */
 export const episodeName = (item: ItemSummary) => (item.homeVideo || !item.seriesTitle ? item.title : `${item.seriesTitle} ${episodeCode(item)}`)
+
+/**
+ * Why a file can't be read, to follow "Can’t be read: ": the last part of the error, in its own case, with the first
+ * letter lowercased only when it starts an ordinary word ("Invalid data…" but not "EBML…"), so names such as Audible
+ * keep their capital further on.
+ */
+export function unreadableReason(error: string): string {
+  const reason = error.split(': ').at(-1) ?? error
+  return /^[A-Z][a-z]/.test(reason) ? reason[0].toLowerCase() + reason.slice(1) : reason
+}

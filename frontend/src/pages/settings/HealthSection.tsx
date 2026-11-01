@@ -7,7 +7,7 @@ import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { FixMatchDialog } from '../../components/FixMatchDialog'
 import { useApi } from '../../hooks/useApi'
 import { usePolling } from '../../hooks/usePolling'
-import { episodeCode, formatSize, relativeTime } from '../../lib/format'
+import { episodeCode, formatSize, relativeTime, unreadableReason } from '../../lib/format'
 import { SettingsHeader } from './shared'
 
 function HealthCheckPanel({ onFinished }: { onFinished: () => void }) {
@@ -289,8 +289,9 @@ export function HealthSection() {
       <HealthGroup title="Files that can’t be read" count={data.unreadable.length} lede="Usually a damaged or unfinished download. A new copy fixes playback.">
         {data.unreadable.map((u) => (
           <div key={u.fileId} className="health-row">
-            <HealthRowMain item={u.item} file={u.path} detail={`Can’t be read: ${u.error.split(': ').at(-1)?.toLowerCase()}`} />
+            <HealthRowMain item={u.item} file={u.path} detail={`Can’t be read: ${unreadableReason(u.error)}`} />
             {u.item &&
+              searchable.has(u.item.kind) &&
               (data.downloading[u.item.id] ? (
                 <DownloadingNote state={data.downloading[u.item.id]} />
               ) : (
@@ -399,6 +400,9 @@ export function HealthSection() {
 }
 
 const fileName = (path: string) => path.split('/').at(-1) ?? path
+
+/** What Sonarr and Radarr can search for again: an audiobook, a song or a podcast can't be fetched anew from here. */
+const searchable = new Set<ItemSummary['kind']>(['Movie', 'Series', 'Season', 'Episode'])
 
 /**
  * Folders whose files the scans are keeping: they looked unmounted or cleared out. If they really were cleared out,
