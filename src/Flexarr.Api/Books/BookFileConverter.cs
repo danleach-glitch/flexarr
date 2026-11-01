@@ -22,6 +22,12 @@ public sealed partial class BookFileConverter : IDisposable
     /// <summary>Conversions running at once, across every book and listener.</summary>
     public const int MaxConcurrent = 2;
 
+    /// <summary>
+    /// The most files one player being handed a book starts converting ahead of time: the one it starts in and the next
+    /// few. The rest are converted when they're asked for, so one request can't queue a whole book (or a hundred).
+    /// </summary>
+    public const int MaxPrepared = 3;
+
     /// <summary>The most the converted copies may take up together, before the least recently used go.</summary>
     public const long MaxCacheBytes = 10L * 1024 * 1024 * 1024;
 
@@ -63,12 +69,12 @@ public sealed partial class BookFileConverter : IDisposable
 
     /// <summary>
     /// Starts converting the parts a player is about to ask for that need it, the one at <paramref name="fromSeconds"/>
-    /// first, so they're ready (or under way) by the time it does.
+    /// first, so they're ready (or under way) by the time it does; no more than <see cref="MaxPrepared"/>.
     /// </summary>
     public void Prepare(IEnumerable<BookPart> parts, double fromSeconds = 0)
     {
         ArgumentNullException.ThrowIfNull(parts);
-        foreach (var part in parts.Where(p => p.Convert).OrderBy(p => p.OffsetSeconds + p.DurationSeconds <= fromSeconds).ThenBy(p => p.Index))
+        foreach (var part in parts.Where(p => p.Convert).OrderBy(p => p.OffsetSeconds + p.DurationSeconds <= fromSeconds).ThenBy(p => p.Index).Take(MaxPrepared))
         {
             _ = Start(part.FileId, part.Path);
         }

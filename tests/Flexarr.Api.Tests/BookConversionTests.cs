@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Json;
 using Flexarr.Api.Books;
 using Flexarr.Core.Books;
 using Flexarr.Core.Data;
@@ -82,7 +83,7 @@ public sealed class BookConversionTests : IDisposable
     [Fact]
     public async Task OnlyAFewConversionsRunAtOnce()
     {
-        var book = await SeedAsync(("01.wma", "wmav2"), ("02.wma", "wmav2"), ("03.wma", "wmav2"), ("04.wma", "wmav2"));
+        var book = await SeedAsync(("01.wma", "wmav2"), ("02.wma", "wmav2"), ("03.wma", "wmav2"));
 
         (await Client().GetAsync(Url($"/api/v1/items/{book}/book?codecs=aac,mp3"))).EnsureSuccessStatusCode();
         await WaitForAsync(() => _started == BookFileConverter.MaxConcurrent);
@@ -90,8 +91,39 @@ public sealed class BookConversionTests : IDisposable
         Assert.Equal(BookFileConverter.MaxConcurrent, _started);
 
         _gate.SetResult();
-        await WaitForAsync(() => _started == 4 && _running == 0);
+        await WaitForAsync(() => _started == 3 && _running == 0);
         Assert.Equal(BookFileConverter.MaxConcurrent, _mostAtOnce);
+    }
+
+    [Theory]
+    [InlineData("none")]
+    [InlineData(",")]
+    public async Task APlayerClaimingNoCodecs_StillPlaysAacAndMp3AsTheyAre(string codecs)
+    {
+        var book = await SeedAsync(("01.mp3", "mp3"), ("02.m4b", "aac"));
+        _gate.SetResult();
+
+        var manifest = await Client().GetFromJsonAsync<BookManifestDto>(Url($"/api/v1/items/{book}/book?codecs={codecs}"));
+
+        Assert.All(manifest!.Files, f => Assert.False(f.Converted));
+        await Task.Delay(300);
+        Assert.Equal(0, _started);
+    }
+
+    [Fact]
+    public async Task OneRequest_StartsOnlyAFewConversions_AndTheRestWaitToBeAskedFor()
+    {
+        var book = await SeedAsync([.. Enumerable.Range(1, 8).Select(i => ($"{i:00}.wma", "wmav2"))]);
+        _gate.SetResult();
+
+        (await Client().GetAsync(Url($"/api/v1/items/{book}/book?codecs=aac,mp3"))).EnsureSuccessStatusCode();
+        await WaitForAsync(() => _started == BookFileConverter.MaxPrepared && _running == 0);
+        await Task.Delay(300);
+        Assert.Equal(BookFileConverter.MaxPrepared, _started);
+
+        var last = await Client().GetAsync(Url($"/api/v1/items/{book}/book/files/7?convert=aac"));
+        Assert.Equal("converted", await last.Content.ReadAsStringAsync());
+        Assert.Equal(BookFileConverter.MaxPrepared + 1, _started);
     }
 
     [Fact]
@@ -134,7 +166,7 @@ public sealed class BookConversionTests : IDisposable
 
         Converter.Prune(maxBytes: 20);
 
-        Assert.Equal([newer, playing], Directory.EnumerateFiles(directory).Order());
+        Assert.Equal(new[] { newer, playing }.Order(), Directory.EnumerateFiles(directory).Order());
     }
 
     private static async Task WaitForAsync(Func<bool> condition)
