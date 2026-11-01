@@ -387,15 +387,16 @@ public sealed partial class BookAssembler(FlexarrDbContext db, IMediaProbe probe
         return double.TryParse(head, NumberStyles.Float, CultureInfo.InvariantCulture, out var n) ? n : null;
     }
 
-    private async Task SetGenresAsync(MediaItem book, IReadOnlyList<string> names, CancellationToken ct)
+    private async Task SetGenresAsync(MediaItem book, IReadOnlyList<string> given, CancellationToken ct)
     {
+        var names = BookGenres.Clean(given);
         if (names.Count == 0 || book.Genres.Select(g => g.Name).Order().SequenceEqual(names.Order(), StringComparer.OrdinalIgnoreCase))
         {
             return;
         }
 
         book.Genres.Clear();
-        foreach (var name in names.Distinct(StringComparer.OrdinalIgnoreCase))
+        foreach (var name in names)
         {
             var genre = await db.Genres.FirstOrDefaultAsync(g => g.Name == name, ct).ConfigureAwait(false)
                 ?? db.Genres.Local.FirstOrDefault(g => string.Equals(g.Name, name, StringComparison.OrdinalIgnoreCase))

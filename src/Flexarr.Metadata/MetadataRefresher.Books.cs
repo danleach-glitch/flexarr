@@ -263,9 +263,9 @@ public sealed partial class MetadataRefresher
         // Where its details came from, as shown; deleting it goes through ArrInstance.
         book.MetadataSource = catalogue.Instance.Name;
 
-        if (book.Genres.Count == 0 && match.Genres.Count > 0)
+        if (book.Genres.Count == 0 && BookGenres.Clean(match.Genres) is { Count: > 0 } readarrGenres)
         {
-            foreach (var name in match.Genres.Distinct(StringComparer.OrdinalIgnoreCase).Take(5))
+            foreach (var name in readarrGenres.Take(5))
             {
                 book.Genres.Add(await db.Genres.FirstOrDefaultAsync(g => g.Name == name, ct).ConfigureAwait(false)
                     ?? db.Genres.Local.FirstOrDefault(g => string.Equals(g.Name, name, StringComparison.OrdinalIgnoreCase))
@@ -320,10 +320,10 @@ public sealed partial class MetadataRefresher
         book.PosterUrl = Pick(book.PosterUrl, found.Cover);
         book.MetadataSource ??= found.Provider;
 
-        if ((overwrite || book.Genres.Count == 0) && found.Genres.Count > 0)
+        if ((overwrite || book.Genres.Count == 0) && BookGenres.Clean(found.Genres) is { Count: > 0 } foundGenres)
         {
             book.Genres.Clear();
-            foreach (var name in found.Genres.Distinct(StringComparer.OrdinalIgnoreCase).Take(5))
+            foreach (var name in foundGenres.Take(5))
             {
                 book.Genres.Add(await db.Genres.FirstOrDefaultAsync(g => g.Name == name, ct).ConfigureAwait(false)
                     ?? db.Genres.Local.FirstOrDefault(g => string.Equals(g.Name, name, StringComparison.OrdinalIgnoreCase))
