@@ -37,7 +37,7 @@ public static partial class DeleteEndpoints
             return Results.Ok(new DeletionDto(instance?.Name, instance is null ? await FilesAsync(db, item, ct) : []));
         }).WithTags("Items").RequireAuthorization(FlexarrClaims.MainProfilePolicy);
 
-        api.MapDelete("/items/{id:guid}", async (Guid id, FlexarrDbContext db, IOptionsMonitor<FlexarrOptions> options, ArrClient arr, ILoggerFactory logs, CancellationToken ct) =>
+        api.MapDelete("/items/{id:guid}", async (Guid id, FlexarrDbContext db, IOptionsMonitor<FlexarrOptions> options, ArrClient arr, ILoggerFactory logs, Books.BookFileConverter converter, CancellationToken ct) =>
         {
             var item = await db.MediaItems.AsNoTracking().Include(i => i.Parent).ThenInclude(p => p!.Parent).FirstOrDefaultAsync(i => i.Id == id, ct);
             if (item is null)
@@ -52,7 +52,10 @@ public static partial class DeleteEndpoints
 
             if (item.Kind == MediaKind.Audiobook)
             {
-                return await DeleteBookAsync(db, item, options.CurrentValue, arr, logs.CreateLogger("Flexarr.Delete"), ct);
+                var fileIds = await db.MediaFiles.Where(f => f.MediaItemId == item.Id).Select(f => f.Id).ToListAsync(ct);
+                var result = await DeleteBookAsync(db, item, options.CurrentValue, arr, logs.CreateLogger("Flexarr.Delete"), ct);
+                converter.RemoveCopies(fileIds); // Its converted copies too; harmless if the delete failed, they're made again.
+                return result;
             }
 
             var (instance, managedId) = Manager(item, options.CurrentValue);
