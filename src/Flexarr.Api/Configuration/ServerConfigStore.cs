@@ -34,6 +34,49 @@ public sealed partial class ServerConfigStore(ILogger<ServerConfigStore> logger)
         }
     }
 
+    /// <summary>Where config.json keeps the revision of its last change, for <see cref="UpdateAndWaitAsync"/>.</summary>
+    public const string RevisionKey = "configRevision";
+
+    /// <summary>
+    /// Applies <paramref name="change"/> to config.json, then waits (up to <paramref name="timeout"/>, five seconds by
+    /// default) until the options hold it, so the reply, or what's done next, sees the change. A reload set off by an
+    /// earlier write can land meanwhile and still hold the earlier settings, so the wait is for the reload that carries
+    /// this write's own revision, not just any.
+    /// </summary>
+    public static async Task UpdateAndWaitAsync(IOptionsMonitor<FlexarrOptions> options, string dataDirectory, Action<JsonObject> change,
+        TimeSpan? timeout = null, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(change);
+        var revision = Guid.NewGuid().ToString("N");
+        var reloaded = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var watch = options.OnChange(changed =>
+        {
+            if (changed.ConfigRevision == revision)
+            {
+                reloaded.TrySetResult();
+            }
+        });
+        Update(dataDirectory, config =>
+        {
+            change(config);
+            config[RevisionKey] = revision;
+        });
+        if (options.CurrentValue.ConfigRevision == revision)
+        {
+            return;
+        }
+
+        try
+        {
+            await reloaded.Task.WaitAsync(timeout ?? TimeSpan.FromSeconds(5), ct).ConfigureAwait(false);
+        }
+        catch (TimeoutException)
+        {
+            // The watcher is slow: applied when it catches up.
+        }
+    }
+
     /// <summary>
     /// Writes a file only this user can read (it holds keys), via a temporary file and a rename so a reader never sees
     /// it half-written.

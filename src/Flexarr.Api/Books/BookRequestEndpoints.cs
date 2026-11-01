@@ -167,16 +167,13 @@ public static class BookRequestEndpoints
             Results.Ok(await SetupAsync(options.CurrentValue, arr, db, ct)));
         setup.MapPut("/", async (BookRequestSetupRequest request, IOptionsMonitor<FlexarrOptions> options, ArrClient arr, FlexarrDbContext db, CancellationToken ct) =>
         {
-            var reloaded = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-            using var watch = options.OnChange((_, _) => reloaded.TrySetResult());
-            ServerConfigStore.Update(options.CurrentValue.DataDirectory, config => config["bookRequests"] = new JsonObject
+            await ServerConfigStore.UpdateAndWaitAsync(options, options.CurrentValue.DataDirectory, config => config["bookRequests"] = new JsonObject
             {
                 ["instance"] = request.Instance ?? options.CurrentValue.BookRequests.Instance,
                 ["qualityProfileId"] = request.QualityProfileId,
                 ["metadataProfileId"] = request.MetadataProfileId,
                 ["rootFolderPath"] = request.RootFolderPath,
-            });
-            await Task.WhenAny(reloaded.Task, Task.Delay(TimeSpan.FromSeconds(5), ct));
+            }, ct: ct);
             return Results.Ok(await SetupAsync(options.CurrentValue, arr, db, ct));
         });
 
