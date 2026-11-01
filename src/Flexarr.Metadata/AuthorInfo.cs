@@ -74,6 +74,14 @@ public sealed partial class AuthorInfo(FlexarrDbContext db, ArrClient arr, IMeta
         }
 
         var now = DateTime.UtcNow;
+
+        // A photo that can't be served (an old http:// one) is no photo: something else can fill its place.
+        if (person.ImageUrl is { } old && !ArtworkUrl.IsHttps(old) && !ArtworkUrl.IsLocal(old) && PersonSources.PhotoReplaceable(person))
+        {
+            PersonSources.SetPhoto(person, null, null, now);
+            person.InfoCheckedAt = null;
+        }
+
         var books = await BooksAsync(person, current, ct).ConfigureAwait(false);
 
         // Their own folder's photo, looked for every time (it's only a look on disk).

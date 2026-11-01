@@ -274,6 +274,16 @@ public sealed class AuthorInfoTests : IAsyncLifetime
         Assert.Null((await PersonAsync(Osman)).ImageUrl);
     }
 
+    [Fact]
+    public async Task AnOldHttpPhoto_CountsAsMissing()
+    {
+        var library = await SeedAsync(new Person { Name = Osman, Biography = "Known.", ImageUrl = "http://images.example/osman.jpg", InfoCheckedAt = DateTime.UtcNow });
+
+        await Refresher().RefreshLibraryAsync(library, force: true, default);
+
+        Assert.Equal((AudiblePhoto, "audible"), ((await PersonAsync(Osman)).ImageUrl, (await PersonAsync(Osman)).PhotoSource));
+    }
+
     /// <summary>Just the authors, online providers left out.</summary>
     private AuthorInfo Authors(BookProviders? providers = null) =>
         new(_db, new ArrClient(new HttpClient(_web)), new Settings(_dir, []), providers, NullLogger.Instance);
