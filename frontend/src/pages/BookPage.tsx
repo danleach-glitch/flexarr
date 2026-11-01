@@ -93,6 +93,8 @@ export function BookPage({ detail, onChange }: { detail: ItemDetail; onChange: (
   const more: MenuAction[] = [{ label: 'Add to collection…', run: () => openAddToCollection(item) }]
   // A finished book starts over straight from its button; one part-way through asks first, since its place is lost.
   if ((playing || place.saved > 0) && !finished) more.push({ label: 'Start over', run: () => setStartingOver(true) })
+  // Unread: no place and not finished, as if never started. Not while it plays, which would set the place again.
+  if (!playing && (finished || place.saved > 0)) more.push({ label: 'Mark as unread', run: () => mark(false) })
   if (mainProfile) {
     more.push({ label: 'Edit chapters…', run: () => setEditing('chapters') })
     // Its search is a read the server keeps to the unlocked main profile, so a locked one doesn't get to ask for the PIN.
@@ -146,7 +148,6 @@ export function BookPage({ detail, onChange }: { detail: ItemDetail; onChange: (
             )}
             <MoreButton label={`More for ${item.title}`} actions={more} />
           </div>
-          {!finished && <Listened place={place} duration={duration} />}
         </div>
       </header>
 
@@ -252,16 +253,6 @@ function StartOverDialog({ place, onConfirm, onClose }: { place: Place; onConfir
     <ConfirmDialog title="Start over?" confirmLabel="Start over" onConfirm={onConfirm} onClose={onClose}>
       <p>You’re at {formatClock(position)}.</p>
     </ConfirmDialog>
-  )
-}
-
-function Listened({ place, duration }: { place: Place; duration: number }) {
-  const position = usePosition(place)
-  if (position <= 0 || duration <= 0) return null
-  return (
-    <span className="detail-progress" aria-label={`${Math.round((position / duration) * 100)}% listened`}>
-      <span style={{ width: `${Math.min(100, (position / duration) * 100)}%` }} />
-    </span>
   )
 }
 
