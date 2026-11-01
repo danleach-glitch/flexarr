@@ -1,8 +1,7 @@
-import { Fragment, useEffect, useState, type ReactNode } from 'react'
+import { Fragment, useState, type ReactNode } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import {
   getBookGenres,
-  getBookLanguages,
   getBookPeople,
   getBookSeriesList,
   getBookShelves,
@@ -23,7 +22,6 @@ import { ScanProgress } from '../components/ScanProgress'
 import { useLibraries } from '../hooks/librariesContext'
 import { useApi } from '../hooks/useApi'
 import { useWatchedChanges } from '../hooks/watched'
-import { languageOptions } from '../lib/books'
 
 const PAGE_SIZE = 60
 
@@ -172,39 +170,19 @@ const sorts: { value: NonNullable<BookFilters['sort']>; label: string }[] = [
   { value: 'listened', label: 'Recently listened' },
 ]
 
-/** Length choices, as hours from and to. */
-const lengths: { value: string; label: string; min?: number; max?: number }[] = [
-  { value: '', label: 'Any length' },
-  { value: 'short', label: 'Under 5 hours', max: 5 },
-  { value: 'medium', label: '5–10 hours', min: 5, max: 10 },
-  { value: 'long', label: '10–20 hours', min: 10, max: 20 },
-  { value: 'epic', label: 'Over 20 hours', min: 20 },
-]
-
 /** Every book, filtered and sorted by what the address says, so a filter can be linked to and comes back on Back. */
 function AllBooks({ library, view }: { library: Library; view: 'all' | 'genre' }) {
   const [params, setParams] = useSearchParams()
   const { reload: reloadLibraries } = useLibraries()
-  const [search, setSearch] = useState(params.get('search') ?? '')
-  const length = lengths.find((l) => l.value === params.get('length')) ?? lengths[0]
-  const abridged = params.get('abridged')
+  // Only what a link brings (a shelf's See all, an author's books, a genre): no search box or filter menus.
+  const progress = (params.get('progress') as BookFilters['progress']) ?? undefined
   const filters: BookFilters = {
-    search: params.get('search') ?? undefined,
-    progress: (params.get('progress') as BookFilters['progress']) ?? undefined,
+    progress,
     author: params.get('author') ?? undefined,
-    narrator: params.get('narrator') ?? undefined,
     genre: params.get('genre') ?? undefined,
-    language: params.get('language') ?? undefined,
-    abridged: abridged === 'yes' ? true : abridged === 'no' ? false : undefined,
-    minHours: length.min,
-    maxHours: length.max,
     sort: (params.get('sort') as BookFilters['sort']) ?? undefined,
   }
   const key = JSON.stringify(filters)
-  const narrators = useApi((signal) => getBookPeople(library.id, { role: 'narrator', take: 200 }, signal), [library.id])
-  // The languages its books are in, one per name, the one chosen always among them.
-  const bookLanguages = useApi((signal) => getBookLanguages(library.id, signal), [library.id])
-  const languages = languageOptions(bookLanguages.data ?? [], filters.language)
   // The author filtered by, named (a link to it carries only the id).
   const author = useApi((signal) => (filters.author ? getPerson(filters.author, signal) : Promise.resolve(null)), [filters.author])
   const authorName = author.data?.name
@@ -213,32 +191,11 @@ function AllBooks({ library, view }: { library: Library; view: 'all' | 'genre' }
   useWatchedChanges(first.reload)
   const shown = pages?.key === key ? pages.books : first.data
 
-  // The search box waits for a pause in typing before it changes the address.
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if ((params.get('search') ?? '') !== search.trim()) set('search', search.trim())
-    }, 300)
-    return () => clearTimeout(timer)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only the typing starts it
-  }, [search])
-
   function set(name: string, value: string) {
     const next = new URLSearchParams(params)
     next.set('view', view)
     if (value) next.set(name, value)
     else next.delete(name)
-    setParams(next, { replace: true })
-  }
-
-  /** Every filter off (the search too), keeping the sort. */
-  function clearFilters() {
-    const next = new URLSearchParams()
-    next.set('view', view)
-    // A genre's page keeps its genre.
-    if (view === 'genre' && filters.genre) next.set('genre', filters.genre)
-    const sort = params.get('sort')
-    if (sort) next.set('sort', sort)
-    setSearch('')
     setParams(next, { replace: true })
   }
 
@@ -252,45 +209,6 @@ function AllBooks({ library, view }: { library: Library; view: 'all' | 'genre' }
   return (
     <>
       <div className="library-tools book-filters">
-        <input type="search" placeholder="Search" aria-label={`Search ${library.name}`} value={search} onChange={(e) => setSearch(e.target.value)} />
-        <Choice label="Progress" value={params.get('progress') ?? ''} onChange={(v) => set('progress', v)}>
-          <option value="">Any progress</option>
-          <option value="notstarted">Not started</option>
-          <option value="inprogress">In progress</option>
-          <option value="finished">Finished</option>
-        </Choice>
-        {(narrators.data?.items.length ?? 0) > 1 && (
-          <Choice label="Narrator" value={params.get('narrator') ?? ''} onChange={(v) => set('narrator', v)}>
-            <option value="">Any narrator</option>
-            {narrators.data!.items.map((n) => (
-              <option key={n.id} value={n.id}>
-                {n.name}
-              </option>
-            ))}
-          </Choice>
-        )}
-        <Choice label="Length" value={length.value} onChange={(v) => set('length', v)}>
-          {lengths.map((l) => (
-            <option key={l.value} value={l.value}>
-              {l.label}
-            </option>
-          ))}
-        </Choice>
-        {(languages.length > 1 || filters.language) && (
-          <Choice label="Language" value={filters.language ?? ''} onChange={(v) => set('language', v)}>
-            <option value="">Any language</option>
-            {languages.map((l) => (
-              <option key={l.value} value={l.value}>
-                {l.label}
-              </option>
-            ))}
-          </Choice>
-        )}
-        <Choice label="Abridged" value={abridged ?? ''} onChange={(v) => set('abridged', v)}>
-          <option value="">Any edition</option>
-          <option value="no">Unabridged</option>
-          <option value="yes">Abridged</option>
-        </Choice>
         <Choice label="Sort by" value={params.get('sort') ?? 'title'} onChange={(v) => set('sort', v === 'title' ? '' : v)}>
           {sorts.map((s) => (
             <option key={s.value} value={s.value}>
@@ -306,8 +224,13 @@ function AllBooks({ library, view }: { library: Library; view: 'all' | 'genre' }
           Scan for changes
         </AsyncButton>
       </div>
-      {((filters.genre && view === 'all') || filters.author) && (
+      {((filters.genre && view === 'all') || filters.author || progress) && (
         <p className="chips">
+          {progress && progressLabels[progress] && (
+            <button className="chip" aria-pressed="true" onClick={() => set('progress', '')} aria-label={`${progressLabels[progress]}: clear`}>
+              {progressLabels[progress]} ×
+            </button>
+          )}
           {filters.genre && view === 'all' && (
             <button className="chip" aria-pressed="true" onClick={() => set('genre', '')} aria-label={`Genre ${filters.genre}: clear`}>
               {filters.genre} ×
@@ -326,17 +249,7 @@ function AllBooks({ library, view }: { library: Library; view: 'all' | 'genre' }
           {shown.total.toLocaleString()} {filtered ? 'matching' : shown.total === 1 ? 'book' : 'books'}
         </p>
       )}
-      {shown?.total === 0 &&
-        (filtered ? (
-          <div className="page-message muted">
-            <p>No books match.</p>
-            <button className="button quiet small" onClick={clearFilters}>
-              Clear filters
-            </button>
-          </div>
-        ) : (
-          <p className="page-message muted">No books yet.</p>
-        ))}
+      {shown?.total === 0 && <p className="page-message muted">{filtered ? 'No books match.' : 'No books yet.'}</p>}
       <div className="poster-grid square" aria-busy={!shown}>
         {shown?.items.map((item) => (
           <div key={item.id} data-id={item.id}>
@@ -355,6 +268,8 @@ function AllBooks({ library, view }: { library: Library; view: 'all' | 'genre' }
   )
 }
 
+const progressLabels: Record<string, string> = { notstarted: 'Not started', inprogress: 'In progress', finished: 'Finished' }
+
 function Choice({ label, value, onChange, children }: { label: string; value: string; onChange: (value: string) => void; children: ReactNode }) {
   return (
     <select aria-label={label} value={value} onChange={(e) => onChange(e.target.value)}>
@@ -363,29 +278,23 @@ function Choice({ label, value, onChange, children }: { label: string; value: st
   )
 }
 
-/** A paged grid with a search box, for series and people. */
-function usePaged<T>(load: (search: string, skip: number, signal?: AbortSignal) => Promise<Paged<T>>, deps: unknown[]) {
-  const [search, setSearch] = useState('')
-  const [typed, setTyped] = useState('')
-  const [extra, setExtra] = useState<{ search: string; items: T[] } | null>(null)
-  useEffect(() => {
-    const timer = setTimeout(() => setSearch(typed.trim()), 300)
-    return () => clearTimeout(timer)
-  }, [typed])
+/** A paged grid, for series and people. */
+function usePaged<T>(load: (skip: number, signal?: AbortSignal) => Promise<Paged<T>>, deps: unknown[]) {
+  const [extra, setExtra] = useState<T[]>([])
   // eslint-disable-next-line react-hooks/exhaustive-deps -- callers pass what `load` closes over
-  const first = useApi((signal) => load(search, 0, signal), [...deps, search])
-  const items = first.data ? [...first.data.items, ...(extra?.search === search ? extra.items : [])] : undefined
+  const first = useApi((signal) => load(0, signal), deps)
+  const items = first.data ? [...first.data.items, ...extra] : undefined
   const more = async () => {
-    const page = await load(search, items?.length ?? 0)
-    setExtra({ search, items: [...(extra?.search === search ? extra.items : []), ...page.items] })
+    const page = await load(items?.length ?? 0)
+    setExtra([...extra, ...page.items])
   }
-  return { typed, setTyped, items, total: first.data?.total, error: first.error, more }
+  return { items, total: first.data?.total, error: first.error, more }
 }
 
 function SeriesList({ library }: { library: Library }) {
-  const paged = usePaged((search, skip, signal) => getBookSeriesList(library.id, { search: search || undefined, skip, take: PAGE_SIZE }, signal), [library.id])
+  const paged = usePaged((skip, signal) => getBookSeriesList(library.id, { skip, take: PAGE_SIZE }, signal), [library.id])
   return (
-    <PagedGrid paged={paged} label="series" empty="No series here yet." className="poster-grid square book-series-grid">
+    <PagedGrid paged={paged} empty="No series here yet." className="poster-grid square book-series-grid">
       {paged.items?.map((s) => (
         <BookSeriesCard key={s.id} series={s} />
       ))}
@@ -394,9 +303,9 @@ function SeriesList({ library }: { library: Library }) {
 }
 
 function People({ library, role }: { library: Library; role: 'author' | 'narrator' }) {
-  const paged = usePaged((search, skip, signal) => getBookPeople(library.id, { role, search: search || undefined, skip, take: PAGE_SIZE }, signal), [library.id, role])
+  const paged = usePaged((skip, signal) => getBookPeople(library.id, { role, skip, take: PAGE_SIZE }, signal), [library.id, role])
   return (
-    <PagedGrid paged={paged} label={role === 'author' ? 'authors' : 'narrators'} empty={`No ${role}s here yet.`} className="poster-grid people-grid">
+    <PagedGrid paged={paged} empty={`No ${role}s here yet.`} className="poster-grid people-grid">
       {paged.items?.map((p) => (
         <BookPersonCard key={p.id} person={p} />
       ))}
@@ -404,14 +313,11 @@ function People({ library, role }: { library: Library; role: 'author' | 'narrato
   )
 }
 
-function PagedGrid<T>({ paged, label, empty, className, children }: { paged: ReturnType<typeof usePaged<T>>; label: string; empty: string; className: string; children: ReactNode }) {
+function PagedGrid<T>({ paged, empty, className, children }: { paged: ReturnType<typeof usePaged<T>>; empty: string; className: string; children: ReactNode }) {
   return (
     <>
-      <div className="library-tools book-filters">
-        <input type="search" placeholder="Search" aria-label={`Search ${label}`} value={paged.typed} onChange={(e) => paged.setTyped(e.target.value)} />
-      </div>
       {paged.error && <p className="error">{paged.error.message}</p>}
-      {paged.total === 0 && <p className="page-message muted">{paged.typed ? 'Nothing matches.' : empty}</p>}
+      {paged.total === 0 && <p className="page-message muted">{empty}</p>}
       <div className={className} aria-busy={!paged.items}>
         {children}
       </div>

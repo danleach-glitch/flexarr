@@ -15,6 +15,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - **Request books** from Discover's search when one of them is connected. Whoever asked hears when it's ready to listen.
 - Every author gets a photo and a biography, from a picture in the author's folder, Readarr, Audible or Open Library, a book's page shows its authors, and author pages on the Apple TV and Android TV now show the biography too. On the web, the main profile can pick another photo, upload one or rewrite the biography.
 - Kids profiles don't see audiobooks. Audible-protected `.aax` files are listed in **Library health**, as they can't be played.
+- On the web, **All books** and a genre's page keep just the sort, and **Series** and **Authors** just the grid: no search box or filter menus.
 
 ### Podcasts
 - Podcast settings are now **Settings › Podcasts & audiobooks** on the web, iPhone, iPad and Android, and cover audiobooks too: one speed, skip steps and smart rewind for both (a book with its own speed keeps it).
