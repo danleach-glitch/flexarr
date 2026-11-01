@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
@@ -43,12 +44,72 @@ public sealed record BookAuthorInfo(string Name, string? Biography, string? Imag
 public sealed record AudibleChapters(IReadOnlyList<BookChapter> Chapters, double RuntimeSeconds, bool Accurate, double IntroSeconds);
 
 /// <summary>
+/// Keeps Flexarr polite to the book providers: a couple of requests at a time to each host, and a host that answers
+/// 429 (too many requests) left alone until it said to come back (a minute, if it didn't say). One for the whole
+/// server; <see cref="BookProviders"/> is made per request.
+/// </summary>
+public sealed class BookProviderThrottle(TimeProvider? time = null)
+{
+    public static BookProviderThrottle Shared { get; } = new();
+
+    private const int PerHost = 2;
+    private static readonly TimeSpan DefaultBackOff = TimeSpan.FromMinutes(1), LongestBackOff = TimeSpan.FromHours(1);
+    private readonly TimeProvider _time = time ?? TimeProvider.System;
+    private readonly ConcurrentDictionary<string, SemaphoreSlim> _gates = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, DateTimeOffset> _coolingUntil = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Whether a host asked to be left alone, and still is.</summary>
+    public bool IsCooling(string host) => _coolingUntil.TryGetValue(host, out var until) && until > _time.GetUtcNow();
+
+    /// <summary>Sends a request when its host has room; null, unsent, while the host is backing Flexarr off.</summary>
+    public async Task<HttpResponseMessage?> SendAsync(HttpClient http, HttpRequestMessage request, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(http);
+        ArgumentNullException.ThrowIfNull(request);
+        var host = request.RequestUri!.Host;
+        if (IsCooling(host))
+        {
+            return null;
+        }
+
+        var gate = _gates.GetOrAdd(host, _ => new SemaphoreSlim(PerHost));
+        await gate.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            if (IsCooling(host))
+            {
+                return null; // backed off while this one waited its turn
+            }
+
+            var response = await http.SendAsync(request, ct).ConfigureAwait(false);
+            if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+            {
+                var now = _time.GetUtcNow();
+                var wait = response.Headers.RetryAfter is { } retry
+                    ? retry.Delta ?? (retry.Date is { } date ? date - now : DefaultBackOff)
+                    : DefaultBackOff;
+                _coolingUntil[host] = now + TimeSpan.FromTicks(Math.Clamp(wait.Ticks, TimeSpan.FromSeconds(5).Ticks, LongestBackOff.Ticks));
+            }
+
+            return response;
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+}
+
+/// <summary>
 /// Looks books up online: Audible (through Audnexus, and Audible's own catalogue for searching), Open Library, Google
 /// Books and Hardcover. All of them are someone else's service, Audnexus and the catalogue unofficially so, so answers
-/// are kept on disk for a month and nothing depends on any of them staying up: a provider that fails is skipped.
+/// are kept on disk for a month and nothing depends on any of them staying up: a provider that fails is skipped, and
+/// one that says it's had too many requests is left alone for a while (see <see cref="BookProviderThrottle"/>).
 /// </summary>
-public sealed class BookProviders(HttpClient http, Func<IMetadataSettings> settings)
+public sealed class BookProviders(HttpClient http, Func<IMetadataSettings> settings, BookProviderThrottle? throttle = null)
 {
+    private readonly BookProviderThrottle _throttle = throttle ?? BookProviderThrottle.Shared;
+
     private static readonly TimeSpan CacheFor = TimeSpan.FromDays(30);
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
@@ -82,39 +143,47 @@ public sealed class BookProviders(HttpClient http, Func<IMetadataSettings> setti
         return null;
     }
 
-    /// <summary>Every provider's results for a title and author, in the admin's order: for matching and Fix match.</summary>
+    /// <summary>Every provider's results for a title and author, in the admin's order: for Fix match.</summary>
     public async Task<List<BookMatch>> SearchAsync(string title, string? author, CancellationToken ct)
     {
         var results = new List<BookMatch>();
         foreach (var provider in Enabled)
         {
-            results.AddRange(await TryListAsync(() => provider switch
-            {
-                "audible" => AudibleSearchAsync(title, author, ct),
-                "openlibrary" => OpenLibrarySearchAsync(title, author, ct),
-                "google" => GoogleSearchAsync($"intitle:{title}" + (author is null ? "" : $"+inauthor:{author}"), ct),
-                "hardcover" => HardcoverSearchAsync(title, author, ct),
-                _ => Task.FromResult(new List<BookMatch>()),
-            }).ConfigureAwait(false));
+            results.AddRange(await SearchOneAsync(provider, title, author, ct).ConfigureAwait(false));
         }
 
         return results;
     }
 
-    /// <summary>The best of <see cref="SearchAsync"/> for a book we have: the same title (ignoring case and punctuation) by one of its authors.</summary>
+    private Task<List<BookMatch>> SearchOneAsync(string provider, string title, string? author, CancellationToken ct) => TryListAsync(() => provider switch
+    {
+        "audible" => AudibleSearchAsync(title, author, ct),
+        "openlibrary" => OpenLibrarySearchAsync(title, author, ct),
+        "google" => GoogleSearchAsync($"intitle:{title}" + (author is null ? "" : $"+inauthor:{author}"), ct),
+        "hardcover" => HardcoverSearchAsync(title, author, ct),
+        _ => Task.FromResult(new List<BookMatch>()),
+    });
+
+    /// <summary>
+    /// A book we have, found by searching: the same title (ignoring case and punctuation) by one of its authors. The
+    /// providers are asked in the admin's order, and the first with such a book answers; the rest aren't asked.
+    /// </summary>
     public async Task<BookMatch?> FindAsync(string title, IReadOnlyList<string> authors, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(authors);
         var wanted = Fold(title);
         var main = Fold(MainTitle(title));
         var names = authors.Select(Fold).ToHashSet(StringComparer.Ordinal);
-        foreach (var match in await SearchAsync(MainTitle(title), authors.Count > 0 ? authors[0] : null, ct).ConfigureAwait(false))
+        foreach (var provider in Enabled)
         {
-            var theirs = Fold(match.Title);
-            if ((theirs == wanted || theirs == main || Fold(MainTitle(match.Title)) == main)
-                && (names.Count == 0 || match.Authors.Any(a => names.Contains(Fold(a)))))
+            foreach (var match in await SearchOneAsync(provider, MainTitle(title), authors.Count > 0 ? authors[0] : null, ct).ConfigureAwait(false))
             {
-                return match;
+                var theirs = Fold(match.Title);
+                if ((theirs == wanted || theirs == main || Fold(MainTitle(match.Title)) == main)
+                    && (names.Count == 0 || match.Authors.Any(a => names.Contains(Fold(a)))))
+                {
+                    return match;
+                }
             }
         }
 
@@ -254,8 +323,8 @@ public sealed class BookProviders(HttpClient http, Func<IMetadataSettings> setti
                 Content = JsonContent.Create(new { query = Query, variables = new { q } }),
             };
             request.Headers.TryAddWithoutValidation("authorization", Options.HardcoverToken!.StartsWith("Bearer ", StringComparison.Ordinal) ? Options.HardcoverToken : $"Bearer {Options.HardcoverToken}");
-            using var response = await http.SendAsync(request, ct).ConfigureAwait(false);
-            return response.IsSuccessStatusCode ? await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false) : null;
+            using var response = await _throttle.SendAsync(http, request, ct).ConfigureAwait(false);
+            return response?.IsSuccessStatusCode == true ? await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false) : null;
         }).ConfigureAwait(false);
         var hits = found?["data"]?["search"]?["results"]?["hits"] as JsonArray ?? [];
         return [.. hits.OfType<JsonObject>().Select(h => h["document"] as JsonObject).OfType<JsonObject>().Where(d => Text(d, "title") is not null).Select(d => new BookMatch(
@@ -271,7 +340,12 @@ public sealed class BookProviders(HttpClient http, Func<IMetadataSettings> setti
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.UserAgent.ParseAdd("Flexarr/1.0 (+https://flexarr.io)");
-        using var response = await http.SendAsync(request, ct).ConfigureAwait(false);
+        using var response = await _throttle.SendAsync(http, request, ct).ConfigureAwait(false);
+        if (response is null)
+        {
+            return null; // backing off: asked again later
+        }
+
         // A book a provider doesn't have is an answer worth keeping; a provider that's struggling isn't.
         if (response.StatusCode is System.Net.HttpStatusCode.NotFound or System.Net.HttpStatusCode.BadRequest)
         {

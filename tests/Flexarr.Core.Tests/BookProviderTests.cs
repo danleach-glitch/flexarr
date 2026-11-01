@@ -132,6 +132,33 @@ public sealed class BookProviderTests : IAsyncLifetime
         Assert.Equal(asked, _web.Requests.Count);
     }
 
+    [Fact]
+    public async Task FindingABook_StopsAtTheFirstProviderThatHasIt()
+    {
+        var providers = new BookProviders(new HttpClient(_web), () => new Settings(_dir, _books), new BookProviderThrottle());
+
+        var found = await providers.FindAsync("The Thursday Murder Club", ["Richard Osman"], default);
+
+        Assert.Equal("audible", found?.Provider);
+        Assert.DoesNotContain(_web.Requests, r => r.Contains("openlibrary.org", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task AProviderThatSaysTooMany_IsLeftAloneForAWhile()
+    {
+        _web.TooMany = "api.audible.co.uk";
+        var providers = new BookProviders(new HttpClient(_web), () => new Settings(_dir, _books), new BookProviderThrottle());
+
+        var first = await providers.SearchAsync("The Thursday Murder Club", "Richard Osman", default);
+        var asked = _web.Requests.Count(r => r.Contains("api.audible.co.uk", StringComparison.Ordinal));
+        var again = await providers.SearchAsync("The Thursday Murder Club", "Osman", default);
+
+        Assert.Equal(1, asked);
+        Assert.Equal(asked, _web.Requests.Count(r => r.Contains("api.audible.co.uk", StringComparison.Ordinal)));
+        Assert.DoesNotContain(first.Concat(again), m => m.Provider == "audible");
+        Assert.Contains(again, m => m.Provider == "openlibrary"); // the others are still asked
+    }
+
     private async Task<List<string>> NamesAsync(Guid book, CreditRole role) =>
         await _db.Credits.Where(c => c.MediaItemId == book && c.Role == role).OrderBy(c => c.Order).Select(c => c.Person!.Name).ToListAsync();
 
@@ -170,6 +197,9 @@ public sealed class BookProviderTests : IAsyncLifetime
     private sealed class Recorded : HttpMessageHandler
     {
         public bool Down;
+
+        /// <summary>A host that answers 429, asking to be left alone for two minutes.</summary>
+        public string? TooMany;
         public List<string> Requests { get; } = [];
 
         private static string Fixture(string name) => File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "Books", name));
@@ -181,6 +211,13 @@ public sealed class BookProviderTests : IAsyncLifetime
             if (Down)
             {
                 return Task.FromResult(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
+            }
+
+            if (url.Host == TooMany)
+            {
+                var tooMany = new HttpResponseMessage(HttpStatusCode.TooManyRequests);
+                tooMany.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(TimeSpan.FromMinutes(2));
+                return Task.FromResult(tooMany);
             }
 
             var body = (url.Host, url.AbsolutePath) switch
