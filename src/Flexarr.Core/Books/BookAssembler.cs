@@ -307,6 +307,7 @@ public sealed partial class BookAssembler(FlexarrDbContext db, IMediaProbe probe
     }
 
     private readonly Dictionary<(Guid Library, string Name), BookSeries> _series = [];
+    private readonly Dictionary<Guid, List<BookSeries>> _librarySeries = [];
 
     /// <summary>Puts the book in <paramref name="parts"/>' series (and only those) when there are any.</summary>
     private async Task SetSeriesAsync(MediaItem book, IReadOnlyList<SeriesPart> parts, CancellationToken ct)
@@ -345,12 +346,20 @@ public sealed partial class BookAssembler(FlexarrDbContext db, IMediaProbe probe
             return known;
         }
 
-        var all = await db.BookSeries.Where(s => s.LibraryId == libraryId).ToListAsync(ct).ConfigureAwait(false);
-        var series = all.Concat(db.BookSeries.Local.Where(s => s.LibraryId == libraryId)).FirstOrDefault(s => BookInfo.SameSeries(s.Name, name));
+        // The library's series, read once a run; new ones join the list as they're made.
+        if (!_librarySeries.TryGetValue(libraryId, out var all))
+        {
+            all = await db.BookSeries.Where(s => s.LibraryId == libraryId).ToListAsync(ct).ConfigureAwait(false);
+            all.AddRange(db.BookSeries.Local.Where(s => s.LibraryId == libraryId && !all.Contains(s)));
+            _librarySeries[libraryId] = all;
+        }
+
+        var series = all.FirstOrDefault(s => BookInfo.SameSeries(s.Name, name));
         if (series is null)
         {
             series = new BookSeries { LibraryId = libraryId, Name = name.Trim(), SortName = SortTitle.For(name) };
             db.BookSeries.Add(series);
+            all.Add(series);
         }
 
         _series[key] = series;
