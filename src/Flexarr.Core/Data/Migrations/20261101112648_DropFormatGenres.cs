@@ -13,17 +13,19 @@ namespace Flexarr.Core.Data.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // Written out, not taken from BookGenres: a migration must do the same thing however the code changes.
-            const string names = "'audiobook', 'audiobooks', 'audio book', 'audio books', 'audiobook - unabridged', 'audio', 'audible', "
-                + "'audible audio', 'spoken word', 'speech', 'unabridged', 'abridged', 'book', 'books'";
+            // Written out, not taken from BookGenres: a migration must do the same thing however the code changes. Names are
+            // compared as BookGenres does, on their letters only ("Audiobooks - Unabridged", "Spoken-Word").
+            const string names = "'audiobook', 'audiobooks', 'audiobookunabridged', 'audiobooksunabridged', 'audio', 'audible', 'audibleaudio', "
+                + "'spokenword', 'speech', 'unabridged', 'abridged', 'book', 'books'";
+            const string letters = """lower(replace(replace(replace(replace(replace(replace(replace(replace("Name", ' ', ''), '-', ''), '/', ''), '_', ''), '.', ''), ',', ''), ':', ''), '&', ''))""";
             migrationBuilder.Sql($"""
                 DELETE FROM "MediaItemGenres"
                 WHERE "ItemsId" IN (SELECT "MediaItemId" FROM "BookDetails")
-                  AND "GenresId" IN (SELECT "Id" FROM "Genres" WHERE lower("Name") IN ({names}));
+                  AND "GenresId" IN (SELECT "Id" FROM "Genres" WHERE {letters} IN ({names}));
                 """);
             migrationBuilder.Sql($"""
                 DELETE FROM "Genres"
-                WHERE lower("Name") IN ({names})
+                WHERE {letters} IN ({names})
                   AND "Id" NOT IN (SELECT "GenresId" FROM "MediaItemGenres");
                 """);
         }
