@@ -130,6 +130,24 @@ public sealed class AudiobookScannerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AFileBackAfterGoingMissing_JoinsItsBookAgain()
+    {
+        Touch("A/Book/01.mp3", "A/Book/02.mp3");
+        await ScanAsync();
+        var away = Path.Combine(_dir, "02.mp3");
+        File.Move(Path.Combine(Books, "A/Book/02.mp3"), away);
+        await ScanAsync();
+        Assert.Equal(BookProbe.Length, (await _db.BookDetails.AsNoTracking().SingleAsync()).DurationSeconds);
+
+        File.Move(away, Path.Combine(Books, "A/Book/02.mp3")); // unchanged: same size and time
+        var result = await ScanAsync();
+
+        Assert.Equal(2, result.Unchanged);
+        Assert.Equal(2 * BookProbe.Length, (await _db.BookDetails.AsNoTracking().SingleAsync()).DurationSeconds);
+        Assert.Equal([0, 1], (await _db.MediaFiles.AsNoTracking().OrderBy(f => f.Path).ToListAsync()).Select(f => f.BookOrder ?? -1));
+    }
+
+    [Fact]
     public async Task TagsDescribeTheBook_OverItsPath()
     {
         Touch("Unsorted/rip 4/Richard Osman - TMC1 The Thursday Murder Club.m4b");

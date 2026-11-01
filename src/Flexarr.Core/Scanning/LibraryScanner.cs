@@ -164,6 +164,12 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                 existing.TryGetValue(key, out var match);
                 if (match is not null)
                 {
+                    if (match.MissingSince is not null)
+                    {
+                        // Back after going missing, unchanged or not: its book is put together again with it in.
+                        state.ChangedBooks.Add(match.MediaItemId);
+                    }
+
                     match.MissingSince = null;
                 }
 
