@@ -12,6 +12,8 @@ import { TrailerDialog } from '../components/TrailerDialog'
 import { useApi } from '../hooks/useApi'
 import { formatDuration } from '../lib/format'
 import { Overview } from '../components/Overview'
+import { ScoreChips } from '../components/ScoreChips'
+import { hasScores, scoresOf } from '../lib/scores'
 
 /** A film or show from Discover that isn't in the library: what it is, how it's rated, its trailer, and a request. */
 export function ExternalTitlePage() {
@@ -50,8 +52,8 @@ function ExternalTitle({ title }: { title: ExternalDetail }) {
             {facts.map((f) => (
               <span key={f}>{f}</span>
             ))}
+            <Scores title={title} />
           </p>
-          <Ratings title={title} />
           {title.overview && <Overview text={title.overview} />}
           <div className="detail-actions">
             <RequestButton key={requested ? 'requested' : 'asked'} title={requested ? { ...title, availability: 'Requested' } : title} size="large" />
@@ -127,26 +129,19 @@ function ExternalTitle({ title }: { title: ExternalDetail }) {
   )
 }
 
-/** The scores people check before watching: TMDB, Rotten Tomatoes critics and audience, IMDb. */
-function Ratings({ title }: { title: ExternalDetail }) {
-  const scores = [
-    title.tmdbRating !== null && { label: 'TMDB', value: `${title.tmdbRating.toFixed(1)}`, out: '/10' },
-    title.imdbRating !== null && { label: 'IMDb', value: `${title.imdbRating.toFixed(1)}`, out: '/10' },
-    title.criticScore !== null && { label: 'Critics', value: `${title.criticScore}%`, out: 'Rotten Tomatoes' },
-    title.audienceScore !== null && { label: 'Audience', value: `${title.audienceScore}%`, out: 'Rotten Tomatoes' },
-  ].filter((s) => !!s)
-  if (scores.length === 0) return null
+/** IMDb and Rotten Tomatoes beside their marks, as on a library title's page; else TMDB's score. */
+function Scores({ title }: { title: ExternalDetail }) {
+  const scores = scoresOf({
+    imdbRating: title.imdbRating,
+    rottenTomatoes: title.criticScore !== null ? { score: title.criticScore, state: title.rottenTomatoesState ?? null } : null,
+  })
+  if (hasScores(scores)) return <ScoreChips scores={scores} />
+  if (title.tmdbRating === null) return null
   return (
-    <dl className="external-ratings">
-      {scores.map((s) => (
-        <div key={s.label} title={s.out === '/10' ? undefined : s.out}>
-          <dt>{s.label}</dt>
-          <dd>
-            {s.value}
-            {s.out === '/10' && <span className="muted">/10</span>}
-          </dd>
-        </div>
-      ))}
-    </dl>
+    <span className="score">
+      <span className="visually-hidden">Rated </span>
+      {title.tmdbRating.toFixed(1)}
+      <span className="muted">/10</span>
+    </span>
   )
 }
