@@ -32,6 +32,20 @@ struct MusicRequestTests {
         #expect(discover.genres.first?.name == "Rock")
     }
 
+    @Test func followedArtists() throws {
+        let json = #"""
+        [{"kind":"artist","deezerId":27,"title":"Daft Punk","artist":null,"artistDeezerId":27,"year":null,"image":null,
+          "availability":"Available","libraryItemId":"ar1","followed":true},
+         {"kind":"artist","deezerId":28,"title":"Air","artist":null,"artistDeezerId":28,"year":null,"image":null,
+          "availability":"None","libraryItemId":null,"followed":false},
+         {"kind":"artist","deezerId":29,"title":"Justice","artist":null,"artistDeezerId":29,"year":null,"image":null,
+          "availability":"Requested","libraryItemId":null}]
+        """#
+        let artists = try FlexarrClient.decoder.decode([MusicExternal].self, from: Data(json.utf8))
+        #expect(artists.map(\.followed) == [true, false, nil]) // Absent from servers before 0.59.
+        #expect(artists[0].libraryItemId == "ar1")
+    }
+
     @Test func artistAndAlbum() throws {
         let artist = try FlexarrClient.decoder.decode(MusicArtistDetail.self, from: Data(#"""
         {"deezerId":27,"name":"Daft Punk","image":null,"fans":4000000,"albums":[],"similar":[],"followed":true,
