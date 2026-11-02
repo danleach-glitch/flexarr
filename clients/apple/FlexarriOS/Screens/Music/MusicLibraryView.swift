@@ -1,33 +1,43 @@
 import FlexarrKit
 import SwiftUI
 
-/// A music library: the server's Browse rows in the profile's order (Settings › Home & browse › Music), then every
-/// artist as a round picture. When Browse fails, the playlists and the albums that arrived most recently instead.
-struct MusicLibraryView: View {
+/// A music library's Browse, as a film or TV library's: a hero led by the album played last (servers from 0.59), the
+/// server's rows in the profile's order (Settings › Home & browse › Music), then Your artists, whose See all opens
+/// Artists. When Browse fails, the playlists and the albums that arrived most recently instead.
+struct MusicLibraryView<Header: View>: View {
     @Environment(AppModel.self) private var model
     @State private var browse: MusicBrowseModel
     @State private var isVisible = false
+    @State private var featuredIndex = 0
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.horizontalSizeClass) private var sizeClass
+    /// Opens the library's Artists view.
+    private let showArtists: () -> Void
+    /// The Browse · Artists · Albums · Genres switch, at the top.
+    private let header: Header
 
-    init(library: Library) {
+    /// How many artists Your artists shows before its See all.
+    private static var artistsInRow: Int { 20 }
+
+    init(library: Library, showArtists: @escaping () -> Void, @ViewBuilder header: () -> Header) {
         _browse = State(initialValue: MusicBrowseModel(library: library))
+        self.showArtists = showArtists
+        self.header = header()
     }
 
-    private var columns: [GridItem] {
-        let minimum: CGFloat = sizeClass == .regular ? 140 : 100
-        return [GridItem(.adaptive(minimum: minimum, maximum: minimum * 1.45), spacing: 12, alignment: .top)]
+    private var featured: ItemSummary? {
+        browse.featured.isEmpty ? nil : browse.featured[featuredIndex % browse.featured.count]
     }
 
     var body: some View {
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 24) {
-                Text(browse.total == 1 ? "1 artist" : "\(browse.total.formatted()) artists")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(Color.usher)
-                    .monospacedDigit()
-                    .padding(.horizontal, Layout.edge)
-                    .opacity(browse.artists.isEmpty ? 0 : 1)
+                header
+                if !browse.featured.isEmpty {
+                    HomeHero(items: browse.featured, overviews: browse.hero?.overviews ?? [:], index: $featuredIndex,
+                             resuming: { browse.hero?.resuming($0) })
+                        .padding(.bottom, -12)
+                }
                 if let error = browse.error, browse.artists.isEmpty {
                     StatusView(state: .failed(error) { Task { await load() } })
                         .frame(height: 400)
@@ -39,44 +49,31 @@ struct MusicLibraryView: View {
                         ForEach(browse.rows) { MusicRowView(row: $0, width: cardWidth) { Task { await load() } } }
                     }
                     if browse.rows.isEmpty, !browse.playlists.isEmpty {
-                        VStack(alignment: .leading, spacing: 10) {
-                            SectionHeading(title: "Your playlists")
-                            ScrollView(.horizontal) {
-                                LazyHStack(alignment: .top, spacing: Layout.rowSpacing) {
-                                    ForEach(browse.playlists) { playlist in
-                                        PlaylistCard(playlist: playlist, width: cardWidth)
-                                    }
-                                }
-                                .padding(.horizontal, Layout.edge)
+                        row("Your playlists") {
+                            ForEach(browse.playlists) { playlist in
+                                PlaylistCard(playlist: playlist, width: cardWidth)
                             }
-                            .scrollIndicators(.hidden)
                         }
                     }
                     if browse.rows.isEmpty, !browse.recentAlbums.isEmpty {
-                        VStack(alignment: .leading, spacing: 10) {
-                            SectionHeading(title: "New albums")
-                            ScrollView(.horizontal) {
-                                LazyHStack(alignment: .top, spacing: Layout.rowSpacing) {
-                                    ForEach(browse.recentAlbums) { album in
-                                        AlbumCard(item: album, width: cardWidth, showsArtist: true)
-                                    }
-                                }
-                                .padding(.horizontal, Layout.edge)
+                        row("New albums") {
+                            ForEach(browse.recentAlbums) { album in
+                                AlbumCard(item: album, width: cardWidth, showsArtist: true)
                             }
-                            .scrollIndicators(.hidden)
                         }
                     }
-                    artistGrid
-                    if browse.isLoading {
-                        ProgressView().frame(maxWidth: .infinity).padding(20)
+                    if !browse.artists.isEmpty {
+                        row("Your artists", action: showArtists) {
+                            ForEach(browse.artists.prefix(Self.artistsInRow)) { ArtistCard(item: $0, width: cardWidth * 0.85) }
+                        }
                     }
                 }
             }
             .padding(.top, 8)
             .padding(.bottom, 24)
         }
-        .background(RoomBackground(ambient: browse.ambientItem?.glowColor, intensity: 0.18))
-        .navigationTitle(browse.library.name)
+        .background(RoomBackground(ambient: (featured ?? browse.ambientItem)?.glowColor, intensity: featured == nil ? 0.18 : 0.28)
+            .animation(.easeInOut(duration: 0.8), value: featured?.id))
         .refreshable { await load() }
         .task {
             if browse.loadedAt != nil, !Freshness.isStale(browse.loadedAt) { return }
@@ -91,16 +88,14 @@ struct MusicLibraryView: View {
 
     private var cardWidth: CGFloat { Layout.posterWidth(sizeClass) * 1.15 }
 
-    private var artistGrid: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            SectionHeading(title: "Artists")
-            LazyVGrid(columns: columns, alignment: .leading, spacing: 20) {
-                ForEach(Array(browse.artists.enumerated()), id: \.element.id) { index, artist in
-                    ArtistCard(item: artist)
-                        .onAppear { if let client = model.client { browse.loadMoreIfNeeded(at: index, client: client) } }
-                }
+    private func row<Cards: View>(_ title: String, action: (() -> Void)? = nil, @ViewBuilder cards: () -> Cards) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SectionHeading(title: title, action: action)
+            ScrollView(.horizontal) {
+                LazyHStack(alignment: .top, spacing: Layout.rowSpacing) { cards() }
+                    .padding(.horizontal, Layout.edge)
             }
-            .padding(.horizontal, Layout.edge)
+            .scrollIndicators(.hidden)
         }
     }
 

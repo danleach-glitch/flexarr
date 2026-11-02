@@ -255,8 +255,24 @@ struct HomeHero: View {
                 .mask(LinearGradient(stops: [.init(color: .black, location: 0.5), .init(color: .clear, location: 1)], startPoint: .top, endPoint: .bottom))
 
             VStack(alignment: .leading, spacing: 12) {
-                TitleArt(item: item, maxWidth: 280, maxHeight: 110, fontSize: 52)
-                FactsLine(facts: item.facts(scores: !model.isKids), scores: model.isKids ? nil : item.scores)
+                if item.kind == .album {
+                    // An album's slide: its artist above it, since the backdrop is theirs.
+                    VStack(alignment: .leading, spacing: 2) {
+                        if let artist = item.artistName {
+                            Text(artist)
+                                .font(.headline)
+                                .foregroundStyle(Color.screen.opacity(0.85))
+                        }
+                        Text(item.title)
+                            .font(.marquee(44, weight: .black))
+                            .foregroundStyle(Color.screen)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.6)
+                    }
+                } else {
+                    TitleArt(item: item, maxWidth: 280, maxHeight: 110, fontSize: 52)
+                }
+                FactsLine(facts: item.facts(scores: !model.isKids && !item.kind.isMusic), scores: model.isKids || item.kind.isMusic ? nil : item.scores)
                 if let overview = overviews[item.id] ?? nil {
                     Text(overview)
                         .font(.subheadline)
@@ -267,11 +283,22 @@ struct HomeHero: View {
                 HStack(spacing: 10) {
                     let resume = resuming(item)
                     Button {
-                        if let resume { model.play(resume) } else { Task { await model.playBest(item, router: router) } }
+                        switch item.kind {
+                        // A music library's hero: an album carries on from its resume track, an artist plays shuffled.
+                        case .album: Task { await model.playAlbum(item, resuming: resume, router: router) }
+                        case .artist: Task { await model.playArtist(item, radio: false, router: router) }
+                        default: if let resume { model.play(resume) } else { Task { await model.playBest(item, router: router) } }
+                        }
                     } label: {
-                        Label(resume != nil || item.isResumable ? "Resume" : "Play", systemImage: "play.fill")
+                        Label(resume != nil || item.isResumable ? "Resume" : "Play", systemImage: Symbol.play)
                     }
                     .buttonStyle(ActionButtonStyle(ambient: item.ambientColor, prominent: true))
+                    if item.kind == .artist {
+                        Button { Task { await model.playArtist(item, radio: true, router: router) } } label: {
+                            Label("Radio", systemImage: Symbol.radio)
+                        }
+                        .buttonStyle(ActionButtonStyle(ambient: item.glowColor))
+                    }
                     Button { router.push(.item(item)) } label: {
                         Label("More info", systemImage: "info.circle")
                     }

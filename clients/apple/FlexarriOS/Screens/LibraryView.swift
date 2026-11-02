@@ -3,15 +3,18 @@ import SwiftUI
 
 /// One library: Browse (a hero and rows of just this library), All (a poster grid paged with skip/take, with sort and
 /// genre in the toolbar) and, for films and shows, Genres (a tile for each, opening its titles in that genre). The
-/// plain library opens on Browse; one asked for with a sort or genre (a row's See all) opens on its titles.
+/// plain library opens on Browse; one asked for with a sort or genre (a row's See all) opens on its titles. A music
+/// library has Browse, Artists, Albums and Genres; its genre's page is the genre's albums, with Play and Shuffle.
 struct LibraryView: View {
     @Environment(AppModel.self) private var model
+    @Environment(Router.self) private var router
     let library: Library
     var initialSort: LibrarySort = .title
     /// Opened from a genre's tile: just its titles, under its name.
     var initialGenre: String?
 
-    enum Showing: Hashable { case browse, all, genres }
+    /// `all` is a music library's artists; `albums` is only for music.
+    enum Showing: Hashable { case browse, all, albums, genres }
     @State private var showing: Showing
     /// The views opened so far. Each stays in place, hidden, when another is picked, so switching back finds it
     /// where it was left rather than loading it again.
@@ -32,6 +35,10 @@ struct LibraryView: View {
     /// Bumped by each reload (a new sort or genre), so an answer for the old one is dropped rather than shown or appended.
     @State private var generation = 0
     @State private var isRefreshing = false
+    /// Whether the server lists a music library's albums (and so has Albums and Genres): from 0.59.
+    @State private var offersAlbums = true
+    /// The grid's titles are a music library's albums (else its artists, or a library's titles).
+    @State private var gridHoldsAlbums = false
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.horizontalSizeClass) private var sizeClass
 
@@ -43,7 +50,8 @@ struct LibraryView: View {
         self.library = library
         self.initialSort = initialSort
         self.initialGenre = initialGenre
-        let first: Showing = Self.hasBrowse(library, genre: initialGenre) && initialSort == .title && initialGenre == nil ? .browse : .all
+        let first: Showing = library.type == .music && initialGenre != nil ? .albums
+            : Self.hasBrowse(library, genre: initialGenre) && initialSort == .title && initialGenre == nil ? .browse : .all
         _showing = State(initialValue: first)
         _opened = State(initialValue: [first])
     }
@@ -55,33 +63,60 @@ struct LibraryView: View {
 
     /// Films, shows and home videos have a Browse page; a genre's own page doesn't offer it again.
     private static func hasBrowse(_ library: Library, genre: String?) -> Bool {
-        genre == nil && [.movies, .tvShows, .homeVideos].contains(library.type)
+        genre == nil && [.movies, .tvShows, .homeVideos, .music].contains(library.type)
     }
 
-    /// Films and shows have genres to browse by; a genre's own page doesn't offer them again.
-    private var hasGenres: Bool { initialGenre == nil && (library.type == .movies || library.type == .tvShows) }
+    /// Films, shows and music have genres to browse by; a genre's own page doesn't offer them again.
+    private var hasGenres: Bool {
+        initialGenre == nil && (library.type == .movies || library.type == .tvShows || (library.type == .music && offersAlbums))
+    }
+
+    private var music: Bool { library.type == .music }
+    /// What the grid lists: a music library's albums, or the library's titles (a music library's are its artists).
+    private var listsAlbums: Bool { showing == .albums }
 
     var body: some View {
         ZStack {
-            if opened.contains(.all) { kept(.all) { allTitles } }
+            // A music library's artists and albums share the one grid, loaded afresh for each.
+            if opened.contains(.all) || opened.contains(.albums) { kept(showing == .albums ? .albums : .all) { allTitles } }
             if opened.contains(.genres) { kept(.genres) { genreTiles } }
             if opened.contains(.browse) {
                 kept(.browse) {
-                    LibraryBrowseView(library: library, showAll: { showing = .all }) { viewSwitch }
+                    if music {
+                        MusicLibraryView(library: library, showArtists: { showing = .all }) { viewSwitch }
+                    } else {
+                        LibraryBrowseView(library: library, showAll: { showing = .all }) { viewSwitch }
+                    }
                 }
             }
         }
         .navigationTitle(initialGenre ?? library.name)
         .toolbar {
-            if showing == .all {
+            if showing == .all || showing == .albums {
                 ToolbarItem(placement: .topBarTrailing) { sortAndFilter }
             }
         }
         .task {
-            // For the toolbar's genre menu and the Genres view, whichever comes first.
-            if hasGenres, genres.isEmpty { genres = await (try? model.client?.libraryGenres(library.id)) ?? [] }
+            // For the toolbar's genre menu and the Genres view, whichever comes first. A music library's count albums.
+            if music, let client = model.client {
+                // Nil (rather than an error) only from a server without the endpoint.
+                do {
+                    let found = try await client.libraryAlbumGenres(library.id)
+                    offersAlbums = found != nil
+                    genres = found ?? []
+                } catch {}
+            } else if hasGenres, genres.isEmpty {
+                genres = await (try? model.client?.libraryGenres(library.id)) ?? []
+            }
         }
-        .onChange(of: showing) { opened.insert(showing) }
+        .onChange(of: showing) { _, new in
+            opened.insert(new)
+            // A music library's artists and albums share the grid: it starts over for the other.
+            if music, new == .all || new == .albums, gridHoldsAlbums != (new == .albums), loadedToken != nil {
+                if !content.sorts.contains(sort) { sort = .title }
+                Task { await reload() }
+            }
+        }
     }
 
     /// One of the views, shown when it's the one picked and otherwise kept out of sight, touch and VoiceOver.
@@ -97,10 +132,11 @@ struct LibraryView: View {
     /// Browse, All (movies, shows or folders) and Genres, as one segmented control at the top of each view.
     @ViewBuilder
     private var viewSwitch: some View {
-        if Self.hasBrowse(library, genre: initialGenre) || hasGenres {
+        if (Self.hasBrowse(library, genre: initialGenre) || hasGenres) && !(music && initialGenre != nil) {
             Picker("Show", selection: $showing) {
                 if Self.hasBrowse(library, genre: initialGenre) { Text("Browse").tag(Showing.browse) }
-                Text(library.type == .tvShows ? "All shows" : library.type == .homeVideos ? "All folders" : "All movies").tag(Showing.all)
+                Text(music ? "Artists" : library.type == .tvShows ? "All shows" : library.type == .homeVideos ? "All folders" : "All movies").tag(Showing.all)
+                if music, offersAlbums { Text("Albums").tag(Showing.albums) }
                 if hasGenres { Text("Genres").tag(Showing.genres) }
             }
             .pickerStyle(.segmented)
@@ -118,7 +154,13 @@ struct LibraryView: View {
             .padding(.bottom, 32)
         }
         .background(RoomBackground(ambient: items.first?.glowColor, intensity: 0.18))
-        .refreshable { genres = await (try? model.client?.libraryGenres(library.id)) ?? genres }
+        .refreshable {
+            if music {
+                genres = ((try? await model.client?.libraryAlbumGenres(library.id)) ?? nil) ?? genres
+            } else {
+                genres = await (try? model.client?.libraryGenres(library.id)) ?? genres
+            }
+        }
     }
 
     private var allTitles: some View {
@@ -158,12 +200,27 @@ struct LibraryView: View {
 
     @ViewBuilder
     private var titles: some View {
-        Text(total == 1 ? "1 title" : "\(total.formatted()) titles")
+        Text(content.count(total))
             .font(.subheadline.weight(.medium))
             .foregroundStyle(Color.usher)
             .monospacedDigit()
             .padding(.horizontal, Layout.edge)
             .opacity(items.isEmpty ? 0 : 1)
+        if listsAlbums, let genre = initialGenre {
+            // A genre plays as a station: up to 200 of its tracks, in order or shuffled.
+            HStack(spacing: 10) {
+                Button { Task { await model.playGenre(genre, in: library, shuffled: false, router: router) } } label: {
+                    Label("Play", systemImage: Symbol.play)
+                }
+                .buttonStyle(ActionButtonStyle(ambient: items.first?.ambientColor, prominent: true))
+                Button { Task { await model.playGenre(genre, in: library, shuffled: true, router: router) } } label: {
+                    Label("Shuffle", systemImage: Symbol.shuffle)
+                }
+                .buttonStyle(ActionButtonStyle(ambient: items.first?.glowColor))
+            }
+            .padding(.horizontal, Layout.edge)
+            .disabled(items.isEmpty)
+        }
         if let error, items.isEmpty {
             StatusView(state: .failed(error) { Task { await reload() } })
                 .frame(height: 400)
@@ -173,8 +230,12 @@ struct LibraryView: View {
         } else {
             LazyVGrid(columns: columns, alignment: .leading, spacing: 20) {
                 ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                    PosterCard(item: item)
-                        .onAppear { loadMoreIfNeeded(at: index) }
+                    Group {
+                        if listsAlbums { AlbumCard(item: item, showsArtist: true) }
+                        else if music { ArtistCard(item: item) }
+                        else { PosterCard(item: item) }
+                    }
+                    .onAppear { loadMoreIfNeeded(at: index) }
                 }
             }
             .padding(.horizontal, Layout.edge)
@@ -187,7 +248,7 @@ struct LibraryView: View {
     private var sortAndFilter: some View {
         Menu {
             Picker("Sort by", selection: $sort) {
-                ForEach(LibrarySort.allCases) { option in
+                ForEach(content.sorts) { option in
                     Text(option.label).tag(option)
                 }
             }
@@ -205,6 +266,20 @@ struct LibraryView: View {
         }
     }
 
+    /// What the grid lists now, for its sorts and count.
+    private var content: LibraryGridContent { listsAlbums ? .albums : music ? .artists : .titles }
+
+    /// A page of what the grid lists, as it's sorted and filtered now.
+    private func fetch(_ client: FlexarrClient, skip: Int, take: Int) async throws -> Paged<ItemSummary> {
+        if listsAlbums {
+            guard let page = try await client.libraryAlbums(library.id, sort: sort, genre: genre, skip: skip, take: take) else {
+                throw FlexarrClientError.http(status: 404, message: nil)
+            }
+            return page
+        }
+        return try await client.libraryItems(library.id, sort: sort, genre: genre, skip: skip, take: take)
+    }
+
     private func reload() async {
         guard let client = model.client else { return }
         generation += 1
@@ -214,8 +289,10 @@ struct LibraryView: View {
         defer { if current == generation { isLoading = false } }
         let token = model.refreshToken
         do {
-            let page = try await client.libraryItems(library.id, sort: sort, genre: genre, skip: 0, take: Self.pageSize)
+            let albums = listsAlbums
+            let page = try await fetch(client, skip: 0, take: Self.pageSize)
             guard current == generation else { return }
+            gridHoldsAlbums = albums
             items = page.items
             total = page.total
             loadedToken = token
@@ -251,8 +328,7 @@ struct LibraryView: View {
         var offset = 0
         var fetchedTotal: Int?
         while offset < wanted {
-            guard let page = try? await client.libraryItems(
-                library.id, sort: sort, genre: genre, skip: offset, take: min(wanted - offset, Self.maxPageSize)),
+            guard let page = try? await fetch(client, skip: offset, take: min(wanted - offset, Self.maxPageSize)),
                 current == generation else { break }
             offset += page.items.count
             // A title added or removed between pages can shift one into the next: list it once.
@@ -281,7 +357,7 @@ struct LibraryView: View {
         Task {
             defer { if current == generation { isLoading = false } }
             // Dropped if the sort or genre changed (or the list was refetched) while it was out.
-            if let page = try? await client.libraryItems(library.id, sort: sort, genre: genre, skip: skip, take: Self.pageSize),
+            if let page = try? await fetch(client, skip: skip, take: Self.pageSize),
                current == generation, skip == items.count {
                 let known = Set(items.map(\.id))
                 items.append(contentsOf: page.items.filter { !known.contains($0.id) })
@@ -317,6 +393,7 @@ private struct LibraryGenreGrid: View {
     }
 
     private func caption(_ genre: GenreCount) -> String {
+        if library.type == .music { return genre.count == 1 ? "1 album" : "\(genre.count) albums" }
         let noun = library.type == .tvShows ? (genre.count == 1 ? "show" : "shows") : (genre.count == 1 ? "movie" : "movies")
         return "\(genre.count) \(noun)"
     }

@@ -157,8 +157,6 @@ struct TabStack<Content: View>: View {
         case .library(let library, _, _) where library.type == .unknown:
             // A library of a type this app doesn't know (from a newer server): nothing to show it with.
             EmptyView()
-        case .library(let library, _, _) where library.type == .music:
-            MusicLibraryView(library: library)
         case .library(let library, _, let genre) where library.type == .audiobooks:
             // A genre opens a screen of its own, above the library's (Back goes to its genres).
             BooksLibraryView(library: library, genre: genre)
