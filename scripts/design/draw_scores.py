@@ -8,7 +8,9 @@ from pathlib import Path
 
 OUT = Path(__file__).resolve().parents[2] / "design" / "scores.json"
 K = 0.5523  # control-point distance for a quarter circle drawn as a cubic
-YELLOW, BLACK, RED, LEAF, WHITE, SPLAT = "#F5C518", "#000000", "#FA320A", "#00912D", "#FFFFFF", "#0AC855"
+YELLOW, BLACK, RED, LEAF, SPLAT = "#F5C518", "#000000", "#FA320A", "#00912D", "#0AC855"
+# The seal's ring: the facts line's text colour (design/tokens.json screen at 85% on the room), not a brighter white.
+RING = "#D3CFC9"
 
 
 def n(x):
@@ -66,9 +68,10 @@ def certified():
     seal = []
     for i in range(32):
         a = math.pi * 2 * i / 32 - math.pi / 2
-        r = 16 if i % 2 == 0 else 14.8
+        r = 13.4 if i % 2 == 0 else 12.4
         seal.append((16 + r * math.cos(a), 16 + r * math.sin(a)))
-    return [{"fill": RED, "d": poly(seal)}, {"fill": WHITE, "d": ellipse(16, 16, 13.9, 13.9)}, *tomato(0.9)]
+    # The size of the Fresh tomato, so neither outweighs the other or IMDb's mark beside it.
+    return [{"fill": RED, "d": poly(seal)}, {"fill": RING, "d": ellipse(16, 16, 11.5, 11.5)}, *tomato(0.78)]
 
 
 def rotten():
