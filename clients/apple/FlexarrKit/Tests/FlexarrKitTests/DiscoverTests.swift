@@ -94,3 +94,39 @@ struct WatchlistTests {
         #expect(added.onWatchlist == true)
     }
 }
+
+struct TitleRequestTests {
+    private func sent(_ call: (FlexarrClient) async throws -> Void) async throws -> (path: String?, body: NSDictionary?) {
+        let (client, host) = stubbedClient(.init(status: 204, body: Data()))
+        try await call(client)
+        let request = try #require(StubProtocol.recorded(host: host).first)
+        #expect(request.httpMethod == "POST")
+        return (request.url?.path, try JSONSerialization.jsonObject(with: request.httpBody ?? Data()) as? NSDictionary)
+    }
+
+    @Test func unrequestSendsTheSeasonsOnlyWhenGiven() async throws {
+        let film = try await sent { try await $0.unrequest(mediaType: "movie", tmdbId: 603) }
+        #expect(film.path == "/api/v1/requests/unrequest")
+        #expect(film.body == ["mediaType": "movie", "tmdbId": 603])
+        let season = try await sent { try await $0.unrequest(mediaType: "tv", tmdbId: 1399, seasons: [2]) }
+        #expect(season.body == ["mediaType": "tv", "tmdbId": 1399, "seasons": [2]])
+    }
+
+    @Test func stateFollowsWhatWasDoneHere() {
+        #expect(TitleRequestState.of(.none) == .requestable)
+        #expect(TitleRequestState.of(.none, asked: true) == .requested)
+        #expect(TitleRequestState.of(.requested) == .requested)
+        #expect(TitleRequestState.of(.requested, undone: true) == .requestable)
+        #expect(TitleRequestState.of(.partlyAvailable) == .partlyAvailable)
+        #expect(TitleRequestState.of(.none, inLibrary: true) == .inLibrary)
+        #expect(TitleRequestState.of(.unknown) == .none)
+    }
+
+    @Test func refusalsAndOldServers() {
+        #expect(TitleRequestState.isRefusal(FlexarrClientError.http(status: 409, message: "TheTVDB doesn't list it.")))
+        #expect(TitleRequestState.isRefusal(FlexarrClientError.http(status: 403, message: "This profile can't request shows.")))
+        #expect(!TitleRequestState.isRefusal(FlexarrClientError.http(status: 502, message: "Seerr isn't answering.")))
+        #expect(TitleRequestState.needsNewerServer(FlexarrClientError.http(status: 404, message: nil)))
+        #expect(!TitleRequestState.needsNewerServer(FlexarrClientError.http(status: 403, message: "Guests can't undo requests.")))
+    }
+}
