@@ -107,7 +107,7 @@ struct ShowGapsSection: View {
             .accessibilityElement(children: .combine)
             switch action {
             case .request:
-                actionButton("Request", symbol: Symbol.request, label: "Request \(season.title)") { await request(season) }
+                actionButton(TitleWords.request, symbol: Symbol.request, label: "Request \(season.title)") { await request(season) }
             case .search:
                 actionButton("Search", symbol: Symbol.search, label: "Search for \(season.title)") { await search(season.seasonNumber) }
             case .requested where undoable(season):
@@ -121,7 +121,7 @@ struct ShowGapsSection: View {
                     .accessibilityHint(TitleWords.unrequestHint)
                     .accessibilityAddTraits(.isSelected)
             case .requested:
-                Text(searched.contains(season.seasonNumber) ? "Searching" : "Requested")
+                Text(searched.contains(season.seasonNumber) ? "Searching" : TitleWords.requested)
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(Color.usher)
             default:

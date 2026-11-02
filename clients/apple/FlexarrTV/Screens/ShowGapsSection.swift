@@ -146,9 +146,9 @@ struct ShowGapsSection: View {
     /// What pressing the card does, or that it's done: Request, Search or Requested.
     private func status(_ action: MissingSeasonAction) -> (title: String, symbol: String)? {
         switch action {
-        case .request: ("Request", Symbol.request)
+        case .request: (TitleWords.request, Symbol.request)
         case .search: ("Search", Symbol.search)
-        case .requested: ("Requested", Symbol.requested)
+        case .requested: (TitleWords.requested, Symbol.requested)
         default: nil
         }
     }
