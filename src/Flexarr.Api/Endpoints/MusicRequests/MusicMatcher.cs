@@ -1,5 +1,7 @@
 using Flexarr.Core.Data;
+using Flexarr.Core.Libraries;
 using Flexarr.Core.Media;
+using Flexarr.Core.Paths;
 using Flexarr.Integrations.Arr;
 using Flexarr.Integrations.Arr.Models;
 using Flexarr.Metadata;
@@ -12,13 +14,28 @@ namespace Flexarr.Api.Endpoints.MusicRequests;
 /// What of music the household has and has asked for, by normalised name (see <see cref="MusicNames"/>): what Deezer
 /// lists is checked against it to say <i>In your library</i> or <i>Requested</i>.
 /// </summary>
-public sealed class OwnedMusic
+public sealed class OwnedMusic(Dictionary<string, Guid> artists, Dictionary<string, Guid> albums, IReadOnlyList<string>? visibleFolders = null)
 {
-    /// <summary>Library artists by normalised name.</summary>
-    public Dictionary<string, Guid> Artists { get; } = [];
+    public OwnedMusic()
+        : this([], [])
+    {
+    }
 
-    /// <summary>Library albums by "artist|title", both normalised.</summary>
-    public Dictionary<string, Guid> Albums { get; } = [];
+    /// <summary>Library artists by normalised name. Shared between calls (cached): never changed after it's built.</summary>
+    public Dictionary<string, Guid> Artists { get; } = artists;
+
+    /// <summary>Library albums by "artist|title", both normalised. Shared like <see cref="Artists"/>.</summary>
+    public Dictionary<string, Guid> Albums { get; } = albums;
+
+    /// <summary>
+    /// The music library folders the profile can see, as path keys; null when it can see them all. Lidarr's own state
+    /// (who it follows, what it monitors) counts only for artists inside these.
+    /// </summary>
+    public IReadOnlyList<string>? VisibleFolders { get; } = visibleFolders;
+
+    /// <summary>Whether a Lidarr artist's folder (already mapped to this server's paths) is in a library the profile can see.</summary>
+    public bool Sees(string? localPath) =>
+        VisibleFolders is null || (localPath is not null && VisibleFolders.Any(f => PathComparison.Key(localPath).StartsWith(f.TrimEnd('/') + "/", StringComparison.Ordinal)));
 
     /// <summary>Albums someone has asked for that haven't arrived, by "artist|title".</summary>
     public HashSet<string> RequestedAlbums { get; } = [];
@@ -53,30 +70,61 @@ public sealed class OwnedMusic
 /// </summary>
 public static class MusicMatcher
 {
-    private static readonly TimeSpan LidarrArtistsFor = TimeSpan.FromMinutes(1);
+    /// <summary>
+    /// How long a Lidarr's artist list is kept: it's dropped after every request Flexarr places, so only changes made in
+    /// Lidarr itself wait this long.
+    /// </summary>
+    private static readonly TimeSpan LidarrArtistsFor = TimeSpan.FromMinutes(5);
+
+    /// <summary>A Lidarr that didn't answer isn't asked again for this long, so every page doesn't wait on it.</summary>
+    private static readonly TimeSpan LidarrDownFor = TimeSpan.FromSeconds(30);
+
+    /// <summary>The library's artists and albums are worked out at most once a minute per set of visible libraries.</summary>
+    private static readonly TimeSpan LibraryFor = TimeSpan.FromMinutes(1);
+
+    /// <summary>How long an album asked for reads as Requested. After that it can be asked for again (Lidarr searches again).</summary>
+    public static readonly TimeSpan RequestedFor = TimeSpan.FromDays(14);
 
     /// <summary>
     /// The music libraries' artists and albums the profile can see (the context's filters hide the rest), the albums
-    /// anyone has requested, and the artists Lidarr follows.
+    /// anyone has asked for lately, and the artists Lidarr follows in libraries the profile can see.
     /// </summary>
-    public static async Task<OwnedMusic> OwnedAsync(FlexarrDbContext db, ArrClient client, IReadOnlyList<ArrInstance> lidarrs, IMemoryCache cache, CancellationToken ct)
+    public static async Task<OwnedMusic> OwnedAsync(FlexarrDbContext db, ArrClient client, IReadOnlyList<ArrInstance> lidarrs, IMemoryCache cache,
+        IReadOnlyList<PathMapping> mappings, CancellationToken ct)
     {
-        var owned = new OwnedMusic();
-        var artists = await db.MediaItems.AsNoTracking().Where(i => i.Kind == MediaKind.Artist).Select(i => new { i.Id, i.Title }).ToListAsync(ct);
-        foreach (var artist in artists)
+        var hidden = string.Join(',', db.HiddenLibraryIds.Order());
+        var library = await cache.GetOrCreateAsync($"owned-music:{hidden}", async entry =>
         {
-            owned.Artists.TryAdd(MusicNames.Normalise(artist.Title), artist.Id);
-        }
+            entry.AbsoluteExpirationRelativeToNow = LibraryFor;
+            var artists = new Dictionary<string, Guid>();
+            foreach (var artist in await db.MediaItems.AsNoTracking().Where(i => i.Kind == MediaKind.Artist).Select(i => new { i.Id, i.Title }).ToListAsync(ct))
+            {
+                artists.TryAdd(MusicNames.Normalise(artist.Title), artist.Id);
+            }
 
-        var albums = await db.MediaItems.AsNoTracking().Where(i => i.Kind == MediaKind.Album && i.Parent != null)
-            .Select(i => new { i.Id, i.Title, Artist = i.Parent!.Title }).ToListAsync(ct);
-        foreach (var album in albums)
-        {
-            owned.Albums.TryAdd(OwnedMusic.AlbumKey(album.Artist, album.Title), album.Id);
-        }
+            var albums = new Dictionary<string, Guid>();
+            foreach (var album in await db.MediaItems.AsNoTracking().Where(i => i.Kind == MediaKind.Album && i.Parent != null)
+                .Select(i => new { i.Id, i.Title, Artist = i.Parent!.Title }).ToListAsync(ct))
+            {
+                albums.TryAdd(OwnedMusic.AlbumKey(album.Artist, album.Title), album.Id);
+            }
 
-        // Every profile's: Lidarr is the household's, so what one asked for is on its way for all.
-        var requested = await db.MediaRequests.AsNoTracking().Where(r => r.FulfilledAt == null && r.Kind == MediaKind.Album)
+            // A profile that hides a music library sees Lidarr's follows only for the folders it can see.
+            List<string>? visible = null;
+            if (db.HiddenLibraryIds.Count > 0)
+            {
+                visible = await db.Libraries.AsNoTracking().Where(l => l.Type == LibraryType.Music).SelectMany(l => l.Folders.Select(f => f.Path)).ToListAsync(ct);
+                visible = visible.Select(PathComparison.Key).ToList();
+            }
+
+            return (artists, albums, visible);
+        });
+
+        var owned = new OwnedMusic(library.artists, library.albums, library.visible);
+
+        // Every profile's: Lidarr is the household's, so what one asked for lately is on its way for all.
+        var since = DateTime.UtcNow - RequestedFor;
+        var requested = await db.MediaRequests.AsNoTracking().Where(r => r.FulfilledAt == null && r.Kind == MediaKind.Album && r.RequestedAt > since)
             .Select(r => new { r.ArtistName, r.Title }).ToListAsync(ct);
         foreach (var request in requested)
         {
@@ -87,7 +135,7 @@ public static class MusicMatcher
         {
             foreach (var artist in await LidarrArtistsAsync(client, lidarr, cache, ct))
             {
-                if (IsFollowed(artist))
+                if (IsFollowed(artist) && owned.Sees(LocalPath(artist, mappings)))
                 {
                     owned.FollowedArtists.Add(MusicNames.Normalise(artist.ArtistName));
                 }
@@ -97,10 +145,16 @@ public static class MusicMatcher
         return owned;
     }
 
+    /// <summary>A Lidarr artist's folder as this server sees it.</summary>
+    public static string? LocalPath(LidarrArtist artist, IReadOnlyList<PathMapping> mappings) => artist.Path is { } path ? PathMapper.Map(path, mappings) : null;
+
     /// <summary>Lidarr watches for the artist's new releases.</summary>
     public static bool IsFollowed(LidarrArtist artist) => artist.Monitored && artist.MonitorNewItems is "new" or "all";
 
-    /// <summary>The artists a Lidarr has, kept a minute (several rows on one page ask); none when it doesn't answer.</summary>
+    /// <summary>
+    /// The artists a Lidarr has, kept a few minutes (every music page asks); none when it doesn't answer, which is
+    /// remembered for half a minute rather than waited on by every page.
+    /// </summary>
     public static async Task<IReadOnlyList<LidarrArtist>> LidarrArtistsAsync(ArrClient client, ArrInstance lidarr, IMemoryCache cache, CancellationToken ct)
     {
         var key = $"lidarr-artists:{lidarr.BaseUrl}";
@@ -111,12 +165,15 @@ public static class MusicMatcher
 
         try
         {
-            var artists = await client.GetArtistsAsync(lidarr, ct);
+            using var quick = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            quick.CancelAfter(TimeSpan.FromSeconds(10));
+            var artists = await client.GetArtistsAsync(lidarr, quick.Token);
             cache.Set(key, artists, LidarrArtistsFor);
             return artists;
         }
-        catch (HttpRequestException)
+        catch (Exception ex) when (ex is HttpRequestException || (ex is OperationCanceledException && !ct.IsCancellationRequested))
         {
+            cache.Set(key, (IReadOnlyList<LidarrArtist>)[], LidarrDownFor);
             return [];
         }
     }

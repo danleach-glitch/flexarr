@@ -1,6 +1,7 @@
 using Flexarr.Api.Configuration;
 using Flexarr.Api.Profiles;
 using Flexarr.Core.Data;
+using Flexarr.Core.Libraries;
 using Flexarr.Core.Media;
 using Flexarr.Core.Notifications;
 using Flexarr.Integrations.Arr;
@@ -29,7 +30,7 @@ public static class MusicRequestEndpoints
         api.MapGet("/requests/music/status", async (IOptionsMonitor<FlexarrOptions> options, ArrClient client, FlexarrDbContext db, CancellationToken ct) =>
         {
             var lidarrs = Lidarrs(options.CurrentValue);
-            if (db.IsLimited() || lidarrs.Count == 0 || (await LibraryVisibility.HiddenTypesAsync(db, ct)).Hides(MediaKind.Album))
+            if (lidarrs.Count == 0 || !await SeesMusicAsync(db, ct))
             {
                 return new MusicRequestStatusDto(false, false);
             }
@@ -41,14 +42,20 @@ public static class MusicRequestEndpoints
         {
             var services = context.HttpContext.RequestServices;
             var db = services.GetRequiredService<FlexarrDbContext>();
-            if (Lidarrs(services.GetRequiredService<IOptionsMonitor<FlexarrOptions>>().CurrentValue).Count == 0)
+            var options = services.GetRequiredService<IOptionsMonitor<FlexarrOptions>>().CurrentValue;
+            if (!options.Arr.Any(a => a.Kind == ArrKind.Lidarr))
             {
                 return Results.Problem("Music requests need Lidarr. Add one under Settings › Connections.", statusCode: 409);
             }
 
-            return (await LibraryVisibility.HiddenTypesAsync(db, context.HttpContext.RequestAborted)).Hides(MediaKind.Album)
-                ? Results.Problem("This profile can't request music.", statusCode: 403)
-                : await next(context);
+            if (!options.MusicRequests.Enabled)
+            {
+                return Results.Problem("Music requests are turned off.", statusCode: 409);
+            }
+
+            return await SeesMusicAsync(db, context.HttpContext.RequestAborted)
+                ? await next(context)
+                : Results.Problem("This profile can't request music.", statusCode: 403);
         });
 
         music.MapGet("/discover", async (MusicRequestContext c, CurrentProfile current, CancellationToken ct) =>
@@ -108,7 +115,7 @@ public static class MusicRequestEndpoints
                 var albums = (await c.Catalog.ArtistAlbumsAsync(id, ct)).Select(a => Album(a with { Artist = artist }, owned)).ToList();
                 var similar = (await c.Catalog.RelatedAsync(id, ct)).Take(RowSize).Select(a => Artist(a, owned)).ToList();
                 return Results.Ok(new MusicArtistDetailDto(artist.Id, artist.Name, ImageEndpoints.RemoteUrl(artist.Picture), artist.NbFan, albums, similar,
-                    lidarrArtist is { } a && MusicMatcher.IsFollowed(a), owned.ArtistAvailability(artist.Name), owned.ArtistId(artist.Name)));
+                    c.IsFollowed(owned, lidarrArtist), owned.ArtistAvailability(artist.Name), owned.ArtistId(artist.Name)));
             }));
 
         music.MapGet("/album/{id:long}", async (long id, MusicRequestContext c, CancellationToken ct) =>
@@ -143,13 +150,15 @@ public static class MusicRequestEndpoints
                 var deezerAlbums = deezer is null ? [] : await c.Catalog.ArtistAlbumsAsync(deezer.Id, ct);
                 var lidarrArtist = await c.LidarrArtistAsync(item.MusicBrainzId, item.Title, ct);
                 var missing = new List<MusicExternalDto>();
-                if (lidarrArtist is { Lidarr: var lidarr, Artist: var artist })
+                // Lidarr's list when it has the artist and answers; Deezer's albums otherwise.
+                var lidarrAlbums = lidarrArtist is { Lidarr: var l, Artist: var la } ? await c.LidarrAlbumsAsync(l, la.Id, ct) : null;
+                if (lidarrAlbums is not null)
                 {
                     // Lidarr's list, as its metadata profile shapes it (usually albums alone), with Deezer's covers where it has them.
                     // Each Deezer album lends its cover and id to one Lidarr album at most: the same title, nearest in year.
                     var byTitle = deezerAlbums.ToLookup(a => MusicNames.NormaliseTitle(a.Title));
                     var lent = new HashSet<long>();
-                    foreach (var album in (await SafeAsync(() => c.Client.GetArtistAlbumsAsync(lidarr, artist.Id, ct)) ?? []).OrderByDescending(a => a.ReleaseDate))
+                    foreach (var album in lidarrAlbums.OrderByDescending(a => a.ReleaseDate))
                     {
                         if (album.Statistics?.TrackFileCount > 0 || owned.AlbumId(item.Title, album.Title) is not null)
                         {
@@ -175,7 +184,7 @@ public static class MusicRequestEndpoints
                 }
 
                 var similar = deezer is null ? [] : (await c.Catalog.RelatedAsync(deezer.Id, ct)).Take(RowSize).Select(a => Artist(a, owned)).ToList();
-                return Results.Ok(new MusicArtistExtrasDto(missing, similar, lidarrArtist is { Artist: var a } && MusicMatcher.IsFollowed(a), deezer?.Id));
+                return Results.Ok(new MusicArtistExtrasDto(missing, similar, c.IsFollowed(owned, lidarrArtist), deezer?.Id));
             });
         });
 
@@ -214,6 +223,13 @@ public static class MusicRequestEndpoints
         });
     }
 
+    /// <summary>
+    /// Whether the profile may have music requests: no age limit, and at least one music library it can see (what
+    /// Lidarr downloads has to show up somewhere).
+    /// </summary>
+    internal static async Task<bool> SeesMusicAsync(FlexarrDbContext db, CancellationToken ct) =>
+        !db.IsLimited() && await db.Libraries.AnyAsync(l => l.Type == LibraryType.Music, ct);
+
     internal static List<ArrInstance> Lidarrs(FlexarrOptions options) =>
         options.MusicRequests.Enabled ? options.Arr.Where(a => a.Kind == ArrKind.Lidarr).ToList() : [];
 
@@ -234,18 +250,6 @@ public static class MusicRequestEndpoints
         catch (Exception ex) when (ex is DeezerException or HttpRequestException || (ex is TaskCanceledException && ex.InnerException is TimeoutException))
         {
             return Results.Problem("Deezer didn't answer. Try again in a minute.", statusCode: 502);
-        }
-    }
-
-    internal static async Task<T?> SafeAsync<T>(Func<Task<T>> call) where T : class
-    {
-        try
-        {
-            return await call();
-        }
-        catch (HttpRequestException)
-        {
-            return null;
         }
     }
 
@@ -319,20 +323,24 @@ public sealed class MusicRequestContext(FlexarrDbContext db, ArrClient client, M
     public FlexarrOptions Options => options.CurrentValue;
     public List<ArrInstance> Lidarrs => MusicRequestEndpoints.Lidarrs(options.CurrentValue);
 
-    public Task<OwnedMusic> OwnedAsync(CancellationToken ct) => MusicMatcher.OwnedAsync(db, client, Lidarrs, cache, ct);
+    public Task<OwnedMusic> OwnedAsync(CancellationToken ct) => MusicMatcher.OwnedAsync(db, client, Lidarrs, cache, options.CurrentValue.PathMappings, ct);
 
     /// <summary>The artist of this name in one of the Lidarrs (from their cached lists), or null.</summary>
-    public async Task<LidarrArtist?> LidarrArtistNamedAsync(string name, CancellationToken ct) => (await LidarrArtistAsync(null, name, ct))?.Artist;
+    public Task<(ArrInstance Lidarr, LidarrArtist Artist)?> LidarrArtistNamedAsync(string name, CancellationToken ct) => LidarrArtistAsync(null, name, ct);
 
-    /// <summary>The Lidarr artist with this MusicBrainz id, or failing that this name, and which Lidarr has them.</summary>
+    /// <summary>
+    /// The Lidarr artist with this MusicBrainz id in any Lidarr, and which Lidarr has them; without an id, the one with
+    /// this name. An id that no Lidarr has finds nothing: a same-named artist is someone else.
+    /// </summary>
     public async Task<(ArrInstance Lidarr, LidarrArtist Artist)?> LidarrArtistAsync(string? musicBrainzId, string name, CancellationToken ct)
     {
         var key = MusicNames.Normalise(name);
         foreach (var lidarr in Lidarrs)
         {
             var artists = await MusicMatcher.LidarrArtistsAsync(client, lidarr, cache, ct);
-            var found = (musicBrainzId is not null ? artists.FirstOrDefault(a => a.ForeignArtistId == musicBrainzId) : null)
-                ?? artists.FirstOrDefault(a => MusicNames.Normalise(a.ArtistName) == key);
+            var found = musicBrainzId is not null
+                ? artists.FirstOrDefault(a => a.ForeignArtistId == musicBrainzId)
+                : artists.FirstOrDefault(a => MusicNames.Normalise(a.ArtistName) == key);
             if (found is not null)
             {
                 return (lidarr, found);
@@ -342,19 +350,55 @@ public sealed class MusicRequestContext(FlexarrDbContext db, ArrClient client, M
         return null;
     }
 
-    /// <summary>Notes which of a Lidarr artist's albums are monitored, so they read as Requested.</summary>
-    public async Task NoteMonitoredAsync(OwnedMusic owned, LidarrArtist artist, CancellationToken ct)
+    /// <summary>Whether Lidarr follows this artist, counting only artists in libraries the profile can see.</summary>
+    public bool IsFollowed(OwnedMusic owned, (ArrInstance Lidarr, LidarrArtist Artist)? artist) =>
+        artist is { Artist: var a } && MusicMatcher.IsFollowed(a) && owned.Sees(MusicMatcher.LocalPath(a, options.CurrentValue.PathMappings));
+
+    /// <summary>
+    /// An artist's albums as a Lidarr lists them, kept a minute (an artist page and its album pages ask in turn); null
+    /// when Lidarr doesn't answer in time.
+    /// </summary>
+    public async Task<IReadOnlyList<LidarrAlbum>?> LidarrAlbumsAsync(ArrInstance lidarr, int artistId, CancellationToken ct)
     {
-        if (await LidarrArtistAsync(artist.ForeignArtistId, artist.ArtistName, ct) is not { Lidarr: var lidarr })
+        var key = $"lidarr-albums:{lidarr.BaseUrl}:{artistId}";
+        if (cache.TryGetValue(key, out IReadOnlyList<LidarrAlbum>? hit) && hit is not null)
+        {
+            return hit;
+        }
+
+        try
+        {
+            using var quick = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            quick.CancelAfter(TimeSpan.FromSeconds(10));
+            var albums = await client.GetArtistAlbumsAsync(lidarr, artistId, quick.Token);
+            cache.Set(key, albums, TimeSpan.FromMinutes(1));
+            return albums;
+        }
+        catch (Exception ex) when (ex is HttpRequestException || (ex is OperationCanceledException && !ct.IsCancellationRequested))
+        {
+            return null;
+        }
+    }
+
+    /// <summary>A request changed what this Lidarr artist's albums are: forget the list.</summary>
+    public void ForgetAlbums(ArrInstance lidarr, int artistId) => cache.Remove($"lidarr-albums:{lidarr.BaseUrl}:{artistId}");
+
+    /// <summary>
+    /// Notes which of a Lidarr artist's albums are monitored, so they read as Requested; not for an artist in a
+    /// library the profile can't see.
+    /// </summary>
+    public async Task NoteMonitoredAsync(OwnedMusic owned, (ArrInstance Lidarr, LidarrArtist Artist) found, CancellationToken ct)
+    {
+        if (!owned.Sees(MusicMatcher.LocalPath(found.Artist, options.CurrentValue.PathMappings)))
         {
             return;
         }
 
-        foreach (var album in await MusicRequestEndpoints.SafeAsync(() => client.GetArtistAlbumsAsync(lidarr, artist.Id, ct)) ?? [])
+        foreach (var album in await LidarrAlbumsAsync(found.Lidarr, found.Artist.Id, ct) ?? [])
         {
             if (album.Monitored)
             {
-                owned.MonitoredAlbums.Add(OwnedMusic.AlbumKey(artist.ArtistName, album.Title));
+                owned.MonitoredAlbums.Add(OwnedMusic.AlbumKey(found.Artist.ArtistName, album.Title));
             }
         }
     }
@@ -362,10 +406,17 @@ public sealed class MusicRequestContext(FlexarrDbContext db, ArrClient client, M
     /// <summary>Records who asked, so they hear when it's in; once per profile for what's still awaited.</summary>
     public async Task RememberAsync(MediaRequest request, CancellationToken ct)
     {
-        if (!await db.MediaRequests.AnyAsync(r => r.ProfileId == request.ProfileId && r.Kind == request.Kind && r.MusicBrainzId == request.MusicBrainzId && r.FulfilledAt == null, ct))
+        // Asked again (after Requested lapsed, say): the same request, counted from now.
+        if (await db.MediaRequests.FirstOrDefaultAsync(r => r.ProfileId == request.ProfileId && r.Kind == request.Kind && r.MusicBrainzId == request.MusicBrainzId
+                && r.FulfilledAt == null, ct) is { } open)
+        {
+            open.RequestedAt = DateTime.UtcNow;
+        }
+        else
         {
             db.MediaRequests.Add(request);
-            await db.SaveChangesAsync(ct);
         }
+
+        await db.SaveChangesAsync(ct);
     }
 }

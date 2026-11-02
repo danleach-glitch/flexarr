@@ -13,9 +13,12 @@ public static class MusicRequestPlacer
 {
     public static async Task<IResult> PlaceAsync(MusicRequestContext c, string profileId, MusicRequestBody body, CancellationToken ct)
     {
-        if (await MusicDestinations.ForRequestAsync(c.Client, c.Lidarrs, c.Options.PathMappings, c.Db, profileId, ct) is not { } target)
+        var (target, problem) = await MusicDestinations.ForRequestAsync(c.Client, c.Lidarrs, c.Options.PathMappings, c.Db, profileId, ct);
+        if (target is null)
         {
-            return Results.Problem("Lidarr didn't answer, or has no root folder to add music to.", statusCode: 502);
+            return problem is null
+                ? Results.Problem("Lidarr isn't answering. Try again later.", statusCode: 502)
+                : Results.Problem(problem, statusCode: 409);
         }
 
         var result = body.Kind == "album" ? await AlbumAsync(c, target, profileId, body, ct) : await ArtistAsync(c, target, profileId, body, ct);

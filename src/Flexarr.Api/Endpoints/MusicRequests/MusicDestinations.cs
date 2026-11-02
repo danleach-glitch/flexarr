@@ -82,29 +82,31 @@ public static class MusicDestinations
     }
 
     /// <summary>
-    /// Where the profile's music request goes: the library it chose, when it can see more than one music library and
-    /// Lidarr can add to the chosen one; otherwise the first Lidarr's first root folder. Null when no Lidarr answers.
+    /// Where the profile's music request goes: the library it chose, if it can still see it and Lidarr adds to it;
+    /// otherwise Lidarr's default among the libraries it can see, else the first of those. Never a library hidden from
+    /// it. Null with no problem when no Lidarr answers; null with a problem when none of its music libraries is a
+    /// Lidarr root folder.
     /// </summary>
-    public static async Task<MusicTarget?> ForRequestAsync(ArrClient client, IReadOnlyList<ArrInstance> lidarrs, IReadOnlyList<PathMapping> mappings,
-        FlexarrDbContext db, string profileId, CancellationToken ct)
+    public static async Task<(MusicTarget? Target, string? Problem)> ForRequestAsync(ArrClient client, IReadOnlyList<ArrInstance> lidarrs,
+        IReadOnlyList<PathMapping> mappings, FlexarrDbContext db, string profileId, CancellationToken ct)
     {
         var roots = await RootsAsync(client, lidarrs, ct);
-        if (roots.FirstOrDefault(r => r.Folders.Count > 0) is not { } firstLidarr)
+        if (!roots.Any(r => r.Folders.Count > 0))
         {
-            return null;
+            return (null, null);
         }
 
-        var (lidarr, root) = (firstLidarr.Lidarr, firstLidarr.Folders[0]);
+        // The context's filters leave out libraries hidden from the profile.
+        var visible = await db.Libraries.AsNoTracking().Include(l => l.Folders).Where(l => l.Type == LibraryType.Music).OrderBy(l => l.CreatedAt).ToListAsync(ct);
+        var destinations = Match(roots, mappings, visible);
+        if (destinations.Count == 0)
+        {
+            return (null, "None of your music libraries is one of Lidarr's root folders, so what it downloads wouldn't show here.");
+        }
+
         var chosen = await db.Profiles.AsNoTracking().Where(p => p.Id == profileId).Select(p => p.RequestMusicLibraryId).FirstOrDefaultAsync(ct);
-        // The context's filters leave out libraries hidden from the profile, so a choice since hidden is ignored.
-        var visible = await db.Libraries.AsNoTracking().Include(l => l.Folders).Where(l => l.Type == LibraryType.Music).ToListAsync(ct);
-        if (chosen is { } libraryId && visible.Count > 1
-            && Match(roots, mappings, visible.Where(l => l.Id == libraryId)) is [var destination, ..])
-        {
-            (lidarr, root) = (destination.Lidarr, destination.Root);
-        }
-
-        return new MusicTarget(lidarr, await PlacementAsync(client, lidarr, root, ct));
+        var destination = destinations.FirstOrDefault(d => d.LibraryId == chosen) ?? destinations.FirstOrDefault(d => d.IsDefault) ?? destinations[0];
+        return (new MusicTarget(destination.Lidarr, await PlacementAsync(client, destination.Lidarr, destination.Root, ct)), null);
     }
 
     /// <summary>

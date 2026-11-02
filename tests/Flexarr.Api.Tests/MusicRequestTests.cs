@@ -114,6 +114,17 @@ public sealed class MusicRequestTests : IAsyncLifetime
         return (library, artist, album);
     }
 
+    /// <summary>A music library (with nothing in it yet) at Lidarr's root folder: music requests need one to land in.</summary>
+    private async Task<Library> MusicLibraryAsync(string folder = "/Volumes/Media/data/music", string name = "Music")
+    {
+        using var scope = _server.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        var library = new Library { Name = $"{name} {Guid.NewGuid():N}", Type = LibraryType.Music, Folders = [new LibraryFolder { Path = folder }] };
+        db.Libraries.Add(library);
+        await db.SaveChangesAsync();
+        return library;
+    }
+
     private async Task<T> InDbAsync<T>(Func<FlexarrDbContext, Task<T>> query)
     {
         using var scope = _server.Services.CreateScope();
@@ -123,6 +134,7 @@ public sealed class MusicRequestTests : IAsyncLifetime
     [Fact]
     public async Task Status_IsOnWithLidarr_AndOffWhenTheSwitchIs()
     {
+        await MusicLibraryAsync();
         var on = await Client().GetFromJsonAsync<JsonElement>(Api("/requests/music/status"));
         await Client().PutAsJsonAsync(Api("/settings"), new { allowMusicRequests = false });
         var off = await Client().GetFromJsonAsync<JsonElement>(Api("/requests/music/status"));
@@ -135,6 +147,33 @@ public sealed class MusicRequestTests : IAsyncLifetime
         Assert.False(off.GetProperty("configured").GetBoolean());
         Assert.False(settings.GetProperty("allowMusicRequests").GetBoolean());
         Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+    }
+
+    [Fact]
+    public async Task WithNoMusicLibrary_MusicRequestsArentOffered()
+    {
+        var status = await Client().GetFromJsonAsync<JsonElement>(Api("/requests/music/status"));
+        var request = await Client().PostAsJsonAsync(Api("/requests/music"), new { kind = "album", deezerId = 730000661 });
+
+        Assert.False(status.GetProperty("configured").GetBoolean());
+        Assert.Equal(HttpStatusCode.Forbidden, request.StatusCode);
+    }
+
+    [Fact]
+    public async Task ARequest_GoesToALibraryTheProfileCanSee_NeverAHiddenOne()
+    {
+        _lidarr.Responses["GET /api/v1/rootfolder"] = """[{"id":1,"path":"/data/music","defaultQualityProfileId":2,"defaultMetadataProfileId":3},{"id":2,"path":"/data/sam-music","defaultQualityProfileId":2,"defaultMetadataProfileId":3}]""";
+        var dads = await MusicLibraryAsync();
+        await MusicLibraryAsync("/Volumes/Media/data/sam-music", "Sam's music");
+        var created = await (await Client().PostAsJsonAsync(Api("/profiles"), new { name = $"Sam {Guid.NewGuid():N}"[..12], hiddenLibraryIds = new[] { dads.Id } }))
+            .Content.ReadFromJsonAsync<JsonElement>();
+        var id = created.GetProperty("id").GetString();
+        var token = (await (await Client().PostAsJsonAsync(Api($"/profiles/{id}/select"), new { })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("token").GetString();
+
+        var response = await Client(token).PostAsJsonAsync(Api("/requests/music"), new { kind = "album", deezerId = 730000661 });
+
+        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+        Assert.Equal("/data/sam-music", _sent.Single(s => s.Request == "POST /api/v1/album").Body!["artist"]!["rootFolderPath"]!.GetValue<string>());
     }
 
     [Fact]
@@ -158,6 +197,7 @@ public sealed class MusicRequestTests : IAsyncLifetime
     [Fact]
     public async Task Search_FindsArtistsAndAlbums()
     {
+        await MusicLibraryAsync();
         var found = await Client().GetFromJsonAsync<JsonElement>(Api("/requests/music/search?q=wet%20leg"));
 
         Assert.Equal("Wet Leg", found.GetProperty("artists")[0].GetProperty("title").GetString());
@@ -167,6 +207,7 @@ public sealed class MusicRequestTests : IAsyncLifetime
     [Fact]
     public async Task RequestingAnAlbum_LidarrHasntTheArtistOf_AddsJustThatAlbum_AndShowsItRequested()
     {
+        await MusicLibraryAsync();
         var response = await Client().PostAsJsonAsync(Api("/requests/music"), new { kind = "album", deezerId = 730000661 });
 
         Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
@@ -187,6 +228,7 @@ public sealed class MusicRequestTests : IAsyncLifetime
     [Fact]
     public async Task RequestingAnAlbum_LidarrHasTheArtistOf_MonitorsAndSearchesIt()
     {
+        await MusicLibraryAsync();
         _lidarr.Responses["GET /api/v1/artist"] = $$"""[{"id":3,"artistName":"Wet Leg","foreignArtistId":"{{WetLeg}}","monitored":true,"monitorNewItems":"none"}]""";
         _lidarr.Responses["GET /api/v1/artist/lookup?term=Wet%20Leg"] = $$"""[{"id":3,"artistName":"Wet Leg","foreignArtistId":"{{WetLeg}}"}]""";
         _lidarr.Responses["GET /api/v1/album?artistId=3"] = $$"""[{"id":9,"artistId":3,"title":"moisturizer","foreignAlbumId":"{{Moisturizer}}","monitored":false}]""";
@@ -202,6 +244,7 @@ public sealed class MusicRequestTests : IAsyncLifetime
     [Fact]
     public async Task FollowingAnArtist_WatchesForNewReleasesOnly()
     {
+        await MusicLibraryAsync();
         var response = await Client().PostAsJsonAsync(Api("/requests/music"), new { kind = "artist", deezerId = 134334152 });
 
         Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
@@ -246,6 +289,7 @@ public sealed class MusicRequestTests : IAsyncLifetime
     [Fact]
     public async Task ALidarrThatDoesntAnswer_IsSaidSo()
     {
+        await MusicLibraryAsync();
         _lidarr.Responses.TryRemove("GET /api/v1/rootfolder", out _);
 
         var response = await Client().PostAsJsonAsync(Api("/requests/music"), new { kind = "album", deezerId = 730000661 });
