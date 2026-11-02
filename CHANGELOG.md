@@ -7,6 +7,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ### Playback
 - After you finish an episode, the page you played it from moves on, in every app: a show's Play offers the next episode, and an episode's page shows the next one.
 - On the web, closing the player goes back to the page you pressed Play on, as in the apps.
+- On the web with **Skip credits** on, moving on to the next episode no longer marks it watched and jumps straight past it to the one after, and nothing plays while the next-episode countdown runs.
 
 ### Audiobooks
 - On iPhone, iPad, Android phones and the Apple TV, an audiobooks library's **Genres** are tiles showing a few of each genre's covers, like the genres of movies and TV shows (and as on the web).
