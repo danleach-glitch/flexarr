@@ -45,6 +45,13 @@ enum ServerVersion {
         guard parts.count == 2 else { return version }
         return "\(parts[0]) (\(parts[1].prefix(7)))"
     }
+
+    /// Whether "0.59.0", "0.59.0-dev.abc+…" or "1.2.3" is at least `major.minor`; nil when it doesn't read.
+    static func isAtLeast(_ version: String, major: Int, minor: Int) -> Bool? {
+        let numbers = version.split(whereSeparator: { !$0.isNumber }).prefix(2).compactMap { Int($0) }
+        guard numbers.count == 2 else { return nil }
+        return (numbers[0], numbers[1]) >= (major, minor)
+    }
 }
 
 /// "Mono", "Stereo", "5.1".

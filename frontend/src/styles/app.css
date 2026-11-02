@@ -1039,6 +1039,14 @@ kbd {
   flex: none;
 }
 
+/* An album's artist, above its title on a music library's hero. */
+.hero-eyebrow {
+  margin: 0 0 -0.5rem;
+  font-weight: 700;
+  font-size: var(--step-2);
+  color: color-mix(in oklab, var(--screen) 85%, transparent);
+}
+
 /* The episode you'd resume, on the Continue Watching slide. */
 .hero-resume {
   margin: 0;

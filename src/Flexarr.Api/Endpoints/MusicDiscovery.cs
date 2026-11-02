@@ -9,6 +9,9 @@ namespace Flexarr.Api.Endpoints;
 /// <param name="SharedGenres">Genres the track's artist (or their albums) has in common with the seed artist; 0 for the seed's own tracks.</param>
 /// <param name="ArtistPlays">The listener's plays of anything by the artist.</param>
 /// <param name="TrackPlays">The listener's plays of this track.</param>
+/// <summary>An artist this profile plays: how many plays of their tracks, and when it last played one.</summary>
+public sealed record ArtistPlays(Guid ArtistId, int Plays, DateTime At);
+
 public sealed record RadioCandidate(Guid TrackId, Guid ArtistId, int SharedGenres, int ArtistPlays, int TrackPlays);
 
 /// <summary>
@@ -30,8 +33,9 @@ public static class MusicDiscovery
     /// or (null) all of them. Rows with nothing in them are left out, so a profile that hasn't played any music gets none.
     /// </summary>
     /// <param name="wanted">The rows to build, by id; the rest (switched off) aren't worked out at all. Null: all.</param>
+    /// <param name="artistPlays">The profile's artists by plays, when the caller has them already (see <see cref="ArtistPlaysAsync"/>).</param>
     public static async Task<List<HomeRowDto>> RowsAsync(FlexarrDbContext db, IMemoryCache cache, string profileId, Guid? libraryId, int size, CancellationToken ct,
-        Func<string, bool>? wanted = null)
+        Func<string, bool>? wanted = null, IReadOnlyList<ArtistPlays>? artistPlays = null)
     {
         wanted ??= _ => true;
         var rows = new List<HomeRowDto>();
@@ -71,9 +75,8 @@ public static class MusicDiscovery
         }
 
         // The artists you play most, taking turns, each offering the albums of theirs you haven't played lately.
-        var topArtists = await played.GroupBy(p => p.MediaItem!.Parent!.ParentId!.Value)
-            .Select(g => new { ArtistId = g.Key, Plays = g.Sum(p => p.PlayCount) })
-            .Where(a => a.Plays > 0).OrderByDescending(a => a.Plays).Take(8).Select(a => a.ArtistId).ToListAsync(ct);
+        var topArtists = (artistPlays ?? await ArtistPlaysAsync(db, profileId, libraryId, ct))
+            .Where(a => a.Plays > 0).Take(8).Select(a => a.ArtistId).ToList();
         if (topArtists.Count > 0)
         {
             var since = DateTime.UtcNow - RecentlyPlayed;
@@ -187,6 +190,94 @@ public static class MusicDiscovery
         }
 
         return drawn;
+    }
+
+    /// <summary>The most slides a music library's hero shows, and how many of them are artists and new albums.</summary>
+    private const int HeroArtists = 3;
+    private const int HeroNewAlbums = 2;
+
+    /// <summary>
+    /// The artists this profile plays most in one music library (or all of them), most played first, with the most
+    /// recently played first among equals: the hero's and the "More from artists you play" row's, worked out once.
+    /// </summary>
+    public static async Task<List<ArtistPlays>> ArtistPlaysAsync(FlexarrDbContext db, string profileId, Guid? libraryId, CancellationToken ct) =>
+        (await db.PlaybackStates
+            .Where(p => p.UserId == profileId && p.MediaItem!.Kind == MediaKind.Track && (libraryId == null || p.MediaItem.LibraryId == libraryId)
+                && p.MediaItem.Parent!.ParentId != null)
+            .GroupBy(p => p.MediaItem!.Parent!.ParentId!.Value)
+            .Select(g => new { ArtistId = g.Key, Plays = g.Sum(p => p.PlayCount), At = g.Max(p => p.LastPlayedAt) })
+            .OrderByDescending(a => a.Plays).ThenByDescending(a => a.At).Take(20).ToListAsync(ct))
+        .Select(a => new ArtistPlays(a.ArtistId, a.Plays, a.At)).ToList();
+
+    /// <summary>
+    /// A music library's hero, as films and shows have: the album this profile played last first, then up to three
+    /// artists it plays, then the newest albums. Every slide has a picture: artists with a backdrop, albums with one of
+    /// their own or their artist's; a library without any gets no hero. A profile that hasn't played anything gets
+    /// artists best-rated first. With <c>Resumes</c>, keyed by the album's id: the track to carry on from, which is the
+    /// one played last when it wasn't heard through (at its place, or from the start), else the one after it (from the
+    /// start, whatever place it once had).
+    /// </summary>
+    public static async Task<(List<ItemSummaryDto> Featured, Dictionary<Guid, ItemSummaryDto> Resumes)> HeroAsync(
+        FlexarrDbContext db, string profileId, Guid libraryId, CancellationToken ct, IReadOnlyList<ArtistPlays>? artistPlays = null)
+    {
+        var played = db.PlaybackStates.Where(p => p.UserId == profileId && p.MediaItem!.Kind == MediaKind.Track && p.MediaItem.LibraryId == libraryId);
+        var last = await played.OrderByDescending(p => p.LastPlayedAt)
+            .Select(p => new
+            {
+                p.MediaItemId, AlbumId = p.MediaItem!.ParentId, ArtistId = p.MediaItem.Parent!.ParentId, p.Watched, p.PositionSeconds,
+                Picture = p.MediaItem.Parent.BackdropUrl != null || (p.MediaItem.Parent.Parent != null && p.MediaItem.Parent.Parent.BackdropUrl != null),
+            })
+            .FirstOrDefaultAsync(ct);
+
+        var ids = new List<Guid>();
+        var resumes = new Dictionary<Guid, Guid>();
+        // Tracks whose place is from an earlier listen, to start from the beginning.
+        var fromStart = new HashSet<Guid>();
+        if (last is { AlbumId: { } albumId, Picture: true })
+        {
+            ids.Add(albumId);
+            if (!last.Watched)
+            {
+                // Stopped part way: there (from the start when it was too early in for a place to be kept).
+                resumes[albumId] = last.MediaItemId;
+            }
+            else
+            {
+                var tracks = await db.MediaItems.Where(t => t.ParentId == albumId && t.Kind == MediaKind.Track)
+                    .OrderBy(t => t.DiscNumber ?? 1).ThenBy(t => t.TrackNumber ?? int.MaxValue).ThenBy(t => t.SortTitle)
+                    .Select(t => t.Id).ToListAsync(ct);
+                var at = tracks.IndexOf(last.MediaItemId);
+                if (at >= 0 && at + 1 < tracks.Count)
+                {
+                    resumes[albumId] = tracks[at + 1];
+                    fromStart.Add(tracks[at + 1]);
+                }
+            }
+        }
+
+        var lastArtist = last?.Picture == true ? last.ArtistId : null;
+        var artists = db.MediaItems.Where(a => a.LibraryId == libraryId && a.Kind == MediaKind.Artist && a.BackdropUrl != null);
+        var playedArtists = (artistPlays ?? await ArtistPlaysAsync(db, profileId, libraryId, ct)).Select(a => a.ArtistId).ToList();
+        var withBackdrop = await artists.Where(a => playedArtists.Contains(a.Id)).Select(a => a.Id).ToListAsync(ct);
+        // The last album's artist is on its slide already.
+        var picks = playedArtists.Where(id => withBackdrop.Contains(id) && id != lastArtist).ToList();
+        if (picks.Count < HeroArtists)
+        {
+            picks.AddRange(await artists.Where(a => !picks.Contains(a.Id) && a.Id != lastArtist)
+                .OrderByDescending(a => a.LogoUrl != null).ThenByDescending(a => a.CommunityRating ?? 0).ThenBy(a => a.SortTitle)
+                .Take(HeroArtists - picks.Count).Select(a => a.Id).ToListAsync(ct));
+        }
+
+        ids.AddRange(picks.Take(HeroArtists));
+        ids.AddRange(await db.MediaItems.Where(i => i.Kind == MediaKind.Album && i.LibraryId == libraryId && !ids.Contains(i.Id)
+                && (i.BackdropUrl != null || (i.Parent != null && i.Parent.BackdropUrl != null)))
+            .OrderByDescending(i => i.AddedAt).ThenBy(i => i.SortTitle).Take(HeroNewAlbums).Select(i => i.Id).ToListAsync(ct));
+
+        var featured = await InOrderAsync(db, ids, profileId, ct);
+        var resumeItems = (await InOrderAsync(db, resumes.Values, profileId, ct))
+            .Select(t => fromStart.Contains(t.Id) ? t with { UserData = t.UserData with { PositionSeconds = 0 } } : t).ToList();
+        return (featured, resumes.Where(r => resumeItems.Any(t => t.Id == r.Value))
+            .ToDictionary(r => r.Key, r => resumeItems.First(t => t.Id == r.Value)));
     }
 
     /// <summary>The newest albums by when they were added, in one music library or (null) all of them.</summary>

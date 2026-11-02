@@ -14,6 +14,10 @@ final class MusicBrowseModel {
     private(set) var total = 0
     /// The server's Browse rows with something in them, in its order.
     private(set) var rows: [HomeRow] = []
+    /// The hero: the album played last, artists and new albums (servers from 0.59).
+    private(set) var featured: [ItemSummary] = []
+    /// What the hero offers: artists' bios, and the track an album carries on from.
+    private(set) var hero: Home?
     /// Only filled when Browse failed: drawn in place of the rows.
     private(set) var recentAlbums: [ItemSummary] = []
     /// The profile's playlists (they span libraries, so every music library offers them).
@@ -21,10 +25,14 @@ final class MusicBrowseModel {
     private(set) var isLoading = false
     private(set) var error: String?
     private(set) var loadedAt: Date?
+    /// The track playing when it last loaded: music played since means the hero's Resume may have moved on.
+    @ObservationIgnored var playingWhenLoaded: String?
     /// Bumped by each reload, so a page that arrives for an older one is dropped.
     @ObservationIgnored private var generation = 0
 
-    private static let pageSize = 60
+    /// Your artists shows this many; `total` says whether there are more, for its See all.
+    static let artistsInRow = 20
+    private static let pageSize = artistsInRow
     /// How many of the newest artists are opened to find the newest albums. The server lists albums only under their
     /// artist, so this bounds the requests a visit makes; an album newer than every one of these artists' can't exist.
     private static let recentArtists = 8
@@ -52,6 +60,8 @@ final class MusicBrowseModel {
             let loaded = try? await browse
             guard mine == generation else { return }
             rows = (loaded?.rows ?? []).filter(\.hasContent)
+            hero = loaded
+            featured = loaded?.featured ?? []
             guard loaded == nil else {
                 playlists = []
                 recentAlbums = []
@@ -86,7 +96,7 @@ final class MusicBrowseModel {
     }
 
     /// Something to tint the page with: the first album or track in the rows, or the newest album, or the first artist.
-    var ambientItem: ItemSummary? { rows.lazy.compactMap(\.items.first).first ?? recentAlbums.first ?? artists.first }
+    var ambientItem: ItemSummary? { featured.first ?? rows.lazy.compactMap(\.items.first).first ?? recentAlbums.first ?? artists.first }
 
     /// The newest albums among these artists', newest first.
     private static func newestAlbums(of artists: [ItemSummary], client: FlexarrClient) async -> [ItemSummary] {

@@ -334,6 +334,25 @@ final class AppModel {
 
     var currentProfile: Profile? { profiles.first(where: \.isCurrent) }
 
+    /// Whether each server lists a music library's albums (and so offers Albums and Genres): from 0.59. Asked once per
+    /// server, by its version (or, when that doesn't read, by asking for an album).
+    private(set) var musicAlbumsOffered: [URL: Bool] = [:]
+
+    /// Nil until this server's answer is in (see `checkMusicAlbums`).
+    var offersMusicAlbums: Bool? { credentials.flatMap { musicAlbumsOffered[$0.address] } }
+
+    func checkMusicAlbums(library: Library) async {
+        guard let credentials, let client, musicAlbumsOffered[credentials.address] == nil else { return }
+        var offered: Bool?
+        if let status = try? await client.systemStatus(), let atLeast = ServerVersion.isAtLeast(status.version, major: 0, minor: 59) {
+            offered = atLeast
+        } else {
+            // Nil (rather than an error) only from a server without the endpoint.
+            offered = try? await client.libraryAlbums(library.id, take: 1) != nil
+        }
+        if let offered, self.credentials?.address == credentials.address { musicAlbumsOffered[credentials.address] = offered }
+    }
+
     /// A child is watching: the kids app (no Settings, no requests, bigger artwork).
     var isKids: Bool { currentProfile?.isKidsProfile == true }
 
@@ -1395,6 +1414,34 @@ final class AppModel {
         showNowPlaying(router)
     }
 
+    /// An album from a music library's hero: from `resume` (a track to carry on from, part way in when it was left half
+    /// way), or from the start.
+    func playAlbum(_ album: ItemSummary, resuming resume: ItemSummary?, router: Router) async {
+        guard let client, let tracks = try? await client.tracks(of: album.id), !tracks.isEmpty else { return }
+        let found = resume.flatMap { r in tracks.firstIndex { $0.id == r.id } }
+        // Part way in only on the track it belongs to: the album may have changed since.
+        let position = found == nil ? nil : resume.flatMap { $0.userData.watched ? nil : $0.userData.positionSeconds }
+        let start = found ?? 0
+        music.play(tracks, from: start, albums: [album], at: position, client: client)
+        showNowPlaying(router)
+    }
+
+    /// An artist's whole catalogue shuffled, or their radio (them and artists like them).
+    func playArtist(_ artist: ItemSummary, radio: Bool, router: Router) async {
+        guard let client else { return }
+        let tracks = (try? await radio ? client.radio(artist.id) : client.tracks(of: artist.id)) ?? []
+        guard !tracks.isEmpty else { return }
+        music.play(tracks, shuffled: !radio, client: client)
+        showNowPlaying(router)
+    }
+
+    /// A genre's tracks in a music library, in order or shuffled.
+    func playGenre(_ genre: String, in library: Library, shuffled: Bool, router: Router) async {
+        guard let client, let tracks = try? await client.genreTracks(library.id, genre: genre, shuffled: shuffled), !tracks.isEmpty else { return }
+        music.play(tracks, client: client)
+        showNowPlaying(router)
+    }
+
     /// Music just started from Play or Shuffle: the iPhone opens Now Playing over the tab, Apple TV goes to its tab.
     private func showNowPlaying(_ router: Router) {
         #if os(tvOS)
@@ -1623,6 +1670,15 @@ final class AppModel {
                     playBook(found, at: start)
                     return
                 }
+                // An album or artist (the Top Shelf's Recently played) plays its tracks, Now Playing on the Apple TV.
+                if let item = found, item.kind == .album || item.kind == .artist {
+                    guard let tracks = try? await client.tracks(of: id), !tracks.isEmpty else { return }
+                    music.play(tracks, albums: item.kind == .album ? [item] : [], client: client)
+                    #if os(tvOS)
+                    nowPlayingRequests += 1
+                    #endif
+                    return
+                }
                 if let item = found, item.kind == .series || item.kind == .season {
                     if let next = try? await client.nextUp(id) {
                         player.play(itemId: next.id, preview: next, startAt: start, client: client, subtitleKey: subtitles)
@@ -1718,8 +1774,13 @@ enum Route: Hashable {
     case item(ItemSummary)
     case itemID(String)
     case person(id: String, name: String)
-    /// Every title in a library, sorted and optionally narrowed to one genre.
+    /// Every title in a library, sorted and optionally narrowed to one genre. A music library's titles are its artists,
+    /// and its genre's are albums.
     case library(Library, LibrarySort, genre: String? = nil)
+    /// Every album in a music library, sorted (New albums' See all).
+    case albums(Library, LibrarySort)
+    /// Every artist in a music library (Your artists' See all).
+    case artists(Library)
     case playlist(PlaylistSummary)
     /// The shows followed and their newest episodes (iPhone and iPad).
     case podcasts

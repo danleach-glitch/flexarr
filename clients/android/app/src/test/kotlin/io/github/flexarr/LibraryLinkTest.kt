@@ -38,6 +38,14 @@ class LibraryLinkTest {
     }
 
     @Test
+    fun `a music library's New albums See all is its albums, anything else of it its artists`() {
+        assertEquals(LibraryLink("abc", LibrarySort.Added, null, albums = true), LibraryLink.parse(Uri.parse("/library/abc?view=albums&sort=added")))
+        // Servers before 0.59 linked the row to every title, newest first: the artists.
+        assertFalse(LibraryLink.parse(Uri.parse("/library/abc?view=all&sort=added"))!!.albums)
+        assertFalse(LibraryLink.parse(Uri.parse("/library/abc?sort=added"))!!.albums)
+    }
+
+    @Test
     fun `other links aren't a library`() {
         assertNull(LibraryLink.parse(Uri.parse("/watchlist")))
         assertNull(LibraryLink.parse(Uri.parse("/library")))

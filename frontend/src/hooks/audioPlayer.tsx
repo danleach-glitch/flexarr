@@ -66,6 +66,8 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   const [musicPages, setMusicPages] = useState(0)
   // Where a restored queue was: Play starts from there rather than the beginning.
   const resumeAt = useRef(0)
+  // Where the next track started by Play begins, once (see `play`'s `at`).
+  const startAt = useRef(0)
   // The position worth remembering, kept current from the engine so saving never has to ask an element.
   const position = useRef(0)
   const lastSaved = useRef(-1)
@@ -203,9 +205,11 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (state.epoch === 0) return
     resumeAt.current = 0
+    const at = startAt.current
+    startAt.current = 0
     const { tracks, index } = stateRef.current
     const track = tracks[index]
-    if (track) void engine().load(track, index)
+    if (track) void engine().load(track, index, at > 0 ? at : undefined)
     else engine().stop()
   }, [state.epoch, engine])
 
@@ -320,7 +324,8 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const [nowPlayingOpen, setNowPlayingOpen] = useState(false)
-  const play = useCallback((tracks: ItemSummary[], start = 0, options?: { openNowPlaying?: boolean }) => {
+  const play = useCallback((tracks: ItemSummary[], start = 0, options?: { openNowPlaying?: boolean; at?: number }) => {
+    startAt.current = options?.at ?? 0
     dispatch({ type: 'play', tracks, index: start })
     setNextBook(null)
     if (options?.openNowPlaying && tracks.length > 0) setNowPlayingOpen(true)

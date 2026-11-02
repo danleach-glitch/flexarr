@@ -55,6 +55,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Icon
@@ -66,6 +67,7 @@ import io.github.flexarr.core.EmptyHomeMessage
 import io.github.flexarr.core.Home
 import io.github.flexarr.core.HomeRow
 import io.github.flexarr.core.HomeRowStyle
+import io.github.flexarr.core.artistName
 import io.github.flexarr.core.facts
 import io.github.flexarr.core.isResumable
 import io.github.flexarr.core.scores
@@ -182,17 +184,24 @@ private val HomeRow.shows: Boolean
 /**
  * Full-bleed featured hero: backdrop, clear logo, facts, two lines of overview, Play and More info. Right on More info
  * moves on to the next featured title, and while it has focus it also moves on by itself; left on Play goes to the
- * sidebar, as left from the screen's left edge does everywhere else.
+ * sidebar, as left from the screen's left edge does everywhere else. A music library's: an album has its artist above
+ * its title (the backdrop is theirs) and plays from where it was left; an artist's Play shuffles them, beside Radio.
  */
 @Composable
-private fun HomeHero(home: Home, index: Int, onIndex: (Int) -> Unit, takeFocus: Boolean, onFocusTaken: () -> Unit) {
+internal fun HomeHero(home: Home, index: Int, onIndex: (Int) -> Unit, takeFocus: Boolean, onFocusTaken: () -> Unit) {
     val navigator = LocalNavigator.current
     val items = home.featured
     val item = items[index % items.size]
     val glow = glowColor(item.accentColor)
     val play = remember { FocusRequester() }
     var focused by remember { mutableStateOf(false) }
-    fun step(delta: Int) = onIndex((index + delta + items.size) % items.size)
+    // Radio (an artist's) has focus: moving on to a slide without it hands focus to Play first, rather than losing it.
+    var radioFocused by remember { mutableStateOf(false) }
+    fun step(delta: Int) {
+        val next = (index + delta + items.size) % items.size
+        if (radioFocused && item.kind == MediaKind.Artist && items[next].kind != MediaKind.Artist) runCatching { play.requestFocus() }
+        onIndex(next)
+    }
 
     LaunchedEffect(takeFocus) {
         if (!takeFocus) return@LaunchedEffect
@@ -223,9 +232,18 @@ private fun HomeHero(home: Home, index: Int, onIndex: (Int) -> Unit, takeFocus: 
         Column(Modifier.align(Alignment.BottomStart).padding(start = TvLayout.Edge, bottom = 20.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
             Crossfade(item, animationSpec = tween(600), label = "title") { shown ->
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    TitleArt(shown, maxWidth = 380.dp, maxHeight = 115.dp, fontSize = 55)
+                    if (shown.kind == MediaKind.Album) {
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            shown.artistName?.let { Text(it, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen.copy(alpha = 0.85f), maxLines = 1) }
+                            Text(shown.title, style = marquee(48).copy(fontWeight = FontWeight.Black), maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 500.dp))
+                        }
+                    } else {
+                        TitleArt(shown, maxWidth = 380.dp, maxHeight = 115.dp, fontSize = 55)
+                    }
+                    // Music has no scores here: an album's year and tracks, an artist's albums.
                     val isKids = LocalContext.current.appModel.isKids
-                    TvFactsLine(shown.facts(scores = !isKids), scores = if (isKids) null else shown.scores)
+                    val music = shown.kind.isMusic
+                    TvFactsLine(shown.facts(scores = !isKids && !music), scores = if (isKids || music) null else shown.scores)
                     home.overviews[shown.id]?.let {
                         Text(it, fontSize = 13.5.sp, lineHeight = 18.sp, color = Flexarr.screen.copy(alpha = 0.85f), maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 450.dp))
                     }
@@ -238,15 +256,28 @@ private fun HomeHero(home: Home, index: Int, onIndex: (Int) -> Unit, takeFocus: 
                 val resume = home.resuming(item)
                 TvActionButton(
                     if (resume != null || item.isResumable) "Resume" else "Play",
-                    onClick = { if (resume != null) navigator.play(resume) else navigator.playBest(item) },
+                    onClick = {
+                        when {
+                            item.kind == MediaKind.Album -> navigator.playAlbum(item, resume)
+                            item.kind == MediaKind.Artist -> navigator.playArtist(item, radio = false)
+                            resume != null -> navigator.play(resume)
+                            else -> navigator.playBest(item)
+                        }
+                    },
                     icon = FlexarrIcons.play,
                     prominent = true,
                     ambient = glow,
                     modifier = Modifier.focusRequester(play),
                 )
+                if (item.kind == MediaKind.Artist) {
+                    TvActionButton(
+                        "Radio", onClick = { navigator.playArtist(item, radio = true) }, icon = FlexarrIcons.radio, ambient = glow,
+                        modifier = Modifier.onFocusChanged { radioFocused = it.hasFocus },
+                    )
+                }
                 TvActionButton(
                     "More info",
-                    onClick = { navigator.openItem(item.id) },
+                    onClick = { if (item.kind.isMusic) navigator.open(item) else navigator.openItem(item.id) },
                     icon = Icons.Outlined.Info,
                     ambient = glow,
                     modifier = Modifier.onPreviewKeyEvent { event ->
@@ -316,13 +347,13 @@ private fun HomeRowView(row: HomeRow) {
     }
 }
 
-/** The end of a row that links to its library: all of it, in a grid. */
+/** The end of a row that links to its library: all of it, in a grid. [height] for a row of other shapes (artists). */
 @Composable
-private fun TvSeeAllCard(wide: Boolean, onClick: () -> Unit) {
+internal fun TvSeeAllCard(wide: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, height: Dp? = null) {
     val width = if (wide) TvLayout.WideWidth else TvLayout.PosterWidth
-    TvArtworkButton(ambient = Flexarr.silver, onClick = onClick, contentDescription = "See all", artwork = {
+    TvArtworkButton(ambient = Flexarr.silver, onClick = onClick, modifier = modifier, contentDescription = "See all", artwork = {
         Column(
-            Modifier.size(width, if (wide) width * 9f / 16f else width * 1.5f),
+            Modifier.size(width, height ?: if (wide) width * 9f / 16f else width * 1.5f),
             verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {

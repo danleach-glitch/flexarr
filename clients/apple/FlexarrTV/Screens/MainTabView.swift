@@ -81,7 +81,7 @@ struct MainTabView: View {
                         case .library(let library):
                             TabStack(router: routers[entry.tab], opensLinks: linkTab == entry.tab) {
                                 if library.type == .music {
-                                    MusicLibraryView(library: library, showsTitle: false)
+                                    MusicLibraryTab(library: library)
                                 } else {
                                     LibraryTab(library: library)
                                 }
@@ -471,8 +471,15 @@ struct TabStack<Content: View>: View {
             DetailView(id: id, preview: nil)
         case .person(let id, let name):
             PersonView(id: id, name: name)
-        case .library(let library, _, _) where library.type == .music:
-            MusicLibraryView(library: library)
+        case .library(let library, _, let genre?) where library.type == .music:
+            // A music genre: its albums, with Play and Shuffle.
+            LibraryView(library: library, initialGenre: genre, content: .albums)
+        case .albums(let library, let sort):
+            LibraryView(library: library, initialSort: sort, content: .albums)
+        case .artists(let library):
+            LibraryView(library: library, content: .artists)
+        case .library(let library, let sort, nil) where library.type == .music:
+            LibraryView(library: library, initialSort: sort, content: .artists)
         case .library(let library, _, let genre?) where library.type == .audiobooks:
             BookGridView(library: library, genre: genre)
         case .library(let library, _, _) where library.type == .audiobooks:

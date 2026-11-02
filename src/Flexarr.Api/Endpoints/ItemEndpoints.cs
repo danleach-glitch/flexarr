@@ -12,6 +12,18 @@ public static class ItemEndpoints
 {
     private const int MaxPageSize = 500;
 
+    /// <summary>The most tracks a genre's Play or Shuffle queues.</summary>
+    private const int MaxGenreTracks = 200;
+
+    /// <summary>
+    /// Albums with this genre: their own, or their artist's when they have none (Lidarr tags some albums only through
+    /// their artist). An artist's every genre doesn't pass to albums tagged themselves, or Ben would be hip hop. All of
+    /// them without a genre.
+    /// </summary>
+    private static IQueryable<MediaItem> InGenre(IQueryable<MediaItem> albums, string? genre) => string.IsNullOrWhiteSpace(genre)
+        ? albums
+        : albums.Where(a => a.Genres.Any(g => g.Name == genre) || (!a.Genres.Any() && a.Parent!.Genres.Any(g => g.Name == genre)));
+
     public static RouteGroupBuilder MapItemEndpoints(this RouteGroupBuilder api)
     {
         api.MapGet("/libraries/{id:guid}/items", async (Guid id, string? search, string? sort, string? genre, int? skip, int? take, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
@@ -66,6 +78,105 @@ public static class ItemEndpoints
                 return new LibraryGenreDto(g.Name, g.Count,
                     cover is null ? null : ArtworkUrls.For(cover.Id, ArtworkUrls.Version(cover.MetadataUpdatedAt, cover.ArtworkChangedAt), false, true, false, false).Backdrop);
             }).ToList();
+        }).WithTags("Items");
+
+        // A music library's albums (its items are its artists), paged like items: A–Z by default, newest added, or by year.
+        api.MapGet("/libraries/{id:guid}/albums", async (Guid id, string? search, string? sort, string? genre, int? skip, int? take, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
+        {
+            var query = InGenre(db.MediaItems.Where(i => i.LibraryId == id && i.Kind == MediaKind.Album), genre);
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                // An album's title or its artist's name.
+                var pattern = $"%{search.Trim().Replace("%", "", StringComparison.Ordinal).Replace("_", "", StringComparison.Ordinal)}%";
+                query = query.Where(i => EF.Functions.Like(i.Title, pattern) || EF.Functions.Like(i.Parent!.Title, pattern));
+            }
+
+            var total = await query.CountAsync(ct);
+            var ordered = sort switch
+            {
+                "added" => query.OrderByDescending(i => i.AddedAt).ThenBy(i => i.SortTitle),
+                "year" => query.OrderByDescending(i => i.Year).ThenBy(i => i.SortTitle),
+                _ => query.OrderBy(i => i.SortTitle).ThenBy(i => i.Year),
+            };
+            var items = await ordered.Skip(Math.Max(skip ?? 0, 0)).Take(Math.Clamp(take ?? 100, 1, MaxPageSize)).Summaries(profile.Id).ToListAsync(ct);
+            return new PagedDto<ItemSummaryDto>(total, items);
+        }).WithTags("Items");
+
+        // A music library's genres by album, for its Genres view: an album's own, or its artist's when it has none. The
+        // backdrop is an artist's fanart.
+        api.MapGet("/libraries/{id:guid}/album-genres", async (Guid id, FlexarrDbContext db, CancellationToken ct) =>
+        {
+            // Worked out here rather than in SQL, which can't count across both sides; a library has a few thousand albums at most.
+            var albums = await db.MediaItems.Where(a => a.LibraryId == id && a.Kind == MediaKind.Album)
+                .Select(a => new { a.ParentId, Genres = a.Genres.Select(g => g.Name).ToList() }).ToListAsync(ct);
+            var artists = await db.MediaItems.Where(a => a.LibraryId == id && a.Kind == MediaKind.Artist)
+                .OrderByDescending(a => a.CommunityRating ?? 0).ThenBy(a => a.SortTitle)
+                .Select(a => new { a.Id, Fanart = a.BackdropUrl != null, a.MetadataUpdatedAt, a.ArtworkChangedAt, Genres = a.Genres.Select(g => g.Name).ToList() })
+                .ToListAsync(ct);
+            var artistGenres = artists.ToDictionary(a => a.Id, a => a.Genres);
+
+            // One pass: each genre's album count, and the artists it belongs to (an album's artist, or the artist's own
+            // genre), for its picture.
+            var counts = new Dictionary<string, int>();
+            var artistsOf = new Dictionary<string, HashSet<Guid>>();
+            void Note(string genre, Guid? artist)
+            {
+                if (artist is { } a)
+                {
+                    if (!artistsOf.TryGetValue(genre, out var set))
+                    {
+                        artistsOf[genre] = set = [];
+                    }
+
+                    set.Add(a);
+                }
+            }
+
+            foreach (var album in albums)
+            {
+                // Its own genres, or its artist's when it has none (as InGenre).
+                var genres = album.Genres.Count > 0 ? album.Genres
+                    : album.ParentId is { } artist && artistGenres.TryGetValue(artist, out var theirs) ? theirs : [];
+                foreach (var genre in genres.Distinct())
+                {
+                    counts[genre] = counts.GetValueOrDefault(genre) + 1;
+                    Note(genre, album.ParentId);
+                }
+            }
+
+            foreach (var artist in artists)
+            {
+                foreach (var genre in artist.Genres)
+                {
+                    Note(genre, artist.Id);
+                }
+            }
+
+            // The artists come best-rated first, so the first with fanart is the best picture; each genre its own where it can.
+            var withFanart = artists.Where(a => a.Fanart).ToList();
+            var used = new HashSet<Guid>();
+            return counts.OrderByDescending(g => g.Value).ThenBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
+                .Select(g =>
+                {
+                    var theirs = artistsOf.GetValueOrDefault(g.Key) ?? [];
+                    var candidates = withFanart.Where(a => theirs.Contains(a.Id)).ToList();
+                    var cover = candidates.FirstOrDefault(c => used.Add(c.Id)) ?? candidates.FirstOrDefault();
+                    return new LibraryGenreDto(g.Key, g.Value,
+                        cover is null ? null : ArtworkUrls.For(cover.Id, ArtworkUrls.Version(cover.MetadataUpdatedAt, cover.ArtworkChangedAt), false, true, false, false).Backdrop);
+                }).ToList();
+        }).WithTags("Items");
+
+        // A genre's tracks in a music library, for its Play and Shuffle: by artist, album and track, or shuffled. 200 at most.
+        api.MapGet("/libraries/{id:guid}/tracks", async (Guid id, string? genre, bool? shuffle, int? take, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
+        {
+            var albums = InGenre(db.MediaItems.Where(i => i.LibraryId == id && i.Kind == MediaKind.Album), genre).Select(a => a.Id);
+            var tracks = db.MediaItems.Where(t => t.Kind == MediaKind.Track && t.ParentId != null && albums.Contains(t.ParentId.Value));
+            var limit = Math.Clamp(take ?? MaxGenreTracks, 1, MaxGenreTracks);
+            var ordered = shuffle == true
+                ? tracks.OrderBy(_ => EF.Functions.Random())
+                : tracks.OrderBy(t => t.Parent!.Parent!.SortTitle).ThenBy(t => t.Parent!.Year).ThenBy(t => t.Parent!.SortTitle)
+                    .ThenBy(t => t.DiscNumber ?? 1).ThenBy(t => t.TrackNumber ?? int.MaxValue).ThenBy(t => t.SortTitle);
+            return await ordered.Take(limit).Summaries(profile.Id).ToListAsync(ct);
         }).WithTags("Items");
 
         api.MapGet("/items/recent", async (int? take, Guid? libraryId, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>

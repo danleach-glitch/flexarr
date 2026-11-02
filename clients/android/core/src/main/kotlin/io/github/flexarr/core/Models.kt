@@ -144,7 +144,7 @@ data class Paged<T>(
 
 /** Sort orders accepted by `GET /libraries/{id}/items`; `raw` is the query value (none for title). */
 enum class LibrarySort(val raw: String, val label: String) {
-    Title("", "Title"),
+    Title("", "A–Z"),
     Added("added", "Recently added"),
     Year("year", "Year"),
     Rating("rating", "Rating"),
@@ -378,7 +378,10 @@ data class Home(
     val rows: List<HomeRow>,
     /** What the first featured title resumes (the episode, for a show), when it's from Continue Watching. */
     val resume: ItemSummary? = null,
-    /** What each part-played featured title resumes, by its id. Absent from servers before 0.53. */
+    /**
+     * What each part-played featured title resumes, by its id. Absent from servers before 0.53. For a music library's
+     * album (from 0.59): the track to carry on from, at its place when it was left half way, else from the start.
+     */
     val resumes: Map<String, ItemSummary>? = null,
     /**
      * True: [rows] place the New podcasts row (an empty [HOME_PODCASTS_ROW_ID] row the app fills), and leave it out

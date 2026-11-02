@@ -109,6 +109,8 @@ The same words on every client and in the guide:
 - **Play**, **Resume from 32:10**, **Resume S1E3**, **Start over** (never "Play from beginning" or "Play from the start").
 - **Skip intro**, **Skip recap**, **Next episode in 5**: sentence case, like every label.
 - **Mark as watched** and **Mark as unwatched** for video, **Mark as played** for podcasts, **Mark as finished** and **Mark as unread** for books. **Mark season as watched**.
+- Sorting a library: **A–Z**, **Recently added**, **Year**, **Rating** (never "Title", "Newest first" or "Highest rated").
+- Music: **Artists**, **Albums**, **Genres**, **Your artists**, **Radio**, **Shuffle**; a music library's switch reads **Browse · Artists · Albums · Genres**.
 - **Watchlist**, **Continue watching**, **Up next**, **Coming soon**, **Discover**, **Cast and crew**, **More like this**.
 - Episodes: **S1E3** where space is short, **Season 1, Episode 3** in headings. No zero padding, no pipes.
 - Facts sit side by side with space between them, never joined with middle dots.

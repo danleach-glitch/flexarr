@@ -152,7 +152,7 @@ public static partial class DiscoveryEndpoints
             {
                 rows.AddRange(await MusicDiscovery.RowsAsync(db, cache, me, null, RowSize, ct, On));
                 // The row opens the library when there's only one to open.
-                var link = musicLibraries.Count == 1 ? $"/library/{musicLibraries[0].Id}?view=all&sort=added" : null;
+                var link = musicLibraries.Count == 1 ? $"/library/{musicLibraries[0].Id}?view=albums&sort=added" : null;
                 if (On("music-new"))
                 {
                     rows.Add(new HomeRowDto("music-new", "New albums", "poster", await MusicDiscovery.NewAlbumsAsync(db, me, null, RowSize, ct), link));
@@ -279,16 +279,21 @@ public static partial class DiscoveryEndpoints
 
             if (library.Type == LibraryType.Music)
             {
-                // A music library's home: what you've been playing, then the newest albums. No hero: album covers are
-                // square, and the rows are the point.
+                // A music library's home: a hero led by the album played last (over its artist's fanart), then what
+                // you've been playing and the newest albums.
                 var musicLayout = (await LayoutEndpoints.ForProfileAsync(db, options.CurrentValue, me, ct)).Music;
-                var musicRows = await MusicDiscovery.RowsAsync(db, cache, me, id, RowSize, ct, row => LayoutEndpoints.IsOn(musicLayout, row));
+                // Who this profile plays, worked out once for the rows and the hero.
+                var artistPlays = await MusicDiscovery.ArtistPlaysAsync(db, me, id, ct);
+                var musicRows = await MusicDiscovery.RowsAsync(db, cache, me, id, RowSize, ct, row => LayoutEndpoints.IsOn(musicLayout, row), artistPlays);
                 if (LayoutEndpoints.IsOn(musicLayout, "recent"))
                 {
-                    musicRows.Add(new HomeRowDto("recent", "New albums", "poster", await MusicDiscovery.NewAlbumsAsync(db, me, id, RowSize, ct), $"{all}&sort=added"));
+                    // Its See all opens Albums, newest first (apps before 0.59 read just the sort, and open the artists).
+                    musicRows.Add(new HomeRowDto("recent", "New albums", "poster", await MusicDiscovery.NewAlbumsAsync(db, me, id, RowSize, ct), $"/library/{id}?view=albums&sort=added"));
                 }
 
-                return Results.Ok(new HomeDto([], new Dictionary<Guid, string?>(), LayoutEndpoints.Arrange(musicRows.Where(r => r.HasContent), musicLayout), [], 0));
+                var (hero, heroResumes) = await MusicDiscovery.HeroAsync(db, me, id, ct, artistPlays);
+                return Results.Ok(new HomeDto(hero, await OverviewsAsync(db, hero, ct), LayoutEndpoints.Arrange(musicRows.Where(r => r.HasContent), musicLayout), [], 0,
+                    Resumes: heroResumes));
             }
 
             var movies = library.Type == LibraryType.Movies;

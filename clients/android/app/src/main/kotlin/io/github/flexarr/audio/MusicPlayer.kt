@@ -200,12 +200,14 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
 
     /**
      * Replaces the queue with [tracks] and starts the one at [start]; with [shuffled], a fresh order starts from its
-     * first track instead. [albums] lends the tracks their album names for Now Playing.
+     * first track instead. [albums] lends the tracks their album names for Now Playing. [at] starts that first track
+     * part way in (seconds): a track left half way, picked up from a music library's hero.
      */
-    fun play(tracks: List<ItemSummary>, start: Int = 0, shuffled: Boolean = false, albums: List<ItemSummary> = emptyList()) {
+    fun play(tracks: List<ItemSummary>, start: Int = 0, shuffled: Boolean = false, albums: List<ItemSummary> = emptyList(), at: Double? = null) {
         if (tracks.isEmpty()) return
         // Signed out by the server, downloaded tracks still play.
         client = model.client ?: if (tracks.any { model.downloads.isDownloaded(it.id) }) null else return
+        trackStart = if (shuffled) null else at
         original = tracks
         albumTitles = albums.associate { it.id to it.title }
         isShuffled = shuffled
@@ -313,8 +315,13 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
 
     // Sessions
 
+    /** Where the next track to start begins, once: see [play]'s `at`. */
+    private var trackStart: Double? = null
+
     private fun startCurrent() {
         val track = current ?: return
+        val startAt = trackStart?.takeIf { it > 0 }
+        trackStart = null
         generation++
         val mine = generation
         endSession()
@@ -323,7 +330,7 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
         if (model.books.current != null) model.books.stop()
         player.stop()
         player.clearMediaItems()
-        position = 0.0
+        position = startAt ?: 0.0
         duration = track.durationSeconds ?: 0.0
         isLoading = true
         errorMessage = null
@@ -331,7 +338,7 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
         AudioService.start(context)
         val download = model.downloads.entry(track.id)?.takeIf { it.isDownloaded }
         val file = download?.let(model.downloads::file)
-        if (download != null && file != null) return startDownloaded(track, download, file)
+        if (download != null && file != null) return startDownloaded(track, download, file, startAt)
         isPlayingOffline = false
         val client = client ?: run {
             isLoading = false
@@ -339,8 +346,9 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
         }
         scope.launch {
             try {
-                // Tracks always start over: a half-heard song isn't resumed the way a film is.
-                val info = client.startPlayback(PlaybackRequest(itemId = track.id, profile = profile, startPositionSeconds = 0.0))
+                // Tracks start over (a half-heard song isn't resumed the way a film is) unless picked up on purpose, from
+                // a music library's hero.
+                val info = client.startPlayback(PlaybackRequest(itemId = track.id, profile = profile, startPositionSeconds = startAt ?: 0.0))
                 if (mine != generation) {
                     runCatching { client.stopPlayback(info.sessionId) } // Skipped past before it arrived.
                     return@launch
@@ -361,7 +369,7 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
                     )
                     .apply { if (info.method == PlaybackMethod.Transcode) setMimeType(MimeTypes.APPLICATION_M3U8) }
                     .build()
-                player.setMediaItem(item)
+                if (startAt != null && info.startPositionSeconds > 0) player.setMediaItem(item, (info.startPositionSeconds * 1000).toLong()) else player.setMediaItem(item)
                 player.setWakeMode(C.WAKE_MODE_NETWORK)
                 player.prepare()
                 player.play()
@@ -377,8 +385,8 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
         }
     }
 
-    /** Downloaded: its file and its saved cover, no session (and no connection needed). Tracks always start over. */
-    private fun startDownloaded(track: ItemSummary, download: LocalDownload, file: File) {
+    /** Downloaded: its file and its saved cover, no session (and no connection needed). From [startAt], or the start. */
+    private fun startDownloaded(track: ItemSummary, download: LocalDownload, file: File, startAt: Double?) {
         isPlayingOffline = true
         if (download.durationSeconds > 0) duration = download.durationSeconds
         val item = MediaItem.Builder()
@@ -394,7 +402,7 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
                     .build(),
             )
             .build()
-        player.setMediaItem(item)
+        if (startAt != null) player.setMediaItem(item, (startAt * 1000).toLong()) else player.setMediaItem(item)
         // The phone's own copy: no Wi-Fi to keep awake.
         player.setWakeMode(C.WAKE_MODE_LOCAL)
         player.prepare()

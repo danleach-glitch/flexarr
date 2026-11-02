@@ -114,6 +114,8 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
             e.HasOne(i => i.Parent).WithMany(i => i.Children).HasForeignKey(i => i.ParentId).OnDelete(DeleteBehavior.Cascade);
             e.HasMany(i => i.Files).WithOne(f => f.MediaItem).HasForeignKey(f => f.MediaItemId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(i => new { i.LibraryId, i.ParentId, i.SortTitle });
+            // A music library's albums (they all have a parent, so the index above doesn't narrow to them).
+            e.HasIndex(i => new { i.LibraryId, i.Kind, i.SortTitle });
             e.HasIndex(i => i.Path);
             e.HasIndex(i => i.AddedAt);
             // Coming soon, requests, notifications and watch history all find titles by these.

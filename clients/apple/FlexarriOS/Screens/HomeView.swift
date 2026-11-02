@@ -255,8 +255,24 @@ struct HomeHero: View {
                 .mask(LinearGradient(stops: [.init(color: .black, location: 0.5), .init(color: .clear, location: 1)], startPoint: .top, endPoint: .bottom))
 
             VStack(alignment: .leading, spacing: 12) {
-                TitleArt(item: item, maxWidth: 280, maxHeight: 110, fontSize: 52)
-                FactsLine(facts: item.facts(scores: !model.isKids), scores: model.isKids ? nil : item.scores)
+                if item.kind == .album {
+                    // An album's slide: its artist above it, since the backdrop is theirs.
+                    VStack(alignment: .leading, spacing: 2) {
+                        if let artist = item.artistName {
+                            Text(artist)
+                                .font(.headline)
+                                .foregroundStyle(Color.screen.opacity(0.85))
+                        }
+                        Text(item.title)
+                            .font(.marquee(44, weight: .black))
+                            .foregroundStyle(Color.screen)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.6)
+                    }
+                } else {
+                    TitleArt(item: item, maxWidth: 280, maxHeight: 110, fontSize: 52)
+                }
+                FactsLine(facts: item.facts(scores: !model.isKids && !item.kind.isMusic), scores: model.isKids || item.kind.isMusic ? nil : item.scores)
                 if let overview = overviews[item.id] ?? nil {
                     Text(overview)
                         .font(.subheadline)
@@ -267,11 +283,22 @@ struct HomeHero: View {
                 HStack(spacing: 10) {
                     let resume = resuming(item)
                     Button {
-                        if let resume { model.play(resume) } else { Task { await model.playBest(item, router: router) } }
+                        switch item.kind {
+                        // A music library's hero: an album carries on from its resume track, an artist plays shuffled.
+                        case .album: Task { await model.playAlbum(item, resuming: resume, router: router) }
+                        case .artist: Task { await model.playArtist(item, radio: false, router: router) }
+                        default: if let resume { model.play(resume) } else { Task { await model.playBest(item, router: router) } }
+                        }
                     } label: {
-                        Label(resume != nil || item.isResumable ? "Resume" : "Play", systemImage: "play.fill")
+                        Label(resume != nil || item.isResumable ? "Resume" : "Play", systemImage: Symbol.play)
                     }
                     .buttonStyle(ActionButtonStyle(ambient: item.ambientColor, prominent: true))
+                    if item.kind == .artist {
+                        Button { Task { await model.playArtist(item, radio: true, router: router) } } label: {
+                            Label("Radio", systemImage: Symbol.radio)
+                        }
+                        .buttonStyle(ActionButtonStyle(ambient: item.glowColor))
+                    }
                     Button { router.push(.item(item)) } label: {
                         Label("More info", systemImage: "info.circle")
                     }
@@ -317,7 +344,7 @@ struct HomeRowView: View {
         VStack(alignment: .leading, spacing: 10) {
             SectionHeading(title: row.title, action: row.style == .live ? { router.push(.liveTv) }
                 : row.link == "/watchlist" ? { router.push(.watchlist) }
-                : linkedLibrary.map { link in { router.push(.library(link.library, link.sort, genre: link.genre)) } })
+                : linkedLibrary.map { route in { router.push(route) } })
             ScrollView(.horizontal) {
                 LazyHStack(alignment: .top, spacing: row.style == .top10 ? 6 : Layout.rowSpacing) {
                     // A playlists row carries playlists rather than items.
@@ -355,7 +382,7 @@ struct HomeRowView: View {
 
     /// Rows link to "/library/{id}?sort=added" (a library's Browse rows to "?view=all&sort=added" or "&genre=Drama");
     /// map that to a library destination. One with a sort or genre opens the library's titles rather than its Browse.
-    private var linkedLibrary: (library: Library, sort: LibrarySort, genre: String?)? {
+    private var linkedLibrary: Route? {
         guard let link = row.link, let components = URLComponents(string: link),
               components.path.hasPrefix("/library/") else { return nil }
         let id = String(components.path.dropFirst("/library/".count))
@@ -363,7 +390,11 @@ struct HomeRowView: View {
         let query = components.queryItems ?? []
         let sort = query.first(where: { $0.name == "sort" })?.value.flatMap(LibrarySort.init(rawValue:)) ?? .title
         let genre = query.first(where: { $0.name == "genre" })?.value.flatMap { $0.isEmpty ? nil : $0 }
-        return (library, sort, genre)
+        // A music library's albums (New albums, from 0.59); its other links are its artists.
+        if library.type == .music, genre == nil, query.contains(where: { $0.name == "view" && $0.value == "albums" }) {
+            return .albums(library, sort)
+        }
+        return .library(library, sort, genre: genre)
     }
 }
 

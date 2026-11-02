@@ -303,9 +303,12 @@ final class MusicPlayer {
 
     /// Replaces the queue with `tracks` and starts the one at `start`; with `shuffled`, a fresh order starts from its
     /// first track instead. `albums` lends the tracks their album names for Now Playing.
-    func play(_ tracks: [ItemSummary], from start: Int = 0, shuffled: Bool = false, albums: [ItemSummary] = [], client: FlexarrClient) {
+    /// `at` starts the first track part way in: a track left half way, picked up from a music library's hero.
+    func play(_ tracks: [ItemSummary], from start: Int = 0, shuffled: Bool = false, albums: [ItemSummary] = [], at position: Double? = nil,
+              client: FlexarrClient) {
         guard !tracks.isEmpty else { return }
         self.client = client
+        trackStart = shuffled ? nil : position
         original = tracks
         albumTitles = Dictionary(albums.map { ($0.id, $0.title) }, uniquingKeysWith: { first, _ in first })
         isShuffled = shuffled
@@ -657,8 +660,13 @@ final class MusicPlayer {
 
     // MARK: Sessions
 
+    /// Where the next track to start begins, once: see `play(_:from:shuffled:albums:at:client:)`.
+    private var trackStart: Double?
+
     private func startCurrent() {
         guard let track = current else { return }
+        let startAt = trackStart.flatMap { $0 > 0 ? $0 : nil }
+        trackStart = nil
         generation += 1
         let mine = generation
         endSession()
@@ -685,6 +693,7 @@ final class MusicPlayer {
             artwork = offlineLibrary?.localArtwork(for: track.id)
             attach(item(url: file))
             if isPodcast, let resume = offlineLibrary?.resumePosition(for: track.id), resume > 0 { seek(to: resume) }
+            if !isPodcast, let startAt { seek(to: startAt) }
             // Played from the phone, so the server isn't asked for it: tell it the episode has left Up Next (when it can).
             if isPodcast, let client { Task { try? await client.removeFromUpNext(track.id) } }
             player.play()
@@ -702,9 +711,10 @@ final class MusicPlayer {
         }
         Task {
             do {
-                // Tracks always start over: a half-heard song isn't resumed the way a film is. Podcasts are.
+                // Tracks start over (a half-heard song isn't resumed the way a film is) unless picked up on purpose,
+                // from a music library's hero. Podcasts are resumed.
                 let podcast = track.kind == .podcastEpisode
-                let request = PlaybackRequest(itemId: track.id, profile: Self.profile, startPositionSeconds: podcast ? nil : 0)
+                let request = PlaybackRequest(itemId: track.id, profile: Self.profile, startPositionSeconds: podcast ? nil : startAt ?? 0)
                 let info = try await client.startPlayback(request)
                 guard mine == generation else {
                     try? await client.stopPlayback(sessionId: info.sessionId) // Skipped past before it arrived.
@@ -717,7 +727,7 @@ final class MusicPlayer {
                 if info.durationSeconds > 0 { duration = info.durationSeconds }
                 lastReport = Date()
                 attach(item(url: url, type: info.method == .directPlay ? Self.audioType(of: info.audioTracks.first?.codec) : nil))
-                if podcast, info.startPositionSeconds > 0 { seek(to: info.startPositionSeconds) }
+                if podcast || startAt != nil, info.startPositionSeconds > 0 { seek(to: info.startPositionSeconds) }
                 player.play()
                 if podcast { onPodcastStarted?() }
                 isLoading = false

@@ -34,8 +34,8 @@ struct SettingsView: View {
                 PlaybackSettingsView()
             }
             .padding(.top, model.currentProfile == nil ? 0 : 36)
-            SettingsLinkRow(title: "Libraries", symbol: "rectangle.stack", value: libraryOpensOn == .browse ? "Open on Browse" : "Open on All titles",
-                            help: "Whether a library opens on its highlights (Browse) or on every title, A to Z.") {
+            SettingsLinkRow(title: "Libraries", symbol: "rectangle.stack", value: "Open on \(libraryOpensOn.label)",
+                            help: "What each library opens on: its highlights (Browse), everything, or its genres. Music has its own.") {
                 LibrarySettingsView()
             }
             if let first = TabBarEntry.ordered(model: model, stored: tabBarOrder).first {

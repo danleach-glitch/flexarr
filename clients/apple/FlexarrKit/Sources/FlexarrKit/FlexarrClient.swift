@@ -241,6 +241,44 @@ public struct FlexarrClient: Sendable {
         try await get("libraries/\(libraryId)/genres")
     }
 
+    /// A music library's albums (its items are its artists), A–Z, newest added or by year, optionally in one genre
+    /// (the album's own, or its artist's when it has none). Nil from servers before the endpoint (0.59), which answer
+    /// with their web page (or, once they 404 unknown routes, 404).
+    public func libraryAlbums(_ libraryId: String, sort: LibrarySort = .title, genre: String? = nil,
+                              skip: Int = 0, take: Int = 60) async throws -> Paged<ItemSummary>? {
+        var query: [URLQueryItem] = []
+        if sort != .title { query.append(.init(name: "sort", value: sort.rawValue)) }
+        if let genre, !genre.isEmpty { query.append(.init(name: "genre", value: genre)) }
+        if skip > 0 { query.append(.init(name: "skip", value: String(skip))) }
+        query.append(.init(name: "take", value: String(take)))
+        do {
+            return try await get("libraries/\(libraryId)/albums", query: query)
+        } catch FlexarrClientError.http(status: 404, _), FlexarrClientError.unexpectedResponse {
+            return nil
+        }
+    }
+
+    /// A music library's genres counted by album, with an artist's fanart. Nil from servers before 0.59.
+    public func libraryAlbumGenres(_ libraryId: String) async throws -> [GenreCount]? {
+        do {
+            return try await get("libraries/\(libraryId)/album-genres")
+        } catch FlexarrClientError.http(status: 404, _), FlexarrClientError.unexpectedResponse {
+            return nil
+        }
+    }
+
+    /// Up to 200 of a genre's tracks in a music library: by artist, album and track, or shuffled by the server.
+    public func genreTracks(_ libraryId: String, genre: String, shuffled: Bool = false) async throws -> [ItemSummary] {
+        var query: [URLQueryItem] = [.init(name: "genre", value: genre)]
+        if shuffled { query.append(.init(name: "shuffle", value: "true")) }
+        return try await get("libraries/\(libraryId)/tracks", query: query)
+    }
+
+    /// Artist radio: about fifty tracks seeded from an artist (or an album's artist), theirs and others' in their genres.
+    public func radio(_ id: String) async throws -> [ItemSummary] {
+        try await get("items/\(id)/radio")
+    }
+
     /// Home. `listening` is what this app can play from the Continue watching row besides films and episodes: with
     /// it, a profile that has them there gets its books and podcast episodes in progress in that row (servers before
     /// 0.58 ignore it).
@@ -255,7 +293,8 @@ public struct FlexarrClient: Sendable {
         try await get("upcoming", query: [.init(name: "days", value: String(days))])
     }
 
-    /// A library's own home page: a hero and rows of just its titles (no hero for music).
+    /// A library's own home page: a hero and rows of just its titles. Music has a hero from 0.59: the album played last
+    /// (its `resumes` entry is the track to carry on from), artists and new albums.
     public func libraryBrowse(_ libraryId: String) async throws -> Home {
         try await get("libraries/\(libraryId)/browse")
     }

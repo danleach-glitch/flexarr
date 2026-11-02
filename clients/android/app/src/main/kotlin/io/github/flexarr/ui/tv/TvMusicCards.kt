@@ -18,6 +18,7 @@ import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.automirrored.filled.VolumeDown
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -140,6 +141,23 @@ fun TvArtistCard(item: ItemSummary, onClick: () -> Unit, modifier: Modifier = Mo
                 Text(if (item.childCount == 1) "1 album" else "${item.childCount} albums", fontSize = 11.5.sp, color = Flexarr.usher, maxLines = 1)
             }
         }
+    }
+}
+
+/** The See all at the end of a row of artists: round like the artists, and said as "See all artists". */
+@Composable
+fun TvArtistsSeeAllCard(onClick: () -> Unit, modifier: Modifier = Modifier, size: Dp = 110.dp) {
+    Column(modifier.width(size + 15.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        TvArtworkButton(ambient = Flexarr.silver, onClick = onClick, shape = CircleShape, contentDescription = "See all artists", artwork = {
+            Column(
+                Modifier.size(size).clip(CircleShape),
+                verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Icon(Icons.Outlined.GridView, contentDescription = null, tint = Flexarr.screen.copy(alpha = 0.85f), modifier = Modifier.size(22.dp))
+                Text("See all", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen.copy(alpha = 0.85f))
+            }
+        })
     }
 }
 

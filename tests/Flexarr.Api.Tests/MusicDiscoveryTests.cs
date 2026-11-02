@@ -24,6 +24,7 @@ public class MusicDiscoveryTests(FlexarrApiFactory factory) : IClassFixture<Flex
         var home = await Client().GetFromJsonAsync<HomeDto>(Api($"/libraries/{music.Library}/browse"), Json);
 
         Assert.NotNull(home);
+        // Nothing here has a picture, so there's no hero: the rows stand on their own.
         Assert.Empty(home.Featured);
         Assert.Equal(["music-recent", "music-top", "music-artists", "recent"], home.Rows.Select(r => r.Id));
 

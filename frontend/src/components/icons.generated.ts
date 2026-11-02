@@ -1,6 +1,6 @@
 // Generated from design/tokens.json by `make tokens`. Don't edit; change the JSON.
 
-import { Antenna, Book, Bookmark, Calendar, CaptionsBubble, Check, CheckCircleFilled, DownloadCircle, Film, Folder, Gear, Home, LayoutGrid, Microphone, More, MusicNote, Play, PlayStack, Reset, Search, Shuffle, Sparkles, Stack, Tv, Waveform } from './icons'
+import { Antenna, Book, Bookmark, Calendar, CaptionsBubble, Check, CheckCircleFilled, DownloadCircle, Film, Folder, Gear, Home, LayoutGrid, Microphone, More, MusicNote, Play, PlayStack, Radio, Reset, Search, Shuffle, Sparkles, Stack, Tv, Waveform } from './icons'
 
 /** The icon for each action and place, the same idea on every client (design/tokens.json › icons). */
 export const icon = {
@@ -8,8 +8,10 @@ export const icon = {
   play: Play,
   /** Start over */
   startOver: Reset,
-  /** Shuffle a show */
+  /** Shuffle a show, an artist or a genre */
   shuffle: Shuffle,
+  /** Artist radio */
+  radio: Radio,
   /** Trailer */
   trailer: Film,
   /** Mark as watched */

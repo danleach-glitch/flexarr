@@ -23,7 +23,8 @@ import { PlaylistCard, PlaylistCover } from '../components/PlaylistCover'
 import { useAudioPlayer, useMusicPage } from '../hooks/audioPlayerContext'
 import { useApi } from '../hooks/useApi'
 import { formatClock, formatDuration } from '../lib/format'
-import { MoreButton, queueActions, shuffled } from './MusicPages'
+import { MoreButton, queueActions } from './MusicPages'
+import { shuffled } from '../lib/shuffle'
 
 /** Every playlist of the profile's, most recently changed first, and a way to start another. */
 export function PlaylistsPage() {

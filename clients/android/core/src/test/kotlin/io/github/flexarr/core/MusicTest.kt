@@ -167,4 +167,154 @@ class MusicTest {
             assertEquals(fixture<List<ItemSummary>>("tracks"), mix.tracks)
         }
     }
+
+    @Test
+    fun `a library's albums are paged, sorted and filtered like its titles`() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            val tracks = text("tracks")
+            server.enqueue(json("""{"total":41,"items":$tracks}"""))
+            val page = FlexarrClient(server.url("/")).libraryAlbums("lib", LibrarySort.Year, genre = "Rock", skip = 60, take = 60)!!
+            val url = server.takeRequest().url
+            assertEquals("/api/v1/libraries/lib/albums", url.encodedPath)
+            assertEquals("year", url.queryParameter("sort"))
+            assertEquals("Rock", url.queryParameter("genre"))
+            assertEquals("60", url.queryParameter("skip"))
+            assertEquals(41, page.total)
+            assertEquals(3, page.items.size)
+        }
+    }
+
+    /** What a server answers for a path it doesn't know: the web app's page. */
+    private fun webPage() = MockResponse.Builder().code(200).addHeader("Content-Type", "text/html; charset=utf-8").body("<!doctype html><html></html>").build()
+
+    @Test
+    fun `a server before albums has no Albums or Genres`() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            // 0.58 answers an unknown path with the web app's page.
+            server.enqueue(webPage())
+            server.enqueue(webPage())
+            val client = FlexarrClient(server.url("/"))
+            assertNull(client.libraryAlbums("lib"))
+            assertNull(client.libraryAlbumGenres("lib"))
+            assertEquals(listOf(MusicView.Browse, MusicView.Artists), MusicView.offered(albums = false))
+            assertEquals(MusicView.entries, MusicView.offered(albums = true))
+        }
+    }
+
+    @Test
+    fun `a 404 for albums reads as a server without them too`() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(MockResponse.Builder().code(404).build())
+            server.enqueue(MockResponse.Builder().code(404).build())
+            val client = FlexarrClient(server.url("/"))
+            assertNull(client.libraryAlbums("lib"))
+            assertNull(client.libraryAlbumGenres("lib"))
+        }
+    }
+
+    private fun status(version: String) = json("""{"appName":"Flexarr","version":"$version"}""")
+
+    @Test
+    fun `albums are offered by the server's version, without asking for one`() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(status("0.58.0"))
+            server.enqueue(status("0.59.0-dev.1a2b3c4"))
+            server.enqueue(status("0.59.0+d4c892c6"))
+            val client = FlexarrClient(server.url("/"))
+            assertEquals(false, client.offersAlbums("lib"))
+            assertEquals(true, client.offersAlbums("lib"))
+            assertEquals(true, client.offersAlbums("lib"))
+            assertEquals(3, server.requestCount)
+        }
+    }
+
+    @Test
+    fun `a version that doesn't read falls back to asking for one album`() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(status("custom"))
+            server.enqueue(json("""{"total":3,"items":[]}"""))
+            server.enqueue(MockResponse.Builder().code(500).build())
+            server.enqueue(webPage())
+            val client = FlexarrClient(server.url("/"))
+            assertEquals(true, client.offersAlbums("lib"))
+            server.takeRequest()
+            val probe = server.takeRequest().url
+            assertEquals("/api/v1/libraries/lib/albums", probe.encodedPath)
+            assertEquals("1", probe.queryParameter("take"))
+            assertEquals(false, client.offersAlbums("lib"))
+        }
+    }
+
+    @Test
+    fun `album genres count albums and carry an artist's fanart`() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(json("""[{"name":"Rock","count":12,"backdrop":"/api/v1/images/items/a/backdrop"},{"name":"Jazz","count":1}]"""))
+            val genres = FlexarrClient(server.url("/")).libraryAlbumGenres("lib")!!
+            assertEquals("/api/v1/libraries/lib/album-genres", server.takeRequest().url.encodedPath)
+            assertEquals(listOf("Rock", "Jazz"), genres.map { it.name })
+            assertNull(genres[1].backdrop)
+            assertEquals("12 albums", albumCount(genres[0].count))
+            assertEquals("1 album", albumCount(genres[1].count))
+        }
+    }
+
+    @Test
+    fun `a genre's tracks are asked for shuffled only when shuffling, and radio by artist`() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            val tracks = text("tracks")
+            repeat(3) { server.enqueue(json(tracks)) }
+            val client = FlexarrClient(server.url("/"))
+            client.genreTracks("lib", "Hip Hop")
+            client.genreTracks("lib", "Hip Hop", shuffled = true)
+            assertEquals(3, client.radio("artist").size)
+            val plain = server.takeRequest().url
+            assertEquals("/api/v1/libraries/lib/tracks", plain.encodedPath)
+            assertEquals("Hip Hop", plain.queryParameter("genre"))
+            assertNull(plain.queryParameter("shuffle"))
+            assertEquals("true", server.takeRequest().url.queryParameter("shuffle"))
+            assertEquals("/api/v1/items/artist/radio", server.takeRequest().url.encodedPath)
+        }
+    }
+
+    @Test
+    fun `a music library's Browse decodes its hero, bios and the tracks albums carry on from`() {
+        val tracks = text("tracks")
+        val captured = FlexarrClient.json.parseToJsonElement(tracks) as kotlinx.serialization.json.JsonArray
+        val home = FlexarrClient.json.decodeFromString(
+            serializer<Home>(),
+            """{"featured":$tracks,"overviews":{"x":"A band from London."},"rows":[],"resumes":{"album":${captured[1]}}}""",
+        )
+        assertEquals(3, home.featured.size)
+        assertEquals("A band from London.", home.overviews["x"])
+        assertEquals(fixture<List<ItemSummary>>("tracks")[1], home.resumes!!["album"])
+    }
+
+    @Test
+    fun `an album resumes at the track it was left on, part way in only when half played`() {
+        val tracks = fixture<List<ItemSummary>>("tracks")
+        val second = tracks[1]
+        assertEquals(AlbumStart(0, null), albumStart(tracks, null))
+        val halfWay = second.copy(userData = second.userData.copy(positionSeconds = 93.5, watched = false))
+        assertEquals(AlbumStart(1, 93.5), albumStart(tracks, halfWay))
+        // Finished, or not started: that track from its beginning.
+        assertEquals(AlbumStart(1, null), albumStart(tracks, halfWay.copy(userData = halfWay.userData.copy(watched = true))))
+        assertEquals(AlbumStart(1, null), albumStart(tracks, halfWay.copy(userData = halfWay.userData.copy(positionSeconds = 0.0))))
+        // A track no longer on the album: from the top.
+        assertEquals(AlbumStart(0, null), albumStart(tracks, halfWay.copy(id = "gone")))
+    }
+
+    @Test
+    fun `artist and album counts read as the other apps do`() {
+        assertEquals("1 artist", artistCount(1))
+        assertEquals("1,204 artists", artistCount(1204))
+        assertEquals(listOf(LibrarySort.Title, LibrarySort.Added), MusicView.Artists.sorts)
+        assertEquals(listOf(LibrarySort.Title, LibrarySort.Added, LibrarySort.Year), MusicView.Albums.sorts)
+    }
 }

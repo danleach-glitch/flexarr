@@ -410,7 +410,9 @@ fun LibraryScreen(model: AppModel, libraryId: String, initialSort: LibrarySort, 
             when {
                 shows == null -> StatusView()
                 shows == Showing.Browse -> LibraryBrowse(model, browse, browseState, onFeatured = { featuredIndex = it })
-                shows == Showing.Genres -> LibraryGenreGrid(loadedLibrary!!, genreList)
+                shows == Showing.Genres -> LibraryGenreGrid(genreList, caption = { genreCaption(loadedLibrary!!, it) }) {
+                    navigator.openLibrary(libraryId, LibrarySort.Title, it.name)
+                }
                 failed != null -> StatusView(failed, retry = { attempt++ })
                 items.isEmpty() && !loading -> StatusView(genre?.let { "No $it titles here." } ?: "Nothing in this library yet.", empty = true)
                 else -> PullToRefreshBox(
@@ -500,10 +502,10 @@ private fun SortAndFilter(sort: LibrarySort, onSort: (LibrarySort) -> Unit, genr
     }
 }
 
-/** Browse, "All movies" (or shows, or folders) and Genres, at the top of a library. */
+/** Browse, "All movies" (or shows, or folders) and Genres, at the top of a library; a music library's four views. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ShowingSwitch(choices: List<Pair<String, Showing>>, showing: Showing, onChange: (Showing) -> Unit) {
+internal fun <T> ShowingSwitch(choices: List<Pair<String, T>>, showing: T, onChange: (T) -> Unit) {
     SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = Edge).padding(bottom = 12.dp)) {
         choices.forEachIndexed { index, (label, value) ->
             SegmentedButton(
@@ -517,12 +519,14 @@ private fun ShowingSwitch(choices: List<Pair<String, Showing>>, showing: Showing
     }
 }
 
-/** A film or TV library's genres as tiles: a backdrop from one of its titles, the name and how many there are. */
+/**
+ * A library's genres as tiles: a backdrop from one of its titles (a music library's: an artist's fanart), the name and
+ * how many there are ([caption]). [onOpen] opens a genre's titles.
+ */
 @Composable
-private fun LibraryGenreGrid(library: Library, genres: List<GenreCount>) {
-    val navigator = LocalNavigator.current
+internal fun LibraryGenreGrid(genres: List<GenreCount>, caption: (GenreCount) -> String, music: Boolean = false, onOpen: (GenreCount) -> Unit) {
     if (genres.isEmpty()) {
-        StatusView("No genres here yet. They come with each title’s details once a scan has found them.", empty = true)
+        StatusView("No genres here yet. They come with each ${if (music) "album" else "title"}’s details once a scan has found them.", empty = true)
         return
     }
     LazyVerticalGrid(
@@ -533,7 +537,7 @@ private fun LibraryGenreGrid(library: Library, genres: List<GenreCount>) {
         modifier = Modifier.fillMaxSize(),
     ) {
         items(genres, key = { it.name }) { genre ->
-            GenreTile(genre, genreCaption(library, genre)) { navigator.openLibrary(library.id, LibrarySort.Title, genre.name) }
+            GenreTile(genre, caption(genre)) { onOpen(genre) }
         }
     }
 }

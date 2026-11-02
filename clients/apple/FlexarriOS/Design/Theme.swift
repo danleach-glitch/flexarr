@@ -72,6 +72,8 @@ struct SectionHeading: View {
     let title: String
     var actionTitle = "See all"
     var action: (() -> Void)?
+    /// What VoiceOver says for the action, when "See all" alone wouldn't say what of.
+    var actionLabel: String?
 
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
@@ -83,6 +85,7 @@ struct SectionHeading: View {
                 Button(actionTitle, action: action)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Color.usher)
+                    .accessibilityLabel(actionLabel ?? actionTitle)
             }
         }
         .padding(.horizontal, Layout.edge)

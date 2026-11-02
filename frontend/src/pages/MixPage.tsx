@@ -8,7 +8,8 @@ import { PlaylistCover } from '../components/PlaylistCover'
 import { useAudioPlayer, useMusicPage } from '../hooks/audioPlayerContext'
 import { useApi } from '../hooks/useApi'
 import { formatClock, formatDuration } from '../lib/format'
-import { MoreButton, queueActions, shuffled } from './MusicPages'
+import { MoreButton, queueActions } from './MusicPages'
+import { shuffled } from '../lib/shuffle'
 
 /**
  * One "Made for you" mix: its cover mosaic, name and what it's made of, Play and Shuffle, and today's tracks in order.
