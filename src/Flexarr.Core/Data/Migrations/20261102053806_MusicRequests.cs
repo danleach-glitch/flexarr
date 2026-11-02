@@ -31,6 +31,12 @@ namespace Flexarr.Core.Data.Migrations
                 maxLength: 500,
                 nullable: true);
 
+            migrationBuilder.AddColumn<DateTime>(
+                name: "LastAnsweredAt",
+                table: "MediaRequests",
+                type: "TEXT",
+                nullable: true);
+
             migrationBuilder.AddColumn<string>(
                 name: "MusicBrainzId",
                 table: "MediaRequests",
@@ -75,6 +81,10 @@ namespace Flexarr.Core.Data.Migrations
 
             migrationBuilder.DropColumn(
                 name: "ArtistName",
+                table: "MediaRequests");
+
+            migrationBuilder.DropColumn(
+                name: "LastAnsweredAt",
                 table: "MediaRequests");
 
             migrationBuilder.DropColumn(

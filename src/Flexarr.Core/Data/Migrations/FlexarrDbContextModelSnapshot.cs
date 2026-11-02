@@ -1750,6 +1750,9 @@ namespace Flexarr.Core.Data.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTime?>("LastAnsweredAt")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("MusicBrainzId")
                         .HasMaxLength(64)
                         .HasColumnType("TEXT");

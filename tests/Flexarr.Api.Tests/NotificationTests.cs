@@ -375,14 +375,55 @@ public sealed class NotificationTests : IAsyncLifetime
 
         Assert.Empty(await RunAtAsync(_clock.Now.AddMinutes(1)));
 
-        await SeedAsync(db => db.MediaItems.Add(new MediaItem
-        {
-            LibraryId = library.Id, Kind = MediaKind.Album, Title = "moisturizer", SortTitle = "moisturizer", AddedAt = _clock.Now.AddMinutes(2), ParentId = artist.Id,
-        }));
+        // An old album of theirs arriving now (someone else's request) isn't news; a new one is, and so is the next.
+        await SeedAsync(db => db.MediaItems.AddRange(
+            new MediaItem
+            {
+                LibraryId = library.Id, Kind = MediaKind.Album, Title = "Chaise Longue", SortTitle = "chaise longue", AddedAt = _clock.Now.AddMinutes(2), ParentId = artist.Id,
+                Year = 2021, ReleaseDate = new DateOnly(2021, 6, 15),
+            },
+            new MediaItem
+            {
+                LibraryId = library.Id, Kind = MediaKind.Album, Title = "moisturizer", SortTitle = "moisturizer", AddedAt = _clock.Now.AddMinutes(2), ParentId = artist.Id,
+                Year = 2026, ReleaseDate = DateOnly.FromDateTime(_clock.Now),
+            }));
         var sent = Assert.Single(await RunAtAsync(_clock.Now.AddMinutes(6)));
 
         Assert.Equal("New from Wet Leg", sent.GetProperty("t").GetString());
         Assert.Equal("moisturizer is in the library.", sent.GetProperty("b").GetString());
+
+        await SeedAsync(db => db.MediaItems.Add(new MediaItem
+        {
+            LibraryId = library.Id, Kind = MediaKind.Album, Title = "Third", SortTitle = "third", AddedAt = _clock.Now.AddMinutes(10), ParentId = artist.Id,
+            Year = 2026, ReleaseDate = DateOnly.FromDateTime(_clock.Now),
+        }));
+        var next = Assert.Single(await RunAtAsync(_clock.Now.AddMinutes(16)));
+
+        Assert.Equal("Third is in the library.", next.GetProperty("b").GetString());
+        using var scope = _server.Services.CreateScope();
+        Assert.Null((await scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().MediaRequests.SingleAsync()).FulfilledAt);
+    }
+
+    [Fact]
+    public async Task AnAlbumInALibraryHiddenFromWhoAsked_DoesntAnswerTheirRequest()
+    {
+        var (_, phone) = await PhoneAsync();
+        await RegisterAsync(phone);
+        await StartAsync();
+        var library = OldLibrary(LibraryType.Music);
+        var (artist, album) = Album(library, "Wet Leg", "moisturizer", _clock.Now.AddMinutes(1));
+        await SeedAsync(db =>
+        {
+            db.Libraries.Add(library);
+            db.MediaItems.AddRange(artist, album);
+            db.Profiles.Single(p => p.Id == PlaybackState.DefaultUser).HiddenLibraryIds = [library.Id];
+            db.MediaRequests.Add(new MediaRequest
+            {
+                ProfileId = PlaybackState.DefaultUser, Kind = MediaKind.Album, MusicBrainzId = "rg", Title = "moisturizer", ArtistName = "Wet Leg", RequestedAt = _clock.Now.AddDays(-1),
+            });
+        });
+
+        Assert.Empty(await RunAtAsync(_clock.Now.AddMinutes(5)));
     }
 
     [Fact]

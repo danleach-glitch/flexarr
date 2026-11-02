@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Flexarr.Core.Data.Migrations
 {
     [DbContext(typeof(FlexarrDbContext))]
-    [Migration("20261102051200_MusicRequests")]
+    [Migration("20261102053806_MusicRequests")]
     partial class MusicRequests
     {
         /// <inheritdoc />
@@ -1749,6 +1749,9 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<string>("Kind")
                         .IsRequired()
                         .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("LastAnsweredAt")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("MusicBrainzId")

@@ -84,8 +84,11 @@ public sealed class MediaRequest
 
     public DateTime RequestedAt { get; set; } = DateTime.UtcNow;
 
-    /// <summary>When it arrived (and the profile was told); null while it's awaited.</summary>
+    /// <summary>When it arrived (and the profile was told); null while it's awaited. A followed artist's never is.</summary>
     public DateTime? FulfilledAt { get; set; }
+
+    /// <summary>A followed artist's: when the profile was last told of a new album, so the next notice is about a later one.</summary>
+    public DateTime? LastAnsweredAt { get; set; }
 }
 
 /// <summary>How far one kind of news has been told, so a restart doesn't tell it again.</summary>
