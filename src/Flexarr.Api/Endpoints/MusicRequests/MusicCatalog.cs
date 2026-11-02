@@ -82,7 +82,8 @@ public sealed class MusicCatalog(IHttpClientFactory httpFactory) : IDisposable
     /// </summary>
     public async Task<MusicBrainzRelease?> ReleaseByBarcodeAsync(string barcode, string? title, CancellationToken ct)
     {
-        var key = $"musicbrainz/barcode/{barcode}";
+        // The title too: it chooses between the releases one barcode can have (a box set and its disc, reissues).
+        var key = $"musicbrainz/barcode/{barcode}/{MusicNames.NormaliseTitle(title)}";
         if (cache.TryGetValue(key, out Barcoded? hit) && hit is not null)
         {
             return hit.Release;
