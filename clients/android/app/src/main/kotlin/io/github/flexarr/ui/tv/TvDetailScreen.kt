@@ -225,6 +225,7 @@ fun TvDetailScreen(model: AppModel, id: String) {
                                     else model.titleState(titleKey("tv", tmdb, season.seasonNumber), if (season.requested) Availability.Requested else Availability.None)
                                 },
                                 canAsk = model.canAskForTitles,
+                                seerrNotAnswering = model.seerrUnreachable,
                                 onRequest = { season ->
                                     loaded.tmdbId?.toIntOrNull()?.let { navigator.requestTitle(model, "tv", it, season.seasonNumber) }
                                 },
