@@ -115,6 +115,7 @@ struct BooksLibraryView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var browse: BooksLibraryModel
     @State private var isVisible = false
+    @State private var featuredIndex = 0
     private let genre: String?
 
     init(library: Library, genre: String? = nil) {
@@ -136,6 +137,11 @@ struct BooksLibraryView: View {
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 24) {
                 if genre == nil { tabs }
+                // Browse's hero (servers from 0.59): books part way through, then the newest.
+                if browse.browse == .shelves, !featuredBooks.isEmpty {
+                    HomeHero(items: featuredBooks, overviews: browse.shelves?.featuredOverviews ?? [:], index: $featuredIndex)
+                        .padding(.bottom, -12)
+                }
                 if let error = browse.error, isEmpty {
                     StatusView(state: .failed(error) { Task { await load() } }).frame(height: 400)
                 } else if isEmpty, !browse.isLoading, browse.loadedAt != nil {
@@ -154,7 +160,8 @@ struct BooksLibraryView: View {
             .padding(.top, 8)
             .padding(.bottom, 24)
         }
-        .background(RoomBackground(ambient: browse.shelves?.continueListening.first?.glowColor, intensity: 0.18))
+        .background(RoomBackground(ambient: (featured ?? browse.shelves?.continueListening.first)?.glowColor, intensity: featured == nil ? 0.18 : 0.28)
+            .animation(.easeInOut(duration: 0.8), value: featured?.id))
         .navigationTitle(genre ?? browse.library.name)
         .toolbar {
             if browse.browse == .all {
@@ -169,6 +176,13 @@ struct BooksLibraryView: View {
         .onChange(of: scenePhase) { _, phase in
             if phase == .active, isVisible, Freshness.isStale(browse.loadedAt) { Task { await load() } }
         }
+    }
+
+    private var featuredBooks: [ItemSummary] { browse.shelves?.featured ?? [] }
+
+    private var featured: ItemSummary? {
+        guard browse.browse == .shelves, !featuredBooks.isEmpty else { return nil }
+        return featuredBooks[featuredIndex % featuredBooks.count]
     }
 
     private var isEmpty: Bool {

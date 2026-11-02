@@ -148,13 +148,17 @@ struct HomeHero: View {
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
-            backdrop
-                .id(item.id)
-                .transition(.opacity)
+            Group {
+                if item.kind == .audiobook { bookBackdrop } else { backdrop }
+            }
+            .id(item.id)
+            .transition(.opacity)
 
             VStack(alignment: .leading, spacing: 26) {
                 VStack(alignment: .leading, spacing: 24) {
-                    if item.kind == .album {
+                    if item.kind == .audiobook {
+                        bookTitle
+                    } else if item.kind == .album {
                         // An album's slide: its artist above it, since the backdrop is theirs.
                         VStack(alignment: .leading, spacing: 8) {
                             if let artist = item.artistName {
@@ -174,12 +178,14 @@ struct HomeHero: View {
                     } else {
                         TitleArt(item: item, maxWidth: 760, maxHeight: 230, fontSize: 110)
                     }
-                    FactsLine(facts: item.facts(scores: !model.isKids && !item.kind.isMusic), scores: model.isKids || item.kind.isMusic ? nil : item.scores)
+                    if item.kind != .audiobook {
+                        FactsLine(facts: item.facts(scores: !model.isKids && !item.kind.isMusic), scores: model.isKids || item.kind.isMusic ? nil : item.scores)
+                    }
                     if let overview = overviews[item.id] ?? nil {
                         Text(overview)
                             .font(.system(size: 27))
                             .foregroundStyle(Color.screen.opacity(0.85))
-                            .lineLimit(2)
+                            .lineLimit(item.kind == .audiobook ? 3 : 2)
                             .lineSpacing(4)
                             .frame(maxWidth: 900, alignment: .leading)
                     }
@@ -189,7 +195,8 @@ struct HomeHero: View {
 
                 HStack(spacing: 28) {
                     Button { play() } label: {
-                        Label(resuming(item) != nil || item.isResumable ? "Resume" : "Play", systemImage: Symbol.play)
+                        Label(playLabel, systemImage: Symbol.play)
+                            .monospacedDigit()
                     }
                     .buttonStyle(ActionButtonStyle(ambient: item.ambientColor, prominent: true))
                     .focused($focusedButton, equals: .play)
@@ -299,6 +306,68 @@ struct HomeHero: View {
         .frame(height: 900, alignment: .top)
     }
 
+    private var playLabel: String {
+        guard item.kind == .audiobook else { return resuming(item) != nil || item.isResumable ? "Resume" : "Play" }
+        // A book picks up from its place, as its page says.
+        let position = model.music.current?.id == item.id ? model.music.position : item.userData.positionSeconds
+        return position > 0 && !item.userData.watched ? "Resume from \(Format.timestamp(position))" : "Play"
+    }
+
+    /// A book's title, author and narrator: it has no clear logo, and the cover beside them is the picture.
+    private var bookTitle: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(item.title)
+                .font(.marquee(84, weight: .black))
+                .kerning(-1)
+                .foregroundStyle(Color.screen)
+                .lineLimit(2)
+                .minimumScaleFactor(0.6)
+            if let authors = item.bookAuthors {
+                Text(authors)
+                    .font(.system(size: 34, weight: .semibold))
+                    .foregroundStyle(Color.screen.opacity(0.9))
+                    .lineLimit(1)
+            }
+            if let narrator = item.book?.narrator {
+                Text("Read by \(narrator)")
+                    .font(.system(size: 25, weight: .medium))
+                    .foregroundStyle(Color.usher)
+                    .lineLimit(1)
+            }
+        }
+        .frame(maxWidth: 1000, alignment: .leading)
+        .modifier(TitleScrim(reach: 460))
+    }
+
+    /// An audiobooks library's slide: a soft blurred wash of the book's cover (a book has no backdrop), and the cover
+    /// itself large on the right.
+    private var bookBackdrop: some View {
+        let cover = model.client?.imageURL(item.artwork.poster, width: 800)
+        return ZStack(alignment: .topTrailing) {
+            RemoteImage(url: cover) {
+                LinearGradient(colors: [item.glowColor.opacity(0.4), Color.room], startPoint: .top, endPoint: .bottom)
+            }
+            .frame(width: 1920, height: 1080)
+            .blur(radius: 90)
+            .scaleEffect(1.3)
+            .opacity(0.7)
+            .frame(width: 1920, height: 1080)
+            .clipped()
+            .overlay {
+                LinearGradient(stops: [.init(color: .room.opacity(0.85), location: 0), .init(color: .room.opacity(0.4), location: 0.45), .init(color: .clear, location: 0.8)],
+                               startPoint: .leading, endPoint: .trailing)
+            }
+            .mask(LinearGradient(stops: [.init(color: .black, location: 0), .init(color: .black, location: 0.55), .init(color: .clear, location: 0.95)],
+                                 startPoint: .top, endPoint: .bottom))
+
+            SquareArtwork(item: item, size: 580)
+                .shadow(color: .black.opacity(0.5), radius: 40, y: 20)
+                .padding(.top, 170)
+                .padding(.trailing, Layout.edge + 60)
+        }
+        .frame(height: 900, alignment: .top)
+    }
+
     private func step(_ delta: Int) {
         withAnimation(.easeInOut(duration: 0.6)) {
             index = (index + delta + items.count) % items.count
@@ -313,6 +382,12 @@ struct HomeHero: View {
             return
         case .artist:
             Task { await model.playArtist(item, radio: false, router: router) }
+            return
+        case .audiobook:
+            // Already the book playing: it carries on, and Now Playing comes up as it does for a book starting.
+            let playing = model.music.current?.id == item.id
+            model.playBook(item)
+            if playing { model.nowPlayingRequests += 1 }
             return
         default:
             break

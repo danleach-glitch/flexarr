@@ -78,15 +78,37 @@ struct BooksLibraryView: View {
     @State private var isLoadingMore = false
     /// Where across a shelf focus last was, so up and down keep to it (see `RowFocus`).
     @State private var column = 0
+    @State private var featuredIndex = 0
     @FocusState private var focusedBook: String?
 
     private static let pageSize = 60
+
+    /// The hero's books (servers from 0.59): part way through, then the newest. None: no hero, the page as before.
+    private var featuredBooks: [ItemSummary] { shelves?.featured ?? [] }
+
+    private var featured: ItemSummary? {
+        featuredBooks.isEmpty ? nil : featuredBooks[featuredIndex % featuredBooks.count]
+    }
+
+    /// Above the hero, under the sidebar's label: the switch on the library's tab, else the library's name.
+    private var heroTop: AnyView {
+        if let view {
+            AnyView(LibraryViewSwitch(library: library, view: view))
+        } else {
+            AnyView(Text(library.name)
+                .font(.marquee(48, weight: .heavy))
+                .foregroundStyle(Color.screen))
+        }
+    }
     private let columns = Array(repeating: GridItem(.fixed(Layout.posterWidth), spacing: Layout.gridSpacing, alignment: .top), count: 6)
 
     var body: some View {
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 20) {
-                if let view {
+                if !featuredBooks.isEmpty {
+                    HomeHero(items: featuredBooks, overviews: shelves?.featuredOverviews ?? [:], index: $featuredIndex, top: heroTop)
+                        .padding(.horizontal, -Layout.edge)
+                } else if let view {
                     LibraryViewSwitch(library: library, view: view)
                         .focusSection()
                         .padding(.top, LibraryViewSwitch.topInset)
@@ -131,8 +153,10 @@ struct BooksLibraryView: View {
         // Layout.edge from the screen's edge, as on the music and film pages (whose full-width grids reach past the
         // safe area): without this the screen's safe area comes on top of it. On the tab, the switch sits where it does
         // on the film pages.
-        .ignoresSafeArea(edges: view == nil ? .horizontal : [.top, .horizontal])
-        .background(RoomBackground(ambient: shelves?.continueListening.first?.glowColor ?? shelves?.recentlyAdded.first?.glowColor ?? books.first?.glowColor, intensity: 0.18))
+        .ignoresSafeArea(edges: view == nil && featuredBooks.isEmpty ? .horizontal : [.top, .horizontal])
+        .background(RoomBackground(ambient: featured?.glowColor ?? shelves?.continueListening.first?.glowColor ?? shelves?.recentlyAdded.first?.glowColor ?? books.first?.glowColor,
+                                   intensity: featured == nil ? 0.18 : 0.28)
+            .animation(.easeInOut(duration: 0.8), value: featured?.id))
         .task(id: model.refreshToken) {
             guard loadedToken != model.refreshToken || Freshness.isStale(loadedAt) else { return }
             await load()
@@ -146,8 +170,9 @@ struct BooksLibraryView: View {
 
     @ViewBuilder
     private func shelf(shelf: BookShelf, _ shelves: BookShelves) -> some View {
-        // The top row takes focus from the switch as the tab opens, as a film library's first title does.
-        let first = view != nil && shelf == shelves.shownShelves.first
+        // The top row takes focus from the switch as the tab opens, as a film library's first title does; with a hero,
+        // its Play does instead.
+        let first = view != nil && featuredBooks.isEmpty && shelf == shelves.shownShelves.first
         switch shelf {
         case .continueListening: bookRow("Continue listening", shelves.continueListening, first: first)
         case .nextInSeries: bookRow("Next in series", shelves.nextInSeries, first: first)
@@ -203,7 +228,7 @@ struct BooksLibraryView: View {
 
     /// From the switch, as the tab opens (see `focusesContent`): to the first book.
     private func focusFirstBookOnArrival() {
-        guard view != nil, arriving.wrappedValue, let first = books.first else { return }
+        guard view != nil, featuredBooks.isEmpty, arriving.wrappedValue, let first = books.first else { return }
         arriving.wrappedValue = false
         focusedBook = first.id
     }

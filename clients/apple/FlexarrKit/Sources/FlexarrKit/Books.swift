@@ -334,6 +334,11 @@ public struct BookShelves: Codable, Sendable {
     /// The front page's shelves in the profile's order, switched-off ones left out (`BookShelf` raw values). Absent
     /// from servers before 0.58: every shelf, in `BookShelf`'s order.
     public var order: [String]? = nil
+    /// The hero's slides: up to three books this profile is part way through, last listened first, then the two newest
+    /// not started; only books with a cover. Absent from servers before 0.59.
+    public var featured: [ItemSummary]? = nil
+    /// The slides' descriptions, by id. Absent from servers before 0.59.
+    public var featuredOverviews: [String: String?]? = nil
 
     public var isEmpty: Bool {
         continueListening.isEmpty && nextInSeries.isEmpty && recentlyAdded.isEmpty && series.isEmpty && authors.isEmpty && finished.isEmpty

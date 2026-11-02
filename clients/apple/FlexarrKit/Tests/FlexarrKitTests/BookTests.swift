@@ -147,6 +147,19 @@ struct BookDecodingTests {
         #expect(some.shownShelves == [.recentlyAdded])
     }
 
+    @Test func theHeroComesFromNewerServers() throws {
+        let shelves = #"{"continueListening":[],"nextInSeries":[],"recentlyAdded":[],"series":[],"authors":[],"narrators":[],"genres":[],"finished":[]"#
+        // Servers before 0.59: no hero.
+        let older = try FlexarrClient.decoder.decode(BookShelves.self, from: Data((shelves + "}").utf8))
+        #expect(older.featured == nil)
+        #expect(older.featuredOverviews == nil)
+
+        let newer = try FlexarrClient.decoder.decode(BookShelves.self, from: Data((shelves + #","featured":[\#(BookJSON.summary)],"featuredOverviews":{"b1":"A lone astronaut.","b2":null}}"#).utf8))
+        #expect(newer.featured?.count == 1)
+        #expect(newer.featuredOverviews?["b1"] == "A lone astronaut.")
+        #expect(newer.featuredOverviews?["b2"] == .some(nil))
+    }
+
     @Test func searchAndPersonHaveBooksFromNewerServers() throws {
         let older = ##"{"titles":[],"episodes":[],"people":[],"genres":[]}"##
         let newer = ##"{"titles":[],"episodes":[],"people":[],"genres":[],"books":[\##(BookJSON.summary)],"bookSeries":[{"id":"s1","name":"Hail Mary","bookCount":2}]}"##
