@@ -319,6 +319,72 @@ public sealed class NotificationTests : IAsyncLifetime
         Assert.NotNull((await scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().MediaRequests.SingleAsync()).FulfilledAt);
     }
 
+    private static (MediaItem Artist, MediaItem Album) Album(Library library, string artist, string title, DateTime added, string? releaseGroup = null, string? artistMbid = null)
+    {
+        var a = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Artist, Title = artist, SortTitle = artist.ToLowerInvariant(), AddedAt = added, MusicBrainzId = artistMbid };
+        var b = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Album, Title = title, SortTitle = title.ToLowerInvariant(), AddedAt = added, ParentId = a.Id, MusicBrainzId = releaseGroup };
+        return (a, b);
+    }
+
+    [Fact]
+    public async Task AnAlbumRequestComingIn_TellsWhoAsked_EvenByTitleAlone()
+    {
+        var (_, phone) = await PhoneAsync();
+        await RegisterAsync(phone);
+        await StartAsync();
+        var library = OldLibrary(LibraryType.Music);
+        var (artist, album) = Album(library, "Wet Leg", "moisturizer (Deluxe)", _clock.Now.AddMinutes(1));
+        await SeedAsync(db =>
+        {
+            db.Libraries.Add(library);
+            db.MediaItems.AddRange(artist, album);
+            db.MediaRequests.Add(new MediaRequest
+            {
+                ProfileId = PlaybackState.DefaultUser, Kind = MediaKind.Album, MusicBrainzId = "rg-not-yet-known", ArtistMusicBrainzId = "wl",
+                Title = "moisturizer", ArtistName = "Wet Leg", RequestedAt = _clock.Now.AddDays(-1),
+            });
+            // A film request waiting meanwhile is left alone.
+            db.MediaRequests.Add(new MediaRequest { ProfileId = PlaybackState.DefaultUser, Kind = MediaKind.Movie, TmdbId = 438631, RequestedAt = _clock.Now.AddDays(-1) });
+        });
+
+        var sent = Assert.Single(await RunAtAsync(_clock.Now.AddMinutes(5)));
+
+        Assert.Equal("Your request is ready", sent.GetProperty("t").GetString());
+        Assert.Equal("moisturizer (Deluxe) by Wet Leg is in the library.", sent.GetProperty("b").GetString());
+        Assert.Equal(album.Id.ToString(), sent.GetProperty("u").GetProperty("item").GetString());
+        using var scope = _server.Services.CreateScope();
+        var requests = await scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().MediaRequests.ToListAsync();
+        Assert.NotNull(requests.Single(r => r.Kind == MediaKind.Album).FulfilledAt);
+        Assert.Null(requests.Single(r => r.Kind == MediaKind.Movie).FulfilledAt);
+    }
+
+    [Fact]
+    public async Task AFollowedArtist_IsAnsweredByTheirFirstNewAlbum_NotAnOldOne()
+    {
+        var (_, phone) = await PhoneAsync();
+        await RegisterAsync(phone);
+        await StartAsync();
+        var library = OldLibrary(LibraryType.Music);
+        var (artist, old) = Album(library, "Wet Leg", "Wet Leg", _clock.Now.AddDays(-30), artistMbid: "wl");
+        await SeedAsync(db =>
+        {
+            db.Libraries.Add(library);
+            db.MediaItems.AddRange(artist, old);
+            db.MediaRequests.Add(new MediaRequest { ProfileId = PlaybackState.DefaultUser, Kind = MediaKind.Artist, MusicBrainzId = "wl", Title = "Wet Leg", RequestedAt = _clock.Now.AddDays(-1) });
+        });
+
+        Assert.Empty(await RunAtAsync(_clock.Now.AddMinutes(1)));
+
+        await SeedAsync(db => db.MediaItems.Add(new MediaItem
+        {
+            LibraryId = library.Id, Kind = MediaKind.Album, Title = "moisturizer", SortTitle = "moisturizer", AddedAt = _clock.Now.AddMinutes(2), ParentId = artist.Id,
+        }));
+        var sent = Assert.Single(await RunAtAsync(_clock.Now.AddMinutes(6)));
+
+        Assert.Equal("New from Wet Leg", sent.GetProperty("t").GetString());
+        Assert.Equal("moisturizer is in the library.", sent.GetProperty("b").GetString());
+    }
+
     [Fact]
     public async Task AWatchlistTitleComingIn_TellsWhoWantedIt()
     {

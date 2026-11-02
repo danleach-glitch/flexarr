@@ -297,6 +297,16 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
         var open = await db.MediaRequests.Where(r => r.FulfilledAt == null).ToListAsync(ct);
         foreach (var request in open)
         {
+            if (request.Kind is MediaKind.Album or MediaKind.Artist)
+            {
+                if (await MusicAnsweredAsync(db, request, settled, now, ct) is { } music)
+                {
+                    answered.Add(music);
+                }
+
+                continue;
+            }
+
             var tmdb = request.TmdbId.ToString(CultureInfo.InvariantCulture);
             if (request.Kind == MediaKind.Movie)
             {
@@ -330,6 +340,40 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
         }
 
         return answered;
+    }
+
+    /// <summary>
+    /// A music request answered: the album asked for (by its release group, or by title under its artist when the scan
+    /// hasn't learned the release group), or, for a followed artist, the first new album of theirs since the follow.
+    /// </summary>
+    private static async Task<Answered?> MusicAnsweredAsync(FlexarrDbContext db, MediaRequest request, DateTime settled, DateTime now, CancellationToken ct)
+    {
+        // Only albums since the request: few, so they're compared by normalised name here rather than in the query.
+        var since = request.RequestedAt.AddMinutes(-1);
+        var arrived = await db.MediaItems.AsNoTracking()
+            .Where(i => i.Kind == MediaKind.Album && i.Parent != null && i.AddedAt > since && i.AddedAt <= settled)
+            .OrderBy(i => i.AddedAt)
+            .Select(i => new { i.Id, i.Title, i.MusicBrainzId, i.PosterUrl, Artist = i.Parent!.Title, ArtistMusicBrainzId = i.Parent.MusicBrainzId })
+            .ToListAsync(ct);
+        var artistMbid = request.Kind == MediaKind.Artist ? request.MusicBrainzId : request.ArtistMusicBrainzId;
+        var artistName = MusicNames.Normalise(request.Kind == MediaKind.Artist ? request.Title : request.ArtistName);
+        var byArtist = arrived.Where(a => (artistMbid is not null && a.ArtistMusicBrainzId == artistMbid) || MusicNames.Normalise(a.Artist) == artistName);
+        var album = request.Kind == MediaKind.Artist
+            ? byArtist.FirstOrDefault()
+            : arrived.FirstOrDefault(a => request.MusicBrainzId is not null && a.MusicBrainzId == request.MusicBrainzId)
+                ?? byArtist.FirstOrDefault(a => MusicNames.NormaliseTitle(a.Title) == MusicNames.NormaliseTitle(request.Title));
+        if (album is null)
+        {
+            return null;
+        }
+
+        request.FulfilledAt = now;
+        var message = request.Kind == MediaKind.Artist
+            ? new PushMessage($"New from {album.Artist}", $"{album.Title} is in the library.", "flexarr.music", $"item:{album.Id}", Artwork(album.PosterUrl),
+                new Dictionary<string, string> { ["item"] = album.Id.ToString() })
+            : new PushMessage("Your request is ready", $"{album.Title} by {album.Artist} is in the library.", "flexarr.music", $"item:{album.Id}", Artwork(album.PosterUrl),
+                new Dictionary<string, string> { ["item"] = album.Id.ToString() });
+        return new Answered(request.ProfileId, message, [album.Id]);
     }
 
     /// <summary>
