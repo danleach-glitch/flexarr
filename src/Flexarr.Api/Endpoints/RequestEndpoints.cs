@@ -50,6 +50,7 @@ public sealed record ExternalPersonDto(string Name, string? Character, string? I
 /// <param name="OnWatchlist">Whether it's on the profile's watchlist (absent from servers before 0.56).</param>
 /// <param name="CriticScore">Rotten Tomatoes critics, percent.</param>
 /// <param name="AudienceScore">Rotten Tomatoes audience, percent.</param>
+/// <param name="RottenTomatoesState">The tomato for <paramref name="CriticScore"/> (absent from servers before 0.59).</param>
 public sealed record ExternalDetailDto(
     int TmdbId,
     string MediaType,
@@ -75,7 +76,8 @@ public sealed record ExternalDetailDto(
     AvailabilityDto Availability,
     Guid? LibraryItemId,
     IReadOnlyList<ExternalTitleDto> Recommendations,
-    bool? OnWatchlist = null);
+    bool? OnWatchlist = null,
+    RottenTomatoesState? RottenTomatoesState = null);
 
 public static class RequestEndpoints
 {
@@ -373,7 +375,10 @@ public static class RequestEndpoints
                 .Select(c => new ExternalPersonDto(Str(c, "name") ?? "", NullIfEmpty(Str(c, "character")), Tmdb(Str(c, "profilePath"), "w185"))).ToList(),
             (movie ? Array(t, "credits", "crew").Where(c => Str(c, "job") == "Director") : Array(t, "createdBy")).Select(c => Str(c, "name")).OfType<string>().Distinct().ToList(),
             (movie ? Array(t, "productionCompanies") : Array(t, "networks")).Select(c => Str(c, "name")).FirstOrDefault(),
-            summary.Availability, summary.LibraryItemId, recs);
+            summary.Availability, summary.LibraryItemId, recs)
+        {
+            RottenTomatoesState = RottenTomatoesDto.Of(scores?.CriticScore, scores?.Certified == true)?.State,
+        };
     }
 
     private static readonly JsonSerializerOptions Web = new(JsonSerializerDefaults.Web);
