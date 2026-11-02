@@ -431,7 +431,7 @@ struct BookView: View {
                     Button {
                         if model.music.current?.id == item.id { model.music.togglePlayPause() } else { model.playBook(item) }
                     } label: {
-                        Label(playLabel(item), systemImage: model.music.current?.id == item.id && model.music.isPlaying ? "pause.fill" : "play.fill")
+                        Label(playLabel(item), systemImage: model.music.current?.id == item.id && model.music.isPlaying ? Symbol.pause : Symbol.play)
                     }
                     .buttonStyle(ActionButtonStyle(ambient: item.ambientColor, prominent: true))
                     .focused($playFocused)
@@ -444,7 +444,7 @@ struct BookView: View {
                             // Part way through, it asks first, and offers Mark as unread there (as the phones do).
                             Button {
                                 if position > 0, !item.userData.watched { confirmingStartOver = true } else { Task { await model.listenAgain(item) } }
-                            } label: { Label("Start over", systemImage: "arrow.counterclockwise") }
+                            } label: { Label("Start over", systemImage: Symbol.startOver) }
                                 .buttonStyle(ActionButtonStyle(iconOnly: true))
                                 .alert("Start over?", isPresented: $confirmingStartOver) {
                                     Button("Start over", role: .destructive) { Task { await model.listenAgain(item) } }

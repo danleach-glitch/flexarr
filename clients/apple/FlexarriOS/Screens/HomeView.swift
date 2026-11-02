@@ -400,7 +400,7 @@ private struct BookHeroPlayButton: View {
             if playingThis { model.music.togglePlayPause() } else { model.playBook(item) }
         } label: {
             Label(playingThis && model.music.isPlaying ? "Pause" : resumable ? "Resume from \(Format.timestamp(position))" : "Play",
-                  systemImage: playingThis && model.music.isPlaying ? "pause.fill" : Symbol.play)
+                  systemImage: playingThis && model.music.isPlaying ? Symbol.pause : Symbol.play)
         }
         .buttonStyle(ActionButtonStyle(ambient: item.ambientColor, prominent: true))
         .monospacedDigit()

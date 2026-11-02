@@ -46,7 +46,7 @@ struct BookMoreMenu: View {
             }
         #else
         Menu {
-            Button(role: .destructive) { Task { await ask() } } label: { Label("Delete…", systemImage: "trash") }
+            Button(role: .destructive) { Task { await ask() } } label: { Label("Delete…", systemImage: Symbol.delete) }
         } label: {
             Label("More", systemImage: Symbol.more)
         }
