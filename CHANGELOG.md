@@ -4,6 +4,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ## Unreleased
 
+### Playback
+- On the Apple TV, iPhone and iPad, finishing an episode now takes a show's page on to the next one, instead of still offering the episode you just watched.
+
 ### Audiobooks
 - On iPhone, iPad, Android phones and the Apple TV, an audiobooks library's **Genres** are tiles showing a few of each genre's covers, like the genres of movies and TV shows (and as on the web).
 - On the Apple TV, an audiobooks library has **Browse**, **All books** and **Genres** at the top, as Movies and TV Shows do. **All books** sorts by title, author, recently added or last listened, and **Settings › Libraries** chooses which one it opens on.

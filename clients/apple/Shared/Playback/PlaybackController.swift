@@ -756,6 +756,12 @@ final class PlaybackController: NSObject {
 
     /// Sends `request` after whatever was sent before it, with time to finish if the app goes to the background
     /// meanwhile: leaving mid-film would otherwise suspend the app before the last position reached the server.
+    /// Waits until the server has every progress report and stop sent so far (or they've failed), so a screen that
+    /// reloads then sees what was just watched: a show's next episode, not the one that just ended.
+    func reportsSent() async {
+        await reporting?.value
+    }
+
     private func send(_ request: @escaping @Sendable () async -> Void) {
         let previous = reporting
         let background = BackgroundTime(named: "Playback progress")

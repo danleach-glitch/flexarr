@@ -216,8 +216,13 @@ final class AppModel {
         // Searching for subtitles is a parent's job, not a child's.
         player.offersSubtitleSearch = { [weak self] in self?.isKids != true }
         player.onSessionEnded = { [weak self] in
-            self?.watchStateChanged()
             self?.music.videoEnded()
+            // Screens reload once the server has the last report: asked straight away, a show's next up was still
+            // the episode that had just ended.
+            Task { @MainActor [weak self] in
+                await self?.player.reportsSent()
+                self?.watchStateChanged()
+            }
         }
         // One thing plays at a time: a film starting pauses the music, which the lock screen offers back after.
         player.onWillStart = { [weak self] in self?.music.yieldToVideo() }
