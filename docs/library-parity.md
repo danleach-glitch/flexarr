@@ -68,7 +68,7 @@ Apps: **W** web, **i** iPhone/iPad, **tv** Apple TV, **A** Android phone, **ATV*
 | Follow for new releases | ❌ (Sonarr monitoring is the nearest) | ✅ + *New from …* notification | — |
 | Search *Not in your library* | ✅ i; 🟡 A opens a menu, not a page; ❌ W, tv, ATV | ✅ i, A open the page; ❌ W, tv, ATV | ❌ |
 | Request-ready notification | ✅ | ✅ | — |
-| Watchlist that requests | ✅ | ❌ | — |
+| Watchlist that requests | ✅ | — | — |
 
 ## Playing and watch state
 
@@ -86,10 +86,10 @@ Apps: **W** web, **i** iPhone/iPad, **tv** Apple TV, **A** Android phone, **ATV*
 
 | | Movies | TV shows | Music | Audiobooks |
 | --- | --- | --- | --- | --- |
-| Watchlist | ✅ | ✅ | ❌ (Follow is the nearest) | ❌ |
-| Collections | ✅ W only | ✅ W only | ❌ | 🟡 W only |
-| Playlists | ❌ | ❌ | ✅ W; ✅ phones add to one or start one; 🟡 apps can't rename, reorder or delete; TVs only play them | ❌ |
-| Favourites | ❌ (only Live TV channels) | ❌ | ❌ | ❌ |
+| Watchlist | ✅ | ✅ | — | — |
+| Collections | ✅ W only | ✅ W only | — | 🟡 W only |
+| Playlists | — | — | ✅ W; ✅ phones add to one or start one; 🟡 apps can't rename, reorder or delete; TVs only play them | — |
+| Favourites | — | — | — | — |
 
 ## Looking after a library (main profile, web)
 
