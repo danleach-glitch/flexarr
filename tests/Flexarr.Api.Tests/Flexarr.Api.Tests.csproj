@@ -12,6 +12,8 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="Fixtures/**" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Lidarr's and Deezer's recorded answers, shared with the core tests. -->
+    <None Include="../Flexarr.Core.Tests/Fixtures/lidarr-*-lookup.json;../Flexarr.Core.Tests/Fixtures/deezer-album.json" Link="Fixtures/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Xunit" />

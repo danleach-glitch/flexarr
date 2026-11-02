@@ -119,6 +119,8 @@ public class KidsProfileTests
         Assert.Equal((true, 8), (me.GetProperty("isKids").GetBoolean(), me.GetProperty("maxRatingAge").GetInt32()));
         Assert.False(requests.GetProperty("configured").GetBoolean());
         Assert.Equal(HttpStatusCode.Forbidden, (await tv.PostAsJsonAsync(Api("/requests"), new { mediaType = "movie", tmdbId = 603 })).StatusCode);
+        Assert.False((await tv.GetFromJsonAsync<JsonElement>(Api("/requests/music/status"))).GetProperty("configured").GetBoolean());
+        Assert.Equal(HttpStatusCode.Forbidden, (await tv.PostAsJsonAsync(Api("/requests/music"), new { kind = "album", deezerId = 1 })).StatusCode);
     }
 
     [Fact]
