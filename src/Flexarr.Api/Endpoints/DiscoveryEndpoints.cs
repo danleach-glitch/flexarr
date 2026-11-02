@@ -152,7 +152,7 @@ public static partial class DiscoveryEndpoints
             {
                 rows.AddRange(await MusicDiscovery.RowsAsync(db, cache, me, null, RowSize, ct, On));
                 // The row opens the library when there's only one to open.
-                var link = musicLibraries.Count == 1 ? $"/library/{musicLibraries[0].Id}?view=all&sort=added" : null;
+                var link = musicLibraries.Count == 1 ? $"/library/{musicLibraries[0].Id}?view=albums&sort=added" : null;
                 if (On("music-new"))
                 {
                     rows.Add(new HomeRowDto("music-new", "New albums", "poster", await MusicDiscovery.NewAlbumsAsync(db, me, null, RowSize, ct), link));
@@ -287,7 +287,8 @@ public static partial class DiscoveryEndpoints
                 var musicRows = await MusicDiscovery.RowsAsync(db, cache, me, id, RowSize, ct, row => LayoutEndpoints.IsOn(musicLayout, row), artistPlays);
                 if (LayoutEndpoints.IsOn(musicLayout, "recent"))
                 {
-                    musicRows.Add(new HomeRowDto("recent", "New albums", "poster", await MusicDiscovery.NewAlbumsAsync(db, me, id, RowSize, ct), $"{all}&sort=added"));
+                    // Its See all opens Albums, newest first (apps before 0.59 read just the sort, and open the artists).
+                    musicRows.Add(new HomeRowDto("recent", "New albums", "poster", await MusicDiscovery.NewAlbumsAsync(db, me, id, RowSize, ct), $"/library/{id}?view=albums&sort=added"));
                 }
 
                 var (hero, heroResumes) = await MusicDiscovery.HeroAsync(db, me, id, ct, artistPlays);
