@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridScope
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed as rowItemsIndexed
 import androidx.compose.foundation.shape.CircleShape
@@ -58,6 +59,10 @@ import io.github.flexarr.core.HomeRowStyle
 import io.github.flexarr.core.ItemDetail
 import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.MediaKind
+import io.github.flexarr.core.MusicArtistExtras
+import io.github.flexarr.core.followLibraryArtist
+import io.github.flexarr.core.musicArtistExtras
+import io.github.flexarr.core.musicRequestStatus
 import io.github.flexarr.core.PlaylistDetail
 import io.github.flexarr.core.artistName
 import io.github.flexarr.core.discs
@@ -190,6 +195,20 @@ fun ArtistScreen(model: AppModel, id: String) {
     var queueing by remember { mutableStateOf(false) }
     val detail = (page.state as? Load.Loaded)?.value
     val ambient = detail?.item?.let { glowColor(it.accentColor) } ?: Flexarr.silver
+    val navigator = LocalNavigator.current
+    // From outside the library, when this profile can request music: their albums the library lacks, artists like
+    // them, and whether Lidarr follows them. Anything failing leaves the page as it was.
+    var extras by remember(id) { mutableStateOf<MusicArtistExtras?>(null) }
+    var followedHere by remember(id) { mutableStateOf(false) }
+    LaunchedEffect(id, model.credentials) {
+        extras = try {
+            if (client.musicRequestStatus().configured) client.musicArtistExtras(id) else null
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            null
+        }
+    }
 
     /** Everything they have (fetched when asked, not with the page, so a visit to an artist with a hundred albums stays light). */
     fun playAll(detail: ItemDetail, shuffled: Boolean) {
@@ -234,11 +253,43 @@ fun ArtistScreen(model: AppModel, id: String) {
                             onShuffle = { playAll(state.value, shuffled = true) },
                         )
                     }
+                    extras?.takeIf { !it.followed }?.let {
+                        fullWidth {
+                            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                                ActionButton(
+                                    if (followedHere) "Following" else "Follow artist",
+                                    onClick = {
+                                        if (!followedHere) {
+                                            followedHere = true
+                                            navigator.watchlistChange("Couldn’t follow this artist") {
+                                                try {
+                                                    client.followLibraryArtist(id)
+                                                } catch (e: Exception) {
+                                                    followedHere = false
+                                                    throw e
+                                                }
+                                            }
+                                        }
+                                    },
+                                    icon = if (followedHere) MusicRequestState.Requested.icon else MusicRequestState.CanRequest.icon,
+                                    ambient = ambient,
+                                    enabled = !followedHere,
+                                )
+                            }
+                        }
+                    }
                     if (albums.isNotEmpty()) {
                         fullWidth { SectionHeading("Albums", Modifier.bleed()) }
                         itemsIndexed(albums, key = { _, album -> album.id }) { _, album -> AlbumCard(album) }
-                    } else {
+                    } else if (extras?.missing.isNullOrEmpty()) {
                         fullWidth { Box(Modifier.height(160.dp)) { StatusView("No albums yet.", empty = true) } }
+                    }
+                    extras?.missing?.takeIf { it.isNotEmpty() }?.let { missing ->
+                        fullWidth { SectionHeading("Not in your library", Modifier.bleed()) }
+                        gridItems(missing, key = { "missing-" + it.id }) { album -> MusicExternalCard(model, album, width = null, showsRequest = true) }
+                    }
+                    extras?.similar?.takeIf { it.isNotEmpty() }?.let { similar ->
+                        fullWidth { MusicExternalShelf(model, "Fans also like", similar, Modifier.bleed()) }
                     }
                 }
             }
