@@ -1,6 +1,6 @@
 import { useState, type CSSProperties, type MouseEvent, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router'
-import { getMusicArtistExtras, getMusicRequestStatus, getRadio, getTracks, imageUrl, type AlbumType, type ItemDetail, type ItemSummary } from '../api/client'
+import { getItem, getMusicArtistExtras, getMusicRequestStatus, getRadio, getTracks, imageUrl, type AlbumType, type ItemDetail, type ItemSummary } from '../api/client'
 import { openAddToPlaylist, type PlaylistAddition } from '../components/AddToPlaylist'
 import { Artwork } from '../components/Artwork'
 import { AsyncButton } from '../components/AsyncButton'
@@ -118,7 +118,11 @@ function useDeletion(detail: ItemDetail): { actions: MenuAction[]; dialog: React
       <DeleteDialog
         item={item}
         onClose={() => setDeleting(false)}
-        onDeleted={() => navigate(item.kind === 'Album' && parent ? `/item/${parent.id}` : `/library/${item.libraryId}`, { replace: true })}
+        onDeleted={async () => {
+          // Back to the album's artist, unless that was their last album (then they went too): the library.
+          const artistLeft = item.kind === 'Album' && parent ? await getItem(parent.id).then(() => true, () => false) : false
+          navigate(artistLeft && parent ? `/item/${parent.id}` : `/library/${item.libraryId}`, { replace: true })
+        }}
       />
     ) : null,
   }
