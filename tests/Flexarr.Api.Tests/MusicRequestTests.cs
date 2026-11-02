@@ -442,12 +442,15 @@ public sealed class MusicRequestTests : IAsyncLifetime
         Assert.StartsWith("https://cdn-images.dzcdn.net/", placeholder.PosterUrl, StringComparison.Ordinal);
         var artists = await Client().GetFromJsonAsync<JsonElement>(Api($"/libraries/{library.Id}/items"));
         Assert.Contains("Wet Leg", artists.GetRawText(), StringComparison.Ordinal);
-
         // Now Lidarr follows them.
         var following = WetLegInLidarr.Replace("\"none\"", "\"new\"", StringComparison.Ordinal);
         _lidarr.Responses["GET /api/v1/artist"] = $"[{following}]";
         _lidarr.Responses["GET /api/v1/artist/3"] = following;
         _lidarr.Responses["PUT /api/v1/artist/3"] = following;
+        // Following isn't having: their outside page still offers Following, not In your library.
+        var outside = await Client().GetFromJsonAsync<JsonElement>(Api("/requests/music/artist/134334152"));
+        Assert.Equal(JsonValueKind.Null, outside.GetProperty("libraryItemId").ValueKind);
+
         var unfollowed = await Client().PostAsJsonAsync(Api("/requests/music/unfollow"), new { artistId = placeholder.Id });
 
         Assert.Equal(HttpStatusCode.NoContent, unfollowed.StatusCode);

@@ -350,6 +350,9 @@ public sealed partial class MetadataRefresher(
         var lidarrs = settings.ArrInstances.Where(a => a.Kind == ArrKind.Lidarr).ToList();
         if (lidarrs.Count == 0)
         {
+            // Followed artists still waiting for their first album were followed through a Lidarr that's gone.
+            await db.MediaItems.Where(i => i.LibraryId == libraryId && i.Kind == MediaKind.Artist && i.Placeholder && !i.Children.Any())
+                .ExecuteDeleteAsync(ct).ConfigureAwait(false);
             return await RefreshMusicFromTagsAsync(libraryId, force, ct).ConfigureAwait(false);
         }
 
@@ -368,6 +371,7 @@ public sealed partial class MetadataRefresher(
         // search per artist; albums and files are asked for per matched artist.
         var known = new List<(ArrInstance Instance, LidarrArtist Artist)>();
         var answered = false;
+        var allAnswered = true;
         foreach (var lidarr in lidarrs)
         {
             try
@@ -378,6 +382,7 @@ public sealed partial class MetadataRefresher(
             catch (Exception ex) when (IsNetworkFailure(ex, ct))
             {
                 LogArrUnavailable(lidarr.Name, ex.Message);
+                allAnswered = false;
             }
         }
 
@@ -390,6 +395,16 @@ public sealed partial class MetadataRefresher(
                 var hit = lidarrs
                     .Select(l => (Instance: l, Artist: LidarrMatcher.MatchArtist(artist, albums.Select(a => a.Path), known.Where(k => k.Instance == l).Select(k => k.Artist).ToList(), settings.PathMappings)))
                     .FirstOrDefault(h => h.Artist is not null);
+                // A followed artist still waiting for their first album, whom Lidarr no longer has or follows (changed in
+                // Lidarr itself): nothing is coming, so they leave the library.
+                if (artist.Placeholder && albums.Count == 0 && allAnswered
+                    && hit.Artist is not { Monitored: true, MonitorNewItems: "new" or "all" })
+                {
+                    db.MediaItems.Remove(artist);
+                    unmatched++;
+                    continue;
+                }
+
                 if (hit.Artist is { } lidarrArtist)
                 {
                     await ApplyArtistAsync(artist, albums, lidarrArtist, hit.Instance, ct).ConfigureAwait(false);

@@ -98,7 +98,8 @@ public static class MusicMatcher
             entry.AbsoluteExpirationRelativeToNow = LibraryFor;
             entry.AddExpirationToken(new Microsoft.Extensions.Primitives.CancellationChangeToken(Volatile.Read(ref _libraryChanged).Token));
             var artists = new Dictionary<string, Guid>();
-            foreach (var artist in await db.MediaItems.AsNoTracking().Where(i => i.Kind == MediaKind.Artist).Select(i => new { i.Id, i.Title }).ToListAsync(ct))
+            // A followed artist's placeholder isn't music you have: their pages still offer Following.
+            foreach (var artist in await db.MediaItems.AsNoTracking().Where(i => i.Kind == MediaKind.Artist && !i.Placeholder).Select(i => new { i.Id, i.Title }).ToListAsync(ct))
             {
                 artists.TryAdd(MusicNames.Normalise(artist.Title), artist.Id);
             }

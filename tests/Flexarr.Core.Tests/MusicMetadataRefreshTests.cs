@@ -132,6 +132,31 @@ public sealed class MusicMetadataRefreshTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AFollowedArtistsPlaceholder_StaysWhileLidarrFollowsThem_AndGoesWhenItDoesnt()
+    {
+        var artists = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(Path.Combine("Fixtures", "lidarr-artist.json")))!.AsArray();
+        artists.Add(System.Text.Json.Nodes.JsonNode.Parse("""{"id":2,"artistName":"Mark Knopfler","foreignArtistId":"mb-knopfler","monitored":true,"monitorNewItems":"new","path":"/data/music/Mark Knopfler"}"""));
+        artists.Add(System.Text.Json.Nodes.JsonNode.Parse("""{"id":3,"artistName":"Wet Leg","foreignArtistId":"mb-wetleg","monitored":true,"monitorNewItems":"none","path":"/data/music/Wet Leg"}"""));
+        _lidarr.Responses["/api/v1/artist"] = artists.ToJsonString();
+        foreach (var id in new[] { 2, 3 })
+        {
+            _lidarr.Responses[$"/api/v1/album?artistId={id}"] = "[]";
+            _lidarr.Responses[$"/api/v1/trackfile?artistId={id}"] = "[]";
+        }
+
+        _db.MediaItems.AddRange(
+            new MediaItem { LibraryId = _library.Id, Kind = MediaKind.Artist, Title = "Mark Knopfler", SortTitle = "mark knopfler", MusicBrainzId = "mb-knopfler", Placeholder = true },
+            new MediaItem { LibraryId = _library.Id, Kind = MediaKind.Artist, Title = "Wet Leg", SortTitle = "wet leg", MusicBrainzId = "mb-wetleg", Placeholder = true },
+            new MediaItem { LibraryId = _library.Id, Kind = MediaKind.Artist, Title = "Gone", SortTitle = "gone", MusicBrainzId = "mb-gone", Placeholder = true });
+        await _db.SaveChangesAsync();
+
+        await Refresher().RefreshLibraryAsync(_library, force: true, default);
+
+        var left = await _db.MediaItems.Where(i => i.Kind == MediaKind.Artist && i.Placeholder).Select(i => i.Title).ToListAsync();
+        Assert.Equal(["Mark Knopfler"], left);
+    }
+
+    [Fact]
     public async Task ARenamedArtist_GoneFromLidarr_GetsItsTagsBack()
     {
         await Refresher().RefreshLibraryAsync(_library, force: false, default);

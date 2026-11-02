@@ -109,7 +109,7 @@ public static class ItemEndpoints
             // Worked out here rather than in SQL, which can't count across both sides; a library has a few thousand albums at most.
             var albums = await db.MediaItems.Where(a => a.LibraryId == id && a.Kind == MediaKind.Album)
                 .Select(a => new { a.ParentId, Genres = a.Genres.Select(g => g.Name).ToList() }).ToListAsync(ct);
-            var artists = await db.MediaItems.Where(a => a.LibraryId == id && a.Kind == MediaKind.Artist)
+            var artists = await db.MediaItems.Where(a => a.LibraryId == id && a.Kind == MediaKind.Artist && !a.Placeholder)
                 .OrderByDescending(a => a.CommunityRating ?? 0).ThenBy(a => a.SortTitle)
                 .Select(a => new { a.Id, Fanart = a.BackdropUrl != null, a.MetadataUpdatedAt, a.ArtworkChangedAt, Genres = a.Genres.Select(g => g.Name).ToList() })
                 .ToListAsync(ct);
