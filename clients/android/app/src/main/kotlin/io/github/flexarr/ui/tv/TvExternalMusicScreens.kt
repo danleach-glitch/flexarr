@@ -622,3 +622,13 @@ private fun OutsideTrackRow(track: MusicTrack, number: Int, modifier: Modifier) 
         }
     }
 }
+
+/** Asked once before a film's, show's or season's Requested is taken back: the way out first, so it has focus. */
+@Composable
+internal fun TvTitleUndoMenu(name: String, onDismiss: () -> Unit, onUndo: () -> Unit) {
+    TvItemMenu(
+        io.github.flexarr.ui.external.titleUndoTitle(name),
+        listOf(MenuAction(io.github.flexarr.ui.external.TitleUndoKeep) {}, MenuAction(io.github.flexarr.ui.external.TitleUndoConfirm, run = onUndo)),
+        onDismiss = onDismiss,
+    )
+}

@@ -21,28 +21,27 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.RemoveCircleOutline
-import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.snapshotFlow
-import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
@@ -69,15 +68,24 @@ import io.github.flexarr.core.Paged
 import io.github.flexarr.core.externalTitle
 import io.github.flexarr.core.genreItems
 import io.github.flexarr.core.request
+import io.github.flexarr.core.unrequestTitle
 import io.github.flexarr.ui.components.LocalNavigator
 import io.github.flexarr.ui.components.RemoteImage
+import io.github.flexarr.ui.external.SeerrNotAnswering
+import io.github.flexarr.ui.external.TitleRequestState
+import io.github.flexarr.ui.external.icon
+import io.github.flexarr.ui.external.label
+import io.github.flexarr.ui.external.pressable
+import io.github.flexarr.ui.external.titleKey
+import io.github.flexarr.ui.external.titleState
 import io.github.flexarr.ui.theme.Flexarr
+import io.github.flexarr.ui.theme.FlexarrIcons
 import io.github.flexarr.ui.theme.RoomBackground
 import io.github.flexarr.ui.theme.marquee
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.launch
 import java.text.NumberFormat
 import java.util.Locale
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 
 /**
  * A film or show from Discover that isn't in the library, as the Apple TV's ExternalTitleView: what it is, how it's
@@ -124,7 +132,7 @@ internal fun TvExternalTitleScreen(model: AppModel, preview: ExternalTitle, open
                 Header(title, preview, loaded) {
                     // With focus on Request, the page sits at the top, the whole header in view.
                     RequestButton(
-                        client,
+                        model,
                         title,
                         focus,
                         modifier = Modifier.padding(top = 7.dp).onFocusChanged { if (it.hasFocus) scope.launch { scroll.animateScrollTo(0) } },
@@ -236,69 +244,86 @@ private fun CastFace(person: ExternalPerson) {
     }
 }
 
-private sealed interface Sending {
-    data object Idle : Sending
-    data object InFlight : Sending
-    data object Sent : Sending
-    data class Failed(val message: String) : Sending
-}
-
-/** Request the title through Seerr, or say where it stands if it's already asked for or in. */
+/**
+ * Request the title through Seerr, or say where it stands, as the phone's and music's: Requested is lit, and pressing
+ * it asks (Keep it first) before taking the request back for the household. Dimmed, saying so, while Seerr isn't
+ * answering; a refused request says Can't request with why; anything else that went wrong shows beside it.
+ */
 @Composable
-private fun RequestButton(client: FlexarrClient, title: ExternalTitle, focus: FocusMemory, modifier: Modifier = Modifier) {
-    var sending by remember(title.id) { mutableStateOf<Sending>(Sending.Idle) }
+private fun RequestButton(model: AppModel, title: ExternalTitle, focus: FocusMemory, modifier: Modifier = Modifier) {
     val scope = rememberCoroutineScope()
+    var failure by remember(title.id) { mutableStateOf<String?>(null) }
+    var confirming by remember { mutableStateOf(false) }
     // Request has focus as the page opens: a quick second press on the card that opened it isn't a request.
     val shownAt = remember(title.id) { SystemClock.uptimeMillis() }
-    // Not asked for yet, here or anywhere else.
-    val canRequest = sending != Sending.Sent && title.availability == Availability.None
-    val failure = (sending as? Sending.Failed)?.message
+    LaunchedEffect(Unit) { runCatching { model.titleRequestStatus() } }
+    val key = titleKey(title.mediaType, title.tmdbId)
+    val state = model.titleState(key, title.availability, inLibrary = title.libraryItemId != null)
+    val pressable = state.pressable(model)
     val label = when {
-        sending == Sending.Sent -> "Requested"
-        title.availability.label != null -> title.availability.label!!
-        sending == Sending.InFlight -> "Requesting…"
-        failure == null -> "Request"
-        else -> "Try again"
+        state == TitleRequestState.CanRequest && failure != null -> "Try again"
+        state == TitleRequestState.InLibrary || state == TitleRequestState.Partly || state == TitleRequestState.None -> title.availability.label ?: state.label()
+        else -> state.label()
     }
-    val icon = if (sending == Sending.Sent) {
-        Icons.Filled.Schedule
-    } else {
-        when (title.availability) {
-            Availability.Available -> Icons.Filled.Check
-            Availability.Requested, Availability.PartlyAvailable -> Icons.Filled.Schedule
-            Availability.None -> Icons.Filled.Add
-            Availability.Unknown -> Icons.Filled.RemoveCircleOutline
-        }
+    val icon = state.icon() ?: when (title.availability) {
+        Availability.Available -> Icons.Filled.Check
+        Availability.PartlyAvailable -> FlexarrIcons.requested
+        else -> Icons.Filled.RemoveCircleOutline
+    }
+    val note = failure ?: when {
+        state == TitleRequestState.Refused -> model.titleRefused[key]
+        model.seerrUnreachable && (state == TitleRequestState.CanRequest || state == TitleRequestState.Requested) -> SeerrNotAnswering
+        else -> null
     }
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(15.dp), verticalAlignment = Alignment.CenterVertically) {
         // One button throughout, whatever it says: one that's taken away or disabled while it has focus leaves nothing
-        // on the page focused.
+        // on the page focused. While it can't be pressed it's dimmed instead.
         TvActionButton(
             label,
             onClick = {
-                if (canRequest && sending != Sending.InFlight && SystemClock.uptimeMillis() - shownAt > SETTLE_MS) {
-                    sending = Sending.InFlight
-                    scope.launch {
-                        sending = try {
-                            client.request(title)
-                            Sending.Sent
+                if (!pressable || SystemClock.uptimeMillis() - shownAt <= SETTLE_MS) return@TvActionButton
+                when (state) {
+                    TitleRequestState.CanRequest -> scope.launch {
+                        failure = null
+                        try {
+                            model.askForTitle(key) { it.request(title) }
                         } catch (e: CancellationException) {
                             throw e
                         } catch (e: Exception) {
-                            Sending.Failed(e.message ?: "Something went wrong.")
+                            failure = e.message ?: "Something went wrong."
                         }
                     }
+                    TitleRequestState.Requested -> confirming = true
+                    else -> Unit
                 }
             },
             icon = icon,
-            prominent = canRequest,
-            modifier = Modifier.focusMemory(focus, "request"),
+            prominent = state == TitleRequestState.CanRequest && pressable,
+            selected = state == TitleRequestState.Requested || state == TitleRequestState.Undoing,
+            modifier = Modifier.focusMemory(focus, "request").alpha(if (pressable || state !in Pressable) 1f else 0.5f),
         )
-        failure?.let {
+        note?.let {
             Text(it, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Flexarr.screen.copy(alpha = 0.85f), maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 350.dp))
         }
     }
+    if (confirming) {
+        TvTitleUndoMenu(title.title, onDismiss = { confirming = false }) {
+            scope.launch {
+                failure = null
+                try {
+                    model.undoTitle(key) { it.unrequestTitle(title.mediaType, title.tmdbId) }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    failure = e.message ?: "Something went wrong."
+                }
+            }
+        }
+    }
 }
+
+/** The states a press would act on: dimmed rather than plain while they can't. */
+private val Pressable = setOf(TitleRequestState.CanRequest, TitleRequestState.Requested)
 
 /** How long after a title opens before Request takes a press. */
 private const val SETTLE_MS = 400L

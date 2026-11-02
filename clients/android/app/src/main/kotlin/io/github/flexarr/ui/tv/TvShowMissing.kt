@@ -13,6 +13,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -25,32 +29,46 @@ import io.github.flexarr.core.MissingSeason
 import io.github.flexarr.core.ShowEpisode
 import io.github.flexarr.core.ShowMissing
 import io.github.flexarr.ui.components.RemoteImage
+import io.github.flexarr.ui.external.TitleRequestState
+import io.github.flexarr.ui.external.label
 import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.FlexarrIcons
 
 /**
  * A show's gaps on the TV, as the phone's: *Not in your library* (seasons it has none of, then each partly-had
  * season's missing episodes) and *Coming up*. Pressing a season requests it (or, for the main profile without Seerr,
- * searches); Search beside a season's missing episodes asks Sonarr for all of them (main profile). Episode cards have
+ * searches); pressing a requested one asks, then takes back just that season; Search beside a season's missing episodes asks Sonarr for all of them (main profile). Episode cards have
  * nothing to do but still take focus, so the page scrolls to them.
  */
 @Composable
 internal fun TvShowMissing(
     missing: ShowMissing,
+    /** Seasons searched for here, ahead of the server's next answer. */
     asked: Set<Int>,
+    /** Where a season's request stands (Request, Requested, Can't request…), counting what was done here. */
+    requestState: (MissingSeason) -> TitleRequestState,
+    /** Whether Request and Requested can be pressed now (not on a kids profile, nor while Seerr isn't answering). */
+    canAsk: Boolean,
     onRequest: (MissingSeason) -> Unit,
+    onUnrequest: (MissingSeason) -> Unit,
     onSearch: (seasonNumber: Int, episodes: List<Int>?) -> Unit,
 ) {
+    var confirming by remember { mutableStateOf<MissingSeason?>(null) }
     if (!missing.isEmpty) {
         Column {
             TvRowHeading("Not in your library")
             if (missing.seasons.isNotEmpty()) {
                 LazyRow(contentPadding = PaddingValues(horizontal = TvLayout.Edge, vertical = 14.dp), horizontalArrangement = Arrangement.spacedBy(TvLayout.RowSpacing)) {
                     items(missing.seasons, key = { "missing-season-${it.seasonNumber}" }) { season ->
-                        val requested = season.requested || season.seasonNumber in asked
+                        val state = if (missing.canRequest) requestState(season) else null
+                        val requested = state == TitleRequestState.Requested || state == TitleRequestState.Undoing || state == TitleRequestState.Sending ||
+                            (state == null && (season.requested || season.seasonNumber in asked))
                         val (status, action) = when {
+                            state == TitleRequestState.Requested -> state.label() to { if (canAsk) confirming = season }
+                            state == TitleRequestState.Refused -> state.label() to null
+                            state != null && requested -> state.label() to null
                             requested -> "Requested" to null
-                            missing.canRequest -> "Request" to { onRequest(season) }
+                            missing.canRequest -> "Request" to { if (canAsk) onRequest(season) }
                             missing.canSearch -> "Search" to { onSearch(season.seasonNumber, null) }
                             else -> null to null
                         }
@@ -88,6 +106,7 @@ internal fun TvShowMissing(
             }
         }
     }
+    confirming?.let { season -> TvTitleUndoMenu(season.title, onDismiss = { confirming = null }) { onUnrequest(season) } }
     if (missing.upcoming.isNotEmpty()) {
         Column {
             TvRowHeading("Coming up")
