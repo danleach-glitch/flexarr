@@ -173,6 +173,9 @@ fun TvDetailScreen(model: AppModel, id: String) {
 
     val loaded = detail
     val item = loaded?.item
+    // An album or artist (an album-ready notification opens item/<id>) opens as itself, never as a film.
+    if (item?.kind == MediaKind.Album) return TvAlbumScreen(model, id)
+    if (item?.kind == MediaKind.Artist) return TvArtistScreen(model, id)
     CompositionLocalProvider(LocalPlayFrom provides pageToken) {
     Box(Modifier.fillMaxSize().background(Flexarr.room)) {
         when {
