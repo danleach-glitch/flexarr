@@ -173,6 +173,10 @@ public sealed class ArrClient(HttpClient httpClient)
     public Task<IReadOnlyList<LidarrAlbum>> GetArtistAlbumsAsync(ArrInstance lidarr, int artistId, CancellationToken ct = default) =>
         GetAsync<IReadOnlyList<LidarrAlbum>>(lidarr, $"album?artistId={artistId}", ct);
 
+    /// <summary>One of Lidarr's albums by its id.</summary>
+    public Task<LidarrAlbum> GetAlbumAsync(ArrInstance lidarr, int albumId, CancellationToken ct = default) =>
+        GetAsync<LidarrAlbum>(lidarr, $"album/{albumId}", ct);
+
     /// <summary>The music files Lidarr has for an artist: how its albums are matched to folders on disk.</summary>
     public Task<IReadOnlyList<LidarrTrackFile>> GetTrackFilesAsync(ArrInstance lidarr, int artistId, CancellationToken ct = default) =>
         GetAsync<IReadOnlyList<LidarrTrackFile>>(lidarr, $"trackfile?artistId={artistId}", ct);

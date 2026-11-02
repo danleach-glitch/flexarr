@@ -31,7 +31,7 @@ Refreshes of a details-locked title still update everything else: ids, artwork, 
 Books keep using `MatchLocked` for both, as before.
 
 For music, a match-locked album keeps the Lidarr album (`ArrId`) or Deezer album (`DeezerId`) chosen. A Lidarr album is
-re-read on refresh; a Deezer one is read when chosen and on a forced refresh. A locked album or artist is never handed
+re-read on refresh; a Deezer one keeps what it was given when chosen (choose it again to update it). A locked album or artist is never handed
 back to its tags. Renames keep the tags' spelling in `OriginalTitle`, which the scanner indexes, so the next scan still
 files the album's tracks in it.
 
