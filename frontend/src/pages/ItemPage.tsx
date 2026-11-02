@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { PageError } from '../components/PageStatus'
 import { openAddToCollection } from '../components/AddToCollection'
-import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router'
+import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
 import {
   analyzeItem,
   getItem,
@@ -33,7 +33,7 @@ import { WatchlistButton } from '../components/WatchlistButton'
 import { useAgeLimits, useSession } from '../hooks/sessionContext'
 import { announceWatched } from '../hooks/watched'
 import { useApi } from '../hooks/useApi'
-import { moveOn, takeEnding } from '../hooks/playbackEnding'
+import { endingFrom, finalReportSent, moveOn, rememberScroll, takeScroll, type PlayState } from '../hooks/playbackEnding'
 import { AlbumPage, ArtistPage } from './MusicPages'
 import { BookPage } from './BookPage'
 import {
@@ -51,16 +51,23 @@ export function ItemPage() {
   const { id = '' } = useParams()
   const [version, setVersion] = useState(0)
   const [params] = useSearchParams()
+  const location = useLocation()
+  // Back from watching an episode Play was pressed on here: on to the next one (or the one it stopped part way
+  // through), straight away, without loading this one first.
+  const ending = endingFrom(location.key)
+  const movedTo = ending && moveOn(ending, id)
   // A series comes with its Up Next and the season to show (picking another season later fetches just that one).
-  const { data, error, reload } = useApi((signal) => getItemPage(id, params.get('season'), signal), [id, version])
-  const navigate = useNavigate()
-  // Back from watching an episode started here: on to the next one (or the one it stopped part way through).
-  useEffect(() => {
-    if (data?.item.kind !== 'Episode' || data.item.id !== id) return
-    const ending = takeEnding(id)
-    const target = ending && moveOn(ending)
-    if (target) navigate(`/item/${target}`, { replace: true })
-  }, [data, id, navigate])
+  // Loading as the player closes, it waits a moment for the player's last report, so Up Next has what was just watched.
+  const { data, error, reload } = useApi(
+    async (signal) => {
+      if (movedTo) return new Promise<never>(() => undefined)
+      await finalReportSent()
+      return getItemPage(id, params.get('season'), signal)
+    },
+    [id, version, movedTo],
+  )
+
+  if (movedTo) return <Navigate to={`/item/${movedTo}`} replace state={{ movedOn: true }} />
 
   if (error) return <PageError error={error} onRetry={reload} />
   if (!data) return <div className="detail-hero detail-loading" aria-busy="true" />
@@ -83,6 +90,19 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
   const { item, ancestors } = detail
   const series = ancestors[0]
   const navigate = useNavigate()
+  const location = useLocation()
+  // Given to the player with Play, so this page can move on once it closes (see endingFrom), and is back where it was.
+  const playState: PlayState = { from: location.key }
+  const play = (path: string) => {
+    rememberScroll(location.key)
+    navigate(path, { state: playState })
+  }
+  useEffect(() => {
+    const y = takeScroll(location.key)
+    // After the shell's scroll to the top for a new page.
+    if (y !== undefined) requestAnimationFrame(() => window.scrollTo(0, y))
+  }, [location.key])
+  const movedOn = (location.state as { movedOn?: boolean } | null)?.movedOn === true
   const [trailer, setTrailer] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [matching, setMatching] = useState(false)
@@ -158,6 +178,12 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
           {backdrop && <img src={imageUrl(backdrop, 1920)} alt="" />}
         </div>
         <div className="detail-hero-content">
+          {/* Moved on from the episode just watched: said, since the page changed under the reader. */}
+          {movedOn && (
+            <p className="visually-hidden" role="status">
+              Now showing {episodeHeading(item)}, {item.title}
+            </p>
+          )}
           {item.kind === 'Episode' && series && (
             <p className="detail-kicker">
               <Link to={`/item/${series.id}?season=${item.seasonNumber}`}>{series.title}</Link>
@@ -182,12 +208,12 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
           {detail.overview && <Overview text={detail.overview} />}
           <div className="detail-actions">
             {playTarget && (
-              <button className="button" onClick={() => navigate(`/play/${playTarget.id}`)}>
+              <button className="button" onClick={() => play(`/play/${playTarget.id}`)}>
                 <icon.play /> {playLabel}
               </button>
             )}
             {progress !== null && (
-              <button className="button quiet" onClick={() => navigate(`/play/${item.id}?t=0`)}>
+              <button className="button quiet" onClick={() => play(`/play/${item.id}?t=0`)}>
                 <icon.startOver /> Start over
               </button>
             )}
@@ -346,13 +372,20 @@ function Seasons({ series, onChange }: { series: ItemDetail; onChange: () => voi
 }
 
 function Episode({ episode, overview, onChange }: { episode: ItemSummary; overview: string | null; onChange: () => void }) {
+  const location = useLocation()
   const { kids } = useAgeLimits()
   const progress = progressOf(episode)
 
   return (
     <li className={episode.userData.watched ? 'episode watched' : 'episode'}>
       <div className="episode-still-wrap">
-      <Link to={`/play/${episode.id}`} className="episode-still" aria-label={`Play ${episode.title}`}>
+      <Link
+        to={`/play/${episode.id}`}
+        state={{ from: location.key } satisfies PlayState}
+        onClick={() => rememberScroll(location.key)}
+        className="episode-still"
+        aria-label={`Play ${episode.title}`}
+      >
         <Artwork src={episode.artwork.thumb} fallback={episode.artwork.backdrop} title={episode.title} width={500} shape="wide" />
         <span className="episode-play" aria-hidden="true">
           <icon.play />
