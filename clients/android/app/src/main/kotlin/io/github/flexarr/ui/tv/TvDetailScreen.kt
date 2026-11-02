@@ -37,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import io.github.flexarr.appModel
 import io.github.flexarr.core.displayTitle
+import io.github.flexarr.core.scores
 import io.github.flexarr.ui.components.MenuAction
 import io.github.flexarr.ui.components.LocalClient
 import io.github.flexarr.player.TvSubtitleSearch
@@ -197,7 +198,8 @@ private fun Header(item: ItemSummary, series: ItemSummary?, detail: ItemDetail, 
             TitleArt(item, maxWidth = 410.dp, maxHeight = 130.dp, fontSize = 60)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(11.dp), verticalAlignment = Alignment.CenterVertically) {
-            TvFactsLine(item.facts())
+            val isKids = LocalContext.current.appModel.isKids
+            TvFactsLine(item.facts(scores = !isKids), scores = if (isKids) null else item.scores)
             if (detail.genres.isNotEmpty()) Text(detail.genres.take(3).joinToString(", "), fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher)
         }
         detail.overview?.takeIf { it.isNotEmpty() }?.let {

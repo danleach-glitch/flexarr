@@ -38,6 +38,8 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.BasicTextField
+import io.github.flexarr.core.Scores
+import io.github.flexarr.ui.components.ScoreChipItems
 import kotlinx.coroutines.delay
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.LaunchedEffect
@@ -273,11 +275,13 @@ fun TvRowHeading(title: String, modifier: Modifier = Modifier) {
     Text(title, style = marquee(20), modifier = modifier.padding(start = TvLayout.Edge))
 }
 
-/** "2016   1h 56m   TV-MA": facts separated by space, never middle dots. */
+/** "2016   1h 56m   TV-MA": facts separated by space, never middle dots, then any [scores] beside their marks. */
 @Composable
-fun TvFactsLine(facts: List<String>, modifier: Modifier = Modifier) {
-    Row(modifier, horizontalArrangement = Arrangement.spacedBy(11.dp)) {
-        facts.forEach { Text(it, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen.copy(alpha = 0.85f), maxLines = 1) }
+fun TvFactsLine(facts: List<String>, modifier: Modifier = Modifier, scores: Scores? = null) {
+    val style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen.copy(alpha = 0.85f), fontFeatureSettings = "tnum")
+    Row(modifier, horizontalArrangement = Arrangement.spacedBy(11.dp), verticalAlignment = Alignment.CenterVertically) {
+        facts.forEach { Text(it, style = style, maxLines = 1) }
+        if (scores != null && !scores.isEmpty) ScoreChipItems(scores, 14.dp, style)
     }
 }
 

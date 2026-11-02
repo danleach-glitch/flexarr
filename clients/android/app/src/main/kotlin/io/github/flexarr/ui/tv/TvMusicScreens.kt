@@ -37,12 +37,14 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import io.github.flexarr.AppModel
+import io.github.flexarr.appModel
 import io.github.flexarr.core.Format
 import io.github.flexarr.core.HomeRow
 import io.github.flexarr.core.HomeRowStyle
@@ -359,7 +361,7 @@ fun TvArtistScreen(model: AppModel, id: String) {
                             art = { Box(Modifier.shadow(15.dp, CircleShape)) { TvSquareArtwork(item, 180.dp, circular = true) } },
                             below = {
                                 Row(horizontalArrangement = Arrangement.spacedBy(11.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    TvFactsLine(item.facts())
+                                    TvFactsLine(item.facts(scores = !LocalContext.current.appModel.isKids))
                                     if (state.value.genres.isNotEmpty()) {
                                         Text(state.value.genres.take(3).joinToString(", "), fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher, maxLines = 1)
                                     }

@@ -68,6 +68,7 @@ import io.github.flexarr.core.HomeRow
 import io.github.flexarr.core.HomeRowStyle
 import io.github.flexarr.core.facts
 import io.github.flexarr.core.isResumable
+import io.github.flexarr.core.scores
 import io.github.flexarr.ui.components.Load
 import io.github.flexarr.ui.components.LocalInContinueWatching
 import io.github.flexarr.ui.components.LocalNavigator
@@ -223,7 +224,8 @@ private fun HomeHero(home: Home, index: Int, onIndex: (Int) -> Unit, takeFocus: 
             Crossfade(item, animationSpec = tween(600), label = "title") { shown ->
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     TitleArt(shown, maxWidth = 380.dp, maxHeight = 115.dp, fontSize = 55)
-                    TvFactsLine(shown.facts())
+                    val isKids = LocalContext.current.appModel.isKids
+                    TvFactsLine(shown.facts(scores = !isKids), scores = if (isKids) null else shown.scores)
                     home.overviews[shown.id]?.let {
                         Text(it, fontSize = 13.5.sp, lineHeight = 18.sp, color = Flexarr.screen.copy(alpha = 0.85f), maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 450.dp))
                     }
