@@ -96,6 +96,30 @@ public class MusicLibraryTests(FlexarrApiFactory factory) : IClassFixture<Flexar
         Assert.Equal("Teardrop", early.Resumes![early.Featured[0].Id].Title);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task AlbumsGenresAndTracks_KeepToWhatTheProfileMaySee(bool hidden)
+    {
+        var music = await SeedAsync();
+        // Hidden from the profile, or behind its age limit (music has no rating, so it's hidden unless allowed).
+        object settings = hidden
+            ? new { name = $"Hidden {Guid.NewGuid():N}", hiddenLibraryIds = new[] { music.Library } }
+            : new { name = $"Teen {Guid.NewGuid():N}", maxRatingAge = 15 };
+        var profile = await (await Client().PostAsJsonAsync(Api("/profiles"), settings)).Content.ReadFromJsonAsync<JsonElement>();
+        var token = (await (await Client().PostAsJsonAsync(Api($"/profiles/{profile.GetProperty("id").GetString()}/select"), new { }))
+            .Content.ReadFromJsonAsync<JsonElement>()).GetProperty("token").GetString();
+        var genre = Uri.EscapeDataString(music.TripHop);
+
+        var albums = await Client(token).GetFromJsonAsync<PagedDto<ItemSummaryDto>>(Api($"/libraries/{music.Library}/albums"), Json);
+        var genres = await Client(token).GetFromJsonAsync<List<LibraryGenreDto>>(Api($"/libraries/{music.Library}/album-genres"), Json);
+        var tracks = await Client(token).GetFromJsonAsync<List<ItemSummaryDto>>(Api($"/libraries/{music.Library}/tracks?genre={genre}"), Json);
+
+        Assert.Equal(0, albums!.Total);
+        Assert.Empty(genres!);
+        Assert.Empty(tracks!);
+    }
+
     [Fact]
     public async Task ALibraryWithNoArtwork_HasNoHero()
     {
