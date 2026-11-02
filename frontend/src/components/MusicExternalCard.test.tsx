@@ -81,13 +81,24 @@ describe('MusicExternalCard', () => {
     await waitFor(() => expect(sent).toEqual([{ kind: 'album', musicBrainzId: 'rg-1' }]))
   })
 
-  it('offers Try again with the server’s reason when Lidarr refuses', async () => {
-    refusal = new ApiError(502, 'Bad Gateway', ['Lidarr didn’t take the request: down.'])
+  it('offers Try again, saying why, when Lidarr doesn’t answer', async () => {
+    refusal = new ApiError(502, 'Bad Gateway', ['Lidarr isn’t answering. Try again later.'])
     renderCard(album)
 
     fireEvent.click(screen.getByRole('button', { name: 'Request album' }))
 
     await waitFor(() => expect(screen.getByText('Try again')).toBeTruthy())
-    expect(screen.getByRole('button').getAttribute('title')).toBe('Lidarr didn’t take the request: down.')
+    expect(screen.getByRole('alert').textContent).toBe('Lidarr isn’t answering. Try again later.')
+  })
+
+  it('says Can’t request, and why, when Lidarr can’t find it', async () => {
+    refusal = new ApiError(409, 'Conflict', ['Lidarr can’t find Nowhere by Nobody.'])
+    renderCard(album)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Request album' }))
+
+    await waitFor(() => expect(screen.getByText('Can’t request')).toBeTruthy())
+    expect(screen.queryByRole('button')).toBeNull()
+    expect(screen.getByRole('alert').textContent).toBe('Lidarr can’t find Nowhere by Nobody.')
   })
 })

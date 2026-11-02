@@ -21,6 +21,9 @@ public static partial class MusicRequestEndpoints
 {
     private const int RowSize = 20;
 
+    [LoggerMessage(Level = LogLevel.Information, Message = "Couldn't request the {Kind} {Id}: {Reason}")]
+    private static partial void LogRequestRefused(ILogger logger, string kind, string? id, string? reason);
+
     [LoggerMessage(Level = LogLevel.Warning, Message = "Lidarr refused or didn't answer a music request ({Status})")]
     private static partial void LogLidarrRefused(ILogger logger, Exception ex, int? status);
 
@@ -254,7 +257,13 @@ public static partial class MusicRequestEndpoints
 
             try
             {
-                return await MusicRequestPlacer.PlaceAsync(c, current.Id, body, ct);
+                var placed = await MusicRequestPlacer.PlaceAsync(c, current.Id, body, logger, ct);
+                if (placed is Microsoft.AspNetCore.Http.HttpResults.ProblemHttpResult { StatusCode: 409 } refused)
+                {
+                    LogRequestRefused(logger, body.Kind, body.DeezerId?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? body.MusicBrainzId ?? body.ArtistId?.ToString(), refused.ProblemDetails.Detail);
+                }
+
+                return placed;
             }
             catch (HttpRequestException ex)
             {

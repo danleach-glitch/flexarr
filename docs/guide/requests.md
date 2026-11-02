@@ -115,7 +115,9 @@ Below them are genres. Each one opens its best-known artists.
 There are two kinds of music request:
 
 - **Request album** downloads that album and nothing else. If Lidarr doesn't have the artist yet, it adds them without their other albums.
-- **Follow artist** has Lidarr download the artist's new releases from now on. Their older albums are still requested one at a time.
+- **Follow artist** downloads the artist's latest album now, then each new release as it comes out. Their older albums are still requested one at a time.
+
+If Lidarr can't find an album or artist (it only knows what's listed on MusicBrainz), the button says **Can't request** and why.
 
 An artist's page in your library ends with **Not in your library**: the albums of theirs you don't have, each with **Request album**. Below that, **Fans also like** suggests artists like them.
 

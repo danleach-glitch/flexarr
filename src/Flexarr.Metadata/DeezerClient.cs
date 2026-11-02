@@ -27,6 +27,7 @@ public sealed record DeezerGenre(long Id, string Name, string? PictureXl = null)
 /// <summary>A release (album, EP or single) as Deezer knows it.</summary>
 /// <param name="RecordType">"album", "ep", "single" or "compile".</param>
 /// <param name="ReleaseDate">yyyy-MM-dd.</param>
+/// <param name="Upc">Its barcode: only on the album itself (<c>album/{id}</c>), not in lists. What ties it to MusicBrainz.</param>
 public sealed record DeezerAlbum(
     long Id,
     string Title,
@@ -40,7 +41,8 @@ public sealed record DeezerAlbum(
     int GenreId = 0,
     bool ExplicitLyrics = false,
     DeezerList<DeezerTrack>? Tracks = null,
-    DeezerList<DeezerGenre>? Genres = null)
+    DeezerList<DeezerGenre>? Genres = null,
+    string? Upc = null)
 {
     public string? Cover => DeezerArtist.RealImage(CoverXl) ?? DeezerArtist.RealImage(CoverBig);
 

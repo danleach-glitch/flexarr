@@ -24,8 +24,13 @@ that the profile can see a music library.
 - **Request album**: if Lidarr doesn't have the artist, add it with `monitored: true`, `monitorNewItems: none` and
   `addOptions: {monitor: none, searchForMissingAlbums: false}`, so nothing else downloads. Then monitor the album
   (`PUT album/monitor`) and search for it (`AlbumSearch`). If Lidarr has the artist already, only the last two.
-- **Follow artist**: add the artist with `monitorNewItems: new` and `addOptions: {monitor: future}`, or set
-  `monitorNewItems: new` on the artist Lidarr has. Older albums stay unmonitored and can be requested one by one.
+- **Follow artist**: add the artist with `monitorNewItems: new` and `addOptions: {monitor: latest,
+  searchForMissingAlbums: true}`, or set `monitorNewItems: new` on the artist Lidarr has and monitor and search their
+  latest studio album. Older albums stay unmonitored and can be requested one by one.
+- **Matching**: Deezer and MusicBrainz share no ids, but both know an album's barcode. A Deezer album's UPC finds its
+  MusicBrainz release (`release?query=barcode:…`), whose release group and credited artist Lidarr looks up by id
+  (`lidarr:<mbid>`); an artist is found through the barcode of one of their releases. Names are only the fallback. MusicBrainz
+  allows one request a second (`MusicCatalog` paces and caches them).
 - **Profiles**: the quality and metadata profiles are the root folder's defaults (`defaultQualityProfileId`,
   `defaultMetadataProfileId`), falling back to the ones most of that Lidarr's artists use, then the first.
 - **Root folder**: the profile's *New music goes to* library, matched to a Lidarr root folder through the path mappings

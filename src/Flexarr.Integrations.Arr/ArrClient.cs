@@ -165,7 +165,7 @@ public sealed class ArrClient(HttpClient httpClient)
         }, ct);
     }
 
-    /// <summary>Adds an artist that Lidarr then watches for new releases only: nothing they've already released downloads.</summary>
+    /// <summary>Adds an artist that Lidarr downloads the latest album of now, then each new release as it comes out.</summary>
     public Task<LidarrArtist> AddFollowedArtistAsync(ArrInstance lidarr, string artistMusicBrainzId, string artistName, LidarrPlacement placement, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(placement);
@@ -178,7 +178,7 @@ public sealed class ArrClient(HttpClient httpClient)
             rootFolderPath = placement.RootFolderPath,
             monitored = true,
             monitorNewItems = "new",
-            addOptions = new { monitor = "future", searchForMissingAlbums = false },
+            addOptions = new { monitor = "latest", searchForMissingAlbums = true },
         }, ct);
     }
 

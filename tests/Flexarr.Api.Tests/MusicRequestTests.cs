@@ -25,6 +25,7 @@ public sealed class MusicRequestTests : IAsyncLifetime
     private readonly FlexarrApiFactory _factory = new();
     private readonly FakeArr _lidarr = new();
     private readonly FakeArr _deezer = new();
+    private readonly FakeMusicBrainz _musicBrainz = new();
     private readonly ConcurrentQueue<(string Request, JsonNode? Body)> _sent = new();
     private WebApplicationFactory<Program> _server = null!;
 
@@ -41,6 +42,7 @@ public sealed class MusicRequestTests : IAsyncLifetime
                 s.AddHttpClient<ArrClient>().ConfigurePrimaryHttpMessageHandler(() => _lidarr);
                 s.AddHttpClient<DeezerClient>().ConfigurePrimaryHttpMessageHandler(() => _deezer);
                 s.AddHttpClient(nameof(DeezerClient)).ConfigurePrimaryHttpMessageHandler(() => _deezer);
+                s.AddHttpClient<MusicBrainzClient>().ConfigurePrimaryHttpMessageHandler(() => _musicBrainz);
             });
         });
         _lidarr.OnRequest = r => _sent.Enqueue(($"{r.Method} {r.RequestUri!.AbsolutePath}", r.Content is null ? null : JsonNode.Parse(r.Content.ReadAsStringAsync().Result)));
@@ -83,6 +85,7 @@ public sealed class MusicRequestTests : IAsyncLifetime
         await _factory.DisposeAsync();
         _lidarr.Dispose();
         _deezer.Dispose();
+        _musicBrainz.Dispose();
     }
 
     private static string Fixture(string name) => Path.Combine("Fixtures", name);
@@ -256,16 +259,76 @@ public sealed class MusicRequestTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task FollowingAnArtist_WatchesForNewReleasesOnly()
+    public async Task FollowingAnArtist_GetsTheirLatestAlbum_AndNewReleases()
     {
         await MusicLibraryAsync();
         var response = await Client().PostAsJsonAsync(Api("/requests/music"), new { kind = "artist", deezerId = 134334152 });
 
         Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
         var add = _sent.Single(s => s.Request == "POST /api/v1/artist").Body!;
-        Assert.Equal(("new", "future"), (add["monitorNewItems"]!.GetValue<string>(), add["addOptions"]!["monitor"]!.GetValue<string>()));
-        Assert.False(add["addOptions"]!["searchForMissingAlbums"]!.GetValue<bool>());
+        Assert.Equal(("new", "latest"), (add["monitorNewItems"]!.GetValue<string>(), add["addOptions"]!["monitor"]!.GetValue<string>()));
+        Assert.True(add["addOptions"]!["searchForMissingAlbums"]!.GetValue<bool>());
         Assert.Equal(MediaKind.Artist, (await InDbAsync(db => db.MediaRequests.SingleAsync())).Kind);
+    }
+
+    [Fact]
+    public async Task FollowingAnArtistLidarrHas_SearchesForTheirLatestAlbum()
+    {
+        await MusicLibraryAsync();
+        _lidarr.Responses["GET /api/v1/artist"] = $$"""[{"id":3,"artistName":"Wet Leg","foreignArtistId":"{{WetLeg}}","monitored":false,"monitorNewItems":"none"}]""";
+        _lidarr.Responses["GET /api/v1/artist/lookup?term=Wet%20Leg"] = $$"""[{"id":3,"artistName":"Wet Leg","foreignArtistId":"{{WetLeg}}"}]""";
+        _lidarr.Responses["GET /api/v1/artist/3"] = $$"""{"id":3,"artistName":"Wet Leg","foreignArtistId":"{{WetLeg}}","monitored":false,"monitorNewItems":"none"}""";
+        _lidarr.Responses["PUT /api/v1/artist/3"] = """{"id":3,"artistName":"Wet Leg"}""";
+        _lidarr.Responses["GET /api/v1/album?artistId=3"] = $$$"""
+            [{"id":8,"artistId":3,"title":"Wet Leg","albumType":"Album","releaseDate":"2022-04-08T00:00:00Z","monitored":false,"statistics":{"trackFileCount":12,"trackCount":12,"totalTrackCount":12,"sizeOnDisk":1}},
+             {"id":9,"artistId":3,"title":"moisturizer","albumType":"Album","releaseDate":"2025-07-11T00:00:00Z","monitored":false},
+             {"id":10,"artistId":3,"title":"Live at Glastonbury","albumType":"Album","secondaryTypes":["Live"],"releaseDate":"2025-09-01T00:00:00Z","monitored":false},
+             {"id":11,"artistId":3,"title":"Next One","albumType":"Album","releaseDate":"2099-01-01T00:00:00Z","monitored":false}]
+            """;
+
+        var response = await Client().PostAsJsonAsync(Api("/requests/music"), new { kind = "artist", deezerId = 134334152 });
+
+        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+        Assert.Equal("new", _sent.Single(s => s.Request == "PUT /api/v1/artist/3").Body!["monitorNewItems"]!.GetValue<string>());
+        Assert.Equal([9], _sent.Single(s => s.Request == "PUT /api/v1/album/monitor").Body!["albumIds"]!.AsArray().Select(n => n!.GetValue<int>()));
+        var search = _sent.Single(s => s.Request == "POST /api/v1/command").Body!;
+        Assert.Equal(("AlbumSearch", 9), (search["name"]!.GetValue<string>(), search["albumIds"]![0]!.GetValue<int>()));
+        Assert.DoesNotContain(_sent, s => s.Request == "POST /api/v1/artist");
+    }
+
+    [Fact]
+    public async Task AnAlbumByANameSeveralArtistsShare_IsFoundByItsBarcode()
+    {
+        await MusicLibraryAsync();
+        const string LePlusBeau = "04120832-3d22-46d7-9e76-10ab72784e11";
+        const string TeddyBear = "801b4b13-24d8-4293-94bd-21c5b4bc420e";
+        _deezer.Responses["GET /album/1075783372"] =
+            """{"id":1075783372,"title":"Le Plus Beau","upc":"3618116321222","release_date":"2026-10-30","record_type":"album","artist":{"id":7,"name":"TeddyBear"}}""";
+        _musicBrainz.Releases["3618116321222"] = File.ReadAllText(Fixture("musicbrainz-release-barcode.json"));
+        _lidarr.Responses[$"GET /api/v1/album/lookup?term=lidarr%3A{LePlusBeau}"] =
+            $$$"""[{"title":"Le Plus Beau","foreignAlbumId":"{{{LePlusBeau}}}","releaseDate":"2026-10-30T00:00:00Z","artist":{"artistName":"TeddyBear","foreignArtistId":"{{{TeddyBear}}}"}}]""";
+        _lidarr.Responses[$"GET /api/v1/artist/lookup?term=lidarr%3A{TeddyBear}"] = $$"""[{"artistName":"TeddyBear","foreignArtistId":"{{TeddyBear}}"}]""";
+
+        var response = await Client().PostAsJsonAsync(Api("/requests/music"), new { kind = "album", deezerId = 1075783372 });
+
+        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+        var add = _sent.Single(s => s.Request == "POST /api/v1/album").Body!;
+        Assert.Equal((LePlusBeau, TeddyBear), (add["foreignAlbumId"]!.GetValue<string>(), add["artist"]!["foreignArtistId"]!.GetValue<string>()));
+        Assert.True(add["addOptions"]!["searchForNewAlbum"]!.GetValue<bool>());
+        Assert.DoesNotContain(_lidarr.Requests, r => r.Contains("term=TeddyBear", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task AnAlbumLidarrCantFind_SaysSo_AndIsntRetried()
+    {
+        await MusicLibraryAsync();
+        _deezer.Responses["GET /album/42"] = """{"id":42,"title":"Nowhere","record_type":"album","artist":{"id":8,"name":"Nobody"}}""";
+        _lidarr.Responses["GET /api/v1/artist/lookup?term=Nobody"] = "[]";
+
+        var response = await Client().PostAsJsonAsync(Api("/requests/music"), new { kind = "album", deezerId = 42 });
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Equal("Lidarr can't find Nowhere by Nobody.", (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("detail").GetString());
     }
 
     [Fact]
@@ -363,5 +426,18 @@ public sealed class MusicRequestTests : IAsyncLifetime
         Assert.Equal(library.Id, profile.GetProperty("requestMusicLibraryId").GetGuid());
         Assert.Equal(HttpStatusCode.BadRequest, wrong.StatusCode);
         Assert.Equal(library.Id, kept);
+    }
+}
+
+/// <summary>Stands in for MusicBrainz: a barcode search answers with the release saved for any barcode it asks about, else none.</summary>
+internal sealed class FakeMusicBrainz : HttpMessageHandler
+{
+    public ConcurrentDictionary<string, string> Releases { get; } = new();
+
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        var query = Uri.UnescapeDataString(request.RequestUri!.Query);
+        var body = Releases.FirstOrDefault(r => query.Contains(r.Key.TrimStart('0'), StringComparison.Ordinal)).Value ?? """{"count":0,"releases":[]}""";
+        return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json") });
     }
 }

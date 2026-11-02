@@ -1,0 +1,72 @@
+{
+ "created": "2026-11-02T07:49:42.623Z",
+ "count": 1,
+ "offset": 0,
+ "releases": [
+  {
+   "id": "56d646cb-65df-475b-b455-764280d2763e",
+   "score": 100,
+   "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+   "packaging-id": "119eba76-b343-3e02-a292-f0f00644bb9b",
+   "artist-credit-id": "3f5a9590-fed4-4616-a332-23107c653147",
+   "count": 1,
+   "title": "Le Plus Beau",
+   "status": "Official",
+   "packaging": "None",
+   "text-representation": {
+    "script": "Latn"
+   },
+   "artist-credit": [
+    {
+     "name": "TeddyBear",
+     "artist": {
+      "id": "801b4b13-24d8-4293-94bd-21c5b4bc420e",
+      "name": "TeddyBear",
+      "sort-name": "TeddyBear",
+      "disambiguation": "Belgium Singer"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "04120832-3d22-46d7-9e76-10ab72784e11",
+    "type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+    "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+    "title": "Le Plus Beau",
+    "primary-type": "Album"
+   },
+   "date": "2026-10-30",
+   "country": "XW",
+   "release-events": [
+    {
+     "date": "2026-10-30",
+     "area": {
+      "id": "525d4e18-3d00-31b9-a58b-a146a916de8f",
+      "name": "[Worldwide]",
+      "sort-name": "[Worldwide]",
+      "iso-3166-1-codes": [
+       "XW"
+      ]
+     }
+    }
+   ],
+   "barcode": "3618116321222",
+   "label-info": [
+    {
+     "label": {
+      "id": "3c6b98c7-407e-498e-ab8c-adf891ab0d38",
+      "name": "naïve"
+     }
+    }
+   ],
+   "track-count": 11,
+   "media": [
+    {
+     "id": "1f37a90b-76eb-4d0b-ae02-059db011952e",
+     "format": "Digital Media",
+     "disc-count": 0,
+     "track-count": 11
+    }
+   ]
+  }
+ ]
+}
