@@ -380,9 +380,11 @@ struct PersonView: View {
     }
 }
 
-/// A film or show the library doesn't have, from search: tap for Add to watchlist and Request.
-private struct OutsideTitleCard: View {
+/// A film or show the library doesn't have, from search or a title's *If you like this*: tap for its page (one the
+/// library has opens as itself); hold for Add to watchlist and Request.
+struct OutsideTitleCard: View {
     @Environment(AppModel.self) private var model
+    @Environment(Router.self) private var router
     let title: ExternalTitle
     let width: CGFloat
     @State private var onList: Bool?
@@ -390,28 +392,8 @@ private struct OutsideTitleCard: View {
 
     var body: some View {
         let isOn = onList ?? title.onWatchlist ?? false
-        Menu {
-            if model.hasWatchlist {
-                Button {
-                    Task { if await model.setOnWatchlist(WatchlistKey(title), !isOn) != nil { onList = !isOn } }
-                } label: {
-                    Label(isOn ? "Remove from watchlist" : "Add to watchlist", systemImage: isOn ? "bookmark.slash" : "bookmark")
-                }
-            }
-            if title.availability == .none && !requested {
-                Button {
-                    Task {
-                        do {
-                            try await model.client?.request(title)
-                            requested = true
-                        } catch {
-                            model.requestError = ConnectionError(error).message
-                        }
-                    }
-                } label: {
-                    Label("Request", systemImage: "plus.circle")
-                }
-            }
+        Button {
+            router.push(title.libraryItemId.map(Route.itemID) ?? .external(title))
         } label: {
             VStack(alignment: .leading, spacing: 6) {
                 Color.seat
@@ -428,7 +410,7 @@ private struct OutsideTitleCard: View {
                     .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
                     .overlay(alignment: .topTrailing) {
                         if isOn {
-                            Image(systemName: "bookmark.fill")
+                            Image(systemName: Symbol.onWatchlist)
                                 .font(.caption.weight(.bold))
                                 .foregroundStyle(Color.screen)
                                 .padding(6)
@@ -448,8 +430,32 @@ private struct OutsideTitleCard: View {
                 .lineLimit(1)
             }
             .frame(width: width)
+            .contentShape(Rectangle())
             .accessibilityElement(children: .combine)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(CardButtonStyle())
+        .contextMenu {
+            if model.hasWatchlist {
+                Button {
+                    Task { if await model.setOnWatchlist(WatchlistKey(title), !isOn) != nil { onList = !isOn } }
+                } label: {
+                    Label(isOn ? "Remove from watchlist" : "Add to watchlist", systemImage: isOn ? Symbol.onWatchlist : Symbol.watchlist)
+                }
+            }
+            if title.availability == .none && !requested {
+                Button {
+                    Task {
+                        do {
+                            try await model.client?.request(title)
+                            requested = true
+                        } catch {
+                            model.requestError = ConnectionError(error).message
+                        }
+                    }
+                } label: {
+                    Label("Request", systemImage: Symbol.request)
+                }
+            }
+        }
     }
 }
