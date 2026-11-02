@@ -983,6 +983,33 @@ describe('Settings', () => {
     expect(screen.getByRole('button', { name: 'Switch to the main profile' })).toBeInTheDocument()
   })
 
+  it('counts titles without artwork once, saying how many need Radarr or Sonarr', async () => {
+    const film = (id: string) => summary({ id, title: id })
+    mockApi({
+      '/libraries': [],
+      '/library-health': {
+        score: { score: 90, titles: 10, withProblems: 1, duplicates: 0, unreadable: 0, standardDefinition: 0, missingArtwork: 1, fileProblems: 0, artworkNeedsConnection: 2 },
+        duplicates: [],
+        reclaimableBytes: 0,
+        unreadable: [],
+        missingArtwork: [film('One'), film('Two'), film('Three')],
+        matchedByTitle: [],
+        standardDefinition: [],
+        standardDefinitionTotal: 0,
+        downloading: {},
+        held: [],
+      },
+      '/library-health/check': { running: false, checked: 0, total: 0, finishedAt: null, problems: [] },
+    })
+
+    renderAt('/settings/health')
+
+    const line = await screen.findByText(/without artwork/)
+    expect(line).toHaveTextContent('3 without artwork (connect Radarr or Sonarr to fill in 2)')
+    expect(screen.getAllByText(/without artwork/)).toHaveLength(1)
+    expect(screen.getByText(/2 need Radarr or Sonarr connected/)).toBeInTheDocument()
+  })
+
   it('names the library in a held folder’s removal, and closes on Escape', async () => {
     mockApi({
       '/libraries': [],
