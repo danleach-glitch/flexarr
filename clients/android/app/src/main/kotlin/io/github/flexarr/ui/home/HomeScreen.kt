@@ -200,15 +200,11 @@ fun HomeScreen(model: AppModel) {
                     // A row with nothing in it (a kind this app doesn't show yet, say) would be a bare heading. New
                     // podcasts goes where the server places it, or after Continue watching for a server before 0.58.
                     // Coming soon's titles come separately, in `upcoming`.
-                    val slots = home.slots { it.hasContent || (it.style == HomeRowStyle.Upcoming && home.upcoming.isNotEmpty()) }.filter { it !is HomeSlot.NewPodcasts || content.newEpisodes.isNotEmpty() }
+                    val slots = home.slots { it.showsIn(home) }.filter { it !is HomeSlot.NewPodcasts || content.newEpisodes.isNotEmpty() }
                     items(slots, key = { slot -> if (slot is HomeSlot.Row) slot.row.id else "new-podcasts" }) { slot ->
                         when (slot) {
                             HomeSlot.NewPodcasts -> NewEpisodesRow(model, content.newEpisodes)
-                            is HomeSlot.Row -> when (slot.row.style) {
-                                HomeRowStyle.Live -> LiveRowView(slot.row)
-                                HomeRowStyle.Upcoming -> ComingSoonRow(home.upcoming, home.downloading)
-                                else -> HomeRowView(model, slot.row)
-                            }
+                            is HomeSlot.Row -> HomeRowSlot(model, slot.row, home)
                         }
                     }
                 }
@@ -237,8 +233,19 @@ fun HomeScreen(model: AppModel) {
     }
 }
 
+/** Whether a row has something to show. Coming soon's titles come separately, in `upcoming`. */
+internal fun HomeRow.showsIn(home: Home) = hasContent || (style == HomeRowStyle.Upcoming && home.upcoming.isNotEmpty())
+
+/** One of Home's rows, or of a library's Browse: Coming soon from the titles beside the rows, any other from its own. */
 @Composable
-private fun HomeHero(home: Home, onIndex: (Int) -> Unit) {
+internal fun HomeRowSlot(model: AppModel, row: HomeRow, home: Home) = when (row.style) {
+    HomeRowStyle.Live -> LiveRowView(row)
+    HomeRowStyle.Upcoming -> ComingSoonRow(home.upcoming, home.downloading)
+    else -> HomeRowView(model, row)
+}
+
+@Composable
+internal fun HomeHero(home: Home, onIndex: (Int) -> Unit) {
     val items = home.featured
     val pager = rememberPagerState { items.size }
     val context = LocalContext.current
