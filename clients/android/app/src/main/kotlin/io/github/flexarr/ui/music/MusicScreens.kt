@@ -172,7 +172,7 @@ private fun MusicHeader(
 
 /** Back, on its own over the page, as on the title pages. */
 @Composable
-private fun BackButton() {
+internal fun BackButton() {
     val navigator = LocalNavigator.current
     IconButton(
         onClick = { navigator.back() },
