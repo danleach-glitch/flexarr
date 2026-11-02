@@ -2,7 +2,7 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
-## Unreleased
+## 0.58.0 · 2 November 2026
 
 ### Libraries
 - On iPhone, iPad and Android phones, Movies, TV Shows and Home videos now open on **Browse**, as they do on the web and the TVs: a featured title at the top, then rows of just that library, such as **Continue watching**, the latest unwatched, its Top 10, the newest releases and genre rows. **All** and **Genres** are at the top, and each keeps its place when you switch back. Pull down to refresh.
