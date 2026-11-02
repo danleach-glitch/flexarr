@@ -11,17 +11,13 @@ struct MusicLibraryView<Header: View>: View {
     @State private var featuredIndex = 0
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.horizontalSizeClass) private var sizeClass
-    /// Opens the library's Artists view.
-    private let showArtists: () -> Void
     /// The Browse · Artists · Albums · Genres switch, at the top.
     private let header: Header
 
-    /// How many artists Your artists shows before its See all.
-    private static var artistsInRow: Int { 20 }
+    @Environment(Router.self) private var router
 
-    init(library: Library, showArtists: @escaping () -> Void, @ViewBuilder header: () -> Header) {
+    init(library: Library, @ViewBuilder header: () -> Header) {
         _browse = State(initialValue: MusicBrowseModel(library: library))
-        self.showArtists = showArtists
         self.header = header()
     }
 
@@ -40,6 +36,9 @@ struct MusicLibraryView<Header: View>: View {
                 }
                 if let error = browse.error, browse.artists.isEmpty {
                     StatusView(state: .failed(error) { Task { await load() } })
+                        .frame(height: 400)
+                } else if browse.loadedAt == nil {
+                    StatusView(state: .loading)
                         .frame(height: 400)
                 } else if browse.isEmpty {
                     StatusView(state: .empty("Nothing in this library yet."))
@@ -63,8 +62,10 @@ struct MusicLibraryView<Header: View>: View {
                         }
                     }
                     if !browse.artists.isEmpty {
-                        row("Your artists", action: showArtists) {
-                            ForEach(browse.artists.prefix(Self.artistsInRow)) { ArtistCard(item: $0, width: cardWidth * 0.85) }
+                        // See all only when there are more than the row shows; it opens Artists over Browse.
+                        row("Your artists", action: browse.total > MusicBrowseModel.artistsInRow ? { router.push(.artists(browse.library)) } : nil,
+                            actionLabel: "See all artists") {
+                            ForEach(browse.artists.prefix(MusicBrowseModel.artistsInRow)) { ArtistCard(item: $0, width: cardWidth * 0.85) }
                         }
                     }
                 }
@@ -76,7 +77,9 @@ struct MusicLibraryView<Header: View>: View {
             .animation(.easeInOut(duration: 0.8), value: featured?.id))
         .refreshable { await load() }
         .task {
-            if browse.loadedAt != nil, !Freshness.isStale(browse.loadedAt) { return }
+            // Music played since (from the hero, say) may have moved Resume on.
+            let played = browse.playingWhenLoaded != model.music.current?.id
+            if browse.loadedAt != nil, !Freshness.isStale(browse.loadedAt), !played { return }
             await load()
         }
         .onAppear { isVisible = true }
@@ -88,9 +91,9 @@ struct MusicLibraryView<Header: View>: View {
 
     private var cardWidth: CGFloat { Layout.posterWidth(sizeClass) * 1.15 }
 
-    private func row<Cards: View>(_ title: String, action: (() -> Void)? = nil, @ViewBuilder cards: () -> Cards) -> some View {
+    private func row<Cards: View>(_ title: String, action: (() -> Void)? = nil, actionLabel: String? = nil, @ViewBuilder cards: () -> Cards) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            SectionHeading(title: title, action: action)
+            SectionHeading(title: title, action: action, actionLabel: actionLabel)
             ScrollView(.horizontal) {
                 LazyHStack(alignment: .top, spacing: Layout.rowSpacing) { cards() }
                     .padding(.horizontal, Layout.edge)
@@ -101,6 +104,7 @@ struct MusicLibraryView<Header: View>: View {
 
     private func load() async {
         guard let client = model.client else { return }
+        browse.playingWhenLoaded = model.music.current?.id
         await browse.load(client: client)
     }
 }

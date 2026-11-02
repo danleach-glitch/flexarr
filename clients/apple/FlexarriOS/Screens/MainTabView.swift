@@ -166,6 +166,10 @@ struct TabStack<Content: View>: View {
             PodcastsView()
         case .library(let library, let sort, let genre):
             LibraryView(library: library, initialSort: sort, initialGenre: genre)
+        case .albums(let library, let sort):
+            LibraryView(library: library, initialSort: sort, opening: .albums)
+        case .artists(let library):
+            LibraryView(library: library, opening: .all)
         case .playlist(let playlist):
             PlaylistView(playlist: playlist)
         case .podcasts:

@@ -344,7 +344,7 @@ struct HomeRowView: View {
         VStack(alignment: .leading, spacing: 10) {
             SectionHeading(title: row.title, action: row.style == .live ? { router.push(.liveTv) }
                 : row.link == "/watchlist" ? { router.push(.watchlist) }
-                : linkedLibrary.map { link in { router.push(.library(link.library, link.sort, genre: link.genre)) } })
+                : linkedLibrary.map { route in { router.push(route) } })
             ScrollView(.horizontal) {
                 LazyHStack(alignment: .top, spacing: row.style == .top10 ? 6 : Layout.rowSpacing) {
                     // A playlists row carries playlists rather than items.
@@ -382,7 +382,7 @@ struct HomeRowView: View {
 
     /// Rows link to "/library/{id}?sort=added" (a library's Browse rows to "?view=all&sort=added" or "&genre=Drama");
     /// map that to a library destination. One with a sort or genre opens the library's titles rather than its Browse.
-    private var linkedLibrary: (library: Library, sort: LibrarySort, genre: String?)? {
+    private var linkedLibrary: Route? {
         guard let link = row.link, let components = URLComponents(string: link),
               components.path.hasPrefix("/library/") else { return nil }
         let id = String(components.path.dropFirst("/library/".count))
@@ -390,7 +390,11 @@ struct HomeRowView: View {
         let query = components.queryItems ?? []
         let sort = query.first(where: { $0.name == "sort" })?.value.flatMap(LibrarySort.init(rawValue:)) ?? .title
         let genre = query.first(where: { $0.name == "genre" })?.value.flatMap { $0.isEmpty ? nil : $0 }
-        return (library, sort, genre)
+        // A music library's albums (New albums, from 0.59); its other links are its artists.
+        if library.type == .music, genre == nil, query.contains(where: { $0.name == "view" && $0.value == "albums" }) {
+            return .albums(library, sort)
+        }
+        return .library(library, sort, genre: genre)
     }
 }
 

@@ -35,10 +35,10 @@ struct LibraryView: View {
     /// Bumped by each reload (a new sort or genre), so an answer for the old one is dropped rather than shown or appended.
     @State private var generation = 0
     @State private var isRefreshing = false
-    /// Whether the server lists a music library's albums (and so has Albums and Genres): from 0.59.
-    @State private var offersAlbums = true
-    /// The grid's titles are a music library's albums (else its artists, or a library's titles).
-    @State private var gridHoldsAlbums = false
+    /// A music library's genres counted by album, for its Albums filter and Genres tiles (`genres` are its artists').
+    @State private var albumGenres: [GenreCount] = []
+    /// What the grid holds or is loading: a music library's albums (else its artists, or a library's titles).
+    @State private var gridHoldsAlbums: Bool?
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.horizontalSizeClass) private var sizeClass
 
@@ -46,12 +46,13 @@ struct LibraryView: View {
     /// The most the server sends in one page (ItemEndpoints' MaxPageSize).
     private static let maxPageSize = 500
 
-    init(library: Library, initialSort: LibrarySort = .title, initialGenre: String? = nil) {
+    /// `opening`: the view to open on, when a link says (a music library's Albums or Artists).
+    init(library: Library, initialSort: LibrarySort = .title, initialGenre: String? = nil, opening: Showing? = nil) {
         self.library = library
         self.initialSort = initialSort
         self.initialGenre = initialGenre
-        let first: Showing = library.type == .music && initialGenre != nil ? .albums
-            : Self.hasBrowse(library, genre: initialGenre) && initialSort == .title && initialGenre == nil ? .browse : .all
+        let first: Showing = opening ?? (library.type == .music && initialGenre != nil ? .albums
+            : Self.hasBrowse(library, genre: initialGenre) && initialSort == .title && initialGenre == nil ? .browse : .all)
         _showing = State(initialValue: first)
         _opened = State(initialValue: [first])
     }
@@ -72,6 +73,13 @@ struct LibraryView: View {
     }
 
     private var music: Bool { library.type == .music }
+    /// Whether the server lists a music library's albums (and so has Albums and Genres): from 0.59, asked once per
+    /// server. Until it answers, Browse and Artists.
+    private var offersAlbums: Bool { model.offersMusicAlbums == true }
+    /// A music genre's page is that genre's: its title and Play are, so it offers no other.
+    private var showsGenreFilter: Bool { !(music && initialGenre != nil) }
+    /// The genres the filter offers for what the grid lists.
+    private var filterGenres: [GenreCount] { listsAlbums ? albumGenres : genres }
     /// What the grid lists: a music library's albums, or the library's titles (a music library's are its artists).
     private var listsAlbums: Bool { showing == .albums }
 
@@ -83,7 +91,7 @@ struct LibraryView: View {
             if opened.contains(.browse) {
                 kept(.browse) {
                     if music {
-                        MusicLibraryView(library: library, showArtists: { showing = .all }) { viewSwitch }
+                        MusicLibraryView(library: library) { viewSwitch }
                     } else {
                         LibraryBrowseView(library: library, showAll: { showing = .all }) { viewSwitch }
                     }
@@ -97,25 +105,29 @@ struct LibraryView: View {
             }
         }
         .task {
-            // For the toolbar's genre menu and the Genres view, whichever comes first. A music library's count albums.
-            if music, let client = model.client {
-                // Nil (rather than an error) only from a server without the endpoint.
-                do {
-                    let found = try await client.libraryAlbumGenres(library.id)
-                    offersAlbums = found != nil
-                    genres = found ?? []
-                } catch {}
+            // For the toolbar's genre menu and the Genres view, once; a genre's own page needs neither.
+            guard showsGenreFilter else { return }
+            if music {
+                await model.checkMusicAlbums(library: library)
+                if genres.isEmpty { genres = await (try? model.client?.libraryGenres(library.id)) ?? [] }
+                if offersAlbums, albumGenres.isEmpty { albumGenres = ((try? await model.client?.libraryAlbumGenres(library.id)) ?? nil) ?? [] }
             } else if hasGenres, genres.isEmpty {
                 genres = await (try? model.client?.libraryGenres(library.id)) ?? []
             }
         }
         .onChange(of: showing) { _, new in
             opened.insert(new)
-            // A music library's artists and albums share the grid: it starts over for the other.
-            if music, new == .all || new == .albums, gridHoldsAlbums != (new == .albums), loadedToken != nil {
+            // A music library's artists and albums share the grid: it starts over for the other, without the other's
+            // genre (they're counted differently) or a sort it doesn't have.
+            if music, new == .all || new == .albums, let holds = gridHoldsAlbums, holds != (new == .albums) {
+                if initialGenre == nil { genre = nil }
                 if !content.sorts.contains(sort) { sort = .title }
                 Task { await reload() }
             }
+        }
+        // A server without albums: back to Browse from Albums or Genres.
+        .onChange(of: model.offersMusicAlbums) { _, offered in
+            if music, offered == false, showing == .albums || showing == .genres { showing = .browse }
         }
     }
 
@@ -149,14 +161,14 @@ struct LibraryView: View {
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 12) {
                 viewSwitch
-                LibraryGenreGrid(library: library, genres: genres)
+                LibraryGenreGrid(library: library, genres: music ? albumGenres : genres)
             }
             .padding(.bottom, 32)
         }
         .background(RoomBackground(ambient: items.first?.glowColor, intensity: 0.18))
         .refreshable {
             if music {
-                genres = ((try? await model.client?.libraryAlbumGenres(library.id)) ?? nil) ?? genres
+                albumGenres = ((try? await model.client?.libraryAlbumGenres(library.id)) ?? nil) ?? albumGenres
             } else {
                 genres = await (try? model.client?.libraryGenres(library.id)) ?? genres
             }
@@ -252,10 +264,10 @@ struct LibraryView: View {
                     Text(option.label).tag(option)
                 }
             }
-            if !genres.isEmpty {
+            if showsGenreFilter, !filterGenres.isEmpty {
                 Picker("Genre", selection: $genre) {
                     Text("All genres").tag(String?.none)
-                    ForEach(genres, id: \.name) { g in
+                    ForEach(filterGenres, id: \.name) { g in
                         Text("\(g.name) (\(g.count))").tag(Optional(g.name))
                     }
                 }
@@ -288,11 +300,11 @@ struct LibraryView: View {
         // A newer reload owns the spinner by now.
         defer { if current == generation { isLoading = false } }
         let token = model.refreshToken
+        // What the grid is loading now, so a switch before it arrives starts it over (and drops this answer).
+        gridHoldsAlbums = listsAlbums
         do {
-            let albums = listsAlbums
             let page = try await fetch(client, skip: 0, take: Self.pageSize)
             guard current == generation else { return }
-            gridHoldsAlbums = albums
             items = page.items
             total = page.total
             loadedToken = token
