@@ -164,20 +164,9 @@ private fun Header(title: ExternalTitle, preview: ExternalTitle, detail: Externa
             Text(it, fontSize = 14.sp, fontWeight = FontWeight.Medium, fontStyle = FontStyle.Italic, color = Flexarr.screen.copy(alpha = 0.85f))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(11.dp), verticalAlignment = Alignment.CenterVertically) {
-            TvFactsLine(facts(title, detail))
+            TvFactsLine(facts(title, detail), scores = detail?.scores)
             val genres = detail?.genres.orEmpty()
             if (genres.isNotEmpty()) Text(genres.take(3).joinToString(", "), fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher, maxLines = 1)
-        }
-        val scores = detail?.let(::ratings).orEmpty()
-        if (scores.isNotEmpty()) {
-            Row(horizontalArrangement = Arrangement.spacedBy(22.dp)) {
-                scores.forEach { (label, value) ->
-                    Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                        Text(value, style = TextStyle(fontSize = 17.sp, fontWeight = FontWeight.Bold, fontFeatureSettings = "tnum"))
-                        Text(label, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher)
-                    }
-                }
-            }
         }
         (detail?.overview ?: preview.overview)?.takeIf { it.isNotEmpty() }?.let {
             Text(it, fontSize = 13.5.sp, lineHeight = 19.sp, color = Flexarr.screen.copy(alpha = 0.88f), maxLines = 4, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 520.dp))
@@ -195,16 +184,10 @@ private fun facts(title: ExternalTitle, detail: ExternalDetail?): List<String> {
         detail.runtimeMinutes?.let { Format.runtime(minutes = it) }
     }
     val status = detail.status?.takeIf { it != "Released" && it != "Ended" }
-    return listOfNotNull(detail.certification, detail.year?.toString(), length, if (detail.isShow) "Show" else "Movie", status)
+    // TMDB's score only when there's neither IMDb nor Rotten Tomatoes to show beside their marks.
+    val tmdb = detail.tmdbRating?.takeIf { detail.scores.isEmpty }?.let { String.format(Locale.ROOT, "%.1f", it) }
+    return listOfNotNull(detail.certification, detail.year?.toString(), length, if (detail.isShow) "Show" else "Movie", status, tmdb)
 }
-
-/** The scores people check before watching: TMDB, IMDb, Rotten Tomatoes critics and audience. */
-private fun ratings(detail: ExternalDetail): List<Pair<String, String>> = listOfNotNull(
-    detail.tmdbRating?.let { "TMDB" to String.format(Locale.ROOT, "%.1f", it) },
-    detail.imdbRating?.let { "IMDb" to String.format(Locale.ROOT, "%.1f", it) },
-    detail.criticScore?.let { "Critics" to "$it%" },
-    detail.audienceScore?.let { "Audience" to "$it%" },
-)
 
 @Composable
 private fun Sections(detail: ExternalDetail, open: (ExternalTitle) -> Unit, focus: FocusMemory) {
