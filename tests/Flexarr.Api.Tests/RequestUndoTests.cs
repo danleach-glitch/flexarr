@@ -287,4 +287,40 @@ public sealed class RequestUndoTests : IAsyncLifetime
         Assert.Equal([2], rows[1].GetProperty("seasons").EnumerateArray().Select(s => s.GetInt32()));
         Assert.Equal(7101, Assert.Single(films.EnumerateArray().ToList()).GetProperty("tmdbId").GetInt32());
     }
+
+    [Fact]
+    public async Task Requested_AsksARadarrThatDoesntAnswer_OnlyOnce()
+    {
+        await InDbAsync(async db =>
+        {
+            db.Libraries.Add(new Library { Name = "Films", Type = LibraryType.Movies, Folders = [new LibraryFolder { Path = "/media/movies" }] });
+            return await db.SaveChangesAsync();
+        });
+        _arr.Responses["GET /api/v1/request?take=100&skip=0&filter=pending&sort=added"] = """{"results":[]}""";
+        _arr.Responses["GET /api/v1/request?take=100&skip=0&filter=failed&sort=added"] = """{"results":[]}""";
+        _arr.Responses["GET /api/v1/request?take=100&skip=0&filter=processing&sort=added"] = """
+            {"results":[
+              {"id":1,"status":2,"type":"movie","media":{"id":11,"tmdbId":7201,"status":3}},
+              {"id":2,"status":2,"type":"movie","media":{"id":12,"tmdbId":7202,"status":3}},
+              {"id":3,"status":2,"type":"movie","media":{"id":13,"tmdbId":7203,"status":3}}]}
+            """;
+        foreach (var tmdb in new[] { 7201, 7202, 7203 })
+        {
+            _arr.Responses[$"GET /api/v1/movie/{tmdb}"] = $$"""{"id":{{tmdb}},"title":"Film {{tmdb}}","releaseDate":"2026-01-01"}""";
+        }
+
+        _arr.OnRequest = r =>
+        {
+            if (r.RequestUri!.Host == "radarr.test")
+            {
+                throw new HttpRequestException("Connection refused (radarr.test:7878)");
+            }
+        };
+
+        var rows = (await Client().GetFromJsonAsync<JsonElement>(Api("/requests/requested"))).EnumerateArray().ToList();
+
+        Assert.Equal(3, rows.Count);
+        Assert.All(rows, r => Assert.Equal("searching", r.GetProperty("state").GetString()));
+        Assert.Single(_arr.Requests, r => r.StartsWith("GET /api/v3/", StringComparison.Ordinal));
+    }
 }
