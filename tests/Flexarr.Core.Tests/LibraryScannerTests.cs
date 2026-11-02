@@ -701,6 +701,28 @@ public sealed class LibraryScannerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Music_AFollowedArtistsAlbum_FillsTheirPlaceholder_WhateverSpellingItsTagsUse()
+    {
+        var root = Touch("music/Beyonce/Lemonade (2016)/01 - Pray You Catch Me.flac", "music/Florence and the Machine/Lungs (2009)/01 - Dog Days.flac");
+        _probe.Tags["01 - Pray You Catch Me.flac"] = new() { ["artist"] = "Beyonce", ["album"] = "Lemonade", ["title"] = "Pray You Catch Me", ["track"] = "1" };
+        _probe.Tags["01 - Dog Days.flac"] = new() { ["artist"] = "Florence and the Machine", ["album"] = "Lungs", ["title"] = "Dog Days", ["track"] = "1", ["MUSICBRAINZ_ARTISTID"] = "mb-florence" };
+        var library = await AddLibrary(LibraryType.Music, Path.Combine(root, "music"));
+        _db.MediaItems.AddRange(
+            new MediaItem { LibraryId = library.Id, Kind = MediaKind.Artist, Title = "Beyoncé", SortTitle = "beyonce", Placeholder = true },
+            new MediaItem { LibraryId = library.Id, Kind = MediaKind.Artist, Title = "Florence + The Machine", SortTitle = "florence", Placeholder = true, MusicBrainzId = "mb-florence" });
+        await _db.SaveChangesAsync();
+        _db.ChangeTracker.Clear();
+
+        await Scanner().ScanAsync(library, null, default);
+        _db.ChangeTracker.Clear();
+
+        var artists = await _db.MediaItems.Include(i => i.Children).Where(i => i.Kind == MediaKind.Artist).OrderBy(i => i.SortTitle).ToListAsync();
+        Assert.Equal(["Beyoncé", "Florence + The Machine"], artists.Select(a => a.Title));
+        Assert.All(artists, a => Assert.False(a.Placeholder));
+        Assert.All(artists, a => Assert.Single(a.Children));
+    }
+
+    [Fact]
     public async Task Music_ACompilationFlaggedWithoutAnAlbumArtist_IsOneAlbumUnderVariousArtists()
     {
         var root = Touch("music/Compilations/Now That's What I Call Music/01 - Blue Monday.mp3", "music/Compilations/Now That's What I Call Music/02 - Relax.mp3");

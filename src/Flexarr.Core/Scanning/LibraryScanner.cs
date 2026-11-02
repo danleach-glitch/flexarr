@@ -684,6 +684,10 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
         await WatchHistoryCarryOver.BuryAsync(db, playable, ct).ConfigureAwait(false);
         await playable.ExecuteDeleteAsync(ct).ConfigureAwait(false);
         await items.Where(i => (i.Kind == MediaKind.Season || i.Kind == MediaKind.Album) && !i.Children.Any()).ExecuteDeleteAsync(ct).ConfigureAwait(false);
+        // A placeholder whose artist turned up as a separate artist after all (by MusicBrainz id) is no longer needed.
+        var placeholders = items.Where(i => i.Kind == MediaKind.Artist && i.Placeholder && !i.Children.Any() && i.MusicBrainzId != null);
+        await placeholders.Where(p => items.Any(o => o.Kind == MediaKind.Artist && !o.Placeholder && o.MusicBrainzId == p.MusicBrainzId))
+            .ExecuteDeleteAsync(ct).ConfigureAwait(false);
         // An artist's first album arriving makes a followed artist's placeholder an ordinary artist.
         await items.Where(i => i.Kind == MediaKind.Artist && i.Placeholder && i.Children.Any())
             .ExecuteUpdateAsync(u => u.SetProperty(i => i.Placeholder, false), ct).ConfigureAwait(false);
@@ -800,7 +804,14 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
             }
 
             var artistKey = $"artist:{Fold(info.Artist)}";
-            if (artist is null && !_byKey.TryGetValue(artistKey, out artist))
+            if (artist is null && !_byKey.TryGetValue(artistKey, out artist) && Placeholder(library.Id, info.ArtistMusicBrainzId, info.Artist) is { } waiting)
+            {
+                // A followed artist's first album: theirs, whatever spelling the tags use ("Beyonce" for "Beyoncé").
+                artist = waiting;
+                _byKey[artistKey] = waiting;
+            }
+
+            if (artist is null)
             {
                 // Artist/Album/Track layout: the artist folder may hold an artist photo.
                 var artistDirectory = Path.GetDirectoryName(albumDirectory);
@@ -904,6 +915,43 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
             MusicTags.SameArtist(artist.Title, name) || (artist.OriginalTitle is { } original && MusicTags.SameArtist(original, name));
 
         private static string Fold(string value) => value.Trim().Normalize(System.Text.NormalizationForm.FormC).ToLowerInvariant();
+
+        /// <summary>
+        /// A followed artist's placeholder in this library, by MusicBrainz id, else by a loose name (accents, case,
+        /// punctuation, "&amp;"/"and" and a leading "The" ignored); null when none matches.
+        /// </summary>
+        private MediaItem? Placeholder(Guid libraryId, string? musicBrainzId, string name)
+        {
+            var candidates = _artistsById.Values.Where(a => a.Placeholder && a.LibraryId == libraryId).ToList();
+            if (candidates.Count == 0)
+            {
+                return null;
+            }
+
+            var loose = Loose(name);
+            return (musicBrainzId is { Length: > 0 } ? candidates.FirstOrDefault(a => a.MusicBrainzId == musicBrainzId) : null)
+                ?? candidates.FirstOrDefault(a => loose.Length > 0 && Loose(a.Title) == loose);
+        }
+
+        private static string Loose(string value)
+        {
+            var decomposed = value.Normalize(System.Text.NormalizationForm.FormD);
+            var letters = new System.Text.StringBuilder(decomposed.Length);
+            foreach (var c in decomposed)
+            {
+                if (char.IsLetterOrDigit(c))
+                {
+                    letters.Append(char.ToLowerInvariant(c));
+                }
+                else if (c == '&' || c == '+')
+                {
+                    letters.Append("and");
+                }
+            }
+
+            var folded = letters.ToString();
+            return folded.StartsWith("the", StringComparison.Ordinal) && folded.Length > 3 ? folded[3..] : folded;
+        }
 
         private readonly Dictionary<string, MediaItem> _byKey = new(StringComparer.Ordinal);
         private readonly Dictionary<Guid, MediaItem> _artistsById = [];
