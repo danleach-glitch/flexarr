@@ -45,6 +45,9 @@ final class ContentProvider: TVTopShelfContentProvider {
         if summary.kind == .episode {
             let number = [summary.seasonNumber.map { "S\($0)" }, summary.episodeNumber.map { "E\($0)" }].compactMap { $0 }.joined()
             item.title = [summary.seriesTitle ?? summary.title, number].filter { !$0.isEmpty }.joined(separator: "  ")
+        } else if summary.kind == .album, let artist = summary.seriesTitle {
+            // Album titles repeat ("Greatest Hits"): the artist says whose, as an episode's show does.
+            item.title = "\(summary.title)  \(artist)"
         } else {
             item.title = summary.title
         }

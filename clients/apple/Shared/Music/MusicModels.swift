@@ -25,10 +25,14 @@ final class MusicBrowseModel {
     private(set) var isLoading = false
     private(set) var error: String?
     private(set) var loadedAt: Date?
+    /// The track playing when it last loaded: music played since means the hero's Resume may have moved on.
+    @ObservationIgnored var playingWhenLoaded: String?
     /// Bumped by each reload, so a page that arrives for an older one is dropped.
     @ObservationIgnored private var generation = 0
 
-    private static let pageSize = 60
+    /// Your artists shows this many; `total` says whether there are more, for its See all.
+    static let artistsInRow = 20
+    private static let pageSize = artistsInRow
     /// How many of the newest artists are opened to find the newest albums. The server lists albums only under their
     /// artist, so this bounds the requests a visit makes; an album newer than every one of these artists' can't exist.
     private static let recentArtists = 8

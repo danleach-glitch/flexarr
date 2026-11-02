@@ -15,6 +15,15 @@ enum LibraryGridContent {
         }
     }
 
+    /// What the grid lists, as in "No Rock albums here."
+    var noun: String {
+        switch self {
+        case .titles: "titles"
+        case .artists: "artists"
+        case .albums: "albums"
+        }
+    }
+
     func count(_ total: Int) -> String {
         let noun = switch self {
         case .titles: total == 1 ? "title" : "titles"
