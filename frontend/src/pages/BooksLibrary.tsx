@@ -1,4 +1,4 @@
-import { Fragment, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useState, type ReactNode } from 'react'
 import { PageError } from '../components/PageStatus'
 import { Link, useSearchParams } from 'react-router'
 import {
@@ -25,6 +25,7 @@ import { Row } from '../components/Row'
 import { ScanProgress } from '../components/ScanProgress'
 import { useApi } from '../hooks/useApi'
 import { useWatchedChanges } from '../hooks/watched'
+import { AlphaPicker, AlphaRail, useLibraryGrid } from './libraryGrid'
 
 const PAGE_SIZE = 60
 
@@ -214,10 +215,12 @@ const sorts: { value: NonNullable<BookFilters['sort']>; label: string }[] = [
   { value: 'listened', label: 'Recently listened' },
 ]
 
-/** Every book, filtered and sorted by what the address says, so a filter can be linked to and comes back on Back. */
+/**
+ * Every book, filtered and sorted by what the address says, so a filter can be linked to and comes back on Back. As
+ * the films' grid: a search box, the A–Z rail (sorted by title), and Back returns to the same place.
+ */
 function AllBooks({ library, view }: { library: Library; view: 'all' | 'genre' }) {
   const [params, setParams] = useSearchParams()
-  // Only what a link brings (a shelf's See all, an author's books, a genre): no search box or filter menus.
   const progress = (params.get('progress') as BookFilters['progress']) ?? undefined
   const filters: BookFilters = {
     progress,
@@ -229,10 +232,20 @@ function AllBooks({ library, view }: { library: Library; view: 'all' | 'genre' }
   // The author filtered by, named (a link to it carries only the id).
   const author = useApi((signal) => (filters.author ? getPerson(filters.author, signal) : Promise.resolve(null)), [filters.author])
   const authorName = author.data?.name
-  const [pages, setPages] = useState<{ key: string; books: Paged<ItemSummary> } | null>(null)
-  const first = useApi((signal) => getLibraryBooks(library.id, { ...filters, take: PAGE_SIZE }, signal), [library.id, key])
-  useWatchedChanges(first.reload)
-  const shown = pages?.key === key ? pages.books : first.data
+
+  const [search, setSearch] = useState('')
+  const [query, setQuery] = useState('')
+  useEffect(() => {
+    const timer = setTimeout(() => setQuery(search.trim()), 250)
+    return () => clearTimeout(timer)
+  }, [search])
+  const { items, total, error, busy, jumping, grid, empty, small, grown, loadedCount, onGridClick, loadMore, jump, restart } = useLibraryGrid({
+    snapshotKey: `books-${view} ${library.id} ${key}`,
+    query,
+    pageSize: PAGE_SIZE,
+    itemCount: library.itemCount,
+    load: (page, signal) => getLibraryBooks(library.id, { ...filters, search: query || undefined, ...page }, signal),
+  })
 
   function set(name: string, value: string) {
     const next = new URLSearchParams(params)
@@ -242,16 +255,12 @@ function AllBooks({ library, view }: { library: Library; view: 'all' | 'genre' }
     setParams(next, { replace: true })
   }
 
-  async function more() {
-    if (!shown) return
-    const page = await getLibraryBooks(library.id, { ...filters, skip: shown.items.length, take: PAGE_SIZE })
-    setPages({ key, books: { total: page.total, items: [...shown.items, ...page.items] } })
-  }
-
-  const filtered = Object.entries(filters).some(([name, value]) => name !== 'sort' && !(view === 'genre' && name === 'genre') && value !== undefined)
+  const filtered = !!query || Object.entries(filters).some(([name, value]) => name !== 'sort' && !(view === 'genre' && name === 'genre') && value !== undefined)
+  const letters = (!filters.sort || filters.sort === 'title') && !query && items.length > 40
   return (
     <>
       <div className="library-tools book-filters">
+        <input type="search" placeholder={`Search ${library.name}`} aria-label={`Search ${library.name}`} value={search} onChange={(e) => setSearch(e.target.value)} />
         <Choice label="Sort by" value={params.get('sort') ?? 'title'} onChange={(v) => set('sort', v === 'title' ? '' : v)}>
           {sorts.map((s) => (
             <option key={s.value} value={s.value}>
@@ -279,24 +288,36 @@ function AllBooks({ library, view }: { library: Library; view: 'all' | 'genre' }
           )}
         </p>
       )}
-      {first.error && <PageError error={first.error} onRetry={first.reload} />}
-      {shown && (
-        <p className="muted book-count">
-          {shown.total.toLocaleString()} {filtered ? 'matching' : shown.total === 1 ? 'book' : 'books'}
+      {grown && !small && (
+        <p className="library-new" role="status">
+          {library.itemCount > (loadedCount ?? 0) ? 'New books have arrived.' : 'Some books have gone.'}{' '}
+          <button className="button quiet small" onClick={restart}>
+            Refresh
+          </button>
         </p>
       )}
-      {shown?.total === 0 && <p className="page-message muted">{filtered ? 'No books match.' : 'No books yet.'}</p>}
-      <div className="poster-grid square" aria-busy={!shown}>
-        {shown?.items.map((item) => (
-          <div key={item.id} data-id={item.id}>
-            <PosterCard item={item} />
-          </div>
-        ))}
+      {error && <PageError error={error} onRetry={restart} />}
+      {total !== undefined && (
+        <p className="muted book-count">
+          {total.toLocaleString()} {filtered ? 'matching' : total === 1 ? 'book' : 'books'}
+        </p>
+      )}
+      {total === 0 && <p className="page-message muted">{query ? `Nothing in ${library.name} matches “${query}”.` : filtered ? 'No books match.' : 'No books yet.'}</p>}
+      <div className="library-body">
+        {letters && <AlphaPicker jump={(l) => void jump(l)} jumping={jumping} empty={empty} />}
+        <div className="poster-grid square" aria-busy={total === undefined} ref={grid} onClick={onGridClick}>
+          {items.map((item) => (
+            <div key={item.id} data-id={item.id}>
+              <PosterCard item={item} />
+            </div>
+          ))}
+        </div>
+        {letters && <AlphaRail jump={(l) => void jump(l)} jumping={jumping} empty={empty} />}
       </div>
-      {shown && shown.items.length < shown.total && (
+      {total !== undefined && items.length < total && (
         <div className="load-more">
-          <AsyncButton className="button quiet" onClick={more}>
-            Show {Math.min(PAGE_SIZE, shown.total - shown.items.length)} more
+          <AsyncButton className="button quiet" onClick={() => loadMore()} disabled={busy}>
+            Show {Math.min(PAGE_SIZE, total - items.length)} more
           </AsyncButton>
         </div>
       )}

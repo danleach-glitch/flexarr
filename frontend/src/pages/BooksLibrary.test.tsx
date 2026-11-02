@@ -115,11 +115,18 @@ describe('Audiobooks library', () => {
     expect(await screen.findByText('No narrators here yet.')).toBeInTheDocument()
   })
 
-  it('has no search or filters on All books, only the sort', async () => {
+  it('has a search box and the sort on All books, and no filter menus', async () => {
     mockApi({ '/libraries/lib-books/books': { total: 0, items: [] } })
     show('/library/lib-books?view=all&progress=finished')
     expect(await screen.findByRole('button', { name: 'Finished: clear' })).toBeInTheDocument()
-    expect(screen.queryByRole('searchbox')).not.toBeInTheDocument()
+    expect(screen.getByRole('searchbox', { name: 'Search Audiobooks' })).toBeInTheDocument()
     expect(screen.getAllByRole('combobox').map((c) => c.getAttribute('aria-label'))).toEqual(['Sort by'])
+  })
+
+  it('offers the A–Z rail on a long grid sorted by title', async () => {
+    const items = Array.from({ length: 45 }, (_, i) => summary({ id: `b${i}`, kind: 'Audiobook', title: `${String.fromCharCode(65 + (i % 26))} Book ${i}` }))
+    mockApi({ '/libraries/lib-books/books': { total: 45, items } })
+    show('/library/lib-books?view=all')
+    expect(await screen.findByRole('navigation', { name: 'Jump to letter' })).toBeInTheDocument()
   })
 })
