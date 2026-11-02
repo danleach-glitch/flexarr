@@ -24,6 +24,10 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On iPhone, iPad, Android phones and the Apple TV, an audiobooks library's **Genres** are tiles showing a few of each genre's covers, like the genres of movies and TV shows (and as on the web).
 - On the Apple TV, an audiobooks library has **Browse**, **All books** and **Genres** at the top, as Movies and TV Shows do. **All books** sorts by title, author, recently added or last listened, and **Settings › Libraries** chooses which one it opens on.
 - On iPhone, iPad, the Apple TV and Android phones, the main profile can delete a book from the **⋯** on its page, as on the web. It asks first and says how many files go.
+- An audiobooks library's **Browse** opens with a picture across the top, as Movies, TV and Music do: the books you're part way through, then the newest, each cover over a soft blur of itself, with **Resume** or **Play**. On the web, iPhone, iPad, Apple TV and Android phones.
+- On the web, **All books** has a search box and the A–Z rail, and Back returns to the same place in it.
+- On the Apple TV, an audiobooks library also has **Series** and **Authors**. **All books** sorts all seven ways the iPhone does, filters by progress and length, and has the A–Z rail; shelves end with **See all**. A book's page lists its bookmarks and more books by the same narrator, and a series page plays its next book.
+- On the Apple TV, the Top Shelf shows the books you're listening to.
 
 ### Movies and shows
 - Movie and show pages show their **IMDb** and **Rotten Tomatoes** scores beside each one's logo, with the tomato for Certified Fresh, Fresh or Rotten, in every app. The Home hero and Discover's title pages show them too. Kids profiles don't see scores.
