@@ -18,7 +18,7 @@ Apps: **W** web, **i** iPhone/iPad, **tv** Apple TV, **A** Android phone, **ATV*
 | Browse rows from the server, per-profile order | ✅ | ✅ | ✅ | ✅ (own shelves endpoint) |
 | **See all** on every Browse row | ✅ | ✅ | ✅ *Your artists* and *New albums* | 🟡 ✅ i/A, ❌ tv |
 | Top 10, genre rows | ✅ | ✅ | — (*Most played* tracks instead) | — |
-| Coming soon row | ✅ Radarr | ✅ Sonarr | ❌ Lidarr has a calendar, unused | — |
+| Coming soon row | ✅ Radarr | ✅ Sonarr | — | — |
 | Views at the top | Browse, All, Genres | Browse, All, Genres | Browse, Artists, Albums, Genres, + Playlists and Requested on W | Browse, All books, Genres, Series, Authors |
 | View switch style | segmented (pills on W) | segmented | segmented | segmented (pills on W) |
 | Opens-on setting | ✅ tv, ATV | ✅ tv, ATV | ✅ tv; ❌ ATV (always Browse) | ✅ tv (its own Books setting) |
@@ -140,7 +140,7 @@ buttons with undo, greyed when the service is down, *Can't request* reasons, a R
 *Not in your library* on the parent page (missing seasons for a show, missing books in a series); Follow with
 new-release notices; the card's play button on the web.
 
-**Movies and TV have, the others could take:** See all on every row; Coming soon (Lidarr's calendar for music); Fix match and library
+**Movies and TV have, the others could take:** See all on every row; Fix match and library
 health for music; the opens-on setting for music on Android TV;
 Top Shelf, Siri and CarPlay for the kinds missing them.
 
