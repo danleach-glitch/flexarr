@@ -262,7 +262,7 @@ suspend fun FlexarrClient.unrequestAlbum(album: MusicExternal) {
     undoing { send("POST", "requests/music/unrequest", body = FlexarrClient.json.encodeToString(MusicUnrequestBody.serializer(), body)) }
 }
 
-/** What an unfollow or unrequest says when the server has no way to undo one yet (before 0.59). */
+/** What an unfollow or unrequest (music's, or a film's or show's) says when the server has no way to undo one yet (before 0.59). */
 const val UndoNeedsNewerServer = "Update the server to undo this."
 
 /**
@@ -270,7 +270,7 @@ const val UndoNeedsNewerServer = "Update the server to undo this."
  * [UndoNeedsNewerServer]'s words. Anything else (a 404 with the server's own detail, such as an artist Lidarr doesn't
  * have; a family guest's 403; Lidarr not answering, 502) keeps the server's own.
  */
-private suspend fun undoing(send: suspend () -> Unit) {
+internal suspend fun undoing(send: suspend () -> Unit) {
     try {
         send()
     } catch (e: FlexarrException.Http) {

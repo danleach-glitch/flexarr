@@ -158,10 +158,6 @@ internal data class TitleRequestBody(val mediaType: String, val tmdbId: Int)
 fun kindLine(mediaType: String, year: Int?): String =
     listOfNotNull(if (mediaType == "tv") "Show" else "Movie", year?.toString()).joinToString(", ")
 
-/** Whether Seerr is set up on the server (and answering), so search can look beyond the library. */
-@Serializable
-data class RequestsStatus(val configured: Boolean = false, val reachable: Boolean = false)
-
 // Client
 
 /**
@@ -206,15 +202,6 @@ suspend fun FlexarrClient.readyFromWatchlist(take: Int): List<ItemSummary> {
     }
     if (text != null) return decodeText(ListSerializer(ItemSummary.serializer()), text).take(take)
     return watchlist().orEmpty().asSequence().filter { it.status == WatchlistStatus.Ready }.mapNotNull { it.item }.take(take).toList()
-}
-
-/** Whether search can look beyond the library ([RequestsStatus]); null from a server that doesn't say. */
-suspend fun FlexarrClient.requestsStatus(): RequestsStatus? = try {
-    decodeText(RequestsStatus.serializer(), sendRaw("GET", "requests/status"))
-} catch (e: FlexarrException.Http) {
-    if (e.status == 404) null else throw e
-} catch (_: FlexarrException.UnexpectedResponse) {
-    null
 }
 
 /** Puts a library film or show on the watchlist (a season or episode stands for its show). Already there is fine. */

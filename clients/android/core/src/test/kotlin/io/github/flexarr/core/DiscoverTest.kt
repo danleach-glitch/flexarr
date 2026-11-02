@@ -10,6 +10,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
 
@@ -94,6 +95,32 @@ class DiscoverTest {
         assertTrue(status.configured)
         assertFalse(status.reachable)
         assertEquals(RequestStatus(configured = false, reachable = false), client.requestStatus())
+    }
+
+    @Test
+    fun `takes a request back, just a show's seasons, and says when an older server can't`() = runTest {
+        val client = FlexarrClient(server.url("/"))
+        repeat(2) { server.enqueue(MockResponse.Builder().code(204).build()) }
+        server.enqueue(MockResponse.Builder().code(404).build())
+
+        client.unrequestTitle("movie", 603)
+        client.unrequestTitle("tv", 1399, listOf(2))
+        val sent = List(2) { server.takeRequest() }
+        assertTrue(sent.all { it.method == "POST" && it.target == "/api/v1/requests/unrequest" })
+        assertEquals(listOf("""{"mediaType":"movie","tmdbId":603}""", """{"mediaType":"tv","tmdbId":1399,"seasons":[2]}"""), sent.map { it.body?.utf8() })
+        try {
+            client.unrequestTitle("movie", 603)
+            fail("expected a 404")
+        } catch (e: FlexarrException.Http) {
+            assertEquals(UndoNeedsNewerServer, e.message)
+        }
+    }
+
+    @Test
+    fun `a refused request says why, other failures don't`() {
+        assertEquals("TheTVDB doesn't list it.", FlexarrException.Http(409, "x", detail = "TheTVDB doesn't list it.").requestRefusal)
+        assertEquals("This profile can't request shows.", FlexarrException.Http(403, "This profile can't request shows.").requestRefusal)
+        assertNull(FlexarrException.Http(502, "Seerr isn't answering.").requestRefusal)
     }
 
     @Test

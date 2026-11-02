@@ -7,7 +7,7 @@ import kotlinx.serialization.Serializable
 
 /** Whether requests are set up: a Seerr server is configured, and answered just now. */
 @Serializable
-data class RequestStatus(val configured: Boolean, val reachable: Boolean)
+data class RequestStatus(val configured: Boolean = false, val reachable: Boolean = false)
 
 /** Where a title from outside the library stands. */
 @Serializable(with = Availability.Serializer::class)
@@ -125,12 +125,17 @@ data class Genre(
 @Serializable
 internal data class TitleRequest(val mediaType: String, val tmdbId: Int)
 
-/** Whether this server can take requests. Servers before requests answer 404: no. */
+/**
+ * Whether this server can take requests. Servers before requests answer 404, or the web app's page for a path they
+ * don't know: no.
+ */
 suspend fun FlexarrClient.requestStatus(): RequestStatus =
     try {
-        get("requests/status")
+        decodeText(RequestStatus.serializer(), sendRaw("GET", "requests/status"))
     } catch (e: FlexarrException.Http) {
-        if (e.status == 404) RequestStatus(configured = false, reachable = false) else throw e
+        if (e.status == 404) RequestStatus() else throw e
+    } catch (_: FlexarrException.UnexpectedResponse) {
+        RequestStatus()
     }
 
 /** Discover's rows from Seerr; none without a Seerr server. */
@@ -144,10 +149,34 @@ suspend fun FlexarrClient.externalTitle(title: ExternalTitle): ExternalDetail = 
 /** A film or show from outside the library by its TMDB id; [mediaType] is "movie" or "tv". */
 suspend fun FlexarrClient.externalTitle(mediaType: String, tmdbId: Int): ExternalDetail = get("requests/title/$mediaType/$tmdbId")
 
-/** Asks Seerr for the title, and the server remembers who asked so they hear when it's in. */
+/**
+ * Asks Seerr for the title, and the server remembers who asked so they hear when it's in. A request that can't be had
+ * throws [FlexarrException.Http]; [requestRefusal] says why.
+ */
 suspend fun FlexarrClient.request(title: ExternalTitle) {
     send("POST", "requests", body = FlexarrClient.json.encodeToString(TitleRequest(title.mediaType, title.tmdbId)))
 }
+
+@Serializable
+internal data class TitleUndoBody(val mediaType: String, val tmdbId: Int, val seasons: List<Int>? = null)
+
+/**
+ * Takes a film or show request back, for the whole household (Seerr, Radarr and Sonarr are shared): Seerr's request
+ * goes and Radarr or Sonarr stop wanting it. For a show, [seasons] takes back just those. Absent from servers before
+ * 0.59, which answer a bare 404: that throws [UndoNeedsNewerServer]'s words.
+ */
+suspend fun FlexarrClient.unrequestTitle(mediaType: String, tmdbId: Int, seasons: List<Int>? = null) {
+    val body = TitleUndoBody(mediaType, tmdbId, seasons?.takeIf { it.isNotEmpty() })
+    undoing { send("POST", "requests/unrequest", body = FlexarrClient.json.encodeToString(TitleUndoBody.serializer(), body)) }
+}
+
+/**
+ * Why a request couldn't be had, when the server said it can't be (409: Seerr refused it, say TheTVDB doesn't list the
+ * show; 403: this profile can't request that kind): shown as Can't request with it, never as Try again. Null for any
+ * other failure, which asking again may fix.
+ */
+val Throwable.requestRefusal: String?
+    get() = (this as? FlexarrException.Http)?.takeIf { it.status == 409 || it.status == 403 }?.let { it.detail ?: it.message }
 
 /** The library's genres, biggest first. */
 suspend fun FlexarrClient.genres(): List<Genre> = get("genres")

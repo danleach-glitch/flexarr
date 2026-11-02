@@ -83,7 +83,7 @@ import io.github.flexarr.core.Availability
 import io.github.flexarr.core.ExternalTitle
 import io.github.flexarr.core.MusicExternal
 import io.github.flexarr.core.MusicSearch
-import io.github.flexarr.core.requestsStatus
+import io.github.flexarr.core.requestStatus
 import io.github.flexarr.core.searchEverything
 import io.github.flexarr.core.searchMusic
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -122,7 +122,7 @@ fun TvSearchScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
     var music by remember { mutableStateOf<Pair<String, MusicSearch>?>(null) }
     LaunchedEffect(model.credentials) {
         searchesEverything = try {
-            client.requestsStatus()?.configured == true
+            client.requestStatus().configured
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {

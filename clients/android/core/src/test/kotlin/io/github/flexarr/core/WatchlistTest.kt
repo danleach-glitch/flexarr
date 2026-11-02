@@ -262,9 +262,9 @@ class WatchlistTest {
     @Test
     fun `says whether requests are set up`() = runTest {
         server.enqueue(json("""{"configured":true,"reachable":false}"""))
-        assertEquals(RequestsStatus(configured = true, reachable = false), client().requestsStatus())
+        assertEquals(RequestStatus(configured = true, reachable = false), client().requestStatus())
         server.enqueue(json("""{"status":404}""", code = 404))
-        assertNull(client().requestsStatus())
+        assertEquals(RequestStatus(), client().requestStatus())
     }
 
     @Test

@@ -89,7 +89,7 @@ import io.github.flexarr.core.clearRecentSearches
 import io.github.flexarr.core.forgetSearch
 import io.github.flexarr.core.recentSearches
 import io.github.flexarr.core.recordSearch
-import io.github.flexarr.core.requestsStatus
+import io.github.flexarr.core.requestStatus
 import io.github.flexarr.core.searchEverything
 import io.github.flexarr.ui.components.Edge
 import io.github.flexarr.ui.components.GridMinimum
@@ -165,7 +165,7 @@ fun SearchScreen(model: AppModel) {
     }
     LaunchedEffect(model.credentials) {
         searchesEverything = try {
-            client.requestsStatus()?.configured == true
+            client.requestStatus().configured
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
