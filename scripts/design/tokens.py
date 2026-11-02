@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Write design/tokens.json out as CSS, Swift and Kotlin (`make tokens`). `--check` fails when a file is stale."""
+"""Write design/tokens.json (and the score marks in design/scores.json) out as CSS, TypeScript, Swift and Kotlin
+(`make tokens`). `--check` fails when a file is stale."""
 import json
 import re
 import sys
@@ -14,6 +15,11 @@ WEB_ICONS = ROOT / "frontend/src/components/icons.generated.ts"
 WEB_ICON_SOURCE = ROOT / "frontend/src/components/icons.tsx"
 SWIFT_ICONS = ROOT / "clients/apple/Shared/Design/Icons.swift"
 KOTLIN_ICONS = ROOT / "clients/android/app/src/main/kotlin/io/github/flexarr/ui/theme/FlexarrIcons.kt"
+SCORES = ROOT / "design" / "scores.json"
+WEB_SCORES = ROOT / "frontend/src/components/scoreMarks.generated.ts"
+SWIFT_SCORES = ROOT / "clients/apple/Shared/Design/ScoreMarks.swift"
+KOTLIN_SCORES = ROOT / "clients/android/app/src/main/kotlin/io/github/flexarr/ui/theme/ScoreMarks.kt"
+SCORES_HEADER = "Generated from design/scores.json by `make tokens`. Don't edit; redraw with scripts/design/draw_scores.py."
 HEADER = "Generated from design/tokens.json by `make tokens`. Don't edit; change the JSON."
 
 HEX = re.compile(r"^#[0-9A-Fa-f]{6}$")
@@ -173,9 +179,113 @@ def kotlin_icons(data):
     return "\n".join(lines) + "\n"
 
 
-def outputs(data):
+PATH_TOKEN = re.compile(r"[MLCZ]|-?\d+(?:\.\d+)?")
+PATH_ARGS = {"M": 2, "L": 2, "C": 6, "Z": 0}
+
+
+def path_commands(d):
+    """An SVG path of absolute M, L, C and Z only, as [(command, [numbers])]; anything else is an error."""
+    if re.sub(r"[MLCZ\d\s.\-]", "", d):
+        raise ValueError(f"path uses something other than absolute M, L, C, Z: {d[:40]}…")
+    tokens, commands = PATH_TOKEN.findall(d), []
+    i = 0
+    while i < len(tokens):
+        op = tokens[i]
+        if op not in PATH_ARGS:
+            raise ValueError(f"path has a number where a command belongs: {d[:40]}…")
+        raw = tokens[i + 1:i + 1 + PATH_ARGS[op]]
+        if len(raw) != PATH_ARGS[op] or any(t in PATH_ARGS for t in raw):
+            raise ValueError(f"path command {op} needs {PATH_ARGS[op]} numbers: {d[:40]}…")
+        commands.append((op, [float(t) for t in raw]))
+        i += 1 + PATH_ARGS[op]
+    return commands
+
+
+def load_scores(path=SCORES):
+    data = json.loads(Path(path).read_text())
+    for name, m in data["marks"].items():
+        if not NAME.match(name):
+            raise ValueError(f"score mark name {name!r} isn't camelCase")
+        for p in m["paths"]:
+            if not HEX.match(p["fill"]):
+                raise ValueError(f"score mark {name}: {p['fill']!r} isn't #RRGGBB")
+            path_commands(p["d"])
+    return data
+
+
+def web_scores(scores):
+    lines = [f"// {SCORES_HEADER}", "",
+             "/** A score's source mark: a viewBox and filled paths (docs/design.md › Scores). */",
+             "export type ScoreMarkDrawing = { width: number; height: number; paths: readonly { fill: string; d: string }[] }",
+             "", "export const scoreMarks = {"]
+    for name, m in scores["marks"].items():
+        lines.append(f"  /** {m['use']} */")
+        lines.append(f"  {name}: {{ width: {num(m['width'])}, height: {num(m['height'])}, paths: [")
+        for p in m["paths"]:
+            lines.append(f"    {{ fill: '{p['fill'].lower()}', d: '{p['d']}' }},")
+        lines.append("  ] },")
+    lines.append("} as const satisfies Record<string, ScoreMarkDrawing>")
+    return "\n".join(lines) + "\n"
+
+
+def swift_point(x, y):
+    return f"CGPoint(x: {num(x)}, y: {num(y)})"
+
+
+def swift_scores(scores):
+    lines = [f"// {SCORES_HEADER}", "", "import SwiftUI", "",
+             "/// A score's source mark: a viewBox and filled paths (docs/design.md › Scores).",
+             "struct ScoreMarkDrawing {", "    let width: CGFloat", "    let height: CGFloat",
+             "    let paths: [(fill: Color, path: Path)]", "}", "", "enum ScoreMarks {"]
+    for name, m in scores["marks"].items():
+        lines.append(f"    /// {m['use']}.")
+        lines.append(f"    static let {name} = ScoreMarkDrawing(width: {num(m['width'])}, height: {num(m['height'])}, paths: [")
+        for p in m["paths"]:
+            h = p["fill"].lstrip("#")
+            r, g, b = (int(h[i:i + 2], 16) for i in (0, 2, 4))
+            lines.append(f"        (Color(.sRGB, red: {r} / 255, green: {g} / 255, blue: {b} / 255), Path {{ p in")
+            for op, a in path_commands(p["d"]):
+                if op == "M":
+                    lines.append(f"            p.move(to: {swift_point(*a)})")
+                elif op == "L":
+                    lines.append(f"            p.addLine(to: {swift_point(*a)})")
+                elif op == "C":
+                    lines.append(f"            p.addCurve(to: {swift_point(a[4], a[5])}, control1: {swift_point(a[0], a[1])}, "
+                                 f"control2: {swift_point(a[2], a[3])})")
+                else:
+                    lines.append("            p.closeSubpath()")
+            lines.append("        }),")
+        lines.append("    ])")
+    lines.append("}")
+    return "\n".join(lines) + "\n"
+
+
+def kotlin_scores(scores):
+    lines = [f"// {SCORES_HEADER}", "", "package io.github.flexarr.ui.theme", "",
+             "import androidx.compose.ui.graphics.Color", "import androidx.compose.ui.graphics.SolidColor",
+             "import androidx.compose.ui.graphics.vector.ImageVector", "import androidx.compose.ui.graphics.vector.addPathNodes",
+             "import androidx.compose.ui.unit.dp", "",
+             "/** The source mark beside a score (docs/design.md › Scores). */", "object ScoreMarks {"]
+    for name, m in scores["marks"].items():
+        lines.append(f"    /** {m['use']}. */")
+        lines.append(f'    val {name}: ImageVector by lazy {{')
+        lines.append(f'        mark("{name}", {num(m["width"])}f, {num(m["height"])}f, listOf(')
+        for p in m["paths"]:
+            lines.append(f'            0xFF{p["fill"].lstrip("#").upper()} to "{p["d"]}",')
+        lines.append("        ))")
+        lines.append("    }")
+    lines += ["", "    private fun mark(name: String, width: Float, height: Float, paths: List<Pair<Long, String>>): ImageVector =",
+              "        ImageVector.Builder(name, width.dp, height.dp, width, height).apply {",
+              "            for ((fill, d) in paths) addPath(addPathNodes(d), fill = SolidColor(Color(fill)))",
+              "        }.build()", "}"]
+    return "\n".join(lines) + "\n"
+
+
+def outputs(data, scores=None):
+    scores = scores or load_scores()
     return {CSS: css(data), SWIFT: swift(data), KOTLIN: kotlin(data),
-            WEB_ICONS: web_icons(data), SWIFT_ICONS: swift_icons(data), KOTLIN_ICONS: kotlin_icons(data)}
+            WEB_ICONS: web_icons(data), SWIFT_ICONS: swift_icons(data), KOTLIN_ICONS: kotlin_icons(data),
+            WEB_SCORES: web_scores(scores), SWIFT_SCORES: swift_scores(scores), KOTLIN_SCORES: kotlin_scores(scores)}
 
 
 def main(argv):

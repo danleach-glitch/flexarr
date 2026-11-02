@@ -120,7 +120,7 @@ ios-dsyms: ## Upload the last iOS archive's debug symbols to Sentry
 guide: ## Build flexarr.io/guide (site/guide) from docs/guide
 	cd scripts/guide && npm ci --silent && node build.mjs
 
-tokens: ## Write design/tokens.json out as the web's CSS, Swift and Kotlin
+tokens: ## Write design/tokens.json and the score marks out as the web's CSS and TS, Swift and Kotlin
 	python3 scripts/design/tokens.py
 
 apps: ## Build flexarr.io/apps (site/apps.html) from site/apps.json

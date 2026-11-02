@@ -27,6 +27,22 @@ class TokensTests(unittest.TestCase):
         self.assertIn("val radiusPanel = 14.dp", kotlin)
         self.assertIn("--main-button-mix: 68%;", css)
 
+    def test_score_marks_reach_every_client(self):
+        scores = tokens.load_scores()
+        web, swift, kotlin = tokens.web_scores(scores), tokens.swift_scores(scores), tokens.kotlin_scores(scores)
+        for name in ("imdb", "certifiedFresh", "fresh", "rotten"):
+            self.assertIn(f"  {name}: {{ width:", web)
+            self.assertIn(f"static let {name} = ScoreMarkDrawing(", swift)
+            self.assertIn(f"val {name}: ImageVector by lazy", kotlin)
+
+    def test_score_paths_parse(self):
+        self.assertEqual(tokens.path_commands("M1 2 L3 4 C1 2 3 4 5 6 Z"),
+                         [("M", [1, 2]), ("L", [3, 4]), ("C", [1, 2, 3, 4, 5, 6]), ("Z", [])])
+        with self.assertRaisesRegex(ValueError, "absolute M, L, C, Z"):
+            tokens.path_commands("M1 2 q3 4 5 6")
+        with self.assertRaisesRegex(ValueError, "needs 6 numbers"):
+            tokens.path_commands("M1 2 C1 2 Z")
+
     def test_missing_token_fails(self):
         bad = copy.deepcopy(self.data)
         del bad["colors"]["record"]
