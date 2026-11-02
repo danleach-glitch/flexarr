@@ -27,7 +27,7 @@ Every album in the library as a square cover with its artist underneath, sortabl
 ### Genres
 
 A tile for each genre, biggest first, with an artist's fanart behind it. A genre counts its albums, whether the genre
-is tagged on the album or on its artist (Lidarr tags some genres only on albums). A tile opens the genre's albums
+is tagged on the album, or on its artist when the album has no genres of its own. A tile opens the genre's albums
 under **Play** and **Shuffle**, which play up to 200 of its tracks.
 
 ### Elsewhere

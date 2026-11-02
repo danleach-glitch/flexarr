@@ -242,7 +242,7 @@ public struct FlexarrClient: Sendable {
     }
 
     /// A music library's albums (its items are its artists), A–Z, newest added or by year, optionally in one genre
-    /// (on the album or its artist). Nil from servers before the endpoint (0.59), which answer 404.
+    /// (the album's own, or its artist's when it has none). Nil from servers before the endpoint (0.59), which answer 404.
     public func libraryAlbums(_ libraryId: String, sort: LibrarySort = .title, genre: String? = nil,
                               skip: Int = 0, take: Int = 60) async throws -> Paged<ItemSummary>? {
         var query: [URLQueryItem] = []

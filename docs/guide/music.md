@@ -23,7 +23,7 @@ The words at the top switch between four views:
 - **Browse:** the picture and the rows.
 - **Artists:** every artist, A to Z.
 - **Albums:** every album, sorted A to Z, by **Recently added** or by year.
-- **Genres:** a tile for each genre, biggest first. A genre counts every album tagged with it, on the album or its artist. Open one to see its albums, with **Play** and **Shuffle** for up to 200 of its tracks.
+- **Genres:** a tile for each genre, biggest first. A genre counts every album tagged with it. An album with no genres of its own takes its artist's. Open one to see its albums, with **Play** and **Shuffle** for up to 200 of its tracks.
 
 On Apple TV, **Settings › Libraries** chooses which view music opens on. The Top Shelf shows the albums you played last, and Play there starts one.
 

@@ -211,7 +211,7 @@ private fun LibraryBrowse(model: AppModel, library: Library, takeFocus: Boolean,
 
 /**
  * A tile for each of the library's genres, biggest first, with a backdrop from one of its titles. A music library's
- * count albums (tagged on the album or its artist), with an artist's fanart, and open the genre's albums.
+ * count albums (their own genres, or their artist's when they have none), with an artist's fanart, and open the genre's albums.
  */
 @Composable
 private fun LibraryGenres(model: AppModel, library: Library, takeFocus: Boolean, onFocusTaken: () -> Unit, switch: @Composable () -> Unit) {

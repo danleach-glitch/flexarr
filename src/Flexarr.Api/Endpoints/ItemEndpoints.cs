@@ -15,10 +15,14 @@ public static class ItemEndpoints
     /// <summary>The most tracks a genre's Play or Shuffle queues.</summary>
     private const int MaxGenreTracks = 200;
 
-    /// <summary>Albums with this genre, on the album or on its artist; all of them without one.</summary>
+    /// <summary>
+    /// Albums with this genre: their own, or their artist's when they have none (Lidarr tags some albums only through
+    /// their artist). An artist's every genre doesn't pass to albums tagged themselves, or Ben would be hip hop. All of
+    /// them without a genre.
+    /// </summary>
     private static IQueryable<MediaItem> InGenre(IQueryable<MediaItem> albums, string? genre) => string.IsNullOrWhiteSpace(genre)
         ? albums
-        : albums.Where(a => a.Genres.Any(g => g.Name == genre) || a.Parent!.Genres.Any(g => g.Name == genre));
+        : albums.Where(a => a.Genres.Any(g => g.Name == genre) || (!a.Genres.Any() && a.Parent!.Genres.Any(g => g.Name == genre)));
 
     public static RouteGroupBuilder MapItemEndpoints(this RouteGroupBuilder api)
     {
@@ -98,8 +102,8 @@ public static class ItemEndpoints
             return new PagedDto<ItemSummaryDto>(total, items);
         }).WithTags("Items");
 
-        // A music library's genres by album, for its Genres view: an album has a genre when it or its artist is tagged
-        // with it (Lidarr tags some only on albums, some only on artists). The backdrop is an artist's fanart.
+        // A music library's genres by album, for its Genres view: an album's own, or its artist's when it has none. The
+        // backdrop is an artist's fanart.
         api.MapGet("/libraries/{id:guid}/album-genres", async (Guid id, FlexarrDbContext db, CancellationToken ct) =>
         {
             // Worked out here rather than in SQL, which can't count across both sides; a library has a few thousand albums at most.
@@ -113,7 +117,8 @@ public static class ItemEndpoints
             var tagged = albums.Select(a => new
             {
                 a.ParentId,
-                Genres = a.Genres.Concat(a.ParentId is { } artist && artistGenres.TryGetValue(artist, out var more) ? more : []).Distinct().ToList(),
+                // Its own genres, or its artist's when it has none (as InGenre).
+                Genres = a.Genres.Count > 0 ? a.Genres : a.ParentId is { } artist && artistGenres.TryGetValue(artist, out var theirs) ? theirs : [],
             }).ToList();
 
             var used = new HashSet<Guid>();

@@ -90,14 +90,15 @@ public class MusicLibraryTests(FlexarrApiFactory factory) : IClassFixture<Flexar
         var year = await client.GetFromJsonAsync<PagedDto<ItemSummaryDto>>(Api($"/libraries/{music.Library}/albums?sort=year&skip=1&take=2"), Json);
         var trip = await client.GetFromJsonAsync<PagedDto<ItemSummaryDto>>(Api($"/libraries/{music.Library}/albums?genre={Uri.EscapeDataString(music.TripHop)}"), Json);
 
-        Assert.Equal(5, byName!.Total);
-        Assert.Equal(["Dummy", "Maxinquaye", "Mezzanine", "Portishead", "Untrue"], byName.Items.Select(i => i.Title));
+        Assert.Equal(6, byName!.Total);
+        Assert.Equal(["Dummy", "Heligoland", "Maxinquaye", "Mezzanine", "Portishead", "Untrue"], byName.Items.Select(i => i.Title));
         Assert.All(byName.Items, i => Assert.Equal(MediaKind.Album, i.Kind));
         Assert.Equal("Portishead", byName.Items[0].SeriesTitle);
-        Assert.Equal(5, added!.Total);
+        Assert.Equal(6, added!.Total);
         Assert.Equal(["Untrue", "Maxinquaye"], added.Items.Select(i => i.Title));
-        Assert.Equal(["Mezzanine", "Portishead"], year!.Items.Select(i => i.Title));
-        // Massive Attack is tagged trip hop on the artist, Dummy on the album; Portishead (the album) has neither.
+        Assert.Equal(["Untrue", "Mezzanine"], year!.Items.Select(i => i.Title));
+        // Massive Attack is tagged trip hop on the artist, Dummy on the album; Portishead (the album) has neither, and
+        // Heligoland has a genre of its own.
         Assert.Equal(["Dummy", "Mezzanine"], trip!.Items.Select(i => i.Title));
 
         // By the album's title or its artist's name.
@@ -106,16 +107,16 @@ public class MusicLibraryTests(FlexarrApiFactory factory) : IClassFixture<Flexar
     }
 
     [Fact]
-    public async Task AlbumGenres_CountAlbums_TaggedOnTheAlbumOrTheArtist_WithAnArtistsFanart()
+    public async Task AlbumGenres_CountAlbums_ByTheirOwnGenres_OrTheirArtistsWhenTheyHaveNone_WithAnArtistsFanart()
     {
         var music = await SeedAsync();
 
         var genres = await Client().GetFromJsonAsync<List<LibraryGenreDto>>(Api($"/libraries/{music.Library}/album-genres"), Json);
 
-        Assert.Equal([(music.TripHop, 2), (music.Dubstep, 1)], genres!.Select(g => (g.Name, g.Count)));
-        Assert.NotNull(genres![0].Backdrop);
-        // Burial, the only dubstep artist, has no fanart.
-        Assert.Null(genres[1].Backdrop);
+        // Dubstep: Untrue (Burial's tag) and Heligoland (its own). Trip hop: Dummy (its own) and Mezzanine (Massive
+        // Attack's), but not Heligoland, tagged itself.
+        Assert.Equal([(music.Dubstep, 2), (music.TripHop, 2)], genres!.Select(g => (g.Name, g.Count)));
+        Assert.All(genres!, g => Assert.NotNull(g.Backdrop));
     }
 
     [Fact]
@@ -199,6 +200,8 @@ public class MusicLibraryTests(FlexarrApiFactory factory) : IClassFixture<Flexar
         }
 
         Album(massive, "Mezzanine", 1998, 20, "Angel", "Teardrop");
+        // Tagged itself, so it isn't trip hop for being Massive Attack's.
+        Album(massive, "Heligoland", 2010, 25, "Pray for Rain").Genres.Add(dubstep);
         var dummy = Album(portishead, "Dummy", 1994, 15, "Mysterons", "Sour Times");
         dummy.Genres.Add(tripHop);
         Album(portishead, "Portishead", 1997, 10, "Cowboys");
