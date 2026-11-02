@@ -9,7 +9,7 @@ import {
   getLibraryBooks,
   getPerson,
   imageUrl,
-  scanLibrary,
+ 
   type BookFilters,
   type ItemSummary,
   type Library,
@@ -21,7 +21,6 @@ import { PosterCard } from '../components/Cards'
 import { ChevronLeft } from '../components/icons'
 import { Row } from '../components/Row'
 import { ScanProgress } from '../components/ScanProgress'
-import { useLibraries } from '../hooks/librariesContext'
 import { useApi } from '../hooks/useApi'
 import { useWatchedChanges } from '../hooks/watched'
 
@@ -188,7 +187,6 @@ const sorts: { value: NonNullable<BookFilters['sort']>; label: string }[] = [
 /** Every book, filtered and sorted by what the address says, so a filter can be linked to and comes back on Back. */
 function AllBooks({ library, view }: { library: Library; view: 'all' | 'genre' }) {
   const [params, setParams] = useSearchParams()
-  const { reload: reloadLibraries } = useLibraries()
   // Only what a link brings (a shelf's See all, an author's books, a genre): no search box or filter menus.
   const progress = (params.get('progress') as BookFilters['progress']) ?? undefined
   const filters: BookFilters = {
@@ -231,13 +229,6 @@ function AllBooks({ library, view }: { library: Library; view: 'all' | 'genre' }
             </option>
           ))}
         </Choice>
-        <AsyncButton
-          className="button quiet small"
-          busy={!!library.scan}
-          onClick={() => scanLibrary(library.id).then(() => new Promise((done) => setTimeout(done, 2500))).then(reloadLibraries)}
-        >
-          Scan for changes
-        </AsyncButton>
       </div>
       {((filters.genre && view === 'all') || filters.author || progress) && (
         <p className="chips">

@@ -42,6 +42,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On the web, **Add to playlist** is smaller: pick a playlist, or name a new one on a single line.
 - On the web, **Fans also like** (and every artist card) says **Following** for an artist in your library that Lidarr follows, and offers **Follow** for one it doesn't.
 - On the web, the player bar along the bottom only shows while something is playing.
+- On the web, a music library's **Artists** and **Albums** no longer have a row of genre buttons: **Genres** does that. Library pages no longer have **Scan for changes**: it's in **Settings › Libraries**.
 - In **Settings › Connections**, adding Lidarr (or Sonarr or Radarr) says whether Flexarr's webhook got added to it, so new music shows up as soon as it's imported. **Webhooks** has an **Add to** button for each connected app, to add it later or after making a new secret.
 
 ## 0.58.0 · 2 November 2026

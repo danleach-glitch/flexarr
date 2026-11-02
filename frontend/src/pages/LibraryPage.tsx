@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import { PageError } from '../components/PageStatus'
 import { Link, Navigate, useNavigationType, useParams, useSearchParams } from 'react-router'
-import { forgetPage, freshly, getGenreTracks, getItem, getLibraryAlbumGenres, getLibraryAlbums, getLibraryBrowse, getLibraryGenres, getLibraryItems, getMusicRequestStatus, imageUrl, keepPage, keptPage, scanLibrary, wasDeleted, type HomeRow, type ItemSummary, type Library } from '../api/client'
+import { forgetPage, freshly, getGenreTracks, getItem, getLibraryAlbumGenres, getLibraryAlbums, getLibraryBrowse, getLibraryGenres, getLibraryItems, getMusicRequestStatus, imageUrl, keepPage, keptPage, wasDeleted, type HomeRow, type ItemSummary, type Library } from '../api/client'
 import { AsyncButton } from '../components/AsyncButton'
 import { PosterCard } from '../components/Cards'
 import { Hero } from '../components/Hero'
@@ -394,9 +394,11 @@ function LibraryAll({ albums = false }: { albums?: boolean }) {
   const [params, setParams] = useSearchParams()
   const sort = params.get('sort') ?? ''
   const genre = params.get('genre') ?? ''
-  const { libraries, reload: reloadLibraries } = useLibraries()
+  const { libraries } = useLibraries()
   const library = libraries.find((l) => l.id === id)
-  const genres = useApi((signal) => (albums ? getLibraryAlbumGenres : getLibraryGenres)(id, signal), [id, albums])
+  // Movies and shows filter by genre here; music has its Genres view for that.
+  const pills = library?.type !== 'Music'
+  const genres = useApi((signal) => (pills ? getLibraryGenres(id, signal) : Promise.resolve(undefined)), [id, pills])
   const getPage = albums ? getLibraryAlbums : getLibraryItems
 
   // Coming back (Back from a title) picks up where you were, unless something changed meanwhile.
@@ -624,13 +626,6 @@ function LibraryAll({ albums = false }: { albums?: boolean }) {
               </option>
             ))}
           </select>
-          <AsyncButton
-            className="button quiet small"
-            busy={!!library.scan}
-            onClick={() => scanLibrary(library.id).then(() => new Promise((done) => setTimeout(done, 2500))).then(reloadLibraries)}
-          >
-            Scan for changes
-          </AsyncButton>
         </div>
       </header>
 
