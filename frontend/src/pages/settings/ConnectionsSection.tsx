@@ -1064,7 +1064,7 @@ function Webhooks({
       title="Webhooks"
       note={
         <>
-          So new downloads show up straight away: in each app, add a Webhook under Settings › Connect. In Docker on this computer, use{' '}
+          So new downloads show up straight away. <strong>Add to</strong> puts it in the app, or add a Webhook there under Settings › Connect. In Docker on this computer, use{' '}
           <code>host.docker.internal</code> for <code>{window.location.hostname}</code>.
         </>
       }
