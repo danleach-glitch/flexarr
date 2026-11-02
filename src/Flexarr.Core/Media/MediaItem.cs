@@ -112,6 +112,15 @@ public sealed class MediaItem
     /// <summary>Critics' score out of 100 (Rotten Tomatoes).</summary>
     public int? CriticRating { get; set; }
 
+    /// <summary>
+    /// Whether Rotten Tomatoes calls it Certified Fresh (only Seerr says so). Otherwise <see cref="CriticRating"/>
+    /// of 60 or more is Fresh and under 60 Rotten.
+    /// </summary>
+    public bool CriticCertified { get; set; }
+
+    /// <summary>IMDb's rating out of 10, shown beside its mark (unlike <see cref="CommunityRating"/>, which may come from anywhere).</summary>
+    public double? ImdbRating { get; set; }
+
     public double? Popularity { get; set; }
     public string? TrailerYouTubeId { get; set; }
 

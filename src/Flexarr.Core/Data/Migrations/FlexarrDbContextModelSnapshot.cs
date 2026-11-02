@@ -832,6 +832,9 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<string>("ContentRating")
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("CriticCertified")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int?>("CriticRating")
                         .HasColumnType("INTEGER");
 
@@ -849,6 +852,9 @@ namespace Flexarr.Core.Data.Migrations
 
                     b.Property<string>("ImdbId")
                         .HasColumnType("TEXT");
+
+                    b.Property<double?>("ImdbRating")
+                        .HasColumnType("REAL");
 
                     b.Property<string>("KidsOverride")
                         .IsRequired()
