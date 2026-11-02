@@ -224,8 +224,13 @@ struct LibraryBrowseView: View {
                 } else {
                     HomeHero(items: browse.featured, overviews: browse.overviews, index: $featuredIndex, resuming: browse.resuming, top: AnyView(viewSwitch))
                 }
-                ForEach(browse.rows.filter(\.hasContent)) { row in
-                    HomeRowView(row: row)
+                // Coming soon's titles come separately, in `Home.upcoming`, as on Home.
+                ForEach(browse.rows.filter { $0.style == .upcoming ? !(browse.upcoming ?? []).isEmpty : $0.hasContent }) { row in
+                    if row.style == .upcoming {
+                        ComingSoonRow(items: browse.upcoming ?? [], downloading: browse.downloading ?? 0)
+                    } else {
+                        HomeRowView(row: row)
+                    }
                 }
             }
             .padding(.bottom, 80)
