@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { MemoryRouter } from 'react-router'
+import { MemoryRouter, Route, Routes, useParams } from 'react-router'
 import { describe, expect, it, vi } from 'vitest'
 import type { ItemSummary } from '../api/types'
 import { AudioPlayerContext, type AudioPlayer } from '../hooks/audioPlayerContext'
@@ -11,7 +11,12 @@ const tracks = [summary({ id: 't1', kind: 'Track', title: 'Telegraph Road' }), s
 vi.mock('../api/client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api/client')>()),
   getTracks: vi.fn(async () => tracks),
+  getNextUp: vi.fn(async () => ({ id: 'next' })),
 }))
+
+function PlayingId() {
+  return <span>Playing {useParams().id}</span>
+}
 
 describe('PosterCard', () => {
   it('plays an album from the play button on its artwork, while the artwork itself still opens the album', async () => {
@@ -30,16 +35,24 @@ describe('PosterCard', () => {
     expect(screen.getByRole('link', { name: 'Love Over Gold' })).toHaveAttribute('href', '/item/album')
   })
 
-  it('has no play button on a film', () => {
-    const film = summary({ id: 'film', kind: 'Movie', title: 'Sintel' }) as unknown as ItemSummary
-    const player = { play: vi.fn() } as unknown as AudioPlayer
+  it.each([
+    [{ id: 'film', kind: 'Movie', title: 'Sintel' }, 'Play Sintel', 'film'],
+    [{ id: 'show', kind: 'Series', title: 'Severance' }, 'Play the next episode of Severance', 'next'],
+    [{ id: 'season', kind: 'Season', title: 'Season 2', seriesId: 'show', seriesTitle: 'Severance' }, 'Play the next episode of Severance', 'next'],
+  ])('plays a %o from the play button on its artwork', async (fields, label, playing) => {
+    const item = summary(fields as Parameters<typeof summary>[0]) as unknown as ItemSummary
     render(
       <MemoryRouter>
-        <AudioPlayerContext value={player}>
-          <PosterCard item={film} />
+        <AudioPlayerContext value={{ play: vi.fn() } as unknown as AudioPlayer}>
+          <Routes>
+            <Route path="/" element={<PosterCard item={item} />} />
+            <Route path="/play/:id" element={<PlayingId />} />
+          </Routes>
         </AudioPlayerContext>
       </MemoryRouter>,
     )
-    expect(screen.queryByRole('button', { name: /^Play / })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: label }))
+    expect(await screen.findByText(`Playing ${playing}`)).toBeInTheDocument()
   })
 })

@@ -159,6 +159,14 @@ export const PosterCard = memo(function PosterCard({ item, playLoneEpisode = fal
   const lone = playLoneEpisode && item.kind === 'Series' && item.userData.unwatchedCount === 1
   const music = item.kind === 'Artist' || item.kind === 'Album'
   const book = isBook(item)
+  // Films, shows, seasons and episodes get the hover play button too, unless the artwork already plays.
+  const video = !lone && (item.kind === 'Movie' || item.kind === 'Episode' || item.kind === 'Series' || (item.kind === 'Season' && item.seriesId != null))
+  const videoLabel =
+    item.kind === 'Series'
+      ? `Play the next episode of ${item.title}`
+      : item.kind === 'Season'
+        ? `Play the next episode of ${item.seriesTitle ?? item.title}`
+        : `${progressOf(item) !== null ? 'Resume' : 'Play'} ${cardLabel(item)}`
   return (
     <CardShell
       item={item}
@@ -182,6 +190,10 @@ export const PosterCard = memo(function PosterCard({ item, playLoneEpisode = fal
               })
             }
           >
+            <Play />
+          </AsyncButton>
+        ) : video ? (
+          <AsyncButton className="card-play" aria-label={videoLabel} onClick={() => play(item.kind === 'Season' ? { ...item, id: item.seriesId!, kind: 'Series' } : item)}>
             <Play />
           </AsyncButton>
         ) : undefined
