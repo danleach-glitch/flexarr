@@ -119,8 +119,9 @@ struct ActionButtonStyle: ButtonStyle {
         func makeBody(configuration: Configuration) -> some View {
             HStack(spacing: 8) {
                 configuration.icon.font(.body.weight(.bold))
-                configuration.title
+                configuration.title.lineLimit(1)
             }
+            .fixedSize()
         }
     }
 }
@@ -198,7 +199,8 @@ struct ActionRowLayout: SwiftUI.Layout {
             var x = bounds.midX - line.width / 2
             for index in line.members {
                 let size = subviews[index].sizeThatFits(.unspecified)
-                subviews[index].place(at: CGPoint(x: x, y: y + line.height / 2), anchor: .leading, proposal: ProposedViewSize(size))
+                // Each at its own ideal size: proposing the measured width back can round a hair short and wrap "Play".
+                subviews[index].place(at: CGPoint(x: x, y: y + line.height / 2), anchor: .leading, proposal: .unspecified)
                 x += size.width + spacing
             }
             y += line.height + spacing
