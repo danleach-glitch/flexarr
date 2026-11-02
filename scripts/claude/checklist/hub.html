@@ -36,6 +36,12 @@ ul.pages > li.archived { opacity: .55; }
 .pin { color: var(--you); }
 .prog { grid-column: 2; grid-row: 1 / 3; display: grid; gap: 4px; font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .prog .bar > div { background: var(--good); }
+/* A brief's audit sits under it: one bar per page, each labelled with its kind. */
+.prog .part { display: grid; gap: 3px; }
+.prog .part + .part { margin-top: 6px; }
+.prog .part a { color: var(--muted); }
+.prog .part a:hover { color: var(--accent); }
+.prog .part.of-audit .bar > div { background: var(--accent); }
 .acts { grid-column: 3; grid-row: 1 / 3; display: flex; gap: 6px; justify-content: flex-end; }
 .acts button { font: inherit; font-size: 12px; color: var(--muted); background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 2px 8px; cursor: pointer; white-space: nowrap; }
 .acts button:hover { color: var(--fg); border-color: var(--muted); }
@@ -59,7 +65,7 @@ dialog button.go { background: var(--high); border-color: var(--high); color: #f
 <header>
   <div class="eyebrow">Flexarr · checklists</div>
   <h1 id="title"></h1>
-  <p class="lede">Every brief, audit, review, plan and test list in one place. Ticks reach this page as Claude makes them; ticks made by hand on a page arrive at the next <code>/hub</code> sync.</p>
+  <p class="lede">Every brief, audit, review, plan and test list in one place, each audit under the brief it checks. Ticks reach this page as Claude makes them; ticks made by hand on a page arrive at the next <code>/hub</code> sync.</p>
   <div class="tiles" id="tiles"></div>
   <span class="sync" id="p-sync"></span>
 </header>
@@ -84,7 +90,8 @@ dialog button.go { background: var(--high); border-color: var(--high); color: #f
 
 // Records in this page's db:
 //   pages/<slug>          written by Claude: {title, url, kind, branch, total, stage, registeredAt, updatedAt,
-//                         doneIds, syncedAt, lastTickAt}; doneIds = the page's done or dropped ids at the last /hub sync
+//                         doneIds, syncedAt, lastTickAt, parent}; doneIds = the page's done or dropped ids at the
+//                         last /hub sync; parent (audits) = the brief's slug, else the brief on the same branch
 //   ticks/<slug>--<id>    live ticks since then, written by Claude as it ticks the page: {done, note, at}
 //   prefs/<slug>          written by this page: {pinned, archived, deleteMarked, deleted}
 const KINDS = ['brief', 'audit', 'review', 'plan', 'test list'];
@@ -93,6 +100,7 @@ let pages = {}, mirror = {}, prefs = {};
 let kind = 'all', view = 'live', connector = null;
 
 const ts = s => { const t = Date.parse(s || ''); return Number.isNaN(t) ? 0 : t; };
+const cap = k => k[0].toUpperCase() + k.slice(1);
 function ago(t) {
   if (!t) return 'no activity yet';
   const m = Math.round((Date.now() - t) / 60000);
@@ -123,9 +131,31 @@ function summarise(slug) {
   return { slug, p, pr, total, done, open, last, landed, stale };
 }
 
+// An audit belongs under the brief (or plan) it audits: its `parent`, else the one on the same branch.
+function parentOf(slug) {
+  const p = pages[slug];
+  if (p.kind !== 'audit') return null;
+  const alive = s => pages[s] && s !== slug && !(prefs[s] || {}).deleted;
+  if (p.parent && alive(p.parent)) return p.parent;
+  if (!p.branch || p.branch === 'main') return null;
+  const same = k => Object.keys(pages).filter(s => alive(s) && pages[s].kind === k && pages[s].branch === p.branch)
+    .sort((a, b) => ts(pages[b].registeredAt) - ts(pages[a].registeredAt));
+  return same('brief')[0] || same('plan')[0] || null;
+}
+
+// One row: a page and the audits under it. Prefs (pin, archive, mark) follow the top page.
+function group(top, kids) {
+  const members = [top, ...kids];
+  return { ...top, kids, members,
+    open: members.reduce((n, m) => n + m.open, 0),
+    last: Math.max(...members.map(m => m.last)),
+    stale: !top.landed && !top.pr.archived && members.some(m => m.stale),
+    kinds: members.map(m => m.p.kind || 'plan') };
+}
+
 function visible(s) {
   if (s.pr.deleted) return false;
-  if (kind !== 'all' && (s.p.kind || 'plan') !== kind) return false;
+  if (kind !== 'all' && !s.kinds.includes(kind)) return false;
   if (view === 'live') return !s.pr.archived && !s.landed;
   if (view === 'stale') return s.stale;
   if (view === 'landed') return s.landed && !s.pr.archived;
@@ -135,7 +165,13 @@ function visible(s) {
 }
 
 function render() {
-  const all = Object.keys(pages).map(summarise).filter(s => !s.pr.deleted);
+  const kidsOf = {};
+  const tops = [];
+  for (const s of Object.keys(pages).map(summarise).filter(s => !s.pr.deleted)) {
+    const parent = parentOf(s.slug);
+    if (parent) (kidsOf[parent] ||= []).push(s); else tops.push(s);
+  }
+  const all = tops.map(t => group(t, (kidsOf[t.slug] || []).sort((a, b) => ts(a.p.registeredAt) - ts(b.p.registeredAt))));
   const live = all.filter(s => !s.pr.archived && !s.landed);
   const tiles = [
     ['Live pages', live.length],
@@ -145,7 +181,7 @@ function render() {
   ];
   $('tiles').innerHTML = tiles.map(([label, n, cls]) => `<div class="tile${cls && n ? ' ' + cls : ''}"><b>${n}</b><span>${label}</span></div>`).join('');
 
-  const kindCount = k => all.filter(s => (k === 'all' || (s.p.kind || 'plan') === k) && !s.pr.archived).length;
+  const kindCount = k => all.filter(s => (k === 'all' || s.kinds.includes(k)) && !s.pr.archived).length;
   $('kinds').innerHTML = ['all', ...KINDS].filter(k => k === 'all' || kindCount(k))
     .map(k => `<button type="button" data-kind="${k}" aria-pressed="${k === kind}">${k === 'all' ? 'All' : k[0].toUpperCase() + k.slice(1)} <small>${kindCount(k)}</small></button>`).join('');
   const views = [['live', 'Live'], ['stale', 'Stale'], ['landed', 'Landed'], ['marked', 'Marked for deletion'], ['archived', 'Archived'], ['everything', 'Everything']];
@@ -164,16 +200,21 @@ function render() {
 
 function rowFor(s) {
   const { p, pr } = s;
-  const pct = s.total ? Math.round(100 * s.done / s.total) : 0;
-  const prog = s.total
-    ? `<div class="bar"><div style="width:${pct}%"></div></div><span>${s.done} of ${s.total} done</span>`
-    : `<span>${esc(p.stage || 'No item count')}</span>`;
+  const bar = m => m.total
+    ? `<div class="bar"><div style="width:${Math.round(100 * m.done / m.total)}%"></div></div><span>${m.done} of ${m.total} done</span>`
+    : `<span>${esc(m.p.stage || 'No item count')}</span>`;
+  // With an audit underneath, each bar is labelled with its kind; the audit's label links to its page.
+  const label = (m, i) => i === 0 ? esc(cap(m.p.kind || 'plan'))
+    : `<a href="${esc(m.p.url)}" target="_blank" rel="noopener">${esc(cap(m.p.kind))}</a>${!m.landed && m.p.stage ? ' · ' + esc(m.p.stage) : ''}`;
+  const prog = s.kids.length
+    ? s.members.map((m, i) => `<div class="part of-${esc((m.p.kind || "plan").replace(/ /g, "-"))}"><span>${label(m, i)}</span>${bar(m)}</div>`).join('')
+    : bar(s);
   const del = connector
     ? `<button type="button" class="danger" data-act="delete" data-slug="${esc(s.slug)}">Delete</button>`
     : `<button type="button" data-act="mark" data-slug="${esc(s.slug)}" aria-pressed="${!!pr.deleteMarked}">${pr.deleteMarked ? 'Unmark' : 'Mark for deletion'}</button>`;
   return `<li class="${s.landed ? 'landed' : ''}${pr.archived ? ' archived' : ''}">
     <div class="ptitle">${pr.pinned ? '<span class="pin" aria-label="Pinned">★</span>' : ''}<a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.title)}</a>
-      <span class="kind">${esc(p.kind || 'plan')}</span>
+      ${[...new Set(s.kinds)].map(k => `<span class="kind">${esc(k)}</span>`).join('')}
       ${s.stale ? '<span class="pill stale">Stale</span>' : ''}
       ${s.landed ? `<span class="pill landed">${esc(p.stage)}</span>` : ''}
       ${pr.deleteMarked ? '<span class="pill marked">Marked for deletion</span>' : ''}</div>
@@ -186,13 +227,20 @@ function rowFor(s) {
     </div></li>`;
 }
 
-async function savePrefs(slug, change) {
+// The slugs a row stands for: the page and every audit under it, so pin, archive and mark move them together.
+function rowSlugs(slug) {
+  return [slug, ...Object.keys(pages).filter(s => !(prefs[s] || {}).deleted && parentOf(s) === slug)];
+}
+
+async function savePrefs(slugs, change) {
   if (!db || !canWrite) { $('p-sync').textContent = 'Only the owner can change this page.'; return; }
-  const prev = prefs[slug];
-  prefs[slug] = { ...(prev || {}), ...change };
-  render();
-  try { await db.collection('prefs').doc(slug).set(prefs[slug]); }
-  catch { prefs[slug] = prev; render(); $('p-sync').textContent = 'Couldn’t save that change. Reload and try again.'; }
+  for (const slug of slugs) {
+    const prev = prefs[slug];
+    prefs[slug] = { ...(prev || {}), ...change };
+    render();
+    try { await db.collection('prefs').doc(slug).set(prefs[slug]); }
+    catch { prefs[slug] = prev; render(); $('p-sync').textContent = 'Couldn’t save that change. Reload and try again.'; return; }
+  }
 }
 
 let pendingDelete = null;
@@ -201,25 +249,31 @@ document.addEventListener('click', async e => {
   const v = e.target.closest('[data-view]'); if (v) { view = v.dataset.view; render(); return; }
   const a = e.target.closest('[data-act]'); if (!a) return;
   const slug = a.dataset.slug, pr = prefs[slug] || {};
-  if (a.dataset.act === 'pin') savePrefs(slug, { pinned: !pr.pinned });
-  if (a.dataset.act === 'archive') savePrefs(slug, { archived: !pr.archived });
-  if (a.dataset.act === 'mark') savePrefs(slug, { deleteMarked: !pr.deleteMarked });
+  const slugs = rowSlugs(slug);
+  if (a.dataset.act === 'pin') savePrefs(slugs, { pinned: !pr.pinned });
+  if (a.dataset.act === 'archive') savePrefs(slugs, { archived: !pr.archived });
+  if (a.dataset.act === 'mark') savePrefs(slugs, { deleteMarked: !pr.deleteMarked });
   if (a.dataset.act === 'delete') {
-    pendingDelete = slug;
-    $('confirm-text').textContent = `“${pages[slug]?.title}” and its ticks are removed for good.`;
+    pendingDelete = slugs;
+    const names = slugs.map(s => `“${pages[s]?.title}”`).join(' and ');
+    $('confirm-text').textContent = `${names} and ${slugs.length > 1 ? 'their' : 'its'} ticks are removed for good.`;
     $('confirm').showModal();
   }
 });
 $('confirm-no').addEventListener('click', () => { pendingDelete = null; $('confirm').close(); });
 $('confirm-yes').addEventListener('click', async () => {
-  const slug = pendingDelete; pendingDelete = null; $('confirm').close();
-  if (!slug || !connector) return;
-  try {
-    await connector.callTool(DATA.connector, 'delete_artifact', { slug });
-    await savePrefs(slug, { deleted: true, deletedAt: new Date().toISOString() });
-    $('p-sync').textContent = `Deleted “${pages[slug]?.title}”.`;
-  } catch (err) {
-    $('p-sync').textContent = `Couldn’t delete it (${err?.code || 'error'}). Mark it instead and ask Claude.`;
+  const slugs = pendingDelete; pendingDelete = null; $('confirm').close();
+  if (!slugs || !connector) return;
+  // Audits first, so a failure part-way never leaves an audit without the brief it sits under.
+  for (const slug of [...slugs].reverse()) {
+    try {
+      await connector.callTool(DATA.connector, 'delete_artifact', { slug });
+      await savePrefs([slug], { deleted: true, deletedAt: new Date().toISOString() });
+      $('p-sync').textContent = `Deleted “${pages[slug]?.title}”.`;
+    } catch (err) {
+      $('p-sync').textContent = `Couldn’t delete “${pages[slug]?.title}” (${err?.code || 'error'}). Mark it instead and ask Claude.`;
+      return;
+    }
   }
 });
 
