@@ -20,6 +20,10 @@ import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.disabled
@@ -44,10 +48,15 @@ import io.github.flexarr.AppModel
 import io.github.flexarr.core.Format
 import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.MixSummary
+import io.github.flexarr.core.MusicActions
+import io.github.flexarr.core.MusicMenu
 import io.github.flexarr.core.PlaylistSummary
 import io.github.flexarr.core.artistName
 import io.github.flexarr.core.releaseYear
+import io.github.flexarr.ui.components.MenuAction
 import io.github.flexarr.ui.components.RemoteImage
+import io.github.flexarr.ui.music.MusicMenuSubject
+import io.github.flexarr.ui.music.musicMenuActions
 import io.github.flexarr.ui.podcasts.Tabular
 import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.glowColor
@@ -88,12 +97,19 @@ private fun CardCaption(title: String, subtitle: String?, focused: Boolean, widt
     }
 }
 
-/** An album: square cover with its title and year beneath (the artist instead, where the albums are from several). */
+/**
+ * An album: square cover with its title and year beneath (the artist instead, where the albums are from several). A
+ * long press of OK offers [musicMenuActions] (no Go to artist [onArtistPage]).
+ */
 @Composable
-fun TvAlbumCard(item: ItemSummary, onClick: () -> Unit, modifier: Modifier = Modifier, width: Dp = TvLayout.PosterWidth, showsArtist: Boolean = false) {
+fun TvAlbumCard(item: ItemSummary, onClick: () -> Unit, modifier: Modifier = Modifier, width: Dp = TvLayout.PosterWidth, showsArtist: Boolean = false, onArtistPage: Boolean = false) {
+    var menu by remember { mutableStateOf(false) }
+    val actions = musicMenuActions(MusicMenuSubject.Item(item), MusicMenu.Place.CARD, MusicActions.Platform.TV, showsArtist = !onArtistPage)
+    if (menu) TvItemMenu(item.title, actions, onDismiss = { menu = false })
     TvArtworkButton(
         ambient = glowColor(item.accentColor),
         onClick = onClick,
+        onLongClick = { menu = true },
         modifier = modifier,
         shape = RoundedCornerShape(Tokens.radiusArt),
         contentDescription = listOfNotNull(item.title, item.artistName).joinToString(", "),
@@ -105,14 +121,21 @@ fun TvAlbumCard(item: ItemSummary, onClick: () -> Unit, modifier: Modifier = Mod
     )
 }
 
-/** A track in a Home row or search results: its cover with the name and artist beneath, and a play mark since pressing it plays. */
+/**
+ * A track in a Home row or search results: its cover with the name and artist beneath, and a play mark since pressing
+ * it plays. A long press of OK offers [musicMenuActions].
+ */
 @Composable
 fun TvTrackCard(model: AppModel, item: ItemSummary, onClick: () -> Unit) {
     val width = TvLayout.PosterWidth
     val playing = model.music.current?.id == item.id && model.music.isPlaying
+    var menu by remember { mutableStateOf(false) }
+    val actions = musicMenuActions(MusicMenuSubject.Item(item), MusicMenu.Place.CARD, MusicActions.Platform.TV, onPlay = onClick)
+    if (menu) TvItemMenu(item.title, actions, onDismiss = { menu = false })
     TvArtworkButton(
         ambient = glowColor(item.accentColor),
         onClick = onClick,
+        onLongClick = { menu = true },
         shape = RoundedCornerShape(Tokens.radiusArt),
         contentDescription = listOfNotNull(item.title, item.artistName).joinToString(", "),
         artwork = {
@@ -130,11 +153,14 @@ fun TvTrackCard(model: AppModel, item: ItemSummary, onClick: () -> Unit) {
     )
 }
 
-/** An artist: a round picture with the name and how many albums beneath. */
+/** An artist: a round picture with the name and how many albums beneath. A long press of OK offers [musicMenuActions]. */
 @Composable
 fun TvArtistCard(item: ItemSummary, onClick: () -> Unit, modifier: Modifier = Modifier, size: Dp = 110.dp) {
+    var menu by remember { mutableStateOf(false) }
+    val actions = musicMenuActions(MusicMenuSubject.Item(item), MusicMenu.Place.CARD, MusicActions.Platform.TV)
+    if (menu) TvItemMenu(item.title, actions, onDismiss = { menu = false })
     Column(modifier.width(size + 15.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(9.dp)) {
-        TvArtworkButton(ambient = glowColor(item.accentColor), onClick = onClick, shape = CircleShape, contentDescription = item.title, artwork = { TvSquareArtwork(item, size, circular = true) })
+        TvArtworkButton(ambient = glowColor(item.accentColor), onClick = onClick, onLongClick = { menu = true }, shape = CircleShape, contentDescription = item.title, artwork = { TvSquareArtwork(item, size, circular = true) })
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(1.dp)) {
             Text(item.title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (item.childCount > 0) {
@@ -192,13 +218,17 @@ private fun PlaylistPlaceholder(size: Dp) {
     Icon(Icons.AutoMirrored.Filled.QueueMusic, contentDescription = null, tint = Flexarr.usher, modifier = Modifier.size(size * 0.3f))
 }
 
-/** A playlist in a row: its picture with the name and how many tracks beneath. */
+/** A playlist in a row: its picture with the name and how many tracks beneath. A long press of OK offers [musicMenuActions]. */
 @Composable
 fun TvPlaylistCard(playlist: PlaylistSummary, onClick: () -> Unit) {
     val width = TvLayout.PosterWidth
+    var menu by remember { mutableStateOf(false) }
+    val actions = musicMenuActions(MusicMenuSubject.Playlist(playlist), MusicMenu.Place.CARD, MusicActions.Platform.TV)
+    if (menu) TvItemMenu(playlist.name, actions, onDismiss = { menu = false })
     TvArtworkButton(
         ambient = Flexarr.silver,
         onClick = onClick,
+        onLongClick = { menu = true },
         shape = RoundedCornerShape(Tokens.radiusArt),
         contentDescription = playlist.name,
         artwork = { TvPlaylistArtwork(playlist, width) },
@@ -234,9 +264,14 @@ fun TvTrackRow(
     modifier: Modifier = Modifier,
     /** Under the title: the track's own artist, where it isn't the album's. */
     subtitle: String? = null,
+    /** What a long press of OK offers ([musicMenuActions]); none, no menu. */
+    actions: List<MenuAction> = emptyList(),
 ) {
+    var menu by remember { mutableStateOf(false) }
+    if (menu) TvItemMenu(track.title, actions, onDismiss = { menu = false })
     Surface(
         onClick = onClick,
+        onLongClick = { menu = true }.takeIf { actions.isNotEmpty() },
         modifier = modifier.height(40.dp),
         shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(Tokens.radiusControl)),
         colors = ClickableSurfaceDefaults.colors(

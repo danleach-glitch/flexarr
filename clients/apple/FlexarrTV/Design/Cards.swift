@@ -233,6 +233,8 @@ struct ItemContextMenu: View {
     var body: some View {
         if item.isListening, inContinueWatching {
             listeningMenu
+        } else if item.kind.isMusic {
+            MusicMenuContent(target: .item(item))
         } else {
             menu
         }

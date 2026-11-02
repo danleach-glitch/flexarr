@@ -80,6 +80,7 @@ import io.github.flexarr.ui.library.LibrariesScreen
 import io.github.flexarr.ui.library.LibraryScreen
 import io.github.flexarr.ui.livetv.LiveRecordingsScreen
 import io.github.flexarr.ui.livetv.LiveTvScreen
+import io.github.flexarr.ui.music.AddToPlaylistSheet
 import io.github.flexarr.ui.music.AlbumScreen
 import io.github.flexarr.ui.music.ExternalAlbumScreen
 import io.github.flexarr.ui.music.ExternalArtistScreen
@@ -429,6 +430,7 @@ fun MainScreen(model: AppModel) {
         }
         // A device asking to connect, over whichever screen is up.
         if (model.isMainProfile) PairingPrompt(model, client)
+        navigator.addingToPlaylist?.let { AddToPlaylistSheet(client, it, onClose = { navigator.addingToPlaylist = null }) }
     }
 }
 

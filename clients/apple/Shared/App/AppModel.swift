@@ -120,6 +120,8 @@ final class AppModel {
     @ObservationIgnored var onBookHeard: ((String) -> Void)?
     /// Bumped when Play or Shuffle starts music on Apple TV, which then goes to its Now Playing tab.
     var nowPlayingRequests = 0
+    /// A menu asked to add something to a playlist; the iPhone shows its sheet over every tab.
+    var addingToPlaylist: PlaylistAdditionRequest?
     /// The server's error-report switch, as it last said (nil until asked, and from servers before it).
     private(set) var errorReports: ErrorReportSetting?
     /// Why the connect screen is showing when nobody asked for it: the server stopped accepting this device.
@@ -1811,8 +1813,10 @@ enum Route: Hashable {
     case genre(String)
     /// The profile's watchlist.
     case watchlist
-    /// An audiobook series in reading order (iPhone and iPad).
+    /// An audiobook series in reading order.
     case bookSeries(id: String, name: String)
+    /// An audiobooks library's books (sorted and narrowed), series or authors, from a shelf's See all (Apple TV).
+    case bookList(Library, BookList)
     /// What's coming over the next few weeks, a day at a time.
     case comingSoon
     /// An artist from outside the library (Deezer's), to follow or request albums of.
@@ -1823,6 +1827,13 @@ enum Route: Hashable {
     case musicGenre(MusicGenre)
     /// A library artist or album known only by id (an outside page's In your library).
     case musicItem(id: String, isArtist: Bool)
+}
+
+/// What an audiobooks library's See all opens (`Route.bookList`).
+enum BookList: Hashable {
+    case books(BookSort, BookProgressFilter)
+    case series
+    case authors
 }
 
 /// One navigation stack per tab.

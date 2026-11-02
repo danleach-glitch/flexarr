@@ -235,7 +235,12 @@ struct HomeHero: View {
         }
     }
 
+    @ViewBuilder
     private func slide(_ item: ItemSummary) -> some View {
+        if item.kind == .audiobook { bookSlide(item) } else { titleSlide(item) }
+    }
+
+    private func titleSlide(_ item: ItemSummary) -> some View {
         ZStack(alignment: .bottomLeading) {
             Color.clear
                 .overlay {
@@ -311,6 +316,94 @@ struct HomeHero: View {
         }
         .contentShape(Rectangle())
         .onTapGesture { router.push(.item(item)) }
+    }
+
+    /// An audiobooks library's slide: the book's cover large over a soft blurred wash of itself (a book has no
+    /// backdrop), its title, author and narrator, a few lines of its description, and Play or Resume from its place.
+    /// Tapping anywhere but the button opens the book.
+    private func bookSlide(_ item: ItemSummary) -> some View {
+        let cover = model.client?.imageURL(item.artwork.poster, width: 800)
+        // A phone held sideways has the cover beside the words, so Play stays on screen.
+        let sideways = verticalSizeClass == .compact
+        let layout = sideways ? AnyLayout(HStackLayout(alignment: .bottom, spacing: 20)) : AnyLayout(VStackLayout(alignment: .leading, spacing: 14))
+        return ZStack(alignment: .bottomLeading) {
+            Color.clear
+                .overlay {
+                    RemoteImage(url: cover) {
+                        LinearGradient(colors: [item.glowColor.opacity(0.4), Color.room], startPoint: .top, endPoint: .bottom)
+                    }
+                    .blur(radius: 60)
+                    .scaleEffect(1.4)
+                    .opacity(0.7)
+                }
+                .clipped()
+                .overlay {
+                    LinearGradient(stops: [.init(color: .clear, location: 0.2), .init(color: .room.opacity(0.75), location: 1)],
+                                   startPoint: .top, endPoint: .bottom)
+                }
+                .mask(LinearGradient(stops: [.init(color: .black, location: 0.5), .init(color: .clear, location: 1)], startPoint: .top, endPoint: .bottom))
+
+            layout {
+                SquareArtwork(item: item, imageWidth: 800)
+                    .frame(width: sideways ? 150 : sizeClass == .regular ? 240 : 190)
+                    .shadow(color: .black.opacity(0.45), radius: 24, y: 10)
+                VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(item.title)
+                            .font(.marquee(sizeClass == .regular ? 38 : 30, weight: .black))
+                            .foregroundStyle(Color.screen)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.7)
+                        if let authors = item.bookAuthors {
+                            Text(authors)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Color.screen.opacity(0.9))
+                                .lineLimit(1)
+                        }
+                        if let narrator = item.book?.narrator {
+                            Text("Read by \(narrator)")
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(Color.usher)
+                                .lineLimit(1)
+                        }
+                    }
+                    if let overview = overviews[item.id] ?? nil {
+                        Text(overview)
+                            .font(.subheadline)
+                            .foregroundStyle(Color.screen.opacity(0.85))
+                            .lineLimit(sideways ? 2 : 3)
+                            .frame(maxWidth: 520, alignment: .leading)
+                    }
+                    BookHeroPlayButton(item: item)
+                        .padding(.top, 4)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, Layout.edge)
+            .padding(.bottom, 44)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { router.push(.item(item)) }
+    }
+}
+
+/// A book slide's button: Play, or Resume from where this profile is (as the book's page says it); Pause while it plays.
+private struct BookHeroPlayButton: View {
+    @Environment(AppModel.self) private var model
+    let item: ItemSummary
+
+    var body: some View {
+        let playingThis = model.music.current?.id == item.id
+        let position = playingThis ? model.music.position : item.userData.positionSeconds
+        let resumable = position > 0 && !item.isFinishedBook
+        Button {
+            if playingThis { model.music.togglePlayPause() } else { model.playBook(item) }
+        } label: {
+            Label(playingThis && model.music.isPlaying ? "Pause" : resumable ? "Resume from \(Format.timestamp(position))" : "Play",
+                  systemImage: playingThis && model.music.isPlaying ? "pause.fill" : Symbol.play)
+        }
+        .buttonStyle(ActionButtonStyle(ambient: item.ambientColor, prominent: true))
+        .monospacedDigit()
     }
 }
 

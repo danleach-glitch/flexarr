@@ -5,6 +5,8 @@ import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -40,5 +42,30 @@ class BookGenresTest {
         assertEquals(listOf("Mystery"), client().bookGenres("lib").map { it.name })
         server.takeRequest()
         assertEquals("/api/v1/libraries/lib/book-shelves", server.takeRequest().url.encodedPath)
+    }
+
+    @Test
+    fun `the shelves' hero books and their overviews come from servers from 0_59`() = runTest {
+        server.enqueue(
+            json(
+                """{"featured":[{"id":"b1","libraryId":"lib","kind":"Audiobook","title":"Dune","childCount":0,
+                   "artwork":{"poster":"/api/v1/images/b1/poster"},"userData":{"positionSeconds":600,"watched":false,"playCount":0}},
+                   {"id":"b2","libraryId":"lib","kind":"Audiobook","title":"Emma","childCount":0,
+                   "artwork":{"poster":"/api/v1/images/b2/poster"},"userData":{"positionSeconds":0,"watched":false,"playCount":0}}],
+                   "featuredOverviews":{"b1":"Spice.","b2":null}}""",
+            ),
+        )
+        val shelves = client().bookShelves("lib")
+        assertEquals(listOf("b1", "b2"), shelves.featured.map { it.id })
+        assertEquals("Spice.", shelves.featuredOverviews["b1"])
+        assertNull(shelves.featuredOverviews["b2"])
+    }
+
+    @Test
+    fun `a server before 0_59 has no hero books`() = runTest {
+        server.enqueue(json("""{"genres":[]}"""))
+        val shelves = client().bookShelves("lib")
+        assertTrue(shelves.featured.isEmpty())
+        assertTrue(shelves.featuredOverviews.isEmpty())
     }
 }

@@ -60,6 +60,7 @@ import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.MediaKind
 import io.github.flexarr.core.MusicActions
 import io.github.flexarr.core.MusicArtistExtras
+import io.github.flexarr.core.MusicMenu
 import io.github.flexarr.core.unfollowArtist
 import io.github.flexarr.core.PlaylistDetail
 import io.github.flexarr.core.artistName
@@ -75,7 +76,9 @@ import io.github.flexarr.ui.components.ActionButton
 import io.github.flexarr.ui.components.Edge
 import io.github.flexarr.ui.components.FactsLine
 import io.github.flexarr.ui.components.Load
+import io.github.flexarr.ui.components.ItemMenu
 import io.github.flexarr.ui.components.LocalNavigator
+import io.github.flexarr.ui.components.MenuAction
 import io.github.flexarr.ui.components.PosterWidth
 import io.github.flexarr.ui.components.RowSpacing
 import io.github.flexarr.ui.components.SectionHeading
@@ -251,9 +254,9 @@ fun ArtistScreen(model: AppModel, id: String) {
                 val item = state.value.item
                 val albums = state.value.children.filter { it.kind == MediaKind.Album }
                 val known = extras
-                val actions = MusicActions.of(
-                    MusicActions.Input(MusicActions.Kind.ARTIST, hasMusic = albums.isNotEmpty(), canRequest = known != null, platform = MusicActions.Platform.PHONE, canRadio = true),
-                )
+                val input = MusicActions.Input(MusicActions.Kind.ARTIST, hasMusic = albums.isNotEmpty(), canRequest = known != null, platform = MusicActions.Platform.PHONE, canRadio = true, canQueue = true)
+                val actions = MusicActions.of(input)
+                val more = musicPageMenuActions(item, MusicActions.menu(input))
                 val followKeys = libraryArtistKeys(id, known?.deezerId)
                 // Lidarr didn't answer for this page: Follow and the album chips wait, and the page says so.
                 CompositionLocalProvider(LocalMusicPaused provides (known?.lidarrPaused == true)) { LazyVerticalGrid(
@@ -284,7 +287,7 @@ fun ArtistScreen(model: AppModel, id: String) {
                             onShuffle = { playAll(state.value, shuffled = true) },
                             onRadio = { navigator.playArtist(item, radio = true) }.takeIf { MusicActions.Button.RADIO in actions },
                             showsPlay = MusicActions.Button.PLAY in actions,
-                            hasExtra = MusicActions.Button.FOLLOW in actions,
+                            hasExtra = MusicActions.Button.FOLLOW in actions || MusicActions.Button.MORE in actions,
                             extra = {
                                 // Once it's known music requests are on: Follow, or Following (said by the server, or
                                 // asked here). The page's only action (a placeholder artist) says so in words.
@@ -305,13 +308,14 @@ fun ArtistScreen(model: AppModel, id: String) {
                                         labelled = MusicActions.Button.PLAY !in actions,
                                     )
                                 }
+                                if (MusicActions.Button.MORE in actions) MoreButton(more, ambient)
                             },
                             note = { if (known != null) LidarrNotAnsweringNote(model) },
                         )
                     }
                     if (albums.isNotEmpty()) {
                         fullWidth { SectionHeading("Albums", Modifier.bleed()) }
-                        itemsIndexed(albums, key = { _, album -> album.id }) { _, album -> AlbumCard(album) }
+                        itemsIndexed(albums, key = { _, album -> album.id }) { _, album -> AlbumCard(album, onArtistPage = true) }
                     } else if (extrasChecked && extras?.missing.isNullOrEmpty()) {
                         fullWidth { Box(Modifier.height(160.dp)) { StatusView("No albums yet.", empty = true) } }
                     }
@@ -348,7 +352,9 @@ fun AlbumScreen(model: AppModel, id: String) {
                 val tracks = state.value.children.filter { it.kind == MediaKind.Track }
                 val artist = state.value.ancestors.lastOrNull { it.kind == MediaKind.Artist }
                 // In the library already: nothing to request, so Play, Shuffle and Download.
-                val actions = MusicActions.of(MusicActions.Input(MusicActions.Kind.ALBUM, hasMusic = true, canRequest = false, platform = MusicActions.Platform.PHONE, canDownload = true))
+                val input = MusicActions.Input(MusicActions.Kind.ALBUM, hasMusic = true, canRequest = false, platform = MusicActions.Platform.PHONE, canDownload = true, canQueue = tracks.isNotEmpty())
+                val actions = MusicActions.of(input)
+                val more = musicPageMenuActions(item, MusicActions.menu(input))
                 androidx.compose.foundation.lazy.LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp)) {
                     item {
                         MusicHeader(
@@ -368,8 +374,11 @@ fun AlbumScreen(model: AppModel, id: String) {
                             onPlay = { music.play(tracks, albums = listOf(item)) },
                             onShuffle = { music.play(tracks, shuffled = true, albums = listOf(item)) },
                             showsPlay = MusicActions.Button.PLAY in actions,
-                            hasExtra = MusicActions.Button.DOWNLOAD in actions,
-                            extra = { if (MusicActions.Button.DOWNLOAD in actions) MusicDownloadButton(model, MusicDownloadSource.Album(item, tracks)) },
+                            hasExtra = MusicActions.Button.DOWNLOAD in actions || MusicActions.Button.MORE in actions,
+                            extra = {
+                                if (MusicActions.Button.DOWNLOAD in actions) MusicDownloadButton(model, MusicDownloadSource.Album(item, tracks))
+                                if (MusicActions.Button.MORE in actions) MoreButton(more, ambient)
+                            },
                         )
                     }
                     if (tracks.isEmpty()) {
@@ -390,6 +399,9 @@ fun AlbumScreen(model: AppModel, id: String) {
                                             isCurrent = music.current?.id == track.id, isPlaying = music.isPlaying,
                                             subtitle = track.trackArtist,
                                             isDownloaded = model.downloads.isDownloaded(track.id),
+                                            actions = musicMenuActions(MusicMenuSubject.Item(track), MusicMenu.Place.ROW) {
+                                                music.play(tracks, start = tracks.indexOf(track), albums = listOf(item))
+                                            },
                                         ) {
                                             if (music.current?.id == track.id) music.togglePlayPause()
                                             else music.play(tracks, start = tracks.indexOf(track), albums = listOf(item))
@@ -405,6 +417,16 @@ fun AlbumScreen(model: AppModel, id: String) {
             Load.Loading -> StatusView()
         }
         BackButton()
+    }
+}
+
+/** The page's ⋯, last in its action row: a menu of [actions]. */
+@Composable
+private fun MoreButton(actions: List<MenuAction>, ambient: Color) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        MusicRoundButton(FlexarrIcons.more, "More", { open = true }, ambient = ambient)
+        ItemMenu(actions, open, onDismiss = { open = false })
     }
 }
 
@@ -451,7 +473,11 @@ fun PlaylistScreen(model: AppModel, id: String) {
                     state.value.tracks.forEachIndexed { index, entry ->
                         item(key = entry.entryId) {
                             Box(Modifier.padding(horizontal = Edge - 8.dp).padding(top = if (index == 0) 20.dp else 0.dp)) {
-                                TrackRow(entry.track, index + 1, isCurrent = music.current?.id == entry.track.id, isPlaying = music.isPlaying, subtitle = entry.track.artistName, isDownloaded = model.downloads.isDownloaded(entry.track.id)) {
+                                TrackRow(
+                                    entry.track, index + 1, isCurrent = music.current?.id == entry.track.id, isPlaying = music.isPlaying, subtitle = entry.track.artistName,
+                                    isDownloaded = model.downloads.isDownloaded(entry.track.id),
+                                    actions = musicMenuActions(MusicMenuSubject.Item(entry.track), MusicMenu.Place.ROW) { music.play(tracks, start = index) },
+                                ) {
                                     if (music.current?.id == entry.track.id) music.togglePlayPause() else music.play(tracks, start = index)
                                 }
                             }

@@ -80,7 +80,7 @@ struct AlbumView: View {
                     }
                     .disabled(tracks.isEmpty)
                     .focusSection()
-                    FocusedActionName(name: focusedAction == .shuffle ? "Shuffle" : nil)
+                    FocusedActionName(name: focusedAction == .shuffle ? "Shuffle" : focusedAction == .more ? "More" : nil)
                 }
                 .padding(.top, 8)
             }
@@ -88,9 +88,9 @@ struct AlbumView: View {
         }
     }
 
-    /// An album in the library: Play and Shuffle (no Download on the TV, and its ⋯ is the web's for now).
+    /// An album in the library: Play, Shuffle and ⋯ (no Download on the TV).
     private var actions: MusicActions {
-        MusicActions(kind: .album, platform: .tv, hasMusic: true, canAsk: false)
+        MusicActions(kind: .album, platform: .tv, hasMusic: true, canAsk: false, canQueue: true)
     }
 
     @ViewBuilder
@@ -109,6 +109,11 @@ struct AlbumView: View {
             .buttonStyle(ActionButtonStyle(ambient: ambient, iconOnly: true))
             .focused($focusedAction, equals: .shuffle)
             .disabled(tracks.count < 2)
+        case .more:
+            MusicPageMenu(items: actions.menu, item: item) { tracks }
+                .buttonStyle(ActionButtonStyle(ambient: ambient, iconOnly: true))
+                .focused($focusedAction, equals: .more)
+                .disabled(tracks.isEmpty)
         default:
             EmptyView()
         }
@@ -145,7 +150,9 @@ struct AlbumView: View {
                     ForEach(Array(disc.tracks.enumerated()), id: \.element.id) { offset, track in
                         TrackRow(track: track, number: track.trackNumber ?? offset + 1,
                                  isCurrent: model.music.current?.id == track.id, isPlaying: model.music.isPlaying,
-                                 subtitle: track.trackArtist) {
+                                 subtitle: track.trackArtist,
+                                 menu: tracks.firstIndex(of: track).map { .row(track, in: tracks, at: $0) },
+                                 offersArtist: false) {
                             if model.music.current?.id == track.id {
                                 model.music.togglePlayPause()
                             } else if let index = tracks.firstIndex(of: track) {

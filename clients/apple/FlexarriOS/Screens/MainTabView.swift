@@ -76,6 +76,8 @@ struct MainTabView: View {
                 .presentationDragIndicator(.hidden)
                 .presentationBackground(Color.room)
         }
+        // Add to playlist, asked for from a music card's or page's menu on any tab.
+        .sheet(item: Bindable(model).addingToPlaylist) { AddToPlaylistSheet(request: $0) }
         .sensoryFeedback(.impact(weight: .light), trigger: remote.taps)
         .sensoryFeedback(.error, trigger: remote.failures)
         .onChange(of: model.pendingRoute) { _, route in
@@ -188,8 +190,8 @@ struct TabStack<Content: View>: View {
             ExternalAlbumView(preview: album)
         case .musicItem(let id, let isArtist):
             MusicItemDestination(id: id, isArtist: isArtist)
-        case .external, .genre, .musicGenre:
-            // Discover is on the Apple TV and the web; nothing on iPhone or iPad goes here.
+        case .external, .genre, .musicGenre, .bookList:
+            // Discover, and books' See all pages, are the Apple TV's; nothing on iPhone or iPad goes here.
             EmptyView()
         }
     }

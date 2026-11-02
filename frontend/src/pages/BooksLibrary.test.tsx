@@ -2,7 +2,8 @@ import { render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearApiCache, type Library } from '../api/client'
-import { mockApi } from '../test/mockApi'
+import { mockApi, summary } from '../test/mockApi'
+import { AudioPlayerProvider } from '../hooks/audioPlayer'
 import { BooksLibrary } from './BooksLibrary'
 
 const library: Library = { id: 'lib-books', name: 'Audiobooks', type: 'Audiobooks', folders: ['/media/books'], itemCount: 3, lastScannedAt: null, scan: null }
@@ -27,9 +28,11 @@ afterEach(() => vi.unstubAllGlobals())
 
 const show = (url: string) =>
   render(
-    <MemoryRouter initialEntries={[url]}>
-      <BooksLibrary library={library} />
-    </MemoryRouter>,
+    <AudioPlayerProvider>
+      <MemoryRouter initialEntries={[url]}>
+        <BooksLibrary library={library} />
+      </MemoryRouter>
+    </AudioPlayerProvider>,
   )
 
 describe('Audiobooks library', () => {
@@ -58,6 +61,23 @@ describe('Audiobooks library', () => {
     expect(screen.queryByRole('navigation', { name: 'Audiobooks views' })).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Genres' })).toHaveAttribute('href', '/library/lib-books?view=genres')
     expect(await screen.findByText('No books yet.')).toBeInTheDocument()
+  })
+
+  it('leads Browse with a hero of its books, under the views', async () => {
+    const book = summary({
+      id: 'b1', kind: 'Audiobook', title: 'Project Hail Mary', artwork: { poster: '/img/b1', backdrop: null, logo: null, thumb: null },
+      book: { authors: 'Andy Weir', authorCount: 1, narrator: 'Ray Porter', series: null, sequence: null, durationSeconds: 58000, finishedAt: null },
+      userData: { watched: false, positionSeconds: 1200, playCount: 0, lastPlayedAt: null },
+    })
+    mockApi({ '/libraries/lib-books/book-shelves': { ...shelves, continueListening: [book], featured: [book], featuredOverviews: { b1: 'A lone astronaut.' } } })
+    show('/library/lib-books')
+
+    const hero = await screen.findByRole('region', { name: 'Featured' })
+    expect(within(hero).getByRole('heading', { name: 'Project Hail Mary' })).toBeInTheDocument()
+    expect(within(hero).getByText('Read by Ray Porter')).toBeInTheDocument()
+    expect(within(hero).getByText('A lone astronaut.')).toBeInTheDocument()
+    expect(within(hero).getByRole('button', { name: /Resume/ })).toBeInTheDocument()
+    expect(within(hero).getByRole('navigation', { name: 'Audiobooks views' })).toBeInTheDocument()
   })
 
   it('leaves genres off Browse', async () => {
@@ -95,11 +115,18 @@ describe('Audiobooks library', () => {
     expect(await screen.findByText('No narrators here yet.')).toBeInTheDocument()
   })
 
-  it('has no search or filters on All books, only the sort', async () => {
+  it('has a search box and the sort on All books, and no filter menus', async () => {
     mockApi({ '/libraries/lib-books/books': { total: 0, items: [] } })
     show('/library/lib-books?view=all&progress=finished')
     expect(await screen.findByRole('button', { name: 'Finished: clear' })).toBeInTheDocument()
-    expect(screen.queryByRole('searchbox')).not.toBeInTheDocument()
+    expect(screen.getByRole('searchbox', { name: 'Search Audiobooks' })).toBeInTheDocument()
     expect(screen.getAllByRole('combobox').map((c) => c.getAttribute('aria-label'))).toEqual(['Sort by'])
+  })
+
+  it('offers the A–Z rail on a long grid sorted by title', async () => {
+    const items = Array.from({ length: 45 }, (_, i) => summary({ id: `b${i}`, kind: 'Audiobook', title: `${String.fromCharCode(65 + (i % 26))} Book ${i}` }))
+    mockApi({ '/libraries/lib-books/books': { total: 45, items } })
+    show('/library/lib-books?view=all')
+    expect(await screen.findByRole('navigation', { name: 'Jump to letter' })).toBeInTheDocument()
   })
 })

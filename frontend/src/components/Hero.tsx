@@ -86,11 +86,12 @@ export function Hero({ items, overviews, resume, resumes, top }: {
 
   if (!item) return null
   const music = item.kind === 'Album' || item.kind === 'Artist'
+  const book = item.kind === 'Audiobook'
   const style = item.accentColor ? ({ '--ambient': item.accentColor } as CSSProperties) : undefined
 
   return (
     <section
-      className="hero"
+      className={book ? 'hero hero-book' : 'hero'}
       style={style}
       aria-roledescription="carousel"
       aria-label="Featured"
@@ -104,18 +105,30 @@ export function Hero({ items, overviews, resume, resumes, top }: {
         {/* Only the backdrops on screen or next up are loaded, sized for the screen; the first one comes first. */}
         {items.map((it, i) =>
           i === index || i === previous || i === (index + 1) % items.length ? (
-            <img
-              key={it.id}
-              src={imageUrl(it.artwork.backdrop, 1920)}
-              srcSet={imageWidths(it.artwork.backdrop, BACKDROP_WIDTHS)}
-              sizes="100vw"
-              fetchPriority={i === 0 ? 'high' : 'low'}
-              alt=""
-              className={i === index ? 'shown' : undefined}
-            />
+            it.kind === 'Audiobook' ? (
+              // Books have no backdrops: the cover, blurred into a wash of its colours.
+              <img
+                key={it.id}
+                src={imageUrl(it.artwork.poster, 300)}
+                fetchPriority={i === 0 ? 'high' : 'low'}
+                alt=""
+                className={['blurred', i === index ? 'shown' : ''].filter(Boolean).join(' ')}
+              />
+            ) : (
+              <img
+                key={it.id}
+                src={imageUrl(it.artwork.backdrop, 1920)}
+                srcSet={imageWidths(it.artwork.backdrop, BACKDROP_WIDTHS)}
+                sizes="100vw"
+                fetchPriority={i === 0 ? 'high' : 'low'}
+                alt=""
+                className={i === index ? 'shown' : undefined}
+              />
+            )
           ) : null,
         )}
       </div>
+      {book && <img className="hero-cover" src={imageUrl(item.artwork.poster, 600)} alt="" aria-hidden="true" />}
       <div className="hero-content" aria-live="polite">
         {item.kind === 'Album' ? (
           // An album's slide: its artist above it, since the backdrop is theirs.
@@ -130,7 +143,13 @@ export function Hero({ items, overviews, resume, resumes, top }: {
         ) : (
           <h1 className="hero-title">{item.title}</h1>
         )}
-        {music ? (
+        {book ? (
+          <p className="facts">
+            {item.book?.authors && <span>{item.book.authors}</span>}
+            {item.book?.narrator && <span>Read by {item.book.narrator}</span>}
+            {formatDuration(item.book?.durationSeconds ?? item.durationSeconds) && <span>{formatDuration(item.book?.durationSeconds ?? item.durationSeconds)}</span>}
+          </p>
+        ) : music ? (
           <p className="facts">
             {item.kind === 'Album' && item.year && <span>{item.year}</span>}
             {item.childCount > 0 && <span>{item.childCount} {item.kind === 'Album' ? (item.childCount === 1 ? 'track' : 'tracks') : item.childCount === 1 ? 'album' : 'albums'}</span>}
@@ -145,7 +164,9 @@ export function Hero({ items, overviews, resume, resumes, top }: {
         )}
         {overviews?.[item.id] && <p className="hero-overview">{overviews[item.id]}</p>}
         <div className="hero-actions">
-          {music ? (
+          {book ? (
+            <BookPlay item={item} />
+          ) : music ? (
             <MusicActions item={item} resuming={resuming} />
           ) : (
             <AsyncButton className="button" onClick={() => (resuming ? navigate(`/play/${resuming.id}`) : play(item))}>
@@ -196,5 +217,16 @@ function MusicActions({ item, resuming }: { item: ItemSummary; resuming: ItemSum
         </AsyncButton>
       )}
     </>
+  )
+}
+
+/** A book's hero button: Resume part way through, otherwise Play. In the audio player, as its own page plays it. */
+function BookPlay({ item }: { item: ItemSummary }) {
+  const player = useAudioPlayer()
+  const resumable = item.userData.positionSeconds > 0 && !item.userData.watched
+  return (
+    <AsyncButton className="button" onClick={() => player.play([item])}>
+      <Play /> {resumable ? 'Resume' : 'Play'}
+    </AsyncButton>
   )
 }

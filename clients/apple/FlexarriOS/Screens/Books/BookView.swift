@@ -178,10 +178,11 @@ struct BookView: View {
             .buttonStyle(ActionButtonStyle(ambient: item.ambientColor, prominent: true))
             .monospacedDigit()
 
-            // After Play, in `BookActions` order: Start over, Finished (or Unread), Download.
+            // After Play, in `BookActions` order: Start over, Finished (or Unread), Download, ⋯.
             HStack(alignment: .top, spacing: 8) {
                 ForEach(BookActions(hasProgress: resumable, finished: item.isFinishedBook, isKids: model.isKids,
-                                    platform: .phone, canDownload: true).buttons.dropFirst(), id: \.self) { button in
+                                    platform: .phone, canDownload: true, hasMenu: model.canDeleteBooks).buttons.dropFirst(),
+                        id: \.self) { button in
                     switch button {
                     case .startOver:
                         // Part way through, it asks first.
@@ -211,7 +212,10 @@ struct BookView: View {
                         }
                     case .download:
                         BookDownloadButton(item: item)
-                    case .play, .more:
+                    case .more:
+                        BookMoreMenu(item: item)
+                            .menuStyle(.button)
+                    case .play:
                         EmptyView()
                     }
                 }

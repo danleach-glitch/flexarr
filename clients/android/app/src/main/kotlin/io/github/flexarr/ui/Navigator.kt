@@ -4,6 +4,10 @@ import android.content.Context
 import android.net.Uri
 import androidx.navigation.NavHostController
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import io.github.flexarr.ui.music.PlaylistAddition
 import io.github.flexarr.AppModel
 import io.github.flexarr.core.FlexarrClient
 import io.github.flexarr.core.ItemSummary
@@ -251,6 +255,9 @@ class Navigator(private val nav: NavHostController, private val model: AppModel,
      * rather than nothing happening.
      */
     val notices = SnackbarHostState()
+
+    /** What the Add to playlist sheet is open for (phones only), shown over every screen. */
+    var addingToPlaylist by mutableStateOf<PlaylistAddition?>(null)
 
     fun setWatched(item: ItemSummary, watched: Boolean) =
         changeWatchState(if (watched) "Couldn’t mark this as watched" else "Couldn’t mark this as unwatched") {

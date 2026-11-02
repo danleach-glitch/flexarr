@@ -194,6 +194,13 @@ data class BookShelves(
      * servers before 0.58: every shelf, in [BookShelf]'s order.
      */
     val order: List<String>? = null,
+    /**
+     * The hero's books: up to three this profile is part way through (last listened first), then the two newest not
+     * started, only books with a cover. Absent from servers before 0.59.
+     */
+    val featured: List<ItemSummary> = emptyList(),
+    /** Each [featured] book's overview, by its id (null when it has none). Absent from servers before 0.59. */
+    val featuredOverviews: Map<String, String?> = emptyMap(),
 ) {
     /** The front page's shelves to show, in order: [order]'s (ids this app doesn't know left out), or all of them. */
     val frontPage: List<BookShelf>
@@ -378,6 +385,29 @@ suspend fun FlexarrClient.endBookSession(
         }
     }
     if (!gone) runCatching { stopPlayback(sessionId) }
+}
+
+/** What deleting a title does: [managedBy] names the app that deletes it, or (null) Flexarr deletes [files] itself. */
+@Serializable
+data class DeletionPlan(val managedBy: String? = null, val files: List<String> = emptyList()) {
+    /** What the question before deleting a book says. */
+    val bookMessage: String
+        get() {
+            val what = when (files.size) {
+                0 -> "Flexarr deletes it from the library: there are no files on disk."
+                1 -> "Flexarr deletes its file from disk."
+                else -> "Flexarr deletes its ${files.size} files from disk."
+            }
+            return if (files.isEmpty()) "$what You can’t undo this." else "$what Folders it leaves empty go too. You can’t undo this."
+        }
+}
+
+/** What deleting a title does (the main profile only). */
+suspend fun FlexarrClient.deletion(itemId: String): DeletionPlan = get("items/$itemId/deletion")
+
+/** Deletes a title and its files for good (the main profile only). */
+suspend fun FlexarrClient.deleteItem(itemId: String) {
+    send("DELETE", "items/$itemId")
 }
 
 /** Marks a book finished, or not. */

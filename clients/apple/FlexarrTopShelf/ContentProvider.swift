@@ -1,8 +1,8 @@
 @preconcurrency import TVServices
 import FlexarrKit
 
-/// Fills the Apple TV Home screen's Top Shelf with the profile's Continue Watching, the albums it played last, then
-/// what's been added lately:
+/// Fills the Apple TV Home screen's Top Shelf with the profile's Continue Watching, the books it's listening to, the
+/// albums it played last, then what's been added lately:
 /// rows of posters, or of wide artwork with each title's logo on it (Settings › Home screen), each with how far
 /// through it is. Selecting one opens it in Flexarr; Play resumes it. With neither, the Home screen's featured titles.
 final class ContentProvider: TVTopShelfContentProvider {
@@ -18,13 +18,26 @@ final class ContentProvider: TVTopShelfContentProvider {
             .sorted { $0.addedAt > $1.addedAt }.filter { seen.insert($0.id).inserted }
         // The albums this profile played last, as square covers; Play plays the album.
         let listening = home.rows.first(where: { $0.id == "music-recent" })?.items.filter { $0.kind == .album } ?? []
+        let books = await continueListening(client: client).filter { seen.insert($0.id).inserted }
         var sections = [section("Continue watching", watching, style: style, client: client),
+                        section("Continue listening", books, style: style, client: client),
                         section("Recently played", listening, style: style, client: client),
                         section("Recently added", recent, style: style, client: client)].compactMap { $0 }
         if sections.isEmpty, let featured = section("Featured", home.featured, style: style, client: client) {
             sections = [featured]
         }
         return sections.isEmpty ? nil : TVTopShelfSectionedContent(sections: sections)
+    }
+
+    /// The books this profile is part way through, across its audiobooks libraries, last listened first: square
+    /// covers that open the book; Play carries on from its place.
+    private func continueListening(client: FlexarrClient) async -> [ItemSummary] {
+        guard let libraries = try? await client.libraries() else { return [] }
+        var books: [ItemSummary] = []
+        for library in libraries where library.type == .audiobooks {
+            if let shelves = try? await client.bookShelves(library.id) { books += shelves.continueListening }
+        }
+        return books.sorted { ($0.userData.lastPlayedAt ?? .distantPast) > ($1.userData.lastPlayedAt ?? .distantPast) }
     }
 
     private func section(_ title: String, _ titles: [ItemSummary], style: TopShelfStyle, client: FlexarrClient) -> TVTopShelfItemCollection<TVTopShelfSectionedItem>? {
@@ -48,10 +61,12 @@ final class ContentProvider: TVTopShelfContentProvider {
         } else if summary.kind == .album, let artist = summary.seriesTitle {
             // Album titles repeat ("Greatest Hits"): the artist says whose, as an episode's show does.
             item.title = "\(summary.title)  \(artist)"
+        } else if summary.kind == .audiobook, let authors = summary.book?.authors {
+            item.title = "\(summary.title)  \(authors)"
         } else {
             item.title = summary.title
         }
-        if let duration = summary.durationSeconds, duration > 0, summary.userData.positionSeconds > 0 {
+        if let duration = summary.book?.durationSeconds ?? summary.durationSeconds, duration > 0, summary.userData.positionSeconds > 0 {
             item.playbackProgress = min(1, summary.userData.positionSeconds / duration)
         }
         item.displayAction = TVTopShelfAction(url: open)
@@ -62,8 +77,8 @@ final class ContentProvider: TVTopShelfContentProvider {
     /// Posters say what each one is and fit more of them (an episode's poster is its show's). Wide: the show's or
     /// film's backdrop with its logo, drawn by the server; an episode's still if there's no backdrop, else its poster.
     private func artwork(for summary: ItemSummary, style: TopShelfStyle, client: FlexarrClient) -> (TVTopShelfSectionedItem.ImageShape, URL, URL)? {
-        // An album's cover is square whatever the style.
-        if summary.kind == .album {
+        // An album's or a book's cover is square whatever the style.
+        if summary.kind == .album || summary.kind == .audiobook {
             guard let small = client.imageURL(summary.artwork.poster, width: 400), let large = client.imageURL(summary.artwork.poster, width: 800) else { return nil }
             return (.square, small, large)
         }

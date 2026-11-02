@@ -1168,6 +1168,10 @@ export interface BookShelves {
   languages?: string[]
   /** The front page's shelves in the profile's order, switched-off ones left out (Settings › Home & browse). */
   order?: string[]
+  /** The hero's books: up to three part way through, last listened first, then the two newest. Absent before 0.59. */
+  featured?: ItemSummary[]
+  /** The hero's descriptions, by id. Absent before 0.59. */
+  featuredOverviews?: Record<string, string | null>
 }
 
 export interface BookSeriesSearch {

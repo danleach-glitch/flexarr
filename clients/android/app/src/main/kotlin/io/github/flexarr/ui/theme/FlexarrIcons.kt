@@ -3,6 +3,9 @@
 package io.github.flexarr.ui.theme
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
+import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
+import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
@@ -69,6 +72,12 @@ object FlexarrIcons {
     val following: ImageVector get() = Icons.Filled.Check
     /** Go to the artist. */
     val goToArtist: ImageVector get() = Icons.Outlined.Mic
+    /** Play next, after what's playing. */
+    val playNext: ImageVector get() = Icons.AutoMirrored.Filled.PlaylistPlay
+    /** Add to the end of the queue. */
+    val addToQueue: ImageVector get() = Icons.AutoMirrored.Filled.QueueMusic
+    /** Add to a playlist. */
+    val addToPlaylist: ImageVector get() = Icons.AutoMirrored.Filled.PlaylistAdd
     /** Download. */
     val download: ImageVector get() = Icons.Outlined.ArrowCircleDown
     /** Search for subtitles. */

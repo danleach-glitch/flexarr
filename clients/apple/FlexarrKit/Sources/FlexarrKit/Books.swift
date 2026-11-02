@@ -334,6 +334,11 @@ public struct BookShelves: Codable, Sendable {
     /// The front page's shelves in the profile's order, switched-off ones left out (`BookShelf` raw values). Absent
     /// from servers before 0.58: every shelf, in `BookShelf`'s order.
     public var order: [String]? = nil
+    /// The hero's slides: up to three books this profile is part way through, last listened first, then the two newest
+    /// not started; only books with a cover. Absent from servers before 0.59.
+    public var featured: [ItemSummary]? = nil
+    /// The slides' descriptions, by id. Absent from servers before 0.59.
+    public var featuredOverviews: [String: String?]? = nil
 
     public var isEmpty: Bool {
         continueListening.isEmpty && nextInSeries.isEmpty && recentlyAdded.isEmpty && series.isEmpty && authors.isEmpty && finished.isEmpty
@@ -460,6 +465,41 @@ public struct BookFilter: Sendable, Hashable {
         add("sort", sort.rawValue)
         add("descending", (descending ?? sort.descendingByDefault) ? "true" : "false")
         return query
+    }
+}
+
+/// The lengths the books filter offers, as hours `BookFilter` narrows to.
+public enum BookLength: String, CaseIterable, Sendable, Identifiable {
+    case any, short, medium, long, epic
+    public var id: String { rawValue }
+
+    public var label: String {
+        switch self {
+        case .any: "Any length"
+        case .short: "Under 5 hours"
+        case .medium: "5 to 10 hours"
+        case .long: "10 to 20 hours"
+        case .epic: "Over 20 hours"
+        }
+    }
+
+    public var hours: (Double?, Double?) {
+        switch self {
+        case .any: (nil, nil)
+        case .short: (nil, 5)
+        case .medium: (5, 10)
+        case .long: (10, 20)
+        case .epic: (20, nil)
+        }
+    }
+
+    /// The length a filter narrows to; any other range (or none) is Any length.
+    public init(_ filter: BookFilter) {
+        self = Self.allCases.first { $0.hours.0 == filter.minHours && $0.hours.1 == filter.maxHours } ?? .any
+    }
+
+    public func apply(to filter: inout BookFilter) {
+        (filter.minHours, filter.maxHours) = hours
     }
 }
 
@@ -707,6 +747,17 @@ extension FlexarrClient {
         _ = try await send("POST", "items/\(itemId)/finished", body: FinishedBody(finished: finished))
     }
 
+    /// What deleting a title does: an app (Radarr, Sonarr, Lidarr) deletes it, or Flexarr deletes `files` (always, for a
+    /// book). The main profile only.
+    public func deletion(_ itemId: String) async throws -> DeletionPlan {
+        try await get("items/\(itemId)/deletion")
+    }
+
+    /// Deletes a title and its files for good (the main profile only).
+    public func deleteItem(_ itemId: String) async throws {
+        _ = try await send("DELETE", "items/\(itemId)")
+    }
+
     /// Starts the book over, keeping when it was finished.
     public func listenAgain(_ itemId: String) async throws {
         _ = try await send("POST", "items/\(itemId)/listen-again")
@@ -745,4 +796,25 @@ extension FlexarrClient {
         let note: String?
     }
     private struct BookmarkNoteBody: Encodable { let note: String? }
+}
+
+/// What deleting a title does: `managedBy` names the app that deletes it, or (nil) Flexarr deletes `files` itself.
+public struct DeletionPlan: Decodable, Sendable, Equatable {
+    public let managedBy: String?
+    public let files: [String]
+
+    public init(managedBy: String?, files: [String]) {
+        self.managedBy = managedBy
+        self.files = files
+    }
+
+    /// What the question before deleting a book says.
+    public var bookMessage: String {
+        let what = switch files.count {
+        case 0: "Flexarr deletes it from the library: there are no files on disk."
+        case 1: "Flexarr deletes its file from disk."
+        default: "Flexarr deletes its \(files.count) files from disk."
+        }
+        return files.isEmpty ? "\(what) You can't undo this." : "\(what) Folders it leaves empty go too. You can't undo this."
+    }
 }

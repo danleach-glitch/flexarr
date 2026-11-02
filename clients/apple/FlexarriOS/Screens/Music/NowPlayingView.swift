@@ -767,7 +767,8 @@ struct NowPlayingView: View {
                     .foregroundStyle(Color.screen)
                     .padding(.horizontal, 12)
                     .padding(.top, 8)
-                ForEach(Array(next.enumerated()), id: \.element.id) { offset, track in
+                // By place: Play next and Add to queue can queue the same track twice.
+                ForEach(Array(next.enumerated()), id: \.offset) { offset, track in
                     TrackRow(track: track, number: offset + 1, isCurrent: false, isPlaying: false) {
                         music.skip(to: music.index + 1 + offset)
                     }

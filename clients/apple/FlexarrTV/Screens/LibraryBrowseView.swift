@@ -23,8 +23,8 @@ enum LibraryOpening: String, CaseIterable {
     static func hasGenres(_ library: Library) -> Bool { [.movies, .tvShows, .audiobooks].contains(library.type) }
 }
 
-/// A film, TV or audiobooks library's tab: Browse, All or Genres, switched with the words at the top. A row's "See all"
-/// opens All on top instead, so Back comes back to the rows.
+/// A film or TV library's tab: Browse, All or Genres, switched with the words at the top. A row's "See all" opens All
+/// on top instead, so Back comes back to the rows. Audiobooks have their own (`BooksLibraryTab`), music too.
 struct LibraryTab: View {
     let library: Library
     @AppStorage(LibraryOpening.storageKey) private var opensOn = LibraryOpening.browse
@@ -44,8 +44,6 @@ struct LibraryTab: View {
         Group {
             switch view.wrappedValue {
             case .genres where LibraryOpening.hasGenres(library): LibraryGenresView(library: library, view: view)
-            case .browse where library.type == .audiobooks: BooksLibraryView(library: library, view: view)
-            case .all where library.type == .audiobooks: BookGridView(library: library, view: view)
             case .browse, .genres: LibraryBrowseView(library: library, view: view)
             case .all: LibraryView(library: library, viewSwitch: view)
             }

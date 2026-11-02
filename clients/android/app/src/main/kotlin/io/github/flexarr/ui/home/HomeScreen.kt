@@ -257,8 +257,18 @@ internal fun HomeHero(
     home: Home,
     onIndex: (Int) -> Unit,
     slide: @Composable (item: ItemSummary, height: Dp) -> Unit = { item, height -> HeroSlide(home, item, height) },
+) = FeaturedPager(home.featured, onIndex, slide)
+
+/**
+ * The hero's carousel, whatever its slides show (Home's and a library's titles, an audiobooks library's books): one
+ * [slide] at a time, moving on by itself, with a dot for each under them.
+ */
+@Composable
+internal fun FeaturedPager(
+    items: List<ItemSummary>,
+    onIndex: (Int) -> Unit,
+    slide: @Composable (item: ItemSummary, height: Dp) -> Unit,
 ) {
-    val items = home.featured
     val pager = rememberPagerState { items.size }
     val context = LocalContext.current
     // A finger on it holds it where it is.

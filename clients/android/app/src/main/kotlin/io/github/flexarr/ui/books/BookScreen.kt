@@ -43,6 +43,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -60,11 +61,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.flexarr.AppModel
 import io.github.flexarr.appModel
+import io.github.flexarr.core.BookActions
 import io.github.flexarr.core.BookAuthor
 import io.github.flexarr.core.BookChapter
 import io.github.flexarr.core.BookSeries
 import io.github.flexarr.core.Bookmark
 import io.github.flexarr.core.CreditRole
+import io.github.flexarr.core.DeletionPlan
 import io.github.flexarr.core.Format
 import io.github.flexarr.core.ItemDetail
 import io.github.flexarr.core.ItemSummary
@@ -75,7 +78,8 @@ import io.github.flexarr.core.bookSeries
 import io.github.flexarr.core.bookTimeLine
 import io.github.flexarr.core.chapterAt
 import io.github.flexarr.core.deleteBookmark
-import io.github.flexarr.core.BookActions
+import io.github.flexarr.core.deleteItem
+import io.github.flexarr.core.deletion
 import io.github.flexarr.core.isBookFinished
 import io.github.flexarr.core.listenAgain
 import io.github.flexarr.core.releaseYear
@@ -83,6 +87,7 @@ import io.github.flexarr.ui.components.ActionButton
 import io.github.flexarr.ui.components.DownloadedIcon
 import io.github.flexarr.ui.components.Edge
 import io.github.flexarr.ui.components.FactsLine
+import io.github.flexarr.ui.components.ItemMenu
 import io.github.flexarr.ui.components.LabeledAction
 import io.github.flexarr.ui.components.Load
 import io.github.flexarr.ui.components.Loaded
@@ -105,6 +110,7 @@ import io.github.flexarr.ui.theme.RoomBackground
 import io.github.flexarr.ui.theme.Tokens
 import io.github.flexarr.ui.theme.glowColor
 import io.github.flexarr.ui.theme.marquee
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 // A book's page and a series' page, as the iPhone app's album and podcast pages are laid out: the square cover, the
@@ -241,8 +247,13 @@ private fun BookPage(model: AppModel, detail: ItemDetail, defaultSpeed: Double, 
                     prominent = true,
                     ambient = glowColor(item.accentColor),
                 )
-                // After Play, in [BookActions] order: Start over, Finished (or Unread), Download.
-                val actions = BookActions.of(BookActions.Input(hasProgress = position > 0 && !finished, finished = finished, isKids = model.isKids, platform = BookActions.Platform.PHONE, canDownload = true))
+                // After Play, in [BookActions] order: Start over, Finished (or Unread), Download, ⋯.
+                val actions = BookActions.of(
+                    BookActions.Input(
+                        hasProgress = position > 0 && !finished, finished = finished, isKids = model.isKids, platform = BookActions.Platform.PHONE,
+                        canDownload = true, hasMenu = model.isMainProfile,
+                    ),
+                )
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                     actions.forEach { button ->
                         when (button) {
@@ -253,7 +264,8 @@ private fun BookPage(model: AppModel, detail: ItemDetail, defaultSpeed: Double, 
                                 if (finished) LabeledAction("Unread", Icons.Outlined.Book, { navigator.setBookFinished(item, false) })
                                 else LabeledAction("Finished", Icons.Outlined.CheckCircle, { navigator.setBookFinished(item, true) })
                             BookActions.Button.DOWNLOAD -> BookDownloadAction(model, item)
-                            BookActions.Button.PLAY, BookActions.Button.MORE -> Unit
+                            BookActions.Button.MORE -> BookMoreAction(model, item)
+                            BookActions.Button.PLAY -> Unit
                         }
                     }
                 }
@@ -540,5 +552,74 @@ private fun SeriesPage(model: AppModel, series: BookSeries) {
                 }
             }
         }
+    }
+}
+
+/**
+ * The book page's ⋯ for the main profile: Delete…, as the web's ⋯ has. It asks first, saying what goes (Flexarr deletes
+ * the book's files itself), then leaves the page.
+ */
+@Composable
+private fun BookMoreAction(model: AppModel, item: ItemSummary) {
+    val navigator = LocalNavigator.current
+    val scope = rememberCoroutineScope()
+    var open by remember { mutableStateOf(false) }
+    var plan by remember { mutableStateOf<DeletionPlan?>(null) }
+    var busy by remember { mutableStateOf(false) }
+    Box {
+        LabeledAction("More", FlexarrIcons.more, { open = true })
+        ItemMenu(
+            listOf(
+                MenuAction("Delete…") {
+                    val client = model.client ?: return@MenuAction
+                    scope.launch {
+                        try {
+                            plan = client.deletion(item.id)
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            navigator.tellFailure("Couldn’t delete this", e)
+                        }
+                    }
+                },
+            ),
+            open,
+            onDismiss = { open = false },
+        )
+    }
+    plan?.let { shown ->
+        AlertDialog(
+            onDismissRequest = { if (!busy) plan = null },
+            title = { Text("Delete ${item.title}?") },
+            text = { Text(shown.bookMessage) },
+            confirmButton = {
+                TextButton(
+                    enabled = !busy,
+                    onClick = {
+                        val client = model.client ?: return@TextButton
+                        busy = true
+                        scope.launch {
+                            try {
+                                // Playing, it stops first, so its place isn't sent back for a book that's gone.
+                                if (model.books.current?.id == item.id) model.books.stop(reportsPlace = false)
+                                client.deleteItem(item.id)
+                                plan = null
+                                model.watchStateChanged()
+                                navigator.back()
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (e: Exception) {
+                                plan = null
+                                navigator.tellFailure("Couldn’t delete this", e)
+                            } finally {
+                                busy = false
+                            }
+                        }
+                    },
+                ) { Text("Delete book", color = Flexarr.danger) }
+            },
+            dismissButton = { TextButton(onClick = { plan = null }, enabled = !busy) { Text("Keep it", color = Flexarr.screen) } },
+            containerColor = Flexarr.seat,
+        )
     }
 }

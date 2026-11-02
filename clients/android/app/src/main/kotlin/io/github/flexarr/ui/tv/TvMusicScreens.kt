@@ -57,11 +57,15 @@ import io.github.flexarr.core.Availability
 import io.github.flexarr.core.MusicExternal
 import io.github.flexarr.core.followLibraryArtist
 import io.github.flexarr.core.MusicActions
+import io.github.flexarr.core.MusicMenu
 import io.github.flexarr.core.unfollowArtist
 import androidx.compose.ui.semantics.hideFromAccessibility
 import androidx.compose.ui.semantics.semantics
 import io.github.flexarr.core.musicArtistExtras
 import io.github.flexarr.ui.music.LidarrNotAnswering
+import io.github.flexarr.ui.music.MusicMenuSubject
+import io.github.flexarr.ui.music.musicMenuActions
+import io.github.flexarr.ui.music.musicPageMenuActions
 import io.github.flexarr.ui.music.LocalMusicPaused
 import io.github.flexarr.ui.music.lidarrSilentHere
 import io.github.flexarr.ui.music.followState
@@ -77,6 +81,7 @@ import io.github.flexarr.core.totalRuntime
 import io.github.flexarr.core.tracks
 import io.github.flexarr.ui.components.Load
 import io.github.flexarr.ui.components.LocalNavigator
+import io.github.flexarr.ui.components.MenuAction
 import io.github.flexarr.ui.components.RefreshWhenStale
 import io.github.flexarr.ui.components.rememberLoader
 import io.github.flexarr.ui.theme.Flexarr
@@ -406,9 +411,9 @@ fun TvArtistScreen(model: AppModel, id: String) {
             is Load.Loaded -> {
                 val item = state.value.item
                 val albums = state.value.children.filter { it.kind == MediaKind.Album }
-                val actions = MusicActions.of(
-                    MusicActions.Input(MusicActions.Kind.ARTIST, hasMusic = albums.isNotEmpty(), canRequest = extras != null, platform = MusicActions.Platform.TV, canRadio = true),
-                )
+                val input = MusicActions.Input(MusicActions.Kind.ARTIST, hasMusic = albums.isNotEmpty(), canRequest = extras != null, platform = MusicActions.Platform.TV, canRadio = true, canQueue = true)
+                val actions = MusicActions.of(input)
+                val more = musicPageMenuActions(item, MusicActions.menu(input))
 
                 /** Everything they have, fetched when asked rather than with the page, then Now Playing. */
                 fun playAll(shuffled: Boolean) {
@@ -438,7 +443,7 @@ fun TvArtistScreen(model: AppModel, id: String) {
                             alignment = Alignment.CenterVertically,
                             takesFocus = !returning,
                             showsPlay = MusicActions.Button.PLAY in actions,
-                            hasRound = MusicActions.Button.FOLLOW in actions,
+                            hasRound = MusicActions.Button.FOLLOW in actions || MusicActions.Button.MORE in actions,
                             extra = { onFocusName ->
                                 // Once it's known music requests are on: Follow, or Following. One button
                                 // throughout, so focus stays on it; what went wrong beside it, with Try again.
@@ -463,6 +468,7 @@ fun TvArtistScreen(model: AppModel, id: String) {
                                         },
                                     )
                                 }
+                                if (MusicActions.Button.MORE in actions) MoreAction(item.title, more, ambient, onFocusName)
                             },
                             art = { Box(Modifier.shadow(15.dp, CircleShape)) { TvSquareArtwork(item, 180.dp, circular = true) } },
                             below = {
@@ -481,7 +487,7 @@ fun TvArtistScreen(model: AppModel, id: String) {
                     }
                     if (albums.isNotEmpty()) {
                         item(key = "albums-heading") { TvRowHeading("Albums", Modifier.padding(top = 14.dp)) }
-                        gridRows(albums, key = "albums") { _, album -> TvAlbumCard(album, onClick = { navigator.open(album) }, modifier = Modifier.focusMemory(focus, "own/${album.id}")) }
+                        gridRows(albums, key = "albums") { _, album -> TvAlbumCard(album, onClick = { navigator.open(album) }, modifier = Modifier.focusMemory(focus, "own/${album.id}"), onArtistPage = true) }
                     } else if (extrasChecked && extras?.missing.isNullOrEmpty()) {
                         item(key = "empty") { Box(Modifier.height(100.dp)) { TvStatusView("No albums yet.", empty = true) } }
                     }
@@ -519,8 +525,10 @@ fun TvAlbumScreen(model: AppModel, id: String) {
                 val item = state.value.item
                 val tracks = state.value.children.filter { it.kind == MediaKind.Track }
                 val artist = state.value.ancestors.lastOrNull { it.kind == MediaKind.Artist }
-                // In the library already, on a TV: Play and Shuffle (no Download, nothing to request).
-                val actions = MusicActions.of(MusicActions.Input(MusicActions.Kind.ALBUM, hasMusic = true, canRequest = false, platform = MusicActions.Platform.TV))
+                // In the library already, on a TV: Play and Shuffle (no Download, nothing to request), and ⋯.
+                val input = MusicActions.Input(MusicActions.Kind.ALBUM, hasMusic = true, canRequest = false, platform = MusicActions.Platform.TV, canQueue = tracks.isNotEmpty())
+                val actions = MusicActions.of(input)
+                val more = musicPageMenuActions(item, MusicActions.menu(input))
                 LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 65.dp, bottom = 45.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     item(key = "header") {
                         MusicHeader(
@@ -530,6 +538,8 @@ fun TvAlbumScreen(model: AppModel, id: String) {
                             canPlay = tracks.isNotEmpty(),
                             canShuffle = tracks.size >= 2,
                             showsPlay = MusicActions.Button.PLAY in actions,
+                            hasRound = MusicActions.Button.MORE in actions,
+                            extra = { onFocusName -> if (MusicActions.Button.MORE in actions) MoreAction(item.title, more, ambient, onFocusName) },
                             onPlay = {
                                 music.play(tracks, albums = listOf(item))
                                 model.showNowPlaying()
@@ -571,6 +581,9 @@ fun TvAlbumScreen(model: AppModel, id: String) {
                                     isCurrent = music.current?.id == track.id,
                                     isPlaying = music.isPlaying,
                                     subtitle = track.trackArtist,
+                                    actions = musicMenuActions(MusicMenuSubject.Item(track), MusicMenu.Place.ROW, MusicActions.Platform.TV) {
+                                        music.play(tracks, start = tracks.indexOf(track), albums = listOf(item))
+                                    },
                                     onClick = {
                                         if (music.current?.id == track.id) music.togglePlayPause()
                                         else music.play(tracks, start = tracks.indexOf(track), albums = listOf(item))
@@ -586,6 +599,14 @@ fun TvAlbumScreen(model: AppModel, id: String) {
             Load.Loading -> TvStatusView()
         }
     }
+}
+
+/** The page's ⋯, last in its action row: a menu of [actions] (MusicActions.menu). */
+@Composable
+private fun MoreAction(title: String, actions: List<MenuAction>, ambient: Color, onFocusName: (String?) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    RoundAction("More", FlexarrIcons.more, ambient, onFocusName) { open = true }
+    if (open) TvItemMenu(title, actions, onDismiss = { open = false })
 }
 
 /** "1991   12 tracks   46m". */
@@ -640,6 +661,7 @@ fun TvPlaylistScreen(model: AppModel, id: String) {
                             isCurrent = music.current?.id == entry.track.id,
                             isPlaying = music.isPlaying,
                             onClick = { if (music.current?.id == entry.track.id) music.togglePlayPause() else music.play(tracks, start = index) },
+                            actions = musicMenuActions(MusicMenuSubject.Item(entry.track), MusicMenu.Place.ROW, MusicActions.Platform.TV) { music.play(tracks, start = index) },
                             modifier = Modifier.padding(horizontal = TvLayout.Edge).widthIn(max = 700.dp).fillMaxWidth(),
                         )
                     }
