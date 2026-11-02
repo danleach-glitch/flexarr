@@ -1,6 +1,6 @@
 ---
 title: Finding things
-description: Home and its rows, search, Discover, collections, Coming soon, genres, library order and Continue watching.
+description: Home and its rows, a library's Browse, search, Discover, collections, Coming soon, genres, library order and Continue watching.
 ---
 
 The ways into your libraries, beyond opening one.
@@ -14,6 +14,12 @@ The rows come from your server, so every app shows the same ones in the same ord
 With more than one movie or TV library (say **Movies** and **Movies in 4K**), **Combine libraries of the same kind** gives Home one **Latest unwatched** row for all your movie libraries and one for all your TV ones. It's on to start with.
 
 On a new server, Home on the web shows **Finish setting up** with the steps you skipped in the [setup guide](first-setup.md). Each opens the right page in Settings, and **Hide** puts the list away.
+
+## A library's Browse
+
+Each movie, TV and home videos library opens on **Browse**: a featured title at the top, then rows of just that library, such as **Continue watching**, **Latest unwatched**, **Coming soon** (what Sonarr or Radarr expects for that library over the next few days), its **Top 10**, the newest releases and its biggest genres. **See all** on a row opens the library's titles sorted or filtered to match. Choose the rows in **Settings › Home & browse** on the web.
+
+At the top of the library, switch to **All movies** (or **All shows**, or **All folders**) for every title, or to **Genres**. On the Apple TV, to have libraries open on another view, choose it in **Settings › Libraries**.
 
 ## Search
 
@@ -69,9 +75,7 @@ Choose **New collection** to make one: either **Titles I choose**, or a smart co
 
 Movie and TV libraries have a **Genres** view: a tile for each genre, with a picture from one of its titles, that opens the library's titles in that genre.
 
-- **Web:** **Genres** beside **Browse** and **All movies** (or **All shows**) at the top of the library.
-- **iPhone and iPad:** choose **Genres** at the top of the library.
-- **Apple TV:** **Genres** in the switch at the top of the library. To have libraries open on another view, choose it in **Settings › Libraries**.
+Choose **Genres** beside **Browse** and **All movies** (or **All shows**) at the top of the library, in every app.
 
 ## Library order
 
