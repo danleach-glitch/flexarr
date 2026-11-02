@@ -7,31 +7,29 @@ import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.ClosedCaption
-import androidx.compose.material.icons.filled.DownloadForOffline
+import androidx.compose.material.icons.filled.LocalMovies
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Shuffle
-import androidx.compose.material.icons.filled.Theaters
-import androidx.compose.material.icons.filled.ViewAgenda
-import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.outlined.ArrowCircleDown
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.CalendarMonth
-import androidx.compose.material.icons.outlined.CollectionsBookmark
-import androidx.compose.material.icons.outlined.DownloadForOffline
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.GraphicEq
 import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.MenuBook
-import androidx.compose.material.icons.outlined.Mic
-import androidx.compose.material.icons.outlined.Movie
+import androidx.compose.material.icons.outlined.ImportContacts
+import androidx.compose.material.icons.outlined.LocalMovies
+import androidx.compose.material.icons.outlined.MicNone
 import androidx.compose.material.icons.outlined.MusicNote
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.SettingsInputAntenna
+import androidx.compose.material.icons.outlined.SpeakerNotes
 import androidx.compose.material.icons.outlined.Tv
+import androidx.compose.material.icons.outlined.VideoLibrary
+import androidx.compose.material.icons.outlined.ViewDay
 import androidx.compose.ui.graphics.vector.ImageVector
 
 /** The icon for each action and place, the same idea on every client (design/tokens.json › icons). */
@@ -43,23 +41,23 @@ object FlexarrIcons {
     /** Shuffle a show. */
     val shuffle: ImageVector get() = Icons.Filled.Shuffle
     /** Trailer. */
-    val trailer: ImageVector get() = Icons.Filled.Theaters
+    val trailer: ImageVector get() = Icons.Filled.LocalMovies
     /** Mark as watched. */
     val watched: ImageVector get() = Icons.Filled.Check
     /** Already watched (the Watched button pressed). */
     val isWatched: ImageVector get() = Icons.Filled.CheckCircle
     /** Mark as unwatched. */
-    val markUnwatched: ImageVector get() = Icons.Filled.VisibilityOff
+    val markUnwatched: ImageVector get() = Icons.Filled.CheckCircle
     /** Add to watchlist. */
     val watchlist: ImageVector get() = Icons.Filled.BookmarkBorder
     /** On the watchlist. */
     val onWatchlist: ImageVector get() = Icons.Filled.Bookmark
     /** Download. */
-    val download: ImageVector get() = Icons.Filled.DownloadForOffline
+    val download: ImageVector get() = Icons.Outlined.ArrowCircleDown
     /** Search for subtitles. */
-    val subtitles: ImageVector get() = Icons.Filled.ClosedCaption
+    val subtitles: ImageVector get() = Icons.Outlined.SpeakerNotes
     /** Go to the show. */
-    val goToShow: ImageVector get() = Icons.Filled.ViewAgenda
+    val goToShow: ImageVector get() = Icons.Outlined.VideoLibrary
     /** More actions. */
     val more: ImageVector get() = Icons.Filled.MoreHoriz
     /** Home. */
@@ -71,7 +69,7 @@ object FlexarrIcons {
     /** Settings. */
     val settings: ImageVector get() = Icons.Outlined.Settings
     /** Downloads. */
-    val downloads: ImageVector get() = Icons.Outlined.DownloadForOffline
+    val downloads: ImageVector get() = Icons.Outlined.ArrowCircleDown
     /** Discover. */
     val discover: ImageVector get() = Icons.Outlined.AutoAwesome
     /** Coming soon. */
@@ -79,19 +77,19 @@ object FlexarrIcons {
     /** Live TV. */
     val liveTv: ImageVector get() = Icons.Outlined.SettingsInputAntenna
     /** Collections. */
-    val collections: ImageVector get() = Icons.Outlined.CollectionsBookmark
+    val collections: ImageVector get() = Icons.Outlined.ViewDay
     /** Now playing. */
     val nowPlaying: ImageVector get() = Icons.Outlined.GraphicEq
     /** A movie library. */
-    val movies: ImageVector get() = Icons.Outlined.Movie
+    val movies: ImageVector get() = Icons.Outlined.LocalMovies
     /** A TV library. */
     val shows: ImageVector get() = Icons.Outlined.Tv
     /** A music library. */
     val music: ImageVector get() = Icons.Outlined.MusicNote
     /** Podcasts. */
-    val podcasts: ImageVector get() = Icons.Outlined.Mic
+    val podcasts: ImageVector get() = Icons.Outlined.MicNone
     /** An audiobooks library. */
-    val audiobooks: ImageVector get() = Icons.Outlined.MenuBook
+    val audiobooks: ImageVector get() = Icons.Outlined.ImportContacts
     /** A home videos library. */
     val homeVideos: ImageVector get() = Icons.Outlined.Folder
 }

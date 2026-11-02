@@ -1,6 +1,6 @@
 // Generated from design/tokens.json by `make tokens`. Don't edit; change the JSON.
 
-import { Antenna, Book, Bookmark, Calendar, Captions, Check, Download, EyeOff, Film, Folder, Gear, Home, LayoutGrid, Microphone, More, Music, Play, Reset, Search, Shuffle, Sparkles, Stack, Tv, Waveform } from './icons'
+import { Antenna, Book, Bookmark, Calendar, CaptionsBubble, Check, CheckCircleFilled, DownloadCircle, Film, Folder, Gear, Home, LayoutGrid, Microphone, More, MusicNote, Play, PlayStack, Reset, Search, Shuffle, Sparkles, Stack, Tv, Waveform } from './icons'
 
 /** The icon for each action and place, the same idea on every client (design/tokens.json › icons). */
 export const icon = {
@@ -15,19 +15,19 @@ export const icon = {
   /** Mark as watched */
   watched: Check,
   /** Already watched (the Watched button pressed) */
-  isWatched: Check,
+  isWatched: CheckCircleFilled,
   /** Mark as unwatched */
-  markUnwatched: EyeOff,
+  markUnwatched: CheckCircleFilled,
   /** Add to watchlist */
   watchlist: Bookmark,
   /** On the watchlist */
   onWatchlist: Bookmark,
   /** Download */
-  download: Download,
+  download: DownloadCircle,
   /** Search for subtitles */
-  subtitles: Captions,
+  subtitles: CaptionsBubble,
   /** Go to the show */
-  goToShow: Stack,
+  goToShow: PlayStack,
   /** More actions */
   more: More,
   /** Home */
@@ -39,7 +39,7 @@ export const icon = {
   /** Settings */
   settings: Gear,
   /** Downloads */
-  downloads: Download,
+  downloads: DownloadCircle,
   /** Discover */
   discover: Sparkles,
   /** Coming soon */
@@ -55,7 +55,7 @@ export const icon = {
   /** A TV library */
   shows: Tv,
   /** A music library */
-  music: Music,
+  music: MusicNote,
   /** Podcasts */
   podcasts: Microphone,
   /** An audiobooks library */

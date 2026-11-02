@@ -1,7 +1,6 @@
 package io.github.flexarr.ui.components
 
-import io.github.flexarr.appModel
-
+import android.os.Build
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,7 +17,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.outlined.BookmarkRemove
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.RemoveCircleOutline
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -32,12 +36,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import android.os.Build
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
@@ -50,6 +54,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import io.github.flexarr.appModel
 import io.github.flexarr.core.FlexarrClient
 import io.github.flexarr.core.Format
 import io.github.flexarr.core.ItemSummary
@@ -61,14 +66,15 @@ import io.github.flexarr.core.isBookFinished
 import io.github.flexarr.core.isListening
 import io.github.flexarr.core.isResumable
 import io.github.flexarr.core.listeningSubtitle
-import io.github.flexarr.ui.books.bookActions
 import io.github.flexarr.core.progress
 import io.github.flexarr.core.releaseYear
 import io.github.flexarr.ui.Navigator
+import io.github.flexarr.ui.books.bookActions
 import io.github.flexarr.ui.theme.Flexarr
+import io.github.flexarr.ui.theme.FlexarrIcons
+import io.github.flexarr.ui.theme.Tokens
 import io.github.flexarr.ui.theme.glowColor
 import io.github.flexarr.ui.theme.marquee
-import io.github.flexarr.ui.theme.Tokens
 
 /** The signed-in client, for artwork; every screen inside the app has one. */
 val LocalClient = staticCompositionLocalOf<FlexarrClient> { error("No client") }
@@ -242,8 +248,8 @@ fun PersonCard(name: String, detail: String?, image: String?, onClick: (() -> Un
     }
 }
 
-/** One thing a card's long-press menu does. */
-class MenuAction(val label: String, val run: () -> Unit)
+/** One thing a card's long-press menu does, with the icon the iPhone's context menu shows beside it. */
+class MenuAction(val label: String, val icon: ImageVector? = null, val run: () -> Unit)
 
 /**
  * What the long-press menu shared by cards offers, as iPhone's context menu: [ItemMenu] shows it, and [menuActions]
@@ -255,41 +261,41 @@ fun itemActions(item: ItemSummary, showsDetails: Boolean = false, downloads: Boo
     val inContinueWatching = LocalInContinueWatching.current
     val model = androidx.compose.ui.platform.LocalContext.current.appModel
     // In Continue watching, a book or podcast episode can leave it without being marked finished.
-    val leave = if (inContinueWatching) listOf(MenuAction("Remove") { navigator.removeFromContinueWatching(item) }) else emptyList()
+    val leave = if (inContinueWatching) listOf(MenuAction("Remove", Icons.Outlined.RemoveCircleOutline) { navigator.removeFromContinueWatching(item) }) else emptyList()
     if (item.kind == MediaKind.Audiobook) return bookActions(item, showsDetails, downloads) + leave
     if (item.kind == MediaKind.PodcastEpisode) return podcastEpisodeActions(item, showsDetails, kids = model.isKids) + leave
     return buildList {
         if (item.kind == MediaKind.Movie || item.kind == MediaKind.Episode) {
-            add(MenuAction(if (item.isResumable) "Resume" else "Play") { navigator.play(item) })
-            if (item.isResumable) add(MenuAction("Start over") { navigator.play(item, fromBeginning = true) })
+            add(MenuAction(if (item.isResumable) "Resume" else "Play", FlexarrIcons.play) { navigator.play(item) })
+            if (item.isResumable) add(MenuAction("Start over", FlexarrIcons.startOver) { navigator.play(item, fromBeginning = true) })
         }
-        if (showsDetails) add(MenuAction(if (item.kind == MediaKind.Episode) "Go to episode" else "Go to details") { navigator.openItem(item.id) })
+        if (showsDetails) add(MenuAction(if (item.kind == MediaKind.Episode) "Go to episode" else "Go to details", Icons.Outlined.Info) { navigator.openItem(item.id) })
         // Download at Settings' size, as a title's page does.
         if (downloads && (item.kind == MediaKind.Movie || item.kind == MediaKind.Episode)) {
             val download = model.downloads.entry(item.id)
             if (download == null) {
-                add(MenuAction("Download") { navigator.download(item) })
+                add(MenuAction("Download", FlexarrIcons.download) { navigator.download(item) })
             } else {
-                add(MenuAction(if (download.isDownloaded) "Remove download" else "Stop download") { model.downloads.delete(download.id) })
+                add(MenuAction(if (download.isDownloaded) "Remove download" else "Stop download", Icons.Outlined.RemoveCircleOutline) { model.downloads.delete(download.id) })
             }
         }
         val watched = item.userData.watched || item.userData.unwatchedCount == 0
         // A child's watched marks follow what they watch, not what they tap.
         val kids = model.isKids
-        if (!kids) add(MenuAction(if (watched) "Mark as unwatched" else "Mark as watched") { navigator.setWatched(item, !watched) })
+        if (!kids) add(MenuAction(if (watched) "Mark as unwatched" else "Mark as watched", if (watched) FlexarrIcons.markUnwatched else Icons.Outlined.CheckCircle) { navigator.setWatched(item, !watched) })
         // Part way through: unwatched forgets the place, which takes it out of Continue Watching.
         if (item.isResumable && !watched) {
-            if (!kids) add(MenuAction("Mark as unwatched") { navigator.setWatched(item, false) })
+            if (!kids) add(MenuAction("Mark as unwatched", FlexarrIcons.markUnwatched) { navigator.setWatched(item, false) })
         } else if (inContinueWatching && item.kind == MediaKind.Episode && !watched) {
-            add(MenuAction("Remove") { navigator.removeFromContinueWatching(item) })
+            add(MenuAction("Remove", Icons.Outlined.RemoveCircleOutline) { navigator.removeFromContinueWatching(item) })
         }
         val show = item.seriesTitle
         if (!kids && item.kind == MediaKind.Episode && item.seriesId != null && show != null) {
-            add(MenuAction("Mark $show as watched") { navigator.setShowWatched(item) })
+            add(MenuAction("Mark $show as watched", Icons.Filled.CheckCircle) { navigator.setShowWatched(item) })
         }
         if (model.hasWatchlist && (item.kind == MediaKind.Movie || item.kind == MediaKind.Series)) {
             val on = item.id in model.watchlistItems
-            add(MenuAction(if (on) "Remove from watchlist" else "Add to watchlist") { navigator.setOnWatchlist(item, !on) })
+            add(MenuAction(if (on) "Remove from watchlist" else "Add to watchlist", if (on) Icons.Outlined.BookmarkRemove else FlexarrIcons.watchlist) { navigator.setOnWatchlist(item, !on) })
         }
     }
 }
@@ -300,10 +306,10 @@ private fun podcastEpisodeActions(item: ItemSummary, showsDetails: Boolean, kids
     val navigator = LocalNavigator.current
     val played = item.userData.watched
     return buildList {
-        add(MenuAction(if (item.isResumable) "Resume" else "Play") { navigator.playEpisode(item) })
+        add(MenuAction(if (item.isResumable) "Resume" else "Play", FlexarrIcons.play) { navigator.playEpisode(item) })
         val podcast = item.seriesId ?: item.parentId
-        if (showsDetails && podcast != null) add(MenuAction("Go to podcast") { navigator.openPodcast(podcast) })
-        if (!kids) add(MenuAction(if (played) "Mark as unplayed" else "Mark as played") { navigator.setWatched(item, !played) })
+        if (showsDetails && podcast != null) add(MenuAction("Go to podcast", Icons.Outlined.Info) { navigator.openPodcast(podcast) })
+        if (!kids) add(MenuAction(if (played) "Mark as unplayed" else "Mark as played", if (played) FlexarrIcons.markUnwatched else Icons.Outlined.CheckCircle) { navigator.setWatched(item, !played) })
     }
 }
 
@@ -316,7 +322,7 @@ fun Modifier.menuActions(actions: List<MenuAction>): Modifier =
 fun ItemMenu(actions: List<MenuAction>, expanded: Boolean, onDismiss: () -> Unit) {
     DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
         actions.forEach { action ->
-            DropdownMenuItem(text = { Text(action.label) }, onClick = {
+            DropdownMenuItem(text = { Text(action.label) }, leadingIcon = action.icon?.let { icon -> { Icon(icon, contentDescription = null) } }, onClick = {
                 onDismiss()
                 action.run()
             })
