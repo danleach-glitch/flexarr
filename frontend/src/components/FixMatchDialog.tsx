@@ -39,6 +39,8 @@ function TitleMatchDialog({ item, onFixed, onClose }: Props) {
   const detail = useApi((signal) => getItem(item.id, signal), [item.id])
   const paths = detail.data ? (item.kind === 'Movie' && detail.data.files.length > 0 ? detail.data.files.map((f) => f.path) : [detail.data.path].filter((p) => !!p)) : []
   const locked = detail.data?.matchLocked === true
+  // Details edited by hand were about this title; a different one brings its own.
+  const edited = detail.data?.detailsLocked === true && chosen !== undefined && !chosen.current
 
   const dialog = useModal<HTMLDivElement>(onClose, !busy)
 
@@ -126,6 +128,7 @@ function TitleMatchDialog({ item, onFixed, onClose }: Props) {
               : chosen.managedBy
                 ? `${chosen.managedBy} already has ${chosen.title}${chosen.managedPath ? ` (in ${chosen.managedPath})` : ''}. Flexarr takes its details from there.`
                 : `${arr} will manage ${chosen.title} from this folder: added unmonitored and without a search, so nothing is downloaded.`}
+            {edited && ` The details you edited are replaced by ${chosen.title}’s.`}
           </p>
         )}
         {error && (
