@@ -7,6 +7,8 @@ import {
   getItem,
   getItemPage,
   getSimilar,
+  getShowMissing,
+  type ShowMissing,
   imageUrl,
   setKidsOverride,
   setWatched,
@@ -30,6 +32,7 @@ import { SubtitleSearchDialog } from '../components/SubtitleSearchDialog'
 import { WatchedToggle } from '../components/WatchedToggle'
 import { Overview } from '../components/Overview'
 import { WatchlistButton } from '../components/WatchlistButton'
+import { ShowGaps } from '../components/ShowGaps'
 import { useAgeLimits, useSession } from '../hooks/sessionContext'
 import { announceWatched } from '../hooks/watched'
 import { useApi } from '../hooks/useApi'
@@ -118,6 +121,8 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
   const canFixMatch = mainProfile && (item.kind === 'Movie' || item.kind === 'Series')
   const nextUp = detail.nextUp ?? undefined
   const similar = useApi((signal) => (item.kind === 'Movie' || item.kind === 'Series' ? getSimilar(item.id, signal) : Promise.resolve([])), [item.id])
+  // After the page, so a slow Sonarr never holds it up.
+  const gaps = useApi((signal) => (item.kind === 'Series' && !kids ? getShowMissing(item.id, signal).catch(() => null) : Promise.resolve(null)), [item.id, kids])
 
   const accent = item.accentColor ?? series?.accentColor
   const backdrop = item.artwork.backdrop ?? series?.artwork.backdrop
@@ -272,7 +277,8 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
       </section>
 
       <div className="detail-body">
-        {item.kind === 'Series' && <Seasons series={detail} onChange={onChange} />}
+        {item.kind === 'Series' && <Seasons series={detail} counts={gaps.data?.counts} onChange={onChange} />}
+        {item.kind === 'Series' && gaps.data && <ShowGaps showId={item.id} tmdbId={detail.tmdbId ? Number(detail.tmdbId) : null} gaps={gaps.data} />}
         {detail.credits.length > 0 && <Cast credits={detail.credits} studio={detail.studio} />}
         {similar.data && similar.data.length > 0 && (
           <Row title="More like this">
@@ -309,7 +315,7 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
   )
 }
 
-function Seasons({ series, onChange }: { series: ItemDetail; onChange: () => void }) {
+function Seasons({ series, counts, onChange }: { series: ItemDetail; counts?: ShowMissing['counts']; onChange: () => void }) {
   const [params, setParams] = useSearchParams()
   // Specials go last, as on most services.
   const seasons = useMemo(
@@ -340,6 +346,15 @@ function Seasons({ series, onChange }: { series: ItemDetail; onChange: () => voi
             onClick={() => setParams({ season: String(s.seasonNumber) }, { replace: true })}
           >
             {s.homeVideo ? s.title : s.seasonNumber === 0 ? 'Specials' : `Season ${s.seasonNumber}`}
+            {(() => {
+              // Only a season that's short of what's aired says so.
+              const count = counts?.find((c) => c.seasonNumber === s.seasonNumber)
+              return count && count.have < count.aired ? (
+                <span className="season-count" aria-label={`${count.have} of ${count.aired} episodes`}>
+                  {count.have} of {count.aired}
+                </span>
+              ) : null
+            })()}
             {s.userData.watched && <icon.watched aria-label="watched" />}
           </button>
         ))}

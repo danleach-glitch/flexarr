@@ -177,6 +177,14 @@
   border-bottom-color: var(--ambient);
 }
 
+/* "8 of 10": a season short of what's aired. */
+.season-count {
+  font-family: var(--text);
+  font-size: var(--step--1);
+  font-weight: 500;
+  color: var(--usher);
+}
+
 .season-toolbar {
   display: flex;
   justify-content: space-between;
@@ -1973,4 +1981,60 @@ button.queue-track:focus-visible {
    otherwise double its indent. */
 .music-page > .row {
   margin-inline: calc(-1 * var(--edge));
+}
+
+/* A show's next episodes, and what Sonarr or Seerr knows that the library doesn't (ShowGaps). */
+.show-gaps {
+  padding: 0 var(--edge);
+}
+
+.show-gaps h2 {
+  margin: 0 0 14px;
+  font-size: var(--step-2);
+}
+
+.gap-season {
+  margin-top: 20px;
+  max-width: 900px;
+}
+
+.gap-season-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.gap-season-head h3 {
+  margin: 0;
+  font-size: var(--step-0);
+}
+
+.gap-episodes {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  max-width: 900px;
+}
+
+.gap-episodes li {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--aisle) 70%, transparent);
+}
+
+.gap-code {
+  min-width: 5ch;
+  color: var(--usher);
+  font-variant-numeric: tabular-nums;
+}
+
+.gap-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
