@@ -66,9 +66,9 @@ def certified():
     seal = []
     for i in range(32):
         a = math.pi * 2 * i / 32 - math.pi / 2
-        r = 15.6 if i % 2 == 0 else 14
+        r = 16 if i % 2 == 0 else 14.8
         seal.append((16 + r * math.cos(a), 16 + r * math.sin(a)))
-    return [{"fill": RED, "d": poly(seal)}, {"fill": WHITE, "d": ellipse(16, 16, 12, 12)}, *tomato(0.68)]
+    return [{"fill": RED, "d": poly(seal)}, {"fill": WHITE, "d": ellipse(16, 16, 13.9, 13.9)}, *tomato(0.9)]
 
 
 def rotten():
