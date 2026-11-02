@@ -524,9 +524,9 @@ internal fun <T> ShowingSwitch(choices: List<Pair<String, T>>, showing: T, onCha
  * how many there are ([caption]). [onOpen] opens a genre's titles.
  */
 @Composable
-internal fun LibraryGenreGrid(genres: List<GenreCount>, caption: (GenreCount) -> String, onOpen: (GenreCount) -> Unit) {
+internal fun LibraryGenreGrid(genres: List<GenreCount>, caption: (GenreCount) -> String, music: Boolean = false, onOpen: (GenreCount) -> Unit) {
     if (genres.isEmpty()) {
-        StatusView("No genres here yet. They come with each title’s details once a scan has found them.", empty = true)
+        StatusView("No genres here yet. They come with each ${if (music) "album" else "title"}’s details once a scan has found them.", empty = true)
         return
     }
     LazyVerticalGrid(

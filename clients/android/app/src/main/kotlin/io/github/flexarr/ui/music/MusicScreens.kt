@@ -122,9 +122,9 @@ internal val HomeRow.showsInMusic: Boolean
 
 /** A heading (with See all, given [onSeeAll]) and a row of cards that scrolls sideways under it, reaching the screen's edges. */
 @Composable
-internal fun Shelf(title: String, onSeeAll: (() -> Unit)? = null, content: androidx.compose.foundation.lazy.LazyListScope.() -> Unit) {
+internal fun Shelf(title: String, onSeeAll: (() -> Unit)? = null, seeAllLabel: String? = null, content: androidx.compose.foundation.lazy.LazyListScope.() -> Unit) {
     Column(Modifier.bleed(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        SectionHeading(title, onSeeAll = onSeeAll)
+        SectionHeading(title, onSeeAll = onSeeAll, seeAllLabel = seeAllLabel)
         LazyRow(contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(RowSpacing), verticalAlignment = Alignment.Top, content = content)
     }
 }

@@ -120,15 +120,13 @@ fun TvLibraryTab(model: AppModel, library: Library, takeFocus: Boolean, onFocusT
  */
 @Composable
 fun TvMusicLibraryTab(model: AppModel, library: Library, takeFocus: Boolean, onFocusTaken: () -> Unit) {
-    val client = model.client
-    // Asked once; taken as able until the server says.
-    val albums = rememberLoader(library.id) { client?.let { it.libraryAlbums(library.id, take = 1) != null } ?: true }
-    val offersAlbums = (albums.state as? Load.Loaded)?.value != false
+    // Albums and Genres need a server that lists albums (0.59 on): offered once that's known, never before.
+    val albums = rememberLoader(library.id, model.credentials) { model.offersMusicAlbums(library.id) }
+    val offersAlbums = (albums.state as? Load.Loaded)?.value == true
     var picked by rememberSaveable(library.id) { mutableStateOf(MusicView.Browse) }
     // Just switched: the view taking over gives its switch focus, as the word pressed has gone.
     var switching by remember { mutableStateOf(false) }
-    // Browse's Your artists See all: the first artist takes focus, as the card pressed has gone.
-    var seeingAll by remember { mutableStateOf(false) }
+    val navigator = LocalNavigator.current
     val view = if (picked.needsAlbums && !offersAlbums) MusicView.Browse else picked
     val switch: @Composable () -> Unit = {
         val choices = MusicView.offered(offersAlbums)
@@ -144,14 +142,11 @@ fun TvMusicLibraryTab(model: AppModel, library: Library, takeFocus: Boolean, onF
         }, selectedFocus = requester)
     }
     when (view) {
+        // Your artists' See all: the artists on a screen of their own, so Back comes back to Browse.
         MusicView.Browse -> TvMusicLibraryScreen(model, library, takeFocus, onFocusTaken, top = switch, onSeeAllArtists = {
-            seeingAll = true
-            picked = MusicView.Artists
+            navigator.openMusicGrid(library.id, albums = false)
         })
-        MusicView.Artists -> TvLibraryGrid(model, library, takeFocus = takeFocus || seeingAll, onFocusTaken = {
-            seeingAll = false
-            onFocusTaken()
-        }, top = switch, content = TvGridContent.Artists)
+        MusicView.Artists -> TvLibraryGrid(model, library, takeFocus = takeFocus, onFocusTaken = onFocusTaken, top = switch, content = TvGridContent.Artists)
         MusicView.Albums -> TvLibraryGrid(model, library, takeFocus = takeFocus, onFocusTaken = onFocusTaken, top = switch, content = TvGridContent.Albums)
         MusicView.Genres -> LibraryGenres(model, library, takeFocus, onFocusTaken, switch)
     }
@@ -238,7 +233,7 @@ private fun LibraryGenres(model: AppModel, library: Library, takeFocus: Boolean,
                     item(span = { GridItemSpan(maxLineSpan) }) { Box(Modifier.padding(bottom = 18.dp)) { switch() } }
                     if (genres.isEmpty()) {
                         item(span = { GridItemSpan(maxLineSpan) }) {
-                            Box(Modifier.height(300.dp)) { TvStatusView("No genres here yet. They come with each title’s details once a scan has found them.", empty = true) }
+                            Box(Modifier.height(300.dp)) { TvStatusView("No genres here yet. They come with each ${if (music) "album" else "title"}’s details once a scan has found them.", empty = true) }
                         }
                     }
                     itemsIndexed(genres, key = { _, genre -> genre.name }) { index, genre ->
@@ -324,8 +319,14 @@ fun TvLibraryGrid(
     val targetRequester = remember { FocusRequester() }
     val firstRequester = remember { FocusRequester() }
     val grid = rememberLazyGridState()
-    val genres = rememberLoader(library.id, content) {
-        if (content == TvGridContent.Albums) client.libraryAlbumGenres(library.id).orEmpty() else client.libraryGenres(library.id)
+    // A music genre's own page has no genre to choose, so no list of them.
+    val genrePage = content == TvGridContent.Albums && initialGenre != null
+    val genres = rememberLoader(library.id, content, genrePage) {
+        when {
+            genrePage -> emptyList()
+            content == TvGridContent.Albums -> client.libraryAlbumGenres(library.id).orEmpty()
+            else -> client.libraryGenres(library.id)
+        }
     }
     // A page of what this grid lists, as it's sorted and filtered now. A server without albums has none.
     suspend fun page(skip: Int, take: Int): Paged<ItemSummary> = when (content) {
@@ -460,7 +461,7 @@ fun TvLibraryGrid(
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Header(
                     library, top, content, content.count(total), sort, onSort = { sort = it }, genre,
-                    hasGenres = (content != TvGridContent.Albums || initialGenre == null) && (genres.state as? Load.Loaded)?.value?.isNotEmpty() == true, onGenre = { choosingGenre = true },
+                    hasGenres = !genrePage && (genres.state as? Load.Loaded)?.value?.isNotEmpty() == true, onGenre = { choosingGenre = true },
                     // A music genre's own page: its albums under its name, and its tracks to play.
                     title = if (content == TvGridContent.Albums) initialGenre ?: library.name else library.name,
                     genrePlay = initialGenre.takeIf { content == TvGridContent.Albums && top == null }?.let { name ->
@@ -474,7 +475,11 @@ fun TvLibraryGrid(
                     Box(Modifier.height(300.dp)) { TvStatusView(error, retry = { attempt++ }) }
                 }
                 items.isEmpty() && loadedOnce && !loading -> item(span = { GridItemSpan(maxLineSpan) }) {
-                    val noun = if (content == TvGridContent.Albums) "albums" else "titles"
+                    val noun = when (content) {
+                        TvGridContent.Albums -> "albums"
+                        TvGridContent.Artists -> "artists"
+                        TvGridContent.Titles -> "titles"
+                    }
                     Box(Modifier.height(300.dp)) { TvStatusView(genre?.let { "No $it $noun here." } ?: "Nothing in this library yet.", empty = true) }
                 }
                 else -> itemsIndexed(items, key = { _, item -> item.id }) { index, item ->

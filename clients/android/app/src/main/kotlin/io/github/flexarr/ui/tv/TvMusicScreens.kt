@@ -213,7 +213,7 @@ fun TvMusicLibraryScreen(
                                 TvArtistCard(artist, onClick = { navigator.open(artist) }, modifier = if (takes) Modifier.focusRequester(first) else Modifier)
                             }
                             if (artistTotal > artists.size) {
-                                item(key = "see-all") { TvSeeAllCard(wide = false, onClick = onSeeAllArtists, height = 110.dp) }
+                                item(key = "see-all") { TvArtistsSeeAllCard(onClick = onSeeAllArtists) }
                             }
                         }
                     }

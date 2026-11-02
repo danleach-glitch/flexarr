@@ -205,9 +205,9 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
      */
     fun play(tracks: List<ItemSummary>, start: Int = 0, shuffled: Boolean = false, albums: List<ItemSummary> = emptyList(), at: Double? = null) {
         if (tracks.isEmpty()) return
-        trackStart = if (shuffled) null else at
         // Signed out by the server, downloaded tracks still play.
         client = model.client ?: if (tracks.any { model.downloads.isDownloaded(it.id) }) null else return
+        trackStart = if (shuffled) null else at
         original = tracks
         albumTitles = albums.associate { it.id to it.title }
         isShuffled = shuffled

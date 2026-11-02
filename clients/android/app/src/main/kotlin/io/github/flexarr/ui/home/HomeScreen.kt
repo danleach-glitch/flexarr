@@ -355,7 +355,7 @@ internal fun Modifier.fadeOut() = graphicsLayer(compositingStrategy = Compositin
 private fun HomeRowView(model: AppModel, row: HomeRow) {
     val navigator = LocalNavigator.current
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        SectionHeading(row.title, onSeeAll = navigator.libraryLink(row.link))
+        SectionHeading(row.title, onSeeAll = navigator.libraryLink(row.link, music = row.items.any { it.kind.isMusic }))
         CompositionLocalProvider(LocalInContinueWatching provides (row.id == "continue")) {
             LazyRow(
                 contentPadding = PaddingValues(horizontal = Edge),

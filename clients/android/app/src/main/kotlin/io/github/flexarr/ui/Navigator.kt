@@ -162,9 +162,20 @@ class Navigator(private val nav: NavHostController, private val model: AppModel,
     fun openMusicGenre(libraryId: String, genre: String) =
         if (context.usesTvInterface) openLibrary(libraryId, LibrarySort.Title, genre) else nav.navigate("music/$libraryId?genre=${Uri.encode(genre)}")
 
-    /** A library's poster grid; with [genre], just its titles in that genre (from a Genres tile or a genre row). */
-    fun openLibrary(id: String, sort: LibrarySort = LibrarySort.Title, genre: String? = null) =
-        nav.navigate("library/$id?sort=${sort.raw}" + genre?.let { "&genre=${Uri.encode(it)}" }.orEmpty())
+    /**
+     * A library's poster grid; with [genre], just its titles in that genre (from a Genres tile or a genre row). On the
+     * TV, a music library's is its artists, or its albums with [albums] or a genre.
+     */
+    fun openLibrary(id: String, sort: LibrarySort = LibrarySort.Title, genre: String? = null, albums: Boolean = false) =
+        nav.navigate("library/$id?sort=${sort.raw}" + genre?.let { "&genre=${Uri.encode(it)}" }.orEmpty() + (if (albums) "&view=albums" else ""))
+
+    /** A music library's artists, or its [albums], as a grid on a screen of its own (Back goes to where it was opened). */
+    fun openMusicGrid(libraryId: String, albums: Boolean, sort: LibrarySort = LibrarySort.Title) =
+        if (context.usesTvInterface) {
+            openLibrary(libraryId, sort, albums = albums)
+        } else {
+            nav.navigate("music/$libraryId?view=${if (albums) "albums" else "artists"}&sort=${sort.raw}")
+        }
 
     fun openPerson(id: String, name: String) = nav.navigate("person/$id?name=${Uri.encode(name)}")
 
@@ -305,8 +316,12 @@ class Navigator(private val nav: NavHostController, private val model: AppModel,
         model.scope.launch { notices.showSnackbar(if (reason != null) "$failure. $reason" else "$failure.") }
     }
 
-    /** A Home row's link, "/library/{id}?sort=added" or "/watchlist", as a place to open; null for anything else. */
-    fun libraryLink(link: String?): (() -> Unit)? {
+    /**
+     * A Home row's link, "/library/{id}?sort=added" or "/watchlist", as a place to open; null for anything else. A music
+     * library's ([music]: the row is of albums, artists or tracks) opens its albums with "view=albums" or a genre, and
+     * its artists otherwise. The TV's library screen tells music apart itself.
+     */
+    fun libraryLink(link: String?, music: Boolean = false): (() -> Unit)? {
         val uri = link?.let(Uri::parse) ?: return null
         val segments = uri.pathSegments
         if (segments == listOf("watchlist")) return { openWatchlist() }
@@ -316,22 +331,25 @@ class Navigator(private val nav: NavHostController, private val model: AppModel,
             val all = uri.getQueryParameter("view") == "all"
             return { nav.navigate("books/${segments[1]}?view=${if (all) uri.getQueryParameter("sort").orEmpty().ifEmpty { "title" } else ""}") }
         }
-        val (id, sort, genre) = LibraryLink.parse(uri) ?: return null
-        return { openLibrary(id, sort, genre) }
+        val (id, sort, genre, albums) = LibraryLink.parse(uri) ?: return null
+        if (context.usesTvInterface) return { openLibrary(id, sort, genre, albums) }
+        if (!music && !albums) return { openLibrary(id, sort, genre) }
+        return if (genre != null) ({ openMusicGenre(id, genre) }) else ({ openMusicGrid(id, albums, sort) })
     }
 }
 
 /**
  * A row's link into a library: "/library/{id}" itself, or "?sort=added" (Home's rows) and "?view=all&sort=added" or
- * "&genre=Drama" (a library's Browse rows), which open its titles that way rather than its Browse.
+ * "&genre=Drama" (a library's Browse rows), which open its titles that way rather than its Browse. A music library's
+ * "?view=albums&sort=added" ([albums]) is its albums, newest added first.
  */
-internal data class LibraryLink(val id: String, val sort: LibrarySort, val genre: String?) {
+internal data class LibraryLink(val id: String, val sort: LibrarySort, val genre: String?, val albums: Boolean = false) {
     companion object {
         fun parse(uri: Uri): LibraryLink? {
             val segments = uri.pathSegments
             if (segments.size != 2 || segments[0] != "library") return null
             val sort = LibrarySort.entries.firstOrNull { it.raw == uri.getQueryParameter("sort") } ?: LibrarySort.Title
-            return LibraryLink(segments[1], sort, uri.getQueryParameter("genre")?.takeIf { it.isNotEmpty() })
+            return LibraryLink(segments[1], sort, uri.getQueryParameter("genre")?.takeIf { it.isNotEmpty() }, albums = uri.getQueryParameter("view") == "albums")
         }
     }
 }

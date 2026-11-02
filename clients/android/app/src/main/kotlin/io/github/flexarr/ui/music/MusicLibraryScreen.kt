@@ -105,21 +105,23 @@ private class MusicBrowse(val home: Home, val artists: List<ItemSummary>, val ar
 
 /**
  * A music library. With [genre], that genre's albums alone under its name, with Play and Shuffle for its tracks and no
- * views to switch between: Back goes to the genres. Each view keeps its place while another is shown.
+ * views to switch between: Back goes to the genres. With [grid] (Artists or Albums), that grid alone under the
+ * library's name, sorted by [sort]: Your artists' See all, a row's link. Each view keeps its place while another is shown.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MusicLibraryScreen(model: AppModel, libraryId: String, genre: String? = null) {
+fun MusicLibraryScreen(model: AppModel, libraryId: String, genre: String? = null, grid: MusicView? = null, sort: LibrarySort = LibrarySort.Title) {
     if (genre != null) return MusicGenreScreen(model, libraryId, genre)
+    if (grid == MusicView.Artists || grid == MusicView.Albums) return MusicGridScreen(model, libraryId, grid, sort)
     val client = model.client ?: return
     val navigator = LocalNavigator.current
     val library = rememberLoader(libraryId) { client.libraries().firstOrNull { it.id == libraryId } }
     var view by rememberSaveable { mutableStateOf(MusicView.Browse) }
     var artistSort by rememberSaveable { mutableStateOf(LibrarySort.Title) }
     var albumSort by rememberSaveable { mutableStateOf(LibrarySort.Title) }
-    // Albums and Genres need a server that lists albums: asked once, assumed until it answers.
-    val albumsOffered = rememberLoader(libraryId) { client.libraryAlbums(libraryId, take = 1) != null }
-    val offersAlbums = (albumsOffered.state as? Load.Loaded)?.value != false
+    // Albums and Genres need a server that lists albums (0.59 on): offered once that's known, never before.
+    val albumsOffered = rememberLoader(libraryId, model.credentials) { model.offersMusicAlbums(libraryId) }
+    val offersAlbums = (albumsOffered.state as? Load.Loaded)?.value == true
     val shown = if (view.needsAlbums && !offersAlbums) MusicView.Browse else view
     val browse = rememberLoader(libraryId, model.watchStateVersion) {
         coroutineScope {
@@ -165,7 +167,7 @@ fun MusicLibraryScreen(model: AppModel, libraryId: String, genre: String? = null
             when (shown) {
                 MusicView.Browse -> when (val state = browse.state) {
                     is Load.Loaded -> PullToRefreshBox(isRefreshing = browse.refreshing, onRefresh = browse.retry) {
-                        BrowseView(model, state.value, browseGrid, onFeatured = { featuredIndex = it }, onSeeAllArtists = { view = MusicView.Artists })
+                        BrowseView(model, state.value, browseGrid, onFeatured = { featuredIndex = it }, onSeeAllArtists = { navigator.openMusicGrid(libraryId, albums = false) })
                     }
                     is Load.Failed -> StatusView(state.message, browse.retry)
                     Load.Loading -> StatusView()
@@ -173,7 +175,7 @@ fun MusicLibraryScreen(model: AppModel, libraryId: String, genre: String? = null
                 MusicView.Artists -> MusicGrid(artists, artistGrid, emptyMessage = "Nothing in this library yet.", count = ::artistCount) { ArtistCard(it) }
                 MusicView.Albums -> MusicGrid(albums, albumGrid, emptyMessage = "No albums yet.", count = ::albumCount) { AlbumCard(it, showsArtist = true) }
                 MusicView.Genres -> when (val state = genres.state) {
-                    is Load.Loaded -> state.value?.let { list -> LibraryGenreGrid(list, caption = { albumCount(it.count) }) { navigator.openMusicGenre(libraryId, it.name) } } ?: StatusView()
+                    is Load.Loaded -> state.value?.let { list -> LibraryGenreGrid(list, caption = { albumCount(it.count) }, music = true) { navigator.openMusicGenre(libraryId, it.name) } } ?: StatusView()
                     is Load.Failed -> StatusView(state.message, genres.retry)
                     Load.Loading -> StatusView()
                 }
@@ -204,7 +206,7 @@ private fun BrowseView(model: AppModel, browse: MusicBrowse, state: LazyGridStat
         if (browse.artists.isNotEmpty()) {
             fullWidth(key = "your-artists") {
                 val width = PosterWidth * 1.15f
-                Shelf("Your artists", onSeeAll = onSeeAllArtists.takeIf { browse.artistTotal > browse.artists.size }) {
+                Shelf("Your artists", onSeeAll = onSeeAllArtists.takeIf { browse.artistTotal > browse.artists.size }, seeAllLabel = "See all artists") {
                     items(browse.artists, key = { it.id }) { ArtistCard(it, Modifier.width(width)) }
                 }
             }
@@ -247,6 +249,33 @@ private fun MusicHeroSlide(home: Home, item: ItemSummary, height: Dp) {
                     ActionButton("Radio", onClick = { navigator.playArtist(item, radio = true) }, icon = FlexarrIcons.radio, ambient = glow)
                 }
                 ActionButton("More info", onClick = { navigator.open(item) }, icon = Icons.Filled.Info, ambient = glow)
+            }
+        }
+    }
+}
+
+/** A music library's artists or albums ([view]) alone, under its name, opened on top of its page. */
+@Composable
+private fun MusicGridScreen(model: AppModel, libraryId: String, view: MusicView, initialSort: LibrarySort) {
+    val client = model.client ?: return
+    val navigator = LocalNavigator.current
+    val library = rememberLoader(libraryId) { client.libraries().firstOrNull { it.id == libraryId } }
+    val albums = view == MusicView.Albums
+    var sort by rememberSaveable { mutableStateOf(initialSort.takeIf { it in view.sorts } ?: LibrarySort.Title) }
+    val pager = remember(libraryId, albums, sort) {
+        MusicPager { skip, take ->
+            if (albums) client.libraryAlbums(libraryId, sort, skip = skip, take = take) ?: Paged(0, emptyList())
+            else client.libraryItems(libraryId, sort, skip = skip, take = take)
+        }
+    }
+    val grid = remember(sort) { androidx.compose.foundation.lazy.grid.LazyGridState() }
+    RoomBackground(ambient = pager.items.firstOrNull()?.let { glowColor(it.accentColor) }, intensity = 0.18f) {
+        Column {
+            PageTitle((library.state as? Load.Loaded)?.value?.name.orEmpty(), onBack = { navigator.back() }) { SortMenu(view.sorts, sort) { sort = it } }
+            if (albums) {
+                MusicGrid(pager, grid, emptyMessage = "No albums yet.", count = ::albumCount) { AlbumCard(it, showsArtist = true) }
+            } else {
+                MusicGrid(pager, grid, emptyMessage = "Nothing in this library yet.", count = ::artistCount) { ArtistCard(it) }
             }
         }
     }

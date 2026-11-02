@@ -195,7 +195,13 @@ internal fun HomeHero(home: Home, index: Int, onIndex: (Int) -> Unit, takeFocus:
     val glow = glowColor(item.accentColor)
     val play = remember { FocusRequester() }
     var focused by remember { mutableStateOf(false) }
-    fun step(delta: Int) = onIndex((index + delta + items.size) % items.size)
+    // Radio (an artist's) has focus: moving on to a slide without it hands focus to Play first, rather than losing it.
+    var radioFocused by remember { mutableStateOf(false) }
+    fun step(delta: Int) {
+        val next = (index + delta + items.size) % items.size
+        if (radioFocused && item.kind == MediaKind.Artist && items[next].kind != MediaKind.Artist) runCatching { play.requestFocus() }
+        onIndex(next)
+    }
 
     LaunchedEffect(takeFocus) {
         if (!takeFocus) return@LaunchedEffect
@@ -264,7 +270,10 @@ internal fun HomeHero(home: Home, index: Int, onIndex: (Int) -> Unit, takeFocus:
                     modifier = Modifier.focusRequester(play),
                 )
                 if (item.kind == MediaKind.Artist) {
-                    TvActionButton("Radio", onClick = { navigator.playArtist(item, radio = true) }, icon = FlexarrIcons.radio, ambient = glow)
+                    TvActionButton(
+                        "Radio", onClick = { navigator.playArtist(item, radio = true) }, icon = FlexarrIcons.radio, ambient = glow,
+                        modifier = Modifier.onFocusChanged { radioFocused = it.hasFocus },
+                    )
                 }
                 TvActionButton(
                     "More info",

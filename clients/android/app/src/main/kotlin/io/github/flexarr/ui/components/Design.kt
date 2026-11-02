@@ -55,6 +55,7 @@ import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
@@ -201,7 +202,7 @@ fun PillButton(label: String, selected: Boolean, onClick: () -> Unit, ambient: C
 
 /** Section heading for rows: marquee type on the shared edge, with an optional See all. */
 @Composable
-fun SectionHeading(title: String, modifier: Modifier = Modifier, onSeeAll: (() -> Unit)? = null) {
+fun SectionHeading(title: String, modifier: Modifier = Modifier, onSeeAll: (() -> Unit)? = null, seeAllLabel: String? = null) {
     Row(modifier.fillMaxWidth().padding(horizontal = Edge), verticalAlignment = Alignment.Bottom) {
         Text(title, style = marquee(26).copy(fontWeight = FontWeight.Bold), modifier = Modifier.weight(1f).semantics { heading() }, maxLines = 1, overflow = TextOverflow.Ellipsis)
         if (onSeeAll != null) {
@@ -211,7 +212,10 @@ fun SectionHeading(title: String, modifier: Modifier = Modifier, onSeeAll: (() -
                 fontWeight = FontWeight.SemiBold,
                 color = Flexarr.usher,
                 // The usual 48 to touch, reaching up beside the heading rather than below it.
-                modifier = Modifier.pressable(onSeeAll, onClickLabel = "See all of $title").padding(start = 12.dp, top = 20.dp).padding(4.dp),
+                // [seeAllLabel] is what TalkBack says for it ("See all artists"), when "See all" alone wouldn't do.
+                modifier = Modifier.pressable(onSeeAll, onClickLabel = "See all of $title")
+                    .then(if (seeAllLabel != null) Modifier.semantics { contentDescription = seeAllLabel } else Modifier)
+                    .padding(start = 12.dp, top = 20.dp).padding(4.dp),
             )
         }
     }

@@ -66,6 +66,7 @@ import androidx.navigation.navArgument
 import io.github.flexarr.AppModel
 import io.github.flexarr.R
 import io.github.flexarr.core.LibrarySort
+import io.github.flexarr.core.MusicView
 import io.github.flexarr.ui.components.LocalClient
 import io.github.flexarr.ui.components.LocalNavigator
 import io.github.flexarr.ui.books.BookLibraryScreen
@@ -377,10 +378,21 @@ fun MainScreen(model: AppModel) {
                 composable("coming-soon") { ComingSoonScreen(model) }
                 composable("livetv/recordings") { LiveRecordingsScreen(model) }
                 composable(
-                    "music/{id}?genre={genre}",
-                    arguments = listOf(navArgument("genre") { type = NavType.StringType; defaultValue = "" }),
+                    "music/{id}?genre={genre}&view={view}&sort={sort}",
+                    arguments = listOf(
+                        navArgument("genre") { type = NavType.StringType; defaultValue = "" },
+                        navArgument("view") { type = NavType.StringType; defaultValue = "" },
+                        navArgument("sort") { type = NavType.StringType; defaultValue = "" },
+                    ),
                 ) { entry ->
-                    MusicLibraryScreen(model, entry.arguments?.getString("id")!!, entry.arguments?.getString("genre")?.takeIf { it.isNotEmpty() })
+                    // "?view=artists" or "albums": that grid alone, on top of Browse (its See all, a row's link).
+                    val view = when (entry.arguments?.getString("view")) {
+                        "artists" -> MusicView.Artists
+                        "albums" -> MusicView.Albums
+                        else -> null
+                    }
+                    val sort = LibrarySort.entries.firstOrNull { it.raw == entry.arguments?.getString("sort") } ?: LibrarySort.Title
+                    MusicLibraryScreen(model, entry.arguments?.getString("id")!!, entry.arguments?.getString("genre")?.takeIf { it.isNotEmpty() }, view, sort)
                 }
                 composable("artist/{id}") { ArtistScreen(model, it.arguments?.getString("id")!!) }
                 composable("album/{id}") { AlbumScreen(model, it.arguments?.getString("id")!!) }

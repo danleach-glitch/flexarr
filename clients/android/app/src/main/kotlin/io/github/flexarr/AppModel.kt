@@ -12,6 +12,7 @@ import io.github.flexarr.player.PlaybackEnding
 import io.github.flexarr.core.FlexarrException
 import io.github.flexarr.core.LiveTvStatus
 import io.github.flexarr.core.liveTvStatus
+import io.github.flexarr.core.offersAlbums
 import io.github.flexarr.audio.BookPlayer
 import io.github.flexarr.audio.MusicPlayer
 import io.github.flexarr.audio.PodcastPlayer
@@ -517,6 +518,20 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         get() = credentials?.let { credentials -> credentials.client(onUnauthorized = { checkSignIn(credentials) }) }
 
     val currentProfile: Profile? get() = profiles.firstOrNull { it.isCurrent }
+
+    /** Whether each server (by address) offers music libraries' Albums and Genres, found out once a launch. */
+    private val albumsByServer = mutableMapOf<String, Boolean>()
+
+    /**
+     * Whether this server offers a music library's Albums and Genres ([offersAlbums]): by its version, or asked once
+     * when that doesn't say, then remembered so the music pages don't ask each time they appear.
+     */
+    suspend fun offersMusicAlbums(libraryId: String): Boolean {
+        val address = credentials?.address ?: return false
+        val client = client ?: return false
+        albumsByServer[address]?.let { return it }
+        return client.offersAlbums(libraryId).also { albumsByServer[address] = it }
+    }
 
     /** Someone has to choose who's watching: more than one profile, and none chosen on this device yet. */
     val needsProfile: Boolean get() = profilesLoaded && !serverUnreachable && credentials?.profileToken == null && profiles.size > 1

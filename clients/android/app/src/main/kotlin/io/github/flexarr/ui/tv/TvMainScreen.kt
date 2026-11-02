@@ -347,13 +347,23 @@ fun TvMainScreen(model: AppModel) {
                         TvPersonScreen(model, entry.arguments!!.getString("id")!!, entry.arguments?.getString("name").orEmpty())
                     }
                     // A row's "See all" or a genre: the library's titles in a grid, on top, so Back comes back.
-                    composable("library/{id}?sort={sort}&genre={genre}") { entry ->
+                    composable("library/{id}?sort={sort}&genre={genre}&view={view}") { entry ->
                         val id = entry.arguments?.getString("id")
                         val sort = LibrarySort.entries.firstOrNull { it.raw == entry.arguments?.getString("sort") } ?: LibrarySort.Title
                         val genre = entry.arguments?.getString("genre")?.takeIf { it.isNotEmpty() }
-                        // A music library's genre is its albums in that genre.
+                        // A music library's albums ("view=albums", or a genre's), or otherwise its artists. Its first
+                        // card takes focus once, on arriving (a genre's page leaves it to Play).
+                        var focusing by rememberSaveable { mutableStateOf(true) }
                         libraryList.firstOrNull { it.id == id && it.onTv }?.let {
-                            TvLibraryGrid(model, it, initialSort = sort, initialGenre = genre, content = if (it.type == LibraryType.Music) TvGridContent.Albums else TvGridContent.Titles)
+                            val content = when {
+                                it.type != LibraryType.Music -> TvGridContent.Titles
+                                entry.arguments?.getString("view") == "albums" || genre != null -> TvGridContent.Albums
+                                else -> TvGridContent.Artists
+                            }
+                            TvLibraryGrid(
+                                model, it, initialSort = sort, initialGenre = genre, content = content,
+                                takeFocus = focusing && content != TvGridContent.Titles && genre == null, onFocusTaken = { focusing = false },
+                            )
                         } ?: MissingLibrary()
                     }
                 }
