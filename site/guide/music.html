@@ -122,6 +122,7 @@
           <ol>
             <li><a href="#setting-up-a-music-library">Setting up a music library</a></li>
             <li><a href="#browsing-a-music-library">Browsing a music library</a></li>
+            <li><a href="#deleting-music">Deleting music</a></li>
             <li><a href="#playing-and-the-queue">Playing and the queue</a></li>
             <li><a href="#now-playing-on-apple-tv">Now Playing on Apple TV</a></li>
             <li><a href="#on-iphone-and-ipad">On iPhone and iPad</a></li>
@@ -140,19 +141,22 @@
 <li>If you use Lidarr, connect it in <strong>Settings › Connections</strong>. See <a href="/guide/connect-arrs">Connect your *arrs</a>.</li>
 </ol>
 <p>Lidarr isn&#39;t required, but it makes a big difference. With it, artists and albums take their names, years, descriptions and artwork from Lidarr: the artist&#39;s own picture rather than an album cover, and a cover for every album even when the files carry none. An artist&#39;s page shelves releases into <strong>Albums</strong>, <strong>EPs and singles</strong>, <strong>Live and compilations</strong> and <strong>Other</strong>. Without Lidarr, Flexarr reads everything from the files&#39; tags.</p>
-<p>With Lidarr connected you can also find and add music you don&#39;t have: <strong>Discover › Music</strong>, albums missing from an artist&#39;s page, and <strong>Follow artist</strong> for their latest album and new releases. See <a href="/guide/requests#music">Requests › Music</a>.</p>
+<p>With Lidarr connected you can also find and add music you don&#39;t have: <strong>Discover › Music</strong>, albums missing from an artist&#39;s page, and <strong>Follow</strong> for their latest album and new releases. See <a href="/guide/requests#music">Requests › Music</a>.</p>
 <p>A track by someone other than the album&#39;s artist, such as a duet or a compilation track, shows its own artist. Compilations without an album artist are filed under <strong>Various Artists</strong>.</p>
 <h2 id="browsing-a-music-library"><a class="anchor" href="#browsing-a-music-library" aria-hidden="true" tabindex="-1">#</a>Browsing a music library</h2>
 <p>A music library opens on <strong>Browse</strong>, as Movies and TV do. The picture across the top starts with the album you played last. <strong>Resume</strong> carries on from the next track, or from where you stopped in a song left half way. Then come a few artists you play, with <strong>Play</strong> to shuffle them and <strong>Radio</strong> for a station of them and artists like them, and the newest albums. Under it are your rows, then <strong>Your artists</strong>.</p>
-<p>The words at the top switch between four views:</p>
+<p>The words at the top switch between the views:</p>
 <ul>
 <li><strong>Browse:</strong> the picture and the rows.</li>
 <li><strong>Artists:</strong> every artist, A to Z.</li>
 <li><strong>Albums:</strong> every album, sorted A to Z, by <strong>Recently added</strong> or by year.</li>
+<li><strong>Requested</strong> (web, with Lidarr connected): albums on their way. See <a href="/guide/requests#on-its-way">On its way</a>.</li>
 <li><strong>Genres:</strong> a tile for each genre, biggest first. A genre counts every album tagged with it. An album with no genres of its own takes its artist&#39;s. Open one to see its albums, with <strong>Play</strong> and <strong>Shuffle</strong> for up to 200 of its tracks.</li>
 </ul>
 <p>On Apple TV, <strong>Settings › Libraries</strong> chooses which view music opens on. The Top Shelf shows the albums the profile watching played last (as it shows what they&#39;re watching), and Play there starts one. It follows Home&#39;s <strong>Recently played</strong> row: switch that off in <strong>Settings › Home &amp; browse</strong> and it goes from the Top Shelf too.</p>
 <p>The picture needs artists&#39; artwork from Lidarr. A library with none shows its rows without it.</p>
+<h2 id="deleting-music"><a class="anchor" href="#deleting-music" aria-hidden="true" tabindex="-1">#</a>Deleting music</h2>
+<p>On the web, an album&#39;s or artist&#39;s <strong>⋯ › Delete…</strong> deletes it for good, for the main profile. When Lidarr manages it, Lidarr deletes the files: an artist goes from Lidarr altogether, and an album&#39;s files go while Lidarr stops wanting it, so it doesn&#39;t download again and can still be requested later. Without Lidarr, Flexarr deletes the files itself, and any folders that leaves empty.</p>
 <h2 id="playing-and-the-queue"><a class="anchor" href="#playing-and-the-queue" aria-hidden="true" tabindex="-1">#</a>Playing and the queue</h2>
 <p>Every artist, album and playlist has <strong>Play</strong> and <strong>Shuffle</strong>, which open Now Playing. An artist&#39;s Play runs through their whole catalogue, oldest album first. Picking a single song leaves you on the list.</p>
 <p><strong>On the web</strong>, the now-playing bar stays with you as you browse. Click its cover for Now Playing across the whole window: a big cover, the controls and what&#39;s up next, with light in the cover&#39;s colours moving with the music. Escape closes it. Tracks and albums have <strong>Play next</strong> and <strong>Add to queue</strong> in their menus. The queue panel above the bar lets you drag tracks into order, remove them, clear the lot or skip to any track. The queue and your place in it survive a page reload.</p>

@@ -12,7 +12,7 @@ Flexarr plays your music library like a streaming app: artists with their pictur
 
 Lidarr isn't required, but it makes a big difference. With it, artists and albums take their names, years, descriptions and artwork from Lidarr: the artist's own picture rather than an album cover, and a cover for every album even when the files carry none. An artist's page shelves releases into **Albums**, **EPs and singles**, **Live and compilations** and **Other**. Without Lidarr, Flexarr reads everything from the files' tags.
 
-With Lidarr connected you can also find and add music you don't have: **Discover › Music**, albums missing from an artist's page, and **Follow artist** for their latest album and new releases. See [Requests › Music](requests.md#music).
+With Lidarr connected you can also find and add music you don't have: **Discover › Music**, albums missing from an artist's page, and **Follow** for their latest album and new releases. See [Requests › Music](requests.md#music).
 
 A track by someone other than the album's artist, such as a duet or a compilation track, shows its own artist. Compilations without an album artist are filed under **Various Artists**.
 
@@ -20,16 +20,21 @@ A track by someone other than the album's artist, such as a duet or a compilatio
 
 A music library opens on **Browse**, as Movies and TV do. The picture across the top starts with the album you played last. **Resume** carries on from the next track, or from where you stopped in a song left half way. Then come a few artists you play, with **Play** to shuffle them and **Radio** for a station of them and artists like them, and the newest albums. Under it are your rows, then **Your artists**.
 
-The words at the top switch between four views:
+The words at the top switch between the views:
 
 - **Browse:** the picture and the rows.
 - **Artists:** every artist, A to Z.
 - **Albums:** every album, sorted A to Z, by **Recently added** or by year.
+- **Requested** (web, with Lidarr connected): albums on their way. See [On its way](requests.md#on-its-way).
 - **Genres:** a tile for each genre, biggest first. A genre counts every album tagged with it. An album with no genres of its own takes its artist's. Open one to see its albums, with **Play** and **Shuffle** for up to 200 of its tracks.
 
 On Apple TV, **Settings › Libraries** chooses which view music opens on. The Top Shelf shows the albums the profile watching played last (as it shows what they're watching), and Play there starts one. It follows Home's **Recently played** row: switch that off in **Settings › Home & browse** and it goes from the Top Shelf too.
 
 The picture needs artists' artwork from Lidarr. A library with none shows its rows without it.
+
+## Deleting music
+
+On the web, an album's or artist's **⋯ › Delete…** deletes it for good, for the main profile. When Lidarr manages it, Lidarr deletes the files: an artist goes from Lidarr altogether, and an album's files go while Lidarr stops wanting it, so it doesn't download again and can still be requested later. Without Lidarr, Flexarr deletes the files itself, and any folders that leaves empty.
 
 ## Playing and the queue
 
