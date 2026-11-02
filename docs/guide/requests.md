@@ -50,7 +50,7 @@ A movie series collection lists the movies you don't have under **Not in your li
 
 **Discover** is in the sidebar, above **Search**. It shows the same rows as the web: what's trending, popular movies, popular new shows, and what's coming to cinemas.
 
-1. Select a title you don't have to open it. You'll see its ratings, cast, who made it, and more like it.
+1. Select a title you don't have to open it. You'll see its IMDb and Rotten Tomatoes scores, cast, who made it, and more like it.
 2. Select **Request**.
 3. Press **Menu** to go back to Discover.
 
