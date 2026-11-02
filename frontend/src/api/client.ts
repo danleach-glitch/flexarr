@@ -1478,6 +1478,31 @@ export const getMusicArtist = (deezerId: number | string, signal?: AbortSignal) 
 export const getMusicAlbum = (deezerId: number | string, signal?: AbortSignal) => apiGet<MusicAlbumDetail>(`/requests/music/album/${deezerId}`, signal)
 export const getMusicArtistExtras = (artistId: string, signal?: AbortSignal) => apiGet<MusicArtistExtras>(`/requests/music/library-artist/${artistId}`, signal)
 export const requestMusic = (body: MusicRequest) => request<void>('POST', '/requests/music', body)
+
+/** Takes back a follow (an artist: artistId, deezerId or musicBrainzId) or a request (an album: musicBrainzId or deezerId). For the household. */
+export interface MusicUndo {
+  artistId?: string
+  deezerId?: number
+  musicBrainzId?: string
+}
+export const unfollowArtist = (body: MusicUndo) => request<void>('POST', '/requests/music/unfollow', body)
+export const unrequestAlbum = (body: MusicUndo) => request<void>('POST', '/requests/music/unrequest', body)
+
+/** An album Lidarr is waiting for. Absent from servers before 0.59. */
+export interface MusicRequested {
+  /** Its release group: what Unrequest takes. */
+  musicBrainzId: string
+  title: string
+  artist: string
+  artistMusicBrainzId: string | null
+  image: string | null
+  releaseDate: string | null
+  state: 'upcoming' | 'searching' | 'downloading' | 'importing'
+  /** While downloading, 0 to 1. */
+  progress: number | null
+  artistLibraryItemId: string | null
+}
+export const getMusicRequested = (signal?: AbortSignal) => apiGet<MusicRequested[]>('/requests/music/requested', signal)
 /** The music libraries the current profile's music requests can go to (every one, for the main profile). */
 export const getMusicDestinations = (signal?: AbortSignal) =>
   apiGet<{ id: string; name: string; isDefault: boolean }[]>('/requests/music/destinations', signal)

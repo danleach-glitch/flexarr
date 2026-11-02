@@ -1,15 +1,18 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
-import { ApiError, getMusicRequestStatus, imageUrl, requestMusic, type MusicExternal, type MusicRequest } from '../api/client'
+import { ApiError, getMusicRequestStatus, imageUrl, requestMusic, unfollowArtist, unrequestAlbum, type MusicExternal, type MusicRequest } from '../api/client'
 import { useApi } from '../hooks/useApi'
 import { musicLink } from '../lib/musicLinks'
 import { AsyncButton } from './AsyncButton'
+import { ConfirmDialog } from './ConfirmDialog'
+import { icon } from './icons.generated'
 
 type State = MusicExternal['availability'] | 'sending' | 'failed' | 'refused'
 
 /**
- * Request an album (just it) or follow an artist (their new releases) through Lidarr, or say where it stands. An
- * artist "Requested" is one Lidarr already follows.
+ * Request an album (just it) or follow an artist (their new releases) through Lidarr, or say where it stands, as a
+ * labelled button with its icon. An artist "Requested" is one Lidarr already follows. Pressing Following or Requested
+ * asks, then takes it back, for the household. Hidden without Lidarr; greyed while it isn't answering.
  */
 export function MusicRequestButton({
   request,
@@ -17,17 +20,25 @@ export function MusicRequestButton({
   libraryItemId,
   kind,
   size = 'small',
+  title,
+  onUndone,
 }: {
   request: MusicRequest
   availability: MusicExternal['availability']
   libraryItemId?: string | null
   kind: 'album' | 'artist'
   size?: 'small' | 'large'
+  /** The album's title or the artist's name, for the question before taking it back. */
+  title?: string
+  /** After Following or Requested was taken back. */
+  onUndone?: () => void
 }) {
   // What this button did, if anything: otherwise it says what the server says, which can change under it.
   // 'refused' is Lidarr saying no (it can't find it): asking again won't change that, so no Try again.
-  const [sent, setSent] = useState<'sending' | 'failed' | 'refused' | 'Requested'>()
+  const [sent, setSent] = useState<'sending' | 'failed' | 'refused' | 'Requested' | 'None'>()
   const [message, setMessage] = useState<string>()
+  const [asking, setAsking] = useState(false)
+  const [undoError, setUndoError] = useState<string>()
   const state: State = sent ?? availability
   // Lidarr not answering: say so on the page, and don't offer what can't work. (Cached: every card asks.)
   const status = useApi(getMusicRequestStatus, [])
@@ -35,6 +46,7 @@ export function MusicRequestButton({
 
   async function send() {
     setSent('sending')
+    setMessage(undefined)
     try {
       await requestMusic(request)
       setSent('Requested')
@@ -44,9 +56,54 @@ export function MusicRequestButton({
     }
   }
 
+  async function undo() {
+    setUndoError(undefined)
+    const { kind: _kind, ...body } = request
+    try {
+      await (kind === 'artist' ? unfollowArtist(body) : unrequestAlbum(body))
+      setSent('None')
+      setAsking(false)
+      onUndone?.()
+    } catch (e) {
+      setUndoError(e instanceof ApiError && e.messages[0] ? e.messages[0] : 'That didn’t work. Try again.')
+    }
+  }
+
+  // No Lidarr (or music requests off): nothing to offer.
+  if (status.data?.configured === false) return null
   // A library artist can still be followed; a library album has nothing left to ask for.
   if (kind === 'album' && (libraryItemId || state === 'Available')) return <span className="external-state">In your library</span>
-  if (state === 'Requested' || state === 'PartlyAvailable') return <span className="external-state">{kind === 'artist' ? 'Following' : 'Requested'}</span>
+  const className = size === 'small' ? 'button small quiet' : 'button quiet'
+  if (state === 'Requested' || state === 'PartlyAvailable') {
+    const Icon = kind === 'artist' ? icon.following : icon.requested
+    return (
+      <>
+        <AsyncButton
+          className={className}
+          aria-pressed
+          onClick={() => setAsking(true)}
+          disabled={offline}
+          title={offline ? 'Lidarr isn’t answering.' : kind === 'artist' ? 'Stop following' : 'Unrequest'}
+        >
+          <Icon aria-hidden /> {kind === 'artist' ? 'Following' : 'Requested'}
+        </AsyncButton>
+        {asking && (
+          <ConfirmDialog
+            title={kind === 'artist' ? `Stop following ${title ?? 'this artist'}?` : `Unrequest ${title ?? 'this album'}?`}
+            confirmLabel={kind === 'artist' ? 'Stop following' : 'Unrequest'}
+            cancelLabel={kind === 'artist' ? 'Keep following' : 'Keep it'}
+            danger
+            error={undoError}
+            onConfirm={undo}
+            onClose={() => {
+              setAsking(false)
+              setUndoError(undefined)
+            }}
+          />
+        )}
+      </>
+    )
+  }
   if (state === 'refused')
     return (
       <>
@@ -58,16 +115,17 @@ export function MusicRequestButton({
         )}
       </>
     )
+  const Icon = kind === 'artist' ? icon.follow : icon.request
   return (
     <>
       <AsyncButton
-        className={size === 'small' ? 'button small quiet' : 'button'}
+        className={className}
         onClick={send}
         busy={state === 'sending'}
         disabled={offline}
         title={offline ? 'Lidarr isn’t answering.' : message}
       >
-        {state === 'failed' ? 'Try again' : kind === 'artist' ? 'Follow artist' : 'Request album'}
+        <Icon aria-hidden /> {state === 'failed' ? 'Try again' : kind === 'artist' ? 'Follow' : 'Request album'}
       </AsyncButton>
       {state === 'failed' && message && (
         <span className="error" role="alert">
@@ -109,7 +167,7 @@ export function MusicExternalCard({ item, showArtist = true }: { item: MusicExte
       {subtitle && <span className="card-subtitle">{subtitle}</span>}
       <div className="external-card-actions">
         {(item.kind === 'album' || !item.libraryItemId) && (
-          <MusicRequestButton request={request} availability={item.availability} libraryItemId={item.libraryItemId} kind={item.kind} />
+          <MusicRequestButton request={request} availability={item.availability} libraryItemId={item.libraryItemId} kind={item.kind} title={item.title} />
         )}
       </div>
     </div>

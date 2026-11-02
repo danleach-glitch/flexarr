@@ -13,7 +13,15 @@ vi.mock('../api/client', async (importOriginal) => ({
     sent.push(body)
     if (refusal) throw refusal
   },
+  unfollowArtist: async (body: unknown) => {
+    sent.push({ unfollow: body })
+  },
+  unrequestAlbum: async (body: unknown) => {
+    sent.push({ unrequest: body })
+  },
+  getMusicRequestStatus: async () => status,
 }))
+let status = { configured: true, reachable: true }
 
 const album: MusicExternal = {
   kind: 'album',
@@ -41,6 +49,7 @@ describe('MusicExternalCard', () => {
   beforeEach(() => {
     sent.length = 0
     refusal = undefined
+    status = { configured: true, reachable: true }
   })
 
   it('requests just the album, then says it is requested', async () => {
@@ -58,7 +67,7 @@ describe('MusicExternalCard', () => {
     renderCard(artist)
 
     expect(screen.getByRole('link').querySelector('.artwork-round')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Follow artist' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Follow' }))
 
     await waitFor(() => expect(screen.getByText('Following')).toBeTruthy())
     expect(sent).toEqual([{ kind: 'artist', deezerId: 134334152 }])
@@ -100,5 +109,41 @@ describe('MusicExternalCard', () => {
     await waitFor(() => expect(screen.getByText('Can’t request')).toBeTruthy())
     expect(screen.queryByRole('button')).toBeNull()
     expect(screen.getByRole('alert').textContent).toBe('Lidarr can’t find Nowhere by Nobody.')
+  })
+
+  it('asks before taking a request back, then offers it again', async () => {
+    renderCard({ ...album, availability: 'Requested' })
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Requested' }))
+    expect(screen.getByRole('alertdialog').textContent).toContain('Unrequest moisturizer?')
+    fireEvent.click(screen.getByRole('button', { name: 'Unrequest' }))
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Request album' })).toBeTruthy())
+    expect(sent).toEqual([{ unrequest: { deezerId: 730000661 } }])
+  })
+
+  it('stops following after asking, and Keep following leaves it be', async () => {
+    renderCard({ ...artist, availability: 'Requested' })
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Following' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Keep following' }))
+    expect(sent).toEqual([])
+    fireEvent.click(screen.getByRole('button', { name: 'Following' }))
+    expect(screen.getByRole('alertdialog').textContent).toContain('Stop following Wet Leg?')
+    fireEvent.click(screen.getByRole('button', { name: 'Stop following' }))
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Follow' })).toBeTruthy())
+    expect(sent).toEqual([{ unfollow: { deezerId: 134334152 } }])
+  })
+
+  it('offers nothing without Lidarr, and greys the button while it isn’t answering', async () => {
+    status = { configured: false, reachable: false }
+    const { unmount } = renderCard(album)
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Request album' })).toBeNull())
+    unmount()
+
+    status = { configured: true, reachable: false }
+    renderCard(album)
+    await waitFor(() => expect((screen.getByRole('button', { name: 'Request album' }) as HTMLButtonElement).disabled).toBe(true))
   })
 })
