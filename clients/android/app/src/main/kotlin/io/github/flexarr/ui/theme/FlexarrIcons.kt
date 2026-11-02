@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.LocalMovies
 import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Radio
@@ -22,6 +23,7 @@ import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.outlined.ArrowCircleDown
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.GraphicEq
 import androidx.compose.material.icons.outlined.GridView
@@ -44,6 +46,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 object FlexarrIcons {
     /** Play or Resume. */
     val play: ImageVector get() = Icons.Filled.PlayArrow
+    /** Pause. */
+    val pause: ImageVector get() = Icons.Filled.Pause
     /** Start over. */
     val startOver: ImageVector get() = Icons.Filled.Replay
     /** Shuffle a show, an artist or a genre. */
@@ -80,6 +84,8 @@ object FlexarrIcons {
     val addToPlaylist: ImageVector get() = Icons.AutoMirrored.Filled.PlaylistAdd
     /** Download. */
     val download: ImageVector get() = Icons.Outlined.ArrowCircleDown
+    /** Delete a title, album, artist or book. */
+    val delete: ImageVector get() = Icons.Outlined.Delete
     /** Search for subtitles. */
     val subtitles: ImageVector get() = Icons.Outlined.SpeakerNotes
     /** Go to the show. */

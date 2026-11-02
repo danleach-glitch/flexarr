@@ -4,6 +4,8 @@
 enum Symbol {
     /// Play or Resume.
     static let play = "play.fill"
+    /// Pause.
+    static let pause = "pause.fill"
     /// Start over.
     static let startOver = "arrow.counterclockwise"
     /// Shuffle a show, an artist or a genre.
@@ -40,6 +42,8 @@ enum Symbol {
     static let addToPlaylist = "text.badge.plus"
     /// Download.
     static let download = "arrow.down.circle"
+    /// Delete a title, album, artist or book.
+    static let delete = "trash"
     /// Search for subtitles.
     static let subtitles = "captions.bubble"
     /// Go to the show.
@@ -80,5 +84,5 @@ enum Symbol {
     static let homeVideos = "folder"
 
     /// Every name above, so a debug build can check each one exists on this system.
-    static let all = [play, startOver, shuffle, radio, trailer, watched, isWatched, markUnwatched, watchlist, onWatchlist, request, requested, follow, following, goToArtist, playNext, addToQueue, addToPlaylist, download, subtitles, goToShow, more, home, libraries, search, settings, downloads, discover, comingSoon, liveTv, collections, nowPlaying, movies, shows, music, podcasts, audiobooks, homeVideos]
+    static let all = [play, pause, startOver, shuffle, radio, trailer, watched, isWatched, markUnwatched, watchlist, onWatchlist, request, requested, follow, following, goToArtist, playNext, addToQueue, addToPlaylist, download, delete, subtitles, goToShow, more, home, libraries, search, settings, downloads, discover, comingSoon, liveTv, collections, nowPlaying, movies, shows, music, podcasts, audiobooks, homeVideos]
 }
