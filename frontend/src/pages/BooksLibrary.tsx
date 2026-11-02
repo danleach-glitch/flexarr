@@ -132,7 +132,7 @@ function Genres({ library }: { library: Library }) {
   const { data, error, reload } = useApi((signal) => getBookGenres(library.id, signal), [library.id, library.itemCount])
   if (error) return <PageError error={error} onRetry={reload} />
   if (!data) return <div className="genre-grid" aria-busy="true" />
-  if (data.length === 0) return <p className="page-message muted">No genres here yet.</p>
+  if (data.length === 0) return <p className="page-message muted">No genres here yet. They come with each book’s details once a scan has found them.</p>
   const genres = [...data].sort((a, b) => a.name.localeCompare(b.name))
   return (
     <nav className="genre-grid" aria-label="Genres">
@@ -249,7 +249,7 @@ function AllBooks({ library, view }: { library: Library; view: 'all' | 'genre' }
           )}
         </p>
       )}
-      {first.error && <p className="error">{first.error.message}</p>}
+      {first.error && <PageError error={first.error} onRetry={first.reload} />}
       {shown && (
         <p className="muted book-count">
           {shown.total.toLocaleString()} {filtered ? 'matching' : shown.total === 1 ? 'book' : 'books'}
@@ -294,7 +294,7 @@ function usePaged<T>(load: (skip: number, signal?: AbortSignal) => Promise<Paged
     const page = await load(items?.length ?? 0)
     setExtra([...extra, ...page.items])
   }
-  return { items, total: first.data?.total, error: first.error, more }
+  return { items, total: first.data?.total, error: first.error, reload: first.reload, more }
 }
 
 function SeriesList({ library }: { library: Library }) {
@@ -322,7 +322,7 @@ function People({ library, role }: { library: Library; role: 'author' | 'narrato
 function PagedGrid<T>({ paged, empty, className, children }: { paged: ReturnType<typeof usePaged<T>>; empty: string; className: string; children: ReactNode }) {
   return (
     <>
-      {paged.error && <p className="error">{paged.error.message}</p>}
+      {paged.error && <PageError error={paged.error} onRetry={paged.reload} />}
       {paged.total === 0 && <p className="page-message muted">{empty}</p>}
       <div className={className} aria-busy={!paged.items}>
         {children}

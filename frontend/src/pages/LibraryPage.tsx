@@ -415,7 +415,7 @@ function LibraryAll({ albums = false }: { albums?: boolean }) {
   // The grid (sort, filter and search) the titles were loaded for: until a new one's first page lands, they're the old one's.
   const gridKey = `${snapshotKey} ${query}`
   const [loadedFor, setLoadedFor] = useState(restored ? gridKey : undefined)
-  const [error, setError] = useState<string>()
+  const [error, setError] = useState<Error>()
   const [busy, setBusy] = useState(false)
   // The letter being jumped to while the titles up to it load.
   const [jumping, setJumping] = useState<string>()
@@ -463,7 +463,7 @@ function LibraryAll({ albums = false }: { albums?: boolean }) {
         setError(undefined)
       })
       .catch((e: unknown) => {
-        if (!controller.signal.aborted) setError(e instanceof Error ? e.message : String(e))
+        if (!controller.signal.aborted) setError(e instanceof Error ? e : new Error(String(e)))
       })
     return () => controller.abort()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- depsKey stands for the inputs; the count is read as it is
@@ -535,7 +535,7 @@ function LibraryAll({ albums = false }: { albums?: boolean }) {
       setItems((current) => append(current, [page.items]))
       setTotal(page.total)
     } catch (e) {
-      if (run === generation.current) setError(e instanceof Error ? e.message : String(e))
+      if (run === generation.current) setError(e instanceof Error ? e : new Error(String(e)))
     } finally {
       setBusy(false)
     }
@@ -565,7 +565,7 @@ function LibraryAll({ albums = false }: { albums?: boolean }) {
         setItems(loaded)
       }
     } catch (e) {
-      if (run === generation.current) setError(e instanceof Error ? e.message : String(e))
+      if (run === generation.current) setError(e instanceof Error ? e : new Error(String(e)))
     } finally {
       setBusy(false)
       setJumping(undefined)
@@ -651,7 +651,7 @@ function LibraryAll({ albums = false }: { albums?: boolean }) {
           </button>
         </p>
       )}
-      {error && <p className="error">{error}</p>}
+      {error && <PageError error={error} onRetry={() => setVersion((v) => v + 1)} />}
       {items.length === 0 && total === 0 && (
         <p className="page-message muted">
           {query ? `Nothing in ${library.name} matches “${query}”.` : library.scan ? 'Titles appear here as the scan finds them.' : 'Nothing here yet.'}

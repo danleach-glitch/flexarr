@@ -479,7 +479,7 @@ private fun GenreList(model: AppModel, libraryId: String, openGenre: (String) ->
     // Counts don't change with what's been listened to, so only the library keys it (pull to refresh is there).
     val loader = rememberLoader(libraryId) { client.bookGenres(libraryId) }
     Loaded(loader) { genres: List<GenreCount> ->
-        if (genres.isEmpty()) return@Loaded StatusView("No genres yet.", empty = true)
+        if (genres.isEmpty()) return@Loaded StatusView("No genres here yet. They come with each book’s details once a scan has found them.", empty = true)
         PullToRefreshBox(isRefreshing = loader.refreshing, onRefresh = loader.retry) {
             LazyVerticalGrid(
                 columns = GridCells.Adaptive(if (isWide) 240.dp else 150.dp),
