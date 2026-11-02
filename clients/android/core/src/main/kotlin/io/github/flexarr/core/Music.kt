@@ -97,6 +97,49 @@ suspend fun FlexarrClient.tracks(id: String): List<ItemSummary> =
         }
     }
 
+/**
+ * A music library's albums (its items are its artists), A–Z, newest added or by year, optionally in one genre (on the
+ * album or its artist). Null from servers before the endpoint (0.59), which answer 404: they have no Albums or Genres.
+ */
+suspend fun FlexarrClient.libraryAlbums(
+    libraryId: String,
+    sort: LibrarySort = LibrarySort.Title,
+    genre: String? = null,
+    skip: Int = 0,
+    take: Int = 60,
+): Paged<ItemSummary>? =
+    try {
+        get(
+            "libraries/$libraryId/albums",
+            buildMap {
+                if (sort != LibrarySort.Title) put("sort", sort.raw)
+                if (!genre.isNullOrEmpty()) put("genre", genre)
+                if (skip > 0) put("skip", skip.toString())
+                put("take", take.toString())
+            },
+        )
+    } catch (e: FlexarrException.Http) {
+        if (e.status == 404) null else throw e
+    }
+
+/** A music library's genres counted by album, each with an artist's fanart. Null from servers before 0.59. */
+suspend fun FlexarrClient.libraryAlbumGenres(libraryId: String): List<GenreCount>? =
+    try {
+        get("libraries/$libraryId/album-genres")
+    } catch (e: FlexarrException.Http) {
+        if (e.status == 404) null else throw e
+    }
+
+/** Up to 200 of a genre's tracks in a music library: by artist, album and track, or shuffled by the server. */
+suspend fun FlexarrClient.genreTracks(libraryId: String, genre: String, shuffled: Boolean = false): List<ItemSummary> =
+    get("libraries/$libraryId/tracks", buildMap {
+        put("genre", genre)
+        if (shuffled) put("shuffle", "true")
+    })
+
+/** Artist radio: about fifty tracks seeded from an artist (or an album's artist), theirs and others' in their genres. */
+suspend fun FlexarrClient.radio(id: String): List<ItemSummary> = get("items/$id/radio")
+
 /** A track's lyrics, or null when it has none (servers before lyrics have none for any track). */
 suspend fun FlexarrClient.lyrics(id: String): Lyrics? =
     try {
@@ -123,12 +166,13 @@ suspend fun FlexarrClient.mix(id: String): MixDetail = get("music/mixes/$id")
 const val MUSIC_PLAYLISTS_ROW_ID = "playlists"
 
 /**
- * A music library's rows, as the server lists them for the profile. When they can't load (a timeout, a server
- * without them), the profile's playlists as one row instead, as the page had them before the server's rows.
+ * A music library's Browse: its hero (servers from 0.59; empty before) and its rows, as the server lists them for the
+ * profile. When it can't load (a timeout, a server without it), no hero and the profile's playlists as one row instead,
+ * as the page had them before the server's rows.
  */
-suspend fun FlexarrClient.musicRows(libraryId: String): List<HomeRow> {
+suspend fun FlexarrClient.musicBrowse(libraryId: String): Home {
     try {
-        return libraryBrowse(libraryId).rows
+        return libraryBrowse(libraryId)
     } catch (e: CancellationException) {
         throw e
     } catch (_: Exception) {
@@ -142,9 +186,12 @@ suspend fun FlexarrClient.musicRows(libraryId: String): List<HomeRow> {
         // Neither: the artists still show.
         emptyList()
     }
-    if (lists.isEmpty()) return emptyList()
-    return listOf(HomeRow(MUSIC_PLAYLISTS_ROW_ID, "Your playlists", HomeRowStyle.Playlists, emptyList(), playlists = lists))
+    val rows = if (lists.isEmpty()) emptyList() else listOf(HomeRow(MUSIC_PLAYLISTS_ROW_ID, "Your playlists", HomeRowStyle.Playlists, emptyList(), playlists = lists))
+    return Home(featured = emptyList(), rows = rows)
 }
+
+/** A music library's rows alone: see [musicBrowse]. */
+suspend fun FlexarrClient.musicRows(libraryId: String): List<HomeRow> = musicBrowse(libraryId).rows
 
 // Words
 
@@ -168,3 +215,48 @@ fun totalRuntime(tracks: List<ItemSummary>): String? {
 /** Tracks in the order they play, grouped by disc. One group when the album is a single disc (or no disc is numbered). */
 fun discs(tracks: List<ItemSummary>): List<Pair<Int, List<ItemSummary>>> =
     tracks.groupBy { it.discNumber ?: 1 }.toSortedMap().map { (disc, tracks) -> disc to tracks }
+
+/** Where an album from a music library's hero starts: the track at [index], [position] seconds in (null: its start). */
+data class AlbumStart(val index: Int, val position: Double?)
+
+/**
+ * Where an album's Play or Resume starts in its [tracks]: at [resume] (the track the server says it carries on from),
+ * part way in when that was left half way, otherwise at the first track. A resume track no longer on the album starts
+ * it from the top.
+ */
+fun albumStart(tracks: List<ItemSummary>, resume: ItemSummary?): AlbumStart {
+    val index = resume?.let { r -> tracks.indexOfFirst { it.id == r.id } }?.takeIf { it >= 0 } ?: return AlbumStart(0, null)
+    val position = resume.userData.takeIf { !it.watched && it.positionSeconds > 0 }?.positionSeconds
+    return AlbumStart(index, position)
+}
+
+/** A music library's views, switched at the top of its page as a film library's are. */
+enum class MusicView(val label: String) {
+    Browse("Browse"),
+    Artists("Artists"),
+    Albums("Albums"),
+    Genres("Genres"),
+    ;
+
+    /** Albums and Genres need a server from 0.59 ([libraryAlbums] isn't null); before it, Browse and Artists. */
+    val needsAlbums: Boolean get() = this == Albums || this == Genres
+
+    /** How its grid can be sorted. */
+    val sorts: List<LibrarySort>
+        get() = when (this) {
+            Artists -> listOf(LibrarySort.Title, LibrarySort.Added)
+            Albums -> listOf(LibrarySort.Title, LibrarySort.Added, LibrarySort.Year)
+            else -> emptyList()
+        }
+
+    companion object {
+        /** The views to offer: all four, or without Albums and Genres for a server that has no albums list. */
+        fun offered(albums: Boolean): List<MusicView> = entries.filter { albums || !it.needsAlbums }
+    }
+}
+
+/** "1 artist", "1,204 artists". */
+fun artistCount(total: Int): String = if (total == 1) "1 artist" else "${Format.count(total)} artists"
+
+/** "1 album", "38 albums". */
+fun albumCount(total: Int): String = if (total == 1) "1 album" else "${Format.count(total)} albums"
