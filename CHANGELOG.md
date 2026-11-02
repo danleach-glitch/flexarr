@@ -46,7 +46,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Search
 - Search lists movies, shows, artists and albums you don't have under **Not in your library** on the web, the Apple TV and Android TV too, as on the phones. A movie or show opens its own page in every app, with **Request** and **Watchlist** (on the phones it used to open a menu).
-- On iPhone, iPad, Android phones and the Apple TV, search lists the artists and albums you have under **Artists** and **Albums**, rather than artists among the movies and shows. The Apple TV's search finds audiobooks too.
+- On iPhone, iPad, Android phones, the Apple TV and Android TV, search lists the artists and albums you have under **Artists** and **Albums**, rather than artists among the movies and shows. The Apple TV's search finds audiobooks too.
 - On the web, a genre found by search opens that genre in its own library: a music genre's albums, a books genre's page, or the movies or shows of that genre. A genre in more than one library is listed once for each.
 
 ### Music
@@ -74,7 +74,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - An artist's page from outside your library opens sooner, with the usual spinner while it loads. Artist and album pages put their buttons in the same order in every app.
 - On the web, **Playlists** is one of a music library's views, beside **Genres**, with **Requested** last. With no playlists yet, **New playlist** waits in the middle of the page.
 - On the web, **Add to playlist** is smaller: pick a playlist, or name a new one on a single line.
-- On the web, **Fans also like** (and every artist card) says **Following** for an artist in your library that Lidarr follows, and offers **Follow** for one it doesn't.
+- On the web, iPhone, iPad and the Apple TV, **Fans also like** (and every artist card) says **Following** for an artist in your library that Lidarr follows, and offers **Follow** for one it doesn't.
 - In the apps, press and hold an album, artist, track or playlist for **Play**, **Shuffle**, **Play next**, **Add to queue** and **Go to artist** (and **Download** on phones). Tracks in an album or playlist have the same menu, and album and artist pages have a **⋯** with **Play next** and **Add to queue**.
 - On iPhone, iPad and Android phones, **Add to playlist** adds a track, album or artist to one of your playlists, or starts a new one with it.
 - On the web, the player bar along the bottom only shows while something is playing.
