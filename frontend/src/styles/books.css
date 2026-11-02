@@ -196,7 +196,7 @@
  * fanned in the top right, over the front one blurred and darkened to fill the tile with its colours.
  */
 .book-genre-tile {
-  --fan: 58%;
+  --fan: 50%;
 }
 
 .book-genre-tile .genre-name {
@@ -218,8 +218,8 @@
 
 .book-genre-fan {
   position: absolute;
-  top: 12%;
-  right: 7%;
+  top: 9%;
+  right: 6%;
   z-index: -1;
   height: var(--fan);
   aspect-ratio: 1;
