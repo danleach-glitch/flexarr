@@ -18,8 +18,8 @@ public sealed record TitleUndoBody(string MediaType, int TmdbId, IReadOnlyList<i
 /// Taking a film or show request back, as music's unrequest does: Seerr's request goes, Radarr or Sonarr stop wanting
 /// it and drop its downloads, and a film or show with nothing on disk leaves them. Files are never deleted. Seerr,
 /// Radarr and Sonarr are the household's, so it's for everyone: every profile's open request for the title closes.
-/// Nothing to take back (already undone, in the library, or in a library the profile can't see) answers 204 and
-/// changes nothing. Throws <see cref="ServiceException"/> when one of them refuses or doesn't answer.
+/// Nothing to take back (already undone, in the library, in a library the profile can't see, or never requested:
+/// added in Radarr or Sonarr by hand) answers 204 and changes nothing. Throws <see cref="ServiceException"/> when one of them refuses or doesn't answer.
 /// </summary>
 public static class RequestUndo
 {
@@ -59,6 +59,13 @@ public static class RequestUndo
 
         var chosen = !movie && body.Seasons is { Count: > 0 } given ? given.Where(n => n > 0).ToHashSet() : null;
         var open = (record?.Requests ?? []).Where(r => r.Status is not (Declined or Completed)).ToList();
+
+        // Only a real request is taken back. Seerr reads a title someone added in Radarr or Sonarr by hand as
+        // processing, so it can show as requested; with no open request in Seerr or Flexarr, nobody asked for it.
+        if (open.Count == 0 && !await db.MediaRequests.AnyAsync(r => r.Kind == kind && r.TmdbId == body.TmdbId && r.FulfilledAt == null, ct))
+        {
+            return Results.NoContent();
+        }
 
         // Radarr or Sonarr first: a request deleted in Seerr while they still want it would download anyway.
         if (movie)

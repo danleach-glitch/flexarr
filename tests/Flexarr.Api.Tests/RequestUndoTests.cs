@@ -155,6 +155,37 @@ public sealed class RequestUndoTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AFilmAddedInRadarrByHand_NobodyRequested_IsLeftAlone()
+    {
+        _arr.Responses["GET /api/v1/movie/7004"] = """{"id":7004,"mediaInfo":{"id":57,"status":3,"requests":[]}}""";
+        _arr.Responses["GET //radarr.test/api/v3/movie?tmdbId=7004"] = """[{"id":6,"title":"Film","hasFile":false}]""";
+        Deletes("/api/v3/movie/6?deleteFiles=false&addImportExclusion=false", "/api/v1/media/57");
+
+        var response = await Client().PostAsJsonAsync(Api("/requests/unrequest"), new { mediaType = "movie", tmdbId = 7004 });
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.DoesNotContain(_arr.Requests, r => r.StartsWith("DELETE", StringComparison.Ordinal) || r.StartsWith("PUT", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task AFlexarrRequestSeerrHasLost_IsStillTakenBack()
+    {
+        _arr.Responses["GET //radarr.test/api/v3/movie?tmdbId=7005"] = """[{"id":7,"title":"Film","hasFile":false}]""";
+        Deletes("/api/v3/movie/7?deleteFiles=false&addImportExclusion=false");
+        await InDbAsync(async db =>
+        {
+            db.MediaRequests.Add(new MediaRequest { ProfileId = PlaybackState.DefaultUser, Kind = MediaKind.Movie, TmdbId = 7005 });
+            return await db.SaveChangesAsync();
+        });
+
+        var response = await Client().PostAsJsonAsync(Api("/requests/unrequest"), new { mediaType = "movie", tmdbId = 7005 });
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Contains("DELETE /api/v3/movie/7?deleteFiles=false&addImportExclusion=false", _arr.Requests);
+        Assert.True(await InDbAsync(db => db.MediaRequests.AllAsync(r => r.TmdbId != 7005 || r.FulfilledAt != null)));
+    }
+
+    [Fact]
     public async Task ABadMediaType_IsRefused()
     {
         var response = await Client().PostAsJsonAsync(Api("/requests/unrequest"), new { mediaType = "album", tmdbId = 1 });
