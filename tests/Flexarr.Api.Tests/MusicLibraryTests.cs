@@ -99,6 +99,10 @@ public class MusicLibraryTests(FlexarrApiFactory factory) : IClassFixture<Flexar
         Assert.Equal(["Mezzanine", "Portishead"], year!.Items.Select(i => i.Title));
         // Massive Attack is tagged trip hop on the artist, Dummy on the album; Portishead (the album) has neither.
         Assert.Equal(["Dummy", "Mezzanine"], trip!.Items.Select(i => i.Title));
+
+        // By the album's title or its artist's name.
+        var found = await client.GetFromJsonAsync<PagedDto<ItemSummaryDto>>(Api($"/libraries/{music.Library}/albums?search=porti"), Json);
+        Assert.Equal(["Dummy", "Portishead"], found!.Items.Select(i => i.Title));
     }
 
     [Fact]

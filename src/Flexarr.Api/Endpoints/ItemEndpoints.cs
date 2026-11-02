@@ -77,9 +77,16 @@ public static class ItemEndpoints
         }).WithTags("Items");
 
         // A music library's albums (its items are its artists), paged like items: A–Z by default, newest added, or by year.
-        api.MapGet("/libraries/{id:guid}/albums", async (Guid id, string? sort, string? genre, int? skip, int? take, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
+        api.MapGet("/libraries/{id:guid}/albums", async (Guid id, string? search, string? sort, string? genre, int? skip, int? take, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
         {
             var query = InGenre(db.MediaItems.Where(i => i.LibraryId == id && i.Kind == MediaKind.Album), genre);
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                // An album's title or its artist's name.
+                var pattern = $"%{search.Trim().Replace("%", "", StringComparison.Ordinal).Replace("_", "", StringComparison.Ordinal)}%";
+                query = query.Where(i => EF.Functions.Like(i.Title, pattern) || EF.Functions.Like(i.Parent!.Title, pattern));
+            }
+
             var total = await query.CountAsync(ct);
             var ordered = sort switch
             {
