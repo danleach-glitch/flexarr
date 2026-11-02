@@ -180,8 +180,12 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     private var lastRecovery = 0L
     /** What was played before the current title in this sitting, for Previous episode (on shuffle, the server can't say). */
     private val trail = mutableListOf<ItemSummary>()
-    /** The title this sitting was started with (what Play was pressed on), whatever it has moved on to since. */
-    private var startedWith: String? = null
+    /**
+     * The page Play was pressed on (a token it made) and the title it started with, whatever the sitting has moved on to
+     * since, so that page can move on once the player closes.
+     */
+    var origin: Pair<String?, String>? = null
+        private set
     /** Playing a download from this phone, with no session: what's watched goes to the downloads, for the server later. */
     var isOffline by mutableStateOf(false)
         private set
@@ -253,11 +257,17 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     /**
      * Asks the server for [itemId] (or a random episode of a show, with [shuffle]) and starts it, as a new sitting.
      */
-    fun start(itemId: String, fromBeginning: Boolean = false, shuffle: Boolean = false, startAt: Double? = null) {
+    fun start(itemId: String, fromBeginning: Boolean = false, shuffle: Boolean = false, startAt: Double? = null, from: String? = null, startedWith: String? = null) {
         // A new sitting: nothing before it for Previous episode.
         trail.clear()
-        startedWith = itemId
+        origin = from to (startedWith ?: itemId)
+        model.videoStarted()
         play(itemId, fromBeginning, shuffle, startAt)
+    }
+
+    /** Back from the Chromecast: the same sitting carries on here, still belonging to the page Play was pressed on. */
+    fun carryOn(itemId: String, startAt: Double?) {
+        play(itemId, startAt = startAt)
     }
 
     /**
@@ -285,7 +295,8 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
      */
     fun startOffline(downloadId: String) {
         trail.clear()
-        startedWith = model.downloads.byId(downloadId)?.item?.id
+        origin = model.downloads.byId(downloadId)?.item?.id?.let { null to it }
+        model.videoStarted()
         playOffline(downloadId)
     }
 
@@ -1091,10 +1102,13 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         val session = info?.sessionId
         val at = player.currentPosition / 1000.0
         info?.let { if (model.recordsHistory && isPastCredits(it, at)) ReviewPrompt.titleFinished(closing = true) }
-        val started = startedWith
+        val origin = origin
         info?.let {
-            if (started != null) {
-                model.videoEnded(PlaybackEnding(started, it.item.id, model.recordsHistory && isPastCredits(it, at), it.next?.id))
+            if (origin != null) {
+                // Watched as the server counts it, so the page moves on exactly when the server has it as watched.
+                val credits = it.markers.firstOrNull { m -> m.type == MarkerType.Credits }?.start
+                val watched = model.recordsHistory && PlaybackEnding.isWatched(at, it.durationSeconds, credits)
+                model.videoEnded(PlaybackEnding(origin.first, origin.second, it.item.id, watched, it.next?.id))
             }
         }
         player.release()

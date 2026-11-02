@@ -143,10 +143,11 @@ class Navigator(private val nav: NavHostController, private val model: AppModel,
     fun back() = nav.popBackStack()
 
     /** Plays a film or episode from where it was left (or from the beginning). */
-    fun play(item: ItemSummary, fromBeginning: Boolean = false) = play(item.id, fromBeginning)
+    /** [from]: the page Play was pressed on ([io.github.flexarr.player.LocalPlayFrom]), so it can move on afterwards. */
+    fun play(item: ItemSummary, fromBeginning: Boolean = false, from: String? = null) = play(item.id, fromBeginning, from = from)
 
-    fun play(itemId: String, fromBeginning: Boolean = false, shuffle: Boolean = false, startAt: Int? = null) {
-        context.startActivity(PlayerActivity.intent(context, itemId, fromBeginning, shuffle, startAt))
+    fun play(itemId: String, fromBeginning: Boolean = false, shuffle: Boolean = false, startAt: Int? = null, from: String? = null) {
+        context.startActivity(PlayerActivity.intent(context, itemId, fromBeginning, shuffle, startAt, from))
     }
 
     /** A film plays; a show or season plays the episode it's up to, or opens when everything's watched. */

@@ -1091,9 +1091,14 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         lastEnding = ending
     }
 
-    /** The last video's ending, if it was started with [id] a moment ago; taken, so only one page moves on with it. */
-    fun takeEnding(startedWith: String): PlaybackEnding? {
-        val ending = lastEnding?.takeIf { it.startedWith == startedWith && System.currentTimeMillis() - it.at < 60_000 } ?: return null
+    /** A new sitting: an ending no page took is old news. */
+    fun videoStarted() {
+        lastEnding = null
+    }
+
+    /** How the last sitting ended, if it was started from the page that made the token [from]; taken, so the page moves on once. */
+    fun takeEnding(from: String): PlaybackEnding? {
+        val ending = lastEnding?.takeIf { it.from == from } ?: return null
         lastEnding = null
         return ending
     }

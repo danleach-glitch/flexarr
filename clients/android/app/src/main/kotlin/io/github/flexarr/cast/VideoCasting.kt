@@ -23,7 +23,7 @@ class VideoCasting(private val activity: ComponentActivity, private val controll
         casting.videoHost = this
         activity.lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onStart(owner: LifecycleOwner) {
-                pending?.let { (itemId, at) -> controller.start(itemId, startAt = at) }
+                pending?.let { (itemId, at) -> controller.carryOn(itemId, at) }
                 pending = null
             }
         })
@@ -46,7 +46,7 @@ class VideoCasting(private val activity: ComponentActivity, private val controll
     }
 
     override fun resumeHere(itemId: String, at: Double?) {
-        if (activity.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) controller.start(itemId, startAt = at) else pending = itemId to at
+        if (activity.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) controller.carryOn(itemId, at) else pending = itemId to at
     }
 
     override fun finished() = activity.finish()

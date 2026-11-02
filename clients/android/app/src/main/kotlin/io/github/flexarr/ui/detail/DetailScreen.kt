@@ -1,5 +1,8 @@
 package io.github.flexarr.ui.detail
 
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import io.github.flexarr.player.LocalPlayFrom
 import io.github.flexarr.ui.books.BookScreen
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
@@ -54,6 +57,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
@@ -125,6 +129,7 @@ import io.github.flexarr.ui.theme.RoomBackground
 import io.github.flexarr.ui.theme.glowColor
 import io.github.flexarr.ui.theme.marquee
 import java.util.Locale
+import java.util.UUID
 import io.github.flexarr.ui.theme.Tokens
 import io.github.flexarr.ui.theme.FlexarrIcons
 
@@ -140,6 +145,8 @@ fun DetailScreen(model: AppModel, id: String) {
     var detail by remember(id) { mutableStateOf<ItemDetail?>(null) }
     // The episode shown now, once watching from this page has moved it on from [id].
     var shownId by rememberSaveable(id) { mutableStateOf<String?>(null) }
+    // Given to the player with Play, so this page knows the sitting was started here (AppModel.takeEnding).
+    val pageToken = rememberSaveable(id) { UUID.randomUUID().toString() }
     var error by remember(id) { mutableStateOf<String?>(null) }
     var nextUp by remember(id) { mutableStateOf<ItemSummary?>(null) }
     var similar by remember(id) { mutableStateOf(emptyList<ItemSummary>()) }
@@ -152,14 +159,18 @@ fun DetailScreen(model: AppModel, id: String) {
 
     LaunchedEffect(id, model.watchStateVersion, attempt) {
         try {
-            var loaded = client.item(shownId ?: id)
-            // Back from watching an episode started here: on to the next one (or the one it stopped part way through).
-            val target = if (loaded.item.kind == MediaKind.Episode) model.takeEnding(startedWith = loaded.item.id)?.moveOn else null
-            if (target != null) {
-                runCatching { client.item(target) }.getOrNull()?.takeIf { it.item.kind == MediaKind.Episode }?.let {
-                    shownId = target
-                    loaded = it
-                }
+            // Back from watching an episode started here: on to the next one (or the one it stopped part way through),
+            // settled before anything is fetched, so a reload that cuts in can't lose it.
+            val before = shownId
+            model.takeEnding(from = pageToken)?.moveOn(shownId ?: id)?.let { shownId = it }
+            var loaded = try {
+                client.item(shownId ?: id)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (shownId == before) throw e
+                shownId = before // The next episode couldn't be had (gone, or not for this profile): stay.
+                client.item(shownId ?: id)
             }
             // A season opens as its show, with that season selected.
             val parent = loaded.item.parentId
@@ -206,6 +217,7 @@ fun DetailScreen(model: AppModel, id: String) {
     val series = item?.let { if (it.kind == MediaKind.Series) it else loaded.ancestors.firstOrNull { a -> a.kind == MediaKind.Series } }
     val ambient = item?.let { glowColor(it.accentColor) } ?: Flexarr.silver
 
+    CompositionLocalProvider(LocalPlayFrom provides pageToken) {
     RoomBackground(ambient = ambient, intensity = 0.22f) {
         when {
             loaded != null && item != null -> PullToRefreshBox(
@@ -229,6 +241,7 @@ fun DetailScreen(model: AppModel, id: String) {
             modifier = Modifier.statusBarsPadding().padding(8.dp).clip(CircleShape).background(Flexarr.room.copy(alpha = 0.55f)),
         ) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Flexarr.screen) }
     }
+    }
 }
 
 @Composable
@@ -249,7 +262,8 @@ private fun Header(item: ItemSummary, series: ItemSummary?, detail: ItemDetail, 
             Column(Modifier.align(Alignment.BottomStart).statusBarsPadding().padding(top = 64.dp).padding(horizontal = Edge), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (item.kind == MediaKind.Episode && series != null) {
                     TitleArt(series, maxWidth = 240.dp, maxHeight = 80.dp, fontSize = 40)
-                    Text(item.episodeSubtitle ?: item.title, style = marquee(28).copy(fontWeight = FontWeight.Bold))
+                    // Said by TalkBack when the page moves on to the next episode.
+                    Text(item.episodeSubtitle ?: item.title, style = marquee(28).copy(fontWeight = FontWeight.Bold), modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
                 } else {
                     TitleArt(item, maxWidth = 300.dp, maxHeight = 120.dp, fontSize = 52)
                 }
@@ -282,6 +296,7 @@ private fun Header(item: ItemSummary, series: ItemSummary?, detail: ItemDetail, 
  */
 @Composable
 private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary?, season: ItemDetail?, ambient: Color, detail: ItemDetail) {
+    val from = LocalPlayFrom.current
     val navigator = LocalNavigator.current
     val model = androidx.compose.ui.platform.LocalContext.current.appModel
     // Subtitles from the server's Bazarr, for the first file (the copy playback picks); saying so once they're saved.
@@ -323,7 +338,7 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
     val buttons = if (playsOn && DetailActions.Button.MORE !in actions.buttons) actions.buttons + DetailActions.Button.MORE else actions.buttons
     Column(Modifier.padding(horizontal = Edge).widthIn(max = 520.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
         if (playable != null) {
-            ActionButton(playLabel(playable, item), onClick = { navigator.play(playable) }, icon = FlexarrIcons.play, prominent = true, ambient = ambient, modifier = Modifier.fillMaxWidth())
+            ActionButton(playLabel(playable, item), onClick = { navigator.play(playable, from = from) }, icon = FlexarrIcons.play, prominent = true, ambient = ambient, modifier = Modifier.fillMaxWidth())
         }
         // Sharing the width, until large text or many actions would shrink the names to fit: then each its own size,
         // scrolling sideways.
@@ -334,7 +349,7 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
                 when (button) {
                     DetailActions.Button.PLAY -> Unit
                     DetailActions.Button.START_OVER -> playable?.let { target ->
-                        LabeledAction("Start over", FlexarrIcons.startOver, { navigator.play(target, fromBeginning = true) }, slot)
+                        LabeledAction("Start over", FlexarrIcons.startOver, { navigator.play(target, fromBeginning = true, from = from) }, slot)
                     }
                     DetailActions.Button.SHUFFLE -> if (item.childCount > 0) LabeledAction("Shuffle", FlexarrIcons.shuffle, { navigator.shuffle(item) }, slot)
                     DetailActions.Button.TRAILER -> LabeledAction("Trailer", FlexarrIcons.trailer, { showingTrailer = true }, slot)
@@ -520,13 +535,14 @@ private fun EpisodeColumns(episodes: List<ItemSummary>, columns: Int, content: @
 
 @Composable
 private fun EpisodeRow(episode: ItemSummary, overview: String?, isCurrent: Boolean, playsOnTap: Boolean) {
+    val from = LocalPlayFrom.current
     val navigator = LocalNavigator.current
     var menu by remember { mutableStateOf(false) }
     val actions = itemActions(episode, showsDetails = true)
     Box(Modifier.padding(horizontal = Edge)) {
         Column(
             Modifier.fillMaxWidth().pressable(
-                onClick = { if (playsOnTap) navigator.play(episode) else navigator.openItem(episode.id) },
+                onClick = { if (playsOnTap) navigator.play(episode, from = from) else navigator.openItem(episode.id) },
                 onLongClick = { menu = true },
             ).menuActions(actions),
             verticalArrangement = Arrangement.spacedBy(8.dp),
