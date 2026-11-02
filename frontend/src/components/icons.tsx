@@ -1,4 +1,4 @@
-import type { SVGProps } from 'react'
+import { useId, type SVGProps } from 'react'
 
 const base = { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true } as const
 
@@ -93,6 +93,13 @@ export const Captions = (p: IconProps) => (
   <svg {...base} {...p}>
     <rect x="3" y="5" width="18" height="14" rx="2.5" />
     <path d="M10 10.5a2.5 2.5 0 1 0 0 3M17 10.5a2.5 2.5 0 1 0 0 3" />
+  </svg>
+)
+/** Subtitles: a speech bubble with lines of text, as captions.bubble on the Apple apps. */
+export const CaptionsBubble = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="M5 4.5h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-7.5L7 21v-3.5H5a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2Z" />
+    <path d="M7 9.5h4M14 9.5h3M7 13h7" />
   </svg>
 )
 export const Waveform = (p: IconProps) => (
@@ -263,6 +270,21 @@ export const Playlist = (p: IconProps) => (
     <circle cx="16.5" cy="17.5" r="2.5" />
   </svg>
 )
+/** A single note: a music library, as music.note on the Apple apps. */
+export const MusicNote = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="M12 17.5V3.5l6 2.5" />
+    <circle cx="8.5" cy="17.5" r="3.5" />
+  </svg>
+)
+/** Go to the show: a stack of videos, so it isn't mistaken for Collections. */
+export const PlayStack = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <rect x="7" y="7.5" width="14" height="12" rx="2" />
+    <path d="M3 15.5V6.5a2 2 0 0 1 2-2h11" />
+    <path d="M12.5 11v5l4-2.5Z" fill="currentColor" />
+  </svg>
+)
 export const Stack = (p: IconProps) => (
   <svg {...base} {...p}>
     <rect x="3" y="9" width="18" height="11" rx="2" />
@@ -428,6 +450,26 @@ export const Stop = (p: IconProps) => (
   </svg>
 )
 /** Download: an arrow down onto a tray. */
+/** Download in a circle, as arrow.down.circle on the Apple apps. */
+export const DownloadCircle = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 7.5v8.5M8.5 12.5 12 16l3.5-3.5" />
+  </svg>
+)
+/** Watched: a solid disc with the tick cut out of it, as checkmark.circle.fill on the Apple apps. */
+export const CheckCircleFilled = (p: IconProps) => {
+  const id = useId()
+  return (
+    <svg {...base} {...p}>
+      <mask id={id}>
+        <rect width="24" height="24" fill="white" stroke="none" />
+        <path d="m7.5 12.5 3 3 6-6.5" stroke="black" strokeWidth="2.2" />
+      </mask>
+      <circle cx="12" cy="12" r="10" fill="currentColor" stroke="none" mask={`url(#${id})`} />
+    </svg>
+  )
+}
 export const Download = (p: IconProps) => (
   <svg {...base} {...p}>
     <path d="M12 4v11" />

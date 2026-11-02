@@ -194,7 +194,7 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
             )}
             {!kids && (
               <AsyncButton className="button quiet" aria-pressed={item.userData.watched} onClick={toggleWatched}>
-                <icon.watched /> {item.userData.watched ? 'Watched' : 'Mark as watched'}
+                {item.userData.watched ? <icon.isWatched /> : <icon.watched />} {item.userData.watched ? 'Watched' : 'Mark as watched'}
               </AsyncButton>
             )}
             {detail.onWatchlist != null && !kids && <WatchlistButton titleKey={{ libraryItemId: item.id }} title={item.title} on={detail.onWatchlist} />}

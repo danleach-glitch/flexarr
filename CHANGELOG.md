@@ -21,6 +21,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On iPhone, notices such as *Subtitles saved* show as a banner that goes by itself, rather than a box to dismiss.
 - On Android, the back gesture shows the screen you're going back to, and Android TV's settings use switches.
 - Android TV gets **Shuffle** on shows and a ⋯ menu on a title's page, like the Apple TV.
+- The same icons in every app. Download is an arrow in a circle, and a download that's finished is a green disc with an arrow everywhere, audiobooks included. Something you've watched shows a filled circle with a tick, which is also **Mark as unwatched**. Subtitles are a speech bubble, Trailer and movie libraries a strip of film, and **Go to show** has its own icon so it isn't confused with Collections. On Android, audiobook downloads show their progress as the iPhone does, and press-and-hold menus show an icon beside each choice.
 
 ### Audiobooks
 - A new kind of library: **Audiobooks**. Add one in **Settings › Libraries** and point it at your books. A folder of files is one book, disc folders are parts of it, and the files play back to back as one book. Series and their numbers, authors and narrators come from the folders, the files' tags, and files beside them (`metadata.opf`, Audiobookshelf's `metadata.json`, `desc.txt`, `reader.txt`, a cover).

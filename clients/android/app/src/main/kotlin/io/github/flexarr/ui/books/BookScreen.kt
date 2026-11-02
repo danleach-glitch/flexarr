@@ -20,10 +20,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowCircleDown
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.IconButton
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.Person
@@ -32,11 +30,13 @@ import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.outlined.Book
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.Downloading
+import androidx.compose.material.icons.outlined.SyncProblem
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -79,6 +79,7 @@ import io.github.flexarr.core.isBookFinished
 import io.github.flexarr.core.listenAgain
 import io.github.flexarr.core.releaseYear
 import io.github.flexarr.ui.components.ActionButton
+import io.github.flexarr.ui.components.DownloadedIcon
 import io.github.flexarr.ui.components.Edge
 import io.github.flexarr.ui.components.FactsLine
 import io.github.flexarr.ui.components.LabeledAction
@@ -98,11 +99,12 @@ import io.github.flexarr.ui.components.pressable
 import io.github.flexarr.ui.components.rememberLoader
 import io.github.flexarr.ui.podcasts.Tabular
 import io.github.flexarr.ui.theme.Flexarr
+import io.github.flexarr.ui.theme.FlexarrIcons
 import io.github.flexarr.ui.theme.RoomBackground
+import io.github.flexarr.ui.theme.Tokens
 import io.github.flexarr.ui.theme.glowColor
 import io.github.flexarr.ui.theme.marquee
 import kotlinx.coroutines.launch
-import io.github.flexarr.ui.theme.Tokens
 
 // A book's page and a series' page, as the iPhone app's album and podcast pages are laid out: the square cover, the
 // title, who wrote and reads it, Play, then its chapters, bookmarks, notes and more like it.
@@ -451,15 +453,10 @@ private fun BookDownloadAction(model: AppModel, item: ItemSummary) {
     var menu by remember { mutableStateOf(false) }
     Box {
         when {
-            download == null -> LabeledAction("Download", Icons.Outlined.Download, { navigator.downloadBook(item) })
-            download.isDownloaded -> LabeledAction("Downloaded", Icons.Filled.ArrowCircleDown, { menu = true }, tint = Flexarr.go)
-            download.phase == LocalPhase.Failed -> LabeledAction("Try again", Icons.Outlined.Download, { navigator.downloadBook(item) }, tint = Flexarr.danger)
-            else -> Column(Modifier.pressable({ menu = true }), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Box(Modifier.size(48.dp).clip(CircleShape).background(Flexarr.screen.copy(alpha = 0.14f)), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(progress = { store.progress(download).toFloat() }, color = Flexarr.screen, strokeWidth = 2.5.dp, modifier = Modifier.size(26.dp))
-                }
-                Text("${(store.progress(download) * 100).toInt()}%", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher, style = Tabular)
-            }
+            download == null -> LabeledAction("Download", FlexarrIcons.download, { navigator.downloadBook(item) })
+            download.isDownloaded -> LabeledAction("Downloaded", DownloadedIcon, { menu = true }, tint = Color.Unspecified)
+            download.phase == LocalPhase.Failed -> LabeledAction("Try again", Icons.Outlined.SyncProblem, { navigator.downloadBook(item) })
+            else -> LabeledAction("${(store.progress(download) * 100).toInt()}%", Icons.Outlined.Downloading, { menu = true })
         }
         DropdownMenu(menu, onDismissRequest = { menu = false }, containerColor = Flexarr.seat) {
             DropdownMenuItem(

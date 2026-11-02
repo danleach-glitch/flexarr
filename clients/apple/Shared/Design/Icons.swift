@@ -15,7 +15,7 @@ enum Symbol {
     /// Already watched (the Watched button pressed).
     static let isWatched = "checkmark.circle.fill"
     /// Mark as unwatched.
-    static let markUnwatched = "eye.slash"
+    static let markUnwatched = "checkmark.circle.fill"
     /// Add to watchlist.
     static let watchlist = "bookmark"
     /// On the watchlist.
@@ -25,7 +25,7 @@ enum Symbol {
     /// Search for subtitles.
     static let subtitles = "captions.bubble"
     /// Go to the show.
-    static let goToShow = "rectangle.stack"
+    static let goToShow = "play.rectangle.on.rectangle"
     /// More actions.
     static let more = "ellipsis"
     /// Home.

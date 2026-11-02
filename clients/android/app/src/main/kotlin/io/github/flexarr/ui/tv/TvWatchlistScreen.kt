@@ -14,6 +14,8 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.BookmarkRemove
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -145,7 +147,7 @@ private fun EntryCard(model: AppModel, entry: WatchlistEntry) {
             entry.title,
             listOfNotNull(
                 MenuAction("Request") { navigator.watchlistChange("Couldn’t request this") { model.request(entry) } }.takeIf { canRequest },
-                MenuAction("Remove from watchlist") { navigator.watchlistChange("Couldn’t remove this from your watchlist") { model.removeFromWatchlist(entry) } },
+                MenuAction("Remove from watchlist", Icons.Outlined.BookmarkRemove) { navigator.watchlistChange("Couldn’t remove this from your watchlist") { model.removeFromWatchlist(entry) } },
             ),
             onDismiss = { menu = false },
         )

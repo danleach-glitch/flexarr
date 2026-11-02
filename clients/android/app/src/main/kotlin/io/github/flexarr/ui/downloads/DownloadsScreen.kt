@@ -17,14 +17,14 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.ArrowCircleDown
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.ErrorOutline
-import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.HourglassTop
 import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
@@ -41,14 +41,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
@@ -72,6 +73,7 @@ import io.github.flexarr.core.asPodcastEpisode
 import io.github.flexarr.core.bytes
 import io.github.flexarr.core.episodeSubtitle
 import io.github.flexarr.player.PlayerActivity
+import io.github.flexarr.ui.components.DownloadedIcon
 import io.github.flexarr.ui.components.Edge
 import io.github.flexarr.ui.components.PageTitle
 import io.github.flexarr.ui.components.ProgressBar
@@ -79,10 +81,10 @@ import io.github.flexarr.ui.components.SectionHeading
 import io.github.flexarr.ui.components.StatusView
 import io.github.flexarr.ui.components.pressable
 import io.github.flexarr.ui.theme.Flexarr
-import io.github.flexarr.ui.theme.RoomBackground
-import kotlinx.coroutines.launch
-import io.github.flexarr.ui.theme.Tokens
 import io.github.flexarr.ui.theme.FlexarrIcons
+import io.github.flexarr.ui.theme.RoomBackground
+import io.github.flexarr.ui.theme.Tokens
+import kotlinx.coroutines.launch
 
 // The iPhone app's DownloadsView: everything downloaded (or on its way), playable with no connection; and the download
 // button a title's page and a podcast episode's row carry.
@@ -324,7 +326,7 @@ fun DownloadStateIcon(
             download.phase == LocalPhase.Preparing && ringWhilePreparing -> DownloadRing(progress.toFloat())
             download.phase == LocalPhase.Preparing -> Icon(Icons.Filled.HourglassTop, contentDescription = null, tint = Flexarr.usher)
             download.phase == LocalPhase.Downloading -> DownloadRing(progress.toFloat())
-            download.phase == LocalPhase.Downloaded -> Icon(Icons.Filled.ArrowCircleDown, contentDescription = null, tint = Flexarr.go)
+            download.phase == LocalPhase.Downloaded -> Icon(DownloadedIcon, contentDescription = null, tint = Color.Unspecified)
             else -> Icon(Icons.Filled.ErrorOutline, contentDescription = null, tint = Flexarr.danger)
         }
     }

@@ -252,6 +252,7 @@ fun TvItemMenu(title: String, actions: List<MenuAction>, onDismiss: () -> Unit) 
                         onDismiss()
                         action.run()
                     },
+                    icon = action.icon,
                     modifier = Modifier.fillMaxWidth().then(if (index == 0) Modifier.focusRequester(first) else Modifier),
                 )
             }

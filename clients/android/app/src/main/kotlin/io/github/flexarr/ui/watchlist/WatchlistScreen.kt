@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.outlined.BookmarkRemove
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -72,10 +73,10 @@ import io.github.flexarr.ui.components.pressable
 import io.github.flexarr.ui.components.rememberLoader
 import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.RoomBackground
+import io.github.flexarr.ui.theme.Tokens
 import io.github.flexarr.ui.theme.marquee
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
-import io.github.flexarr.ui.theme.Tokens
 
 /**
  * The profile's watchlist: what's ready plays from the usual poster card, and the rest says where it's got to (on its
@@ -155,7 +156,7 @@ private fun EntryCard(model: AppModel, entry: WatchlistEntry) {
     }
     val actions = buildList {
         if (canRequest && !requesting) add(MenuAction("Request") { request() })
-        add(MenuAction("Remove from watchlist") { navigator.watchlistChange("Couldn’t remove this from your watchlist") { model.removeFromWatchlist(entry) } })
+        add(MenuAction("Remove from watchlist", Icons.Outlined.BookmarkRemove) { navigator.watchlistChange("Couldn’t remove this from your watchlist") { model.removeFromWatchlist(entry) } })
     }
     // A show in the library with nothing to play yet still has its page.
     val libraryId = entry.libraryItemId

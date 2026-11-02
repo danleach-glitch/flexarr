@@ -1,17 +1,23 @@
 package io.github.flexarr.ui.search
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
@@ -23,12 +29,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.Role
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -36,6 +36,7 @@ import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.outlined.BookmarkRemove
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -51,63 +52,64 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.activity.compose.BackHandler
 import io.github.flexarr.AppModel
 import io.github.flexarr.core.ExternalTitle
 import io.github.flexarr.core.ItemSummary
-import io.github.flexarr.core.requestsStatus
-import io.github.flexarr.core.searchEverything
-import io.github.flexarr.ui.components.ItemMenu
-import io.github.flexarr.ui.components.MenuAction
-import io.github.flexarr.ui.components.PosterWidth
-import io.github.flexarr.ui.components.menuActions
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.width
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.text.style.TextAlign
 import io.github.flexarr.core.RecentSearches
 import io.github.flexarr.core.SearchResults
 import io.github.flexarr.core.clearRecentSearches
 import io.github.flexarr.core.forgetSearch
 import io.github.flexarr.core.recentSearches
 import io.github.flexarr.core.recordSearch
-import io.github.flexarr.ui.components.GridMinimum
+import io.github.flexarr.core.requestsStatus
+import io.github.flexarr.core.searchEverything
 import io.github.flexarr.ui.components.Edge
+import io.github.flexarr.ui.components.GridMinimum
+import io.github.flexarr.ui.components.ItemMenu
 import io.github.flexarr.ui.components.Load
-import io.github.flexarr.ui.components.LocalNavigator
 import io.github.flexarr.ui.components.Loaded
+import io.github.flexarr.ui.components.LocalNavigator
+import io.github.flexarr.ui.components.MenuAction
 import io.github.flexarr.ui.components.PageTitle
 import io.github.flexarr.ui.components.PersonCard
 import io.github.flexarr.ui.components.PillButton
 import io.github.flexarr.ui.components.PosterCard
+import io.github.flexarr.ui.components.PosterWidth
 import io.github.flexarr.ui.components.RemoteImage
 import io.github.flexarr.ui.components.RowSpacing
 import io.github.flexarr.ui.components.SectionHeading
 import io.github.flexarr.ui.components.StatusView
 import io.github.flexarr.ui.components.WideCard
+import io.github.flexarr.ui.components.menuActions
 import io.github.flexarr.ui.components.pressable
 import io.github.flexarr.ui.components.rememberLoader
 import io.github.flexarr.ui.theme.Flexarr
+import io.github.flexarr.ui.theme.FlexarrIcons
 import io.github.flexarr.ui.theme.RoomBackground
+import io.github.flexarr.ui.theme.Tokens
 import io.github.flexarr.ui.theme.marquee
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import io.github.flexarr.ui.theme.Tokens
-import androidx.compose.foundation.border
 
 /** Films, shows, episodes and people in the libraries, as they're typed. The iPhone app's SearchView. */
 @Composable
@@ -360,7 +362,7 @@ private fun ExternalCard(model: AppModel, title: ExternalTitle) {
     val on = onWatchlist ?: title.onWatchlist ?: (title.key in model.watchlistTitles)
     val actions = buildList {
         if (model.hasWatchlist) {
-            add(MenuAction(if (on) "Remove from watchlist" else "Add to watchlist") {
+            add(MenuAction(if (on) "Remove from watchlist" else "Add to watchlist", if (on) Icons.Outlined.BookmarkRemove else FlexarrIcons.watchlist) {
                 onWatchlist = !on
                 navigator.watchlistChange(if (on) "Couldn’t remove this from your watchlist" else "Couldn’t add this to your watchlist") {
                     try {

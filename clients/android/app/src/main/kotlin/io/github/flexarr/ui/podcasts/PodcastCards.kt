@@ -170,7 +170,7 @@ fun PodcastEpisodeRow(
         add(MenuAction(if (episode.progress != null) "Resume" else "Play") { model.podcasts.play(episode) })
         add(MenuAction("Play next") { model.addToUpNext(episode.id, next = true) })
         add(MenuAction("Add to Up next") { model.addToUpNext(episode.id, next = false) })
-        removeFromUpNext?.let { add(MenuAction("Remove from Up next", it)) }
+        removeFromUpNext?.let { add(MenuAction("Remove from Up next", run = it)) }
         add(MenuAction(if (episode.isPlayed) "Mark as unplayed" else "Mark as played") { setPlayed(!episode.isPlayed) })
         if (download == null) {
             add(MenuAction("Download") { model.scope.launch { runCatching { model.downloads.downloadEpisode(episode.id) } } })
