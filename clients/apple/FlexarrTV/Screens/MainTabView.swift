@@ -503,8 +503,10 @@ struct TabStack<Content: View>: View {
             WatchlistView()
         case .comingSoon:
             ComingSoonView()
-        case .musicArtist, .musicAlbum:
-            EmptyView()
+        case .musicArtist(let artist):
+            ExternalArtistView(preview: artist)
+        case .musicAlbum(let album):
+            ExternalAlbumView(preview: album)
         case .musicGenre(let genre):
             MusicGenreView(genre: genre)
         case .musicItem(let id, let isArtist):
