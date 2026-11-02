@@ -5,12 +5,12 @@ export function itemLink(item: ItemSummary) {
   return item.kind === 'Season' && item.parentId ? `/item/${item.parentId}?season=${item.seasonNumber}` : `/item/${item.id}`
 }
 
-/** A genre in a library: albums for music, a books library's genre page, or All filtered for movies and shows. */
-export function libraryGenreLink(libraryId: string, type: LibraryType, genre: string) {
-  const g = encodeURIComponent(genre)
-  if (type === 'Music') return `/library/${libraryId}?view=albums&genre=${g}`
-  if (type === 'Audiobooks') return `/library/${libraryId}?view=genre&genre=${g}`
-  return `/library/${libraryId}?genre=${g}`
+/**
+ * A genre in a library: its own page, titled with the genre and with a way back to Genres, the same in every kind of
+ * library (its movies or shows, a music library's albums, a books library's books).
+ */
+export function libraryGenreLink(libraryId: string, _type: LibraryType, genre: string) {
+  return `/library/${libraryId}?view=genre&genre=${encodeURIComponent(genre)}`
 }
 
 /**

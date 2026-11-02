@@ -93,12 +93,24 @@ describe('A music library', () => {
     expect(api.mock.calls.some(([url]) => String(url).includes('/albums?genre=Trip+hop'))).toBe(true)
   })
 
+  it("opens a genre on its own page, titled, with a way back to Genres and Play and Shuffle", async () => {
+    const api = mockApi({ '/libraries/lib-music/albums': { total: 1, items: [dummy] } })
+    renderAt('/library/lib-music?view=genre&genre=Trip%20hop')
+
+    expect(await screen.findByRole('heading', { name: 'Trip hop' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Genres/ })).toHaveAttribute('href', '/library/lib-music?view=genres')
+    expect(screen.queryByRole('link', { name: 'Albums' })).not.toBeInTheDocument()
+    expect(await screen.findByText('1 album')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Shuffle/ })).toBeInTheDocument()
+    expect(api.mock.calls.some(([url]) => String(url).includes('/albums?genre=Trip+hop'))).toBe(true)
+  })
+
   it('has genre tiles that count albums and open them', async () => {
     mockApi({ '/libraries/lib-music/album-genres': [{ name: 'Trip hop', count: 2, backdrop: null }] })
     renderAt('/library/lib-music?view=genres')
 
     const tile = await screen.findByRole('link', { name: /Trip hop/ })
     expect(tile).toHaveTextContent('2 albums')
-    expect(tile).toHaveAttribute('href', '/library/lib-music?view=albums&genre=Trip%20hop')
+    expect(tile).toHaveAttribute('href', '/library/lib-music?view=genre&genre=Trip%20hop')
   })
 })
