@@ -61,7 +61,7 @@ public static class MusicRequested
                 }
 
                 var (state, progress) = State(album, queued[album.Id].FirstOrDefault(), now);
-                listed.Add(new MusicRequestedDto(releaseGroup, album.Title, artist.ArtistName, artist.ForeignArtistId, Cover(lidarr, album),
+                listed.Add(new MusicRequestedDto(releaseGroup, album.Title, artist.ArtistName, artist.ForeignArtistId, Cover(lidarr, album) ?? Photo(lidarr, artist),
                     album.ReleaseDate is { } d ? DateOnly.FromDateTime(d) : null, state, progress, owned.ArtistId(artist.ArtistName)));
             }
         }
@@ -168,9 +168,14 @@ public static class MusicRequested
     /// The album's cover from Lidarr itself, as a signed link (Lidarr's address and key stay on the server), with its
     /// ?lastWrite stamp kept so a replaced cover is a new link.
     /// </summary>
-    private static string? Cover(ArrInstance lidarr, LidarrAlbum album)
+    internal static string? Cover(ArrInstance lidarr, LidarrAlbum album) => Image(lidarr, album.Images, "cover", $"mediacover/album/{album.Id}/");
+
+    /// <summary>The artist's photo from Lidarr, for an album with no cover of its own.</summary>
+    internal static string? Photo(ArrInstance lidarr, LidarrArtist artist) => artist.Id > 0 ? Image(lidarr, artist.Images, "poster", $"mediacover/artist/{artist.Id}/") : null;
+
+    private static string? Image(ArrInstance lidarr, IReadOnlyList<ArrImage> images, string coverType, string folder)
     {
-        var image = album.Images.FirstOrDefault(i => string.Equals(i.CoverType, "cover", StringComparison.OrdinalIgnoreCase));
+        var image = images.FirstOrDefault(i => string.Equals(i.CoverType, coverType, StringComparison.OrdinalIgnoreCase));
         if (image?.Url is not { Length: > 0 } url)
         {
             return null;
@@ -179,6 +184,6 @@ public static class MusicRequested
         var query = url.IndexOf('?', StringComparison.Ordinal);
         var path = query < 0 ? url : url[..query];
         var file = path[(path.LastIndexOf('/') + 1)..];
-        return file.Length == 0 ? null : ImageEndpoints.ArrUrl(ArtworkUrl.Arr(lidarr.Name, $"mediacover/album/{album.Id}/{file}" + (query < 0 ? string.Empty : url[query..])));
+        return file.Length == 0 ? null : ImageEndpoints.ArrUrl(ArtworkUrl.Arr(lidarr.Name, folder + file + (query < 0 ? string.Empty : url[query..])));
     }
 }

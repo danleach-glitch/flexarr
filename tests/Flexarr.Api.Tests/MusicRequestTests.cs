@@ -547,6 +547,19 @@ public sealed class MusicRequestTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AMissingAlbumWithNoCoverAnywhere_ShowsItsArtist()
+    {
+        var (_, artist, _) = await SeedOwnedAsync();
+        _lidarr.Responses["GET /api/v1/artist"] = """[{"id":3,"artistName":"Wet Leg","monitored":true,"monitorNewItems":"none","images":[{"coverType":"poster","url":"/MediaCover/Artists/3/poster.jpg?lastWrite=1"}]}]""";
+        _lidarr.Responses["GET /api/v1/album?artistId=3"] = """[{"id":12,"artistId":3,"title":"OnlySee","foreignAlbumId":"rg-onlysee","monitored":true,"releaseDate":"1997-01-01T00:00:00Z"}]""";
+
+        var extras = await Client().GetFromJsonAsync<JsonElement>(Api($"/requests/music/library-artist/{artist.Id}"));
+
+        var onlySee = extras.GetProperty("missing").EnumerateArray().Single(m => m.GetProperty("title").GetString() == "OnlySee");
+        Assert.StartsWith("/api/v1/images/arr?url=arr%3A%2F%2FLidarr%2Fmediacover%2Fartist%2F3%2Fposter.jpg", onlySee.GetProperty("image").GetString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task ALidarrThatTimesOutOnARealQuestion_ReadsAsNotAnswering_NotAsNotFollowing()
     {
         var (_, artist, _) = await SeedOwnedAsync();

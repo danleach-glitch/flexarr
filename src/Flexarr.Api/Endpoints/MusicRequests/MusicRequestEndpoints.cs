@@ -181,7 +181,8 @@ public static partial class MusicRequestEndpoints
         // A library artist's page: the albums of theirs the library doesn't have, and the artists like them.
         music.MapGet("/library-artist/{id:guid}", async (Guid id, MusicRequestContext c, CancellationToken ct) =>
         {
-            var item = await c.Db.MediaItems.AsNoTracking().Where(i => i.Id == id && i.Kind == MediaKind.Artist).Select(i => new { i.Title, i.MusicBrainzId }).FirstOrDefaultAsync(ct);
+            var item = await c.Db.MediaItems.AsNoTracking().Where(i => i.Id == id && i.Kind == MediaKind.Artist)
+                .Select(i => new { i.Title, i.MusicBrainzId, HasPoster = i.PosterUrl != null, i.MetadataUpdatedAt, i.ArtworkChangedAt }).FirstOrDefaultAsync(ct);
             if (item is null)
             {
                 return Results.NotFound();
@@ -194,6 +195,9 @@ public static partial class MusicRequestEndpoints
                 var deezerAlbums = deezer is null ? [] : await c.Catalog.ArtistAlbumsAsync(deezer.Id, ct);
                 var lidarrArtist = await c.LidarrArtistAsync(item.MusicBrainzId, item.Title, ct);
                 var missing = new List<MusicExternalDto>();
+                // An album with no cover anywhere shows its artist instead: their photo here, else Lidarr's, else Deezer's.
+                var artistPhoto = item.HasPoster ? ArtworkUrls.For(id, ArtworkUrls.Version(item.MetadataUpdatedAt, item.ArtworkChangedAt), true, false, false, false).Poster
+                    : (lidarrArtist is { Lidarr: var pl, Artist: var pa } ? MusicRequested.Photo(pl, pa) : null) ?? ImageEndpoints.RemoteUrl(deezer?.Picture);
                 // Lidarr's list when it has the artist and answers; Deezer's albums otherwise.
                 var lidarrAlbums = lidarrArtist is { Lidarr: var l, Artist: var la } ? await c.LidarrAlbumsAsync(l, la.Id, ct) : null;
                 if (lidarrAlbums is not null)
@@ -217,14 +221,14 @@ public static partial class MusicRequestEndpoints
                         }
 
                         missing.Add(new MusicExternalDto("album", onDeezer?.Id ?? 0, album.Title, item.Title, deezer?.Id, album.ReleaseDate?.Year ?? onDeezer?.Year,
-                            ImageEndpoints.RemoteUrl(onDeezer?.Cover), album.Monitored ? AvailabilityDto.Requested : owned.AlbumAvailability(item.Title, album.Title), null,
+                            ImageEndpoints.RemoteUrl(onDeezer?.Cover) ?? MusicRequested.Cover(lidarrArtist!.Value.Lidarr, album) ?? artistPhoto, album.Monitored ? AvailabilityDto.Requested : owned.AlbumAvailability(item.Title, album.Title), null,
                             onDeezer?.RecordType ?? album.AlbumType?.ToLowerInvariant(), album.ForeignAlbumId));
                     }
                 }
                 else
                 {
                     missing.AddRange(deezerAlbums.Where(a => a.RecordType == "album" && owned.AlbumId(item.Title, a.Title) is null)
-                        .Select(a => Album(a with { Artist = deezer }, owned)));
+                        .Select(a => Album(a with { Artist = deezer }, owned)).Select(a => a.Image is null ? a with { Image = artistPhoto } : a));
                 }
 
                 var similar = deezer is null ? [] : (await c.Catalog.RelatedAsync(deezer.Id, ct)).Take(RowSize).Select(a => Artist(a, owned)).ToList();
