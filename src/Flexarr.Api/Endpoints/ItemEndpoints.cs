@@ -12,6 +12,14 @@ public static class ItemEndpoints
 {
     private const int MaxPageSize = 500;
 
+    /// <summary>The most tracks a genre's Play or Shuffle queues.</summary>
+    private const int MaxGenreTracks = 200;
+
+    /// <summary>Albums with this genre, on the album or on its artist; all of them without one.</summary>
+    private static IQueryable<MediaItem> InGenre(IQueryable<MediaItem> albums, string? genre) => string.IsNullOrWhiteSpace(genre)
+        ? albums
+        : albums.Where(a => a.Genres.Any(g => g.Name == genre) || a.Parent!.Genres.Any(g => g.Name == genre));
+
     public static RouteGroupBuilder MapItemEndpoints(this RouteGroupBuilder api)
     {
         api.MapGet("/libraries/{id:guid}/items", async (Guid id, string? search, string? sort, string? genre, int? skip, int? take, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
@@ -66,6 +74,67 @@ public static class ItemEndpoints
                 return new LibraryGenreDto(g.Name, g.Count,
                     cover is null ? null : ArtworkUrls.For(cover.Id, ArtworkUrls.Version(cover.MetadataUpdatedAt, cover.ArtworkChangedAt), false, true, false, false).Backdrop);
             }).ToList();
+        }).WithTags("Items");
+
+        // A music library's albums (its items are its artists), paged like items: A–Z by default, newest added, or by year.
+        api.MapGet("/libraries/{id:guid}/albums", async (Guid id, string? sort, string? genre, int? skip, int? take, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
+        {
+            var query = InGenre(db.MediaItems.Where(i => i.LibraryId == id && i.Kind == MediaKind.Album), genre);
+            var total = await query.CountAsync(ct);
+            var ordered = sort switch
+            {
+                "added" => query.OrderByDescending(i => i.AddedAt).ThenBy(i => i.SortTitle),
+                "year" => query.OrderByDescending(i => i.Year).ThenBy(i => i.SortTitle),
+                _ => query.OrderBy(i => i.SortTitle).ThenBy(i => i.Year),
+            };
+            var items = await ordered.Skip(Math.Max(skip ?? 0, 0)).Take(Math.Clamp(take ?? 100, 1, MaxPageSize)).Summaries(profile.Id).ToListAsync(ct);
+            return new PagedDto<ItemSummaryDto>(total, items);
+        }).WithTags("Items");
+
+        // A music library's genres by album, for its Genres view: an album has a genre when it or its artist is tagged
+        // with it (Lidarr tags some only on albums, some only on artists). The backdrop is an artist's fanart.
+        api.MapGet("/libraries/{id:guid}/album-genres", async (Guid id, FlexarrDbContext db, CancellationToken ct) =>
+        {
+            // Worked out here rather than in SQL, which can't count across both sides; a library has a few thousand albums at most.
+            var albums = await db.MediaItems.Where(a => a.LibraryId == id && a.Kind == MediaKind.Album)
+                .Select(a => new { a.ParentId, Genres = a.Genres.Select(g => g.Name).ToList() }).ToListAsync(ct);
+            var artists = await db.MediaItems.Where(a => a.LibraryId == id && a.Kind == MediaKind.Artist)
+                .OrderByDescending(a => a.CommunityRating ?? 0).ThenBy(a => a.SortTitle)
+                .Select(a => new { a.Id, Fanart = a.BackdropUrl != null, a.MetadataUpdatedAt, a.ArtworkChangedAt, Genres = a.Genres.Select(g => g.Name).ToList() })
+                .ToListAsync(ct);
+            var artistGenres = artists.ToDictionary(a => a.Id, a => a.Genres);
+            var tagged = albums.Select(a => new
+            {
+                a.ParentId,
+                Genres = a.Genres.Concat(a.ParentId is { } artist && artistGenres.TryGetValue(artist, out var more) ? more : []).Distinct().ToList(),
+            }).ToList();
+
+            var used = new HashSet<Guid>();
+            return tagged.SelectMany(a => a.Genres).GroupBy(g => g).Select(g => (Name: g.Key, Count: g.Count()))
+                .OrderByDescending(g => g.Count).ThenBy(g => g.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList()
+                .Select(g =>
+                {
+                    // An artist with fanart and the genre, theirs or on one of their albums; each genre its own where it can.
+                    var withIt = tagged.Where(a => a.Genres.Contains(g.Name)).Select(a => a.ParentId).ToHashSet();
+                    var candidates = artists.Where(a => a.Fanart && (withIt.Contains(a.Id) || a.Genres.Contains(g.Name))).ToList();
+                    var cover = candidates.FirstOrDefault(c => used.Add(c.Id)) ?? candidates.FirstOrDefault();
+                    return new LibraryGenreDto(g.Name, g.Count,
+                        cover is null ? null : ArtworkUrls.For(cover.Id, ArtworkUrls.Version(cover.MetadataUpdatedAt, cover.ArtworkChangedAt), false, true, false, false).Backdrop);
+                }).ToList();
+        }).WithTags("Items");
+
+        // A genre's tracks in a music library, for its Play and Shuffle: by artist, album and track, or shuffled. 200 at most.
+        api.MapGet("/libraries/{id:guid}/tracks", async (Guid id, string? genre, bool? shuffle, int? take, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
+        {
+            var albums = InGenre(db.MediaItems.Where(i => i.LibraryId == id && i.Kind == MediaKind.Album), genre).Select(a => a.Id);
+            var tracks = db.MediaItems.Where(t => t.Kind == MediaKind.Track && t.ParentId != null && albums.Contains(t.ParentId.Value));
+            var limit = Math.Clamp(take ?? MaxGenreTracks, 1, MaxGenreTracks);
+            var ordered = shuffle == true
+                ? tracks.OrderBy(_ => EF.Functions.Random())
+                : tracks.OrderBy(t => t.Parent!.Parent!.SortTitle).ThenBy(t => t.Parent!.Year).ThenBy(t => t.Parent!.SortTitle)
+                    .ThenBy(t => t.DiscNumber ?? 1).ThenBy(t => t.TrackNumber ?? int.MaxValue).ThenBy(t => t.SortTitle);
+            return await ordered.Take(limit).Summaries(profile.Id).ToListAsync(ct);
         }).WithTags("Items");
 
         api.MapGet("/items/recent", async (int? take, Guid? libraryId, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
