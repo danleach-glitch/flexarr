@@ -41,7 +41,8 @@ Like ambient TV backlighting, every title carries an **ambient colour** extracte
 - **Sidebar navigation** on the left: the wordmark and Home, then the libraries, then Collections, Discover and Coming soon. It holds any number of libraries, scrolling on its own, and collapses to an icon rail. On phones it is a drawer behind a menu button. Search (⌘K), settings and the profile float at the top right of the page in a bar that is transparent over heroes and solid once you scroll.
 - **Home:** a full-bleed hero (backdrop, clear logo, one line of context, Play and More info buttons), then horizontal rows. The *Top 10* row uses giant outlined marquee numerals beside each poster, the one place where numbering is meaningful.
 - **Library:** a poster grid with sort and filter controls and an A–Z rail for jumping through large collections.
-- **Detail:** backdrop wash in ambient colour, logo or title, facts, overview, Play/Resume, Trailer, cast, then seasons as tabs with episode stills.
+- **Detail:** backdrop wash in ambient colour, logo or title, facts (with the scores), overview, Play/Resume, Trailer, then seasons as tabs with episode stills, cast and crew, and more like this.
+- **Scores:** movies and shows show at most two, in the facts line: the IMDb mark with its score out of 10 (`7.8`) and the Rotten Tomatoes mark with the critics' percentage (`92%`). The tomato follows the score: Certified Fresh when Rotten Tomatoes says so, Fresh at 60% and up, the green splat below. These marks are the only place brand colours appear, and only inside the mark itself; the number beside it uses the text colour. A title with neither keeps its plain score. Kids profiles see no scores. The same chips appear on the Home hero and on Discover's title page. Episodes have none.
 - **Player:** chrome-less until the pointer moves; a scrubber with frame previews; skip intro/credits as a single floating action; up next counts down in the corner.
 
 ```
@@ -69,7 +70,7 @@ Content is left-aligned throughout and shares one 4vw left edge, so heroes, rows
 3. Motion only answers an action: focus glow, a hero crossfade, a row scroll. There are no entrance animations, and `prefers-reduced-motion` is respected.
 4. Plain words: "Play", "Resume from 32:10", "Skip intro". Failures say what happened and what to do.
 5. Colour means something in controls: the ambient/silver fill is the one main action, green sets something up or is on, coral-red deletes, and outlined buttons are everything else. A row's own icon buttons stay quiet until pointed at.
-6. Avoid these: amber or gold accents (Plex), red as an accent (Netflix; red is only for deleting, plus the `--record` dot), all-caps labels, eyebrow text, middle-dot meta strings and arrow-suffixed links.
+6. Avoid these: amber or gold accents (Plex), red as an accent (Netflix; red is only for deleting, plus the `--record` dot; the IMDb and Rotten Tomatoes marks keep their own colours, see *Scores*), all-caps labels, eyebrow text, middle-dot meta strings and arrow-suffixed links.
 
 ## Tokens in code
 
@@ -120,6 +121,7 @@ What's on each client today. The gaps are for future briefs.
 | --- | --- | --- | --- | --- | --- |
 | Home, libraries, detail, search, player | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Trailer | ✅ | ✅ | ✅ | ✅ | ✅ |
+| IMDb and Rotten Tomatoes scores | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Coming soon page | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Watchlist | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Music | ✅ | ✅ | ✅ | ✅ | ✅ |
