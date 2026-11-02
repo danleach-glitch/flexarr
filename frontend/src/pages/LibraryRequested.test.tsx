@@ -7,6 +7,7 @@ import { LibraryRequested } from './LibraryRequested'
 
 const unrequested: unknown[] = []
 let reachable = true
+let musicAsked = 0
 const albums: MusicRequested[] = [
   { musicBrainzId: 'rg-1', title: 'moisturizer', artist: 'Wet Leg', artistMusicBrainzId: 'a1', image: null, releaseDate: '2025-07-11', state: 'downloading', progress: 0.45, artistLibraryItemId: 'artist-1' },
   { musicBrainzId: 'rg-2', title: 'Next One', artist: 'Wet Leg', artistMusicBrainzId: 'a1', image: null, releaseDate: '2099-11-14', state: 'upcoming', progress: null, artistLibraryItemId: null },
@@ -22,7 +23,10 @@ vi.mock('../api/client', async (importOriginal) => ({
   unrequestTitle: async (...args: unknown[]) => {
     unrequested.push(args)
   },
-  getMusicRequested: async () => albums,
+  getMusicRequested: async () => {
+    musicAsked++
+    return albums
+  },
   getMusicRequestStatusNow: async () => ({ configured: true, reachable }),
   unrequestAlbum: async (body: unknown) => {
     unrequested.push(body)
@@ -86,5 +90,22 @@ describe('LibraryRequested', () => {
     fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Unrequest' }))
 
     await waitFor(() => expect(unrequested).toEqual([['tv', 1399, [2, 3]]]))
+  })
+
+  it('asks again every 30 seconds while something is downloading', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      render(
+        <MemoryRouter>
+          <LibraryRequested library={library} viewSwitch={null} />
+        </MemoryRouter>,
+      )
+      expect(await screen.findByText(/^Downloading/)).toBeTruthy()
+      const before = musicAsked
+      await vi.advanceTimersByTimeAsync(30_000)
+      await waitFor(() => expect(musicAsked).toBe(before + 1))
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

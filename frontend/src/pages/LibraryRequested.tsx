@@ -16,11 +16,14 @@ import { AsyncButton } from '../components/AsyncButton'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { PageError, PageLoading } from '../components/PageStatus'
 import { useApi } from '../hooks/useApi'
+import { usePolling } from '../hooks/usePolling'
 import { requestedState } from '../lib/requestedState'
 import { undoFailure } from '../lib/musicUndo'
 
 /** How many cards show at first; Show more adds as many again. */
 const PAGE_SIZE = 200
+/** How often the view asks again while something is downloading or importing. */
+const REFRESH_MS = 30_000
 
 /** One card of the view, whichever library it's in. */
 interface Row {
@@ -61,6 +64,8 @@ export function LibraryRequested({ library, viewSwitch }: { library: Library; vi
   const grid = useRef<HTMLDivElement>(null)
   const rows = data?.rows.filter((r) => !gone.has(r.key))
   const answering = data?.answering !== false
+  // Downloading 40% moves on: asked again now and then while anything is on its way in, so it doesn't look stuck.
+  usePolling(reload, data?.rows.some((r) => r.state === 'downloading' || r.state === 'importing') ? REFRESH_MS : null)
 
   // The card that opened the dialog is gone: the keyboard moves on to the next one's Unrequest (or the grid).
   function remove(key: string, index: number) {
@@ -81,7 +86,7 @@ export function LibraryRequested({ library, viewSwitch }: { library: Library; vi
           {viewSwitch}
         </div>
       </header>
-      {error ? (
+      {error && !data ? (
         <PageError error={error} onRetry={reload} />
       ) : !rows ? (
         <PageLoading label={music ? 'Loading requested albums' : `Loading requested ${library.type === 'Movies' ? 'movies' : 'shows'}`} />
