@@ -498,6 +498,8 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         watchlistTitles = emptySet()
         musicAsked = emptySet()
         musicSending = emptySet()
+        musicUndoing = emptySet()
+        musicUndone = emptySet()
         musicUnreachable = false
     }
 
@@ -534,14 +536,48 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
      */
     suspend fun askForMusic(keys: List<String>, send: suspend (FlexarrClient) -> Unit): Boolean {
         val client = client ?: return false
-        if (keys.any { it in musicAsked || it in musicSending }) return false
+        if (keys.any { it in musicAsked || it in musicSending || it in musicUndoing }) return false
         musicSending = musicSending + keys
         try {
             send(client)
             // Someone else may have been chosen meanwhile: what they asked for isn't theirs.
-            if (client.profileToken == this.client?.profileToken) musicAsked = musicAsked + keys
+            if (client.profileToken == this.client?.profileToken) {
+                musicAsked = musicAsked + keys
+                musicUndone = musicUndone - keys.toSet()
+            }
         } finally {
             musicSending = musicSending - keys.toSet()
+        }
+        return true
+    }
+
+    /** Unfollows or unrequests on their way: the control stays Following or Requested, and waits, until they're done. */
+    var musicUndoing: Set<String> by mutableStateOf(emptySet())
+        private set
+
+    /**
+     * Unfollowed or unrequested here, so every card and page says Follow artist or Request album again at once, though
+     * the page it came from still says the server's Following or Requested. Forgotten with the sign-in or the profile.
+     */
+    var musicUndone: Set<String> by mutableStateOf(emptySet())
+        private set
+
+    /**
+     * Unfollows or unrequests what [keys] name, once: false, sending nothing, while something for them is on its way.
+     * Throws what went wrong, leaving it as it was.
+     */
+    suspend fun undoMusic(keys: List<String>, send: suspend (FlexarrClient) -> Unit): Boolean {
+        val client = client ?: return false
+        if (keys.any { it in musicSending || it in musicUndoing }) return false
+        musicUndoing = musicUndoing + keys
+        try {
+            send(client)
+            if (client.profileToken == this.client?.profileToken) {
+                musicAsked = musicAsked - keys.toSet()
+                musicUndone = musicUndone + keys
+            }
+        } finally {
+            musicUndoing = musicUndoing - keys.toSet()
         }
         return true
     }
