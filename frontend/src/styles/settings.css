@@ -2935,3 +2935,16 @@
     animation: none;
   }
 }
+
+/* Merge's choice of which album or artist to keep. */
+.health-merge-choices {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.health-merge-choice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}

@@ -638,6 +638,12 @@
   font-size: var(--step-3);
 }
 
+/* A film's, show's or album's details edited by hand: said beside the title, where Back to automatic undoes it. */
+.book-editor h2 .details-edited {
+  margin-left: 10px;
+  vertical-align: middle;
+}
+
 .book-editor-fields {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 120px;

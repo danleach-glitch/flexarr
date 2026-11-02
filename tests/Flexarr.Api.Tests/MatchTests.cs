@@ -197,6 +197,108 @@ public sealed class MatchTests(FlexarrApiFactory factory) : IClassFixture<Flexar
         Assert.Contains("TMDB key", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task EditedDetails_AreKeptThroughARefresh_WhileTheRestStillComesIn()
+    {
+        var sonarr = new FakeSonarr();
+        sonarr.Library.Add(Managed(Shogun2024, 9, "/data/tv/Shogun"));
+        var app = WithSonarr(sonarr);
+        var id = await AddShowAsync(app, "Shogun", "/Volumes/Media/data/tv/Shogun", wrong: false);
+
+        var edit = await Client(app).PutAsJsonAsync(new Uri($"/api/v1/items/{id}/details", UriKind.Relative), new
+        {
+            title = "Shōgun (FX)", year = 2024, overview = "Ours.", genres = new[] { "Drama", "History", "drama" }, studio = "FX on Hulu",
+        });
+        await RefreshAsync(app, id);
+
+        Assert.Equal(HttpStatusCode.NoContent, edit.StatusCode);
+        var detail = await Client(app).GetFromJsonAsync<JsonObject>(new Uri($"/api/v1/items/{id}", UriKind.Relative));
+        Assert.Equal(("Shōgun (FX)", "Ours.", "FX on Hulu", true, "shōgun (fx)"), (detail!["item"]!["title"]!.GetValue<string>(), detail["overview"]!.GetValue<string>(),
+            detail["studio"]!.GetValue<string>(), detail["detailsLocked"]!.GetValue<bool>(), detail["sortTitle"]!.GetValue<string>()));
+        Assert.Equal(["Drama", "History"], detail["genres"]!.AsArray().Select(g => g!.GetValue<string>()));
+        var item = await ItemAsync(app, id);
+        Assert.Equal((9, "392573"), (item.ArrId, item.TvdbId)); // Sonarr's ids still came in.
+    }
+
+    [Fact]
+    public async Task BackToAutomatic_GivesTheDetailsBackToTheSources()
+    {
+        var sonarr = new FakeSonarr();
+        sonarr.Library.Add(Managed(Shogun2024, 9, "/data/tv/Shogun"));
+        var app = WithSonarr(sonarr);
+        var id = await AddShowAsync(app, "Shogun", "/Volumes/Media/data/tv/Shogun", wrong: false);
+        await Client(app).PutAsJsonAsync(new Uri($"/api/v1/items/{id}/details", UriKind.Relative), new { title = "Mine" });
+
+        var response = await Client(app).DeleteAsync(new Uri($"/api/v1/items/{id}/details", UriKind.Relative));
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        var item = await ItemAsync(app, id);
+        Assert.Equal(("Shōgun", false, "Shōgun (2024)"), (item.Title, item.DetailsLocked, item.Overview));
+    }
+
+    [Fact]
+    public async Task FixMatch_ToADifferentShow_ReplacesEditedDetails()
+    {
+        var sonarr = new FakeSonarr();
+        sonarr.Library.Add(Managed(Shogun2024, 9, "/data/tv/Shōgun (2024)"));
+        var app = WithSonarr(sonarr);
+        var id = await AddShowAsync(app, "Shogun", "/Volumes/Media/data/tv/Shogun", wrong: true);
+        await Client(app).PutAsJsonAsync(new Uri($"/api/v1/items/{id}/details", UriKind.Relative), new { title = "Shogun (1980 miniseries)" });
+
+        await Client(app).PostAsJsonAsync(new Uri($"/api/v1/items/{id}/match", UriKind.Relative), new { id = 392573 });
+
+        var item = await ItemAsync(app, id);
+        Assert.Equal(("Shōgun", false), (item.Title, item.DetailsLocked));
+    }
+
+    [Fact]
+    public async Task FixMatch_ToTheSameShow_KeepsEditedDetails()
+    {
+        var app = WithSonarr(new FakeSonarr());
+        var id = await AddShowAsync(app, "Shogun", "/Volumes/Media/data/tv/Shogun", wrong: true);
+        await Client(app).PutAsJsonAsync(new Uri($"/api/v1/items/{id}/details", UriKind.Relative), new { title = "Shogun (1980 miniseries)" });
+
+        await Client(app).PostAsJsonAsync(new Uri($"/api/v1/items/{id}/match", UriKind.Relative), new { id = 80284 });
+
+        var item = await ItemAsync(app, id);
+        Assert.Equal(("Shogun (1980 miniseries)", true), (item.Title, item.DetailsLocked));
+    }
+
+    [Theory]
+    [InlineData("", 2024)]
+    [InlineData("Shogun", 99999)]
+    public async Task EditingDetails_RefusesWhatCantBeRight(string title, int year)
+    {
+        var app = WithSonarr(new FakeSonarr());
+        var id = await AddShowAsync(app, "Shogun", "/Volumes/Media/data/tv/Shogun", wrong: false);
+
+        var response = await Client(app).PutAsJsonAsync(new Uri($"/api/v1/items/{id}/details", UriKind.Relative), new { title, year });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(("Shogun", false), ((await ItemAsync(app, id)).Title, (await ItemAsync(app, id)).DetailsLocked));
+    }
+
+    [Fact]
+    public async Task EditingDetails_NeedsTheMainProfile_AndIsOnlyForFilmsAndShows()
+    {
+        var app = WithSonarr(new FakeSonarr());
+        var id = await AddShowAsync(app, "Shogun", "/Volumes/Media/data/tv/Shogun", wrong: false);
+
+        var anonymous = await app.CreateClient().PutAsJsonAsync(new Uri($"/api/v1/items/{id}/details", UriKind.Relative), new { title = "Mine" });
+        var album = await Client(app).PutAsJsonAsync(new Uri($"/api/v1/items/{id}/album-details", UriKind.Relative), new { title = "Mine" });
+
+        Assert.Equal(HttpStatusCode.Unauthorized, anonymous.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, album.StatusCode);
+    }
+
+    private static async Task RefreshAsync(WebApplicationFactory<Program> app, Guid id)
+    {
+        using var scope = app.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        var library = await db.Libraries.FirstAsync(l => db.MediaItems.Any(i => i.Id == id && i.LibraryId == l.Id));
+        await scope.ServiceProvider.GetRequiredService<MetadataRefresher>().RefreshLibraryAsync(library, force: true, CancellationToken.None);
+    }
+
     private WebApplicationFactory<Program> WithSonarr(FakeSonarr sonarr) => factory.WithWebHostBuilder(b =>
     {
         b.UseSetting("Flexarr:Arr:0:Name", "Sonarr");

@@ -42,6 +42,9 @@ public sealed partial class MetadataRefresher(
     /// <summary>The source of an artist's or album's details when nothing but its files' tags supplied them.</summary>
     public const string Tags = "Tags";
 
+    /// <summary>The source of an artist's or album's details when they were matched on Deezer by hand (Fix match).</summary>
+    public const string Deezer = "Deezer";
+
     /// <summary>The source of a film's or show's details when only the .nfo and artwork beside it supplied them.</summary>
     public const string Local = "Local files";
 
@@ -195,7 +198,9 @@ public sealed partial class MetadataRefresher(
         CancellationToken ct)
     {
         _idsBefore = IdsOf(item);
+        var kept = Keep(item); // What was edited by hand stays; the sources fill in the rest.
         var result = await RefreshMovieFromSourcesAsync(item, byPath, byImdb, byTmdb, radarrs, force, ct).ConfigureAwait(false);
+        await RestoreAsync(item, kept, ct).ConfigureAwait(false);
         await ApplySeerrRatingsAsync(item, ct).ConfigureAwait(false);
         return result;
     }
@@ -390,15 +395,19 @@ public sealed partial class MetadataRefresher(
         foreach (var artist in artists)
         {
             var albums = await db.MediaItems.Where(i => i.ParentId == artist.Id && i.Kind == MediaKind.Album).Include(i => i.Genres).ToListAsync(ct).ConfigureAwait(false);
+            var kept = albums.Prepend(artist).Select(i => (Item: i, Kept: Keep(i))).ToList(); // What was edited or chosen by hand stays.
             try
             {
-                var hit = lidarrs
-                    .Select(l => (Instance: l, Artist: LidarrMatcher.MatchArtist(artist, albums.Select(a => a.Path), known.Where(k => k.Instance == l).Select(k => k.Artist).ToList(), settings.PathMappings)))
-                    .FirstOrDefault(h => h.Artist is not null);
+                // An artist matched by hand is the Lidarr artist chosen (or, matched on Deezer, none), never another.
+                var hit = artist.MatchLocked
+                    ? known.Where(k => k.Instance.Name == artist.MetadataSource && k.Artist.Id == artist.ArrId).Select(k => (k.Instance, Artist: (LidarrArtist?)k.Artist)).FirstOrDefault()
+                    : lidarrs
+                        .Select(l => (Instance: l, Artist: LidarrMatcher.MatchArtist(artist, albums.Select(a => a.Path), known.Where(k => k.Instance == l).Select(k => k.Artist).ToList(), settings.PathMappings)))
+                        .FirstOrDefault(h => h.Artist is not null);
                 // A followed artist still waiting for their first album, whom Lidarr no longer has or follows (changed in
                 // Lidarr itself): nothing is coming, so they leave the library.
                 // Every Lidarr is asked: any that follows a match keeps them.
-                if (artist.Placeholder && albums.Count == 0 && allAnswered
+                if (artist.Placeholder && albums.Count == 0 && allAnswered && !artist.MatchLocked
                     && !lidarrs.Any(l => LidarrMatcher.MatchArtist(artist, [], known.Where(k => k.Instance == l).Select(k => k.Artist).ToList(), settings.PathMappings)
                         is { Monitored: true, MonitorNewItems: "new" or "all" }))
                 {
@@ -422,6 +431,11 @@ public sealed partial class MetadataRefresher(
                 else
                 {
                     await ApplyTagsAsync(artist, albums, ct).ConfigureAwait(false);
+                    foreach (var album in albums.Where(a => a.MatchLocked))
+                    {
+                        await RefreshLockedAlbumAsync(album, null, ct).ConfigureAwait(false);
+                    }
+
                     if (answered)
                     {
                         unmatched++;
@@ -436,6 +450,11 @@ public sealed partial class MetadataRefresher(
             {
                 LogItemFailed(ex, artist.Title);
                 unmatched++;
+            }
+
+            foreach (var (item, keep) in kept)
+            {
+                await RestoreAsync(item, keep, ct).ConfigureAwait(false);
             }
 
             artist.MetadataUpdatedAt = DateTime.UtcNow;
@@ -461,7 +480,7 @@ public sealed partial class MetadataRefresher(
         {
             item.AccentColor = await images.AccentColorAsync(item.PosterUrl!, ct).ConfigureAwait(false);
             item.MetadataUpdatedAt = DateTime.UtcNow;
-            item.MetadataSource = Tags;
+            item.MetadataSource = item.MatchLocked ? item.MetadataSource : Tags; // Matched by hand: still what was chosen.
         }
 
         await db.SaveChangesAsync(ct).ConfigureAwait(false);
@@ -504,7 +523,11 @@ public sealed partial class MetadataRefresher(
 
         foreach (var album in albums)
         {
-            if (lidarrAlbums is not null)
+            if (album.MatchLocked)
+            {
+                await RefreshLockedAlbumAsync(album, lidarr.Name == album.MetadataSource ? lidarrAlbums : null, ct).ConfigureAwait(false);
+            }
+            else if (lidarrAlbums is not null)
             {
                 if (LidarrMatcher.MatchAlbum(album, lidarrAlbums, files, settings.PathMappings) is { } lidarrAlbum)
                 {
@@ -550,6 +573,151 @@ public sealed partial class MetadataRefresher(
         }
     }
 
+    /// <summary>
+    /// An album matched by hand: the Lidarr album chosen is read again (from <paramref name="sameArtist"/>, its
+    /// artist's albums, when they were fetched; else by its id). One matched on Deezer keeps what it was given then.
+    /// When Lidarr can't say, it stays as it is.
+    /// </summary>
+    private async Task RefreshLockedAlbumAsync(MediaItem album, IReadOnlyList<LidarrAlbum>? sameArtist, CancellationToken ct)
+    {
+        if (album.ArrId is not { } albumId || settings.ArrInstances.FirstOrDefault(a => a.Kind == ArrKind.Lidarr && a.Name == album.MetadataSource) is not { } lidarr)
+        {
+            return;
+        }
+
+        try
+        {
+            var chosen = sameArtist?.FirstOrDefault(a => a.Id == albumId) ?? await arr.GetAlbumAsync(lidarr, albumId, ct).ConfigureAwait(false);
+            await ApplyAlbumAsync(album, chosen, lidarr, ct).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (IsNetworkFailure(ex, ct))
+        {
+            LogArrUnavailable(lidarr.Name, ex.Message);
+        }
+    }
+
+    /// <summary>Fix match: an album is the Lidarr album chosen. The caller sets the lock and saves.</summary>
+    public async Task ApplyChosenAlbumAsync(MediaItem album, LidarrAlbum chosen, ArrInstance lidarr, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(album);
+        ArgumentNullException.ThrowIfNull(chosen);
+        ArgumentNullException.ThrowIfNull(lidarr);
+        album.DeezerId = null;
+        var kept = Keep(album);
+        await ApplyAlbumAsync(album, chosen, lidarr, ct).ConfigureAwait(false);
+        await RestoreAsync(album, kept, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Fix match: an album is the Deezer album chosen (read whole, with its genres). Kept as given: refreshes don't
+    /// ask Deezer again. The caller sets the lock and saves.
+    /// </summary>
+    public async Task ApplyChosenAlbumAsync(MediaItem album, DeezerAlbum chosen, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(album);
+        ArgumentNullException.ThrowIfNull(chosen);
+        var kept = Keep(album);
+        Rename(album, chosen.Title);
+        album.Year = chosen.Year ?? album.Year;
+        album.ReleaseDate = DateOnly.TryParseExact(chosen.ReleaseDate, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date) ? date : null;
+        album.AlbumType = chosen.RecordType switch
+        {
+            "ep" => AlbumKind.Ep,
+            "single" => AlbumKind.SingleRelease,
+            "compile" => AlbumKind.Compilation,
+            "album" => AlbumKind.Album,
+            _ => album.AlbumType,
+        };
+        album.RuntimeMinutes = chosen.Duration > 0 ? (int)Math.Max(1, Math.Round(chosen.Duration / 60.0)) : album.RuntimeMinutes;
+        album.Overview = null;
+        album.CommunityRating = null;
+        album.ArrId = null;
+        album.DeezerId = chosen.Id.ToString(CultureInfo.InvariantCulture);
+        album.MetadataSource = Deezer;
+        if (chosen.Genres?.Data is { Count: > 0 } genres)
+        {
+            await SetGenresAsync(album, [.. genres.Select(g => g.Name)], ct).ConfigureAwait(false);
+        }
+
+        await SetChosenCoverAsync(album, ArtworkUrl.TrustedRemote(chosen.Cover), ct).ConfigureAwait(false);
+        await RestoreAsync(album, kept, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>Fix match: an artist is the Lidarr artist chosen, and its albums are matched among that artist's. The caller locks and saves.</summary>
+    public async Task ApplyChosenArtistAsync(MediaItem artist, List<MediaItem> albums, LidarrArtist chosen, ArrInstance lidarr, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(artist);
+        ArgumentNullException.ThrowIfNull(chosen);
+        ArgumentNullException.ThrowIfNull(lidarr);
+        artist.DeezerId = null;
+        var kept = albums.Prepend(artist).Select(i => (Item: i, Kept: Keep(i))).ToList();
+        await ApplyArtistAsync(artist, albums, chosen, lidarr, ct).ConfigureAwait(false);
+        foreach (var (item, keep) in kept)
+        {
+            await RestoreAsync(item, keep, ct).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>Fix match: an artist is the Deezer artist chosen, with their name and photo. The caller locks and saves.</summary>
+    public async Task ApplyChosenArtistAsync(MediaItem artist, DeezerArtist chosen, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(artist);
+        ArgumentNullException.ThrowIfNull(chosen);
+        var kept = Keep(artist);
+        Rename(artist, chosen.Name);
+        artist.ArrId = null;
+        artist.DeezerId = chosen.Id.ToString(CultureInfo.InvariantCulture);
+        artist.MetadataSource = Deezer;
+        if (ArtworkUrl.TrustedRemote(chosen.Picture) is { } photo)
+        {
+            await SetChosenCoverAsync(artist, photo, ct).ConfigureAwait(false);
+        }
+
+        await RestoreAsync(artist, kept, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Match automatically again, for an album or artist: unlocked, and back to its tags' name, with the cover beside
+    /// its files (or none, which the next scan or Lidarr fills in) in place of one from the match. The caller saves
+    /// and has the folder read again.
+    /// </summary>
+    public static void ForgetMusicMatch(MediaItem item, string? localCover)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        item.MatchLocked = false;
+        item.ArtworkLocked = false;
+        item.DeezerId = null;
+        if (!item.DetailsLocked && item.OriginalTitle is { } tagged)
+        {
+            item.Title = tagged;
+            item.SortTitle = SortTitle.For(tagged);
+            item.OriginalTitle = null;
+        }
+
+        if (item.PosterUrl is { } poster && !poster.StartsWith("file://", StringComparison.Ordinal) && !poster.StartsWith("embedded://", StringComparison.Ordinal))
+        {
+            item.PosterUrl = localCover;
+            item.AccentColor = null;
+        }
+
+        item.ArrId = null;
+        item.MetadataSource = Tags;
+        item.MetadataUpdatedAt = null;
+    }
+
+    /// <summary>A cover chosen (or brought by the match), with its colour; null keeps the one there.</summary>
+    public async Task SetChosenCoverAsync(MediaItem item, string? cover, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        if (cover is null || cover == item.PosterUrl)
+        {
+            return;
+        }
+
+        item.PosterUrl = cover;
+        item.AccentColor = await images.AccentColorAsync(cover, ct).ConfigureAwait(false);
+    }
+
     /// <summary>An artist Lidarr doesn't have, and its albums: the tags stand; the scanner's artwork gets its colour.</summary>
     private async Task ApplyTagsAsync(MediaItem artist, List<MediaItem> albums, CancellationToken ct)
     {
@@ -563,6 +731,17 @@ public sealed partial class MetadataRefresher(
 
     private async Task ApplyTagsAsync(MediaItem item, CancellationToken ct)
     {
+        if (item.MatchLocked)
+        {
+            // Matched by hand: what was chosen stands even where Lidarr doesn't vouch for it.
+            if (item.AccentColor is null && item.PosterUrl is { } chosen)
+            {
+                item.AccentColor = await images.AccentColorAsync(chosen, ct).ConfigureAwait(false);
+            }
+
+            return;
+        }
+
         // Artwork from a Lidarr that no longer has the item (or is no longer configured) can't be fetched any more.
         if (ArtworkUrl.IsArr(item.PosterUrl))
         {
@@ -627,8 +806,10 @@ public sealed partial class MetadataRefresher(
     /// (<c>/MediaCover/Albums/1/cover.jpg?lastWrite=…</c>) that needs a signed-in browser; the same file is served to
     /// the API under <paramref name="apiFolder"/>. The lastWrite stamp stays on, so a replaced image is fetched anew.
     /// </summary>
-    private static string? ArrImage(ArrInstance lidarr, IReadOnlyList<ArrImage> lidarrImages, string coverType, string apiFolder)
+    public static string? ArrImage(ArrInstance lidarr, IReadOnlyList<ArrImage> lidarrImages, string coverType, string apiFolder)
     {
+        ArgumentNullException.ThrowIfNull(lidarr);
+        ArgumentNullException.ThrowIfNull(lidarrImages);
         var image = lidarrImages.FirstOrDefault(i => string.Equals(i.CoverType, coverType, StringComparison.OrdinalIgnoreCase));
         if (image?.Url is not { Length: > 0 } url)
         {
@@ -701,7 +882,9 @@ public sealed partial class MetadataRefresher(
         CancellationToken ct)
     {
         _idsBefore = IdsOf(item);
+        var kept = Keep(item); // What was edited by hand stays; the sources fill in the rest.
         var result = await RefreshSeriesFromSourcesAsync(item, byPath, byTvdb, byImdb, sonarrs, force, ct).ConfigureAwait(false);
+        await RestoreAsync(item, kept, ct).ConfigureAwait(false);
         await ApplySeerrRatingsAsync(item, ct).ConfigureAwait(false);
         return result;
     }

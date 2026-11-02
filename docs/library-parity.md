@@ -5,7 +5,8 @@ work in #271–#276 and the first six batches of fixes from this page). Work oft
 of the others, so the next brief can carry the idea across, and where the same idea looks or reads differently.
 
 It was mapped from the code, not by using the apps, so a mark can be wrong in a corner. Check before building on one.
-Update it when a library gets something new: add the row, mark the others.
+Update it when a library gets something new: add the row, mark the others. How music's Fix match and health, and
+editing films, shows and albums by hand, work is in [fix-match-and-editing.md](fix-match-and-editing.md).
 
 ✅ there · 🟡 partly · ❌ missing · — doesn't apply.
 Apps: **W** web, **i** iPhone/iPad, **tv** Apple TV, **A** Android phone, **ATV** Android TV.
@@ -96,10 +97,10 @@ Apps: **W** web, **i** iPhone/iPad, **tv** Apple TV, **A** Android phone, **ATV*
 
 | | Movies | TV shows | Music | Audiobooks |
 | --- | --- | --- | --- | --- |
-| Fix match | ✅ main profile | 🟡 shows, not episodes | ❌ | ✅ main profile |
-| Edit details by hand | ❌ | ❌ | ❌ | ✅ + chapters, author photo and bio |
+| Fix match | ✅ main profile | 🟡 shows, not episodes | ✅ albums and artists, from Lidarr or Deezer, with the cover chosen | ✅ main profile |
+| Edit details by hand | ✅ main profile, locked, Back to automatic | ✅ shows, not episodes | ✅ albums (title, year, type, genres) | ✅ + chapters, author photo and bio |
 | Delete | ✅ via Radarr | ✅ via Sonarr, episodes too | ✅ via Lidarr | ✅ files |
-| Library health | ✅ duplicates, SD copies, artwork | ✅ | ❌ | 🟡 `.aax` only |
+| Library health | ✅ duplicates, SD copies, artwork | ✅ | ✅ coverless albums, albums twice, tracks twice, split artists, Merge | 🟡 `.aax` only |
 | Pick or upload artwork | ❌ | ❌ | ❌ | ❌ (people only) |
 | Metadata without an *arr | NFO, TMDB | NFO, TVmaze | file tags only | Audible, Apple Books, Open Library |
 | Kids allow / block a title | ✅ | ✅ | ❌ | — (hidden from kids) |
@@ -140,11 +141,10 @@ Apps: **W** web, **i** iPhone/iPad, **tv** Apple TV, **A** Android phone, **ATV*
 buttons, undo, greying, *Can't request* and web Requested view reached films and shows in batch 6; neither has a
 Requested view in the apps yet.
 
-**Movies and TV have, the others could take:** See all on every row; Fix match and library
-health for music; the opens-on setting for music on Android TV;
+**Movies and TV have, the others could take:** See all on every row; the opens-on setting for music on Android TV;
 Top Shelf, Siri and CarPlay for the kinds missing them.
 
-**Audiobooks have, the others could take:** editing details by hand and locking them; rich filters (progress, length) where movies only filter by genre; *Next in series* as a model for a
+**Audiobooks have, the others could take:** editing episodes' details by hand; rich filters (progress, length) where movies only filter by genre; *Next in series* as a model for a
 film franchise's next film; time left at your speed.
 
 ## Same idea, different look or words

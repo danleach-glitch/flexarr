@@ -3044,6 +3044,70 @@ a.download-attention {
   font-size: var(--step--1);
 }
 
+/* Music's Fix match: square covers, round artist photos, and a row of covers to choose from once one is picked. */
+.music-match .fix-match-result img,
+.music-match .fix-match-noposter {
+  aspect-ratio: 1;
+}
+
+.music-match .fix-match-result img.round {
+  border-radius: 50%;
+}
+
+.music-match-covers {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.music-match-covers legend {
+  font-size: var(--step--1);
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.music-match-covers [role='radiogroup'] {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 4px;
+}
+
+.music-match-cover {
+  display: grid;
+  gap: 4px;
+  width: 84px;
+  padding: 4px;
+  border: 2px solid transparent;
+  border-radius: var(--radius-control);
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: var(--step--1);
+  text-align: center;
+  cursor: pointer;
+}
+
+.music-match-cover img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: var(--radius-art);
+  background: var(--aisle);
+}
+
+.music-match-cover[aria-checked='true'] {
+  border-color: var(--ambient);
+}
+
+.music-match-cover span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .fix-match .form-actions {
   margin-top: 0;
 }

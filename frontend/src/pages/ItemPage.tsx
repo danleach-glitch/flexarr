@@ -27,6 +27,7 @@ import { Menu, type MenuAction, type MenuPoint } from '../components/ItemMenu'
 import { Row } from '../components/Row'
 import { TrailerDialog } from '../components/TrailerDialog'
 import { DeleteDialog } from '../components/DeleteDialog'
+import { DetailsEditor } from '../components/DetailsEditor'
 import { FixMatchDialog } from '../components/FixMatchDialog'
 import { SubtitleSearchDialog } from '../components/SubtitleSearchDialog'
 import { WatchedToggle } from '../components/WatchedToggle'
@@ -82,8 +83,8 @@ export function ItemPage() {
   if (data.item.kind === 'Track' && data.item.parentId) {
     return <Navigate to={`/item/${data.item.parentId}`} replace />
   }
-  if (data.item.kind === 'Album') return <AlbumPage detail={data} />
-  if (data.item.kind === 'Artist') return <ArtistPage detail={data} />
+  if (data.item.kind === 'Album') return <AlbumPage detail={data} onChange={() => setVersion((v) => v + 1)} />
+  if (data.item.kind === 'Artist') return <ArtistPage detail={data} onChange={() => setVersion((v) => v + 1)} />
   if (data.item.kind === 'Audiobook') return <BookPage key={id} detail={data} onChange={() => setVersion((v) => v + 1)} />
 
   return <Detail key={id} detail={data} onChange={() => setVersion((v) => v + 1)} />
@@ -109,6 +110,7 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
   const [trailer, setTrailer] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [matching, setMatching] = useState(false)
+  const [editingDetails, setEditingDetails] = useState(false)
   const [findingSubtitles, setFindingSubtitles] = useState(false)
   const [subtitlesSaved, setSubtitlesSaved] = useState<string>()
   const [moreAt, setMoreAt] = useState<MenuPoint | null>(null)
@@ -136,7 +138,7 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
   // A child's profile has no collections and doesn't find subtitles.
   if ((item.kind === 'Movie' || item.kind === 'Series') && !kids) more.push({ label: 'Add to collection…', run: () => openAddToCollection(item) })
   if (detail.canSearchSubtitles && !kids) more.push({ label: 'Search for subtitles…', run: () => setFindingSubtitles(true) })
-  if (canFixMatch) more.push({ label: 'Fix match…', run: () => setMatching(true) })
+  if (canFixMatch) more.push({ label: 'Edit…', run: () => setEditingDetails(true) }, { label: 'Fix match…', run: () => setMatching(true) })
   // A parent's say over the title for profiles with an age limit, once any has one; its episodes follow it.
   const override = detail.kidsOverride
   if (mainProfile && override != null && series === undefined && profiles?.some((p) => p.maxRatingAge != null)) {
@@ -299,6 +301,7 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
         />
       )}
       {matching && <FixMatchDialog item={item} onFixed={onChange} onClose={() => setMatching(false)} />}
+      {editingDetails && <DetailsEditor detail={detail} onSaved={onChange} onClose={() => setEditingDetails(false)} />}
       {findingSubtitles && (
         <SubtitleSearchDialog
           itemId={item.id}

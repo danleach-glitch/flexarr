@@ -1,10 +1,9 @@
-import { useId, useState, type FormEvent, type KeyboardEvent } from 'react'
+import { useState, type FormEvent } from 'react'
 import { ApiError, editBook, type ItemDetail } from '../api/client'
 import { useModal } from '../hooks/useModal'
 import { AsyncButton } from './AsyncButton'
-
-/** The list with `name` added, unless it's empty or already there (in any case). */
-const withName = (list: string[], name: string) => (name.trim() && !list.some((n) => n.toLowerCase() === name.trim().toLowerCase()) ? [...list, name.trim()] : list)
+import { NameList } from './NameList'
+import { withName } from '../lib/names'
 
 /**
  * The main profile's fixes to a book: its title, people, series, genres, description and year, and whether they're
@@ -133,42 +132,6 @@ export function BookEditor({ detail, onSaved, onClose }: { detail: ItemDetail; o
           </AsyncButton>
         </div>
       </form>
-    </div>
-  )
-}
-
-/**
- * Names as chips, each with a way to remove it, and a box to add one (Enter or Tab adds it; saving adds what's left
- * typed). Names can hold commas ("Martin Luther King, Jr."), so nothing is split.
- */
-function NameList({ label, names, typed, disabled, onType, onChange }: { label: string; names: string[]; typed: string; disabled: boolean; onType: (text: string) => void; onChange: (names: string[]) => void }) {
-  const id = useId()
-  function add() {
-    const next = withName(names, typed)
-    if (next !== names) onChange(next)
-    onType('')
-  }
-  function key(e: KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'Enter' && typed.trim()) {
-      e.preventDefault()
-      add()
-    }
-  }
-  const one = label === 'Genres' ? 'genre' : label === 'Authors' ? 'author' : 'narrator'
-  const article = one === 'author' ? 'an' : 'a'
-  return (
-    <div className="field wide">
-      <span className="field-label" id={id}>
-        {label}
-      </span>
-      <div className="book-editor-names" role="group" aria-labelledby={id}>
-        {names.map((n) => (
-          <button key={n} type="button" className="chip" disabled={disabled} aria-label={`Remove ${n}`} onClick={() => onChange(names.filter((x) => x !== n))}>
-            {n} ×
-          </button>
-        ))}
-        <input type="text" value={typed} onChange={(e) => onType(e.target.value)} onKeyDown={key} onBlur={add} disabled={disabled} placeholder={`Add ${names.length ? 'another' : article} ${one}`} aria-label={`Add ${article} ${one}`} maxLength={200} />
-      </div>
     </div>
   )
 }

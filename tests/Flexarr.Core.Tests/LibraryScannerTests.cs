@@ -723,6 +723,46 @@ public sealed class LibraryScannerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Music_MergedArtistsAndAlbums_StayMerged_WhenNewTracksArrive()
+    {
+        var root = Touch("music/Beyonce/Lemonade (2016)/01 - Pray You Catch Me.flac", "music/Beyoncé/Lemonade Deluxe/01 - Formation.flac");
+        _probe.Tags["01 - Pray You Catch Me.flac"] = new() { ["artist"] = "Beyonce", ["album"] = "Lemonade", ["title"] = "Pray You Catch Me", ["track"] = "1" };
+        _probe.Tags["01 - Formation.flac"] = new() { ["artist"] = "Beyoncé", ["album"] = "Lemonade (Deluxe)", ["title"] = "Formation", ["track"] = "12" };
+        var library = await AddLibrary(LibraryType.Music, Path.Combine(root, "music"));
+        await Scanner().ScanAsync(library, null, default);
+        _db.ChangeTracker.Clear();
+
+        // As Library health's Merge leaves them: one artist and one album, and the names and folder merged away recorded.
+        var artists = await _db.MediaItems.Where(i => i.Kind == MediaKind.Artist).ToListAsync();
+        var keep = artists.Single(a => a.Title == "Beyoncé");
+        var gone = artists.Single(a => a.Title == "Beyonce");
+        var albums = await _db.MediaItems.Where(i => i.Kind == MediaKind.Album).ToListAsync();
+        var lemonade = albums.Single(a => a.Title == "Lemonade");
+        var deluxe = albums.Single(a => a.Title == "Lemonade (Deluxe)");
+        await _db.MediaItems.Where(i => i.ParentId == gone.Id).ExecuteUpdateAsync(u => u.SetProperty(i => i.ParentId, keep.Id));
+        await _db.MediaItems.Where(i => i.ParentId == deluxe.Id).ExecuteUpdateAsync(u => u.SetProperty(i => i.ParentId, lemonade.Id));
+        _db.MusicAliases.AddRange(
+            new MusicAlias { LibraryId = library.Id, Key = MusicKeys.ArtistKey("Beyonce"), ItemId = keep.Id },
+            new MusicAlias { LibraryId = library.Id, Key = MusicKeys.PathKey(deluxe.Path!), ItemId = lemonade.Id });
+        await _db.SaveChangesAsync();
+        await _db.MediaItems.Where(i => i.Id == gone.Id || i.Id == deluxe.Id).ExecuteDeleteAsync();
+        _db.ChangeTracker.Clear();
+
+        // A new album under the old spelling, and another track in the merged album's folder.
+        Touch("music/Beyonce/B'Day (2006)/01 - Deja Vu.flac", "music/Beyoncé/Lemonade Deluxe/02 - Sorry.flac");
+        _probe.Tags["01 - Deja Vu.flac"] = new() { ["artist"] = "Beyonce", ["album"] = "B'Day", ["title"] = "Deja Vu", ["track"] = "1" };
+        _probe.Tags["02 - Sorry.flac"] = new() { ["artist"] = "Beyoncé", ["album"] = "Lemonade (Deluxe)", ["title"] = "Sorry", ["track"] = "13" };
+        await Scanner().ScanAsync(library, null, default);
+        _db.ChangeTracker.Clear();
+
+        var artist = await _db.MediaItems.Include(i => i.Children).SingleAsync(i => i.Kind == MediaKind.Artist);
+        Assert.Equal(keep.Id, artist.Id);
+        Assert.Equal(["B'Day", "Lemonade"], artist.Children.Select(a => a.Title).Order());
+        var tracks = await _db.MediaItems.Where(i => i.ParentId == lemonade.Id).Select(i => i.Title).ToListAsync();
+        Assert.Equal(["Formation", "Pray You Catch Me", "Sorry"], tracks.Order());
+    }
+
+    [Fact]
     public async Task Music_AlbumsTakeTheirGenreTags_SoGenresWorkWithoutLidarr()
     {
         var root = Touch("music/Radiohead/OK Computer (1997)/01 - Airbag.flac", "music/Wet Leg/Wet Leg (2022)/01 - Being in Love.flac");
