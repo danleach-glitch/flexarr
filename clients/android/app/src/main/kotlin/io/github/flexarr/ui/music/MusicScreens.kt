@@ -60,6 +60,7 @@ import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.MediaKind
 import io.github.flexarr.core.MusicActions
 import io.github.flexarr.core.MusicArtistExtras
+import io.github.flexarr.core.MusicMenu
 import io.github.flexarr.core.unfollowArtist
 import io.github.flexarr.core.PlaylistDetail
 import io.github.flexarr.core.artistName
@@ -311,7 +312,7 @@ fun ArtistScreen(model: AppModel, id: String) {
                     }
                     if (albums.isNotEmpty()) {
                         fullWidth { SectionHeading("Albums", Modifier.bleed()) }
-                        itemsIndexed(albums, key = { _, album -> album.id }) { _, album -> AlbumCard(album) }
+                        itemsIndexed(albums, key = { _, album -> album.id }) { _, album -> AlbumCard(album, onArtistPage = true) }
                     } else if (extrasChecked && extras?.missing.isNullOrEmpty()) {
                         fullWidth { Box(Modifier.height(160.dp)) { StatusView("No albums yet.", empty = true) } }
                     }
@@ -390,6 +391,9 @@ fun AlbumScreen(model: AppModel, id: String) {
                                             isCurrent = music.current?.id == track.id, isPlaying = music.isPlaying,
                                             subtitle = track.trackArtist,
                                             isDownloaded = model.downloads.isDownloaded(track.id),
+                                            actions = musicMenuActions(MusicMenuSubject.Item(track), MusicMenu.Place.ROW) {
+                                                music.play(tracks, start = tracks.indexOf(track), albums = listOf(item))
+                                            },
                                         ) {
                                             if (music.current?.id == track.id) music.togglePlayPause()
                                             else music.play(tracks, start = tracks.indexOf(track), albums = listOf(item))
@@ -451,7 +455,11 @@ fun PlaylistScreen(model: AppModel, id: String) {
                     state.value.tracks.forEachIndexed { index, entry ->
                         item(key = entry.entryId) {
                             Box(Modifier.padding(horizontal = Edge - 8.dp).padding(top = if (index == 0) 20.dp else 0.dp)) {
-                                TrackRow(entry.track, index + 1, isCurrent = music.current?.id == entry.track.id, isPlaying = music.isPlaying, subtitle = entry.track.artistName, isDownloaded = model.downloads.isDownloaded(entry.track.id)) {
+                                TrackRow(
+                                    entry.track, index + 1, isCurrent = music.current?.id == entry.track.id, isPlaying = music.isPlaying, subtitle = entry.track.artistName,
+                                    isDownloaded = model.downloads.isDownloaded(entry.track.id),
+                                    actions = musicMenuActions(MusicMenuSubject.Item(entry.track), MusicMenu.Place.ROW) { music.play(tracks, start = index) },
+                                ) {
                                     if (music.current?.id == entry.track.id) music.togglePlayPause() else music.play(tracks, start = index)
                                 }
                             }

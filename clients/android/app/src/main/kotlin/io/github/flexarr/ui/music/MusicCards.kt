@@ -21,6 +21,10 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -39,10 +43,14 @@ import io.github.flexarr.appModel
 import io.github.flexarr.core.Format
 import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.MixSummary
+import io.github.flexarr.core.MusicMenu
 import io.github.flexarr.core.PlaylistSummary
 import io.github.flexarr.core.artistName
 import io.github.flexarr.core.releaseYear
+import io.github.flexarr.ui.components.ItemMenu
 import io.github.flexarr.ui.components.LocalNavigator
+import io.github.flexarr.ui.components.MenuAction
+import io.github.flexarr.ui.components.menuActions
 import io.github.flexarr.ui.components.RemoteImage
 import io.github.flexarr.ui.components.pressable
 import io.github.flexarr.ui.downloads.CardDownloadedMark
@@ -90,49 +98,71 @@ private fun CardCaption(title: String, subtitle: String?, centred: Boolean = fal
     }
 }
 
-/** An album: square cover (marked once it's downloaded) with its title and year (or artist) beneath; tapping opens it. */
+/**
+ * An album: square cover (marked once it's downloaded) with its title and year (or artist) beneath; tapping opens
+ * it, holding offers [musicMenuActions] (no Go to artist [onArtistPage]).
+ */
 @Composable
-fun AlbumCard(item: ItemSummary, modifier: Modifier = Modifier, width: Dp? = null, showsArtist: Boolean = false) {
+fun AlbumCard(item: ItemSummary, modifier: Modifier = Modifier, width: Dp? = null, showsArtist: Boolean = false, onArtistPage: Boolean = false) {
     val navigator = LocalNavigator.current
     val downloads = LocalContext.current.appModel.downloads
-    Column(
-        modifier.then(if (width != null) Modifier.width(width) else Modifier).pressable({ navigator.open(item) }),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Box {
-            SquareArtwork(item)
-            CardDownloadedMark(downloads.isCollectionDownloaded(item.id))
+    var menu by remember { mutableStateOf(false) }
+    val actions = musicMenuActions(MusicMenuSubject.Item(item), MusicMenu.Place.CARD, showsArtist = !onArtistPage)
+    Box(modifier.then(if (width != null) Modifier.width(width) else Modifier)) {
+        Column(
+            Modifier.fillMaxWidth().pressable({ navigator.open(item) }, onLongClick = { menu = true }).menuActions(actions),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Box {
+                SquareArtwork(item)
+                CardDownloadedMark(downloads.isCollectionDownloaded(item.id))
+            }
+            // The artist under the title, where the albums are from several; the year on an artist's own page.
+            CardCaption(item.title, if (showsArtist) item.artistName ?: item.releaseYear?.toString() else item.releaseYear?.toString())
         }
-        // The artist under the title, where the albums are from several; the year on an artist's own page.
-        CardCaption(item.title, if (showsArtist) item.artistName ?: item.releaseYear?.toString() else item.releaseYear?.toString())
+        ItemMenu(actions, menu, onDismiss = { menu = false })
     }
 }
 
-/** An artist: a round picture with the name beneath; tapping opens them. */
+/** An artist: a round picture with the name beneath; tapping opens them, holding offers [musicMenuActions]. */
 @Composable
 fun ArtistCard(item: ItemSummary, modifier: Modifier = Modifier) {
     val navigator = LocalNavigator.current
-    Column(modifier.pressable({ navigator.open(item) }), verticalArrangement = Arrangement.spacedBy(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        SquareArtwork(item, Modifier.padding(horizontal = 6.dp), circular = true)
-        CardCaption(item.title, if (item.childCount == 1) "1 album" else if (item.childCount > 1) "${item.childCount} albums" else null, centred = true)
+    var menu by remember { mutableStateOf(false) }
+    val actions = musicMenuActions(MusicMenuSubject.Item(item), MusicMenu.Place.CARD)
+    Box(modifier) {
+        Column(
+            Modifier.fillMaxWidth().pressable({ navigator.open(item) }, onLongClick = { menu = true }).menuActions(actions),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            SquareArtwork(item, Modifier.padding(horizontal = 6.dp), circular = true)
+            CardCaption(item.title, if (item.childCount == 1) "1 album" else if (item.childCount > 1) "${item.childCount} albums" else null, centred = true)
+        }
+        ItemMenu(actions, menu, onDismiss = { menu = false })
     }
 }
 
-/** A track in a Home row: its cover with a play mark, the name and the artist beneath. Tapping plays. */
+/** A track in a Home row: its cover with a play mark, the name and the artist beneath. Tapping plays; holding offers [musicMenuActions]. */
 @Composable
 fun TrackCard(model: AppModel, item: ItemSummary, width: Dp, onClick: () -> Unit) {
     val playing = model.music.current?.id == item.id && model.music.isPlaying
-    Column(Modifier.width(width).pressable(onClick), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Box {
-            SquareArtwork(item)
-            Box(
-                Modifier.align(Alignment.BottomEnd).padding(6.dp).size(28.dp).clip(CircleShape).background(Flexarr.screen.copy(alpha = 0.92f)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(if (playing) Icons.AutoMirrored.Filled.VolumeUp else Icons.Filled.PlayArrow, contentDescription = null, tint = Flexarr.room, modifier = Modifier.size(16.dp))
+    var menu by remember { mutableStateOf(false) }
+    val actions = musicMenuActions(MusicMenuSubject.Item(item), MusicMenu.Place.CARD, onPlay = onClick)
+    Box(Modifier.width(width)) {
+        Column(Modifier.fillMaxWidth().pressable(onClick, onLongClick = { menu = true }).menuActions(actions), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Box {
+                SquareArtwork(item)
+                Box(
+                    Modifier.align(Alignment.BottomEnd).padding(6.dp).size(28.dp).clip(CircleShape).background(Flexarr.screen.copy(alpha = 0.92f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(if (playing) Icons.AutoMirrored.Filled.VolumeUp else Icons.Filled.PlayArrow, contentDescription = null, tint = Flexarr.room, modifier = Modifier.size(16.dp))
+                }
             }
+            CardCaption(item.title, item.artistName)
         }
-        CardCaption(item.title, item.artistName)
+        ItemMenu(actions, menu, onDismiss = { menu = false })
     }
 }
 
@@ -166,13 +196,21 @@ private fun Placeholder() {
     Icon(Icons.AutoMirrored.Filled.QueueMusic, contentDescription = null, tint = Flexarr.usher, modifier = Modifier.size(34.dp))
 }
 
-/** A playlist in a row: its picture with the name and how many tracks beneath; tapping opens it. */
+/** A playlist in a row: its picture with the name and how many tracks beneath; tapping opens it, holding offers [musicMenuActions]. */
 @Composable
 fun PlaylistCard(playlist: PlaylistSummary, width: Dp) {
     val navigator = LocalNavigator.current
-    Column(Modifier.width(width).pressable({ navigator.openPlaylist(playlist.id) }), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        PlaylistArtwork(playlist)
-        CardCaption(playlist.name, playlist.trackCountLabel)
+    var menu by remember { mutableStateOf(false) }
+    val actions = musicMenuActions(MusicMenuSubject.Playlist(playlist), MusicMenu.Place.CARD)
+    Box(Modifier.width(width)) {
+        Column(
+            Modifier.fillMaxWidth().pressable({ navigator.openPlaylist(playlist.id) }, onLongClick = { menu = true }).menuActions(actions),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            PlaylistArtwork(playlist)
+            CardCaption(playlist.name, playlist.trackCountLabel)
+        }
+        ItemMenu(actions, menu, onDismiss = { menu = false })
     }
 }
 
@@ -199,30 +237,37 @@ fun TrackRow(
     subtitle: String? = null,
     isDownloaded: Boolean = false,
     isDimmed: Boolean = false,
+    /** What holding it offers ([musicMenuActions]); none, no menu. */
+    actions: List<MenuAction> = emptyList(),
     onClick: () -> Unit,
 ) {
-    Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(Tokens.radiusControl))
-            .then(if (isCurrent) Modifier.background(Flexarr.screen.copy(alpha = 0.1f)) else Modifier)
-            .alpha(if (isDimmed) 0.45f else 1f)
-            .pressable(onClick, enabled = !isDimmed)
-            .padding(horizontal = 12.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(Modifier.width(28.dp), contentAlignment = Alignment.CenterEnd) {
-            if (isCurrent) {
-                Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = if (isPlaying) "Playing" else "Paused", tint = Flexarr.screen.copy(alpha = if (isPlaying) 1f else 0.6f), modifier = Modifier.size(18.dp))
-            } else {
-                Text(number.toString(), fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher, style = Tabular)
+    var menu by remember { mutableStateOf(false) }
+    Box {
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(Tokens.radiusControl))
+                .then(if (isCurrent) Modifier.background(Flexarr.screen.copy(alpha = 0.1f)) else Modifier)
+                .alpha(if (isDimmed) 0.45f else 1f)
+                .pressable(onClick, enabled = !isDimmed, onLongClick = { menu = true }.takeIf { actions.isNotEmpty() })
+                .menuActions(actions)
+                .padding(horizontal = 12.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(Modifier.width(28.dp), contentAlignment = Alignment.CenterEnd) {
+                if (isCurrent) {
+                    Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = if (isPlaying) "Playing" else "Paused", tint = Flexarr.screen.copy(alpha = if (isPlaying) 1f else 0.6f), modifier = Modifier.size(18.dp))
+                } else {
+                    Text(number.toString(), fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher, style = Tabular)
+                }
             }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                Text(track.title, fontSize = 17.sp, fontWeight = if (isCurrent) FontWeight.SemiBold else FontWeight.Normal, color = Flexarr.screen, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                subtitle?.let { Text(it, fontSize = 12.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+            }
+            if (isDownloaded) DownloadedMark()
+            Spacer(Modifier.width(0.dp))
+            track.durationSeconds?.takeIf { it > 0 }?.let { Text(Format.timestamp(it), fontSize = 15.sp, color = Flexarr.usher, style = Tabular) }
         }
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
-            Text(track.title, fontSize = 17.sp, fontWeight = if (isCurrent) FontWeight.SemiBold else FontWeight.Normal, color = Flexarr.screen, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            subtitle?.let { Text(it, fontSize = 12.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-        }
-        if (isDownloaded) DownloadedMark()
-        Spacer(Modifier.width(0.dp))
-        track.durationSeconds?.takeIf { it > 0 }?.let { Text(Format.timestamp(it), fontSize = 15.sp, color = Flexarr.usher, style = Tabular) }
+        ItemMenu(actions, menu, onDismiss = { menu = false })
     }
 }
