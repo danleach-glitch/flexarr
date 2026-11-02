@@ -468,8 +468,9 @@ app.MapGroup("/api/v1").MapImageEndpoints().MapStreamEndpoints().MapLiveTvStream
 app.MapMediaBrowserEndpoints();
 
 // The web client is a SPA; let it own every non-API route. An API route this server doesn't have is left unmatched, so
-// it's a 404 rather than the web page, and newer apps can tell what an older server lacks.
-app.MapFallbackToFile("{**path:regex(^(?!api(/|$)))}", "index.html", webApp);
+// it's a 404 rather than the web page, and newer apps can tell what an older server lacks. `nonfile` keeps paths with a
+// file extension (/assets/*.js) out of it: a matched endpoint makes the static file middleware stand aside.
+app.MapFallbackToFile("{**path:nonfile:regex(^(?!api(/|$)))}", "index.html", webApp);
 
 // A server with no owner yet says its setup code in the log, where whoever installed it will look.
 // Once the server is listening, so the setup link in the log has the port it really uses.
