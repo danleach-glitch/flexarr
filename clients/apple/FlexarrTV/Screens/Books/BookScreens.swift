@@ -394,9 +394,10 @@ struct BookView: View {
                     }
                     .buttonStyle(ActionButtonStyle(ambient: item.ambientColor, prominent: true))
                     .focused($playFocused)
-                    // After Play, in `BookActions` order: Start over, then Finished (or Unread once it's finished).
+                    // After Play, in `BookActions` order: Start over, then Finished (or Unread once it's finished), then ⋯.
                     ForEach(BookActions(hasProgress: position > 0 && !item.userData.watched, finished: item.userData.watched,
-                                        isKids: model.isKids, platform: .tv).buttons.dropFirst(), id: \.self) { button in
+                                        isKids: model.isKids, platform: .tv, hasMenu: model.canDeleteBooks).buttons.dropFirst(),
+                            id: \.self) { button in
                         switch button {
                         case .startOver:
                             // Part way through, it asks first, and offers Mark as unread there (as the phones do).
@@ -431,7 +432,10 @@ struct BookView: View {
                                       systemImage: item.userData.watched ? "book.closed" : "checkmark")
                             }
                             .buttonStyle(ActionButtonStyle(iconOnly: true))
-                        case .play, .download, .more:
+                        case .more:
+                            BookMoreMenu(item: item)
+                                .buttonStyle(ActionButtonStyle(iconOnly: true))
+                        case .play, .download:
                             EmptyView()
                         }
                     }

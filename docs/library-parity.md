@@ -45,7 +45,7 @@ Apps: **W** web, **i** iPhone/iPad, **tv** Apple TV, **A** Android phone, **ATV*
 | | Movie / show / episode | Artist / album | Book / series / author |
 | --- | --- | --- | --- |
 | Shared button model | ✅ `DetailActions` (FlexarrKit, Android core) | ✅ `MusicActions`, artists and albums | ✅ `BookActions`: Play, Start over, Finished, Download (phones), ⋯ |
-| ⋯ menu | ✅ every app | ✅ album and artist pages: Play next, Add to queue, Add to playlist (W, phones); Delete W only | 🟡 W only (Edit, chapters, Fix match, collections…); the apps have nothing to put in one yet |
+| ⋯ menu | ✅ every app | ✅ album and artist pages: Play next, Add to queue, Add to playlist (W, phones); Delete W only | 🟡 W: Edit, chapters, Fix match, collections, Delete; i, tv, A: Delete only (main profile); ATV has no book page |
 | IMDb / Rotten Tomatoes | ✅ | — | — |
 | People | cast and crew → person pages with bios | 🟡 artist bio text only; artists aren't people | ✅ author cards with photo and bio, narrators |
 | Similar | *More like this* (not episodes; no Seerr needed) | *Fans also like*, artists only, needs Lidarr; ❌ albums have no *More by* | *More in series*, *More by author*, *Read by* (❌ *Read by* on tv) |

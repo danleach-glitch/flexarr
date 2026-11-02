@@ -707,6 +707,17 @@ extension FlexarrClient {
         _ = try await send("POST", "items/\(itemId)/finished", body: FinishedBody(finished: finished))
     }
 
+    /// What deleting a title does: an app (Radarr, Sonarr, Lidarr) deletes it, or Flexarr deletes `files` (always, for a
+    /// book). The main profile only.
+    public func deletion(_ itemId: String) async throws -> DeletionPlan {
+        try await get("items/\(itemId)/deletion")
+    }
+
+    /// Deletes a title and its files for good (the main profile only).
+    public func deleteItem(_ itemId: String) async throws {
+        _ = try await send("DELETE", "items/\(itemId)")
+    }
+
     /// Starts the book over, keeping when it was finished.
     public func listenAgain(_ itemId: String) async throws {
         _ = try await send("POST", "items/\(itemId)/listen-again")
@@ -745,4 +756,25 @@ extension FlexarrClient {
         let note: String?
     }
     private struct BookmarkNoteBody: Encodable { let note: String? }
+}
+
+/// What deleting a title does: `managedBy` names the app that deletes it, or (nil) Flexarr deletes `files` itself.
+public struct DeletionPlan: Decodable, Sendable, Equatable {
+    public let managedBy: String?
+    public let files: [String]
+
+    public init(managedBy: String?, files: [String]) {
+        self.managedBy = managedBy
+        self.files = files
+    }
+
+    /// What the question before deleting a book says.
+    public var bookMessage: String {
+        let what = switch files.count {
+        case 0: "Flexarr deletes it from the library: there are no files on disk."
+        case 1: "Flexarr deletes its file from disk."
+        default: "Flexarr deletes its \(files.count) files from disk."
+        }
+        return files.isEmpty ? "\(what) You can't undo this." : "\(what) Folders it leaves empty go too. You can't undo this."
+    }
 }
