@@ -10,6 +10,8 @@ struct ExternalAlbumView: View {
     let preview: MusicExternal
     @State private var detail: MusicAlbumDetail?
     @State private var error: String?
+    @State private var status: MusicRequestStatus?
+    @Environment(\.musicRequestsPaused) private var pausedAbove
 
     private var album: MusicExternal { detail?.summary ?? preview }
 
@@ -30,6 +32,7 @@ struct ExternalAlbumView: View {
                 .padding(.bottom, 32)
             }
             .refreshable { await load() }
+            .environment(\.musicRequestsPaused, paused)
         }
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
@@ -59,8 +62,21 @@ struct ExternalAlbumView: View {
                 FactsLine(facts: facts)
             }
             if detail != nil {
-                MusicAlbumRequestButton(album: album)
+                if case .inLibrary(let id) = model.albumState(album) {
+                    Button { router.push(.musicItem(id: id, isArtist: false)) } label: {
+                        Label("In your library", systemImage: Symbol.play)
+                    }
+                    .buttonStyle(ActionButtonStyle(prominent: true))
                     .fixedSize()
+                } else if MusicActions(kind: .album, platform: .phone, hasMusic: false, canAsk: status?.configured == true).has(.request) {
+                    // Nothing to play here (`MusicActions`): Request album, or Requested.
+                    MusicAlbumRequestButton(album: album)
+                    if paused {
+                        Text(MusicWords.lidarrNotAnswering)
+                            .font(.footnote)
+                            .foregroundStyle(Color.usher)
+                    }
+                }
             }
         }
         .frame(maxWidth: .infinity)
@@ -101,14 +117,18 @@ struct ExternalAlbumView: View {
         .frame(maxWidth: .infinity)
     }
 
+    private var paused: Bool { pausedAbove || (status?.configured == true && status?.reachable == false) }
+
     private func load() async {
         guard let client = model.client, preview.hasPage else { return }
+        async let asked = model.musicRequestStatus()
         do {
             detail = try await client.musicAlbum(deezerId: preview.deezerId)
             error = nil
         } catch {
             self.error = ConnectionError(error).message
         }
+        status = await asked
     }
 }
 

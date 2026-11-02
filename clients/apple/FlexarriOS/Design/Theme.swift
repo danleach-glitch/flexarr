@@ -125,17 +125,34 @@ struct ActionButtonStyle: ButtonStyle {
     }
 }
 
-/// A round icon-only action beside Play (Start over, Mark watched).
+/// A round icon-only action beside Play (Start over, Mark watched). `selected` shows it on (Following, Requested) in
+/// the page's ambient tint, as a selected pill is; disabled, it dims.
 struct RoundActionStyle: ButtonStyle {
+    var selected = false
+    var ambient: Color = .silver
+
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .labelStyle(.iconOnly)
-            .font(.body.weight(.semibold))
-            .foregroundStyle(Color.screen)
-            .frame(width: 48, height: 48)
-            .background(Circle().fill(Color.screen.opacity(0.14)))
-            .scaleEffect(configuration.isPressed ? 0.94 : 1)
-            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+        RoundBody(configuration: configuration, selected: selected, ambient: ambient)
+    }
+
+    private struct RoundBody: View {
+        let configuration: Configuration
+        let selected: Bool
+        let ambient: Color
+        @Environment(\.isEnabled) private var isEnabled
+
+        var body: some View {
+            configuration.label
+                .labelStyle(.iconOnly)
+                .font(.body.weight(.semibold))
+                .foregroundStyle(Color.screen)
+                .frame(width: 48, height: 48)
+                .background(Circle().fill(selected ? ambient.opacity(0.45) : Color.screen.opacity(0.14)))
+                .overlay { if selected { Circle().strokeBorder(ambient.opacity(0.8), lineWidth: 1.5) } }
+                .opacity(isEnabled ? 1 : 0.4)
+                .scaleEffect(configuration.isPressed ? 0.94 : 1)
+                .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+        }
     }
 }
 

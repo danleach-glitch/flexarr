@@ -10,9 +10,11 @@ struct ActionButtonStyle: ButtonStyle {
     var prominent = false
     /// A round button showing only the label's icon; the title still names it for VoiceOver.
     var iconOnly = false
+    /// On (Following, Requested): resting in the ambient tint, as a selected pill does, rather than the quiet seat.
+    var selected = false
 
     func makeBody(configuration: Configuration) -> some View {
-        ActionButtonBody(configuration: configuration, ambient: ambient, prominent: prominent, iconOnly: iconOnly)
+        ActionButtonBody(configuration: configuration, ambient: ambient, prominent: prominent, iconOnly: iconOnly, selected: selected)
     }
 
     private struct ActionButtonBody: View {
@@ -20,7 +22,14 @@ struct ActionButtonStyle: ButtonStyle {
         let ambient: Color?
         let prominent: Bool
         let iconOnly: Bool
+        let selected: Bool
         @Environment(\.isFocused) private var isFocused
+
+        private var resting: AnyShapeStyle {
+            if prominent { return AnyShapeStyle(Color.mainButton(ambient)) }
+            if selected { return AnyShapeStyle((ambient ?? .silver).opacity(0.45)) }
+            return AnyShapeStyle(Color.screen.opacity(0.14))
+        }
 
         var body: some View {
             configuration.label
@@ -33,7 +42,13 @@ struct ActionButtonStyle: ButtonStyle {
                 .foregroundStyle(isFocused || prominent ? Color.room : Color.screen)
                 .background {
                     RoundedRectangle(cornerRadius: iconOnly ? 38 : Radius.control, style: .continuous)
-                        .fill(isFocused ? AnyShapeStyle(Color.screen) : AnyShapeStyle(prominent ? Color.mainButton(ambient) : Color.screen.opacity(0.14)))
+                        .fill(isFocused ? AnyShapeStyle(Color.screen) : resting)
+                }
+                .overlay {
+                    if selected && !isFocused {
+                        RoundedRectangle(cornerRadius: iconOnly ? 38 : Radius.control, style: .continuous)
+                            .strokeBorder((ambient ?? .silver).opacity(0.8), lineWidth: 2)
+                    }
                 }
                 .shadow(color: isFocused ? (ambient ?? .silver).opacity(0.65) : .clear, radius: 28)
                 .scaleEffect(configuration.isPressed ? 0.97 : (isFocused ? 1.07 : 1))

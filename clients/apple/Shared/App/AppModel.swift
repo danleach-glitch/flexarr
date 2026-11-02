@@ -464,6 +464,7 @@ final class AppModel {
         hasWatchlist = false
         watchlistItems = []
         musicAsked = []
+        musicUndone = []
         onWatchlistForgotten?()
     }
 
@@ -1101,6 +1102,10 @@ final class AppModel {
     /// Music asked for here (`MusicExternal.id`s, and `library-artist-<id>` for a library artist followed), so every
     /// card and page shows Requested or Following at once, before the server's next answer says so.
     var musicAsked: Set<String> = []
+
+    /// Music taken back here (unfollowed, or the request cancelled), under the same keys as `musicAsked`, so pages and
+    /// cards say Follow or Request album at once, before the server's next answer says so.
+    var musicUndone: Set<String> = []
 
     /// Called when the watchlist is forgotten (signing out, another profile), so the widget empties at once.
     var onWatchlistForgotten: (() -> Void)?

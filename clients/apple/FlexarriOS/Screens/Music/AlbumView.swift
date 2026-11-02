@@ -70,17 +70,28 @@ struct AlbumView: View {
                 }
                 FactsLine(facts: facts(item))
             }
+            // In `MusicActions` order: Play, Shuffle, Download. A library album has nothing to request.
             HStack(spacing: 12) {
-                Button { model.playTracks(tracks, albums: [item], showingNowPlaying: router) } label: {
-                    Label("Play", systemImage: "play.fill")
+                ForEach(MusicActions(kind: .album, platform: .phone, hasMusic: true, canDownload: true, canAsk: false).buttons,
+                        id: \.self) { button in
+                    switch button {
+                    case .play:
+                        Button { model.playTracks(tracks, albums: [item], showingNowPlaying: router) } label: {
+                            Label("Play", systemImage: Symbol.play)
+                        }
+                        .buttonStyle(ActionButtonStyle(ambient: page.item?.ambientColor, prominent: true))
+                    case .shuffle:
+                        Button { model.playTracks(tracks, shuffled: true, albums: [item], showingNowPlaying: router) } label: {
+                            Label("Shuffle", systemImage: Symbol.shuffle)
+                        }
+                        .buttonStyle(ActionButtonStyle(ambient: ambient))
+                        .disabled(tracks.count < 2)
+                    case .download:
+                        MusicDownloadButton(source: .album(item, tracks: tracks))
+                    case .radio, .follow, .request, .more:
+                        EmptyView()
+                    }
                 }
-                .buttonStyle(ActionButtonStyle(ambient: page.item?.ambientColor, prominent: true))
-                Button { model.playTracks(tracks, shuffled: true, albums: [item], showingNowPlaying: router) } label: {
-                    Label("Shuffle", systemImage: "shuffle")
-                }
-                .buttonStyle(ActionButtonStyle(ambient: ambient))
-                .disabled(tracks.count < 2)
-                MusicDownloadButton(source: .album(item, tracks: tracks))
             }
             .disabled(tracks.isEmpty)
         }

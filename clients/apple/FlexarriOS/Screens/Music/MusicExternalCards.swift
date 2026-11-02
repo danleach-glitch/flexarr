@@ -121,15 +121,15 @@ struct ExternalMusicCard: View {
     }
 }
 
-/// The main button on an outside album's page, or beside each missing album: Request album, Requested, or In your
-/// library (which opens it).
+/// The round Request album button on an album's page (`MusicActions.request`), or Requested, shown on, which offers to
+/// cancel the request. Nothing for an album in the library (the page opens it) or one that can't be asked for.
 struct MusicAlbumRequestButton: View {
     @Environment(AppModel.self) private var model
-    @Environment(Router.self) private var router
     @Environment(\.musicRequestsPaused) private var paused
     let album: MusicExternal
-    var ambient: Color?
+    var ambient: Color = .silver
     @State private var asking = false
+    @State private var confirming = false
 
     var body: some View {
         switch model.albumState(album) {
@@ -144,52 +144,89 @@ struct MusicAlbumRequestButton: View {
             } label: {
                 Label("Request album", systemImage: Symbol.request)
             }
-            .buttonStyle(ActionButtonStyle(ambient: ambient, prominent: true))
+            .buttonStyle(RoundActionStyle(ambient: ambient))
             .disabled(asking || paused)
+            .accessibilityLabel("Request album")
         case .requested:
-            Label("Requested", systemImage: Symbol.requested)
-                .labelStyle(.titleAndIcon)
-                .font(.body.weight(.semibold))
-                .foregroundStyle(Color.usher)
-        case .inLibrary(let id):
-            Button { router.push(.musicItem(id: id, isArtist: false)) } label: {
-                Label("In your library", systemImage: Symbol.play)
+            Button { confirming = true } label: {
+                Label("Requested", systemImage: Symbol.requested)
             }
-            .buttonStyle(ActionButtonStyle(ambient: ambient, prominent: true))
-        case .none:
+            .buttonStyle(RoundActionStyle(selected: true, ambient: ambient))
+            .disabled(asking || paused)
+            .accessibilityLabel("Requested")
+            .accessibilityAddTraits(.isSelected)
+            .confirmationDialog(MusicWords.unrequest(album.title), isPresented: $confirming, titleVisibility: .visible) {
+                Button("Unrequest", role: .destructive) {
+                    asking = true
+                    Task {
+                        if let failure = await model.unrequestAlbum(album) { model.requestError = failure }
+                        asking = false
+                    }
+                }
+                Button("Keep it", role: .cancel) {}
+            }
+        case .inLibrary, .none:
             EmptyView()
         }
     }
 }
 
-/// Follow artist, or Following once Lidarr watches for their new releases.
+/// The round Follow button on an artist's page (`MusicActions.follow`), or Following, shown on, which offers to stop.
+/// By the library artist's id on a library page, Deezer's on an outside one.
 struct FollowArtistButton: View {
+    @Environment(AppModel.self) private var model
     @Environment(\.musicRequestsPaused) private var paused
+    let name: String
     let following: Bool
-    var ambient: Color?
+    var libraryId: String? = nil
+    var deezerId: Int? = nil
+    var ambient: Color = .silver
     /// Off until there's something to follow by (the outside page's detail has loaded).
     var enabled = true
-    let follow: () async -> Void
+    /// After unfollowing went through (a placeholder artist leaves the library then).
+    var unfollowed: () -> Void = {}
     @State private var asking = false
+    @State private var confirming = false
 
     var body: some View {
-        if following {
-            Label("Following", systemImage: Symbol.following)
-                .labelStyle(.titleAndIcon)
-                .font(.body.weight(.semibold))
-                .foregroundStyle(Color.usher)
-        } else {
-            Button {
-                asking = true
-                Task {
-                    await follow()
-                    asking = false
-                }
-            } label: {
-                Label("Follow artist", systemImage: Symbol.follow)
+        Button {
+            if following {
+                confirming = true
+            } else {
+                follow()
             }
-            .buttonStyle(ActionButtonStyle(ambient: ambient))
-            .disabled(asking || paused || !enabled)
+        } label: {
+            Label(following ? "Following" : "Follow", systemImage: following ? Symbol.following : Symbol.follow)
+        }
+        .buttonStyle(RoundActionStyle(selected: following, ambient: ambient))
+        .disabled(asking || paused || !enabled)
+        .accessibilityLabel(following ? "Following" : "Follow")
+        .accessibilityAddTraits(following ? .isSelected : [])
+        .confirmationDialog(MusicWords.stopFollowing(name), isPresented: $confirming, titleVisibility: .visible) {
+            Button("Stop following", role: .destructive) { unfollow() }
+            Button("Keep following", role: .cancel) {}
+        }
+    }
+
+    private func follow() {
+        let target: MusicRequestTarget
+        if let libraryId { target = .libraryArtist(libraryId) } else if let deezerId { target = .artist(deezerId: deezerId) } else { return }
+        asking = true
+        Task {
+            await model.requestMusic(target)
+            asking = false
+        }
+    }
+
+    private func unfollow() {
+        asking = true
+        Task {
+            if let failure = await model.unfollowArtist(libraryId: libraryId, deezerId: deezerId) {
+                model.requestError = failure
+            } else {
+                unfollowed()
+            }
+            asking = false
         }
     }
 }

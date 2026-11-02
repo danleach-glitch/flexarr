@@ -10,6 +10,8 @@ struct ExternalArtistView: View {
     let preview: MusicExternal
     @State private var detail: MusicArtistDetail?
     @State private var error: String?
+    @State private var status: MusicRequestStatus?
+    @Environment(\.musicRequestsPaused) private var pausedAbove
 
     private var columns: [GridItem] {
         let minimum: CGFloat = sizeClass == .regular ? 150 : 105
@@ -47,6 +49,7 @@ struct ExternalArtistView: View {
                 .padding(.bottom, 32)
             }
             .refreshable { await load() }
+            .environment(\.musicRequestsPaused, paused)
         }
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
@@ -64,6 +67,7 @@ struct ExternalArtistView: View {
                 .lineLimit(2)
                 .minimumScaleFactor(0.7)
             if let detail {
+                // Nothing to play here (`MusicActions`): In your library opens the artist's own page, then Follow.
                 HStack(spacing: 12) {
                     if let id = detail.libraryItemId {
                         Button { router.push(.musicItem(id: id, isArtist: true)) } label: {
@@ -71,11 +75,17 @@ struct ExternalArtistView: View {
                         }
                         .buttonStyle(ActionButtonStyle(prominent: true))
                     }
-                    FollowArtistButton(following: model.isFollowing(preview, followed: detail.followed)) {
-                        await model.requestMusic(.artist(deezerId: detail.deezerId))
+                    if MusicActions(kind: .artist, platform: .phone, hasMusic: false, canAsk: status?.configured == true).has(.follow) {
+                        FollowArtistButton(name: detail.name, following: model.isFollowing(preview, followed: detail.followed),
+                                           libraryId: detail.libraryItemId, deezerId: detail.deezerId)
                     }
                 }
                 .fixedSize()
+                if paused {
+                    Text(MusicWords.lidarrNotAnswering)
+                        .font(.footnote)
+                        .foregroundStyle(Color.usher)
+                }
             }
         }
         .frame(maxWidth: .infinity)
@@ -83,13 +93,17 @@ struct ExternalArtistView: View {
         .padding(.horizontal, Layout.edge)
     }
 
+    private var paused: Bool { pausedAbove || (status?.configured == true && status?.reachable == false) }
+
     private func load() async {
         guard let client = model.client else { return }
+        async let asked = model.musicRequestStatus()
         do {
             detail = try await client.musicArtist(deezerId: preview.deezerId)
             error = nil
         } catch {
             self.error = ConnectionError(error).message
         }
+        status = await asked
     }
 }

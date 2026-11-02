@@ -200,9 +200,10 @@ private struct RequestFailure: View {
     }
 }
 
-/// The main button on an outside album's page: Request album, Requested, or In your library (which opens it). One
-/// button throughout, so focus never lands on nothing when it changes; none at all for an album that can't be asked
-/// for.
+/// An outside album's page button (`MusicActions.request`): a round Request album, or Requested, shown on, which
+/// offers to cancel; or In your library (which opens it), spelled out. One button throughout, so focus never lands on
+/// nothing when it changes; none at all for an album that can't be asked for. While Lidarr isn't answering it stays
+/// focusable but dimmed, and presses do nothing.
 struct MusicAlbumRequestButton: View {
     @Environment(AppModel.self) private var model
     @Environment(Router.self) private var router
@@ -210,90 +211,153 @@ struct MusicAlbumRequestButton: View {
     let album: MusicExternal
     /// The page's first button, which takes focus when a link opens the page.
     var takesLinkFocus = false
+    /// The page's focused round button, for its name under the row.
+    var focus: FocusState<MusicActions.Button?>.Binding? = nil
     @State private var sending = MusicSending.idle
+    @State private var confirming = false
 
     var body: some View {
         let state = model.albumState(album)
         if case .none = state {
             EmptyView()
+        } else if case .inLibrary(let id) = state {
+            Button { router.push(.musicItem(id: id, isArtist: false)) } label: {
+                Label("In your library", systemImage: Symbol.play)
+            }
+            .buttonStyle(ActionButtonStyle(prominent: true))
+            .modifier(ActionFocus(binding: focus, button: .request))
+            .takesFocusFromLink(takesLinkFocus)
         } else {
+            let requested = isRequested(state)
             HStack(spacing: 30) {
                 Button {
-                    switch state {
-                    case .requestable:
-                        guard sending != .sending, !paused, let target = MusicRequestTarget.album(album) else { return }
-                        sending = .sending
-                        Task {
-                            if let failure = await model.sendMusicRequest(target) { sending = .failed(failure) } else { sending = .idle }
-                        }
-                    case .inLibrary(let id):
-                        router.push(.musicItem(id: id, isArtist: false))
-                    case .requested, .none:
-                        break
-                    }
+                    guard sending != .sending, !paused else { return }
+                    if requested { confirming = true } else { request() }
                 } label: {
-                    switch state {
-                    case .requestable: Label(sending.failure == nil ? "Request album" : "Try again", systemImage: Symbol.request)
-                    case .requested: Label("Requested", systemImage: Symbol.requested)
-                    case .inLibrary: Label("In your library", systemImage: Symbol.play)
-                    case .none: EmptyView()
-                    }
+                    Label(requested ? "Requested" : "Request album", systemImage: requested ? Symbol.requested : Symbol.request)
                 }
-                .buttonStyle(ActionButtonStyle(prominent: isProminent(state)))
-                .opacity(paused && isRequestable(state) ? 0.5 : 1)
+                .buttonStyle(ActionButtonStyle(iconOnly: true, selected: requested))
+                .opacity(paused ? 0.5 : 1)
+                .accessibilityLabel(requested ? "Requested" : "Request album")
+                .modifier(ActionFocus(binding: focus, button: .request))
                 .takesFocusFromLink(takesLinkFocus)
-                RequestFailure(message: isRequestable(state) ? sending.failure : nil)
+                .confirmationDialog(MusicWords.unrequest(album.title), isPresented: $confirming, titleVisibility: .visible) {
+                    Button("Unrequest", role: .destructive) { unrequest() }
+                    Button("Keep it", role: .cancel) {}
+                }
+                RequestFailure(message: sending.failure)
             }
         }
     }
 
-    private func isRequestable(_ state: MusicAlbumState) -> Bool {
-        if case .requestable = state { return true }
+    private func isRequested(_ state: MusicAlbumState) -> Bool {
+        if case .requested = state { return true }
         return false
     }
 
-    private func isProminent(_ state: MusicAlbumState) -> Bool {
-        switch state {
-        case .requestable, .inLibrary: true
-        default: false
+    private func request() {
+        guard let target = MusicRequestTarget.album(album) else { return }
+        sending = .sending
+        Task {
+            if let failure = await model.sendMusicRequest(target) { sending = .failed(failure) } else { sending = .idle }
+        }
+    }
+
+    private func unrequest() {
+        sending = .sending
+        Task {
+            if let failure = await model.unrequestAlbum(album) { sending = .failed(failure) } else { sending = .idle }
         }
     }
 }
 
-/// Follow artist, or Following once Lidarr watches for their new releases. One button throughout (see above): while
-/// it can't be pressed (Following, or before there's anything to follow by) it stays focusable but dimmed, and presses
-/// do nothing.
+/// An artist's round Follow button (`MusicActions.follow`), or Following, shown on, which offers to stop. One button
+/// throughout (see above): while it can't be pressed (before there's anything to follow by, or Lidarr isn't answering)
+/// it stays focusable but dimmed, and presses do nothing. By the library artist's id on a library page, Deezer's on an
+/// outside one.
 struct FollowArtistButton: View {
     @Environment(AppModel.self) private var model
     @Environment(\.musicRequestsPaused) private var paused
+    let name: String
     let following: Bool
+    var libraryId: String? = nil
+    var deezerId: Int? = nil
+    var ambient: Color? = nil
     /// Off until there's something to follow by (the outside page's detail has loaded).
     var enabled = true
-    let target: MusicRequestTarget
     /// The page's first button, which takes focus when a link opens the page.
     var takesLinkFocus = false
+    /// The page's focused round button, for its name under the row.
+    var focus: FocusState<MusicActions.Button?>.Binding? = nil
+    /// After unfollowing went through (a placeholder artist leaves the library then).
+    var unfollowed: () -> Void = {}
     @State private var sending = MusicSending.idle
+    @State private var confirming = false
 
     var body: some View {
         HStack(spacing: 30) {
             Button {
-                guard !following, enabled, !paused, sending != .sending else { return }
-                sending = .sending
-                Task {
-                    if let failure = await model.sendMusicRequest(target) { sending = .failed(failure) } else { sending = .idle }
-                }
+                guard enabled, !paused, sending != .sending else { return }
+                if following { confirming = true } else { follow() }
             } label: {
-                if following {
-                    Label("Following", systemImage: Symbol.following)
-                } else {
-                    Label(sending.failure == nil ? "Follow artist" : "Try again", systemImage: Symbol.follow)
-                }
+                Label(following ? "Following" : "Follow", systemImage: following ? Symbol.following : Symbol.follow)
             }
-            .buttonStyle(ActionButtonStyle())
-            .opacity(following || !enabled || paused ? 0.5 : 1)
+            .buttonStyle(ActionButtonStyle(ambient: ambient, iconOnly: true, selected: following))
+            .opacity(!enabled || paused ? 0.5 : 1)
+            .accessibilityLabel(following ? "Following" : "Follow")
+            .modifier(ActionFocus(binding: focus, button: .follow))
             .takesFocusFromLink(takesLinkFocus)
-            RequestFailure(message: following ? nil : sending.failure)
+            .confirmationDialog(MusicWords.stopFollowing(name), isPresented: $confirming, titleVisibility: .visible) {
+                Button("Stop following", role: .destructive) { unfollow() }
+                Button("Keep following", role: .cancel) {}
+            }
+            RequestFailure(message: sending.failure)
         }
+    }
+
+    private func follow() {
+        let target: MusicRequestTarget
+        if let libraryId { target = .libraryArtist(libraryId) } else if let deezerId { target = .artist(deezerId: deezerId) } else { return }
+        sending = .sending
+        Task {
+            if let failure = await model.sendMusicRequest(target) { sending = .failed(failure) } else { sending = .idle }
+        }
+    }
+
+    private func unfollow() {
+        sending = .sending
+        Task {
+            if let failure = await model.unfollowArtist(libraryId: libraryId, deezerId: deezerId) {
+                sending = .failed(failure)
+            } else {
+                sending = .idle
+                unfollowed()
+            }
+        }
+    }
+}
+
+/// Ties a round button to its page's focus, for the focused button's name under the row.
+struct ActionFocus: ViewModifier {
+    let binding: FocusState<MusicActions.Button?>.Binding?
+    let button: MusicActions.Button
+
+    func body(content: Content) -> some View {
+        if let binding { content.focused(binding, equals: button) } else { content }
+    }
+}
+
+/// The name of a music page's focused round button, under the row (as a film's page does); the line keeps its height
+/// so nothing jumps.
+struct FocusedActionName: View {
+    let name: String?
+
+    var body: some View {
+        Text(name ?? " ")
+            .font(.system(size: 24, weight: .medium))
+            .foregroundStyle(Color.screen.opacity(0.75))
+            .animation(.easeOut(duration: 0.15), value: name)
+            .accessibilityHidden(true)
     }
 }
 

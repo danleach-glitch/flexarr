@@ -39,6 +39,7 @@ extension AppModel {
         do {
             try await client.requestMusic(target)
             musicAsked.insert(target.askedKey)
+            musicUndone.remove(target.askedKey)
             return nil
         } catch {
             return ConnectionError(error).message
@@ -49,17 +50,61 @@ extension AppModel {
         if let id = album.libraryItemId, album.availability == .available || album.availability == .partlyAvailable {
             return .inLibrary(id)
         }
+        if musicUndone.contains(album.id) {
+            return album.deezerId != 0 || album.musicBrainzId != nil ? .requestable : .none
+        }
         if album.availability == .requested || musicAsked.contains(album.id) { return .requested }
         return album.isRequestable ? .requestable : .none
     }
 
     /// Whether Lidarr watches for the artist's new releases (or the profile just asked it to).
     func isFollowing(_ artist: MusicExternal, followed: Bool = false) -> Bool {
-        followed || artist.availability == .requested || musicAsked.contains(artist.id)
+        if musicUndone.contains(artist.id) { return false }
+        return followed || artist.availability == .requested || musicAsked.contains(artist.id)
     }
 
     func isFollowing(libraryArtist id: String, followed: Bool) -> Bool {
-        followed || musicAsked.contains(MusicRequestTarget.libraryArtist(id).askedKey)
+        let key = MusicRequestTarget.libraryArtist(id).askedKey
+        if musicUndone.contains(key) { return false }
+        return followed || musicAsked.contains(key)
+    }
+
+    /// Whether music requests are on here, for an artist's or album's page: off when there's no client or no answer.
+    func musicRequestStatus() async -> MusicRequestStatus {
+        guard let client, !isKids else { return .off }
+        return (try? await client.musicRequestStatus()) ?? .off
+    }
+
+    /// Stops following an artist for the household, by whichever ids the page has (both are marked, so the library
+    /// page and the outside page agree): nil when it went through, else why not.
+    func unfollowArtist(libraryId: String?, deezerId: Int?) async -> String? {
+        guard let client else { return ConnectionError(FlexarrClientError.unreachable).message }
+        do {
+            try await client.unfollowArtist(libraryArtistId: libraryId, deezerId: libraryId == nil ? deezerId : nil)
+            var keys: [String] = []
+            if let libraryId { keys.append(MusicRequestTarget.libraryArtist(libraryId).askedKey) }
+            if let deezerId, deezerId != 0 { keys.append(MusicRequestTarget.artist(deezerId: deezerId).askedKey) }
+            for key in keys {
+                musicAsked.remove(key)
+                musicUndone.insert(key)
+            }
+            return nil
+        } catch {
+            return ConnectionError(error).message
+        }
+    }
+
+    /// Cancels an album asked for, for the household: nil when it went through, else why not.
+    func unrequestAlbum(_ album: MusicExternal) async -> String? {
+        guard let client else { return ConnectionError(FlexarrClientError.unreachable).message }
+        do {
+            try await client.unrequestAlbum(album)
+            musicAsked.remove(album.id)
+            musicUndone.insert(album.id)
+            return nil
+        } catch {
+            return ConnectionError(error).message
+        }
     }
 }
 
@@ -71,6 +116,10 @@ extension EnvironmentValues {
 /// The one line said when Lidarr isn't answering.
 enum MusicWords {
     static let lidarrNotAnswering = "Lidarr isn\u{2019}t answering."
+
+    /// The questions asked before taking music back, the web's words.
+    static func stopFollowing(_ artist: String) -> String { "Stop following \(artist)?" }
+    static func unrequest(_ album: String) -> String { "Unrequest \(album)?" }
 }
 
 extension MusicExternal {

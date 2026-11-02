@@ -9,6 +9,10 @@ struct ExternalArtistView: View {
     let preview: MusicExternal
     @State private var detail: MusicArtistDetail?
     @State private var error: String?
+    @State private var status: MusicRequestStatus?
+    @Environment(\.musicRequestsPaused) private var pausedAbove
+    /// The focused round button, named under the row.
+    @FocusState private var focusedAction: MusicActions.Button?
 
     private let columns = Array(repeating: GridItem(.fixed(Layout.posterWidth), spacing: Layout.gridSpacing, alignment: .top), count: 6)
 
@@ -49,6 +53,7 @@ struct ExternalArtistView: View {
                 .padding(.bottom, 90)
             }
             .scrollClipDisabled()
+            .environment(\.musicRequestsPaused, paused)
         }
         .task { await load() }
     }
@@ -62,32 +67,46 @@ struct ExternalArtistView: View {
                     .foregroundStyle(Color.screen)
                     .lineLimit(2)
                     .minimumScaleFactor(0.6)
-                // There from the start, so focus has somewhere to land while the rest loads.
-                HStack(spacing: 26) {
-                    if let id = detail?.libraryItemId {
-                        Button { router.push(.musicItem(id: id, isArtist: true)) } label: {
-                            Label("In your library", systemImage: Symbol.play)
+                // Nothing to play here (`MusicActions`): In your library opens the artist's own page, then Follow. Follow
+                // is there from the start (while the status loads too), so focus has somewhere to land; it goes only
+                // once the server says music requests are off.
+                VStack(alignment: .leading, spacing: 18) {
+                    HStack(spacing: 26) {
+                        if let id = detail?.libraryItemId {
+                            Button { router.push(.musicItem(id: id, isArtist: true)) } label: {
+                                Label("In your library", systemImage: Symbol.play)
+                            }
+                            .buttonStyle(ActionButtonStyle(prominent: true))
                         }
-                        .buttonStyle(ActionButtonStyle(prominent: true))
+                        if MusicActions(kind: .artist, platform: .tv, hasMusic: false, canAsk: status?.configured != false).has(.follow) {
+                            // Pressable once the detail has loaded, so a press can't follow an artist the page hasn't shown.
+                            FollowArtistButton(name: detail?.name ?? preview.title, following: following,
+                                               libraryId: detail?.libraryItemId, deezerId: preview.deezerId,
+                                               enabled: detail != nil && status != nil, takesLinkFocus: true, focus: $focusedAction)
+                        }
                     }
-                    // Pressable once the detail has loaded, so a press can't follow an artist the page hasn't shown.
-                    FollowArtistButton(following: model.isFollowing(preview, followed: detail?.followed ?? false),
-                                       enabled: detail != nil, target: .artist(deezerId: preview.deezerId), takesLinkFocus: true)
+                    .focusSection()
+                    FocusedActionName(name: focusedAction == .follow ? (following ? "Following" : "Follow") : (paused ? MusicWords.lidarrNotAnswering : nil))
                 }
-                .focusSection()
                 .padding(.top, 8)
             }
             Spacer(minLength: 0)
         }
     }
 
+    private var paused: Bool { pausedAbove || (status?.configured == true && status?.reachable == false) }
+
+    private var following: Bool { model.isFollowing(preview, followed: detail?.followed ?? false) }
+
     private func load() async {
         guard let client = model.client else { return }
+        async let asked = model.musicRequestStatus()
         do {
             detail = try await client.musicArtist(deezerId: preview.deezerId)
             error = nil
         } catch {
             self.error = ConnectionError(error).message
         }
+        status = await asked
     }
 }
