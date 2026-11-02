@@ -542,7 +542,8 @@ public struct SearchResults: Codable, Sendable {
     /// Audiobooks (not in `titles`) and their series. Absent from servers before 0.58.
     public var books: [ItemSummary]? = nil
     public var bookSeries: [BookSeriesSearchResult]? = nil
-    /// Albums by name; artists are among `titles`. Absent from servers before music search.
+    /// Albums by name; artists are among `titles`. Servers from 0.57 on send it; optional as the apps read it only
+    /// from 0.59.
     public var albums: [ItemSummary]? = nil
 
     /// Films and shows, without the artists `titles` also holds.
