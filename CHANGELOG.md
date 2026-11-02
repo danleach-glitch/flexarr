@@ -37,6 +37,10 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Movies get both scores from Radarr. With Seerr connected, shows get their Rotten Tomatoes score too, and the tomato says when a title is Certified Fresh. A title without an IMDb score, as most shows are, keeps the score it had beside the tomato.
 - Discover's title pages show IMDb and Rotten Tomatoes in place of the four scores they had (TMDB, IMDb, critics and audience). TMDB's score stays when there's no IMDb score.
 - On Android TV, kids profiles no longer see a score on a title's page, the Home hero or an artist's page.
+- Requesting a movie or show works the way requesting music does, in every app. **Requested** is a button now: press it to take the request back. It asks first, and it's for the whole household: Seerr forgets the request, Radarr or Sonarr stop looking for it and cancel its download, and one with nothing downloaded yet leaves them. Nothing on disk is deleted. On a show's page, a requested season can be taken back on its own. Family guests can ask for a title but not take one back.
+- Request buttons are greyed while Seerr isn't answering, and a request Seerr can't take says **Can't request**, with why.
+- On iPhone and Android, **Not in your library** results in Search can be unrequested from their press-and-hold menu.
+- On the web, Movies and TV libraries have **Requested**: every movie or show asked for through Seerr that's on its way to that library, with **Downloading** and how far, **Importing**, **Searching** or when it's out. **Unrequest** takes one back.
 
 ### Search
 - Search lists movies, shows, artists and albums you don't have under **Not in your library** on the web, the Apple TV and Android TV too, as on the phones. A movie or show opens its own page in every app, with **Request** and **Watchlist** (on the phones it used to open a menu).
