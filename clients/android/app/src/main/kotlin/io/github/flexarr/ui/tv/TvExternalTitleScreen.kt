@@ -55,6 +55,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import io.github.flexarr.AppModel
+import io.github.flexarr.appModel
+import androidx.compose.ui.platform.LocalContext
 import io.github.flexarr.core.Availability
 import io.github.flexarr.core.ExternalDetail
 import io.github.flexarr.core.ExternalPerson
@@ -172,7 +174,9 @@ private fun Header(title: ExternalTitle, preview: ExternalTitle, detail: Externa
             Text(it, fontSize = 14.sp, fontWeight = FontWeight.Medium, fontStyle = FontStyle.Italic, color = Flexarr.screen.copy(alpha = 0.85f))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(11.dp), verticalAlignment = Alignment.CenterVertically) {
-            TvFactsLine(facts(title, detail), scores = detail?.scores)
+            // No scores for a kids profile.
+            val isKids = LocalContext.current.appModel.isKids
+            TvFactsLine(facts(title, detail, scores = !isKids), scores = if (isKids) null else detail?.scores)
             val genres = detail?.genres.orEmpty()
             if (genres.isNotEmpty()) Text(genres.take(3).joinToString(", "), fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher, maxLines = 1)
         }
@@ -184,7 +188,7 @@ private fun Header(title: ExternalTitle, preview: ExternalTitle, detail: Externa
 }
 
 /** "R   2026   1h 59m   Film". */
-private fun facts(title: ExternalTitle, detail: ExternalDetail?): List<String> {
+private fun facts(title: ExternalTitle, detail: ExternalDetail?, scores: Boolean): List<String> {
     if (detail == null) return listOfNotNull(title.year?.toString(), if (title.isShow) "Show" else "Movie")
     val length = if (detail.isShow) {
         detail.seasons?.let { if (it == 1) "1 season" else "$it seasons" }
@@ -193,7 +197,7 @@ private fun facts(title: ExternalTitle, detail: ExternalDetail?): List<String> {
     }
     val status = detail.status?.takeIf { it != "Released" && it != "Ended" }
     // TMDB's score when there's no IMDb score to show beside its mark.
-    val tmdb = detail.tmdbRating?.takeIf { detail.scores.imdb == null }?.let { String.format(Locale.ROOT, "%.1f/10", it) }
+    val tmdb = detail.tmdbRating?.takeIf { scores && detail.scores.imdb == null }?.let { String.format(Locale.ROOT, "%.1f/10", it) }
     return listOfNotNull(detail.certification, detail.year?.toString(), length, if (detail.isShow) "Show" else "Movie", status, tmdb)
 }
 
