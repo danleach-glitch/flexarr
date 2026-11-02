@@ -77,7 +77,7 @@ public static class RequestRequested
             .Select(g => (g.Key.Type, g.Key.TmdbId, TvdbId: g.Select(r => r.Media!.TvdbId).FirstOrDefault(t => t is > 0),
                 RootFolder: g.Select(r => r.RootFolder).FirstOrDefault(f => !string.IsNullOrEmpty(f)),
                 Seasons: g.Key.Type == "tv" && g.All(r => r.Seasons is { Count: > 0 }) ? g.SelectMany(r => r.Seasons!).Select(s => s.SeasonNumber).Distinct().Order().ToList() : null,
-                Asked: g.Max(r => r.CreatedAt)))
+                Pending: g.All(r => r.Status == 1)))
             .ToList();
         if (titles.Count == 0)
         {
@@ -115,9 +115,17 @@ public static class RequestRequested
                 continue;
             }
 
-            var found = title.Type == "movie"
+            var (found, gone) = title.Type == "movie"
                 ? await MovieAsync(arr, radarrs, queues, cache, title.TmdbId, now, ct)
-                : title.TvdbId is { } tvdb ? await ShowAsync(arr, sonarrs, queues, cache, tvdb, now, ct) : null;
+                : title.TvdbId is { } tvdb ? await ShowAsync(arr, sonarrs, queues, cache, tvdb, title.Seasons, now, ct) : (null, false);
+
+            // Radarr or Sonarr has it all already (the library just hasn't caught up), or answered that it doesn't hold
+            // an approved request's title at all (taken out since, so nobody's looking): not on its way.
+            if (gone && !(found is null && title.Pending))
+            {
+                continue;
+            }
+
             found ??= await FromSeerrAsync(seerrClient, seerr, cache, title.Type, title.TmdbId, ct);
             if (found is null)
             {
@@ -155,15 +163,26 @@ public static class RequestRequested
             .ThenBy(r => r.Title, StringComparer.OrdinalIgnoreCase).ToList();
     }
 
-    private static async Task<Found?> MovieAsync(ArrClient arr, List<ArrInstance> radarrs, Dictionary<ArrInstance, IReadOnlyList<ArrQueueItem>> queues, IMemoryCache cache,
-        int tmdbId, DateTime now, CancellationToken ct)
+    /// <returns>
+    /// What Radarr says of the film; <c>Gone</c> when every Radarr answered and it's either on disk already or held by
+    /// none of them.
+    /// </returns>
+    private static async Task<(Found? Found, bool Gone)> MovieAsync(ArrClient arr, List<ArrInstance> radarrs, Dictionary<ArrInstance, IReadOnlyList<ArrQueueItem>> queues,
+        IMemoryCache cache, int tmdbId, DateTime now, CancellationToken ct)
     {
+        var answered = 0;
         foreach (var radarr in radarrs)
         {
             var films = await Cached(cache, $"requested-movie:{radarr.BaseUrl}:{tmdbId}", ListsFor, t => arr.GetMoviesByTmdbIdAsync(radarr, tmdbId, t), ct);
+            answered += films is null ? 0 : 1;
             if (films is not [var film, ..])
             {
                 continue;
+            }
+
+            if (film.HasFile)
+            {
+                return (null, true);
             }
 
             var (state, progress) = Download(queues.GetValueOrDefault(radarr, []).Where(q => q.MovieId == film.Id).ToList());
@@ -176,21 +195,31 @@ public static class RequestRequested
                 release = released || out_ == default ? null : DateOnly.FromDateTime(out_);
             }
 
-            return new Found(film.Title, film.Year > 0 ? film.Year : null, Poster(film.Images), film.Path, state, progress, release);
+            return (new Found(film.Title, film.Year > 0 ? film.Year : null, Poster(film.Images), film.Path, state, progress, release), false);
         }
 
-        return null;
+        return (null, radarrs.Count > 0 && answered == radarrs.Count);
     }
 
-    private static async Task<Found?> ShowAsync(ArrClient arr, List<ArrInstance> sonarrs, Dictionary<ArrInstance, IReadOnlyList<ArrQueueItem>> queues, IMemoryCache cache,
-        int tvdbId, DateTime now, CancellationToken ct)
+    /// <param name="seasons">The seasons asked for; null for every one.</param>
+    /// <returns>As <see cref="MovieAsync"/>: <c>Gone</c> when Sonarr has every season asked for, or no Sonarr holds the show.</returns>
+    private static async Task<(Found? Found, bool Gone)> ShowAsync(ArrClient arr, List<ArrInstance> sonarrs, Dictionary<ArrInstance, IReadOnlyList<ArrQueueItem>> queues,
+        IMemoryCache cache, int tvdbId, IReadOnlyList<int>? seasons, DateTime now, CancellationToken ct)
     {
+        var answered = 0;
         foreach (var sonarr in sonarrs)
         {
             var shows = await Cached(cache, $"requested-series:{sonarr.BaseUrl}:{tvdbId}", ListsFor, t => arr.GetSeriesByTvdbIdAsync(sonarr, tvdbId, t), ct);
+            answered += shows is null ? 0 : 1;
             if (shows is not [var show, ..])
             {
                 continue;
+            }
+
+            var asked = show.Seasons.Where(s => s.SeasonNumber > 0 && (seasons is null ? s.Monitored : seasons.Contains(s.SeasonNumber))).ToList();
+            if (asked.Count > 0 && asked.All(s => s.Statistics is { EpisodeCount: > 0 } st && st.EpisodeFileCount >= st.EpisodeCount))
+            {
+                return (null, true);
             }
 
             var (state, progress) = Download(queues.GetValueOrDefault(sonarr, []).Where(q => q.SeriesId == show.Id).ToList());
@@ -202,10 +231,10 @@ public static class RequestRequested
                 release = upcoming && show.FirstAired is { } f ? DateOnly.FromDateTime(f) : null;
             }
 
-            return new Found(show.Title, show.Year > 0 ? show.Year : null, Poster(show.Images), show.Path, state, progress, release);
+            return (new Found(show.Title, show.Year > 0 ? show.Year : null, Poster(show.Images), show.Path, state, progress, release), false);
         }
 
-        return null;
+        return (null, sonarrs.Count > 0 && answered == sonarrs.Count);
     }
 
     /// <summary>Not in Radarr or Sonarr (yet, or any more): Seerr's own name and poster for it, still searching as far as anyone here knows.</summary>

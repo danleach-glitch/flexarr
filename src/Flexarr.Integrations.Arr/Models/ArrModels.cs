@@ -63,7 +63,11 @@ public sealed record RadarrCredit
     public IReadOnlyList<ArrImage> Images { get; init; } = [];
 }
 
-public sealed record SonarrSeason(int SeasonNumber, bool Monitored, IReadOnlyList<ArrImage>? Images);
+/// <param name="Statistics">How much of the season Sonarr has (on /series answers).</param>
+public sealed record SonarrSeason(int SeasonNumber, bool Monitored, IReadOnlyList<ArrImage>? Images, SonarrSeasonStatistics? Statistics = null);
+
+/// <param name="EpisodeCount">Episodes aired (or monitored) so far.</param>
+public sealed record SonarrSeasonStatistics(int EpisodeFileCount, int EpisodeCount);
 
 public sealed record SonarrSeries
 {
