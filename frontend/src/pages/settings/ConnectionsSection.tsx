@@ -42,7 +42,7 @@ const arrKinds = ['Sonarr', 'Radarr', 'Lidarr'] as const
 const purpose: Record<ArrKind | OtherService, string> = {
   Sonarr: 'Shows',
   Radarr: 'Movies',
-  Lidarr: 'Music and music requests',
+  Lidarr: 'Music',
   seerr: 'Discover and requests',
   bazarr: 'Subtitles',
   tmdb: 'Movie details without Radarr',

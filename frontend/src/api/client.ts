@@ -1462,7 +1462,8 @@ export type MusicRequest =
 /** Whether music can be requested (through Lidarr). Older servers answer 404: treated as off. */
 export const getMusicRequestStatus = async (signal?: AbortSignal) => {
   try {
-    return await apiGet<{ configured: boolean; reachable: boolean }>('/requests/music/status', signal)
+    // Asked by every artist page: a minute's answer is plenty.
+    return await cachedGet<{ configured: boolean; reachable: boolean }>('/requests/music/status', signal, 60_000)
   } catch (error) {
     if (error instanceof ApiError && error.status === 404) return { configured: false, reachable: false }
     throw error

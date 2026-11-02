@@ -14,9 +14,11 @@ export function DiscoverPage() {
   const kind = params.get('kind') ?? ''
   const musicStatus = useApi(getMusicRequestStatus, [])
   const offersMusic = musicStatus.data?.configured === true
-  const genres = useApi((signal) => (music ? Promise.resolve(undefined) : getGenres(signal)), [music])
-  const external = useApi((signal) => (music ? Promise.resolve(undefined) : getExternalDiscover(signal)), [music])
-  const items = useApi((signal) => (genre && !music ? getGenreItems(genre, kind || undefined, signal) : Promise.resolve(undefined)), [genre, kind, music])
+  // Films and shows, unless Music is chosen and offered (an old link to Music, with music requests since turned off, lands here).
+  const films = !music || musicStatus.data?.configured === false
+  const genres = useApi((signal) => (films ? getGenres(signal) : Promise.resolve(undefined)), [films])
+  const external = useApi((signal) => (films ? getExternalDiscover(signal) : Promise.resolve(undefined)), [films])
+  const items = useApi((signal) => (genre && films ? getGenreItems(genre, kind || undefined, signal) : Promise.resolve(undefined)), [genre, kind, films])
 
   // Search goes beyond the library: anything on TMDB, so something new can be found and requested from here.
   const query = params.get('q') ?? ''
@@ -29,9 +31,11 @@ export function DiscoverPage() {
     }, 350)
     return () => clearTimeout(timer)
   }, [typed, query, setParams, music])
-  const results = useApi((signal) => (query && !music ? searchEverything(query, signal) : Promise.resolve(undefined)), [query, music])
+  const results = useApi((signal) => (query && films ? searchEverything(query, signal) : Promise.resolve(undefined)), [query, films])
 
-  if (music && genre) return <MusicGenrePage id={genre} />
+  // Music requests turned off (or this profile can't have them): Discover is films and shows.
+  const showMusic = !films
+  if (showMusic && genre) return <MusicGenrePage id={genre} />
 
   if (genre) {
     return (
@@ -71,14 +75,21 @@ export function DiscoverPage() {
   )
   const switcher = offersMusic && <DiscoverSwitch music={music} />
 
-  if (music) {
+  const heading = (
+    <div className="library-heading">
+      <h1>Discover</h1>
+      {switcher}
+    </div>
+  )
+
+  if (showMusic) {
     return (
       <div className="discover-page">
         <header className="library-header">
-          <h1>Discover</h1>
+          {heading}
           {searchBox}
         </header>
-        {switcher}
+        {musicStatus.data?.reachable === false && <p className="muted discover-note">Lidarr isn’t answering.</p>}
         {query ? <MusicSearchResults query={query} /> : <MusicDiscover />}
       </div>
     )
@@ -88,10 +99,9 @@ export function DiscoverPage() {
     return (
       <div className="discover-page">
         <header className="library-header">
-          <h1>Discover</h1>
+          {heading}
           {searchBox}
         </header>
-        {switcher}
         {results.error && <p className="error">{results.error.message}</p>}
         {results.loading && !results.data && <p className="muted">Searching…</p>}
         {results.data && results.data.length === 0 && <p className="muted">Nothing found for “{query}”. Try a different spelling, or the original title.</p>}
@@ -133,10 +143,9 @@ export function DiscoverPage() {
   return (
     <div className="discover-page">
       <header className="library-header">
-        <h1>Discover</h1>
+        {heading}
         {searchBox}
       </header>
-      {switcher}
       {external.data && external.data.length > 0 && (
         <div className="discover-external">
           {external.data.map((row) => (

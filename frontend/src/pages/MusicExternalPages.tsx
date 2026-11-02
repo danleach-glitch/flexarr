@@ -22,8 +22,8 @@ export function MusicShelves({ albums, showArtist = false }: { albums: MusicExte
         <section key={title} className="music-section">
           <h2 className="music-section-title">{title}</h2>
           <div className="poster-grid music-albums">
-            {found.map((a) => (
-              <MusicExternalCard key={`${a.deezerId}-${a.musicBrainzId ?? a.title}`} item={a} showArtist={showArtist} />
+            {found.map((a, i) => (
+              <MusicExternalCard key={`${i}-${a.deezerId}-${a.musicBrainzId ?? a.title}`} item={a} showArtist={showArtist} />
             ))}
           </div>
         </section>
@@ -67,8 +67,8 @@ export function MusicExternalArtistPage() {
       <MusicShelves albums={a.albums} />
       {a.similar.length > 0 && (
         <Row title="Fans also like">
-          {a.similar.map((s) => (
-            <MusicExternalCard key={s.deezerId} item={s} />
+          {a.similar.map((s, i) => (
+            <MusicExternalCard key={`${i}-${s.deezerId}`} item={s} />
           ))}
         </Row>
       )}
@@ -96,6 +96,9 @@ export function MusicExternalAlbumPage() {
           <Artwork src={a.image} title={a.title} width={500} shape="square" eager />
         </div>
         <div className="music-header-text">
+          <p className="detail-kicker">
+            <Link to="/discover?view=music">Music</Link>
+          </p>
           <h1>{a.title}</h1>
           <p className="facts">
             {a.artistDeezerId ? (

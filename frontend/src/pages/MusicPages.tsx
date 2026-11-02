@@ -267,15 +267,15 @@ export function ArtistPage({ detail }: { detail: ItemDetail }) {
             <AsyncButton className="button quiet" onClick={() => startRadio()} disabled={albums.length === 0 || loading}>
               <Radio /> Radio
             </AsyncButton>
-            <MoreButton label={`More for ${item.title}`} actions={queueActions(player, () => getTracks(item.id), item)} disabled={albums.length === 0} />
             {extras.data && (
               <MusicRequestButton
-                key={String(extras.data.followed)}
                 kind="artist"
+                size="large"
                 request={{ kind: 'artist', artistId: item.id }}
                 availability={extras.data.followed ? 'Requested' : 'None'}
               />
             )}
+            <MoreButton label={`More for ${item.title}`} actions={queueActions(player, () => getTracks(item.id), item)} disabled={albums.length === 0} />
           </div>
         </div>
       </header>
@@ -300,16 +300,16 @@ export function ArtistPage({ detail }: { detail: ItemDetail }) {
             Not in your library
           </h2>
           <div className="poster-grid music-albums">
-            {extras.data.missing.map((a) => (
-              <MusicExternalCard key={`${a.deezerId}-${a.musicBrainzId ?? a.title}`} item={a} showArtist={false} />
+            {extras.data.missing.map((a, i) => (
+              <MusicExternalCard key={`${i}-${a.deezerId}-${a.musicBrainzId ?? a.title}`} item={a} showArtist={false} />
             ))}
           </div>
         </section>
       )}
       {extras.data && extras.data.similar.length > 0 && (
         <Row title="Fans also like">
-          {extras.data.similar.map((s) => (
-            <MusicExternalCard key={s.deezerId} item={s} />
+          {extras.data.similar.map((s, i) => (
+            <MusicExternalCard key={`${i}-${s.deezerId}`} item={s} />
           ))}
         </Row>
       )}

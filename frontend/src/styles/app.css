@@ -1383,9 +1383,19 @@ kbd {
   color: var(--screen);
 }
 
-/* Music from outside the library: artists' photos are round, albums' covers square (see MusicExternalCard). */
-.artwork-round {
+/* Music from outside the library: artists' photos are round, albums' covers square (see MusicExternalCard). The
+   frame behind a photo is round too, so no square corners show around it. */
+.artwork-round,
+.music-external-artist .card-frame {
   border-radius: 50%;
+}
+
+.music-external-artist .card-frame {
+  background: none;
+}
+
+.discover-note {
+  margin: 0 0 16px;
 }
 
 .music-external-artist .card-title,

@@ -33,7 +33,7 @@ public static partial class MusicRequestEndpoints
     {
         // Whether music requests are on, so apps can hide them otherwise. To a profile with an age limit, or one that
         // sees no music library, they aren't.
-        api.MapGet("/requests/music/status", async (IOptionsMonitor<FlexarrOptions> options, ArrClient client, FlexarrDbContext db, CancellationToken ct) =>
+        api.MapGet("/requests/music/status", async (IOptionsMonitor<FlexarrOptions> options, ArrClient client, FlexarrDbContext db, IMemoryCache cache, CancellationToken ct) =>
         {
             var lidarrs = Lidarrs(options.CurrentValue);
             if (lidarrs.Count == 0 || !await SeesMusicAsync(db, ct))
@@ -41,7 +41,13 @@ public static partial class MusicRequestEndpoints
                 return new MusicRequestStatusDto(false, false);
             }
 
-            return new MusicRequestStatusDto(true, await client.PingAsync(lidarrs[0].BaseUrl, ct));
+            // Every artist page asks: the ping is remembered half a minute.
+            var reachable = await cache.GetOrCreateAsync($"lidarr-ping:{lidarrs[0].BaseUrl}", entry =>
+            {
+                entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(30);
+                return client.PingAsync(lidarrs[0].BaseUrl, ct);
+            });
+            return new MusicRequestStatusDto(true, reachable);
         }).WithTags("Requests");
 
         var music = requests.MapGroup("/music").AddEndpointFilter(async (context, next) =>

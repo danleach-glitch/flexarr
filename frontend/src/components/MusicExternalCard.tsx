@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
-import { ApiError, imageUrl, requestMusic, type MusicExternal, type MusicRequest } from '../api/client'
+import { ApiError, getMusicRequestStatus, imageUrl, requestMusic, type MusicExternal, type MusicRequest } from '../api/client'
+import { useApi } from '../hooks/useApi'
 import { musicLink } from '../lib/musicLinks'
 import { AsyncButton } from './AsyncButton'
 
@@ -23,16 +24,21 @@ export function MusicRequestButton({
   kind: 'album' | 'artist'
   size?: 'small' | 'large'
 }) {
-  const [state, setState] = useState<State>(availability)
+  // What this button did, if anything: otherwise it says what the server says, which can change under it.
+  const [sent, setSent] = useState<'sending' | 'failed' | 'Requested'>()
   const [message, setMessage] = useState<string>()
+  const state: State = sent ?? availability
+  // Lidarr not answering: say so on the page, and don't offer what can't work. (Cached: every card asks.)
+  const status = useApi(getMusicRequestStatus, [])
+  const offline = status.data?.reachable === false
 
   async function send() {
-    setState('sending')
+    setSent('sending')
     try {
       await requestMusic(request)
-      setState('Requested')
+      setSent('Requested')
     } catch (e) {
-      setState('failed')
+      setSent('failed')
       setMessage(e instanceof ApiError && e.messages[0] ? e.messages[0] : 'The request didn’t go through.')
     }
   }
@@ -42,7 +48,13 @@ export function MusicRequestButton({
   if (state === 'Requested' || state === 'PartlyAvailable') return <span className="external-state">{kind === 'artist' ? 'Following' : 'Requested'}</span>
   return (
     <>
-      <AsyncButton className={size === 'small' ? 'button small quiet' : 'button'} onClick={send} busy={state === 'sending'} title={message}>
+      <AsyncButton
+        className={size === 'small' ? 'button small quiet' : 'button'}
+        onClick={send}
+        busy={state === 'sending'}
+        disabled={offline}
+        title={offline ? 'Lidarr isn’t answering.' : message}
+      >
         {state === 'failed' ? 'Try again' : kind === 'artist' ? 'Follow artist' : 'Request album'}
       </AsyncButton>
       {size === 'large' && state === 'failed' && message && (

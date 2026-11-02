@@ -1,6 +1,7 @@
 import { Link } from 'react-router'
 import { getMusicDiscover, getMusicGenre, imageUrl, searchMusic } from '../api/client'
 import { MusicExternalCard } from '../components/MusicExternalCard'
+import { PageError, PageLoading } from '../components/PageStatus'
 import { Row } from '../components/Row'
 import { useApi } from '../hooks/useApi'
 
@@ -21,32 +22,34 @@ export function DiscoverSwitch({ music }: { music: boolean }) {
 /** Discover › Music: rows from Deezer matched against the library, then genre tiles. */
 export function MusicDiscover() {
   const discover = useApi(getMusicDiscover, [])
-  if (discover.error) return <p className="error">{discover.error.message}</p>
-  if (!discover.data) return <p className="muted">Loading…</p>
+  if (discover.error) return <PageError error={discover.error} message="Deezer didn’t answer." onRetry={discover.reload} />
+  if (!discover.data) return <PageLoading />
+  const { rows, genres } = discover.data
+  if (rows.length === 0 && genres.length === 0) return <p className="muted discover-note">Nothing to suggest yet.</p>
   return (
-    <div className="discover-external">
-      {discover.data.rows.map((row) => (
-        <Row key={row.id} title={row.title}>
-          {row.items.map((item) => (
-            <MusicExternalCard key={`${item.kind}-${item.deezerId}-${item.title}`} item={item} />
+    <>
+      {rows.length > 0 && (
+        <div className="discover-external">
+          {rows.map((row) => (
+            <Row key={row.id} title={row.title}>
+              {row.items.map((item, i) => (
+                <MusicExternalCard key={`${i}-${item.kind}-${item.deezerId}`} item={item} />
+              ))}
+            </Row>
           ))}
-        </Row>
-      ))}
-      {discover.data.genres.length > 0 && (
-        <>
-          <h2 className="section-title">Genres</h2>
-          <div className="genre-grid">
-            {discover.data.genres.map((g) => (
-              <Link key={g.id} to={`/discover?view=music&genre=${g.id}`} className="genre-tile">
-                {g.image && <img src={imageUrl(g.image, 780)} alt="" loading="lazy" />}
-                <span className="genre-name">{g.name}</span>
-              </Link>
-            ))}
-          </div>
-        </>
+          {genres.length > 0 && <h2 className="section-title">Genres</h2>}
+        </div>
       )}
+      <div className="genre-grid">
+        {genres.map((g) => (
+          <Link key={g.id} to={`/discover?view=music&genre=${g.id}`} className="genre-tile">
+            {g.image && <img src={imageUrl(g.image, 780)} alt="" loading="lazy" />}
+            <span className="genre-name">{g.name}</span>
+          </Link>
+        ))}
+      </div>
       <p className="muted discover-credit">Data from Deezer</p>
-    </div>
+    </>
   )
 }
 
@@ -60,15 +63,22 @@ export function MusicGenrePage({ id }: { id: string }) {
           <p className="detail-kicker">
             <Link to="/discover?view=music">Music</Link>
           </p>
-          <h1>{genre.data?.name ?? ' '}</h1>
+          <h1>{genre.data?.name ?? 'Genre'}</h1>
         </div>
       </header>
-      {genre.error && <p className="error">{genre.error.message}</p>}
-      <div className="poster-grid">
-        {genre.data?.artists.map((a) => (
-          <MusicExternalCard key={a.deezerId} item={a} />
-        ))}
-      </div>
+      {genre.error ? (
+        <PageError error={genre.error} message="Deezer didn’t answer." onRetry={genre.reload} />
+      ) : !genre.data ? (
+        <PageLoading />
+      ) : genre.data.artists.length === 0 ? (
+        <p className="muted discover-note">No artists here yet.</p>
+      ) : (
+        <div className="poster-grid">
+          {genre.data.artists.map((a, i) => (
+            <MusicExternalCard key={`${i}-${a.deezerId}`} item={a} />
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -76,7 +86,7 @@ export function MusicGenrePage({ id }: { id: string }) {
 /** Artists and albums anywhere (Deezer's), marked when you have them. */
 export function MusicSearchResults({ query }: { query: string }) {
   const results = useApi((signal) => searchMusic(query, signal), [query])
-  if (results.error) return <p className="error">{results.error.message}</p>
+  if (results.error) return <PageError error={results.error} message="Deezer didn’t answer." onRetry={results.reload} />
   if (!results.data) return <p className="muted">Searching…</p>
   const { artists, albums } = results.data
   if (artists.length === 0 && albums.length === 0) return <p className="muted">Nothing found for “{query}”.</p>
@@ -95,8 +105,8 @@ export function MusicSearchResults({ query }: { query: string }) {
                 {label} <span className="health-count">{found.length}</span>
               </h2>
               <div className="poster-grid">
-                {found.map((item) => (
-                  <MusicExternalCard key={`${item.kind}-${item.deezerId}`} item={item} />
+                {found.map((item, i) => (
+                  <MusicExternalCard key={`${i}-${item.kind}-${item.deezerId}`} item={item} />
                 ))}
               </div>
             </section>
