@@ -77,6 +77,7 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import io.github.flexarr.AppModel
 import io.github.flexarr.core.CreditRole
+import io.github.flexarr.core.MediaKind
 import io.github.flexarr.core.Person
 import io.github.flexarr.core.SearchResults
 import io.github.flexarr.core.Availability
@@ -273,13 +274,21 @@ fun TvSearchScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
                         }
                     }
                 }
-                found != null && found.titles.isEmpty() && found.episodes.isEmpty() && found.people.isEmpty() && beyond.isEmpty() && beyondMusic.isEmpty() -> item(key = "none") {
+                found != null && found.titles.isEmpty() && found.albums.isEmpty() && found.episodes.isEmpty() && found.people.isEmpty() && beyond.isEmpty() && beyondMusic.isEmpty() -> item(key = "none") {
                     Box(Modifier.height(200.dp)) { TvStatusView("Nothing matches “${query.trim()}”.", empty = true) }
                 }
                 found != null -> {
-                    val titles = found.titles.filter { it.showsOnTv }
+                    // The server lists artists among the titles: films and shows here, artists with the albums below, as on the phones.
+                    val titles = found.titles.filter { it.showsOnTv && it.kind != MediaKind.Artist }
+                    val artists = found.titles.filter { it.kind == MediaKind.Artist }
                     if (titles.isNotEmpty()) item(key = "titles") {
                         Section("Movies and shows") { items(titles, key = { it.id }) { TvPosterCard(it, onClick = { record(words, it.id); navigator.open(it) }) } }
+                    }
+                    if (artists.isNotEmpty()) item(key = "artists") {
+                        Section("Artists") { items(artists, key = { it.id }) { TvArtistCard(it, onClick = { record(words, it.id); navigator.open(it) }) } }
+                    }
+                    if (found.albums.isNotEmpty()) item(key = "albums") {
+                        Section("Albums") { items(found.albums, key = { it.id }) { TvAlbumCard(it, onClick = { record(words, it.id); navigator.open(it) }, showsArtist = true) } }
                     }
                     if (found.episodes.isNotEmpty()) item(key = "episodes") {
                         Section("Episodes") { items(found.episodes, key = { it.id }) { TvWideCard(it, onClick = { record(words, it.id); navigator.openItem(it.id) }, width = 220.dp) } }
