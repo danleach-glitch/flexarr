@@ -1,7 +1,7 @@
-import type { MusicRequested } from '../api/client'
+import type { MusicRequested, TitleRequested } from '../api/client'
 
-/** Where an album Lidarr is waiting for stands, in a few words. */
-export function requestedState(r: MusicRequested, now = new Date()): string {
+/** Where an album Lidarr (or a film or show Seerr) is waiting for stands, in a few words. */
+export function requestedState(r: Pick<MusicRequested | TitleRequested, 'state' | 'progress' | 'releaseDate'>, now = new Date()): string {
   switch (r.state) {
     case 'downloading':
       return r.progress != null && r.progress > 0 ? `Downloading ${Math.round(r.progress * 100)}%` : 'Downloading'
