@@ -91,6 +91,12 @@ public sealed class Profile
     /// <summary>The film library films this profile requests are added to; null, wherever Seerr adds them by default.</summary>
     public Guid? RequestFilmsLibraryId { get; set; }
 
+    /// <summary>
+    /// The music library albums and artists this profile requests are added to; null, Lidarr's first root folder. Only
+    /// asked for when the profile can see more than one music library.
+    /// </summary>
+    public Guid? RequestMusicLibraryId { get; set; }
+
     /// <summary>Titles this profile adds to its watchlist that aren't in the library are requested through Seerr.</summary>
     public bool AutoRequestWatchlist { get; set; }
 
