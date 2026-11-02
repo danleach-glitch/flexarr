@@ -13,6 +13,10 @@ struct ShowGapsSection: View {
     @Binding var gaps: ShowGaps
     /// Seasons asked for here, until the page next loads.
     @State private var asked: Set<Int> = []
+    /// Seasons whose request was taken back here, until the page next loads.
+    @State private var undone: Set<Int> = []
+    /// The season whose Requested was pressed: asked about before it's taken back.
+    @State private var undoing: MissingSeason?
     @State private var searched: Set<Int> = []
     @State private var busy = false
     @State private var said: String?
@@ -51,10 +55,23 @@ struct ShowGapsSection: View {
             }
         }
         .banner($said)
+        .confirmationDialog(TitleWords.unrequest(undoing?.title ?? ""), isPresented: Binding(get: { undoing != nil }, set: { if !$0 { undoing = nil } }),
+                            titleVisibility: .visible, presenting: undoing) { season in
+            Button(TitleWords.unrequestAction, role: .destructive) { Task { await unrequest(season) } }
+            Button(TitleWords.keepIt, role: .cancel) {}
+        }
     }
 
     private func state(_ season: MissingSeason) -> MissingSeasonAction {
-        asked.contains(season.seasonNumber) ? .requested : searched.contains(season.seasonNumber) ? .requested : gaps.action(for: season)
+        let n = season.seasonNumber
+        if asked.contains(n) || searched.contains(n) { return .requested }
+        if undone.contains(n), gaps.canRequest { return .request }
+        return gaps.action(for: season)
+    }
+
+    /// A season requested through Seerr can be taken back from here, as on the web; one Sonarr is searching for can't.
+    private func undoable(_ season: MissingSeason) -> Bool {
+        gaps.canRequest && tmdbId != nil && !searched.contains(season.seasonNumber) && season.availability != .partlyAvailable
     }
 
     /// Poster, name and episodes, with Request (or Search) under it, as on the web.
@@ -90,6 +107,16 @@ struct ShowGapsSection: View {
                 actionButton("Request", symbol: Symbol.request, label: "Request \(season.title)") { await request(season) }
             case .search:
                 actionButton("Search", symbol: Symbol.search, label: "Search for \(season.title)") { await search(season.seasonNumber) }
+            case .requested where undoable(season):
+                Button { undoing = season } label: { Label(TitleWords.requested, systemImage: Symbol.requested) }
+                    .buttonStyle(.borderedProminent)
+                    .tint(Color.seat)
+                    .foregroundStyle(Color.screen)
+                    .controlSize(.small)
+                    .disabled(busy)
+                    .accessibilityLabel("\(TitleWords.requested), \(season.title)")
+                    .accessibilityHint(TitleWords.unrequestHint)
+                    .accessibilityAddTraits(.isSelected)
             case .requested:
                 Text(searched.contains(season.seasonNumber) ? "Searching" : "Requested")
                     .font(.footnote.weight(.semibold))
@@ -167,9 +194,23 @@ struct ShowGapsSection: View {
         do {
             try await client.requestSeasons(tmdbId: tmdbId, seasons: [season.seasonNumber])
             asked.insert(season.seasonNumber)
+            undone.remove(season.seasonNumber)
             said = "Requested \(season.title)"
         } catch {
             model.requestError = ConnectionError(error).message
+        }
+    }
+
+    /// Takes back just this season's request, for the household.
+    private func unrequest(_ season: MissingSeason) async {
+        guard let tmdbId else { return }
+        busy = true
+        defer { busy = false }
+        if let failure = await model.unrequestTitle(mediaType: "tv", tmdbId: tmdbId, seasons: [season.seasonNumber]) {
+            model.requestError = failure
+        } else {
+            asked.remove(season.seasonNumber)
+            undone.insert(season.seasonNumber)
         }
     }
 

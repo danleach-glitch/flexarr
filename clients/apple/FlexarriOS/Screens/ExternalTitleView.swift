@@ -10,8 +10,12 @@ struct ExternalTitleView: View {
     let preview: ExternalTitle
     @State private var detail: ExternalDetail?
     @State private var error: String?
-    @State private var requested = false
     @State private var requesting = false
+    /// How the last request here turned out, when it didn't go through: said under the button.
+    @State private var outcome: TitleRequestOutcome?
+    @State private var confirmingUndo = false
+    /// Seerr isn't answering: Request and Requested wait, greyed.
+    @State private var seerrPaused = false
     @State private var onWatchlist: Bool?
     @State private var showingTrailer = false
 
@@ -93,20 +97,21 @@ struct ExternalTitleView: View {
         }
     }
 
-    /// Request on a line of its own, as Play is on a library title's page; Trailer and Watchlist underneath.
+    /// Request on a line of its own, as Play is on a library title's page; Trailer and Watchlist underneath. Requested
+    /// is a button too: it asks, then takes the request back for the household, as music's does.
     private var actions: some View {
-        let canRequest = !requested && title.availability == .none
+        let state = model.titleState(title)
         return VStack(spacing: 18) {
-            Button {
-                guard canRequest, !requesting else { return }
-                Task { await request() }
-            } label: {
-                Label(requested ? "Requested" : title.availability.label ?? (requesting ? "Requesting…" : "Request"),
-                      systemImage: canRequest ? Symbol.request : title.availability == .available ? Symbol.watched : Symbol.requested)
-                    .frame(maxWidth: .infinity)
+            VStack(alignment: .leading, spacing: 6) {
+                requestButton(state)
+                if seerrPaused, state == .requestable || state == .requested {
+                    Text(TitleWords.seerrNotAnswering).font(.footnote).foregroundStyle(Color.usher)
+                } else if case .refused(let reason) = outcome, state == .requestable {
+                    Text(reason).font(.footnote).foregroundStyle(Color.usher)
+                } else if case .failed(let reason) = outcome, state == .requestable {
+                    Text(reason).font(.footnote).foregroundStyle(Color.usher)
+                }
             }
-            .buttonStyle(ActionButtonStyle(prominent: canRequest))
-            .disabled(!canRequest || requesting)
 
             HStack(alignment: .top, spacing: 8) {
                 if trailer != nil {
@@ -210,20 +215,65 @@ struct ExternalTitleView: View {
         }
     }
 
+    @ViewBuilder
+    private func requestButton(_ state: TitleRequestState) -> some View {
+        switch state {
+        case .requestable:
+            if case .refused = outcome {
+                Label(TitleWords.cantRequest, systemImage: Symbol.request)
+                    .frame(maxWidth: .infinity)
+                    .modifier(DisabledAction())
+            } else {
+                Button {
+                    guard !requesting else { return }
+                    Task { await request() }
+                } label: {
+                    Label(requesting ? "Requesting…" : outcome == nil ? TitleWords.request : TitleWords.tryAgain, systemImage: Symbol.request)
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(ActionButtonStyle(prominent: true))
+                .disabled(requesting || seerrPaused)
+            }
+        case .requested:
+            Button { confirmingUndo = true } label: {
+                Label(TitleWords.requested, systemImage: Symbol.requested)
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(ActionButtonStyle())
+            .disabled(requesting || seerrPaused)
+            .accessibilityHint(TitleWords.unrequestHint)
+            .accessibilityAddTraits(.isSelected)
+            .confirmationDialog(TitleWords.unrequest(title.title), isPresented: $confirmingUndo, titleVisibility: .visible) {
+                Button(TitleWords.unrequestAction, role: .destructive) { Task { await unrequest() } }
+                Button(TitleWords.keepIt, role: .cancel) {}
+            }
+        case .partlyAvailable, .inLibrary, .none:
+            Label(title.availability.label ?? "Not available", systemImage: state == .inLibrary ? Symbol.watched : Symbol.requested)
+                .frame(maxWidth: .infinity)
+                .modifier(DisabledAction())
+        }
+    }
+
     private func request() async {
-        guard let client = model.client else { return }
         requesting = true
         defer { requesting = false }
-        do {
-            try await client.request(title)
-            requested = true
-        } catch {
-            model.requestError = ConnectionError(error).message
+        let result = await model.requestTitle(mediaType: title.mediaType, tmdbId: title.tmdbId)
+        outcome = result == .sent ? nil : result
+    }
+
+    private func unrequest() async {
+        requesting = true
+        defer { requesting = false }
+        outcome = nil
+        if let failure = await model.unrequestTitle(mediaType: title.mediaType, tmdbId: title.tmdbId) {
+            model.requestError = failure
         }
     }
 
     private func load() async {
         guard let client = model.client else { return }
+        let status = await model.titleRequestStatus()
+        seerrPaused = status.configured && !status.reachable
         do {
             detail = try await client.externalTitle(preview)
             error = nil
@@ -232,5 +282,14 @@ struct ExternalTitleView: View {
         } catch {
             if detail == nil { self.error = ConnectionError(error).message }
         }
+    }
+}
+
+/// A request button with nothing to press (in the library, partly in, or Can't request), drawn as the button is.
+private struct DisabledAction: ViewModifier {
+    func body(content: Content) -> some View {
+        Button {} label: { content }
+            .buttonStyle(ActionButtonStyle())
+            .disabled(true)
     }
 }

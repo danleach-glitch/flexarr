@@ -68,13 +68,12 @@ extension AppModel {
     /// Whether Seerr is set up and answering. An answer is kept for a minute, as music's is; Seerr not answering only
     /// ten seconds, so a page opened once it's back isn't still greyed.
     func titleRequestStatus(fresh: Bool = false) async -> RequestStatus {
-        let off = RequestStatus(configured: false, reachable: false)
-        guard let client, !isKids else { return off }
+        guard let client, !isKids else { return .off }
         if !fresh, let cached = titleStatusCache,
            cached.at.timeIntervalSinceNow > (cached.status.configured && !cached.status.reachable ? -10 : -60) {
             return cached.status
         }
-        guard let status = try? await client.requestStatus() else { return off }
+        guard let status = try? await client.requestStatus() else { return .off }
         titleStatusCache = (status, Date())
         return status
     }

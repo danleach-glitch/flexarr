@@ -6,6 +6,14 @@ import Foundation
 public struct RequestStatus: Codable, Sendable, Hashable {
     public let configured: Bool
     public let reachable: Bool
+
+    public init(configured: Bool, reachable: Bool) {
+        self.configured = configured
+        self.reachable = reachable
+    }
+
+    /// No requests here (no Seerr, an older server, or a profile that can't ask).
+    public static let off = RequestStatus(configured: false, reachable: false)
 }
 
 /// Where a title from outside the library stands.
