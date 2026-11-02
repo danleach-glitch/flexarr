@@ -127,6 +127,9 @@ public sealed record ArrQueueItem
     /// <summary>Lidarr's: the album downloading, and its artist.</summary>
     public int? AlbumId { get; init; }
     public int? ArtistId { get; init; }
+
+    /// <summary>The download client's id for the download: queue items sharing it are one download.</summary>
+    public string? DownloadId { get; init; }
     public string? Title { get; init; }
     public string? Status { get; init; }
     public string? TrackedDownloadState { get; init; }

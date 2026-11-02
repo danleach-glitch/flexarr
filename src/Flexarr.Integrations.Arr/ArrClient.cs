@@ -216,24 +216,28 @@ public sealed class ArrClient(HttpClient httpClient)
     /// </summary>
     public async Task<IReadOnlyList<LidarrAlbum>> GetWantedAlbumsAsync(ArrInstance lidarr, CancellationToken ct = default)
     {
-        const int PageSize = 200, MaxPages = 5;
-        var records = new List<LidarrAlbum>();
-        for (var number = 1; number <= MaxPages; number++)
-        {
-            var page = await GetAsync<ArrPage<LidarrAlbum>>(lidarr, $"wanted/missing?page={number}&pageSize={PageSize}&includeArtist=true&monitored=true&sortKey=releaseDate&sortDirection=descending", ct).ConfigureAwait(false);
-            records.AddRange(page.Records);
-            if (page.Records.Count < PageSize || records.Count >= page.TotalRecords)
-            {
-                break;
-            }
-        }
-
-        return records;
+        // One page of a thousand, without each album's artist (the caller has Lidarr's artist list already).
+        var page = await GetAsync<ArrPage<LidarrAlbum>>(lidarr, "wanted/missing?page=1&pageSize=1000&includeArtist=false&monitored=true&sortKey=releaseDate&sortDirection=descending", ct)
+            .ConfigureAwait(false);
+        return page.Records;
     }
 
     /// <summary>Monitored albums coming out between these dates, each with its artist (Lidarr's calendar).</summary>
     public Task<IReadOnlyList<LidarrAlbum>> GetUpcomingAlbumsAsync(ArrInstance lidarr, DateTime start, DateTime end, CancellationToken ct = default) =>
-        GetAsync<IReadOnlyList<LidarrAlbum>>(lidarr, $"calendar?start={start:yyyy-MM-dd}&end={end:yyyy-MM-dd}&unmonitored=false&includeArtist=true", ct);
+        GetAsync<IReadOnlyList<LidarrAlbum>>(lidarr, $"calendar?start={start:yyyy-MM-dd}&end={end:yyyy-MM-dd}&unmonitored=false&includeArtist=false", ct);
+
+    /// <summary>Deletes these music files from disk (to Lidarr's recycle bin, if it has one) in one call.</summary>
+    public async Task DeleteTrackFilesAsync(ArrInstance lidarr, IReadOnlyList<int> trackFileIds, CancellationToken ct = default)
+    {
+        using var request = Request(lidarr, HttpMethod.Delete, "trackfile/bulk");
+        request.Content = JsonContent.Create(new { trackFileIds }, options: Json);
+        using var response = await httpClient.SendAsync(request, ct).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+    }
+
+    /// <summary>Lidarr's queue entries for these albums only.</summary>
+    public Task<IReadOnlyList<ArrQueueItem>> GetAlbumQueueAsync(ArrInstance lidarr, IReadOnlyList<int> albumIds, CancellationToken ct = default) =>
+        GetAsync<IReadOnlyList<ArrQueueItem>>(lidarr, $"queue/details?{string.Join('&', albumIds.Select(id => $"albumIds={id}"))}", ct);
 
     /// <summary>The music files Lidarr has for one album.</summary>
     public Task<IReadOnlyList<LidarrTrackFile>> GetAlbumTrackFilesAsync(ArrInstance lidarr, int albumId, CancellationToken ct = default) =>

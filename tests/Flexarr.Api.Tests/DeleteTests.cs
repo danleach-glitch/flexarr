@@ -98,8 +98,7 @@ public class DeleteTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
         var arr = new FakeArr();
         arr.Responses["PUT /api/v1/album/monitor"] = "[]";
         arr.Responses["GET /api/v1/trackfile?albumId=9"] = """[{"id":71,"artistId":3,"albumId":9},{"id":72,"artistId":3,"albumId":9}]""";
-        arr.Responses["DELETE /api/v1/trackfile/71"] = "{}";
-        arr.Responses["DELETE /api/v1/trackfile/72"] = "{}";
+        arr.Responses["DELETE /api/v1/trackfile/bulk"] = "{}";
         arr.Responses["GET /api/v1/artist"] = $$"""[{"id":3,"artistName":"Wet Leg","monitored":true,"monitorNewItems":"{{monitorNewItems}}"}]""";
         using var app = WithLidarr(arr, factory);
         var (artist, album) = await AddMusicAsync(app, managed: true);
@@ -110,8 +109,7 @@ public class DeleteTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
         Assert.Equal("Lidarr", plan!.ManagedBy);
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         Assert.Contains("PUT /api/v1/album/monitor", arr.Requests);
-        Assert.Contains("DELETE /api/v1/trackfile/71", arr.Requests);
-        Assert.Contains("DELETE /api/v1/trackfile/72", arr.Requests);
+        Assert.Contains("DELETE /api/v1/trackfile/bulk", arr.Requests);
         Assert.DoesNotContain(arr.Requests, r => r.StartsWith("DELETE /api/v1/album", StringComparison.Ordinal));
         using var check = app.Services.CreateScope();
         var db = check.ServiceProvider.GetRequiredService<FlexarrDbContext>();
@@ -141,12 +139,41 @@ public class DeleteTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
             return;
         }
 
+        await InScopeAsync(app, async db =>
+        {
+            db.MediaRequests.Add(new Core.Notifications.MediaRequest { ProfileId = "owner", Kind = MediaKind.Artist, Title = "Wet Leg" });
+            db.MediaRequests.Add(new Core.Notifications.MediaRequest { ProfileId = "owner", Kind = MediaKind.Album, Title = "moisturizer", ArtistName = "Wet Leg", MusicBrainzId = "rg" });
+            return await db.SaveChangesAsync();
+        });
         var response = await Admin(app).DeleteAsync(new Uri($"/api/v1/items/{artist.Id}", UriKind.Relative));
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         Assert.Contains("DELETE /api/v1/artist/3?deleteFiles=true&addImportListExclusion=false", arr.Requests);
         using var check = app.Services.CreateScope();
-        Assert.False(await check.ServiceProvider.GetRequiredService<FlexarrDbContext>().MediaItems.AnyAsync(i => i.Id == artist.Id || i.Id == album.Id));
+        var after = check.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        Assert.False(await after.MediaItems.AnyAsync(i => i.Id == artist.Id || i.Id == album.Id));
+        // Nothing more of theirs is coming: their follow and album request are over.
+        Assert.False(await after.MediaRequests.AnyAsync(r => (r.Title == "Wet Leg" || r.ArtistName == "Wet Leg") && r.FulfilledAt == null));
+    }
+
+    [Fact]
+    public async Task AnAlbumLidarrNeverMatched_UnderAnArtistItManages_IsFoundThereByTitle()
+    {
+        var arr = new FakeArr();
+        arr.Responses["GET /api/v1/album?artistId=3"] = """[{"id":9,"artistId":3,"title":"Moisturizer","monitored":true}]""";
+        arr.Responses["PUT /api/v1/album/monitor"] = "[]";
+        arr.Responses["GET /api/v1/trackfile?albumId=9"] = "[]";
+        arr.Responses["GET /api/v1/artist"] = """[{"id":3,"artistName":"Wet Leg","monitored":true,"monitorNewItems":"none"}]""";
+        using var app = WithLidarr(arr, factory);
+        var (_, album) = await AddMusicAsync(app, managed: true);
+        await InScopeAsync(app, db => db.MediaItems.Where(i => i.Id == album.Id).ExecuteUpdateAsync(u => u.SetProperty(i => i.ArrId, (int?)null).SetProperty(i => i.MetadataSource, (string?)null)));
+
+        var plan = await Admin(app).GetFromJsonAsync<DeletionPlan>(new Uri($"/api/v1/items/{album.Id}/deletion", UriKind.Relative));
+        var response = await Admin(app).DeleteAsync(new Uri($"/api/v1/items/{album.Id}", UriKind.Relative));
+
+        Assert.Equal("Lidarr", plan!.ManagedBy);
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Contains("PUT /api/v1/album/monitor", arr.Requests);
     }
 
     [Fact]

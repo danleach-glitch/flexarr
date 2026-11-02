@@ -25,6 +25,7 @@ public static partial class MusicRequestPlacer
 
         var result = body.Kind == "album" ? await AlbumAsync(c, target, profileId, body, logger, ct) : await ArtistAsync(c, target, profileId, body, logger, ct);
         MusicMatcher.Forget(c.Cache, target.Lidarr);
+        MusicRequested.Forget(c.Cache);
         return result;
     }
 
@@ -192,7 +193,7 @@ public static partial class MusicRequestPlacer
     /// The MusicBrainz release behind a Deezer album, by its barcode. Null when it has no barcode, MusicBrainz doesn't
     /// know it, or MusicBrainz doesn't answer (then names have to do).
     /// </summary>
-    private static async Task<MusicBrainzRelease?> ReleaseAsync(MusicRequestContext c, DeezerAlbum album, ILogger logger, CancellationToken ct)
+    internal static async Task<MusicBrainzRelease?> ReleaseAsync(MusicRequestContext c, DeezerAlbum album, ILogger logger, CancellationToken ct)
     {
         if (album.Upc is not { Length: > 0 } upc)
         {

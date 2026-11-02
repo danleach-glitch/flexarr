@@ -476,14 +476,14 @@ public sealed class MusicRequestTests : IAsyncLifetime
         await SeedOwnedAsync();
         var soon = DateTime.UtcNow.Date.AddDays(30).ToString("yyyy-MM-ddTHH:mm:ssZ", System.Globalization.CultureInfo.InvariantCulture);
         _lidarr.Responses["GET /api/v1/artist"] = $"[{WetLegInLidarr}]";
-        _lidarr.Responses["GET /api/v1/wanted/missing?page=1&pageSize=200&includeArtist=true&monitored=true&sortKey=releaseDate&sortDirection=descending"] = $$"""
+        _lidarr.Responses["GET /api/v1/wanted/missing?page=1&pageSize=1000&includeArtist=false&monitored=true&sortKey=releaseDate&sortDirection=descending"] = $$"""
             {"page":1,"pageSize":200,"totalRecords":2,"records":[
               {"id":9,"artistId":3,"title":"moisturizer","foreignAlbumId":"{{Moisturizer}}","monitored":true,"releaseDate":"2025-07-11T00:00:00Z",
                "images":[{"coverType":"cover","url":"/MediaCover/Albums/9/cover.jpg?lastWrite=1"}]},
               {"id":8,"artistId":3,"title":"Wet Leg","foreignAlbumId":"rg-wet-leg","monitored":true,"releaseDate":"2022-04-08T00:00:00Z"}]}
             """;
         var today = DateTime.UtcNow.Date;
-        _lidarr.Responses[$"GET /api/v1/calendar?start={today:yyyy-MM-dd}&end={today.AddYears(1):yyyy-MM-dd}&unmonitored=false&includeArtist=true"] =
+        _lidarr.Responses[$"GET /api/v1/calendar?start={today:yyyy-MM-dd}&end={today.AddYears(1):yyyy-MM-dd}&unmonitored=false&includeArtist=false"] =
             $$"""[{"id":11,"artistId":3,"title":"Next One","foreignAlbumId":"rg-next","monitored":true,"releaseDate":"{{soon}}"}]""";
         _lidarr.Responses["GET /api/v1/queue?page=1&pageSize=200&includeArtist=true&includeAlbum=true"] =
             """{"page":1,"pageSize":200,"totalRecords":1,"records":[{"id":5,"albumId":9,"artistId":3,"status":"downloading","trackedDownloadState":"downloading","size":100,"sizeleft":25}]}""";
@@ -500,6 +500,9 @@ public sealed class MusicRequestTests : IAsyncLifetime
         Assert.StartsWith("/api/v1/images/arr?", requested[0].GetProperty("image").GetString(), StringComparison.Ordinal);
         Assert.Equal("searching", requested[1].GetProperty("state").GetString());
         Assert.Equal("upcoming", requested[2].GetProperty("state").GetString());
+        // One library's view holds only artists in its folders (and leaves out requests it can't place).
+        var elsewhere = await MusicLibraryAsync("/Volumes/Media/data/other-music", "Other");
+        Assert.Empty((await Client().GetFromJsonAsync<JsonElement>(Api($"/requests/music/requested?libraryId={elsewhere.Id}"))).EnumerateArray());
         var cover = await Client().GetAsync(new Uri(requested[0].GetProperty("image").GetString()!.Replace("&s=", "&s=0", StringComparison.Ordinal), UriKind.Relative));
         Assert.Equal(HttpStatusCode.NotFound, cover.StatusCode); // only the server's own signed links
     }
@@ -544,6 +547,41 @@ public sealed class MusicRequestTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ALidarrThatTimesOutOnARealQuestion_ReadsAsNotAnswering_NotAsNotFollowing()
+    {
+        var (_, artist, _) = await SeedOwnedAsync();
+        _lidarr.Responses.TryRemove("GET /api/v1/artist", out _); // Lidarr pings, but its artist list fails
+
+        var extras = await Client().GetFromJsonAsync<JsonElement>(Api($"/requests/music/library-artist/{artist.Id}"));
+        var status = await Client().GetFromJsonAsync<JsonElement>(Api("/requests/music/status"));
+
+        Assert.False(extras.GetProperty("lidarrAnswered").GetBoolean());
+        Assert.False(status.GetProperty("reachable").GetBoolean());
+    }
+
+    [Fact]
+    public async Task Unrequesting_TidiesAnArtistAnEarlierRequestAdded_WhicheverIsCancelledLast()
+    {
+        await MusicLibraryAsync();
+        LidarrAwaitsMoisturizer();
+        await AskedForMoisturizerAsync(addedArtist: false);
+        await InDbAsync(async db =>
+        {
+            db.MediaRequests.Add(new Core.Notifications.MediaRequest
+            {
+                ProfileId = "owner", Kind = MediaKind.Album, MusicBrainzId = "rg-first", ArtistMusicBrainzId = WetLeg, Title = "Wet Leg", ArtistName = "Wet Leg",
+                AddedArtist = true, FulfilledAt = DateTime.UtcNow,
+            });
+            return await db.SaveChangesAsync();
+        });
+
+        var response = await Client().PostAsJsonAsync(Api("/requests/music/unrequest"), new { musicBrainzId = Moisturizer });
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Contains(_sent, s => s.Request == "DELETE /api/v1/artist/3");
+    }
+
+    [Fact]
     public async Task Unrequesting_KeepsAnArtistWithOtherMusic_OrThatItDidntAdd()
     {
         await MusicLibraryAsync();
@@ -554,7 +592,8 @@ public sealed class MusicRequestTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         Assert.DoesNotContain(_sent, s => s.Request == "DELETE /api/v1/artist/3");
-        Assert.Equal(HttpStatusCode.NotFound, (await Client().PostAsJsonAsync(Api("/requests/music/unrequest"), new { musicBrainzId = "rg-nobody-asked" })).StatusCode);
+        // Nothing to take back is already done.
+        Assert.Equal(HttpStatusCode.NoContent, (await Client().PostAsJsonAsync(Api("/requests/music/unrequest"), new { musicBrainzId = "rg-nobody-asked" })).StatusCode);
     }
 }
 
