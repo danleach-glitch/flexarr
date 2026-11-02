@@ -105,6 +105,63 @@ public sealed class ArrClient(HttpClient httpClient)
             addOptions = new { monitor = "none", searchForMovie = false },
         }, ct);
 
+    /// <summary>Has Radarr stop (or start) wanting films: an unmonitored film isn't searched for or downloaded.</summary>
+    public async Task SetMoviesMonitoredAsync(ArrInstance radarr, IReadOnlyList<int> movieIds, bool monitored, CancellationToken ct = default)
+    {
+        using var request = Request(radarr, HttpMethod.Put, "movie/editor");
+        request.Content = JsonContent.Create(new { movieIds, monitored }, options: Json);
+        using var response = await httpClient.SendAsync(request, ct).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+    }
+
+    /// <summary>Takes a film out of Radarr, leaving any files on disk and no import exclusion. Gone already counts as done.</summary>
+    public Task RemoveMovieAsync(ArrInstance radarr, int movieId, CancellationToken ct = default) =>
+        RemoveAsync(radarr, $"movie/{movieId}?deleteFiles=false&addImportExclusion=false", ct);
+
+    /// <summary>Takes a show out of Sonarr, leaving any files on disk and no import exclusion. Gone already counts as done.</summary>
+    public Task RemoveSeriesAsync(ArrInstance sonarr, int seriesId, CancellationToken ct = default) =>
+        RemoveAsync(sonarr, $"series/{seriesId}?deleteFiles=false&addImportListExclusion=false", ct);
+
+    /// <summary>Takes a download out of the queue and the download client, without blocklisting the release. Gone already counts as done.</summary>
+    public Task RemoveFromQueueAsync(ArrInstance instance, int queueId, CancellationToken ct = default) =>
+        RemoveAsync(instance, $"queue/{queueId}?removeFromClient=true&blocklist=false", ct);
+
+    private async Task RemoveAsync(ArrInstance instance, string path, CancellationToken ct)
+    {
+        using var request = Request(instance, HttpMethod.Delete, path);
+        using var response = await httpClient.SendAsync(request, ct).ConfigureAwait(false);
+        if (response.StatusCode != System.Net.HttpStatusCode.NotFound)
+        {
+            response.EnsureSuccessStatusCode();
+        }
+    }
+
+    /// <summary>Has Sonarr stop (or start) wanting whole seasons of a show, without touching its other seasons.</summary>
+    public async Task SetSeasonsMonitoredAsync(ArrInstance sonarr, int seriesId, IReadOnlyCollection<int> seasons, bool monitored, CancellationToken ct = default)
+    {
+        // Sonarr's PUT takes the whole show, so send back what it has with only these changed.
+        var series = await GetAsync<JsonObject>(sonarr, $"series/{seriesId}", ct).ConfigureAwait(false);
+        if (series["seasons"] is not JsonArray list)
+        {
+            return;
+        }
+
+        var changed = false;
+        foreach (var season in list.OfType<JsonObject>())
+        {
+            if (season["seasonNumber"]?.GetValue<int>() is { } number && seasons.Contains(number) && season["monitored"]?.GetValue<bool>() != monitored)
+            {
+                season["monitored"] = monitored;
+                changed = true;
+            }
+        }
+
+        if (changed)
+        {
+            await SendAsync<JsonObject>(sonarr, HttpMethod.Put, $"series/{seriesId}", series, ct).ConfigureAwait(false);
+        }
+    }
+
     // Lidarr
     public Task<IReadOnlyList<LidarrArtist>> GetArtistsAsync(ArrInstance lidarr, CancellationToken ct = default) =>
         GetAsync<IReadOnlyList<LidarrArtist>>(lidarr, "artist", ct);
