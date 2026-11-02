@@ -13,7 +13,7 @@ public static class MusicRequestPlacer
 {
     public static async Task<IResult> PlaceAsync(MusicRequestContext c, string profileId, MusicRequestBody body, CancellationToken ct)
     {
-        var (target, problem) = await MusicDestinations.ForRequestAsync(c.Client, c.Lidarrs, c.Options.PathMappings, c.Db, profileId, ct);
+        var (target, problem) = await MusicDestinations.ForRequestAsync(c.Client, c.Lidarrs, c.Options.PathMappings, c.Db, profileId, c.Cache, ct);
         if (target is null)
         {
             return problem is null
@@ -65,8 +65,11 @@ public static class MusicRequestPlacer
             return Results.Problem($"Lidarr doesn't know {artistName}, or knows more than one artist of that name.", statusCode: 409);
         }
 
+        // A Lidarr that has the artist already keeps them: the album goes there, not to a second Lidarr.
+        var (lidarr, knownArtist) = await c.LidarrArtistAsync(artistMbid, artist.ArtistName, ct) is { } home ? (home.Lidarr, home.Artist) : (target.Lidarr, artist);
+
         // Lidarr's own copy of the album, when it has the artist: its id is what monitoring and searching take.
-        var match = await MusicMatcher.MatchAlbumAsync(c.Client, target.Lidarr, artist, title, year, ct);
+        var match = await MusicMatcher.MatchAlbumAsync(c.Client, lidarr, knownArtist, title, year, ct);
         if (match?.ForeignAlbumId is not { Length: > 0 } albumMbid)
         {
             return Results.Problem($"Lidarr doesn't know {title} by {artist.ArtistName}.", statusCode: 409);
@@ -74,12 +77,18 @@ public static class MusicRequestPlacer
 
         if (match.Id > 0)
         {
-            await c.Client.SetAlbumsMonitoredAsync(target.Lidarr, [match.Id], monitored: true, ct);
-            await c.Client.SearchAlbumsAsync(target.Lidarr, [match.Id], ct);
+            await c.Client.SetAlbumsMonitoredAsync(lidarr, [match.Id], monitored: true, ct);
+            await c.Client.SearchAlbumsAsync(lidarr, [match.Id], ct);
         }
         else
         {
-            await c.Client.AddAlbumAsync(target.Lidarr, albumMbid, match.Title, artistMbid, artist.ArtistName, target.Placement, ct);
+            await c.Client.AddAlbumAsync(lidarr, albumMbid, match.Title, artistMbid, artist.ArtistName, target.Placement, ct);
+        }
+
+        MusicMatcher.Forget(c.Cache, lidarr);
+        if (knownArtist.Id > 0)
+        {
+            c.ForgetAlbums(lidarr, knownArtist.Id);
         }
 
         await c.RememberAsync(new MediaRequest

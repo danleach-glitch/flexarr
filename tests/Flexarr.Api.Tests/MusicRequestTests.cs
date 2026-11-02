@@ -298,6 +298,40 @@ public sealed class MusicRequestTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ALidarrRefusal_IsSaidPlainly_WithoutLidarrsOwnWords()
+    {
+        await MusicLibraryAsync();
+        _lidarr.Responses.TryRemove("POST /api/v1/album", out _);
+
+        var response = await Client().PostAsJsonAsync(Api("/requests/music"), new { kind = "album", deezerId = 730000661 });
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+
+        Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
+        Assert.Equal("Lidarr turned the request down. It may have it already.", problem.GetProperty("detail").GetString());
+    }
+
+    [Fact]
+    public async Task OneProfile_CanAskForSoMuchInADay()
+    {
+        await MusicLibraryAsync();
+        using (var scope = _server.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            for (var i = 0; i < 30; i++)
+            {
+                db.MediaRequests.Add(new Flexarr.Core.Notifications.MediaRequest { ProfileId = "owner", Kind = MediaKind.Album, MusicBrainzId = $"rg-{i}", Title = $"Album {i}", ArtistName = "Someone" });
+            }
+
+            await db.SaveChangesAsync();
+        }
+
+        var response = await Client().PostAsJsonAsync(Api("/requests/music"), new { kind = "album", deezerId = 730000661 });
+
+        Assert.Equal(HttpStatusCode.TooManyRequests, response.StatusCode);
+        Assert.DoesNotContain(_sent, s => s.Request.StartsWith("POST", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task TheMusicDestination_IsAProfilesOwn_AndOnlyAMusicLibrary()
     {
         var (library, _, _) = await SeedOwnedAsync();

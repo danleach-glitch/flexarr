@@ -4,6 +4,7 @@ using Flexarr.Core.Paths;
 using Flexarr.Integrations.Arr;
 using Flexarr.Integrations.Arr.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace Flexarr.Api.Endpoints.MusicRequests;
 
@@ -88,7 +89,7 @@ public static class MusicDestinations
     /// Lidarr root folder.
     /// </summary>
     public static async Task<(MusicTarget? Target, string? Problem)> ForRequestAsync(ArrClient client, IReadOnlyList<ArrInstance> lidarrs,
-        IReadOnlyList<PathMapping> mappings, FlexarrDbContext db, string profileId, CancellationToken ct)
+        IReadOnlyList<PathMapping> mappings, FlexarrDbContext db, string profileId, IMemoryCache cache, CancellationToken ct)
     {
         var roots = await RootsAsync(client, lidarrs, ct);
         if (!roots.Any(r => r.Folders.Count > 0))
@@ -106,20 +107,20 @@ public static class MusicDestinations
 
         var chosen = await db.Profiles.AsNoTracking().Where(p => p.Id == profileId).Select(p => p.RequestMusicLibraryId).FirstOrDefaultAsync(ct);
         var destination = destinations.FirstOrDefault(d => d.LibraryId == chosen) ?? destinations.FirstOrDefault(d => d.IsDefault) ?? destinations[0];
-        return (new MusicTarget(destination.Lidarr, await PlacementAsync(client, destination.Lidarr, destination.Root, ct)), null);
+        return (new MusicTarget(destination.Lidarr, await PlacementAsync(client, destination.Lidarr, destination.Root, cache, ct)), null);
     }
 
     /// <summary>
     /// The root folder's own default profiles, as Lidarr's Add dialog would pick; failing those, the ones most of this
     /// Lidarr's artists use, then the first it has.
     /// </summary>
-    private static async Task<LidarrPlacement> PlacementAsync(ArrClient client, ArrInstance lidarr, LidarrRootFolder root, CancellationToken ct)
+    private static async Task<LidarrPlacement> PlacementAsync(ArrClient client, ArrInstance lidarr, LidarrRootFolder root, IMemoryCache cache, CancellationToken ct)
     {
         var quality = root.DefaultQualityProfileId;
         var metadata = root.DefaultMetadataProfileId;
         if (quality <= 0 || metadata <= 0)
         {
-            var artists = await client.GetArtistsAsync(lidarr, ct);
+            var artists = await MusicMatcher.LidarrArtistsAsync(client, lidarr, cache, ct);
             if (quality <= 0)
             {
                 quality = MostUsed(artists.Select(a => a.QualityProfileId)) ?? (await client.GetQualityProfilesAsync(lidarr, ct)).Select(p => p.Id).FirstOrDefault();

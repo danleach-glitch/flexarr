@@ -17,9 +17,15 @@ namespace Flexarr.Api.Endpoints.MusicRequests;
 /// Discovering and requesting music: Deezer for what there is, Lidarr (by MusicBrainz id) for adding it. All under
 /// /requests/music, so profiles with an age limit never reach it. See docs/music-requests.md.
 /// </summary>
-public static class MusicRequestEndpoints
+public static partial class MusicRequestEndpoints
 {
     private const int RowSize = 20;
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Lidarr refused or didn't answer a music request ({Status})")]
+    private static partial void LogLidarrRefused(ILogger logger, Exception ex, int? status);
+
+    /// <summary>The most albums and follows one profile can ask for in a day.</summary>
+    internal const int DailyLimit = 30;
 
     /// <param name="api">The API root, for the status every profile may ask.</param>
     /// <param name="requests">The /requests group, which turns away profiles with an age limit.</param>
@@ -196,7 +202,7 @@ public static class MusicRequestEndpoints
             return Results.Ok(destinations.Select(d => new MusicDestinationDto(d.LibraryId, d.Name, d.IsDefault)).ToList());
         });
 
-        music.MapPost("/", async (MusicRequestBody body, MusicRequestContext c, CurrentProfile current, CancellationToken ct) =>
+        music.MapPost("/", async (MusicRequestBody body, MusicRequestContext c, CurrentProfile current, ILoggerFactory loggers, CancellationToken ct) =>
         {
             if (!c.Options.MusicRequests.Enabled)
             {
@@ -208,17 +214,35 @@ public static class MusicRequestEndpoints
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["kind"] = ["Use \"album\" or \"artist\", with a deezerId, musicBrainzId or artistId."] });
             }
 
+            var logger = loggers.CreateLogger("Flexarr.MusicRequests");
+            // Lidarr adds and downloads straight away, with no approval: a cap keeps one profile (or a script with its
+            // key) from filling the disk.
+            var since = DateTime.UtcNow.AddDays(-1);
+            if (await c.Db.MediaRequests.CountAsync(r => r.ProfileId == current.Id && (r.Kind == MediaKind.Album || r.Kind == MediaKind.Artist) && r.RequestedAt > since, ct)
+                >= DailyLimit)
+            {
+                return Results.Problem("That's a lot of music for one day. Try again tomorrow.", statusCode: 429);
+            }
+
             try
             {
                 return await MusicRequestPlacer.PlaceAsync(c, current.Id, body, ct);
             }
             catch (HttpRequestException ex)
             {
-                return Results.Problem($"Lidarr didn't take the request: {ex.Message}", statusCode: 502);
+                // Lidarr's own words can name its address or folders: they go to the log, not to whoever asked.
+                LogLidarrRefused(logger, ex, (int?)ex.StatusCode);
+                return ex.StatusCode is { } status && (int)status is >= 400 and < 500
+                    ? Results.Problem("Lidarr turned the request down. It may have it already.", statusCode: 502)
+                    : Results.Problem("Lidarr isn't answering. Try again later.", statusCode: 502);
             }
-            catch (DeezerException ex)
+            catch (DeezerException ex) when (ex.Code == 800)
             {
-                return Results.Problem(ex.Message, statusCode: 502);
+                return Results.NotFound();
+            }
+            catch (Exception ex) when (ex is DeezerException || (ex is OperationCanceledException && !ct.IsCancellationRequested))
+            {
+                return Results.Problem("Lidarr or Deezer didn't answer in time. Try again in a minute.", statusCode: 502);
             }
         });
     }
