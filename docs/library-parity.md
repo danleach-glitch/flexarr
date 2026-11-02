@@ -1,7 +1,7 @@
 # Library parity: Movies, TV shows, Music, Audiobooks
 
 How the four main kinds of library compare, in the server and in every app, as of 2 November 2026 (after the music
-work in #271–#276). Work often goes deep on one kind of library at a time; this page says where one kind is now ahead
+work in #271–#276 and the first batch of fixes from this page). Work often goes deep on one kind of library at a time; this page says where one kind is now ahead
 of the others, so the next brief can carry the idea across, and where the same idea looks or reads differently.
 
 It was mapped from the code, not by using the apps, so a mark can be wrong in a corner. Check before building on one.
@@ -16,13 +16,13 @@ Apps: **W** web, **i** iPhone/iPad, **tv** Apple TV, **A** Android phone, **ATV*
 | --- | --- | --- | --- | --- |
 | Hero at the top of Browse | ✅ rotating featured, Play/Resume | ✅ Resume S1E3 | ✅ led by the album you played last, Resume from the next track, Radio for an artist | ❌ every app: shelves only |
 | Browse rows from the server, per-profile order | ✅ | ✅ | ✅ | ✅ (own shelves endpoint) |
-| **See all** on every Browse row | ✅ | ✅ | 🟡 only *Your artists*, in every app (the changelog says *New albums* has it; only Home's row does) | 🟡 ✅ i/A, ❌ tv |
+| **See all** on every Browse row | ✅ | ✅ | ✅ *Your artists* and *New albums* | 🟡 ✅ i/A, ❌ tv |
 | Top 10, genre rows | ✅ | ✅ | ❌ (*Most played* tracks instead) | ❌ |
 | Coming soon row | ✅ Radarr | ✅ Sonarr | ❌ Lidarr has a calendar, unused | — |
 | Views at the top | Browse, All, Genres | Browse, All, Genres | Browse, Artists, Albums, Genres, + Playlists and Requested on W | Browse, All books, Genres, Series, Authors; 🟡 tv has no Series/Authors |
 | View switch style | segmented (pills on W) | segmented | segmented | 🟡 pills on i and A |
 | Opens-on setting | ✅ tv, ATV | ✅ tv, ATV | ✅ tv; ❌ ATV (always Browse) | 🟡 tv shares the movies/TV setting |
-| Sorts | A–Z, Recently added, Year, Rating | same | Artists A–Z, Recently added (+ Year, Rating on W/tv); Albums A–Z, Recently added, Year | 7 of their own; label **Title** in the apps (not A–Z), **Newest first** and **Recently listened** on W; tv has 4 |
+| Sorts | A–Z, Recently added, Year, Rating | same | Artists A–Z, Recently added (+ Year, Rating on W/tv); Albums A–Z, Recently added, Year | A–Z, Author, Series, Recently added, Year, Length, Recently listened; tv has 4 |
 | Filters | genre | genre | 🟡 genre on tv/ATV/i; ❌ W, A | ✅ progress, length, unabridged (W only through links; ❌ tv) |
 | A–Z rail | ✅ W, tv, ATV | ✅ W, tv, ATV | ✅ W, tv, ATV | ❌ W, tv |
 | Search box in the grid (W) | ✅ | ✅ | ✅ | ❌ |
@@ -87,7 +87,7 @@ Apps: **W** web, **i** iPhone/iPad, **tv** Apple TV, **A** Android phone, **ATV*
 | | Movies | TV shows | Music | Audiobooks |
 | --- | --- | --- | --- | --- |
 | Watchlist | ✅ | ✅ | ❌ (Follow is the nearest) | ❌ |
-| Collections | ✅ W only | ✅ W only | ❌ | 🟡 W can add a book, but **a collection plays a book in the video player** |
+| Collections | ✅ W only | ✅ W only | ❌ | 🟡 W only |
 | Playlists | ❌ | ❌ | ✅ W; 🟡 apps play them but can't make one or add to one | ❌ |
 | Favourites | ❌ (only Live TV channels) | ❌ | ❌ | ❌ |
 
@@ -95,7 +95,7 @@ Apps: **W** web, **i** iPhone/iPad, **tv** Apple TV, **A** Android phone, **ATV*
 
 | | Movies | TV shows | Music | Audiobooks |
 | --- | --- | --- | --- | --- |
-| Fix match | ✅ main profile | 🟡 shows, not episodes | ❌ | ✅ but only an unlocked admin |
+| Fix match | ✅ main profile | 🟡 shows, not episodes | ❌ | ✅ main profile |
 | Edit details by hand | ❌ | ❌ | ❌ | ✅ + chapters, author photo and bio |
 | Delete | ✅ via Radarr | ✅ via Sonarr, episodes too | ✅ via Lidarr | ✅ files |
 | Library health | ✅ duplicates, SD copies, artwork | ✅ | ❌ | 🟡 `.aax` only |
@@ -120,14 +120,14 @@ Apps: **W** web, **i** iPhone/iPad, **tv** Apple TV, **A** Android phone, **ATV*
 
 | | Movies / TV | Music | Audiobooks |
 | --- | --- | --- | --- |
-| In your library | ✅ every app | ✅; 🟡 A drops albums and tracks, artists land under *Movies and shows* | ✅ i, W; ❌ tv |
-| Genre results | 🟡 W always opens Discover's movie/show genres, even for a music or book genre | | |
+| In your library | ✅ every app | ✅ **Artists** and **Albums** in every app (tracks on W only) | ✅ every app |
+| Genre results (W) | ✅ open the library's own genre | ✅ its albums | ✅ its genre page |
 
 ## Cards and press-and-hold
 
 | | Movies / TV | Music | Audiobooks |
 | --- | --- | --- | --- |
-| Press-and-hold / right-click menu | ✅ every app | ❌ album, artist, track and playlist cards in every app (W: albums only); 🟡 A's Home rows give albums the movie menu | ✅ |
+| Press-and-hold / right-click menu | ✅ every app | ❌ album, artist, track and playlist cards in every app (W: albums only) | ✅ |
 | Play button on the card (W) | ❌ | ✅ | ✅ |
 | Watched tick, progress bar | ✅ | — | ✅ |
 | Downloaded mark | ❌ on posters | ✅ bottom-right | 🟡 bottom-left on i, ❌ A |
@@ -152,12 +152,9 @@ film franchise's next film; time left at your speed.
 ## Same idea, different look or words
 
 1. Book buttons have no shared model and a different order in each app; album pages skip `MusicActions` on tv, A, ATV.
-2. Sort labels: books say *Title* (apps) and *Newest first*, *Recently listened* (W) where the rest say *A–Z*, *Year*.
-3. The view switch is pills for books on i and A, segmented elsewhere.
-4. Genres open three different ways (see Genres).
-5. A movie request's *Requested* is text; a music one is a button.
-6. The downloaded mark sits in a different corner for albums and books, and not at all on posters.
-7. Shuffle has an icon on shows and genres (W) but not on albums, artists or collections.
-8. Fix match: main profile for movies, unlocked admin only for books.
-9. Empty and error states read differently per library; grids lack *Try again*.
-10. Apple TV *Settings › Libraries* says *All titles* where the switch says *All movies / shows / books*.
+2. The view switch is pills for books on i and A, segmented elsewhere.
+3. Genres open three different ways (see Genres).
+4. A movie request's *Requested* is text; a music one is a button.
+5. The downloaded mark sits in a different corner for albums and books, and not at all on posters.
+6. Shuffle has an icon on shows and genres (W) but not on albums, artists or collections.
+7. Empty and error states read differently per library; grids lack *Try again*.
