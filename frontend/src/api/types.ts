@@ -363,6 +363,17 @@ export interface SearchResults {
   /** Audiobooks, apart from titles. Absent from servers before 0.58. */
   books?: ItemSummary[] | null
   bookSeries?: BookSeriesSearch[] | null
+  /** Each genre with a library it's in. Absent from servers before 0.59. */
+  genreLibraries?: SearchGenre[] | null
+}
+
+/** A genre that matched a search, in one library (music counts its albums). */
+export interface SearchGenre {
+  name: string
+  libraryId: string
+  library: string
+  type: LibraryType
+  count: number
 }
 
 /** The profile's last few searches and what they opened from them, newest first, on every device (absent before 0.56). */

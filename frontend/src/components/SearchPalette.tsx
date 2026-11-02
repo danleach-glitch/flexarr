@@ -15,7 +15,7 @@ import {
 import { useAudioPlayer } from '../hooks/audioPlayerContext'
 import { authorsLine, isBook } from '../lib/books'
 import { episodeCode, year } from '../lib/format'
-import { itemLink } from '../lib/links'
+import { itemLink, libraryGenreLink } from '../lib/links'
 import { Close, History, Play, Search } from './icons'
 
 interface Result {
@@ -119,17 +119,29 @@ function flatten(results: SearchResults): Result[] {
       thumb: 'episodes',
       itemId: e.id,
     })),
-    ...results.genres.map((g) => ({
-      key: `g-${g}`,
+    ...genreResults(results),
+  ]
+}
+
+/** A genre opens its library's own genre: a library of each kind, the fullest first. Older servers only send the name. */
+function genreResults(results: SearchResults): Result[] {
+  const places = results.genreLibraries ?? []
+  return results.genres.flatMap((g): Result[] => {
+    const here = places.filter((p) => p.name === g)
+    if (here.length === 0) {
+      return [{ key: `g-${g}`, group: 'Genres', title: g, detail: null, image: undefined, href: `/discover?genre=${encodeURIComponent(g)}`, thumb: 'genres', itemId: null }]
+    }
+    return here.map((p) => ({
+      key: `g-${g}-${p.libraryId}`,
       group: 'Genres',
       title: g,
-      detail: null,
+      detail: p.library,
       image: undefined,
-      href: `/discover?genre=${encodeURIComponent(g)}`,
+      href: libraryGenreLink(p.libraryId, p.type, g),
       thumb: 'genres',
       itemId: null,
-    })),
-  ]
+    }))
+  })
 }
 
 /** What shows before anything's typed: the profile's recent searches, then what they opened from them. */

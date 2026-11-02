@@ -73,6 +73,35 @@ public class SearchTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
     }
 
     [Fact]
+    public async Task Search_SaysWhichLibrariesAGenreIsIn()
+    {
+        var word = Unique();
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var genre = new Genre { Name = $"Shoegaze {word}" };
+            var films = new Library { Name = $"Films {word}", Type = LibraryType.Movies };
+            var music = new Library { Name = $"Music {word}", Type = LibraryType.Music };
+            var artist = new MediaItem { LibraryId = music.Id, Kind = MediaKind.Artist, Title = "Artist", SortTitle = "artist" };
+            db.AddRange(genre, films, music, artist);
+            db.Add(new MediaItem { LibraryId = films.Id, Kind = MediaKind.Movie, Title = "Film", SortTitle = "film", Genres = [genre] });
+            // Music counts its albums, as its Genres view does: two albums, so it comes before the films.
+            for (var n = 0; n < 2; n++)
+            {
+                db.Add(new MediaItem { LibraryId = music.Id, ParentId = artist.Id, Kind = MediaKind.Album, Title = $"Album {n}", SortTitle = $"album {n}", Genres = [genre] });
+            }
+
+            await db.SaveChangesAsync();
+        }
+
+        var results = await SearchAsync($"shoegaze {word}");
+
+        var places = results.GetProperty("genreLibraries").EnumerateArray()
+            .Select(g => (Library: g.GetProperty("library").GetString(), Type: g.GetProperty("type").GetString(), Count: g.GetProperty("count").GetInt32())).ToList();
+        Assert.Equal([($"Music {word}", "Music", 2), ($"Films {word}", "Movies", 1)], places);
+    }
+
+    [Fact]
     public async Task Search_ExactMatchesStillComeFirst()
     {
         var word = Unique();

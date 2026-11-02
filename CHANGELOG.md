@@ -20,6 +20,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Discover's title pages show IMDb and Rotten Tomatoes in place of the four scores they had (TMDB, IMDb, critics and audience). TMDB's score stays when there's no IMDb score.
 - On Android TV, kids profiles no longer see a score on a title's page, the Home hero or an artist's page.
 
+### Search
+- On the web, a genre found by search opens that genre in its own library: a music genre's albums, a books genre's page, or the movies or shows of that genre. A genre in more than one library is listed once for each.
+
 ### Music
 - A music library's page now works like Movies and TV on the web, iPhone, iPad, Apple TV, Android and Android TV. A picture across the top starts with the album you played last, and **Resume** carries on from the next track. Then come artists you play, with **Play** and **Radio**, and the newest albums.
 - **Artists**, **Albums** and **Genres** sit beside **Browse** at the top. Albums lists every album, sorted A to Z, by date added or by year. Each genre opens its albums, and **Play** or **Shuffle** plays up to 200 of its tracks.
