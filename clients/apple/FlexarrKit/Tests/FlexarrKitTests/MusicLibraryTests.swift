@@ -3,6 +3,17 @@ import Testing
 @testable import FlexarrKit
 
 struct MusicLibraryClientTests {
+    @Test func aRowLinkingToAlbumsSaysWhichSort() throws {
+        func row(_ link: String?) throws -> HomeRow {
+            let json = #"{"id":"recent","title":"New albums","style":"poster","items":[]"# + (link.map { #","link":"\#($0)""# } ?? "") + "}"
+            return try JSONDecoder().decode(HomeRow.self, from: Data(json.utf8))
+        }
+        #expect(try row("/library/lib?view=albums&sort=added").albumsSort == .added)
+        #expect(try row("/library/lib?view=albums").albumsSort == .title)
+        #expect(try row("/library/lib?sort=added").albumsSort == nil)
+        #expect(try row(nil).albumsSort == nil)
+    }
+
     @Test func albumsAskForTheirSortGenreAndPage() async throws {
         let body = Data(#"{"total":1,"items":[]}"#.utf8)
         let (client, host) = stubbedClient(.init(status: 200, body: body))

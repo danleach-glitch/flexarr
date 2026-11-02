@@ -263,6 +263,8 @@ private fun MusicShelf(model: AppModel, row: HomeRow, first: FocusRequester?) {
                 }
             }
         }
+        // New albums links to Albums, newest first: a square See all at the row's end, as Home's rows have.
+        navigator.libraryLink(row.link)?.let { seeAll -> item(key = "see-all") { TvSeeAllCard(wide = false, onClick = seeAll, height = TvLayout.PosterWidth) } }
     }
 }
 

@@ -1672,3 +1672,14 @@ struct AudioDelayBody: Codable, Sendable {
 struct PlaybackSpeedBody: Codable, Sendable {
     let speed: Double
 }
+
+extension HomeRow {
+    /// The sort to open a music library's Albums with, when the row's link leads there (`?view=albums`, as
+    /// *New albums* does). Nil for every other link.
+    public var albumsSort: LibrarySort? {
+        guard let link, let components = URLComponents(string: link), components.path.hasPrefix("/library/") else { return nil }
+        let query = components.queryItems ?? []
+        guard query.contains(where: { $0.name == "view" && $0.value == "albums" }) else { return nil }
+        return query.first(where: { $0.name == "sort" })?.value.flatMap(LibrarySort.init(rawValue:)) ?? .title
+    }
+}
