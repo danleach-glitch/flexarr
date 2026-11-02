@@ -1,7 +1,6 @@
 package io.github.flexarr.ui.books
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,13 +22,11 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.FilterList
-import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -89,6 +86,7 @@ import io.github.flexarr.ui.components.Loaded
 import io.github.flexarr.ui.components.PageTitle
 import io.github.flexarr.ui.components.PersonCard
 import io.github.flexarr.ui.components.PillButton
+import io.github.flexarr.ui.library.ShowingSwitch
 import io.github.flexarr.ui.components.PosterCard
 import io.github.flexarr.ui.components.PosterWidth
 import io.github.flexarr.ui.components.RemoteImage
@@ -136,17 +134,11 @@ fun BookLibraryScreen(model: AppModel, libraryId: String, view: String, genre: S
         Column {
             PageTitle(name, onBack = { navigator.back() }) {
                 if (showing == BooksView.All) {
-                    FilterMenu(query, fixedGenre = genre != null, onChange = change)
-                    SortMenu(query, change)
+                    SortAndFilterMenu(query, fixedGenre = genre != null, onChange = change)
                 }
             }
             if (genre == null) {
-                Row(
-                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = Edge).padding(bottom = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    views.forEach { view -> PillButton(view.label, view == showing, { shown = view }) }
-                }
+                ShowingSwitch(views.map { it.label to it }, showing) { shown = it }
             }
             when (showing) {
                 BooksView.Shelves -> Shelves(model, shelvesLoader)
@@ -391,14 +383,26 @@ private val lengths = listOf(
 
 private fun lengthLabel(query: BookQuery): String? = lengths.firstOrNull { it.second == (query.minHours to query.maxHours) }?.first
 
+/** Sort by, then the filters, behind one button as in the other libraries. */
 @Composable
-private fun FilterMenu(query: BookQuery, fixedGenre: Boolean, onChange: (BookQuery) -> Unit) {
+private fun SortAndFilterMenu(query: BookQuery, fixedGenre: Boolean, onChange: (BookQuery) -> Unit) {
     var open by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { open = true }) {
-            Icon(Icons.Filled.FilterList, contentDescription = "Filter", tint = if (query.narrowed(fixedGenre)) Flexarr.silver else Flexarr.screen)
+            Icon(Icons.Filled.FilterList, contentDescription = "Sort and filter", tint = if (query.narrowed(fixedGenre)) Flexarr.silver else Flexarr.screen)
         }
         DropdownMenu(open, onDismissRequest = { open = false }, containerColor = Flexarr.seat) {
+            MenuHeading("Sort by")
+            BookSort.entries.forEach { sort ->
+                Choice(sort.label, query.sort == sort) {
+                    open = false
+                    // The newest, longest and latest come first; names from A.
+                    val descending = sort == BookSort.Added || sort == BookSort.Released || sort == BookSort.Listened || sort == BookSort.Length
+                    onChange(if (query.sort == sort) query.copy(descending = !query.descending) else query.copy(sort = sort, descending = descending))
+                }
+            }
+            HorizontalDivider(color = Flexarr.aisle)
+            MenuHeading("Filter")
             Choice("All books", !query.narrowed(fixedGenre)) { open = false; onChange(BookQuery(sort = query.sort, descending = query.descending)) }
             HorizontalDivider(color = Flexarr.aisle)
             BookProgressFilter.entries.forEach { filter ->
@@ -419,21 +423,8 @@ private fun FilterMenu(query: BookQuery, fixedGenre: Boolean, onChange: (BookQue
 }
 
 @Composable
-private fun SortMenu(query: BookQuery, onChange: (BookQuery) -> Unit) {
-    var open by remember { mutableStateOf(false) }
-    Box {
-        IconButton(onClick = { open = true }) { Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Sort", tint = Flexarr.screen) }
-        DropdownMenu(open, onDismissRequest = { open = false }, containerColor = Flexarr.seat) {
-            BookSort.entries.forEach { sort ->
-                Choice(sort.label, query.sort == sort) {
-                    open = false
-                    // The newest, longest and latest come first; names from A.
-                    val descending = sort == BookSort.Added || sort == BookSort.Released || sort == BookSort.Listened || sort == BookSort.Length
-                    onChange(if (query.sort == sort) query.copy(descending = !query.descending) else query.copy(sort = sort, descending = descending))
-                }
-            }
-        }
-    }
+private fun MenuHeading(text: String) {
+    Text(text, fontSize = 13.sp, color = Flexarr.usher, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
 }
 
 @Composable
