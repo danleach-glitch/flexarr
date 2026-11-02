@@ -14,6 +14,7 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
     public DbSet<LibraryFolder> LibraryFolders => Set<LibraryFolder>();
     public DbSet<MediaItem> MediaItems => Set<MediaItem>();
     public DbSet<MediaFile> MediaFiles => Set<MediaFile>();
+    public DbSet<MusicAlias> MusicAliases => Set<MusicAlias>();
     public DbSet<MediaStream> MediaStreams => Set<MediaStream>();
     public DbSet<Genre> Genres => Set<Genre>();
     public DbSet<Person> People => Set<Person>();
@@ -457,6 +458,13 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
             e.Property(s => s.ProfileId).HasMaxLength(64);
             e.HasOne<MediaItem>().WithMany().HasForeignKey(s => s.SeriesId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne<Profile>().WithMany().HasForeignKey(s => s.ProfileId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<MusicAlias>(e =>
+        {
+            e.Property(a => a.Key).HasMaxLength(2000);
+            e.HasIndex(a => new { a.LibraryId, a.Key }).IsUnique();
+            e.HasOne<MediaItem>().WithMany().HasForeignKey(a => a.ItemId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<ContinueWatchingDismissal>(e =>

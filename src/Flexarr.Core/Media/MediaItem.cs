@@ -154,6 +154,19 @@ public sealed class MediaItem
     /// </summary>
     public bool MatchLocked { get; set; }
 
+    /// <summary>
+    /// Details edited by hand (films, shows, albums): refreshes keep the title, sort title, original title, year,
+    /// description, genres and studio (or an album's type) as they are, and still update everything else. Books use
+    /// <see cref="MatchLocked"/> for this instead.
+    /// </summary>
+    public bool DetailsLocked { get; set; }
+
+    /// <summary>A poster or cover chosen by hand (in Fix match): refreshes keep <see cref="PosterUrl"/> as it is.</summary>
+    public bool ArtworkLocked { get; set; }
+
+    /// <summary>Deezer's id for an album or artist matched there by hand (Fix match without Lidarr).</summary>
+    public string? DeezerId { get; set; }
+
     public string? MetadataSource { get; set; }
     public DateTime? MetadataUpdatedAt { get; set; }
 
