@@ -279,8 +279,8 @@ public static partial class DiscoveryEndpoints
 
             if (library.Type == LibraryType.Music)
             {
-                // A music library's home: what you've been playing, then the newest albums. No hero: album covers are
-                // square, and the rows are the point.
+                // A music library's home: a hero led by the album played last (over its artist's fanart), then what
+                // you've been playing and the newest albums.
                 var musicLayout = (await LayoutEndpoints.ForProfileAsync(db, options.CurrentValue, me, ct)).Music;
                 var musicRows = await MusicDiscovery.RowsAsync(db, cache, me, id, RowSize, ct, row => LayoutEndpoints.IsOn(musicLayout, row));
                 if (LayoutEndpoints.IsOn(musicLayout, "recent"))
@@ -288,7 +288,9 @@ public static partial class DiscoveryEndpoints
                     musicRows.Add(new HomeRowDto("recent", "New albums", "poster", await MusicDiscovery.NewAlbumsAsync(db, me, id, RowSize, ct), $"{all}&sort=added"));
                 }
 
-                return Results.Ok(new HomeDto([], new Dictionary<Guid, string?>(), LayoutEndpoints.Arrange(musicRows.Where(r => r.HasContent), musicLayout), [], 0));
+                var (hero, heroResumes) = await MusicDiscovery.HeroAsync(db, me, id, ct);
+                return Results.Ok(new HomeDto(hero, await OverviewsAsync(db, hero, ct), LayoutEndpoints.Arrange(musicRows.Where(r => r.HasContent), musicLayout), [], 0,
+                    Resumes: heroResumes));
             }
 
             var movies = library.Type == LibraryType.Movies;
