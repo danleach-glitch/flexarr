@@ -13,6 +13,7 @@ import io.github.flexarr.core.LiveChannel
 import io.github.flexarr.player.LivePlayerActivity
 import io.github.flexarr.core.LibraryType
 import io.github.flexarr.core.MediaKind
+import io.github.flexarr.core.MusicExternal
 import io.github.flexarr.core.asPodcastEpisode
 import io.github.flexarr.core.albumStart
 import io.github.flexarr.core.genreTracks
@@ -44,6 +45,29 @@ class Navigator(private val nav: NavHostController, private val model: AppModel,
         // The TV has no book screens yet: its title page says so rather than showing a film.
         MediaKind.Audiobook -> if (context.usesTvInterface) openItem(item.id) else openBook(item.id)
         else -> openItem(item.id)
+    }
+
+    /** A library artist's page, by its id here (an outside artist's In your library). */
+    fun openLibraryArtist(id: String) = nav.navigate("artist/$id")
+
+    /** An artist from outside the library, by Deezer id. */
+    fun openMusicArtist(deezerId: Long) = nav.navigate("music-artist/$deezerId")
+
+    /** An album from outside the library, by Deezer id. */
+    fun openMusicAlbum(deezerId: Long) = nav.navigate("music-album/$deezerId")
+
+    /**
+     * An artist or album from outside the library: one the household has opens as itself, the rest their outside
+     * page. An album only Lidarr knows (no Deezer id) has no page to open.
+     */
+    fun openMusic(item: MusicExternal) {
+        val id = item.libraryItemId
+        when {
+            id != null -> nav.navigate(if (item.isArtist) "artist/$id" else "album/$id")
+            item.deezerId == 0L -> Unit
+            item.isArtist -> openMusicArtist(item.deezerId)
+            else -> openMusicAlbum(item.deezerId)
+        }
     }
 
     fun openBook(id: String) = nav.navigate("book/$id")

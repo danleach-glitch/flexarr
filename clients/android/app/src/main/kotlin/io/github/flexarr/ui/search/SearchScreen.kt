@@ -26,6 +26,7 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -74,6 +75,11 @@ import androidx.compose.ui.unit.sp
 import io.github.flexarr.AppModel
 import io.github.flexarr.core.ExternalTitle
 import io.github.flexarr.core.ItemSummary
+import io.github.flexarr.core.MusicSearch
+import io.github.flexarr.core.MusicExternal
+import io.github.flexarr.core.Availability
+import io.github.flexarr.ui.music.LidarrNotAnswering
+import io.github.flexarr.core.searchMusic
 import io.github.flexarr.core.RecentSearches
 import io.github.flexarr.core.SearchResults
 import io.github.flexarr.core.clearRecentSearches
@@ -100,6 +106,7 @@ import io.github.flexarr.ui.components.SectionHeading
 import io.github.flexarr.ui.components.StatusView
 import io.github.flexarr.ui.components.WideCard
 import io.github.flexarr.ui.components.menuActions
+import io.github.flexarr.ui.music.MusicExternalCard
 import io.github.flexarr.ui.components.pressable
 import io.github.flexarr.ui.components.rememberLoader
 import io.github.flexarr.ui.theme.Flexarr
@@ -123,6 +130,9 @@ fun SearchScreen(model: AppModel) {
     // Films and shows beyond the library, when Seerr's set up: what was found, and the words that found it.
     var searchesEverything by remember { mutableStateOf(false) }
     var everything by remember { mutableStateOf<Pair<String, List<ExternalTitle>>?>(null) }
+    // Artists and albums beyond the library, when Lidarr's set up for this profile.
+    var searchesMusic by remember { mutableStateOf(false) }
+    var music by remember { mutableStateOf<Pair<String, MusicSearch>?>(null) }
     val focus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
@@ -157,6 +167,31 @@ fun SearchScreen(model: AppModel) {
             throw e
         } catch (_: Exception) {
             false
+        }
+    }
+    LaunchedEffect(model.credentials) {
+        searchesMusic = try {
+            model.musicStatus().configured
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            false
+        }
+    }
+    LaunchedEffect(query, attempt, searchesMusic) {
+        val text = query.trim()
+        if (text.isEmpty() || !searchesMusic) {
+            music = null
+            return@LaunchedEffect
+        }
+        delay(300)
+        // Lidarr or Deezer failing leaves the rest of the results as they are.
+        music = text to try {
+            client.searchMusic(text)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            MusicSearch()
         }
     }
     LaunchedEffect(query, attempt, searchesEverything) {
@@ -248,7 +283,17 @@ fun SearchScreen(model: AppModel) {
                         val found = everything?.takeIf { it.first == text }?.second
                         val inLibrary = shown.titles.mapTo(HashSet()) { it.id }
                         val beyond = found?.filter { it.libraryItemId == null || it.libraryItemId !in inLibrary }
-                        results(shown, text, beyond, waitingForMore = searchesEverything && found == null, model = model, onPick = { record(text, it?.id) })
+                        val musicFound = music?.takeIf { it.first == text }?.second
+                        // As the iPhone: what the household has (artists and albums alike) isn't "not in your library".
+                        val beyondMusic = musicFound?.let { m ->
+                            fun outside(item: MusicExternal) = item.libraryItemId == null && item.availability != Availability.Available
+                            MusicSearch(m.artists.filter(::outside), m.albums.filter(::outside))
+                        }
+                        results(
+                            shown, text, beyond, beyondMusic,
+                            waitingForMore = (searchesEverything && found == null) || (searchesMusic && musicFound == null),
+                            model = model, onPick = { record(text, it?.id) },
+                        )
                     }
                     error != null -> item { StatusView(error, retry = { attempt++ }, modifier = Modifier.height(240.dp)) }
                     query.isBlank() && !recents.isEmpty -> recentRows(
@@ -274,11 +319,12 @@ private fun LazyListScope.results(
     results: SearchResults,
     query: String,
     beyond: List<ExternalTitle>?,
+    music: MusicSearch?,
     waitingForMore: Boolean,
     model: AppModel,
     onPick: (ItemSummary?) -> Unit,
 ) {
-    if (results.isEmpty && beyond.isNullOrEmpty() && !waitingForMore) {
+    if (results.isEmpty && beyond.isNullOrEmpty() && (music == null || music.isEmpty) && !waitingForMore) {
         item { StatusView("Nothing matches “$query”.", empty = true, modifier = Modifier.height(240.dp)) }
     }
     if (results.titles.isNotEmpty()) {
@@ -322,11 +368,26 @@ private fun LazyListScope.results(
             }
         }
     }
-    if (!beyond.isNullOrEmpty()) {
+    if (!beyond.isNullOrEmpty() || (music != null && !music.isEmpty)) {
         item(key = "beyond") {
             Section("Not in your library") {
-                LazyRow(contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(RowSpacing)) {
-                    items(beyond, key = { it.key }) { ExternalCard(model, it) }
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    if (!beyond.isNullOrEmpty()) {
+                        LazyRow(contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(RowSpacing)) {
+                            items(beyond, key = { it.key }) { ExternalCard(model, it) }
+                        }
+                    }
+                    // Lidarr connected but not answering: one quiet line, and requests wait.
+                    if (music != null && !music.isEmpty && model.musicUnreachable) {
+                        Text(LidarrNotAnswering, fontSize = 13.sp, color = Flexarr.usher, modifier = Modifier.padding(horizontal = Edge))
+                    }
+                    // Artists, then albums: each opens its outside page, and a long press asks for it.
+                    listOfNotNull(music?.artists, music?.albums).filter { it.isNotEmpty() }.forEach { row ->
+                        LazyRow(contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(RowSpacing), verticalAlignment = Alignment.Top) {
+                            // The same album can be listed twice (a joint album under each artist): its place keeps the keys apart.
+                            itemsIndexed(row, key = { index, item -> "$index-${item.id}" }) { _, item -> MusicExternalCard(model, item, width = PosterWidth, showsKind = true) }
+                        }
+                    }
                 }
             }
         }

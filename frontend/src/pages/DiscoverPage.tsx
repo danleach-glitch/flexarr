@@ -1,18 +1,24 @@
 import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
-import { getExternalDiscover, getGenreItems, getGenres, imageUrl, searchEverything } from '../api/client'
+import { getExternalDiscover, getGenreItems, getGenres, getMusicRequestStatus, imageUrl, searchEverything } from '../api/client'
 import { ExternalCard } from '../components/ExternalCard'
 import { Row } from '../components/Row'
 import { PosterCard } from '../components/Cards'
 import { useApi } from '../hooks/useApi'
+import { DiscoverSwitch, MusicDiscover, MusicGenrePage, MusicSearchResults } from './DiscoverMusic'
 
 export function DiscoverPage() {
   const [params, setParams] = useSearchParams()
+  const music = params.get('view') === 'music'
   const genre = params.get('genre')
   const kind = params.get('kind') ?? ''
-  const genres = useApi(getGenres, [])
-  const external = useApi(getExternalDiscover, [])
-  const items = useApi((signal) => (genre ? getGenreItems(genre, kind || undefined, signal) : Promise.resolve(undefined)), [genre, kind])
+  const musicStatus = useApi(getMusicRequestStatus, [])
+  const offersMusic = musicStatus.data?.configured === true
+  // Films and shows, unless Music is chosen and offered (an old link to Music, with music requests since turned off, lands here).
+  const films = !music || musicStatus.data?.configured === false
+  const genres = useApi((signal) => (films ? getGenres(signal) : Promise.resolve(undefined)), [films])
+  const external = useApi((signal) => (films ? getExternalDiscover(signal) : Promise.resolve(undefined)), [films])
+  const items = useApi((signal) => (genre && films ? getGenreItems(genre, kind || undefined, signal) : Promise.resolve(undefined)), [genre, kind, films])
 
   // Search goes beyond the library: anything on TMDB, so something new can be found and requested from here.
   const query = params.get('q') ?? ''
@@ -21,11 +27,15 @@ export function DiscoverPage() {
   useEffect(() => {
     const term = typed.trim().length >= 2 ? typed.trim() : ''
     const timer = setTimeout(() => {
-      if (term !== query) setParams(term ? { q: term } : {}, { replace: true })
+      if (term !== query) setParams({ ...(music ? { view: 'music' } : {}), ...(term ? { q: term } : {}) }, { replace: true })
     }, 350)
     return () => clearTimeout(timer)
-  }, [typed, query, setParams])
-  const results = useApi((signal) => (query ? searchEverything(query, signal) : Promise.resolve(undefined)), [query])
+  }, [typed, query, setParams, music])
+  const results = useApi((signal) => (query && films ? searchEverything(query, signal) : Promise.resolve(undefined)), [query, films])
+
+  // Music requests turned off (or this profile can't have them): Discover is films and shows.
+  const showMusic = !films
+  if (showMusic && genre) return <MusicGenrePage id={genre} />
 
   if (genre) {
     return (
@@ -59,22 +69,37 @@ export function DiscoverPage() {
     )
   }
 
+  const placeholder = music ? 'Search for any artist or album' : 'Search for any movie or show'
   const searchBox = (
-    <input
-      type="search"
-      className="discover-search"
-      placeholder="Search for any movie or show"
-      aria-label="Search for any movie or show"
-      value={typed}
-      onChange={(e) => setTyped(e.target.value)}
-    />
+    <input type="search" className="discover-search" placeholder={placeholder} aria-label={placeholder} value={typed} onChange={(e) => setTyped(e.target.value)} />
   )
+  const switcher = offersMusic && <DiscoverSwitch music={music} />
+
+  const heading = (
+    <div className="library-heading">
+      <h1>Discover</h1>
+      {switcher}
+    </div>
+  )
+
+  if (showMusic) {
+    return (
+      <div className="discover-page">
+        <header className="library-header">
+          {heading}
+          {searchBox}
+        </header>
+        {musicStatus.data?.reachable === false && <p className="muted discover-note">Lidarr isn’t answering.</p>}
+        {query ? <MusicSearchResults query={query} /> : <MusicDiscover />}
+      </div>
+    )
+  }
 
   if (query) {
     return (
       <div className="discover-page">
         <header className="library-header">
-          <h1>Discover</h1>
+          {heading}
           {searchBox}
         </header>
         {results.error && <p className="error">{results.error.message}</p>}
@@ -118,7 +143,7 @@ export function DiscoverPage() {
   return (
     <div className="discover-page">
       <header className="library-header">
-        <h1>Discover</h1>
+        {heading}
         {searchBox}
       </header>
       {external.data && external.data.length > 0 && (

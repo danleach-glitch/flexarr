@@ -1379,6 +1379,111 @@ export interface RequestDestination {
 export const getRequestDestinations = (signal?: AbortSignal) => apiGet<RequestDestination[]>('/requests/destinations', signal)
 export const requestTitle = (mediaType: string, tmdbId: number) => request<void>('POST', '/requests', { mediaType, tmdbId })
 
+/** An artist or album you may not have (Deezer's, or Lidarr's for an album Deezer lacks), with whether you do. Absent from servers before 0.59. */
+export interface MusicExternal {
+  kind: 'artist' | 'album'
+  /** 0 for an album only Lidarr lists: request it by `musicBrainzId`. */
+  deezerId: number
+  title: string
+  /** An album's artist. */
+  artist: string | null
+  artistDeezerId: number | null
+  year: number | null
+  image: string | null
+  availability: ExternalTitle['availability']
+  libraryItemId: string | null
+  /** "album", "ep", "single" or "compile". */
+  recordType?: string | null
+  musicBrainzId?: string | null
+}
+
+export interface MusicRow {
+  id: string
+  title: string
+  shape: 'artists' | 'albums'
+  items: MusicExternal[]
+}
+
+export interface MusicGenre {
+  id: number
+  name: string
+  image: string | null
+}
+
+export interface MusicArtistDetail {
+  deezerId: number
+  name: string
+  image: string | null
+  fans: number
+  albums: MusicExternal[]
+  similar: MusicExternal[]
+  /** Lidarr watches for their new releases. */
+  followed: boolean
+  availability: ExternalTitle['availability']
+  libraryItemId: string | null
+}
+
+export interface MusicTrack {
+  title: string
+  durationSeconds: number
+  number: number
+  disc: number
+  explicit: boolean
+}
+
+export interface MusicAlbumDetail {
+  deezerId: number
+  title: string
+  artist: string
+  artistDeezerId: number | null
+  image: string | null
+  year: number | null
+  recordType: string | null
+  genres: string[]
+  tracks: MusicTrack[]
+  durationSeconds: number
+  availability: ExternalTitle['availability']
+  libraryItemId: string | null
+}
+
+/** A library artist, from outside: the albums of theirs you don't have, artists like them, and whether they're followed. */
+export interface MusicArtistExtras {
+  missing: MusicExternal[]
+  similar: MusicExternal[]
+  followed: boolean
+  deezerId: number | null
+}
+
+/** A music request: an album on its own, or an artist followed for their new releases. */
+export type MusicRequest =
+  | { kind: 'album'; deezerId?: number; musicBrainzId?: string }
+  | { kind: 'artist'; deezerId?: number; artistId?: string }
+
+/** Whether music can be requested (through Lidarr). Older servers answer 404: treated as off. */
+export const getMusicRequestStatus = async (signal?: AbortSignal) => {
+  try {
+    // Asked by every artist page: a minute's answer is plenty.
+    return await cachedGet<{ configured: boolean; reachable: boolean }>('/requests/music/status', signal, 60_000)
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return { configured: false, reachable: false }
+    throw error
+  }
+}
+export const getMusicDiscover = (signal?: AbortSignal) => apiGet<{ rows: MusicRow[]; genres: MusicGenre[] }>('/requests/music/discover', signal)
+export const getMusicGenre = (id: number | string, signal?: AbortSignal) =>
+  apiGet<{ id: number; name: string; artists: MusicExternal[] }>(`/requests/music/genres/${id}`, signal)
+export const searchMusic = (query: string, signal?: AbortSignal) =>
+  apiGet<{ artists: MusicExternal[]; albums: MusicExternal[] }>(`/requests/music/search?q=${encodeURIComponent(query)}`, signal)
+export const getMusicArtist = (deezerId: number | string, signal?: AbortSignal) => apiGet<MusicArtistDetail>(`/requests/music/artist/${deezerId}`, signal)
+export const getMusicAlbum = (deezerId: number | string, signal?: AbortSignal) => apiGet<MusicAlbumDetail>(`/requests/music/album/${deezerId}`, signal)
+export const getMusicArtistExtras = (artistId: string, signal?: AbortSignal) => apiGet<MusicArtistExtras>(`/requests/music/library-artist/${artistId}`, signal)
+export const requestMusic = (body: MusicRequest) => request<void>('POST', '/requests/music', body)
+/** The music libraries the current profile's music requests can go to (every one, for the main profile). */
+export const getMusicDestinations = (signal?: AbortSignal) =>
+  apiGet<{ id: string; name: string; isDefault: boolean }[]>('/requests/music/destinations', signal)
+export const setRequestMusicLibrary = (profileId: string, libraryId: string | null) =>
+  request<Profile>('PUT', `/profiles/${profileId}/request-music-library`, { libraryId })
+
 /** A film or show you don't have, with what Seerr knows about it. */
 export interface ExternalDetail {
   tmdbId: number
@@ -1498,6 +1603,8 @@ export interface Profile {
   requestShowsLibraryId?: string | null
   /** The library its film requests go to; null is Seerr's default. */
   requestFilmsLibraryId?: string | null
+  /** The music library its music requests go to; null is Lidarr's first root folder. Absent from servers before 0.59. */
+  requestMusicLibraryId?: string | null
   /** The order of the libraries in the menu on every device: library ids, and "live-tv". Absent from servers before 0.54. */
   libraryOrder?: string[]
   /** What's left out of its menu on every device, beside the libraries (see `NavigationItem`). Absent from servers before 0.58. */

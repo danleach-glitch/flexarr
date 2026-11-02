@@ -117,6 +117,10 @@ builder.Services.AddHttpClient<BazarrClient>(c => c.Timeout = TimeSpan.FromMinut
     .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false })
     .AddHttpMessageHandler(() => new SameHostRedirects());
 builder.Services.AddHttpClient<TmdbClient>(c => c.Timeout = TimeSpan.FromSeconds(20));
+// Deezer's public API backs music discovery; every page that uses it waits on it, so it's kept short.
+builder.Services.AddHttpClient<DeezerClient>(c => c.Timeout = TimeSpan.FromSeconds(10));
+builder.Services.AddSingleton<Flexarr.Api.Endpoints.MusicRequests.MusicCatalog>();
+builder.Services.AddScoped<Flexarr.Api.Endpoints.MusicRequests.MusicRequestContext>();
 builder.Services.AddHttpClient<TvMazeClient>(c => c.DefaultRequestHeaders.UserAgent.ParseAdd("Flexarr/0.1 (+https://github.com/danleach-glitch/flexarr)"));
 // ImageCache follows redirects itself, only to https on the same site, so an artwork host can't bounce it elsewhere.
 builder.Services.AddHttpClient<ImageCache>(c => c.Timeout = TimeSpan.FromSeconds(30))

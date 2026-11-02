@@ -1903,3 +1903,20 @@ button.queue-track:focus-visible {
 .playlist-choice-text .muted {
   font-size: var(--step--1);
 }
+
+/* An outside artist's photo is round, as on their cards (see MusicExternalPages), and so is its frame and shadow. */
+.music-cover-round,
+.music-cover-round .artwork {
+  border-radius: 50%;
+}
+
+/* An outside album's tracks can't be played: the row reads as a list, not a button. */
+.tracklist span.track {
+  cursor: default;
+}
+
+/* A row on a music page (Fans also like) runs edge to edge like the rows elsewhere: the page's own padding would
+   otherwise double its indent. */
+.music-page > .row {
+  margin-inline: calc(-1 * var(--edge));
+}

@@ -3,15 +3,18 @@
 package io.github.flexarr.ui.theme
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.LocalMovies
 import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Radio
 import androidx.compose.material.icons.filled.Replay
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.outlined.ArrowCircleDown
 import androidx.compose.material.icons.outlined.AutoAwesome
@@ -22,6 +25,7 @@ import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.ImportContacts
 import androidx.compose.material.icons.outlined.LocalMovies
+import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.MicNone
 import androidx.compose.material.icons.outlined.MusicNote
 import androidx.compose.material.icons.outlined.Search
@@ -55,6 +59,16 @@ object FlexarrIcons {
     val watchlist: ImageVector get() = Icons.Filled.BookmarkBorder
     /** On the watchlist. */
     val onWatchlist: ImageVector get() = Icons.Filled.Bookmark
+    /** Request a title or an album. */
+    val request: ImageVector get() = Icons.Filled.Add
+    /** Asked for, on its way. */
+    val requested: ImageVector get() = Icons.Filled.Schedule
+    /** Follow an artist's new releases. */
+    val follow: ImageVector get() = Icons.Filled.PersonAdd
+    /** Following an artist. */
+    val following: ImageVector get() = Icons.Filled.Check
+    /** Go to the artist. */
+    val goToArtist: ImageVector get() = Icons.Outlined.Mic
     /** Download. */
     val download: ImageVector get() = Icons.Outlined.ArrowCircleDown
     /** Search for subtitles. */

@@ -27,6 +27,7 @@ import { useAgeLimits } from './hooks/sessionContext'
 import { CollectionPage, CollectionsPage } from './pages/CollectionsPage'
 import { DiscoverPage } from './pages/DiscoverPage'
 import { ExternalTitlePage } from './pages/ExternalTitlePage'
+import { MusicExternalAlbumPage, MusicExternalArtistPage } from './pages/MusicExternalPages'
 import { HomePage } from './pages/HomePage'
 import { ItemPage } from './pages/ItemPage'
 import { LibraryPage } from './pages/LibraryPage'
@@ -139,6 +140,8 @@ export function Shell() {
                   </Route>
                   <Route path="discover" element={<DiscoverPage />} />
                   <Route path="discover/:mediaType/:tmdbId" element={<Fresh><ExternalTitlePage /></Fresh>} />
+                  <Route path="discover/music/artist/:id" element={<Fresh><MusicExternalArtistPage /></Fresh>} />
+                  <Route path="discover/music/album/:id" element={<Fresh><MusicExternalAlbumPage /></Fresh>} />
                   <Route path="upcoming" element={<UpcomingPage />} />
                   <Route path="link" element={<LinkPage />} />
                   <Route path="settings" element={<SettingsPage />} />

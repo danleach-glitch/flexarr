@@ -1383,6 +1383,37 @@ kbd {
   color: var(--screen);
 }
 
+/* Music from outside the library: artists' photos are round, albums' covers square (see MusicExternalCard). The
+   frame behind a photo is round too, so no square corners show around it. */
+.artwork-round,
+.music-external-artist .card-frame {
+  border-radius: 50%;
+}
+
+.music-external-artist .card-frame {
+  background: none;
+}
+
+.discover-note {
+  margin: 0 0 16px;
+}
+
+.music-external-artist .card-title,
+.music-external-artist .external-card-actions {
+  justify-content: center;
+  text-align: center;
+}
+
+.music-external-artist .external-card .button,
+.music-external-artist .button {
+  align-self: center;
+}
+
+.discover-credit {
+  margin: 24px var(--edge) 0;
+  font-size: var(--step--1);
+}
+
 /* ---------- Watchlist ---------- */
 
 /* Title, then the status chips, then kind and sort: one row each, so the chips never crowd the title. */

@@ -7,6 +7,8 @@ enum DiscoverMode: Hashable {
     case browse
     /// Any film or show TMDB knows, to find something new and request it: opens the search full screen.
     case search
+    /// Artists and albums the household doesn't have (from Deezer), to request through Lidarr.
+    case music
 }
 
 /// Discover: what's trending and popular (from Seerr, when it's connected), searching for any film or show to request
@@ -16,6 +18,10 @@ struct DiscoverView: View {
     @Environment(Router.self) private var router
     @State private var mode = DiscoverMode.browse
     @State private var status: RequestStatus?
+    /// Music requests are on (a Lidarr, and a profile that sees music): Music joins the switch.
+    @State private var musicStatus: MusicRequestStatus?
+    /// Discover › Music's rows, held here so arriving in Music mode can pass focus to the first card.
+    @State private var music: MusicDiscover?
     @State private var rows: [ExternalRow] = []
     @State private var genres: [Genre] = []
     @State private var loaded = false
@@ -33,8 +39,8 @@ struct DiscoverView: View {
                 // even while loading, so choosing Discover puts focus here and it can be passed on to the first title
                 // (see `passFocusOnArrival`). Gone once it's known Seerr isn't connected. The width of the screen, so
                 // Up from any title below comes to it.
-                if status?.configured != false {
-                    ViewSwitch(choices: [(.browse, "Browse"), (.search, "Search")], selection: $mode) { switchFocused = $0 }
+                if showsSwitch {
+                    ViewSwitch(choices: choices, selection: $mode) { switchFocused = $0 }
                         .padding(.leading, Layout.edge)
                         .padding(.top, LibraryViewSwitch.topInset)
                         .padding(.bottom, -20)
@@ -46,11 +52,13 @@ struct DiscoverView: View {
                         .frame(height: 600)
                 } else if !loaded {
                     StatusView(state: .loading).frame(height: 600)
+                } else if mode == .music {
+                    DiscoverMusicContent(discover: $music, paused: musicStatus?.reachable == false, focus: $focusedTitle)
                 } else {
                     browse
                 }
             }
-            .padding(.top, status?.configured == false ? LibraryViewSwitch.topInset : 0)
+            .padding(.top, showsSwitch ? 0 : LibraryViewSwitch.topInset)
             .padding(.bottom, 80)
         }
         .scrollClipDisabled()
@@ -59,6 +67,7 @@ struct DiscoverView: View {
         .environment(\.focusesContent, $arriving)
         .onChange(of: arriving) { passFocusOnArrival() }
         .onChange(of: rows.first?.items.first?.id) { passFocusOnArrival() }
+        .onChange(of: DiscoverMusicContent.firstFocusID(music)) { passFocusOnArrival() }
         // Straight to the keyboard: full screen, as the Search tab is, so the sidebar doesn't push it off the edge.
         .onChange(of: mode) { _, now in searching = now == .search }
         .fullScreenCover(isPresented: $searching, onDismiss: { mode = .browse }) {
@@ -71,6 +80,16 @@ struct DiscoverView: View {
         // Again on coming back, so what was just requested says so.
         .task { await load() }
     }
+
+    /// Browse always; Search with Seerr (or until it's known there's none); Music with music requests.
+    private var choices: [(DiscoverMode, String)] {
+        var choices: [(DiscoverMode, String)] = [(.browse, "Browse")]
+        if status?.configured != false { choices.append((.search, "Search")) }
+        if musicStatus?.configured == true { choices.append((.music, "Music")) }
+        return choices
+    }
+
+    private var showsSwitch: Bool { choices.count > 1 }
 
     // MARK: Browse
 
@@ -128,8 +147,14 @@ struct DiscoverView: View {
     /// Choosing Discover in the sidebar gives focus to the switch at the top-left; pass it on to the first title, as a
     /// library's tab does.
     private func passFocusOnArrival() {
-        guard arriving, switchFocused, let row = rows.first(where: { !$0.items.isEmpty }), let first = row.items.first else { return }
-        focusedTitle = "\(row.id)/\(first.id)"
+        guard arriving, switchFocused else { return }
+        if mode == .music {
+            guard let first = DiscoverMusicContent.firstFocusID(music) else { return }
+            focusedTitle = first
+        } else {
+            guard let row = rows.first(where: { !$0.items.isEmpty }), let first = row.items.first else { return }
+            focusedTitle = "\(row.id)/\(first.id)"
+        }
         arriving = false
     }
 
@@ -138,12 +163,15 @@ struct DiscoverView: View {
         do {
             async let status = client.requestStatus()
             async let genres = client.genres()
+            async let music = client.musicRequestStatus()
             let (requests, library) = try await (status, genres)
             self.status = requests
+            musicStatus = (try? await music) ?? .off
+            if musicStatus?.configured != true, mode == .music { mode = .browse }
             self.genres = library
             // The rows are extras on top of the genres: Seerr failing leaves them out rather than the whole screen.
             rows = requests.configured ? ((try? await client.discoverRows()) ?? rows) : []
-            if !requests.configured { mode = .browse }
+            if !requests.configured, mode == .search { mode = .browse }
             loaded = true
             error = nil
         } catch {

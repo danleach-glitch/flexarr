@@ -295,8 +295,10 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
     {
         var answered = new List<Answered>();
         var open = await db.MediaRequests.Where(r => r.FulfilledAt == null).ToListAsync(ct);
-        foreach (var request in open)
+        answered.AddRange(await MusicAnsweredAsync(db, open.Where(r => r.Kind is MediaKind.Album or MediaKind.Artist).ToList(), settled, now, ct));
+        foreach (var request in open.Where(r => r.Kind is not (MediaKind.Album or MediaKind.Artist)))
         {
+
             var tmdb = request.TmdbId.ToString(CultureInfo.InvariantCulture);
             if (request.Kind == MediaKind.Movie)
             {
@@ -327,6 +329,84 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
                 answered.Add(new Answered(request.ProfileId, new PushMessage("Your request is ready", what, "flexarr.video", $"item:{first.SeriesId}",
                     Artwork(first.Poster), Video(first.SeriesId, first.Id)), episodes.Select(e => e.Id).ToList()));
             }
+        }
+
+        return answered;
+    }
+
+    /// <summary>How far back music requests are looked for: an album Lidarr hasn't found in this long isn't coming.</summary>
+    private static readonly TimeSpan MusicWaitsFor = TimeSpan.FromDays(90);
+
+    /// <summary>
+    /// Music requests answered: the album asked for (by its release group, or by title under its artist when the scan
+    /// hasn't learned the release group), or, for a followed artist, each new album of theirs: one released since the
+    /// follow and added since the last notice. A follow stays open. Albums in a library hidden from whoever asked don't
+    /// count. One query a minute for all of them, compared by name here.
+    /// </summary>
+    private static async Task<List<Answered>> MusicAnsweredAsync(FlexarrDbContext db, List<MediaRequest> requests, DateTime settled, DateTime now, CancellationToken ct)
+    {
+        var answered = new List<Answered>();
+        static DateTime From(MediaRequest r) => (r.LastAnsweredAt is { } last && last > r.RequestedAt ? last : r.RequestedAt).AddMinutes(-1);
+        var waiting = requests.Where(r => r.RequestedAt > now - MusicWaitsFor || r.Kind == MediaKind.Artist).ToList();
+        if (waiting.Count == 0)
+        {
+            return answered;
+        }
+
+        var since = waiting.Min(From);
+        var arrived = await db.MediaItems.AsNoTracking()
+            .Where(i => i.Kind == MediaKind.Album && i.Parent != null && i.AddedAt > since && i.AddedAt <= settled)
+            .OrderBy(i => i.AddedAt)
+            .Select(i => new
+            {
+                i.Id, i.LibraryId, i.Title, i.MusicBrainzId, i.PosterUrl, i.AddedAt, i.ReleaseDate, i.Year,
+                Artist = i.Parent!.Title, ArtistMusicBrainzId = i.Parent.MusicBrainzId,
+            })
+            .ToListAsync(ct);
+        if (arrived.Count == 0)
+        {
+            return answered;
+        }
+
+        var profiles = waiting.Select(r => r.ProfileId).Distinct().ToList();
+        var hidden = (await db.Profiles.AsNoTracking().Where(p => profiles.Contains(p.Id)).Select(p => new { p.Id, p.HiddenLibraryIds }).ToListAsync(ct))
+            .ToDictionary(p => p.Id, p => p.HiddenLibraryIds.ToHashSet());
+        foreach (var request in waiting)
+        {
+            var from = From(request);
+            var unseen = hidden.GetValueOrDefault(request.ProfileId) ?? [];
+            var artistMbid = request.Kind == MediaKind.Artist ? request.MusicBrainzId : request.ArtistMusicBrainzId;
+            var artistName = MusicNames.Normalise(request.Kind == MediaKind.Artist ? request.Title : request.ArtistName);
+            var candidates = arrived.Where(a => a.AddedAt > from && !unseen.Contains(a.LibraryId)).ToList();
+            var byArtist = candidates.Where(a => (artistMbid is not null && a.ArtistMusicBrainzId == artistMbid) || MusicNames.Normalise(a.Artist) == artistName);
+            if (request.Kind == MediaKind.Artist)
+            {
+                // New releases only: an old album of theirs arriving (another profile's request, a re-scan) isn't news.
+                var followed = DateOnly.FromDateTime(request.RequestedAt).AddDays(-30);
+                var fresh = byArtist.Where(a => a.ReleaseDate is { } d ? d >= followed : a.Year >= request.RequestedAt.Year).ToList();
+                if (fresh.Count == 0)
+                {
+                    continue;
+                }
+
+                request.LastAnsweredAt = now;
+                var first = fresh[0];
+                var body = fresh.Count == 1 ? $"{first.Title} is in the library." : $"{first.Title} and {fresh.Count - 1} more are in the library.";
+                answered.Add(new Answered(request.ProfileId, new PushMessage($"New from {first.Artist}", body, "flexarr.music", $"item:{first.Id}", Artwork(first.PosterUrl),
+                    new Dictionary<string, string> { ["item"] = first.Id.ToString() }), fresh.Select(a => a.Id).ToList()));
+                continue;
+            }
+
+            var album = candidates.FirstOrDefault(a => request.MusicBrainzId is not null && a.MusicBrainzId == request.MusicBrainzId)
+                ?? byArtist.FirstOrDefault(a => MusicNames.NormaliseTitle(a.Title) == MusicNames.NormaliseTitle(request.Title));
+            if (album is null)
+            {
+                continue;
+            }
+
+            request.FulfilledAt = now;
+            answered.Add(new Answered(request.ProfileId, new PushMessage("Your request is ready", $"{album.Title} by {album.Artist} is in the library.", "flexarr.music",
+                $"item:{album.Id}", Artwork(album.PosterUrl), new Dictionary<string, string> { ["item"] = album.Id.ToString() }), [album.Id]));
         }
 
         return answered;
@@ -446,7 +526,8 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
     {
         var names = messages.Select(m => m.Title.Replace("New film: ", "", StringComparison.Ordinal).Replace("New show: ", "", StringComparison.Ordinal)).ToList();
         var body = string.Join(", ", names.Take(4)) + (names.Count > 4 ? $" and {names.Count - 4} more" : "");
-        return new PushMessage($"{messages.Count} new things to watch", body, "flexarr.video", "library");
+        var music = messages.All(m => m.Category == "flexarr.music");
+        return new PushMessage(music ? $"{messages.Count} new albums" : $"{messages.Count} new things to watch", body, music ? "flexarr.music" : "flexarr.video", "library");
     }
 
     // ---- Podcasts ----

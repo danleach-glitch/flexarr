@@ -342,6 +342,8 @@ fun TvMainScreen(model: AppModel) {
                     composable("coming-soon") { TvComingSoonScreen(model) }
                     composable("artist/{id}") { TvArtistScreen(model, it.arguments!!.getString("id")!!) }
                     composable("album/{id}") { TvAlbumScreen(model, it.arguments!!.getString("id")!!) }
+                    composable("music-artist/{id}") { it.arguments?.getString("id")?.toLongOrNull()?.let { id -> TvExternalArtistScreen(model, id) } }
+                    composable("music-album/{id}") { it.arguments?.getString("id")?.toLongOrNull()?.let { id -> TvExternalAlbumScreen(model, id) } }
                     composable("playlist/{id}") { TvPlaylistScreen(model, it.arguments!!.getString("id")!!) }
                     composable("person/{id}?name={name}") { entry ->
                         TvPersonScreen(model, entry.arguments!!.getString("id")!!, entry.arguments?.getString("name").orEmpty())

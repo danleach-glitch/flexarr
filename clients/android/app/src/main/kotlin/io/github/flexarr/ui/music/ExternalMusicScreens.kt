@@ -1,0 +1,453 @@
+package io.github.flexarr.ui.music
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.itemsIndexed as rowItemsIndexed
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.ui.draw.shadow
+import io.github.flexarr.core.Format
+import io.github.flexarr.core.MusicAlbumDetail
+import io.github.flexarr.core.MusicArtistDetail
+import io.github.flexarr.core.MusicTrack
+import io.github.flexarr.core.musicAlbum
+import io.github.flexarr.core.musicArtist
+import io.github.flexarr.ui.components.ActionButton
+import io.github.flexarr.ui.components.Edge
+import io.github.flexarr.ui.components.FactsLine
+import io.github.flexarr.ui.components.Load
+import io.github.flexarr.ui.components.PosterWidth
+import io.github.flexarr.ui.components.RowSpacing
+import io.github.flexarr.ui.components.SectionHeading
+import io.github.flexarr.ui.components.StatusView
+import io.github.flexarr.ui.components.rememberLoader
+import io.github.flexarr.ui.podcasts.Tabular
+import io.github.flexarr.ui.theme.RoomBackground
+import io.github.flexarr.AppModel
+import io.github.flexarr.core.Availability
+import io.github.flexarr.core.MusicExternal
+import io.github.flexarr.core.followArtist
+import io.github.flexarr.core.followLibraryArtist
+import io.github.flexarr.core.releaseShelves
+import androidx.compose.ui.semantics.Role
+import io.github.flexarr.ui.theme.FlexarrIcons
+import io.github.flexarr.core.requestAlbum
+import io.github.flexarr.ui.Navigator
+import io.github.flexarr.ui.components.ItemMenu
+import io.github.flexarr.ui.components.LocalNavigator
+import io.github.flexarr.ui.components.MenuAction
+import io.github.flexarr.ui.components.RemoteImage
+import io.github.flexarr.ui.components.menuActions
+import io.github.flexarr.ui.components.pressable
+import io.github.flexarr.ui.theme.Flexarr
+import io.github.flexarr.ui.theme.Tokens
+import io.github.flexarr.ui.theme.marquee
+
+// Music from outside the library (Deezer's, through the server): cards for Search and the artist pages, and the
+// outside artist and album pages, as the iPhone app's ExternalMusicViews.
+
+/** Where an outside artist or album stands, for its control: ask for it, on its way, asked, in, or nothing to offer. */
+internal enum class MusicRequestState { CanRequest, Sending, Requested, InLibrary, None }
+
+/** Where [item] stands, counting what this profile asked for here ([AppModel.musicAsked]) ahead of the server. */
+internal fun AppModel.requestState(item: MusicExternal): MusicRequestState = when {
+    item.libraryItemId != null || item.availability == Availability.Available || item.availability == Availability.PartlyAvailable -> MusicRequestState.InLibrary
+    item.availability == Availability.Requested || item.id in musicAsked -> MusicRequestState.Requested
+    item.id in musicSending -> MusicRequestState.Sending
+    item.canRequest -> MusicRequestState.CanRequest
+    // A kind from a newer server, or nothing to ask Lidarr by: no control at all.
+    else -> MusicRequestState.None
+}
+
+/** The one quiet line when Lidarr is connected but not answering, as the Apple apps' MusicWords. */
+internal const val LidarrNotAnswering = "Lidarr isn’t answering."
+
+/** Whether Lidarr can take a request now: not when it isn't answering. */
+internal val AppModel.canAskForMusic: Boolean get() = !musicUnreachable
+
+/** "Request album", "Follow artist", "Requested", "Following" or "In your library"; null for nothing to offer. */
+internal fun MusicRequestState.label(isArtist: Boolean): String? = when (this) {
+    MusicRequestState.CanRequest -> if (isArtist) "Follow artist" else "Request album"
+    MusicRequestState.Sending -> if (isArtist) "Following…" else "Requesting…"
+    MusicRequestState.Requested -> if (isArtist) "Following" else "Requested"
+    MusicRequestState.InLibrary -> "In your library"
+    MusicRequestState.None -> null
+}
+
+internal fun MusicRequestState.icon(isArtist: Boolean): ImageVector? = when (this) {
+    MusicRequestState.CanRequest -> if (isArtist) FlexarrIcons.follow else FlexarrIcons.request
+    MusicRequestState.Sending, MusicRequestState.Requested -> if (isArtist) FlexarrIcons.following else FlexarrIcons.requested
+    MusicRequestState.InLibrary -> FlexarrIcons.music
+    MusicRequestState.None -> null
+}
+
+/** The keys a library artist's follow is kept under: theirs here, and theirs on Deezer when known. */
+internal fun libraryArtistKeys(id: String, deezerId: Long?): List<String> = listOfNotNull("library-artist-$id", deezerId?.let { "artist-$it" })
+
+/** Follow artist or Following for an artist: [followed] by the server's word, or asked for here under any of [keys]. */
+internal fun AppModel.followState(keys: List<String>, followed: Boolean): MusicRequestState = when {
+    followed || keys.any { it in musicAsked } -> MusicRequestState.Requested
+    keys.any { it in musicSending } -> MusicRequestState.Sending
+    else -> MusicRequestState.CanRequest
+}
+
+/**
+ * Asks Lidarr for an album or to follow an artist, once (a second press while it's on its way sends nothing), saying
+ * so in the snackbar if that didn't work. [keys]: what it's kept under ([AppModel.musicAsked]), the item's id by default.
+ */
+internal fun Navigator.requestMusic(model: AppModel, item: MusicExternal, keys: List<String> = listOf(item.id)) {
+    watchlistChange(if (item.isArtist) "Couldn’t follow this artist" else "Couldn’t request this album") {
+        model.askForMusic(keys) { client -> if (item.isArtist) client.followArtist(item.deezerId) else client.requestAlbum(item) }
+    }
+}
+
+/** Follows a library artist, by its id here, once; the snackbar says if it didn't work. */
+internal fun Navigator.followLibraryArtist(model: AppModel, id: String, deezerId: Long?) {
+    watchlistChange("Couldn’t follow this artist") {
+        model.askForMusic(libraryArtistKeys(id, deezerId)) { it.followLibraryArtist(id) }
+    }
+}
+
+/** "Album", "EP", "Single" or "Compilation". */
+private val MusicExternal.releaseKind: String
+    get() = when (recordType) {
+        "ep" -> "EP"
+        "single" -> "Single"
+        "compile" -> "Compilation"
+        else -> "Album"
+    }
+
+/**
+ * An artist (round photo) or album (square cover) from outside the library, with its name and a quieter line. Tapping
+ * opens it (as itself when the household has it); a long press offers Request album or Follow artist, wherever the
+ * card is. [showsRequest] puts that under the card too, for a page of an artist's albums. [showsKind] says "Artist" or
+ * "Album, <artist>" under the name, as Search's film cards say "Film, 2014".
+ */
+@Composable
+fun MusicExternalCard(model: AppModel, item: MusicExternal, width: Dp?, modifier: Modifier = Modifier, showsRequest: Boolean = false, showsKind: Boolean = false) {
+    val navigator = LocalNavigator.current
+    var menu by remember { mutableStateOf(false) }
+    val state = model.requestState(item)
+    val request = { navigator.requestMusic(model, item) }
+    val actions = if (state == MusicRequestState.CanRequest && model.canAskForMusic) {
+        listOf(MenuAction(state.label(item.isArtist)!!, state.icon(item.isArtist)) { request() })
+    } else {
+        emptyList()
+    }
+    Box(modifier.then(if (width != null) Modifier.width(width) else Modifier)) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp), horizontalAlignment = if (item.isArtist) Alignment.CenterHorizontally else Alignment.Start) {
+            Column(
+                Modifier.pressable({ navigator.openMusic(item) }, onLongClick = { if (actions.isNotEmpty()) menu = true }).menuActions(actions),
+                verticalArrangement = Arrangement.spacedBy(if (item.isArtist) 8.dp else 6.dp),
+                horizontalAlignment = if (item.isArtist) Alignment.CenterHorizontally else Alignment.Start,
+            ) {
+                MusicExternalArtwork(item, if (item.isArtist) Modifier.padding(horizontal = 6.dp) else Modifier)
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(1.dp), horizontalAlignment = if (item.isArtist) Alignment.CenterHorizontally else Alignment.Start) {
+                    Text(item.title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen.copy(alpha = 0.9f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    // Where it stands, after what it is: "Album, Daft Punk, Requested".
+                    val standing = state.takeIf { it == MusicRequestState.InLibrary || it == MusicRequestState.Requested }?.label(item.isArtist)
+                    val what = when {
+                        showsKind -> if (item.isArtist) "Artist" else listOfNotNull(item.releaseKind, item.artist).joinToString(", ")
+                        item.isArtist -> null
+                        showsRequest -> item.kindLine
+                        else -> item.artist ?: item.kindLine
+                    }
+                    // Under the chip, the chip says where it stands.
+                    val below = listOfNotNull(what, standing.takeIf { !showsRequest }).joinToString(", ").ifEmpty { null }
+                    below?.let { Text(it, fontSize = 12.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                }
+            }
+            if (showsRequest && state != MusicRequestState.None) MusicRequestChip(model, item, state, onRequest = request)
+        }
+        ItemMenu(actions, menu, onDismiss = { menu = false })
+    }
+}
+
+/** Under an album on an artist's page: Request album, or where it stands ("In your library" opens it). */
+@Composable
+private fun MusicRequestChip(model: AppModel, item: MusicExternal, state: MusicRequestState, onRequest: () -> Unit) {
+    val navigator = LocalNavigator.current
+    val asks = state == MusicRequestState.CanRequest && model.canAskForMusic
+    val enabled = asks || (state == MusicRequestState.InLibrary && item.libraryItemId != null)
+    Box(
+        Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(Tokens.radiusControl))
+            .background(if (state == MusicRequestState.CanRequest) Flexarr.screen.copy(alpha = 0.14f) else androidx.compose.ui.graphics.Color.Transparent)
+            .alpha(if (state == MusicRequestState.CanRequest && !asks) 0.5f else 1f)
+            .pressable({ if (state == MusicRequestState.CanRequest) onRequest() else navigator.openMusic(item) }, enabled = enabled)
+            .padding(horizontal = 6.dp, vertical = 6.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            state.label(item.isArtist).orEmpty(),
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = if (state == MusicRequestState.CanRequest) Flexarr.screen else Flexarr.usher,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+        )
+    }
+}
+
+/** An outside artist's photo (round) or album's cover (square), the name standing in until it arrives. Fills its width. */
+@Composable
+fun MusicExternalArtwork(item: MusicExternal, modifier: Modifier = Modifier, imageWidth: Int = 500) =
+    MusicArtwork(item.image, item.title, item.isArtist, modifier, imageWidth)
+
+@Composable
+internal fun MusicArtwork(image: String?, title: String, circular: Boolean, modifier: Modifier = Modifier, imageWidth: Int = 500) {
+    val shape: Shape = if (circular) CircleShape else RoundedCornerShape(Tokens.radiusArt)
+    Box(modifier.fillMaxWidth().aspectRatio(1f).clip(shape).background(Flexarr.seat)) {
+        RemoteImage(image, imageWidth, Modifier.fillMaxSize()) {
+            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Flexarr.silver.copy(alpha = 0.3f), Flexarr.seat))), contentAlignment = Alignment.Center) {
+                Text(
+                    if (circular) title.split(" ").filter { it.isNotEmpty() }.take(2).joinToString("") { it.first().toString() } else title,
+                    style = marquee(if (circular) 28 else 16, Flexarr.screen.copy(alpha = 0.8f)).copy(fontWeight = FontWeight.Bold),
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(8.dp),
+                )
+            }
+        }
+    }
+}
+
+/** A heading with a row of cards from outside the library under it, scrolling sideways to the screen's edges. */
+@Composable
+internal fun MusicExternalShelf(model: AppModel, title: String, items: List<MusicExternal>, modifier: Modifier = Modifier) {
+    val width = PosterWidth * 1.15f
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        SectionHeading(title)
+        LazyRow(contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(RowSpacing), verticalAlignment = Alignment.Top) {
+            // The same artist or album can be in a list twice (a joint album under each artist): its place keeps the keys apart.
+            rowItemsIndexed(items, key = { index, item -> "$index-${item.id}" }) { _, item -> MusicExternalCard(model, item, width = width) }
+        }
+    }
+}
+
+/** The header of an outside page: the art, the name and what's under it, and its buttons. */
+@Composable
+private fun ExternalMusicHeader(
+    art: @Composable () -> Unit,
+    title: String,
+    below: @Composable () -> Unit,
+    buttons: @Composable () -> Unit,
+) {
+    Column(Modifier.fillMaxWidth().statusBarsPadding().padding(top = 12.dp, start = Edge, end = Edge), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        art()
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(title, style = marquee(30), textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            below()
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) { buttons() }
+    }
+}
+
+/** Follow artist, Request album, or where it stands ("In your library" opens it); nothing when there's nothing to offer. */
+@Composable
+private fun MusicRequestButton(model: AppModel, item: MusicExternal, state: MusicRequestState, onRequest: () -> Unit) {
+    val navigator = LocalNavigator.current
+    val label = state.label(item.isArtist) ?: return
+    ActionButton(
+        label,
+        onClick = {
+            when (state) {
+                MusicRequestState.CanRequest -> onRequest()
+                MusicRequestState.InLibrary -> navigator.openMusic(item)
+                else -> Unit
+            }
+        },
+        icon = state.icon(item.isArtist),
+        prominent = state == MusicRequestState.CanRequest,
+        enabled = (state == MusicRequestState.CanRequest && model.canAskForMusic) || (state == MusicRequestState.InLibrary && item.libraryItemId != null),
+    )
+}
+
+/**
+ * An artist from outside the library, as the iPhone app's ExternalArtistView: their photo and name, Follow artist,
+ * their releases (albums, EPs and singles, compilations) each with Request album, and Fans also like. One the
+ * household has adds In your library, opening theirs.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ExternalArtistScreen(model: AppModel, deezerId: Long) {
+    val client = model.client ?: return
+    val navigator = LocalNavigator.current
+    val page = rememberLoader(deezerId) { client.musicArtist(deezerId) }
+    RoomBackground(ambient = Flexarr.silver, intensity = 0.3f) {
+        when (val state = page.state) {
+            is Load.Loaded -> PullToRefreshBox(isRefreshing = page.refreshing, onRefresh = page.retry) {
+                val artist = state.value
+                val summary = artist.summary
+                val libraryId = artist.libraryItemId
+                val keys = listOfNotNull(summary.id, libraryId?.let { "library-artist-$it" })
+                val follow = model.followState(keys, artist.followed || artist.availability == Availability.Requested)
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(105.dp),
+                    contentPadding = PaddingValues(start = Edge, end = Edge, bottom = 32.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(20.dp),
+                    modifier = Modifier.fillMaxSize(),
+                ) {
+                    fullWidth {
+                        ExternalMusicHeader(
+                            art = { MusicArtwork(artist.image, artist.name, circular = true, modifier = Modifier.width(180.dp).shadow(20.dp, CircleShape)) },
+                            title = artist.name,
+                            below = { if (artist.albums.isNotEmpty()) FactsLine(listOf(if (artist.albums.size == 1) "1 album" else "${artist.albums.size} albums")) },
+                            buttons = {
+                                if (libraryId != null) {
+                                    ActionButton("In your library", onClick = { navigator.openLibraryArtist(libraryId) }, icon = FlexarrIcons.music, prominent = true)
+                                }
+                                ActionButton(
+                                    follow.label(isArtist = true)!!,
+                                    onClick = { if (follow == MusicRequestState.CanRequest) navigator.requestMusic(model, summary, keys) },
+                                    icon = follow.icon(isArtist = true),
+                                    prominent = follow == MusicRequestState.CanRequest && libraryId == null,
+                                    enabled = follow == MusicRequestState.CanRequest && model.canAskForMusic,
+                                )
+                            },
+                        )
+                    }
+                    artist.albums.releaseShelves().forEach { (title, albums) ->
+                        fullWidth { SectionHeading(title, Modifier.bleed()) }
+                        itemsIndexed(albums, key = { index, album -> "$title-$index-${album.id}" }) { _, album -> MusicExternalCard(model, album, width = null, showsRequest = true) }
+                    }
+                    if (artist.similar.isNotEmpty()) {
+                        fullWidth { MusicExternalShelf(model, "Fans also like", artist.similar, Modifier.bleed()) }
+                    }
+                }
+            }
+            is Load.Failed -> StatusView(state.message, page.retry)
+            Load.Loading -> StatusView()
+        }
+        BackButton()
+    }
+}
+
+/** The artist as a card knows them, for Follow artist. */
+private val MusicArtistDetail.summary: MusicExternal
+    get() = MusicExternal("artist", deezerId, name, image = image, availability = availability, libraryItemId = libraryItemId)
+
+/**
+ * An album from outside the library, as the iPhone app's ExternalAlbumView: cover, title, artist (opening theirs) and
+ * year, Request album, and its tracks. One the household has opens as itself.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ExternalAlbumScreen(model: AppModel, deezerId: Long) {
+    val client = model.client ?: return
+    val navigator = LocalNavigator.current
+    val page = rememberLoader(deezerId) { client.musicAlbum(deezerId) }
+    (page.state as? Load.Loaded)?.value?.libraryItemId?.let { id ->
+        AlbumScreen(model, id)
+        return
+    }
+    RoomBackground(ambient = Flexarr.silver, intensity = 0.3f) {
+        when (val state = page.state) {
+            is Load.Loaded -> PullToRefreshBox(isRefreshing = page.refreshing, onRefresh = page.retry) {
+                val album = state.value
+                val summary = album.summary
+                LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp)) {
+                    item {
+                        ExternalMusicHeader(
+                            art = { MusicArtwork(album.image, album.title, circular = false, modifier = Modifier.width(240.dp).shadow(20.dp, RoundedCornerShape(Tokens.radiusArt)), imageWidth = 800) },
+                            title = album.title,
+                            below = {
+                                val artistId = album.artistDeezerId
+                                // The artist's name opens theirs: a button, big enough to tap.
+                                Box(
+                                    if (artistId != null) Modifier.heightIn(min = 48.dp).pressable({ navigator.openMusicArtist(artistId) }, role = Role.Button) else Modifier,
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Text(
+                                        album.artist,
+                                        fontSize = 17.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = if (artistId != null) Flexarr.silver else Flexarr.screen.copy(alpha = 0.9f),
+                                    )
+                                }
+                                FactsLine(albumFacts(album))
+                            },
+                            buttons = { MusicRequestButton(model, summary, model.requestState(summary)) { navigator.requestMusic(model, summary) } },
+                        )
+                    }
+                    album.tracks.forEachIndexed { index, track ->
+                        item(key = "track-$index") {
+                            val disc = track.disc.takeIf { album.tracks.any { it.disc != album.tracks.first().disc } }
+                            if (disc != null && (index == 0 || album.tracks[index - 1].disc != track.disc)) {
+                                Text("Disc $disc", style = marquee(20, Flexarr.usher).copy(fontWeight = FontWeight.Bold), modifier = Modifier.padding(start = Edge + 4.dp, top = if (index == 0) 20.dp else 40.dp, bottom = 6.dp))
+                            }
+                            Box(Modifier.padding(horizontal = Edge - 8.dp).padding(top = if (index == 0 && disc == null) 20.dp else 0.dp)) {
+                                OutsideTrackRow(track, if (track.number > 0) track.number else index + 1)
+                            }
+                        }
+                    }
+                }
+            }
+            is Load.Failed -> StatusView(state.message, page.retry)
+            Load.Loading -> StatusView()
+        }
+        BackButton()
+    }
+}
+
+/** "Album, 2001   14 tracks   1h 1m". */
+private fun albumFacts(album: MusicAlbumDetail): List<String> = buildList {
+    album.summary.kindLine?.let(::add)
+    if (album.tracks.isNotEmpty()) add(if (album.tracks.size == 1) "1 track" else "${album.tracks.size} tracks")
+    if (album.durationSeconds > 0) Format.runtime(album.durationSeconds.toDouble())?.let(::add)
+}
+
+/** A track on an album the library doesn't have: number, title and length, nothing to play. */
+@Composable
+private fun OutsideTrackRow(track: MusicTrack, number: Int) {
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.width(28.dp), contentAlignment = Alignment.CenterEnd) {
+            Text(number.toString(), fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher, style = Tabular)
+        }
+        Text(track.title, fontSize = 17.sp, color = Flexarr.screen.copy(alpha = 0.9f), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        if (track.durationSeconds > 0) Text(Format.timestamp(track.durationSeconds.toDouble()), fontSize = 15.sp, color = Flexarr.usher, style = Tabular)
+    }
+}

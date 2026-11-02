@@ -24,11 +24,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed as rowItemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.layout.layout
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -36,6 +33,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -46,6 +44,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -58,10 +57,12 @@ import io.github.flexarr.core.HomeRowStyle
 import io.github.flexarr.core.ItemDetail
 import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.MediaKind
+import io.github.flexarr.core.MusicArtistExtras
 import io.github.flexarr.core.PlaylistDetail
 import io.github.flexarr.core.artistName
 import io.github.flexarr.core.discs
 import io.github.flexarr.core.facts
+import io.github.flexarr.core.musicArtistExtras
 import io.github.flexarr.core.playlist
 import io.github.flexarr.core.playlists
 import io.github.flexarr.core.releaseYear
@@ -81,11 +82,13 @@ import io.github.flexarr.ui.components.rememberLoader
 import io.github.flexarr.ui.downloads.MusicDownloadButton
 import io.github.flexarr.ui.downloads.MusicDownloadSource
 import io.github.flexarr.ui.theme.Flexarr
+import io.github.flexarr.ui.theme.FlexarrIcons
 import io.github.flexarr.ui.theme.RoomBackground
+import io.github.flexarr.ui.theme.Tokens
 import io.github.flexarr.ui.theme.glowColor
 import io.github.flexarr.ui.theme.marquee
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
-import io.github.flexarr.ui.theme.Tokens
 
 // The music screens, as the iPhone app's: an artist, an album and a playlist (a library is in MusicLibraryScreen.kt).
 // Each title page has Play and Shuffle; tapping a track plays from it, and tapping the one playing pauses it.
@@ -162,8 +165,8 @@ private fun MusicHeader(
             below()
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            ActionButton("Play", onClick = onPlay, icon = Icons.Filled.PlayArrow, prominent = true, ambient = ambient, enabled = canPlay && !busy)
-            ActionButton("Shuffle", onClick = onShuffle, icon = Icons.Filled.Shuffle, ambient = ambient, enabled = canShuffle && !busy)
+            ActionButton("Play", onClick = onPlay, icon = FlexarrIcons.play, prominent = true, ambient = ambient, enabled = canPlay && !busy)
+            ActionButton("Shuffle", onClick = onShuffle, icon = FlexarrIcons.shuffle, ambient = ambient, enabled = canShuffle && !busy)
             extra()
             if (busy) CircularProgressIndicator(Modifier.size(22.dp), color = Flexarr.usher, strokeWidth = 2.dp)
         }
@@ -172,7 +175,7 @@ private fun MusicHeader(
 
 /** Back, on its own over the page, as on the title pages. */
 @Composable
-private fun BackButton() {
+internal fun BackButton() {
     val navigator = LocalNavigator.current
     IconButton(
         onClick = { navigator.back() },
@@ -190,6 +193,19 @@ fun ArtistScreen(model: AppModel, id: String) {
     var queueing by remember { mutableStateOf(false) }
     val detail = (page.state as? Load.Loaded)?.value
     val ambient = detail?.item?.let { glowColor(it.accentColor) } ?: Flexarr.silver
+    val navigator = LocalNavigator.current
+    // From outside the library, when this profile can request music: their albums the library lacks, artists like
+    // them, and whether Lidarr follows them. Anything failing leaves the page as it was.
+    var extras by remember(id) { mutableStateOf<MusicArtistExtras?>(null) }
+    LaunchedEffect(id, model.credentials) {
+        extras = try {
+            if (model.musicStatus().configured) client.musicArtistExtras(id) else null
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            null
+        }
+    }
 
     /** Everything they have (fetched when asked, not with the page, so a visit to an artist with a hundred albums stays light). */
     fun playAll(detail: ItemDetail, shuffled: Boolean) {
@@ -234,11 +250,33 @@ fun ArtistScreen(model: AppModel, id: String) {
                             onShuffle = { playAll(state.value, shuffled = true) },
                         )
                     }
+                    // Once it's known music requests are on: Follow artist, or Following (said by the server, or asked here).
+                    extras?.let { known ->
+                        fullWidth {
+                            val follow = model.followState(libraryArtistKeys(id, known.deezerId), known.followed)
+                            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                                ActionButton(
+                                    follow.label(isArtist = true)!!,
+                                    onClick = { if (follow == MusicRequestState.CanRequest) navigator.followLibraryArtist(model, id, known.deezerId) },
+                                    icon = follow.icon(isArtist = true),
+                                    ambient = ambient,
+                                    enabled = follow == MusicRequestState.CanRequest && model.canAskForMusic,
+                                )
+                            }
+                        }
+                    }
                     if (albums.isNotEmpty()) {
                         fullWidth { SectionHeading("Albums", Modifier.bleed()) }
                         itemsIndexed(albums, key = { _, album -> album.id }) { _, album -> AlbumCard(album) }
-                    } else {
+                    } else if (extras?.missing.isNullOrEmpty()) {
                         fullWidth { Box(Modifier.height(160.dp)) { StatusView("No albums yet.", empty = true) } }
+                    }
+                    extras?.missing?.takeIf { it.isNotEmpty() }?.let { missing ->
+                        fullWidth { SectionHeading("Not in your library", Modifier.bleed()) }
+                        itemsIndexed(missing, key = { index, album -> "missing-$index-${album.id}" }) { _, album -> MusicExternalCard(model, album, width = null, showsRequest = true) }
+                    }
+                    extras?.similar?.takeIf { it.isNotEmpty() }?.let { similar ->
+                        fullWidth { MusicExternalShelf(model, "Fans also like", similar, Modifier.bleed()) }
                     }
                 }
             }

@@ -503,6 +503,14 @@ struct TabStack<Content: View>: View {
             WatchlistView()
         case .comingSoon:
             ComingSoonView()
+        case .musicArtist(let artist):
+            ExternalArtistView(preview: artist)
+        case .musicAlbum(let album):
+            ExternalAlbumView(preview: album)
+        case .musicGenre(let genre):
+            MusicGenreView(genre: genre)
+        case .musicItem(let id, let isArtist):
+            MusicItemDestination(id: id, isArtist: isArtist)
         }
     }
 }
@@ -573,4 +581,9 @@ private struct LinkFocus: ViewModifier {
 
 extension View {
     func takesFocusFromLink() -> some View { modifier(LinkFocus()) }
+
+    /// `takesFocusFromLink()` when `on`: for a button inside a view that's sometimes the page's first and sometimes not.
+    @ViewBuilder func takesFocusFromLink(_ on: Bool) -> some View {
+        if on { modifier(LinkFocus()) } else { self }
+    }
 }

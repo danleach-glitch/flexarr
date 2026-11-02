@@ -81,6 +81,8 @@ import io.github.flexarr.ui.library.LibraryScreen
 import io.github.flexarr.ui.livetv.LiveRecordingsScreen
 import io.github.flexarr.ui.livetv.LiveTvScreen
 import io.github.flexarr.ui.music.AlbumScreen
+import io.github.flexarr.ui.music.ExternalAlbumScreen
+import io.github.flexarr.ui.music.ExternalArtistScreen
 import io.github.flexarr.ui.music.ArtistScreen
 import io.github.flexarr.ui.music.MusicLibraryScreen
 import io.github.flexarr.ui.music.MusicNowPlayingBar
@@ -396,6 +398,8 @@ fun MainScreen(model: AppModel) {
                 }
                 composable("artist/{id}") { ArtistScreen(model, it.arguments?.getString("id")!!) }
                 composable("album/{id}") { AlbumScreen(model, it.arguments?.getString("id")!!) }
+                composable("music-artist/{id}") { it.arguments?.getString("id")?.toLongOrNull()?.let { id -> ExternalArtistScreen(model, id) } }
+                composable("music-album/{id}") { it.arguments?.getString("id")?.toLongOrNull()?.let { id -> ExternalAlbumScreen(model, id) } }
                 composable("playlist/{id}") { PlaylistScreen(model, it.arguments?.getString("id")!!) }
                 composable(
                     "books/{id}?view={view}&genre={genre}",

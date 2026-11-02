@@ -117,6 +117,94 @@ public sealed class ArrClient(HttpClient httpClient)
     public Task<IReadOnlyList<LidarrTrackFile>> GetTrackFilesAsync(ArrInstance lidarr, int artistId, CancellationToken ct = default) =>
         GetAsync<IReadOnlyList<LidarrTrackFile>>(lidarr, $"trackfile?artistId={artistId}", ct);
 
+    /// <summary>Lidarr's root folders with their default profiles (the shared <see cref="GetRootFoldersAsync"/> leaves those out).</summary>
+    public Task<IReadOnlyList<LidarrRootFolder>> GetLidarrRootFoldersAsync(ArrInstance lidarr, CancellationToken ct = default) =>
+        GetAsync<IReadOnlyList<LidarrRootFolder>>(lidarr, "rootfolder", ct);
+
+    public Task<IReadOnlyList<LidarrMetadataProfile>> GetMetadataProfilesAsync(ArrInstance lidarr, CancellationToken ct = default) =>
+        GetAsync<IReadOnlyList<LidarrMetadataProfile>>(lidarr, "metadataprofile", ct);
+
+    /// <summary>
+    /// Lidarr proxies MusicBrainz (through its own metadata server): no key needed. Accepts a name or "lidarr:&lt;MusicBrainz
+    /// artist id&gt;". An artist Lidarr has comes back with its id; one it doesn't, with id 0.
+    /// </summary>
+    public Task<IReadOnlyList<LidarrArtist>> LookupArtistsAsync(ArrInstance lidarr, string term, CancellationToken ct = default) =>
+        GetAsync<IReadOnlyList<LidarrArtist>>(lidarr, $"artist/lookup?term={Uri.EscapeDataString(term)}", ct);
+
+    /// <summary>Albums matching "artist title" (or "lidarr:&lt;release group id&gt;"), each with its artist.</summary>
+    public Task<IReadOnlyList<LidarrAlbum>> LookupAlbumsAsync(ArrInstance lidarr, string term, CancellationToken ct = default) =>
+        GetAsync<IReadOnlyList<LidarrAlbum>>(lidarr, $"album/lookup?term={Uri.EscapeDataString(term)}", ct);
+
+    /// <summary>
+    /// Adds one album and searches for it. An artist Lidarr doesn't have yet is added with it, monitored for nothing
+    /// else: none of their other albums, and none of their new ones. The album is added as a manual pick, so the
+    /// metadata profile doesn't drop it for being an EP or a single the profile leaves out.
+    /// </summary>
+    public Task<LidarrAlbum> AddAlbumAsync(ArrInstance lidarr, string albumMusicBrainzId, string title, string artistMusicBrainzId, string artistName,
+        LidarrPlacement placement, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(placement);
+        return PostAsync<LidarrAlbum>(lidarr, "album", new
+        {
+            foreignAlbumId = albumMusicBrainzId,
+            title,
+            monitored = true,
+            anyReleaseOk = true,
+            artist = new
+            {
+                foreignArtistId = artistMusicBrainzId,
+                artistName,
+                qualityProfileId = placement.QualityProfileId,
+                metadataProfileId = placement.MetadataProfileId,
+                rootFolderPath = placement.RootFolderPath,
+                monitored = true,
+                monitorNewItems = "none",
+                addOptions = new { monitor = "none", searchForMissingAlbums = false },
+            },
+            addOptions = new { addType = "manual", searchForNewAlbum = true },
+        }, ct);
+    }
+
+    /// <summary>Adds an artist that Lidarr then watches for new releases only: nothing they've already released downloads.</summary>
+    public Task<LidarrArtist> AddFollowedArtistAsync(ArrInstance lidarr, string artistMusicBrainzId, string artistName, LidarrPlacement placement, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(placement);
+        return PostAsync<LidarrArtist>(lidarr, "artist", new
+        {
+            foreignArtistId = artistMusicBrainzId,
+            artistName,
+            qualityProfileId = placement.QualityProfileId,
+            metadataProfileId = placement.MetadataProfileId,
+            rootFolderPath = placement.RootFolderPath,
+            monitored = true,
+            monitorNewItems = "new",
+            addOptions = new { monitor = "future", searchForMissingAlbums = false },
+        }, ct);
+    }
+
+    /// <summary>Has Lidarr watch for an artist's new releases, without touching the albums it has or monitors already.</summary>
+    public async Task FollowArtistAsync(ArrInstance lidarr, int artistId, CancellationToken ct = default)
+    {
+        // Lidarr's PUT takes the whole artist, so send back what it has with only these changed.
+        var artist = await GetAsync<JsonObject>(lidarr, $"artist/{artistId}", ct).ConfigureAwait(false);
+        artist["monitored"] = true;
+        artist["monitorNewItems"] = "new";
+        await SendAsync<JsonObject>(lidarr, HttpMethod.Put, $"artist/{artistId}", artist, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>Monitored albums are downloaded when missing.</summary>
+    public async Task SetAlbumsMonitoredAsync(ArrInstance lidarr, IReadOnlyList<int> albumIds, bool monitored, CancellationToken ct = default)
+    {
+        using var request = Request(lidarr, HttpMethod.Put, "album/monitor");
+        request.Content = JsonContent.Create(new { albumIds, monitored }, options: Json);
+        using var response = await httpClient.SendAsync(request, ct).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+    }
+
+    /// <summary>Has Lidarr look for these albums now, rather than at its next RSS sync.</summary>
+    public Task SearchAlbumsAsync(ArrInstance lidarr, IReadOnlyList<int> albumIds, CancellationToken ct = default) =>
+        SendCommandAsync(lidarr, new { name = "AlbumSearch", albumIds }, ct);
+
     // All
     public Task<IReadOnlyList<ArrQualityProfile>> GetQualityProfilesAsync(ArrInstance instance, CancellationToken ct = default) =>
         GetAsync<IReadOnlyList<ArrQualityProfile>>(instance, "qualityprofile", ct);

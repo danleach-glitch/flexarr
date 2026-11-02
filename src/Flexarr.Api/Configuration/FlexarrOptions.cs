@@ -113,6 +113,9 @@ public sealed class FlexarrOptions
 
     public List<ArrInstance> Arr { get; set; } = [];
 
+    /// <summary>Requests for music, which go straight to Lidarr (Seerr has none). See docs/music-requests.md.</summary>
+    public MusicRequestOptions MusicRequests { get; set; } = new();
+
     public TranscodingOptions Transcoding { get; set; } = new();
 
     /// <summary>Optional Seerr/Overseerr/Jellyseerr server for "not in your library" discovery and requests.</summary>
@@ -338,6 +341,15 @@ public sealed class SeerrOptions
     public string ApiKey { get; set; } = "";
 
     public SeerrInstance? Instance => Uri.TryCreate(BaseUrl, UriKind.Absolute, out var url) && ApiKey.Length > 0 ? new SeerrInstance(url, ApiKey) : null;
+}
+
+public sealed class MusicRequestOptions
+{
+    /// <summary>
+    /// Offers music discovery and requests whenever a Lidarr is connected. Off keeps Lidarr connected for artwork and
+    /// scans without letting anyone add music through Flexarr.
+    /// </summary>
+    public bool Enabled { get; set; } = true;
 }
 
 public sealed class BazarrOptions

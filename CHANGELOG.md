@@ -24,6 +24,12 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Browse ends with **Your artists**, and **See all** opens every artist. **See all** on **New albums** opens Albums, newest first.
 - On Apple TV, **Settings › Libraries** chooses which of the four views music opens on, and the Top Shelf shows the albums you played last.
 - Sorting a library reads the same in every app: **A–Z**, **Recently added**, **Year** and **Rating**.
+- Find and add music you don't have, through Lidarr. **Discover** now has **Music**, with **Like artists you play**, **New from your artists**, **Top albums** and genres. Its search finds any artist or album.
+- **Request album** downloads just that album. **Follow artist** has Lidarr download the artist's new releases from now on.
+- An artist's page ends with the albums of theirs you don't have, under **Not in your library**, and **Fans also like**.
+- Whoever asked for an album hears **Your request is ready** when it arrives, and followers hear when a new album turns up.
+- On iPhone, iPad and Android phones, **Search** lists artists and albums you don't have under **Not in your library**. The Apple TV and Android TV have **Music** in **Discover**.
+- With more than one music library, each profile's **New music goes to** chooses where its requests land. An admin can turn music requests off under Lidarr in **Settings › Connections**.
 
 ## 0.58.0 · 2 November 2026
 

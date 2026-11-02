@@ -4,6 +4,8 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import io.github.flexarr.player.LocalPlayFrom
 import io.github.flexarr.ui.books.BookScreen
+import io.github.flexarr.ui.music.AlbumScreen
+import io.github.flexarr.ui.music.ArtistScreen
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -214,6 +216,9 @@ fun DetailScreen(model: AppModel, id: String) {
     val item = loaded?.item
     // A book reached by a link or an older route opens as itself, never as a film.
     if (item?.kind == MediaKind.Audiobook) return BookScreen(model, id)
+    // So does an album or artist (an album-ready notification opens item/<id>): the music screens, not a film's.
+    if (item?.kind == MediaKind.Album) return AlbumScreen(model, id)
+    if (item?.kind == MediaKind.Artist) return ArtistScreen(model, id)
     val series = item?.let { if (it.kind == MediaKind.Series) it else loaded.ancestors.firstOrNull { a -> a.kind == MediaKind.Series } }
     val ambient = item?.let { glowColor(it.accentColor) } ?: Flexarr.silver
 

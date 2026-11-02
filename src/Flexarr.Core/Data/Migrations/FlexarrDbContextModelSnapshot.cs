@@ -1308,6 +1308,9 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<Guid?>("RequestFilmsLibraryId")
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid?>("RequestMusicLibraryId")
+                        .HasColumnType("TEXT");
+
                     b.Property<Guid?>("RequestShowsLibraryId")
                         .HasColumnType("TEXT");
 
@@ -1731,12 +1734,27 @@ namespace Flexarr.Core.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("ArtistMusicBrainzId")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ArtistName")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime?>("FulfilledAt")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Kind")
                         .IsRequired()
                         .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("LastAnsweredAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("MusicBrainzId")
+                        .HasMaxLength(64)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("ProfileId")
@@ -1747,12 +1765,18 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<DateTime>("RequestedAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("Title")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("TmdbId")
                         .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
 
                     b.HasIndex("ProfileId");
+
+                    b.HasIndex("FulfilledAt", "Kind", "MusicBrainzId");
 
                     b.HasIndex("FulfilledAt", "Kind", "TmdbId");
 

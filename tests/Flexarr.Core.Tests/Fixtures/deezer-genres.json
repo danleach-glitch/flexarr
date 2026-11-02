@@ -1,0 +1,44 @@
+{
+ "data": [
+  {
+   "id": 0,
+   "name": "All",
+   "picture": "https://api.deezer.com/genre/0/image",
+   "picture_small": "https://cdn-images.dzcdn.net/images/misc//56x56-000000-80-0-0.jpg",
+   "picture_medium": "https://cdn-images.dzcdn.net/images/misc//250x250-000000-80-0-0.jpg",
+   "picture_big": "https://cdn-images.dzcdn.net/images/misc//500x500-000000-80-0-0.jpg",
+   "picture_xl": "https://cdn-images.dzcdn.net/images/misc//1000x1000-000000-80-0-0.jpg",
+   "type": "genre"
+  },
+  {
+   "id": 132,
+   "name": "Pop",
+   "picture": "https://api.deezer.com/genre/132/image",
+   "picture_small": "https://cdn-images.dzcdn.net/images/misc/db7a604d9e7634a67d45cfc86b48370a/56x56-000000-80-0-0.jpg",
+   "picture_medium": "https://cdn-images.dzcdn.net/images/misc/db7a604d9e7634a67d45cfc86b48370a/250x250-000000-80-0-0.jpg",
+   "picture_big": "https://cdn-images.dzcdn.net/images/misc/db7a604d9e7634a67d45cfc86b48370a/500x500-000000-80-0-0.jpg",
+   "picture_xl": "https://cdn-images.dzcdn.net/images/misc/db7a604d9e7634a67d45cfc86b48370a/1000x1000-000000-80-0-0.jpg",
+   "type": "genre"
+  },
+  {
+   "id": 116,
+   "name": "Rap/Hip Hop",
+   "picture": "https://api.deezer.com/genre/116/image",
+   "picture_small": "https://cdn-images.dzcdn.net/images/misc/5c27115d3b797954afff59199dad98d1/56x56-000000-80-0-0.jpg",
+   "picture_medium": "https://cdn-images.dzcdn.net/images/misc/5c27115d3b797954afff59199dad98d1/250x250-000000-80-0-0.jpg",
+   "picture_big": "https://cdn-images.dzcdn.net/images/misc/5c27115d3b797954afff59199dad98d1/500x500-000000-80-0-0.jpg",
+   "picture_xl": "https://cdn-images.dzcdn.net/images/misc/5c27115d3b797954afff59199dad98d1/1000x1000-000000-80-0-0.jpg",
+   "type": "genre"
+  },
+  {
+   "id": 152,
+   "name": "Rock",
+   "picture": "https://api.deezer.com/genre/152/image",
+   "picture_small": "https://cdn-images.dzcdn.net/images/misc/b36ca681666d617edd0dcb5ab389a6ac/56x56-000000-80-0-0.jpg",
+   "picture_medium": "https://cdn-images.dzcdn.net/images/misc/b36ca681666d617edd0dcb5ab389a6ac/250x250-000000-80-0-0.jpg",
+   "picture_big": "https://cdn-images.dzcdn.net/images/misc/b36ca681666d617edd0dcb5ab389a6ac/500x500-000000-80-0-0.jpg",
+   "picture_xl": "https://cdn-images.dzcdn.net/images/misc/b36ca681666d617edd0dcb5ab389a6ac/1000x1000-000000-80-0-0.jpg",
+   "type": "genre"
+  }
+ ]
+}

@@ -14,7 +14,7 @@ namespace Flexarr.Api.Notifications;
 /// What a notification says, as the phone's notification extension reads it once it's unsealed (see
 /// docs/notifications.md): the short names keep it well inside Apple's 4 KB.
 /// </summary>
-/// <param name="Category">Decides the buttons: flexarr.video, flexarr.podcast, flexarr.recording, flexarr.upcoming or flexarr.test.</param>
+/// <param name="Category">Decides the buttons: flexarr.video, flexarr.music, flexarr.podcast, flexarr.recording, flexarr.upcoming or flexarr.test.</param>
 /// <param name="Thread">Groups a show's notifications together on the phone.</param>
 /// <param name="Image">Artwork from a public host, which the phone fetches itself.</param>
 /// <param name="Open">What tapping opens and what Play plays (item, play, podcast, episode).</param>

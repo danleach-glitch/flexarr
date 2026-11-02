@@ -1,0 +1,210 @@
+[
+ {
+  "status": "continuing",
+  "ended": false,
+  "artistName": "Wet Leg",
+  "foreignArtistId": "90744b3e-363a-458e-8da1-e3e392a489c4",
+  "tadbId": 0,
+  "discogsId": 0,
+  "artistType": "Group",
+  "disambiguation": "",
+  "links": [
+   {
+    "url": "https://open.spotify.com/artist/2TwOrUcYnAlIiKmVQkkoSZ",
+    "name": "spotify"
+   },
+   {
+    "url": "https://www.deezer.com/artist/134334152",
+    "name": "deezer"
+   },
+   {
+    "url": "https://itunes.apple.com/gb/artist/id1569685293",
+    "name": "apple"
+   },
+   {
+    "url": "https://wetlegband.com/",
+    "name": "wetlegband"
+   },
+   {
+    "url": "https://www.youtube.com/channel/UCIuyI9I_DlDwxykE7Kt7h2g",
+    "name": "youtube"
+   },
+   {
+    "url": "https://www.instagram.com/wetlegband/",
+    "name": "instagram"
+   },
+   {
+    "url": "https://twitter.com/wetlegband",
+    "name": "twitter"
+   },
+   {
+    "url": "https://www.facebook.com/wetlegit",
+    "name": "facebook"
+   },
+   {
+    "url": "https://www.last.fm/music/Wet+Leg",
+    "name": "last"
+   },
+   {
+    "url": "https://www.wikidata.org/wiki/Q107475751",
+    "name": "wikidata"
+   },
+   {
+    "url": "https://genius.com/artists/Wet-leg",
+    "name": "genius"
+   },
+   {
+    "url": "https://www.tiktok.com/@wetlegband",
+    "name": "tiktok"
+   },
+   {
+    "url": "https://www.discogs.com/artist/9611545",
+    "name": "discogs"
+   },
+   {
+    "url": "https://wetleg.bandcamp.com/",
+    "name": "bandcamp"
+   },
+   {
+    "url": "https://www.songkick.com/artists/10152204",
+    "name": "songkick"
+   },
+   {
+    "url": "https://www.allmusic.com/artist/mn0004130712",
+    "name": "allmusic"
+   },
+   {
+    "url": "https://rateyourmusic.com/artist/wet-leg",
+    "name": "rateyourmusic"
+   },
+   {
+    "url": "https://music.apple.com/gb/artist/1569685293",
+    "name": "apple"
+   },
+   {
+    "url": "https://www.musik-sammler.de/artist/wet-leg/",
+    "name": "musik-sammler"
+   },
+   {
+    "url": "https://tidal.com/artist/25399116",
+    "name": "tidal"
+   },
+   {
+    "url": "https://www.whosampled.com/Wet-Leg/",
+    "name": "whosampled"
+   },
+   {
+    "url": "https://music.youtube.com/channel/UCg0BnE20idPqC9GxPqrlPfQ",
+    "name": "youtube"
+   },
+   {
+    "url": "https://play.qobuz.com/artist/9588540",
+    "name": "qobuz"
+   },
+   {
+    "url": "https://soundcloud.com/wetleg",
+    "name": "soundcloud"
+   }
+  ],
+  "nextAlbum": null,
+  "lastAlbum": null,
+  "images": [
+   {
+    "coverType": "fanart",
+    "url": "/MediaCoverProxy/39cb78c074a807f485930bf886bc3fc05c2a620f77c569ee12a47cfdc0e3e130/wet-leg-62585a65e0fa7.jpg",
+    "remoteUrl": "https://images.lidarr.audio/cache/https://assets.fanart.tv/fanart/wet-leg-62585a65e0fa7.jpg",
+    "extension": ".jpg"
+   },
+   {
+    "coverType": "banner",
+    "url": "/MediaCoverProxy/d41bf2353e60b64cf3dd58fa9bc5ebb33104a8d0ca6c3c70b930bbd3c19411ed/q1a4oy1651585675.jpg",
+    "remoteUrl": "https://images.lidarr.audio/cache/https://r2.theaudiodb.com/images/media/artist/banner/q1a4oy1651585675.jpg",
+    "extension": ".jpg"
+   },
+   {
+    "coverType": "poster",
+    "url": "/MediaCoverProxy/5d7bc98b0a382bc6c0908a1f908693c5648be842f1b9907ad457f8ec1f58ccfc/wet-leg-64fc47137480b.jpg",
+    "remoteUrl": "https://images.lidarr.audio/cache/https://assets.fanart.tv/fanart/wet-leg-64fc47137480b.jpg",
+    "extension": ".jpg"
+   },
+   {
+    "coverType": "clearlogo",
+    "url": "/MediaCoverProxy/29b8c1f600e9f835957285ada2e2f53ce62e7c71952407f5e94c0f3550409fd5/wet-leg-61a90b539b26f.png",
+    "remoteUrl": "https://images.lidarr.audio/cache/https://assets.fanart.tv/fanart/wet-leg-61a90b539b26f.png",
+    "extension": ".png"
+   }
+  ],
+  "remotePoster": "https://images.lidarr.audio/cache/https://assets.fanart.tv/fanart/wet-leg-64fc47137480b.jpg",
+  "qualityProfileId": 0,
+  "metadataProfileId": 0,
+  "monitored": false,
+  "monitorNewItems": "all",
+  "folder": "Wet Leg",
+  "genres": [
+   "Indie Rock",
+   "Indie Pop",
+   "Post-Punk Revival",
+   "Post-Punk",
+   "Rock"
+  ],
+  "tags": [],
+  "added": "0001-01-01T00:00:00Z",
+  "ratings": {
+   "votes": 3,
+   "value": 8.7
+  }
+ },
+ {
+  "status": "ended",
+  "ended": true,
+  "artistName": "Wet",
+  "foreignArtistId": "41d107c6-db7a-4dbc-a556-4f39d691c749",
+  "tadbId": 0,
+  "discogsId": 0,
+  "artistType": "Group",
+  "disambiguation": "Belgian 1980s synthpop",
+  "links": [
+   {
+    "url": "https://www.discogs.com/artist/50711",
+    "name": "discogs"
+   },
+   {
+    "url": "https://www.allmusic.com/artist/mn0003149645",
+    "name": "allmusic"
+   },
+   {
+    "url": "https://rateyourmusic.com/artist/wet_f1",
+    "name": "rateyourmusic"
+   }
+  ],
+  "nextAlbum": null,
+  "lastAlbum": null,
+  "images": [
+   {
+    "coverType": "poster",
+    "url": "/MediaCoverProxy/6bf28ebce1f17bfed0ff3d3171089ecd16141e89a9b10ef9657fc6d99d559abf/yswsup1484419793.jpg",
+    "remoteUrl": "https://images.lidarr.audio/cache/https://r2.theaudiodb.com/images/media/artist/thumb/yswsup1484419793.jpg",
+    "extension": ".jpg"
+   },
+   {
+    "coverType": "fanart",
+    "url": "/MediaCoverProxy/bae9af6fbadbb9ebe46df11805aae4eb9b9f2d9532093b8fcde8cef398b4a2ee/e5vxsu1632930373.jpg",
+    "remoteUrl": "https://images.lidarr.audio/cache/https://r2.theaudiodb.com/images/media/artist/fanart/e5vxsu1632930373.jpg",
+    "extension": ".jpg"
+   }
+  ],
+  "remotePoster": "https://images.lidarr.audio/cache/https://r2.theaudiodb.com/images/media/artist/thumb/yswsup1484419793.jpg",
+  "qualityProfileId": 0,
+  "metadataProfileId": 0,
+  "monitored": false,
+  "monitorNewItems": "all",
+  "folder": "Wet",
+  "genres": [],
+  "tags": [],
+  "added": "0001-01-01T00:00:00Z",
+  "ratings": {
+   "votes": 0,
+   "value": 0
+  }
+ }
+]

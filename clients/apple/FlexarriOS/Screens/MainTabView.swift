@@ -182,7 +182,13 @@ struct TabStack<Content: View>: View {
             WatchlistView()
         case .comingSoon:
             ComingSoonView()
-        case .external, .genre:
+        case .musicArtist(let artist):
+            ExternalArtistView(preview: artist)
+        case .musicAlbum(let album):
+            ExternalAlbumView(preview: album)
+        case .musicItem(let id, let isArtist):
+            MusicItemDestination(id: id, isArtist: isArtist)
+        case .external, .genre, .musicGenre:
             // Discover is on the Apple TV and the web; nothing on iPhone or iPad goes here.
             EmptyView()
         }
