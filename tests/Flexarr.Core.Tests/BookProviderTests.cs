@@ -58,6 +58,30 @@ public sealed class BookProviderTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AudiblesSeriesId_IsKept_SoTheSeriesCanListWhatsMissing()
+    {
+        var library = await SeedAsync("The Thursday Murder Club", "Richard Osman", asin: Tmc);
+
+        await Refresher().RefreshLibraryAsync(library, force: true, default);
+
+        Assert.Equal("B091681YXM", (await _db.BookSeries.SingleAsync()).ExternalId);
+    }
+
+    [Fact]
+    public async Task ASeriesBooks_AreListedOncePerNumber_InOrder_LeavingOutThoseNotOutYet()
+    {
+        var providers = new BookProviders(new HttpClient(_web), () => new Settings(_dir, _books));
+
+        var books = await providers.SeriesBooksAsync("B091681YXM", new DateOnly(2026, 11, 2), default);
+        var asin = await providers.SeriesAsinAsync(Tmc, "Thursday Murder Club", default);
+
+        Assert.Equal(["1", "2", "3", "4", "5"], books!.Select(b => b.Sequence));
+        Assert.Equal(["The Thursday Murder Club", "The Man Who Died Twice", "The Bullet That Missed", "The Last Devil to Die", "The Impossible Fortune"], books!.Select(b => b.Title));
+        Assert.All(books!, b => Assert.NotNull(b.Cover));
+        Assert.Equal("B091681YXM", asin);
+    }
+
+    [Fact]
     public async Task AudiblesChapters_AreLeftAlone_WhenTheLengthDisagrees()
     {
         var library = await SeedAsync("The Thursday Murder Club", "Richard Osman", asin: Tmc, duration: 30000, chapters: ChapterSource.Even);
@@ -313,7 +337,8 @@ public sealed class BookProviderTests : IAsyncLifetime
                 ("api.audnex.us", $"/books/{Tmc}") => Fixture("audnexus-book.json"),
                 ("api.audnex.us", $"/books/{Tmc}/chapters") => Fixture("audnexus-chapters.json"),
                 ("api.audnex.us", "/authors/B074KL81KM") => Fixture("audnexus-author.json"),
-                ("api.audible.co.uk", "/1.0/catalog/products") => Fixture("audible-search.json"),
+                ("api.audible.co.uk", "/1.0/catalog/products") => Fixture(url.Query.Contains("asins=", StringComparison.Ordinal) ? "audible-series-products.json" : "audible-search.json"),
+                ("api.audible.co.uk", "/1.0/catalog/products/B091681YXM") => Fixture("audible-series.json"),
                 ("openlibrary.org", "/isbn/9780593135204.json") => Fixture("openlibrary-isbn.json"),
                 ("openlibrary.org", "/search.json") => Fixture("openlibrary-search.json"),
                 ("itunes.apple.com", "/search") => Fixture(url.Query.Contains("country=gb", StringComparison.Ordinal) ? "itunes-search-gb.json" : "itunes-search-dcc.json"),

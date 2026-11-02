@@ -1,7 +1,8 @@
 namespace Flexarr.Core.Books;
 
 /// <summary>A book's series and its number in it, as one source gives it.</summary>
-public sealed record SeriesPart(string Name, string? Sequence);
+/// <param name="Asin">Audible's id for the series, when Audible gave it.</param>
+public sealed record SeriesPart(string Name, string? Sequence, string? Asin = null);
 
 /// <summary>A book's details as edited by hand (see <see cref="BookAssembler.EditAsync"/>). Locked: scans keep them.</summary>
 public sealed record BookEdit(
