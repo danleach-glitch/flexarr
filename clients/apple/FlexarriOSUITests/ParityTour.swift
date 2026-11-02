@@ -2,7 +2,7 @@ import FlexarrKit
 import XCTest
 
 /// The same eight screens on every client, for a before-and-after comparison of how the apps look side by side:
-/// 01-home, 02-library, 03-movie, 04-show, 05-player, 06-search, 07-settings, 08-profiles. It finds its titles on any
+/// 01-home, 02-library, 03-movie, 04-show, 05-player, 06-search, 07-settings, 08-profiles, and the library's 09-browse. It finds its titles on any
 /// server (the first title in the first movie library and in the first TV library), plays with `-FlexarrNoHistory` so
 /// watch history is untouched, and closes the player straight away. It uses only what the app has had for a while, so
 /// it runs on main as well as on a branch.
@@ -62,6 +62,10 @@ final class ParityTour: XCTestCase {
             let row = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", movies.name)).firstMatch
             if row.waitForExistence(timeout: 4) { row.tap() } else { app.staticTexts[movies.name].firstMatch.tap() }
             pause(5)
+            // Libraries open on Browse; All is the grid every client shows as 02. (Builds before Browse open on All.)
+            shot("09-browse")
+            let all = app.buttons["All movies"].firstMatch
+            if all.waitForExistence(timeout: 2) { all.tap(); pause(4) }
             shot("02-library")
             tab("Home")
             pause(1)

@@ -20,7 +20,7 @@ import java.io.File
 
 /**
  * The same eight screens on every client, for a before-and-after look at the design (docs/design.md): Home, a movie
- * library, a movie, a show, the player with its controls, Search, Settings and the profiles. PNGs named
+ * library (its grid, and its Browse), a movie, a show, the player with its controls, Search, Settings and the profiles. PNGs named
  * `android-01-home.png` (or `androidtv-…` on a TV) land in the app's files, under `parity/`. Nothing is recorded (no
  * history), and nothing is requested or changed.
  *
@@ -101,6 +101,9 @@ class ParityTour {
         shot("01-home")
 
         openLibrary(movies)
+        // Libraries open on Browse; All is the grid every client shows as 02. (Builds before Browse open on All.)
+        shot("09-browse")
+        if (tap("All movies")) settle(5_000)
         shot("02-library")
         openFirstTitle()
         shot("03-movie")
@@ -108,6 +111,7 @@ class ParityTour {
         shell("input keyevent BACK"); settle(1_500)
         shell("input keyevent BACK"); settle(1_500)
         openLibrary(shows)
+        if (tap("All shows")) settle(5_000)
         openFirstTitle()
         shot("04-show")
 

@@ -41,6 +41,8 @@ try {
   const libraries = await api('/libraries')
   const movies = libraries.find((l) => l.type === 'Movies')
   const shows = libraries.find((l) => l.type === 'TvShows')
+  await page.goto(`${base}/library/${movies.id}`)
+  await shot('09-browse')
   await page.goto(`${base}/library/${movies.id}?view=all`)
   await shot('02-library')
 
