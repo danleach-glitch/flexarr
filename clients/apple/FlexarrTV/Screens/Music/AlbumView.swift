@@ -70,20 +70,13 @@ struct AlbumView: View {
                         .foregroundStyle(Color.screen.opacity(0.9))
                 }
                 FactsLine(facts: facts(item))
-                // Play spelled out, Shuffle round and named underneath while focused (as on an artist's page).
+                // In `MusicActions` order: Play spelled out, the rest round and named underneath while focused (as on an
+                // artist's page).
                 VStack(alignment: .leading, spacing: 18) {
                     HStack(spacing: 26) {
-                        Button { model.playTracks(tracks, albums: [item], showingNowPlaying: router) } label: {
-                            Label("Play", systemImage: Symbol.play)
+                        ForEach(actions.buttons, id: \.self) { button in
+                            actionButton(button, item: item)
                         }
-                        .buttonStyle(ActionButtonStyle(ambient: page.item?.ambientColor, prominent: true))
-                        .takesFocusFromLink()
-                        Button { model.playTracks(tracks, shuffled: true, albums: [item], showingNowPlaying: router) } label: {
-                            Label("Shuffle", systemImage: Symbol.shuffle)
-                        }
-                        .buttonStyle(ActionButtonStyle(ambient: ambient, iconOnly: true))
-                        .focused($focusedAction, equals: .shuffle)
-                        .disabled(tracks.count < 2)
                     }
                     .disabled(tracks.isEmpty)
                     .focusSection()
@@ -92,6 +85,32 @@ struct AlbumView: View {
                 .padding(.top, 8)
             }
             Spacer(minLength: 0)
+        }
+    }
+
+    /// An album in the library: Play and Shuffle (no Download on the TV, and its ⋯ is the web's for now).
+    private var actions: MusicActions {
+        MusicActions(kind: .album, platform: .tv, hasMusic: true, canAsk: false)
+    }
+
+    @ViewBuilder
+    private func actionButton(_ button: MusicActions.Button, item: ItemSummary) -> some View {
+        switch button {
+        case .play:
+            Button { model.playTracks(tracks, albums: [item], showingNowPlaying: router) } label: {
+                Label("Play", systemImage: Symbol.play)
+            }
+            .buttonStyle(ActionButtonStyle(ambient: page.item?.ambientColor, prominent: true))
+            .takesFocusFromLink()
+        case .shuffle:
+            Button { model.playTracks(tracks, shuffled: true, albums: [item], showingNowPlaying: router) } label: {
+                Label("Shuffle", systemImage: Symbol.shuffle)
+            }
+            .buttonStyle(ActionButtonStyle(ambient: ambient, iconOnly: true))
+            .focused($focusedAction, equals: .shuffle)
+            .disabled(tracks.count < 2)
+        default:
+            EmptyView()
         }
     }
 
