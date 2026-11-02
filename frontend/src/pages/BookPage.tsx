@@ -150,15 +150,15 @@ export function BookPage({ detail, onChange }: { detail: ItemDetail; onChange: (
             ) : (
               <PlayButton place={place} sounding={playing && player.playing} onClick={() => playAt()} />
             )}
-            {/* Only with somewhere to start over from: a finished book straight away, one part-way through asks first,
-                since its place is lost. */}
+            {/* Only with somewhere to start over from: a finished book straight away (beside Play, which also starts it
+                again, as in the apps' BookActions), one part-way through asks first, since its place is lost. */}
             {(finished || playing || place.saved > 0) && (
               <AsyncButton className="button quiet" onClick={() => (finished ? again() : setStartingOver(true))}>
                 <icon.startOver /> Start over
               </AsyncButton>
             )}
             <AsyncButton className="button quiet" aria-pressed={finished} onClick={() => mark(!finished)}>
-              <Check /> {finished ? 'Finished' : 'Mark finished'}
+              <Check /> {finished ? 'Finished' : 'Mark as finished'}
             </AsyncButton>
             <MoreButton label={`More for ${item.title}`} actions={more} />
           </div>
