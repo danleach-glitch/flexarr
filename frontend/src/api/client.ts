@@ -1395,6 +1395,8 @@ export interface MusicExternal {
   /** "album", "ep", "single" or "compile". */
   recordType?: string | null
   musicBrainzId?: string | null
+  /** An artist Lidarr follows, even one in the library (whose availability says Available). Absent before 0.59. */
+  followed?: boolean | null
 }
 
 export interface MusicRow {

@@ -667,10 +667,22 @@
 /* Logo, name, the address cut to one line (all of it is on hover, and Copy takes all of it), Copy. */
 .plain-list.webhook-list {
   display: grid;
-  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  grid-template-columns: auto auto minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 10px 12px;
   margin: 0;
+}
+
+.webhook-hooks {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.webhook-error {
+  grid-column: 1 / -1;
+  margin: -4px 0 0;
 }
 
 .plain-list.webhook-list li {
@@ -707,7 +719,7 @@
   margin: 0;
 }
 
-/* Phones: logo, name and Copy on one line, the address under them. */
+/* Phones: logo, name and Copy on one line, the address under them, then the Add to buttons. */
 @media (max-width: 600px) {
   .plain-list.webhook-list {
     grid-template-columns: minmax(0, 1fr);
@@ -724,6 +736,11 @@
   .webhook-address {
     grid-column: 1 / -1;
     grid-row: 2;
+  }
+
+  .webhook-hooks {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
   }
 }
 

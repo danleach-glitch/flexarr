@@ -13,7 +13,7 @@ import { MusicExternalCard, MusicRequestButton } from '../components/MusicExtern
 import { Row } from '../components/Row'
 import { useApi } from '../hooks/useApi'
 import { useSession } from '../hooks/sessionContext'
-import { useAudioPlayer, useAudioTime, useMusicPage, type AudioPlayer } from '../hooks/audioPlayerContext'
+import { useAudioPlayer, useAudioTime, type AudioPlayer } from '../hooks/audioPlayerContext'
 import { formatClock, formatDuration } from '../lib/format'
 
 import { shuffled } from '../lib/shuffle'
@@ -131,7 +131,6 @@ function useDeletion(detail: ItemDetail): { actions: MenuAction[]; dialog: React
 /** An album: cover, facts and its tracklist. Discs are separated when there's more than one. */
 export function AlbumPage({ detail }: { detail: ItemDetail }) {
   const player = useAudioPlayer()
-  useMusicPage()
   const { item, children: tracks } = detail
   const artist = detail.ancestors[0]
   const total = tracks.reduce((sum, t) => sum + (t.durationSeconds ?? 0), 0)
@@ -249,7 +248,6 @@ function PlayingLyrics({ tracks }: { tracks: ItemSummary[] }) {
  */
 export function ArtistPage({ detail }: { detail: ItemDetail }) {
   const player = useAudioPlayer()
-  useMusicPage()
   const { item, children: albums } = detail
   const [loading, setLoading] = useState(false)
   const deletion = useDeletion(detail)

@@ -1,4 +1,4 @@
-import { useState, type CSSProperties, type DragEvent, type FormEvent, type MouseEvent } from 'react'
+import { useState, type CSSProperties, type DragEvent, type FormEvent, type MouseEvent, type ReactNode } from 'react'
 import { PageError, PageLoading } from '../components/PageStatus'
 import { Link, useNavigate, useParams } from 'react-router'
 import {
@@ -20,21 +20,23 @@ import { ConfirmDialog } from '../components/ConfirmDialog'
 import { ChevronDown, ChevronUp, Close, Grip, More, Pencil, Play, Trash } from '../components/icons'
 import { Menu, type MenuPoint } from '../components/ItemMenu'
 import { PlaylistCard, PlaylistCover } from '../components/PlaylistCover'
-import { useAudioPlayer, useMusicPage } from '../hooks/audioPlayerContext'
+import { useAudioPlayer } from '../hooks/audioPlayerContext'
 import { useApi } from '../hooks/useApi'
 import { formatClock, formatDuration } from '../lib/format'
 import { MoreButton, queueActions } from './MusicPages'
 import { shuffled } from '../lib/shuffle'
 
-/** Every playlist of the profile's, most recently changed first, and a way to start another. */
-export function PlaylistsPage() {
+/**
+ * Every playlist of the profile's, most recently changed first, and a way to start another. Inside a music library it
+ * sits under the library's name and views (`heading`); on its own (the sidebar's Playlists) it has a title of its own.
+ */
+export function PlaylistsPage({ heading }: { heading?: ReactNode }) {
   const playlists = useApi(getPlaylists, [])
   const [creating, setCreating] = useState(false)
   const [name, setName] = useState('')
   const [error, setError] = useState<string>()
   const [saving, setSaving] = useState(false)
   const navigate = useNavigate()
-  useMusicPage()
 
   async function create(e: FormEvent) {
     e.preventDefault()
@@ -49,31 +51,37 @@ export function PlaylistsPage() {
     }
   }
 
+  const empty = playlists.data?.length === 0
+  const newPlaylist = creating ? (
+    <form className="field-row playlist-new" onSubmit={create} aria-label="New playlist">
+      <label className="grow">
+        <span className="visually-hidden">Playlist name</span>
+        <input type="text" value={name} onChange={(e) => setName(e.target.value)} maxLength={120} placeholder="Name your playlist" autoFocus />
+      </label>
+      <AsyncButton className="button" type="submit" disabled={!name.trim()} busy={saving}>
+        Create
+      </AsyncButton>
+      <button className="button quiet" type="button" onClick={() => setCreating(false)}>
+        Cancel
+      </button>
+    </form>
+  ) : (
+    <button className="button" onClick={() => setCreating(true)}>
+      New playlist
+    </button>
+  )
+
   return (
     <div className="library-page playlists-page">
       <header className="library-header">
-        <div>
-          <h1>Playlists</h1>
-          <p className="muted">Your own mixes. Add tracks, albums or whole artists from their ⋯ menu.</p>
-        </div>
-        {creating ? (
-          <form className="field-row playlist-new" onSubmit={create} aria-label="New playlist">
-            <label className="grow">
-              <span className="visually-hidden">Playlist name</span>
-              <input type="text" value={name} onChange={(e) => setName(e.target.value)} maxLength={120} placeholder="Name your playlist" autoFocus />
-            </label>
-            <AsyncButton className="button" type="submit" disabled={!name.trim()} busy={saving}>
-              Create
-            </AsyncButton>
-            <button className="button quiet" type="button" onClick={() => setCreating(false)}>
-              Cancel
-            </button>
-          </form>
-        ) : (
-          <button className="button" onClick={() => setCreating(true)}>
-            New playlist
-          </button>
+        {heading ?? (
+          <div>
+            <h1>Playlists</h1>
+            <p className="muted">Your own mixes. Add tracks, albums or whole artists from their ⋯ menu.</p>
+          </div>
         )}
+        {/* With none yet, the button waits in the middle of the page instead. */}
+        {!empty && newPlaylist}
       </header>
       {error && (
         <p className="error" role="alert">
@@ -81,12 +89,18 @@ export function PlaylistsPage() {
         </p>
       )}
       {playlists.error && <p className="error">{playlists.error.message}</p>}
-      {playlists.data?.length === 0 && <p className="muted collection-empty">No playlists yet. Make one, or add a track to a new one from its ⋯ menu.</p>}
-      <div className="poster-grid square">
-        {playlists.data?.map((p) => (
-          <PlaylistCard key={p.id} playlist={p} />
-        ))}
-      </div>
+      {empty ? (
+        <div className="playlists-empty">
+          <p className="muted">No playlists yet. Make one, or add a track to a new one from its ⋯ menu.</p>
+          {newPlaylist}
+        </div>
+      ) : (
+        <div className="poster-grid square">
+          {playlists.data?.map((p) => (
+            <PlaylistCard key={p.id} playlist={p} />
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -101,7 +115,6 @@ export function PlaylistPage() {
   const { data, error } = useApi((signal) => getPlaylist(id, signal), [id, version])
   const player = useAudioPlayer()
   const navigate = useNavigate()
-  useMusicPage()
   // The order as it's being changed: shown at once, the server catching up (a failure reloads what it has).
   const [order, setOrder] = useState<PlaylistTrack[]>()
   const [renaming, setRenaming] = useState(false)

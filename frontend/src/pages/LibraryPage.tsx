@@ -7,13 +7,14 @@ import { PosterCard } from '../components/Cards'
 import { Hero } from '../components/Hero'
 import { HomeRows } from '../components/HomeRows'
 import { ScanProgress } from '../components/ScanProgress'
-import { useAudioPlayer, useMusicPage } from '../hooks/audioPlayerContext'
+import { useAudioPlayer } from '../hooks/audioPlayerContext'
 import { Play, Shuffle } from '../components/icons'
 import { useLibraries } from '../hooks/librariesContext'
 import { useApi } from '../hooks/useApi'
 import { useWatchedChanges, watchedSince } from '../hooks/watched'
 import { BooksLibrary } from './BooksLibrary'
 import { LibraryRequested } from './LibraryRequested'
+import { PlaylistsPage } from './PlaylistsPage'
 
 const PAGE_SIZE = 200
 const LETTERS = ['#', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ']
@@ -37,8 +38,6 @@ export function LibraryPage() {
   const [params] = useSearchParams()
   const { libraries } = useLibraries()
   const library = libraries.find((l) => l.id === id)
-  // A music library keeps the now-playing bar on screen, ready for a pick.
-  useMusicPage(library?.type === 'Music')
   if (!library) return <p className="page-message muted">{libraries.length ? 'This library no longer exists.' : 'Loading…'}</p>
   // Podcasts have pages of their own: what you follow, and Apple's directory to find more.
   if (library.type === 'Podcasts') return <Navigate to="/podcasts" replace />
@@ -50,6 +49,19 @@ export function LibraryPage() {
   // What Lidarr is waiting for (only offered when music can be requested).
   if (library.type === 'Music' && params.get('view') === 'requested')
     return <LibraryRequested key={`${id} requested`} library={library} viewSwitch={<ViewSwitch library={library} view="requested" />} />
+  // The profile's playlists, under the library's views.
+  if (library.type === 'Music' && params.get('view') === 'playlists')
+    return (
+      <PlaylistsPage
+        key={`${id} playlists`}
+        heading={
+          <div className="library-heading">
+            <h1 className="library-title">{library.name}</h1>
+            <ViewSwitch library={library} view="playlists" />
+          </div>
+        }
+      />
+    )
   const all = params.get('view') === 'all' || params.has('sort') || params.has('genre')
   if (all) return <LibraryAll key={id} />
   if (params.get('view') === 'genres' && hasGenres(library)) return <LibraryGenres key={id} library={library} />
@@ -58,7 +70,7 @@ export function LibraryPage() {
 
 const hasGenres = (library: Library) => library.type === 'Movies' || library.type === 'TvShows' || library.type === 'Music'
 
-function ViewSwitch({ library, view }: { library: Library; view: 'browse' | 'all' | 'albums' | 'genres' | 'requested' }) {
+function ViewSwitch({ library, view }: { library: Library; view: 'browse' | 'all' | 'albums' | 'genres' | 'playlists' | 'requested' }) {
   const current = (v: typeof view) => (view === v ? 'page' : undefined)
   // Requested is there when music can be asked for (through Lidarr). The status is cached, so every view asking is cheap.
   const music = library.type === 'Music'
@@ -81,13 +93,17 @@ function ViewSwitch({ library, view }: { library: Library; view: 'browse' | 'all
           Genres
         </Link>
       )}
-      {/* Kept in place while the status loads (no jump); gone only once it says music can't be requested. */}
+      {music && (
+        <Link to={`/library/${library.id}?view=playlists`} aria-current={current('playlists')}>
+          Playlists
+        </Link>
+      )}
+      {/* Last, so the others don't move: kept in place while the status loads, gone once it says music can't be requested. */}
       {music && ((requests.data ? requests.data.configured : !requests.error) || view === 'requested') && (
         <Link to={`/library/${library.id}?view=requested`} aria-current={current('requested')}>
           Requested
         </Link>
       )}
-      {library.type === 'Music' && <Link to="/playlists">Playlists</Link>}
     </nav>
   )
 }

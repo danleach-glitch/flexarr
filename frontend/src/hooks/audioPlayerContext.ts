@@ -1,5 +1,5 @@
 import { bookSpeedPresets } from '../lib/books'
-import { createContext, useContext, useEffect } from 'react'
+import { createContext, useContext } from 'react'
 import type { BookManifest, ItemSummary } from '../api/types'
 import type { SleepTimer } from '../lib/sleepTimer'
 
@@ -11,8 +11,6 @@ export interface AudioPlayer {
   duration: number
   /** A track that couldn't be played just now (and was skipped), said in the bar for a few seconds. */
   failure: string | null
-  /** True while a music page is on screen, when the bar stays put even with nothing queued. */
-  onMusicPage: boolean
   /**
    * Replaces the queue and starts playing at `start`; `openNowPlaying` (Play and Shuffle) puts Now Playing up too, and
    * `at` starts that track part way in (a music library's Resume).
@@ -91,17 +89,4 @@ export function useAudioPlayer(): AudioPlayer {
   const player = useContext(AudioPlayerContext)
   if (!player) throw new Error('useAudioPlayer must be used inside AudioPlayerProvider')
   return player
-}
-
-/** Counts the music pages on screen (the provider keeps the tally). */
-export const MusicPagesContext = createContext<(delta: 1 | -1) => void>(() => undefined)
-
-/** Declares the page a music page while it's mounted (and `active`), so the now-playing bar is always there. */
-export function useMusicPage(active = true) {
-  const count = useContext(MusicPagesContext)
-  useEffect(() => {
-    if (!active) return
-    count(1)
-    return () => count(-1)
-  }, [active, count])
 }

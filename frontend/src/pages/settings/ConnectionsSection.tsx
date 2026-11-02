@@ -79,7 +79,22 @@ export function ConnectionsSection() {
   usePolling(liveStatus.reload, liveStatus.data?.refreshing ? 2000 : null)
   // Which one is open: an index into the list, `new-Sonarr` (and so on) for one being added, 'seerr', 'bazarr', 'tmdb' or 'livetv'.
   const [open, setOpen] = useState<number | `new-${ArrKind}` | OtherService>()
+  // How adding Flexarr's webhook to each app went, by connection name.
+  const [hooks, setHooks] = useState<Record<string, HookState>>({})
   if (!settings) return waiting
+
+  /** Adds Flexarr's webhook to the app (or brings it up to date), and says how that went beside its address. */
+  async function hookUp(name: string) {
+    setHooks((h) => ({ ...h, [name]: { busy: true } }))
+    let next: HookState
+    try {
+      const result = await addArrWebhook(name)
+      next = result.ok ? { ok: true } : { error: result.error ?? `Couldn’t add it to ${name}.` }
+    } catch (e) {
+      next = { error: errorText(e) }
+    }
+    setHooks((h) => ({ ...h, [name]: next }))
+  }
 
   const current = settings.arr.map((a) => ({ name: a.name, kind: a.kind, baseUrl: a.baseUrl, apiKey: undefined as string | undefined }))
   /** The whole list goes to the server, with this one changed (or taken out); keys left blank stay as they were. */
@@ -91,8 +106,9 @@ export function ConnectionsSection() {
     else list.splice(index, 1)
     if (!(await save({ arr: list }))) return
     setOpen(undefined)
-    // A new app gets Flexarr's webhook by itself; if it can't reach Flexarr, the addresses below are there to add by hand.
-    if (index === 'new') void addArrWebhook(entry!.name).catch(() => undefined)
+    // A new app gets Flexarr's webhook by itself, so its imports show straight away; Webhooks below says how that went,
+    // with the address to add by hand if the app can't reach Flexarr.
+    if (index === 'new') void hookUp(entry!.name)
   }
 
   /** A name no connection has yet: the app's own for the first, then Radarr 2 and so on (to be changed to, say, Radarr 4K). */
@@ -249,7 +265,7 @@ export function ConnectionsSection() {
         </SettingsGroup>
 
         <MediaFolders folders={folders.data} hasApps={settings.arr.length > 0} mappings={settings.pathMappings} save={save} />
-        <Webhooks secret={settings.webhookSecret} />
+        <Webhooks secret={settings.webhookSecret} connections={settings.arr} hooks={hooks} onHookUp={hookUp} />
       </section>
     </ServerName>
   )
@@ -1009,8 +1025,24 @@ function SavedMappings({ mappings: saved, save }: { mappings: Settings['pathMapp
   )
 }
 
-/** The addresses Sonarr, Radarr and Lidarr call when something's downloaded, so it shows up straight away. */
-function Webhooks({ secret: savedSecret }: { secret?: string | null }) {
+/** Adding Flexarr's webhook to one app: under way, done, or why it couldn't. */
+type HookState = { busy?: boolean; ok?: boolean; error?: string }
+
+/**
+ * The addresses Sonarr, Radarr and Lidarr call when something's downloaded, so it shows up straight away, with a button
+ * per connected app that adds it there (done by itself when an app is connected).
+ */
+function Webhooks({
+  secret: savedSecret,
+  connections,
+  hooks,
+  onHookUp,
+}: {
+  secret?: string | null
+  connections: { name: string; kind: ArrKind }[]
+  hooks: Record<string, HookState>
+  onHookUp: (name: string) => void
+}) {
   const [secret, setSecret] = useState(savedSecret)
   const [asking, setAsking] = useState(false)
   const [state, setState] = useState<{ busy?: boolean; error?: string; done?: boolean }>({})
@@ -1044,12 +1076,13 @@ function Webhooks({ secret: savedSecret }: { secret?: string | null }) {
     >
       {state.done && (
         <p className="key-note" role="status">
-          New secret made. Give Sonarr, Radarr and Lidarr these new addresses: until then they can’t start scans.
+          New secret made. Add it to each app below (or give them these new addresses): until then they can’t start scans.
         </p>
       )}
       <ul className="plain-list webhook-list">
         {(['Sonarr', 'Radarr', 'Lidarr'] as const).map((app) => {
           const address = `${origin}/api/v1/webhooks/${app.toLowerCase()}?secret=${secret ?? '…'}`
+          const mine = connections.filter((c) => c.kind === app)
           return (
             <li key={app}>
               <img className="app-logo" src={appLogos[app]} alt="" />
@@ -1057,7 +1090,24 @@ function Webhooks({ secret: savedSecret }: { secret?: string | null }) {
               <code className="secret-field webhook-address" title={address}>
                 {address}
               </code>
-              {secret && <CopyButton text={address} what={`the ${app} address`} />}
+              {secret ? <CopyButton text={address} what={`the ${app} address`} /> : <span />}
+              <span className="webhook-hooks">
+                {mine.map((c) => (
+                  <AsyncButton key={c.name} className="button quiet small" busy={hooks[c.name]?.busy} onClick={() => onHookUp(c.name)}>
+                    {hooks[c.name]?.ok ? <Check className="test-ok" /> : hooks[c.name]?.error ? <Close className="test-bad" /> : null}
+                    {hooks[c.name]?.ok ? `Added to ${c.name}` : `Add to ${c.name}`}
+                  </AsyncButton>
+                ))}
+              </span>
+              {mine.flatMap((c) =>
+                hooks[c.name]?.error
+                  ? [
+                      <p key={c.name} className="error webhook-error" role="alert">
+                        {hooks[c.name].error}
+                      </p>,
+                    ]
+                  : [],
+              )}
             </li>
           )
         })}

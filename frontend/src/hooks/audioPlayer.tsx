@@ -22,7 +22,7 @@ import { useMusicSettings } from '../lib/musicSettings'
 import { FADE_SECONDS } from '../lib/sleepTimer'
 import { createEngine, isPodcast, type AudioEngine } from './audioEngine'
 import { announceBookmarks, useBookmarkChanges } from './bookmarks'
-import { AudioPlayerContext, AudioTimeContext, MusicPagesContext, type AudioPlayer, type SleepTimer } from './audioPlayerContext'
+import { AudioPlayerContext, AudioTimeContext, type AudioPlayer, type SleepTimer } from './audioPlayerContext'
 import { emptyQueue, queueReducer, queueStorageKey, readStoredQueue, rebuildQueue, serializeQueue, type StoredQueue } from './queue'
 
 const speedKey = 'flexarr.podcastSpeed'
@@ -63,7 +63,6 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   const [duration, setDuration] = useState(0)
   const [failure, setFailure] = useState<string | null>(null)
   const failureTimer = useRef<number | undefined>(undefined)
-  const [musicPages, setMusicPages] = useState(0)
   // Where a restored queue was: Play starts from there rather than the beginning.
   const resumeAt = useRef(0)
   // Where the next track started by Play begins, once (see `play`'s `at`).
@@ -481,7 +480,6 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     )
   }, [])
   useBookmarkChanges(book?.itemId, refreshBookmarks, true)
-  const countMusicPage = useCallback((delta: 1 | -1) => setMusicPages((n) => n + delta), [])
 
   // Operating-system media controls.
   const chapterTitle = chapters ? chapters[chapterIndexAt(chapters, time)]?.title : undefined
@@ -524,7 +522,6 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       playing,
       duration,
       failure,
-      onMusicPage: musicPages > 0,
       play,
       nowPlayingOpen,
       setNowPlayingOpen,
@@ -564,7 +561,6 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       playing,
       duration,
       failure,
-      musicPages,
       play,
       nowPlayingOpen,
       enqueue,
@@ -599,14 +595,12 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   )
   return (
     <AudioPlayerContext value={value}>
-      <MusicPagesContext value={countMusicPage}>
-        <AudioTimeContext value={time}>
-          {children}
-          {/* preload="auto" so the next track buffers as soon as it has a source, before anyone presses anything. */}
-          <audio ref={audioA} hidden preload="auto" />
-          <audio ref={audioB} hidden preload="auto" />
-        </AudioTimeContext>
-      </MusicPagesContext>
+      <AudioTimeContext value={time}>
+        {children}
+        {/* preload="auto" so the next track buffers as soon as it has a source, before anyone presses anything. */}
+        <audio ref={audioA} hidden preload="auto" />
+        <audio ref={audioB} hidden preload="auto" />
+      </AudioTimeContext>
     </AudioPlayerContext>
   )
 }

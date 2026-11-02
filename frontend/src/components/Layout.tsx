@@ -100,7 +100,7 @@ export function Layout() {
   const bare = location.pathname.startsWith('/settings')
   // The page keeps clear of the now-playing bar while it's showing.
   const music = useAudioPlayer()
-  const nowPlaying = music.current !== undefined || music.onMusicPage
+  const nowPlaying = music.current !== undefined
 
   // The profile menu closes on a click anywhere outside it, or Escape.
   const profileAnchor = useRef<HTMLDivElement>(null)

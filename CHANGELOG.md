@@ -38,6 +38,11 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Without Lidarr, Discover › Music, Follow and Request aren't shown. With Lidarr connected but not answering, they're greyed.
 - Music libraries without Lidarr get their **Genres** from the files' genre tags, as new albums are scanned.
 - An artist's page from outside your library opens sooner, with the usual spinner while it loads. Artist and album pages put their buttons in the same order in every app.
+- On the web, **Playlists** is one of a music library's views, beside **Genres**, with **Requested** last. With no playlists yet, **New playlist** waits in the middle of the page.
+- On the web, **Add to playlist** is smaller: pick a playlist, or name a new one on a single line.
+- On the web, **Fans also like** (and every artist card) says **Following** for an artist in your library that Lidarr follows, and offers **Follow** for one it doesn't.
+- On the web, the player bar along the bottom only shows while something is playing.
+- In **Settings › Connections**, adding Lidarr (or Sonarr or Radarr) says whether Flexarr's webhook got added to it, so new music shows up as soon as it's imported. **Webhooks** has an **Add to** button for each connected app, to add it later or after making a new secret.
 
 ## 0.58.0 · 2 November 2026
 

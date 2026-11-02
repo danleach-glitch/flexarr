@@ -74,6 +74,21 @@ describe('MusicExternalCard', () => {
     expect(sent).toEqual([{ kind: 'artist', deezerId: 134334152 }])
   })
 
+  it('says Following for an artist in the library Lidarr follows, and Follow for one it doesn’t', () => {
+    const { unmount } = renderCard({ ...artist, availability: 'Available', libraryItemId: 'ar1', followed: true })
+    expect(screen.getByRole('link').getAttribute('href')).toBe('/item/ar1')
+    expect(screen.getByRole('button', { name: 'Following' })).toBeTruthy()
+    unmount()
+
+    renderCard({ ...artist, availability: 'Available', libraryItemId: 'ar1', followed: false })
+    expect(screen.getByRole('button', { name: 'Follow' })).toBeTruthy()
+  })
+
+  it('offers nothing for a library artist on a server that doesn’t say who is followed', () => {
+    renderCard({ ...artist, availability: 'Available', libraryItemId: 'ar1' })
+    expect(screen.queryByRole('button')).toBeNull()
+  })
+
   it('opens an album you have in the library, with nothing to request', () => {
     renderCard({ ...album, availability: 'Available', libraryItemId: 'a1' })
 

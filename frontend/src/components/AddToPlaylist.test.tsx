@@ -52,7 +52,7 @@ describe('Add to playlist', () => {
     })
     render(<AddToPlaylistDialog item={{ id: 'album-1', title: '13' }} onClose={() => undefined} />)
 
-    expect(await screen.findByText('No playlists yet. Start one below.')).toBeInTheDocument()
+    expect(await screen.findByPlaceholderText('Name your first playlist')).toHaveFocus()
     const create = screen.getByRole('button', { name: 'Create' })
     expect(create).toBeDisabled()
     fireEvent.change(screen.getByLabelText('New playlist'), { target: { value: ' Chill ' } })

@@ -37,7 +37,7 @@ import { EpisodeCard } from '../components/EpisodeCard'
 import { Row } from '../components/Row'
 import { EpisodeNotes } from '../components/EpisodeNotes'
 import { useAgeLimits } from '../hooks/sessionContext'
-import { useAudioPlayer, useMusicPage } from '../hooks/audioPlayerContext'
+import { useAudioPlayer } from '../hooks/audioPlayerContext'
 import { useApi } from '../hooks/useApi'
 import { episodeAsTrack, episodeDate, episodeLength, episodeProgress, looksLikeFeedUrl } from '../lib/podcasts'
 
@@ -105,7 +105,6 @@ export function PodcastsPage() {
 }
 
 function PodcastsHome() {
-  useMusicPage()
   const { limited } = useAgeLimits()
   const [version, setVersion] = useState(0)
   const changed = useCallback(() => setVersion((v) => v + 1), [])
@@ -578,7 +577,6 @@ export function PodcastPage() {
 
 function PodcastShow() {
   const { id = '' } = useParams()
-  useMusicPage()
   const [version, setVersion] = useState(0)
   const changed = useCallback(() => setVersion((v) => v + 1), [])
   const show = useApi((signal) => getPodcast(id, signal), [id, version])
@@ -780,7 +778,6 @@ export function PodcastEpisodePage() {
 
 function EpisodeDetail() {
   const { id = '' } = useParams()
-  useMusicPage()
   const [version, setVersion] = useState(0)
   const episode = useApi((signal) => getPodcastEpisode(id, signal), [id, version])
   const player = useAudioPlayer()

@@ -172,8 +172,16 @@ export function MusicExternalCard({ item, showArtist = true, unanswered = false 
       <span className="card-title">{item.title}</span>
       {subtitle && <span className="card-subtitle">{subtitle}</span>}
       <div className="external-card-actions">
-        {(item.kind === 'album' || !item.libraryItemId) && (
-          <MusicRequestButton request={request} availability={item.availability} libraryItemId={item.libraryItemId} kind={item.kind} title={item.title} unanswered={unanswered} />
+        {/* A library artist can still be followed: servers that say whether they are (0.59 on) offer it. */}
+        {(item.kind === 'album' || !item.libraryItemId || item.followed != null) && (
+          <MusicRequestButton
+            request={request}
+            availability={item.kind === 'artist' && item.followed != null ? (item.followed ? 'Requested' : 'None') : item.availability}
+            libraryItemId={item.libraryItemId}
+            kind={item.kind}
+            title={item.title}
+            unanswered={unanswered}
+          />
         )}
       </div>
     </div>

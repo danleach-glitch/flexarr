@@ -9,6 +9,8 @@ namespace Flexarr.Api.Endpoints.MusicRequests;
 /// <param name="Artist">An album's artist.</param>
 /// <param name="RecordType">An album's kind on Deezer: "album", "ep", "single" or "compile".</param>
 /// <param name="MusicBrainzId">An album's MusicBrainz release group, when Lidarr listed it.</param>
+/// <param name="Followed">An artist Lidarr watches for new releases, even one already in the library (whose
+/// <paramref name="Availability"/> says Available). Null for albums. Absent from servers before 0.59.</param>
 public sealed record MusicExternalDto(
     string Kind,
     long DeezerId,
@@ -20,7 +22,8 @@ public sealed record MusicExternalDto(
     AvailabilityDto Availability,
     Guid? LibraryItemId,
     string? RecordType = null,
-    string? MusicBrainzId = null);
+    string? MusicBrainzId = null,
+    bool? Followed = null);
 
 /// <param name="Shape">"artists" (round photos) or "albums" (square covers).</param>
 public sealed record MusicRowDto(string Id, string Title, string Shape, IReadOnlyList<MusicExternalDto> Items);
