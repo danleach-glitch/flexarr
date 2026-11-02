@@ -7,7 +7,7 @@ import { episodeCode } from '../lib/format'
 import { useModal } from '../hooks/useModal'
 
 /**
- * Confirms deleting a film, show, episode or book for good. Radarr or Sonarr delete the files from disk when they manage it;
+ * Confirms deleting a film, show, episode, book, album or artist for good. Radarr, Sonarr or Lidarr delete the files from disk when they manage it;
  * otherwise (and always for books) Flexarr does, and the dialog lists the files first.
  */
 export function DeleteDialog({ item, onDeleted, onClose }: { item: ItemSummary; onDeleted: () => void; onClose: () => void }) {
@@ -23,6 +23,10 @@ export function DeleteDialog({ item, onDeleted, onClose }: { item: ItemSummary; 
       ? { name: item.title, noun: 'movie', detail: 'Radarr deletes the movie’s files from disk and stops tracking it.' }
       : item.kind === 'Audiobook'
         ? { name: item.title, noun: 'book', detail: '' } // no app manages books: the file list below says it all
+      : item.kind === 'Artist'
+        ? { name: item.title, noun: 'artist', detail: 'Lidarr deletes the artist and all their files from disk.' }
+      : item.kind === 'Album'
+        ? { name: item.title, noun: 'album', detail: 'Lidarr deletes the album’s files from disk and won’t download it again. You can still request it later.' }
       : item.kind === 'Series'
         ? { name: item.title, noun: 'show', detail: 'Sonarr deletes the files of every episode from disk and stops tracking the show.' }
         : {

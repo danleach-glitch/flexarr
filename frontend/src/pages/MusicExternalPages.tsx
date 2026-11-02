@@ -2,6 +2,7 @@ import { Link, useParams } from 'react-router'
 import { getMusicAlbum, getMusicArtist, imageUrl, type MusicExternal } from '../api/client'
 import { Artwork } from '../components/Artwork'
 import { MusicExternalCard, MusicRequestButton } from '../components/MusicExternalCard'
+import { PageError, PageLoading } from '../components/PageStatus'
 import { Row } from '../components/Row'
 import { useApi } from '../hooks/useApi'
 import { formatClock, formatDuration } from '../lib/format'
@@ -36,8 +37,9 @@ export function MusicShelves({ albums, showArtist = false }: { albums: MusicExte
 export function MusicExternalArtistPage() {
   const { id = '' } = useParams()
   const artist = useApi((signal) => getMusicArtist(id, signal), [id])
-  if (artist.error) return <p className="error page-error">{artist.error.message}</p>
-  if (!artist.data) return <p className="muted page-loading">Loading…</p>
+  // Deezer's answer can take a moment the first time: the shared spinner meanwhile.
+  if (artist.error) return <PageError error={artist.error} onRetry={artist.reload} />
+  if (!artist.data) return <PageLoading label="Loading artist" />
   const a = artist.data
 
   return (
@@ -60,7 +62,7 @@ export function MusicExternalArtistPage() {
                 In your library
               </Link>
             )}
-            <MusicRequestButton key={String(a.followed)} kind="artist" size="large" request={{ kind: 'artist', deezerId: a.deezerId }} availability={a.followed ? 'Requested' : 'None'} />
+            <MusicRequestButton key={String(a.followed)} kind="artist" size="large" request={{ kind: 'artist', deezerId: a.deezerId }} availability={a.followed ? 'Requested' : 'None'} title={a.name} />
           </div>
         </div>
       </header>
@@ -80,8 +82,8 @@ export function MusicExternalArtistPage() {
 export function MusicExternalAlbumPage() {
   const { id = '' } = useParams()
   const album = useApi((signal) => getMusicAlbum(id, signal), [id])
-  if (album.error) return <p className="error page-error">{album.error.message}</p>
-  if (!album.data) return <p className="muted page-loading">Loading…</p>
+  if (album.error) return <PageError error={album.error} onRetry={album.reload} />
+  if (!album.data) return <PageLoading label="Loading album" />
   const a = album.data
   const discs = new Set(a.tracks.map((t) => t.disc)).size
   const kind = a.recordType === 'ep' ? 'EP' : a.recordType === 'single' ? 'Single' : a.recordType === 'compile' ? 'Compilation' : null
@@ -119,7 +121,7 @@ export function MusicExternalAlbumPage() {
                 In your library
               </Link>
             ) : (
-              <MusicRequestButton kind="album" size="large" request={{ kind: 'album', deezerId: a.deezerId }} availability={a.availability} />
+              <MusicRequestButton kind="album" size="large" request={{ kind: 'album', deezerId: a.deezerId }} availability={a.availability} title={a.title} />
             )}
           </div>
         </div>
