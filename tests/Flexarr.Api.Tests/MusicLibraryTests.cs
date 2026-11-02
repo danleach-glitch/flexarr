@@ -24,8 +24,9 @@ public class MusicLibraryTests(FlexarrApiFactory factory) : IClassFixture<Flexar
         Assert.NotNull(browse);
         // Portishead's Dummy was played last (its first track, heard through), so it carries on at the second. Massive
         // Attack (played most) comes next, then Tricky, never played but with fanart; Burial has none, so no slide.
-        // Portishead are on the album's slide already. Then the two newest albums not shown yet.
-        Assert.Equal(["Dummy", "Massive Attack", "Tricky", "Untrue", "Maxinquaye"], browse.Featured.Select(i => i.Title));
+        // Portishead are on the album's slide already. Then the two newest albums with a picture: not Untrue, as Burial
+        // has no fanart.
+        Assert.Equal(["Dummy", "Massive Attack", "Tricky", "Maxinquaye", "Portishead"], browse.Featured.Select(i => i.Title));
         Assert.Equal(MediaKind.Album, browse.Featured[0].Kind);
         Assert.Equal("Portishead", browse.Featured[0].SeriesTitle);
         var resume = Assert.Single(browse.Resumes!);
@@ -66,6 +67,56 @@ public class MusicLibraryTests(FlexarrApiFactory factory) : IClassFixture<Flexar
     }
 
     [Fact]
+    public async Task TheHero_ResumesATrackStoppedTooEarlyForAPlace_AndStartsTheNextTrackFromTheTop()
+    {
+        var music = await SeedAsync();
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            // Sour Times was left half way weeks ago; Mysterons (before it) was heard through yesterday.
+            db.Add(new PlaybackState { MediaItemId = music.Tracks["Sour Times"], PositionSeconds = 95, LastPlayedAt = DateTime.UtcNow.AddDays(-30) });
+            await db.SaveChangesAsync();
+        }
+
+        var next = await Client().GetFromJsonAsync<HomeDto>(Api($"/libraries/{music.Library}/browse"), Json);
+        // The next track, from the top: its old place isn't where this listen got to.
+        Assert.Equal("Sour Times", next!.Resumes![next.Featured[0].Id].Title);
+        Assert.Equal(0, next.Resumes[next.Featured[0].Id].UserData.PositionSeconds);
+
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            // Teardrop started and stopped 20 seconds in: too early for a place, not heard through.
+            db.Add(new PlaybackState { MediaItemId = music.Tracks["Teardrop"], LastPlayedAt = DateTime.UtcNow });
+            await db.SaveChangesAsync();
+        }
+
+        var early = await Client().GetFromJsonAsync<HomeDto>(Api($"/libraries/{music.Library}/browse"), Json);
+        Assert.Equal("Mezzanine", early!.Featured[0].Title);
+        Assert.Equal("Teardrop", early.Resumes![early.Featured[0].Id].Title);
+    }
+
+    [Fact]
+    public async Task ALibraryWithNoArtwork_HasNoHero()
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        var library = new Library { Name = $"Music {Guid.NewGuid():N}", Type = LibraryType.Music };
+        var artist = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Artist, Title = "Tagged Only", SortTitle = "tagged only" };
+        var album = new MediaItem { LibraryId = library.Id, ParentId = artist.Id, Kind = MediaKind.Album, Title = "From Tags", SortTitle = "from tags" };
+        var track = new MediaItem { LibraryId = library.Id, ParentId = album.Id, Kind = MediaKind.Track, Title = "One", SortTitle = "001", TrackNumber = 1 };
+        db.AddRange(library, artist, album, track);
+        await db.SaveChangesAsync();
+        db.Add(new PlaybackState { MediaItemId = track.Id, PlayCount = 1, Watched = true, LastPlayedAt = DateTime.UtcNow });
+        await db.SaveChangesAsync();
+
+        var browse = await Client().GetFromJsonAsync<HomeDto>(Api($"/libraries/{library.Id}/browse"), Json);
+
+        Assert.Empty(browse!.Featured);
+        Assert.NotEmpty(browse.Rows);
+    }
+
+    [Fact]
     public async Task AProfileThatHasPlayedNothing_GetsArtistsWithFanart_AndNewAlbums_WithoutResume()
     {
         var music = await SeedAsync();
@@ -75,7 +126,7 @@ public class MusicLibraryTests(FlexarrApiFactory factory) : IClassFixture<Flexar
         var browse = await Client(token).GetFromJsonAsync<HomeDto>(Api($"/libraries/{music.Library}/browse"), Json);
 
         // Best-rated first, those with a logo ahead.
-        Assert.Equal(["Massive Attack", "Portishead", "Tricky", "Untrue", "Maxinquaye"], browse!.Featured.Select(i => i.Title));
+        Assert.Equal(["Massive Attack", "Portishead", "Tricky", "Maxinquaye", "Portishead"], browse!.Featured.Select(i => i.Title));
         Assert.Empty(browse.Resumes!);
     }
 

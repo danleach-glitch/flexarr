@@ -24,10 +24,8 @@ public class MusicDiscoveryTests(FlexarrApiFactory factory) : IClassFixture<Flex
         var home = await Client().GetFromJsonAsync<HomeDto>(Api($"/libraries/{music.Library}/browse"), Json);
 
         Assert.NotNull(home);
-        // No artist here has fanart: the hero is the album played last, carrying on at its next track, and new albums.
-        Assert.Equal("Different Class", home.Featured[0].Title);
-        Assert.Equal("Disco 2000", home.Resumes![home.Featured[0].Id].Title);
-        Assert.DoesNotContain(home.Featured, i => i.Kind == MediaKind.Artist);
+        // Nothing here has a picture, so there's no hero: the rows stand on their own.
+        Assert.Empty(home.Featured);
         Assert.Equal(["music-recent", "music-top", "music-artists", "recent"], home.Rows.Select(r => r.Id));
 
         var recent = home.Rows[0];
