@@ -14,6 +14,21 @@ Lidarr isn't required, but it makes a big difference. With it, artists and album
 
 A track by someone other than the album's artist, such as a duet or a compilation track, shows its own artist. Compilations without an album artist are filed under **Various Artists**.
 
+## Browsing a music library
+
+A music library opens on **Browse**, as Movies and TV do. The picture across the top starts with the album you played last. **Resume** carries on from the next track, or from where you stopped in a song left half way. Then come a few artists you play, with **Play** to shuffle them and **Radio** for a station of them and artists like them, and the newest albums. Under it are your rows, then **Your artists**.
+
+The words at the top switch between four views:
+
+- **Browse:** the picture and the rows.
+- **Artists:** every artist, A to Z.
+- **Albums:** every album, sorted A to Z, by **Recently added** or by year.
+- **Genres:** a tile for each genre, biggest first. A genre counts every album tagged with it, on the album or its artist. Open one to see its albums, with **Play** and **Shuffle** for up to 200 of its tracks.
+
+On Apple TV, **Settings › Libraries** chooses which view music opens on. The Top Shelf shows the albums you played last, and Play there starts one.
+
+The picture needs artists' artwork from Lidarr. A library with none shows its rows without it.
+
 ## Playing and the queue
 
 Every artist, album and playlist has **Play** and **Shuffle**, which open Now Playing. An artist's Play runs through their whole catalogue, oldest album first. Picking a single song leaves you on the list.
@@ -61,10 +76,8 @@ Any tool that saves `.lrc` files next to your music works.
 
 ## Made for you, and radio
 
-These are on the web for now.
-
 - **Daily mixes:** up to four for each profile, built from what it plays, grouping artists who share genres ("Rock Mix"). About 40 tracks each, the same all day and fresh tomorrow. They appear once a profile has played twenty or so tracks, in a **Made for you** row on Home and in a music library's Browse view.
-- **Artist radio:** start it from an artist's page. It's a station of about fifty tracks from that artist and others sharing their genres.
+- **Artist radio:** start it from an artist's page on the web, or with **Radio** on a music library's picture in any app. It's a station of about fifty tracks from that artist and others sharing their genres.
 - **Home rows:** **Recently played**, **Most played**, **More from artists you play** and **New albums**. Move them or turn them off in **Settings › Home & browse**.
 
 ## Gapless, crossfade and volume
