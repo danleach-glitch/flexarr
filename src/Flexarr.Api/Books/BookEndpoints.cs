@@ -217,6 +217,9 @@ public static class BookEndpoints
             {
                 ["region"] = request.Region ?? current.Region,
                 ["providers"] = request.Providers is { } chosen ? new System.Text.Json.Nodes.JsonArray([.. chosen.Distinct().Select(p => (System.Text.Json.Nodes.JsonNode?)p)]) : current.Providers is { } kept ? new System.Text.Json.Nodes.JsonArray([.. kept.Select(p => (System.Text.Json.Nodes.JsonNode?)p)]) : null,
+                ["knownProviders"] = request.Providers is not null || current.Providers is not null
+                    ? new System.Text.Json.Nodes.JsonArray([.. (request.Providers is not null ? Flexarr.Metadata.Books.BookMetadataSettings.AllProviders : current.KnownProviders ?? [.. Flexarr.Metadata.Books.BookMetadataSettings.FirstProviders]).Select(p => (System.Text.Json.Nodes.JsonNode?)p)])
+                    : null,
                 ["googleBooksKey"] = request.GoogleBooksKey is { } g ? (g.Trim() is { Length: > 0 } gk ? gk : null) : current.GoogleBooksKey,
                 ["hardcoverToken"] = request.HardcoverToken is { } h ? (h.Trim() is { Length: > 0 } hk ? hk : null) : current.HardcoverToken,
             });

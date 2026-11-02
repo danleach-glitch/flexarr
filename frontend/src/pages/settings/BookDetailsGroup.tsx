@@ -4,7 +4,7 @@ import { AsyncButton } from '../../components/AsyncButton'
 import { useApi } from '../../hooks/useApi'
 import { SaveStatus, SettingRow, SettingsGroup, ToggleRow } from './shared'
 
-const providerNames: Record<string, string> = { audible: 'Audible', openlibrary: 'Open Library', google: 'Google Books', hardcover: 'Hardcover' }
+const providerNames: Record<string, string> = { audible: 'Audible', itunes: 'Apple Books', openlibrary: 'Open Library', google: 'Google Books', hardcover: 'Hardcover' }
 
 const regionNames: Record<string, string> = {
   us: 'United States',

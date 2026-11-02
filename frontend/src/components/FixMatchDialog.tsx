@@ -247,4 +247,4 @@ function BookMatchDialog({ item, onFixed, onClose }: Props) {
   )
 }
 
-const providerName: Record<string, string> = { audible: 'Audible', openlibrary: 'Open Library', google: 'Google Books', hardcover: 'Hardcover' }
+const providerName: Record<string, string> = { audible: 'Audible', itunes: 'Apple Books', openlibrary: 'Open Library', google: 'Google Books', hardcover: 'Hardcover' }

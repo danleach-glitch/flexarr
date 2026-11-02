@@ -11,10 +11,42 @@ namespace Flexarr.Metadata.Books;
 
 /// <summary>How the server looks books up online. Admins set the order and Audible's region; keys are optional.</summary>
 /// <param name="Region">Audible's store: "us", "uk", "ca", "au", "de", "fr", "it", "es", "in", "jp".</param>
-/// <param name="Providers">The providers to ask, in order: "audible", "openlibrary", "google", "hardcover".</param>
+/// <param name="Providers">The providers to ask, in order: "audible", "itunes", "openlibrary", "google", "hardcover".</param>
 public sealed record BookMetadataSettings(string Region, IReadOnlyList<string> Providers, string? GoogleBooksKey = null, string? HardcoverToken = null)
 {
-    public static readonly IReadOnlyList<string> AllProviders = ["audible", "openlibrary", "google", "hardcover"];
+    /// <summary>Every provider, in the order of trust Settings keeps them in.</summary>
+    public static readonly IReadOnlyList<string> AllProviders = ["audible", "itunes", "openlibrary", "google", "hardcover"];
+
+    /// <summary>
+    /// The providers there were before Apple Books was added: a list saved back then gets the newer ones switched on
+    /// (see <c>BookMetadataOptions.Resolved</c>), since nobody chose to leave them off.
+    /// </summary>
+    public static readonly IReadOnlyList<string> FirstProviders = ["audible", "openlibrary", "google", "hardcover"];
+
+    /// <summary>
+    /// A saved list, with each provider the admin hadn't seen yet (not in <paramref name="known"/>) switched on in its
+    /// place in the order of trust.
+    /// </summary>
+    public static IReadOnlyList<string> WithNewProviders(IReadOnlyList<string> chosen, IReadOnlyCollection<string> known)
+    {
+        ArgumentNullException.ThrowIfNull(chosen);
+        ArgumentNullException.ThrowIfNull(known);
+        var list = chosen.ToList();
+        for (var i = 0; i < AllProviders.Count; i++)
+        {
+            var provider = AllProviders[i];
+            if (known.Contains(provider) || list.Contains(provider))
+            {
+                continue;
+            }
+
+            // After the nearest provider above it that's in the list, else first.
+            var before = AllProviders.Take(i).Reverse().Select(p => list.IndexOf(p)).FirstOrDefault(at => at >= 0, -1);
+            list.Insert(before + 1, provider);
+        }
+
+        return list;
+    }
 
     public static BookMetadataSettings Default { get; } = new("us", AllProviders);
 
@@ -22,7 +54,7 @@ public sealed record BookMetadataSettings(string Region, IReadOnlyList<string> P
 }
 
 /// <summary>A book as an online provider describes it.</summary>
-/// <param name="Provider">"audible", "openlibrary", "google" or "hardcover".</param>
+/// <param name="Provider">"audible", "itunes", "openlibrary", "google" or "hardcover".</param>
 /// <param name="Id">Its id there (an ASIN for Audible).</param>
 public sealed record BookMatch(
     string Provider, string Id, string Title, string? Subtitle, IReadOnlyList<string> Authors, IReadOnlyList<string> Narrators,
@@ -105,8 +137,8 @@ public sealed class BookProviderThrottle(TimeProvider? time = null)
 }
 
 /// <summary>
-/// Looks books up online: Audible (through Audnexus, and Audible's own catalogue for searching), Open Library, Google
-/// Books and Hardcover. All of them are someone else's service, Audnexus and the catalogue unofficially so, so answers
+/// Looks books up online: Audible (through Audnexus, and Audible's own catalogue for searching), Apple Books (the iTunes
+/// Search API), Open Library, Google Books and Hardcover. All of them are someone else's service, Audnexus and the catalogue unofficially so, so answers
 /// are kept on disk for a month and nothing depends on any of them staying up: a provider that fails is skipped, and
 /// one that says it's had too many requests is left alone for a while (see <see cref="BookProviderThrottle"/>).
 /// </summary>
@@ -198,6 +230,7 @@ public sealed partial class BookProviders(HttpClient http, Func<IMetadataSetting
     private Task<List<BookMatch>> SearchOneAsync(string provider, string title, string? author, CancellationToken ct) => TryListAsync(() => provider switch
     {
         "audible" => AudibleSearchAsync(title, author, ct),
+        "itunes" => AppleSearchAsync(title, author, ct),
         "openlibrary" => OpenLibrarySearchAsync(title, author, ct),
         "google" => GoogleSearchAsync($"intitle:{title}" + (author is null ? "" : $"+inauthor:{author}"), ct),
         "hardcover" => HardcoverSearchAsync(title, author, ct),
@@ -400,6 +433,39 @@ public sealed partial class BookProviders(HttpClient http, Func<IMetadataSetting
 
     [System.Text.RegularExpressions.GeneratedRegex("^OL[0-9]+A$")]
     private static partial System.Text.RegularExpressions.Regex OpenLibraryAuthorKey();
+
+    // ---- Apple Books, through the iTunes Search API (no key; searching only, as it lists no ISBNs or ASINs) ----
+
+    /// <summary>Apple's store for the admin's Audible region: the same country, under its ISO code.</summary>
+    private string AppleCountry => Options.Region == "uk" ? "gb" : Options.Region;
+
+    /// <summary>The language most of the store's books are in, for putting other languages' editions last.</summary>
+    private string AppleLanguage => Options.Region switch
+    {
+        "de" => "German", "fr" => "French", "it" => "Italian", "es" => "Spanish", "jp" => "Japanese", _ => "English",
+    };
+
+    private async Task<List<BookMatch>> AppleSearchAsync(string title, string? author, CancellationToken ct)
+    {
+        var term = author is null ? title : $"{title} {author}";
+        var url = $"https://itunes.apple.com/search?term={Uri.EscapeDataString(term)}&media=audiobook&entity=audiobook&limit=10&country={AppleCountry}";
+        var found = await GetAsync(url, ct).ConfigureAwait(false);
+        var matches = (found?["results"] as JsonArray ?? []).OfType<JsonObject>()
+            .Where(r => Text(r, "wrapperType") == "audiobook" && Text(r, "collectionId") is not null && Text(r, "collectionName") is not null)
+            .Select(AppleBook).ToList();
+        // The store's own language first: a search in the UK store lists the Italian and Spanish editions too.
+        return [.. matches.OrderBy(m => m.Language == AppleLanguage ? 0 : 1)];
+    }
+
+    private static BookMatch AppleBook(JsonObject r)
+    {
+        var name = AppleTitle.Parse(Text(r, "collectionName")!);
+        var description = Text(r, "description") is { } d ? BookSidecars.PlainText(d) : null;
+        var authors = AppleTitle.Authors(Text(r, "artistName"));
+        return new BookMatch("itunes", Text(r, "collectionId")!, name.Title, name.Subtitle, authors, [], name.Series,
+            description, AppleTitle.Publisher(Text(r, "copyright"), authors), Date(Text(r, "releaseDate")), AppleTitle.LanguageOf(description), null, null,
+            AppleTitle.Cover(Text(r, "artworkUrl100")), Text(r, "primaryGenreName") is { } genre ? [genre] : [], null, name.Abridged);
+    }
 
     // ---- Open Library ----
 

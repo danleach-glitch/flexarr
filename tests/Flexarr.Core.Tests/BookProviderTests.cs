@@ -176,6 +176,82 @@ public sealed class BookProviderTests : IAsyncLifetime
         Assert.Contains(again, m => m.Provider == "openlibrary"); // the others are still asked
     }
 
+    [Fact]
+    public async Task AppleBooks_ReadsTheSeriesAndEditionFromTheTitle_WithALargeCover()
+    {
+        _books = new("us", ["itunes"]);
+        var providers = new BookProviders(new HttpClient(_web), () => new Settings(_dir, _books));
+
+        var found = await providers.SearchAsync("Dungeon Crawler Carl", "Matt Dinniman", default);
+
+        var first = found[0];
+        Assert.Equal(("itunes", "Dungeon Crawler Carl", false, "Audible Studios", "English"), (first.Provider, first.Title, first.Abridged, first.Publisher, first.Language));
+        Assert.Equal(new SeriesPart("Dungeon Crawler Carl", "1"), Assert.Single(first.Series));
+        Assert.Equal(["Matt Dinniman"], first.Authors);
+        Assert.EndsWith("/2000x2000bb.jpg", first.Cover, StringComparison.Ordinal);
+        Assert.NotNull(ArtworkUrl.TrustedRemote(first.Cover)); // the image endpoint will fetch it
+        Assert.DoesNotContain("<", first.Description, StringComparison.Ordinal);
+        Assert.Contains(_web.Requests, r => r.Contains("country=us", StringComparison.Ordinal) && r.Contains("media=audiobook", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task AppleBooks_PutsTheStoresLanguageFirst_SoTheEnglishEditionIsFound()
+    {
+        _books = new("uk", ["itunes"]);
+        var providers = new BookProviders(new HttpClient(_web), () => new Settings(_dir, _books));
+
+        var found = await providers.FindAsync("Project Hail Mary", ["Andy Weir"], default);
+
+        Assert.Equal(("itunes", "1565808256", "English"), (found?.Provider, found?.Id, found?.Language));
+        Assert.Contains(_web.Requests, r => r.Contains("country=gb", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task AppleBooks_FillsABookAudibleDoesntHave()
+    {
+        _books = new("uk", ["audible", "itunes"]);
+        var library = await SeedAsync("Project Hail Mary", "Andy Weir");
+
+        await Refresher().RefreshLibraryAsync(library, force: true, default);
+
+        var book = await _db.MediaItems.Include(i => i.Book).SingleAsync();
+        Assert.Equal(("itunes", new DateOnly(2021, 5, 4), "Audible Studios"), (book.MetadataSource, book.ReleaseDate!.Value, book.Book!.Publisher));
+        Assert.StartsWith("https://is1-ssl.mzstatic.com/", book.PosterUrl, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("This Inevitable Ruin: Dungeon Crawler Carl, Book 7 (Unabridged)", "This Inevitable Ruin", null, "Dungeon Crawler Carl", "7", false)]
+    [InlineData("Mother of Learning Arc 4: Mother of Learning, Book 4", "Mother of Learning Arc 4", null, "Mother of Learning", "4", null)]
+    [InlineData("The Way of Kings (The Stormlight Archive, Book 1)", "The Way of Kings", null, "The Stormlight Archive", "1", null)]
+    [InlineData("He Who Fights with Monsters: A LitRPG Adventure", "He Who Fights with Monsters", "A LitRPG Adventure", null, null, null)]
+    [InlineData("Sapiens [Abridged]", "Sapiens", null, null, null, true)]
+    [InlineData("All Systems Red (Murderbot Diaries)", "All Systems Red (Murderbot Diaries)", null, null, null, null)]
+    public void AppleTitles_AreTakenApart(string name, string title, string? subtitle, string? series, string? sequence, bool? abridged)
+    {
+        var parts = AppleTitle.Parse(name);
+
+        Assert.Equal((title, subtitle, abridged), (parts.Title, parts.Subtitle, parts.Abridged));
+        Assert.Equal(series is null ? [] : [new SeriesPart(series, sequence)], parts.Series);
+    }
+
+    [Theory]
+    [InlineData("© 2021 Audible Studios", "Audible Studios")]
+    [InlineData("℗ 2019 Penguin Random House.", "Penguin Random House")]
+    [InlineData("© 2021 Andy Weir", null)] // the author, not who made the recording
+    [InlineData(null, null)]
+    public void ApplesCopyrightLine_NamesThePublisher(string? copyright, string? publisher) =>
+        Assert.Equal(publisher, AppleTitle.Publisher(copyright, ["Andy Weir"]));
+
+    [Fact]
+    public void AProviderAddedSinceTheListWasSaved_IsSwitchedOnInItsPlace()
+    {
+        // Saved with Open Library turned off, before Apple Books.
+        Assert.Equal(["audible", "itunes", "google"], BookMetadataSettings.WithNewProviders(["audible", "google"], BookMetadataSettings.FirstProviders));
+        Assert.Equal(["itunes", "openlibrary"], BookMetadataSettings.WithNewProviders(["openlibrary"], BookMetadataSettings.FirstProviders));
+        // Saved since, with Apple Books turned off: it stays off.
+        Assert.Equal(["audible", "google"], BookMetadataSettings.WithNewProviders(["audible", "google"], BookMetadataSettings.AllProviders));
+    }
+
     private async Task<List<string>> NamesAsync(Guid book, CreditRole role) =>
         await _db.Credits.Where(c => c.MediaItemId == book && c.Role == role).OrderBy(c => c.Order).Select(c => c.Person!.Name).ToListAsync();
 
@@ -254,6 +330,7 @@ public sealed class BookProviderTests : IAsyncLifetime
                 ("api.audible.co.uk", "/1.0/catalog/products") => Fixture("audible-search.json"),
                 ("openlibrary.org", "/isbn/9780593135204.json") => Fixture("openlibrary-isbn.json"),
                 ("openlibrary.org", "/search.json") => Fixture("openlibrary-search.json"),
+                ("itunes.apple.com", "/search") => Fixture(url.Query.Contains("country=gb", StringComparison.Ordinal) ? "itunes-search-gb.json" : "itunes-search-dcc.json"),
                 ("www.googleapis.com", "/books/v1/volumes") when url.Query.Contains("key=key", StringComparison.Ordinal) => Fixture("google-search.json"),
                 _ => null,
             };
