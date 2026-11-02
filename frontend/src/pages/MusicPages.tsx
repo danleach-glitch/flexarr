@@ -7,7 +7,7 @@ import { AsyncButton } from '../components/AsyncButton'
 import { DeleteDialog } from '../components/DeleteDialog'
 import { PosterCard } from '../components/Cards'
 import { Menu, type MenuAction, type MenuPoint } from '../components/ItemMenu'
-import { More, Play, Radio } from '../components/icons'
+import { More, Play, Radio, Shuffle } from '../components/icons'
 import { LyricsPanel } from '../components/LyricsPanel'
 import { MusicExternalCard, MusicRequestButton } from '../components/MusicExternalCard'
 import { Row } from '../components/Row'
@@ -172,7 +172,7 @@ export function AlbumPage({ detail }: { detail: ItemDetail }) {
               <Play /> Play
             </button>
             <button className="button quiet" onClick={() => player.play(shuffled(tracks), 0, { openNowPlaying: true })} disabled={tracks.length < 2}>
-              Shuffle
+              <Shuffle /> Shuffle
             </button>
             <MoreButton
               label={`More for ${item.title}`}
@@ -304,7 +304,7 @@ export function ArtistPage({ detail }: { detail: ItemDetail }) {
                   <Play /> Play
                 </AsyncButton>
                 <AsyncButton className="button quiet" onClick={() => playAll(true)} disabled={loading}>
-                  Shuffle
+                  <Shuffle /> Shuffle
                 </AsyncButton>
                 <AsyncButton className="button quiet" onClick={() => startRadio()} disabled={loading}>
                   <Radio /> Radio
