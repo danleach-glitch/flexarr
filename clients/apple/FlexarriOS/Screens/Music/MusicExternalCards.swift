@@ -29,15 +29,20 @@ struct ExternalMusicArtwork: View {
     }
 }
 
-/// An artist or album the library doesn't have (or does, marked): tapping opens its page, and the corner button
-/// requests the album or follows the artist.
+/// An artist or album the library doesn't have (or does, marked): tapping opens its page; holding it offers Request
+/// album or Follow artist, and an album's artist.
 struct ExternalMusicCard: View {
     @Environment(AppModel.self) private var model
     @Environment(Router.self) private var router
+    @Environment(\.musicRequestsPaused) private var paused
     let item: MusicExternal
     var width: CGFloat?
     /// An album's year under its title, on its artist's page; the artist's name elsewhere.
     var showsYear = false
+    /// "Artist", or "Album" and the artist, as search's film cards say Movie or Show.
+    var showsKind = false
+    /// A request on its way: a second press waits for it rather than sending another.
+    @State private var asking = false
 
     var body: some View {
         Button {
@@ -62,59 +67,56 @@ struct ExternalMusicCard: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(CardButtonStyle())
-        .overlay(alignment: .topTrailing) { badge }
+        .accessibilityLabel(item.accessibilityName)
+        .accessibilityValue(state ?? "")
         .contextMenu { menu }
     }
 
     private var subtitle: String? {
         var parts: [String] = []
+        if showsKind { parts.append(item.isArtist ? "Artist" : "Album") }
         if item.isAlbum {
             if showsYear { if let year = item.year { parts.append(String(year)) } } else if let artist = item.artist { parts.append(artist) }
-            switch model.albumState(item) {
-            case .requested: parts.append("Requested")
-            case .inLibrary: parts.append("In your library")
-            default: break
-            }
-        } else if item.libraryItemId != nil {
-            parts.append("In your library")
-        } else if model.isFollowing(item) {
-            parts.append("Following")
         }
+        if let state { parts.append(state) }
         return parts.isEmpty ? nil : parts.joined(separator: ", ")
     }
 
-    /// The one-tap request: a plus until asked, a tick after.
-    @ViewBuilder private var badge: some View {
-        if item.isAlbum, case .requestable = model.albumState(item) {
-            badgeButton("Request album") { if let target = MusicRequestTarget.album(item) { await model.requestMusic(target) } }
-        } else if item.isArtist, item.libraryItemId == nil, item.hasPage, !model.isFollowing(item) {
-            badgeButton("Follow artist") { await model.requestMusic(.artist(deezerId: item.deezerId)) }
+    /// Requested, In your library or Following.
+    private var state: String? {
+        if item.isAlbum {
+            switch model.albumState(item) {
+            case .requested: return "Requested"
+            case .inLibrary: return "In your library"
+            default: return nil
+            }
         }
+        if item.libraryItemId != nil { return "In your library" }
+        return model.isFollowing(item) ? "Following" : nil
     }
 
-    private func badgeButton(_ label: String, _ action: @escaping () async -> Void) -> some View {
-        Button { Task { await action() } } label: {
-            Image(systemName: "plus")
-                .font(.caption.weight(.bold))
-                .foregroundStyle(Color.screen)
-                .frame(width: 28, height: 28)
-                .background(Circle().fill(.black.opacity(0.6)))
-                .padding(6)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(label)
-    }
+    private var canFollow: Bool { item.isArtist && item.libraryItemId == nil && item.hasPage && !model.isFollowing(item) }
 
     @ViewBuilder private var menu: some View {
         if item.isAlbum, case .requestable = model.albumState(item), let target = MusicRequestTarget.album(item) {
-            Button { Task { await model.requestMusic(target) } } label: { Label("Request album", systemImage: "plus") }
+            Button { ask(target) } label: { Label("Request album", systemImage: Symbol.request) }
+                .disabled(asking || paused)
         }
-        if item.isArtist, item.libraryItemId == nil, item.hasPage, !model.isFollowing(item) {
-            Button { Task { await model.requestMusic(.artist(deezerId: item.deezerId)) } } label: { Label("Follow artist", systemImage: "plus") }
+        if canFollow {
+            Button { ask(.artist(deezerId: item.deezerId)) } label: { Label("Follow artist", systemImage: Symbol.follow) }
+                .disabled(asking || paused)
         }
         if item.isAlbum, let artist = item.artistPage {
-            Button { router.push(.musicArtist(artist)) } label: { Label(artist.title, systemImage: "music.mic") }
+            Button { router.push(.musicArtist(artist)) } label: { Label("Go to artist", systemImage: Symbol.goToArtist) }
+        }
+    }
+
+    private func ask(_ target: MusicRequestTarget) {
+        guard !asking, !paused else { return }
+        asking = true
+        Task {
+            await model.requestMusic(target)
+            asking = false
         }
     }
 }
@@ -124,6 +126,7 @@ struct ExternalMusicCard: View {
 struct MusicAlbumRequestButton: View {
     @Environment(AppModel.self) private var model
     @Environment(Router.self) private var router
+    @Environment(\.musicRequestsPaused) private var paused
     let album: MusicExternal
     var ambient: Color?
     @State private var asking = false
@@ -139,18 +142,18 @@ struct MusicAlbumRequestButton: View {
                     asking = false
                 }
             } label: {
-                Label("Request album", systemImage: "plus")
+                Label("Request album", systemImage: Symbol.request)
             }
             .buttonStyle(ActionButtonStyle(ambient: ambient, prominent: true))
-            .disabled(asking)
+            .disabled(asking || paused)
         case .requested:
-            Label("Requested", systemImage: "checkmark")
+            Label("Requested", systemImage: Symbol.requested)
                 .labelStyle(.titleAndIcon)
                 .font(.body.weight(.semibold))
                 .foregroundStyle(Color.usher)
         case .inLibrary(let id):
             Button { router.push(.musicItem(id: id, isArtist: false)) } label: {
-                Label("In your library", systemImage: Symbol.music)
+                Label("In your library", systemImage: Symbol.play)
             }
             .buttonStyle(ActionButtonStyle(ambient: ambient, prominent: true))
         case .none:
@@ -161,15 +164,17 @@ struct MusicAlbumRequestButton: View {
 
 /// Follow artist, or Following once Lidarr watches for their new releases.
 struct FollowArtistButton: View {
-    @Environment(AppModel.self) private var model
+    @Environment(\.musicRequestsPaused) private var paused
     let following: Bool
     var ambient: Color?
+    /// Off until there's something to follow by (the outside page's detail has loaded).
+    var enabled = true
     let follow: () async -> Void
     @State private var asking = false
 
     var body: some View {
         if following {
-            Label("Following", systemImage: "checkmark")
+            Label("Following", systemImage: Symbol.following)
                 .labelStyle(.titleAndIcon)
                 .font(.body.weight(.semibold))
                 .foregroundStyle(Color.usher)
@@ -181,10 +186,10 @@ struct FollowArtistButton: View {
                     asking = false
                 }
             } label: {
-                Label("Follow artist", systemImage: "plus")
+                Label("Follow artist", systemImage: Symbol.follow)
             }
             .buttonStyle(ActionButtonStyle(ambient: ambient))
-            .disabled(asking)
+            .disabled(asking || paused || !enabled)
         }
     }
 }
@@ -200,8 +205,8 @@ struct ExternalMusicRow: View {
             SectionHeading(title: title)
             ScrollView(.horizontal) {
                 LazyHStack(alignment: .top, spacing: Layout.rowSpacing) {
-                    ForEach(items) { item in
-                        ExternalMusicCard(item: item, width: Layout.posterWidth(sizeClass))
+                    ForEach(items.listed) { entry in
+                        ExternalMusicCard(item: entry.item, width: Layout.posterWidth(sizeClass))
                     }
                 }
                 .padding(.horizontal, Layout.edge)

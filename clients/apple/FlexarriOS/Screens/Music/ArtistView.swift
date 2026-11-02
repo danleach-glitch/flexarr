@@ -49,8 +49,8 @@ struct ArtistView: View {
                                 VStack(alignment: .leading, spacing: 12) {
                                     SectionHeading(title: "Not in your library")
                                     LazyVGrid(columns: columns, alignment: .leading, spacing: 20) {
-                                        ForEach(extras.missing) { album in
-                                            ExternalMusicCard(item: album, showsYear: true)
+                                        ForEach(extras.missing.listed) { entry in
+                                            ExternalMusicCard(item: entry.item, showsYear: true)
                                         }
                                     }
                                     .padding(.horizontal, Layout.edge)
@@ -113,7 +113,8 @@ struct ArtistView: View {
             .disabled(page.albums.isEmpty || page.isQueueing)
             // Centred in a stack that fills the width, the buttons were handed less than they need and wrapped.
             .fixedSize()
-            if let extras, !extras.followed || model.musicAsked.contains(MusicRequestTarget.libraryArtist(page.id).askedKey) {
+            // Always there with music requests on: Follow artist, or Following once Lidarr watches for their releases.
+            if let extras {
                 FollowArtistButton(following: model.isFollowing(libraryArtist: page.id, followed: extras.followed), ambient: ambient) {
                     await model.requestMusic(.libraryArtist(page.id))
                 }

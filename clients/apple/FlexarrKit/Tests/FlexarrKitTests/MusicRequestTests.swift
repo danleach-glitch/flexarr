@@ -78,6 +78,22 @@ struct MusicRequestTests {
         #expect(try await current.musicRequestStatus() == MusicRequestStatus(configured: true, reachable: false))
     }
 
+    @Test func repeatedItemsGetTheirOwnKeys() {
+        let joint = MusicExternal(kind: "album", deezerId: 5, title: "Watch the Throne")
+        let keys = [joint, joint].listed.map(\.id)
+        #expect(Set(keys).count == 2)
+    }
+
+    @Test func releasesAreShelvedByKind() {
+        func album(_ id: Int, _ type: String?) -> MusicExternal { MusicExternal(kind: "album", deezerId: id, title: "\(id)", recordType: type) }
+        let shelves = [album(1, "album"), album(2, "single"), album(3, nil), album(4, "ep"), album(5, "compile")].shelves
+        #expect(shelves.map(\.title) == ["Albums", "EPs and singles", "Compilations"])
+        #expect(shelves[0].items.map(\.deezerId) == [1, 3])
+        #expect(shelves[1].items.map(\.deezerId) == [2, 4])
+        #expect([album(1, "single")].shelves.map(\.title) == ["EPs and singles"])
+        #expect([MusicExternal]().shelves.isEmpty)
+    }
+
     @Test func requestBodies() async throws {
         for (target, body) in [
             (MusicRequestTarget.album(deezerId: 5), #"{"deezerId":5,"kind":"album"}"#),

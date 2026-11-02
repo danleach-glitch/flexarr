@@ -23,12 +23,13 @@ struct ExternalArtistView: View {
                 VStack(alignment: .leading, spacing: 24) {
                     header
                     if let detail {
-                        if !detail.albums.isEmpty {
+                        // Shelved as the web does: Albums, EPs and singles, Compilations.
+                        ForEach(detail.albums.shelves) { shelf in
                             VStack(alignment: .leading, spacing: 12) {
-                                SectionHeading(title: "Albums")
+                                SectionHeading(title: shelf.title)
                                 LazyVGrid(columns: columns, alignment: .leading, spacing: 20) {
-                                    ForEach(detail.albums) { album in
-                                        ExternalMusicCard(item: album, showsYear: true)
+                                    ForEach(shelf.items.listed) { entry in
+                                        ExternalMusicCard(item: entry.item, showsYear: true)
                                     }
                                 }
                                 .padding(.horizontal, Layout.edge)
@@ -66,7 +67,7 @@ struct ExternalArtistView: View {
                 HStack(spacing: 12) {
                     if let id = detail.libraryItemId {
                         Button { router.push(.musicItem(id: id, isArtist: true)) } label: {
-                            Label("In your library", systemImage: Symbol.music)
+                            Label("In your library", systemImage: Symbol.play)
                         }
                         .buttonStyle(ActionButtonStyle(prominent: true))
                     }

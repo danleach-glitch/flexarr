@@ -27,14 +27,21 @@ extension AppModel {
     /// Requests an album or follows an artist. False, with `requestError` set for the alert, when it didn't go through.
     @discardableResult
     func requestMusic(_ target: MusicRequestTarget) async -> Bool {
-        guard let client else { return false }
+        guard let failure = await sendMusicRequest(target) else { return true }
+        requestError = failure
+        return false
+    }
+
+    /// Requests an album or follows an artist, leaving the alert alone: nil when it went through, else why not, for
+    /// the button to say beside itself.
+    func sendMusicRequest(_ target: MusicRequestTarget) async -> String? {
+        guard let client else { return ConnectionError(FlexarrClientError.unreachable).message }
         do {
             try await client.requestMusic(target)
             musicAsked.insert(target.askedKey)
-            return true
+            return nil
         } catch {
-            requestError = ConnectionError(error).message
-            return false
+            return ConnectionError(error).message
         }
     }
 
@@ -56,7 +63,23 @@ extension AppModel {
     }
 }
 
+extension EnvironmentValues {
+    /// Lidarr isn't answering (`MusicRequestStatus.reachable` is false): requests and follows wait, their buttons off.
+    @Entry var musicRequestsPaused = false
+}
+
+/// The one line said when Lidarr isn't answering.
+enum MusicWords {
+    static let lidarrNotAnswering = "Lidarr isn\u{2019}t answering."
+}
+
 extension MusicExternal {
+    /// What VoiceOver reads for its card: the name, or the album and its artist.
+    var accessibilityName: String {
+        if isAlbum, let artist { return "\(title), \(artist)" }
+        return title
+    }
+
     /// Where tapping it goes: the library's own page when the household has it, else its outside page.
     var route: Route? {
         if let id = libraryItemId, availability == .available || availability == .partlyAvailable {

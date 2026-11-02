@@ -70,6 +70,41 @@ public struct MusicExternal: Codable, Sendable, Hashable, Identifiable {
     }
 }
 
+/// A music item in a list, keyed by its place as well: a list can hold the same album twice (a joint album under both
+/// artists, a re-recording), and SwiftUI needs ids that don't collide.
+public struct MusicListEntry: Sendable, Hashable, Identifiable {
+    public let offset: Int
+    public let item: MusicExternal
+    public var id: String { "\(offset)/\(item.id)" }
+
+    public init(offset: Int, item: MusicExternal) {
+        self.offset = offset
+        self.item = item
+    }
+}
+
+/// An artist's releases of one kind, under its heading.
+public struct MusicShelf: Sendable, Hashable, Identifiable {
+    public let title: String
+    public let items: [MusicExternal]
+    public var id: String { title }
+}
+
+extension Array where Element == MusicExternal {
+    /// Each item with its place, for `ForEach`.
+    public var listed: [MusicListEntry] { enumerated().map { MusicListEntry(offset: $0.offset, item: $0.element) } }
+
+    /// An artist's releases shelved as the web does: Albums (and anything Deezer doesn't type), EPs and singles, and
+    /// Compilations; only the shelves with something on them.
+    public var shelves: [MusicShelf] {
+        let albums = filter { $0.recordType == nil || $0.recordType == "album" }
+        let short = filter { $0.recordType == "ep" || $0.recordType == "single" }
+        let compilations = filter { $0.recordType == "compile" }
+        return [MusicShelf(title: "Albums", items: albums), MusicShelf(title: "EPs and singles", items: short),
+                MusicShelf(title: "Compilations", items: compilations)].filter { !$0.items.isEmpty }
+    }
+}
+
 /// One of Discover › Music's rows.
 public struct MusicRow: Codable, Sendable, Hashable, Identifiable {
     public let id: String
