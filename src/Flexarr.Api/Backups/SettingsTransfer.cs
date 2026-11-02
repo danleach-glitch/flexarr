@@ -48,7 +48,7 @@ public static class SettingsTransfer
     /// <summary>The settings in each section, as config.json names them.</summary>
     public static readonly IReadOnlyDictionary<string, string[]> Sections = new Dictionary<string, string[]>
     {
-        ["connections"] = ["arr", "seerr", "bazarr", "tmdb", "trakt", "pathMappings"],
+        ["connections"] = ["arr", "musicRequests", "seerr", "bazarr", "tmdb", "trakt", "pathMappings"],
         ["liveTv"] = ["liveTv"],
         ["streaming"] = ["transcoding"],
         ["layout"] = ["layout"],
@@ -63,7 +63,7 @@ public static class SettingsTransfer
     };
 
     /// <summary>Settings added to a section later: a file without them leaves this server's as they are.</summary>
-    private static readonly HashSet<string> KeptUnlessGiven = new(StringComparer.OrdinalIgnoreCase) { "trakt", "tmdb" };
+    private static readonly HashSet<string> KeptUnlessGiven = new(StringComparer.OrdinalIgnoreCase) { "trakt", "tmdb", "musicRequests" };
 
     /// <summary>
     /// What of a setting goes between servers: for Trakt, only the app's id and secret, never where its token calls go

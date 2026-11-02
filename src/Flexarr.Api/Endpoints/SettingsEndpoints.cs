@@ -41,7 +41,9 @@ public sealed record SettingsDto(
     BazarrConnectionDto? Bazarr = null,
     // Whether choosing the main profile asks for a PIN: since 0.57, whether it has a PIN of its own.
     bool AskPinForMainProfile = false,
-    TraktAppDto? TraktApp = null);
+    TraktAppDto? TraktApp = null,
+    // Whether music can be requested through Lidarr (absent from servers before 0.59).
+    bool? AllowMusicRequests = null);
 
 /// <summary>The admin's own Trakt app, used instead of Flexarr's; the secret is never sent back, only whether there is one.</summary>
 public sealed record TraktAppDto(string ClientId, bool HasSecret);
@@ -86,7 +88,8 @@ public sealed record SettingsUpdate(
     BazarrConnectionUpdate? Bazarr = null,
     // Ignored since 0.57: the main profile has a PIN of its own, set in Profiles like anyone's.
     bool? AskPinForMainProfile = null,
-    TraktAppUpdate? TraktApp = null);
+    TraktAppUpdate? TraktApp = null,
+    bool? AllowMusicRequests = null);
 
 /// <param name="ApiKey">TMDB's API key or read access token; empty to remove it.</param>
 public sealed record TmdbKeyUpdate(string ApiKey);
@@ -194,6 +197,11 @@ public static class SettingsEndpoints
                         ["baseUrl"] = seerr.BaseUrl.Trim(),
                         ["apiKey"] = string.IsNullOrWhiteSpace(seerr.ApiKey) ? savedKey : seerr.ApiKey.Trim(),
                     };
+                }
+
+                if (update.AllowMusicRequests is { } allowMusic)
+                {
+                    config["musicRequests"] = new JsonObject { ["enabled"] = allowMusic };
                 }
 
                 if (update.Bazarr is { } bazarr)
@@ -480,7 +488,8 @@ public static class SettingsEndpoints
         o.Tmdb?.ApiKey is { Length: > 0 },
         o.Bazarr is { BaseUrl.Length: > 0 } b ? new BazarrConnectionDto(b.BaseUrl, b.ApiKey.Length > 0) : null,
         mainHasOwnPin,
-        o.Trakt.ClientId.Length > 0 ? new TraktAppDto(o.Trakt.ClientId, o.Trakt.ClientSecret.Length > 0) : null);
+        o.Trakt.ClientId.Length > 0 ? new TraktAppDto(o.Trakt.ClientId, o.Trakt.ClientSecret.Length > 0) : null,
+        o.MusicRequests.Enabled);
 
     /// <summary>
     /// This machine's name on the network ("Dans-Mac-Mini"), which the web app puts in place of localhost in links to
