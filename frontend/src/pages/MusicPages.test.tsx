@@ -4,7 +4,8 @@ import { describe, expect, it, vi } from 'vitest'
 import type { AlbumType, ItemDetail, ItemSummary } from '../api/types'
 import { AudioPlayerContext, type AudioPlayer } from '../hooks/audioPlayerContext'
 import { detail, summary } from '../test/mockApi'
-import { AlbumPage, ArtistPage, albumSections, albumTypeLabel } from './MusicPages'
+import { AlbumPage, ArtistPage, albumSections } from './MusicPages'
+import { albumTypeLabel } from '../lib/albums'
 
 const artist = summary({ id: 'artist', kind: 'Artist', title: 'Dire Straits' })
 const album = (id: string, title: string, year: number, albumType: AlbumType | null) =>

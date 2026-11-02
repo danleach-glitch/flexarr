@@ -1,6 +1,6 @@
 import { useState, type CSSProperties, type MouseEvent, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router'
-import { getItem, getMusicArtistExtras, getMusicRequestStatus, getRadio, getTracks, imageUrl, type AlbumType, type ItemDetail, type ItemSummary } from '../api/client'
+import { getItem, getMusicArtistExtras, getMusicRequestStatus, getRadio, getTracks, imageUrl, type ItemDetail, type ItemSummary } from '../api/client'
 import { openAddToPlaylist, type PlaylistAddition } from '../components/AddToPlaylist'
 import { Artwork } from '../components/Artwork'
 import { AsyncButton } from '../components/AsyncButton'
@@ -17,6 +17,9 @@ import { useAudioPlayer, useAudioTime, type AudioPlayer } from '../hooks/audioPl
 import { formatClock, formatDuration } from '../lib/format'
 
 import { shuffled } from '../lib/shuffle'
+import { albumTypeLabel } from '../lib/albums'
+import { DetailsEditor } from '../components/DetailsEditor'
+import { MusicMatchDialog } from '../components/MusicMatchDialog'
 
 /**
  * The queue actions for a set of tracks, as a menu offers them, and (given what they belong to: a track, album or
@@ -28,24 +31,6 @@ export function queueActions(player: AudioPlayer, tracks: () => Promise<ItemSumm
     { label: 'Add to queue', run: async () => player.enqueue(await tracks()) },
     ...(item ? [{ label: 'Add to playlist…', run: () => openAddToPlaylist({ id: item.id, title: item.title }) }] : []),
   ]
-}
-
-/** What an album's page calls its kind of release: nothing for a plain album, or one nobody has typed. */
-export function albumTypeLabel(type: AlbumType | null | undefined): string | null {
-  switch (type) {
-    case 'ep':
-      return 'EP'
-    case 'single':
-      return 'Single'
-    case 'live':
-      return 'Live'
-    case 'compilation':
-      return 'Compilation'
-    case 'soundtrack':
-      return 'Soundtrack'
-    default:
-      return null
-  }
 }
 
 const sectionTitles = ['Albums', 'EPs and singles', 'Live and compilations', 'Other'] as const
@@ -102,6 +87,26 @@ export function MoreButton({ label, actions, disabled }: { label: string; action
 const andThen = (first: MenuAction[], then: MenuAction[]): MenuAction[] => (first.length && then.length ? [...first, 'divider', ...then] : [...first, ...then])
 
 /**
+ * Looking after an album or artist, for the main profile (locked or not, as for films): Edit… (albums) and Fix match…
+ * in its ⋯, and their dialogs.
+ */
+function useLibraryCare(detail: ItemDetail, onChange?: () => void): { actions: MenuAction[]; dialog: ReactNode } {
+  const { me } = useSession()
+  const [open, setOpen] = useState<'edit' | 'match' | null>(null)
+  if (!(me?.isAdmin === true || me?.canUnlock === true)) return { actions: [], dialog: null }
+  const changed = () => onChange?.()
+  return {
+    actions: [...(detail.item.kind === 'Album' ? [{ label: 'Edit…', run: () => setOpen('edit') }] : []), { label: 'Fix match…', run: () => setOpen('match') }],
+    dialog:
+      open === 'edit' ? (
+        <DetailsEditor detail={detail} onSaved={changed} onClose={() => setOpen(null)} />
+      ) : open === 'match' ? (
+        <MusicMatchDialog detail={detail} onFixed={changed} onClose={() => setOpen(null)} />
+      ) : null,
+  }
+}
+
+/**
  * Delete… in an album's or artist's ⋯, for the main profile (locked or not, as for films), and its dialog. Lidarr
  * deletes the files when it manages them; back to the artist (for an album) or the library afterwards.
  */
@@ -129,7 +134,7 @@ function useDeletion(detail: ItemDetail): { actions: MenuAction[]; dialog: React
 }
 
 /** An album: cover, facts and its tracklist. Discs are separated when there's more than one. */
-export function AlbumPage({ detail }: { detail: ItemDetail }) {
+export function AlbumPage({ detail, onChange }: { detail: ItemDetail; onChange?: () => void }) {
   const player = useAudioPlayer()
   const { item, children: tracks } = detail
   const artist = detail.ancestors[0]
@@ -139,6 +144,7 @@ export function AlbumPage({ detail }: { detail: ItemDetail }) {
   // One track's menu at a time: which, and where it opened.
   const [trackMenu, setTrackMenu] = useState<{ index: number; at: MenuPoint } | null>(null)
   const deletion = useDeletion(detail)
+  const care = useLibraryCare(detail, onChange)
 
   const openMenu = (index: number, at: MenuPoint) => (e: MouseEvent) => {
     e.preventDefault()
@@ -176,8 +182,8 @@ export function AlbumPage({ detail }: { detail: ItemDetail }) {
             </button>
             <MoreButton
               label={`More for ${item.title}`}
-              actions={andThen(tracks.length > 0 ? queueActions(player, () => tracks, item) : [], deletion.actions)}
-              disabled={tracks.length === 0 && deletion.actions.length === 0}
+              actions={andThen(tracks.length > 0 ? queueActions(player, () => tracks, item) : [], [...care.actions, ...deletion.actions])}
+              disabled={tracks.length === 0 && deletion.actions.length === 0 && care.actions.length === 0}
             />
           </div>
         </div>
@@ -226,6 +232,7 @@ export function AlbumPage({ detail }: { detail: ItemDetail }) {
         />
       )}
       {deletion.dialog}
+      {care.dialog}
     </article>
   )
 }
@@ -246,11 +253,14 @@ function PlayingLyrics({ tracks }: { tracks: ItemSummary[] }) {
  * An artist and their albums, newest first, shelved by kind (see {@link albumSections}). Play and Shuffle take every
  * track they have; Radio mixes in artists like them.
  */
-export function ArtistPage({ detail }: { detail: ItemDetail }) {
+export function ArtistPage({ detail, onChange }: { detail: ItemDetail; onChange?: () => void }) {
   const player = useAudioPlayer()
   const { item, children: albums } = detail
   const [loading, setLoading] = useState(false)
   const deletion = useDeletion(detail)
+  // A followed artist with nothing filed yet has nothing to match.
+  const care = useLibraryCare(detail, onChange)
+  const careActions = albums.length === 0 ? [] : care.actions
   const navigate = useNavigate()
   // A followed artist none of whose music has arrived yet: nothing to play, but Following and what's out there.
   const waiting = albums.length === 0
@@ -323,10 +333,10 @@ export function ArtistPage({ detail }: { detail: ItemDetail }) {
                 onUndone={waiting ? () => navigate(`/library/${item.libraryId}`, { replace: true }) : undefined}
               />
             )}
-            {(!waiting || deletion.actions.length > 0) && (
+            {(!waiting || deletion.actions.length > 0 || careActions.length > 0) && (
               <MoreButton
                 label={`More for ${item.title}`}
-                actions={andThen(waiting ? [] : queueActions(player, () => getTracks(item.id), item), deletion.actions)}
+                actions={andThen(waiting ? [] : queueActions(player, () => getTracks(item.id), item), [...careActions, ...deletion.actions])}
               />
             )}
           </div>
@@ -367,6 +377,7 @@ export function ArtistPage({ detail }: { detail: ItemDetail }) {
         </Row>
       )}
       {deletion.dialog}
+      {care.dialog}
     </article>
   )
 }
