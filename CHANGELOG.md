@@ -28,14 +28,18 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On the web, **All books** has a search box and the A–Z rail, and Back returns to the same place in it.
 - On the Apple TV, an audiobooks library also has **Series** and **Authors**. **All books** sorts all seven ways the iPhone does, filters by progress and length, and has the A–Z rail; shelves end with **See all**. A book's page lists its bookmarks and more books by the same narrator, and a series page plays its next book.
 - On the Apple TV, the Top Shelf shows the books you're listening to.
+- A series page lists the books of it that Audible has and you don't, under **Not in your library**, with their number in the series.
 
 ### Movies and shows
+- A show's page lists what you don't have, under **Not in your library**, in every app: seasons you have none of, with **Request** to ask Seerr for just that season, and the episodes missing from seasons you have, which the main profile can **Search** for with Sonarr. **Coming up** lists the next episodes with the day each airs, and a season that's short says so on its tab (**8 of 10**). Kids profiles don't see it.
+- On the web, movie, show, season and episode cards have a play button when you point at them, as albums and books do. A show or season plays its next episode.
 - Movie and show pages show their **IMDb** and **Rotten Tomatoes** scores beside each one's logo, with the tomato for Certified Fresh, Fresh or Rotten, in every app. The Home hero and Discover's title pages show them too. Kids profiles don't see scores.
 - Movies get both scores from Radarr. With Seerr connected, shows get their Rotten Tomatoes score too, and the tomato says when a title is Certified Fresh. A title without an IMDb score, as most shows are, keeps the score it had beside the tomato.
 - Discover's title pages show IMDb and Rotten Tomatoes in place of the four scores they had (TMDB, IMDb, critics and audience). TMDB's score stays when there's no IMDb score.
 - On Android TV, kids profiles no longer see a score on a title's page, the Home hero or an artist's page.
 
 ### Search
+- Search lists movies, shows, artists and albums you don't have under **Not in your library** on the web, the Apple TV and Android TV too, as on the phones. A movie or show opens its own page in every app, with **Request** and **Watchlist** (on the phones it used to open a menu).
 - On iPhone, iPad, Android phones and the Apple TV, search lists the artists and albums you have under **Artists** and **Albums**, rather than artists among the movies and shows. The Apple TV's search finds audiobooks too.
 - On the web, a genre found by search opens that genre in its own library: a music genre's albums, a books genre's page, or the movies or shows of that genre. A genre in more than one library is listed once for each.
 

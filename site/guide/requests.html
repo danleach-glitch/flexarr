@@ -116,7 +116,7 @@
         <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Your *arrs</p>
         <h1>Requests</h1>
         <p class="lede">Find movies, shows and music you don&#39;t have yet, request them from any of the apps, and choose which library they go to.</p>
-        <p class="meta">7 min read</p>
+        <p class="meta">8 min read</p>
         <nav class="toc" aria-label="On this page">
           <p>On this page</p>
           <ol>
@@ -152,17 +152,22 @@
 <tbody><tr>
 <td>Web app</td>
 <td>Yes</td>
-<td>From Discover, its search and collections</td>
+<td>From Discover, search, collections and a show&#39;s page</td>
 </tr>
 <tr>
 <td>Apple TV</td>
 <td>Yes</td>
-<td>From Discover and its search</td>
+<td>From Discover, search and a show&#39;s page</td>
 </tr>
 <tr>
 <td>iPhone and iPad</td>
 <td>No</td>
-<td>From <strong>Search</strong></td>
+<td>From <strong>Search</strong> and a show&#39;s page</td>
+</tr>
+<tr>
+<td>Android and Android TV</td>
+<td>Android TV only</td>
+<td>From <strong>Search</strong> and a show&#39;s page (and Discover on Android TV)</td>
 </tr>
 </tbody></table></div>
 <h2 id="on-the-web"><a class="anchor" href="#on-the-web" aria-hidden="true" tabindex="-1">#</a>On the web</h2>
@@ -177,8 +182,16 @@
 <p>Each poster is marked if you already have it or it&#39;s already been asked for. For anything else, choose <strong>Request</strong> under the poster, or open it to see more about it first and choose <strong>Request</strong> there.</p>
 <h3 id="search-for-anything"><a class="anchor" href="#search-for-anything" aria-hidden="true" tabindex="-1">#</a>Search for anything</h3>
 <p>The search box at the top of Discover, <strong>Search for any movie or show</strong>, looks beyond your library. Type a title and you get every matching movie and show, with the ones you already have marked. Request anything else from the results.</p>
+<p>The search box at the top of every page (⌘K) looks beyond your library too: once you stop typing, movies, shows, artists and albums you don&#39;t have are listed last, under <strong>Not in your library</strong>. Pick one to open its page and request it there.</p>
 <h3 id="missing-movies-in-a-collection"><a class="anchor" href="#missing-movies-in-a-collection" aria-hidden="true" tabindex="-1">#</a>Missing movies in a collection</h3>
 <p>A movie series collection lists the movies you don&#39;t have under <strong>Not in your library</strong>, each with its own <strong>Request</strong> button.</p>
+<h3 id="missing-seasons-and-episodes"><a class="anchor" href="#missing-seasons-and-episodes" aria-hidden="true" tabindex="-1">#</a>Missing seasons and episodes</h3>
+<p>A show&#39;s page, below its seasons, lists what you don&#39;t have under <strong>Not in your library</strong>, in every app:</p>
+<ul>
+<li><strong>Seasons</strong> you have none of, each with <strong>Request</strong>. That asks Seerr for just that season, not the whole show again.</li>
+<li><strong>Episodes</strong> missing from seasons you have some of. The main profile can choose <strong>Search</strong> to have Sonarr look for a season&#39;s missing episodes.</li>
+</ul>
+<p>Above it, <strong>Coming up</strong> lists the next episodes Sonarr expects, with the day each airs. A season tab that&#39;s short of what has aired says so, such as <strong>8 of 10</strong>. Episodes come from Sonarr; a show Sonarr doesn&#39;t manage lists whole seasons from Seerr instead. Specials aren&#39;t listed, and kids profiles don&#39;t see any of this.</p>
 <figure><img src="/guide/img/web-discover.webp" alt="The Discover page with Trending this week and a Request button under each poster" data-caption="Discover in the web app" loading="lazy" decoding="async"></figure>
 <h2 id="on-the-apple-tv"><a class="anchor" href="#on-the-apple-tv" aria-hidden="true" tabindex="-1">#</a>On the Apple TV</h2>
 <p><strong>Discover</strong> is in the sidebar, above <strong>Search</strong>. It shows the same rows as the web: what&#39;s trending, popular movies, popular new shows, and what&#39;s coming to cinemas.</p>
@@ -188,13 +201,13 @@
 <li>Press <strong>Menu</strong> to go back to Discover.</li>
 </ol>
 <p>A title you already have is marked with a gold play badge on its poster, and opens as itself.</p>
-<p><strong>Search</strong>, at the top of Discover next to <strong>Browse</strong>, finds any movie or show, not only what&#39;s in your library, so you can request it from there.</p>
+<p><strong>Search</strong>, at the top of Discover next to <strong>Browse</strong>, finds any movie or show, not only what&#39;s in your library, so you can request it from there. The main <strong>Search</strong> lists movies, shows, artists and albums you don&#39;t have in a row of their own, <strong>Not in your library</strong>.</p>
 <p>Without Seerr connected, Discover on the Apple TV shows your library by genre, and says where to connect Seerr.</p>
 <h2 id="on-iphone-and-ipad"><a class="anchor" href="#on-iphone-and-ipad" aria-hidden="true" tabindex="-1">#</a>On iPhone and iPad</h2>
-<p>With Seerr connected, <strong>Search</strong> looks beyond your library too. Movies and shows you don&#39;t have are listed under <strong>Not in your library</strong>. Tap one and choose <strong>Request</strong>. Once it&#39;s asked for, it&#39;s marked <strong>Requested</strong>.</p>
+<p>With Seerr connected, <strong>Search</strong> looks beyond your library too. Movies and shows you don&#39;t have are listed under <strong>Not in your library</strong>. Tap one to open its page: its scores, cast and trailer, with <strong>Request</strong> and <strong>Watchlist</strong>. Once it&#39;s asked for, it&#39;s marked <strong>Requested</strong>. Android phones work the same way.</p>
 <h2 id="who-can-request"><a class="anchor" href="#who-can-request" aria-hidden="true" tabindex="-1">#</a>Who can request</h2>
 <p>Any profile can request, with two exceptions. Kids profiles, and any profile with an age limit, can&#39;t request at all. A profile that can&#39;t see any of your movie libraries can&#39;t request movies, and one that can&#39;t see any TV libraries can&#39;t request shows. Libraries a profile sees are set in <strong>Settings › Profiles</strong>. Hidden libraries are left out of Discover and requests for that profile too. See <a href="/guide/profiles">Profiles</a>.</p>
-<p>Flexarr sends every request to Seerr with its own API key. Seerr doesn&#39;t know which profile asked: it handles the request under the rules of the Seerr account that key belongs to, which decides whether it&#39;s approved automatically. Shows are requested with all their seasons.</p>
+<p>Flexarr sends every request to Seerr with its own API key. Seerr doesn&#39;t know which profile asked: it handles the request under the rules of the Seerr account that key belongs to, which decides whether it&#39;s approved automatically. Shows are requested with all their seasons, except a season requested from a show&#39;s page, which is requested on its own.</p>
 <h2 id="where-requests-go"><a class="anchor" href="#where-requests-go" aria-hidden="true" tabindex="-1">#</a>Where requests go</h2>
 <p>With two or more TV or movie libraries Seerr can add to, the main profile chooses which one each profile&#39;s requests land in, by editing the profile in <strong>Settings › Profiles</strong>: <strong>New shows go to</strong> and <strong>New movies go to</strong>. When two people have a TV library each, the shows each of them asks for go to their own. The choice applies to requests from every device. With one library of each kind there&#39;s nothing to choose.</p>
 <h2 id="status-and-when-it-arrives"><a class="anchor" href="#status-and-when-it-arrives" aria-hidden="true" tabindex="-1">#</a>Status and when it arrives</h2>

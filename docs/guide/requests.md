@@ -19,9 +19,10 @@ Seerr itself needs Radarr and Sonarr set up in its own settings, since it hands 
 
 | Where | Discover | Request |
 | --- | --- | --- |
-| Web app | Yes | From Discover, its search and collections |
-| Apple TV | Yes | From Discover and its search |
-| iPhone and iPad | No | From **Search** |
+| Web app | Yes | From Discover, search, collections and a show's page |
+| Apple TV | Yes | From Discover, search and a show's page |
+| iPhone and iPad | No | From **Search** and a show's page |
+| Android and Android TV | Android TV only | From **Search** and a show's page (and Discover on Android TV) |
 
 ## On the web
 
@@ -40,9 +41,20 @@ Each poster is marked if you already have it or it's already been asked for. For
 
 The search box at the top of Discover, **Search for any movie or show**, looks beyond your library. Type a title and you get every matching movie and show, with the ones you already have marked. Request anything else from the results.
 
+The search box at the top of every page (⌘K) looks beyond your library too: once you stop typing, movies, shows, artists and albums you don't have are listed last, under **Not in your library**. Pick one to open its page and request it there.
+
 ### Missing movies in a collection
 
 A movie series collection lists the movies you don't have under **Not in your library**, each with its own **Request** button.
+
+### Missing seasons and episodes
+
+A show's page, below its seasons, lists what you don't have under **Not in your library**, in every app:
+
+- **Seasons** you have none of, each with **Request**. That asks Seerr for just that season, not the whole show again.
+- **Episodes** missing from seasons you have some of. The main profile can choose **Search** to have Sonarr look for a season's missing episodes.
+
+Above it, **Coming up** lists the next episodes Sonarr expects, with the day each airs. A season tab that's short of what has aired says so, such as **8 of 10**. Episodes come from Sonarr; a show Sonarr doesn't manage lists whole seasons from Seerr instead. Specials aren't listed, and kids profiles don't see any of this.
 
 ![The Discover page with Trending this week and a Request button under each poster](../../site/guide/img/web-discover.webp "Discover in the web app")
 
@@ -56,19 +68,19 @@ A movie series collection lists the movies you don't have under **Not in your li
 
 A title you already have is marked with a gold play badge on its poster, and opens as itself.
 
-**Search**, at the top of Discover next to **Browse**, finds any movie or show, not only what's in your library, so you can request it from there.
+**Search**, at the top of Discover next to **Browse**, finds any movie or show, not only what's in your library, so you can request it from there. The main **Search** lists movies, shows, artists and albums you don't have in a row of their own, **Not in your library**.
 
 Without Seerr connected, Discover on the Apple TV shows your library by genre, and says where to connect Seerr.
 
 ## On iPhone and iPad
 
-With Seerr connected, **Search** looks beyond your library too. Movies and shows you don't have are listed under **Not in your library**. Tap one and choose **Request**. Once it's asked for, it's marked **Requested**.
+With Seerr connected, **Search** looks beyond your library too. Movies and shows you don't have are listed under **Not in your library**. Tap one to open its page: its scores, cast and trailer, with **Request** and **Watchlist**. Once it's asked for, it's marked **Requested**. Android phones work the same way.
 
 ## Who can request
 
 Any profile can request, with two exceptions. Kids profiles, and any profile with an age limit, can't request at all. A profile that can't see any of your movie libraries can't request movies, and one that can't see any TV libraries can't request shows. Libraries a profile sees are set in **Settings › Profiles**. Hidden libraries are left out of Discover and requests for that profile too. See [Profiles](profiles.md).
 
-Flexarr sends every request to Seerr with its own API key. Seerr doesn't know which profile asked: it handles the request under the rules of the Seerr account that key belongs to, which decides whether it's approved automatically. Shows are requested with all their seasons.
+Flexarr sends every request to Seerr with its own API key. Seerr doesn't know which profile asked: it handles the request under the rules of the Seerr account that key belongs to, which decides whether it's approved automatically. Shows are requested with all their seasons, except a season requested from a show's page, which is requested on its own.
 
 ## Where requests go
 

@@ -13,6 +13,8 @@ The rows come from your server, so every app shows the same ones in the same ord
 
 With more than one movie or TV library (say **Movies** and **Movies in 4K**), **Combine libraries of the same kind** gives Home one **Latest unwatched** row for all your movie libraries and one for all your TV ones. It's on to start with.
 
+On the web, pointing at a poster shows a play button on it: a movie or episode plays (or carries on), and a show or a season plays its next episode. Albums and audiobooks have one too.
+
 On a new server, Home on the web shows **Finish setting up** with the steps you skipped in the [setup guide](first-setup.md). Each opens the right page in Settings, and **Hide** puts the list away.
 
 ## A library's Browse
@@ -31,7 +33,7 @@ Before you type, search shows your recent searches and what you opened from them
 
 Search forgives typos, accents and punctuation: "breking bad" finds Breaking Bad, "amelie" finds Amélie and "spiderman" finds Spider-Man. That works for titles, albums, people and genres, and for titles you ask Siri for.
 
-With Seerr connected, the iPhone's Search also lists titles you don't have under **Not in your library**: add one to your [watchlist](watchlist.md) or **Request** it. On the web and Apple TV, search for them in **Discover**.
+With Seerr or Lidarr connected, search also lists movies, shows, artists and albums you don't have under **Not in your library**, in every app. Each opens its own page, where you can add it to your [watchlist](watchlist.md) or **Request** it. See [Requests](requests.md).
 
 ## A title's page
 
