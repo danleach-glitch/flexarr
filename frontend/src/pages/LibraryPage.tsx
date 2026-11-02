@@ -8,7 +8,8 @@ import { Hero } from '../components/Hero'
 import { HomeRows } from '../components/HomeRows'
 import { ScanProgress } from '../components/ScanProgress'
 import { useAudioPlayer } from '../hooks/audioPlayerContext'
-import { ChevronLeft, Play, Shuffle } from '../components/icons'
+import { ChevronLeft } from '../components/icons'
+import { icon } from '../components/icons.generated'
 import { libraryGenreLink } from '../lib/links'
 import { useLibraries } from '../hooks/librariesContext'
 import { useApi } from '../hooks/useApi'
@@ -311,10 +312,10 @@ function GenrePlay({ library, genre, disabled }: { library: string; genre: strin
   return (
     <div className="detail-actions">
       <AsyncButton className="button" onClick={() => play(false)} disabled={disabled}>
-        <Play /> Play
+        <icon.play /> Play
       </AsyncButton>
       <AsyncButton className="button quiet" onClick={() => play(true)} disabled={disabled}>
-        <Shuffle /> Shuffle
+        <icon.shuffle /> Shuffle
       </AsyncButton>
     </div>
   )

@@ -3,7 +3,8 @@ import { PageError } from '../components/PageStatus'
 import { Link, useParams } from 'react-router'
 import { getBookSeries, getBookSeriesMissing, imageUrl } from '../api/client'
 import { Artwork } from '../components/Artwork'
-import { Check, Play } from '../components/icons'
+import { Check } from '../components/icons'
+import { icon } from '../components/icons.generated'
 import { Overview } from '../components/Overview'
 import { useAudioPlayer } from '../hooks/audioPlayerContext'
 import { useApi } from '../hooks/useApi'
@@ -43,7 +44,7 @@ export function BookSeriesPage() {
         {next && (
           <div className="detail-actions">
             <button className="button" onClick={() => player.play([next])}>
-              <Play /> {progressOf(next) !== null ? 'Resume' : 'Play'} {next.title}
+              <icon.play /> {progressOf(next) !== null ? 'Resume' : 'Play'} {next.title}
             </button>
           </div>
         )}
@@ -83,7 +84,7 @@ export function BookSeriesPage() {
                 )}
               </span>
               <button className="icon-button" aria-label={`${progress !== null && !book.userData.watched ? 'Resume' : 'Play'} ${book.title}`} onClick={() => player.play([book])}>
-                <Play />
+                <icon.play />
               </button>
             </li>
           )

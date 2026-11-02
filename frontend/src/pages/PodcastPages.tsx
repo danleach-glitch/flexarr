@@ -31,7 +31,8 @@ import {
 import { Artwork } from '../components/Artwork'
 import { AsyncButton } from '../components/AsyncButton'
 import { ConfirmDialog } from '../components/ConfirmDialog'
-import { Check, ChevronDown, ChevronUp, Close, More, Pause, Play } from '../components/icons'
+import { Check, ChevronDown, ChevronUp, Close, More } from '../components/icons'
+import { icon } from '../components/icons.generated'
 import { Menu, type MenuAction, type MenuPoint } from '../components/ItemMenu'
 import { EpisodeCard } from '../components/EpisodeCard'
 import { Row } from '../components/Row'
@@ -337,7 +338,7 @@ function EpisodeRow({
             onClick={() => (playing ? player.toggle() : player.play(track()))}
             aria-label={`${playing && player.playing ? 'Pause' : progress !== null ? 'Resume' : 'Play'} ${episode.title}`}
           >
-            <Play />
+            <icon.play />
             {playing && player.playing ? 'Playing' : episodeLength(episode)}
           </button>
           {progress !== null && (
@@ -684,7 +685,7 @@ function PodcastShow() {
           <div className="detail-actions">
             {next && (
               <button className="button" onClick={() => player.play([episodeAsTrack(next)])}>
-                <Play /> {episodeProgress(next) !== null ? 'Resume' : sort === 'oldest' ? 'Play' : 'Play latest'}
+                <icon.play /> {episodeProgress(next) !== null ? 'Resume' : sort === 'oldest' ? 'Play' : 'Play latest'}
               </button>
             )}
             <AsyncButton className={subscription ? 'button quiet' : 'button'} onClick={follow} busy={busy} aria-pressed={subscription !== null}>
@@ -813,7 +814,7 @@ function EpisodeDetail() {
           </p>
           <div className="detail-actions">
             <button className="button" onClick={() => (playing ? player.toggle() : player.play([episodeAsTrack(e)]))}>
-              {playing && player.playing ? <Pause /> : <Play />} {playing && player.playing ? 'Pause' : progress !== null ? 'Resume' : 'Play'}
+              {playing && player.playing ? <icon.pause /> : <icon.play />} {playing && player.playing ? 'Pause' : progress !== null ? 'Resume' : 'Play'}
             </button>
             {progress !== null && !playing && (
               <button

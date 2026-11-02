@@ -7,7 +7,8 @@ import { formatClock } from '../lib/format'
 import { authorsLine, chapterIndexAt, isBook } from '../lib/books'
 import { BookOffers } from './BookOffers'
 import { BookTools } from './BookTools'
-import { Close, Fullscreen, Next, Pause, Play, Queue, SkipBack, SkipForward } from './icons'
+import { Close, Fullscreen, Next, Queue, SkipBack, SkipForward } from './icons'
+import { icon } from './icons.generated'
 import { NowPlayingView } from './NowPlayingView'
 import { PodcastTools } from './PodcastTools'
 import { QueuePanel } from './QueuePanel'
@@ -116,7 +117,7 @@ export function NowPlaying() {
               </button>
             )}
             <button className="icon-button now-playing-toggle" onClick={player.toggle} aria-label={player.playing ? 'Pause' : 'Play'}>
-              {player.playing ? <Pause /> : <Play />}
+              {player.playing ? <icon.pause /> : <icon.play />}
             </button>
             {skips ? (
               <button className="icon-button now-playing-skip" onClick={() => player.skipBy(forward)} aria-label={`Forward ${forward} seconds`}>

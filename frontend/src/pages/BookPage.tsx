@@ -24,7 +24,7 @@ import { ChapterEditor } from '../components/ChapterEditor'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { DeleteDialog } from '../components/DeleteDialog'
 import { FixMatchDialog } from '../components/FixMatchDialog'
-import { Bookmark as BookmarkIcon, Check, Close, Pause, Play } from '../components/icons'
+import { Bookmark as BookmarkIcon, Check, Close, Play } from '../components/icons'
 import { icon } from '../components/icons.generated'
 import type { MenuAction } from '../components/ItemMenu'
 import { Overview } from '../components/Overview'
@@ -145,7 +145,7 @@ export function BookPage({ detail, onChange }: { detail: ItemDetail; onChange: (
           <div className="detail-actions">
             {finished ? (
               <AsyncButton className="button" onClick={again}>
-                <Play /> Play
+                <icon.play /> Play
               </AsyncButton>
             ) : (
               <PlayButton place={place} sounding={playing && player.playing} onClick={() => playAt()} />
@@ -158,7 +158,7 @@ export function BookPage({ detail, onChange }: { detail: ItemDetail; onChange: (
               </AsyncButton>
             )}
             <AsyncButton className="button quiet" aria-pressed={finished} onClick={() => mark(!finished)}>
-              <Check /> {finished ? 'Finished' : 'Mark as finished'}
+              <icon.watched /> {finished ? 'Finished' : 'Mark as finished'}
             </AsyncButton>
             <MoreButton label={`More for ${item.title}`} actions={more} />
           </div>
@@ -254,7 +254,7 @@ function PlayButton({ place, sounding, onClick }: { place: Place; sounding: bool
   const position = usePosition(place)
   return (
     <button className="button" onClick={onClick}>
-      {sounding ? <Pause /> : <Play />} {sounding ? 'Pause' : position > 0 ? `Resume from ${formatClock(position)}` : 'Play'}
+      {sounding ? <icon.pause /> : <icon.play />} {sounding ? 'Pause' : position > 0 ? `Resume from ${formatClock(position)}` : 'Play'}
     </button>
   )
 }

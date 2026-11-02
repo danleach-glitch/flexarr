@@ -27,8 +27,6 @@ import {
   Fullscreen,
   Muted,
   Next,
-  Pause,
-  Play,
   Previous,
   Replay10,
   Reset,
@@ -36,6 +34,7 @@ import {
   Waveform,
   Volume,
 } from '../components/icons'
+import { icon } from '../components/icons.generated'
 import { SubtitleSearchDialog } from '../components/SubtitleSearchDialog'
 import { usePolling } from '../hooks/usePolling'
 import { hasSoundGraph, MAX_AUDIO_DELAY_SECONDS, useSoundChain } from '../hooks/soundChain'
@@ -1333,7 +1332,7 @@ export function PlayerPage() {
             </strong>
             <div className="up-next-actions">
               <button className="button small" onClick={playNext}>
-                <Play /> Play now
+                <icon.play /> Play now
               </button>
               <button className="button quiet small" onClick={cancelUpNext}>
                 {finished ? 'Cancel' : 'Keep watching'}
@@ -1348,7 +1347,7 @@ export function PlayerPage() {
         <Scrubber time={time} duration={duration} bufferedTo={bufferedTo} markers={info?.markers ?? []} previews={previews} onSeek={seekTo} />
         <div className="player-buttons">
           <button className="icon-button" onClick={toggle} aria-label={playing ? 'Pause' : 'Play'}>
-            {playing ? <Pause /> : <Play />}
+            {playing ? <icon.pause /> : <icon.play />}
           </button>
           <button className="icon-button" onClick={() => seekBy(-10)} aria-label="Back 10 seconds">
             <Replay10 />
