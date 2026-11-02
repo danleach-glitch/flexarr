@@ -25,7 +25,8 @@ export function ScoreChips({ scores }: { scores: Scores }) {
   return (
     <>
       {imdb !== null && (
-        <span className="score score-chip" aria-label={`IMDb ${imdb.toFixed(1)} out of 10`} title="IMDb">
+        // role="img" so screen readers read the label: on a plain span many skip it, and the mark and number are hidden.
+        <span className="score score-chip" role="img" aria-label={`IMDb ${imdb.toFixed(1)} out of 10`} title="IMDb">
           <Mark drawing={scoreMarks.imdb} />
           <span aria-hidden="true">{imdb.toFixed(1)}</span>
         </span>
@@ -33,6 +34,7 @@ export function ScoreChips({ scores }: { scores: Scores }) {
       {rt && (
         <span
           className="score score-chip"
+          role="img"
           aria-label={`Rotten Tomatoes ${rt.score}%, ${TOMATO_WORDS[rt.state as RottenTomatoesState]}`}
           title={`Rotten Tomatoes: ${TOMATO_WORDS[rt.state as RottenTomatoesState]}`}
         >

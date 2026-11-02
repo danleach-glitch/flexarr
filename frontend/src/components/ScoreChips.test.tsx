@@ -10,8 +10,8 @@ const movie = (overrides: Record<string, unknown>) => summary({ kind: 'Movie', t
 describe('IMDb and Rotten Tomatoes', () => {
   it('shows each score beside its mark, named for screen readers', () => {
     render(<Facts item={movie({ imdbRating: 8.1, rottenTomatoes: { score: 92, state: 'CertifiedFresh' }, criticRating: 92, communityRating: 8 })} />)
-    expect(screen.getByLabelText('IMDb 8.1 out of 10')).toBeTruthy()
-    expect(screen.getByLabelText('Rotten Tomatoes 92%, Certified Fresh')).toBeTruthy()
+    expect(screen.getByRole('img', { name: 'IMDb 8.1 out of 10' })).toBeTruthy()
+    expect(screen.getByRole('img', { name: 'Rotten Tomatoes 92%, Certified Fresh' })).toBeTruthy()
     expect(screen.queryByText('8.0')).toBeNull() // the plain score gives way to the marks
   })
 
