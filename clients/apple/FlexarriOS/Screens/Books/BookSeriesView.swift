@@ -10,6 +10,8 @@ struct BookSeriesView: View {
     @State private var series: BookSeries?
     @State private var error: String?
     @State private var loadedToken: Int?
+    /// Books Audible lists in the series that the library doesn't have.
+    @State private var gaps: BookSeriesGaps = .none
 
     private var next: ItemSummary? {
         guard let series else { return nil }
@@ -60,6 +62,18 @@ struct BookSeriesView: View {
                             .contextMenu { BookContextMenu(item: entry.book) }
                         }
                     }
+                    if !gaps.books.isEmpty {
+                        VStack(alignment: .leading, spacing: 12) {
+                            SectionHeading(title: "Not in your library")
+                            LazyVGrid(columns: [GridItem(.adaptive(minimum: 104, maximum: 150), spacing: 12, alignment: .top)], alignment: .leading, spacing: 18) {
+                                ForEach(gaps.books) { book in
+                                    MissingBookCard(book: book)
+                                }
+                            }
+                            .padding(.horizontal, Layout.edge)
+                        }
+                        .padding(.top, 12)
+                    }
                 } else if let error {
                     StatusView(state: .failed(error) { Task { await load() } }).frame(height: 300)
                 } else {
@@ -89,5 +103,31 @@ struct BookSeriesView: View {
         } catch {
             if series == nil { self.error = ConnectionError(error).message }
         }
+        // After the page: Audible being slow never holds it up.
+        gaps = (try? await client.bookSeriesGaps(id)) ?? gaps
+    }
+}
+
+/// A book of the series the library doesn't have: its cover, title, number and year. Just to know; nothing to open.
+struct MissingBookCard: View {
+    let book: MissingBook
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ExternalMusicArtwork(image: book.cover, title: book.title, imageWidth: 300)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(book.title)
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(Color.screen.opacity(0.9))
+                    .lineLimit(2)
+                if let caption = book.caption {
+                    Text(caption)
+                        .font(.caption)
+                        .foregroundStyle(Color.usher)
+                        .lineLimit(1)
+                }
+            }
+        }
+        .accessibilityElement(children: .combine)
     }
 }
