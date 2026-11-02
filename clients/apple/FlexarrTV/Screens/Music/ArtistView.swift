@@ -7,6 +7,9 @@ struct ArtistView: View {
     @Environment(Router.self) private var router
     @State private var page: MusicPageModel
     @Environment(\.scenePhase) private var scenePhase
+    /// From outside the library: their albums it lacks, artists like them, and whether they're followed. Nil while
+    /// music requests are off (and on servers before them).
+    @State private var extras: MusicArtistExtras?
 
     private let columns = Array(repeating: GridItem(.fixed(Layout.posterWidth), spacing: Layout.gridSpacing, alignment: .top), count: 6)
 
@@ -41,6 +44,24 @@ struct ArtistView: View {
                         } else if page.detail != nil {
                             StatusView(state: .empty("No albums yet."))
                                 .frame(height: 200)
+                        }
+                        if let missing = extras?.missing, !missing.isEmpty {
+                            VStack(alignment: .leading, spacing: 28) {
+                                Text("Not in your library")
+                                    .font(.marquee(40, weight: .bold))
+                                    .foregroundStyle(Color.screen)
+                                LazyVGrid(columns: columns, alignment: .leading, spacing: 56) {
+                                    ForEach(missing) { album in
+                                        ExternalMusicCard(item: album, showsYear: true)
+                                    }
+                                }
+                                .focusSection()
+                            }
+                        }
+                        if let similar = extras?.similar, !similar.isEmpty {
+                            // The row runs to the screen's edges, as rows elsewhere do.
+                            ExternalMusicRow(title: "Fans also like", items: similar, artists: true)
+                                .padding(.horizontal, -Layout.edge)
                         }
                     }
                     .padding(.horizontal, Layout.edge)
@@ -101,7 +122,7 @@ struct ArtistView: View {
                     }
                 }
                 .disabled(page.albums.isEmpty)
-                .focusSection()
+                .modifier(FollowBeside(extras: extras, artistId: page.id))
                 .padding(.top, 8)
             }
             Spacer(minLength: 0)
@@ -110,6 +131,33 @@ struct ArtistView: View {
 
     private func load(ifFresh: Bool = false) async {
         guard let client = model.client else { return }
+        async let outside = loadExtras(client)
         await page.load(client: client, onlyIfStale: ifFresh)
+        await outside
+    }
+
+    /// Off (kids, no Lidarr, an older server) leaves the page as it was.
+    private func loadExtras(_ client: FlexarrClient) async {
+        guard !model.isKids else { return }
+        if let found = try? await client.musicArtistExtras(libraryItemId: page.id) { extras = found }
+    }
+}
+
+/// Play and Shuffle, with Follow artist after them while the artist isn't followed (and Following once asked).
+private struct FollowBeside: ViewModifier {
+    @Environment(AppModel.self) private var model
+    let extras: MusicArtistExtras?
+    let artistId: String
+
+    func body(content: Content) -> some View {
+        HStack(spacing: 26) {
+            content
+            if let extras, !extras.followed || model.musicAsked.contains(MusicRequestTarget.libraryArtist(artistId).askedKey) {
+                FollowArtistButton(following: model.isFollowing(libraryArtist: artistId, followed: extras.followed)) {
+                    await model.requestMusic(.libraryArtist(artistId))
+                }
+            }
+        }
+        .focusSection()
     }
 }
