@@ -1914,3 +1914,9 @@ button.queue-track:focus-visible {
 .tracklist span.track {
   cursor: default;
 }
+
+/* A row on a music page (Fans also like) runs edge to edge like the rows elsewhere: the page's own padding would
+   otherwise double its indent. */
+.music-page > .row {
+  margin-inline: calc(-1 * var(--edge));
+}
