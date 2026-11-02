@@ -5,7 +5,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ## Unreleased
 
 ### Playback
-- Finishing an episode now takes the page you played it from on to the next one, in every app: a show's page offers the next episode, and an episode's own page becomes the next episode's, instead of still offering the one you just watched. Stopping part way through an episode the player had moved on to shows that one.
+- After you finish an episode, the page you played it from moves on, in every app: a show's Play offers the next episode, and an episode's page shows the next one.
 - On the web, closing the player goes back to the page you pressed Play on, as in the apps.
 
 ### Audiobooks
