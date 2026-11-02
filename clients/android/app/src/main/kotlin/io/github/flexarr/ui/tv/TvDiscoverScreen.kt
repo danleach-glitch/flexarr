@@ -78,7 +78,8 @@ import io.github.flexarr.core.MusicGenreDetail
 import io.github.flexarr.core.MusicSearch
 import io.github.flexarr.core.musicDiscover
 import io.github.flexarr.core.musicGenre
-import io.github.flexarr.core.musicRequestStatus
+import io.github.flexarr.ui.music.LidarrNotAnswering
+import io.github.flexarr.ui.theme.FlexarrIcons
 import io.github.flexarr.core.searchMusic
 import io.github.flexarr.core.RequestStatus
 import io.github.flexarr.core.discoverRows
@@ -207,7 +208,7 @@ fun TvDiscoverScreen(model: AppModel) {
     }
     LaunchedEffect(model.credentials) {
         musicOn = try {
-            client.musicRequestStatus().configured
+            model.musicStatus().configured
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
@@ -229,12 +230,13 @@ fun TvDiscoverScreen(model: AppModel) {
     BackHandler(enabled = !browsing, onBack = ::pop)
 
     val showsMusic = musicMode && musicOn
-    // Browse and Search for films and shows (when Seerr's connected, or not yet known not to be), Music when it's on.
+    // Browse, Search for films and shows (when Seerr's connected, or not yet known not to be), then Music when it's
+    // on, as the Apple TV's: Music has its own search inside it.
     val seerr = content?.status?.configured != false
     val choices = buildList {
         add("Browse")
+        if (seerr) add("Search")
         if (musicOn) add("Music")
-        if (if (showsMusic) true else seerr) add("Search")
     }
     val switch: (@Composable (Modifier) -> Unit)? = if (seerr || musicOn) {
         { modifier ->
@@ -243,7 +245,7 @@ fun TvDiscoverScreen(model: AppModel) {
                 selected = choices.indexOf(if (showsMusic) "Music" else "Browse"),
                 onSelect = { index ->
                     when (choices[index]) {
-                        "Search" -> pages.add(if (showsMusic) DiscoverPage.MusicSearchPage else DiscoverPage.Search)
+                        "Search" -> pages.add(DiscoverPage.Search)
                         "Music" -> if (!showsMusic) { musicMode = true; focusSwitch = true }
                         "Browse" -> if (showsMusic) { musicMode = false; focusSwitch = true }
                     }
@@ -268,7 +270,12 @@ fun TvDiscoverScreen(model: AppModel) {
     states.SaveableStateProvider(if (page == null) "browse" else pageKey(pages.lastIndex)) {
         when (page) {
             null -> if (showsMusic) {
-                MusicBrowse(music, musicError, retry = { musicAttempt++ }, switch = switch, takesFocus = !focusSwitch, onGenre = { id, name -> pages.add(DiscoverPage.MusicGenrePage(id, name)) })
+                MusicBrowse(
+                    music, musicError, retry = { musicAttempt++ }, switch = switch, takesFocus = !focusSwitch,
+                    paused = model.musicUnreachable,
+                    onSearch = { pages.add(DiscoverPage.MusicSearchPage) },
+                    onGenre = { id, name -> pages.add(DiscoverPage.MusicGenrePage(id, name)) },
+                )
             } else {
                 DiscoverBrowse(content, error, retry = { attempt++ }, switch = switch, takesFocus = !focusSwitch, onGenre = { pages.add(DiscoverPage.GenrePage(it)) }, open = open)
             }
@@ -463,7 +470,10 @@ private fun SearchField(value: String, onValue: (String) -> Unit, modifier: Modi
 
 // Music
 
-/** Music mode: Deezer's rows (like artists played here, new from them, charts), then genre tiles opening their artists. */
+/**
+ * Music mode: Search (any artist or album), Deezer's rows (like artists played here, new from them, charts), then genre
+ * tiles opening their artists. [paused]: Lidarr isn't answering, said in one quiet line at the top.
+ */
 @Composable
 private fun MusicBrowse(
     music: MusicDiscover?,
@@ -471,6 +481,8 @@ private fun MusicBrowse(
     retry: () -> Unit,
     switch: (@Composable (Modifier) -> Unit)?,
     takesFocus: Boolean,
+    paused: Boolean,
+    onSearch: () -> Unit,
     onGenre: (Long, String) -> Unit,
 ) {
     val focus = rememberFocusMemory()
@@ -478,11 +490,19 @@ private fun MusicBrowse(
     val genres = music?.genres.orEmpty()
     LaunchedEffect(music != null) {
         if (music == null || !takesFocus) return@LaunchedEffect
-        focus.restore(rows.firstOrNull()?.let { "${it.id}/${it.items.first().id}" } ?: genres.firstOrNull()?.let { "genre/${it.id}" })
+        focus.restore(rows.firstOrNull()?.let { "${it.id}/${it.items.first().id}" } ?: genres.firstOrNull()?.let { "genre/${it.id}" } ?: "search")
     }
     RoomBackground(ambient = null) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 40.dp), verticalArrangement = Arrangement.spacedBy(25.dp)) {
             if (switch != null) item(key = "switch") { switch(Modifier.padding(start = TvLayout.Edge, top = SwitchTop)) }
+            if (paused) {
+                item(key = "paused") {
+                    Text(LidarrNotAnswering, fontSize = 13.5.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher, modifier = Modifier.padding(horizontal = TvLayout.Edge))
+                }
+            }
+            item(key = "search") {
+                TvActionButton("Search", onClick = onSearch, icon = FlexarrIcons.search, modifier = Modifier.padding(start = TvLayout.Edge).focusMemory(focus, "search"))
+            }
             when {
                 music == null -> item(key = "status") {
                     Box(Modifier.fillMaxWidth().height(300.dp)) { if (error != null) TvStatusView(error, retry = retry) else TvStatusView() }
