@@ -69,8 +69,9 @@ public static class RequestRequested
         var wantMovies = library is null ? !hidden.Hides(MediaKind.Movie) : library.Type == LibraryType.Movies;
         var wantShows = library is null ? !hidden.Hides(MediaKind.Series) : library.Type == LibraryType.TvShows;
 
-        // Open (pending, approved, failed) and not all in yet, one row per title with every season asked for.
-        var titles = requests.Where(r => r.Status is 1 or 2 or 4 && r.Media is { Status: not 5 } && r.Type is "movie" or "tv")
+        // Open (pending, approved, failed) for a title Seerr is still getting (pending, processing or partly in: not
+        // all in, nor deleted or blocked since), one row per title with every season asked for.
+        var titles = requests.Where(r => r.Status is 1 or 2 or 4 && r.Media is { Status: 2 or 3 or 4 } && r.Type is "movie" or "tv")
             .Where(r => r.Type == "movie" ? wantMovies : wantShows)
             .GroupBy(r => (r.Type, r.Media!.TmdbId))
             .Select(g => (g.Key.Type, g.Key.TmdbId, TvdbId: g.Select(r => r.Media!.TvdbId).FirstOrDefault(t => t is > 0),

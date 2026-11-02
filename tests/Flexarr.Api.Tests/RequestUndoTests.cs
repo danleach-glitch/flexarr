@@ -177,7 +177,8 @@ public sealed class RequestUndoTests : IAsyncLifetime
               {"id":1,"status":2,"type":"movie","media":{"id":11,"tmdbId":7101,"status":3}},
               {"id":2,"status":2,"type":"tv","media":{"id":12,"tmdbId":8101,"tvdbId":91,"status":4},"seasons":[{"seasonNumber":2}]},
               {"id":3,"status":5,"type":"movie","media":{"id":13,"tmdbId":7102,"status":5}},
-              {"id":4,"status":3,"type":"movie","media":{"id":14,"tmdbId":7103,"status":2}}]}
+              {"id":4,"status":3,"type":"movie","media":{"id":14,"tmdbId":7103,"status":2}},
+              {"id":5,"status":2,"type":"movie","media":{"id":15,"tmdbId":7104,"status":7}}]}
             """;
         _arr.Responses["GET //radarr.test/api/v3/movie?tmdbId=7101"] = """[{"id":21,"title":"Film","year":2026,"status":"released","path":"/media/movies/Film (2026)"}]""";
         _arr.Responses[RadarrQueue] = """{"page":1,"pageSize":200,"totalRecords":1,"records":[{"id":5,"movieId":21,"size":100,"sizeleft":25,"status":"downloading"}]}""";
