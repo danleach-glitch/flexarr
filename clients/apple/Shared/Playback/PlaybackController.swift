@@ -45,6 +45,18 @@ final class PlaybackController: NSObject {
     /// Called when something is watched into its credits; `closing` when the player is going away with it, rather
     /// than moving on to the next episode.
     @ObservationIgnored var onWatchedToEnd: ((_ closing: Bool) -> Void)?
+    /// The page Play was pressed on (a token it made) and the title it started with, whatever the sitting has moved on
+    /// to since: kept through Next, recoveries and auto-advance, so that page can move on once the player closes.
+    @ObservationIgnored private var origin: (from: String?, startedWith: String)?
+    @ObservationIgnored private var lastEnding: PlaybackEnding?
+
+    /// How the last sitting ended, if it was started from the page that made `token`; taken, so the page moves on once.
+    func takeEnding(from token: String) -> PlaybackEnding? {
+        guard let ending = lastEnding, ending.from == token else { return nil }
+        lastEnding = nil
+        return ending
+    }
+
     /// When false, sessions are still started and stopped but progress is never reported.
     @ObservationIgnored var recordsHistory = true
     /// Whether the subtitles menu may offer a search and Re-sync to audio (not on a kids profile).
@@ -139,12 +151,15 @@ final class PlaybackController: NSObject {
 
     /// Starts playback. `startAt` nil lets the server choose the resume point; 0 starts over. With `shuffle`,
     /// `itemId` is a show: a random episode starts, and every next one is random too.
+    /// `from`: the page Play was pressed on, a token it made (see `takeEnding`).
     func play(itemId: String, preview: ItemSummary?, startAt: Double?, client: FlexarrClient, shuffle: Bool = false,
-              subtitleKey: String? = nil) {
+              subtitleKey: String? = nil, from: String? = nil) {
         guard !isStarting else { return }
         onWillStart?()
         self.client = client
         shuffling = shuffle
+        origin = (from, itemId)
+        lastEnding = nil
         trail = []
         carriedRate = nil
         viewerSubtitleKey = subtitleKey.map { .some($0) }
@@ -158,6 +173,8 @@ final class PlaybackController: NSObject {
         guard !isStarting else { return }
         onWillStart?()
         shuffling = false
+        origin = (nil, info.item.id)
+        lastEnding = nil
         trail = []
         carriedRate = nil
         viewerSubtitleKey = nil
@@ -754,8 +771,13 @@ final class PlaybackController: NSObject {
         }
     }
 
+    /// Done once the server has every progress report and stop sent so far (or they've failed), so a screen that
+    /// reloads then sees what was just watched: a show's next episode, not the one that just ended.
+    var reportsSent: Task<Void, Never>? { reporting }
+
     /// Sends `request` after whatever was sent before it, with time to finish if the app goes to the background
     /// meanwhile: leaving mid-film would otherwise suspend the app before the last position reached the server.
+
     private func send(_ request: @escaping @Sendable () async -> Void) {
         let previous = reporting
         let background = BackgroundTime(named: "Playback progress")
@@ -1150,6 +1172,13 @@ final class PlaybackController: NSObject {
     /// `recording`: a real stop, so a downloaded file's position is kept (not when one session replaces another).
     private func stop(reportingTo client: FlexarrClient?, recording: Bool = false) {
         let watchedToEnd = recording && recordsHistory && info.map(isPastCredits) == true
+        if recording, let info, let origin {
+            // Watched as the server counts it, so the page moves on exactly when the server has it as watched.
+            let watched = recordsHistory && PlaybackEnding.isWatched(position: position, duration: info.durationSeconds,
+                                                                     creditsStart: info.markers.first(where: { $0.type == .credits })?.start)
+            lastEnding = PlaybackEnding(from: origin.from, startedWith: origin.startedWith, stoppedOn: info.item.id,
+                                        watched: watched, next: info.next?.id)
+        }
         if let info, info.isOffline {
             if recording, recordsHistory { offlineLibrary?.record(itemId: info.item.id, position: position, finished: isPastCredits(info)) }
         } else if let info, let client {

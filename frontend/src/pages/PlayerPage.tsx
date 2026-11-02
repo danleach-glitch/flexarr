@@ -1,6 +1,6 @@
 import Hls from 'hls.js/light'
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
-import { useNavigate, useParams, useSearchParams } from 'react-router'
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
 import {
   ApiError,
   beaconProgress,
@@ -41,6 +41,7 @@ import { usePolling } from '../hooks/usePolling'
 import { hasSoundGraph, MAX_AUDIO_DELAY_SECONDS, useSoundChain } from '../hooks/soundChain'
 import { useAgeLimits } from '../hooks/sessionContext'
 import { announceWatched } from '../hooks/watched'
+import { clearEnding, isWatched, recordEnding, sendingFinalReport, type PlaybackEnding, type PlayState } from '../hooks/playbackEnding'
 import { episodeCode, formatClock } from '../lib/format'
 import { belongsToFocused } from '../lib/focusedKeys'
 import { mediaErrorRecovery } from '../lib/hlsRecovery'
@@ -186,6 +187,13 @@ export function PlayerPage() {
   // The episode actually playing, once known: a shuffle starts from the show, and restarts (another audio track, a
   // recovery) must carry on with this episode rather than pick a new one.
   const playingItem = useRef<string | undefined>(undefined)
+  // What Play was pressed on and where, whatever this sitting has moved on to since (Next replaces the page, keeping
+  // these), so that page can move on once the player closes.
+  const location = useLocation()
+  const playState = location.state as PlayState | null
+  const startedWith = useRef(id)
+  const origin = useRef(playState?.from ?? null)
+  const leaving = useRef(false)
 
   const container = useRef<HTMLDivElement>(null)
   const video = useRef<HTMLVideoElement>(null)
@@ -440,6 +448,12 @@ export function PlayerPage() {
     setFinished(false)
     autoSkipped.current = new Set()
     playingItem.current = undefined
+    // Come back to with Forward after closing: the title's page, not the episode again from the top.
+    if (playState?.closed) {
+      navigate(`/item/${id}`, { replace: true })
+      return
+    }
+    clearEnding()
     const t = params.get('t')
     const el = video.current
     const life = { alive: true }
@@ -447,6 +461,7 @@ export function PlayerPage() {
     void start({ startPositionSeconds: t !== null ? Number(t) : undefined })
     return () => {
       life.alive = false
+      const at = el?.currentTime ?? 0
       hls.current?.destroy()
       // A direct or native stream is let go too, so its late errors can't start a recovery for the next title.
       if (el) {
@@ -454,8 +469,11 @@ export function PlayerPage() {
         el.load()
       }
       if (session.current) {
-        beaconProgress(session.current, el?.currentTime ?? 0)
-        void stopPlayback(session.current)
+        // Where it stopped, then the end of the session; the page that loads next waits a moment for them.
+        const ending = session.current
+        sendingFinalReport(
+          (at > 0 ? reportProgress(ending, at, true).catch(() => undefined) : Promise.resolve()).then(() => stopPlayback(ending)),
+        )
         session.current = undefined
       }
     }
@@ -703,9 +721,43 @@ export function PlayerPage() {
     if (document.fullscreenElement) void document.exitFullscreen()
     else void container.current?.requestFullscreen?.()
   }
+  // How this sitting ends, from what was playing when the player closes (by its own Back or the browser's).
+  const now = useRef({ info, time, duration, finished, credits: undefined as number | undefined })
+  now.current = { info, time, duration, finished, credits: info?.markers.find((m) => m.type === 'Credits')?.start }
+  const endingNow = (): PlaybackEnding | undefined => {
+    const { info: playing, time: at, duration: length, finished: over, credits: creditsStart } = now.current
+    // A shuffle belongs to its show, whose page has nothing to move on to.
+    if (!playing || shuffleRef.current) return undefined
+    return { from: origin.current, startedWith: startedWith.current, stoppedOn: playing.item.id, watched: over || isWatched(at, length, creditsStart), next: playing.next?.id ?? null }
+  }
+  // Leaving by the browser's Back (or a swipe) counts as closing too.
+  useEffect(
+    () => () => {
+      if (leaving.current) return
+      const ending = endingNow()
+      if (ending) recordEnding(ending)
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- on leaving only; it reads the latest through refs
+    [],
+  )
+
+  // Back to where Play was pressed, as the apps' players close: at once, while that page waits a moment for the last
+  // report (see finalReportSent). It moves on if it showed the episode just watched (see endingFrom).
   const exit = () => {
-    const back = info?.ancestors[0]?.id ?? info?.item.id
-    navigate(back ? `/item/${info?.item.kind === 'Episode' ? info.item.id : back}` : '/')
+    if (leaving.current) return
+    leaving.current = true
+    const ending = endingNow()
+    if (ending) recordEnding(ending)
+    if ((window.history.state as { idx?: number } | null)?.idx) {
+      // Forward from that page comes back here: closed, so it opens the page rather than playing again.
+      navigate(`${location.pathname}${location.search}`, { replace: true, state: { closed: true } satisfies PlayState })
+      navigate(-1)
+    } else {
+      // Opened straight from a link: the episode's page (moved on, as above), else its show's or the film's.
+      const back = info?.ancestors[0]?.id ?? info?.item.id
+      const episode = ending && info?.item.kind === 'Episode' && !shuffle ? (ending.watched && ending.next) || ending.stoppedOn : undefined
+      navigate(episode ? `/item/${episode}` : back ? `/item/${back}` : '/')
+    }
   }
 
   function chooseSubtitle(key: string | null) {

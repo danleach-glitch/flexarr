@@ -194,6 +194,8 @@ class PlayerActivity : ComponentActivity() {
             fromBeginning = intent.getBooleanExtra(EXTRA_FROM_BEGINNING, false),
             shuffle = intent.getBooleanExtra(EXTRA_SHUFFLE, false),
             startAt = intent.getDoubleExtra(EXTRA_START_AT, -1.0).takeIf { it >= 0 },
+            from = intent.getStringExtra(EXTRA_FROM),
+            startedWith = intent.getStringExtra(EXTRA_STARTED_WITH),
         )
     }
 
@@ -210,6 +212,11 @@ class PlayerActivity : ComponentActivity() {
             Bundle().apply {
                 putString(EXTRA_ITEM, info.item.id)
                 putDouble(EXTRA_START_AT, controller.player.currentPosition / 1000.0)
+                // Still the sitting started from that page, so it moves on once the player closes.
+                controller.origin?.let { (from, startedWith) ->
+                    putString(EXTRA_FROM, from)
+                    putString(EXTRA_STARTED_WITH, startedWith)
+                }
             }
         }
         outState.putBundle(STATE_PLAYING, playing)
@@ -273,6 +280,8 @@ class PlayerActivity : ComponentActivity() {
 
     companion object {
         private const val EXTRA_ITEM = "itemId"
+        private const val EXTRA_FROM = "from"
+        private const val EXTRA_STARTED_WITH = "startedWith"
         private const val EXTRA_FROM_BEGINNING = "fromBeginning"
         private const val EXTRA_SHUFFLE = "shuffle"
         private const val EXTRA_START_AT = "startAt"
@@ -280,9 +289,11 @@ class PlayerActivity : ComponentActivity() {
         private const val STATE_PLAYING = "playing"
 
         /** [startAt]: a place to open at (debug launches), rather than where it was left. */
-        fun intent(context: Context, itemId: String, fromBeginning: Boolean, shuffle: Boolean = false, startAt: Int? = null): Intent =
+        /** [from]: the page Play was pressed on, a token it made (see `AppModel.takeEnding`). */
+        fun intent(context: Context, itemId: String, fromBeginning: Boolean, shuffle: Boolean = false, startAt: Int? = null, from: String? = null): Intent =
             Intent(context, PlayerActivity::class.java)
                 .putExtra(EXTRA_ITEM, itemId)
+                .apply { if (from != null) putExtra(EXTRA_FROM, from) }
                 .putExtra(EXTRA_FROM_BEGINNING, fromBeginning)
                 .putExtra(EXTRA_SHUFFLE, shuffle)
                 .apply { if (startAt != null) putExtra(EXTRA_START_AT, startAt.toDouble()) }

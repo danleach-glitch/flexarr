@@ -216,8 +216,24 @@ final class AppModel {
         // Searching for subtitles is a parent's job, not a child's.
         player.offersSubtitleSearch = { [weak self] in self?.isKids != true }
         player.onSessionEnded = { [weak self] in
-            self?.watchStateChanged()
             self?.music.videoEnded()
+            // Screens reload once the server has the last report: asked straight away, a show's next up was still
+            // the episode that had just ended. Not for long, though: a slow server gets another reload once it answers.
+            guard let sent = self?.player.reportsSent else { self?.watchStateChanged(); return }
+            Task { @MainActor [weak self] in
+                let inTime = await withTaskGroup(of: Bool.self) { group in
+                    group.addTask { await sent.value; return true }
+                    group.addTask { try? await Task.sleep(for: .seconds(3)); return false }
+                    let first = await group.next() ?? false
+                    group.cancelAll()
+                    return first
+                }
+                self?.watchStateChanged()
+                if !inTime {
+                    await sent.value
+                    self?.invalidate()
+                }
+            }
         }
         // One thing plays at a time: a film starting pauses the music, which the lock screen offers back after.
         player.onWillStart = { [weak self] in self?.music.yieldToVideo() }
@@ -1173,7 +1189,8 @@ final class AppModel {
         player.play(itemId: series.id, preview: nil, startAt: nil, client: client, shuffle: true)
     }
 
-    func play(_ item: ItemSummary, fromBeginning: Bool = false) {
+    /// `from`: the page Play was pressed on, a token it made, so it can move on afterwards (`PlaybackController.takeEnding`).
+    func play(_ item: ItemSummary, fromBeginning: Bool = false, from: String? = nil) {
         guard let client else { return }
         // A book plays in the audio player, never as a video.
         if item.kind == .audiobook {
@@ -1185,7 +1202,7 @@ final class AppModel {
             playEpisode(item)
             return
         }
-        player.play(itemId: item.id, preview: item, startAt: fromBeginning ? 0 : nil, client: client)
+        player.play(itemId: item.id, preview: item, startAt: fromBeginning ? 0 : nil, client: client, from: from)
     }
 
     /// Plays a movie or episode directly; for a series or season, plays its next-up episode

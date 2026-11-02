@@ -12,6 +12,10 @@ struct DetailView: View {
     let preview: ItemSummary?
 
     @State private var detail: ItemDetail?
+    /// The episode shown now, once watching from this page has moved it on from `id`.
+    @State private var shownID: String?
+    /// Given to the player with Play, so this page knows the sitting was started here (`takeEnding`).
+    @State private var pageToken = UUID().uuidString
     @State private var error: String?
     @State private var nextUp: ItemSummary?
     @State private var similar: [ItemSummary] = []
@@ -188,7 +192,7 @@ struct DetailView: View {
         // Play on a line of its own, so "Resume from 1:02:35" never wraps; the rest underneath, named.
         VStack(spacing: 18) {
             if let playable {
-                Button { model.play(playable) } label: {
+                Button { model.play(playable, from: pageToken) } label: {
                     Label(playLabel(playable, container: item), systemImage: Symbol.play)
                         .frame(maxWidth: .infinity)
                 }
@@ -214,7 +218,7 @@ struct DetailView: View {
             EmptyView()
         case .startOver:
             if let playable {
-                Button { model.play(playable, fromBeginning: true) } label: {
+                Button { model.play(playable, fromBeginning: true, from: pageToken) } label: {
                     Label("Start over", systemImage: Symbol.startOver)
                 }
             }
@@ -376,7 +380,7 @@ struct DetailView: View {
                 EpisodeRow(episode: episode, overview: season.childOverviews[episode.id] ?? nil,
                            isCurrent: episode.id == item?.id) {
                     if episode.id == item?.id || item?.kind == .series {
-                        model.play(episode)
+                        model.play(episode, from: pageToken)
                     } else {
                         router.push(.item(episode))
                     }
@@ -426,7 +430,20 @@ struct DetailView: View {
         guard let client = model.client else { return }
         let token = model.refreshToken
         do {
-            var loaded = try await client.item(id)
+            // Back from watching an episode started here: on to the next one (or the one it stopped part way through),
+            // settled before anything is fetched, so a reload that cuts in can't lose it.
+            let before = shownID
+            if let target = model.player.takeEnding(from: pageToken)?.moveOn(from: shownID ?? id) { shownID = target }
+            var loaded: ItemDetail
+            do {
+                loaded = try await client.item(shownID ?? id)
+            } catch where shownID != before && !(error is CancellationError) {
+                shownID = before // The next episode couldn't be had (gone, or not for this profile): stay.
+                loaded = try await client.item(shownID ?? id)
+            }
+            if shownID != before, shownID == loaded.item.id {
+                AccessibilityNotification.Announcement("Now showing \([loaded.item.episodeCode, loaded.item.title].compactMap { $0 }.joined(separator: ", "))").post()
+            }
             // A season opens as its series, with that season selected.
             if loaded.item.kind == .season, let parent = loaded.item.parentId {
                 seasons[loaded.item.id] = loaded

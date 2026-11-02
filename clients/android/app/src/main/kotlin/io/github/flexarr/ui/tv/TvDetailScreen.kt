@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -30,14 +31,18 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
 import io.github.flexarr.appModel
 import io.github.flexarr.core.displayTitle
 import io.github.flexarr.core.scores
+import io.github.flexarr.player.LocalPlayFrom
 import io.github.flexarr.ui.components.MenuAction
 import io.github.flexarr.ui.components.LocalClient
 import io.github.flexarr.player.TvSubtitleSearch
@@ -82,6 +87,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import java.util.Locale
+import java.util.UUID
 import io.github.flexarr.core.DetailActions
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.Theaters
@@ -102,6 +108,10 @@ import io.github.flexarr.ui.theme.FlexarrIcons
 fun TvDetailScreen(model: AppModel, id: String) {
     val client = model.client ?: return
     var detail by remember(id) { mutableStateOf<ItemDetail?>(null) }
+    // The episode shown now, once watching from this page has moved it on from [id].
+    var shownId by rememberSaveable(id) { mutableStateOf<String?>(null) }
+    // Given to the player with Play, so this page knows the sitting was started here (AppModel.takeEnding).
+    val pageToken = rememberSaveable(id) { UUID.randomUUID().toString() }
     var error by remember(id) { mutableStateOf<String?>(null) }
     var nextUp by remember(id) { mutableStateOf<ItemSummary?>(null) }
     var similar by remember(id) { mutableStateOf(emptyList<ItemSummary>()) }
@@ -113,7 +123,19 @@ fun TvDetailScreen(model: AppModel, id: String) {
 
     LaunchedEffect(id, model.watchStateVersion, attempt) {
         try {
-            var loaded = client.item(id)
+            // Back from watching an episode started here: on to the next one (or the one it stopped part way through),
+            // settled before anything is fetched, so a reload that cuts in can't lose it.
+            val before = shownId
+            model.takeEnding(from = pageToken)?.moveOn(shownId ?: id)?.let { shownId = it }
+            var loaded = try {
+                client.item(shownId ?: id)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (shownId == before) throw e
+                shownId = before // The next episode couldn't be had (gone, or not for this profile): stay.
+                client.item(shownId ?: id)
+            }
             // A season opens as its show, with that season selected.
             val parent = loaded.item.parentId
             if (loaded.item.kind == MediaKind.Season && parent != null) {
@@ -151,6 +173,7 @@ fun TvDetailScreen(model: AppModel, id: String) {
 
     val loaded = detail
     val item = loaded?.item
+    CompositionLocalProvider(LocalPlayFrom provides pageToken) {
     Box(Modifier.fillMaxSize().background(Flexarr.room)) {
         when {
             // A book (from a link, say) never opens as a film: the TV has no book screens yet.
@@ -173,6 +196,7 @@ fun TvDetailScreen(model: AppModel, id: String) {
             else -> TvStatusView()
         }
     }
+    }
 }
 
 /** The backdrop, washed in the title's colour and dimmed further as the page scrolls so the rows stay legible. */
@@ -193,7 +217,8 @@ private fun Header(item: ItemSummary, series: ItemSummary?, detail: ItemDetail, 
     Column(Modifier.padding(start = TvLayout.Edge, end = 150.dp, bottom = 5.dp), verticalArrangement = Arrangement.spacedBy(11.dp)) {
         if (item.kind == MediaKind.Episode && series != null) {
             TitleArt(series, maxWidth = 280.dp, maxHeight = 85.dp, fontSize = 40)
-            Text(item.episodeSubtitle ?: item.title, style = marquee(27).copy(fontWeight = FontWeight.Bold))
+            // Said by TalkBack when the page moves on to the next episode.
+            Text(item.episodeSubtitle ?: item.title, style = marquee(27).copy(fontWeight = FontWeight.Bold), modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
         } else {
             TitleArt(item, maxWidth = 410.dp, maxHeight = 130.dp, fontSize = 60)
         }
@@ -215,6 +240,7 @@ private fun Header(item: ItemSummary, series: ItemSummary?, detail: ItemDetail, 
  */
 @Composable
 private fun Actions(item: ItemSummary, series: ItemSummary?, detail: ItemDetail, nextUp: ItemSummary?, season: ItemDetail?, ambient: Color, modifier: Modifier) {
+    val from = LocalPlayFrom.current
     val navigator = LocalNavigator.current
     val client = LocalClient.current
     val context = LocalContext.current
@@ -262,10 +288,10 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, detail: ItemDetail,
             actions.buttons.forEach { button ->
                 when (button) {
                     DetailActions.Button.PLAY -> target?.let { playable ->
-                        TvActionButton(playLabel(playable, item), onClick = { navigator.play(playable) }, icon = FlexarrIcons.play, prominent = true, ambient = ambient, modifier = focusFirst())
+                        TvActionButton(playLabel(playable, item), onClick = { navigator.play(playable, from = from) }, icon = FlexarrIcons.play, prominent = true, ambient = ambient, modifier = focusFirst())
                     }
                     DetailActions.Button.START_OVER -> target?.let { playable ->
-                        TvActionButton("Start over", onClick = { navigator.play(playable, fromBeginning = true) }, icon = FlexarrIcons.startOver, ambient = ambient)
+                        TvActionButton("Start over", onClick = { navigator.play(playable, fromBeginning = true, from = from) }, icon = FlexarrIcons.startOver, ambient = ambient)
                     }
                     DetailActions.Button.SHUFFLE -> if (item.childCount > 0) {
                         RoundAction("Shuffle", FlexarrIcons.shuffle, ambient, { focusedName = it }, focusFirst()) { navigator.shuffle(item) }
@@ -429,16 +455,22 @@ private fun Sections(
 @Composable
 private fun Episodes(item: ItemSummary, season: ItemDetail, nextUp: ItemSummary?) {
     val navigator = LocalNavigator.current
+    val from = LocalPlayFrom.current
     val episodes = season.children
     val anchor = listOfNotNull(if (item.kind == MediaKind.Episode) item.id else null, nextUp?.id, episodes.firstOrNull { !it.userData.watched }?.id)
         .firstOrNull { id -> episodes.any { it.id == id } }
     val anchorIndex = episodes.indexOfFirst { it.id == anchor }.coerceAtLeast(0)
     val list = rememberLazyListState()
     val landing = remember { FocusRequester() }
-    LaunchedEffect(season.item.id, anchorIndex) { list.scrollToItem(anchorIndex) }
+    var rowFocused by remember { mutableStateOf(false) }
+    LaunchedEffect(season.item.id, anchorIndex) {
+        list.scrollToItem(anchorIndex)
+        // Moved on to the next episode with focus in the row: focus follows, rather than staying on a card scrolled away.
+        if (rowFocused) runCatching { landing.requestFocus() }
+    }
     LazyRow(
         state = list,
-        modifier = Modifier.focusRestorer(landing),
+        modifier = Modifier.focusRestorer(landing).onFocusChanged { rowFocused = it.hasFocus },
         contentPadding = PaddingValues(start = TvLayout.Edge, end = TvLayout.Edge, top = 12.dp, bottom = 20.dp),
         horizontalArrangement = Arrangement.spacedBy(20.dp),
     ) {
@@ -449,7 +481,7 @@ private fun Episodes(item: ItemSummary, season: ItemDetail, nextUp: ItemSummary?
                 isCurrent = episode.id == item.id,
                 onClick = {
                     // On a show (or the episode's own page), the episode plays; another episode opens its page.
-                    if (episode.id == item.id || item.kind == MediaKind.Series) navigator.play(episode) else navigator.openItem(episode.id)
+                    if (episode.id == item.id || item.kind == MediaKind.Series) navigator.play(episode, from = from) else navigator.openItem(episode.id)
                 },
                 modifier = if (episode.id == anchor) Modifier.focusRequester(landing) else Modifier,
             )
