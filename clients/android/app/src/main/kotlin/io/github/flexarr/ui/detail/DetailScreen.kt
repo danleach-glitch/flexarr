@@ -557,9 +557,9 @@ private fun androidx.compose.foundation.lazy.LazyListScope.sections(
 
 @Composable
 private fun SeasonPicker(seasons: List<ItemSummary>, selected: String?, onSeason: (String) -> Unit, ambient: Color, count: (ItemSummary) -> String? = { null }) {
-    fun label(season: ItemSummary) = count(season)?.let { "${season.title} · $it" } ?: season.title
     if (seasons.size == 1) {
-        SectionHeading(label(seasons.first()))
+        val only = seasons.first()
+        SectionHeading(count(only)?.let { "${only.title}: $it" } ?: only.title)
         return
     }
     val state = rememberLazyListState()
@@ -569,7 +569,7 @@ private fun SeasonPicker(seasons: List<ItemSummary>, selected: String?, onSeason
         if (index >= 0 && state.layoutInfo.visibleItemsInfo.none { it.index == index && it.offset >= 0 }) state.animateScrollToItem(index)
     }
     LazyRow(state = state, contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        items(seasons, key = { it.id }) { season -> PillButton(label(season), season.id == selected, { onSeason(season.id) }, ambient) }
+        items(seasons, key = { it.id }) { season -> PillButton(season.title, season.id == selected, { onSeason(season.id) }, ambient, detail = count(season)) }
     }
 }
 

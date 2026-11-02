@@ -474,7 +474,7 @@ private fun Sections(
             LazyRow(Modifier.focusRestorer(selectedPill), contentPadding = PaddingValues(horizontal = TvLayout.Edge, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                 items(detail.children, key = { it.id }) { child ->
                     val chosen = child.id == selectedSeasonId
-                    TvPill(missing.countLabel(child.seasonNumber)?.let { "${child.title} · $it" } ?: child.title, selected = chosen, onClick = { onSeason(child.id) }, ambient = ambient, modifier = Modifier.onFocusChanged { if (it.isFocused) onSeason(child.id) }.then(if (chosen) Modifier.focusRequester(selectedPill) else Modifier))
+                    TvPill(child.title, selected = chosen, detail = missing.countLabel(child.seasonNumber), onClick = { onSeason(child.id) }, ambient = ambient, modifier = Modifier.onFocusChanged { if (it.isFocused) onSeason(child.id) }.then(if (chosen) Modifier.focusRequester(selectedPill) else Modifier))
                 }
             }
             if (season != null) Episodes(item, season, nextUp) else Box(Modifier.heightIn(min = 210.dp))

@@ -47,7 +47,7 @@ class ShowMissingTest {
         assertEquals("/api/v1/items/show1/missing", server.takeRequest().target)
         val season = gaps.seasons.single()
         assertEquals("Season 2", season.title)
-        assertEquals("8 episodes · 2021", season.detail)
+        assertEquals("8 episodes, 2021", season.detail)
         assertTrue(season.requested)
         assertEquals(listOf(1 to listOf("S1E3 · Three", "S1E5")), gaps.episodesBySeason.map { (s, list) -> s to list.map { it.label } })
         assertEquals("8 of 10", gaps.countLabel(1))
@@ -78,7 +78,7 @@ class ShowMissingTest {
 
     @Test
     fun `a missing book says its number and year`() {
-        assertEquals("Book 3 · 2022", MissingBook("A", "The Bullet That Missed", "3", year = 2022).detail)
+        assertEquals("Book 3, 2022", MissingBook("A", "The Bullet That Missed", "3", year = 2022).detail)
         assertEquals("2022", MissingBook("A", "Untitled", null, year = 2022).detail)
     }
 }

@@ -24,7 +24,7 @@ data class MissingSeason(
 ) {
     val title: String get() = name?.takeIf { it.isNotBlank() } ?: "Season $seasonNumber"
     val requested: Boolean get() = availability == Availability.Requested || availability == Availability.PartlyAvailable
-    val detail: String get() = listOfNotNull(if (episodes > 0) episodesLabel(episodes) else null, year?.toString()).joinToString(" · ")
+    val detail: String get() = listOfNotNull(if (episodes > 0) episodesLabel(episodes) else null, year?.toString()).joinToString(", ")
 }
 
 /** An episode: one that aired and the library lacks, or one still to air. */
@@ -75,10 +75,13 @@ data class ShowMissing(
         val None = ShowMissing()
 
         /** "Airs 12 Nov", or "Airs 12 Nov 2027" when it isn't this year. */
-        fun airsLabel(date: Instant, zone: ZoneId = ZoneId.systemDefault(), now: Instant = Instant.now()): String {
+        fun airsLabel(date: Instant, zone: ZoneId = ZoneId.systemDefault(), now: Instant = Instant.now()): String = "Airs ${airedLabel(date, zone, now)}"
+
+        /** "12 Nov", or "12 Nov 2021" when it isn't this year: when a missing episode aired. */
+        fun airedLabel(date: Instant, zone: ZoneId = ZoneId.systemDefault(), now: Instant = Instant.now()): String {
             val day = date.atZone(zone).toLocalDate()
             val pattern = if (day.year == now.atZone(zone).year) "d MMM" else "d MMM yyyy"
-            return "Airs ${day.format(DateTimeFormatter.ofPattern(pattern, Locale.UK))}"
+            return day.format(DateTimeFormatter.ofPattern(pattern, Locale.UK))
         }
     }
 }
@@ -94,8 +97,8 @@ data class MissingBook(
     val year: Int? = null,
     val cover: String? = null,
 ) {
-    /** "Book 3 · 2021". */
-    val detail: String get() = listOfNotNull(sequence?.let { "Book $it" }, year?.toString()).joinToString(" · ")
+    /** "Book 3, 2021". */
+    val detail: String get() = listOfNotNull(sequence?.let { "Book $it" }, year?.toString()).joinToString(", ")
 }
 
 @Serializable

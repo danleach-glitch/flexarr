@@ -31,8 +31,8 @@ import io.github.flexarr.ui.theme.FlexarrIcons
 /**
  * A show's gaps on the TV, as the phone's: *Not in your library* (seasons it has none of, then each partly-had
  * season's missing episodes) and *Coming up*. Pressing a season requests it (or, for the main profile without Seerr,
- * searches); pressing a missing episode asks Sonarr for it (main profile). Cards with nothing to do still take focus,
- * so the page scrolls to them.
+ * searches); Search beside a season's missing episodes asks Sonarr for all of them (main profile). Episode cards have
+ * nothing to do but still take focus, so the page scrolls to them.
  */
 @Composable
 internal fun TvShowMissing(
@@ -59,19 +59,30 @@ internal fun TvShowMissing(
                 }
             }
             missing.episodesBySeason.forEach { (season, episodes) ->
-                Text("Season $season", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, modifier = Modifier.padding(start = TvLayout.Edge, top = 6.dp))
+                val searched = season in asked
+                Row(
+                    modifier = Modifier.padding(start = TvLayout.Edge, end = TvLayout.Edge, top = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        "Season $season: ${episodes.size} ${if (episodes.size == 1) "episode" else "episodes"}",
+                        fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher,
+                    )
+                    // The whole season's missing episodes, as on the web and the phones.
+                    if (missing.canSearch) {
+                        TvActionButton(
+                            if (searched) "Searching" else "Search",
+                            onClick = { onSearch(season, null) },
+                            icon = FlexarrIcons.search,
+                            enabled = !searched,
+                            contentDescription = "Search for season $season’s missing episodes",
+                        )
+                    }
+                }
                 LazyRow(contentPadding = PaddingValues(horizontal = TvLayout.Edge, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                     items(episodes, key = { "missing-${it.code}" }) { episode ->
-                        val searched = season in asked
-                        EpisodeCard(
-                            episode,
-                            detail = when {
-                                searched -> "Searching"
-                                missing.canSearch -> "Search"
-                                else -> null
-                            },
-                            onClick = { if (missing.canSearch && !searched) onSearch(season, listOf(episode.episodeNumber)) },
-                        )
+                        EpisodeCard(episode, detail = episode.airDate?.let { ShowMissing.airedLabel(it) }, onClick = {})
                     }
                 }
             }

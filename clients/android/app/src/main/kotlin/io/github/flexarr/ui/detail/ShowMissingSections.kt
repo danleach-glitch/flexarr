@@ -81,7 +81,7 @@ internal fun LazyListScope.showMissingSections(
                                 }
                             }
                         }
-                        episodes.forEach { EpisodeLine(it, detail = null) }
+                        episodes.forEach { EpisodeLine(it, detail = it.airDate?.let { aired -> ShowMissing.airedLabel(aired) }) }
                     }
                 }
             }
