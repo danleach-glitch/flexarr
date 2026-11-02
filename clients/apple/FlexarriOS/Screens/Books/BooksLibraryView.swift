@@ -320,34 +320,18 @@ struct BooksLibraryView: View {
         .padding(.horizontal, Layout.edge)
     }
 
-    /// The library's genres, A to Z, as a list (as on Android): each opens a screen of its books.
+    /// The library's genres, A to Z, as tiles like the films' and shows' Genres (covers fanned for a picture): each
+    /// opens a screen of its books.
     private var genreList: some View {
-        VStack(spacing: 0) {
-            ForEach(Array(browse.genres.enumerated()), id: \.element.name) { index, genre in
-                if index > 0 { Divider().overlay(Color.aisle).padding(.leading, 16) }
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: sizeClass == .regular ? 240 : 150), spacing: 12)], spacing: 12) {
+            ForEach(browse.genres, id: \.name) { genre in
                 Button { router.push(.library(browse.library, .title, genre: genre.name)) } label: {
-                    HStack(spacing: 12) {
-                        Text(genre.name)
-                            .font(.body.weight(.medium))
-                            .foregroundStyle(Color.screen)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        Text(bookCount(genre.count))
-                            .font(.subheadline)
-                            .foregroundStyle(Color.usher)
-                            .monospacedDigit()
-                        Image(systemName: "chevron.right")
-                            .font(.footnote.weight(.semibold))
-                            .foregroundStyle(Color.usher)
-                    }
-                    .padding(.horizontal, 16)
-                    .frame(minHeight: 52)
-                    .contentShape(Rectangle())
+                    GenreTile(genre: genre, caption: bookCount(genre.count))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(CardButtonStyle())
                 .accessibilityLabel("\(genre.name), \(bookCount(genre.count))")
             }
         }
-        .background(RoundedRectangle(cornerRadius: Radius.panel, style: .continuous).fill(Color.seat))
         .padding(.horizontal, Layout.edge)
     }
 

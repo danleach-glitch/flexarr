@@ -29,7 +29,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.FilterList
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -71,6 +70,9 @@ import io.github.flexarr.core.BookShelves
 import io.github.flexarr.core.BookSort
 import io.github.flexarr.core.Format
 import io.github.flexarr.core.GenreCount
+import io.github.flexarr.ui.components.isWide
+import androidx.compose.foundation.lazy.grid.items
+import io.github.flexarr.ui.library.GenreTile
 import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.Paged
 import io.github.flexarr.core.bookGenres
@@ -469,7 +471,7 @@ private fun AuthorsGrid(model: AppModel, libraryId: String) {
     }
 }
 
-/** The library's genres, A to Z, each opening a screen of its books. */
+/** The library's genres, A to Z, as tiles like the films' and shows' Genres (covers fanned for a picture): each opens a screen of its books. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun GenreList(model: AppModel, libraryId: String, openGenre: (String) -> Unit) {
@@ -479,31 +481,15 @@ private fun GenreList(model: AppModel, libraryId: String, openGenre: (String) ->
     Loaded(loader) { genres: List<GenreCount> ->
         if (genres.isEmpty()) return@Loaded StatusView("No genres yet.", empty = true)
         PullToRefreshBox(isRefreshing = loader.refreshing, onRefresh = loader.retry) {
-            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = Edge, end = Edge, bottom = 24.dp)) {
-                item {
-                    Column(Modifier.clip(RoundedCornerShape(Tokens.radiusPanel)).background(Flexarr.seat)) {
-                        genres.forEachIndexed { index, genre ->
-                            if (index > 0) HorizontalDivider(Modifier.padding(start = 16.dp), color = Flexarr.aisle.copy(alpha = 0.6f))
-                            GenreRow(genre) { openGenre(genre.name) }
-                        }
-                    }
-                }
+            LazyVerticalGrid(
+                columns = GridCells.Adaptive(if (isWide) 240.dp else 150.dp),
+                contentPadding = PaddingValues(start = Edge, end = Edge, bottom = 24.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                items(genres, key = { it.name }) { genre -> GenreTile(genre, bookCount(genre.count)) { openGenre(genre.name) } }
             }
         }
-    }
-}
-
-@Composable
-private fun GenreRow(genre: GenreCount, onClick: () -> Unit) {
-    val count = bookCount(genre.count)
-    Row(
-        // pressable merges the row for TalkBack, which reads it as "Fantasy, 12 books, button".
-        Modifier.fillMaxWidth().pressable(onClick).padding(horizontal = 16.dp, vertical = 14.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(genre.name, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-        Text(count, fontSize = 15.sp, color = Flexarr.usher, style = Tabular)
-        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = Flexarr.usher)
     }
 }

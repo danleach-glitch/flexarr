@@ -1,7 +1,8 @@
 import FlexarrKit
 import SwiftUI
 
-/// A film or TV library's Genres: a tile for each of its genres, biggest first, with a backdrop from one of its titles.
+/// A film, TV or audiobooks library's Genres: a tile for each of its genres, with a backdrop from one of its titles (a
+/// film's or show's genres, biggest first) or its newest covers fanned (a book's, A to Z, as on the phones and the web).
 /// Choosing one opens the library's titles in that genre on top, so Back comes back to the tiles.
 struct LibraryGenresView: View {
     @Environment(AppModel.self) private var model
@@ -44,7 +45,8 @@ struct LibraryGenresView: View {
                 ForEach(Array(stride(from: 0, to: genres.count, by: GenreTile.across)), id: \.self) { start in
                     GridRow {
                         ForEach(genres[start..<min(start + GenreTile.across, genres.count)], id: \.name) { genre in
-                            GenreTile(name: genre.name, caption: caption(genre), backdrop: genre.backdrop, focus: $focused) {
+                            GenreTile(name: genre.name, caption: caption(genre), backdrop: genre.backdrop,
+                                      covers: library.type == .audiobooks ? genre.covers ?? [] : nil, focus: $focused) {
                                 router.push(.library(library, .title, genre: genre.name))
                             }
                         }
@@ -67,7 +69,11 @@ struct LibraryGenresView: View {
     }
 
     private func caption(_ genre: GenreCount) -> String {
-        let noun = library.type == .tvShows ? (genre.count == 1 ? "show" : "shows") : (genre.count == 1 ? "movie" : "movies")
+        let noun = switch library.type {
+        case .tvShows: genre.count == 1 ? "show" : "shows"
+        case .audiobooks: genre.count == 1 ? "book" : "books"
+        default: genre.count == 1 ? "movie" : "movies"
+        }
         return "\(genre.count) \(noun)"
     }
 
@@ -80,7 +86,7 @@ struct LibraryGenresView: View {
     private func load() async {
         guard let client = model.client else { return }
         do {
-            genres = try await client.libraryGenres(library.id)
+            genres = try await library.type == .audiobooks ? client.bookGenres(library.id) : client.libraryGenres(library.id)
             error = nil
         } catch {
             if genres == nil { self.error = ConnectionError(error).message }
