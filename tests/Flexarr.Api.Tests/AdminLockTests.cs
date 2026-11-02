@@ -185,6 +185,7 @@ public class AdminLockTests
             c => c.GetAsync(Api($"/items/{missing}/deletion")),
             c => c.DeleteAsync(Api($"/items/{missing}")),
             c => c.DeleteAsync(Api($"/items/{missing}/match")),
+            c => c.PostAsJsonAsync(Api($"/items/{missing}/book-match"), new { provider = "audible", id = "B0TESTASIN", query = "a book" }),
             c => c.PutAsJsonAsync(Api($"/items/{missing}/kids"), new { @override = "Allow" }),
             c => c.PostAsJsonAsync(Api($"/items/{missing}/analyze"), new { }),
             c => c.PostAsJsonAsync(Api($"/libraries/{missing}/scan"), new { }),

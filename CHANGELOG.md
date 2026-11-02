@@ -10,6 +10,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On the web with **Skip credits** on, moving on to the next episode no longer marks it watched and jumps straight past it to the one after, and nothing plays while the next-episode countdown runs.
 
 ### Audiobooks
+- On the web, the main profile can **Fix match** a book without its PIN, as it can a movie or show. Editing a book's details or chapters still asks for it.
 - An audiobooks library sorts with the same words as the others, in every app: **A–Z**, **Author**, **Series**, **Recently added**, **Year**, **Length** and **Recently listened**.
 - On the web, **Play** and **Shuffle** on a collection play a book in the audio player, as its own page does, instead of opening the video player.
 - On iPhone, iPad, Android phones and the Apple TV, an audiobooks library's **Genres** are tiles showing a few of each genre's covers, like the genres of movies and TV shows (and as on the web).
