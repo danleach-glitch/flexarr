@@ -22,6 +22,14 @@ public sealed record LidarrArtist
     public IReadOnlyList<string> Genres { get; init; } = [];
     public IReadOnlyList<ArrImage> Images { get; init; } = [];
     public ArrRatingValue? Ratings { get; init; }
+
+    /// <summary>Which of the artist's future albums Lidarr monitors: <c>all</c>, <c>none</c> or <c>new</c>.</summary>
+    public string? MonitorNewItems { get; init; }
+    public int QualityProfileId { get; init; }
+    public int MetadataProfileId { get; init; }
+
+    /// <summary>A lookup's photo, on Lidarr's image cache (images.lidarr.audio), for an artist Lidarr doesn't have.</summary>
+    public string? RemotePoster { get; init; }
 }
 
 /// <summary>A release group (an album, EP, single…) as Lidarr knows it, owned or not.</summary>
@@ -50,7 +58,22 @@ public sealed record LidarrAlbum
     public ArrRatingValue? Ratings { get; init; }
     public IReadOnlyList<LidarrRelease> Releases { get; init; } = [];
     public LidarrAlbumStatistics? Statistics { get; init; }
+
+    /// <summary>The album's artist, in a lookup's answer (where <see cref="ArtistId"/> is 0 for one Lidarr doesn't have).</summary>
+    public LidarrArtist? Artist { get; init; }
+
+    /// <summary>A lookup's cover, on Lidarr's image cache, for an album Lidarr doesn't have.</summary>
+    public string? RemoteCover { get; init; }
 }
+
+/// <summary>A Lidarr root folder, with what Lidarr gives artists added there unless told otherwise.</summary>
+public sealed record LidarrRootFolder(int Id, string Path, int DefaultQualityProfileId, int DefaultMetadataProfileId);
+
+/// <summary>Which release types Lidarr lists for an artist (e.g. albums only, or EPs and singles too).</summary>
+public sealed record LidarrMetadataProfile(int Id, string Name);
+
+/// <summary>Where and how an artist added for a request is kept: its root folder and Lidarr profiles.</summary>
+public sealed record LidarrPlacement(string RootFolderPath, int QualityProfileId, int MetadataProfileId);
 
 /// <summary>One pressing of an album; its MusicBrainz release id is what a tagger writes as MUSICBRAINZ_ALBUMID.</summary>
 public sealed record LidarrRelease(int Id, int AlbumId, string? ForeignReleaseId, string? Title, int TrackCount);
