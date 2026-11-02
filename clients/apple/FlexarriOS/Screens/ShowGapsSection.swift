@@ -66,7 +66,10 @@ struct ShowGapsSection: View {
         let n = season.seasonNumber
         if asked.contains(n) || searched.contains(n) { return .requested }
         if undone.contains(n), gaps.canRequest { return .request }
-        return gaps.action(for: season)
+        let action = gaps.action(for: season)
+        // Without the show's TMDB id there's nothing to request it by: Search (the main profile) or nothing.
+        if action == .request, tmdbId == nil { return gaps.canSearch && gaps.source == "sonarr" ? .search : .none }
+        return action
     }
 
     /// A season requested through Seerr can be taken back from here, as on the web; one Sonarr is searching for can't.
