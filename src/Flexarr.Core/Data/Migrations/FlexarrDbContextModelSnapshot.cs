@@ -972,6 +972,8 @@ namespace Flexarr.Core.Data.Migrations
 
                     b.HasIndex("TvdbId");
 
+                    b.HasIndex("LibraryId", "Kind", "SortTitle");
+
                     b.HasIndex("LibraryId", "ParentId", "SortTitle");
 
                     b.ToTable("MediaItems");
