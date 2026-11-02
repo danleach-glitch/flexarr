@@ -1,7 +1,8 @@
 @preconcurrency import TVServices
 import FlexarrKit
 
-/// Fills the Apple TV Home screen's Top Shelf with the profile's Continue Watching, then what's been added lately:
+/// Fills the Apple TV Home screen's Top Shelf with the profile's Continue Watching, the albums it played last, then
+/// what's been added lately:
 /// rows of posters, or of wide artwork with each title's logo on it (Settings › Home screen), each with how far
 /// through it is. Selecting one opens it in Flexarr; Play resumes it. With neither, the Home screen's featured titles.
 final class ContentProvider: TVTopShelfContentProvider {
@@ -15,7 +16,10 @@ final class ContentProvider: TVTopShelfContentProvider {
         var seen = Set(watching.map(\.id))
         let recent = home.rows.filter { $0.id.hasPrefix("recent-") }.flatMap(\.items)
             .sorted { $0.addedAt > $1.addedAt }.filter { seen.insert($0.id).inserted }
+        // The albums this profile played last, as square covers; Play plays the album.
+        let listening = home.rows.first(where: { $0.id == "music-recent" })?.items.filter { $0.kind == .album } ?? []
         var sections = [section("Continue watching", watching, style: style, client: client),
+                        section("Recently played", listening, style: style, client: client),
                         section("Recently added", recent, style: style, client: client)].compactMap { $0 }
         if sections.isEmpty, let featured = section("Featured", home.featured, style: style, client: client) {
             sections = [featured]
@@ -55,6 +59,11 @@ final class ContentProvider: TVTopShelfContentProvider {
     /// Posters say what each one is and fit more of them (an episode's poster is its show's). Wide: the show's or
     /// film's backdrop with its logo, drawn by the server; an episode's still if there's no backdrop, else its poster.
     private func artwork(for summary: ItemSummary, style: TopShelfStyle, client: FlexarrClient) -> (TVTopShelfSectionedItem.ImageShape, URL, URL)? {
+        // An album's cover is square whatever the style.
+        if summary.kind == .album {
+            guard let small = client.imageURL(summary.artwork.poster, width: 400), let large = client.imageURL(summary.artwork.poster, width: 800) else { return nil }
+            return (.square, small, large)
+        }
         if style == .wide {
             if let small = client.wideArtworkURL(summary.artwork, width: 780), let large = client.wideArtworkURL(summary.artwork, width: 1280) {
                 return (.hdtv, small, large)
