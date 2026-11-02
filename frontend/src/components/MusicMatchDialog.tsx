@@ -180,5 +180,39 @@ function CoverOption({ src, label, selected, disabled, onSelect }: { src: string
 /** Fix match for an album or artist known only by its id (a row in Library health): its page's details first. */
 export function MusicMatchById({ id, onFixed, onClose }: { id: string; onFixed: () => void; onClose: () => void }) {
   const detail = useApi((signal) => getItem(id, signal), [id])
-  return detail.data ? <MusicMatchDialog detail={detail.data} onFixed={onFixed} onClose={onClose} /> : null
+  if (detail.data) return <MusicMatchDialog detail={detail.data} onFixed={onFixed} onClose={onClose} />
+  // Loading, or gone since the check (merged or deleted): a dialog all the same, so the press shows something.
+  const error = detail.error && (detail.error instanceof ApiError && detail.error.messages[0] ? detail.error.messages[0] : detail.error.message)
+  return <MusicMatchPending error={error} onClose={onClose} />
+}
+
+function MusicMatchPending({ error, onClose }: { error?: string; onClose: () => void }) {
+  const dialog = useModal<HTMLDivElement>(onClose)
+  return (
+    <div className="dialog-backdrop" onClick={onClose}>
+      <div
+        className="panel fix-match music-match"
+        ref={dialog}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="fix-match-title"
+        aria-busy={!error}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 id="fix-match-title">Fix match</h2>
+        {error ? (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        ) : (
+          <p className="muted">Loading…</p>
+        )}
+        <div className="form-actions">
+          <button className="button quiet" onClick={onClose}>
+            {error ? 'Close' : 'Cancel'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 }
