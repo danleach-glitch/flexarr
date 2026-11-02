@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import { useNavigationType } from 'react-router'
 import { forgetPage, freshly, getItem, keepPage, keptPage, wasDeleted, type ItemSummary, type Paged } from '../api/client'
+import { AsyncButton } from '../components/AsyncButton'
 import { useWatchedChanges, watchedSince } from '../hooks/watched'
 
 export const LETTERS = ['#', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ']
@@ -103,6 +104,8 @@ export function useLibraryGrid({ snapshotKey, query, pageSize, itemCount, load }
   const gridKey = `${snapshotKey} ${query}`
   const [loadedFor, setLoadedFor] = useState(restored ? gridKey : undefined)
   const [error, setError] = useState<Error>()
+  // Show more or a letter that failed: the titles already loaded stay, and Show more tries again.
+  const [moreError, setMoreError] = useState<Error>()
   const [busy, setBusy] = useState(false)
   // The letter being jumped to while the titles up to it load.
   const [jumping, setJumping] = useState<string>()
@@ -147,6 +150,7 @@ export function useLibraryGrid({ snapshotKey, query, pageSize, itemCount, load }
         setLoadedCount(countAtLoad)
         setLoadedFor(loadingFor)
         setError(undefined)
+        setMoreError(undefined)
       })
       .catch((e: unknown) => {
         if (!controller.signal.aborted) setError(e instanceof Error ? e : new Error(String(e)))
@@ -215,13 +219,14 @@ export function useLibraryGrid({ snapshotKey, query, pageSize, itemCount, load }
     if (busy) return
     const run = generation.current
     setBusy(true)
+    setMoreError(undefined)
     try {
       const page = await loader.current({ skip: items.length, take: pageSize })
       if (run !== generation.current) return
       setItems((current) => append(current, [page.items]))
       setTotal(page.total)
     } catch (e) {
-      if (run === generation.current) setError(e instanceof Error ? e : new Error(String(e)))
+      if (run === generation.current) setMoreError(e instanceof Error ? e : new Error(String(e)))
     } finally {
       setBusy(false)
     }
@@ -238,6 +243,7 @@ export function useLibraryGrid({ snapshotKey, query, pageSize, itemCount, load }
     }
     let loaded = items
     setBusy(true)
+    setMoreError(undefined)
     try {
       while (!loaded.some((i) => letterOf(i) === letter) && !passed(loaded) && total !== undefined && loaded.length < total) {
         setJumping(letter)
@@ -251,7 +257,7 @@ export function useLibraryGrid({ snapshotKey, query, pageSize, itemCount, load }
         setItems(loaded)
       }
     } catch (e) {
-      if (run === generation.current) setError(e instanceof Error ? e : new Error(String(e)))
+      if (run === generation.current) setMoreError(e instanceof Error ? e : new Error(String(e)))
     } finally {
       setBusy(false)
       setJumping(undefined)
@@ -279,9 +285,33 @@ export function useLibraryGrid({ snapshotKey, query, pageSize, itemCount, load }
   }
 
   return {
-    items, total, error, busy, jumping, grid, empty, small, grown, loadedCount, onGridClick, loadMore, jump,
+    items, total, error, moreError, busy, jumping, grid, empty, small, grown, loadedCount, onGridClick, loadMore, jump,
     restart: () => setVersion((v) => v + 1),
   }
+}
+
+/** Show more under a grid, while there's more; after one that failed, why, and Try again. */
+export function ShowMore({ loaded, total, pageSize, busy, error, onMore }: {
+  loaded: number
+  total: number | undefined
+  pageSize: number
+  busy: boolean
+  error: Error | undefined
+  onMore: () => void
+}) {
+  if (total === undefined || loaded >= total) return null
+  return (
+    <div className="load-more">
+      {error && (
+        <p className="error" role="alert">
+          More couldn’t be loaded.
+        </p>
+      )}
+      <AsyncButton className="button quiet" onClick={onMore} disabled={busy}>
+        {error ? 'Try again' : `Show ${Math.min(pageSize, total - loaded)} more`}
+      </AsyncButton>
+    </div>
+  )
 }
 
 /** The A–Z picker for phones (no room for the rail), kept in reach while scrolling. */

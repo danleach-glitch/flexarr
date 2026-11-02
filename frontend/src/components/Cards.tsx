@@ -9,7 +9,8 @@ import { useAudioPlayer } from '../hooks/audioPlayerContext'
 import { usePlay } from '../hooks/usePlay'
 import { Artwork } from './Artwork'
 import { AsyncButton } from './AsyncButton'
-import { Check, More, Play } from './icons'
+import { Check, More } from './icons'
+import { icon } from './icons.generated'
 import { hasMenu, ItemMenu, type MenuPoint } from './ItemMenu'
 import { WatchedToggle } from './WatchedToggle'
 
@@ -177,7 +178,7 @@ export const PosterCard = memo(function PosterCard({ item, playLoneEpisode = fal
       overlay={
         book ? (
           <button className="card-play" aria-label={`${progressOf(item) !== null ? 'Resume' : 'Play'} ${item.title}`} onClick={() => player.play([item])}>
-            <Play />
+            <icon.play />
           </button>
         ) : music ? (
           // Hovering the artwork shows a play button, as on Spotify; the artwork itself still opens the page.
@@ -190,11 +191,11 @@ export const PosterCard = memo(function PosterCard({ item, playLoneEpisode = fal
               })
             }
           >
-            <Play />
+            <icon.play />
           </AsyncButton>
         ) : video ? (
           <AsyncButton className="card-play" aria-label={videoLabel} onClick={() => play(item.kind === 'Season' ? { ...item, id: item.seriesId!, kind: 'Series' } : item)}>
-            <Play />
+            <icon.play />
           </AsyncButton>
         ) : undefined
       }

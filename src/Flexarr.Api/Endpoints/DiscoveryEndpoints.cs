@@ -55,7 +55,9 @@ public sealed record SearchGenreDto(string Name, Guid LibraryId, string Library,
 public sealed record GenreDto(string Name, int Movies, int Shows, string? Backdrop);
 
 /// <summary>A genre in one library: how many of its titles have it, and a backdrop from one of them (absent before 0.54).</summary>
-public sealed record LibraryGenreDto(string Name, int Count, string? Backdrop);
+/// <param name="Covers">A music genre without a backdrop: up to three of its albums' covers, newest first, for the tile
+/// instead (as a book genre's). Null otherwise. Absent from servers before 0.59.</param>
+public sealed record LibraryGenreDto(string Name, int Count, string? Backdrop, IReadOnlyList<string>? Covers = null);
 
 public static partial class DiscoveryEndpoints
 {

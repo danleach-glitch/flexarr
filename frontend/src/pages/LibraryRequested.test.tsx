@@ -7,6 +7,7 @@ import { LibraryRequested } from './LibraryRequested'
 
 const unrequested: unknown[] = []
 let reachable = true
+let musicAsked = 0
 const albums: MusicRequested[] = [
   { musicBrainzId: 'rg-1', title: 'moisturizer', artist: 'Wet Leg', artistMusicBrainzId: 'a1', image: null, releaseDate: '2025-07-11', state: 'downloading', progress: 0.45, artistLibraryItemId: 'artist-1' },
   { musicBrainzId: 'rg-2', title: 'Next One', artist: 'Wet Leg', artistMusicBrainzId: 'a1', image: null, releaseDate: '2099-11-14', state: 'upcoming', progress: null, artistLibraryItemId: null },
@@ -22,7 +23,10 @@ vi.mock('../api/client', async (importOriginal) => ({
   unrequestTitle: async (...args: unknown[]) => {
     unrequested.push(args)
   },
-  getMusicRequested: async () => albums,
+  getMusicRequested: async () => {
+    musicAsked++
+    return albums
+  },
   getMusicRequestStatusNow: async () => ({ configured: true, reachable }),
   unrequestAlbum: async (body: unknown) => {
     unrequested.push(body)
@@ -49,7 +53,7 @@ describe('LibraryRequested', () => {
     expect((await screen.findAllByText('moisturizer')).length).toBeGreaterThan(0)
     expect(screen.getByText('Downloading 45%')).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Wet Leg' }).getAttribute('href')).toBe('/item/artist-1')
-    fireEvent.click(screen.getAllByRole('button', { name: 'Unrequest' })[0])
+    fireEvent.click(screen.getByRole('button', { name: 'Unrequest moisturizer' }))
     fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Unrequest' }))
 
     await waitFor(() => expect(screen.queryAllByText('moisturizer')).toHaveLength(0))
@@ -66,7 +70,7 @@ describe('LibraryRequested', () => {
     )
 
     expect(await screen.findByText('Lidarr isn’t answering.')).toBeTruthy()
-    expect(screen.getAllByRole('button', { name: 'Unrequest' }).every((b) => (b as HTMLButtonElement).disabled)).toBe(true)
+    expect(screen.getAllByRole('button', { name: /^Unrequest / }).every((b) => (b as HTMLButtonElement).disabled)).toBe(true)
     reachable = true
   })
 
@@ -82,9 +86,26 @@ describe('LibraryRequested', () => {
     expect(screen.getByText('Downloading 50%')).toBeTruthy()
     expect(screen.getAllByRole('link', { name: 'Thrones' })[0].getAttribute('href')).toBe('/item/show-1')
     expect(screen.getAllByRole('link', { name: 'The Matrix' })[0].getAttribute('href')).toBe('/discover/movie/603')
-    fireEvent.click(screen.getAllByRole('button', { name: 'Unrequest' })[0])
+    fireEvent.click(screen.getAllByRole('button', { name: /^Unrequest / })[0])
     fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Unrequest' }))
 
     await waitFor(() => expect(unrequested).toEqual([['tv', 1399, [2, 3]]]))
+  })
+
+  it('asks again every 30 seconds while something is downloading', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      render(
+        <MemoryRouter>
+          <LibraryRequested library={library} viewSwitch={null} />
+        </MemoryRouter>,
+      )
+      expect(await screen.findByText(/^Downloading/)).toBeTruthy()
+      const before = musicAsked
+      await vi.advanceTimersByTimeAsync(30_000)
+      await waitFor(() => expect(musicAsked).toBe(before + 1))
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

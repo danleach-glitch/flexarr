@@ -3,6 +3,7 @@ import { PageError, PageLoading } from '../components/PageStatus'
 import { useParams } from 'react-router'
 import { getMix, imageUrl } from '../api/client'
 import { More, Play } from '../components/icons'
+import { icon } from '../components/icons.generated'
 import { Menu, type MenuPoint } from '../components/ItemMenu'
 import { PlaylistCover } from '../components/PlaylistCover'
 import { useAudioPlayer } from '../hooks/audioPlayerContext'
@@ -54,7 +55,7 @@ export function MixPage() {
           </p>
           <div className="detail-actions">
             <button className="button" onClick={() => player.play(tracks, 0, { openNowPlaying: true })} disabled={tracks.length === 0}>
-              <Play /> Play
+              <icon.play /> Play
             </button>
             <button className="button quiet" onClick={() => player.play(shuffled(tracks), 0, { openNowPlaying: true })} disabled={tracks.length < 2}>
               Shuffle

@@ -23,7 +23,8 @@ import { authorsLine, isBook } from '../lib/books'
 import { episodeCode, year } from '../lib/format'
 import { itemLink, libraryGenreLink } from '../lib/links'
 import { musicLink } from '../lib/musicLinks'
-import { Close, History, Play, Search } from './icons'
+import { Close, History, Search } from './icons'
+import { icon } from './icons.generated'
 
 interface Result {
   key: string
@@ -416,7 +417,7 @@ export function SearchPalette({ onClose }: { onClose: () => void }) {
                     </button>
                     {track && (
                       <button className="icon-button palette-play" aria-label={`Play ${r.title}`} onClick={() => play(r, track)}>
-                        <Play />
+                        <icon.play />
                       </button>
                     )}
                     {(r.recentQuery !== undefined || r.recentItem) && (

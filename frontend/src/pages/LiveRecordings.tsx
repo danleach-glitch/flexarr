@@ -3,7 +3,8 @@ import { PageLoading } from '../components/PageStatus'
 import { Link } from 'react-router'
 import { ApiError, getRecordings, removeRecording, removeSeries, updateSeries, type Recording, type RecordingSeries } from '../api/client'
 import { AsyncButton, IconButton } from '../components/AsyncButton'
-import { Close, Play, RecordDot, Stop, Trash } from '../components/icons'
+import { Close, RecordDot, Stop } from '../components/icons'
+import { icon } from '../components/icons.generated'
 import { useApi } from '../hooks/useApi'
 import { usePolling } from '../hooks/usePolling'
 import { formatSize } from '../lib/format'
@@ -106,12 +107,12 @@ export default function LiveRecordings() {
                 <div className="recording-actions">
                   {r.itemId && (
                     <Link className="button small" to={`/item/${r.itemId}`}>
-                      <Play /> Play
+                      <icon.play /> Play
                     </Link>
                   )}
                   <IconButton
                     label={r.state === 'completed' ? 'Delete' : 'Clear'}
-                    icon={r.state === 'completed' ? <Trash /> : <Close />}
+                    icon={r.state === 'completed' ? <icon.delete /> : <Close />}
                     className={r.state === 'completed' ? 'button quiet small icon danger-icon' : undefined}
                     onClick={() => (r.state !== 'completed' || window.confirm(`Delete the recording of ${r.title}?`)) && act(() => removeRecording(r.id))}
                   />

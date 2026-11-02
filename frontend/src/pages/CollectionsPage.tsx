@@ -19,7 +19,8 @@ import {
 import { AsyncButton, IconButton } from '../components/AsyncButton'
 import { PosterCard } from '../components/Cards'
 import { CollectionEditor } from '../components/CollectionEditor'
-import { EyeOff, Pencil, Play, Shuffle, Trash } from '../components/icons'
+import { EyeOff, Pencil } from '../components/icons'
+import { icon } from '../components/icons.generated'
 import { RequestButton } from '../components/RequestButton'
 import { useSession } from '../hooks/sessionContext'
 import { useApi } from '../hooks/useApi'
@@ -237,7 +238,7 @@ export function CollectionPage() {
           <div className="detail-actions">
             {next && (
               <AsyncButton className="button" onClick={() => play(next)}>
-                <Play /> {next.userData.watched ? 'Play' : `Play ${next.title}`}
+                <icon.play /> {next.userData.watched ? 'Play' : `Play ${next.title}`}
               </AsyncButton>
             )}
             {items.length > 1 && (
@@ -250,7 +251,7 @@ export function CollectionPage() {
                   return play(pick)
                 }}
               >
-                <Shuffle /> Shuffle
+                <icon.shuffle /> Shuffle
               </AsyncButton>
             )}
             {c.canEdit && (
@@ -264,7 +265,7 @@ export function CollectionPage() {
             {c.canEdit && (
               <IconButton
                 label={c.kind === 'Franchise' ? 'Hide' : c.kind === 'TraktList' ? 'Remove' : 'Delete'}
-                icon={c.kind === 'Franchise' ? <EyeOff /> : <Trash />}
+                icon={c.kind === 'Franchise' ? <EyeOff /> : <icon.delete />}
                 className="button quiet icon danger-icon"
                 onClick={() => {
                   if (!confirm(c.kind === 'Franchise' ? `Hide ${c.name}? It won’t come back with the next sync.` : c.kind === 'TraktList' ? `Stop showing ${c.name}? It stays on Trakt.` : `Delete ${c.name}? The titles stay in your library.`)) return

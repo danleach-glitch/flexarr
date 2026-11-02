@@ -1,6 +1,7 @@
 import { useAudioPlayer } from '../hooks/audioPlayerContext'
 import { formatClock } from '../lib/format'
-import { Close, Play } from './icons'
+import { Close } from './icons'
+import { icon } from './icons.generated'
 
 /**
  * What the player offers rather than does by itself, just above the bar: another device's place in the book, and the
@@ -32,7 +33,7 @@ export function BookOffers() {
               Next: <strong>{nextBook.title}</strong>
             </span>
             <button className="button small" onClick={player.playNextBook}>
-              <Play /> Play
+              <icon.play /> Play
             </button>
             <button className="icon-button" aria-label="Not now" onClick={player.dismissNextBook}>
               <Close />

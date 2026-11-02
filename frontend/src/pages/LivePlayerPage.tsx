@@ -4,7 +4,8 @@ import { useNavigate, useParams } from 'react-router'
 import { ApiError, getLiveChannels, liveHeartbeat, removeRecording, stopLiveChannel, watchLiveChannel, type LiveChannel, type LiveWatch } from '../api/client'
 import { AsyncButton } from '../components/AsyncButton'
 import { FavouriteButton } from '../components/FavouriteButton'
-import { Back, ChevronDown, ChevronUp, ExitFullscreen, Fullscreen, Muted, Pause, Play, Replay10, Forward10, Star, Tv, Volume } from '../components/icons'
+import { Back, ChevronDown, ChevronUp, ExitFullscreen, Fullscreen, Muted, Replay10, Forward10, Star, Tv, Volume } from '../components/icons'
+import { icon } from '../components/icons.generated'
 import { useFavourites } from '../hooks/useFavourites'
 import { usePolling } from '../hooks/usePolling'
 import { formatClock } from '../lib/format'
@@ -398,7 +399,7 @@ export default function LivePlayerPage() {
         </div>
         <div className="player-buttons">
           <button className="icon-button" onClick={toggle} aria-label={playing ? 'Pause' : 'Play'}>
-            {playing ? <Pause /> : <Play />}
+            {playing ? <icon.pause /> : <icon.play />}
           </button>
           <button className="icon-button" onClick={() => seekTo(window_.time - 10)} aria-label="Back 10 seconds">
             <Replay10 />

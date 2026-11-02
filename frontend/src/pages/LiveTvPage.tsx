@@ -5,7 +5,8 @@ import { getLiveChannels, getLiveGuide, getLiveTvStatus, type LiveChannel, type 
 import { FavouriteButton } from '../components/FavouriteButton'
 import { RecordControls } from '../components/RecordControls'
 import { ChannelLogo } from '../components/LiveChannelCard'
-import { Antenna, Play, RecordDot, SeriesDots, Star } from '../components/icons'
+import { Antenna, RecordDot, SeriesDots, Star } from '../components/icons'
+import { icon } from '../components/icons.generated'
 import { useFavourites } from '../hooks/useFavourites'
 import { useAgeLimits, useSession } from '../hooks/sessionContext'
 import { useApi } from '../hooks/useApi'
@@ -332,7 +333,7 @@ function Guide() {
           <div className="livetv-details-actions">
             {Date.parse(selected.programme.start) <= now && Date.parse(selected.programme.end) > now && (
               <button className="button small" onClick={() => navigate(`/live/${selected.channel.id}`)}>
-                <Play /> Watch now
+                <icon.play /> Watch now
               </button>
             )}
             <button className="button quiet small" onClick={() => setSelected(undefined)}>

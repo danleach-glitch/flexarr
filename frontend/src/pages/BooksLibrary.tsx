@@ -8,7 +8,6 @@ import {
   getBookShelves,
   getLibraryBooks,
   getPerson,
-  imageUrl,
  
   type BookFilters,
   type BookShelves,
@@ -19,13 +18,14 @@ import {
 import { AsyncButton } from '../components/AsyncButton'
 import { BookPersonCard, BookSeriesCard } from '../components/BookCards'
 import { PosterCard } from '../components/Cards'
+import { GenreCovers } from '../components/GenreCovers'
 import { Hero } from '../components/Hero'
 import { ChevronLeft } from '../components/icons'
 import { Row } from '../components/Row'
 import { ScanProgress } from '../components/ScanProgress'
 import { useApi } from '../hooks/useApi'
 import { useWatchedChanges } from '../hooks/watched'
-import { AlphaPicker, AlphaRail, useLibraryGrid } from './libraryGrid'
+import { AlphaPicker, AlphaRail, ShowMore, useLibraryGrid } from './libraryGrid'
 
 const PAGE_SIZE = 60
 
@@ -167,23 +167,13 @@ function Genres({ library }: { library: Library }) {
   const genres = [...data].sort((a, b) => a.name.localeCompare(b.name))
   return (
     <nav className="genre-grid" aria-label="Genres">
-      {genres.map((g) => {
-        const covers = (g.covers ?? []).slice(0, 3)
-        return (
-          <Link key={g.name} to={`/library/${library.id}?view=genre&genre=${encodeURIComponent(g.name)}`} className="genre-tile book-genre-tile">
-            {covers[0] && <img className="book-genre-wash" src={imageUrl(covers[0], 185)} alt="" loading="lazy" />}
-            {covers.length > 0 && (
-              <span className={`book-genre-fan book-genre-fan-${covers.length}`} aria-hidden="true">
-                {covers.map((cover, i) => (
-                  <img key={i} src={imageUrl(cover, 342)} alt="" loading="lazy" />
-                ))}
-              </span>
-            )}
-            <span className="genre-name">{g.name}</span>
-            <span className="genre-count">{g.count === 1 ? '1 book' : `${g.count.toLocaleString()} books`}</span>
-          </Link>
-        )
-      })}
+      {genres.map((g) => (
+        <Link key={g.name} to={`/library/${library.id}?view=genre&genre=${encodeURIComponent(g.name)}`} className="genre-tile book-genre-tile">
+          <GenreCovers covers={g.covers} />
+          <span className="genre-name">{g.name}</span>
+          <span className="genre-count">{g.count === 1 ? '1 book' : `${g.count.toLocaleString()} books`}</span>
+        </Link>
+      ))}
     </nav>
   )
 }
@@ -239,7 +229,7 @@ function AllBooks({ library, view }: { library: Library; view: 'all' | 'genre' }
     const timer = setTimeout(() => setQuery(search.trim()), 250)
     return () => clearTimeout(timer)
   }, [search])
-  const { items, total, error, busy, jumping, grid, empty, small, grown, loadedCount, onGridClick, loadMore, jump, restart } = useLibraryGrid({
+  const { items, total, error, moreError, busy, jumping, grid, empty, small, grown, loadedCount, onGridClick, loadMore, jump, restart } = useLibraryGrid({
     snapshotKey: `books-${view} ${library.id} ${key}`,
     query,
     pageSize: PAGE_SIZE,
@@ -314,13 +304,7 @@ function AllBooks({ library, view }: { library: Library; view: 'all' | 'genre' }
         </div>
         {letters && <AlphaRail jump={(l) => void jump(l)} jumping={jumping} empty={empty} />}
       </div>
-      {total !== undefined && items.length < total && (
-        <div className="load-more">
-          <AsyncButton className="button quiet" onClick={() => loadMore()} disabled={busy}>
-            Show {Math.min(PAGE_SIZE, total - items.length)} more
-          </AsyncButton>
-        </div>
-      )}
+      <ShowMore loaded={items.length} total={total} pageSize={PAGE_SIZE} busy={busy} error={moreError} onMore={() => void loadMore()} />
     </>
   )
 }

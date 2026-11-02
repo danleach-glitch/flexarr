@@ -110,7 +110,7 @@ export function ItemMenu({ item, at, onClose, continueWatching = false }: { item
         await setBookFinished(item.id, to)
         announceWatched(item)
       }
-      if (!finished) actions.push({ label: 'Mark finished', run: markBook(true) })
+      if (!finished) actions.push({ label: 'Mark as finished', run: markBook(true) })
       // Unread: no place and not finished, as if never started. Not while it plays, which would set the place again: then
       // Remove (which stops it first) takes it off Continue listening instead, so the two are never offered together.
       const playing = music.current?.id === item.id

@@ -195,6 +195,46 @@ public class MusicLibraryTests(FlexarrApiFactory factory) : IClassFixture<Flexar
     }
 
     [Fact]
+    public async Task AlbumGenres_WithoutAnArtistsFanart_ShowUpToThreeAlbumCovers_NewestFirst()
+    {
+        Guid library;
+        string shoegaze;
+        Guid[] albums;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var music = new Library { Name = $"Music {Guid.NewGuid():N}", Type = LibraryType.Music };
+            var genre = new Genre { Name = $"Shoegaze {Guid.NewGuid().ToString("N")[..6]}" };
+            var artist = new MediaItem { LibraryId = music.Id, Kind = MediaKind.Artist, Title = "Slowdive", SortTitle = "slowdive" };
+            var now = DateTime.UtcNow;
+            // Four with covers, added a day apart (the last newest), and the newest of all without one.
+            MediaItem Album(string title, int daysAgo, bool cover)
+            {
+                var album = new MediaItem
+                {
+                    LibraryId = music.Id, ParentId = artist.Id, Kind = MediaKind.Album, Title = title, SortTitle = title.ToLowerInvariant(),
+                    AddedAt = now.AddDays(-daysAgo), PosterUrl = cover ? "https://example.com/cover.jpg" : null,
+                };
+                album.Genres.Add(genre);
+                return album;
+            }
+
+            var made = new[] { Album("Just for a Day", 4, true), Album("Souvlaki", 3, true), Album("Pygmalion", 2, true), Album("Slowdive", 1, true), Album("Everything Is Alive", 0, false) };
+            db.AddRange(music, artist);
+            db.AddRange(made);
+            await db.SaveChangesAsync();
+            (library, shoegaze, albums) = (music.Id, genre.Name, made.Select(a => a.Id).ToArray());
+        }
+
+        var genres = await Client().GetFromJsonAsync<List<LibraryGenreDto>>(Api($"/libraries/{library}/album-genres"), Json);
+
+        var tile = Assert.Single(genres!);
+        Assert.Equal((shoegaze, 5), (tile.Name, tile.Count));
+        Assert.Null(tile.Backdrop);
+        Assert.Equal([albums[3], albums[2], albums[1]], tile.Covers!.Select(c => Guid.Parse(c.Split('/')[^2])));
+    }
+
+    [Fact]
     public async Task AGenresTracks_PlayInAlbumOrder_OrShuffled()
     {
         var music = await SeedAsync();

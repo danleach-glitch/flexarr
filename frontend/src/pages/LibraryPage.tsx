@@ -4,11 +4,13 @@ import { Link, Navigate, useNavigationType, useParams, useSearchParams } from 'r
 import { forgetPage, getGenreTracks, getLibraryAlbumGenres, getLibraryAlbums, getLibraryBrowse, getLibraryGenres, getLibraryItems, getMusicRequestStatus, getRequestStatusCached, imageUrl, keepPage, keptPage, type HomeRow, type Library } from '../api/client'
 import { AsyncButton } from '../components/AsyncButton'
 import { PosterCard } from '../components/Cards'
+import { GenreCovers } from '../components/GenreCovers'
 import { Hero } from '../components/Hero'
 import { HomeRows } from '../components/HomeRows'
 import { ScanProgress } from '../components/ScanProgress'
 import { useAudioPlayer } from '../hooks/audioPlayerContext'
-import { ChevronLeft, Play, Shuffle } from '../components/icons'
+import { ChevronLeft } from '../components/icons'
+import { icon } from '../components/icons.generated'
 import { libraryGenreLink } from '../lib/links'
 import { useLibraries } from '../hooks/librariesContext'
 import { useApi } from '../hooks/useApi'
@@ -16,7 +18,7 @@ import { useWatchedChanges } from '../hooks/watched'
 import { BooksLibrary } from './BooksLibrary'
 import { LibraryRequested } from './LibraryRequested'
 import { PlaylistsPage } from './PlaylistsPage'
-import { AlphaPicker, AlphaRail, useLibraryGrid } from './libraryGrid'
+import { AlphaPicker, AlphaRail, ShowMore, useLibraryGrid } from './libraryGrid'
 
 const PAGE_SIZE = 200
 
@@ -109,8 +111,9 @@ function ViewSwitch({ library, view }: { library: Library; view: 'browse' | 'all
           Playlists
         </Link>
       )}
-      {/* Last, so the others don't move: kept in place while the status loads, gone once it says they can't be requested. */}
-      {requestable && ((requests.data ? requests.data.configured : !requests.error) || view === 'requested') && (
+      {/* Last, so the others don't move as it arrives: only once the status says requests work (a child's is refused, so
+          it never flickers in for them), or while it's the view open. */}
+      {requestable && (requests.data?.configured || view === 'requested') && (
         <Link to={`/library/${library.id}?view=requested`} aria-current={current('requested')}>
           Requested
         </Link>
@@ -141,8 +144,8 @@ function LibraryGenres({ library }: { library: Library }) {
       ) : (
         <div className="genre-grid">
           {data.map((g) => (
-            <Link key={g.name} to={libraryGenreLink(library.id, library.type, g.name)} className="genre-tile">
-              {g.backdrop && <img src={imageUrl(g.backdrop, 780)} alt="" loading="lazy" />}
+            <Link key={g.name} to={libraryGenreLink(library.id, library.type, g.name)} className={!g.backdrop && g.covers?.length ? 'genre-tile book-genre-tile' : 'genre-tile'}>
+              {g.backdrop ? <img src={imageUrl(g.backdrop, 780)} alt="" loading="lazy" /> : <GenreCovers covers={g.covers} />}
               <span className="genre-name">{g.name}</span>
               <span className="genre-count">
                 {g.count} {g.count === 1 ? noun[0] : noun[1]}
@@ -311,10 +314,10 @@ function GenrePlay({ library, genre, disabled }: { library: string; genre: strin
   return (
     <div className="detail-actions">
       <AsyncButton className="button" onClick={() => play(false)} disabled={disabled}>
-        <Play /> Play
+        <icon.play /> Play
       </AsyncButton>
       <AsyncButton className="button quiet" onClick={() => play(true)} disabled={disabled}>
-        <Shuffle /> Shuffle
+        <icon.shuffle /> Shuffle
       </AsyncButton>
     </div>
   )
@@ -347,7 +350,7 @@ function LibraryAll({ albums = false, genrePage = false }: { albums?: boolean; g
     const timer = setTimeout(() => setQuery(search.trim()), 250)
     return () => clearTimeout(timer)
   }, [search])
-  const { items, total, error, busy, jumping, grid, empty, small, grown, loadedCount, onGridClick, loadMore, jump, restart } = useLibraryGrid({
+  const { items, total, error, moreError, busy, jumping, grid, empty, small, grown, loadedCount, onGridClick, loadMore, jump, restart } = useLibraryGrid({
     snapshotKey,
     query,
     pageSize: PAGE_SIZE,
@@ -454,13 +457,7 @@ function LibraryAll({ albums = false, genrePage = false }: { albums?: boolean; g
         {letters && <AlphaRail jump={(l) => void jump(l)} jumping={jumping} empty={empty} />}
       </div>
 
-      {total !== undefined && items.length < total && (
-        <div className="load-more">
-          <AsyncButton className="button quiet" onClick={() => loadMore()} disabled={busy}>
-            Show {Math.min(PAGE_SIZE, total - items.length)} more
-          </AsyncButton>
-        </div>
-      )}
+      <ShowMore loaded={items.length} total={total} pageSize={PAGE_SIZE} busy={busy} error={moreError} onMore={() => void loadMore()} />
     </div>
   )
 }
