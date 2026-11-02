@@ -24,7 +24,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed as rowItemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.layout.layout
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.CircularProgressIndicator
@@ -34,6 +33,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -44,6 +44,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -57,11 +58,11 @@ import io.github.flexarr.core.ItemDetail
 import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.MediaKind
 import io.github.flexarr.core.MusicArtistExtras
-import io.github.flexarr.core.musicArtistExtras
 import io.github.flexarr.core.PlaylistDetail
 import io.github.flexarr.core.artistName
 import io.github.flexarr.core.discs
 import io.github.flexarr.core.facts
+import io.github.flexarr.core.musicArtistExtras
 import io.github.flexarr.core.playlist
 import io.github.flexarr.core.playlists
 import io.github.flexarr.core.releaseYear
@@ -81,12 +82,13 @@ import io.github.flexarr.ui.components.rememberLoader
 import io.github.flexarr.ui.downloads.MusicDownloadButton
 import io.github.flexarr.ui.downloads.MusicDownloadSource
 import io.github.flexarr.ui.theme.Flexarr
+import io.github.flexarr.ui.theme.FlexarrIcons
 import io.github.flexarr.ui.theme.RoomBackground
+import io.github.flexarr.ui.theme.Tokens
 import io.github.flexarr.ui.theme.glowColor
 import io.github.flexarr.ui.theme.marquee
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
-import io.github.flexarr.ui.theme.Tokens
-import io.github.flexarr.ui.theme.FlexarrIcons
 
 // The music screens, as the iPhone app's: an artist, an album and a playlist (a library is in MusicLibraryScreen.kt).
 // Each title page has Play and Shuffle; tapping a track plays from it, and tapping the one playing pauses it.
