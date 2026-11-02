@@ -45,6 +45,35 @@ final class PlaybackController: NSObject {
     /// Called when something is watched into its credits; `closing` when the player is going away with it, rather
     /// than moving on to the next episode.
     @ObservationIgnored var onWatchedToEnd: ((_ closing: Bool) -> Void)?
+    /// How the last session ended: the title it was started with, the one it stopped on, and the episode after that.
+    struct Ending {
+        let startedWith: String
+        let stoppedOn: String
+        /// Watched into its credits.
+        let watched: Bool
+        let next: String?
+        var at = Date()
+
+        /// Where a page showing the episode it was started with goes now: on past what was finished, or to the
+        /// episode it stopped part way through. Nil to stay.
+        var moveOn: String? {
+            let target = watched ? next : stoppedOn
+            return target == startedWith ? nil : target
+        }
+    }
+
+    /// The title this session was started with (what Play was pressed on), whatever it has moved on to since.
+    @ObservationIgnored private var startedWith: String?
+    @ObservationIgnored private var lastEnding: Ending?
+
+    /// The last session's ending, if it was started with `id` a moment ago (the page reloading as the player closes,
+    /// not opened later); taken, so only one page moves on with it.
+    func takeEnding(startedWith id: String) -> Ending? {
+        guard let ending = lastEnding, ending.startedWith == id, Date().timeIntervalSince(ending.at) < 60 else { return nil }
+        lastEnding = nil
+        return ending
+    }
+
     /// When false, sessions are still started and stopped but progress is never reported.
     @ObservationIgnored var recordsHistory = true
     /// Whether the subtitles menu may offer a search and Re-sync to audio (not on a kids profile).
@@ -145,6 +174,8 @@ final class PlaybackController: NSObject {
         onWillStart?()
         self.client = client
         shuffling = shuffle
+        startedWith = itemId
+        lastEnding = nil
         trail = []
         carriedRate = nil
         viewerSubtitleKey = subtitleKey.map { .some($0) }
@@ -158,6 +189,8 @@ final class PlaybackController: NSObject {
         guard !isStarting else { return }
         onWillStart?()
         shuffling = false
+        startedWith = info.item.id
+        lastEnding = nil
         trail = []
         carriedRate = nil
         viewerSubtitleKey = nil
@@ -1156,6 +1189,9 @@ final class PlaybackController: NSObject {
     /// `recording`: a real stop, so a downloaded file's position is kept (not when one session replaces another).
     private func stop(reportingTo client: FlexarrClient?, recording: Bool = false) {
         let watchedToEnd = recording && recordsHistory && info.map(isPastCredits) == true
+        if recording, let info, let startedWith {
+            lastEnding = Ending(startedWith: startedWith, stoppedOn: info.item.id, watched: watchedToEnd, next: info.next?.id)
+        }
         if let info, info.isOffline {
             if recording, recordsHistory { offlineLibrary?.record(itemId: info.item.id, position: position, finished: isPastCredits(info)) }
         } else if let info, let client {

@@ -12,6 +12,8 @@ struct DetailView: View {
     let preview: ItemSummary?
 
     @State private var detail: ItemDetail?
+    /// The episode shown now, once watching from this page has moved it on from `id`.
+    @State private var shownID: String?
     @State private var error: String?
     @State private var nextUp: ItemSummary?
     @State private var similar: [ItemSummary] = []
@@ -426,7 +428,13 @@ struct DetailView: View {
         guard let client = model.client else { return }
         let token = model.refreshToken
         do {
-            var loaded = try await client.item(id)
+            var loaded = try await client.item(shownID ?? id)
+            // Back from watching an episode started here: on to the next one (or the one it stopped part way through).
+            if loaded.item.kind == .episode, let target = model.player.takeEnding(startedWith: loaded.item.id)?.moveOn,
+               let moved = try? await client.item(target), moved.item.kind == .episode {
+                shownID = target
+                loaded = moved
+            }
             // A season opens as its series, with that season selected.
             if loaded.item.kind == .season, let parent = loaded.item.parentId {
                 seasons[loaded.item.id] = loaded
