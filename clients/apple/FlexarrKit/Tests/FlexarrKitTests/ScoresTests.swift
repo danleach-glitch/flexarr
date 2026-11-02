@@ -23,7 +23,10 @@ struct ScoresTests {
         let item = try movie() // the fixture has criticRating 96 and no rottenTomatoes
         #expect(item.scores.rottenTomatoes == RottenTomatoes(score: 96, state: .fresh))
         #expect(item.scores.imdb == nil)
-        #expect(!item.facts.contains("7.4")) // the plain score gives way to the tomato
+        #expect(item.facts.contains("7.4")) // without IMDb, the plain score stays beside the tomato
+        var withImdb = item
+        withImdb.imdbRating = 7.4
+        #expect(!withImdb.facts.contains("7.4")) // IMDb's mark takes its place
     }
 
     @Test func anUnknownTomato_FollowsTheScore() throws {

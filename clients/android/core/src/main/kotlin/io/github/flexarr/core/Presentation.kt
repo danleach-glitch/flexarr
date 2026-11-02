@@ -115,8 +115,8 @@ data class Scores(val imdb: Double?, val rottenTomatoes: RottenTomatoes?) {
 
 /**
  * Short facts for heroes and detail headers: year, runtime or seasons, rating, a plain score, resolution. [scores]
- * false (kids profiles) leaves the plain score out, and so does a title with IMDb or Rotten Tomatoes to show beside
- * their marks instead.
+ * false (kids profiles) leaves the plain score out, and so does a title with an IMDb score to show beside its mark
+ * instead (the plain one is usually IMDb's).
  */
 fun ItemSummary.facts(scores: Boolean = true): List<String> =
     buildList {
@@ -130,7 +130,7 @@ fun ItemSummary.facts(scores: Boolean = true): List<String> =
             else -> (runtimeMinutes?.let(Format::runtime) ?: durationSeconds?.let(Format::runtime))?.let(::add)
         }
         contentRating?.takeIf { it.isNotEmpty() }?.let(::add)
-        if (scores && this@facts.scores.isEmpty) communityRating?.takeIf { it > 0 }?.let { add(String.format(Locale.ROOT, "%.1f", it)) }
+        if (scores && this@facts.scores.imdb == null) communityRating?.takeIf { it > 0 }?.let { add(String.format(Locale.ROOT, "%.1f", it)) }
         resolution?.takeIf { it.isNotEmpty() }?.let(::add)
     }
 

@@ -83,7 +83,7 @@ extension ItemSummary {
     public var facts: [String] { facts(scores: true) }
 
     /// The facts, leaving out the plain score when `scores` is false (for a kids profile, where it means nothing) or
-    /// when the title has IMDb or Rotten Tomatoes to show beside their marks instead.
+    /// when the title has an IMDb score to show beside its mark instead (the plain one is usually IMDb's).
     public func facts(scores: Bool) -> [String] {
         var facts: [String] = []
         if let releaseYear { facts.append(String(releaseYear)) }
@@ -108,7 +108,7 @@ extension ItemSummary {
             }
         }
         if let contentRating, !contentRating.isEmpty { facts.append(contentRating) }
-        if scores, self.scores.isEmpty, let communityRating, communityRating > 0 { facts.append(String(format: "%.1f", communityRating)) }
+        if scores, self.scores.imdb == nil, let communityRating, communityRating > 0 { facts.append(String(format: "%.1f", communityRating)) }
         if let resolution, !resolution.isEmpty { facts.append(resolution) }
         return facts
     }

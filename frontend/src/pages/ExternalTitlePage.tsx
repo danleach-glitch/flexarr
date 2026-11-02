@@ -12,6 +12,7 @@ import { TrailerDialog } from '../components/TrailerDialog'
 import { useApi } from '../hooks/useApi'
 import { formatDuration } from '../lib/format'
 import { Overview } from '../components/Overview'
+import { PlainScore } from '../components/Hero'
 import { ScoreChips } from '../components/ScoreChips'
 import { hasScores, scoresOf } from '../lib/scores'
 
@@ -129,19 +130,16 @@ function ExternalTitle({ title }: { title: ExternalDetail }) {
   )
 }
 
-/** IMDb and Rotten Tomatoes beside their marks, as on a library title's page; else TMDB's score. */
+/** IMDb and Rotten Tomatoes beside their marks, as on a library title's page; TMDB's score when there's no IMDb. */
 function Scores({ title }: { title: ExternalDetail }) {
   const scores = scoresOf({
     imdbRating: title.imdbRating,
     rottenTomatoes: title.criticScore !== null ? { score: title.criticScore, state: title.rottenTomatoesState ?? null } : null,
   })
-  if (hasScores(scores)) return <ScoreChips scores={scores} />
-  if (title.tmdbRating === null) return null
   return (
-    <span className="score">
-      <span className="visually-hidden">Rated </span>
-      {title.tmdbRating.toFixed(1)}
-      <span className="muted">/10</span>
-    </span>
+    <>
+      {scores.imdb === null && title.tmdbRating ? <PlainScore value={title.tmdbRating} /> : null}
+      {hasScores(scores) && <ScoreChips scores={scores} />}
+    </>
   )
 }

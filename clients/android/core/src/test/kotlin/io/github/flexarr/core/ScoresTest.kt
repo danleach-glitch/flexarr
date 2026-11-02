@@ -30,7 +30,8 @@ class ScoresTest {
         val item = movie // the fixture has criticRating 96 and no rottenTomatoes
         assertEquals(RottenTomatoes(96, RottenTomatoesState.Fresh), item.scores.rottenTomatoes)
         assertNull(item.scores.imdb)
-        assertFalse("7.4" in item.facts()) // the plain score gives way to the tomato
+        assertTrue("7.4" in item.facts()) // without IMDb, the plain score stays beside the tomato
+        assertFalse("7.4" in item.copy(imdbRating = 7.4).facts()) // IMDb's mark takes its place
     }
 
     @Test

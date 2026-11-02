@@ -29,15 +29,26 @@ export function Facts({ item, extra = [] }: { item: ItemSummary; extra?: (string
   )
 }
 
-/** IMDb and Rotten Tomatoes beside their marks; a title with neither keeps its plain score. Hidden for kids (app.css). */
+/**
+ * IMDb and Rotten Tomatoes beside their marks. Without an IMDb score the plain one stays (usually IMDb's, or a show's
+ * TVDB score) before the tomato. Hidden for kids (app.css).
+ */
 function Scores({ item }: { item: ItemSummary }) {
   const scores = scoresOf(item)
-  if (hasScores(scores)) return <ScoreChips scores={scores} />
-  if (!item.communityRating) return null
+  return (
+    <>
+      {scores.imdb === null && item.communityRating ? <PlainScore value={item.communityRating} /> : null}
+      {hasScores(scores) && <ScoreChips scores={scores} />}
+    </>
+  )
+}
+
+/** A score out of 10 from no particular source: "7.4/10". */
+export function PlainScore({ value }: { value: number }) {
   return (
     <span className="score">
       <span className="visually-hidden">Rated </span>
-      {item.communityRating.toFixed(1)}
+      {value.toFixed(1)}
       <span className="muted">/10</span>
     </span>
   )

@@ -18,6 +18,7 @@ describe('IMDb and Rotten Tomatoes', () => {
   it("reads an older server's critics score as a tomato from the number", () => {
     render(<Facts item={movie({ criticRating: 41, communityRating: 6.2 })} />)
     expect(screen.getByLabelText('Rotten Tomatoes 41%, Rotten')).toBeTruthy()
+    expect(screen.getByText('6.2')).toBeTruthy() // without IMDb, the plain score stays beside the tomato
   })
 
   it('keeps the plain score for a title with neither', () => {

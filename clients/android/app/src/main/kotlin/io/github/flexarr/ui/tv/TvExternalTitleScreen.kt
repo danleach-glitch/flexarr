@@ -184,8 +184,8 @@ private fun facts(title: ExternalTitle, detail: ExternalDetail?): List<String> {
         detail.runtimeMinutes?.let { Format.runtime(minutes = it) }
     }
     val status = detail.status?.takeIf { it != "Released" && it != "Ended" }
-    // TMDB's score only when there's neither IMDb nor Rotten Tomatoes to show beside their marks.
-    val tmdb = detail.tmdbRating?.takeIf { detail.scores.isEmpty }?.let { String.format(Locale.ROOT, "%.1f", it) }
+    // TMDB's score when there's no IMDb score to show beside its mark.
+    val tmdb = detail.tmdbRating?.takeIf { detail.scores.imdb == null }?.let { String.format(Locale.ROOT, "%.1f", it) }
     return listOfNotNull(detail.certification, detail.year?.toString(), length, if (detail.isShow) "Show" else "Movie", status, tmdb)
 }
 
