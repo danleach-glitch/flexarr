@@ -21,8 +21,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ### Music
 - A music library's page now works like Movies and TV on the web, iPhone, iPad, Apple TV, Android and Android TV. A picture across the top starts with the album you played last, and **Resume** carries on from the next track. Then come artists you play, with **Play** and **Radio**, and the newest albums.
 - **Artists**, **Albums** and **Genres** sit beside **Browse** at the top. Albums lists every album, sorted A to Z, by date added or by year. Each genre opens its albums, and **Play** or **Shuffle** plays up to 200 of its tracks.
-- Browse ends with **Your artists**, and **See all** opens every artist.
+- Browse ends with **Your artists**, and **See all** opens every artist. **See all** on **New albums** opens Albums, newest first.
 - On Apple TV, **Settings › Libraries** chooses which of the four views music opens on, and the Top Shelf shows the albums you played last.
+- Sorting a library reads the same in every app: **A–Z**, **Recently added**, **Year** and **Rating**.
 
 ## 0.58.0 · 2 November 2026
 
