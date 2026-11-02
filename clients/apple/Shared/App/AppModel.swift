@@ -222,19 +222,18 @@ final class AppModel {
             // Screens reload once the server has the last report: asked straight away, a show's next up was still
             // the episode that had just ended. Not for long, though: a slow server gets another reload once it answers.
             guard let sent = self?.player.reportsSent else { self?.watchStateChanged(); return }
-            Task { @MainActor [weak self] in
-                let inTime = await withTaskGroup(of: Bool.self) { group in
-                    group.addTask { await sent.value; return true }
-                    group.addTask { try? await Task.sleep(for: .seconds(3)); return false }
-                    let first = await group.next() ?? false
-                    group.cancelAll()
-                    return first
-                }
+            // The wait runs on its own: awaiting the report can't be cut short, so a group racing the two would still
+            // wait for the report however long it took.
+            let late = Task { @MainActor [weak self] () -> Bool in
+                try? await Task.sleep(for: .seconds(3))
+                guard !Task.isCancelled else { return false }
                 self?.watchStateChanged()
-                if !inTime {
-                    await sent.value
-                    self?.invalidate()
-                }
+                return true
+            }
+            Task { @MainActor [weak self] in
+                await sent.value
+                late.cancel()
+                if await late.value { self?.invalidate() } else { self?.watchStateChanged() }
             }
         }
         // One thing plays at a time: a film starting pauses the music, which the lock screen offers back after.
