@@ -425,6 +425,10 @@ public static partial class HealthEndpoints
         }
 
         var otherIds = others.ToList();
+        // An artist's albums before the merge, with whose they were: the same album under both spellings is merged after.
+        var albumsBefore = kind != MediaKind.Artist ? [] : await db.MediaItems.AsNoTracking()
+            .Where(i => i.Kind == MediaKind.Album && i.ParentId != null && (i.ParentId == keep.Id || otherIds.Contains(i.ParentId.Value)))
+            .Select(i => new AlbumBefore(i.Id, i.ParentId!.Value, i.Title, i.Year, i.Children.Count)).ToListAsync(ct);
         var aliases = new List<string>();
         foreach (var other in items.Where(i => i.Id != keep.Id))
         {
@@ -470,7 +474,36 @@ public static partial class HealthEndpoints
         keep.MetadataUpdatedAt = null; // Refreshed again with everything it now has.
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
+        if (kind == MediaKind.Artist)
+        {
+            await MergeSameAlbumsAsync(db, keep.Id, albumsBefore, ct);
+        }
+
         return Results.NoContent();
+    }
+
+    private sealed record AlbumBefore(Guid Id, Guid ArtistId, string Title, int? Year, int Tracks);
+
+    /// <summary>
+    /// After an artist merge, the albums both spellings had (one title, case, accents and punctuation aside, and no
+    /// two years) become one, as merging them by hand would: the kept artist's copy stays, or else the fullest. Titles
+    /// one spelling has twice (two "Live" albums) are left for Library health to show.
+    /// </summary>
+    private static async Task MergeSameAlbumsAsync(FlexarrDbContext db, Guid keptArtist, List<AlbumBefore> albums, CancellationToken ct)
+    {
+        foreach (var same in albums.GroupBy(a => MusicNames.Normalise(a.Title)).Where(g => g.Key.Length > 0))
+        {
+            var group = same.ToList();
+            if (group.Select(a => a.ArtistId).Distinct().Count() < 2 || group.GroupBy(a => a.ArtistId).Any(g => g.Count() > 1)
+                || group.Where(a => a.Year is not null).Select(a => a.Year).Distinct().Count() > 1)
+            {
+                continue;
+            }
+
+            var keep = group.OrderByDescending(a => a.ArtistId == keptArtist).ThenByDescending(a => a.Tracks).First();
+            db.ChangeTracker.Clear();
+            await MergeAsync(db, new MergeRequest(keep.Id, group.Select(a => a.Id).ToList()), MediaKind.Album, ct);
+        }
     }
 
     private static async Task<List<HeldFolderDto>> HeldAsync(FlexarrDbContext db, CancellationToken ct)

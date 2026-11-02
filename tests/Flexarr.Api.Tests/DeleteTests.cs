@@ -157,6 +157,28 @@ public class DeleteTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
     }
 
     [Fact]
+    public async Task AnArtistMatchedToAnotherOfTheirName_IsntDeletedThere()
+    {
+        var arr = new FakeArr();
+        arr.Responses["DELETE /api/v1/artist/3?deleteFiles=true&addImportListExclusion=false"] = "{}";
+        using var app = WithLidarr(arr, factory);
+        var (artist, album) = await AddMusicAsync(app, managed: true);
+        var folder = await InScopeAsync(app, db => db.LibraryFolders.Where(f => f.LibraryId == artist.LibraryId).Select(f => f.Path).SingleAsync());
+        await InScopeAsync(app, async db =>
+        {
+            (await db.MediaItems.SingleAsync(i => i.Id == album.Id)).Path = folder + "/Nirvana (UK)/Local Anaesthetic";
+            return await db.SaveChangesAsync();
+        });
+        // Lidarr's Nirvana is the other one, in a folder of their own in the same library.
+        arr.Responses["GET /api/v1/artist/3"] = $$"""{"id":3,"artistName":"Nirvana","path":"{{folder.Replace("/Volumes/Media/data", "/data", StringComparison.Ordinal)}}/Nirvana"}""";
+
+        var refused = await Admin(app).DeleteAsync(new Uri($"/api/v1/items/{artist.Id}", UriKind.Relative));
+
+        Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+        Assert.DoesNotContain(arr.Requests, r => r.StartsWith("DELETE", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task AnAlbumLidarrNeverMatched_UnderAnArtistItManages_IsFoundThereByTitle()
     {
         var arr = new FakeArr();

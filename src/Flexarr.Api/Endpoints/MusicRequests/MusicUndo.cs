@@ -223,7 +223,7 @@ public static partial class MusicUndo
             : [];
         foreach (var queued in mine.Where(q => q.DownloadId is null || !shared.Contains(q.DownloadId)))
         {
-            await c.Client.DeleteAsync(lidarr, $"queue/{queued.Id}?removeFromClient=true&blocklist=false", ct);
+            await c.Client.RemoveFromQueueAsync(lidarr, queued.Id, ct);
         }
     }
 
