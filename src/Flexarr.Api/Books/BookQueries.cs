@@ -227,9 +227,39 @@ public static class BookQueries
     private static async Task<List<string>> LanguagesAsync(IQueryable<MediaItem> books, CancellationToken ct) =>
         [.. (await books.Select(i => i.Book!.Language).Where(l => l != null && l != "").Distinct().OrderBy(l => l).ToListAsync(ct)).OfType<string>()];
 
-    /// <summary>A library's book genres and how many books are in each, A to Z (the Genres view).</summary>
-    public static Task<List<GenreCountDto>> GenresAsync(FlexarrDbContext db, Guid libraryId, CancellationToken ct) =>
-        GenreCounts(Books(db, libraryId)).OrderBy(g => g.Name).Select(g => new GenreCountDto(g.Name, g.Count)).ToListAsync(ct);
+    /// <summary>
+    /// A library's book genres and how many books are in each, A to Z (the Genres view), with up to three covers from
+    /// each, newest first. The front one differs from genre to genre where it can, since small genres share most books.
+    /// </summary>
+    public static async Task<List<BookGenreDto>> GenresAsync(FlexarrDbContext db, Guid libraryId, CancellationToken ct)
+    {
+        var books = Books(db, libraryId);
+        var genres = await GenreCounts(books).OrderBy(g => g.Name).ToListAsync(ct);
+        var covered = await books.Where(b => b.PosterUrl != null)
+            .Select(b => new { b.Id, b.AddedAt, b.MetadataUpdatedAt, b.ArtworkChangedAt, Genres = b.Genres.Select(g => g.Name).ToList() })
+            .ToListAsync(ct);
+        var byGenre = covered.OrderByDescending(b => b.AddedAt)
+            .SelectMany(b => b.Genres.Select(g => (Genre: g, Cover: ArtworkUrls.For(b.Id, ArtworkUrls.Version(b.MetadataUpdatedAt, b.ArtworkChangedAt), true, false, false, false).Poster!)))
+            .ToLookup(x => x.Genre, x => x.Cover, StringComparer.Ordinal);
+
+        // Smallest genres choose their front cover first: a big one has more to choose from.
+        var used = new HashSet<string>(StringComparer.Ordinal);
+        var front = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var genre in genres.OrderBy(g => g.Count))
+        {
+            var options = byGenre[genre.Name].ToList();
+            if ((options.FirstOrDefault(used.Add) ?? options.FirstOrDefault()) is { } pick)
+            {
+                front[genre.Name] = pick;
+            }
+        }
+
+        return [.. genres.Select(g =>
+        {
+            var covers = front.TryGetValue(g.Name, out var first) ? byGenre[g.Name].Where(c => c != first).Prepend(first).Take(3).ToList() : [];
+            return new BookGenreDto(g.Name, g.Count, covers);
+        })];
+    }
 
     private sealed class GenreCount
     {
