@@ -51,23 +51,24 @@ struct ShowGapsSection: View {
             if !gaps.upcoming.isEmpty {
                 VStack(alignment: .leading, spacing: 16) {
                     RowHeading(title: "Coming up")
-                    VStack(alignment: .leading, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 6) {
                         ForEach(gaps.upcoming) { episode in
-                            HStack(alignment: .firstTextBaseline, spacing: 18) {
-                                Text(episode.code)
-                                    .font(.system(size: 26, weight: .semibold).monospacedDigit())
-                                    .foregroundStyle(Color.screen)
-                                Text(episode.title ?? "")
-                                    .font(.system(size: 26))
-                                    .foregroundStyle(Color.screen.opacity(0.85))
-                                    .lineLimit(1)
-                                if let airs = episode.airs() {
-                                    Text(airs).font(.system(size: 26)).foregroundStyle(Color.usher)
+                            listRow {
+                                HStack(alignment: .firstTextBaseline, spacing: 18) {
+                                    Text(episode.code)
+                                        .font(.system(size: 26, weight: .semibold).monospacedDigit())
+                                    Text(episode.title ?? "")
+                                        .font(.system(size: 26))
+                                        .lineLimit(1)
+                                    if let airs = episode.airs() {
+                                        Text(airs).font(.system(size: 26))
+                                    }
                                 }
                             }
                         }
                     }
                     .padding(.horizontal, Layout.edge)
+                    .focusSection()
                 }
             }
         }
@@ -165,11 +166,12 @@ struct ShowGapsSection: View {
             Text("Season \(season): \(episodes.count == 1 ? "1 episode" : "\(episodes.count) episodes")")
                 .font(.system(size: 30, weight: .bold))
                 .foregroundStyle(Color.screen)
-            Text(episodes.map { [$0.code, $0.title].compactMap(\.self).joined(separator: " ") }.joined(separator: "   "))
-                .font(.system(size: 24))
-                .foregroundStyle(Color.screen.opacity(0.8))
-                .lineLimit(2)
-                .frame(maxWidth: 1400, alignment: .leading)
+            listRow {
+                Text(episodes.map { [$0.code, $0.title].compactMap(\.self).joined(separator: " ") }.joined(separator: "   "))
+                    .font(.system(size: 24))
+                    .lineLimit(2)
+                    .frame(maxWidth: 1400, alignment: .leading)
+            }
             if gaps.canSearch && gaps.source == "sonarr" {
                 Button {
                     guard !busy, !asked.contains(-season) else { return }
@@ -183,6 +185,15 @@ struct ShowGapsSection: View {
             }
         }
         .focusSection()
+    }
+
+    /// A focusable row that does nothing, as an outside album's tracks are: the remote scrolls only by moving focus, so
+    /// without it the lines are skipped on the way down (for everyone but the main profile, nothing else here takes
+    /// focus). Its highlight reaches out into the margin, the words staying in line with the headings.
+    private func listRow<Content: View>(@ViewBuilder _ label: () -> Content) -> some View {
+        Button {} label: { label() }
+            .buttonStyle(TrackRowStyle(isCurrent: false))
+            .padding(.horizontal, -30)
     }
 
     private func request(_ season: MissingSeason) async {
