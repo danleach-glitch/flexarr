@@ -398,7 +398,8 @@ public static partial class MusicRequestEndpoints
         options.MusicRequests.Enabled ? options.Arr.Where(a => a.Kind == ArrKind.Lidarr).ToList() : [];
 
     internal static MusicExternalDto Artist(DeezerArtist artist, OwnedMusic owned) =>
-        new("artist", artist.Id, artist.Name, null, artist.Id, null, ImageEndpoints.RemoteUrl(artist.Picture), owned.ArtistAvailability(artist.Name), owned.ArtistId(artist.Name));
+        new("artist", artist.Id, artist.Name, null, artist.Id, null, ImageEndpoints.RemoteUrl(artist.Picture), owned.ArtistAvailability(artist.Name), owned.ArtistId(artist.Name),
+            Followed: owned.IsFollowed(artist.Name));
 
     internal static MusicExternalDto Album(DeezerAlbum album, OwnedMusic owned) =>
         new("album", album.Id, album.Title, album.Artist?.Name, album.Artist?.Id, album.Year, ImageEndpoints.RemoteUrl(album.Cover),

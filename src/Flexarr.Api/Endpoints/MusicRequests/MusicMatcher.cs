@@ -55,8 +55,11 @@ public sealed class OwnedMusic(Dictionary<string, Guid> artists, Dictionary<stri
 
     public Guid? AlbumId(string? artist, string? title) => Albums.TryGetValue(AlbumKey(artist, title), out var id) ? id : null;
 
+    /// <summary>Lidarr watches for the artist's new releases (in a library the profile can see).</summary>
+    public bool IsFollowed(string? name) => FollowedArtists.Contains(MusicNames.Normalise(name));
+
     public AvailabilityDto ArtistAvailability(string? name) =>
-        ArtistId(name) is not null ? AvailabilityDto.Available : FollowedArtists.Contains(MusicNames.Normalise(name)) ? AvailabilityDto.Requested : AvailabilityDto.None;
+        ArtistId(name) is not null ? AvailabilityDto.Available : IsFollowed(name) ? AvailabilityDto.Requested : AvailabilityDto.None;
 
     public AvailabilityDto AlbumAvailability(string? artist, string? title)
     {

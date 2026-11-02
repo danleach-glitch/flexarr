@@ -341,6 +341,8 @@ public sealed class MusicRequestTests : IAsyncLifetime
         var missing = Assert.Single(extras.GetProperty("missing").EnumerateArray());
         Assert.Equal(("moisturizer", 730000661L), (missing.GetProperty("title").GetString(), missing.GetProperty("deezerId").GetInt64()));
         Assert.Equal(["Yard Act", "Dry Cleaning"], extras.GetProperty("similar").EnumerateArray().Select(a => a.GetProperty("title").GetString()));
+        // Each says whether Lidarr follows them, so a library artist among them can show Following.
+        Assert.All(extras.GetProperty("similar").EnumerateArray(), a => Assert.False(a.GetProperty("followed").GetBoolean()));
         Assert.Equal(134334152, extras.GetProperty("deezerId").GetInt64());
         Assert.False(extras.GetProperty("followed").GetBoolean());
     }

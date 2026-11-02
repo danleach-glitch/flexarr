@@ -1,7 +1,8 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { addToPlaylist, ApiError, createPlaylist, getPlaylists, type PlaylistSummary } from '../api/client'
 import { useApi } from '../hooks/useApi'
-import { AsyncButton } from './AsyncButton'
+import { AsyncButton, IconButton } from './AsyncButton'
+import { Close } from './icons'
 import { describePlaylist, PlaylistCover } from './PlaylistCover'
 import { useModal } from '../hooks/useModal'
 
@@ -40,6 +41,12 @@ export function AddToPlaylistDialog({ item, onClose }: { item: PlaylistAddition;
   const [error, setError] = useState<string>()
 
   const dialog = useModal<HTMLDivElement>(onClose)
+  // With no playlists yet, naming the first is all there is to do.
+  const none = playlists.data?.length === 0
+  const nameInput = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    if (none) nameInput.current?.focus()
+  }, [none])
 
   async function run(target: string, work: () => Promise<string>) {
     setBusy(target)
@@ -73,48 +80,58 @@ export function AddToPlaylistDialog({ item, onClose }: { item: PlaylistAddition;
   return (
     <div className="dialog-backdrop" onClick={onClose}>
       <div className="panel add-to-playlist" ref={dialog} role="dialog" aria-modal="true" aria-label={`Add ${item.title} to a playlist`} onClick={(e) => e.stopPropagation()}>
-        <h2>Add {item.title} to a playlist</h2>
+        <header className="add-to-playlist-head">
+          <div>
+            <h2>Add to playlist</h2>
+            <p className="muted">{item.title}</p>
+          </div>
+          <IconButton label="Close" icon={<Close />} className="icon-button" onClick={onClose} />
+        </header>
         {playlists.error && <p className="error">{playlists.error.message}</p>}
-        {playlists.data?.length === 0 && <p className="muted">No playlists yet. Start one below.</p>}
-        <ul className="playlist-choices">
-          {playlists.data?.map((p) => (
-            <li key={p.id}>
-              <AsyncButton className="playlist-choice" onClick={() => add(p)} disabled={!!busy} busy={busy === p.id}>
-                <span className="playlist-choice-art">
-                  <PlaylistCover playlist={p} width={92} />
-                </span>
-                <span className="playlist-choice-text">
-                  <strong>{p.name}</strong>
-                  <span className="muted">{describePlaylist(p)}</span>
-                </span>
-              </AsyncButton>
-            </li>
-          ))}
-        </ul>
-        <form className="field-row" onSubmit={create}>
-          <label className="grow">
+        {!none && (
+          <ul className="playlist-choices">
+            {playlists.data?.map((p) => (
+              <li key={p.id}>
+                <AsyncButton className="playlist-choice" onClick={() => add(p)} disabled={!!busy} busy={busy === p.id}>
+                  <span className="playlist-choice-art">
+                    <PlaylistCover playlist={p} width={92} />
+                  </span>
+                  <span className="playlist-choice-text">
+                    <strong>{p.name}</strong>
+                    <span className="muted">{describePlaylist(p)}</span>
+                  </span>
+                </AsyncButton>
+              </li>
+            ))}
+          </ul>
+        )}
+        <form className="add-to-playlist-new" onSubmit={create}>
+          <label className="visually-hidden" htmlFor="new-playlist-name">
             New playlist
-            <input type="text" value={name} onChange={(e) => setName(e.target.value)} maxLength={120} placeholder="Name it, then press Create" />
           </label>
-          <AsyncButton className="button" type="submit" disabled={!!busy || !name.trim()} busy={busy === 'new'}>
+          <input
+            id="new-playlist-name"
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            maxLength={120}
+            placeholder={none ? 'Name your first playlist' : 'New playlist'}
+            ref={nameInput}
+          />
+          <AsyncButton className="button small" type="submit" disabled={!!busy || !name.trim()} busy={busy === 'new'}>
             Create
           </AsyncButton>
         </form>
         {message && (
-          <p className="muted" role="status">
+          <p className="muted add-to-playlist-note" role="status">
             {message}
           </p>
         )}
         {error && (
-          <p className="error" role="alert">
+          <p className="error add-to-playlist-note" role="alert">
             {error}
           </p>
         )}
-        <div className="form-actions">
-          <button className="button quiet" onClick={onClose}>
-            Done
-          </button>
-        </div>
       </div>
     </div>
   )

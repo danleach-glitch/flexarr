@@ -5,7 +5,7 @@ import { getMix, imageUrl } from '../api/client'
 import { More, Play } from '../components/icons'
 import { Menu, type MenuPoint } from '../components/ItemMenu'
 import { PlaylistCover } from '../components/PlaylistCover'
-import { useAudioPlayer, useMusicPage } from '../hooks/audioPlayerContext'
+import { useAudioPlayer } from '../hooks/audioPlayerContext'
 import { useApi } from '../hooks/useApi'
 import { formatClock, formatDuration } from '../lib/format'
 import { MoreButton, queueActions } from './MusicPages'
@@ -19,7 +19,6 @@ export function MixPage() {
   const { id = '' } = useParams()
   const { data, error, reload } = useApi((signal) => getMix(id, signal), [id])
   const player = useAudioPlayer()
-  useMusicPage()
   // One track's menu at a time: which, and where it opened.
   const [trackMenu, setTrackMenu] = useState<{ index: number; at: MenuPoint } | null>(null)
 

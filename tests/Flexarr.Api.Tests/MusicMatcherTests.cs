@@ -75,6 +75,8 @@ public class MusicMatcherTests
         Assert.Equal(AvailabilityDto.None, owned.AlbumAvailability("Wet Leg", "Wet Leg"));
         Assert.Equal(AvailabilityDto.Requested, owned.ArtistAvailability("Wet Leg"));
         Assert.Equal(AvailabilityDto.Available, owned.ArtistAvailability("the beatles"));
+        Assert.True(owned.IsFollowed("Wet Leg"));
+        Assert.False(owned.IsFollowed("The Beatles"));
     }
 
     /// <summary>Answers by the path after /api/v1/, query aside.</summary>
