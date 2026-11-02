@@ -142,7 +142,7 @@ struct HomeHero: View {
     @FocusState private var focusedButton: HeroButton?
     @Namespace private var heroScope
 
-    private enum HeroButton { case play, info }
+    private enum HeroButton { case play, radio, info }
 
     private var item: ItemSummary { items[index % items.count] }
 
@@ -154,8 +154,27 @@ struct HomeHero: View {
 
             VStack(alignment: .leading, spacing: 26) {
                 VStack(alignment: .leading, spacing: 24) {
-                    TitleArt(item: item, maxWidth: 760, maxHeight: 230, fontSize: 110)
-                    FactsLine(facts: item.facts(scores: !model.isKids), scores: model.isKids ? nil : item.scores)
+                    if item.kind == .album {
+                        // An album's slide: its artist above it, since the backdrop is theirs.
+                        VStack(alignment: .leading, spacing: 8) {
+                            if let artist = item.artistName {
+                                Text(artist)
+                                    .font(.system(size: 34, weight: .semibold))
+                                    .foregroundStyle(Color.screen.opacity(0.85))
+                            }
+                            Text(item.title)
+                                .font(.marquee(96, weight: .black))
+                                .kerning(-1)
+                                .foregroundStyle(Color.screen)
+                                .lineLimit(2)
+                                .minimumScaleFactor(0.6)
+                                .frame(maxWidth: 1000, alignment: .leading)
+                        }
+                        .modifier(TitleScrim(reach: 460))
+                    } else {
+                        TitleArt(item: item, maxWidth: 760, maxHeight: 230, fontSize: 110)
+                    }
+                    FactsLine(facts: item.facts(scores: !model.isKids && !item.kind.isMusic), scores: model.isKids || item.kind.isMusic ? nil : item.scores)
                     if let overview = overviews[item.id] ?? nil {
                         Text(overview)
                             .font(.system(size: 27))
@@ -170,12 +189,21 @@ struct HomeHero: View {
 
                 HStack(spacing: 28) {
                     Button { play() } label: {
-                        Label(resuming(item) != nil || item.isResumable ? "Resume" : "Play", systemImage: "play.fill")
+                        Label(resuming(item) != nil || item.isResumable ? "Resume" : "Play", systemImage: Symbol.play)
                     }
                     .buttonStyle(ActionButtonStyle(ambient: item.ambientColor, prominent: true))
                     .focused($focusedButton, equals: .play)
                     .prefersDefaultFocus(true, in: heroScope)
                     .onMoveCommand { if $0 == .left { step(-1) } }
+
+                    // An artist's slide: their radio too, beside Play (which shuffles them).
+                    if item.kind == .artist {
+                        Button { Task { await model.playArtist(item, radio: true, router: router) } } label: {
+                            Label("Radio", systemImage: Symbol.radio)
+                        }
+                        .buttonStyle(ActionButtonStyle(ambient: item.glowColor))
+                        .focused($focusedButton, equals: .radio)
+                    }
 
                     Button { router.push(.item(item)) } label: {
                         Label("More info", systemImage: "info.circle")
@@ -220,7 +248,7 @@ struct HomeHero: View {
         .onChange(of: focusedButton) { old, new in
             // The focus engine picks the geometrically nearest button (often More info, nearer
             // the sidebar); entering the hero should always land on Play.
-            if old == nil, new == .info { focusedButton = .play }
+            if old == nil, new != nil, new != .play { focusedButton = .play }
         }
         .onAppear(perform: takeFocus)
         .onChange(of: takesFocus.wrappedValue, takeFocus)
@@ -276,6 +304,16 @@ struct HomeHero: View {
 
     private func play() {
         let item = item
+        switch item.kind {
+        case .album:
+            Task { await model.playAlbum(item, resuming: resuming(item), router: router) }
+            return
+        case .artist:
+            Task { await model.playArtist(item, radio: false, router: router) }
+            return
+        default:
+            break
+        }
         if let resume = resuming(item) {
             model.play(resume)
         } else {

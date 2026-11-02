@@ -2,7 +2,7 @@ import FlexarrKit
 import SwiftUI
 
 /// Poster grid for one library, paged with skip/take, with sort and genre filters, and an A–Z rail to jump
-/// through it when sorted by title.
+/// through it when sorted by title. For music: its artists as round pictures, or its albums as square covers.
 struct LibraryView: View {
     @Environment(AppModel.self) private var model
     @Environment(Router.self) private var router
@@ -11,6 +11,13 @@ struct LibraryView: View {
     var initialGenre: String?
     /// On a library's tab, the Browse and All switch; none when opened from a row's "See all".
     var viewSwitch: Binding<LibraryOpening>?
+    var content: LibraryGridContent = .titles
+    /// On a music library's tab, its Browse, Artists, Albums and Genres switch.
+    var musicSwitch: Binding<MusicOpening>?
+    var offersAlbums = true
+
+    /// On a tab, under the sidebar's label, rather than pushed with the library's name as a heading.
+    private var onTab: Bool { viewSwitch != nil || musicSwitch != nil }
 
     @State private var sort: LibrarySort = .title
     @State private var genre: String?
@@ -64,7 +71,7 @@ struct LibraryView: View {
                             Task { await jump(to: letter, proxy: proxy) }
                         }
                         .padding(.trailing, Layout.edge)
-                        .padding(.top, viewSwitch == nil ? 0 : 60)
+                        .padding(.top, onTab ? 60 : 0)
                     }
                 }
         }
@@ -83,7 +90,7 @@ struct LibraryView: View {
                 } else {
                     LazyVGrid(columns: columns, alignment: .leading, spacing: 64) {
                         ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                            PosterCard(item: item, focus: $focusedItem) { router.push(.item(item)) }
+                            card(item)
                                 .id(item.id)
                                 .onAppear { loadMoreIfNeeded(at: index) }
                         }
@@ -100,7 +107,7 @@ struct LibraryView: View {
         }
         .scrollClipDisabled()
         // On a tab, the switch sits where it does over Browse's hero.
-        .ignoresSafeArea(edges: viewSwitch == nil ? [] : .top)
+        .ignoresSafeArea(edges: onTab ? .top : [])
         .background(RoomBackground(ambient: items.first?.glowColor, intensity: 0.18))
         .task {
             if !didApplyInitialSort {
@@ -114,7 +121,7 @@ struct LibraryView: View {
                 if loadedToken != model.refreshToken || Freshness.isStale(loadedAt) { await refreshLoaded() }
                 return
             }
-            async let genresTask = try? model.client?.libraryGenres(library.id)
+            async let genresTask = content == .albums ? (try? model.client?.libraryAlbumGenres(library.id)) ?? nil : try? model.client?.libraryGenres(library.id)
             await reload()
             genres = await genresTask ?? []
         }
@@ -141,7 +148,7 @@ struct LibraryView: View {
 
     private var header: some View {
         HStack(alignment: .lastTextBaseline, spacing: 30) {
-            VStack(alignment: .leading, spacing: viewSwitch == nil ? 4 : 16) {
+            VStack(alignment: .leading, spacing: onTab ? 16 : 4) {
                 if let viewSwitch {
                     // On a tab, which names the library: the Browse and All switch, where it sits over Browse's hero.
                     LibraryViewSwitch(library: library, view: viewSwitch) { focused in
@@ -149,19 +156,40 @@ struct LibraryView: View {
                         switchFocused = focused
                     }
                     .focusSection()
+                } else if let musicSwitch {
+                    MusicViewSwitch(view: musicSwitch, offersAlbums: offersAlbums) { focused in
+                        if !focused { lastFocusHereAt = .now }
+                        switchFocused = focused
+                    }
+                    .focusSection()
                 } else {
-                    Text(library.name)
+                    // A music genre's page is its albums, under the genre's name.
+                    Text(content == .albums ? initialGenre ?? library.name : library.name)
                         .font(.marquee(76, weight: .heavy))
                         .foregroundStyle(Color.screen)
                 }
-                Text(total == 1 ? "1 title" : "\(total.formatted()) titles")
+                Text(content.count(total))
                     .font(.system(size: 24, weight: .medium))
                     .foregroundStyle(Color.usher)
                     .monospacedDigit()
+                if content == .albums, !onTab, let genre = initialGenre {
+                    HStack(spacing: 28) {
+                        Button { Task { await model.playGenre(genre, in: library, shuffled: false, router: router) } } label: {
+                            Label("Play", systemImage: Symbol.play)
+                        }
+                        .buttonStyle(ActionButtonStyle(ambient: items.first?.ambientColor ?? .silver, prominent: true))
+                        Button { Task { await model.playGenre(genre, in: library, shuffled: true, router: router) } } label: {
+                            Label("Shuffle", systemImage: Symbol.shuffle)
+                        }
+                        .buttonStyle(ActionButtonStyle(ambient: items.first?.glowColor ?? .silver))
+                    }
+                    .padding(.top, 20)
+                    .focusSection()
+                }
             }
             Spacer()
             HStack(spacing: 18) {
-                ForEach(LibrarySort.allCases) { option in
+                ForEach(content.sorts) { option in
                     Button(option.label) { sort = option }
                         .buttonStyle(PillButtonStyle(selected: sort == option))
                         .focused($focusedControl, equals: "sort-\(option.rawValue)")
@@ -181,7 +209,29 @@ struct LibraryView: View {
             }
             .focusSection()
         }
-        .padding(.top, viewSwitch == nil ? 20 : LibraryViewSwitch.topInset)
+        .padding(.top, onTab ? LibraryViewSwitch.topInset : 20)
+    }
+
+    /// A page of what this grid lists, as it's sorted and filtered now.
+    private func fetch(_ client: FlexarrClient, skip: Int, take: Int) async throws -> Paged<ItemSummary> {
+        switch content {
+        case .albums:
+            guard let page = try await client.libraryAlbums(library.id, sort: sort, genre: genre, skip: skip, take: take) else {
+                throw FlexarrClientError.http(status: 404, message: nil)
+            }
+            return page
+        case .titles, .artists:
+            return try await client.libraryItems(library.id, sort: sort, genre: genre, skip: skip, take: take)
+        }
+    }
+
+    @ViewBuilder
+    private func card(_ item: ItemSummary) -> some View {
+        switch content {
+        case .titles: PosterCard(item: item, focus: $focusedItem) { router.push(.item(item)) }
+        case .artists: ArtistCard(item: item, focus: $focusedItem) { router.push(.item(item)) }
+        case .albums: AlbumCard(item: item, showsArtist: true, focus: $focusedItem) { router.push(.item(item)) }
+        }
     }
 
     private func reload() async {
@@ -193,7 +243,7 @@ struct LibraryView: View {
         defer { if current == generation { isLoading = false } }
         let token = model.refreshToken
         do {
-            let page = try await client.libraryItems(library.id, sort: sort, genre: genre, skip: 0, take: Self.pageSize)
+            let page = try await fetch(client, skip: 0, take: Self.pageSize)
             guard current == generation else { return }
             items = page.items
             total = page.total
@@ -231,8 +281,7 @@ struct LibraryView: View {
         var offset = 0
         var fetchedTotal: Int?
         while offset < wanted {
-            guard let page = try? await client.libraryItems(
-                library.id, sort: sort, genre: genre, skip: offset, take: min(wanted - offset, Self.maxPageSize)),
+            guard let page = try? await fetch(client, skip: offset, take: min(wanted - offset, Self.maxPageSize)),
                 current == generation else { break }
             offset += page.items.count
             // A title added or removed between pages can shift one into the next: list it once.
@@ -317,7 +366,7 @@ struct LibraryView: View {
             }
             guard !emptyLetters.contains(letter), items.count < total else { return }
             let skip = items.count
-            guard let page = try? await client.libraryItems(library.id, sort: sort, genre: genre, skip: skip, take: Self.maxPageSize),
+            guard let page = try? await fetch(client, skip: skip, take: Self.maxPageSize),
                   current == generation, !page.items.isEmpty else { return }
             // A page from scrolling landed meanwhile: this one no longer follows on, so look again from there.
             guard skip == items.count else { continue }
@@ -335,7 +384,7 @@ struct LibraryView: View {
         Task {
             defer { if current == generation { isLoading = false } }
             // Dropped if the sort or genre changed (or the list was refetched) while it was out.
-            if let page = try? await client.libraryItems(library.id, sort: sort, genre: genre, skip: skip, take: Self.pageSize),
+            if let page = try? await fetch(client, skip: skip, take: Self.pageSize),
                current == generation, skip == items.count {
                 let known = Set(items.map(\.id))
                 items.append(contentsOf: page.items.filter { !known.contains($0.id) })

@@ -10,6 +10,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.LocalMovies
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Radio
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.outlined.ArrowCircleDown
@@ -38,8 +39,10 @@ object FlexarrIcons {
     val play: ImageVector get() = Icons.Filled.PlayArrow
     /** Start over. */
     val startOver: ImageVector get() = Icons.Filled.Replay
-    /** Shuffle a show. */
+    /** Shuffle a show, an artist or a genre. */
     val shuffle: ImageVector get() = Icons.Filled.Shuffle
+    /** Artist radio. */
+    val radio: ImageVector get() = Icons.Filled.Radio
     /** Trailer. */
     val trailer: ImageVector get() = Icons.Filled.LocalMovies
     /** Mark as watched. */

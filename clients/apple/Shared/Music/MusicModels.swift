@@ -14,6 +14,10 @@ final class MusicBrowseModel {
     private(set) var total = 0
     /// The server's Browse rows with something in them, in its order.
     private(set) var rows: [HomeRow] = []
+    /// The hero: the album played last, artists and new albums (servers from 0.59).
+    private(set) var featured: [ItemSummary] = []
+    /// What the hero offers: artists' bios, and the track an album carries on from.
+    private(set) var hero: Home?
     /// Only filled when Browse failed: drawn in place of the rows.
     private(set) var recentAlbums: [ItemSummary] = []
     /// The profile's playlists (they span libraries, so every music library offers them).
@@ -52,6 +56,8 @@ final class MusicBrowseModel {
             let loaded = try? await browse
             guard mine == generation else { return }
             rows = (loaded?.rows ?? []).filter(\.hasContent)
+            hero = loaded
+            featured = loaded?.featured ?? []
             guard loaded == nil else {
                 playlists = []
                 recentAlbums = []
@@ -86,7 +92,7 @@ final class MusicBrowseModel {
     }
 
     /// Something to tint the page with: the first album or track in the rows, or the newest album, or the first artist.
-    var ambientItem: ItemSummary? { rows.lazy.compactMap(\.items.first).first ?? recentAlbums.first ?? artists.first }
+    var ambientItem: ItemSummary? { featured.first ?? rows.lazy.compactMap(\.items.first).first ?? recentAlbums.first ?? artists.first }
 
     /// The newest albums among these artists', newest first.
     private static func newestAlbums(of artists: [ItemSummary], client: FlexarrClient) async -> [ItemSummary] {

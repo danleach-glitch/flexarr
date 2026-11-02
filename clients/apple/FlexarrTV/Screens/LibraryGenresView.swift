@@ -3,13 +3,18 @@ import SwiftUI
 
 /// A film, TV or audiobooks library's Genres: a tile for each of its genres, with a backdrop from one of its titles (a
 /// film's or show's genres, biggest first) or its newest covers fanned (a book's, A to Z, as on the phones and the web).
-/// Choosing one opens the library's titles in that genre on top, so Back comes back to the tiles.
+/// Choosing one opens the library's titles in that genre on top, so Back comes back to the tiles. A music library's
+/// count albums (their own genres, or their artist's when they have none), with an artist's fanart, and open the
+/// genre's albums.
 struct LibraryGenresView: View {
     @Environment(AppModel.self) private var model
     @Environment(Router.self) private var router
     @Environment(\.focusesContent) private var arriving
     let library: Library
-    @Binding var view: LibraryOpening
+    var view: Binding<LibraryOpening> = .constant(.genres)
+    /// A music library's switch, in place of `view`.
+    var musicView: Binding<MusicOpening>?
+    var offersAlbums = true
 
     @State private var genres: [GenreCount]?
     @State private var error: String?
@@ -20,7 +25,14 @@ struct LibraryGenresView: View {
             RoomBackground(ambient: nil)
             ScrollView(.vertical) {
                 VStack(alignment: .leading, spacing: 50) {
-                    LibraryViewSwitch(library: library, view: $view).focusSection()
+                    Group {
+                        if let musicView {
+                            MusicViewSwitch(view: musicView, offersAlbums: offersAlbums)
+                        } else {
+                            LibraryViewSwitch(library: library, view: view)
+                        }
+                    }
+                    .focusSection()
                     content
                 }
                 .padding(.horizontal, Layout.edge)
@@ -69,6 +81,7 @@ struct LibraryGenresView: View {
     }
 
     private func caption(_ genre: GenreCount) -> String {
+        if library.type == .music { return genre.count == 1 ? "1 album" : "\(genre.count) albums" }
         let noun = switch library.type {
         case .tvShows: genre.count == 1 ? "show" : "shows"
         case .audiobooks: genre.count == 1 ? "book" : "books"
@@ -86,7 +99,11 @@ struct LibraryGenresView: View {
     private func load() async {
         guard let client = model.client else { return }
         do {
-            genres = try await library.type == .audiobooks ? client.bookGenres(library.id) : client.libraryGenres(library.id)
+            genres = switch library.type {
+            case .music: try await client.libraryAlbumGenres(library.id) ?? []
+            case .audiobooks: try await client.bookGenres(library.id)
+            default: try await client.libraryGenres(library.id)
+            }
             error = nil
         } catch {
             if genres == nil { self.error = ConnectionError(error).message }

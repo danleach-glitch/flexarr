@@ -6,8 +6,10 @@ enum Symbol {
     static let play = "play.fill"
     /// Start over.
     static let startOver = "arrow.counterclockwise"
-    /// Shuffle a show.
+    /// Shuffle a show, an artist or a genre.
     static let shuffle = "shuffle"
+    /// Artist radio.
+    static let radio = "dot.radiowaves.left.and.right"
     /// Trailer.
     static let trailer = "film"
     /// Mark as watched.
@@ -62,5 +64,5 @@ enum Symbol {
     static let homeVideos = "folder"
 
     /// Every name above, so a debug build can check each one exists on this system.
-    static let all = [play, startOver, shuffle, trailer, watched, isWatched, markUnwatched, watchlist, onWatchlist, download, subtitles, goToShow, more, home, libraries, search, settings, downloads, discover, comingSoon, liveTv, collections, nowPlaying, movies, shows, music, podcasts, audiobooks, homeVideos]
+    static let all = [play, startOver, shuffle, radio, trailer, watched, isWatched, markUnwatched, watchlist, onWatchlist, download, subtitles, goToShow, more, home, libraries, search, settings, downloads, discover, comingSoon, liveTv, collections, nowPlaying, movies, shows, music, podcasts, audiobooks, homeVideos]
 }

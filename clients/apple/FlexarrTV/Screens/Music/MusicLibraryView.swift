@@ -1,111 +1,86 @@
 import FlexarrKit
 import SwiftUI
 
-/// A music library: the server's Browse rows in the profile's order (Settings › Home & browse › Music), then every
-/// artist as a round picture. When Browse fails, the playlists and the albums that arrived most recently instead.
+/// A music library's Browse, as a film or TV library's: a hero led by the album played last (servers from 0.59), the
+/// server's rows in the profile's order (Settings › Home & browse › Music), then Your artists, whose See all opens
+/// Artists. When Browse fails, the playlists and the albums that arrived most recently instead. On the library's tab
+/// the Browse, Artists, Albums and Genres switch sits at the top; pushed (an older link), the library's name does.
 struct MusicLibraryView: View {
     @Environment(AppModel.self) private var model
     @Environment(Router.self) private var router
     @State private var browse: MusicBrowseModel
-    /// Off on the library's tab, whose lit name in the sidebar already says where you are.
-    private let showsTitle: Bool
+    /// The tab's switch; nil when pushed.
+    private let view: Binding<MusicOpening>?
+    private let offersAlbums: Bool
     @State private var isVisible = false
+    @State private var featuredIndex = 0
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.resetFocus) private var resetFocus
+    @Environment(\.focusesContent) private var arriving
     @Namespace private var page
     @FocusState private var focusedCard: String?
     /// Where across a row focus last was, so up and down keep to it (see `RowFocus`).
     @State private var column = 0
 
-    private let columns = Array(repeating: GridItem(.fixed(Layout.posterWidth), spacing: Layout.gridSpacing, alignment: .top), count: 6)
+    /// How many artists the Your artists row shows before its See all.
+    private static let artistsInRow = 20
 
-    init(library: Library, showsTitle: Bool = true) {
+    init(library: Library, view: Binding<MusicOpening>? = nil, offersAlbums: Bool = true) {
         _browse = State(initialValue: MusicBrowseModel(library: library))
-        self.showsTitle = showsTitle
+        self.view = view
+        self.offersAlbums = offersAlbums
+    }
+
+    private var featured: ItemSummary? {
+        browse.featured.isEmpty ? nil : browse.featured[featuredIndex % browse.featured.count]
     }
 
     var body: some View {
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 44) {
-                header
-                if let error = browse.error, browse.artists.isEmpty {
-                    StatusView(state: .failed(error) { Task { await load() } })
-                        .frame(height: 500)
-                } else if browse.isEmpty {
-                    StatusView(state: .empty("Nothing in this library yet."))
-                        .frame(height: 500)
+                if !browse.featured.isEmpty {
+                    HomeHero(items: browse.featured, overviews: browse.hero?.overviews ?? [:], index: $featuredIndex,
+                             resuming: { browse.hero?.resuming($0) }, top: view.map { AnyView(viewSwitch($0)) })
+                        .padding(.bottom, -14)
                 } else {
-                    ForEach(browse.rows) { MusicRowView(row: $0, column: $column) { Task { await load() } } }
-                    if browse.rows.isEmpty, !browse.playlists.isEmpty {
-                        VStack(alignment: .leading, spacing: 0) {
-                            Text("Your playlists")
-                                .font(.marquee(40, weight: .bold))
-                                .foregroundStyle(Color.screen)
-                            ScrollView(.horizontal) {
-                                LazyHStack(alignment: .top, spacing: Layout.rowSpacing) {
-                                    ForEach(browse.playlists) { playlist in
-                                        PlaylistCard(playlist: playlist, focus: $focusedCard) { router.push(.playlist(playlist)) }
-                                    }
-                                }
-                                .padding(.top, 28)
-                                .padding(.bottom, 40)
-                            }
-                            .scrollClipDisabled()
-                            .focusSection()
-                            .modifier(RowFocus(ids: browse.playlists.map(\.id), column: $column, focus: $focusedCard))
-                        }
-                    }
-                    if browse.rows.isEmpty, !browse.recentAlbums.isEmpty {
-                        VStack(alignment: .leading, spacing: 0) {
-                            Text("New albums")
-                                .font(.marquee(40, weight: .bold))
-                                .foregroundStyle(Color.screen)
-                            ScrollView(.horizontal) {
-                                LazyHStack(alignment: .top, spacing: Layout.rowSpacing) {
-                                    ForEach(browse.recentAlbums) { album in
-                                        AlbumCard(item: album, showsArtist: true, focus: $focusedCard) { router.push(.item(album)) }
-                                    }
-                                }
-                                .padding(.top, 28)
-                                .padding(.bottom, 40)
-                            }
-                            .scrollClipDisabled()
-                            .focusSection()
-                            .modifier(RowFocus(ids: browse.recentAlbums.map(\.id), column: $column, focus: $focusedCard))
-                        }
-                    }
-                    VStack(alignment: .leading, spacing: 28) {
-                        Text("Artists")
-                            .font(.marquee(40, weight: .bold))
-                            .foregroundStyle(Color.screen)
-                        LazyVGrid(columns: columns, alignment: .leading, spacing: 56) {
-                            ForEach(Array(browse.artists.enumerated()), id: \.element.id) { index, artist in
-                                ArtistCard(item: artist, focus: $focusedCard) { router.push(.item(artist)) }
-                                    .onAppear { if let client = model.client { browse.loadMoreIfNeeded(at: index, client: client) } }
-                            }
-                        }
-                        .focusSection()
-                        .modifier(RowFocus(ids: browse.artists.map(\.id), column: $column, focus: $focusedCard, columns: 6))
-                    }
-                    if browse.isLoading {
-                        ProgressView().frame(maxWidth: .infinity).padding(40)
+                    header
+                        .padding(.horizontal, Layout.edge)
+                }
+                Group {
+                    if let error = browse.error, browse.artists.isEmpty {
+                        StatusView(state: .failed(error) { Task { await load() } })
+                            .frame(height: 500)
+                    } else if browse.isEmpty {
+                        StatusView(state: .empty("Nothing in this library yet."))
+                            .frame(height: 500)
+                    } else {
+                        rows
                     }
                 }
+                .padding(.horizontal, Layout.edge)
+                .prefersDefaultFocus(browse.featured.isEmpty, in: page)
             }
-            .padding(.horizontal, Layout.edge)
             .padding(.bottom, 80)
             .focusScope(page)
         }
         .scrollClipDisabled()
-        .background(RoomBackground(ambient: browse.ambientItem?.glowColor, intensity: 0.18))
+        .ignoresSafeArea(edges: view != nil || !browse.featured.isEmpty ? [.top, .horizontal] : [.horizontal])
+        .background(RoomBackground(ambient: (featured ?? browse.ambientItem)?.glowColor, intensity: featured == nil ? 0.18 : 0.28)
+            .animation(.easeInOut(duration: 0.8), value: featured?.id))
         .task {
             // Coming back from an artist or another tab runs this again: keep what's loaded unless it's getting old.
             if browse.loadedAt != nil, !Freshness.isStale(browse.loadedAt) { return }
             let first = browse.loadedAt == nil
             await load()
             // Opened from the sidebar, the page had nothing to focus until it loaded, so focus went nowhere and the
-            // remote did nothing: give it to the first card now there is one.
-            if first, isVisible { resetFocus(in: page) }
+            // remote did nothing: give it to the first card now there is one (the hero takes it itself).
+            if first, isVisible, browse.featured.isEmpty { resetFocus(in: page) }
+        }
+        // From the switch as the tab opens, with no hero to take it: the first card.
+        .onChange(of: arriving.wrappedValue) { _, now in
+            guard now, browse.featured.isEmpty, browse.loadedAt != nil else { return }
+            arriving.wrappedValue = false
+            resetFocus(in: page)
         }
         .onAppear { isVisible = true }
         .onDisappear { isVisible = false }
@@ -114,25 +89,98 @@ struct MusicLibraryView: View {
         }
     }
 
+    private func viewSwitch(_ view: Binding<MusicOpening>) -> some View {
+        MusicViewSwitch(view: view, offersAlbums: offersAlbums)
+    }
+
+    @ViewBuilder
     private var header: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            if showsTitle {
-                Text(browse.library.name)
-                    .font(.marquee(76, weight: .heavy))
-                    .foregroundStyle(Color.screen)
-            }
-            Text(browse.total == 1 ? "1 artist" : "\(browse.total.formatted()) artists")
-                .font(.system(size: 24, weight: .medium))
-                .foregroundStyle(Color.usher)
-                .monospacedDigit()
-                .opacity(browse.artists.isEmpty ? 0 : 1)
+        if let view {
+            viewSwitch(view)
+                .focusSection()
+                .padding(.top, LibraryViewSwitch.topInset)
+        } else {
+            Text(browse.library.name)
+                .font(.marquee(76, weight: .heavy))
+                .foregroundStyle(Color.screen)
+                .padding(.top, 20)
         }
-        .padding(.top, 20)
+    }
+
+    @ViewBuilder
+    private var rows: some View {
+        VStack(alignment: .leading, spacing: 44) {
+            ForEach(browse.rows) { MusicRowView(row: $0, column: $column) { Task { await load() } } }
+            if browse.rows.isEmpty, !browse.playlists.isEmpty {
+                fallbackRow("Your playlists", ids: browse.playlists.map(\.id)) {
+                    ForEach(browse.playlists) { playlist in
+                        PlaylistCard(playlist: playlist, focus: $focusedCard) { router.push(.playlist(playlist)) }
+                    }
+                }
+            }
+            if browse.rows.isEmpty, !browse.recentAlbums.isEmpty {
+                fallbackRow("New albums", ids: browse.recentAlbums.map(\.id)) {
+                    ForEach(browse.recentAlbums) { album in
+                        AlbumCard(item: album, showsArtist: true, focus: $focusedCard) { router.push(.item(album)) }
+                    }
+                }
+            }
+            if !browse.artists.isEmpty {
+                let artists = Array(browse.artists.prefix(Self.artistsInRow))
+                fallbackRow("Your artists", ids: artists.map(\.id) + ["see-all-artists"]) {
+                    ForEach(artists) { artist in
+                        ArtistCard(item: artist, focus: $focusedCard) { router.push(.item(artist)) }
+                    }
+                    SeeAllArtistsCard(focus: $focusedCard) {
+                        if let view { view.wrappedValue = .artists } else { router.push(.library(browse.library, .title)) }
+                    }
+                }
+            }
+        }
+    }
+
+    private func fallbackRow<Cards: View>(_ title: String, ids: [String], @ViewBuilder cards: () -> Cards) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(title)
+                .font(.marquee(40, weight: .bold))
+                .foregroundStyle(Color.screen)
+            ScrollView(.horizontal) {
+                LazyHStack(alignment: .top, spacing: Layout.rowSpacing) { cards() }
+                    .padding(.top, 28)
+                    .padding(.bottom, 40)
+            }
+            .scrollClipDisabled()
+            .focusSection()
+            .modifier(RowFocus(ids: ids, column: $column, focus: $focusedCard))
+        }
     }
 
     private func load() async {
         guard let client = model.client else { return }
         await browse.load(client: client)
+    }
+}
+
+/// The end of Your artists: every artist, in the Artists view.
+private struct SeeAllArtistsCard: View {
+    var focus: FocusState<String?>.Binding
+    let action: () -> Void
+
+    var body: some View {
+        VStack(spacing: 18) {
+            Button(action: action) {
+                VStack(spacing: 12) {
+                    Image(systemName: Symbol.libraries).font(.system(size: 44, weight: .semibold))
+                    Text("See all").font(.system(size: 26, weight: .semibold))
+                }
+                .foregroundStyle(Color.screen.opacity(0.85))
+                .frame(width: 220, height: 220)
+                .background(Color.seat)
+                .clipShape(Circle())
+            }
+            .buttonStyle(CircleCardStyle())
+            .modifier(SharedFocus(binding: focus, id: "see-all-artists"))
+        }
     }
 }
 

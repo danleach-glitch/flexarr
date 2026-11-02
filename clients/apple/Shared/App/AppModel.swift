@@ -1395,6 +1395,32 @@ final class AppModel {
         showNowPlaying(router)
     }
 
+    /// An album from a music library's hero: from `resume` (a track to carry on from, part way in when it was left half
+    /// way), or from the start.
+    func playAlbum(_ album: ItemSummary, resuming resume: ItemSummary?, router: Router) async {
+        guard let client, let tracks = try? await client.tracks(of: album.id), !tracks.isEmpty else { return }
+        let start = resume.flatMap { r in tracks.firstIndex { $0.id == r.id } } ?? 0
+        let position = resume.flatMap { $0.userData.watched ? nil : $0.userData.positionSeconds }
+        music.play(tracks, from: start, albums: [album], at: position, client: client)
+        showNowPlaying(router)
+    }
+
+    /// An artist's whole catalogue shuffled, or their radio (them and artists like them).
+    func playArtist(_ artist: ItemSummary, radio: Bool, router: Router) async {
+        guard let client else { return }
+        let tracks = (try? await radio ? client.radio(artist.id) : client.tracks(of: artist.id)) ?? []
+        guard !tracks.isEmpty else { return }
+        music.play(tracks, shuffled: !radio, client: client)
+        showNowPlaying(router)
+    }
+
+    /// A genre's tracks in a music library, in order or shuffled.
+    func playGenre(_ genre: String, in library: Library, shuffled: Bool, router: Router) async {
+        guard let client, let tracks = try? await client.genreTracks(library.id, genre: genre, shuffled: shuffled), !tracks.isEmpty else { return }
+        music.play(tracks, client: client)
+        showNowPlaying(router)
+    }
+
     /// Music just started from Play or Shuffle: the iPhone opens Now Playing over the tab, Apple TV goes to its tab.
     private func showNowPlaying(_ router: Router) {
         #if os(tvOS)
@@ -1621,6 +1647,15 @@ final class AppModel {
                 // A book goes to the audio player.
                 if let found, found.kind == .audiobook {
                     playBook(found, at: start)
+                    return
+                }
+                // An album or artist (the Top Shelf's Recently played) plays its tracks, Now Playing on the Apple TV.
+                if let item = found, item.kind == .album || item.kind == .artist {
+                    guard let tracks = try? await client.tracks(of: id), !tracks.isEmpty else { return }
+                    music.play(tracks, albums: item.kind == .album ? [item] : [], client: client)
+                    #if os(tvOS)
+                    nowPlayingRequests += 1
+                    #endif
                     return
                 }
                 if let item = found, item.kind == .series || item.kind == .season {
