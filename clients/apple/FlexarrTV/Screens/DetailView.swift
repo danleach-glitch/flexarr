@@ -19,6 +19,8 @@ struct DetailView: View {
     @State private var similar: [ItemSummary] = []
     @State private var selectedSeasonID: String?
     @State private var seasons: [String: ItemDetail] = [:]
+    /// A show's seasons and episodes the library lacks, and what's coming.
+    @State private var gaps: ShowGaps = .none
     @State private var scrollOffset: CGFloat = 0
     /// `model.refreshToken` when `detail` was last fetched.
     @State private var loadedToken: Int?
@@ -307,6 +309,9 @@ struct DetailView: View {
             } else if item.kind == .episode, let season = selectedSeason, season.children.count > 1 {
                 episodesRow(title: season.item.title, season: season)
             }
+            if item.kind == .series, gaps.hasMissing || !gaps.upcoming.isEmpty {
+                ShowGapsSection(showId: item.id, tmdbId: detail.tmdbId.flatMap { Int($0) }, gaps: gaps)
+            }
 
             let cast = detail.credits.sorted { rank($0.role) < rank($1.role) }
             if !cast.isEmpty {
@@ -357,7 +362,8 @@ struct DetailView: View {
             ScrollView(.horizontal) {
                 HStack(spacing: 18) {
                     ForEach(seasonList) { season in
-                        Button(season.title) { selectedSeasonID = season.id }
+                        // "Season 1  8 of 10" when some of its aired episodes aren't in the library.
+                        Button(gaps.countLabel(season: season.seasonNumber).map { "\(season.title)  \($0)" } ?? season.title) { selectedSeasonID = season.id }
                             .buttonStyle(PillButtonStyle(selected: season.id == selectedSeasonID, ambient: ambient))
                             .focused($focusedSeason, equals: season.id)
                     }
@@ -506,6 +512,8 @@ struct DetailView: View {
             switch item.kind {
             case .series:
                 nextUp = try? await client.nextUp(item.id)
+                // After the page: Sonarr or Seerr being slow never holds it up.
+                if !model.isKids { gaps = (try? await client.showGaps(item.id)) ?? gaps }
                 if selectedSeasonID == nil {
                     selectedSeasonID = nextUp?.parentId ?? loaded.children.first?.id
                 }
