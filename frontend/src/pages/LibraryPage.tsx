@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import { PageError } from '../components/PageStatus'
 import { Link, Navigate, useNavigationType, useParams, useSearchParams } from 'react-router'
-import { forgetPage, freshly, getGenreTracks, getItem, getLibraryAlbumGenres, getLibraryAlbums, getLibraryBrowse, getLibraryGenres, getLibraryItems, imageUrl, keepPage, keptPage, scanLibrary, wasDeleted, type ItemSummary, type Library } from '../api/client'
+import { forgetPage, freshly, getGenreTracks, getItem, getLibraryAlbumGenres, getLibraryAlbums, getLibraryBrowse, getLibraryGenres, getLibraryItems, imageUrl, keepPage, keptPage, scanLibrary, wasDeleted, type HomeRow, type ItemSummary, type Library } from '../api/client'
 import { AsyncButton } from '../components/AsyncButton'
 import { PosterCard } from '../components/Cards'
 import { Hero } from '../components/Hero'
@@ -20,8 +20,8 @@ const LETTERS = ['#', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ']
 const sorts = [
   { value: '', label: 'A–Z' },
   { value: 'added', label: 'Recently added' },
-  { value: 'year', label: 'Newest first' },
-  { value: 'rating', label: 'Highest rated' },
+  { value: 'year', label: 'Year' },
+  { value: 'rating', label: 'Rating' },
 ] as const
 /** What a music library's albums sort by: no ratings there. */
 const albumSorts = sorts.filter((s) => s.value !== 'rating')
@@ -195,8 +195,23 @@ function LibraryBrowse({ library }: { library: Library }) {
   // A scan changes the count every few seconds; these rows are heavy, so refresh them at most every 30 seconds while
   // it runs, and once more when it's done.
   const itemCount = useThrottled(library.itemCount, library.scan ? 30_000 : 0)
-  const { data, error, reload } = useApi((signal) => getLibraryBrowse(library.id, signal), [library.id, itemCount])
+  const { data: loaded, error, reload } = useApi((signal) => getLibraryBrowse(library.id, signal), [library.id, itemCount])
   useWatchedChanges(reload)
+  // A music library's Browse ends with Your artists, as in the apps; See all opens Artists when there are more.
+  const music = library.type === 'Music'
+  const artists = useApi((signal) => (music ? getLibraryItems(library.id, { take: ARTISTS_IN_ROW }, signal) : Promise.resolve(undefined)), [library.id, music, itemCount])
+  const data = useMemo(() => {
+    const page = artists.data
+    if (!loaded || !page || page.items.length === 0) return loaded
+    const row: HomeRow = {
+      id: 'your-artists',
+      title: 'Your artists',
+      style: 'poster',
+      items: page.items,
+      link: page.total > page.items.length ? `/library/${library.id}?view=all` : null,
+    }
+    return { ...loaded, rows: [...loaded.rows, row] }
+  }, [loaded, artists.data, library.id])
   const focusReturn = useFocusReturn(`library-browse ${library.id}`, !!data && data.rows.length > 0)
   const heading = (
     <>
@@ -245,6 +260,28 @@ function LibraryBrowse({ library }: { library: Library }) {
     </>
   )
 }
+
+/** Play and Shuffle for a music genre: up to 200 of its tracks. Its own component, so only it follows the player. */
+function GenrePlay({ library, genre, disabled }: { library: string; genre: string; disabled: boolean }) {
+  const player = useAudioPlayer()
+  const play = async (shuffle: boolean) => {
+    const tracks = await getGenreTracks(library, genre, shuffle)
+    if (tracks.length > 0) player.play(tracks, 0, { openNowPlaying: true })
+  }
+  return (
+    <div className="detail-actions">
+      <AsyncButton className="button" onClick={() => play(false)} disabled={disabled}>
+        <Play /> Play
+      </AsyncButton>
+      <AsyncButton className="button quiet" onClick={() => play(true)} disabled={disabled}>
+        <Shuffle /> Shuffle
+      </AsyncButton>
+    </div>
+  )
+}
+
+/** How many artists Your artists shows before its See all. */
+const ARTISTS_IN_ROW = 20
 
 const JUMP_PAGE = 500
 const JUMP_PARALLEL = 4
@@ -332,7 +369,6 @@ function LibraryAll({ albums = false }: { albums?: boolean }) {
   const library = libraries.find((l) => l.id === id)
   const genres = useApi((signal) => (albums ? getLibraryAlbumGenres : getLibraryGenres)(id, signal), [id, albums])
   const getPage = albums ? getLibraryAlbums : getLibraryItems
-  const player = useAudioPlayer()
 
   // Coming back (Back from a title) picks up where you were, unless something changed meanwhile.
   const snapshotKey = `library-${albums ? 'albums' : 'all'} ${id} ${sort} ${genre}`
@@ -518,11 +554,6 @@ function LibraryAll({ albums = false }: { albums?: boolean }) {
     }
   }
 
-  async function playGenre(shuffle: boolean) {
-    const tracks = await getGenreTracks(id, genre, shuffle)
-    if (tracks.length > 0) player.play(tracks, 0, { openNowPlaying: true })
-  }
-
   function setParam(key: string, value: string) {
     const next = new URLSearchParams(params)
     if (value) next.set(key, value)
@@ -545,19 +576,14 @@ function LibraryAll({ albums = false }: { albums?: boolean }) {
           </div>
           <p className="muted">
             {albums
-              ? `${(total ?? 0).toLocaleString()} ${genre && !query ? `${genre} ` : ''}${total === 1 ? 'album' : 'albums'}`
+              ? total === undefined
+                ? '\u00a0'
+                : `${total.toLocaleString()} ${genre && !query ? `${genre} ` : ''}${total === 1 ? 'album' : 'albums'}`
               : `${(total ?? library.itemCount).toLocaleString()} ${query || genre ? 'matching' : { Movies: 'movies', TvShows: 'shows', Music: 'artists', Podcasts: 'podcasts', HomeVideos: 'folders', Audiobooks: 'books' }[library.type]}`}
           </p>
           {albums && genre && (
             // A genre plays as a station: up to 200 of its tracks, in order or shuffled.
-            <div className="detail-actions">
-              <AsyncButton className="button" onClick={() => playGenre(false)} disabled={total === 0}>
-                <Play /> Play
-              </AsyncButton>
-              <AsyncButton className="button quiet" onClick={() => playGenre(true)} disabled={total === 0}>
-                <Shuffle /> Shuffle
-              </AsyncButton>
-            </div>
+            <GenrePlay library={id} genre={genre} disabled={total === 0} />
           )}
         </div>
         <div className="library-tools">

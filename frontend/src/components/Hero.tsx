@@ -73,7 +73,6 @@ export function Hero({ items, overviews, resume, resumes, top }: {
   const [paused, setPaused] = useState(false)
   const play = usePlay()
   const navigate = useNavigate()
-  const player = useAudioPlayer()
   const item = items[index]
   const resuming = resumes ? resumes[item?.id ?? ''] : index === 0 ? resume : undefined
   const episode = resuming?.kind === 'Episode' ? episodeHeading(resuming) : undefined
@@ -87,15 +86,6 @@ export function Hero({ items, overviews, resume, resumes, top }: {
 
   if (!item) return null
   const music = item.kind === 'Album' || item.kind === 'Artist'
-  // A music library's hero: an album carries on from its resume track (Play from the start otherwise); an artist
-  // plays shuffled, or as radio.
-  const playMusic = async (radio = false) => {
-    const tracks = radio ? await getRadio(item.id) : await getTracks(item.id)
-    if (tracks.length === 0) return
-    if (item.kind === 'Artist' && !radio) return player.play(shuffled(tracks), 0, { openNowPlaying: true })
-    const start = resuming ? Math.max(0, tracks.findIndex((t) => t.id === resuming.id)) : 0
-    player.play(tracks, start, { openNowPlaying: true })
-  }
   const style = item.accentColor ? ({ '--ambient': item.accentColor } as CSSProperties) : undefined
 
   return (
@@ -155,12 +145,11 @@ export function Hero({ items, overviews, resume, resumes, top }: {
         )}
         {overviews?.[item.id] && <p className="hero-overview">{overviews[item.id]}</p>}
         <div className="hero-actions">
-          <AsyncButton className="button" onClick={() => (music ? playMusic() : resuming ? navigate(`/play/${resuming.id}`) : play(item))}>
-            <Play /> {resuming ? (episode ? `Resume ${episode}` : 'Resume') : 'Play'}
-          </AsyncButton>
-          {item.kind === 'Artist' && (
-            <AsyncButton className="button quiet" onClick={() => playMusic(true)}>
-              <Radio /> Radio
+          {music ? (
+            <MusicActions item={item} resuming={resuming} />
+          ) : (
+            <AsyncButton className="button" onClick={() => (resuming ? navigate(`/play/${resuming.id}`) : play(item))}>
+              <Play /> {resuming ? (episode ? `Resume ${episode}` : 'Resume') : 'Play'}
             </AsyncButton>
           )}
           <Link className="button quiet" to={`/item/${item.id}`}>
@@ -178,5 +167,34 @@ export function Hero({ items, overviews, resume, resumes, top }: {
         </div>
       )}
     </section>
+  )
+}
+
+/**
+ * A music library's hero buttons: an album carries on from its resume track (Play from the start otherwise); an
+ * artist plays shuffled, or as radio. Their own component, so only they follow the player.
+ */
+function MusicActions({ item, resuming }: { item: ItemSummary; resuming: ItemSummary | undefined }) {
+  const player = useAudioPlayer()
+  const playMusic = async (radio = false) => {
+    const tracks = radio ? await getRadio(item.id) : await getTracks(item.id)
+    if (tracks.length === 0) return
+    if (item.kind === 'Artist' && !radio) return player.play(shuffled(tracks), 0, { openNowPlaying: true })
+    const found = resuming ? tracks.findIndex((t) => t.id === resuming.id) : -1
+    // Part way in only on the track it belongs to (a track left half way); otherwise from the start of it.
+    const at = found >= 0 && resuming && !resuming.userData.watched ? resuming.userData.positionSeconds : 0
+    player.play(tracks, Math.max(0, found), { openNowPlaying: true, at })
+  }
+  return (
+    <>
+      <AsyncButton className="button" onClick={() => playMusic()}>
+        <Play /> {resuming ? 'Resume' : 'Play'}
+      </AsyncButton>
+      {item.kind === 'Artist' && (
+        <AsyncButton className="button quiet" onClick={() => playMusic(true)}>
+          <Radio /> Radio
+        </AsyncButton>
+      )}
+    </>
   )
 }

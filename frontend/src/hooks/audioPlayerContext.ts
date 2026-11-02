@@ -13,8 +13,11 @@ export interface AudioPlayer {
   failure: string | null
   /** True while a music page is on screen, when the bar stays put even with nothing queued. */
   onMusicPage: boolean
-  /** Replaces the queue and starts playing at `start`; `openNowPlaying` (Play and Shuffle) puts Now Playing up too. */
-  play: (tracks: ItemSummary[], start?: number, options?: { openNowPlaying?: boolean }) => void
+  /**
+   * Replaces the queue and starts playing at `start`; `openNowPlaying` (Play and Shuffle) puts Now Playing up too, and
+   * `at` starts that track part way in (a music library's Resume).
+   */
+  play: (tracks: ItemSummary[], start?: number, options?: { openNowPlaying?: boolean; at?: number }) => void
   /** Now Playing is open over the whole window. */
   nowPlayingOpen: boolean
   setNowPlayingOpen: (open: boolean) => void

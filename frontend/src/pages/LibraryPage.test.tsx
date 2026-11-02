@@ -67,6 +67,19 @@ describe('A music library', () => {
     expect(screen.getByRole('link', { name: 'Genres' })).toBeInTheDocument()
   })
 
+  it('ends Browse with Your artists, and See all when there are more', async () => {
+    mockApi({
+      '/libraries/lib-music/browse': { featured: [], overviews: {}, rows: [{ id: 'recent', title: 'New albums', style: 'poster', items: [dummy] }], upcoming: [], downloading: 0 },
+      '/libraries/lib-music/items': { total: 21, items: [massive] },
+    })
+    renderAt('/library/lib-music')
+
+    expect(await screen.findByRole('heading', { name: 'Your artists' })).toBeInTheDocument()
+    expect(screen.getAllByText('Massive Attack').length).toBeGreaterThan(0)
+    // The heading opens every artist, as a row's See all does.
+    expect(screen.getByRole('link', { name: 'Your artists' })).toHaveAttribute('href', '/library/lib-music?view=all')
+  })
+
   it('lists every album, and a genre of them with Play and Shuffle', async () => {
     const api = mockApi({
       '/libraries/lib-music/albums': { total: 1, items: [dummy] },
