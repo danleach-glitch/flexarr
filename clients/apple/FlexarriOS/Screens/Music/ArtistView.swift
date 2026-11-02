@@ -10,6 +10,9 @@ struct ArtistView: View {
     /// Only the screen on show refreshes when the app comes back, not every one left open in a tab or below it.
     @State private var isVisible = false
     @Environment(\.horizontalSizeClass) private var sizeClass
+    /// From outside the library: their albums it lacks, artists like them, and whether they're followed. Nil while
+    /// music requests are off (and on servers before them).
+    @State private var extras: MusicArtistExtras?
 
     init(id: String, preview: ItemSummary?) {
         _page = State(initialValue: MusicPageModel(id: id, preview: preview))
@@ -40,6 +43,22 @@ struct ArtistView: View {
                             }
                         } else if page.detail != nil {
                             StatusView(state: .empty("No albums yet.")).frame(height: 160)
+                        }
+                        if let extras {
+                            if !extras.missing.isEmpty {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    SectionHeading(title: "Not in your library")
+                                    LazyVGrid(columns: columns, alignment: .leading, spacing: 20) {
+                                        ForEach(extras.missing) { album in
+                                            ExternalMusicCard(item: album, showsYear: true)
+                                        }
+                                    }
+                                    .padding(.horizontal, Layout.edge)
+                                }
+                            }
+                            if !extras.similar.isEmpty {
+                                ExternalMusicRow(title: "Fans also like", items: extras.similar)
+                            }
                         }
                     }
                     .padding(.bottom, 32)
@@ -94,6 +113,12 @@ struct ArtistView: View {
             .disabled(page.albums.isEmpty || page.isQueueing)
             // Centred in a stack that fills the width, the buttons were handed less than they need and wrapped.
             .fixedSize()
+            if let extras, !extras.followed || model.musicAsked.contains(MusicRequestTarget.libraryArtist(page.id).askedKey) {
+                FollowArtistButton(following: model.isFollowing(libraryArtist: page.id, followed: extras.followed), ambient: ambient) {
+                    await model.requestMusic(.libraryArtist(page.id))
+                }
+                .fixedSize()
+            }
             if let overview = page.detail?.overview, !overview.isEmpty {
                 Text(overview)
                     .font(.subheadline)
@@ -110,6 +135,14 @@ struct ArtistView: View {
 
     private func load(ifFresh: Bool = false) async {
         guard let client = model.client else { return }
+        async let outside = loadExtras(client)
         await page.load(client: client, onlyIfStale: ifFresh)
+        await outside
+    }
+
+    /// Off (kids, no Lidarr, an older server) leaves the page as it was.
+    private func loadExtras(_ client: FlexarrClient) async {
+        guard !model.isKids else { return }
+        if let found = try? await client.musicArtistExtras(libraryItemId: page.id) { extras = found }
     }
 }
