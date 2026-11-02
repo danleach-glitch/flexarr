@@ -738,6 +738,24 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
             if (library.Type == LibraryType.Music)
             {
                 index._genres = await db.Genres.ToDictionaryAsync(g => g.Name, StringComparer.OrdinalIgnoreCase, ct).ConfigureAwait(false);
+
+                // Artists and albums merged into others (in Library health): tracks the merged one would have had go to
+                // the one kept. Real names and folders come first.
+                var byId = parents.ToDictionary(p => p.Id);
+                foreach (var alias in await db.MusicAliases.AsNoTracking().Where(a => a.LibraryId == library.Id).ToListAsync(ct).ConfigureAwait(false))
+                {
+                    if (byId.TryGetValue(alias.ItemId, out var target))
+                    {
+                        if (alias.Key.StartsWith(MusicKeys.PathPrefix, StringComparison.Ordinal))
+                        {
+                            index._byPath.TryAdd(alias.Key[MusicKeys.PathPrefix.Length..], target);
+                        }
+                        else
+                        {
+                            index._byKey.TryAdd(alias.Key, target);
+                        }
+                    }
+                }
             }
 
             if (library.Type is not (LibraryType.TvShows or LibraryType.HomeVideos))
@@ -933,7 +951,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
         private static bool IsNamed(MediaItem artist, string name) =>
             MusicTags.SameArtist(artist.Title, name) || (artist.OriginalTitle is { } original && MusicTags.SameArtist(original, name));
 
-        private static string Fold(string value) => value.Trim().Normalize(System.Text.NormalizationForm.FormC).ToLowerInvariant();
+        private static string Fold(string value) => MusicKeys.Fold(value);
 
         /// <summary>
         /// A followed artist's placeholder in this library, by MusicBrainz id, else by a loose name (accents, case,
