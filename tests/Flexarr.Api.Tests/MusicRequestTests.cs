@@ -569,6 +569,20 @@ public sealed class MusicRequestTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Unrequesting_ADownloadThatJustLeftTheQueue_StillCancels()
+    {
+        await MusicLibraryAsync();
+        LidarrAwaitsMoisturizer();
+        _lidarr.Responses.TryRemove("DELETE /api/v1/queue/5?removeFromClient=true&blocklist=false", out _);
+        await AskedForMoisturizerAsync(addedArtist: false);
+
+        var response = await Client().PostAsJsonAsync(Api("/requests/music/unrequest"), new { musicBrainzId = Moisturizer });
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.NotNull((await InDbAsync(db => db.MediaRequests.SingleAsync())).FulfilledAt);
+    }
+
+    [Fact]
     public async Task UndoWhileLidarrIsAway_SaysSo_AndChangesNothing()
     {
         var (_, artist, _) = await SeedOwnedAsync();
