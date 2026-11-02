@@ -281,7 +281,7 @@ fun TvFactsLine(facts: List<String>, modifier: Modifier = Modifier, scores: Scor
     val style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen.copy(alpha = 0.85f), fontFeatureSettings = "tnum")
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(11.dp), verticalAlignment = Alignment.CenterVertically) {
         facts.forEach { Text(it, style = style, maxLines = 1) }
-        if (scores != null && !scores.isEmpty) ScoreChipItems(scores, 14.dp, style)
+        if (scores != null && !scores.isEmpty) ScoreChipItems(scores, style, markScale = 1.08f)
     }
 }
 

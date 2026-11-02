@@ -10,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.TextStyle
@@ -31,9 +32,13 @@ fun ScoreChip(mark: ImageVector, text: String, label: String, markHeight: Dp, st
     }
 }
 
-/** IMDb, then Rotten Tomatoes with its tomato, each as its own item of a facts line. */
+/**
+ * IMDb, then Rotten Tomatoes with its tomato, each as its own item of a facts line. The marks are as tall as the text
+ * ([markScale] times), so they grow with the system font size as the numbers do.
+ */
 @Composable
-fun ScoreChipItems(scores: Scores, markHeight: Dp, style: TextStyle) {
+fun ScoreChipItems(scores: Scores, style: TextStyle, markScale: Float = 1f) {
+    val markHeight = with(LocalDensity.current) { style.fontSize.toDp() } * markScale
     val imdb = scores.imdbText
     if (imdb != null) ScoreChip(ScoreMarks.imdb, imdb, scores.imdbLabel ?: imdb, markHeight, style)
     scores.rottenTomatoes?.let { rt ->

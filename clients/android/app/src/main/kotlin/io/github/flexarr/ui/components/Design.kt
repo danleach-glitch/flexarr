@@ -238,9 +238,9 @@ fun PageTitle(title: String, onBack: (() -> Unit)? = null, trailing: @Composable
 fun FactsLine(facts: List<String>, modifier: Modifier = Modifier, scores: Scores? = null) {
     val style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen.copy(alpha = 0.85f), fontFeatureSettings = "tnum")
     // On to a second line when the text is large, rather than cutting a fact off.
-    FlowRow(modifier, horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.Center, itemVerticalAlignment = Alignment.CenterVertically) {
+    FlowRow(modifier, horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp), itemVerticalAlignment = Alignment.CenterVertically) {
         facts.forEach { Text(it, style = style, maxLines = 1) }
-        if (scores != null && !scores.isEmpty) ScoreChipItems(scores, 15.dp, style)
+        if (scores != null && !scores.isEmpty) ScoreChipItems(scores, style)
     }
 }
 
