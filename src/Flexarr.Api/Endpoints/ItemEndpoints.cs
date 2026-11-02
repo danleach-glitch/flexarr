@@ -114,24 +114,54 @@ public static class ItemEndpoints
                 .Select(a => new { a.Id, Fanart = a.BackdropUrl != null, a.MetadataUpdatedAt, a.ArtworkChangedAt, Genres = a.Genres.Select(g => g.Name).ToList() })
                 .ToListAsync(ct);
             var artistGenres = artists.ToDictionary(a => a.Id, a => a.Genres);
-            var tagged = albums.Select(a => new
-            {
-                a.ParentId,
-                // Its own genres, or its artist's when it has none (as InGenre).
-                Genres = a.Genres.Count > 0 ? a.Genres : a.ParentId is { } artist && artistGenres.TryGetValue(artist, out var theirs) ? theirs : [],
-            }).ToList();
 
+            // One pass: each genre's album count, and the artists it belongs to (an album's artist, or the artist's own
+            // genre), for its picture.
+            var counts = new Dictionary<string, int>();
+            var artistsOf = new Dictionary<string, HashSet<Guid>>();
+            void Note(string genre, Guid? artist)
+            {
+                if (artist is { } a)
+                {
+                    if (!artistsOf.TryGetValue(genre, out var set))
+                    {
+                        artistsOf[genre] = set = [];
+                    }
+
+                    set.Add(a);
+                }
+            }
+
+            foreach (var album in albums)
+            {
+                // Its own genres, or its artist's when it has none (as InGenre).
+                var genres = album.Genres.Count > 0 ? album.Genres
+                    : album.ParentId is { } artist && artistGenres.TryGetValue(artist, out var theirs) ? theirs : [];
+                foreach (var genre in genres.Distinct())
+                {
+                    counts[genre] = counts.GetValueOrDefault(genre) + 1;
+                    Note(genre, album.ParentId);
+                }
+            }
+
+            foreach (var artist in artists)
+            {
+                foreach (var genre in artist.Genres)
+                {
+                    Note(genre, artist.Id);
+                }
+            }
+
+            // The artists come best-rated first, so the first with fanart is the best picture; each genre its own where it can.
+            var withFanart = artists.Where(a => a.Fanart).ToList();
             var used = new HashSet<Guid>();
-            return tagged.SelectMany(a => a.Genres).GroupBy(g => g).Select(g => (Name: g.Key, Count: g.Count()))
-                .OrderByDescending(g => g.Count).ThenBy(g => g.Name, StringComparer.OrdinalIgnoreCase)
-                .ToList()
+            return counts.OrderByDescending(g => g.Value).ThenBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
                 .Select(g =>
                 {
-                    // An artist with fanart and the genre, theirs or on one of their albums; each genre its own where it can.
-                    var withIt = tagged.Where(a => a.Genres.Contains(g.Name)).Select(a => a.ParentId).ToHashSet();
-                    var candidates = artists.Where(a => a.Fanart && (withIt.Contains(a.Id) || a.Genres.Contains(g.Name))).ToList();
+                    var theirs = artistsOf.GetValueOrDefault(g.Key) ?? [];
+                    var candidates = withFanart.Where(a => theirs.Contains(a.Id)).ToList();
                     var cover = candidates.FirstOrDefault(c => used.Add(c.Id)) ?? candidates.FirstOrDefault();
-                    return new LibraryGenreDto(g.Name, g.Count,
+                    return new LibraryGenreDto(g.Key, g.Value,
                         cover is null ? null : ArtworkUrls.For(cover.Id, ArtworkUrls.Version(cover.MetadataUpdatedAt, cover.ArtworkChangedAt), false, true, false, false).Backdrop);
                 }).ToList();
         }).WithTags("Items");
