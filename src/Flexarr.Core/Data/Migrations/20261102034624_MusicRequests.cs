@@ -25,6 +25,13 @@ namespace Flexarr.Core.Data.Migrations
                 nullable: true);
 
             migrationBuilder.AddColumn<string>(
+                name: "ArtistName",
+                table: "MediaRequests",
+                type: "TEXT",
+                maxLength: 500,
+                nullable: true);
+
+            migrationBuilder.AddColumn<string>(
                 name: "MusicBrainzId",
                 table: "MediaRequests",
                 type: "TEXT",
@@ -64,6 +71,10 @@ namespace Flexarr.Core.Data.Migrations
 
             migrationBuilder.DropColumn(
                 name: "ArtistMusicBrainzId",
+                table: "MediaRequests");
+
+            migrationBuilder.DropColumn(
+                name: "ArtistName",
                 table: "MediaRequests");
 
             migrationBuilder.DropColumn(

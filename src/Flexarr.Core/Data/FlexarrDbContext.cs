@@ -383,6 +383,7 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
             e.Property(r => r.MusicBrainzId).HasMaxLength(64);
             e.Property(r => r.ArtistMusicBrainzId).HasMaxLength(64);
             e.Property(r => r.Title).HasMaxLength(500);
+            e.Property(r => r.ArtistName).HasMaxLength(500);
             e.HasIndex(r => new { r.FulfilledAt, r.Kind, r.MusicBrainzId });
         });
 

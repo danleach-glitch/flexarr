@@ -79,6 +79,9 @@ public sealed class MediaRequest
     /// <summary>For music: the album's title or the artist's name, as asked for.</summary>
     public string? Title { get; set; }
 
+    /// <summary>For an album: its artist's name, as asked for (so a list can say it's requested without asking Lidarr).</summary>
+    public string? ArtistName { get; set; }
+
     public DateTime RequestedAt { get; set; } = DateTime.UtcNow;
 
     /// <summary>When it arrived (and the profile was told); null while it's awaited.</summary>

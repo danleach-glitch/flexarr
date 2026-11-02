@@ -1738,6 +1738,10 @@ namespace Flexarr.Core.Data.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("ArtistName")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime?>("FulfilledAt")
                         .HasColumnType("TEXT");
 
