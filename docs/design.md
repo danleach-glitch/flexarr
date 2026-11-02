@@ -119,7 +119,7 @@ The same words on every client and in the guide:
 
 ## What each client has
 
-What's on each client today. The gaps are for future briefs.
+What's on each client today. The gaps are for future briefs. How the four kinds of library (Movies, TV shows, Music, Audiobooks) compare with each other is in [library-parity.md](library-parity.md).
 
 | Screen | Web | iPhone | Apple TV | Android phone | Android TV |
 | --- | --- | --- | --- | --- | --- |
