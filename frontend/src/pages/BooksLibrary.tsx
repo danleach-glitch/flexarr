@@ -8,7 +8,6 @@ import {
   getBookShelves,
   getLibraryBooks,
   getPerson,
-  imageUrl,
  
   type BookFilters,
   type BookShelves,
@@ -19,6 +18,7 @@ import {
 import { AsyncButton } from '../components/AsyncButton'
 import { BookPersonCard, BookSeriesCard } from '../components/BookCards'
 import { PosterCard } from '../components/Cards'
+import { GenreCovers } from '../components/GenreCovers'
 import { Hero } from '../components/Hero'
 import { ChevronLeft } from '../components/icons'
 import { Row } from '../components/Row'
@@ -167,23 +167,13 @@ function Genres({ library }: { library: Library }) {
   const genres = [...data].sort((a, b) => a.name.localeCompare(b.name))
   return (
     <nav className="genre-grid" aria-label="Genres">
-      {genres.map((g) => {
-        const covers = (g.covers ?? []).slice(0, 3)
-        return (
-          <Link key={g.name} to={`/library/${library.id}?view=genre&genre=${encodeURIComponent(g.name)}`} className="genre-tile book-genre-tile">
-            {covers[0] && <img className="book-genre-wash" src={imageUrl(covers[0], 185)} alt="" loading="lazy" />}
-            {covers.length > 0 && (
-              <span className={`book-genre-fan book-genre-fan-${covers.length}`} aria-hidden="true">
-                {covers.map((cover, i) => (
-                  <img key={i} src={imageUrl(cover, 342)} alt="" loading="lazy" />
-                ))}
-              </span>
-            )}
-            <span className="genre-name">{g.name}</span>
-            <span className="genre-count">{g.count === 1 ? '1 book' : `${g.count.toLocaleString()} books`}</span>
-          </Link>
-        )
-      })}
+      {genres.map((g) => (
+        <Link key={g.name} to={`/library/${library.id}?view=genre&genre=${encodeURIComponent(g.name)}`} className="genre-tile book-genre-tile">
+          <GenreCovers covers={g.covers} />
+          <span className="genre-name">{g.name}</span>
+          <span className="genre-count">{g.count === 1 ? '1 book' : `${g.count.toLocaleString()} books`}</span>
+        </Link>
+      ))}
     </nav>
   )
 }

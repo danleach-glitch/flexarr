@@ -44,7 +44,7 @@ All additions: older apps never read them.
 | --- | --- |
 | `featured`, `overviews` (artist bios) and `resumes` (album id → the track to start from) on a music library's `GET libraries/{id}/browse` | `DiscoveryEndpoints`, `MusicDiscovery.HeroAsync` |
 | `GET libraries/{id}/albums?sort=title\|added\|year&genre&skip&take`, paged like `items` | `ItemEndpoints` |
-| `GET libraries/{id}/album-genres`: name, album count, backdrop | `ItemEndpoints` |
+| `GET libraries/{id}/album-genres`: name, album count, backdrop (an artist's fanart), or up to three album covers without one | `ItemEndpoints` |
 | `GET libraries/{id}/tracks?genre&shuffle&take` (at most 200) | `ItemEndpoints` |
 
 `libraries/{id}/genres` keeps counting artists for music, so what it means doesn't change.

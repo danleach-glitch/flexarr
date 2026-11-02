@@ -4,6 +4,7 @@ import { Link, Navigate, useNavigationType, useParams, useSearchParams } from 'r
 import { forgetPage, getGenreTracks, getLibraryAlbumGenres, getLibraryAlbums, getLibraryBrowse, getLibraryGenres, getLibraryItems, getMusicRequestStatus, getRequestStatusCached, imageUrl, keepPage, keptPage, type HomeRow, type Library } from '../api/client'
 import { AsyncButton } from '../components/AsyncButton'
 import { PosterCard } from '../components/Cards'
+import { GenreCovers } from '../components/GenreCovers'
 import { Hero } from '../components/Hero'
 import { HomeRows } from '../components/HomeRows'
 import { ScanProgress } from '../components/ScanProgress'
@@ -142,8 +143,8 @@ function LibraryGenres({ library }: { library: Library }) {
       ) : (
         <div className="genre-grid">
           {data.map((g) => (
-            <Link key={g.name} to={libraryGenreLink(library.id, library.type, g.name)} className="genre-tile">
-              {g.backdrop && <img src={imageUrl(g.backdrop, 780)} alt="" loading="lazy" />}
+            <Link key={g.name} to={libraryGenreLink(library.id, library.type, g.name)} className={!g.backdrop && g.covers?.length ? 'genre-tile book-genre-tile' : 'genre-tile'}>
+              {g.backdrop ? <img src={imageUrl(g.backdrop, 780)} alt="" loading="lazy" /> : <GenreCovers covers={g.covers} />}
               <span className="genre-name">{g.name}</span>
               <span className="genre-count">
                 {g.count} {g.count === 1 ? noun[0] : noun[1]}

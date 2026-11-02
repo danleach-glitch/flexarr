@@ -113,4 +113,21 @@ describe('A music library', () => {
     expect(tile).toHaveTextContent('2 albums')
     expect(tile).toHaveAttribute('href', '/library/lib-music?view=genre&genre=Trip%20hop')
   })
+
+  it('fans out album covers on a genre tile without an artist’s fanart', async () => {
+    mockApi({
+      '/libraries/lib-music/album-genres': [
+        { name: 'Shoegaze', count: 2, backdrop: null, covers: ['/api/v1/images/items/a1/poster?v=1', '/api/v1/images/items/a2/poster?v=1'] },
+        { name: 'Trip hop', count: 1, backdrop: '/api/v1/images/items/ar1/backdrop?v=1', covers: null },
+      ],
+    })
+    renderAt('/library/lib-music?view=genres')
+
+    const covered = await screen.findByRole('link', { name: /Shoegaze/ })
+    expect(covered).toHaveClass('book-genre-tile')
+    expect(covered.querySelectorAll('.book-genre-fan img')).toHaveLength(2)
+    const fanart = screen.getByRole('link', { name: /Trip hop/ })
+    expect(fanart).not.toHaveClass('book-genre-tile')
+    expect(fanart.querySelectorAll('img')).toHaveLength(1)
+  })
 })
