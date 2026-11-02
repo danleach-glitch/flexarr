@@ -181,17 +181,16 @@ struct BooksLibraryView: View {
         }
     }
 
+    /// Browse, All books, Genres, Series and Authors, as one segmented control like the other libraries' view switch.
     private var tabs: some View {
-        ScrollView(.horizontal) {
-            HStack(spacing: 8) {
-                ForEach(BookBrowse.allCases) { tab in
-                    Button(tab.rawValue) { browse.browse = tab }
-                        .buttonStyle(PillButtonStyle(selected: browse.browse == tab))
-                }
+        Picker("Show", selection: Binding(get: { browse.browse }, set: { browse.browse = $0 })) {
+            ForEach(BookBrowse.allCases) { tab in
+                Text(tab.rawValue).tag(tab)
             }
-            .padding(.horizontal, Layout.edge)
         }
-        .scrollIndicators(.hidden)
+        .pickerStyle(.segmented)
+        .padding(.horizontal, Layout.edge)
+        .padding(.bottom, 4)
     }
 
     @ViewBuilder
