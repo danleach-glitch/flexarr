@@ -6,13 +6,22 @@ import SwiftUI
 struct DiscoverMusicContent: View {
     @Environment(AppModel.self) private var model
     @Environment(Router.self) private var router
-    @State private var discover: MusicDiscover?
+    /// Held by Discover, so it can pass focus to the first card on arrival.
+    @Binding var discover: MusicDiscover?
+    /// Lidarr isn't answering: one quiet line says so, and requests and follows wait.
+    var paused = false
     @State private var error: String?
     @State private var searching = false
     var focus: FocusState<String?>.Binding?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 50) {
+            if paused {
+                Text(MusicWords.lidarrNotAnswering)
+                    .font(.system(size: 27, weight: .medium))
+                    .foregroundStyle(Color.usher)
+                    .padding(.horizontal, Layout.edge)
+            }
             Button { searching = true } label: {
                 Label("Search", systemImage: Symbol.search)
             }
@@ -52,10 +61,11 @@ struct DiscoverMusicContent: View {
             }
         }
         .fullScreenCover(isPresented: $searching) {
-            TabStack { DiscoverMusicSearchView() }
+            TabStack { DiscoverMusicSearchView().environment(\.musicRequestsPaused, paused) }
                 .background(Color.room.ignoresSafeArea())
                 .presentationBackground(Color.room)
         }
+        .environment(\.musicRequestsPaused, paused)
         // Again on coming back, so what was just requested says so.
         .task { await load() }
     }
@@ -63,7 +73,7 @@ struct DiscoverMusicContent: View {
     /// The first card, for Discover to pass focus to on arrival.
     static func firstFocusID(_ discover: MusicDiscover?) -> String? {
         guard let row = discover?.rows.first(where: { !$0.items.isEmpty }), let first = row.items.first else { return nil }
-        return "music-\(row.id)/\(first.id)"
+        return ExternalMusicRow.focusID("music-\(row.id)", MusicListEntry(offset: 0, item: first))
     }
 
     private func load() async {
@@ -147,8 +157,8 @@ struct MusicGenreView: View {
                 Text(genre.name).font(.marquee(72, weight: .heavy)).foregroundStyle(Color.screen)
                 if let detail {
                     LazyVGrid(columns: columns, alignment: .leading, spacing: 56) {
-                        ForEach(detail.artists) { artist in
-                            ExternalMusicCard(item: artist, width: 220)
+                        ForEach(detail.artists.listed) { entry in
+                            ExternalMusicCard(item: entry.item, width: 220)
                         }
                     }
                     .focusSection()

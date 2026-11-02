@@ -51,10 +51,10 @@ struct ExternalAlbumView: View {
                         .foregroundStyle(Color.screen.opacity(0.9))
                 }
                 FactsLine(facts: facts)
-                // There from the start (one button whatever it says), so focus has somewhere to land.
+                // There from the start (one button whatever it says), so focus has somewhere to land; an album that
+                // can't be asked for has none, and focus goes to its artist or the tracks.
                 HStack(spacing: 26) {
-                    MusicAlbumRequestButton(album: album)
-                        .takesFocusFromLink()
+                    MusicAlbumRequestButton(album: album, takesLinkFocus: true)
                     if let artist = album.artistPage {
                         Button { router.push(.musicArtist(artist)) } label: {
                             Text(artist.title)

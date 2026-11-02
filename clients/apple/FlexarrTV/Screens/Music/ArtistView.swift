@@ -51,8 +51,8 @@ struct ArtistView: View {
                                     .font(.marquee(40, weight: .bold))
                                     .foregroundStyle(Color.screen)
                                 LazyVGrid(columns: columns, alignment: .leading, spacing: 56) {
-                                    ForEach(missing) { album in
-                                        ExternalMusicCard(item: album, showsYear: true)
+                                    ForEach(missing.listed) { entry in
+                                        ExternalMusicCard(item: entry.item, showsYear: true)
                                     }
                                 }
                                 .focusSection()
@@ -143,7 +143,7 @@ struct ArtistView: View {
     }
 }
 
-/// Play and Shuffle, with Follow artist after them while the artist isn't followed (and Following once asked).
+/// Play and Shuffle, with Follow artist after them (Following once Lidarr watches for the artist's releases).
 private struct FollowBeside: ViewModifier {
     @Environment(AppModel.self) private var model
     let extras: MusicArtistExtras?
@@ -152,10 +152,10 @@ private struct FollowBeside: ViewModifier {
     func body(content: Content) -> some View {
         HStack(spacing: 26) {
             content
-            if let extras, !extras.followed || model.musicAsked.contains(MusicRequestTarget.libraryArtist(artistId).askedKey) {
-                FollowArtistButton(following: model.isFollowing(libraryArtist: artistId, followed: extras.followed)) {
-                    await model.requestMusic(.libraryArtist(artistId))
-                }
+            // Always there with music requests on: Follow artist, or Following once Lidarr watches for their releases.
+            if let extras {
+                FollowArtistButton(following: model.isFollowing(libraryArtist: artistId, followed: extras.followed),
+                                   target: .libraryArtist(artistId))
             }
         }
         .focusSection()

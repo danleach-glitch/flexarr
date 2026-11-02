@@ -581,4 +581,9 @@ private struct LinkFocus: ViewModifier {
 
 extension View {
     func takesFocusFromLink() -> some View { modifier(LinkFocus()) }
+
+    /// `takesFocusFromLink()` when `on`: for a button inside a view that's sometimes the page's first and sometimes not.
+    @ViewBuilder func takesFocusFromLink(_ on: Bool) -> some View {
+        if on { modifier(LinkFocus()) } else { self }
+    }
 }

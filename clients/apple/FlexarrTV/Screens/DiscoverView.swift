@@ -20,6 +20,8 @@ struct DiscoverView: View {
     @State private var status: RequestStatus?
     /// Music requests are on (a Lidarr, and a profile that sees music): Music joins the switch.
     @State private var musicStatus: MusicRequestStatus?
+    /// Discover › Music's rows, held here so arriving in Music mode can pass focus to the first card.
+    @State private var music: MusicDiscover?
     @State private var rows: [ExternalRow] = []
     @State private var genres: [Genre] = []
     @State private var loaded = false
@@ -51,7 +53,7 @@ struct DiscoverView: View {
                 } else if !loaded {
                     StatusView(state: .loading).frame(height: 600)
                 } else if mode == .music {
-                    DiscoverMusicContent(focus: $focusedTitle)
+                    DiscoverMusicContent(discover: $music, paused: musicStatus?.reachable == false, focus: $focusedTitle)
                 } else {
                     browse
                 }
@@ -65,6 +67,7 @@ struct DiscoverView: View {
         .environment(\.focusesContent, $arriving)
         .onChange(of: arriving) { passFocusOnArrival() }
         .onChange(of: rows.first?.items.first?.id) { passFocusOnArrival() }
+        .onChange(of: DiscoverMusicContent.firstFocusID(music)) { passFocusOnArrival() }
         // Straight to the keyboard: full screen, as the Search tab is, so the sidebar doesn't push it off the edge.
         .onChange(of: mode) { _, now in searching = now == .search }
         .fullScreenCover(isPresented: $searching, onDismiss: { mode = .browse }) {
@@ -144,8 +147,14 @@ struct DiscoverView: View {
     /// Choosing Discover in the sidebar gives focus to the switch at the top-left; pass it on to the first title, as a
     /// library's tab does.
     private func passFocusOnArrival() {
-        guard arriving, switchFocused, let row = rows.first(where: { !$0.items.isEmpty }), let first = row.items.first else { return }
-        focusedTitle = "\(row.id)/\(first.id)"
+        guard arriving, switchFocused else { return }
+        if mode == .music {
+            guard let first = DiscoverMusicContent.firstFocusID(music) else { return }
+            focusedTitle = first
+        } else {
+            guard let row = rows.first(where: { !$0.items.isEmpty }), let first = row.items.first else { return }
+            focusedTitle = "\(row.id)/\(first.id)"
+        }
         arriving = false
     }
 
