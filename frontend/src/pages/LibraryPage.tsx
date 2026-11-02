@@ -219,7 +219,7 @@ function LibraryBrowse({ library }: { library: Library }) {
           </header>
         </div>
         <div className="rows no-hero" {...focusReturn}>
-          <HomeRows rows={data.rows} />
+          <HomeRows rows={data.rows} upcoming={data.upcoming} />
         </div>
       </>
     )
@@ -229,7 +229,7 @@ function LibraryBrowse({ library }: { library: Library }) {
     <>
       <Hero items={data.featured} overviews={data.overviews} resume={data.resume ?? undefined} resumes={data.resumes} top={heading} />
       <div className="rows" {...focusReturn}>
-        <HomeRows rows={data.rows} />
+        <HomeRows rows={data.rows} upcoming={data.upcoming} />
       </div>
     </>
   )

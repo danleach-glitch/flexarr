@@ -18,6 +18,8 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -275,11 +277,18 @@ internal suspend fun refetch(count: Int, page: suspend (skip: Int, take: Int) ->
     return total?.let { Refetched(fetched, offset, it, wanted) }
 }
 
-private enum class Showing { All, Genres }
+private enum class Showing { Browse, All, Genres }
+
+/** Films, shows and home videos have a Browse page: a hero and rows of just that library. */
+internal fun hasBrowse(type: LibraryType) = type == LibraryType.Movies || type == LibraryType.TvShows || type == LibraryType.HomeVideos
+
+/** The plain library opens on Browse; one asked for with a sort or genre (a row's See all) opens on its titles. */
+internal fun opensOnBrowse(sort: LibrarySort, genre: String?) = sort == LibrarySort.Title && genre == null
 
 /**
- * Poster grid for one library, a page at a time as it's scrolled, with sort and genre in the corner. A film or TV
- * library also has Genres: a tile for each, opening its titles in that genre ([initialGenre], under the genre's name).
+ * One library: Browse (a hero and rows of just this library), All (a poster grid, a page at a time as it's scrolled,
+ * with sort and genre in the corner) and, for films and shows, Genres (a tile for each, opening its titles in that
+ * genre: [initialGenre], under the genre's name). Each view keeps its place while another is shown.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -289,7 +298,14 @@ fun LibraryScreen(model: AppModel, libraryId: String, initialSort: LibrarySort, 
     val scope = rememberCoroutineScope()
     var sort by rememberSaveable { mutableStateOf(initialSort) }
     var genre by rememberSaveable { mutableStateOf(initialGenre) }
-    var showing by rememberSaveable { mutableStateOf(Showing.All) }
+    var showing by rememberSaveable { mutableStateOf(if (opensOnBrowse(initialSort, initialGenre)) Showing.Browse else Showing.All) }
+    // Each view is loaded the first time it's shown, and then kept with its scroll position.
+    var allOpened by rememberSaveable { mutableStateOf(false) }
+    var browseOpened by rememberSaveable { mutableStateOf(false) }
+    val gridState = rememberLazyGridState()
+    val browseState = rememberLazyListState()
+    var featuredIndex by remember { mutableIntStateOf(0) }
+    val browse = rememberLoader(libraryId, model.watchStateVersion, browseOpened) { if (browseOpened) client.libraryBrowse(libraryId) else null }
     val library = rememberLoader(libraryId) { client.libraries().firstOrNull { it.id == libraryId } }
     val genres = rememberLoader(libraryId) { runCatching { client.libraryGenres(libraryId) }.getOrDefault(emptyList()) }
     // Genre tiles have their pictures from servers of 0.54 on; older ones keep to the menu's genres.
@@ -307,7 +323,8 @@ fun LibraryScreen(model: AppModel, libraryId: String, initialSort: LibrarySort, 
     // Back to a list more than a minute old: what's on screen is fetched again, keeping the scroll position.
     RefreshWhenStale(loadedAt) { staleVersion++ }
 
-    LaunchedEffect(libraryId, sort, genre, attempt) {
+    LaunchedEffect(libraryId, sort, genre, attempt, allOpened) {
+        if (!allOpened) return@LaunchedEffect
         loading = true
         try {
             val page = client.libraryItems(libraryId, sort, genre, skip = 0, take = PAGE_SIZE)
@@ -365,17 +382,43 @@ fun LibraryScreen(model: AppModel, libraryId: String, initialSort: LibrarySort, 
     // Films and shows have genres to browse by; a genre's own page doesn't offer them again.
     val hasGenres = initialGenre == null && (tilesServer.state as? Load.Loaded)?.value == true &&
         (loadedLibrary?.type == LibraryType.Movies || loadedLibrary?.type == LibraryType.TvShows)
-    val shows = if (hasGenres) showing else Showing.All
-    RoomBackground(ambient = items.firstOrNull()?.let { glowColor(it.accentColor) }, intensity = 0.18f) {
+    val browses = initialGenre == null && loadedLibrary != null && hasBrowse(loadedLibrary.type)
+    val shows = when {
+        // Which kind of library it is isn't known yet: Browse waits for it rather than flashing the grid first.
+        showing == Showing.Browse && loadedLibrary == null && initialGenre == null -> null
+        showing == Showing.Browse && !browses -> Showing.All
+        showing == Showing.Genres && !hasGenres -> Showing.All
+        else -> showing
+    }
+    LaunchedEffect(shows) {
+        if (shows == Showing.All) allOpened = true
+        if (shows == Showing.Browse) browseOpened = true
+    }
+    // Every row switched off (or none with anything in it) while the library has titles: show them all instead.
+    val browsed = (browse.state as? Load.Loaded)?.value
+    LaunchedEffect(browsed) {
+        if (browsed != null && !browsed.hasBrowse() && (loadedLibrary?.itemCount ?: 0) > 0 && loadedLibrary?.scan == null) showing = Showing.All
+    }
+    val ambient = if (shows == Showing.Browse) browsed?.featured?.takeIf { it.isNotEmpty() }?.let { it[featuredIndex % it.size] } else items.firstOrNull()
+    RoomBackground(ambient = ambient?.let { glowColor(it.accentColor) }, intensity = if (shows == Showing.Browse) 0.28f else 0.18f) {
         Column {
             PageTitle(initialGenre ?: loadedLibrary?.name.orEmpty(), onBack = { navigator.back() }) {
                 if (shows == Showing.All) SortAndFilter(sort, { sort = it }, genre, { genre = it }, genreList)
             }
-            if (hasGenres) {
-                ShowingSwitch(if (loadedLibrary?.type == LibraryType.TvShows) "All shows" else "All movies", shows) { showing = it }
+            if (loadedLibrary != null && (browses || hasGenres)) {
+                val all = when (loadedLibrary.type) {
+                    LibraryType.TvShows -> "All shows"
+                    LibraryType.HomeVideos -> "All folders"
+                    else -> "All movies"
+                }
+                val choices = listOfNotNull("Browse" to Showing.Browse.takeIf { browses }, all to Showing.All, "Genres" to Showing.Genres.takeIf { hasGenres })
+                    .mapNotNull { (label, value) -> value?.let { label to it } }
+                ShowingSwitch(choices, shows ?: Showing.All) { showing = it }
             }
             val failed = error
             when {
+                shows == null -> StatusView()
+                shows == Showing.Browse -> LibraryBrowse(model, browse, browseState, onFeatured = { featuredIndex = it })
                 shows == Showing.Genres -> LibraryGenreGrid(loadedLibrary!!, genreList)
                 failed != null -> StatusView(failed, retry = { attempt++ })
                 items.isEmpty() && !loading -> StatusView(genre?.let { "No $it titles here." } ?: "Nothing in this library yet.", empty = true)
@@ -395,6 +438,7 @@ fun LibraryScreen(model: AppModel, libraryId: String, initialSort: LibrarySort, 
                 ) {
                     LazyVerticalGrid(
                         columns = GridCells.Adaptive(GridMinimum),
+                        state = gridState,
                         contentPadding = PaddingValues(start = Edge, end = Edge, bottom = 32.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalArrangement = Arrangement.spacedBy(20.dp),
@@ -465,16 +509,16 @@ private fun SortAndFilter(sort: LibrarySort, onSort: (LibrarySort) -> Unit, genr
     }
 }
 
-/** "All films" (or "All shows") or Genres, at the top of a film or TV library. */
+/** Browse, "All movies" (or shows, or folders) and Genres, at the top of a library. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ShowingSwitch(allLabel: String, showing: Showing, onChange: (Showing) -> Unit) {
+private fun ShowingSwitch(choices: List<Pair<String, Showing>>, showing: Showing, onChange: (Showing) -> Unit) {
     SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = Edge).padding(bottom = 12.dp)) {
-        listOf(allLabel to Showing.All, "Genres" to Showing.Genres).forEachIndexed { index, (label, value) ->
+        choices.forEachIndexed { index, (label, value) ->
             SegmentedButton(
                 selected = showing == value,
                 onClick = { onChange(value) },
-                shape = SegmentedButtonDefaults.itemShape(index, 2),
+                shape = SegmentedButtonDefaults.itemShape(index, choices.size),
                 icon = {},
                 colors = SegmentedButtonDefaults.colors(activeContainerColor = Flexarr.aisle, activeContentColor = Flexarr.screen, inactiveContainerColor = Flexarr.seat, inactiveContentColor = Flexarr.usher, activeBorderColor = Flexarr.aisle, inactiveBorderColor = Flexarr.aisle),
             ) { Text(label, fontSize = 13.sp) }

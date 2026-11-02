@@ -4,6 +4,10 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ## Unreleased
 
+### Libraries
+- On iPhone, iPad and Android phones, Movies, TV Shows and Home videos now open on **Browse**, as they do on the web and the TVs: a featured title at the top, then rows of just that library, such as **Continue watching**, the latest unwatched, its Top 10, the newest releases and genre rows. **All** and **Genres** are at the top, and each keeps its place when you switch back. Pull down to refresh.
+- Every movie and TV library's **Browse** has a **Coming soon** row of what Sonarr or Radarr expects for that library over the next few days, in every app. Turn it off or move it in **Settings › Home & browse**.
+
 ### Look and feel
 - Every app now has the same buttons on a movie or show page, in the same order: Play, Start over (once you've started), Shuffle, Trailer, Watched, Watchlist, then ⋯ for the rest. On the web, Start over has moved out of the ⋯ menu.
 - The same words everywhere: *Movies* rather than *Films*, *Start over* rather than *Play from the start*, and episodes written *S1E3* or *Season 1, Episode 3*. Details sit side by side without dots between them.

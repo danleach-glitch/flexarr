@@ -351,6 +351,7 @@ public static class LayoutEndpoints
     [
         new("continue", "Continue watching", true),
         new("recent", "Latest unwatched", true),
+        new("upcoming", "Coming soon", true),
         new("top", "Top 10", true),
         new("released", movies ? "Newest releases" : "Newest shows", true),
         new("gems", movies ? "Highly rated, not yet watched" : "Highly rated, not yet started", true),

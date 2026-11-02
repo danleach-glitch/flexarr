@@ -447,7 +447,7 @@ struct SeeAllCard: View {
 /// What Sonarr and Radarr expect soon: episodes airing and movies coming out, with any download under way. Only cards
 /// that do something take focus (see `UpcomingCard`); See all at the end opens the Coming soon page, so the row can
 /// always be followed to its end.
-private struct ComingSoonRow: View {
+struct ComingSoonRow: View {
     @Environment(Router.self) private var router
     let items: [UpcomingItem]
     let downloading: Int

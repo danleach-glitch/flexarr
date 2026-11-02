@@ -135,7 +135,7 @@ private fun LibraryBrowse(model: AppModel, library: Library, takeFocus: Boolean,
     when (val state = loader.state) {
         is Load.Loaded -> {
             val browse = state.value
-            if (browse.featured.isEmpty() && browse.rows.none { it.items.isNotEmpty() }) {
+            if (browse.featured.isEmpty() && browse.rows.none { it.items.isNotEmpty() } && browse.upcoming.isEmpty()) {
                 LaunchedEffect(Unit) { if (takeFocus) onFocusTaken() }
                 RoomBackground(ambient = null) {
                     Column(Modifier.padding(start = TvLayout.Edge, top = 28.dp)) {

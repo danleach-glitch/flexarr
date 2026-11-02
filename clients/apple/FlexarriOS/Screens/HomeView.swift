@@ -104,19 +104,9 @@ struct HomeView: View {
         }
     }
 
-    /// Whether a row has something to show. Coming soon's titles come separately, in `Home.upcoming`.
-    private func shows(_ row: HomeRow, in home: Home) -> Bool {
-        row.style == .upcoming ? !(home.upcoming ?? []).isEmpty : row.hasContent
-    }
+    private func shows(_ row: HomeRow, in home: Home) -> Bool { HomeRowSlot.shows(row, in: home) }
 
-    @ViewBuilder
-    private func rowView(_ row: HomeRow, in home: Home) -> some View {
-        if row.style == .upcoming {
-            ComingSoonRow(items: home.upcoming ?? [], downloading: home.downloading ?? 0)
-        } else {
-            HomeRowView(row: row)
-        }
-    }
+    private func rowView(_ row: HomeRow, in home: Home) -> some View { HomeRowSlot(row: row, home: home) }
 
     /// Whether the New podcasts row shows: there are new episodes, and the profile has it on Home.
     private func showsNewEpisodes(_ home: Home) -> Bool {
@@ -297,6 +287,26 @@ struct HomeHero: View {
     }
 }
 
+/// One of Home's rows, or of a library's Browse: Coming soon from the titles that travel beside the rows, any other
+/// from its own.
+struct HomeRowSlot: View {
+    let row: HomeRow
+    let home: Home
+
+    /// Whether a row has something to show. Coming soon's titles come separately, in `Home.upcoming`.
+    static func shows(_ row: HomeRow, in home: Home) -> Bool {
+        row.style == .upcoming ? !(home.upcoming ?? []).isEmpty : row.hasContent
+    }
+
+    var body: some View {
+        if row.style == .upcoming {
+            ComingSoonRow(items: home.upcoming ?? [], downloading: home.downloading ?? 0)
+        } else {
+            HomeRowView(row: row)
+        }
+    }
+}
+
 struct HomeRowView: View {
     @Environment(AppModel.self) private var model
     @Environment(Router.self) private var router
@@ -307,7 +317,7 @@ struct HomeRowView: View {
         VStack(alignment: .leading, spacing: 10) {
             SectionHeading(title: row.title, action: row.style == .live ? { router.push(.liveTv) }
                 : row.link == "/watchlist" ? { router.push(.watchlist) }
-                : linkedLibrary.map { library in { router.push(.library(library.0, library.1)) } })
+                : linkedLibrary.map { link in { router.push(.library(link.library, link.sort, genre: link.genre)) } })
             ScrollView(.horizontal) {
                 LazyHStack(alignment: .top, spacing: row.style == .top10 ? 6 : Layout.rowSpacing) {
                     // A playlists row carries playlists rather than items.
@@ -343,14 +353,17 @@ struct HomeRowView: View {
         }
     }
 
-    /// Rows link to "/library/{id}?sort=added"; map that to a library destination.
-    private var linkedLibrary: (Library, LibrarySort)? {
+    /// Rows link to "/library/{id}?sort=added" (a library's Browse rows to "?view=all&sort=added" or "&genre=Drama");
+    /// map that to a library destination. One with a sort or genre opens the library's titles rather than its Browse.
+    private var linkedLibrary: (library: Library, sort: LibrarySort, genre: String?)? {
         guard let link = row.link, let components = URLComponents(string: link),
               components.path.hasPrefix("/library/") else { return nil }
         let id = String(components.path.dropFirst("/library/".count))
         guard let library = model.libraries.first(where: { $0.id == id }) else { return nil }
-        let sort = components.queryItems?.first(where: { $0.name == "sort" })?.value.flatMap(LibrarySort.init(rawValue:)) ?? .title
-        return (library, sort)
+        let query = components.queryItems ?? []
+        let sort = query.first(where: { $0.name == "sort" })?.value.flatMap(LibrarySort.init(rawValue:)) ?? .title
+        let genre = query.first(where: { $0.name == "genre" })?.value.flatMap { $0.isEmpty ? nil : $0 }
+        return (library, sort, genre)
     }
 }
 
@@ -410,7 +423,7 @@ private extension View {
 
 /// What Sonarr and Radarr expect soon: episodes airing and movies coming out, with any download under way.
 /// One already in the library (a show's next episode) opens it; See all opens the Coming soon page.
-private struct ComingSoonRow: View {
+struct ComingSoonRow: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(Router.self) private var router
     let items: [UpcomingItem]

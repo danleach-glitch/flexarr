@@ -268,8 +268,22 @@ class Navigator(private val nav: NavHostController, private val model: AppModel,
             val all = uri.getQueryParameter("view") == "all"
             return { nav.navigate("books/${segments[1]}?view=${if (all) uri.getQueryParameter("sort").orEmpty().ifEmpty { "title" } else ""}") }
         }
-        val sort = LibrarySort.entries.firstOrNull { it.raw == uri.getQueryParameter("sort") } ?: LibrarySort.Title
-        val genre = uri.getQueryParameter("genre")?.takeIf { it.isNotEmpty() }
-        return { openLibrary(segments[1], sort, genre) }
+        val (id, sort, genre) = LibraryLink.parse(uri) ?: return null
+        return { openLibrary(id, sort, genre) }
+    }
+}
+
+/**
+ * A row's link into a library: "/library/{id}" itself, or "?sort=added" (Home's rows) and "?view=all&sort=added" or
+ * "&genre=Drama" (a library's Browse rows), which open its titles that way rather than its Browse.
+ */
+internal data class LibraryLink(val id: String, val sort: LibrarySort, val genre: String?) {
+    companion object {
+        fun parse(uri: Uri): LibraryLink? {
+            val segments = uri.pathSegments
+            if (segments.size != 2 || segments[0] != "library") return null
+            val sort = LibrarySort.entries.firstOrNull { it.raw == uri.getQueryParameter("sort") } ?: LibrarySort.Title
+            return LibraryLink(segments[1], sort, uri.getQueryParameter("genre")?.takeIf { it.isNotEmpty() })
+        }
     }
 }
