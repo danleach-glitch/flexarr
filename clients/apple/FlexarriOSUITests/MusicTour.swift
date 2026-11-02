@@ -30,6 +30,32 @@ final class MusicTour: XCTestCase {
         pause(6)
     }
 
+    /// The music library as films and shows have it: the hero, then Artists, Albums and Genres from the switch at the
+    /// top, and a genre's albums with Play and Shuffle.
+    func testLibraryViews() async throws {
+        let libraries = try await client.libraries()
+        guard let music = libraries.first(where: { $0.type == .music }) else { throw XCTSkip("no music library") }
+        app.tabBars.buttons["Libraries"].firstMatch.tap()
+        pause(2)
+        app.buttons[music.name].firstMatch.tap()
+        pause(5)
+        shot("29-music-browse")
+        for view in ["Artists", "Albums", "Genres"] {
+            let segment = app.segmentedControls.buttons[view].firstMatch
+            guard segment.waitForExistence(timeout: 5) else { return XCTFail("the switch should offer \(view)") }
+            segment.tap()
+            pause(4)
+            shot("29-music-\(view.lowercased())")
+        }
+        // The first genre: its albums, under Play and Shuffle.
+        let genres = try await client.libraryAlbumGenres(music.id) ?? []
+        guard let first = genres.first else { return }
+        app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", first.name)).firstMatch.tap()
+        pause(4)
+        shot("29-music-genre")
+        XCTAssertTrue(app.buttons["Shuffle"].firstMatch.exists, "a genre should offer Shuffle")
+    }
+
     /// Libraries, the music library, an artist, an album, and Play, which opens Now Playing.
     func testMusic() async throws {
         let libraries = try await client.libraries()
