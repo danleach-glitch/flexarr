@@ -503,6 +503,28 @@ export function getLibraryItems(
   return (options.take ?? 0) > 200 ? timedGet<Paged<ItemSummary>>(path, signal) : cachedGet<Paged<ItemSummary>>(path, signal)
 }
 
+/** A music library's albums (its items are its artists), paged like its items. Servers before 0.59 answer 404. */
+export function getLibraryAlbums(
+  id: string,
+  options: { search?: string; sort?: string; genre?: string; skip?: number; take?: number },
+  signal?: AbortSignal,
+) {
+  const params = new URLSearchParams()
+  for (const [key, value] of Object.entries(options)) {
+    if (value !== undefined && value !== '' && value !== 0) params.set(key, String(value))
+  }
+  const query = params.size ? `?${params}` : ''
+  const path = `/libraries/${id}/albums${query}`
+  return (options.take ?? 0) > 200 ? timedGet<Paged<ItemSummary>>(path, signal) : cachedGet<Paged<ItemSummary>>(path, signal)
+}
+
+/** A music library's genres counted by album (tagged on the album or its artist), with an artist's fanart. */
+export const getLibraryAlbumGenres = (id: string, signal?: AbortSignal) => cachedGet<{ name: string; count: number; backdrop?: string | null }[]>(`/libraries/${id}/album-genres`, signal)
+
+/** Up to 200 of a genre's tracks in a music library, by artist and album, or shuffled by the server. */
+export const getGenreTracks = (id: string, genre: string, shuffle: boolean, signal?: AbortSignal) =>
+  apiGet<ItemSummary[]>(`/libraries/${id}/tracks?genre=${encodeURIComponent(genre)}${shuffle ? '&shuffle=true' : ''}`, signal)
+
 // ---------- Audiobooks
 
 /** What an audiobooks library's All view can filter and sort by; everything left out is "any". */

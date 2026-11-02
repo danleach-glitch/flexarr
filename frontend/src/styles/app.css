@@ -1040,6 +1040,14 @@ kbd {
 }
 
 /* The episode you'd resume, on the Continue Watching slide. */
+/* An album's artist, above its title on a music library's hero. */
+.hero-eyebrow {
+  margin: 0 0 -0.5rem;
+  font-weight: 700;
+  font-size: var(--step-2);
+  color: color-mix(in oklab, var(--screen) 85%, transparent);
+}
+
 .hero-resume {
   margin: 0;
   font-weight: 700;

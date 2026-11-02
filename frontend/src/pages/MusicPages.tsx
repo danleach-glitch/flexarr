@@ -11,15 +11,7 @@ import { LyricsPanel } from '../components/LyricsPanel'
 import { useAudioPlayer, useAudioTime, useMusicPage, type AudioPlayer } from '../hooks/audioPlayerContext'
 import { formatClock, formatDuration } from '../lib/format'
 
-/** A fair shuffle (Fisher–Yates); sorting by a random comparator isn't one. */
-export function shuffled(tracks: ItemSummary[]): ItemSummary[] {
-  const out = [...tracks]
-  for (let i = out.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[out[i], out[j]] = [out[j], out[i]]
-  }
-  return out
-}
+import { shuffled } from '../lib/shuffle'
 
 /**
  * The queue actions for a set of tracks, as a menu offers them, and (given what they belong to: a track, album or

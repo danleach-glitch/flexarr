@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import { PageError } from '../components/PageStatus'
 import { Link, Navigate, useNavigationType, useParams, useSearchParams } from 'react-router'
-import { forgetPage, freshly, getItem, getLibraryBrowse, getLibraryGenres, getLibraryItems, imageUrl, keepPage, keptPage, scanLibrary, wasDeleted, type ItemSummary, type Library } from '../api/client'
+import { forgetPage, freshly, getGenreTracks, getItem, getLibraryAlbumGenres, getLibraryAlbums, getLibraryBrowse, getLibraryGenres, getLibraryItems, imageUrl, keepPage, keptPage, scanLibrary, wasDeleted, type ItemSummary, type Library } from '../api/client'
 import { AsyncButton } from '../components/AsyncButton'
 import { PosterCard } from '../components/Cards'
 import { Hero } from '../components/Hero'
 import { HomeRows } from '../components/HomeRows'
 import { ScanProgress } from '../components/ScanProgress'
-import { useMusicPage } from '../hooks/audioPlayerContext'
+import { useAudioPlayer, useMusicPage } from '../hooks/audioPlayerContext'
+import { Play, Shuffle } from '../components/icons'
 import { useLibraries } from '../hooks/librariesContext'
 import { useApi } from '../hooks/useApi'
 import { useWatchedChanges, watchedSince } from '../hooks/watched'
@@ -22,6 +23,8 @@ const sorts = [
   { value: 'year', label: 'Newest first' },
   { value: 'rating', label: 'Highest rated' },
 ] as const
+/** What a music library's albums sort by: no ratings there. */
+const albumSorts = sorts.filter((s) => s.value !== 'rating')
 
 /**
  * Ways into a library: Browse (a home page of rows for just this library), All (every title, with sort, genre and
@@ -41,15 +44,17 @@ export function LibraryPage() {
   // Books have shelves, series, authors and narrators of their own.
   if (library.type === 'Audiobooks') return <BooksLibrary library={library} />
 
+  // A music library's albums (its genres open them too).
+  if (library.type === 'Music' && params.get('view') === 'albums') return <LibraryAll key={`${id} albums`} albums />
   const all = params.get('view') === 'all' || params.has('sort') || params.has('genre')
   if (all) return <LibraryAll key={id} />
   if (params.get('view') === 'genres' && hasGenres(library)) return <LibraryGenres key={id} library={library} />
   return <LibraryBrowse key={id} library={library} />
 }
 
-const hasGenres = (library: Library) => library.type === 'Movies' || library.type === 'TvShows'
+const hasGenres = (library: Library) => library.type === 'Movies' || library.type === 'TvShows' || library.type === 'Music'
 
-function ViewSwitch({ library, view }: { library: Library; view: 'browse' | 'all' | 'genres' }) {
+function ViewSwitch({ library, view }: { library: Library; view: 'browse' | 'all' | 'albums' | 'genres' }) {
   const current = (v: typeof view) => (view === v ? 'page' : undefined)
   return (
     <nav className="view-switch" aria-label={`${library.name} views`}>
@@ -57,8 +62,13 @@ function ViewSwitch({ library, view }: { library: Library; view: 'browse' | 'all
         Browse
       </Link>
       <Link to={`/library/${library.id}?view=all`} aria-current={current('all')}>
-        {{ Movies: 'All movies', TvShows: 'All shows', Music: 'All artists', Podcasts: 'All podcasts', HomeVideos: 'All folders', Audiobooks: 'All books' }[library.type]}
+        {{ Movies: 'All movies', TvShows: 'All shows', Music: 'Artists', Podcasts: 'All podcasts', HomeVideos: 'All folders', Audiobooks: 'All books' }[library.type]}
       </Link>
+      {library.type === 'Music' && (
+        <Link to={`/library/${library.id}?view=albums`} aria-current={current('albums')}>
+          Albums
+        </Link>
+      )}
       {hasGenres(library) && (
         <Link to={`/library/${library.id}?view=genres`} aria-current={current('genres')}>
           Genres
@@ -71,8 +81,9 @@ function ViewSwitch({ library, view }: { library: Library; view: 'browse' | 'all
 
 /** A tile for each of the library's genres, with a backdrop from one of its titles; one opens All filtered to it. */
 function LibraryGenres({ library }: { library: Library }) {
-  const { data, error, reload } = useApi((signal) => getLibraryGenres(library.id, signal), [library.id])
-  const noun = library.type === 'Movies' ? ['movie', 'movies'] : ['show', 'shows']
+  const music = library.type === 'Music'
+  const { data, error, reload } = useApi((signal) => (music ? getLibraryAlbumGenres : getLibraryGenres)(library.id, signal), [library.id])
+  const noun = library.type === 'Movies' ? ['movie', 'movies'] : music ? ['album', 'albums'] : ['show', 'shows']
   return (
     <div className="library-page">
       <header className="library-header">
@@ -90,7 +101,7 @@ function LibraryGenres({ library }: { library: Library }) {
       ) : (
         <div className="genre-grid">
           {data.map((g) => (
-            <Link key={g.name} to={`/library/${library.id}?genre=${encodeURIComponent(g.name)}`} className="genre-tile">
+            <Link key={g.name} to={`/library/${library.id}?${music ? 'view=albums&' : ''}genre=${encodeURIComponent(g.name)}`} className="genre-tile">
               {g.backdrop && <img src={imageUrl(g.backdrop, 780)} alt="" loading="lazy" />}
               <span className="genre-name">{g.name}</span>
               <span className="genre-count">
@@ -209,7 +220,7 @@ function LibraryBrowse({ library }: { library: Library }) {
     )
   }
 
-  // A music library has no hero (covers are square); its heading stands on its own above the rows.
+  // No hero (a music library on an older server, say): the heading stands on its own above the rows.
   if (data.featured.length === 0) {
     return (
       <>
@@ -311,17 +322,20 @@ function append(loaded: ItemSummary[], pages: ItemSummary[][]) {
   return [...loaded, ...pages.flat().filter((i) => !seen.has(i.id))]
 }
 
-function LibraryAll() {
+/** Every title in a library, or (`albums`) every album in a music library, with sort, genre and letter jumps. */
+function LibraryAll({ albums = false }: { albums?: boolean }) {
   const { id = '' } = useParams()
   const [params, setParams] = useSearchParams()
   const sort = params.get('sort') ?? ''
   const genre = params.get('genre') ?? ''
   const { libraries, reload: reloadLibraries } = useLibraries()
   const library = libraries.find((l) => l.id === id)
-  const genres = useApi((signal) => getLibraryGenres(id, signal), [id])
+  const genres = useApi((signal) => (albums ? getLibraryAlbumGenres : getLibraryGenres)(id, signal), [id, albums])
+  const getPage = albums ? getLibraryAlbums : getLibraryItems
+  const player = useAudioPlayer()
 
   // Coming back (Back from a title) picks up where you were, unless something changed meanwhile.
-  const snapshotKey = `library-all ${id} ${sort} ${genre}`
+  const snapshotKey = `library-${albums ? 'albums' : 'all'} ${id} ${sort} ${genre}`
   const navigation = useNavigationType()
   const [restored] = useState(() => (navigation === 'POP' ? restorable(keptPage<GridSnapshot>(snapshotKey)) : undefined))
 
@@ -369,7 +383,7 @@ function LibraryAll() {
     const countAtLoad = library?.itemCount
     const loadingFor = gridKey
     const controller = new AbortController()
-    const load = () => getLibraryItems(id, { search: query, sort, genre, take: PAGE_SIZE }, controller.signal)
+    const load = () => getPage(id, { search: query, sort, genre, take: PAGE_SIZE }, controller.signal)
     // Starting over on purpose (Refresh, or new titles) skips any cached first page.
     const pending = version ? freshly(load) : load()
     pending
@@ -449,7 +463,7 @@ function LibraryAll() {
     const run = generation.current
     setBusy(true)
     try {
-      const page = await getLibraryItems(id, { search: query, sort, genre, skip: items.length, take: PAGE_SIZE })
+      const page = await getPage(id, { search: query, sort, genre, skip: items.length, take: PAGE_SIZE })
       if (run !== generation.current) return
       setItems((current) => append(current, [page.items]))
       setTotal(page.total)
@@ -476,7 +490,7 @@ function LibraryAll() {
         setJumping(letter)
         const skips: number[] = []
         for (let skip = loaded.length; skip < total && skips.length < JUMP_PARALLEL; skip += JUMP_PAGE) skips.push(skip)
-        const pages = await Promise.all(skips.map((skip) => getLibraryItems(id, { search: query, sort, genre, skip, take: JUMP_PAGE })))
+        const pages = await Promise.all(skips.map((skip) => getPage(id, { search: query, sort, genre, skip, take: JUMP_PAGE })))
         if (run !== generation.current) return
         const next = append(loaded, pages.map((p) => p.items))
         if (next.length === loaded.length) break
@@ -504,6 +518,11 @@ function LibraryAll() {
     }
   }
 
+  async function playGenre(shuffle: boolean) {
+    const tracks = await getGenreTracks(id, genre, shuffle)
+    if (tracks.length > 0) player.play(tracks, 0, { openNowPlaying: true })
+  }
+
   function setParam(key: string, value: string) {
     const next = new URLSearchParams(params)
     if (value) next.set(key, value)
@@ -522,16 +541,29 @@ function LibraryAll() {
         <div>
           <div className="library-heading">
             <h1>{library.name}</h1>
-            <ViewSwitch library={library} view="all" />
+            <ViewSwitch library={library} view={albums ? 'albums' : 'all'} />
           </div>
           <p className="muted">
-            {(total ?? library.itemCount).toLocaleString()} {query || genre ? 'matching' : { Movies: 'movies', TvShows: 'shows', Music: 'artists', Podcasts: 'podcasts', HomeVideos: 'folders', Audiobooks: 'books' }[library.type]}
+            {albums
+              ? `${(total ?? 0).toLocaleString()} ${genre && !query ? `${genre} ` : ''}${total === 1 ? 'album' : 'albums'}`
+              : `${(total ?? library.itemCount).toLocaleString()} ${query || genre ? 'matching' : { Movies: 'movies', TvShows: 'shows', Music: 'artists', Podcasts: 'podcasts', HomeVideos: 'folders', Audiobooks: 'books' }[library.type]}`}
           </p>
+          {albums && genre && (
+            // A genre plays as a station: up to 200 of its tracks, in order or shuffled.
+            <div className="detail-actions">
+              <AsyncButton className="button" onClick={() => playGenre(false)} disabled={total === 0}>
+                <Play /> Play
+              </AsyncButton>
+              <AsyncButton className="button quiet" onClick={() => playGenre(true)} disabled={total === 0}>
+                <Shuffle /> Shuffle
+              </AsyncButton>
+            </div>
+          )}
         </div>
         <div className="library-tools">
           <input type="search" placeholder={`Search ${library.name}`} aria-label={`Search ${library.name}`} value={search} onChange={(e) => setSearch(e.target.value)} />
           <select aria-label="Sort by" value={sort} onChange={(e) => setParam('sort', e.target.value)}>
-            {sorts.map((s) => (
+            {(albums ? albumSorts : sorts).map((s) => (
               <option key={s.value} value={s.value}>
                 {s.label}
               </option>
