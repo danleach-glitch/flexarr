@@ -264,6 +264,28 @@ public sealed class MatchTests(FlexarrApiFactory factory) : IClassFixture<Flexar
         Assert.Equal(("Shogun (1980 miniseries)", true), (item.Title, item.DetailsLocked));
     }
 
+    [Fact]
+    public async Task WithoutSonarr_FixMatch_ToTheSameTvMazeShow_KeepsEditedDetails()
+    {
+        var app = factory.WithWebHostBuilder(b => b.ConfigureTestServices(services =>
+        {
+            services.AddHttpClient<TvMazeClient>().ConfigurePrimaryHttpMessageHandler(() => new FakeTvMaze());
+            services.AddHttpClient<ImageCache>().ConfigurePrimaryHttpMessageHandler(() => new NotFoundHandler());
+        }));
+        var id = await AddShowAsync(app, "Shogun", "/Volumes/Media/data/tv/Shogun", wrong: true);
+        using (var scope = app.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            await db.MediaItems.Where(i => i.Id == id).ExecuteUpdateAsync(u => u.SetProperty(i => i.TvMazeId, "60600"));
+        }
+
+        await Client(app).PutAsJsonAsync(new Uri($"/api/v1/items/{id}/details", UriKind.Relative), new { title = "Shogun (FX)" });
+        await Client(app).PostAsJsonAsync(new Uri($"/api/v1/items/{id}/match", UriKind.Relative), new { id = 60600 });
+
+        var item = await ItemAsync(app, id);
+        Assert.Equal(("Shogun (FX)", true), (item.Title, item.DetailsLocked));
+    }
+
     [Theory]
     [InlineData("", 2024)]
     [InlineData("Shogun", 99999)]
