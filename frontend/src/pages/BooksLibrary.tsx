@@ -8,6 +8,7 @@ import {
   getBookShelves,
   getLibraryBooks,
   getPerson,
+  imageUrl,
   scanLibrary,
   type BookFilters,
   type ItemSummary,
@@ -17,7 +18,7 @@ import {
 import { AsyncButton } from '../components/AsyncButton'
 import { BookPersonCard, BookSeriesCard } from '../components/BookCards'
 import { PosterCard } from '../components/Cards'
-import { ChevronLeft, ChevronRight } from '../components/icons'
+import { ChevronLeft } from '../components/icons'
 import { Row } from '../components/Row'
 import { ScanProgress } from '../components/ScanProgress'
 import { useLibraries } from '../hooks/librariesContext'
@@ -124,22 +125,35 @@ function Shelves({ library }: { library: Library }) {
   )
 }
 
-/** The library's genres, A–Z, as a list (as in the apps), each opening a page of its books. */
+/**
+ * The library's genres, A–Z, as tiles like the films' and shows' Genres: books have no backdrops, so a genre's newest
+ * covers stand fanned in the tile, over the front one blurred to fill it with its colours. Each opens a page of its books.
+ */
 function Genres({ library }: { library: Library }) {
   const { data, error, reload } = useApi((signal) => getBookGenres(library.id, signal), [library.id, library.itemCount])
   if (error) return <PageError error={error} onRetry={reload} />
-  if (!data) return <div className="book-genres" aria-busy="true" />
+  if (!data) return <div className="genre-grid" aria-busy="true" />
   if (data.length === 0) return <p className="page-message muted">No genres here yet.</p>
   const genres = [...data].sort((a, b) => a.name.localeCompare(b.name))
   return (
-    <nav className="panel book-genres" aria-label="Genres">
-      {genres.map((g) => (
-        <Link key={g.name} to={`/library/${library.id}?view=genre&genre=${encodeURIComponent(g.name)}`}>
-          <span className="book-genre-name">{g.name}</span>
-          <span className="muted">{g.count === 1 ? '1 book' : `${g.count.toLocaleString()} books`}</span>
-          <ChevronRight aria-hidden="true" />
-        </Link>
-      ))}
+    <nav className="genre-grid" aria-label="Genres">
+      {genres.map((g) => {
+        const covers = (g.covers ?? []).slice(0, 3)
+        return (
+          <Link key={g.name} to={`/library/${library.id}?view=genre&genre=${encodeURIComponent(g.name)}`} className="genre-tile book-genre-tile">
+            {covers[0] && <img className="book-genre-wash" src={imageUrl(covers[0], 185)} alt="" loading="lazy" />}
+            {covers.length > 0 && (
+              <span className={`book-genre-fan book-genre-fan-${covers.length}`} aria-hidden="true">
+                {covers.map((cover, i) => (
+                  <img key={i} src={imageUrl(cover, 342)} alt="" loading="lazy" />
+                ))}
+              </span>
+            )}
+            <span className="genre-name">{g.name}</span>
+            <span className="genre-count">{g.count === 1 ? '1 book' : `${g.count.toLocaleString()} books`}</span>
+          </Link>
+        )
+      })}
     </nav>
   )
 }

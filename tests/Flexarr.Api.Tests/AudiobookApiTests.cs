@@ -121,7 +121,7 @@ public class AudiobookApiTests(FlexarrApiFactory factory) : IClassFixture<Flexar
     }
 
     [Fact]
-    public async Task Genres_AToZ_WithHowManyBooks()
+    public async Task Genres_AToZ_WithHowManyBooksAndCovers()
     {
         var lib = await SeedAsync();
         using (var scope = factory.Services.CreateScope())
@@ -130,21 +130,31 @@ public class AudiobookApiTests(FlexarrApiFactory factory) : IClassFixture<Flexar
             var mystery = new Genre { Name = $"Mystery {Guid.NewGuid():N}" };
             var scifi = new Genre { Name = $"Ab Science Fiction {Guid.NewGuid():N}" };
             var books = await db.MediaItems.Include(i => i.Genres).Where(i => i.LibraryId == lib.Library).ToListAsync();
-            foreach (var book in books.Where(b => b.Title != "Project Hail Mary"))
+            foreach (var book in books)
             {
                 book.Genres.Add(mystery);
+                book.PosterUrl = book.Title == "The Colour of Magic" ? null : "https://example.com/cover.jpg";
             }
 
             books.Single(b => b.Title == "Project Hail Mary").Genres.Add(scifi);
             await db.SaveChangesAsync();
         }
 
-        var genres = await GetAsync<List<GenreCountDto>>($"/api/v1/libraries/{lib.Library}/book-genres");
+        var genres = await GetAsync<List<BookGenreDto>>($"/api/v1/libraries/{lib.Library}/book-genres");
 
         Assert.Equal(2, genres.Count);
         Assert.StartsWith("Ab Science Fiction", genres[0].Name);
         Assert.Equal(1, genres[0].Count);
         Assert.True(genres[1].Count > 1);
+
+        // Up to three covers each, newest first, books without one left out. Project Hail Mary (the newest) fronts
+        // science fiction, its only book, so mystery puts the next newest in front.
+        var cover = (string title) => $"/api/v1/images/items/{lib.Books[title]}/poster";
+        Assert.StartsWith(cover("Project Hail Mary"), Assert.Single(genres[0].Covers));
+        Assert.Equal(3, genres[1].Covers.Count);
+        Assert.StartsWith(cover("Guards! Guards!"), genres[1].Covers[0]);
+        Assert.StartsWith(cover("Project Hail Mary"), genres[1].Covers[1]);
+        Assert.StartsWith(cover("The Bullet That Missed"), genres[1].Covers[2]);
     }
 
     [Fact]

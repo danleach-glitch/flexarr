@@ -111,6 +111,10 @@ public sealed record BookPersonDto(Guid Id, string Name, string? Image, int Book
 
 public sealed record GenreCountDto(string Name, int Count);
 
+/// <summary>A genre in a library's Genres view.</summary>
+/// <param name="Covers">Up to three of its books' covers, for the genre's tile. Added in 0.58.</param>
+public sealed record BookGenreDto(string Name, int Count, IReadOnlyList<string> Covers);
+
 /// <summary>An audiobooks library's front page.</summary>
 public sealed record BookShelvesDto(
     IReadOnlyList<ItemSummaryDto> ContinueListening,
