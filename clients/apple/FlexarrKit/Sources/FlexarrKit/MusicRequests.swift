@@ -1,7 +1,8 @@
 import Foundation
 
 // Music the household doesn't have, from Deezer, requested through Lidarr. All of it is absent from servers before
-// music requests: `musicRequestStatus()` reads their 404 as off, and nothing else is asked then.
+// music requests: they answer `musicRequestStatus()` with the web app's page (or a 404), read as off, and nothing else
+// is asked then.
 
 // MARK: - Models
 
@@ -197,10 +198,13 @@ struct MusicRequestBody: Encodable, Equatable {
 // MARK: - Endpoints
 
 extension FlexarrClient {
-    /// Whether music can be requested. Servers before music requests answer 404: no.
+    /// Whether music can be requested. Servers before music requests answer with the web app's page (200 text/html) or a
+    /// 404; anything that isn't a status reads as off.
     public func musicRequestStatus() async throws -> MusicRequestStatus {
         do {
             return try await get("requests/music/status")
+        } catch FlexarrClientError.unexpectedResponse {
+            return .off
         } catch FlexarrClientError.http(status: 404, _) {
             return .off
         }

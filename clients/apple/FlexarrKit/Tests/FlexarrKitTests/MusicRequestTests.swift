@@ -68,6 +68,16 @@ struct MusicRequestTests {
         #expect(try await client.musicRequestStatus() == .off)
     }
 
+    @Test func serversAnsweringWithTheWebPageHaveMusicRequestsOff() async throws {
+        // Servers before music requests answer unknown paths with the web app's index.html and a 200.
+        let (old, _) = stubbedClient(.init(status: 200, body: Data("<!doctype html>".utf8), contentType: "text/html"))
+        #expect(try await old.musicRequestStatus() == .off)
+        let (odd, _) = stubbedClient(.init(status: 200, body: Data(#"{"something":"else"}"#.utf8)))
+        #expect(try await odd.musicRequestStatus() == .off)
+        let (current, _) = stubbedClient(.init(status: 200, body: Data(#"{"configured":true,"reachable":false}"#.utf8)))
+        #expect(try await current.musicRequestStatus() == MusicRequestStatus(configured: true, reachable: false))
+    }
+
     @Test func requestBodies() async throws {
         for (target, body) in [
             (MusicRequestTarget.album(deezerId: 5), #"{"deezerId":5,"kind":"album"}"#),
