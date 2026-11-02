@@ -75,6 +75,7 @@ import io.github.flexarr.core.bookSeries
 import io.github.flexarr.core.bookTimeLine
 import io.github.flexarr.core.chapterAt
 import io.github.flexarr.core.deleteBookmark
+import io.github.flexarr.core.BookActions
 import io.github.flexarr.core.isBookFinished
 import io.github.flexarr.core.listenAgain
 import io.github.flexarr.core.releaseYear
@@ -220,10 +221,10 @@ private fun BookPage(model: AppModel, detail: ItemDetail, defaultSpeed: Double, 
         item("actions") {
             Column(Modifier.padding(horizontal = Edge), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 if (position > 0 && !finished && duration > 0) ProgressBar(position / duration)
+                // Play, Resume or Pause; a finished book plays from the start (Start over beside it says so too).
                 val label = when {
                     playingThis && player.isPlaying -> "Pause"
-                    finished -> "Start over"
-                    position > 0 -> "Resume"
+                    position > 0 && !finished -> "Resume"
                     else -> "Play"
                 }
                 ActionButton(
@@ -236,23 +237,24 @@ private fun BookPage(model: AppModel, detail: ItemDetail, defaultSpeed: Double, 
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    icon = when {
-                        playingThis && player.isPlaying -> Icons.Filled.Pause
-                        finished -> Icons.Filled.Replay
-                        else -> Icons.Filled.PlayArrow
-                    },
+                    icon = if (playingThis && player.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
                     prominent = true,
                     ambient = glowColor(item.accentColor),
                 )
+                // After Play, in [BookActions] order: Start over, Finished (or Unread), Download.
+                val actions = BookActions.of(BookActions.Input(hasProgress = position > 0 && !finished, finished = finished, isKids = model.isKids, platform = BookActions.Platform.PHONE, canDownload = true))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    BookDownloadAction(model, item)
-                    if (!finished) LabeledAction("Finished", Icons.Outlined.CheckCircle, { navigator.setBookFinished(item, true) })
-                    // Unread (no place, not finished, as if never started) in Finished's place once it's finished. Part way
-                    // through, it's offered with Start over instead, as on iPhone.
-                    if (finished) LabeledAction("Unread", Icons.Outlined.Book, { navigator.setBookFinished(item, false) })
-                    // Only with somewhere to start over from; a place in the book is asked about before it's lost.
-                    if (position > 0 || finished) {
-                        LabeledAction("Start over", Icons.Filled.Replay, { if (position > 0 && !finished) confirmStartOver = true else startOver() })
+                    actions.forEach { button ->
+                        when (button) {
+                            // A place in the book is asked about before it's lost.
+                            BookActions.Button.START_OVER -> LabeledAction("Start over", Icons.Filled.Replay, { if (position > 0 && !finished) confirmStartOver = true else startOver() })
+                            // Unread (no place, not finished, as if never started) in Finished's place once it's finished.
+                            BookActions.Button.FINISHED ->
+                                if (finished) LabeledAction("Unread", Icons.Outlined.Book, { navigator.setBookFinished(item, false) })
+                                else LabeledAction("Finished", Icons.Outlined.CheckCircle, { navigator.setBookFinished(item, true) })
+                            BookActions.Button.DOWNLOAD -> BookDownloadAction(model, item)
+                            BookActions.Button.PLAY, BookActions.Button.MORE -> Unit
+                        }
                     }
                 }
             }

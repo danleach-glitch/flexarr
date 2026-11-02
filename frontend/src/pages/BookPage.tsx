@@ -25,6 +25,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog'
 import { DeleteDialog } from '../components/DeleteDialog'
 import { FixMatchDialog } from '../components/FixMatchDialog'
 import { Bookmark as BookmarkIcon, Check, Close, Pause, Play } from '../components/icons'
+import { icon } from '../components/icons.generated'
 import type { MenuAction } from '../components/ItemMenu'
 import { Overview } from '../components/Overview'
 import { Row } from '../components/Row'
@@ -101,8 +102,6 @@ export function BookPage({ detail, onChange }: { detail: ItemDetail; onChange: (
   }
 
   const more: MenuAction[] = [{ label: 'Add to collection…', run: () => openAddToCollection(item) }]
-  // A finished book starts over straight from its button; one part-way through asks first, since its place is lost.
-  if ((playing || place.saved > 0) && !finished) more.push({ label: 'Start over', run: () => setStartingOver(true) })
   // Unread: no place and not finished, as if never started. Not while it plays, which would set the place again.
   if (!playing && (finished || place.saved > 0)) more.push({ label: 'Mark as unread', run: () => mark(false) })
   if (mainProfile) {
@@ -141,13 +140,22 @@ export function BookPage({ detail, onChange }: { detail: ItemDetail; onChange: (
           <People label="Read by" people={narrators} />
           <People label="Translated by" people={translators} />
           <Facts place={place} year={item.year} duration={duration} finished={finished} speed={speed} abridged={book.abridged} />
+          {/* The order every client shares (docs/design.md › Platforms, `BookActions` in the apps): Play or Resume,
+              Start over, Finished, then ⋯. */}
           <div className="detail-actions">
             {finished ? (
               <AsyncButton className="button" onClick={again}>
-                <Play /> Start over
+                <Play /> Play
               </AsyncButton>
             ) : (
               <PlayButton place={place} sounding={playing && player.playing} onClick={() => playAt()} />
+            )}
+            {/* Only with somewhere to start over from: a finished book straight away, one part-way through asks first,
+                since its place is lost. */}
+            {(finished || playing || place.saved > 0) && (
+              <AsyncButton className="button quiet" onClick={() => (finished ? again() : setStartingOver(true))}>
+                <icon.startOver /> Start over
+              </AsyncButton>
             )}
             <AsyncButton className="button quiet" aria-pressed={finished} onClick={() => mark(!finished)}>
               <Check /> {finished ? 'Finished' : 'Mark finished'}
