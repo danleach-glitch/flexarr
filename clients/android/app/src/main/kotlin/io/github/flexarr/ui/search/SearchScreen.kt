@@ -76,7 +76,9 @@ import io.github.flexarr.AppModel
 import io.github.flexarr.core.ExternalTitle
 import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.MusicSearch
-import io.github.flexarr.core.musicRequestStatus
+import io.github.flexarr.core.MusicExternal
+import io.github.flexarr.core.Availability
+import io.github.flexarr.ui.music.LidarrNotAnswering
 import io.github.flexarr.core.searchMusic
 import io.github.flexarr.core.RecentSearches
 import io.github.flexarr.core.SearchResults
@@ -169,7 +171,7 @@ fun SearchScreen(model: AppModel) {
     }
     LaunchedEffect(model.credentials) {
         searchesMusic = try {
-            client.musicRequestStatus().configured
+            model.musicStatus().configured
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
@@ -282,8 +284,10 @@ fun SearchScreen(model: AppModel) {
                         val inLibrary = shown.titles.mapTo(HashSet()) { it.id }
                         val beyond = found?.filter { it.libraryItemId == null || it.libraryItemId !in inLibrary }
                         val musicFound = music?.takeIf { it.first == text }?.second
+                        // As the iPhone: what the household has (artists and albums alike) isn't "not in your library".
                         val beyondMusic = musicFound?.let { m ->
-                            MusicSearch(m.artists.filter { it.libraryItemId == null || it.libraryItemId !in inLibrary }, m.albums.filter { it.libraryItemId == null || it.libraryItemId !in inLibrary })
+                            fun outside(item: MusicExternal) = item.libraryItemId == null && item.availability != Availability.Available
+                            MusicSearch(m.artists.filter(::outside), m.albums.filter(::outside))
                         }
                         results(
                             shown, text, beyond, beyondMusic,
@@ -373,11 +377,15 @@ private fun LazyListScope.results(
                             items(beyond, key = { it.key }) { ExternalCard(model, it) }
                         }
                     }
+                    // Lidarr connected but not answering: one quiet line, and requests wait.
+                    if (music != null && !music.isEmpty && model.musicUnreachable) {
+                        Text(LidarrNotAnswering, fontSize = 13.sp, color = Flexarr.usher, modifier = Modifier.padding(horizontal = Edge))
+                    }
                     // Artists, then albums: each opens its outside page, and a long press asks for it.
                     listOfNotNull(music?.artists, music?.albums).filter { it.isNotEmpty() }.forEach { row ->
                         LazyRow(contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(RowSpacing), verticalAlignment = Alignment.Top) {
                             // The same album can be listed twice (a joint album under each artist): its place keeps the keys apart.
-                            itemsIndexed(row, key = { index, item -> "$index-${item.id}" }) { _, item -> MusicExternalCard(model, item, width = PosterWidth) }
+                            itemsIndexed(row, key = { index, item -> "$index-${item.id}" }) { _, item -> MusicExternalCard(model, item, width = PosterWidth, showsKind = true) }
                         }
                     }
                 }
