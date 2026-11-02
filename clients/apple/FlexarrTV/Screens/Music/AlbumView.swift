@@ -10,6 +10,8 @@ struct AlbumView: View {
     /// A track to start focus on (opened from a search result or a deep link).
     var highlighted: String?
     @Environment(\.scenePhase) private var scenePhase
+    /// The focused round button, named under the row.
+    @FocusState private var focusedAction: MusicActions.Button?
 
     init(id: String, preview: ItemSummary?, highlighted: String? = nil) {
         _page = State(initialValue: MusicPageModel(id: id, preview: preview))
@@ -68,20 +70,25 @@ struct AlbumView: View {
                         .foregroundStyle(Color.screen.opacity(0.9))
                 }
                 FactsLine(facts: facts(item))
-                HStack(spacing: 26) {
-                    Button { model.playTracks(tracks, albums: [item], showingNowPlaying: router) } label: {
-                        Label("Play", systemImage: "play.fill")
+                // Play spelled out, Shuffle round and named underneath while focused (as on an artist's page).
+                VStack(alignment: .leading, spacing: 18) {
+                    HStack(spacing: 26) {
+                        Button { model.playTracks(tracks, albums: [item], showingNowPlaying: router) } label: {
+                            Label("Play", systemImage: Symbol.play)
+                        }
+                        .buttonStyle(ActionButtonStyle(ambient: page.item?.ambientColor, prominent: true))
+                        .takesFocusFromLink()
+                        Button { model.playTracks(tracks, shuffled: true, albums: [item], showingNowPlaying: router) } label: {
+                            Label("Shuffle", systemImage: Symbol.shuffle)
+                        }
+                        .buttonStyle(ActionButtonStyle(ambient: ambient, iconOnly: true))
+                        .focused($focusedAction, equals: .shuffle)
+                        .disabled(tracks.count < 2)
                     }
-                    .buttonStyle(ActionButtonStyle(ambient: page.item?.ambientColor, prominent: true))
-                    .takesFocusFromLink()
-                    Button { model.playTracks(tracks, shuffled: true, albums: [item], showingNowPlaying: router) } label: {
-                        Label("Shuffle", systemImage: "shuffle")
-                    }
-                    .buttonStyle(ActionButtonStyle(ambient: ambient))
-                    .disabled(tracks.count < 2)
+                    .disabled(tracks.isEmpty)
+                    .focusSection()
+                    FocusedActionName(name: focusedAction == .shuffle ? "Shuffle" : nil)
                 }
-                .disabled(tracks.isEmpty)
-                .focusSection()
                 .padding(.top, 8)
             }
             Spacer(minLength: 0)

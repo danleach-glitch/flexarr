@@ -30,7 +30,7 @@ struct ExternalMusicArtwork: View {
 }
 
 /// An artist or album from outside the library: pressing it opens its page (or the library's, when the household has
-/// it); holding it offers Request album or Follow artist. An album only Lidarr lists has no page: pressing it does
+/// it); holding it offers Request album or Follow. An album only Lidarr lists has no page: pressing it does
 /// nothing, and holding it offers Request album.
 struct ExternalMusicCard: View {
     @Environment(AppModel.self) private var model
@@ -105,25 +105,25 @@ struct ExternalMusicCard: View {
         if item.isAlbum {
             if showsYear { if let year = item.year { parts.append(String(year)) } } else if let artist = item.artist { parts.append(artist) }
             switch model.albumState(item) {
-            case .requested: parts.append("Requested")
+            case .requested: parts.append(MusicWords.requested)
             case .inLibrary: parts.append("In your library")
             default: break
             }
         } else if item.libraryItemId != nil {
             parts.append("In your library")
         } else if model.isFollowing(item) {
-            parts.append("Following")
+            parts.append(MusicWords.following)
         }
         return parts.isEmpty ? nil : parts.joined(separator: "  ")
     }
 
     @ViewBuilder private var menu: some View {
         if item.isAlbum, case .requestable = model.albumState(item), let target = MusicRequestTarget.album(item) {
-            Button { ask(target) } label: { Label("Request album", systemImage: Symbol.request) }
+            Button { ask(target) } label: { Label(MusicWords.requestAlbum, systemImage: Symbol.request) }
                 .disabled(asking || paused)
         }
         if item.isArtist, item.libraryItemId == nil, item.hasPage, !model.isFollowing(item) {
-            Button { ask(.artist(deezerId: item.deezerId)) } label: { Label("Follow artist", systemImage: Symbol.follow) }
+            Button { ask(.artist(deezerId: item.deezerId)) } label: { Label(MusicWords.follow, systemImage: Symbol.follow) }
                 .disabled(asking || paused)
         }
         if item.isAlbum, let artist = item.artistPage {
@@ -234,17 +234,16 @@ struct MusicAlbumRequestButton: View {
                     guard sending != .sending, !paused else { return }
                     if requested { confirming = true } else { request() }
                 } label: {
-                    Label(requested ? "Requested" : "Request album", systemImage: requested ? Symbol.requested : Symbol.request)
+                    Label(requested ? MusicWords.requested : MusicWords.requestAlbum, systemImage: requested ? Symbol.requested : Symbol.request)
                 }
                 .buttonStyle(ActionButtonStyle(iconOnly: true, selected: requested))
                 .opacity(paused ? 0.5 : 1)
-                .accessibilityLabel(requested ? "Requested" : "Request album")
+                .accessibilityLabel(requested ? MusicWords.requested : MusicWords.requestAlbum)
+                .accessibilityHint(requested ? MusicWords.unrequestHint : "")
                 .modifier(ActionFocus(binding: focus, button: .request))
                 .takesFocusFromLink(takesLinkFocus)
-                .confirmationDialog(MusicWords.unrequest(album.title), isPresented: $confirming, titleVisibility: .visible) {
-                    Button("Unrequest", role: .destructive) { unrequest() }
-                    Button("Keep it", role: .cancel) {}
-                }
+                .undoConfirmation(MusicWords.unrequest(album.title), isPresented: $confirming, keep: MusicWords.keepIt,
+                                  undo: MusicWords.unrequestHint) { unrequest() }
                 RequestFailure(message: sending.failure)
             }
         }
@@ -300,27 +299,24 @@ struct FollowArtistButton: View {
                 guard enabled, !paused, sending != .sending else { return }
                 if following { confirming = true } else { follow() }
             } label: {
-                Label(following ? "Following" : "Follow", systemImage: following ? Symbol.following : Symbol.follow)
+                Label(following ? MusicWords.following : MusicWords.follow, systemImage: following ? Symbol.following : Symbol.follow)
             }
             .buttonStyle(ActionButtonStyle(ambient: ambient, iconOnly: true, selected: following))
             .opacity(!enabled || paused ? 0.5 : 1)
-            .accessibilityLabel(following ? "Following" : "Follow")
+            .accessibilityLabel(following ? MusicWords.following : MusicWords.follow)
+            .accessibilityHint(following ? MusicWords.stopFollowingHint : "")
             .modifier(ActionFocus(binding: focus, button: .follow))
             .takesFocusFromLink(takesLinkFocus)
-            .confirmationDialog(MusicWords.stopFollowing(name), isPresented: $confirming, titleVisibility: .visible) {
-                Button("Stop following", role: .destructive) { unfollow() }
-                Button("Keep following", role: .cancel) {}
-            }
+            .undoConfirmation(MusicWords.stopFollowing(name), isPresented: $confirming, keep: MusicWords.keepFollowing,
+                              undo: MusicWords.stopFollowingHint) { unfollow() }
             RequestFailure(message: sending.failure)
         }
     }
 
     private func follow() {
-        let target: MusicRequestTarget
-        if let libraryId { target = .libraryArtist(libraryId) } else if let deezerId { target = .artist(deezerId: deezerId) } else { return }
         sending = .sending
         Task {
-            if let failure = await model.sendMusicRequest(target) { sending = .failed(failure) } else { sending = .idle }
+            if let failure = await model.followArtist(libraryId: libraryId, deezerId: deezerId) { sending = .failed(failure) } else { sending = .idle }
         }
     }
 
@@ -333,6 +329,20 @@ struct FollowArtistButton: View {
                 sending = .idle
                 unfollowed()
             }
+        }
+    }
+}
+
+extension View {
+    /// Asks before taking music back (Stop following, Unrequest), Keep being the safe answer. Keep has the cancel role:
+    /// tvOS sets the cancel button first and focuses it (checked on tvOS 27, both as a confirmation dialog and an
+    /// alert), so pressing straight through keeps things as they were, and so does Menu. Without a cancel button the
+    /// system adds a Cancel of its own as well.
+    func undoConfirmation(_ title: String, isPresented: Binding<Bool>, keep: String, undo: String,
+                          action: @escaping () -> Void) -> some View {
+        confirmationDialog(title, isPresented: isPresented, titleVisibility: .visible) {
+            Button(keep, role: .cancel) {}
+            Button(undo, role: .destructive, action: action)
         }
     }
 }

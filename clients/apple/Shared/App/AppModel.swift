@@ -465,6 +465,7 @@ final class AppModel {
         watchlistItems = []
         musicAsked = []
         musicUndone = []
+        musicStatusCache = nil
         onWatchlistForgotten?()
     }
 
@@ -1106,6 +1107,10 @@ final class AppModel {
     /// Music taken back here (unfollowed, or the request cancelled), under the same keys as `musicAsked`, so pages and
     /// cards say Follow or Request album at once, before the server's next answer says so.
     var musicUndone: Set<String> = []
+
+    /// The last answer to whether music requests are on, and when: music pages reuse it for a minute rather than each
+    /// asking before their own call (see `musicRequestStatus()`).
+    @ObservationIgnored var musicStatusCache: (status: MusicRequestStatus, at: Date)?
 
     /// Called when the watchlist is forgotten (signing out, another profile), so the widget empties at once.
     var onWatchlistForgotten: (() -> Void)?

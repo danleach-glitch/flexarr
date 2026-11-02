@@ -46,6 +46,43 @@ extension AppModel {
         }
     }
 
+    /// Follows an artist by the library artist's id when there is one, else Deezer's, marking both keys (as unfollowing
+    /// does) so the library page and the outside page agree: nil when it went through, else why not.
+    func followArtist(libraryId: String?, deezerId: Int?) async -> String? {
+        let target: MusicRequestTarget
+        if let libraryId {
+            target = .libraryArtist(libraryId)
+        } else if let deezerId, deezerId != 0 {
+            target = .artist(deezerId: deezerId)
+        } else {
+            return nil
+        }
+        if let failure = await sendMusicRequest(target) { return failure }
+        for key in Self.artistKeys(libraryId: libraryId, deezerId: deezerId) {
+            musicAsked.insert(key)
+            musicUndone.remove(key)
+        }
+        return nil
+    }
+
+    /// The `musicAsked` keys an artist is kept under: by the library artist's id, and Deezer's.
+    private static func artistKeys(libraryId: String?, deezerId: Int?) -> [String] {
+        var keys: [String] = []
+        if let libraryId { keys.append(MusicRequestTarget.libraryArtist(libraryId).askedKey) }
+        if let deezerId, deezerId != 0 { keys.append(MusicRequestTarget.artist(deezerId: deezerId).askedKey) }
+        return keys
+    }
+
+    /// Why taking music back didn't go through. A server from before unfollowing and unrequesting (0.59) answers 404 (or
+    /// the web app's page): it can't undo, so say to update it. Anything else (a family guest's 403, Lidarr's refusal)
+    /// says the server's own words.
+    private static func undoFailure(_ error: Error) -> String {
+        switch error as? FlexarrClientError {
+        case .http(status: 404, _), .http(status: 405, _), .unexpectedResponse: MusicWords.updateServerToUndo
+        default: ConnectionError(error).message
+        }
+    }
+
     func albumState(_ album: MusicExternal) -> MusicAlbumState {
         if let id = album.libraryItemId, album.availability == .available || album.availability == .partlyAvailable {
             return .inLibrary(id)
@@ -70,9 +107,13 @@ extension AppModel {
     }
 
     /// Whether music requests are on here, for an artist's or album's page: off when there's no client or no answer.
+    /// An answer is kept for a minute, so moving between music pages doesn't ask again each time.
     func musicRequestStatus() async -> MusicRequestStatus {
         guard let client, !isKids else { return .off }
-        return (try? await client.musicRequestStatus()) ?? .off
+        if let cached = musicStatusCache, cached.at.timeIntervalSinceNow > -60 { return cached.status }
+        guard let status = try? await client.musicRequestStatus() else { return .off }
+        musicStatusCache = (status, Date())
+        return status
     }
 
     /// Stops following an artist for the household, by whichever ids the page has (both are marked, so the library
@@ -81,16 +122,13 @@ extension AppModel {
         guard let client else { return ConnectionError(FlexarrClientError.unreachable).message }
         do {
             try await client.unfollowArtist(libraryArtistId: libraryId, deezerId: libraryId == nil ? deezerId : nil)
-            var keys: [String] = []
-            if let libraryId { keys.append(MusicRequestTarget.libraryArtist(libraryId).askedKey) }
-            if let deezerId, deezerId != 0 { keys.append(MusicRequestTarget.artist(deezerId: deezerId).askedKey) }
-            for key in keys {
+            for key in Self.artistKeys(libraryId: libraryId, deezerId: deezerId) {
                 musicAsked.remove(key)
                 musicUndone.insert(key)
             }
             return nil
         } catch {
-            return ConnectionError(error).message
+            return Self.undoFailure(error)
         }
     }
 
@@ -103,7 +141,7 @@ extension AppModel {
             musicUndone.insert(album.id)
             return nil
         } catch {
-            return ConnectionError(error).message
+            return Self.undoFailure(error)
         }
     }
 }
@@ -116,6 +154,20 @@ extension EnvironmentValues {
 /// The one line said when Lidarr isn't answering.
 enum MusicWords {
     static let lidarrNotAnswering = "Lidarr isn\u{2019}t answering."
+    /// Said when a server from before unfollowing and unrequesting is asked to.
+    static let updateServerToUndo = "Update the server to undo this."
+
+    /// The buttons' names: one word to follow, everywhere (buttons, menus, VoiceOver).
+    static let follow = "Follow"
+    static let following = "Following"
+    static let requestAlbum = "Request album"
+    static let requested = "Requested"
+    /// What pressing Following or Requested does, for VoiceOver.
+    static let stopFollowingHint = "Stop following"
+    static let unrequestHint = "Unrequest"
+    /// The safe answers to the questions below.
+    static let keepFollowing = "Keep following"
+    static let keepIt = "Keep it"
 
     /// The questions asked before taking music back, the web's words.
     static func stopFollowing(_ artist: String) -> String { "Stop following \(artist)?" }

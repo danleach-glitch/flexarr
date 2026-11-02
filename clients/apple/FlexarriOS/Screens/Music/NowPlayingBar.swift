@@ -58,7 +58,7 @@ struct NowPlayingBar: View {
                     Button { music.togglePlayPause() } label: {
                         Label(music.isPlaying ? "Pause" : "Play", systemImage: music.isPlaying ? "pause.fill" : "play.fill")
                     }
-                    .buttonStyle(RoundActionStyle())
+                    .buttonStyle(RoundActionStyle(scales: false))
                     .frame(width: 48, height: 48)
                 }
                 if music.isPodcast || music.isBook {
@@ -66,13 +66,13 @@ struct NowPlayingBar: View {
                     Button { music.skip(by: music.skipForward) } label: {
                         Label("Forward \(step) seconds", systemImage: "goforward.\(step)")
                     }
-                    .buttonStyle(RoundActionStyle())
+                    .buttonStyle(RoundActionStyle(scales: false))
                     .frame(width: 48, height: 48)
                 } else {
                     Button { music.next() } label: {
                         Label("Next", systemImage: "forward.fill")
                     }
-                    .buttonStyle(RoundActionStyle())
+                    .buttonStyle(RoundActionStyle(scales: false))
                     .frame(width: 48, height: 48)
                     .disabled(!music.hasNext)
                     .opacity(music.hasNext ? 1 : 0.4)

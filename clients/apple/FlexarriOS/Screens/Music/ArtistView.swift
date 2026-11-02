@@ -118,14 +118,14 @@ struct ArtistView: View {
                         .lineLimit(1)
                 }
             }
-            HStack(spacing: 12) {
+            // Play spelled out, the rest round; on two lines when they don't fit across.
+            ActionRowLayout {
                 ForEach(actions.buttons, id: \.self) { button in
                     actionButton(button, item: item)
                 }
                 if page.isQueueing { ProgressView() }
             }
-            // Centred in a stack that fills the width, the buttons were handed less than they need and wrapped.
-            .fixedSize()
+            .padding(.horizontal, Layout.edge)
             if paused, actions.has(.follow) {
                 Text(MusicWords.lidarrNotAnswering)
                     .font(.footnote)
@@ -172,9 +172,14 @@ struct ArtistView: View {
         case .follow:
             if let extras {
                 FollowArtistButton(name: item.title, following: model.isFollowing(libraryArtist: page.id, followed: extras.followed),
-                                   libraryId: page.id, deezerId: extras.deezerId, ambient: ambient) {
-                    // A placeholder (followed, no albums yet) leaves the library when unfollowed: so does its page.
-                    if page.albums.isEmpty, page.detail != nil { dismiss() }
+                                   libraryId: page.id, deezerId: extras.deezerId, ambient: ambient,
+                                   labelled: actions.buttons == [.follow]) {
+                    // A placeholder (followed, no albums yet) leaves the library when unfollowed: so does its page, and
+                    // the library's lists load again without it.
+                    if page.albums.isEmpty, page.detail != nil {
+                        dismiss()
+                        model.invalidate()
+                    }
                 }
             }
         case .download, .request, .more:
@@ -189,15 +194,18 @@ struct ArtistView: View {
         await outside
     }
 
-    /// Off (kids, no Lidarr, an older server) leaves the page as it was, without Follow.
+    /// Off (kids, no Lidarr, an older server) leaves the page as it was, without Follow. The status and the extras are
+    /// asked for together; the extras count only once the status says requests are on.
     private func loadExtras(_ client: FlexarrClient) async {
         guard !model.isKids else { return }
-        let found = await model.musicRequestStatus()
+        async let asked = model.musicRequestStatus()
+        async let outside = try? client.musicArtistExtras(libraryItemId: page.id)
+        let found = await asked
         status = found
         guard found.configured else {
             extras = nil
             return
         }
-        if let more = try? await client.musicArtistExtras(libraryItemId: page.id) { extras = more }
+        if let more = await outside { extras = more }
     }
 }

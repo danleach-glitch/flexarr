@@ -287,14 +287,14 @@ extension FlexarrClient {
 
     /// Stops following an artist, for the whole household (Lidarr is shared): Lidarr stops looking for their new
     /// releases, and a placeholder artist with no albums leaves the library. By the library artist's id, Deezer's or
-    /// MusicBrainz's. A 502 carries Lidarr's refusal in its detail. Absent from servers before music-polish (404).
+    /// MusicBrainz's. A 502 carries Lidarr's refusal in its detail. Absent from servers before 0.59 (404).
     public func unfollowArtist(libraryArtistId: String? = nil, deezerId: Int? = nil, musicBrainzId: String? = nil) async throws {
         let body = MusicUndoBody(artistId: libraryArtistId, deezerId: deezerId, musicBrainzId: musicBrainzId)
         _ = try await send("POST", "requests/music/unfollow", body: body)
     }
 
     /// Cancels an album asked for, for the whole household: Lidarr stops wanting it and drops its download. By its
-    /// MusicBrainz release group or Deezer's id. Absent from servers before music-polish (404).
+    /// MusicBrainz release group or Deezer's id. Absent from servers before 0.59 (404).
     public func unrequestAlbum(musicBrainzId: String? = nil, deezerId: Int? = nil) async throws {
         _ = try await send("POST", "requests/music/unrequest", body: MusicUndoBody(deezerId: deezerId, musicBrainzId: musicBrainzId))
     }

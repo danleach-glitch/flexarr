@@ -126,7 +126,7 @@ struct ArtistView: View {
                         }
                     }
                     .focusSection()
-                    FocusedActionName(name: focusedName ?? (paused && actions.has(.follow) ? MusicWords.lidarrNotAnswering : nil))
+                    FocusedActionName(name: focusedName)
                 }
                 .padding(.top, 8)
             }
@@ -147,13 +147,17 @@ struct ArtistView: View {
 
     private var following: Bool { model.isFollowing(libraryArtist: page.id, followed: extras?.followed ?? false) }
 
+    /// The focused round button's name; while Lidarr isn't answering, why Follow is dimmed instead (it says so with
+    /// Follow focused too, as pressing it does nothing).
     private var focusedName: String? {
         switch focusedAction {
-        case .shuffle: "Shuffle"
-        case .radio: "Radio"
-        case .follow: following ? "Following" : "Follow"
-        default: nil
+        case .shuffle: return "Shuffle"
+        case .radio: return "Radio"
+        default: break
         }
+        if paused && actions.has(.follow) { return MusicWords.lidarrNotAnswering }
+        if focusedAction == .follow { return following ? MusicWords.following : MusicWords.follow }
+        return nil
     }
 
     @ViewBuilder
@@ -184,8 +188,12 @@ struct ArtistView: View {
             // Always there with music requests on; the page's first button for a placeholder (nothing to play yet).
             FollowArtistButton(name: item.title, following: following, libraryId: page.id, deezerId: extras?.deezerId,
                                ambient: ambient, takesLinkFocus: !actions.has(.play), focus: $focusedAction) {
-                // A placeholder leaves the library when unfollowed: so does its page.
-                if page.albums.isEmpty, page.detail != nil { dismiss() }
+                // A placeholder leaves the library when unfollowed: so does its page, and the library's lists load again
+                // without it.
+                if page.albums.isEmpty, page.detail != nil {
+                    dismiss()
+                    model.invalidate()
+                }
             }
         case .download, .request, .more:
             EmptyView()
@@ -199,15 +207,18 @@ struct ArtistView: View {
         await outside
     }
 
-    /// Off (kids, no Lidarr, an older server) leaves the page as it was, without Follow.
+    /// Off (kids, no Lidarr, an older server) leaves the page as it was, without Follow. The status and the extras are
+    /// asked for together; the extras count only once the status says requests are on.
     private func loadExtras(_ client: FlexarrClient) async {
         guard !model.isKids else { return }
-        let found = await model.musicRequestStatus()
+        async let asked = model.musicRequestStatus()
+        async let outside = try? client.musicArtistExtras(libraryItemId: page.id)
+        let found = await asked
         status = found
         guard found.configured else {
             extras = nil
             return
         }
-        if let more = try? await client.musicArtistExtras(libraryItemId: page.id) { extras = more }
+        if let more = await outside { extras = more }
     }
 }

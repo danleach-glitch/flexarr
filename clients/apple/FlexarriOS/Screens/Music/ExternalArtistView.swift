@@ -1,7 +1,7 @@
 import FlexarrKit
 import SwiftUI
 
-/// An artist from outside the library: their photo and name, Follow artist, their albums (each to request), and the
+/// An artist from outside the library: their photo and name, Follow, their albums (each to request), and the
 /// artists fans also like.
 struct ExternalArtistView: View {
     @Environment(AppModel.self) private var model
@@ -67,8 +67,9 @@ struct ExternalArtistView: View {
                 .lineLimit(2)
                 .minimumScaleFactor(0.7)
             if let detail {
-                // Nothing to play here (`MusicActions`): In your library opens the artist's own page, then Follow.
-                HStack(spacing: 12) {
+                // Nothing to play here (`MusicActions`): In your library opens the artist's own page, then Follow, spelled
+                // out when it's alone.
+                ActionRowLayout {
                     if let id = detail.libraryItemId {
                         Button { router.push(.musicItem(id: id, isArtist: true)) } label: {
                             Label("In your library", systemImage: Symbol.play)
@@ -77,10 +78,10 @@ struct ExternalArtistView: View {
                     }
                     if MusicActions(kind: .artist, platform: .phone, hasMusic: false, canAsk: status?.configured == true).has(.follow) {
                         FollowArtistButton(name: detail.name, following: model.isFollowing(preview, followed: detail.followed),
-                                           libraryId: detail.libraryItemId, deezerId: detail.deezerId)
+                                           libraryId: detail.libraryItemId, deezerId: detail.deezerId,
+                                           labelled: detail.libraryItemId == nil)
                     }
                 }
-                .fixedSize()
                 if paused {
                     Text(MusicWords.lidarrNotAnswering)
                         .font(.footnote)

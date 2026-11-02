@@ -69,8 +69,8 @@ struct ExternalAlbumView: View {
                     .buttonStyle(ActionButtonStyle(prominent: true))
                     .fixedSize()
                 } else if MusicActions(kind: .album, platform: .phone, hasMusic: false, canAsk: status?.configured == true).has(.request) {
-                    // Nothing to play here (`MusicActions`): Request album, or Requested.
-                    MusicAlbumRequestButton(album: album)
+                    // Nothing to play here (`MusicActions`): Request album, or Requested, spelled out as the only button.
+                    MusicAlbumRequestButton(album: album, labelled: true)
                     if paused {
                         Text(MusicWords.lidarrNotAnswering)
                             .font(.footnote)

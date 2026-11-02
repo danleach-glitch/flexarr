@@ -1,7 +1,7 @@
 import FlexarrKit
 import SwiftUI
 
-/// An artist from outside the library: their photo and name, Follow artist, their albums (each to request), and the
+/// An artist from outside the library: their photo and name, Follow, their albums (each to request), and the
 /// artists fans also like.
 struct ExternalArtistView: View {
     @Environment(AppModel.self) private var model
@@ -86,7 +86,7 @@ struct ExternalArtistView: View {
                         }
                     }
                     .focusSection()
-                    FocusedActionName(name: focusedAction == .follow ? (following ? "Following" : "Follow") : (paused ? MusicWords.lidarrNotAnswering : nil))
+                    FocusedActionName(name: focusedName)
                 }
                 .padding(.top, 8)
             }
@@ -95,6 +95,13 @@ struct ExternalArtistView: View {
     }
 
     private var paused: Bool { pausedAbove || (status?.configured == true && status?.reachable == false) }
+
+    /// Follow's name while it's focused; while Lidarr isn't answering, why it's dimmed instead, focused or not.
+    private var focusedName: String? {
+        if paused { return MusicWords.lidarrNotAnswering }
+        guard focusedAction == .follow else { return nil }
+        return following ? MusicWords.following : MusicWords.follow
+    }
 
     private var following: Bool { model.isFollowing(preview, followed: detail?.followed ?? false) }
 

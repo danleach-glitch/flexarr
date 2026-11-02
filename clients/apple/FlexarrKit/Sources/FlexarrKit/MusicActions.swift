@@ -3,7 +3,8 @@ import Foundation
 /// The buttons on a music artist's or album's page, in the order every client shares (docs/music-requests.md): Play,
 /// Shuffle, Radio, Download, Follow or Request album, then ⋯ for the rest. Only those that apply to the page: an
 /// outside page (or a followed artist with no albums yet) has nothing to play. Android's `core` has the same rules and
-/// the web's music pages the same order; change them together. The web labels each button; the apps show icons.
+/// the web's music pages the same order; change them together. The web labels each button; the apps spell out Play
+/// and show the rest as round icons, spelling out Follow or Request album when it's the page's only button (iPhone).
 public struct MusicActions: Equatable, Sendable {
     public enum Kind: Sendable { case artist, album }
     public enum Platform: Sendable { case phone, tv }

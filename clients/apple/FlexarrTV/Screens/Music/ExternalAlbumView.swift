@@ -85,16 +85,16 @@ struct ExternalAlbumView: View {
 
     private var paused: Bool { pausedAbove || (status?.configured == true && status?.reachable == false) }
 
-    /// The round button's name while it's focused; else why it's dimmed.
+    /// The round button's name while it's focused; while Lidarr isn't answering, why it's dimmed instead, focused or
+    /// not (pressing it does nothing then).
     private var focusedName: String? {
         let state = model.albumState(album)
         if case .inLibrary = state { return nil }
         if case .none = state { return nil }
-        if focusedAction == .request {
-            if case .requested = state { return "Requested" }
-            return "Request album"
-        }
-        return paused ? MusicWords.lidarrNotAnswering : nil
+        if paused { return MusicWords.lidarrNotAnswering }
+        guard focusedAction == .request else { return nil }
+        if case .requested = state { return MusicWords.requested }
+        return MusicWords.requestAlbum
     }
 
     /// "2001   14 tracks   1h 1m".

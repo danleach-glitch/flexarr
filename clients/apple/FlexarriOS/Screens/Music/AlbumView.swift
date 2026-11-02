@@ -70,8 +70,9 @@ struct AlbumView: View {
                 }
                 FactsLine(facts: facts(item))
             }
-            // In `MusicActions` order: Play, Shuffle, Download. A library album has nothing to request.
-            HStack(spacing: 12) {
+            // In `MusicActions` order: Play spelled out, then round Shuffle and Download (on two lines when they don't fit
+            // across). A library album has nothing to request.
+            ActionRowLayout {
                 ForEach(MusicActions(kind: .album, platform: .phone, hasMusic: true, canDownload: true, canAsk: false).buttons,
                         id: \.self) { button in
                     switch button {
@@ -84,8 +85,9 @@ struct AlbumView: View {
                         Button { model.playTracks(tracks, shuffled: true, albums: [item], showingNowPlaying: router) } label: {
                             Label("Shuffle", systemImage: Symbol.shuffle)
                         }
-                        .buttonStyle(ActionButtonStyle(ambient: ambient))
+                        .buttonStyle(RoundActionStyle())
                         .disabled(tracks.count < 2)
+                        .accessibilityLabel("Shuffle")
                     case .download:
                         MusicDownloadButton(source: .album(item, tracks: tracks))
                     case .radio, .follow, .request, .more:
