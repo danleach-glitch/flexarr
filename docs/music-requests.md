@@ -62,14 +62,16 @@ Older apps read `tmdbId` as required and treat anything that isn't a show as a f
 | `GET /requests/music/search?q=` | `{artists, albums}` |
 | `GET /requests/music/artist/{deezerId}` | `MusicArtistDetailDto`: photo, albums with availability, similar, followed, library id |
 | `GET /requests/music/album/{deezerId}` | `MusicAlbumDetailDto`: cover, year, tracks, availability, library id |
-| `POST /requests/music` | `{kind: "album" \| "artist", deezerId}` → 202; 403 hidden music; 409 off or unmatched; 502 Lidarr down |
-| `GET /items/{artistId}/music-extras` | For a library artist: `missing` albums (from Lidarr) and `similar` (Deezer), `followed` |
+| `POST /requests/music` | `{kind: "album" \| "artist", deezerId \| musicBrainzId \| artistId}` → 202; 403 hidden music; 409 off or unmatched; 502 Lidarr or Deezer down |
+| `GET /requests/music/library-artist/{itemId}` | For a library artist: `missing` albums (Lidarr's list, else Deezer's), `similar` (Deezer), `followed`, `deezerId` |
+| `GET /requests/music/destinations` | The music libraries requests can go to, for *New music goes to* |
 | `PUT /profiles/{id}/request-music-library` | `{libraryId}`; the profile itself or the admin |
 
 `MusicExternalDto` is `{kind: "artist" | "album", deezerId, title, artist, year, image, availability, libraryItemId}`.
 `availability` reuses `AvailabilityDto` (None, Requested, PartlyAvailable, Available). The profile DTO gains
-`requestMusicLibraryId`, and `/requests/destinations` lists music libraries with `mediaType: "music"`, which older
-apps ignore since they only look for `movie` and `tv`.
+`requestMusicLibraryId`. Music destinations have their own endpoint rather than joining `/requests/destinations`,
+whose readers only expect `movie` and `tv`. Everything under `/requests/music` answers 409 when no Lidarr is connected
+or the switch is off, and 403 to a profile that sees no music library.
 
 ## Data
 

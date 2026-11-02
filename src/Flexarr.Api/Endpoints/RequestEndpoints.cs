@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using Flexarr.Api.Configuration;
+using Flexarr.Api.Endpoints.MusicRequests;
 using Flexarr.Api.Profiles;
 using Flexarr.Core.Data;
 using Flexarr.Core.Media;
@@ -103,6 +104,7 @@ public static class RequestEndpoints
     {
         // Profiles with an age limit don't request: Seerr's titles have no ages Flexarr can check.
         var group = api.MapGroup("/requests").WithTags("Requests").NotForAgeLimited();
+        api.MapMusicRequestEndpoints(group);
 
         // Whether requests are set up, so clients can hide the feature otherwise. To a profile with an age limit, they aren't.
         api.MapGet("/requests/status", async (IOptionsMonitor<FlexarrOptions> options, SeerrClient seerr, FlexarrDbContext db, CancellationToken ct) =>
