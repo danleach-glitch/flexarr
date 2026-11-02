@@ -119,9 +119,13 @@ There are two kinds of music request:
 
 An artist's page in your library ends with **Not in your library**: the albums of theirs you don't have, each with **Request album**. Below that, **Fans also like** suggests artists like them.
 
-When an album you asked for arrives, you get a **Your request is ready** notification. When an artist you follow puts out an album, you get **New from** the artist.
+When an album you asked for arrives, you get a **Your request is ready** notification. Each time an artist you follow puts out a new album, you get **New from** the artist.
 
-The same profiles can request music as can request movies and shows. Kids profiles, profiles with an age limit and profiles that can't see a music library can't. With two or more music libraries Lidarr adds to, **New music goes to** in the profile's settings picks which one gets the profile's requests.
+An album someone in the household asked for shows **Requested** to everyone for two weeks. If it still hasn't arrived by then (Lidarr couldn't find a copy), it can be asked for again, which has Lidarr search again. Each profile can ask for up to 30 albums and follows a day.
+
+The same profiles can request music as can request movies and shows. Kids profiles, profiles with an age limit and profiles that can't see a music library can't. Requests only go to music libraries the profile can see. With two or more of them that Lidarr adds to, **New music goes to** in the profile's settings picks which one gets the profile's requests.
+
+If Lidarr isn't reachable, Discover › Music says **Lidarr isn't answering** and the request buttons are off until it's back.
 
 ## If requests don't work
 
