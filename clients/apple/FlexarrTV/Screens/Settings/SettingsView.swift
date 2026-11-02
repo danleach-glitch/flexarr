@@ -34,7 +34,7 @@ struct SettingsView: View {
                 PlaybackSettingsView()
             }
             .padding(.top, model.currentProfile == nil ? 0 : 36)
-            SettingsLinkRow(title: "Libraries", symbol: "rectangle.stack", value: libraryOpensOn == .browse ? "Open on Browse" : "Open on All titles",
+            SettingsLinkRow(title: "Libraries", symbol: "rectangle.stack", value: "Open on \(libraryOpensOn.label)",
                             help: "Whether a library opens on its highlights (Browse) or on every title, A to Z.") {
                 LibrarySettingsView()
             }
