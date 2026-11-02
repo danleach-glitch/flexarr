@@ -224,6 +224,95 @@ public sealed class MusicMetadataRefreshTests : IAsyncLifetime
         Assert.Equal("Dire straits", (await _db.MediaItems.SingleAsync(i => i.Kind == MediaKind.Artist)).Title);
     }
 
+    [Fact]
+    public async Task AnAlbumMatchedByHand_IsTheLidarrAlbumChosen_WhateverItsFolderSays()
+    {
+        // Lidarr has Making Movies' folder, but it was fixed to be the debut; Alchemy, which Lidarr lacks, to On Every Street.
+        var makingMovies = await _db.MediaItems.SingleAsync(i => i.Path == MakingMoviesFolder);
+        var alchemy = await _db.MediaItems.SingleAsync(i => i.Title == "Alchemy");
+        foreach (var (album, id) in new[] { (makingMovies, 5), (alchemy, 1) })
+        {
+            (album.MatchLocked, album.ArrId, album.MetadataSource) = (true, id, "Lidarr");
+        }
+
+        await _db.SaveChangesAsync();
+        _lidarr.Responses["/api/v1/album/1"] = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(Path.Combine("Fixtures", "lidarr-album.json")))![0]!.ToJsonString();
+
+        await Refresher().RefreshLibraryAsync(_library, force: true, default);
+
+        _db.ChangeTracker.Clear();
+        var titles = await _db.MediaItems.Where(i => i.Id == makingMovies.Id || i.Id == alchemy.Id).ToDictionaryAsync(i => i.Id);
+        Assert.Equal(("Dire Straits", 5, "Making movies"), (titles[makingMovies.Id].Title, titles[makingMovies.Id].ArrId, titles[makingMovies.Id].OriginalTitle));
+        Assert.Equal(("On Every Street", 1, "Alchemy", "Lidarr"), (titles[alchemy.Id].Title, titles[alchemy.Id].ArrId, titles[alchemy.Id].OriginalTitle, titles[alchemy.Id].MetadataSource));
+    }
+
+    [Fact]
+    public async Task AnAlbumMatchedOnDeezer_KeepsWhatItWasGiven_WithOrWithoutLidarr()
+    {
+        var alchemy = await _db.MediaItems.SingleAsync(i => i.Title == "Alchemy");
+        await Refresher().ApplyChosenAlbumAsync(alchemy, new DeezerAlbum(302127, "Alchemy (Live)", CoverXl: "https://cdn-images.dzcdn.net/images/cover/abc/1000x1000-000000-80-0-0.jpg",
+            ReleaseDate: "1984-03-16", RecordType: "album", Genres: new DeezerList<DeezerGenre>([new DeezerGenre(152, "Rock")])), default);
+        alchemy.MatchLocked = true;
+        await _db.SaveChangesAsync();
+
+        foreach (var lidarr in new[] { true, false })
+        {
+            await Refresher(lidarr).RefreshLibraryAsync(_library, force: true, default);
+            _db.ChangeTracker.Clear();
+            var album = await _db.MediaItems.Include(i => i.Genres).SingleAsync(i => i.Id == alchemy.Id);
+            Assert.Equal(("Alchemy (Live)", "Alchemy", 1984, AlbumKind.Album, "302127", MetadataRefresher.Deezer),
+                (album.Title, album.OriginalTitle, album.Year, album.AlbumType, album.DeezerId, album.MetadataSource));
+            Assert.Equal("https://cdn-images.dzcdn.net/images/cover/abc/1000x1000-000000-80-0-0.jpg", album.PosterUrl);
+            Assert.Equal(["Rock"], album.Genres.Select(g => g.Name));
+        }
+    }
+
+    [Fact]
+    public async Task AnAlbumEditedByHand_KeepsItsDetailsAndChosenCover_AndStillGetsTheRest()
+    {
+        var makingMovies = await _db.MediaItems.SingleAsync(i => i.Path == MakingMoviesFolder);
+        (makingMovies.Title, makingMovies.OriginalTitle, makingMovies.Year, makingMovies.DetailsLocked) = ("Making Movies (Remastered)", "Making movies", 1996, true);
+        (makingMovies.PosterUrl, makingMovies.ArtworkLocked) = ($"file://{MakingMoviesFolder}/front.jpg", true);
+        await _db.SaveChangesAsync();
+
+        await Refresher().RefreshLibraryAsync(_library, force: true, default);
+
+        _db.ChangeTracker.Clear();
+        var album = await _db.MediaItems.SingleAsync(i => i.Id == makingMovies.Id);
+        Assert.Equal(("Making Movies (Remastered)", "Making movies", 1996), (album.Title, album.OriginalTitle, album.Year));
+        Assert.Equal($"file://{MakingMoviesFolder}/front.jpg", album.PosterUrl);
+        Assert.Equal(("5b0a15ce-8aa9-323b-8fb6-02b657756ba9", 3, 38), (album.MusicBrainzId, album.ArrId, album.RuntimeMinutes));
+    }
+
+    [Fact]
+    public async Task AnArtistMatchedOnDeezer_IsntPairedWithLidarrsArtist()
+    {
+        (_artist.MatchLocked, _artist.DeezerId, _artist.MetadataSource) = (true, "176", MetadataRefresher.Deezer);
+        await _db.SaveChangesAsync();
+
+        await Refresher().RefreshLibraryAsync(_library, force: true, default);
+
+        _db.ChangeTracker.Clear();
+        var artist = await _db.MediaItems.SingleAsync(i => i.Kind == MediaKind.Artist);
+        Assert.Equal(("Dire straits", null, MetadataRefresher.Deezer), (artist.Title, artist.ArrId, artist.MetadataSource));
+        Assert.Equal("Making movies", (await _db.MediaItems.SingleAsync(i => i.Path == MakingMoviesFolder)).Title);
+    }
+
+    [Fact]
+    public void MatchAutomaticallyAgain_HandsAnAlbumBackToItsTags()
+    {
+        var album = new MediaItem
+        {
+            Kind = MediaKind.Album, Title = "Alchemy (Live)", SortTitle = "alchemy live", OriginalTitle = "Alchemy", MatchLocked = true, ArtworkLocked = true,
+            DeezerId = "302127", MetadataSource = MetadataRefresher.Deezer, PosterUrl = "https://cdn-images.dzcdn.net/images/cover/abc/1000x1000.jpg",
+        };
+
+        MetadataRefresher.ForgetMusicMatch(album, "file:///music/Alchemy/cover.jpg");
+
+        Assert.Equal(("Alchemy", null, false, false, null, MetadataRefresher.Tags, "file:///music/Alchemy/cover.jpg"),
+            (album.Title, album.OriginalTitle, album.MatchLocked, album.ArtworkLocked, album.DeezerId, album.MetadataSource, album.PosterUrl));
+    }
+
     private MediaItem Album(string title, int year, string folder, string? poster) => new()
     {
         LibraryId = _library.Id,

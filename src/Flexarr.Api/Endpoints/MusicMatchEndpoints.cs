@@ -234,7 +234,15 @@ public static class MusicMatchEndpoints
                 .OrderByDescending(a => Loose(a.Title) == wanted).ThenByDescending(a => a.Statistics?.TrackFileCount > 0).ThenBy(a => a.Title, StringComparer.OrdinalIgnoreCase).Take(12));
         }
 
-        found.AddRange((await arr.LookupAlbumsAsync(lidarr, term, ct)).Where(a => a.Id > 0 && found.All(f => f.Id != a.Id)));
+        try
+        {
+            found.AddRange((await arr.LookupAlbumsAsync(lidarr, term, ct)).Where(a => a.Id > 0 && found.All(f => f.Id != a.Id)));
+        }
+        catch (HttpRequestException) when (found.Count > 0)
+        {
+            // Its search goes through its metadata server, which can be down when Lidarr itself is fine.
+        }
+
         return found.Take(MaxResults).Select(a =>
         {
             var cover = MetadataRefresher.ArrImage(lidarr, a.Images, "cover", $"mediacover/album/{a.Id}/");
