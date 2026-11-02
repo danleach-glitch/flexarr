@@ -129,7 +129,12 @@ public sealed record BookShelvesDto(
     IReadOnlyList<string>? Languages = null,
     // The front page's shelves in the profile's order, switched-off ones left out: "continue", "next", "recent",
     // "series", "authors", "finished" (Settings › Home & browse). Absent from servers before 0.58: that order, all shown.
-    IReadOnlyList<string>? Order = null);
+    IReadOnlyList<string>? Order = null,
+    // The hero's slides: up to three books this profile is part way through, last listened first, then the two
+    // newest; only books with a cover. Absent from servers before 0.59.
+    IReadOnlyList<ItemSummaryDto>? Featured = null,
+    // The slides' descriptions, by id. Absent from servers before 0.59.
+    IReadOnlyDictionary<Guid, string?>? FeaturedOverviews = null);
 
 /// <summary>A series a search found, with how many of its books this profile can see.</summary>
 public sealed record BookSeriesSearchDto(Guid Id, string Name, int BookCount);

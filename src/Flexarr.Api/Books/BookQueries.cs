@@ -216,9 +216,32 @@ public static class BookQueries
             .Select(g => new GenreCountDto(g.Name, g.Count)).ToListAsync(ct);
 
         var languages = await LanguagesAsync(books, ct);
+        var featured = await HeroAsync(books, continuing, profileId, ct);
+        var overviews = await db.MediaItems.Where(i => featured.Select(f => f.Id).Contains(i.Id))
+            .Select(i => new { i.Id, i.Overview }).ToDictionaryAsync(i => i.Id, i => i.Overview, ct);
 
         return new BookShelvesDto(continuing, next, recent, series.Items, authors.Items, narrators.Items,
-            genres, finished, languages);
+            genres, finished, languages, Featured: featured, FeaturedOverviews: overviews);
+    }
+
+    /// <summary>The most books the hero shows part way through, and how many of the newest follow them.</summary>
+    private const int HeroListening = 3;
+    private const int HeroNewest = 2;
+
+    /// <summary>
+    /// An audiobooks library's hero, as music's leads with the album played last: up to three books this profile is
+    /// part way through (<paramref name="continuing"/>, last listened first), then the newest two it hasn't started.
+    /// Every slide has a cover, which the apps show over a blur of itself (books have no backdrops).
+    /// </summary>
+    private static async Task<List<ItemSummaryDto>> HeroAsync(IQueryable<MediaItem> books, IReadOnlyList<ItemSummaryDto> continuing, string profileId,
+        CancellationToken ct)
+    {
+        var listening = continuing.Where(b => b.Artwork.Poster != null).Take(HeroListening).ToList();
+        var shown = listening.Select(b => b.Id).ToList();
+        var newest = await books.Where(b => b.PosterUrl != null && !shown.Contains(b.Id))
+            .Where(b => !b.PlaybackStates.Any(p => p.UserId == profileId && (p.PositionSeconds > 0 || p.FinishedAt != null)))
+            .OrderByDescending(b => b.AddedAt).ThenBy(b => b.SortTitle).Take(HeroNewest).Summaries(profileId).ToListAsync(ct);
+        return [.. listening, .. newest];
     }
 
     /// <summary>The languages a library's books are in, as their tags write them, A to Z (the Language filter).</summary>

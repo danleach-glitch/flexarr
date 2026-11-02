@@ -36,6 +36,30 @@ public class AudiobookApiTests(FlexarrApiFactory factory) : IClassFixture<Flexar
     }
 
     [Fact]
+    public async Task Shelves_Hero_IsWhatYoureListeningTo_ThenTheNewestUnstarted_WithCovers()
+    {
+        var lib = await SeedAsync();
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var books = await db.MediaItems.Where(i => i.LibraryId == lib.Library).ToListAsync();
+            foreach (var book in books)
+            {
+                // Hail Mary, the newest, has no cover: the next newest unstarted books stand in.
+                book.PosterUrl = book.Title == "Project Hail Mary" ? null : "https://example.com/cover.jpg";
+                book.Overview = $"About {book.Title}";
+            }
+
+            await db.SaveChangesAsync();
+        }
+
+        var shelves = await GetAsync<BookShelvesDto>($"/api/v1/libraries/{lib.Library}/book-shelves");
+
+        Assert.Equal(["The Man Who Died Twice", "Guards! Guards!", "The Bullet That Missed"], shelves.Featured!.Select(b => b.Title));
+        Assert.Equal("About Guards! Guards!", shelves.FeaturedOverviews![lib.Books["Guards! Guards!"]]);
+    }
+
+    [Fact]
     public async Task Browse_OnAnAudiobooksLibrary_IsEmpty_ItsShelvesAreItsBrowse()
     {
         var lib = await SeedAsync();
