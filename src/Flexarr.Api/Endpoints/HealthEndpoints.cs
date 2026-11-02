@@ -200,6 +200,15 @@ public static partial class HealthEndpoints
             return Results.Accepted();
         }).WithTags("Library health").RequireAuthorization(FlexarrClaims.AdminPolicy);
 
+        // Merge, for one artist under two spellings: the others' albums move to the one kept, and the names they were
+        // filed under now mean it, so new tracks land there too. Files are left alone.
+        api.MapPost("/library-health/merge-artists", async (MergeRequest request, FlexarrDbContext db, CancellationToken ct) =>
+            await MergeAsync(db, request, MediaKind.Artist, ct)).WithTags("Library health").RequireAuthorization(FlexarrClaims.AdminPolicy);
+
+        // Merge, for one album twice: the others' tracks move to the one kept, and their folders and names now mean it.
+        api.MapPost("/library-health/merge-albums", async (MergeRequest request, FlexarrDbContext db, CancellationToken ct) =>
+            await MergeAsync(db, request, MediaKind.Album, ct)).WithTags("Library health").RequireAuthorization(FlexarrClaims.AdminPolicy);
+
         // The Health check button: look at every file on disk (in the background), then report what's wrong.
         api.MapPost("/library-health/check", (HealthCheck check) =>
         {
@@ -393,6 +402,75 @@ public static partial class HealthEndpoints
             .OrderBy(s => s.Artists[0].Title).Take(100).ToList();
 
         return new MusicHealth(coverless, coverlessIds.Count, duplicates, repeated, split, [.. coverlessIds, .. groupIds, .. repeatedIds]);
+    }
+
+    private static async Task<IResult> MergeAsync(FlexarrDbContext db, MergeRequest request, MediaKind kind, CancellationToken ct)
+    {
+        var others = request.Merge.Where(m => m != request.Keep).Distinct().ToList();
+        if (others.Count == 0 || others.Count > 20)
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]> { ["merge"] = ["Choose one to keep and up to 20 to merge into it."] });
+        }
+
+        var items = await db.MediaItems.Where(i => (i.Id == request.Keep || others.Contains(i.Id)) && i.Kind == kind).ToListAsync(ct);
+        var keep = items.FirstOrDefault(i => i.Id == request.Keep);
+        if (keep is null || items.Count != others.Count + 1)
+        {
+            return Results.NotFound();
+        }
+
+        if (items.Any(i => i.LibraryId != keep.LibraryId))
+        {
+            return Results.Problem($"Only {(kind == MediaKind.Artist ? "artists" : "albums")} in the same library can be merged.", statusCode: 409);
+        }
+
+        var otherIds = others.ToList();
+        var aliases = new List<string>();
+        foreach (var other in items.Where(i => i.Id != keep.Id))
+        {
+            // Whatever the scanner would have filed tracks under for this one now means the one kept.
+            if (kind == MediaKind.Artist)
+            {
+                aliases.Add(MusicKeys.ArtistKey(other.Title));
+                if (other.OriginalTitle is { } tagged)
+                {
+                    aliases.Add(MusicKeys.ArtistKey(tagged));
+                }
+            }
+            else
+            {
+                if (other.ParentId is { } artistId)
+                {
+                    aliases.Add(MusicKeys.AlbumKey(artistId, other.Title));
+                    if (other.OriginalTitle is { } tagged)
+                    {
+                        aliases.Add(MusicKeys.AlbumKey(artistId, tagged));
+                    }
+                }
+
+                if (other.Path is { } folder && (keep.Path is null || PathComparison.Key(folder) != PathComparison.Key(keep.Path)))
+                {
+                    aliases.Add(MusicKeys.PathKey(folder));
+                }
+            }
+
+            keep.MusicBrainzId ??= other.MusicBrainzId;
+            keep.PosterUrl ??= other.PosterUrl;
+            keep.Year ??= other.Year;
+        }
+
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        // Children move over, and aliases that meant a merged one now mean the one kept.
+        await db.MediaItems.Where(i => i.ParentId != null && otherIds.Contains(i.ParentId.Value)).ExecuteUpdateAsync(u => u.SetProperty(i => i.ParentId, keep.Id), ct);
+        await db.MusicAliases.Where(a => otherIds.Contains(a.ItemId)).ExecuteUpdateAsync(u => u.SetProperty(a => a.ItemId, keep.Id), ct);
+        var existing = await db.MusicAliases.Where(a => a.LibraryId == keep.LibraryId).Select(a => a.Key).ToListAsync(ct);
+        db.MusicAliases.AddRange(aliases.Distinct().Except(existing).Select(key => new MusicAlias { LibraryId = keep.LibraryId, Key = key, ItemId = keep.Id }));
+        db.MediaItems.RemoveRange(items.Where(i => i.Id != keep.Id));
+        keep.Placeholder = false;
+        keep.MetadataUpdatedAt = null; // Refreshed again with everything it now has.
+        await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
+        return Results.NoContent();
     }
 
     private static async Task<List<HeldFolderDto>> HeldAsync(FlexarrDbContext db, CancellationToken ct)
