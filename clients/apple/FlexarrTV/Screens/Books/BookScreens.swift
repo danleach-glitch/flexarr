@@ -56,17 +56,19 @@ struct BookCard: View {
 }
 
 /// An audiobooks library's Browse: Continue listening, Next in series, Recently added, series, authors and finished
-/// books, each a row, in the profile's order (Settings › Home & browse). With no shelf left to show (all switched off,
-/// or only empty ones on), every book in a grid instead. On the library's tab it has the Browse · All books · Genres
-/// switch at the top; opened from elsewhere, the library's name and a row of its genres.
+/// books, each a row, in the profile's order (Settings › Home & browse), under a hero of the books part way through
+/// and the newest (servers from 0.59). With no shelf left to show (all switched off, or only empty ones on), every
+/// book in a grid instead. On the library's tab it has the Browse · All books · Genres · Series · Authors switch at
+/// the top; opened from elsewhere, the library's name and a row of its genres. Recently added, Series, Authors and
+/// Finished end with See all, which opens their books, series or authors on top.
 struct BooksLibraryView: View {
     @Environment(AppModel.self) private var model
     @Environment(Router.self) private var router
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.focusesContent) private var arriving
     let library: Library
-    /// On the library's tab, the Browse, All books and Genres switch.
-    var view: Binding<LibraryOpening>?
+    /// On the library's tab, the Browse, All books, Genres, Series and Authors switch.
+    var view: Binding<BookOpening>?
     @State private var shelves: BookShelves?
     @State private var error: String?
     @State private var loadedAt: Date?
@@ -93,7 +95,7 @@ struct BooksLibraryView: View {
     /// Above the hero, under the sidebar's label: the switch on the library's tab, else the library's name.
     private var heroTop: AnyView {
         if let view {
-            AnyView(LibraryViewSwitch(library: library, view: view))
+            AnyView(BookViewSwitch(view: view))
         } else {
             AnyView(Text(library.name)
                 .font(.marquee(48, weight: .heavy))
@@ -109,7 +111,7 @@ struct BooksLibraryView: View {
                     HomeHero(items: featuredBooks, overviews: shelves?.featuredOverviews ?? [:], index: $featuredIndex, top: heroTop)
                         .padding(.horizontal, -Layout.edge)
                 } else if let view {
-                    LibraryViewSwitch(library: library, view: view)
+                    BookViewSwitch(view: view)
                         .focusSection()
                         .padding(.top, LibraryViewSwitch.topInset)
                         .padding(.bottom, 20)
@@ -174,27 +176,30 @@ struct BooksLibraryView: View {
         // its Play does instead.
         let first = view != nil && featuredBooks.isEmpty && shelf == shelves.shownShelves.first
         switch shelf {
+        // See all where the iPhone has it: the newest and finished books, every series and every author.
         case .continueListening: bookRow("Continue listening", shelves.continueListening, first: first)
         case .nextInSeries: bookRow("Next in series", shelves.nextInSeries, first: first)
-        case .recentlyAdded: bookRow("Recently added", shelves.recentlyAdded, first: first)
+        case .recentlyAdded: bookRow("Recently added", shelves.recentlyAdded, first: first, seeAll: .books(.added, .any))
         case .series:
             if !shelves.series.isEmpty {
                 ShelfRow(title: "Series", ids: shelves.series.map(\.id), column: $column, takesArrivingFocus: first) { focus in
                     ForEach(shelves.series) { series in
                         SeriesCard(series: series, focus: focus) { router.push(.bookSeries(id: series.id, name: series.name)) }
                     }
+                    seeAll(.series)
                 }
             }
         case .authors: peopleRow("Authors", shelves.authors, first: first)
-        case .finished: bookRow("Finished", shelves.finished, first: first)
+        case .finished: bookRow("Finished", shelves.finished, first: first, seeAll: .books(.title, .finished))
         }
     }
 
     @ViewBuilder
-    private func bookRow(_ title: String, _ items: [ItemSummary], first: Bool) -> some View {
+    private func bookRow(_ title: String, _ items: [ItemSummary], first: Bool, seeAll list: BookList? = nil) -> some View {
         if !items.isEmpty {
             ShelfRow(title: title, ids: items.map(\.id), column: $column, takesArrivingFocus: first) { focus in
                 ForEach(items) { book in BookCard(item: book, focus: focus) { router.push(.item(book)) } }
+                if let list { seeAll(list) }
             }
         }
     }
@@ -209,8 +214,14 @@ struct BooksLibraryView: View {
                         router.push(.person(id: person.id, name: person.name))
                     }
                 }
+                seeAll(.authors)
             }
         }
+    }
+
+    /// The end of a shelf: its books, series or authors on top, so Back comes back here.
+    private func seeAll(_ list: BookList) -> some View {
+        SeeAllCard(style: .poster, square: true) { router.push(.bookList(library, list)) }
     }
 
     private var allBooks: some View {
@@ -708,143 +719,6 @@ struct BookSeriesView: View {
             focused = series?.nextId
         } catch {
             self.error = ConnectionError(error).message
-        }
-    }
-}
-
-/// An audiobooks library's books in a grid, with the sorts as pills: All books on the library's tab, under the
-/// Browse · All books · Genres switch, or one genre's books under its name, Back going to the genres.
-struct BookGridView: View {
-    @Environment(AppModel.self) private var model
-    @Environment(Router.self) private var router
-    @Environment(\.focusesContent) private var arriving
-    let library: Library
-    var genre: String?
-    /// On the library's tab, the Browse, All books and Genres switch.
-    var view: Binding<LibraryOpening>?
-    @State private var sort: BookSort = .title
-    @State private var books: [ItemSummary] = []
-    @State private var total = 0
-    @State private var loaded = false
-    @State private var loadedToken: Int?
-    @State private var loadingMore = false
-    @State private var error: String?
-    /// Bumped by each new sort, so an answer for the old one is dropped.
-    @State private var generation = 0
-    @FocusState private var focused: String?
-
-    /// The sorts a remote can reach in a row; the phones' menus have the rest.
-    private static let sorts: [BookSort] = [.title, .author, .added, .listened]
-    private let columns = Array(repeating: GridItem(.fixed(Layout.posterWidth), spacing: Layout.gridSpacing, alignment: .top), count: 6)
-
-    private var filter: BookFilter { BookFilter(genre: genre, sort: sort, descending: sort.descendingByDefault) }
-
-    var body: some View {
-        ScrollView(.vertical) {
-            VStack(alignment: .leading, spacing: 40) {
-                header
-                if loaded, books.isEmpty {
-                    StatusView(state: .empty("No books yet.")).frame(height: 500)
-                } else if loaded {
-                    LazyVGrid(columns: columns, alignment: .leading, spacing: 56) {
-                        ForEach(Array(books.enumerated()), id: \.element.id) { index, book in
-                            BookCard(item: book, focus: $focused) { router.push(.item(book)) }
-                                .onAppear { if index >= books.count - 12 { Task { await more() } } }
-                        }
-                    }
-                    .focusSection()
-                } else if let error {
-                    StatusView(state: .failed(error) { Task { await load() } }).frame(height: 500)
-                } else {
-                    StatusView(state: .loading).frame(height: 500)
-                }
-            }
-            .padding(.horizontal, Layout.edge)
-            .padding(.bottom, 80)
-        }
-        .scrollClipDisabled()
-        .ignoresSafeArea(edges: view == nil ? .horizontal : [.top, .horizontal])
-        .background(RoomBackground(ambient: books.first?.glowColor, intensity: 0.2))
-        // Once, and again when something changed (a book marked finished): not on every return from a book, which would
-        // drop the pages scrolled through and the focus with them.
-        .task(id: model.refreshToken) {
-            guard loadedToken != model.refreshToken else { return }
-            await load()
-        }
-        .onChange(of: sort) {
-            books = []
-            loaded = false
-            Task { await load() }
-        }
-        .onChange(of: arriving.wrappedValue, focusFirstBookOnArrival)
-        .onChange(of: books.first?.id, focusFirstBookOnArrival)
-    }
-
-    private var header: some View {
-        HStack(alignment: .lastTextBaseline, spacing: 30) {
-            VStack(alignment: .leading, spacing: view == nil ? 4 : 16) {
-                if let view {
-                    LibraryViewSwitch(library: library, view: view).focusSection()
-                } else {
-                    Text(genre ?? library.name)
-                        .font(.marquee(76, weight: .heavy))
-                        .foregroundStyle(Color.screen)
-                }
-                if loaded {
-                    Text(total == 1 ? "1 book" : "\(total.formatted()) books")
-                        .font(.system(size: 24, weight: .medium))
-                        .foregroundStyle(Color.usher)
-                        .monospacedDigit()
-                }
-            }
-            Spacer()
-            HStack(spacing: 18) {
-                ForEach(Self.sorts) { option in
-                    Button(option.label) { sort = option }
-                        .buttonStyle(PillButtonStyle(selected: sort == option))
-                }
-            }
-            .focusSection()
-        }
-        .padding(.top, view == nil ? 20 : LibraryViewSwitch.topInset)
-    }
-
-    /// From the switch, as the tab opens (see `focusesContent`): to the first book, once it's loaded.
-    private func focusFirstBookOnArrival() {
-        guard view != nil, arriving.wrappedValue, let first = books.first else { return }
-        arriving.wrappedValue = false
-        focused = first.id
-    }
-
-    private func load() async {
-        guard let client = model.client else { return }
-        generation += 1
-        let current = generation
-        let token = model.refreshToken
-        do {
-            // As many as were showing, so a refresh keeps the place.
-            let page = try await client.books(library.id, filter: filter, take: min(200, max(60, books.count)))
-            guard current == generation else { return }
-            books = page.items
-            total = page.total
-            loaded = true
-            error = nil
-            loadedToken = token
-        } catch {
-            if current == generation, !loaded { self.error = ConnectionError(error).message }
-        }
-    }
-
-    private func more() async {
-        guard let client = model.client, !loadingMore, loaded, books.count < total else { return }
-        let current = generation
-        let skip = books.count
-        loadingMore = true
-        defer { loadingMore = false }
-        if let page = try? await client.books(library.id, filter: filter, skip: skip, take: 60), current == generation, skip == books.count {
-            let known = Set(books.map(\.id))
-            books += page.items.filter { !known.contains($0.id) }
-            total = page.total
         }
     }
 }

@@ -468,6 +468,41 @@ public struct BookFilter: Sendable, Hashable {
     }
 }
 
+/// The lengths the books filter offers, as hours `BookFilter` narrows to.
+public enum BookLength: String, CaseIterable, Sendable, Identifiable {
+    case any, short, medium, long, epic
+    public var id: String { rawValue }
+
+    public var label: String {
+        switch self {
+        case .any: "Any length"
+        case .short: "Under 5 hours"
+        case .medium: "5 to 10 hours"
+        case .long: "10 to 20 hours"
+        case .epic: "Over 20 hours"
+        }
+    }
+
+    public var hours: (Double?, Double?) {
+        switch self {
+        case .any: (nil, nil)
+        case .short: (nil, 5)
+        case .medium: (5, 10)
+        case .long: (10, 20)
+        case .epic: (20, nil)
+        }
+    }
+
+    /// The length a filter narrows to; any other range (or none) is Any length.
+    public init(_ filter: BookFilter) {
+        self = Self.allCases.first { $0.hours.0 == filter.minHours && $0.hours.1 == filter.maxHours } ?? .any
+    }
+
+    public func apply(to filter: inout BookFilter) {
+        (filter.minHours, filter.maxHours) = hours
+    }
+}
+
 public enum BookPersonRole: String, Sendable {
     case author, narrator
 }

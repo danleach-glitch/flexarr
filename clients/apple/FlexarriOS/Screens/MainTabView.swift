@@ -190,8 +190,8 @@ struct TabStack<Content: View>: View {
             ExternalAlbumView(preview: album)
         case .musicItem(let id, let isArtist):
             MusicItemDestination(id: id, isArtist: isArtist)
-        case .external, .genre, .musicGenre:
-            // Discover is on the Apple TV and the web; nothing on iPhone or iPad goes here.
+        case .external, .genre, .musicGenre, .bookList:
+            // Discover, and books' See all pages, are the Apple TV's; nothing on iPhone or iPad goes here.
             EmptyView()
         }
     }

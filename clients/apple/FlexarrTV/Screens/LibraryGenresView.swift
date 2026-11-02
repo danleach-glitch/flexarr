@@ -14,6 +14,8 @@ struct LibraryGenresView: View {
     var view: Binding<LibraryOpening> = .constant(.genres)
     /// A music library's switch, in place of `view`.
     var musicView: Binding<MusicOpening>?
+    /// An audiobooks library's switch, in place of `view`.
+    var bookView: Binding<BookOpening>?
     var offersAlbums = true
 
     @State private var genres: [GenreCount]?
@@ -28,6 +30,8 @@ struct LibraryGenresView: View {
                     Group {
                         if let musicView {
                             MusicViewSwitch(view: musicView, offersAlbums: offersAlbums)
+                        } else if let bookView {
+                            BookViewSwitch(view: bookView)
                         } else {
                             LibraryViewSwitch(library: library, view: view)
                         }

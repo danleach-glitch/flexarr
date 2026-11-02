@@ -399,37 +399,3 @@ struct BooksLibraryView: View {
         await browse.load(client: client)
     }
 }
-
-/// The lengths the filter offers.
-private enum BookLength: String, CaseIterable, Identifiable {
-    case any, short, medium, long, epic
-    var id: String { rawValue }
-
-    var label: String {
-        switch self {
-        case .any: "Any length"
-        case .short: "Under 5 hours"
-        case .medium: "5 to 10 hours"
-        case .long: "10 to 20 hours"
-        case .epic: "Over 20 hours"
-        }
-    }
-
-    var hours: (Double?, Double?) {
-        switch self {
-        case .any: (nil, nil)
-        case .short: (nil, 5)
-        case .medium: (5, 10)
-        case .long: (10, 20)
-        case .epic: (20, nil)
-        }
-    }
-
-    init(_ filter: BookFilter) {
-        self = Self.allCases.first { $0.hours.0 == filter.minHours && $0.hours.1 == filter.maxHours } ?? .any
-    }
-
-    func apply(to filter: inout BookFilter) {
-        (filter.minHours, filter.maxHours) = hours
-    }
-}

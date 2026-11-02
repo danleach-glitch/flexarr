@@ -402,7 +402,7 @@ struct LibraryView: View {
 
 /// The A–Z rail down the right of a library's grid. Right from the last column reaches it; a letter with nothing
 /// under it can't be picked.
-private struct LetterRail: View {
+struct LetterRail: View {
     let letters: [String]
     let empty: Set<String>
     let jumping: String?
