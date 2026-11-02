@@ -603,7 +603,9 @@ public sealed partial class MetadataRefresher(
         ArgumentNullException.ThrowIfNull(chosen);
         ArgumentNullException.ThrowIfNull(lidarr);
         album.DeezerId = null;
+        var kept = Keep(album);
         await ApplyAlbumAsync(album, chosen, lidarr, ct).ConfigureAwait(false);
+        await RestoreAsync(album, kept, ct).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -614,6 +616,7 @@ public sealed partial class MetadataRefresher(
     {
         ArgumentNullException.ThrowIfNull(album);
         ArgumentNullException.ThrowIfNull(chosen);
+        var kept = Keep(album);
         Rename(album, chosen.Title);
         album.Year = chosen.Year ?? album.Year;
         album.ReleaseDate = DateOnly.TryParseExact(chosen.ReleaseDate, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date) ? date : null;
@@ -637,6 +640,7 @@ public sealed partial class MetadataRefresher(
         }
 
         await SetChosenCoverAsync(album, ArtworkUrl.TrustedRemote(chosen.Cover), ct).ConfigureAwait(false);
+        await RestoreAsync(album, kept, ct).ConfigureAwait(false);
     }
 
     /// <summary>Fix match: an artist is the Lidarr artist chosen, and its albums are matched among that artist's. The caller locks and saves.</summary>
@@ -646,7 +650,12 @@ public sealed partial class MetadataRefresher(
         ArgumentNullException.ThrowIfNull(chosen);
         ArgumentNullException.ThrowIfNull(lidarr);
         artist.DeezerId = null;
+        var kept = albums.Prepend(artist).Select(i => (Item: i, Kept: Keep(i))).ToList();
         await ApplyArtistAsync(artist, albums, chosen, lidarr, ct).ConfigureAwait(false);
+        foreach (var (item, keep) in kept)
+        {
+            await RestoreAsync(item, keep, ct).ConfigureAwait(false);
+        }
     }
 
     /// <summary>Fix match: an artist is the Deezer artist chosen, with their name and photo. The caller locks and saves.</summary>
@@ -654,6 +663,7 @@ public sealed partial class MetadataRefresher(
     {
         ArgumentNullException.ThrowIfNull(artist);
         ArgumentNullException.ThrowIfNull(chosen);
+        var kept = Keep(artist);
         Rename(artist, chosen.Name);
         artist.ArrId = null;
         artist.DeezerId = chosen.Id.ToString(CultureInfo.InvariantCulture);
@@ -662,6 +672,37 @@ public sealed partial class MetadataRefresher(
         {
             await SetChosenCoverAsync(artist, photo, ct).ConfigureAwait(false);
         }
+
+        await RestoreAsync(artist, kept, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Match automatically again, for an album or artist: unlocked, and back to its tags' name, with the cover beside
+    /// its files (or none, which the next scan or Lidarr fills in) in place of one from the match. The caller saves
+    /// and has the folder read again.
+    /// </summary>
+    public static void ForgetMusicMatch(MediaItem item, string? localCover)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        item.MatchLocked = false;
+        item.ArtworkLocked = false;
+        item.DeezerId = null;
+        if (!item.DetailsLocked && item.OriginalTitle is { } tagged)
+        {
+            item.Title = tagged;
+            item.SortTitle = SortTitle.For(tagged);
+            item.OriginalTitle = null;
+        }
+
+        if (item.PosterUrl is { } poster && !poster.StartsWith("file://", StringComparison.Ordinal) && !poster.StartsWith("embedded://", StringComparison.Ordinal))
+        {
+            item.PosterUrl = localCover;
+            item.AccentColor = null;
+        }
+
+        item.ArrId = null;
+        item.MetadataSource = Tags;
+        item.MetadataUpdatedAt = null;
     }
 
     /// <summary>A cover chosen (or brought by the match), with its colour; null keeps the one there.</summary>
@@ -765,8 +806,10 @@ public sealed partial class MetadataRefresher(
     /// (<c>/MediaCover/Albums/1/cover.jpg?lastWrite=…</c>) that needs a signed-in browser; the same file is served to
     /// the API under <paramref name="apiFolder"/>. The lastWrite stamp stays on, so a replaced image is fetched anew.
     /// </summary>
-    private static string? ArrImage(ArrInstance lidarr, IReadOnlyList<ArrImage> lidarrImages, string coverType, string apiFolder)
+    public static string? ArrImage(ArrInstance lidarr, IReadOnlyList<ArrImage> lidarrImages, string coverType, string apiFolder)
     {
+        ArgumentNullException.ThrowIfNull(lidarr);
+        ArgumentNullException.ThrowIfNull(lidarrImages);
         var image = lidarrImages.FirstOrDefault(i => string.Equals(i.CoverType, coverType, StringComparison.OrdinalIgnoreCase));
         if (image?.Url is not { Length: > 0 } url)
         {
