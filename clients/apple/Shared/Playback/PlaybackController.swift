@@ -45,31 +45,14 @@ final class PlaybackController: NSObject {
     /// Called when something is watched into its credits; `closing` when the player is going away with it, rather
     /// than moving on to the next episode.
     @ObservationIgnored var onWatchedToEnd: ((_ closing: Bool) -> Void)?
-    /// How the last session ended: the title it was started with, the one it stopped on, and the episode after that.
-    struct Ending {
-        let startedWith: String
-        let stoppedOn: String
-        /// Watched into its credits.
-        let watched: Bool
-        let next: String?
-        var at = Date()
+    /// The page Play was pressed on (a token it made) and the title it started with, whatever the sitting has moved on
+    /// to since: kept through Next, recoveries and auto-advance, so that page can move on once the player closes.
+    @ObservationIgnored private var origin: (from: String?, startedWith: String)?
+    @ObservationIgnored private var lastEnding: PlaybackEnding?
 
-        /// Where a page showing the episode it was started with goes now: on past what was finished, or to the
-        /// episode it stopped part way through. Nil to stay.
-        var moveOn: String? {
-            let target = watched ? next : stoppedOn
-            return target == startedWith ? nil : target
-        }
-    }
-
-    /// The title this session was started with (what Play was pressed on), whatever it has moved on to since.
-    @ObservationIgnored private var startedWith: String?
-    @ObservationIgnored private var lastEnding: Ending?
-
-    /// The last session's ending, if it was started with `id` a moment ago (the page reloading as the player closes,
-    /// not opened later); taken, so only one page moves on with it.
-    func takeEnding(startedWith id: String) -> Ending? {
-        guard let ending = lastEnding, ending.startedWith == id, Date().timeIntervalSince(ending.at) < 60 else { return nil }
+    /// How the last sitting ended, if it was started from the page that made `token`; taken, so the page moves on once.
+    func takeEnding(from token: String) -> PlaybackEnding? {
+        guard let ending = lastEnding, ending.from == token else { return nil }
         lastEnding = nil
         return ending
     }
@@ -168,13 +151,14 @@ final class PlaybackController: NSObject {
 
     /// Starts playback. `startAt` nil lets the server choose the resume point; 0 starts over. With `shuffle`,
     /// `itemId` is a show: a random episode starts, and every next one is random too.
+    /// `from`: the page Play was pressed on, a token it made (see `takeEnding`).
     func play(itemId: String, preview: ItemSummary?, startAt: Double?, client: FlexarrClient, shuffle: Bool = false,
-              subtitleKey: String? = nil) {
+              subtitleKey: String? = nil, from: String? = nil) {
         guard !isStarting else { return }
         onWillStart?()
         self.client = client
         shuffling = shuffle
-        startedWith = itemId
+        origin = (from, itemId)
         lastEnding = nil
         trail = []
         carriedRate = nil
@@ -189,7 +173,7 @@ final class PlaybackController: NSObject {
         guard !isStarting else { return }
         onWillStart?()
         shuffling = false
-        startedWith = info.item.id
+        origin = (nil, info.item.id)
         lastEnding = nil
         trail = []
         carriedRate = nil
@@ -787,13 +771,12 @@ final class PlaybackController: NSObject {
         }
     }
 
+    /// Done once the server has every progress report and stop sent so far (or they've failed), so a screen that
+    /// reloads then sees what was just watched: a show's next episode, not the one that just ended.
+    var reportsSent: Task<Void, Never>? { reporting }
+
     /// Sends `request` after whatever was sent before it, with time to finish if the app goes to the background
     /// meanwhile: leaving mid-film would otherwise suspend the app before the last position reached the server.
-    /// Waits until the server has every progress report and stop sent so far (or they've failed), so a screen that
-    /// reloads then sees what was just watched: a show's next episode, not the one that just ended.
-    func reportsSent() async {
-        await reporting?.value
-    }
 
     private func send(_ request: @escaping @Sendable () async -> Void) {
         let previous = reporting
@@ -1189,8 +1172,12 @@ final class PlaybackController: NSObject {
     /// `recording`: a real stop, so a downloaded file's position is kept (not when one session replaces another).
     private func stop(reportingTo client: FlexarrClient?, recording: Bool = false) {
         let watchedToEnd = recording && recordsHistory && info.map(isPastCredits) == true
-        if recording, let info, let startedWith {
-            lastEnding = Ending(startedWith: startedWith, stoppedOn: info.item.id, watched: watchedToEnd, next: info.next?.id)
+        if recording, let info, let origin {
+            // Watched as the server counts it, so the page moves on exactly when the server has it as watched.
+            let watched = recordsHistory && PlaybackEnding.isWatched(position: position, duration: info.durationSeconds,
+                                                                     creditsStart: info.markers.first(where: { $0.type == .credits })?.start)
+            lastEnding = PlaybackEnding(from: origin.from, startedWith: origin.startedWith, stoppedOn: info.item.id,
+                                        watched: watched, next: info.next?.id)
         }
         if let info, info.isOffline {
             if recording, recordsHistory { offlineLibrary?.record(itemId: info.item.id, position: position, finished: isPastCredits(info)) }
