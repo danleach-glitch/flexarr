@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Flexarr.Core.Data.Migrations
 {
     [DbContext(typeof(FlexarrDbContext))]
-    [Migration("20261102034624_MusicRequests")]
+    [Migration("20261102051200_MusicRequests")]
     partial class MusicRequests
     {
         /// <inheritdoc />
@@ -835,6 +835,9 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<string>("ContentRating")
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("CriticCertified")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int?>("CriticRating")
                         .HasColumnType("INTEGER");
 
@@ -852,6 +855,9 @@ namespace Flexarr.Core.Data.Migrations
 
                     b.Property<string>("ImdbId")
                         .HasColumnType("TEXT");
+
+                    b.Property<double?>("ImdbRating")
+                        .HasColumnType("REAL");
 
                     b.Property<string>("KidsOverride")
                         .IsRequired()
@@ -910,6 +916,9 @@ namespace Flexarr.Core.Data.Migrations
 
                     b.Property<int?>("RuntimeMinutes")
                         .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("ScoresCheckedAt")
+                        .HasColumnType("TEXT");
 
                     b.Property<int?>("SeasonNumber")
                         .HasColumnType("INTEGER");
