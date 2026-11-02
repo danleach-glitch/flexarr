@@ -10,6 +10,7 @@ using Flexarr.Metadata;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
+using System.Runtime.CompilerServices;
 
 namespace Flexarr.Api.Endpoints.MusicRequests;
 
@@ -60,7 +61,8 @@ public static partial class MusicRequestEndpoints
                     return false;
                 }
             });
-            return new MusicRequestStatusDto(true, reachable);
+            // A Lidarr that answers its ping but just timed out on a real question isn't answering either.
+            return new MusicRequestStatusDto(true, reachable && !MusicMatcher.IsDown(cache, lidarrs[0]));
         }).WithTags("Requests");
 
         var music = requests.MapGroup("/music").AddEndpointFilter(async (context, next) =>
@@ -141,18 +143,23 @@ public static partial class MusicRequestEndpoints
         music.MapGet("/artist/{id:long}", async (long id, MusicRequestContext c, CancellationToken ct) =>
             await DeezerAsync(async () =>
             {
-                var artist = await c.Catalog.ArtistAsync(id, ct);
+                // Deezer's three answers side by side (each a round trip when it isn't cached), while the library is looked at.
+                var artistCall = c.Catalog.ArtistAsync(id, ct);
+                var albumsCall = c.Catalog.ArtistAlbumsAsync(id, ct);
+                var relatedCall = c.Catalog.RelatedAsync(id, ct);
                 var owned = await c.OwnedAsync(ct);
+                await Task.WhenAll(artistCall, albumsCall, relatedCall);
+                var artist = await artistCall;
                 var lidarrArtist = await c.LidarrArtistNamedAsync(artist.Name, ct);
                 if (lidarrArtist is { } had)
                 {
                     await c.NoteMonitoredAsync(owned, had, ct);
                 }
 
-                var albums = (await c.Catalog.ArtistAlbumsAsync(id, ct)).Select(a => Album(a with { Artist = artist }, owned)).ToList();
-                var similar = (await c.Catalog.RelatedAsync(id, ct)).Take(RowSize).Select(a => Artist(a, owned)).ToList();
+                var albums = (await albumsCall).Select(a => Album(a with { Artist = artist }, owned)).ToList();
+                var similar = (await relatedCall).Take(RowSize).Select(a => Artist(a, owned)).ToList();
                 return Results.Ok(new MusicArtistDetailDto(artist.Id, artist.Name, ImageEndpoints.RemoteUrl(artist.Picture), artist.NbFan, albums, similar,
-                    c.IsFollowed(owned, lidarrArtist), owned.ArtistAvailability(artist.Name), owned.ArtistId(artist.Name)));
+                    c.IsFollowed(owned, lidarrArtist), owned.ArtistAvailability(artist.Name), owned.ArtistId(artist.Name), owned.LidarrAnswered));
             }));
 
         music.MapGet("/album/{id:long}", async (long id, MusicRequestContext c, CancellationToken ct) =>
@@ -168,13 +175,14 @@ public static partial class MusicRequestEndpoints
 
                 var tracks = album.Tracks?.Data.Select((t, i) => new MusicTrackDto(t.Title, t.Duration, t.TrackPosition > 0 ? t.TrackPosition : i + 1, Math.Max(1, t.DiskNumber), t.ExplicitLyrics)).ToList() ?? [];
                 return Results.Ok(new MusicAlbumDetailDto(album.Id, album.Title, artistName, album.Artist?.Id, ImageEndpoints.RemoteUrl(album.Cover), album.Year, album.RecordType,
-                    album.Genres?.Data.Select(g => g.Name).ToList() ?? [], tracks, album.Duration, owned.AlbumAvailability(artistName, album.Title), owned.AlbumId(artistName, album.Title)));
+                    album.Genres?.Data.Select(g => g.Name).ToList() ?? [], tracks, album.Duration, owned.AlbumAvailability(artistName, album.Title), owned.AlbumId(artistName, album.Title), owned.LidarrAnswered));
             }));
 
         // A library artist's page: the albums of theirs the library doesn't have, and the artists like them.
         music.MapGet("/library-artist/{id:guid}", async (Guid id, MusicRequestContext c, CancellationToken ct) =>
         {
-            var item = await c.Db.MediaItems.AsNoTracking().Where(i => i.Id == id && i.Kind == MediaKind.Artist).Select(i => new { i.Title, i.MusicBrainzId }).FirstOrDefaultAsync(ct);
+            var item = await c.Db.MediaItems.AsNoTracking().Where(i => i.Id == id && i.Kind == MediaKind.Artist)
+                .Select(i => new { i.Title, i.MusicBrainzId, HasPoster = i.PosterUrl != null, i.MetadataUpdatedAt, i.ArtworkChangedAt }).FirstOrDefaultAsync(ct);
             if (item is null)
             {
                 return Results.NotFound();
@@ -187,6 +195,9 @@ public static partial class MusicRequestEndpoints
                 var deezerAlbums = deezer is null ? [] : await c.Catalog.ArtistAlbumsAsync(deezer.Id, ct);
                 var lidarrArtist = await c.LidarrArtistAsync(item.MusicBrainzId, item.Title, ct);
                 var missing = new List<MusicExternalDto>();
+                // An album with no cover anywhere shows its artist instead: their photo here, else Lidarr's, else Deezer's.
+                var artistPhoto = item.HasPoster ? ArtworkUrls.For(id, ArtworkUrls.Version(item.MetadataUpdatedAt, item.ArtworkChangedAt), true, false, false, false).Poster
+                    : (lidarrArtist is { Lidarr: var pl, Artist: var pa } ? MusicRequested.Photo(pl, pa) : null) ?? ImageEndpoints.RemoteUrl(deezer?.Picture);
                 // Lidarr's list when it has the artist and answers; Deezer's albums otherwise.
                 var lidarrAlbums = lidarrArtist is { Lidarr: var l, Artist: var la } ? await c.LidarrAlbumsAsync(l, la.Id, ct) : null;
                 if (lidarrAlbums is not null)
@@ -210,18 +221,18 @@ public static partial class MusicRequestEndpoints
                         }
 
                         missing.Add(new MusicExternalDto("album", onDeezer?.Id ?? 0, album.Title, item.Title, deezer?.Id, album.ReleaseDate?.Year ?? onDeezer?.Year,
-                            ImageEndpoints.RemoteUrl(onDeezer?.Cover), album.Monitored ? AvailabilityDto.Requested : owned.AlbumAvailability(item.Title, album.Title), null,
+                            ImageEndpoints.RemoteUrl(onDeezer?.Cover) ?? MusicRequested.Cover(lidarrArtist!.Value.Lidarr, album) ?? artistPhoto, album.Monitored ? AvailabilityDto.Requested : owned.AlbumAvailability(item.Title, album.Title), null,
                             onDeezer?.RecordType ?? album.AlbumType?.ToLowerInvariant(), album.ForeignAlbumId));
                     }
                 }
                 else
                 {
                     missing.AddRange(deezerAlbums.Where(a => a.RecordType == "album" && owned.AlbumId(item.Title, a.Title) is null)
-                        .Select(a => Album(a with { Artist = deezer }, owned)));
+                        .Select(a => Album(a with { Artist = deezer }, owned)).Select(a => a.Image is null ? a with { Image = artistPhoto } : a));
                 }
 
                 var similar = deezer is null ? [] : (await c.Catalog.RelatedAsync(deezer.Id, ct)).Take(RowSize).Select(a => Artist(a, owned)).ToList();
-                return Results.Ok(new MusicArtistExtrasDto(missing, similar, c.IsFollowed(owned, lidarrArtist), deezer?.Id));
+                return Results.Ok(new MusicArtistExtrasDto(missing, similar, c.IsFollowed(owned, lidarrArtist), deezer?.Id, owned.LidarrAnswered && (lidarrArtist is null || lidarrAlbums is not null)));
             });
         });
 
@@ -231,6 +242,36 @@ public static partial class MusicRequestEndpoints
             var libraries = current.IsAdmin ? c.Db.Libraries.IgnoreQueryFilters() : c.Db.Libraries;
             var destinations = await MusicDestinations.ListAsync(c.Client, c.Lidarrs, c.Options.PathMappings, libraries, ct);
             return Results.Ok(destinations.Select(d => new MusicDestinationDto(d.LibraryId, d.Name, d.IsDefault)).ToList());
+        });
+
+        // Every album Lidarr is waiting for, with how far along each is.
+        // Given a library, only artists in its folders (that library's Requested view).
+        music.MapGet("/requested", async (Guid? libraryId, MusicRequestContext c, CancellationToken ct) =>
+        {
+            List<string>? folders = null;
+            if (libraryId is { } id)
+            {
+                folders = await c.Db.Libraries.AsNoTracking().Where(l => l.Id == id && l.Type == LibraryType.Music).SelectMany(l => l.Folders).Select(f => f.Path).ToListAsync(ct);
+                if (folders.Count == 0)
+                {
+                    return Results.NotFound();
+                }
+            }
+
+            return await MusicRequested.ListAsync(c, folders, ct) is { } listed
+                ? Results.Ok(listed)
+                : Results.Problem("Lidarr isn't answering. Try again later.", statusCode: 502);
+        });
+
+        // Stop following an artist, for the household: Lidarr stops looking for their new releases.
+        music.MapPost("/unfollow", async (MusicUndoBody body, MusicRequestContext c, CurrentProfile current, ILoggerFactory loggers, CancellationToken ct) =>
+            UndoRefused(current, c.Cache) ?? Counted(current, c.Cache, await LidarrAsync(() => MusicUndo.UnfollowAsync(c, body, ct), loggers.CreateLogger("Flexarr.MusicRequests"), ct)));
+
+        // Cancel an album asked for, for the household: Lidarr stops wanting it and drops its download.
+        music.MapPost("/unrequest", async (MusicUndoBody body, MusicRequestContext c, CurrentProfile current, ILoggerFactory loggers, CancellationToken ct) =>
+        {
+            var logger = loggers.CreateLogger("Flexarr.MusicRequests");
+            return UndoRefused(current, c.Cache) ?? Counted(current, c.Cache, await LidarrAsync(() => MusicUndo.UnrequestAsync(c, body, logger, ct), logger, ct));
         });
 
         music.MapPost("/", async (MusicRequestBody body, MusicRequestContext c, CurrentProfile current, ILoggerFactory loggers, CancellationToken ct) =>
@@ -282,6 +323,68 @@ public static partial class MusicRequestEndpoints
                 return Results.Problem("Lidarr or Deezer didn't answer in time. Try again in a minute.", statusCode: 502);
             }
         });
+    }
+
+    /// <summary>The most unfollows and unrequests one profile can make in an hour.</summary>
+    internal const int UndoHourlyLimit = 60;
+
+    /// <summary>
+    /// Why this profile can't undo now, or null when it can. Family guests can ask for music but not take back the
+    /// household's (Lidarr is shared); everyone else has an hourly cap, as asking has a daily one.
+    /// </summary>
+    private static IResult? UndoRefused(CurrentProfile current, IMemoryCache cache)
+    {
+        if (current.IsGuest)
+        {
+            return Results.Problem("Guests can't undo music requests.", statusCode: 403);
+        }
+
+        return UndoCount(current, cache).Value >= UndoHourlyLimit
+            ? Results.Problem("That's a lot of undoing for one hour. Try again later.", statusCode: 429)
+            : null;
+    }
+
+    /// <summary>An undo that reached Lidarr (or found nothing to do) counts towards the hour's; a malformed one or a failure doesn't.</summary>
+    private static IResult Counted(CurrentProfile current, IMemoryCache cache, IResult result)
+    {
+        if (result is IStatusCodeHttpResult { StatusCode: < 400 })
+        {
+            Interlocked.Increment(ref UndoCount(current, cache).Value);
+        }
+
+        return result;
+    }
+
+    private static StrongBox<int> UndoCount(CurrentProfile current, IMemoryCache cache) =>
+        cache.GetOrCreate($"music-undo:{current.Id}", entry =>
+        {
+            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(1);
+            return new StrongBox<int>();
+        })!;
+
+    /// <summary>Lidarr's answer, or a plain 502 saying it refused or didn't answer (its own words go to the log).</summary>
+    private static async Task<IResult> LidarrAsync(Func<Task<IResult>> answer, ILogger logger, CancellationToken ct)
+    {
+        try
+        {
+            return await answer();
+        }
+        catch (HttpRequestException ex)
+        {
+            LogLidarrRefused(logger, ex, (int?)ex.StatusCode);
+            return ex.StatusCode is { } status && (int)status is >= 400 and < 500
+                ? Results.Problem("Lidarr turned that down.", statusCode: 502)
+                : Results.Problem("Lidarr isn't answering. Try again later.", statusCode: 502);
+        }
+        catch (DeezerException ex) when (ex.Code == 800)
+        {
+            // Said, so clients don't take it for a server without undo (a bare 404).
+            return Results.Problem("Deezer doesn't know that any more.", statusCode: 404);
+        }
+        catch (Exception ex) when (ex is DeezerException || (ex is OperationCanceledException && !ct.IsCancellationRequested))
+        {
+            return Results.Problem("Lidarr or Deezer didn't answer in time. Try again in a minute.", statusCode: 502);
+        }
     }
 
     /// <summary>

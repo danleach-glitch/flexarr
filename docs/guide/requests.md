@@ -115,7 +115,9 @@ Below them are genres. Each one opens its best-known artists.
 There are two kinds of music request:
 
 - **Request album** downloads that album and nothing else. If Lidarr doesn't have the artist yet, it adds them without their other albums.
-- **Follow artist** downloads the artist's latest album now, then each new release as it comes out. Their older albums are still requested one at a time.
+- **Follow** downloads the artist's latest album now, then each new release as it comes out. Their older albums are still requested one at a time. A followed artist joins your library's **Artists** straight away, even before any of their music arrives.
+
+Press **Following** or **Requested** to take it back. **Stop following** stops Lidarr looking for the artist's new albums (anything already asked for still downloads). **Unrequest** stops Lidarr wanting the album and cancels its download. Both are for the whole household, as Lidarr is shared. Family guests can ask for music but can't take it back.
 
 If Lidarr can't find an album or artist (it only knows what's listed on MusicBrainz), the button says **Can't request** and why.
 
@@ -127,7 +129,11 @@ An album someone in the household asked for shows **Requested** to everyone for 
 
 The same profiles can request music as can request movies and shows. Kids profiles, profiles with an age limit and profiles that can't see a music library can't. Requests only go to music libraries the profile can see. With two or more of them that Lidarr adds to, **New music goes to** in the profile's settings picks which one gets the profile's requests.
 
-If Lidarr isn't reachable, Discover › Music says **Lidarr isn't answering** and the request buttons are off until it's back.
+### On its way
+
+On the web, a music library's **Requested** view lists every album Lidarr is waiting for with that library's artists: albums anyone asked for, and new releases by artists you follow, with when they're out. Each says **Searching**, **Downloading** with how far it's got, **Importing**, or **Out** and its date. **Unrequest** takes one back.
+
+Without Lidarr, there's no Discover › Music, Follow, Request or Requested. If Lidarr is connected but isn't answering, the buttons are greyed with **Lidarr isn't answering** until it's back.
 
 ## If requests don't work
 

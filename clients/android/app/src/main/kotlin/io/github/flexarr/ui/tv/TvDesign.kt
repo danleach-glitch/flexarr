@@ -48,6 +48,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
@@ -116,22 +117,32 @@ fun TvActionButton(
     enabled: Boolean = true,
     contentDescription: String? = null,
     onLongClick: (() -> Unit)? = null,
+    /** Lit and ringed while it's on (Following, Requested), so it shows with focus elsewhere. */
+    selected: Boolean = false,
 ) {
     // Turned off, it stays focusable and only looks it, ignoring presses: a button that went dark while focused (Next
     // at the last track, Connect while connecting) would otherwise leave focus on nothing.
     Surface(
         onClick = { if (enabled) onClick() },
         onLongClick = onLongClick?.let { long -> { if (enabled) long() } },
-        modifier = modifier.height(38.dp).semantics { if (!enabled) disabled() },
+        modifier = modifier.height(38.dp).semantics {
+            if (!enabled) disabled()
+            if (selected) this.selected = true
+        },
         shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(Tokens.radiusControl)),
         colors = ClickableSurfaceDefaults.colors(
             // The main one in the title's colour lifted towards white (projected white once focused, as Google TV expects).
-            containerColor = if (!enabled) Flexarr.screen.copy(alpha = 0.08f) else if (prominent) mainButtonFill(ambient) else Flexarr.screen.copy(alpha = 0.14f),
+            containerColor = if (!enabled) Flexarr.screen.copy(alpha = 0.08f) else if (prominent) mainButtonFill(ambient) else if (selected) ambient.copy(alpha = 0.32f) else Flexarr.screen.copy(alpha = 0.14f),
             contentColor = if (!enabled) Flexarr.usher else if (prominent) Flexarr.room else Flexarr.screen,
             focusedContainerColor = if (enabled) Flexarr.screen else Flexarr.screen.copy(alpha = 0.35f),
             focusedContentColor = Flexarr.room,
             pressedContainerColor = if (enabled) Flexarr.screen else Flexarr.screen.copy(alpha = 0.35f),
             pressedContentColor = Flexarr.room,
+        ),
+        // On, a ring of the page's colour too (as the Apple TV's), so on and off differ by more than a tint.
+        border = ClickableSurfaceDefaults.border(
+            border = if (selected && enabled) Border(BorderStroke(2.dp, ambient.copy(alpha = 0.8f)), shape = RoundedCornerShape(Tokens.radiusControl)) else Border.None,
+            focusedBorder = Border.None,
         ),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1.07f, pressedScale = 0.97f),
         glow = ClickableSurfaceDefaults.glow(focusedGlow = Glow(ambient.copy(alpha = 0.65f), 14.dp)),

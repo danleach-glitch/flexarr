@@ -57,7 +57,7 @@ struct TVPlayingBar: View {
             Button { remote.togglePlayPause(on: device) } label: {
                 Label(playing.paused ? "Play" : "Pause", systemImage: playing.paused ? "play.fill" : "pause.fill")
             }
-            .buttonStyle(RoundActionStyle())
+            .buttonStyle(RoundActionStyle(scales: false))
             .frame(width: 48, height: 48)
         }
         .padding(.horizontal, 12)

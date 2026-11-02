@@ -1,7 +1,8 @@
 import FlexarrKit
 import SwiftUI
 
-/// An artist: their picture and name, Play and Shuffle for everything they have, and their albums newest first.
+/// An artist: their picture and name, their buttons (`MusicActions`: Play, Shuffle, Radio, Follow), and their albums
+/// newest first. A followed artist with no albums yet (a placeholder) has only Follow, and what's outside the library.
 struct ArtistView: View {
     @Environment(AppModel.self) private var model
     @Environment(Router.self) private var router
@@ -10,6 +11,12 @@ struct ArtistView: View {
     /// From outside the library: their albums it lacks, artists like them, and whether they're followed. Nil while
     /// music requests are off (and on servers before them).
     @State private var extras: MusicArtistExtras?
+    /// Music requests here: nil until asked, and then Follow shows only when they're on (`configured`).
+    @State private var status: MusicRequestStatus?
+    @Environment(\.musicRequestsPaused) private var pausedAbove
+    @Environment(\.dismiss) private var dismiss
+    /// The focused round button, named under the row.
+    @FocusState private var focusedAction: MusicActions.Button?
 
     private let columns = Array(repeating: GridItem(.fixed(Layout.posterWidth), spacing: Layout.gridSpacing, alignment: .top), count: 6)
 
@@ -41,7 +48,7 @@ struct ArtistView: View {
                                 }
                                 .focusSection()
                             }
-                        } else if page.detail != nil {
+                        } else if page.detail != nil, !hasOutside {
                             StatusView(state: .empty("No albums yet."))
                                 .frame(height: 200)
                         }
@@ -69,6 +76,7 @@ struct ArtistView: View {
                     .padding(.bottom, 90)
                 }
                 .scrollClipDisabled()
+                .environment(\.musicRequestsPaused, paused)
             } else if let error = page.error {
                 StatusView(state: .failed(error) { Task { await load() } })
             } else {
@@ -107,25 +115,92 @@ struct ArtistView: View {
                         .lineLimit(3)
                         .frame(maxWidth: 1000, alignment: .leading)
                 }
-                HStack(spacing: 26) {
-                    Button { Task { await model.playAll(of: page, shuffled: false, router: router) } } label: {
-                        Label("Play", systemImage: "play.fill")
+                // Play spelled out; the rest round icons, named underneath while focused (as a film's page).
+                VStack(alignment: .leading, spacing: 18) {
+                    HStack(spacing: 26) {
+                        ForEach(actions.buttons, id: \.self) { button in
+                            actionButton(button, item: item)
+                        }
+                        if page.isQueueing {
+                            ProgressView().scaleEffect(1.2)
+                        }
                     }
-                    .buttonStyle(ActionButtonStyle(ambient: page.item?.ambientColor, prominent: true))
-                    .takesFocusFromLink()
-                    Button { Task { await model.playAll(of: page, shuffled: true, router: router) } } label: {
-                        Label("Shuffle", systemImage: "shuffle")
-                    }
-                    .buttonStyle(ActionButtonStyle(ambient: ambient))
-                    if page.isQueueing {
-                        ProgressView().scaleEffect(1.2)
-                    }
+                    .focusSection()
+                    FocusedActionName(name: focusedName)
                 }
-                .disabled(page.albums.isEmpty)
-                .modifier(FollowBeside(extras: extras, artistId: page.id))
                 .padding(.top, 8)
             }
             Spacer(minLength: 0)
+        }
+    }
+
+    /// Lidarr is connected but isn't answering (or didn't for this page, so whether they're followed is unknown): Follow
+    /// waits, dimmed.
+    private var paused: Bool {
+        pausedAbove || (status?.configured == true && status?.reachable == false) || extras?.lidarrAnswered == false
+    }
+
+    /// Albums of theirs outside the library, or artists like them, to fill the page when it has no albums.
+    private var hasOutside: Bool { !(extras?.missing.isEmpty ?? true) || !(extras?.similar.isEmpty ?? true) }
+
+    private var actions: MusicActions {
+        // While the albums load, Play and Shuffle stand rather than appear late.
+        MusicActions(kind: .artist, platform: .tv, hasMusic: page.detail == nil || !page.albums.isEmpty,
+                     canAsk: extras != nil && status?.configured == true)
+    }
+
+    private var following: Bool { model.isFollowing(libraryArtist: page.id, followed: extras?.followed ?? false) }
+
+    /// The focused round button's name; while Lidarr isn't answering, why Follow is dimmed instead (it says so with
+    /// Follow focused too, as pressing it does nothing).
+    private var focusedName: String? {
+        switch focusedAction {
+        case .shuffle: return "Shuffle"
+        case .radio: return "Radio"
+        default: break
+        }
+        if paused && actions.has(.follow) { return MusicWords.lidarrNotAnswering }
+        if focusedAction == .follow { return following ? MusicWords.following : MusicWords.follow }
+        return nil
+    }
+
+    @ViewBuilder
+    private func actionButton(_ button: MusicActions.Button, item: ItemSummary) -> some View {
+        switch button {
+        case .play:
+            Button { Task { await model.playAll(of: page, shuffled: false, router: router) } } label: {
+                Label("Play", systemImage: Symbol.play)
+            }
+            .buttonStyle(ActionButtonStyle(ambient: page.item?.ambientColor, prominent: true))
+            .takesFocusFromLink()
+            .disabled(page.albums.isEmpty)
+        case .shuffle:
+            Button { Task { await model.playAll(of: page, shuffled: true, router: router) } } label: {
+                Label("Shuffle", systemImage: Symbol.shuffle)
+            }
+            .buttonStyle(ActionButtonStyle(ambient: ambient, iconOnly: true))
+            .focused($focusedAction, equals: .shuffle)
+            .disabled(page.albums.isEmpty)
+        case .radio:
+            Button { Task { await model.playArtist(item, radio: true, router: router) } } label: {
+                Label("Radio", systemImage: Symbol.radio)
+            }
+            .buttonStyle(ActionButtonStyle(ambient: ambient, iconOnly: true))
+            .focused($focusedAction, equals: .radio)
+            .disabled(page.albums.isEmpty)
+        case .follow:
+            // Always there with music requests on; the page's first button for a placeholder (nothing to play yet).
+            FollowArtistButton(name: item.title, following: following, libraryId: page.id, deezerId: extras?.deezerId,
+                               ambient: ambient, takesLinkFocus: !actions.has(.play), focus: $focusedAction) {
+                // A placeholder leaves the library when unfollowed: so does its page, and the library's lists load again
+                // without it.
+                if page.albums.isEmpty, page.detail != nil {
+                    dismiss()
+                    model.invalidate()
+                }
+            }
+        case .download, .request, .more:
+            EmptyView()
         }
     }
 
@@ -136,28 +211,17 @@ struct ArtistView: View {
         await outside
     }
 
-    /// Off (kids, no Lidarr, an older server) leaves the page as it was.
+    /// Off (kids, no Lidarr, an older server) leaves the page as it was, without Follow. The extras are asked for only
+    /// once the status says requests are on (the server refuses them otherwise); the status is usually kept from the
+    /// last music page, so this rarely waits on it.
     private func loadExtras(_ client: FlexarrClient) async {
         guard !model.isKids else { return }
-        if let found = try? await client.musicArtistExtras(libraryItemId: page.id) { extras = found }
-    }
-}
-
-/// Play and Shuffle, with Follow artist after them (Following once Lidarr watches for the artist's releases).
-private struct FollowBeside: ViewModifier {
-    @Environment(AppModel.self) private var model
-    let extras: MusicArtistExtras?
-    let artistId: String
-
-    func body(content: Content) -> some View {
-        HStack(spacing: 26) {
-            content
-            // Always there with music requests on: Follow artist, or Following once Lidarr watches for their releases.
-            if let extras {
-                FollowArtistButton(following: model.isFollowing(libraryArtist: artistId, followed: extras.followed),
-                                   target: .libraryArtist(artistId))
-            }
+        let found = await model.musicRequestStatus()
+        status = found
+        guard found.configured else {
+            extras = nil
+            return
         }
-        .focusSection()
+        if let more = try? await client.musicArtistExtras(libraryItemId: page.id) { extras = more }
     }
 }

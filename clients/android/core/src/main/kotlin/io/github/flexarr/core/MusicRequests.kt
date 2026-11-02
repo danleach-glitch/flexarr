@@ -4,7 +4,8 @@ import kotlinx.serialization.Serializable
 
 // Music requests: artists and albums from outside the library (from Deezer, matched to MusicBrainz through Lidarr),
 // requesting an album and following an artist, as FlexarrKit's MusicRequests.swift. Everything here is absent from
-// servers before music requests, which answer the status with their web page (or a 404): off.
+// servers before music requests, which answer the status with their web page (or a 404): off. Unfollowing and
+// unrequesting are absent from servers before 0.59.
 
 /** Whether music requests are on for this profile: a Lidarr is connected, and answered just now. */
 @Serializable
@@ -111,7 +112,15 @@ data class MusicArtistDetail(
     val followed: Boolean = false,
     val availability: Availability = Availability.Unknown,
     val libraryItemId: String? = null,
-)
+    /**
+     * False when Lidarr didn't answer, so whether they're followed (and their albums requested) couldn't be checked:
+     * the page's Follow and Request album wait. Absent from servers before 0.59.
+     */
+    val lidarrAnswered: Boolean? = null,
+) {
+    /** Lidarr didn't answer for this page: its Follow and Request album wait. */
+    val lidarrPaused: Boolean get() = lidarrAnswered == false
+}
 
 @Serializable
 data class MusicAlbumDetail(
@@ -127,7 +136,15 @@ data class MusicAlbumDetail(
     val durationSeconds: Int = 0,
     val availability: Availability = Availability.Unknown,
     val libraryItemId: String? = null,
+    /**
+     * False when Lidarr didn't answer, so whether it's requested couldn't be checked: the page's Request album waits.
+     * Absent from servers before 0.59.
+     */
+    val lidarrAnswered: Boolean? = null,
 ) {
+    /** Lidarr didn't answer for this page: its Request album waits. */
+    val lidarrPaused: Boolean get() = lidarrAnswered == false
+
     /** The album as a row knows it, for its request. */
     val summary: MusicExternal
         get() = MusicExternal("album", deezerId, title, artist, artistDeezerId, year, image, availability, libraryItemId, recordType)
@@ -140,6 +157,27 @@ data class MusicArtistExtras(
     val similar: List<MusicExternal> = emptyList(),
     val followed: Boolean = false,
     /** The artist on Deezer, for their outside page; null when Deezer doesn't know them. */
+    val deezerId: Long? = null,
+    /**
+     * False when Lidarr didn't answer, so whether they're followed (and their albums requested) couldn't be checked:
+     * the page's Follow and Request album wait. Absent from servers before 0.59.
+     */
+    val lidarrAnswered: Boolean? = null,
+) {
+    /** Lidarr didn't answer for this page: its Follow and Request album wait. */
+    val lidarrPaused: Boolean get() = lidarrAnswered == false
+}
+
+@Serializable
+internal data class MusicUnfollowBody(
+    val artistId: String? = null,
+    val deezerId: Long? = null,
+    val musicBrainzId: String? = null,
+)
+
+@Serializable
+internal data class MusicUnrequestBody(
+    val musicBrainzId: String? = null,
     val deezerId: Long? = null,
 )
 
@@ -198,4 +236,45 @@ suspend fun FlexarrClient.followArtist(deezerId: Long) {
 /** Follows a library artist, by its id here. */
 suspend fun FlexarrClient.followLibraryArtist(artistId: String) {
     send("POST", "requests/music", body = FlexarrClient.json.encodeToString(MusicRequestBody.serializer(), MusicRequestBody("artist", artistId = artistId)))
+}
+
+/**
+ * Stops following an artist, for the whole household (Lidarr is shared): albums already asked for still come, new ones
+ * don't. By [artistId] (a library artist), [deezerId] or [musicBrainzId]: the first one given. Absent from servers
+ * before 0.59, which answer 404: that throws [UndoNeedsNewerServer]'s words.
+ */
+suspend fun FlexarrClient.unfollowArtist(artistId: String? = null, deezerId: Long? = null, musicBrainzId: String? = null) {
+    val body = when {
+        artistId != null -> MusicUnfollowBody(artistId = artistId)
+        deezerId != null && deezerId != 0L -> MusicUnfollowBody(deezerId = deezerId)
+        else -> MusicUnfollowBody(musicBrainzId = requireNotNull(musicBrainzId) { "Nothing to unfollow the artist by." })
+    }
+    undoing { send("POST", "requests/music/unfollow", body = FlexarrClient.json.encodeToString(MusicUnfollowBody.serializer(), body)) }
+}
+
+/**
+ * Cancels an album's request, for the whole household: Lidarr stops looking for it. By its release group when it's
+ * known (Lidarr's own id for it), else its Deezer id. Absent from servers before 0.59, which answer a bare 404: that
+ * throws [UndoNeedsNewerServer]'s words.
+ */
+suspend fun FlexarrClient.unrequestAlbum(album: MusicExternal) {
+    val body = if (album.musicBrainzId != null) MusicUnrequestBody(musicBrainzId = album.musicBrainzId) else MusicUnrequestBody(deezerId = album.deezerId.takeIf { it != 0L } ?: error("Nothing to cancel the request by."))
+    undoing { send("POST", "requests/music/unrequest", body = FlexarrClient.json.encodeToString(MusicUnrequestBody.serializer(), body)) }
+}
+
+/** What an unfollow or unrequest says when the server has no way to undo one yet (before 0.59). */
+const val UndoNeedsNewerServer = "Update the server to undo this."
+
+/**
+ * An unfollow or unrequest, a bare 404 (or 405) from a server before 0.59, with no word of its own, saying so in
+ * [UndoNeedsNewerServer]'s words. Anything else (a 404 with the server's own detail, such as an artist Lidarr doesn't
+ * have; a family guest's 403; Lidarr not answering, 502) keeps the server's own.
+ */
+private suspend fun undoing(send: suspend () -> Unit) {
+    try {
+        send()
+    } catch (e: FlexarrException.Http) {
+        if ((e.status == 404 || e.status == 405) && e.detail == null) throw FlexarrException.Http(e.status, UndoNeedsNewerServer)
+        throw e
+    }
 }

@@ -47,7 +47,8 @@ public sealed record MusicArtistDetailDto(
     IReadOnlyList<MusicExternalDto> Similar,
     bool Followed,
     AvailabilityDto Availability,
-    Guid? LibraryItemId);
+    Guid? LibraryItemId,
+    bool LidarrAnswered = true);
 
 public sealed record MusicAlbumDetailDto(
     long DeezerId,
@@ -61,11 +62,13 @@ public sealed record MusicAlbumDetailDto(
     IReadOnlyList<MusicTrackDto> Tracks,
     int DurationSeconds,
     AvailabilityDto Availability,
-    Guid? LibraryItemId);
+    Guid? LibraryItemId,
+    bool LidarrAnswered = true);
 
 /// <summary>A library artist's page, from outside: the albums of theirs it doesn't have, artists like them, and whether they're followed.</summary>
 /// <param name="DeezerId">The artist on Deezer, for their outside page; null when Deezer doesn't know them.</param>
-public sealed record MusicArtistExtrasDto(IReadOnlyList<MusicExternalDto> Missing, IReadOnlyList<MusicExternalDto> Similar, bool Followed, long? DeezerId);
+/// <param name="LidarrAnswered">False when Lidarr didn't answer: Followed and the albums' Requested couldn't be checked. Absent before 0.59.</param>
+public sealed record MusicArtistExtrasDto(IReadOnlyList<MusicExternalDto> Missing, IReadOnlyList<MusicExternalDto> Similar, bool Followed, long? DeezerId, bool LidarrAnswered = true);
 
 /// <summary>Request an album (just it) or follow an artist (their new releases).</summary>
 /// <param name="Kind">"album" or "artist".</param>
@@ -80,3 +83,24 @@ public sealed record MusicRequestStatusDto(bool Configured, bool Reachable);
 public sealed record MusicDestinationDto(Guid Id, string Name, bool IsDefault);
 
 public sealed record RequestMusicLibraryBody(Guid? LibraryId);
+
+/// <summary>Take back a follow (an artist, by any of the three) or a request (an album, by release group or Deezer id).</summary>
+/// <param name="MusicBrainzId">An artist's MusicBrainz id, or an album's release group.</param>
+/// <param name="ArtistId">A library artist, to unfollow.</param>
+public sealed record MusicUndoBody(long? DeezerId = null, string? MusicBrainzId = null, Guid? ArtistId = null);
+
+/// <summary>An album Lidarr is waiting for: asked for, monitored without files, or coming out soon.</summary>
+/// <param name="MusicBrainzId">Its release group: what unrequesting takes.</param>
+/// <param name="State">"upcoming" (not out yet), "searching", "downloading" or "importing".</param>
+/// <param name="Progress">While downloading: how far, 0 to 1.</param>
+/// <param name="ArtistLibraryItemId">The artist in the library, when they're there (a placeholder counts).</param>
+public sealed record MusicRequestedDto(
+    string MusicBrainzId,
+    string Title,
+    string Artist,
+    string? ArtistMusicBrainzId,
+    string? Image,
+    DateOnly? ReleaseDate,
+    string State,
+    double? Progress,
+    Guid? ArtistLibraryItemId);

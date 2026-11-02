@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -55,8 +56,14 @@ import io.github.flexarr.core.MusicArtistExtras
 import io.github.flexarr.core.Availability
 import io.github.flexarr.core.MusicExternal
 import io.github.flexarr.core.followLibraryArtist
+import io.github.flexarr.core.MusicActions
+import io.github.flexarr.core.unfollowArtist
+import androidx.compose.ui.semantics.hideFromAccessibility
+import androidx.compose.ui.semantics.semantics
 import io.github.flexarr.core.musicArtistExtras
 import io.github.flexarr.ui.music.LidarrNotAnswering
+import io.github.flexarr.ui.music.LocalMusicPaused
+import io.github.flexarr.ui.music.lidarrSilentHere
 import io.github.flexarr.ui.music.followState
 import io.github.flexarr.ui.music.libraryArtistKeys
 import io.github.flexarr.core.artistName
@@ -142,7 +149,8 @@ fun TvMusicLibraryScreen(
     RefreshWhenStale(loadedAt) { attempt++ }
 
     // Again after playback too, so the hero's album resumes from where it's got to.
-    LaunchedEffect(libraryId, attempt, model.watchStateVersion) {
+    // And when an artist has left the library from here (a placeholder unfollowed), so they don't stay in the row.
+    LaunchedEffect(libraryId, attempt, model.watchStateVersion, model.musicArtistsVersion) {
         loading = true
         try {
             coroutineScope {
@@ -303,7 +311,9 @@ private fun LazyListScope.gridRows(
 
 /**
  * A title page's header, as the Apple TV's artist, album and playlist pages: the art at the left, then the name, what's
- * under it, and Play and Shuffle. Play takes focus as the page opens, so OK plays at once.
+ * under it, and the action row in [io.github.flexarr.core.MusicActions] order: Play (the one labelled button), then
+ * round Shuffle, Radio (an artist's, given [onRadio]) and [extra], the focused round one named under the row. Play takes
+ * focus as the page opens, so OK plays at once.
  */
 @Composable
 private fun MusicHeader(
@@ -318,24 +328,36 @@ private fun MusicHeader(
     alignment: Alignment.Vertical = Alignment.Bottom,
     /** Play takes focus as the page opens; not when the page is giving it back to what had it. */
     takesFocus: Boolean = true,
-    /** After Play and Shuffle: an artist's Follow artist. */
-    extra: @Composable () -> Unit = {},
+    /** An artist's radio (them and artists like them), round after Shuffle; null for none. */
+    onRadio: (() -> Unit)? = null,
+    /** Play and Shuffle: not for an artist with nothing here yet (a placeholder, followed until their first album). */
+    showsPlay: Boolean = true,
+    /** [extra] has round buttons (Shuffle and Radio always are), whose focused one is named under the row. */
+    hasRound: Boolean = false,
+    /** After Play, Shuffle and Radio, in [io.github.flexarr.core.MusicActions] order: an artist's Follow, a round button. */
+    extra: @Composable (onFocusName: (String?) -> Unit) -> Unit = {},
     art: @Composable () -> Unit,
     below: @Composable () -> Unit,
 ) {
     val play = remember { FocusRequester() }
-    LaunchedEffect(canPlay) { if (canPlay && takesFocus) play.takeFocusSoon() }
+    var focusedName by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(canPlay) { if (canPlay && showsPlay && takesFocus) play.takeFocusSoon() }
     Row(Modifier.padding(horizontal = TvLayout.Edge), horizontalArrangement = Arrangement.spacedBy(30.dp), verticalAlignment = alignment) {
         art()
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(title, style = marquee(titleSize).copy(fontWeight = FontWeight.ExtraBold), maxLines = 2, overflow = TextOverflow.Ellipsis)
             below()
             Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(13.dp), verticalAlignment = Alignment.CenterVertically) {
-                TvActionButton("Play", onClick = onPlay, icon = FlexarrIcons.play, prominent = true, ambient = ambient, enabled = canPlay && !busy, modifier = Modifier.focusRequester(play))
-                TvActionButton("Shuffle", onClick = onShuffle, icon = FlexarrIcons.shuffle, ambient = ambient, enabled = canShuffle && !busy)
-                extra()
+                if (showsPlay) {
+                    TvActionButton("Play", onClick = onPlay, icon = FlexarrIcons.play, prominent = true, ambient = ambient, enabled = canPlay && !busy, modifier = Modifier.focusRequester(play))
+                    RoundAction("Shuffle", FlexarrIcons.shuffle, ambient, { focusedName = it }, enabled = canShuffle && !busy, onClick = onShuffle)
+                    onRadio?.let { RoundAction("Radio", FlexarrIcons.radio, ambient, { focusedName = it }, enabled = canPlay && !busy, onClick = it) }
+                }
+                extra { focusedName = it }
                 if (busy) CircularProgressIndicator(Modifier.size(20.dp), color = Flexarr.screen, strokeWidth = 2.dp)
             }
+            // The focused round button's name; the line keeps its height so nothing jumps.
+            if (hasRound || showsPlay) Text(focusedName ?: " ", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Flexarr.screen.copy(alpha = 0.75f), modifier = Modifier.semantics { hideFromAccessibility() })
         }
     }
 }
@@ -353,6 +375,10 @@ fun TvArtistScreen(model: AppModel, id: String) {
     // From outside the library, when this profile can request music: their albums the library lacks, artists like
     // them, and whether Lidarr follows them. Anything failing leaves the page as it was.
     var extras by remember(id) { mutableStateOf<MusicArtistExtras?>(null) }
+    // Until then "No albums yet." waits, so it doesn't flash before their missing albums arrive.
+    var extrasChecked by remember(id) { mutableStateOf(false) }
+    // With nothing to play (a placeholder artist), Follow takes focus as the page opens.
+    val follow = remember { FocusRequester() }
     // Coming back from an album or artist opened here, focus goes back to it rather than to Play.
     val focus = rememberFocusMemory()
     val returning = remember { focus.lastKey != null }
@@ -365,13 +391,22 @@ fun TvArtistScreen(model: AppModel, id: String) {
         } catch (_: Exception) {
             null
         }
+        extrasChecked = true
     }
+    val placeholder = detail?.children?.none { it.kind == MediaKind.Album } == true
+    LaunchedEffect(placeholder, extras != null) { if (placeholder && extras != null && !returning) follow.takeFocusSoon() }
+    // A placeholder unfollowed here has gone from the library (the server took them out): the page goes back.
+    var gone by remember(id) { mutableStateOf(false) }
+    LaunchedEffect(gone) { if (gone) navigator.back() }
 
     RoomBackground(ambient = ambient, intensity = 0.4f) {
         when (val state = page.state) {
             is Load.Loaded -> {
                 val item = state.value.item
                 val albums = state.value.children.filter { it.kind == MediaKind.Album }
+                val actions = MusicActions.of(
+                    MusicActions.Input(MusicActions.Kind.ARTIST, hasMusic = albums.isNotEmpty(), canRequest = extras != null, platform = MusicActions.Platform.TV, canRadio = true),
+                )
 
                 /** Everything they have, fetched when asked rather than with the page, then Now Playing. */
                 fun playAll(shuffled: Boolean) {
@@ -385,7 +420,8 @@ fun TvArtistScreen(model: AppModel, id: String) {
                     }
                 }
 
-                LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 65.dp, bottom = 45.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                // Lidarr didn't answer for this page: Follow and the album chips wait, and the page says so.
+                CompositionLocalProvider(LocalMusicPaused provides (extras?.lidarrPaused == true)) { LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 65.dp, bottom = 45.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     item(key = "header") {
                         Box(Modifier.focusMemory(focus, "header")) { MusicHeader(
                             title = item.title,
@@ -395,22 +431,35 @@ fun TvArtistScreen(model: AppModel, id: String) {
                             canShuffle = albums.isNotEmpty(),
                             onPlay = { playAll(shuffled = false) },
                             onShuffle = { playAll(shuffled = true) },
+                            onRadio = { navigator.playArtist(item, radio = true) }.takeIf { MusicActions.Button.RADIO in actions },
                             busy = queueing,
                             alignment = Alignment.CenterVertically,
                             takesFocus = !returning,
-                            extra = {
-                                // Once it's known music requests are on: Follow artist, or Following. One button
+                            showsPlay = MusicActions.Button.PLAY in actions,
+                            hasRound = MusicActions.Button.FOLLOW in actions,
+                            extra = { onFocusName ->
+                                // Once it's known music requests are on: Follow, or Following. One button
                                 // throughout, so focus stays on it; what went wrong beside it, with Try again.
-                                extras?.let { known ->
+                                val known = extras
+                                if (known != null && MusicActions.Button.FOLLOW in actions) {
                                     val keys = libraryArtistKeys(id, known.deezerId)
-                                    TvMusicRequestButton(
+                                    TvMusicRequestRound(
                                         model,
                                         MusicExternal("artist", known.deezerId ?: 0, item.title, availability = Availability.None),
                                         model.followState(keys, known.followed),
                                         keys,
+                                        onFocusName,
+                                        modifier = Modifier.focusRequester(follow),
                                         ambient = ambient,
-                                        prominent = false,
-                                    ) { it.followLibraryArtist(id) }
+                                        request = { it.followLibraryArtist(id) },
+                                        undo = { it.unfollowArtist(artistId = id) },
+                                        onUndone = {
+                                            if (albums.isEmpty()) {
+                                                model.musicArtistLeft()
+                                                gone = true
+                                            }
+                                        },
+                                    )
                                 }
                             },
                             art = { Box(Modifier.shadow(15.dp, CircleShape)) { TvSquareArtwork(item, 180.dp, circular = true) } },
@@ -424,14 +473,14 @@ fun TvArtistScreen(model: AppModel, id: String) {
                                 state.value.overview?.takeIf { it.isNotEmpty() }?.let {
                                     Text(it, fontSize = 13.sp, lineHeight = 18.sp, color = Flexarr.screen.copy(alpha = 0.88f), maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 500.dp))
                                 }
-                                if (extras != null && model.musicUnreachable) Text(LidarrNotAnswering, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher)
+                                if (extras != null && model.lidarrSilentHere) Text(LidarrNotAnswering, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher)
                             },
                         ) }
                     }
                     if (albums.isNotEmpty()) {
                         item(key = "albums-heading") { TvRowHeading("Albums", Modifier.padding(top = 14.dp)) }
                         gridRows(albums, key = "albums") { _, album -> TvAlbumCard(album, onClick = { navigator.open(album) }, modifier = Modifier.focusMemory(focus, "own/${album.id}")) }
-                    } else if (extras?.missing.isNullOrEmpty()) {
+                    } else if (extrasChecked && extras?.missing.isNullOrEmpty()) {
                         item(key = "empty") { Box(Modifier.height(100.dp)) { TvStatusView("No albums yet.", empty = true) } }
                     }
                     extras?.missing?.takeIf { it.isNotEmpty() }?.let { missing ->
@@ -441,7 +490,7 @@ fun TvArtistScreen(model: AppModel, id: String) {
                     extras?.similar?.takeIf { it.isNotEmpty() }?.let { similar ->
                         item(key = "similar") { TvMusicExternalRow("Fans also like", similar, cardModifier = { Modifier.focusMemory(focus, "similar/${it.id}") }) }
                     }
-                }
+                } }
             }
             is Load.Failed -> TvStatusView(state.message, retry = page.retry)
             Load.Loading -> TvStatusView()

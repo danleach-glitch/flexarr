@@ -100,6 +100,33 @@ with iPhone (Search, outside pages, artist extras) and Apple TV (Discover's Musi
 Android `core/MusicRequests.kt` with the phone and Android TV equivalents. Every app treats a 404 from the status
 endpoint as off, so they work with servers from before this.
 
+## Following, undoing and deleting (music-polish)
+
+- **Followed artists join the library at once.** Following an artist the library doesn't have adds a *placeholder*
+  artist (`MediaItem.Placeholder`) to the profile's *New music goes to* library, with their name, MusicBrainz id and
+  photo. Scans leave a placeholder alone (it's neither marked missing nor pruned), and the scanner reuses it by name when
+  their first album arrives, which clears the flag. Unfollowing removes a placeholder that's still empty.
+- **Unfollow** (`POST /requests/music/unfollow`, `{artistId | deezerId | musicBrainzId}`) is household-wide, as Lidarr
+  is shared: Lidarr's artist keeps `monitored: true` (so albums already asked for still download) with
+  `monitorNewItems: none`. Every profile's follow row for the artist closes.
+- **Requested** (`GET /requests/music/requested`): every album Lidarr is waiting for in folders the profile can see:
+  monitored albums without files (upcoming ones with their release date), plus open Flexarr album requests Lidarr
+  doesn't list yet. Each carries Lidarr's queue state when it's downloading (`Downloading` with progress, `Importing`),
+  else `Searching`, or `Upcoming` before its release date.
+- **Unrequest** (`POST /requests/music/unrequest`, `{musicBrainzId}` = the release group): unmonitors the album in
+  Lidarr, removes it from Lidarr's queue, and closes every profile's request for it. A request that added its artist to
+  Lidarr (`MediaRequest.AddedArtist`) takes the artist out again when nothing else of theirs is monitored, followed or
+  on disk. Any profile that can request music can unrequest.
+- **Delete** (`DELETE /items/{id}` for albums and artists, main profile only, web only for now). With Lidarr managing
+  it: an artist is deleted with their files (no import list exclusion); an album's track files are deleted and the
+  album unmonitored, so it stays requestable but doesn't download again. Without Lidarr, Flexarr deletes the files as
+  it does for films. An artist an album delete leaves empty goes too, unless they're followed (then a placeholder).
+- **Undo in the apps:** pressing Following or Requested asks once (*Stop following …?*, *Cancel request?*).
+- **One action order** for artist and album pages: Play, Shuffle, Radio, Download, Follow/Request, ⋯ (`MusicActions`
+  in FlexarrKit and Android `core`). The web labels each button; the apps show icons.
+- Everything here hides when no Lidarr is connected or music requests are off (`status.configured`), and greys with
+  *Lidarr isn't answering* when it doesn't answer (`status.reachable`).
+
 ## Later
 
 30-second previews, download progress from Lidarr's queue, an MCP tool to request by voice, telling the admin when

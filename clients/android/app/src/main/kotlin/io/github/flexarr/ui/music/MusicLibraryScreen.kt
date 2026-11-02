@@ -123,7 +123,7 @@ fun MusicLibraryScreen(model: AppModel, libraryId: String, genre: String? = null
     val albumsOffered = rememberLoader(libraryId, model.credentials) { model.offersMusicAlbums(libraryId) }
     val offersAlbums = (albumsOffered.state as? Load.Loaded)?.value == true
     val shown = if (view.needsAlbums && !offersAlbums) MusicView.Browse else view
-    val browse = rememberLoader(libraryId, model.watchStateVersion) {
+    val browse = rememberLoader(libraryId, model.watchStateVersion, model.musicArtistsVersion) {
         coroutineScope {
             val first = async { client.libraryItems(libraryId, LibrarySort.Title, take = ARTISTS_IN_ROW) }
             val home = client.musicBrowse(libraryId)
@@ -132,7 +132,8 @@ fun MusicLibraryScreen(model: AppModel, libraryId: String, genre: String? = null
         }
     }
     // Each grid's pages and place, kept while another view is shown.
-    val artists = remember(libraryId, artistSort) { MusicPager { skip, take -> client.libraryItems(libraryId, artistSort, skip = skip, take = take) } }
+    // Again when an artist has left the library from here (a placeholder unfollowed), so they don't stay listed.
+    val artists = remember(libraryId, artistSort, model.musicArtistsVersion) { MusicPager { skip, take -> client.libraryItems(libraryId, artistSort, skip = skip, take = take) } }
     val albums = remember(libraryId, albumSort) {
         MusicPager { skip, take -> client.libraryAlbums(libraryId, albumSort, skip = skip, take = take) ?: Paged(0, emptyList()) }
     }
@@ -262,7 +263,7 @@ private fun MusicGridScreen(model: AppModel, libraryId: String, view: MusicView,
     val library = rememberLoader(libraryId) { client.libraries().firstOrNull { it.id == libraryId } }
     val albums = view == MusicView.Albums
     var sort by rememberSaveable { mutableStateOf(initialSort.takeIf { it in view.sorts } ?: LibrarySort.Title) }
-    val pager = remember(libraryId, albums, sort) {
+    val pager = remember(libraryId, albums, sort, if (albums) 0 else model.musicArtistsVersion) {
         MusicPager { skip, take ->
             if (albums) client.libraryAlbums(libraryId, sort, skip = skip, take = take) ?: Paged(0, emptyList())
             else client.libraryItems(libraryId, sort, skip = skip, take = take)

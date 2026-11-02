@@ -21,7 +21,13 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.text.TextStyle
+import androidx.tv.material3.LocalContentColor
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -55,6 +61,23 @@ import io.github.flexarr.core.followArtist
 import io.github.flexarr.core.musicAlbum
 import io.github.flexarr.core.musicArtist
 import io.github.flexarr.core.requestAlbum
+import io.github.flexarr.core.unfollowArtist
+import io.github.flexarr.core.unrequestAlbum
+import io.github.flexarr.ui.components.MenuAction
+import io.github.flexarr.ui.music.isUndoingMusic
+import io.github.flexarr.ui.music.musicUndoConfirm
+import io.github.flexarr.ui.music.musicUndoKeep
+import io.github.flexarr.ui.music.musicUndoTitle
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.hideFromAccessibility
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.tv.material3.Border
+import androidx.tv.material3.Glow
+import androidx.tv.material3.Icon
 import io.github.flexarr.ui.components.Load
 import io.github.flexarr.ui.components.LocalNavigator
 import io.github.flexarr.ui.components.RemoteImage
@@ -64,7 +87,11 @@ import io.github.flexarr.appModel
 import io.github.flexarr.core.releaseShelves
 import io.github.flexarr.ui.music.LidarrNotAnswering
 import io.github.flexarr.ui.music.MusicRequestState
-import io.github.flexarr.ui.music.canAskForMusic
+import io.github.flexarr.ui.music.canAskForMusicHere
+import io.github.flexarr.ui.music.LocalMusicPaused
+import io.github.flexarr.ui.music.lidarrSilentHere
+import io.github.flexarr.ui.music.chipLabel
+import io.github.flexarr.ui.music.hasPage
 import io.github.flexarr.ui.music.followState
 import io.github.flexarr.ui.music.icon
 import io.github.flexarr.ui.music.label
@@ -79,8 +106,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 // Music from outside the library on the TV, as the Apple TV's ExternalMusicViews: cards for Discover and the artist
-// pages, and the outside artist and album pages. Each page's button (Follow artist, Request album) takes focus as it
-// opens.
+// pages, and the outside artist and album pages. Each page's button (Follow, Request album) takes focus as it opens.
 
 /** An outside artist's photo (round) or album's cover (square), the name standing in until it arrives. */
 @Composable
@@ -175,14 +201,24 @@ internal class TvMusicAsk(private val model: AppModel) {
             }
         }
     }
+
+    /** Unfollows or unrequests, once, as [send] does its asking; [onDone] once it has. */
+    fun undo(keys: List<String>, onDone: () -> Unit = {}, request: suspend (FlexarrClient) -> Unit) {
+        failure = null
+        model.scope.launch {
+            try {
+                if (model.undoMusic(keys, request)) onDone()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                failure = e.message ?: "Something went wrong."
+            }
+        }
+    }
 }
 
 @Composable
 internal fun rememberTvMusicAsk(model: AppModel, key: String): TvMusicAsk = remember(key) { TvMusicAsk(model) }
-
-/** What a request control says: where it stands, Try again after a failure, or nothing to offer (null). */
-internal fun MusicRequestState.tvLabel(isArtist: Boolean, failure: String?): String? =
-    if (this == MusicRequestState.CanRequest && failure != null) "Try again" else label(isArtist)
 
 /** What went wrong, beside or under a request control. */
 @Composable
@@ -191,35 +227,108 @@ internal fun TvMusicFailure(message: String, modifier: Modifier = Modifier) {
 }
 
 /**
- * An album from outside the library with Request album under it (or where it stands: "In your library" opens it);
- * nothing under it when there's nothing to offer. Down from the cover reaches it. A failed request says so under it,
- * with Try again. Both remember focus in [focus], so coming back from the album gives it back.
+ * A small quiet button under an album card, as the phone's and the web's: icon and words, outlined; [on] (Requested)
+ * lit with a ring of [ambient]. Greyed ([enabled] false) it stays focusable and ignores presses.
+ */
+@Composable
+private fun TvMusicChip(label: String, icon: ImageVector?, on: Boolean, enabled: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, ambient: Color = Flexarr.silver, description: String? = null) {
+    val shape = RoundedCornerShape(Tokens.radiusControl)
+    Surface(
+        onClick = { if (enabled) onClick() },
+        modifier = modifier.height(31.dp).semantics {
+            if (!enabled) disabled()
+            if (on) selected = true
+            description?.let { contentDescription = it }
+        },
+        shape = ClickableSurfaceDefaults.shape(shape),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = if (on) ambient.copy(alpha = 0.32f) else Flexarr.screen.copy(alpha = 0.09f),
+            contentColor = if (enabled) Flexarr.screen else Flexarr.usher,
+            focusedContainerColor = if (enabled) Flexarr.screen else Flexarr.screen.copy(alpha = 0.35f),
+            focusedContentColor = Flexarr.room,
+        ),
+        border = ClickableSurfaceDefaults.border(
+            border = if (on) Border(BorderStroke(2.dp, ambient.copy(alpha = 0.8f)), shape = shape) else Border(BorderStroke(1.dp, Flexarr.screen.copy(alpha = 0.22f)), shape = shape),
+            focusedBorder = Border.None,
+        ),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.06f),
+        glow = ClickableSurfaceDefaults.glow(focusedGlow = Glow(ambient.copy(alpha = 0.55f), 11.dp)),
+    ) {
+        Row(Modifier.fillMaxHeight().padding(horizontal = 10.dp), horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
+            icon?.let { Icon(it, contentDescription = null, modifier = Modifier.size(13.dp)) }
+            // Shrinks to fit the card rather than being cut off.
+            BasicText(
+                label,
+                style = TextStyle(color = LocalContentColor.current, fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
+                maxLines = 1,
+                autoSize = TextAutoSize.StepBased(minFontSize = 9.sp, maxFontSize = 12.sp),
+            )
+        }
+    }
+}
+
+/**
+ * An album from outside the library with a small Request button under it, as the phone's: Requested lit,
+ * pressing it asking once before unrequesting; In your library opens it; nothing under it when there's nothing to
+ * offer. Down from the cover reaches it. A failed request or unrequest says so under it, with Try again. Both remember
+ * focus in [focus], so coming back from the album gives it back. One with no page of its own (an album only Lidarr
+ * lists) does what its button does when the cover is pressed.
  */
 @Composable
 internal fun TvRequestableAlbum(model: AppModel, item: MusicExternal, focus: FocusMemory?, modifier: Modifier = Modifier) {
     val navigator = LocalNavigator.current
     val ask = rememberTvMusicAsk(model, item.id)
     val state = model.requestState(item)
-    val label = state.tvLabel(isArtist = false, ask.failure)
+    var confirming by remember { mutableStateOf(false) }
+    val on = state == MusicRequestState.Requested || state == MusicRequestState.Sending
+    val label = if (state == MusicRequestState.CanRequest && ask.failure != null) "Try again" else state.chipLabel()
+    val canAsk = model.canAskForMusicHere
+    val enabled = when (state) {
+        MusicRequestState.CanRequest -> canAsk
+        MusicRequestState.Requested -> canAsk && !model.isUndoingMusic(listOf(item.id))
+        MusicRequestState.InLibrary -> item.libraryItemId != null
+        else -> false
+    }
+    val press = {
+        when (state) {
+            MusicRequestState.CanRequest -> ask.send(listOf(item.id)) { it.requestAlbum(item) }
+            MusicRequestState.Requested -> confirming = true
+            MusicRequestState.InLibrary -> navigator.openMusic(item)
+            else -> Unit
+        }
+    }
     fun Modifier.remembered(key: String) = if (focus != null) focusMemory(focus, key) else this
     Column(modifier.width(TvLayout.PosterWidth), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        TvMusicExternalCard(item, onClick = { navigator.openMusic(item) }, showsArtist = false, modifier = Modifier.remembered("album/${item.id}"))
+        TvMusicExternalCard(
+            item,
+            onClick = { if (item.hasPage) navigator.openMusic(item) else if (enabled) press() },
+            showsArtist = false,
+            modifier = Modifier.remembered("album/${item.id}"),
+        )
         if (label != null) {
-            TvPill(
+            TvMusicChip(
                 label,
-                selected = state == MusicRequestState.CanRequest,
-                onClick = {
-                    when (state) {
-                        MusicRequestState.CanRequest -> if (model.canAskForMusic) ask.send(listOf(item.id)) { it.requestAlbum(item) }
-                        MusicRequestState.InLibrary -> navigator.openMusic(item)
-                        else -> Unit
-                    }
-                },
+                state.icon(isArtist = false),
+                on = on,
+                enabled = enabled,
+                onClick = press,
                 modifier = Modifier.remembered("album/${item.id}/request"),
+                description = "Request album".takeIf { state == MusicRequestState.CanRequest && ask.failure == null },
             )
         }
-        ask.failure?.takeIf { state == MusicRequestState.CanRequest }?.let { TvMusicFailure(it) }
+        ask.failure?.takeIf { state == MusicRequestState.CanRequest || state == MusicRequestState.Requested }?.let { TvMusicFailure(it) }
     }
+    if (confirming) TvMusicUndoMenu(isArtist = false, item.title, onUndo = { ask.undo(listOf(item.id)) { it.unrequestAlbum(item) } }, onDismiss = { confirming = false })
+}
+
+/** Asked once before Following or Requested is undone: the way out first, so it has focus. */
+@Composable
+internal fun TvMusicUndoMenu(isArtist: Boolean, name: String, onUndo: () -> Unit, onDismiss: () -> Unit) {
+    TvItemMenu(
+        musicUndoTitle(isArtist, name),
+        listOf(MenuAction(musicUndoKeep(isArtist)) {}, MenuAction(musicUndoConfirm(isArtist), run = onUndo)),
+        onDismiss = onDismiss,
+    )
 }
 
 /** Outside albums six across, each with Request album, in rows of the page's list. */
@@ -236,55 +345,81 @@ internal fun LazyListScope.requestableAlbumRows(model: AppModel, albums: List<Mu
 /** How long after a page opens before its button takes a press: a quick second press on the card isn't a request. */
 private const val MUSIC_SETTLE_MS = 400L
 
+/** An outside album the household has: "In your library", opening it. */
+@Composable
+private fun TvInYourLibraryButton(item: MusicExternal, modifier: Modifier = Modifier) {
+    val navigator = LocalNavigator.current
+    TvActionButton(
+        MusicRequestState.InLibrary.label(item.isArtist)!!,
+        onClick = { navigator.openMusic(item) },
+        icon = MusicRequestState.InLibrary.icon(item.isArtist),
+        enabled = item.libraryItemId != null,
+        modifier = modifier,
+    )
+}
+
 /**
- * Follow artist or Request album ([state]), or where it stands ("In your library" opens it), with what went wrong
- * beside it and Try again. One button throughout, whatever it says, so focus never lands on nothing; none when there's
- * nothing to offer.
+ * Follow or Request album as a round icon in a page's row, its name under the row while it has focus ([onFocusName]):
+ * Following or Requested lit and ringed, and pressing it asks once ([TvMusicUndoMenu]) before undoing, then
+ * [onUndone]. What went wrong shows beside it. Nothing for [MusicRequestState.InLibrary] or [MusicRequestState.None]:
+ * the page's call.
  */
 @Composable
-internal fun TvMusicRequestButton(
+internal fun TvMusicRequestRound(
     model: AppModel,
     item: MusicExternal,
     state: MusicRequestState,
     keys: List<String>,
+    onFocusName: (String?) -> Unit,
     modifier: Modifier = Modifier,
     ambient: Color = Flexarr.silver,
-    prominent: Boolean = state == MusicRequestState.CanRequest,
     request: suspend (FlexarrClient) -> Unit,
+    undo: suspend (FlexarrClient) -> Unit,
+    onUndone: () -> Unit = {},
 ) {
-    val navigator = LocalNavigator.current
     val ask = rememberTvMusicAsk(model, keys.first())
     val shownAt = remember(item.id) { SystemClock.uptimeMillis() }
-    val label = state.tvLabel(item.isArtist, ask.failure) ?: return
-    Row(horizontalArrangement = Arrangement.spacedBy(15.dp), verticalAlignment = Alignment.CenterVertically) {
-        TvActionButton(
-            label,
-            onClick = {
-                when {
-                    state == MusicRequestState.InLibrary -> navigator.openMusic(item)
-                    state != MusicRequestState.CanRequest || SystemClock.uptimeMillis() - shownAt <= MUSIC_SETTLE_MS -> Unit
-                    else -> ask.send(keys, request)
-                }
-            },
-            icon = state.icon(item.isArtist),
-            prominent = prominent,
-            ambient = ambient,
-            enabled = (state == MusicRequestState.CanRequest && model.canAskForMusic) || state == MusicRequestState.InLibrary,
-            modifier = modifier,
-        )
-        ask.failure?.takeIf { state == MusicRequestState.CanRequest }?.let { TvMusicFailure(it) }
+    var confirming by remember { mutableStateOf(false) }
+    val icon = state.icon(item.isArtist) ?: return
+    if (state == MusicRequestState.InLibrary) return
+    val isArtist = item.isArtist
+    val on = state == MusicRequestState.Requested || state == MusicRequestState.Sending
+    val name = when {
+        on -> if (isArtist) "Following" else "Requested"
+        ask.failure != null -> "Try again"
+        else -> state.label(isArtist).orEmpty()
     }
+    val enabled = model.canAskForMusicHere && !model.isUndoingMusic(keys) && (state == MusicRequestState.CanRequest || state == MusicRequestState.Requested)
+    Row(horizontalArrangement = Arrangement.spacedBy(15.dp), verticalAlignment = Alignment.CenterVertically) {
+        RoundAction(name, icon, ambient, onFocusName, modifier, enabled = enabled, selected = on) {
+            when {
+                state == MusicRequestState.Requested -> confirming = true
+                state != MusicRequestState.CanRequest || SystemClock.uptimeMillis() - shownAt <= MUSIC_SETTLE_MS -> Unit
+                else -> ask.send(keys, request)
+            }
+        }
+        ask.failure?.let { TvMusicFailure(it) }
+    }
+    if (confirming) TvMusicUndoMenu(isArtist, item.title, onUndo = { ask.undo(keys, onUndone, undo) }, onDismiss = { confirming = false })
 }
 
-/** The art at the left, then the name, what's under it, and the page's buttons, as the library's music pages. */
+/**
+ * The art at the left, then the name, what's under it, and the page's buttons, as the library's music pages; the
+ * focused round button's name under them.
+ */
 @Composable
-private fun TvExternalMusicHeader(title: String, titleSize: Int, art: @Composable () -> Unit, below: @Composable () -> Unit, buttons: @Composable () -> Unit) {
+private fun TvExternalMusicHeader(title: String, titleSize: Int, art: @Composable () -> Unit, below: @Composable () -> Unit, buttons: @Composable (onFocusName: (String?) -> Unit) -> Unit) {
+    var focusedName by remember { mutableStateOf<String?>(null) }
     Row(Modifier.padding(horizontal = TvLayout.Edge), horizontalArrangement = Arrangement.spacedBy(30.dp), verticalAlignment = Alignment.CenterVertically) {
         art()
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(title, style = marquee(titleSize).copy(fontWeight = FontWeight.ExtraBold), maxLines = 2, overflow = TextOverflow.Ellipsis)
             below()
-            Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(13.dp), verticalAlignment = Alignment.CenterVertically) { buttons() }
+            Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(13.dp), verticalAlignment = Alignment.CenterVertically) { buttons { focusedName = it } }
+                // The line keeps its height so nothing jumps.
+                Text(focusedName ?: " ", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Flexarr.screen.copy(alpha = 0.75f), modifier = Modifier.semantics { hideFromAccessibility() })
+            }
         }
     }
 }
@@ -293,7 +428,7 @@ private fun loadFailure(e: Exception, what: String): String =
     if (e is FlexarrException.Http && e.status == 404) "Flexarr can’t find that $what." else e.message ?: "Something went wrong."
 
 /**
- * An artist from outside the library: photo and name, Follow artist, their releases (albums, EPs and singles,
+ * An artist from outside the library: photo and name, Follow, their releases (albums, EPs and singles,
  * compilations) each with Request album, and Fans also like. One the household has adds In your library, opening
  * theirs. Coming back from one of their albums, focus goes back to it.
  */
@@ -321,25 +456,27 @@ fun TvExternalArtistScreen(model: AppModel, deezerId: Long) {
                 val libraryId = artist.libraryItemId
                 val keys = listOfNotNull(summary.id, libraryId?.let { "library-artist-$it" })
                 val follow = model.followState(keys, artist.followed || artist.availability == Availability.Requested)
-                LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 65.dp, bottom = 45.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                CompositionLocalProvider(LocalMusicPaused provides artist.lidarrPaused) { LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 65.dp, bottom = 45.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     item(key = "header") {
                         TvExternalMusicHeader(
                             title = artist.name,
                             titleSize = 42,
                             art = { Box(Modifier.shadow(15.dp, CircleShape)) { TvMusicArtwork(artist.image, artist.name, circular = true, size = 180.dp) } },
                             below = {
-                                if (model.musicUnreachable) Text(LidarrNotAnswering, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher)
+                                if (model.lidarrSilentHere) Text(LidarrNotAnswering, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher)
                                 if (artist.albums.isNotEmpty()) TvFactsLine(listOf(if (artist.albums.size == 1) "1 album" else "${artist.albums.size} albums"))
                             },
-                            buttons = {
+                            buttons = { onFocusName ->
                                 if (libraryId != null) {
                                     TvActionButton("In your library", onClick = { navigator.openLibraryArtist(libraryId) }, icon = FlexarrIcons.music, prominent = true, modifier = Modifier.focusMemory(focus, "library"))
                                 }
-                                TvMusicRequestButton(
-                                    model, summary, follow, keys,
+                                // Nothing of theirs plays here: Follow is the page's one action (MusicActions).
+                                TvMusicRequestRound(
+                                    model, summary, follow, keys, onFocusName,
                                     modifier = Modifier.focusMemory(focus, "request"),
-                                    prominent = follow == MusicRequestState.CanRequest && libraryId == null,
-                                ) { it.followArtist(deezerId) }
+                                    request = { it.followArtist(deezerId) },
+                                    undo = { it.unfollowArtist(deezerId = deezerId) },
+                                )
                             },
                         )
                     }
@@ -350,7 +487,7 @@ fun TvExternalArtistScreen(model: AppModel, deezerId: Long) {
                     if (artist.similar.isNotEmpty()) {
                         item(key = "similar") { TvMusicExternalRow("Fans also like", artist.similar, cardModifier = { Modifier.focusMemory(focus, "similar/${it.id}") }) }
                     }
-                }
+                } }
             }
             is Load.Failed -> TvStatusView(state.message, retry = page.retry)
             Load.Loading -> TvStatusView()
@@ -358,7 +495,7 @@ fun TvExternalArtistScreen(model: AppModel, deezerId: Long) {
     }
 }
 
-/** The artist as a card knows them, for Follow artist. */
+/** The artist as a card knows them, for Follow. */
 private val MusicArtistDetail.summary: MusicExternal
     get() = MusicExternal("artist", deezerId, name, image = image, availability = availability, libraryItemId = libraryItemId)
 
@@ -400,7 +537,7 @@ fun TvExternalAlbumScreen(model: AppModel, deezerId: Long) {
             is Load.Loaded -> {
                 val album = state.value
                 val summary = album.summary
-                LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 65.dp, bottom = 45.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                CompositionLocalProvider(LocalMusicPaused provides album.lidarrPaused) { LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 65.dp, bottom = 45.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     item(key = "header") {
                         TvExternalMusicHeader(
                             title = album.title,
@@ -414,10 +551,20 @@ fun TvExternalAlbumScreen(model: AppModel, deezerId: Long) {
                                     Text(album.artist, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen.copy(alpha = 0.9f))
                                 }
                                 TvFactsLine(albumFacts(album))
-                                if (model.musicUnreachable) Text(LidarrNotAnswering, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher)
+                                if (model.lidarrSilentHere) Text(LidarrNotAnswering, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher)
                             },
-                            buttons = {
-                                TvMusicRequestButton(model, summary, model.requestState(summary), listOf(summary.id), modifier = Modifier.focusMemory(focus, "request")) { it.requestAlbum(summary) }
+                            buttons = { onFocusName ->
+                                val request = model.requestState(summary)
+                                if (request == MusicRequestState.InLibrary) {
+                                    TvInYourLibraryButton(summary, modifier = Modifier.focusMemory(focus, "request"))
+                                } else {
+                                    TvMusicRequestRound(
+                                        model, summary, request, listOf(summary.id), onFocusName,
+                                        modifier = Modifier.focusMemory(focus, "request"),
+                                        request = { it.requestAlbum(summary) },
+                                        undo = { it.unrequestAlbum(summary) },
+                                    )
+                                }
                             },
                         )
                     }
@@ -433,7 +580,7 @@ fun TvExternalAlbumScreen(model: AppModel, deezerId: Long) {
                         }
                         OutsideTrackRow(track, if (track.number > 0) track.number else index + 1, Modifier.padding(horizontal = TvLayout.Edge).widthIn(max = 700.dp).fillMaxWidth().focusMemory(focus, "track-$index"))
                     }
-                }
+                } }
             }
             is Load.Failed -> TvStatusView(state.message, retry = page.retry)
             Load.Loading -> TvStatusView()

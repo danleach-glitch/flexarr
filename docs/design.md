@@ -87,6 +87,7 @@ Flexarr looks like one product everywhere, and behaves like it belongs on each d
 - Big Shoulders Display for titles, row headings and Top 10 numerals.
 - The main button's look: the ambient fill (silver when a title has none). On the TVs it's ambient at rest and projected white when focused, as tvOS and Google TV expect focus to look.
 - The film and show page's actions, in this order: **Play** or **Resume from 32:10**, **Start over** (only once there's progress), **Shuffle** (shows), **Trailer** (not for children), **Watched**, **Watchlist**, **Download** (phones only), then **⋯**. The ⋯ menu holds the rest: subtitles, add to a collection, fix match, allow or block for kids, delete. The order is defined once in `DetailActions` (FlexarrKit and Android `core`) and on web in `ItemPage`.
+- An artist's or album's actions, in this order: **Play**, **Shuffle**, **Radio** (artists), **Download** (phones, albums), **Follow** / **Following** (artists) or **Request album** / **Requested** (albums, when music requests are on), then **⋯** (queue actions; **Delete…** for the main profile on web). Nothing to play (a followed artist with no albums yet, an album from outside the library) leaves out the first four. The web labels each button beside its icon. The apps spell out **Play** and show the rest as round icons (the TVs name the focused one under the row); on the phones a **Follow** or **Request album** that's the page's only button is spelled out too. Pressing **Following** or **Requested** asks once (*Stop following …?*, *Unrequest …?*) and takes it back. The order is defined once in `MusicActions` (FlexarrKit and Android `core`).
 - The words (below).
 
 **Native on each**
@@ -112,7 +113,7 @@ The same words on every client and in the guide:
 - Sorting a library: **A–Z**, **Recently added**, **Year**, **Rating** (never "Title", "Newest first" or "Highest rated").
 - Music: **Artists**, **Albums**, **Genres**, **Your artists**, **Radio**, **Shuffle**; a music library's switch reads **Browse · Artists · Albums · Genres**.
 - **Watchlist**, **Continue watching**, **Up next**, **Coming soon**, **Discover**, **Cast and crew**, **More like this**.
-- Requests: **Request** (movies and shows), **Request album**, **Follow artist** and then **Following**, **Requested**, **In your library**, **Partly in your library**, **Not in your library**, **Fans also like**. Discover's halves are **Movies and shows** and **Music**.
+- Requests: **Request** (movies and shows), **Request album**, **Follow** and then **Following**, **Unrequest**, **Stop following**, **Requested**, **In your library**, **Partly in your library**, **Not in your library**, **Fans also like**. Discover's halves are **Movies and shows** and **Music**.
 - Episodes: **S1E3** where space is short, **Season 1, Episode 3** in headings. No zero padding, no pipes.
 - Facts sit side by side with space between them, never joined with middle dots.
 

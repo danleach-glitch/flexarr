@@ -1,7 +1,7 @@
 import FlexarrKit
 import SwiftUI
 
-/// An artist from outside the library: their photo and name, Follow artist, their albums (each to request), and the
+/// An artist from outside the library: their photo and name, Follow, their albums (each to request), and the
 /// artists fans also like.
 struct ExternalArtistView: View {
     @Environment(AppModel.self) private var model
@@ -10,6 +10,8 @@ struct ExternalArtistView: View {
     let preview: MusicExternal
     @State private var detail: MusicArtistDetail?
     @State private var error: String?
+    @State private var status: MusicRequestStatus?
+    @Environment(\.musicRequestsPaused) private var pausedAbove
 
     private var columns: [GridItem] {
         let minimum: CGFloat = sizeClass == .regular ? 150 : 105
@@ -46,7 +48,8 @@ struct ExternalArtistView: View {
                 }
                 .padding(.bottom, 32)
             }
-            .refreshable { await load() }
+            .refreshable { await load(fresh: true) }
+            .environment(\.musicRequestsPaused, paused)
         }
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
@@ -64,18 +67,26 @@ struct ExternalArtistView: View {
                 .lineLimit(2)
                 .minimumScaleFactor(0.7)
             if let detail {
-                HStack(spacing: 12) {
+                // Nothing to play here (`MusicActions`): In your library opens the artist's own page, then Follow, spelled
+                // out when it's alone.
+                ActionRowLayout {
                     if let id = detail.libraryItemId {
                         Button { router.push(.musicItem(id: id, isArtist: true)) } label: {
                             Label("In your library", systemImage: Symbol.play)
                         }
                         .buttonStyle(ActionButtonStyle(prominent: true))
                     }
-                    FollowArtistButton(following: model.isFollowing(preview, followed: detail.followed)) {
-                        await model.requestMusic(.artist(deezerId: detail.deezerId))
+                    if MusicActions(kind: .artist, platform: .phone, hasMusic: false, canAsk: status?.configured == true).has(.follow) {
+                        FollowArtistButton(name: detail.name, following: model.isFollowing(preview, followed: detail.followed),
+                                           libraryId: detail.libraryItemId, deezerId: detail.deezerId,
+                                           labelled: detail.libraryItemId == nil)
                     }
                 }
-                .fixedSize()
+                if paused {
+                    Text(MusicWords.lidarrNotAnswering)
+                        .font(.footnote)
+                        .foregroundStyle(Color.usher)
+                }
             }
         }
         .frame(maxWidth: .infinity)
@@ -83,13 +94,21 @@ struct ExternalArtistView: View {
         .padding(.horizontal, Layout.edge)
     }
 
-    private func load() async {
+    /// Lidarr is connected but isn't answering (or didn't for this page, so what's asked for is unknown): the buttons
+    /// wait, greyed.
+    private var paused: Bool {
+        pausedAbove || (status?.configured == true && (status?.reachable == false || detail?.lidarrAnswered == false))
+    }
+
+    private func load(fresh: Bool = false) async {
         guard let client = model.client else { return }
+        async let asked = model.musicRequestStatus(fresh: fresh)
         do {
             detail = try await client.musicArtist(deezerId: preview.deezerId)
             error = nil
         } catch {
             self.error = ConnectionError(error).message
         }
+        status = await asked
     }
 }

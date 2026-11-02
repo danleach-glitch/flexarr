@@ -109,6 +109,9 @@ public sealed class ArrClient(HttpClient httpClient)
     public Task<IReadOnlyList<LidarrArtist>> GetArtistsAsync(ArrInstance lidarr, CancellationToken ct = default) =>
         GetAsync<IReadOnlyList<LidarrArtist>>(lidarr, "artist", ct);
 
+    public Task<LidarrArtist> GetArtistAsync(ArrInstance lidarr, int artistId, CancellationToken ct = default) =>
+        GetAsync<LidarrArtist>(lidarr, $"artist/{artistId}", ct);
+
     /// <summary>Every release group Lidarr lists for an artist, owned or not.</summary>
     public Task<IReadOnlyList<LidarrAlbum>> GetArtistAlbumsAsync(ArrInstance lidarr, int artistId, CancellationToken ct = default) =>
         GetAsync<IReadOnlyList<LidarrAlbum>>(lidarr, $"album?artistId={artistId}", ct);
@@ -191,6 +194,54 @@ public sealed class ArrClient(HttpClient httpClient)
         artist["monitorNewItems"] = "new";
         await SendAsync<JsonObject>(lidarr, HttpMethod.Put, $"artist/{artistId}", artist, ct).ConfigureAwait(false);
     }
+
+    /// <summary>
+    /// Has Lidarr stop watching for an artist's new releases. The artist stays monitored, so albums already asked for
+    /// still download.
+    /// </summary>
+    public async Task UnfollowArtistAsync(ArrInstance lidarr, int artistId, CancellationToken ct = default)
+    {
+        var artist = await GetAsync<JsonObject>(lidarr, $"artist/{artistId}", ct).ConfigureAwait(false);
+        artist["monitorNewItems"] = "none";
+        await SendAsync<JsonObject>(lidarr, HttpMethod.Put, $"artist/{artistId}", artist, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>The albums Lidarr has with this MusicBrainz release group (none or one), each with its artist's id.</summary>
+    public Task<IReadOnlyList<LidarrAlbum>> GetAlbumsByForeignIdAsync(ArrInstance lidarr, string releaseGroupId, CancellationToken ct = default) =>
+        GetAsync<IReadOnlyList<LidarrAlbum>>(lidarr, $"album?foreignAlbumId={Uri.EscapeDataString(releaseGroupId)}", ct);
+
+    /// <summary>
+    /// The albums Lidarr is waiting for: monitored, out already and without files (its Wanted › Missing), with their
+    /// artist's id (not the artist); up to 1,000.
+    /// </summary>
+    public async Task<IReadOnlyList<LidarrAlbum>> GetWantedAlbumsAsync(ArrInstance lidarr, CancellationToken ct = default)
+    {
+        // One page of a thousand, without each album's artist (the caller has Lidarr's artist list already).
+        var page = await GetAsync<ArrPage<LidarrAlbum>>(lidarr, "wanted/missing?page=1&pageSize=1000&includeArtist=false&monitored=true&sortKey=releaseDate&sortDirection=descending", ct)
+            .ConfigureAwait(false);
+        return page.Records;
+    }
+
+    /// <summary>Monitored albums coming out between these dates, with their artist's id (Lidarr's calendar).</summary>
+    public Task<IReadOnlyList<LidarrAlbum>> GetUpcomingAlbumsAsync(ArrInstance lidarr, DateTime start, DateTime end, CancellationToken ct = default) =>
+        GetAsync<IReadOnlyList<LidarrAlbum>>(lidarr, $"calendar?start={start:yyyy-MM-dd}&end={end:yyyy-MM-dd}&unmonitored=false&includeArtist=false", ct);
+
+    /// <summary>Deletes these music files from disk (to Lidarr's recycle bin, if it has one) in one call.</summary>
+    public async Task DeleteTrackFilesAsync(ArrInstance lidarr, IReadOnlyList<int> trackFileIds, CancellationToken ct = default)
+    {
+        using var request = Request(lidarr, HttpMethod.Delete, "trackfile/bulk");
+        request.Content = JsonContent.Create(new { trackFileIds }, options: Json);
+        using var response = await httpClient.SendAsync(request, ct).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+    }
+
+    /// <summary>Lidarr's queue entries for these albums only.</summary>
+    public Task<IReadOnlyList<ArrQueueItem>> GetAlbumQueueAsync(ArrInstance lidarr, IReadOnlyList<int> albumIds, CancellationToken ct = default) =>
+        GetAsync<IReadOnlyList<ArrQueueItem>>(lidarr, $"queue/details?{string.Join('&', albumIds.Select(id => $"albumIds={id}"))}", ct);
+
+    /// <summary>The music files Lidarr has for one album.</summary>
+    public Task<IReadOnlyList<LidarrTrackFile>> GetAlbumTrackFilesAsync(ArrInstance lidarr, int albumId, CancellationToken ct = default) =>
+        GetAsync<IReadOnlyList<LidarrTrackFile>>(lidarr, $"trackfile?albumId={albumId}", ct);
 
     /// <summary>Monitored albums are downloaded when missing.</summary>
     public async Task SetAlbumsMonitoredAsync(ArrInstance lidarr, IReadOnlyList<int> albumIds, bool monitored, CancellationToken ct = default)

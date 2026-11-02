@@ -256,7 +256,8 @@ public static class MusicDiscovery
         }
 
         var lastArtist = last?.Picture == true ? last.ArtistId : null;
-        var artists = db.MediaItems.Where(a => a.LibraryId == libraryId && a.Kind == MediaKind.Artist && a.BackdropUrl != null);
+        // Never a followed artist none of whose music has arrived: their slide would have nothing to play.
+        var artists = db.MediaItems.Where(a => a.LibraryId == libraryId && a.Kind == MediaKind.Artist && a.BackdropUrl != null && !a.Placeholder);
         var playedArtists = (artistPlays ?? await ArtistPlaysAsync(db, profileId, libraryId, ct)).Select(a => a.ArtistId).ToList();
         var withBackdrop = await artists.Where(a => playedArtists.Contains(a.Id)).Select(a => a.Id).ToListAsync(ct);
         // The last album's artist is on its slide already.

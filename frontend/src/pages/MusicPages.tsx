@@ -1,9 +1,10 @@
-import { useState, type CSSProperties, type MouseEvent } from 'react'
-import { Link } from 'react-router'
-import { getMusicArtistExtras, getMusicRequestStatus, getRadio, getTracks, imageUrl, type AlbumType, type ItemDetail, type ItemSummary } from '../api/client'
+import { useState, type CSSProperties, type MouseEvent, type ReactNode } from 'react'
+import { Link, useNavigate } from 'react-router'
+import { getItem, getMusicArtistExtras, getMusicRequestStatus, getRadio, getTracks, imageUrl, type AlbumType, type ItemDetail, type ItemSummary } from '../api/client'
 import { openAddToPlaylist, type PlaylistAddition } from '../components/AddToPlaylist'
 import { Artwork } from '../components/Artwork'
 import { AsyncButton } from '../components/AsyncButton'
+import { DeleteDialog } from '../components/DeleteDialog'
 import { PosterCard } from '../components/Cards'
 import { Menu, type MenuAction, type MenuPoint } from '../components/ItemMenu'
 import { More, Play, Radio } from '../components/icons'
@@ -11,6 +12,7 @@ import { LyricsPanel } from '../components/LyricsPanel'
 import { MusicExternalCard, MusicRequestButton } from '../components/MusicExternalCard'
 import { Row } from '../components/Row'
 import { useApi } from '../hooks/useApi'
+import { useSession } from '../hooks/sessionContext'
 import { useAudioPlayer, useAudioTime, useMusicPage, type AudioPlayer } from '../hooks/audioPlayerContext'
 import { formatClock, formatDuration } from '../lib/format'
 
@@ -96,6 +98,36 @@ export function MoreButton({ label, actions, disabled }: { label: string; action
   )
 }
 
+/** Two groups of menu actions, with a line between them when both have any. */
+const andThen = (first: MenuAction[], then: MenuAction[]): MenuAction[] => (first.length && then.length ? [...first, 'divider', ...then] : [...first, ...then])
+
+/**
+ * Delete… in an album's or artist's ⋯, for the main profile (locked or not, as for films), and its dialog. Lidarr
+ * deletes the files when it manages them; back to the artist (for an album) or the library afterwards.
+ */
+function useDeletion(detail: ItemDetail): { actions: MenuAction[]; dialog: ReactNode } {
+  const { me } = useSession()
+  const navigate = useNavigate()
+  const [deleting, setDeleting] = useState(false)
+  const { item } = detail
+  const parent = detail.ancestors[0]
+  if (!(me?.isAdmin === true || me?.canUnlock === true)) return { actions: [], dialog: null }
+  return {
+    actions: [{ label: 'Delete…', run: () => setDeleting(true), danger: true }],
+    dialog: deleting ? (
+      <DeleteDialog
+        item={item}
+        onClose={() => setDeleting(false)}
+        onDeleted={async () => {
+          // Back to the album's artist, unless that was their last album (then they went too): the library.
+          const artistLeft = item.kind === 'Album' && parent ? await getItem(parent.id).then(() => true, () => false) : false
+          navigate(artistLeft && parent ? `/item/${parent.id}` : `/library/${item.libraryId}`, { replace: true })
+        }}
+      />
+    ) : null,
+  }
+}
+
 /** An album: cover, facts and its tracklist. Discs are separated when there's more than one. */
 export function AlbumPage({ detail }: { detail: ItemDetail }) {
   const player = useAudioPlayer()
@@ -107,6 +139,7 @@ export function AlbumPage({ detail }: { detail: ItemDetail }) {
   const kind = albumTypeLabel(item.albumType)
   // One track's menu at a time: which, and where it opened.
   const [trackMenu, setTrackMenu] = useState<{ index: number; at: MenuPoint } | null>(null)
+  const deletion = useDeletion(detail)
 
   const openMenu = (index: number, at: MenuPoint) => (e: MouseEvent) => {
     e.preventDefault()
@@ -142,7 +175,11 @@ export function AlbumPage({ detail }: { detail: ItemDetail }) {
             <button className="button quiet" onClick={() => player.play(shuffled(tracks), 0, { openNowPlaying: true })} disabled={tracks.length < 2}>
               Shuffle
             </button>
-            <MoreButton label={`More for ${item.title}`} actions={queueActions(player, () => tracks, item)} disabled={tracks.length === 0} />
+            <MoreButton
+              label={`More for ${item.title}`}
+              actions={andThen(tracks.length > 0 ? queueActions(player, () => tracks, item) : [], deletion.actions)}
+              disabled={tracks.length === 0 && deletion.actions.length === 0}
+            />
           </div>
         </div>
       </header>
@@ -189,6 +226,7 @@ export function AlbumPage({ detail }: { detail: ItemDetail }) {
           onClose={() => setTrackMenu(null)}
         />
       )}
+      {deletion.dialog}
     </article>
   )
 }
@@ -214,6 +252,10 @@ export function ArtistPage({ detail }: { detail: ItemDetail }) {
   useMusicPage()
   const { item, children: albums } = detail
   const [loading, setLoading] = useState(false)
+  const deletion = useDeletion(detail)
+  const navigate = useNavigate()
+  // A followed artist none of whose music has arrived yet: nothing to play, but Following and what's out there.
+  const waiting = albums.length === 0
   // From outside the library, when music can be requested: the albums of theirs you don't have, and artists like them.
   const extras = useApi(
     async (signal) => ((await getMusicRequestStatus(signal)).configured ? getMusicArtistExtras(item.id, signal) : undefined),
@@ -255,27 +297,40 @@ export function ArtistPage({ detail }: { detail: ItemDetail }) {
         <div className="music-header-text">
           <h1>{item.title}</h1>
           <p className="facts">
-            <span>{albums.length === 1 ? '1 album' : `${albums.length} albums`}</span>
+            <span>{waiting ? 'No albums yet' : albums.length === 1 ? '1 album' : `${albums.length} albums`}</span>
           </p>
           <div className="detail-actions">
-            <AsyncButton className="button" onClick={() => playAll(false)} disabled={albums.length === 0 || loading}>
-              <Play /> Play
-            </AsyncButton>
-            <AsyncButton className="button quiet" onClick={() => playAll(true)} disabled={albums.length === 0 || loading}>
-              Shuffle
-            </AsyncButton>
-            <AsyncButton className="button quiet" onClick={() => startRadio()} disabled={albums.length === 0 || loading}>
-              <Radio /> Radio
-            </AsyncButton>
+            {!waiting && (
+              <>
+                <AsyncButton className="button" onClick={() => playAll(false)} disabled={loading}>
+                  <Play /> Play
+                </AsyncButton>
+                <AsyncButton className="button quiet" onClick={() => playAll(true)} disabled={loading}>
+                  Shuffle
+                </AsyncButton>
+                <AsyncButton className="button quiet" onClick={() => startRadio()} disabled={loading}>
+                  <Radio /> Radio
+                </AsyncButton>
+              </>
+            )}
             {extras.data && (
               <MusicRequestButton
                 kind="artist"
                 size="large"
                 request={{ kind: 'artist', artistId: item.id }}
                 availability={extras.data.followed ? 'Requested' : 'None'}
+                title={item.title}
+                unanswered={extras.data.lidarrAnswered === false}
+                // A followed artist with nothing yet leaves the library when unfollowed: back to it.
+                onUndone={waiting ? () => navigate(`/library/${item.libraryId}`, { replace: true }) : undefined}
               />
             )}
-            <MoreButton label={`More for ${item.title}`} actions={queueActions(player, () => getTracks(item.id), item)} disabled={albums.length === 0} />
+            {(!waiting || deletion.actions.length > 0) && (
+              <MoreButton
+                label={`More for ${item.title}`}
+                actions={andThen(waiting ? [] : queueActions(player, () => getTracks(item.id), item), deletion.actions)}
+              />
+            )}
           </div>
         </div>
       </header>
@@ -301,7 +356,7 @@ export function ArtistPage({ detail }: { detail: ItemDetail }) {
           </h2>
           <div className="poster-grid music-albums">
             {extras.data.missing.map((a, i) => (
-              <MusicExternalCard key={`${i}-${a.deezerId}-${a.musicBrainzId ?? a.title}`} item={a} showArtist={false} />
+              <MusicExternalCard key={`${i}-${a.deezerId}-${a.musicBrainzId ?? a.title}`} item={a} showArtist={false} unanswered={extras.data?.lidarrAnswered === false} />
             ))}
           </div>
         </section>
@@ -309,10 +364,11 @@ export function ArtistPage({ detail }: { detail: ItemDetail }) {
       {extras.data && extras.data.similar.length > 0 && (
         <Row title="Fans also like">
           {extras.data.similar.map((s, i) => (
-            <MusicExternalCard key={`${i}-${s.deezerId}`} item={s} />
+            <MusicExternalCard key={`${i}-${s.deezerId}`} item={s} unanswered={extras.data?.lidarrAnswered === false} />
           ))}
         </Row>
       )}
+      {deletion.dialog}
     </article>
   )
 }

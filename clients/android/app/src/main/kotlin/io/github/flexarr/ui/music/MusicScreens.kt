@@ -33,6 +33,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -57,7 +58,9 @@ import io.github.flexarr.core.HomeRowStyle
 import io.github.flexarr.core.ItemDetail
 import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.MediaKind
+import io.github.flexarr.core.MusicActions
 import io.github.flexarr.core.MusicArtistExtras
+import io.github.flexarr.core.unfollowArtist
 import io.github.flexarr.core.PlaylistDetail
 import io.github.flexarr.core.artistName
 import io.github.flexarr.core.discs
@@ -143,7 +146,10 @@ internal fun Modifier.bleed() = layout { measurable, constraints ->
 @Composable
 private fun rememberMusicPage(model: AppModel, id: String) = rememberLoader(id) { model.client!!.item(id) }
 
-/** A title page's header: the art, the name and what's under it, and Play and Shuffle. */
+/**
+ * A title page's header: the art, the name and what's under it, and its action row in [MusicActions] order: Play (the
+ * one labelled button), then round icon-only Shuffle, Radio (an artist's, given [onRadio]) and [extra].
+ */
 @Composable
 private fun MusicHeader(
     art: @Composable (Modifier) -> Unit,
@@ -155,8 +161,16 @@ private fun MusicHeader(
     busy: Boolean = false,
     onPlay: () -> Unit,
     onShuffle: () -> Unit,
-    /** Beside Play and Shuffle: an album's or playlist's download button. */
+    /** An artist's radio (them and artists like them), a round button after Shuffle; null for none. */
+    onRadio: (() -> Unit)? = null,
+    /** Play and Shuffle: not for an artist with nothing here yet (a placeholder, followed until their first album). */
+    showsPlay: Boolean = true,
+    /** Anything after Play and Shuffle; with neither, there's no row at all. */
+    hasExtra: Boolean = true,
+    /** After Play, Shuffle and Radio, in [MusicActions] order: download, Follow or Request. */
     extra: @Composable () -> Unit = {},
+    /** Under the row: why something in it is greyed ("Lidarr isn't answering."). */
+    note: @Composable () -> Unit = {},
 ) {
     Column(Modifier.fillMaxWidth().statusBarsPadding().padding(top = 12.dp, start = Edge, end = Edge), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
         art(Modifier)
@@ -164,11 +178,17 @@ private fun MusicHeader(
             Text(title, style = marquee(30), textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis)
             below()
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            ActionButton("Play", onClick = onPlay, icon = FlexarrIcons.play, prominent = true, ambient = ambient, enabled = canPlay && !busy)
-            ActionButton("Shuffle", onClick = onShuffle, icon = FlexarrIcons.shuffle, ambient = ambient, enabled = canShuffle && !busy)
-            extra()
-            if (busy) CircularProgressIndicator(Modifier.size(22.dp), color = Flexarr.usher, strokeWidth = 2.dp)
+        if (showsPlay || hasExtra) Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (showsPlay) {
+                    ActionButton("Play", onClick = onPlay, icon = FlexarrIcons.play, prominent = true, ambient = ambient, enabled = canPlay && !busy)
+                    MusicRoundButton(FlexarrIcons.shuffle, "Shuffle", onShuffle, ambient = ambient, enabled = canShuffle && !busy)
+                    onRadio?.let { MusicRoundButton(FlexarrIcons.radio, "Radio", it, ambient = ambient, enabled = canPlay && !busy) }
+                }
+                extra()
+                if (busy) CircularProgressIndicator(Modifier.size(22.dp), color = Flexarr.usher, strokeWidth = 2.dp)
+            }
+            note()
         }
     }
 }
@@ -197,6 +217,11 @@ fun ArtistScreen(model: AppModel, id: String) {
     // From outside the library, when this profile can request music: their albums the library lacks, artists like
     // them, and whether Lidarr follows them. Anything failing leaves the page as it was.
     var extras by remember(id) { mutableStateOf<MusicArtistExtras?>(null) }
+    // Until then "No albums yet." waits, so it doesn't flash before their missing albums arrive.
+    var extrasChecked by remember(id) { mutableStateOf(false) }
+    // Unfollowed here while a placeholder: the server took them out of the library, so the page goes back.
+    var gone by remember(id) { mutableStateOf(false) }
+    LaunchedEffect(gone) { if (gone) navigator.back() }
     LaunchedEffect(id, model.credentials) {
         extras = try {
             if (model.musicStatus().configured) client.musicArtistExtras(id) else null
@@ -205,6 +230,7 @@ fun ArtistScreen(model: AppModel, id: String) {
         } catch (_: Exception) {
             null
         }
+        extrasChecked = true
     }
 
     /** Everything they have (fetched when asked, not with the page, so a visit to an artist with a hundred albums stays light). */
@@ -222,7 +248,13 @@ fun ArtistScreen(model: AppModel, id: String) {
             is Load.Loaded -> PullToRefreshBox(isRefreshing = page.refreshing, onRefresh = page.retry) {
                 val item = state.value.item
                 val albums = state.value.children.filter { it.kind == MediaKind.Album }
-                LazyVerticalGrid(
+                val known = extras
+                val actions = MusicActions.of(
+                    MusicActions.Input(MusicActions.Kind.ARTIST, hasMusic = albums.isNotEmpty(), canRequest = known != null, platform = MusicActions.Platform.PHONE, canRadio = true),
+                )
+                val followKeys = libraryArtistKeys(id, known?.deezerId)
+                // Lidarr didn't answer for this page: Follow and the album chips wait, and the page says so.
+                CompositionLocalProvider(LocalMusicPaused provides (known?.lidarrPaused == true)) { LazyVerticalGrid(
                     columns = GridCells.Adaptive(105.dp),
                     contentPadding = PaddingValues(start = Edge, end = Edge, bottom = 32.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -248,27 +280,37 @@ fun ArtistScreen(model: AppModel, id: String) {
                             busy = queueing,
                             onPlay = { playAll(state.value, shuffled = false) },
                             onShuffle = { playAll(state.value, shuffled = true) },
+                            onRadio = { navigator.playArtist(item, radio = true) }.takeIf { MusicActions.Button.RADIO in actions },
+                            showsPlay = MusicActions.Button.PLAY in actions,
+                            hasExtra = MusicActions.Button.FOLLOW in actions,
+                            extra = {
+                                // Once it's known music requests are on: Follow, or Following (said by the server, or
+                                // asked here). The page's only action (a placeholder artist) says so in words.
+                                if (known != null && MusicActions.Button.FOLLOW in actions) {
+                                    val placeholder = albums.isEmpty()
+                                    MusicRequestRoundButton(
+                                        model, model.followState(followKeys, known.followed), isArtist = true, name = item.title, ambient = ambient,
+                                        undoing = model.isUndoingMusic(followKeys),
+                                        onRequest = { navigator.followLibraryArtist(model, id, known.deezerId) },
+                                        onUndo = {
+                                            navigator.unfollowMusic(model, followKeys, onDone = {
+                                                if (placeholder) {
+                                                    model.musicArtistLeft()
+                                                    gone = true
+                                                }
+                                            }) { it.unfollowArtist(artistId = id) }
+                                        },
+                                        labelled = MusicActions.Button.PLAY !in actions,
+                                    )
+                                }
+                            },
+                            note = { if (known != null) LidarrNotAnsweringNote(model) },
                         )
-                    }
-                    // Once it's known music requests are on: Follow artist, or Following (said by the server, or asked here).
-                    extras?.let { known ->
-                        fullWidth {
-                            val follow = model.followState(libraryArtistKeys(id, known.deezerId), known.followed)
-                            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                                ActionButton(
-                                    follow.label(isArtist = true)!!,
-                                    onClick = { if (follow == MusicRequestState.CanRequest) navigator.followLibraryArtist(model, id, known.deezerId) },
-                                    icon = follow.icon(isArtist = true),
-                                    ambient = ambient,
-                                    enabled = follow == MusicRequestState.CanRequest && model.canAskForMusic,
-                                )
-                            }
-                        }
                     }
                     if (albums.isNotEmpty()) {
                         fullWidth { SectionHeading("Albums", Modifier.bleed()) }
                         itemsIndexed(albums, key = { _, album -> album.id }) { _, album -> AlbumCard(album) }
-                    } else if (extras?.missing.isNullOrEmpty()) {
+                    } else if (extrasChecked && extras?.missing.isNullOrEmpty()) {
                         fullWidth { Box(Modifier.height(160.dp)) { StatusView("No albums yet.", empty = true) } }
                     }
                     extras?.missing?.takeIf { it.isNotEmpty() }?.let { missing ->
@@ -278,7 +320,7 @@ fun ArtistScreen(model: AppModel, id: String) {
                     extras?.similar?.takeIf { it.isNotEmpty() }?.let { similar ->
                         fullWidth { MusicExternalShelf(model, "Fans also like", similar, Modifier.bleed()) }
                     }
-                }
+                } }
             }
             is Load.Failed -> StatusView(state.message, page.retry)
             Load.Loading -> StatusView()
@@ -321,6 +363,7 @@ fun AlbumScreen(model: AppModel, id: String) {
                             canShuffle = tracks.size >= 2,
                             onPlay = { music.play(tracks, albums = listOf(item)) },
                             onShuffle = { music.play(tracks, shuffled = true, albums = listOf(item)) },
+                            // In the library already: nothing to request (MusicActions' Play, Shuffle, Download).
                             extra = { MusicDownloadButton(model, MusicDownloadSource.Album(item, tracks)) },
                         )
                     }

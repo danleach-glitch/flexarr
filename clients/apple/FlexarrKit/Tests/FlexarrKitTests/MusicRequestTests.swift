@@ -39,6 +39,7 @@ struct MusicRequestTests {
         """#.utf8))
         #expect(artist.followed)
         #expect(artist.availability == .partlyAvailable)
+        #expect(artist.lidarrAnswered == nil)
         let album = try FlexarrClient.decoder.decode(MusicAlbumDetail.self, from: Data(#"""
         {"deezerId":302127,"title":"Discovery","artist":"Daft Punk","artistDeezerId":27,"image":null,"year":2001,"recordType":"album",
          "genres":["Electro"],"tracks":[{"title":"One More Time","durationSeconds":320,"number":1,"disc":1,"explicit":false}],
@@ -48,6 +49,24 @@ struct MusicRequestTests {
         #expect(album.summary.id == "album-302127")
         #expect(album.summary.availability == .requested)
         #expect(!album.summary.isRequestable)
+    }
+
+    @Test func pagesSayWhenLidarrDidNotAnswer() throws {
+        let artist = try FlexarrClient.decoder.decode(MusicArtistDetail.self, from: Data(#"""
+        {"deezerId":27,"name":"Daft Punk","image":null,"fans":1,"albums":[],"similar":[],"followed":false,
+         "availability":"None","libraryItemId":null,"lidarrAnswered":false}
+        """#.utf8))
+        #expect(artist.lidarrAnswered == false)
+        let album = try FlexarrClient.decoder.decode(MusicAlbumDetail.self, from: Data(#"""
+        {"deezerId":1,"title":"A","artist":"B","artistDeezerId":null,"image":null,"year":null,"recordType":null,"genres":[],
+         "tracks":[],"durationSeconds":0,"availability":"None","libraryItemId":null,"lidarrAnswered":true}
+        """#.utf8))
+        #expect(album.lidarrAnswered == true)
+        let extras = try FlexarrClient.decoder.decode(MusicArtistExtras.self, from: Data(#"""
+        {"missing":[],"similar":[],"followed":false,"deezerId":27,"lidarrAnswered":false}
+        """#.utf8))
+        #expect(extras.lidarrAnswered == false)
+        #expect(MusicArtistExtras.empty.lidarrAnswered == nil)
     }
 
     @Test func lidarrOnlyAlbumsRequestByMusicBrainz() throws {
@@ -117,6 +136,41 @@ struct MusicRequestTests {
                                               contentType: "application/problem+json"))
         await #expect(throws: FlexarrClientError.http(status: 409, message: "Lidarr doesn't know this artist")) {
             try await client.requestMusic(.artist(deezerId: 1))
+        }
+    }
+}
+
+struct MusicUndoTests {
+    private func sent(_ call: (FlexarrClient) async throws -> Void) async throws -> (path: String?, body: NSDictionary?) {
+        let (client, host) = stubbedClient(.init(status: 204, body: Data()))
+        try await call(client)
+        let request = try #require(StubProtocol.recorded(host: host).first)
+        #expect(request.httpMethod == "POST")
+        return (request.url?.path, try JSONSerialization.jsonObject(with: request.httpBody ?? Data()) as? NSDictionary)
+    }
+
+    @Test func unfollowSendsOnlyTheIdGiven() async throws {
+        let library = try await sent { try await $0.unfollowArtist(libraryArtistId: "a1") }
+        #expect(library.path == "/api/v1/requests/music/unfollow")
+        #expect(library.body == ["artistId": "a1"])
+        let deezer = try await sent { try await $0.unfollowArtist(deezerId: 27) }
+        #expect(deezer.body == ["deezerId": 27])
+    }
+
+    @Test func unrequestPrefersMusicBrainz() async throws {
+        let lidarr = MusicExternal(kind: "album", deezerId: 5, title: "Homework", musicBrainzId: "rg-1")
+        let byMbid = try await sent { try await $0.unrequestAlbum(lidarr) }
+        #expect(byMbid.path == "/api/v1/requests/music/unrequest")
+        #expect(byMbid.body == ["musicBrainzId": "rg-1"])
+        let deezerOnly = MusicExternal(kind: "album", deezerId: 5, title: "Homework")
+        #expect(try await sent { try await $0.unrequestAlbum(deezerOnly) }.body == ["deezerId": 5])
+    }
+
+    @Test func lidarrRefusalsCarryTheDetail() async throws {
+        let (client, _) = stubbedClient(.init(status: 502, body: Data(#"{"title":"Bad Gateway","detail":"Lidarr isn't answering."}"#.utf8),
+                                              contentType: "application/problem+json"))
+        await #expect(throws: FlexarrClientError.http(status: 502, message: "Lidarr isn't answering.")) {
+            try await client.unfollowArtist(deezerId: 1)
         }
     }
 }

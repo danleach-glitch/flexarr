@@ -56,6 +56,141 @@ public class DeleteTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
         Directory.Delete(elsewhere, recursive: true);
     }
 
+    private static Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<Program> WithLidarr(FakeArr arr, FlexarrApiFactory factory) =>
+        arr.Serve(factory).WithWebHostBuilder(b =>
+        {
+            b.UseSetting("Flexarr:Arr:2:Name", "Lidarr");
+            b.UseSetting("Flexarr:Arr:2:Kind", "Lidarr");
+            b.UseSetting("Flexarr:Arr:2:BaseUrl", "http://lidarr.test");
+            b.UseSetting("Flexarr:Arr:2:ApiKey", "key");
+        });
+
+    private static async Task<(MediaItem Artist, MediaItem Album)> AddMusicAsync(Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<Program> app, bool managed)
+    {
+        using var scope = app.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        var library = new Library { Name = $"Music {Guid.NewGuid():N}", Type = LibraryType.Music, Folders = [new LibraryFolder { Path = $"/Volumes/Media/data/music-{Guid.NewGuid():N}" }] };
+        var artist = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Artist, Title = "Wet Leg", SortTitle = "wet leg", MetadataSource = managed ? "Lidarr" : null, ArrId = managed ? 3 : null };
+        var album = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Album, Title = "moisturizer", SortTitle = "moisturizer", Parent = artist, MetadataSource = managed ? "Lidarr" : null, ArrId = managed ? 9 : null };
+        db.AddRange(library, artist, album);
+        await db.SaveChangesAsync();
+        return (artist, album);
+    }
+
+    private static async Task<T> InScopeAsync<T>(Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<Program> app, Func<FlexarrDbContext, Task<T>> query)
+    {
+        using var scope = app.Services.CreateScope();
+        return await query(scope.ServiceProvider.GetRequiredService<FlexarrDbContext>());
+    }
+
+    private static HttpClient Admin(Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<Program> app)
+    {
+        var client = app.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+        return client;
+    }
+
+    [Theory]
+    [InlineData("new", true)]
+    [InlineData("none", false)]
+    public async Task AnAlbumLidarrManages_LosesItsFiles_AndStaysUnmonitored_AndAFollowedArtistStays(string monitorNewItems, bool artistStays)
+    {
+        var arr = new FakeArr();
+        arr.Responses["PUT /api/v1/album/monitor"] = "[]";
+        arr.Responses["GET /api/v1/trackfile?albumId=9"] = """[{"id":71,"artistId":3,"albumId":9},{"id":72,"artistId":3,"albumId":9}]""";
+        arr.Responses["DELETE /api/v1/trackfile/bulk"] = "{}";
+        arr.Responses["GET /api/v1/artist"] = $$"""[{"id":3,"artistName":"Wet Leg","monitored":true,"monitorNewItems":"{{monitorNewItems}}"}]""";
+        using var app = WithLidarr(arr, factory);
+        var (artist, album) = await AddMusicAsync(app, managed: true);
+
+        var plan = await Admin(app).GetFromJsonAsync<DeletionPlan>(new Uri($"/api/v1/items/{album.Id}/deletion", UriKind.Relative));
+        var response = await Admin(app).DeleteAsync(new Uri($"/api/v1/items/{album.Id}", UriKind.Relative));
+
+        Assert.Equal("Lidarr", plan!.ManagedBy);
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Contains("PUT /api/v1/album/monitor", arr.Requests);
+        Assert.Contains("DELETE /api/v1/trackfile/bulk", arr.Requests);
+        Assert.DoesNotContain(arr.Requests, r => r.StartsWith("DELETE /api/v1/album", StringComparison.Ordinal));
+        using var check = app.Services.CreateScope();
+        var db = check.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        Assert.False(await db.MediaItems.AnyAsync(i => i.Id == album.Id));
+        var kept = await db.MediaItems.FirstOrDefaultAsync(i => i.Id == artist.Id);
+        Assert.Equal(artistStays, kept is not null);
+        Assert.Equal(artistStays, kept?.Placeholder ?? false);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task AnArtistLidarrManages_IsDeletedThere_WithTheirFiles_OnlyWhenTheirFolderIsThisLibrarys(bool inLibrary)
+    {
+        var arr = new FakeArr();
+        arr.Responses["DELETE /api/v1/artist/3?deleteFiles=true&addImportListExclusion=false"] = "{}";
+        using var app = WithLidarr(arr, factory);
+        var (artist, album) = await AddMusicAsync(app, managed: true);
+        var folder = await InScopeAsync(app, db => db.LibraryFolders.Where(f => f.LibraryId == artist.LibraryId).Select(f => f.Path).SingleAsync());
+        var lidarrPath = inLibrary ? folder.Replace("/Volumes/Media/data", "/data", StringComparison.Ordinal) + "/Wet Leg" : "/data/elsewhere/Wet Leg";
+        arr.Responses["GET /api/v1/artist/3"] = $$"""{"id":3,"artistName":"Wet Leg","path":"{{lidarrPath}}"}""";
+        if (!inLibrary)
+        {
+            var refused = await Admin(app).DeleteAsync(new Uri($"/api/v1/items/{artist.Id}", UriKind.Relative));
+            Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+            Assert.DoesNotContain(arr.Requests, r => r.StartsWith("DELETE", StringComparison.Ordinal));
+            return;
+        }
+
+        await InScopeAsync(app, async db =>
+        {
+            db.MediaRequests.Add(new Core.Notifications.MediaRequest { ProfileId = "owner", Kind = MediaKind.Artist, Title = "Wet Leg" });
+            db.MediaRequests.Add(new Core.Notifications.MediaRequest { ProfileId = "owner", Kind = MediaKind.Album, Title = "moisturizer", ArtistName = "Wet Leg", MusicBrainzId = "rg" });
+            return await db.SaveChangesAsync();
+        });
+        var response = await Admin(app).DeleteAsync(new Uri($"/api/v1/items/{artist.Id}", UriKind.Relative));
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Contains("DELETE /api/v1/artist/3?deleteFiles=true&addImportListExclusion=false", arr.Requests);
+        using var check = app.Services.CreateScope();
+        var after = check.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        Assert.False(await after.MediaItems.AnyAsync(i => i.Id == artist.Id || i.Id == album.Id));
+        // Nothing more of theirs is coming: their follow and album request are over.
+        Assert.False(await after.MediaRequests.AnyAsync(r => (r.Title == "Wet Leg" || r.ArtistName == "Wet Leg") && r.FulfilledAt == null));
+    }
+
+    [Fact]
+    public async Task AnAlbumLidarrNeverMatched_UnderAnArtistItManages_IsFoundThereByTitle()
+    {
+        var arr = new FakeArr();
+        arr.Responses["GET /api/v1/album?artistId=3"] = """[{"id":9,"artistId":3,"title":"Moisturizer","monitored":true}]""";
+        arr.Responses["PUT /api/v1/album/monitor"] = "[]";
+        arr.Responses["GET /api/v1/trackfile?albumId=9"] = "[]";
+        arr.Responses["GET /api/v1/artist"] = """[{"id":3,"artistName":"Wet Leg","monitored":true,"monitorNewItems":"none"}]""";
+        using var app = WithLidarr(arr, factory);
+        var (_, album) = await AddMusicAsync(app, managed: true);
+        await InScopeAsync(app, db => db.MediaItems.Where(i => i.Id == album.Id).ExecuteUpdateAsync(u => u.SetProperty(i => i.ArrId, (int?)null).SetProperty(i => i.MetadataSource, (string?)null)));
+
+        var plan = await Admin(app).GetFromJsonAsync<DeletionPlan>(new Uri($"/api/v1/items/{album.Id}/deletion", UriKind.Relative));
+        var response = await Admin(app).DeleteAsync(new Uri($"/api/v1/items/{album.Id}", UriKind.Relative));
+
+        Assert.Equal("Lidarr", plan!.ManagedBy);
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Contains("PUT /api/v1/album/monitor", arr.Requests);
+    }
+
+    [Fact]
+    public async Task AnAlbumNoLidarrManages_LeavesTheDisk_AndTakesItsEmptiedArtist()
+    {
+        var arr = new FakeArr();
+        using var app = WithLidarr(arr, factory);
+        var (artist, album) = await AddMusicAsync(app, managed: false);
+
+        var response = await Admin(app).DeleteAsync(new Uri($"/api/v1/items/{album.Id}", UriKind.Relative));
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Empty(arr.Requests);
+        using var check = app.Services.CreateScope();
+        Assert.False(await check.ServiceProvider.GetRequiredService<FlexarrDbContext>().MediaItems.AnyAsync(i => i.Id == artist.Id));
+    }
+
     private sealed record DeletionPlan(string? ManagedBy, string[] Files);
 
     /// <summary>A film no Radarr manages, in a films library whose folder is <paramref name="root"/>.</summary>

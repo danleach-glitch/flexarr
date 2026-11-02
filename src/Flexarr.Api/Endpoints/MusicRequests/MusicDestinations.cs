@@ -16,7 +16,8 @@ public sealed record MusicDestination(Guid LibraryId, string Name, ArrInstance L
 public sealed record LidarrRoots(ArrInstance Lidarr, IReadOnlyList<LidarrRootFolder> Folders);
 
 /// <summary>Where a music request goes, and how Lidarr keeps it.</summary>
-public sealed record MusicTarget(ArrInstance Lidarr, LidarrPlacement Placement);
+/// <param name="LibraryId">The music library the root folder is, where a followed artist's placeholder goes.</param>
+public sealed record MusicTarget(ArrInstance Lidarr, LidarrPlacement Placement, Guid LibraryId = default);
 
 public static class MusicDestinations
 {
@@ -107,7 +108,7 @@ public static class MusicDestinations
 
         var chosen = await db.Profiles.AsNoTracking().Where(p => p.Id == profileId).Select(p => p.RequestMusicLibraryId).FirstOrDefaultAsync(ct);
         var destination = destinations.FirstOrDefault(d => d.LibraryId == chosen) ?? destinations.FirstOrDefault(d => d.IsDefault) ?? destinations[0];
-        return (new MusicTarget(destination.Lidarr, await PlacementAsync(client, destination.Lidarr, destination.Root, cache, ct)), null);
+        return (new MusicTarget(destination.Lidarr, await PlacementAsync(client, destination.Lidarr, destination.Root, cache, ct), destination.LibraryId), null);
     }
 
     /// <summary>

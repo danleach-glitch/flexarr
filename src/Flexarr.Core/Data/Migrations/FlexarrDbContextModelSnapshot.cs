@@ -899,6 +899,9 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<string>("Path")
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("Placeholder")
+                        .HasColumnType("INTEGER");
+
                     b.Property<double?>("Popularity")
                         .HasColumnType("REAL");
 
@@ -1733,6 +1736,9 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
+
+                    b.Property<bool>("AddedArtist")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("ArtistMusicBrainzId")
                         .HasMaxLength(64)

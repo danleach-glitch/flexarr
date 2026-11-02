@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import { PageError } from '../components/PageStatus'
 import { Link, Navigate, useNavigationType, useParams, useSearchParams } from 'react-router'
-import { forgetPage, freshly, getGenreTracks, getItem, getLibraryAlbumGenres, getLibraryAlbums, getLibraryBrowse, getLibraryGenres, getLibraryItems, imageUrl, keepPage, keptPage, scanLibrary, wasDeleted, type HomeRow, type ItemSummary, type Library } from '../api/client'
+import { forgetPage, freshly, getGenreTracks, getItem, getLibraryAlbumGenres, getLibraryAlbums, getLibraryBrowse, getLibraryGenres, getLibraryItems, getMusicRequestStatus, imageUrl, keepPage, keptPage, scanLibrary, wasDeleted, type HomeRow, type ItemSummary, type Library } from '../api/client'
 import { AsyncButton } from '../components/AsyncButton'
 import { PosterCard } from '../components/Cards'
 import { Hero } from '../components/Hero'
@@ -13,6 +13,7 @@ import { useLibraries } from '../hooks/librariesContext'
 import { useApi } from '../hooks/useApi'
 import { useWatchedChanges, watchedSince } from '../hooks/watched'
 import { BooksLibrary } from './BooksLibrary'
+import { LibraryRequested } from './LibraryRequested'
 
 const PAGE_SIZE = 200
 const LETTERS = ['#', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ']
@@ -46,6 +47,9 @@ export function LibraryPage() {
 
   // A music library's albums (its genres open them too).
   if (library.type === 'Music' && params.get('view') === 'albums') return <LibraryAll key={`${id} albums`} albums />
+  // What Lidarr is waiting for (only offered when music can be requested).
+  if (library.type === 'Music' && params.get('view') === 'requested')
+    return <LibraryRequested key={`${id} requested`} library={library} viewSwitch={<ViewSwitch library={library} view="requested" />} />
   const all = params.get('view') === 'all' || params.has('sort') || params.has('genre')
   if (all) return <LibraryAll key={id} />
   if (params.get('view') === 'genres' && hasGenres(library)) return <LibraryGenres key={id} library={library} />
@@ -54,8 +58,11 @@ export function LibraryPage() {
 
 const hasGenres = (library: Library) => library.type === 'Movies' || library.type === 'TvShows' || library.type === 'Music'
 
-function ViewSwitch({ library, view }: { library: Library; view: 'browse' | 'all' | 'albums' | 'genres' }) {
+function ViewSwitch({ library, view }: { library: Library; view: 'browse' | 'all' | 'albums' | 'genres' | 'requested' }) {
   const current = (v: typeof view) => (view === v ? 'page' : undefined)
+  // Requested is there when music can be asked for (through Lidarr). The status is cached, so every view asking is cheap.
+  const music = library.type === 'Music'
+  const requests = useApi((signal) => (music ? getMusicRequestStatus(signal) : Promise.resolve(undefined)), [music])
   return (
     <nav className="view-switch" aria-label={`${library.name} views`}>
       <Link to={`/library/${library.id}`} aria-current={current('browse')}>
@@ -72,6 +79,12 @@ function ViewSwitch({ library, view }: { library: Library; view: 'browse' | 'all
       {hasGenres(library) && (
         <Link to={`/library/${library.id}?view=genres`} aria-current={current('genres')}>
           Genres
+        </Link>
+      )}
+      {/* Kept in place while the status loads (no jump); gone only once it says music can't be requested. */}
+      {music && ((requests.data ? requests.data.configured : !requests.error) || view === 'requested') && (
+        <Link to={`/library/${library.id}?view=requested`} aria-current={current('requested')}>
+          Requested
         </Link>
       )}
       {library.type === 'Music' && <Link to="/playlists">Playlists</Link>}

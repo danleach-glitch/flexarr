@@ -12,7 +12,9 @@ struct ExternalAlbumView: View {
     /// Focus starts on Request album, not on the tracks (which only take focus so the remote can scroll): the tracks
     /// arrive with the details, and would otherwise take it from the header as they appear.
     @Namespace private var page
-    @FocusState private var requestFocused: Bool
+    @FocusState private var focusedAction: MusicActions.Button?
+    @State private var status: MusicRequestStatus?
+    @Environment(\.musicRequestsPaused) private var pausedAbove
 
     private var album: MusicExternal { detail?.summary ?? preview }
 
@@ -37,6 +39,7 @@ struct ExternalAlbumView: View {
             }
             .scrollClipDisabled()
             .focusScope(page)
+            .environment(\.musicRequestsPaused, paused)
         }
         .task { await load() }
     }
@@ -57,23 +60,45 @@ struct ExternalAlbumView: View {
                 }
                 FactsLine(facts: facts)
                 // There from the start (one button whatever it says), so focus has somewhere to land; an album that
-                // can't be asked for has none, and focus goes to its artist or the tracks.
-                HStack(spacing: 26) {
-                    MusicAlbumRequestButton(album: album, takesLinkFocus: true)
-                        .focused($requestFocused)
-                        .prefersDefaultFocus(true, in: page)
-                    if let artist = album.artistPage {
-                        Button { router.push(.musicArtist(artist)) } label: {
-                            Text(artist.title)
+                // can't be asked for (or music requests off) has none, and focus goes to its artist or the tracks.
+                VStack(alignment: .leading, spacing: 18) {
+                    HStack(spacing: 26) {
+                        if MusicActions(kind: .album, platform: .tv, hasMusic: false, canAsk: status?.configured != false).has(.request) {
+                            MusicAlbumRequestButton(album: album, takesLinkFocus: true, focus: $focusedAction)
+                                .prefersDefaultFocus(true, in: page)
                         }
-                        .buttonStyle(PillButtonStyle(selected: false))
+                        if let artist = album.artistPage {
+                            Button { router.push(.musicArtist(artist)) } label: {
+                                Text(artist.title)
+                            }
+                            .buttonStyle(PillButtonStyle(selected: false))
+                        }
                     }
+                    .focusSection()
+                    FocusedActionName(name: focusedName)
                 }
-                .focusSection()
                 .padding(.top, 8)
             }
             Spacer(minLength: 0)
         }
+    }
+
+    /// Lidarr is connected but isn't answering (or didn't for this page, so what's asked for is unknown): the button
+    /// waits, dimmed.
+    private var paused: Bool {
+        pausedAbove || (status?.configured == true && (status?.reachable == false || detail?.lidarrAnswered == false))
+    }
+
+    /// The round button's name while it's focused; while Lidarr isn't answering, why it's dimmed instead, focused or
+    /// not (pressing it does nothing then).
+    private var focusedName: String? {
+        let state = model.albumState(album)
+        if case .inLibrary = state { return nil }
+        if case .none = state { return nil }
+        if paused { return MusicWords.lidarrNotAnswering }
+        guard focusedAction == .request else { return nil }
+        if case .requested = state { return MusicWords.requested }
+        return MusicWords.requestAlbum
     }
 
     /// "2001   14 tracks   1h 1m".
@@ -133,16 +158,19 @@ struct ExternalAlbumView: View {
 
     private func load() async {
         guard let client = model.client, preview.hasPage else { return }
+        async let asked = model.musicRequestStatus()
         do {
             let first = detail == nil
             detail = try await client.musicAlbum(deezerId: preview.deezerId)
             error = nil
+            status = await asked
             if first {
                 try? await Task.sleep(for: .milliseconds(100))
-                requestFocused = true
+                focusedAction = .request
             }
         } catch {
             self.error = ConnectionError(error).message
+            status = await asked
         }
     }
 }

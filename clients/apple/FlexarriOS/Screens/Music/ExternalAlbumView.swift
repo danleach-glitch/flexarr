@@ -10,6 +10,8 @@ struct ExternalAlbumView: View {
     let preview: MusicExternal
     @State private var detail: MusicAlbumDetail?
     @State private var error: String?
+    @State private var status: MusicRequestStatus?
+    @Environment(\.musicRequestsPaused) private var pausedAbove
 
     private var album: MusicExternal { detail?.summary ?? preview }
 
@@ -29,7 +31,8 @@ struct ExternalAlbumView: View {
                 }
                 .padding(.bottom, 32)
             }
-            .refreshable { await load() }
+            .refreshable { await load(fresh: true) }
+            .environment(\.musicRequestsPaused, paused)
         }
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
@@ -59,8 +62,21 @@ struct ExternalAlbumView: View {
                 FactsLine(facts: facts)
             }
             if detail != nil {
-                MusicAlbumRequestButton(album: album)
+                if case .inLibrary(let id) = model.albumState(album) {
+                    Button { router.push(.musicItem(id: id, isArtist: false)) } label: {
+                        Label("In your library", systemImage: Symbol.play)
+                    }
+                    .buttonStyle(ActionButtonStyle(prominent: true))
                     .fixedSize()
+                } else if MusicActions(kind: .album, platform: .phone, hasMusic: false, canAsk: status?.configured == true).has(.request) {
+                    // Nothing to play here (`MusicActions`): Request album, or Requested, spelled out as the only button.
+                    MusicAlbumRequestButton(album: album, labelled: true)
+                    if paused {
+                        Text(MusicWords.lidarrNotAnswering)
+                            .font(.footnote)
+                            .foregroundStyle(Color.usher)
+                    }
+                }
             }
         }
         .frame(maxWidth: .infinity)
@@ -101,14 +117,22 @@ struct ExternalAlbumView: View {
         .frame(maxWidth: .infinity)
     }
 
-    private func load() async {
+    /// Lidarr is connected but isn't answering (or didn't for this page, so what's asked for is unknown): the buttons
+    /// wait, greyed.
+    private var paused: Bool {
+        pausedAbove || (status?.configured == true && (status?.reachable == false || detail?.lidarrAnswered == false))
+    }
+
+    private func load(fresh: Bool = false) async {
         guard let client = model.client, preview.hasPage else { return }
+        async let asked = model.musicRequestStatus(fresh: fresh)
         do {
             detail = try await client.musicAlbum(deezerId: preview.deezerId)
             error = nil
         } catch {
             self.error = ConnectionError(error).message
         }
+        status = await asked
     }
 }
 

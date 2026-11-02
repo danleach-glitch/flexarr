@@ -363,7 +363,16 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, detail: ItemDetail,
 
 /** An icon-only action whose name shows under the row while it has focus (the Apple TV's round buttons). */
 @Composable
-private fun RoundAction(name: String, icon: ImageVector, ambient: Color, onFocusName: (String?) -> Unit, modifier: Modifier = Modifier, onClick: () -> Unit) {
+internal fun RoundAction(
+    name: String,
+    icon: ImageVector,
+    ambient: Color,
+    onFocusName: (String?) -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    selected: Boolean = false,
+    onClick: () -> Unit,
+) {
     var focused by remember { mutableStateOf(false) }
     // A name that changes while focused (Add to watchlist, once pressed) says the new one.
     LaunchedEffect(name, focused) { if (focused) onFocusName(name) }
@@ -372,6 +381,8 @@ private fun RoundAction(name: String, icon: ImageVector, ambient: Color, onFocus
         onClick = onClick,
         icon = icon,
         ambient = ambient,
+        enabled = enabled,
+        selected = selected,
         contentDescription = name,
         modifier = modifier.onFocusChanged {
             focused = it.isFocused

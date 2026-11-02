@@ -25,6 +25,7 @@ public static partial class MusicRequestPlacer
 
         var result = body.Kind == "album" ? await AlbumAsync(c, target, profileId, body, logger, ct) : await ArtistAsync(c, target, profileId, body, logger, ct);
         MusicMatcher.Forget(c.Cache, target.Lidarr);
+        MusicRequested.Forget(c.Cache);
         return result;
     }
 
@@ -101,6 +102,8 @@ public static partial class MusicRequestPlacer
         await c.RememberAsync(new MediaRequest
         {
             ProfileId = profileId, Kind = MediaKind.Album, MusicBrainzId = albumMbid, ArtistMusicBrainzId = artistMbid, Title = title, ArtistName = artistName,
+            // Lidarr hadn't the artist: cancelling this can take them out again.
+            AddedArtist = knownArtist.Id == 0,
         }, ct);
         return Results.Accepted();
     }
@@ -110,9 +113,11 @@ public static partial class MusicRequestPlacer
         string name;
         string? musicBrainzId = null;
         List<string> known = [];
+        string? photo = null;
         if (body.DeezerId is { } deezerId)
         {
             var deezer = await c.Catalog.ArtistAsync(deezerId, ct);
+            photo = deezer.Picture;
             name = deezer.Name;
             var albums = await c.Catalog.ArtistAlbumsAsync(deezerId, ct);
             known = albums.Where(a => a.RecordType == "album").Select(a => a.Title).Take(2).ToList();
@@ -140,16 +145,22 @@ public static partial class MusicRequestPlacer
         }
 
         // Any Lidarr may already have them (not only the one new music goes to): follow them there.
+        (ArrInstance Lidarr, int Id, string? Path) followed;
         if (await c.LidarrArtistAsync(artistMbid, artist.ArtistName, ct) is { Lidarr: var lidarr, Artist: var had })
         {
             await c.Client.FollowArtistAsync(lidarr, had.Id, ct);
             await GetLatestAlbumAsync(c, lidarr, had.Id, ct);
             MusicMatcher.Forget(c.Cache, lidarr);
+            followed = (lidarr, had.Id, MusicMatcher.LocalPath(had, c.Options.PathMappings));
         }
         else
         {
-            await c.Client.AddFollowedArtistAsync(target.Lidarr, artistMbid, artist.ArtistName, target.Placement, ct);
+            var added = await c.Client.AddFollowedArtistAsync(target.Lidarr, artistMbid, artist.ArtistName, target.Placement, ct);
+            followed = (target.Lidarr, added?.Id ?? 0, added is null ? null : MusicMatcher.LocalPath(added, c.Options.PathMappings));
         }
+
+        // In the Artists list from now on, even before any of their music arrives.
+        await MusicPlaceholders.AddAsync(c.Db, target.LibraryId, artist.ArtistName, artistMbid, photo ?? artist.RemotePoster, followed.Lidarr.Name, followed.Id, followed.Path, ct);
 
         await c.RememberAsync(new MediaRequest { ProfileId = profileId, Kind = MediaKind.Artist, MusicBrainzId = artistMbid, Title = artist.ArtistName }, ct);
         return Results.Accepted();
@@ -182,7 +193,7 @@ public static partial class MusicRequestPlacer
     /// The MusicBrainz release behind a Deezer album, by its barcode. Null when it has no barcode, MusicBrainz doesn't
     /// know it, or MusicBrainz doesn't answer (then names have to do).
     /// </summary>
-    private static async Task<MusicBrainzRelease?> ReleaseAsync(MusicRequestContext c, DeezerAlbum album, ILogger logger, CancellationToken ct)
+    internal static async Task<MusicBrainzRelease?> ReleaseAsync(MusicRequestContext c, DeezerAlbum album, ILogger logger, CancellationToken ct)
     {
         if (album.Upc is not { Length: > 0 } upc)
         {

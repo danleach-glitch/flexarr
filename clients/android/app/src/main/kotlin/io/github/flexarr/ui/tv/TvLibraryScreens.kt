@@ -337,7 +337,8 @@ fun TvLibraryGrid(
 
     // The first page, again whenever the sort or genre changes, and when what's watched may have changed (the list is
     // fetched again up to as far as it had got, so the place in it stays).
-    LaunchedEffect(sort, genre, model.watchStateVersion, attempt) {
+    // An artist leaving the library from here (a placeholder unfollowed) reloads Artists, so they don't stay listed.
+    LaunchedEffect(sort, genre, model.watchStateVersion, attempt, if (content == TvGridContent.Artists) model.musicArtistsVersion else 0) {
         val current = ++generation
         loading = true
         try {

@@ -1421,6 +1421,8 @@ export interface MusicArtistDetail {
   followed: boolean
   availability: ExternalTitle['availability']
   libraryItemId: string | null
+  /** False when Lidarr didn't answer: Followed and Requested couldn't be checked. Absent from servers before 0.59. */
+  lidarrAnswered?: boolean
 }
 
 export interface MusicTrack {
@@ -1444,6 +1446,8 @@ export interface MusicAlbumDetail {
   durationSeconds: number
   availability: ExternalTitle['availability']
   libraryItemId: string | null
+  /** As on MusicArtistDetail. Absent from servers before 0.59. */
+  lidarrAnswered?: boolean
 }
 
 /** A library artist, from outside: the albums of theirs you don't have, artists like them, and whether they're followed. */
@@ -1452,6 +1456,8 @@ export interface MusicArtistExtras {
   similar: MusicExternal[]
   followed: boolean
   deezerId: number | null
+  /** As on MusicArtistDetail. Absent from servers before 0.59. */
+  lidarrAnswered?: boolean
 }
 
 /** A music request: an album on its own, or an artist followed for their new releases. */
@@ -1478,6 +1484,35 @@ export const getMusicArtist = (deezerId: number | string, signal?: AbortSignal) 
 export const getMusicAlbum = (deezerId: number | string, signal?: AbortSignal) => apiGet<MusicAlbumDetail>(`/requests/music/album/${deezerId}`, signal)
 export const getMusicArtistExtras = (artistId: string, signal?: AbortSignal) => apiGet<MusicArtistExtras>(`/requests/music/library-artist/${artistId}`, signal)
 export const requestMusic = (body: MusicRequest) => request<void>('POST', '/requests/music', body)
+
+/** Takes back a follow (an artist: artistId, deezerId or musicBrainzId) or a request (an album: musicBrainzId or deezerId). For the household. */
+export interface MusicUndo {
+  artistId?: string
+  deezerId?: number
+  musicBrainzId?: string
+}
+export const unfollowArtist = (body: MusicUndo) => request<void>('POST', '/requests/music/unfollow', body)
+export const unrequestAlbum = (body: MusicUndo) => request<void>('POST', '/requests/music/unrequest', body)
+
+/** An album Lidarr is waiting for. Absent from servers before 0.59. */
+export interface MusicRequested {
+  /** Its release group: what Unrequest takes. */
+  musicBrainzId: string
+  title: string
+  artist: string
+  artistMusicBrainzId: string | null
+  image: string | null
+  releaseDate: string | null
+  state: 'upcoming' | 'searching' | 'downloading' | 'importing'
+  /** While downloading, 0 to 1. */
+  progress: number | null
+  artistLibraryItemId: string | null
+}
+/** What Lidarr awaits; given a library, only its artists. */
+export const getMusicRequested = (libraryId?: string, signal?: AbortSignal) =>
+  apiGet<MusicRequested[]>(`/requests/music/requested${libraryId ? `?libraryId=${encodeURIComponent(libraryId)}` : ''}`, signal)
+/** Whether Lidarr answers right now, asked afresh (not the minute's cached answer). */
+export const getMusicRequestStatusNow = (signal?: AbortSignal) => apiGet<{ configured: boolean; reachable: boolean }>('/requests/music/status', signal)
 /** The music libraries the current profile's music requests can go to (every one, for the main profile). */
 export const getMusicDestinations = (signal?: AbortSignal) =>
   apiGet<{ id: string; name: string; isDefault: boolean }[]>('/requests/music/destinations', signal)

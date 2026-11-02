@@ -40,6 +40,9 @@ public sealed class OwnedMusic(Dictionary<string, Guid> artists, Dictionary<stri
     /// <summary>Albums someone has asked for that haven't arrived, by "artist|title".</summary>
     public HashSet<string> RequestedAlbums { get; } = [];
 
+    /// <summary>False when a Lidarr didn't answer: what it follows and monitors couldn't be checked.</summary>
+    public bool LidarrAnswered { get; set; } = true;
+
     /// <summary>Artists Lidarr watches for new releases, by normalised name.</summary>
     public HashSet<string> FollowedArtists { get; } = [];
 
@@ -96,8 +99,10 @@ public static class MusicMatcher
         var library = await cache.GetOrCreateAsync($"owned-music:{hidden}", async entry =>
         {
             entry.AbsoluteExpirationRelativeToNow = LibraryFor;
+            entry.AddExpirationToken(new Microsoft.Extensions.Primitives.CancellationChangeToken(Volatile.Read(ref _libraryChanged).Token));
             var artists = new Dictionary<string, Guid>();
-            foreach (var artist in await db.MediaItems.AsNoTracking().Where(i => i.Kind == MediaKind.Artist).Select(i => new { i.Id, i.Title }).ToListAsync(ct))
+            // A followed artist's placeholder isn't music you have: their pages still offer Following.
+            foreach (var artist in await db.MediaItems.AsNoTracking().Where(i => i.Kind == MediaKind.Artist && !i.Placeholder).Select(i => new { i.Id, i.Title }).ToListAsync(ct))
             {
                 artists.TryAdd(MusicNames.Normalise(artist.Title), artist.Id);
             }
@@ -133,7 +138,13 @@ public static class MusicMatcher
 
         foreach (var lidarr in lidarrs)
         {
-            foreach (var artist in await LidarrArtistsAsync(client, lidarr, cache, ct))
+            var artists = await LidarrArtistsAsync(client, lidarr, cache, ct);
+            if (IsDown(cache, lidarr))
+            {
+                owned.LidarrAnswered = false;
+            }
+
+            foreach (var artist in artists)
             {
                 if (IsFollowed(artist) && owned.Sees(LocalPath(artist, mappings)))
                 {
@@ -174,9 +185,27 @@ public static class MusicMatcher
         catch (Exception ex) when (ex is HttpRequestException || (ex is OperationCanceledException && !ct.IsCancellationRequested))
         {
             cache.Set(key, (IReadOnlyList<LidarrArtist>)[], LidarrDownFor);
+            MarkDown(cache, lidarr);
             return [];
         }
     }
+
+    private static CancellationTokenSource _libraryChanged = new();
+
+    /// <summary>The library's artists or albums changed here (a placeholder added or removed, a delete): work them out afresh.</summary>
+    public static void ForgetLibrary()
+    {
+        // Cancelled, never disposed: a lookup that read the old source a moment ago still asks it for its token.
+        Interlocked.Exchange(ref _libraryChanged, new CancellationTokenSource()).Cancel();
+    }
+
+    /// <summary>
+    /// A Lidarr didn't answer just now (its artist list or the Requested lists timed out): for half a minute it reads
+    /// as not reachable, so pages grey their buttons instead of showing what they couldn't check.
+    /// </summary>
+    public static void MarkDown(IMemoryCache cache, ArrInstance lidarr) => cache.Set($"lidarr-down:{lidarr.BaseUrl}", true, LidarrDownFor);
+
+    public static bool IsDown(IMemoryCache cache, ArrInstance lidarr) => cache.TryGetValue($"lidarr-down:{lidarr.BaseUrl}", out _);
 
     /// <summary>A Lidarr's artists will have changed (one was just added or followed).</summary>
     public static void Forget(IMemoryCache cache, ArrInstance lidarr) => cache.Remove($"lidarr-artists:{lidarr.BaseUrl}");

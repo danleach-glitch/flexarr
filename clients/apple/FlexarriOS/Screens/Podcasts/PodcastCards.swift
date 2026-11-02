@@ -425,6 +425,8 @@ struct EpisodeSheet: View {
     var setPlayed: ((Bool) -> Void)?
     @State private var full: PodcastEpisode?
     @State private var played: Bool?
+    /// The download's circle grows with the text size, as the round buttons beside it do (`RoundActionStyle`).
+    @ScaledMetric(relativeTo: .body) private var roundSize: CGFloat = 48
 
     private var shown: PodcastEpisode { full ?? episode }
 
@@ -508,8 +510,8 @@ struct EpisodeSheet: View {
                         }
                         .buttonStyle(RoundActionStyle())
                     }
-                    EpisodeDownloadButton(episode: shown)
-                        .frame(width: 48, height: 48)
+                    EpisodeDownloadButton(episode: shown, size: roundSize * 30 / 48)
+                        .frame(width: roundSize, height: roundSize)
                         .background(Circle().fill(Color.screen.opacity(0.14)))
                 }
                 if let notes = shown.overview {

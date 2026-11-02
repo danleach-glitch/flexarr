@@ -673,6 +673,93 @@ public sealed class LibraryScannerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Music_AFollowedArtistWithNothingYet_IsKept_ThenFilledInByTheirFirstAlbum()
+    {
+        var root = Touch("music/Radiohead/OK Computer (1997)/01 - Airbag.flac");
+        _probe.Tags["01 - Airbag.flac"] = new() { ["artist"] = "Radiohead", ["album"] = "OK Computer", ["title"] = "Airbag", ["track"] = "1" };
+        _probe.Tags["01 - Glass Animals Song.flac"] = new() { ["artist"] = "Glass Animals", ["album"] = "Dreamland", ["title"] = "Dreamland", ["track"] = "1" };
+        var library = await AddLibrary(LibraryType.Music, Path.Combine(root, "music"));
+        await Scanner().ScanAsync(library, null, default);
+        _db.MediaItems.Add(new MediaItem { LibraryId = library.Id, Kind = MediaKind.Artist, Title = "Glass Animals", SortTitle = "glass animals", Placeholder = true });
+        await _db.SaveChangesAsync();
+        _db.ChangeTracker.Clear();
+
+        // Scans leave a placeholder be: not pruned, not marked missing.
+        await Scanner().ScanAsync(library, null, default);
+        var waiting = await _db.MediaItems.SingleAsync(i => i.Title == "Glass Animals");
+        Assert.True(waiting.Placeholder);
+        Assert.Null(waiting.MissingSince);
+
+        // Their first album arrives: the same artist, now an ordinary one.
+        Touch("music/Glass Animals/Dreamland (2020)/01 - Glass Animals Song.flac");
+        await Scanner().ScanAsync(library, null, default);
+        _db.ChangeTracker.Clear();
+        var artist = await _db.MediaItems.Include(i => i.Children).SingleAsync(i => i.Kind == MediaKind.Artist && i.Title == "Glass Animals");
+        Assert.Equal(waiting.Id, artist.Id);
+        Assert.False(artist.Placeholder);
+        Assert.Equal(["Dreamland"], artist.Children.Select(a => a.Title));
+    }
+
+    [Fact]
+    public async Task Music_AFollowedArtistsAlbum_FillsTheirPlaceholder_WhateverSpellingItsTagsUse()
+    {
+        var root = Touch("music/Beyonce/Lemonade (2016)/01 - Pray You Catch Me.flac", "music/Florence and the Machine/Lungs (2009)/01 - Dog Days.flac");
+        _probe.Tags["01 - Pray You Catch Me.flac"] = new() { ["artist"] = "Beyonce", ["album"] = "Lemonade", ["title"] = "Pray You Catch Me", ["track"] = "1" };
+        _probe.Tags["01 - Dog Days.flac"] = new() { ["artist"] = "Florence and the Machine", ["album"] = "Lungs", ["title"] = "Dog Days", ["track"] = "1", ["MUSICBRAINZ_ARTISTID"] = "mb-florence" };
+        var library = await AddLibrary(LibraryType.Music, Path.Combine(root, "music"));
+        _db.MediaItems.AddRange(
+            new MediaItem { LibraryId = library.Id, Kind = MediaKind.Artist, Title = "Beyoncé", SortTitle = "beyonce", Placeholder = true },
+            new MediaItem { LibraryId = library.Id, Kind = MediaKind.Artist, Title = "Florence + The Machine", SortTitle = "florence", Placeholder = true, MusicBrainzId = "mb-florence" });
+        await _db.SaveChangesAsync();
+        _db.ChangeTracker.Clear();
+
+        await Scanner().ScanAsync(library, null, default);
+        _db.ChangeTracker.Clear();
+
+        var artists = await _db.MediaItems.Include(i => i.Children).Where(i => i.Kind == MediaKind.Artist).OrderBy(i => i.SortTitle).ToListAsync();
+        Assert.Equal(["Beyoncé", "Florence + The Machine"], artists.Select(a => a.Title));
+        Assert.All(artists, a => Assert.False(a.Placeholder));
+        Assert.All(artists, a => Assert.Single(a.Children));
+    }
+
+    [Fact]
+    public async Task Music_AlbumsTakeTheirGenreTags_SoGenresWorkWithoutLidarr()
+    {
+        var root = Touch("music/Radiohead/OK Computer (1997)/01 - Airbag.flac", "music/Wet Leg/Wet Leg (2022)/01 - Being in Love.flac");
+        _probe.Tags["01 - Airbag.flac"] = new() { ["artist"] = "Radiohead", ["album"] = "OK Computer", ["title"] = "Airbag", ["genre"] = "Rock; Alternative" };
+        _probe.Tags["01 - Being in Love.flac"] = new() { ["artist"] = "Wet Leg", ["album"] = "Wet Leg", ["title"] = "Being in Love", ["GENRE"] = "rock" };
+        var library = await AddLibrary(LibraryType.Music, Path.Combine(root, "music"));
+
+        await Scanner().ScanAsync(library, null, default);
+        _db.ChangeTracker.Clear();
+
+        var albums = await _db.MediaItems.Include(i => i.Genres).Where(i => i.Kind == MediaKind.Album).OrderBy(i => i.SortTitle).ToListAsync();
+        // The first spelling met names the genre for everyone.
+        Assert.Equal(["rock", "alternative"], albums.Single(a => a.Title == "OK Computer").Genres.Select(g => g.Name.ToLowerInvariant()));
+        Assert.Equal(["rock"], albums.Single(a => a.Title == "Wet Leg").Genres.Select(g => g.Name.ToLowerInvariant()));
+        Assert.Equal(2, await _db.Genres.CountAsync()); // one Rock, whatever its case
+    }
+
+    [Fact]
+    public async Task Music_APlaceholderNeverAdoptsAnotherArtistsAlbum()
+    {
+        var root = Touch("music/Them/Angry Young Them (1965)/01 - Gloria.flac");
+        _probe.Tags["01 - Gloria.flac"] = new() { ["artist"] = "Them", ["album"] = "Angry Young Them", ["title"] = "Gloria", ["track"] = "1" };
+        var library = await AddLibrary(LibraryType.Music, Path.Combine(root, "music"));
+        _db.MediaItems.Add(new MediaItem { LibraryId = library.Id, Kind = MediaKind.Artist, Title = "M", SortTitle = "m", Placeholder = true });
+        await _db.SaveChangesAsync();
+        _db.ChangeTracker.Clear();
+
+        await Scanner().ScanAsync(library, null, default);
+        _db.ChangeTracker.Clear();
+
+        var m = await _db.MediaItems.Include(i => i.Children).SingleAsync(i => i.Title == "M");
+        Assert.True(m.Placeholder);
+        Assert.Empty(m.Children);
+        Assert.Equal(1, await _db.MediaItems.CountAsync(i => i.Kind == MediaKind.Artist && i.Title == "Them"));
+    }
+
+    [Fact]
     public async Task Music_ACompilationFlaggedWithoutAnAlbumArtist_IsOneAlbumUnderVariousArtists()
     {
         var root = Touch("music/Compilations/Now That's What I Call Music/01 - Blue Monday.mp3", "music/Compilations/Now That's What I Call Music/02 - Relax.mp3");
