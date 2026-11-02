@@ -9,10 +9,10 @@ Flexarr is built to sit alongside Sonarr, Radarr, Lidarr and Seerr. It doesn't d
 
 | App | What Flexarr gets from it |
 | --- | --- |
-| **Radarr** | Titles, posters, backgrounds, overviews, genres, ratings and trailers for movies. Upcoming movies in **Coming soon**. Deleting a movie from Flexarr goes through Radarr. Movie series for collections. |
+| **Radarr** | Titles, posters, backgrounds, overviews, genres, IMDb and Rotten Tomatoes scores, and trailers for movies. Upcoming movies in **Coming soon**. Deleting a movie from Flexarr goes through Radarr. Movie series for collections. |
 | **Sonarr** | Show and episode details and artwork. Upcoming episodes in **Coming soon**. Deleting a show or episode goes through Sonarr. |
 | **Lidarr** | Artist pictures, album covers, canonical names and years, and albums, EPs and singles sorted apart. |
-| **Seerr** | **Discover** and requests. Seerr, Overseerr and Jellyseerr all work. See [Requests](requests.md). |
+| **Seerr** | **Discover** and requests, and Rotten Tomatoes scores for shows, and Certified Fresh for movies and shows. Seerr, Overseerr and Jellyseerr all work. See [Requests](requests.md). |
 | **Bazarr** | **Search for subtitles** from the player and a title's page, and re-syncing subtitles that are out of time. See [Finding subtitles](subtitles-and-skipping.md#finding-subtitles). |
 | **TMDB** | Details, artwork and cast for movies Radarr doesn't have, with a free key of your own. See [Movies from TMDB](without-arrs.md#movies-from-tmdb). |
 | **Trakt** | Nothing to set up: Flexarr uses its own Trakt app. You can enter your own app's details here instead. See [Trakt](trakt.md#your-own-trakt-app). |

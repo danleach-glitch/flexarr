@@ -155,7 +155,7 @@ struct HomeHero: View {
             VStack(alignment: .leading, spacing: 26) {
                 VStack(alignment: .leading, spacing: 24) {
                     TitleArt(item: item, maxWidth: 760, maxHeight: 230, fontSize: 110)
-                    FactsLine(facts: item.facts(scores: !model.isKids))
+                    FactsLine(facts: item.facts(scores: !model.isKids), scores: model.isKids ? nil : item.scores)
                     if let overview = overviews[item.id] ?? nil {
                         Text(overview)
                             .font(.system(size: 27))

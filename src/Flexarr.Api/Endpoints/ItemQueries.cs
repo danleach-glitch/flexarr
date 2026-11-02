@@ -79,5 +79,7 @@ public static class ItemQueries
                 x.Book == null ? null : new Books.BookSummaryDto(
                     x.Book.Author2 == null ? x.Book.Author1 : x.Book.Author1 + ", " + x.Book.Author2, x.Book.Authors, x.Book.Narrator,
                     x.Book.Series == null ? null : x.Book.Series.Name, x.Book.Series == null ? null : x.Book.Series.Sequence,
-                    x.Book.Duration, x.Book.FinishedAt)));
+                    x.Book.Duration, x.Book.FinishedAt),
+                x.Item.ImdbRating,
+                RottenTomatoesDto.Of(x.Item.CriticRating, x.Item.CriticCertified)));
 }

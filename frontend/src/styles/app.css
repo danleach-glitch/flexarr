@@ -1025,6 +1025,20 @@ kbd {
   color: color-mix(in srgb, var(--screen) 82%, transparent);
 }
 
+/* A score beside its source's mark (docs/design.md › Scores): brand colours stay inside the mark. */
+.score-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-variant-numeric: tabular-nums;
+}
+
+.score-mark {
+  height: 1.15em;
+  width: auto;
+  flex: none;
+}
+
 /* The episode you'd resume, on the Continue Watching slide. */
 .hero-resume {
   margin: 0;

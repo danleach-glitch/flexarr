@@ -80,6 +80,7 @@ import io.github.flexarr.core.UpcomingItem
 import io.github.flexarr.core.cardDetail
 import io.github.flexarr.core.cardTitle
 import io.github.flexarr.core.dayLabel
+import io.github.flexarr.core.scores
 import io.github.flexarr.ui.components.WideWidth
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -309,7 +310,8 @@ private fun HeroSlide(home: Home, item: ItemSummary, height: Dp) {
         Column(Modifier.align(Alignment.BottomStart).padding(start = Edge, end = Edge, bottom = 44.dp, top = 160.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             TitleArt(item, maxWidth = 280.dp, maxHeight = 110.dp, fontSize = 52)
             // No scores for a child.
-            FactsLine(item.facts(scores = !LocalContext.current.appModel.isKids))
+            val isKids = LocalContext.current.appModel.isKids
+            FactsLine(item.facts(scores = !isKids), scores = if (isKids) null else item.scores)
             home.overviews[item.id]?.let {
                 Text(it, fontSize = 15.sp, color = Flexarr.screen.copy(alpha = 0.85f), maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 520.dp))
             }

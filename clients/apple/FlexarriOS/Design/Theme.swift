@@ -12,20 +12,42 @@ enum Layout {
     static let rowSpacing: CGFloat = 12
 }
 
-/// "2016   1h 56m   TV-MA": facts separated by space, never middle dots.
+/// "2016   1h 56m   TV-MA": facts separated by space, never middle dots, then any scores beside their marks. When
+/// they don't all fit on one line (a narrow phone, large text), the scores go on a line of their own rather than
+/// cutting a fact short.
 struct FactsLine: View {
     let facts: [String]
+    var scores: Scores? = nil
+    /// The marks grow with the text.
+    @ScaledMetric(relativeTo: .subheadline) private var markHeight: CGFloat = 15
 
     var body: some View {
-        HStack(spacing: 12) {
-            ForEach(Array(facts.enumerated()), id: \.offset) { _, fact in
-                Text(fact)
+        Group {
+            if let scores, !scores.isEmpty {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 12) {
+                        factTexts
+                        ScoreChips(scores: scores, markHeight: markHeight, spacing: 12)
+                    }
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 12) { factTexts }
+                        ScoreChips(scores: scores, markHeight: markHeight, spacing: 12)
+                    }
+                }
+            } else {
+                HStack(spacing: 12) { factTexts }
             }
         }
         .font(.subheadline.weight(.semibold))
         .foregroundStyle(Color.screen.opacity(0.85))
         .monospacedDigit()
         .lineLimit(1)
+    }
+
+    private var factTexts: some View {
+        ForEach(Array(facts.enumerated()), id: \.offset) { _, fact in
+            Text(fact)
+        }
     }
 }
 

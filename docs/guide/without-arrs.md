@@ -28,6 +28,8 @@ A movie on its own in the library's folder, rather than in a folder of its own, 
 
 Images can be JPEG, PNG or WebP. Flexarr only reads these files: it never writes or changes anything in your media folders.
 
+A rating named `imdb` in a `.nfo` file (`<rating name="imdb">`) shows beside the IMDb logo on the title's page.
+
 > **Tip** The IDs in a `.nfo` file (TMDB, IMDb or TheTVDB) help Flexarr find exactly the right title, in Sonarr and Radarr as well as online. A `.nfo` that holds only a link to the title's IMDb or TMDB page works too.
 
 ## Shows from TVmaze

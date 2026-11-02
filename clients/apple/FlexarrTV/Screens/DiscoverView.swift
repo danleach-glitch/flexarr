@@ -462,28 +462,12 @@ struct ExternalTitleView: View {
                     .foregroundStyle(Color.screen.opacity(0.85))
             }
             HStack(spacing: 22) {
-                FactsLine(facts: facts)
+                FactsLine(facts: facts, scores: detail?.scores)
                 if let genres = detail?.genres, !genres.isEmpty {
                     Text(genres.prefix(3).joined(separator: ", "))
                         .font(.system(size: 26, weight: .medium))
                         .foregroundStyle(Color.usher)
                 }
-            }
-            if let detail, !ratings(detail).isEmpty {
-                HStack(spacing: 44) {
-                    ForEach(ratings(detail), id: \.label) { rating in
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(rating.value)
-                                .font(.system(size: 34, weight: .bold))
-                                .foregroundStyle(Color.screen)
-                                .monospacedDigit()
-                            Text(rating.label)
-                                .font(.system(size: 20, weight: .semibold))
-                                .foregroundStyle(Color.usher)
-                        }
-                    }
-                }
-                .accessibilityElement(children: .combine)
             }
             if let overview = detail?.overview ?? preview.overview, !overview.isEmpty {
                 Text(overview)
@@ -514,17 +498,9 @@ struct ExternalTitleView: View {
             ? detail.seasons.map { $0 == 1 ? "1 season" : "\($0) seasons" }
             : detail.runtimeMinutes.flatMap { Format.runtime(minutes: $0) }
         let status = detail.status.flatMap { ["Released", "Ended"].contains($0) ? nil : $0 }
-        return [detail.certification, detail.year.map(String.init), length, detail.isShow ? "Show" : "Movie", status].compactMap { $0 }
-    }
-
-    /// The scores people check before watching: TMDB, IMDb, Rotten Tomatoes critics and audience.
-    private func ratings(_ detail: ExternalDetail) -> [(label: String, value: String)] {
-        var scores: [(label: String, value: String)] = []
-        if let tmdb = detail.tmdbRating { scores.append(("TMDB", String(format: "%.1f", tmdb))) }
-        if let imdb = detail.imdbRating { scores.append(("IMDb", String(format: "%.1f", imdb))) }
-        if let critics = detail.criticScore { scores.append(("Critics", "\(critics)%")) }
-        if let audience = detail.audienceScore { scores.append(("Audience", "\(audience)%")) }
-        return scores
+        // TMDB's score when there's no IMDb score to show beside its mark.
+        let tmdb = detail.scores.imdb == nil ? detail.tmdbRating.map { String(format: "%.1f/10", $0) } : nil
+        return [detail.certification, detail.year.map(String.init), length, detail.isShow ? "Show" : "Movie", status, tmdb].compactMap { $0 }
     }
 
     @ViewBuilder

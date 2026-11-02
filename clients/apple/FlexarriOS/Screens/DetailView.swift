@@ -115,7 +115,7 @@ struct DetailView: View {
                     } else {
                         TitleArt(item: item, maxWidth: 300, maxHeight: 120, fontSize: 52)
                     }
-                    FactsLine(facts: item.facts(scores: !model.isKids))
+                    FactsLine(facts: item.facts(scores: !model.isKids), scores: model.isKids ? nil : item.scores)
                     if let genres = detail?.genres, !genres.isEmpty {
                         Text(genres.prefix(3).joined(separator: ", "))
                             .font(.subheadline.weight(.medium))

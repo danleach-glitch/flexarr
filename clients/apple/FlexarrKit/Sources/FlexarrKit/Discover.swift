@@ -99,8 +99,15 @@ public struct ExternalDetail: Codable, Sendable, Hashable {
     public let recommendations: [ExternalTitle]
     /// Whether it's on the profile's watchlist. Absent from servers before 0.56 (no watchlist there).
     public var onWatchlist: Bool? = nil
+    /// The tomato for `criticScore`. Absent from servers before 0.59.
+    public var rottenTomatoesState: RottenTomatoesState? = nil
 
     public var isShow: Bool { mediaType == "tv" }
+
+    /// IMDb and Rotten Tomatoes, as on a library title's page.
+    public var scores: Scores {
+        Scores(imdb: imdbRating, rottenTomatoes: criticScore.map { RottenTomatoes(score: $0, state: rottenTomatoesState ?? .unknown) })
+    }
 
     /// The title as Discover's rows know it, for showing the page's header before the rest arrives.
     public var summary: ExternalTitle {

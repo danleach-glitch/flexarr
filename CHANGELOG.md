@@ -8,6 +8,12 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On iPhone, iPad, Android phones and the Apple TV, an audiobooks library's **Genres** are tiles showing a few of each genre's covers, like the genres of movies and TV shows (and as on the web).
 - On the Apple TV, an audiobooks library has **Browse**, **All books** and **Genres** at the top, as Movies and TV Shows do. **All books** sorts by title, author, recently added or last listened, and **Settings › Libraries** chooses which one it opens on.
 
+### Movies and shows
+- Movie and show pages show their **IMDb** and **Rotten Tomatoes** scores beside each one's logo, with the tomato for Certified Fresh, Fresh or Rotten, in every app. The Home hero and Discover's title pages show them too. Kids profiles don't see scores.
+- Movies get both scores from Radarr. With Seerr connected, shows get their Rotten Tomatoes score too, and the tomato says when a title is Certified Fresh. A title without an IMDb score, as most shows are, keeps the score it had beside the tomato.
+- Discover's title pages show IMDb and Rotten Tomatoes in place of the four scores they had (TMDB, IMDb, critics and audience). TMDB's score stays when there's no IMDb score.
+- On Android TV, kids profiles no longer see a score on a title's page, the Home hero or an artist's page.
+
 ## 0.58.0 · 2 November 2026
 
 ### Libraries

@@ -50,6 +50,7 @@ public sealed record ExternalPersonDto(string Name, string? Character, string? I
 /// <param name="OnWatchlist">Whether it's on the profile's watchlist (absent from servers before 0.56).</param>
 /// <param name="CriticScore">Rotten Tomatoes critics, percent.</param>
 /// <param name="AudienceScore">Rotten Tomatoes audience, percent.</param>
+/// <param name="RottenTomatoesState">The tomato for <paramref name="CriticScore"/> (absent from servers before 0.59).</param>
 public sealed record ExternalDetailDto(
     int TmdbId,
     string MediaType,
@@ -75,7 +76,8 @@ public sealed record ExternalDetailDto(
     AvailabilityDto Availability,
     Guid? LibraryItemId,
     IReadOnlyList<ExternalTitleDto> Recommendations,
-    bool? OnWatchlist = null);
+    bool? OnWatchlist = null,
+    RottenTomatoesState? RottenTomatoesState = null);
 
 public static class RequestEndpoints
 {
@@ -223,7 +225,7 @@ public static class RequestEndpoints
                     return Results.NotFound();
                 }
 
-                var ratings = await SafeGetAsync(seerr, instance, mediaType == "movie" ? $"movie/{tmdbId}/ratingscombined" : $"tv/{tmdbId}/ratings", ct);
+                var ratings = await SafeGetAsync(seerr, instance, SeerrRatings.PathFor(mediaType == "movie", tmdbId), ct);
                 var recommendations = await SafeGetAsync(seerr, instance, $"{mediaType}/{tmdbId}/recommendations", ct);
                 var onWatchlist = (await watchlist.MembershipAsync(current.Id, new Watchlist.WatchlistAdd(null, mediaType, tmdbId), ct)).OnWatchlist;
                 var wanted = await watchlist.KeysAsync(current.Id, ct);
@@ -351,8 +353,7 @@ public static class RequestEndpoints
         var trailer = videos.Where(v => Str(v, "type") == "Trailer").OrderByDescending(v => Str(v, "name")?.Contains("Official", StringComparison.OrdinalIgnoreCase) == true)
             .Concat(videos.Where(v => Str(v, "type") == "Teaser")).Select(v => Str(v, "key")).FirstOrDefault();
 
-        var rt = ratings is { } r ? (movie ? (r.TryGetProperty("rt", out var x) ? x : default) : r) : default;
-        var imdb = ratings is { } r2 && movie && r2.TryGetProperty("imdb", out var i) ? Number(i, "criticsScore") : null;
+        var scores = SeerrRatings.Parse(ratings, movie);
 
         var recs = recommendations is { } rec
             ? Array(rec, "results").Select(e => e.Deserialize<SeerrResult>(Web)!).Where(e => e.MediaType is "movie" or "tv")
@@ -366,15 +367,18 @@ public static class RequestEndpoints
             movie ? null : (int?)Number(t, "numberOfSeasons"),
             certification, Str(t, "status"),
             Number(t, "voteAverage") is > 0 and var vote ? Math.Round(vote, 1) : null,
-            rt.ValueKind == JsonValueKind.Object ? (int?)Number(rt, "criticsScore") : null,
-            rt.ValueKind == JsonValueKind.Object ? (int?)Number(rt, "audienceScore") : null,
-            imdb,
+            scores?.CriticScore,
+            scores?.AudienceScore,
+            scores?.Imdb,
             trailer,
             Array(t, "credits", "cast").OrderBy(c => Number(c, "order")).Take(20)
                 .Select(c => new ExternalPersonDto(Str(c, "name") ?? "", NullIfEmpty(Str(c, "character")), Tmdb(Str(c, "profilePath"), "w185"))).ToList(),
             (movie ? Array(t, "credits", "crew").Where(c => Str(c, "job") == "Director") : Array(t, "createdBy")).Select(c => Str(c, "name")).OfType<string>().Distinct().ToList(),
             (movie ? Array(t, "productionCompanies") : Array(t, "networks")).Select(c => Str(c, "name")).FirstOrDefault(),
-            summary.Availability, summary.LibraryItemId, recs);
+            summary.Availability, summary.LibraryItemId, recs)
+        {
+            RottenTomatoesState = RottenTomatoesDto.Of(scores?.CriticScore, scores?.Certified == true)?.State,
+        };
     }
 
     private static readonly JsonSerializerOptions Web = new(JsonSerializerDefaults.Web);

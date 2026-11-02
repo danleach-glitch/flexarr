@@ -1387,6 +1387,8 @@ export interface ExternalDetail {
   recommendations: ExternalTitle[]
   /** Whether it's on this profile's watchlist. Absent from servers before 0.56. */
   onWatchlist?: boolean | null
+  /** The tomato for `criticScore`. Absent from servers before 0.59. */
+  rottenTomatoesState?: string | null
 }
 
 export const getExternalTitle = (mediaType: string, tmdbId: string, signal?: AbortSignal) =>

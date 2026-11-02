@@ -105,6 +105,10 @@ export interface ItemSummary {
   homeVideo?: boolean
   /** A book's authors, narrator, series and length. Absent from servers before 0.58. */
   book?: BookSummary | null
+  /** IMDb's rating out of 10, for movies and shows. Absent from servers before 0.59. */
+  imdbRating?: number | null
+  /** The Rotten Tomatoes critics' score and its tomato. Absent from servers before 0.59 (use `criticRating`). */
+  rottenTomatoes?: RottenTomatoes | null
   /**
    * Not from the server: where the player starts this queue entry, for a podcast episode played from the start rather
    * than from where it was left.
@@ -1157,3 +1161,9 @@ export interface BookSeriesSearch {
   name: string
   bookCount: number
 }
+
+/** Rotten Tomatoes' tomato. A value this app doesn't know is read from the score instead (`tomatoOf`). */
+export type RottenTomatoesState = 'Fresh' | 'Rotten' | 'CertifiedFresh'
+
+/** A Rotten Tomatoes critics' score, percent, and its tomato. */
+export type RottenTomatoes = { score: number; state: RottenTomatoesState | string | null }

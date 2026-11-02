@@ -25,6 +25,11 @@ as what the app lacks.
 - **Keywords:** media server, home server, free, no ads, no account, self-hosted, home cinema (en-US: home
   theater), offline, player, movies, shows. Words in the name and subtitle are indexed already, so they
   aren't repeated. Never other apps' names: App Review rejects them.
+- **Score logos (0.59):** movie and show pages draw simplified IMDb and Rotten Tomatoes marks beside each title's
+  scores (`design/scores.json`). If App Review asks (guideline 5.2.1), answer: "The marks show where each score comes
+  from, beside that score only, as IMDb and Rotten Tomatoes ratings are commonly credited in media apps. The scores
+  come from the user's own Radarr or Seerr." If they insist, swap the marks for the words *IMDb* and *Rotten Tomatoes*
+  in `ScoreChips` on each client.
 - **Support URL:** GitHub issues. **Marketing URL:** https://flexarr.io.
   **Privacy policy:** https://flexarr.io/privacy (`site/privacy.html`).
 

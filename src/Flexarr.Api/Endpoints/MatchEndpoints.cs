@@ -236,6 +236,10 @@ public static partial class MatchEndpoints
         item.ImdbId = null;
         item.TvMazeId = null;
         item.ArrId = null;
+        item.ImdbRating = null;
+        item.CriticRating = null;
+        item.CriticCertified = false;
+        item.ScoresCheckedAt = null;
         item.MatchLocked = true;
         db.Credits.RemoveRange(item.Credits);
         item.Credits.Clear();

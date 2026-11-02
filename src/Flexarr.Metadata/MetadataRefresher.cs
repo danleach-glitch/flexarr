@@ -29,7 +29,8 @@ public sealed partial class MetadataRefresher(
     IMetadataSettings settings,
     ILogger<MetadataRefresher> logger,
     TmdbClient? tmdb = null,
-    Books.BookProviders? bookProviders = null)
+    Books.BookProviders? bookProviders = null,
+    SeerrClient? seerr = null)
 {
     private static readonly TimeSpan StaleAfter = TimeSpan.FromDays(7);
     private static readonly TimeSpan RetryUnmatchedAfter = TimeSpan.FromDays(1);
@@ -51,6 +52,18 @@ public sealed partial class MetadataRefresher(
     public const string TmdbSearch = "TMDB search", TvMazeSearch = "TVmaze search";
 
     private Dictionary<string, Genre>? _genres;
+    private bool _seerrDown;
+    private int _seerrFailuresInARow;
+    private (Guid Id, string? Tmdb, string? Imdb, string? Tvdb, string? TvMaze) _idsBefore;
+
+    /// <summary>How long Seerr's scores are kept before asking again, plus up to two weeks so a library isn't asked all at once.</summary>
+    private static readonly TimeSpan ScoresStaleAfter = TimeSpan.FromDays(30);
+
+    /// <summary>How long one scores question may take: a slow Seerr mustn't hold up a scan or Fix match.</summary>
+    private static readonly TimeSpan SeerrScoresTimeout = TimeSpan.FromSeconds(5);
+
+    /// <summary>Errors in a row (for different titles) after which Seerr is left alone for the rest of the refresh.</summary>
+    private const int SeerrFailuresBeforeGivingUp = 5;
     private Dictionary<string, Person>? _peopleByTmdb;
     private Dictionary<string, Person>? _peopleByTvMaze;
 
@@ -181,6 +194,21 @@ public sealed partial class MetadataRefresher(
         bool force,
         CancellationToken ct)
     {
+        _idsBefore = IdsOf(item);
+        var result = await RefreshMovieFromSourcesAsync(item, byPath, byImdb, byTmdb, radarrs, force, ct).ConfigureAwait(false);
+        await ApplySeerrRatingsAsync(item, ct).ConfigureAwait(false);
+        return result;
+    }
+
+    private async Task<bool?> RefreshMovieFromSourcesAsync(
+        MediaItem item,
+        Dictionary<string, (ArrInstance, RadarrMovie)> byPath,
+        Dictionary<string, (ArrInstance, RadarrMovie)> byImdb,
+        Dictionary<string, (ArrInstance, RadarrMovie)> byTmdb,
+        List<ArrInstance> radarrs,
+        bool force,
+        CancellationToken ct)
+    {
         // A .nfo's ids find the film in Radarr (or its search) when the folder alone wouldn't.
         var local = item.Path is { } path ? LocalFiles.ForMovie(path) : LocalArt.None;
         if (!item.MatchLocked && local.Nfo?.Ids is { } ids)
@@ -252,12 +280,15 @@ public sealed partial class MetadataRefresher(
         item.ReleaseDate = DateOnlyOf(movie.InCinemas ?? movie.DigitalRelease ?? movie.PhysicalRelease ?? movie.ReleaseDate);
         item.CommunityRating = movie.Ratings?.Imdb?.Value is > 0 ? movie.Ratings.Imdb.Value : movie.Ratings?.Tmdb?.Value is > 0 ? movie.Ratings.Tmdb.Value : null;
         item.CriticRating = movie.Ratings?.RottenTomatoes?.Value is > 0 and var rt ? (int)Math.Round(rt) : null;
+        item.ImdbRating = movie.Ratings?.Imdb?.Value is > 0 and var imdb ? imdb : null;
+        item.CriticCertified &= item.CriticRating is >= 60;
         item.Popularity = movie.Popularity;
         item.TrailerYouTubeId = NullIfEmpty(movie.YouTubeTrailerId);
         item.ImdbId = NullIfEmpty(movie.ImdbId) ?? item.ImdbId;
         item.TmdbId = movie.TmdbId > 0 ? movie.TmdbId.ToString(CultureInfo.InvariantCulture) : item.TmdbId;
         item.ArrId = instance is null ? null : movie.Id;
         item.MetadataSource = instance?.Name ?? RadarrLookup;
+        ForgetScoresIfRematched(item, keepArrScores: true);
         ApplyNfo(item, local.Nfo);
         await ApplyImagesAsync(item, movie.Images, movie.RemotePoster, local, ct).ConfigureAwait(false);
         await SetGenresAsync(item, NfoGenres(item, local) ?? movie.Genres, ct).ConfigureAwait(false);
@@ -645,6 +676,98 @@ public sealed partial class MetadataRefresher(
         bool force,
         CancellationToken ct)
     {
+        _idsBefore = IdsOf(item);
+        var result = await RefreshSeriesFromSourcesAsync(item, byPath, byTvdb, byImdb, sonarrs, force, ct).ConfigureAwait(false);
+        await ApplySeerrRatingsAsync(item, ct).ConfigureAwait(false);
+        return result;
+    }
+
+    private static (Guid, string?, string?, string?, string?) IdsOf(MediaItem item) => (item.Id, item.TmdbId, item.ImdbId, item.TvdbId, item.TvMazeId);
+
+    /// <summary>
+    /// When this refresh matched the item to a different title, the old title's scores go (Radarr's own, set just
+    /// before, stay), so the new one never shows them; Seerr is asked again straight away.
+    /// </summary>
+    private void ForgetScoresIfRematched(MediaItem item, bool keepArrScores = false)
+    {
+        if (_idsBefore.Id != item.Id || IdsOf(item) == _idsBefore)
+        {
+            return;
+        }
+
+        if (!keepArrScores)
+        {
+            item.ImdbRating = null;
+            item.CriticRating = null;
+        }
+
+        item.CriticCertified = false;
+        item.ScoresCheckedAt = null;
+    }
+
+    /// <summary>
+    /// Rotten Tomatoes (with Certified Fresh) and, for films, IMDb from Seerr, over what Radarr or a file said. Seerr is
+    /// asked only when it's connected, the title has a TMDB id and its scores are a month old (or never asked); when it
+    /// doesn't answer, the scores stay as they were.
+    /// </summary>
+    private async Task ApplySeerrRatingsAsync(MediaItem item, CancellationToken ct)
+    {
+        if (seerr is null || _seerrDown || settings.Seerr is not { } instance
+            || !int.TryParse(item.TmdbId, NumberStyles.None, CultureInfo.InvariantCulture, out var tmdbId) || tmdbId <= 0
+            || item.ScoresCheckedAt is { } checkedAt && DateTime.UtcNow - checkedAt < ScoresStaleAfter + Spread(item.Id))
+        {
+            return;
+        }
+
+        var movie = item.Kind == MediaKind.Movie;
+        SeerrRatings? ratings;
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(SeerrScoresTimeout);
+        try
+        {
+            ratings = SeerrRatings.Parse(await seerr.GetAsync(instance, SeerrRatings.PathFor(movie, tmdbId), timeout.Token).ConfigureAwait(false), movie);
+            _seerrFailuresInARow = 0;
+        }
+        catch (Exception ex) when (!ct.IsCancellationRequested
+            && ex is HttpRequestException or IOException or OperationCanceledException or System.Text.Json.JsonException)
+        {
+            // Seerr unreachable, slow or refusing the key: leave it alone for the rest of this refresh. Its error for one
+            // title (Overseerr answers 500 when a lookup behind it fails) is that title's alone, unless it keeps happening.
+            var unreachable = ex is IOException or OperationCanceledException
+                || ex is HttpRequestException { StatusCode: null or System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden };
+            _seerrDown = unreachable || ++_seerrFailuresInARow >= SeerrFailuresBeforeGivingUp;
+            LogSeerrRatingsFailed(item.Title, ex.Message, _seerrDown);
+            return;
+        }
+
+        item.ScoresCheckedAt = DateTime.UtcNow;
+        if (ratings?.CriticScore is { } critics)
+        {
+            item.CriticRating = critics;
+            item.CriticCertified = ratings.Certified;
+        }
+        else if (!movie)
+        {
+            // Seerr is a show's only source of Rotten Tomatoes: when it has none, neither does the show.
+            item.CriticRating = null;
+            item.CriticCertified = false;
+        }
+
+        item.ImdbRating = ratings?.Imdb ?? item.ImdbRating;
+    }
+
+    /// <summary>0 to 14 days, the same for an item every time, so a library's scores don't all go stale together.</summary>
+    private static TimeSpan Spread(Guid id) => TimeSpan.FromDays(Math.Abs(id.GetHashCode() % 15));
+
+    private async Task<bool?> RefreshSeriesFromSourcesAsync(
+        MediaItem item,
+        Dictionary<string, (ArrInstance, SonarrSeries)> byPath,
+        Dictionary<string, (ArrInstance, SonarrSeries)> byTvdb,
+        Dictionary<string, (ArrInstance, SonarrSeries)> byImdb,
+        List<ArrInstance> sonarrs,
+        bool force,
+        CancellationToken ct)
+    {
         bool? result = null;
         var local = item.Path is { } path ? LocalFiles.ForSeries(path) : LocalArt.None;
         if (!item.MatchLocked && local.Nfo?.Ids is { } ids)
@@ -726,6 +849,7 @@ public sealed partial class MetadataRefresher(
         item.TvMazeId = series.TvMazeId > 0 ? series.TvMazeId.ToString(CultureInfo.InvariantCulture) : item.TvMazeId;
         item.ArrId = instance is null ? null : series.Id;
         item.MetadataSource = instance?.Name ?? SonarrLookup;
+        ForgetScoresIfRematched(item);
         ApplyNfo(item, local.Nfo);
         await ApplyImagesAsync(item, series.Images, series.RemotePoster, local, ct).ConfigureAwait(false);
         await SetGenresAsync(item, NfoGenres(item, local) ?? series.Genres, ct).ConfigureAwait(false);
@@ -931,6 +1055,7 @@ public sealed partial class MetadataRefresher(
         item.ImdbId = NullIfEmpty(movie.ImdbId) ?? item.ImdbId;
         item.ArrId = null;
         item.MetadataSource = searched ? TmdbSearch : Tmdb;
+        ForgetScoresIfRematched(item);
         ApplyNfo(item, local.Nfo);
 
         // TMDB keeps some logos as SVG, which the image cache can't read; the PNGs are the ones to use.
@@ -1048,6 +1173,7 @@ public sealed partial class MetadataRefresher(
         item.ImdbId = NullIfEmpty(show.Externals?.Imdb) ?? item.ImdbId;
         item.ArrId = null;
         item.MetadataSource = searched ? TvMazeSearch : TvMaze;
+        ForgetScoresIfRematched(item);
         ApplyNfo(item, local.Nfo);
 
         var images = await tvmaze.GetImagesAsync(show.Id, ct).ConfigureAwait(false);
@@ -1185,6 +1311,7 @@ public sealed partial class MetadataRefresher(
     /// </summary>
     private async Task ApplyLocalOnlyAsync(MediaItem item, LocalArt local, CancellationToken ct)
     {
+        ForgetScoresIfRematched(item);
         ApplyNfo(item, local.Nfo);
         if (NfoGenres(item, local) is { } genres)
         {
@@ -1224,6 +1351,7 @@ public sealed partial class MetadataRefresher(
         item.RuntimeMinutes = nfo.RuntimeMinutes ?? item.RuntimeMinutes;
         item.ReleaseDate = nfo.Premiered ?? item.ReleaseDate;
         item.CommunityRating = nfo.Rating ?? item.CommunityRating;
+        item.ImdbRating = nfo.ImdbRating ?? item.ImdbRating;
     }
 
     private static IReadOnlyList<string>? NfoGenres(MediaItem item, LocalArt local) =>
@@ -1546,4 +1674,7 @@ public sealed partial class MetadataRefresher(
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Metadata lookup for {Term} failed: {Error}")]
     private partial void LogLookupFailed(string term, string error);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Seerr didn't give the scores for {Title} ({Error}); leaving it alone for the rest of this refresh: {GivingUp}")]
+    private partial void LogSeerrRatingsFailed(string title, string error, bool givingUp);
 }

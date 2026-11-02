@@ -54,7 +54,28 @@ public sealed record ItemSummaryDto(
     string? TrackArtist = null,
     bool HomeVideo = false,
     // A book's authors, narrator, series and length. Absent from servers before 0.58.
-    Books.BookSummaryDto? Book = null);
+    Books.BookSummaryDto? Book = null,
+    // IMDb's rating out of 10, for movies and shows. Absent from servers before 0.59.
+    double? ImdbRating = null,
+    // The Rotten Tomatoes critics' score and its tomato, for movies and shows (CriticRating is the same number).
+    // Absent from servers before 0.59.
+    RottenTomatoesDto? RottenTomatoes = null);
+
+/// <summary>Rotten Tomatoes' tomato for a critics' score. Apps read a value they don't know as no tomato at all.</summary>
+public enum RottenTomatoesState
+{
+    Fresh,
+    Rotten,
+    CertifiedFresh,
+}
+
+/// <summary>A Rotten Tomatoes critics' score, percent, and its tomato.</summary>
+public sealed record RottenTomatoesDto(int Score, RottenTomatoesState State)
+{
+    /// <summary>Certified Fresh when Rotten Tomatoes says so; otherwise Fresh at 60% and up, Rotten below.</summary>
+    public static RottenTomatoesDto? Of(int? score, bool certified) => score is not { } s ? null
+        : new RottenTomatoesDto(s, certified && s >= 60 ? RottenTomatoesState.CertifiedFresh : s >= 60 ? RottenTomatoesState.Fresh : RottenTomatoesState.Rotten);
+}
 
 /// <summary>The viewer's state for an item. UnwatchedCount is set for series and seasons.</summary>
 public sealed record UserDataDto(double PositionSeconds, bool Watched, int PlayCount, DateTime? LastPlayedAt, int? UnwatchedCount);
