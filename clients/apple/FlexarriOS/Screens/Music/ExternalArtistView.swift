@@ -48,7 +48,7 @@ struct ExternalArtistView: View {
                 }
                 .padding(.bottom, 32)
             }
-            .refreshable { await load() }
+            .refreshable { await load(fresh: true) }
             .environment(\.musicRequestsPaused, paused)
         }
         .navigationBarTitleDisplayMode(.inline)
@@ -94,11 +94,15 @@ struct ExternalArtistView: View {
         .padding(.horizontal, Layout.edge)
     }
 
-    private var paused: Bool { pausedAbove || (status?.configured == true && status?.reachable == false) }
+    /// Lidarr is connected but isn't answering (or didn't for this page, so what's asked for is unknown): the buttons
+    /// wait, greyed.
+    private var paused: Bool {
+        pausedAbove || (status?.configured == true && (status?.reachable == false || detail?.lidarrAnswered == false))
+    }
 
-    private func load() async {
+    private func load(fresh: Bool = false) async {
         guard let client = model.client else { return }
-        async let asked = model.musicRequestStatus()
+        async let asked = model.musicRequestStatus(fresh: fresh)
         do {
             detail = try await client.musicArtist(deezerId: preview.deezerId)
             error = nil

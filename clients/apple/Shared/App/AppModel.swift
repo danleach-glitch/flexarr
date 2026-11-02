@@ -1204,6 +1204,8 @@ final class AppModel {
     }
 
     func invalidate() {
+        // Pages load again: whether music requests are on (and Lidarr answering) is asked again too.
+        musicStatusCache = nil
         refreshToken += 1
     }
 

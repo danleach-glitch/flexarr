@@ -83,7 +83,11 @@ struct ExternalAlbumView: View {
         }
     }
 
-    private var paused: Bool { pausedAbove || (status?.configured == true && status?.reachable == false) }
+    /// Lidarr is connected but isn't answering (or didn't for this page, so what's asked for is unknown): the button
+    /// waits, dimmed.
+    private var paused: Bool {
+        pausedAbove || (status?.configured == true && (status?.reachable == false || detail?.lidarrAnswered == false))
+    }
 
     /// The round button's name while it's focused; while Lidarr isn't answering, why it's dimmed instead, focused or
     /// not (pressing it does nothing then).

@@ -163,6 +163,9 @@ public struct MusicArtistDetail: Codable, Sendable, Hashable {
     public let followed: Bool
     public let availability: Availability
     public let libraryItemId: String?
+    /// False when Lidarr didn't answer, so whether it's followed or requested couldn't be checked: the page's buttons
+    /// wait. Absent from servers before 0.59.
+    public var lidarrAnswered: Bool? = nil
 }
 
 public struct MusicAlbumDetail: Codable, Sendable, Hashable {
@@ -178,6 +181,9 @@ public struct MusicAlbumDetail: Codable, Sendable, Hashable {
     public let durationSeconds: Int
     public let availability: Availability
     public let libraryItemId: String?
+    /// False when Lidarr didn't answer, so whether it's followed or requested couldn't be checked: the page's buttons
+    /// wait. Absent from servers before 0.59.
+    public var lidarrAnswered: Bool? = nil
 
     /// The album as rows know it, for its request button.
     public var summary: MusicExternal {
@@ -193,6 +199,9 @@ public struct MusicArtistExtras: Codable, Sendable, Hashable {
     public let followed: Bool
     /// The artist on Deezer, for their outside page; nil when Deezer doesn't know them.
     public let deezerId: Int?
+    /// False when Lidarr didn't answer, so whether it's followed or requested couldn't be checked: the page's buttons
+    /// wait. Absent from servers before 0.59.
+    public var lidarrAnswered: Bool? = nil
 
     public static let empty = MusicArtistExtras(missing: [], similar: [], followed: false, deezerId: nil)
 }

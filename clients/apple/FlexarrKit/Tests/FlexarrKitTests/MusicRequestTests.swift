@@ -39,6 +39,7 @@ struct MusicRequestTests {
         """#.utf8))
         #expect(artist.followed)
         #expect(artist.availability == .partlyAvailable)
+        #expect(artist.lidarrAnswered == nil)
         let album = try FlexarrClient.decoder.decode(MusicAlbumDetail.self, from: Data(#"""
         {"deezerId":302127,"title":"Discovery","artist":"Daft Punk","artistDeezerId":27,"image":null,"year":2001,"recordType":"album",
          "genres":["Electro"],"tracks":[{"title":"One More Time","durationSeconds":320,"number":1,"disc":1,"explicit":false}],
@@ -48,6 +49,24 @@ struct MusicRequestTests {
         #expect(album.summary.id == "album-302127")
         #expect(album.summary.availability == .requested)
         #expect(!album.summary.isRequestable)
+    }
+
+    @Test func pagesSayWhenLidarrDidNotAnswer() throws {
+        let artist = try FlexarrClient.decoder.decode(MusicArtistDetail.self, from: Data(#"""
+        {"deezerId":27,"name":"Daft Punk","image":null,"fans":1,"albums":[],"similar":[],"followed":false,
+         "availability":"None","libraryItemId":null,"lidarrAnswered":false}
+        """#.utf8))
+        #expect(artist.lidarrAnswered == false)
+        let album = try FlexarrClient.decoder.decode(MusicAlbumDetail.self, from: Data(#"""
+        {"deezerId":1,"title":"A","artist":"B","artistDeezerId":null,"image":null,"year":null,"recordType":null,"genres":[],
+         "tracks":[],"durationSeconds":0,"availability":"None","libraryItemId":null,"lidarrAnswered":true}
+        """#.utf8))
+        #expect(album.lidarrAnswered == true)
+        let extras = try FlexarrClient.decoder.decode(MusicArtistExtras.self, from: Data(#"""
+        {"missing":[],"similar":[],"followed":false,"deezerId":27,"lidarrAnswered":false}
+        """#.utf8))
+        #expect(extras.lidarrAnswered == false)
+        #expect(MusicArtistExtras.empty.lidarrAnswered == nil)
     }
 
     @Test func lidarrOnlyAlbumsRequestByMusicBrainz() throws {

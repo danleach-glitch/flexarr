@@ -87,8 +87,11 @@ struct ArtistView: View {
         }
     }
 
-    /// Lidarr is connected but isn't answering: Follow waits, greyed.
-    private var paused: Bool { pausedAbove || (status?.configured == true && status?.reachable == false) }
+    /// Lidarr is connected but isn't answering (or didn't for this page, so whether they're followed is unknown): Follow
+    /// waits, greyed.
+    private var paused: Bool {
+        pausedAbove || (status?.configured == true && status?.reachable == false) || extras?.lidarrAnswered == false
+    }
 
     /// Albums of theirs outside the library, or artists like them, to fill the page when it has no albums.
     private var hasOutside: Bool { !(extras?.missing.isEmpty ?? true) || !(extras?.similar.isEmpty ?? true) }
@@ -153,7 +156,7 @@ struct ArtistView: View {
             Button { Task { await model.playAll(of: page, shuffled: false, router: router) } } label: {
                 Label("Play", systemImage: Symbol.play)
             }
-            .buttonStyle(ActionButtonStyle(ambient: page.item?.ambientColor, prominent: true))
+            .buttonStyle(ActionButtonStyle(ambient: page.item?.ambientColor, prominent: true, singleLine: true))
             .disabled(nothingToPlay)
         case .shuffle:
             Button { Task { await model.playAll(of: page, shuffled: true, router: router) } } label: {
@@ -189,23 +192,22 @@ struct ArtistView: View {
 
     private func load(ifFresh: Bool = false) async {
         guard let client = model.client else { return }
-        async let outside = loadExtras(client)
+        async let outside = loadExtras(client, fresh: !ifFresh)
         await page.load(client: client, onlyIfStale: ifFresh)
         await outside
     }
 
-    /// Off (kids, no Lidarr, an older server) leaves the page as it was, without Follow. The status and the extras are
-    /// asked for together; the extras count only once the status says requests are on.
-    private func loadExtras(_ client: FlexarrClient) async {
+    /// Off (kids, no Lidarr, an older server) leaves the page as it was, without Follow. The extras are asked for only
+    /// once the status says requests are on (the server refuses them otherwise); the status is usually kept from the
+    /// last music page, so this rarely waits on it.
+    private func loadExtras(_ client: FlexarrClient, fresh: Bool) async {
         guard !model.isKids else { return }
-        async let asked = model.musicRequestStatus()
-        async let outside = try? client.musicArtistExtras(libraryItemId: page.id)
-        let found = await asked
+        let found = await model.musicRequestStatus(fresh: fresh)
         status = found
         guard found.configured else {
             extras = nil
             return
         }
-        if let more = await outside { extras = more }
+        if let more = try? await client.musicArtistExtras(libraryItemId: page.id) { extras = more }
     }
 }

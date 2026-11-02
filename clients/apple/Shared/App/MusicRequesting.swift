@@ -73,12 +73,13 @@ extension AppModel {
         return keys
     }
 
-    /// Why taking music back didn't go through. A server from before unfollowing and unrequesting (0.59) answers 404 (or
-    /// the web app's page): it can't undo, so say to update it. Anything else (a family guest's 403, Lidarr's refusal)
-    /// says the server's own words.
+    /// Why taking music back didn't go through. A server from before unfollowing and unrequesting (0.59) answers a bare
+    /// 404 or 405 (or the web app's page): it can't undo, so say to update it. A 404 with the server's own words (Deezer
+    /// doesn't know the album) is a current server, and so is anything else (a family guest's 403, Lidarr not answering's
+    /// 502): those say the server's words.
     private static func undoFailure(_ error: Error) -> String {
         switch error as? FlexarrClientError {
-        case .http(status: 404, _), .http(status: 405, _), .unexpectedResponse: MusicWords.updateServerToUndo
+        case .http(status: 404, message: nil), .http(status: 405, message: nil), .unexpectedResponse: MusicWords.updateServerToUndo
         default: ConnectionError(error).message
         }
     }
@@ -107,10 +108,15 @@ extension AppModel {
     }
 
     /// Whether music requests are on here, for an artist's or album's page: off when there's no client or no answer.
-    /// An answer is kept for a minute, so moving between music pages doesn't ask again each time.
-    func musicRequestStatus() async -> MusicRequestStatus {
+    /// An answer is kept for a minute, so moving between music pages doesn't ask again each time; Lidarr not answering
+    /// is kept for only ten seconds, so a page opened once it's back isn't still paused. `fresh` (pulling to refresh)
+    /// asks again.
+    func musicRequestStatus(fresh: Bool = false) async -> MusicRequestStatus {
         guard let client, !isKids else { return .off }
-        if let cached = musicStatusCache, cached.at.timeIntervalSinceNow > -60 { return cached.status }
+        if !fresh, let cached = musicStatusCache,
+           cached.at.timeIntervalSinceNow > (cached.status.configured && !cached.status.reachable ? -10 : -60) {
+            return cached.status
+        }
         guard let status = try? await client.musicRequestStatus() else { return .off }
         musicStatusCache = (status, Date())
         return status
@@ -162,9 +168,12 @@ enum MusicWords {
     static let following = "Following"
     static let requestAlbum = "Request album"
     static let requested = "Requested"
-    /// What pressing Following or Requested does, for VoiceOver.
-    static let stopFollowingHint = "Stop following"
-    static let unrequestHint = "Unrequest"
+    /// The actions that take music back, in the questions below and the hold menus.
+    static let stopFollowingAction = "Stop following"
+    static let unrequestAction = "Unrequest"
+    /// What pressing Following or Requested does, for VoiceOver: phrases, as hints are read.
+    static let stopFollowingHint = "Stops following this artist"
+    static let unrequestHint = "Cancels the request"
     /// The safe answers to the questions below.
     static let keepFollowing = "Keep following"
     static let keepIt = "Keep it"

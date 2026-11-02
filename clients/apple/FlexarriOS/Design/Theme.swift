@@ -98,11 +98,14 @@ struct ActionButtonStyle: ButtonStyle {
     /// The title's ambient colour, for the main button's fill; nil gives silver.
     var ambient: Color? = nil
     var prominent = false
+    /// Keeps the label on one line at its full width, for a short word in a row of round buttons (the music action
+    /// row's Play). Off elsewhere, so a longer label wraps rather than run off the screen at large text sizes.
+    var singleLine = false
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.body.weight(.semibold))
-            .labelStyle(ActionLabelStyle())
+            .labelStyle(ActionLabelStyle(singleLine: singleLine))
             .padding(.horizontal, 20)
             .frame(minHeight: 48)
             .foregroundStyle(prominent ? Color.room : Color.screen)
@@ -116,12 +119,14 @@ struct ActionButtonStyle: ButtonStyle {
     }
 
     private struct ActionLabelStyle: LabelStyle {
+        let singleLine: Bool
+
         func makeBody(configuration: Configuration) -> some View {
             HStack(spacing: 8) {
                 configuration.icon.font(.body.weight(.bold))
-                configuration.title.lineLimit(1)
+                configuration.title.lineLimit(singleLine ? 1 : nil)
             }
-            .fixedSize()
+            .fixedSize(horizontal: singleLine, vertical: false)
         }
     }
 }

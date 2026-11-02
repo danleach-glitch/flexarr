@@ -134,7 +134,11 @@ struct ArtistView: View {
         }
     }
 
-    private var paused: Bool { pausedAbove || (status?.configured == true && status?.reachable == false) }
+    /// Lidarr is connected but isn't answering (or didn't for this page, so whether they're followed is unknown): Follow
+    /// waits, dimmed.
+    private var paused: Bool {
+        pausedAbove || (status?.configured == true && status?.reachable == false) || extras?.lidarrAnswered == false
+    }
 
     /// Albums of theirs outside the library, or artists like them, to fill the page when it has no albums.
     private var hasOutside: Bool { !(extras?.missing.isEmpty ?? true) || !(extras?.similar.isEmpty ?? true) }
@@ -207,18 +211,17 @@ struct ArtistView: View {
         await outside
     }
 
-    /// Off (kids, no Lidarr, an older server) leaves the page as it was, without Follow. The status and the extras are
-    /// asked for together; the extras count only once the status says requests are on.
+    /// Off (kids, no Lidarr, an older server) leaves the page as it was, without Follow. The extras are asked for only
+    /// once the status says requests are on (the server refuses them otherwise); the status is usually kept from the
+    /// last music page, so this rarely waits on it.
     private func loadExtras(_ client: FlexarrClient) async {
         guard !model.isKids else { return }
-        async let asked = model.musicRequestStatus()
-        async let outside = try? client.musicArtistExtras(libraryItemId: page.id)
-        let found = await asked
+        let found = await model.musicRequestStatus()
         status = found
         guard found.configured else {
             extras = nil
             return
         }
-        if let more = await outside { extras = more }
+        if let more = try? await client.musicArtistExtras(libraryItemId: page.id) { extras = more }
     }
 }

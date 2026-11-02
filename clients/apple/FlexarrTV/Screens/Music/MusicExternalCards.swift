@@ -30,8 +30,8 @@ struct ExternalMusicArtwork: View {
 }
 
 /// An artist or album from outside the library: pressing it opens its page (or the library's, when the household has
-/// it); holding it offers Request album or Follow. An album only Lidarr lists has no page: pressing it does
-/// nothing, and holding it offers Request album.
+/// it); holding it offers Request album (or Unrequest) or Follow, and an album's artist. An album only Lidarr lists has
+/// no page: pressing it offers the same, as the iPhone's card does.
 struct ExternalMusicCard: View {
     @Environment(AppModel.self) private var model
     @Environment(Router.self) private var router
@@ -44,6 +44,10 @@ struct ExternalMusicCard: View {
     var focusID: String? = nil
     /// A request on its way: a second press waits for it rather than sending another.
     @State private var asking = false
+    /// A card with no page of its own offers its actions when pressed.
+    @State private var choosing = false
+    /// Unrequest was picked: asks first, as the album page's Requested button does.
+    @State private var confirmingUnrequest = false
 
     var body: some View {
         Group {
@@ -93,12 +97,37 @@ struct ExternalMusicCard: View {
                 }
             }
         }
-        .contextMenu { menu }
+        .contextMenu { menu(fromChooser: false) }
+        .confirmationDialog(item.title, isPresented: $choosing, titleVisibility: .visible) {
+            menu(fromChooser: true)
+            Button("Cancel", role: .cancel) {}
+        }
+        .background {
+            Color.clear.undoConfirmation(MusicWords.unrequest(item.title), isPresented: $confirmingUnrequest,
+                                         keep: MusicWords.keepIt, undo: MusicWords.unrequestAction) { unrequest() }
+        }
     }
 
     private func open() {
-        if let route = item.route { router.push(route) }
+        if let route = item.route {
+            router.push(route)
+        } else if hasChoices {
+            choosing = true
+        }
     }
+
+    /// Whether the hold menu (and the chooser of a card with no page) has anything in it.
+    private var hasChoices: Bool {
+        if item.isAlbum {
+            switch model.albumState(item) {
+            case .requestable where MusicRequestTarget.album(item) != nil, .requested: return true
+            default: return item.artistPage != nil
+            }
+        }
+        return canFollow
+    }
+
+    private var canFollow: Bool { item.isArtist && item.libraryItemId == nil && item.hasPage && !model.isFollowing(item) }
 
     private var subtitle: String? {
         var parts: [String] = []
@@ -117,17 +146,41 @@ struct ExternalMusicCard: View {
         return parts.isEmpty ? nil : parts.joined(separator: "  ")
     }
 
-    @ViewBuilder private var menu: some View {
+    @ViewBuilder private func menu(fromChooser: Bool) -> some View {
         if item.isAlbum, case .requestable = model.albumState(item), let target = MusicRequestTarget.album(item) {
             Button { ask(target) } label: { Label(MusicWords.requestAlbum, systemImage: Symbol.request) }
                 .disabled(asking || paused)
         }
-        if item.isArtist, item.libraryItemId == nil, item.hasPage, !model.isFollowing(item) {
+        if item.isAlbum, case .requested = model.albumState(item) {
+            Button(role: .destructive) {
+                guard !asking, !paused else { return }
+                if fromChooser {
+                    // The chooser closes first: a second dialog can't open while it's still on its way out.
+                    Task {
+                        try? await Task.sleep(for: .milliseconds(400))
+                        confirmingUnrequest = true
+                    }
+                } else {
+                    confirmingUnrequest = true
+                }
+            } label: { Label(MusicWords.unrequestAction, systemImage: Symbol.requested) }
+                .disabled(asking || paused)
+        }
+        if canFollow {
             Button { ask(.artist(deezerId: item.deezerId)) } label: { Label(MusicWords.follow, systemImage: Symbol.follow) }
                 .disabled(asking || paused)
         }
         if item.isAlbum, let artist = item.artistPage {
             Button { router.push(.musicArtist(artist)) } label: { Label("Go to artist", systemImage: Symbol.goToArtist) }
+        }
+    }
+
+    private func unrequest() {
+        guard !asking, !paused else { return }
+        asking = true
+        Task {
+            if let failure = await model.unrequestAlbum(item) { model.requestError = failure }
+            asking = false
         }
     }
 
@@ -243,7 +296,7 @@ struct MusicAlbumRequestButton: View {
                 .modifier(ActionFocus(binding: focus, button: .request))
                 .takesFocusFromLink(takesLinkFocus)
                 .undoConfirmation(MusicWords.unrequest(album.title), isPresented: $confirming, keep: MusicWords.keepIt,
-                                  undo: MusicWords.unrequestHint) { unrequest() }
+                                  undo: MusicWords.unrequestAction) { unrequest() }
                 RequestFailure(message: sending.failure)
             }
         }
@@ -308,7 +361,7 @@ struct FollowArtistButton: View {
             .modifier(ActionFocus(binding: focus, button: .follow))
             .takesFocusFromLink(takesLinkFocus)
             .undoConfirmation(MusicWords.stopFollowing(name), isPresented: $confirming, keep: MusicWords.keepFollowing,
-                              undo: MusicWords.stopFollowingHint) { unfollow() }
+                              undo: MusicWords.stopFollowingAction) { unfollow() }
             RequestFailure(message: sending.failure)
         }
     }

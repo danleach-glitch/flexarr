@@ -80,7 +80,7 @@ struct AlbumView: View {
                         Button { model.playTracks(tracks, albums: [item], showingNowPlaying: router) } label: {
                             Label("Play", systemImage: Symbol.play)
                         }
-                        .buttonStyle(ActionButtonStyle(ambient: page.item?.ambientColor, prominent: true))
+                        .buttonStyle(ActionButtonStyle(ambient: page.item?.ambientColor, prominent: true, singleLine: true))
                     case .shuffle:
                         Button { model.playTracks(tracks, shuffled: true, albums: [item], showingNowPlaying: router) } label: {
                             Label("Shuffle", systemImage: Symbol.shuffle)
