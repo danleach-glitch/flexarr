@@ -945,9 +945,10 @@ public sealed partial class MetadataRefresher(
         catch (Exception ex) when (!ct.IsCancellationRequested
             && ex is HttpRequestException or IOException or OperationCanceledException or System.Text.Json.JsonException)
         {
-            // Seerr unreachable, slow or refusing the key: leave it alone for the rest of this refresh. Its error for one
-            // title (Overseerr answers 500 when a lookup behind it fails) is that title's alone, unless it keeps happening.
-            var unreachable = ex is IOException or OperationCanceledException
+            // Seerr unreachable or refusing the key: leave it alone for the rest of this refresh. Its error or a slow
+            // answer for one title (Overseerr answers 500 when a lookup behind it fails) is that title's alone, unless it
+            // keeps happening.
+            var unreachable = ex is IOException
                 || ex is HttpRequestException { StatusCode: null or System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden };
             _seerrDown = unreachable || ++_seerrFailuresInARow >= SeerrFailuresBeforeGivingUp;
             LogSeerrRatingsFailed(item.Title, ex.Message, _seerrDown);

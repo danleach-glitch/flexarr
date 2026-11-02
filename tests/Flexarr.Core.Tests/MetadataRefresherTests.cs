@@ -268,6 +268,23 @@ public sealed class MetadataRefresherTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task OneSlowSeerrAnswer_DoesntStopTheNextTitlesScores()
+    {
+        await AddMovieAsync("Dune", null, poster: null, arrId: 7, tmdbId: "438631");
+        await AddMovieAsync("Heat", null, poster: null, arrId: 9, tmdbId: "949");
+        _radarr.Responses["/api/v3/movie"] = TwoFilms;
+        _radarr.Slow.Add("/api/v1/movie/438631/ratingscombined");
+        _radarr.Responses["/api/v1/movie/949/ratingscombined"] = """{"rt":{"criticsRating":"Certified Fresh","criticsScore":88}}""";
+
+        await Refresher(seerr: true).RefreshLibraryAsync(_library, force: true, default);
+
+        var items = await _db.MediaItems.AsNoTracking().ToDictionaryAsync(i => i.Title);
+        Assert.Equal(83, items["Dune"].CriticRating);
+        Assert.Null(items["Dune"].ScoresCheckedAt);
+        Assert.Equal((88, true), (items["Heat"].CriticRating, items["Heat"].CriticCertified));
+    }
+
+    [Fact]
     public async Task SeerrsScores_AreKeptForAMonth()
     {
         await AddMovieAsync("Dune", null, poster: null, arrId: 7, tmdbId: "438631");
@@ -365,6 +382,9 @@ public sealed class MetadataRefresherTests : IAsyncLifetime
         /// <summary>Paths that answer 500.</summary>
         public HashSet<string> Fail { get; } = [];
 
+        /// <summary>Paths that answer only when the caller has given up.</summary>
+        public HashSet<string> Slow { get; } = [];
+
         /// <summary>Paths whose host can't be reached.</summary>
         public HashSet<string> Unreachable { get; } = [];
 
@@ -387,6 +407,11 @@ public sealed class MetadataRefresherTests : IAsyncLifetime
                 return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new DroppingStream()) });
             }
 
+            if (Slow.Contains(request.RequestUri!.PathAndQuery))
+            {
+                return NeverAsync(cancellationToken);
+            }
+
             if (Unreachable.Contains(request.RequestUri!.PathAndQuery))
             {
                 throw new HttpRequestException("Connection refused (seerr.test:443)");
@@ -399,6 +424,12 @@ public sealed class MetadataRefresherTests : IAsyncLifetime
 
             var body = Responses.GetValueOrDefault(request.RequestUri!.PathAndQuery, "[]");
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json") });
+        }
+
+        private static async Task<HttpResponseMessage> NeverAsync(CancellationToken ct)
+        {
+            await Task.Delay(Timeout.Infinite, ct);
+            throw new InvalidOperationException("unreachable");
         }
     }
 
