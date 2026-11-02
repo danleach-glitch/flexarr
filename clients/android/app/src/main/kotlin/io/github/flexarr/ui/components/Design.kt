@@ -69,6 +69,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import io.github.flexarr.core.ItemSummary
+import io.github.flexarr.core.Scores
 import io.github.flexarr.core.displayTitle
 import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.marquee
@@ -232,12 +233,14 @@ fun PageTitle(title: String, onBack: (() -> Unit)? = null, trailing: @Composable
     }
 }
 
-/** "2016   1h 56m   TV-MA": facts separated by space, never middle dots. */
+/** "2016   1h 56m   TV-MA": facts separated by space, never middle dots, then any [scores] beside their marks. */
 @Composable
-fun FactsLine(facts: List<String>, modifier: Modifier = Modifier) {
+fun FactsLine(facts: List<String>, modifier: Modifier = Modifier, scores: Scores? = null) {
+    val style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen.copy(alpha = 0.85f), fontFeatureSettings = "tnum")
     // On to a second line when the text is large, rather than cutting a fact off.
-    FlowRow(modifier, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        facts.forEach { Text(it, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen.copy(alpha = 0.85f), maxLines = 1) }
+    FlowRow(modifier, horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.Center, itemVerticalAlignment = Alignment.CenterVertically) {
+        facts.forEach { Text(it, style = style, maxLines = 1) }
+        if (scores != null && !scores.isEmpty) ScoreChipItems(scores, 15.dp, style)
     }
 }
 

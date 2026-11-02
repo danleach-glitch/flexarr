@@ -1,7 +1,6 @@
 package io.github.flexarr.ui.detail
 
 import io.github.flexarr.ui.books.BookScreen
-
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -88,6 +87,7 @@ import io.github.flexarr.core.effectiveDuration
 import io.github.flexarr.core.episodeCode
 import io.github.flexarr.core.episodeSubtitle
 import io.github.flexarr.core.facts
+import io.github.flexarr.core.scores
 import io.github.flexarr.core.isResumable
 import io.github.flexarr.core.progress
 import io.github.flexarr.ui.components.isWide
@@ -244,7 +244,8 @@ private fun Header(item: ItemSummary, series: ItemSummary?, detail: ItemDetail, 
                     TitleArt(item, maxWidth = 300.dp, maxHeight = 120.dp, fontSize = 52)
                 }
                 // No scores for a child.
-                FactsLine(item.facts(scores = !LocalContext.current.appModel.isKids))
+                val isKids = LocalContext.current.appModel.isKids
+                FactsLine(item.facts(scores = !isKids), scores = if (isKids) null else item.scores)
                 if (detail.genres.isNotEmpty()) {
                     Text(detail.genres.take(3).joinToString(", "), fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher)
                 }
