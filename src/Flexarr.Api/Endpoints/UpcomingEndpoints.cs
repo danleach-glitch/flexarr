@@ -62,7 +62,53 @@ public static class UpcomingEndpoints
     }
 
     /// <param name="host">The host the browser reached Flexarr on, for links into *arr apps configured as localhost.</param>
-    public static async Task<List<UpcomingDto>> UpcomingAsync(int days, FlexarrOptions options, ArrClient arr, IMemoryCache? cache, FlexarrDbContext db, string? host, CancellationToken ct)
+    public static async Task<List<UpcomingDto>> UpcomingAsync(int days, FlexarrOptions options, ArrClient arr, IMemoryCache? cache, FlexarrDbContext db, string? host, CancellationToken ct) =>
+        [.. (await UpcomingWithFoldersAsync(days, options, arr, cache, db, host, ct)).Select(u => u.Upcoming)];
+
+    /// <summary>
+    /// What's coming to one film or TV library: a title already in Flexarr counts where it is; one not yet in any
+    /// library counts by the folder Sonarr or Radarr keeps it in (through the path mappings), else in the oldest
+    /// library of its kind, so it shows somewhere rather than nowhere.
+    /// </summary>
+    public static async Task<List<UpcomingDto>> ForLibraryAsync(Library library, int days, FlexarrOptions options, ArrClient arr, IMemoryCache? cache, FlexarrDbContext db,
+        CancellationToken ct)
+    {
+        MediaKind? kind = library.Type switch
+        {
+            LibraryType.Movies => MediaKind.Movie,
+            LibraryType.TvShows => MediaKind.Episode,
+            _ => null,
+        };
+        if (kind is null || options.Arr.All(a => a.Kind != (kind == MediaKind.Movie ? ArrKind.Radarr : ArrKind.Sonarr)))
+        {
+            return [];
+        }
+
+        var upcoming = (await UpcomingWithFoldersAsync(days, options, arr, cache, db, null, ct)).Where(u => u.Upcoming.Kind == kind).ToList();
+        var inLibrary = upcoming.Select(u => u.Upcoming.LibraryItemId).OfType<Guid>().Distinct().ToList();
+        var libraryOf = await db.MediaItems.Where(i => inLibrary.Contains(i.Id)).Select(i => new { i.Id, i.LibraryId }).ToDictionaryAsync(i => i.Id, i => i.LibraryId, ct);
+        var sameKind = await db.Libraries.AsNoTracking().Where(l => l.Type == library.Type).OrderBy(l => l.CreatedAt).ThenBy(l => l.Id)
+            .Select(l => new { l.Id, Folders = l.Folders.Select(f => f.Path).ToList() }).ToListAsync(ct);
+        var oldest = sameKind.FirstOrDefault()?.Id;
+
+        bool Here((UpcomingDto Upcoming, string? Folder) u)
+        {
+            if (u.Upcoming.LibraryItemId is { } item)
+            {
+                return libraryOf.TryGetValue(item, out var where) && where == library.Id;
+            }
+
+            var path = string.IsNullOrEmpty(u.Folder) ? null : PathMapper.Map(u.Folder, options.PathMappings);
+            var homes = path is null ? [] : sameKind.Where(l => l.Folders.Any(f => PathComparison.IsUnder(path, f, PathComparison.FileSystemComparison))).Select(l => l.Id).ToList();
+            return homes.Count > 0 ? homes.Contains(library.Id) : oldest == library.Id;
+        }
+
+        return [.. upcoming.Where(Here).Select(u => u.Upcoming)];
+    }
+
+    /// <summary>The calendar, each with the folder its *arr keeps it in (for placing it in a library; never sent).</summary>
+    private static async Task<List<(UpcomingDto Upcoming, string? Folder)>> UpcomingWithFoldersAsync(int days, FlexarrOptions options, ArrClient arr, IMemoryCache? cache,
+        FlexarrDbContext db, string? host, CancellationToken ct)
     {
         // From yesterday (a day's slack either side of UTC for the viewer's own "yesterday").
         var today = DateTime.UtcNow.Date;
@@ -94,7 +140,7 @@ public static class UpcomingEndpoints
 
         var elsewhere = await HiddenTitles.ForAsync(db, options.PathMappings,
             episodeCalendars.SelectMany(c => c).Select(e => e.Series?.TvdbId), tmdbIds, ct);
-        var results = new List<UpcomingDto>();
+        var results = new List<(UpcomingDto Upcoming, string? Folder)>();
 
         foreach (var (sonarr, calendar) in sonarrs.Zip(episodeCalendars))
         {
@@ -110,13 +156,13 @@ public static class UpcomingEndpoints
                 var date = episode.AirDateUtc ?? DateTime.Parse(episode.AirDate ?? DateTime.UtcNow.ToString("O"), CultureInfo.InvariantCulture,
                     DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal);
                 queue.TryGetValue($"sonarr-{episode.Id}", out var download);
-                results.Add(new UpcomingDto(
+                results.Add((new UpcomingDto(
                     $"sonarr-{sonarr.Name}-{episode.Id}", MediaKind.Episode, episode.Title ?? "TBA", show?.Title,
                     episode.SeasonNumber, episode.EpisodeNumber, date, "Airs", episode.Overview,
                     Remote(show?.Images.FirstOrDefault(i => i.CoverType == "poster")?.RemoteUrl),
                     Remote(episode.Images.FirstOrDefault(i => i.CoverType == "screenshot")?.RemoteUrl ?? show?.Images.FirstOrDefault(i => i.CoverType == "fanart")?.RemoteUrl),
                     itemId, episode.HasFile, download, sonarr.Name,
-                    show?.TitleSlug is { } slug ? WebUrl(sonarr, host, $"series/{slug}") : null));
+                    show?.TitleSlug is { } slug ? WebUrl(sonarr, host, $"series/{slug}") : null), show?.Path));
             }
         }
 
@@ -131,18 +177,18 @@ public static class UpcomingEndpoints
                     .DefaultIfEmpty((movie.ReleaseDate ?? end, "Released"))
                     .First();
                 queue.TryGetValue($"radarr-{movie.Id}", out var download);
-                results.Add(new UpcomingDto(
+                results.Add((new UpcomingDto(
                     $"radarr-{radarr.Name}-{movie.Id}", MediaKind.Movie, movie.Title, null, null, null, date, when, movie.Overview,
                     Remote(movie.Images.FirstOrDefault(i => i.CoverType == "poster")?.RemoteUrl),
                     Remote(movie.Images.FirstOrDefault(i => i.CoverType == "fanart")?.RemoteUrl),
                     movies.GetValueOrDefault(movie.TmdbId.ToString(CultureInfo.InvariantCulture)), movie.HasFile, download, radarr.Name,
-                    movie.TitleSlug is { } slug ? WebUrl(radarr, host, $"movie/{slug}") : null, movie.TmdbId));
+                    movie.TitleSlug is { } slug ? WebUrl(radarr, host, $"movie/{slug}") : null, movie.TmdbId), movie.Path));
             }
         }
 
         // Something in no library yet is shown unless the profile can't see any library of its kind.
         var hidden = await LibraryVisibility.HiddenTypesAsync(db, ct);
-        return results.Where(r => r.LibraryItemId is not null || !hidden.Hides(r.Kind)).OrderBy(r => r.Date).ToList();
+        return results.Where(r => r.Upcoming.LibraryItemId is not null || !hidden.Hides(r.Upcoming.Kind)).OrderBy(r => r.Upcoming.Date).ToList();
     }
 
     public static async Task<List<DownloadDto>> DownloadsAsync(FlexarrOptions options, ArrClient arr, IMemoryCache? cache, FlexarrDbContext db, string? host, CancellationToken ct)

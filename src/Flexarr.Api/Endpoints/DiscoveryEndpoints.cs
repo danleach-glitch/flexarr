@@ -262,7 +262,8 @@ public static partial class DiscoveryEndpoints
 
         // A library's own home page: what you're watching in it, what's new, the best of it, and its main genres.
         api.MapGet("/libraries/{id:guid}/browse", async (Guid id, FlexarrDbContext db, CurrentProfile profile,
-            Microsoft.Extensions.Options.IOptionsMonitor<Configuration.FlexarrOptions> options, Microsoft.Extensions.Caching.Memory.IMemoryCache cache, CancellationToken ct) =>
+            Microsoft.Extensions.Options.IOptionsMonitor<Configuration.FlexarrOptions> options, Microsoft.Extensions.Caching.Memory.IMemoryCache cache, IServiceProvider services,
+            CancellationToken ct) =>
         {
             if (await db.Libraries.AsNoTracking().FirstOrDefaultAsync(l => l.Id == id, ct) is not { } library)
             {
@@ -310,6 +311,25 @@ public static partial class DiscoveryEndpoints
                     await LatestUnwatched(topLevel, movies, me).Take(RowSize).Summaries(me).ToListAsync(ct), $"{all}&sort=added"));
             }
 
+            // Coming soon to this library: its titles travel in Upcoming, as on Home. A bonus, so Sonarr or Radarr
+            // failing leaves it out rather than the page; switched off, they aren't asked at all.
+            List<UpcomingDto> upcoming = [];
+            if (On("upcoming") && library.Type is LibraryType.Movies or LibraryType.TvShows)
+            {
+                try
+                {
+                    var arr = services.GetRequiredService<Integrations.Arr.ArrClient>();
+                    upcoming = [.. (await UpcomingEndpoints.ForLibraryAsync(library, 10, options.CurrentValue, arr, cache, db, ct))
+                        .Where(u => !u.Available && u.Date >= DateTime.UtcNow.AddHours(-12)).Take(16)];
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    LogUpcomingFailed(services.GetRequiredService<ILoggerFactory>().CreateLogger("Flexarr.Home"), ex);
+                }
+
+                rows.Add(new HomeRowDto("upcoming", "Coming soon", "upcoming", []));
+            }
+
             if (On("top"))
             {
                 rows.Add(new HomeRowDto("top", $"Top 10 {noun} in {library.Name}", "top10", await TopRated(topLevel).Take(10).Summaries(me).ToListAsync(ct)));
@@ -349,7 +369,8 @@ public static partial class DiscoveryEndpoints
             var overviews = await OverviewsAsync(db, rotation, ct);
             var resumes = await ResumesAsync(db, me, rotation, resume, ct);
 
-            return Results.Ok(new HomeDto(rotation, overviews, LayoutEndpoints.Arrange(rows.Where(r => r.Items.Count > 0), layout), [], 0, resume, resumes));
+            var shown = rows.Where(r => r.Items.Count > 0 || (r.Id == "upcoming" && upcoming.Count > 0));
+            return Results.Ok(new HomeDto(rotation, overviews, LayoutEndpoints.Arrange(shown, layout), upcoming, 0, resume, resumes));
         }).WithTags("Discovery");
 
         api.MapGet("/items/{id:guid}/similar", async (Guid id, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
