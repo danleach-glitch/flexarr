@@ -49,7 +49,7 @@ describe('LibraryRequested', () => {
     expect((await screen.findAllByText('moisturizer')).length).toBeGreaterThan(0)
     expect(screen.getByText('Downloading 45%')).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Wet Leg' }).getAttribute('href')).toBe('/item/artist-1')
-    fireEvent.click(screen.getAllByRole('button', { name: 'Unrequest' })[0])
+    fireEvent.click(screen.getByRole('button', { name: 'Unrequest moisturizer' }))
     fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Unrequest' }))
 
     await waitFor(() => expect(screen.queryAllByText('moisturizer')).toHaveLength(0))
@@ -66,7 +66,7 @@ describe('LibraryRequested', () => {
     )
 
     expect(await screen.findByText('Lidarr isn’t answering.')).toBeTruthy()
-    expect(screen.getAllByRole('button', { name: 'Unrequest' }).every((b) => (b as HTMLButtonElement).disabled)).toBe(true)
+    expect(screen.getAllByRole('button', { name: /^Unrequest / }).every((b) => (b as HTMLButtonElement).disabled)).toBe(true)
     reachable = true
   })
 
@@ -82,7 +82,7 @@ describe('LibraryRequested', () => {
     expect(screen.getByText('Downloading 50%')).toBeTruthy()
     expect(screen.getAllByRole('link', { name: 'Thrones' })[0].getAttribute('href')).toBe('/item/show-1')
     expect(screen.getAllByRole('link', { name: 'The Matrix' })[0].getAttribute('href')).toBe('/discover/movie/603')
-    fireEvent.click(screen.getAllByRole('button', { name: 'Unrequest' })[0])
+    fireEvent.click(screen.getAllByRole('button', { name: /^Unrequest / })[0])
     fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Unrequest' }))
 
     await waitFor(() => expect(unrequested).toEqual([['tv', 1399, [2, 3]]]))

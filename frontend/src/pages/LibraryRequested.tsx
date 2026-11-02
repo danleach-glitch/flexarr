@@ -192,7 +192,7 @@ function RequestedCard({ row, square, offline, service, onGone }: { row: Row; sq
         <progress className="requested-progress" value={row.progress} max={1} aria-label={`${row.title} downloading`} />
       )}
       <div className="external-card-actions">
-        <AsyncButton className="button small quiet" onClick={() => setAsking(true)} disabled={offline} title={offline ? `${service} isn’t answering.` : undefined}>
+        <AsyncButton className="button small quiet" aria-label={`Unrequest ${row.title}`} onClick={() => setAsking(true)} disabled={offline} title={offline ? `${service} isn’t answering.` : undefined}>
           Unrequest
         </AsyncButton>
       </div>

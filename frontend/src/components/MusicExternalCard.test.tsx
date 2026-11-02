@@ -58,7 +58,7 @@ describe('MusicExternalCard', () => {
 
     expect(screen.getByRole('link').getAttribute('href')).toBe('/discover/music/album/730000661')
     expect(screen.getByText('Wet Leg, 2025')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Request album' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Request album moisturizer' }))
 
     await waitFor(() => expect(screen.getByText('Requested')).toBeTruthy())
     expect(sent).toEqual([{ kind: 'album', deezerId: 730000661 }])
@@ -68,7 +68,7 @@ describe('MusicExternalCard', () => {
     renderCard(artist)
 
     expect(screen.getByRole('link').querySelector('.artwork-round')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Follow' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Follow Wet Leg' }))
 
     await waitFor(() => expect(screen.getByText('Following')).toBeTruthy())
     expect(sent).toEqual([{ kind: 'artist', deezerId: 134334152 }])
@@ -77,11 +77,11 @@ describe('MusicExternalCard', () => {
   it('says Following for an artist in the library Lidarr follows, and Follow for one it doesn’t', () => {
     const { unmount } = renderCard({ ...artist, availability: 'Available', libraryItemId: 'ar1', followed: true })
     expect(screen.getByRole('link').getAttribute('href')).toBe('/item/ar1')
-    expect(screen.getByRole('button', { name: 'Following' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Following Wet Leg' })).toBeTruthy()
     unmount()
 
     renderCard({ ...artist, availability: 'Available', libraryItemId: 'ar1', followed: false })
-    expect(screen.getByRole('button', { name: 'Follow' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Follow Wet Leg' })).toBeTruthy()
   })
 
   it('offers nothing for a library artist on a server that doesn’t say who is followed', () => {
@@ -101,7 +101,7 @@ describe('MusicExternalCard', () => {
     renderCard({ ...album, deezerId: 0, musicBrainzId: 'rg-1', image: null })
 
     expect(screen.queryByRole('link')).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'Request album' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Request album moisturizer' }))
 
     await waitFor(() => expect(sent).toEqual([{ kind: 'album', musicBrainzId: 'rg-1' }]))
   })
@@ -110,7 +110,7 @@ describe('MusicExternalCard', () => {
     refusal = new ApiError(502, 'Bad Gateway', ['Lidarr isn’t answering. Try again later.'])
     renderCard(album)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Request album' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Request album moisturizer' }))
 
     await waitFor(() => expect(screen.getByText('Try again')).toBeTruthy())
     expect(screen.getByRole('alert').textContent).toBe('Lidarr isn’t answering. Try again later.')
@@ -120,7 +120,7 @@ describe('MusicExternalCard', () => {
     refusal = new ApiError(409, 'Conflict', ['Lidarr can’t find Nowhere by Nobody.'])
     renderCard(album)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Request album' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Request album moisturizer' }))
 
     await waitFor(() => expect(screen.getByText('Can’t request')).toBeTruthy())
     expect(screen.queryByRole('button')).toBeNull()
@@ -130,44 +130,44 @@ describe('MusicExternalCard', () => {
   it('asks before taking a request back, then offers it again', async () => {
     renderCard({ ...album, availability: 'Requested' })
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Requested' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Requested moisturizer' }))
     expect(screen.getByRole('alertdialog').textContent).toContain('Unrequest moisturizer?')
     fireEvent.click(screen.getByRole('button', { name: 'Unrequest' }))
 
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Request album' })).toBeTruthy())
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Request album moisturizer' })).toBeTruthy())
     expect(sent).toEqual([{ unrequest: { deezerId: 730000661 } }])
   })
 
   it('stops following after asking, and Keep following leaves it be', async () => {
     renderCard({ ...artist, availability: 'Requested' })
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Following' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Following Wet Leg' }))
     fireEvent.click(screen.getByRole('button', { name: 'Keep following' }))
     expect(sent).toEqual([])
-    fireEvent.click(screen.getByRole('button', { name: 'Following' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Following Wet Leg' }))
     expect(screen.getByRole('alertdialog').textContent).toContain('Stop following Wet Leg?')
     fireEvent.click(screen.getByRole('button', { name: 'Stop following' }))
 
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Follow' })).toBeTruthy())
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Follow Wet Leg' })).toBeTruthy())
     expect(sent).toEqual([{ unfollow: { deezerId: 134334152 } }])
   })
 
   it('offers nothing without Lidarr, and greys the button while it isn’t answering', async () => {
     status = { configured: false, reachable: false }
     const { unmount } = renderCard(album)
-    await waitFor(() => expect(screen.queryByRole('button', { name: 'Request album' })).toBeNull())
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Request album moisturizer' })).toBeNull())
     unmount()
 
     status = { configured: true, reachable: false }
     renderCard(album)
-    await waitFor(() => expect((screen.getByRole('button', { name: 'Request album' }) as HTMLButtonElement).disabled).toBe(true))
+    await waitFor(() => expect((screen.getByRole('button', { name: 'Request album moisturizer' }) as HTMLButtonElement).disabled).toBe(true))
   })
 
   it('says to update the server when it has no undo yet', async () => {
     refusal = new ApiError(404, 'Not Found', [])
     renderCard({ ...album, availability: 'Requested' })
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Requested' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Requested moisturizer' }))
     fireEvent.click(screen.getByRole('button', { name: 'Unrequest' }))
 
     await waitFor(() => expect(screen.getByRole('alert').textContent).toBe('Update the server to undo this.'))
@@ -177,7 +177,7 @@ describe('MusicExternalCard', () => {
     refusal = new ApiError(404, 'Not Found', ['Deezer doesn’t know that any more.'], undefined, { detail: 'Deezer doesn’t know that any more.' })
     renderCard({ ...album, availability: 'Requested' })
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Requested' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Requested moisturizer' }))
     fireEvent.click(screen.getByRole('button', { name: 'Unrequest' }))
 
     await waitFor(() => expect(screen.getByRole('alert').textContent).toBe('Deezer doesn’t know that any more.'))
