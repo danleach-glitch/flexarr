@@ -43,10 +43,12 @@ struct ExternalMusicCard: View {
     var showsKind = false
     /// A request on its way: a second press waits for it rather than sending another.
     @State private var asking = false
+    /// A card with no page of its own (an album only Lidarr lists) offers its actions when tapped.
+    @State private var choosing = false
 
     var body: some View {
         Button {
-            if let route = item.route { router.push(route) }
+            if let route = item.route { router.push(route) } else { choosing = true }
         } label: {
             VStack(alignment: item.isArtist ? .center : .leading, spacing: item.isArtist ? 8 : 6) {
                 ExternalMusicArtwork(image: item.image, title: item.title, circular: item.isArtist)
@@ -70,6 +72,10 @@ struct ExternalMusicCard: View {
         .accessibilityLabel(item.accessibilityName)
         .accessibilityValue(state ?? "")
         .contextMenu { menu }
+        .confirmationDialog(item.title, isPresented: $choosing, titleVisibility: .visible) {
+            menu
+            Button("Cancel", role: .cancel) {}
+        }
     }
 
     private var subtitle: String? {
@@ -100,6 +106,17 @@ struct ExternalMusicCard: View {
     @ViewBuilder private var menu: some View {
         if item.isAlbum, case .requestable = model.albumState(item), let target = MusicRequestTarget.album(item) {
             Button { ask(target) } label: { Label(MusicWords.requestAlbum, systemImage: Symbol.request) }
+                .disabled(asking || paused)
+        }
+        if item.isAlbum, case .requested = model.albumState(item) {
+            Button(role: .destructive) {
+                guard !asking, !paused else { return }
+                asking = true
+                Task {
+                    if let failure = await model.unrequestAlbum(item) { model.requestError = failure }
+                    asking = false
+                }
+            } label: { Label(MusicWords.unrequestHint, systemImage: Symbol.requested) }
                 .disabled(asking || paused)
         }
         if canFollow {
