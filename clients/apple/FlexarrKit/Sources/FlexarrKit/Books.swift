@@ -399,13 +399,13 @@ public enum BookSort: String, CaseIterable, Sendable, Identifiable {
 
     public var label: String {
         switch self {
-        case .title: "Title"
+        case .title: "A–Z"
         case .author: "Author"
         case .series: "Series"
         case .added: "Recently added"
-        case .released: "Release date"
+        case .released: "Year"
         case .length: "Length"
-        case .listened: "Last listened"
+        case .listened: "Recently listened"
         }
     }
 

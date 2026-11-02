@@ -176,11 +176,11 @@ function GenrePage({ library, genre }: { library: Library; genre: string }) {
 
 const sorts: { value: NonNullable<BookFilters['sort']>; label: string }[] = [
   { value: 'title', label: 'A–Z' },
-  { value: 'author', label: 'By author' },
-  { value: 'series', label: 'By series' },
+  { value: 'author', label: 'Author' },
+  { value: 'series', label: 'Series' },
   { value: 'added', label: 'Recently added' },
-  { value: 'released', label: 'Newest first' },
-  { value: 'length', label: 'Longest first' },
+  { value: 'released', label: 'Year' },
+  { value: 'length', label: 'Length' },
   { value: 'listened', label: 'Recently listened' },
 ]
 

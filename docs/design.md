@@ -110,7 +110,7 @@ The same words on every client and in the guide:
 - **Play**, **Resume from 32:10**, **Resume S1E3**, **Start over** (never "Play from beginning" or "Play from the start").
 - **Skip intro**, **Skip recap**, **Next episode in 5**: sentence case, like every label.
 - **Mark as watched** and **Mark as unwatched** for video, **Mark as played** for podcasts, **Mark as finished** and **Mark as unread** for books. **Mark season as watched**.
-- Sorting a library: **A–Z**, **Recently added**, **Year**, **Rating** (never "Title", "Newest first" or "Highest rated").
+- Sorting a library: **A–Z**, **Recently added**, **Year**, **Rating** (never "Title", "Newest first" or "Highest rated"). Audiobooks add **Author**, **Series**, **Length** and **Recently listened**, and have no Rating.
 - Music: **Artists**, **Albums**, **Genres**, **Your artists**, **Radio**, **Shuffle**; a music library's switch reads **Browse · Artists · Albums · Genres**.
 - **Watchlist**, **Continue watching**, **Up next**, **Coming soon**, **Discover**, **Cast and crew**, **More like this**.
 - Requests: **Request** (movies and shows), **Request album**, **Follow** and then **Following**, **Unrequest**, **Stop following**, **Requested**, **In your library**, **Partly in your library**, **Not in your library**, **Fans also like**. Discover's halves are **Movies and shows** and **Music**.
