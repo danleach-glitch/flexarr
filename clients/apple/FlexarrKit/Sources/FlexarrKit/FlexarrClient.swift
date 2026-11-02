@@ -242,7 +242,8 @@ public struct FlexarrClient: Sendable {
     }
 
     /// A music library's albums (its items are its artists), A–Z, newest added or by year, optionally in one genre
-    /// (the album's own, or its artist's when it has none). Nil from servers before the endpoint (0.59), which answer 404.
+    /// (the album's own, or its artist's when it has none). Nil from servers before the endpoint (0.59), which answer
+    /// with their web page (or, once they 404 unknown routes, 404).
     public func libraryAlbums(_ libraryId: String, sort: LibrarySort = .title, genre: String? = nil,
                               skip: Int = 0, take: Int = 60) async throws -> Paged<ItemSummary>? {
         var query: [URLQueryItem] = []
@@ -252,7 +253,7 @@ public struct FlexarrClient: Sendable {
         query.append(.init(name: "take", value: String(take)))
         do {
             return try await get("libraries/\(libraryId)/albums", query: query)
-        } catch FlexarrClientError.http(status: 404, _) {
+        } catch FlexarrClientError.http(status: 404, _), FlexarrClientError.unexpectedResponse {
             return nil
         }
     }
@@ -261,7 +262,7 @@ public struct FlexarrClient: Sendable {
     public func libraryAlbumGenres(_ libraryId: String) async throws -> [GenreCount]? {
         do {
             return try await get("libraries/\(libraryId)/album-genres")
-        } catch FlexarrClientError.http(status: 404, _) {
+        } catch FlexarrClientError.http(status: 404, _), FlexarrClientError.unexpectedResponse {
             return nil
         }
     }

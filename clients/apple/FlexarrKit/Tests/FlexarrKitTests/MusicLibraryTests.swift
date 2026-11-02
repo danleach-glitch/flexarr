@@ -18,9 +18,14 @@ struct MusicLibraryClientTests {
     }
 
     @Test func albumsAndAlbumGenresAreNilFromAnOlderServer() async throws {
-        let (client, _) = stubbedClient(.init(status: 404, body: Data()))
-        #expect(try await client.libraryAlbums("lib") == nil)
-        #expect(try await client.libraryAlbumGenres("lib") == nil)
+        // A server before 0.59 answers an API route it doesn't have with its web page.
+        let (page, _) = stubbedClient(.init(status: 200, body: Data("<!doctype html><html></html>".utf8), contentType: "text/html"))
+        #expect(try await page.libraryAlbums("lib") == nil)
+        #expect(try await page.libraryAlbumGenres("lib") == nil)
+        // Later servers answer 404.
+        let (missing, _) = stubbedClient(.init(status: 404, body: Data()))
+        #expect(try await missing.libraryAlbums("lib") == nil)
+        #expect(try await missing.libraryAlbumGenres("lib") == nil)
     }
 
     @Test func albumGenresDecodeWithTheirBackdrop() async throws {

@@ -159,7 +159,7 @@ public enum LibrarySort: String, CaseIterable, Sendable, Identifiable {
 
     public var label: String {
         switch self {
-        case .title: "Title"
+        case .title: "A–Z"
         case .added: "Recently added"
         case .year: "Year"
         case .rating: "Rating"
@@ -503,7 +503,9 @@ public struct Home: Codable, Sendable {
     public let rows: [HomeRow]
     /// What the first featured title resumes (the episode, for a show), when it's from Continue Watching.
     public var resume: ItemSummary? = nil
-    /// What each part-played featured title resumes, by its id. Absent from servers before 0.53.
+    /// What each part-played featured title resumes, by its id. Absent from servers before 0.53. For a music library's
+    /// album (from 0.59): the track to carry on from, at its place when it was left half way, else from the start
+    /// (the next track after one heard through).
     public var resumes: [String: ItemSummary]? = nil
     /// Whether `rows` places the New podcasts row: an empty `HomeRow.podcastsRowId` row where the app puts its own row
     /// of new episodes, left out when the profile switched it off. Absent from servers before 0.58, where the app
