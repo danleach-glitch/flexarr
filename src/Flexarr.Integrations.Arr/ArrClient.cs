@@ -211,8 +211,8 @@ public sealed class ArrClient(HttpClient httpClient)
         GetAsync<IReadOnlyList<LidarrAlbum>>(lidarr, $"album?foreignAlbumId={Uri.EscapeDataString(releaseGroupId)}", ct);
 
     /// <summary>
-    /// The albums Lidarr is waiting for: monitored, out already and without files (its Wanted › Missing), each with
-    /// its artist; up to 1,000.
+    /// The albums Lidarr is waiting for: monitored, out already and without files (its Wanted › Missing), with their
+    /// artist's id (not the artist); up to 1,000.
     /// </summary>
     public async Task<IReadOnlyList<LidarrAlbum>> GetWantedAlbumsAsync(ArrInstance lidarr, CancellationToken ct = default)
     {
@@ -222,7 +222,7 @@ public sealed class ArrClient(HttpClient httpClient)
         return page.Records;
     }
 
-    /// <summary>Monitored albums coming out between these dates, each with its artist (Lidarr's calendar).</summary>
+    /// <summary>Monitored albums coming out between these dates, with their artist's id (Lidarr's calendar).</summary>
     public Task<IReadOnlyList<LidarrAlbum>> GetUpcomingAlbumsAsync(ArrInstance lidarr, DateTime start, DateTime end, CancellationToken ct = default) =>
         GetAsync<IReadOnlyList<LidarrAlbum>>(lidarr, $"calendar?start={start:yyyy-MM-dd}&end={end:yyyy-MM-dd}&unmonitored=false&includeArtist=false", ct);
 

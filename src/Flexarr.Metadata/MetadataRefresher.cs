@@ -397,10 +397,19 @@ public sealed partial class MetadataRefresher(
                     .FirstOrDefault(h => h.Artist is not null);
                 // A followed artist still waiting for their first album, whom Lidarr no longer has or follows (changed in
                 // Lidarr itself): nothing is coming, so they leave the library.
+                // Every Lidarr is asked: any that follows a match keeps them.
                 if (artist.Placeholder && albums.Count == 0 && allAnswered
-                    && hit.Artist is not { Monitored: true, MonitorNewItems: "new" or "all" })
+                    && !lidarrs.Any(l => LidarrMatcher.MatchArtist(artist, [], known.Where(k => k.Instance == l).Select(k => k.Artist).ToList(), settings.PathMappings)
+                        is { Monitored: true, MonitorNewItems: "new" or "all" }))
                 {
                     db.MediaItems.Remove(artist);
+                    if (artist.MusicBrainzId is { } followedId)
+                    {
+                        // Their follow is over too.
+                        await db.MediaRequests.Where(r => r.Kind == MediaKind.Artist && r.FulfilledAt == null && r.MusicBrainzId == followedId)
+                            .ExecuteUpdateAsync(u => u.SetProperty(r => r.FulfilledAt, DateTime.UtcNow), ct).ConfigureAwait(false);
+                    }
+
                     unmatched++;
                     continue;
                 }

@@ -723,6 +723,25 @@ public sealed class LibraryScannerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Music_APlaceholderNeverAdoptsAnotherArtistsAlbum()
+    {
+        var root = Touch("music/Them/Angry Young Them (1965)/01 - Gloria.flac");
+        _probe.Tags["01 - Gloria.flac"] = new() { ["artist"] = "Them", ["album"] = "Angry Young Them", ["title"] = "Gloria", ["track"] = "1" };
+        var library = await AddLibrary(LibraryType.Music, Path.Combine(root, "music"));
+        _db.MediaItems.Add(new MediaItem { LibraryId = library.Id, Kind = MediaKind.Artist, Title = "M", SortTitle = "m", Placeholder = true });
+        await _db.SaveChangesAsync();
+        _db.ChangeTracker.Clear();
+
+        await Scanner().ScanAsync(library, null, default);
+        _db.ChangeTracker.Clear();
+
+        var m = await _db.MediaItems.Include(i => i.Children).SingleAsync(i => i.Title == "M");
+        Assert.True(m.Placeholder);
+        Assert.Empty(m.Children);
+        Assert.Equal(1, await _db.MediaItems.CountAsync(i => i.Kind == MediaKind.Artist && i.Title == "Them"));
+    }
+
+    [Fact]
     public async Task Music_ACompilationFlaggedWithoutAnAlbumArtist_IsOneAlbumUnderVariousArtists()
     {
         var root = Touch("music/Compilations/Now That's What I Call Music/01 - Blue Monday.mp3", "music/Compilations/Now That's What I Call Music/02 - Relax.mp3");

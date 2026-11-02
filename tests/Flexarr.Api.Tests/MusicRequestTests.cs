@@ -547,6 +547,25 @@ public sealed class MusicRequestTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task UndoWhileLidarrIsAway_SaysSo_AndChangesNothing()
+    {
+        var (_, artist, _) = await SeedOwnedAsync();
+        await InDbAsync(async db =>
+        {
+            db.MediaRequests.Add(new Core.Notifications.MediaRequest { ProfileId = "owner", Kind = MediaKind.Artist, Title = "Wet Leg", MusicBrainzId = WetLeg });
+            return await db.SaveChangesAsync();
+        });
+        _lidarr.Responses.TryRemove("GET /api/v1/artist", out _);
+
+        var unfollow = await Client().PostAsJsonAsync(Api("/requests/music/unfollow"), new { artistId = artist.Id });
+        var requested = await Client().GetAsync(Api("/requests/music/requested"));
+
+        Assert.Equal(HttpStatusCode.BadGateway, unfollow.StatusCode);
+        Assert.Null((await InDbAsync(db => db.MediaRequests.SingleAsync())).FulfilledAt);
+        Assert.Equal(HttpStatusCode.BadGateway, requested.StatusCode);
+    }
+
+    [Fact]
     public async Task AMissingAlbumWithNoCoverAnywhere_ShowsItsArtist()
     {
         var (_, artist, _) = await SeedOwnedAsync();

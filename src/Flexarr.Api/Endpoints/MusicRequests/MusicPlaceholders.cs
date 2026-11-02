@@ -14,7 +14,7 @@ public static class MusicPlaceholders
 {
     /// <summary>
     /// Adds the artist to the library as a placeholder, unless a music library already has them (by MusicBrainz id or
-    /// name). It goes in the music library (of those the profile sees) holding the Lidarr artist's folder, else in
+    /// name). It goes in the music library holding the Lidarr artist's folder, else in
     /// <paramref name="libraryId"/>; it takes the Lidarr artist's id only when their folder is in its library, so
     /// deleting it can never reach files elsewhere. Returns the artist's library id, new or found.
     /// </summary>
@@ -76,10 +76,11 @@ public static class MusicPlaceholders
         }
     }
 
-    /// <summary>The music library (of those the profile sees) whose folders hold this path; null when none does.</summary>
+    /// <summary>The music library whose folders hold this path; null when none does.</summary>
     public static async Task<Guid?> LibraryHoldingAsync(FlexarrDbContext db, string localPath, CancellationToken ct)
     {
-        var libraries = await db.Libraries.AsNoTracking().Include(l => l.Folders).Where(l => l.Type == LibraryType.Music).ToListAsync(ct);
+        // Every music library, hidden from this profile or not: the artist's music lands where Lidarr puts it.
+        var libraries = await db.Libraries.IgnoreQueryFilters().AsNoTracking().Include(l => l.Folders).Where(l => l.Type == LibraryType.Music).ToListAsync(ct);
         return libraries.FirstOrDefault(l => l.Folders.Any(f => Flexarr.Core.Paths.PathComparison.IsUnder(localPath, f.Path)))?.Id;
     }
 

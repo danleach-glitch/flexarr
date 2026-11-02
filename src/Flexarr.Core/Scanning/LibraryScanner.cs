@@ -929,13 +929,22 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
             }
 
             var loose = Loose(name);
-            return (musicBrainzId is { Length: > 0 } ? candidates.FirstOrDefault(a => a.MusicBrainzId == musicBrainzId) : null)
-                ?? candidates.FirstOrDefault(a => loose.Length > 0 && Loose(a.Title) == loose);
+            var hasId = musicBrainzId is { Length: > 0 };
+            // Known ids that differ are different artists, whatever their names (two bands called Nirvana).
+            return (hasId ? candidates.FirstOrDefault(a => a.MusicBrainzId == musicBrainzId) : null)
+                ?? candidates.FirstOrDefault(a => loose.Length > 0 && Loose(a.Title) == loose && !(hasId && a.MusicBrainzId is { Length: > 0 } && a.MusicBrainzId != musicBrainzId));
         }
 
         private static string Loose(string value)
         {
-            var decomposed = value.Normalize(System.Text.NormalizationForm.FormD);
+            // A leading "The" as a word (not "Them" or "Theo"), before spaces and punctuation go.
+            var trimmed = value.Trim();
+            if (trimmed.Length > 4 && trimmed.StartsWith("the ", StringComparison.OrdinalIgnoreCase))
+            {
+                trimmed = trimmed[4..];
+            }
+
+            var decomposed = trimmed.Normalize(System.Text.NormalizationForm.FormD);
             var letters = new System.Text.StringBuilder(decomposed.Length);
             foreach (var c in decomposed)
             {
@@ -949,8 +958,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                 }
             }
 
-            var folded = letters.ToString();
-            return folded.StartsWith("the", StringComparison.Ordinal) && folded.Length > 3 ? folded[3..] : folded;
+            return letters.ToString();
         }
 
         private readonly Dictionary<string, MediaItem> _byKey = new(StringComparer.Ordinal);

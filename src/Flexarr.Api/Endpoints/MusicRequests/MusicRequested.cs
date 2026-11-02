@@ -26,20 +26,26 @@ public static class MusicRequested
     public static void Forget(IMemoryCache cache) => Interlocked.Exchange(ref _changed, new CancellationTokenSource()).Cancel();
 
     /// <param name="libraryFolders">Only artists in these folders (one library's Requested view); null for all.</param>
-    public static async Task<List<MusicRequestedDto>> ListAsync(MusicRequestContext c, IReadOnlyList<string>? libraryFolders, CancellationToken ct)
+    /// <returns>Null when no Lidarr answered.</returns>
+    public static async Task<List<MusicRequestedDto>?> ListAsync(MusicRequestContext c, IReadOnlyList<string>? libraryFolders, CancellationToken ct)
     {
         var owned = await c.OwnedAsync(ct);
         var listed = new List<MusicRequestedDto>();
-        // Every album Lidarr knows about here, shown or not, so the open-request fallback below never lists it again.
-        var seen = new HashSet<string>(StringComparer.Ordinal);
+        // Every album Lidarr knows about, shown or not, so the open-request fallback below never lists it; and the
+        // ones shown, so two Lidarrs' copies show once.
+        var known = new HashSet<string>(StringComparer.Ordinal);
+        var shown = new HashSet<string>(StringComparer.Ordinal);
         var now = DateTime.UtcNow;
+        var answered = 0;
         foreach (var lidarr in c.Lidarrs)
         {
             var lists = await ListsAsync(c, lidarr, now, ct);
             if (lists is null)
             {
-                continue; // a Lidarr that doesn't answer leaves its albums out (and reads as not answering), not the page
+                continue; // a Lidarr that doesn't answer leaves its albums out, not the page
             }
+
+            answered++;
 
             var (wanted, upcoming, queue) = lists.Value;
             var artists = (await MusicMatcher.LidarrArtistsAsync(c.Client, lidarr, c.Cache, ct)).ToDictionary(a => a.Id);
@@ -47,15 +53,17 @@ public static class MusicRequested
             foreach (var album in wanted.Concat(upcoming).DistinctBy(a => a.Id))
             {
                 var artist = artists.GetValueOrDefault(album.ArtistId) ?? album.Artist;
-                if (artist is null || album.ForeignAlbumId is not { Length: > 0 } releaseGroup || !seen.Add(releaseGroup))
+                if (artist is null || album.ForeignAlbumId is not { Length: > 0 } releaseGroup)
                 {
                     continue;
                 }
 
+                known.Add(releaseGroup);
+
                 var path = MusicMatcher.LocalPath(artist, c.Options.PathMappings);
                 if (!album.Monitored || album.Statistics is { TrackFileCount: > 0 } && album.Statistics.TrackFileCount >= album.Statistics.TrackCount
                     || !owned.Sees(path) || (libraryFolders is not null && (path is null || !libraryFolders.Any(f => PathComparison.IsUnder(path, f))))
-                    || owned.AlbumId(artist.ArtistName, album.Title) is not null)
+                    || owned.AlbumId(artist.ArtistName, album.Title) is not null || !shown.Add(releaseGroup))
                 {
                     continue;
                 }
@@ -69,7 +77,15 @@ public static class MusicRequested
         // Asked for in Flexarr but not (yet) on Lidarr's lists: still searching, as far as anyone here knows. Only for
         // the whole view (a library's can't tell where these will land), and only artists Lidarr doesn't hide from
         // the profile.
-        if (libraryFolders is null)
+        if (c.Lidarrs.Count > 0 && answered == 0)
+        {
+            return null;
+        }
+
+        // A profile that doesn't see every music library gets requests only for artists Lidarr can place (and shows
+        // nothing it can't check while Lidarr is away).
+        var partial = answered < c.Lidarrs.Count;
+        if (libraryFolders is null && !(owned.VisibleFolders is not null && partial))
         {
             var hiddenArtists = new HashSet<string>(StringComparer.Ordinal);
             foreach (var lidarr in c.Lidarrs)
@@ -88,8 +104,8 @@ public static class MusicRequested
                 .OrderByDescending(r => r.RequestedAt).ToListAsync(ct);
             foreach (var request in asked)
             {
-                if ((request.ArtistMusicBrainzId is null || !hiddenArtists.Contains(request.ArtistMusicBrainzId))
-                    && seen.Add(request.MusicBrainzId!) && owned.AlbumId(request.ArtistName, request.Title) is null)
+                var placeable = request.ArtistMusicBrainzId is { } artistId ? !hiddenArtists.Contains(artistId) : owned.VisibleFolders is null;
+                if (placeable && !known.Contains(request.MusicBrainzId!) && shown.Add(request.MusicBrainzId!) && owned.AlbumId(request.ArtistName, request.Title) is null)
                 {
                     listed.Add(new MusicRequestedDto(request.MusicBrainzId!, request.Title ?? "", request.ArtistName ?? "", request.ArtistMusicBrainzId, null, null, "searching", null,
                         owned.ArtistId(request.ArtistName)));
@@ -105,7 +121,8 @@ public static class MusicRequested
 
     /// <summary>
     /// A Lidarr's wanted albums, its next year's calendar and its queue, asked side by side (each with its own time
-    /// limit) and kept half a minute; null when the wanted list didn't come (then it's marked as not answering).
+    /// limit) and kept half a minute when all three came; null when the wanted list didn't. A slow list here doesn't
+    /// mark Lidarr as away for every other page.
     /// </summary>
     private static async Task<(IReadOnlyList<LidarrAlbum>, IReadOnlyList<LidarrAlbum>, IReadOnlyList<ArrQueueItem>)?> ListsAsync(MusicRequestContext c, ArrInstance lidarr,
         DateTime now, CancellationToken ct)
@@ -137,12 +154,17 @@ public static class MusicRequested
         if (await wanted is not { } w)
         {
             await artists;
-            MusicMatcher.MarkDown(c.Cache, lidarr);
             return null;
         }
 
-        var lists = (w, await upcoming ?? [], await queue ?? []);
+        var (u, q) = (await upcoming, await queue);
+        var lists = (w, u ?? [], q ?? []);
         await artists;
+        if (u is null || q is null)
+        {
+            return lists; // partly answered: shown, but asked afresh next time
+        }
+
         using var entry = c.Cache.CreateEntry(key);
         entry.Value = lists;
         entry.AbsoluteExpirationRelativeToNow = ListsFor;

@@ -258,18 +258,20 @@ public static partial class MusicRequestEndpoints
                 }
             }
 
-            return Results.Ok(await MusicRequested.ListAsync(c, folders, ct));
+            return await MusicRequested.ListAsync(c, folders, ct) is { } listed
+                ? Results.Ok(listed)
+                : Results.Problem("Lidarr isn't answering. Try again later.", statusCode: 502);
         });
 
         // Stop following an artist, for the household: Lidarr stops looking for their new releases.
         music.MapPost("/unfollow", async (MusicUndoBody body, MusicRequestContext c, CurrentProfile current, ILoggerFactory loggers, CancellationToken ct) =>
-            UndoRefused(current, c.Cache) ?? await LidarrAsync(() => MusicUndo.UnfollowAsync(c, body, ct), loggers.CreateLogger("Flexarr.MusicRequests"), ct));
+            UndoRefused(current, c.Cache) ?? Counted(current, c.Cache, await LidarrAsync(() => MusicUndo.UnfollowAsync(c, body, ct), loggers.CreateLogger("Flexarr.MusicRequests"), ct)));
 
         // Cancel an album asked for, for the household: Lidarr stops wanting it and drops its download.
         music.MapPost("/unrequest", async (MusicUndoBody body, MusicRequestContext c, CurrentProfile current, ILoggerFactory loggers, CancellationToken ct) =>
         {
             var logger = loggers.CreateLogger("Flexarr.MusicRequests");
-            return UndoRefused(current, c.Cache) ?? await LidarrAsync(() => MusicUndo.UnrequestAsync(c, body, logger, ct), logger, ct);
+            return UndoRefused(current, c.Cache) ?? Counted(current, c.Cache, await LidarrAsync(() => MusicUndo.UnrequestAsync(c, body, logger, ct), logger, ct));
         });
 
         music.MapPost("/", async (MusicRequestBody body, MusicRequestContext c, CurrentProfile current, ILoggerFactory loggers, CancellationToken ct) =>
@@ -337,16 +339,28 @@ public static partial class MusicRequestEndpoints
             return Results.Problem("Guests can't undo music requests.", statusCode: 403);
         }
 
-        var key = $"music-undo:{current.Id}";
-        var count = cache.GetOrCreate(key, entry =>
+        return UndoCount(current, cache).Value >= UndoHourlyLimit
+            ? Results.Problem("That's a lot of undoing for one hour. Try again later.", statusCode: 429)
+            : null;
+    }
+
+    /// <summary>An undo that reached Lidarr (or found nothing to do) counts towards the hour's; a malformed one or a failure doesn't.</summary>
+    private static IResult Counted(CurrentProfile current, IMemoryCache cache, IResult result)
+    {
+        if (result is IStatusCodeHttpResult { StatusCode: < 400 })
+        {
+            Interlocked.Increment(ref UndoCount(current, cache).Value);
+        }
+
+        return result;
+    }
+
+    private static StrongBox<int> UndoCount(CurrentProfile current, IMemoryCache cache) =>
+        cache.GetOrCreate($"music-undo:{current.Id}", entry =>
         {
             entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(1);
             return new StrongBox<int>();
         })!;
-        return Interlocked.Increment(ref count.Value) > UndoHourlyLimit
-            ? Results.Problem("That's a lot of undoing for one hour. Try again later.", statusCode: 429)
-            : null;
-    }
 
     /// <summary>Lidarr's answer, or a plain 502 saying it refused or didn't answer (its own words go to the log).</summary>
     private static async Task<IResult> LidarrAsync(Func<Task<IResult>> answer, ILogger logger, CancellationToken ct)
@@ -364,7 +378,8 @@ public static partial class MusicRequestEndpoints
         }
         catch (DeezerException ex) when (ex.Code == 800)
         {
-            return Results.NotFound();
+            // Said, so clients don't take it for a server without undo (a bare 404).
+            return Results.Problem("Deezer doesn't know that any more.", statusCode: 404);
         }
         catch (Exception ex) when (ex is DeezerException || (ex is OperationCanceledException && !ct.IsCancellationRequested))
         {

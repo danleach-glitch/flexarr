@@ -50,6 +50,11 @@ public static partial class MusicUndo
         // By MusicBrainz id when there is one (a same-named artist is someone else); by name only without one.
         var found = musicBrainzId is not null ? await c.LidarrArtistAsync(musicBrainzId, "", ct)
             : name is { Length: > 0 } ? await c.LidarrArtistNamedAsync(name, ct) : null;
+        if (found is null && LidarrDown(c))
+        {
+            return NotAnswering; // couldn't look: never "done" while Lidarr may still follow them
+        }
+
         var owned = await c.OwnedAsync(ct);
         if (found is { Lidarr: var lidarr, Artist: var artist })
         {
@@ -125,6 +130,27 @@ public static partial class MusicUndo
             found = await ByReleaseGroupAsync(c, releaseGroupId, ct);
         }
 
+        // Lidarr may hold it under another release group (asked for by name when MusicBrainz didn't answer): the exact
+        // title under Lidarr's artist of that name.
+        string? title = null, artistName = null;
+        if (found is null && body.DeezerId is { } byDeezer)
+        {
+            var deezer = await c.Catalog.AlbumAsync(byDeezer, ct);
+            (title, artistName) = (deezer.Title, deezer.Artist?.Name);
+            if (await c.LidarrArtistNamedAsync(deezer.Artist?.Name ?? "", ct) is { Lidarr: var fl, Artist: var fa }
+                && await c.LidarrAlbumsAsync(fl, fa.Id, ct) is { } exact
+                && exact.Where(x => MusicNames.Normalise(x.Title) == MusicNames.Normalise(deezer.Title))
+                    .OrderBy(x => deezer.Year is { } y && x.ReleaseDate is { } d ? Math.Abs(d.Year - y) : 0).FirstOrDefault() is { } byTitle)
+            {
+                found = (fl, fa, byTitle);
+            }
+        }
+
+        if (found is null && LidarrDown(c))
+        {
+            return NotAnswering;
+        }
+
         var owned = await c.OwnedAsync(ct);
         if (found is { } f && !owned.Sees(MusicMatcher.LocalPath(f.Artist, c.Options.PathMappings)))
         {
@@ -142,8 +168,10 @@ public static partial class MusicUndo
             c.ForgetAlbums(lidarr, artist.Id);
         }
 
-        var requests = releaseGroupId is null ? []
-            : await c.Db.MediaRequests.Where(r => r.Kind == MediaKind.Album && r.FulfilledAt == null && r.MusicBrainzId == releaseGroupId).ToListAsync(ct);
+        var groups = new[] { releaseGroupId, found?.Album.ForeignAlbumId }.OfType<string>().Distinct().ToList();
+        (title, artistName) = found is { Album: var fa2, Artist: var fr } ? (fa2.Title, fr.ArtistName) : (title, artistName);
+        var requests = await c.Db.MediaRequests.Where(r => r.Kind == MediaKind.Album && r.FulfilledAt == null
+            && ((r.MusicBrainzId != null && groups.Contains(r.MusicBrainzId)) || (title != null && r.Title == title && r.ArtistName == artistName))).ToListAsync(ct);
         foreach (var request in requests)
         {
             request.FulfilledAt = DateTime.UtcNow;
@@ -188,13 +216,14 @@ public static partial class MusicUndo
             return;
         }
 
+        // A download that carries other albums too is left alone: removing it (even from Lidarr's queue only) stops
+        // them importing, and Lidarr won't import an album it no longer monitors anyway.
         var shared = mine.Any(q => q.DownloadId is not null)
             ? (await c.Client.GetQueueAsync(lidarr, ct)).Where(q => q.AlbumId != albumId && q.DownloadId is not null).Select(q => q.DownloadId!).ToHashSet()
             : [];
-        foreach (var queued in mine)
+        foreach (var queued in mine.Where(q => q.DownloadId is null || !shared.Contains(q.DownloadId)))
         {
-            var removeFromClient = queued.DownloadId is null || !shared.Contains(queued.DownloadId);
-            await c.Client.DeleteAsync(lidarr, $"queue/{queued.Id}?removeFromClient={(removeFromClient ? "true" : "false")}&blocklist=false", ct);
+            await c.Client.DeleteAsync(lidarr, $"queue/{queued.Id}?removeFromClient=true&blocklist=false", ct);
         }
     }
 
@@ -253,6 +282,10 @@ public static partial class MusicUndo
 
         return null;
     }
+
+    private static IResult NotAnswering => Results.Problem("Lidarr isn't answering. Try again later.", statusCode: 502);
+
+    private static bool LidarrDown(MusicRequestContext c) => c.Lidarrs.Any(l => MusicMatcher.IsDown(c.Cache, l));
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Took {Artist} out of Lidarr: the only request that added them was cancelled")]
     private static partial void LogTidied(ILogger logger, string artist);

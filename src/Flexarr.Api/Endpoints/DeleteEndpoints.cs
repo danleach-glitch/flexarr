@@ -5,6 +5,7 @@ using Flexarr.Core.Media;
 using Flexarr.Core.Paths;
 using Flexarr.Core.Scanning;
 using Flexarr.Integrations.Arr;
+using Flexarr.Integrations.Arr.Models;
 using Flexarr.Metadata;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -69,8 +70,10 @@ public static partial class DeleteEndpoints
             {
                 try
                 {
+                    // The one of that title (the nearest in year, for a name two albums share: Live, Greatest Hits).
                     var key = MusicNames.Normalise(item.Title);
-                    var match = (await arr.GetArtistAlbumsAsync(owner.Lidarr, owner.ArtistId, ct)).FirstOrDefault(a => MusicNames.Normalise(a.Title) == key);
+                    var match = (await arr.GetArtistAlbumsAsync(owner.Lidarr, owner.ArtistId, ct)).Where(a => MusicNames.Normalise(a.Title) == key)
+                        .OrderBy(a => item.Year is { } y && a.ReleaseDate is { } d ? Math.Abs(d.Year - y) : 0).FirstOrDefault();
                     if (match is null)
                     {
                         return Results.Problem($"{owner.Lidarr.Name} has this artist but not this album under that name. Refresh the artist's details, then try again. Nothing was deleted.", statusCode: 409);
@@ -89,6 +92,9 @@ public static partial class DeleteEndpoints
                 return await DeleteFromDiskAsync(db, item, logs.CreateLogger("Flexarr.Delete"), ct);
             }
 
+            // Lidarr has nothing of it to delete (it never imported these files, or no longer has the artist): Flexarr
+            // deletes them itself once Lidarr has stopped wanting them.
+            var fromDisk = false;
             try
             {
                 switch (item.Kind)
@@ -101,7 +107,17 @@ public static partial class DeleteEndpoints
                         break;
                     case MediaKind.Artist:
                         // Lidarr deletes the artist's whole folder: only when that folder is this library's.
-                        var lidarrArtist = await arr.GetArtistAsync(instance, arrId, ct);
+                        LidarrArtist lidarrArtist;
+                        try
+                        {
+                            lidarrArtist = await arr.GetArtistAsync(instance, arrId, ct);
+                        }
+                        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+                        {
+                            fromDisk = true; // Lidarr no longer has them
+                            break;
+                        }
+
                         var roots = await db.LibraryFolders.Where(f => f.LibraryId == item.LibraryId).Select(f => f.Path).ToListAsync(ct);
                         if (lidarrArtist.Path is not { } lidarrPath || !roots.Any(r => PathComparison.IsUnder(PathMapper.Map(lidarrPath, options.CurrentValue.PathMappings), r)))
                         {
@@ -116,9 +132,17 @@ public static partial class DeleteEndpoints
                         await arr.SetAlbumsMonitoredAsync(instance, [arrId], monitored: false, ct);
                         try
                         {
-                            if ((await arr.GetAlbumTrackFilesAsync(instance, arrId, ct)).Select(f => f.Id).ToList() is { Count: > 0 } files)
+                            // Only Lidarr's files in this album's folder: never another copy elsewhere.
+                            var files = (await arr.GetAlbumTrackFilesAsync(instance, arrId, ct))
+                                .Where(f => item.Path is null || (f.Path is { } p && PathComparison.IsUnder(PathMapper.Map(p, options.CurrentValue.PathMappings), item.Path)))
+                                .Select(f => f.Id).ToList();
+                            if (files.Count > 0)
                             {
                                 await arr.DeleteTrackFilesAsync(instance, files, ct);
+                            }
+                            else
+                            {
+                                fromDisk = true;
                             }
                         }
                         catch (HttpRequestException ex)
@@ -151,6 +175,11 @@ public static partial class DeleteEndpoints
                 return Results.Problem($"{instance.Name} didn't delete it ({(int?)ex.StatusCode ?? 0}). Nothing was removed from Flexarr.", statusCode: 502);
             }
 
+            if (fromDisk)
+            {
+                return await DeleteFromDiskAsync(db, item, logs.CreateLogger("Flexarr.Delete"), ct, keepArtist);
+            }
+
             await RemoveFromLibraryAsync(db, item, keepArtist, ct);
             if (item.Kind == MediaKind.Artist)
             {
@@ -180,7 +209,7 @@ public static partial class DeleteEndpoints
         db.MediaFiles.Where(f => f.MediaItemId == item.Id || f.MediaItem!.ParentId == item.Id || f.MediaItem.Parent!.ParentId == item.Id)
             .Select(f => f.Path).Distinct().OrderBy(p => p).ToListAsync(ct);
 
-    private static async Task<IResult> DeleteFromDiskAsync(FlexarrDbContext db, MediaItem item, ILogger logger, CancellationToken ct)
+    private static async Task<IResult> DeleteFromDiskAsync(FlexarrDbContext db, MediaItem item, ILogger logger, CancellationToken ct, bool keepArtist = false)
     {
         var files = await FilesAsync(db, item, ct);
         var roots = await db.LibraryFolders.Where(f => f.LibraryId == item.LibraryId).Select(f => f.Path).ToListAsync(ct);
@@ -207,7 +236,7 @@ public static partial class DeleteEndpoints
             RemoveEmptyFolders(folder, roots);
         }
 
-        await RemoveFromLibraryAsync(db, item, keepArtist: false, ct);
+        await RemoveFromLibraryAsync(db, item, keepArtist, ct);
         LogDeletedFromDisk(logger, item.Kind, Name(item), files.Count);
         return Results.NoContent();
     }
@@ -263,9 +292,10 @@ public static partial class DeleteEndpoints
     {
         var now = DateTime.UtcNow;
         var mbid = artist.MusicBrainzId;
+        // Ids compared only when the artist has one: a null would match every request without one.
         await db.MediaRequests.Where(r => r.FulfilledAt == null
-                && ((r.Kind == MediaKind.Artist && (r.MusicBrainzId == mbid || r.Title == artist.Title))
-                    || (r.Kind == MediaKind.Album && (r.ArtistMusicBrainzId == mbid || r.ArtistName == artist.Title))))
+                && ((r.Kind == MediaKind.Artist && ((mbid != null && r.MusicBrainzId == mbid) || r.Title == artist.Title))
+                    || (r.Kind == MediaKind.Album && ((mbid != null && r.ArtistMusicBrainzId == mbid) || r.ArtistName == artist.Title))))
             .ExecuteUpdateAsync(u => u.SetProperty(r => r.FulfilledAt, now), ct);
     }
 
