@@ -79,6 +79,14 @@ import io.github.flexarr.AppModel
 import io.github.flexarr.core.CreditRole
 import io.github.flexarr.core.Person
 import io.github.flexarr.core.SearchResults
+import io.github.flexarr.core.Availability
+import io.github.flexarr.core.ExternalTitle
+import io.github.flexarr.core.MusicExternal
+import io.github.flexarr.core.MusicSearch
+import io.github.flexarr.core.requestsStatus
+import io.github.flexarr.core.searchEverything
+import io.github.flexarr.core.searchMusic
+import androidx.compose.foundation.lazy.itemsIndexed
 import io.github.flexarr.ui.components.Load
 import io.github.flexarr.ui.components.LocalNavigator
 import io.github.flexarr.ui.components.RemoteImage
@@ -106,6 +114,58 @@ fun TvSearchScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
     var attempt by remember { mutableStateOf(0) }
     var recents by remember { mutableStateOf(RecentSearches()) }
     var forgetting by remember { mutableStateOf<String?>(null) }
+    // Beyond the library, as on the phones: films and shows from Seerr, artists and albums through Lidarr, each with
+    // the words that found them, when set up. Either failing leaves the library's results as they are.
+    var searchesEverything by remember { mutableStateOf(false) }
+    var searchesMusic by remember { mutableStateOf(false) }
+    var everything by remember { mutableStateOf<Pair<String, List<ExternalTitle>>?>(null) }
+    var music by remember { mutableStateOf<Pair<String, MusicSearch>?>(null) }
+    LaunchedEffect(model.credentials) {
+        searchesEverything = try {
+            client.requestsStatus()?.configured == true
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            false
+        }
+        searchesMusic = try {
+            model.musicStatus().configured
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            false
+        }
+    }
+    LaunchedEffect(query, attempt, searchesEverything) {
+        val text = query.trim()
+        if (text.isEmpty() || !searchesEverything) {
+            everything = null
+            return@LaunchedEffect
+        }
+        delay(300)
+        everything = text to try {
+            client.searchEverything(text)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+    LaunchedEffect(query, attempt, searchesMusic) {
+        val text = query.trim()
+        if (text.isEmpty() || !searchesMusic) {
+            music = null
+            return@LaunchedEffect
+        }
+        delay(300)
+        music = text to try {
+            client.searchMusic(text)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            MusicSearch()
+        }
+    }
     val field = remember { FocusRequester() }
 
     // What this profile searched for and opened lately, whenever the field's empty: on opening Search, and once it's
@@ -184,6 +244,13 @@ fun TvSearchScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
             }
             val found = results
             val words = query.trim()
+            // What the library's own results haven't already shown, and what the household doesn't have.
+            val inLibrary = found?.titles.orEmpty().mapTo(HashSet()) { it.id }
+            val beyond = everything?.takeIf { it.first == words }?.second?.filter { it.libraryItemId == null || it.libraryItemId !in inLibrary }.orEmpty()
+            val beyondMusic = music?.takeIf { it.first == words }?.second?.let { m ->
+                fun outside(item: MusicExternal) = item.libraryItemId == null && item.availability != Availability.Available
+                m.artists.filter(::outside) + m.albums.filter(::outside)
+            }.orEmpty()
             when {
                 // Nothing typed: the last few searches to run again, and the titles opened from search.
                 words.isEmpty() && !recents.isEmpty -> {
@@ -206,7 +273,7 @@ fun TvSearchScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
                         }
                     }
                 }
-                found != null && found.titles.isEmpty() && found.episodes.isEmpty() && found.people.isEmpty() -> item(key = "none") {
+                found != null && found.titles.isEmpty() && found.episodes.isEmpty() && found.people.isEmpty() && beyond.isEmpty() && beyondMusic.isEmpty() -> item(key = "none") {
                     Box(Modifier.height(200.dp)) { TvStatusView("Nothing matches “${query.trim()}”.", empty = true) }
                 }
                 found != null -> {
@@ -216,6 +283,23 @@ fun TvSearchScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
                     }
                     if (found.episodes.isNotEmpty()) item(key = "episodes") {
                         Section("Episodes") { items(found.episodes, key = { it.id }) { TvWideCard(it, onClick = { record(words, it.id); navigator.openItem(it.id) }, width = 220.dp) } }
+                    }
+                    if (beyond.isNotEmpty() || beyondMusic.isNotEmpty()) item(key = "beyond") {
+                        Section("Not in your library") {
+                            items(beyond, key = { "title-${it.key}" }) { title ->
+                                TvExternalCard(title, onClick = {
+                                    record(words, null)
+                                    navigator.openExternal(title)
+                                })
+                            }
+                            // The same album can be listed twice (a joint album under each artist): its place keeps the keys apart.
+                            itemsIndexed(beyondMusic, key = { index, item -> "music-$index-${item.id}" }) { _, item ->
+                                TvMusicExternalCard(item, onClick = {
+                                    record(words, null)
+                                    navigator.openMusic(item)
+                                })
+                            }
+                        }
                     }
                     if (found.people.isNotEmpty()) item(key = "people") {
                         Section("People") {
