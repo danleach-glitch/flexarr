@@ -195,7 +195,9 @@ public sealed partial class MetadataRefresher(
         CancellationToken ct)
     {
         _idsBefore = IdsOf(item);
+        var kept = Keep(item); // What was edited by hand stays; the sources fill in the rest.
         var result = await RefreshMovieFromSourcesAsync(item, byPath, byImdb, byTmdb, radarrs, force, ct).ConfigureAwait(false);
+        await RestoreAsync(item, kept, ct).ConfigureAwait(false);
         await ApplySeerrRatingsAsync(item, ct).ConfigureAwait(false);
         return result;
     }
@@ -701,7 +703,9 @@ public sealed partial class MetadataRefresher(
         CancellationToken ct)
     {
         _idsBefore = IdsOf(item);
+        var kept = Keep(item); // What was edited by hand stays; the sources fill in the rest.
         var result = await RefreshSeriesFromSourcesAsync(item, byPath, byTvdb, byImdb, sonarrs, force, ct).ConfigureAwait(false);
+        await RestoreAsync(item, kept, ct).ConfigureAwait(false);
         await ApplySeerrRatingsAsync(item, ct).ConfigureAwait(false);
         return result;
     }
