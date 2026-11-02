@@ -23,9 +23,22 @@ object MusicActions {
         val canRadio: Boolean = false,
         /** The phone can keep a copy of it (an album). */
         val canDownload: Boolean = false,
-        /** The ⋯ menu has something in it. */
+        /** The ⋯ menu has something in it beyond [menu]'s queue actions. */
         val hasMenu: Boolean = false,
+        /** The app's ⋯ offers Play next and Add to queue (and, on phones, Add to playlist) for what plays here. */
+        val canQueue: Boolean = false,
     )
+
+    /** What ⋯ holds, in this order. */
+    enum class MenuItem { PLAY_NEXT, ADD_TO_QUEUE, ADD_TO_PLAYLIST }
+
+    fun menu(input: Input): List<MenuItem> = buildList {
+        if (input.canQueue && input.hasMusic) {
+            add(MenuItem.PLAY_NEXT)
+            add(MenuItem.ADD_TO_QUEUE)
+            if (input.platform == Platform.PHONE) add(MenuItem.ADD_TO_PLAYLIST)
+        }
+    }
 
     fun of(input: Input): List<Button> = buildList {
         if (input.hasMusic) {
@@ -35,6 +48,6 @@ object MusicActions {
             if (input.platform == Platform.PHONE && input.canDownload) add(Button.DOWNLOAD)
         }
         if (input.canRequest) add(if (input.kind == Kind.ARTIST) Button.FOLLOW else Button.REQUEST)
-        if (input.hasMenu) add(Button.MORE)
+        if (input.hasMenu || menu(input).isNotEmpty()) add(Button.MORE)
     }
 }

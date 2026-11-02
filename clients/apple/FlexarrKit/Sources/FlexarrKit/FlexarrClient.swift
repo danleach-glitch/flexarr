@@ -347,6 +347,18 @@ public struct FlexarrClient: Sendable {
         try await get("playlists/\(id)")
     }
 
+    /// Starts a playlist, with tracks, albums or artists in it (albums and artists bring all their tracks).
+    public func createPlaylist(name: String, itemIds: [String] = []) async throws -> PlaylistSummary {
+        try decode(PlaylistSummary.self, from: await send("POST", "playlists", body: NewPlaylistBody(name: name, itemIds: itemIds)))
+    }
+
+    /// Appends tracks, albums or artists, leaving out tracks it already has; how many were added.
+    @discardableResult
+    public func addToPlaylist(_ id: String, itemIds: [String]) async throws -> Int {
+        let data = try await send("POST", "playlists/\(id)/items", body: PlaylistAdditionBody(itemIds: itemIds, skipDuplicates: true))
+        return try decode(PlaylistAddition.self, from: data).added
+    }
+
     /// One of today's music mixes with its tracks in order.
     public func mix(_ id: String) async throws -> MixDetail {
         try await get("music/mixes/\(id)")
@@ -1099,4 +1111,18 @@ public struct FlexarrClient: Sendable {
         }
         return decoder
     }()
+}
+
+private struct NewPlaylistBody: Encodable {
+    let name: String
+    let itemIds: [String]
+}
+
+private struct PlaylistAdditionBody: Encodable {
+    let itemIds: [String]
+    let skipDuplicates: Bool
+}
+
+private struct PlaylistAddition: Decodable {
+    let added: Int
 }

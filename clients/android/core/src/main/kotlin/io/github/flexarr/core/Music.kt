@@ -182,6 +182,23 @@ suspend fun FlexarrClient.playlists(): List<PlaylistSummary> =
 /** A playlist with its tracks in order. */
 suspend fun FlexarrClient.playlist(id: String): PlaylistDetail = get("playlists/$id")
 
+@Serializable
+internal data class NewPlaylistBody(val name: String, val itemIds: List<String>)
+
+@Serializable
+internal data class PlaylistAdditionBody(val itemIds: List<String>, val skipDuplicates: Boolean)
+
+@Serializable
+internal data class PlaylistAddition(val added: Int)
+
+/** Starts a playlist, with tracks, albums or artists in it (albums and artists bring all their tracks). */
+suspend fun FlexarrClient.createPlaylist(name: String, itemIds: List<String> = emptyList()): PlaylistSummary =
+    sendDecoding("POST", "playlists", NewPlaylistBody(name, itemIds))
+
+/** Appends tracks, albums or artists, leaving out tracks it already has; how many were added. */
+suspend fun FlexarrClient.addToPlaylist(id: String, itemIds: List<String>): Int =
+    sendDecoding<PlaylistAdditionBody, PlaylistAddition>("POST", "playlists/$id/items", PlaylistAdditionBody(itemIds, skipDuplicates = true)).added
+
 /** One of today's music mixes with its tracks in order. */
 suspend fun FlexarrClient.mix(id: String): MixDetail = get("music/mixes/$id")
 

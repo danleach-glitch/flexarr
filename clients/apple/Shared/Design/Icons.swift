@@ -32,6 +32,12 @@ enum Symbol {
     static let following = "checkmark"
     /// Go to the artist.
     static let goToArtist = "music.mic"
+    /// Play next, after what's playing.
+    static let playNext = "text.line.first.and.arrowtriangle.forward"
+    /// Add to the end of the queue.
+    static let addToQueue = "text.line.last.and.arrowtriangle.forward"
+    /// Add to a playlist.
+    static let addToPlaylist = "text.badge.plus"
     /// Download.
     static let download = "arrow.down.circle"
     /// Search for subtitles.
@@ -74,5 +80,5 @@ enum Symbol {
     static let homeVideos = "folder"
 
     /// Every name above, so a debug build can check each one exists on this system.
-    static let all = [play, startOver, shuffle, radio, trailer, watched, isWatched, markUnwatched, watchlist, onWatchlist, request, requested, follow, following, goToArtist, download, subtitles, goToShow, more, home, libraries, search, settings, downloads, discover, comingSoon, liveTv, collections, nowPlaying, movies, shows, music, podcasts, audiobooks, homeVideos]
+    static let all = [play, startOver, shuffle, radio, trailer, watched, isWatched, markUnwatched, watchlist, onWatchlist, request, requested, follow, following, goToArtist, playNext, addToQueue, addToPlaylist, download, subtitles, goToShow, more, home, libraries, search, settings, downloads, discover, comingSoon, liveTv, collections, nowPlaying, movies, shows, music, podcasts, audiobooks, homeVideos]
 }

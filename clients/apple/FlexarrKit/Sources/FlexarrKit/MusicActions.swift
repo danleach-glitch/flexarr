@@ -25,8 +25,13 @@ public struct MusicActions: Equatable, Sendable {
         case more
     }
 
-    /// What ⋯ holds.
+    /// What ⋯ holds, in this order.
     public enum MenuItem: Equatable, Sendable {
+        /// After what's playing.
+        case playNext
+        case addToQueue
+        /// Phones only.
+        case addToPlaylist
         /// Delete the album or artist (the main profile; the web's for now).
         case delete
     }
@@ -41,8 +46,14 @@ public struct MusicActions: Equatable, Sendable {
     ///   - canAsk: music requests are on for this profile (`MusicRequestStatus.configured`) and the page has something
     ///     to ask for: an artist to follow, or an album the library lacks.
     ///   - canDelete: the profile may delete it here.
-    public init(kind: Kind, platform: Platform, hasMusic: Bool, canDownload: Bool = false, canAsk: Bool, canDelete: Bool = false) {
+    ///   - canQueue: the app's ⋯ offers Play next and Add to queue (and, on phones, Add to playlist) for what plays here.
+    public init(kind: Kind, platform: Platform, hasMusic: Bool, canDownload: Bool = false, canAsk: Bool, canDelete: Bool = false,
+                canQueue: Bool = false) {
         var menu: [MenuItem] = []
+        if canQueue && hasMusic {
+            menu += [.playNext, .addToQueue]
+            if platform == .phone { menu.append(.addToPlaylist) }
+        }
         if canDelete && hasMusic { menu.append(.delete) }
 
         var buttons: [Button] = []
