@@ -144,6 +144,38 @@ public sealed class RequestUndoTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AWholeShowWithASeasonOnDisk_ClosesTheRequestThatAlsoAskedForIt()
+    {
+        _arr.Responses["GET /api/v1/tv/8002"] = """
+            {"id":8002,"mediaInfo":{"id":67,"status":4,"tvdbId":82,"requests":[
+              {"id":3,"status":2,"type":"tv","seasons":[{"seasonNumber":1},{"seasonNumber":2},{"seasonNumber":3}]}]}}
+            """;
+        var series = """{"id":6,"title":"Show","seasons":[{"seasonNumber":1,"monitored":true},{"seasonNumber":2,"monitored":true},{"seasonNumber":3,"monitored":true}]}""";
+        _arr.Responses["GET //sonarr.test/api/v3/series?tvdbId=82"] = $"[{series}]";
+        _arr.Responses["GET //sonarr.test/api/v3/series/6"] = series;
+        _arr.Responses["PUT //sonarr.test/api/v3/series/6"] = series;
+        _arr.Responses["PUT //sonarr.test/api/v3/episode/monitor"] = "[]";
+        _arr.Responses["GET //sonarr.test/api/v3/episode?seriesId=6&includeImages=true"] = """
+            [{"id":101,"seasonNumber":1,"episodeNumber":1,"hasFile":true,"monitored":true},
+             {"id":201,"seasonNumber":2,"episodeNumber":1,"hasFile":false,"monitored":true},
+             {"id":301,"seasonNumber":3,"episodeNumber":1,"hasFile":false,"monitored":true}]
+            """;
+        Deletes("/api/v1/request/3");
+        await InDbAsync(async db =>
+        {
+            db.MediaRequests.Add(new MediaRequest { ProfileId = PlaybackState.DefaultUser, Kind = MediaKind.Series, TmdbId = 8002 });
+            return await db.SaveChangesAsync();
+        });
+
+        var response = await Client().PostAsJsonAsync(Api("/requests/unrequest"), new { mediaType = "tv", tmdbId = 8002 });
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Contains("DELETE /api/v1/request/3", _arr.Requests);
+        Assert.DoesNotContain(_arr.Requests, r => r.StartsWith("DELETE /api/v1/media", StringComparison.Ordinal) || r.StartsWith("DELETE /api/v3/series", StringComparison.Ordinal));
+        Assert.True(await InDbAsync(db => db.MediaRequests.AllAsync(r => r.TmdbId != 8002 || r.FulfilledAt != null)));
+    }
+
+    [Fact]
     public async Task NothingToTakeBack_IsDone_AndChangesNothing()
     {
         _arr.Responses["GET //radarr.test/api/v3/movie?tmdbId=7003"] = "[]";

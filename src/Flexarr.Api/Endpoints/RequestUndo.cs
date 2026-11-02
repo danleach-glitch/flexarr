@@ -59,6 +59,7 @@ public static class RequestUndo
 
         var chosen = !movie && body.Seasons is { Count: > 0 } given ? given.Where(n => n > 0).ToHashSet() : null;
         var open = (record?.Requests ?? []).Where(r => r.Status is not (Declined or Completed)).ToList();
+        var onDisk = new HashSet<int>();
 
         // Only a real request is taken back. Seerr reads a title someone added in Radarr or Sonarr by hand as
         // processing, so it can show as requested; with no open request in Seerr or Flexarr, nobody asked for it.
@@ -95,14 +96,17 @@ public static class RequestUndo
                 {
                     foreach (var series in await Call("Sonarr", () => arr.GetSeriesByTvdbIdAsync(sonarr, tvdb, ct)))
                     {
-                        chosen = await UndoSeasonsAsync(arr, sonarr, series, chosen, ct);
+                        (chosen, var withFiles) = await UndoSeasonsAsync(arr, sonarr, series, chosen, ct);
+                        onDisk.UnionWith(withFiles);
                     }
                 }
             }
         }
 
-        // Then Seerr: every request the undo covers. A show's request that also asked for seasons still wanted stays.
-        var covered = open.Where(r => movie || chosen is null || (r.Seasons is { Count: > 0 } seasons && seasons.All(s => chosen.Contains(s.SeasonNumber)))).ToList();
+        // Then Seerr: every request the undo covers. A show's request that also asked for seasons still wanted stays;
+        // seasons already on disk don't keep one open, or the whole show's undo could never close it.
+        var covered = open.Where(r => movie || chosen is null
+            || (r.Seasons is { Count: > 0 } seasons && seasons.All(s => chosen.Contains(s.SeasonNumber) || onDisk.Contains(s.SeasonNumber)))).ToList();
         foreach (var request in covered)
         {
             await Call("Seerr", () => seerrClient.DeleteRequestAsync(seerr, request.Id, ct));
@@ -140,8 +144,8 @@ public static class RequestUndo
     /// Sonarr stops wanting the seasons (given, or every one with nothing on disk) and their downloads go; a show
     /// with nothing on disk at all, and no season still wanted, leaves Sonarr.
     /// </summary>
-    /// <returns>The seasons undone, for matching Seerr's requests; null for "the whole show".</returns>
-    private static async Task<HashSet<int>?> UndoSeasonsAsync(ArrClient arr, ArrInstance sonarr, SonarrSeries series, HashSet<int>? chosen, CancellationToken ct)
+    /// <returns>The seasons undone, for matching Seerr's requests (null for "the whole show"), and the seasons with files.</returns>
+    private static async Task<(HashSet<int>? Undone, HashSet<int> WithFiles)> UndoSeasonsAsync(ArrClient arr, ArrInstance sonarr, SonarrSeries series, HashSet<int>? chosen, CancellationToken ct)
     {
         var episodes = await Call("Sonarr", () => arr.GetEpisodesAsync(sonarr, series.Id, ct));
         var seasonsWithFiles = episodes.Where(e => e.HasFile).Select(e => e.SeasonNumber).ToHashSet();
@@ -163,7 +167,7 @@ public static class RequestUndo
             await Call("Sonarr", () => arr.RemoveSeriesAsync(sonarr, series.Id, ct));
         }
 
-        return chosen is null && seasonsWithFiles.Count == 0 ? null : scope;
+        return (chosen is null && seasonsWithFiles.Count == 0 ? null : scope, seasonsWithFiles);
     }
 
     /// <summary>
