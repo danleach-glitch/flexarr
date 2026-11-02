@@ -1,8 +1,9 @@
 import FlexarrKit
 import SwiftUI
 
-/// Which of a library's views its tab opens on: Browse (a hero and rows of just this library), All (every title, with
-/// sort, genre and A–Z) or Genres (a tile for each). Settings › Libraries, for every library on this Apple TV.
+/// Which of a library's views its tab opens on: Browse (a hero and rows of just this library, or an audiobooks library's
+/// shelves), All (every title, with sort, genre and A–Z) or Genres (a tile for each). Settings › Libraries, for every
+/// library on this Apple TV.
 enum LibraryOpening: String, CaseIterable {
     case browse
     case all
@@ -18,12 +19,12 @@ enum LibraryOpening: String, CaseIterable {
         }
     }
 
-    /// Films and shows have genres; a home videos library opens on Browse instead.
-    static func hasGenres(_ library: Library) -> Bool { library.type == .movies || library.type == .tvShows }
+    /// Films, shows and audiobooks have genres; a home videos library opens on Browse instead.
+    static func hasGenres(_ library: Library) -> Bool { [.movies, .tvShows, .audiobooks].contains(library.type) }
 }
 
-/// A film or TV library's tab: Browse or All, switched with the pills at the top. A row's "See all" opens All on top
-/// instead, so Back comes back to the rows.
+/// A film, TV or audiobooks library's tab: Browse, All or Genres, switched with the words at the top. A row's "See all"
+/// opens All on top instead, so Back comes back to the rows.
 struct LibraryTab: View {
     let library: Library
     @AppStorage(LibraryOpening.storageKey) private var opensOn = LibraryOpening.browse
@@ -43,6 +44,8 @@ struct LibraryTab: View {
         Group {
             switch view.wrappedValue {
             case .genres where LibraryOpening.hasGenres(library): LibraryGenresView(library: library, view: view)
+            case .browse where library.type == .audiobooks: BooksLibraryView(library: library, view: view)
+            case .all where library.type == .audiobooks: BookGridView(library: library, view: view)
             case .browse, .genres: LibraryBrowseView(library: library, view: view)
             case .all: LibraryView(library: library, viewSwitch: view)
             }
@@ -53,7 +56,7 @@ struct LibraryTab: View {
     }
 }
 
-/// "Browse", "All movies" (or "All shows") and "Genres" as quiet text at the top-left of both views. Plain words rather than
+/// "Browse", "All movies" (or "All shows", "All books") and "Genres" as quiet text at the top-left of both views. Plain words rather than
 /// pills, so it doesn't read as a second row of tabs; the sidebar's label above already names the library.
 struct LibraryViewSwitch: View {
     let library: Library
@@ -65,7 +68,12 @@ struct LibraryViewSwitch: View {
     static let topInset: CGFloat = 150
 
     var body: some View {
-        let all = library.type == .tvShows ? "All shows" : library.type == .homeVideos ? "All folders" : "All movies"
+        let all = switch library.type {
+        case .tvShows: "All shows"
+        case .homeVideos: "All folders"
+        case .audiobooks: "All books"
+        default: "All movies"
+        }
         ViewSwitch(choices: [(.browse, "Browse"), (.all, all)] + (LibraryOpening.hasGenres(library) ? [(.genres, "Genres")] : []),
                    selection: Binding { view == .genres && !LibraryOpening.hasGenres(library) ? .browse : view } set: { view = $0 },
                    focusChanged: focusChanged)

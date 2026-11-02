@@ -260,6 +260,11 @@ data class GenreCount(
     val count: Int,
     /** A backdrop from one of the library's titles in the genre, for its tile. Absent from servers before 0.54. */
     val backdrop: String? = null,
+    /**
+     * An audiobooks library's genre: up to three of its books' covers, newest first, for its tile. Absent from servers
+     * before 0.58 and from films' and shows' genres.
+     */
+    val covers: List<String>? = null,
 )
 
 @Serializable

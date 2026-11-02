@@ -138,6 +138,9 @@ public struct GenreCount: Codable, Sendable, Hashable {
     public let count: Int
     /// A backdrop from one of the library's titles in the genre. Absent from servers before 0.54.
     public var backdrop: String? = nil
+    /// An audiobooks library's genre: up to three of its books' covers, newest first, for its tile. Absent from
+    /// servers before 0.58 and from films' and shows' genres.
+    public var covers: [String]? = nil
 }
 
 public struct Paged<T: Codable & Sendable>: Codable, Sendable {

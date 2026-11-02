@@ -32,7 +32,7 @@ Author - Title [B0DPXK6Y7B].m4b                  an Audible id in the name
 
 ## Finding books
 
-The library's front page has **Continue listening**, **Next in series**, **Recently added**, your series and authors, and what you've finished. **All books** lists every book, with filters for what you haven't started, are part way through or have finished, and by narrator, length and language. **Genres**, **Series** and **Authors** list those; pick a genre to see its books.
+The library's front page has **Continue listening**, **Next in series**, **Recently added**, your series and authors, and what you've finished. **All books** lists every book, with filters for what you haven't started, are part way through or have finished, and by narrator, length and language. **Genres** has a tile for each genre with a few of its covers; pick one to see its books. **Series** and **Authors** list those. On the Apple TV, **Browse**, **All books** and **Genres** are at the top, as for movies and shows.
 
 Books you're part way through also show on Home, in **Continue watching or listening** with your movies, shows and podcast episodes. To keep them in their own **Continue listening** row instead, turn off **Books and podcasts in Continue watching** in **Settings › Podcasts & audiobooks** (on the web it's in **Settings › Home & browse**, and on the Apple TV in **Settings › Playback**).
 

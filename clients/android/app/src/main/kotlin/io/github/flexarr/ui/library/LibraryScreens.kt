@@ -542,24 +542,7 @@ private fun LibraryGenreGrid(library: Library, genres: List<GenreCount>) {
         modifier = Modifier.fillMaxSize(),
     ) {
         items(genres, key = { it.name }) { genre ->
-            val caption = genreCaption(library, genre)
-            Box(
-                Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(Tokens.radiusArt)).background(Flexarr.seat)
-                    .pressable({ navigator.openLibrary(library.id, LibrarySort.Title, genre.name) })
-                    .clearAndSetSemantics {
-                        contentDescription = "${genre.name}, $caption"
-                        role = Role.Button
-                    },
-            ) {
-                RemoteImage(genre.backdrop, 640, Modifier.matchParentSize()) {
-                    Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Flexarr.silver.copy(alpha = 0.3f), Flexarr.seat))))
-                }
-                Box(Modifier.matchParentSize().background(Brush.verticalGradient(0.5f to Flexarr.room.copy(alpha = 0.1f), 1f to Flexarr.room.copy(alpha = 0.92f))))
-                Column(Modifier.align(Alignment.BottomStart).padding(10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(genre.name, style = marquee(20).copy(fontWeight = FontWeight.ExtraBold), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(caption, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher, maxLines = 1)
-                }
-            }
+            GenreTile(genre, genreCaption(library, genre)) { navigator.openLibrary(library.id, LibrarySort.Title, genre.name) }
         }
     }
 }

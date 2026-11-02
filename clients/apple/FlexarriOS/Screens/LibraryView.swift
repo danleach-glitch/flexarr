@@ -322,7 +322,8 @@ private struct LibraryGenreGrid: View {
     }
 }
 
-/// A genre's tile: a backdrop from one of its titles (a wash without one), the name and how many there are.
+/// A genre's tile: a backdrop from one of its titles (a wash without one), the name and how many there are. An
+/// audiobook genre has its books' covers fanned instead (`BookGenreArt`).
 struct GenreTile: View {
     @Environment(AppModel.self) private var model
     let genre: GenreCount
@@ -332,8 +333,12 @@ struct GenreTile: View {
         Color.seat
             .aspectRatio(16 / 9, contentMode: .fit)
             .overlay {
-                RemoteImage(url: model.client?.imageURL(genre.backdrop, width: 640)) {
-                    LinearGradient(colors: [Color.silver.opacity(0.3), Color.seat], startPoint: .topLeading, endPoint: .bottomTrailing)
+                if let covers = genre.covers {
+                    BookGenreArt(covers: covers)
+                } else {
+                    RemoteImage(url: model.client?.imageURL(genre.backdrop, width: 640)) {
+                        LinearGradient(colors: [Color.silver.opacity(0.3), Color.seat], startPoint: .topLeading, endPoint: .bottomTrailing)
+                    }
                 }
             }
             .overlay {

@@ -344,14 +344,14 @@ extension Availability {
     }
 }
 
-/// A genre: a backdrop from its best-rated title, its name and how much of it there is beneath.
 /// A genre as a way in: a backdrop from one of its titles, its name and how many there are. Discover's genres, and a
-/// library's Genres view.
+/// library's Genres view. An audiobook genre has its books' covers fanned instead (`BookGenreArt`).
 struct GenreTile: View {
     @Environment(AppModel.self) private var model
     let name: String
     let caption: String
     let backdrop: String?
+    var covers: [String]? = nil
     var focus: FocusState<String?>.Binding?
     let action: () -> Void
 
@@ -362,8 +362,14 @@ struct GenreTile: View {
 
     var body: some View {
         ArtworkButton(ambient: .silver, focus: focus, focusID: name, action: action) {
-            RemoteImage(url: model.client?.imageURL(backdrop, width: 640)) {
-                LinearGradient(colors: [Color.silver.opacity(0.3), Color.seat], startPoint: .topLeading, endPoint: .bottomTrailing)
+            Group {
+                if let covers {
+                    BookGenreArt(covers: covers)
+                } else {
+                    RemoteImage(url: model.client?.imageURL(backdrop, width: 640)) {
+                        LinearGradient(colors: [Color.silver.opacity(0.3), Color.seat], startPoint: .topLeading, endPoint: .bottomTrailing)
+                    }
+                }
             }
             .frame(width: Self.width, height: Self.width * 9 / 16)
             .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
