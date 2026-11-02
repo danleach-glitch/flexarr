@@ -28,7 +28,9 @@ public sealed record ProfileDto(string Id, string Name, string Color, bool HasPi
     Guid? RequestShowsLibraryId = null, Guid? RequestFilmsLibraryId = null, IReadOnlyList<string>? LibraryOrder = null, bool AsksPin = false,
     bool AutoRequestWatchlist = false, int? MaxRatingAge = null, bool IsKids = false, bool AsksAdminPin = false,
     // What's left out of its menu beside the libraries (see NavigationRequest). Absent from servers before 0.58.
-    IReadOnlyList<string>? HiddenNavigation = null);
+    IReadOnlyList<string>? HiddenNavigation = null,
+    // The music library its music requests go to; null, Lidarr's first root folder. Absent from servers before 0.59.
+    Guid? RequestMusicLibraryId = null);
 
 /// <param name="MaxRatingAge">The age limit: 0 (U), 8 (PG), 12, 15 or 18; null for none.</param>
 /// <param name="IsKids">A child's profile; it needs an age limit.</param>
@@ -317,6 +319,30 @@ public static partial class ProfileEndpoints
 
             profile.RequestShowsLibraryId = request.ShowsLibraryId;
             profile.RequestFilmsLibraryId = request.FilmsLibraryId;
+            await db.SaveChangesAsync(ct);
+            return Results.Ok(ToDto(profile, current));
+        });
+
+        // Its own endpoint rather than a field of request-libraries, so an app that only knows shows and films can't clear it.
+        group.MapPut("/{id}/request-music-library", async (string id, Endpoints.MusicRequests.RequestMusicLibraryBody request, FlexarrDbContext db, CurrentProfile current,
+            CancellationToken ct) =>
+        {
+            if (id != current.Id && !current.IsAdmin)
+            {
+                return Results.Problem("Only the main profile can choose for someone else.", statusCode: 403);
+            }
+
+            if (await db.Profiles.FindAsync([id], ct) is not { } profile)
+            {
+                return Results.NotFound();
+            }
+
+            if (request.LibraryId is { } chosen && !await db.Libraries.IgnoreQueryFilters().AnyAsync(l => l.Id == chosen && l.Type == LibraryType.Music, ct))
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["libraryId"] = ["That isn’t a music library."] });
+            }
+
+            profile.RequestMusicLibraryId = request.LibraryId;
             await db.SaveChangesAsync(ct);
             return Results.Ok(ToDto(profile, current));
         });
@@ -636,7 +662,7 @@ public static partial class ProfileEndpoints
         new(p.Id, p.Name, p.Color, p.PinHash is not null, p.IsMain, p.Id == current.Id, p.HiddenLibraryIds, current.ImageUrlFor(p), p.RequestShowsLibraryId,
             p.RequestFilmsLibraryId, p.LibraryOrder, current.AsksPinFor(p), p.AutoRequestWatchlist, p.MaxRatingAge,
             p.IsKids, current.AsksAdminPinFor(p),
-            p.IsKids ? [] : p.HiddenNavigation);
+            p.IsKids ? [] : p.HiddenNavigation, p.RequestMusicLibraryId);
 
 
     /// <summary>
