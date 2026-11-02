@@ -11,6 +11,7 @@ import {
   imageUrl,
  
   type BookFilters,
+  type BookShelves,
   type ItemSummary,
   type Library,
   type Paged,
@@ -18,6 +19,7 @@ import {
 import { AsyncButton } from '../components/AsyncButton'
 import { BookPersonCard, BookSeriesCard } from '../components/BookCards'
 import { PosterCard } from '../components/Cards'
+import { Hero } from '../components/Hero'
 import { ChevronLeft } from '../components/icons'
 import { Row } from '../components/Row'
 import { ScanProgress } from '../components/ScanProgress'
@@ -51,22 +53,26 @@ export function BooksLibrary({ library }: { library: Library }) {
   const genre = params.get('genre')
   const view: View = asking === 'genre' && !genre ? 'genres' : asking
   if (view === 'genre' && genre) return <GenrePage library={library} genre={genre} />
+  const heading = (
+    <>
+      <h1 className="library-title">{library.name}</h1>
+      <nav className="view-switch" aria-label={`${library.name} views`}>
+        {views.map((v) => (
+          <Link key={v.view} to={v.view === 'browse' ? `/library/${library.id}` : `/library/${library.id}?view=${v.view}`} aria-current={view === v.view ? 'page' : undefined}>
+            {v.label}
+          </Link>
+        ))}
+      </nav>
+    </>
+  )
+  // Browse with a hero: the heading sits over it, as a film or music library's does.
+  if (view === 'browse') return <Shelves key={library.id} library={library} heading={heading} />
   return (
     <div className="library-page books-library">
       <header className="library-header">
-        <div className="library-heading">
-          <h1 className="library-title">{library.name}</h1>
-          <nav className="view-switch" aria-label={`${library.name} views`}>
-            {views.map((v) => (
-              <Link key={v.view} to={v.view === 'browse' ? `/library/${library.id}` : `/library/${library.id}?view=${v.view}`} aria-current={view === v.view ? 'page' : undefined}>
-                {v.label}
-              </Link>
-            ))}
-          </nav>
-        </div>
+        <div className="library-heading">{heading}</div>
       </header>
       {library.scan && <ScanProgress scan={library.scan} />}
-      {view === 'browse' && <Shelves key={library.id} library={library} />}
       {view === 'all' && <AllBooks key={library.id} library={library} view="all" />}
       {view === 'series' && <SeriesList key={library.id} library={library} />}
       {view === 'genres' && <Genres key={library.id} library={library} />}
@@ -75,11 +81,35 @@ export function BooksLibrary({ library }: { library: Library }) {
   )
 }
 
-function Shelves({ library }: { library: Library }) {
+/** Browse: the hero (servers from 0.59, with books to show) under the heading, then the shelves. */
+function Shelves({ library, heading }: { library: Library; heading: ReactNode }) {
   const { data, error, reload } = useApi((signal) => getBookShelves(library.id, signal), [library.id, library.itemCount])
   useWatchedChanges(reload)
-  if (error) return <PageError error={error} onRetry={reload} />
-  if (!data) return <div className="rows" aria-busy="true" />
+  const plain = (content: ReactNode) => (
+    <div className="library-page books-library">
+      <header className="library-header">
+        <div className="library-heading">{heading}</div>
+      </header>
+      {library.scan && <ScanProgress scan={library.scan} />}
+      {content}
+    </div>
+  )
+  if (error) return plain(<PageError error={error} onRetry={reload} />)
+  if (!data) return plain(<div className="rows" aria-busy="true" />)
+  const shelves = <ShelfRows library={library} data={data} />
+  if (!data.featured?.length) return plain(shelves)
+  return (
+    <>
+      <Hero items={data.featured} overviews={data.featuredOverviews} top={heading} />
+      <div className="library-page books-library">
+        {library.scan && <ScanProgress scan={library.scan} />}
+        {shelves}
+      </div>
+    </>
+  )
+}
+
+function ShelfRows({ library, data }: { library: Library; data: BookShelves }) {
   const all = `/library/${library.id}?view=all`
   const empty = [data.continueListening, data.nextInSeries, data.recentlyAdded, data.finished].every((s) => s.length === 0) && data.series.length === 0
   if (empty) return <p className="page-message muted">{library.scan ? 'Books appear here as the scan finds them.' : 'No books yet.'}</p>
