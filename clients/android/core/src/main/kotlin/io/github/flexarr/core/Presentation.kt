@@ -81,7 +81,43 @@ val ItemSummary.listeningSubtitle: String?
 val ItemSummary.releaseYear: Int?
     get() = year ?: releaseDate?.take(4)?.toIntOrNull() ?: airDate?.take(4)?.toIntOrNull()
 
-/** Short facts for heroes and detail headers: year, runtime or seasons, rating, score, resolution; [scores] false (kids profiles) leaves the score out. */
+/**
+ * IMDb and Rotten Tomatoes, shown beside their marks after the facts (docs/design.md › Scores). Older servers only
+ * send the critics' number, whose tomato then follows the score.
+ */
+val ItemSummary.scores: Scores
+    get() = Scores.of(imdbRating, rottenTomatoes ?: criticRating?.let { RottenTomatoes(Math.round(it).toInt()) })
+
+/** A title's two scores: IMDb out of 10 and Rotten Tomatoes critics with its tomato. */
+data class Scores(val imdb: Double?, val rottenTomatoes: RottenTomatoes?) {
+    val isEmpty: Boolean get() = imdb == null && rottenTomatoes == null
+
+    /** "7.8", as beside IMDb's mark. */
+    val imdbText: String? get() = imdb?.let { String.format(Locale.ROOT, "%.1f", it) }
+
+    /** For TalkBack: "IMDb 7.8 out of 10". */
+    val imdbLabel: String? get() = imdbText?.let { "IMDb $it out of 10" }
+
+    /** For TalkBack: "Rotten Tomatoes 92%, Certified Fresh". */
+    val rottenTomatoesLabel: String? get() = rottenTomatoes?.let { "Rotten Tomatoes ${it.score}%, ${it.state.words}" }
+
+    companion object {
+        /** The tomato follows the score when the server didn't say (or said something this app doesn't know). */
+        fun of(imdb: Double?, rottenTomatoes: RottenTomatoes?) = Scores(
+            imdb,
+            rottenTomatoes?.let {
+                if (it.state != RottenTomatoesState.Unknown) it
+                else it.copy(state = if (it.score >= 60) RottenTomatoesState.Fresh else RottenTomatoesState.Rotten)
+            },
+        )
+    }
+}
+
+/**
+ * Short facts for heroes and detail headers: year, runtime or seasons, rating, a plain score, resolution. [scores]
+ * false (kids profiles) leaves the plain score out, and so does a title with IMDb or Rotten Tomatoes to show beside
+ * their marks instead.
+ */
 fun ItemSummary.facts(scores: Boolean = true): List<String> =
     buildList {
         releaseYear?.let { add(it.toString()) }
@@ -94,7 +130,7 @@ fun ItemSummary.facts(scores: Boolean = true): List<String> =
             else -> (runtimeMinutes?.let(Format::runtime) ?: durationSeconds?.let(Format::runtime))?.let(::add)
         }
         contentRating?.takeIf { it.isNotEmpty() }?.let(::add)
-        if (scores) communityRating?.takeIf { it > 0 }?.let { add(String.format(Locale.ROOT, "%.1f", it)) }
+        if (scores && this@facts.scores.isEmpty) communityRating?.takeIf { it > 0 }?.let { add(String.format(Locale.ROOT, "%.1f", it)) }
         resolution?.takeIf { it.isNotEmpty() }?.let(::add)
     }
 

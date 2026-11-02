@@ -99,8 +99,14 @@ data class ExternalDetail(
     val availability: Availability = Availability.Unknown,
     val libraryItemId: String? = null,
     val recommendations: List<ExternalTitle> = emptyList(),
+    /** The tomato for [criticScore]. Absent from servers before 0.59. */
+    val rottenTomatoesState: RottenTomatoesState? = null,
 ) {
     val isShow: Boolean get() = mediaType == "tv"
+
+    /** IMDb and Rotten Tomatoes, as on a library title's page. */
+    val scores: Scores
+        get() = Scores.of(imdbRating, criticScore?.let { RottenTomatoes(it, rottenTomatoesState ?: RottenTomatoesState.Unknown) })
 
     /** The title as Discover's rows know it, for showing the page's header before the rest arrives. */
     val summary: ExternalTitle

@@ -186,6 +186,8 @@ data class ItemSummary(
     val artwork: Artwork,
     val accentColor: String? = null,
     val communityRating: Double? = null,
+    /** Rotten Tomatoes critics, percent: the number behind [rottenTomatoes], and all servers before 0.59 send. */
+    val criticRating: Double? = null,
     val contentRating: String? = null,
     val runtimeMinutes: Int? = null,
     val releaseDate: String? = null,
@@ -205,7 +207,23 @@ data class ItemSummary(
     val trackArtist: String? = null,
     /** A book's authors, narrator, series and length. Absent from servers before 0.58. */
     val book: BookSummary? = null,
+    /** IMDb's rating out of 10, for movies and shows. Absent from servers before 0.59. */
+    val imdbRating: Double? = null,
+    /** The Rotten Tomatoes critics' score and its tomato. Absent from servers before 0.59 ([criticRating] has the number). */
+    val rottenTomatoes: RottenTomatoes? = null,
 )
+
+/** Rotten Tomatoes' tomato for a critics' score. [Unknown] (a newer server's) is read from the score instead. */
+@Serializable(with = RottenTomatoesState.Serializer::class)
+enum class RottenTomatoesState(override val raw: String, val words: String) : ForwardCompatibleEnum {
+    Fresh("Fresh", "Fresh"), Rotten("Rotten", "Rotten"), CertifiedFresh("CertifiedFresh", "Certified Fresh"), Unknown("", "Rotten Tomatoes");
+
+    object Serializer : ForwardCompatibleEnumSerializer<RottenTomatoesState>("RottenTomatoesState", entries, Unknown)
+}
+
+/** A Rotten Tomatoes critics' score, percent, and its tomato. */
+@Serializable
+data class RottenTomatoes(val score: Int, val state: RottenTomatoesState = RottenTomatoesState.Unknown)
 
 @Serializable(with = VideoRange.Serializer::class)
 enum class VideoRange(override val raw: String, val label: String) : ForwardCompatibleEnum {
