@@ -8,3 +8,6 @@ unreleased=$(git rev-list --count "$tag..origin/main" 2>/dev/null)
 ahead=$(git rev-list --count origin/main..HEAD 2>/dev/null)
 echo "Flexarr workflow (see CLAUDE.md): branch ${branch:-detached}, ${ahead:-?} commit(s) ahead of main; main has ${unreleased:-?} commit(s) since ${tag:-the last release}."
 echo "Finish a branch with /land (never releases). Release only when the user asks (/release); offer it once a batch has built up. /deploy puts main on the Mini, /devices installs the Apple apps."
+# Delete simulators and emulators left by branches whose worktree has gone (quietly, in the background).
+[ -x scripts/claude/sims.sh ] && command -v xcrun >/dev/null && (scripts/claude/sims.sh prune >/dev/null 2>&1 &)
+exit 0
