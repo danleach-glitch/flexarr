@@ -31,6 +31,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - A series page lists the books of it that Audible has and you don't, under **Not in your library**, with their number in the series.
 
 ### Movies and shows
+- On the web, the main profile can **Edit…** a movie's or show's details from its **⋯**: its title, how it sorts, original title, year, description, genres and studio or network. Edits are locked so refreshes keep them, and **Back to automatic** hands them back. **Fix match** to a different title replaces them, and says so first.
 - A show's page lists what you don't have, under **Not in your library**, in every app: seasons you have none of, with **Request** to ask Seerr for just that season, and the episodes missing from seasons you have, which the main profile can **Search** for with Sonarr. **Coming up** lists the next episodes with the day each airs, and a season that's short says so on its tab (**8 of 10**). Kids profiles don't see it.
 - On the web, movie, show, season and episode cards have a play button when you point at them, as albums and books do. A show or season plays its next episode.
 - Movie and show pages show their **IMDb** and **Rotten Tomatoes** scores beside each one's logo, with the tomato for Certified Fresh, Fresh or Rotten, in every app. The Home hero and Discover's title pages show them too. Kids profiles don't see scores.
@@ -48,6 +49,8 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On the web, a genre found by search opens that genre in its own library: a music genre's albums, a books genre's page, or the movies or shows of that genre. A genre in more than one library is listed once for each.
 
 ### Music
+- On the web, the main profile can **Fix match…** an album or artist from its **⋯**, choosing from what Lidarr has or from Deezer (no Lidarr needed), and pick which cover to use. Nothing changes in Lidarr, and refreshes keep the choice. **Edit…** on an album changes its title, year, type and genres.
+- **Library health** checks music too: albums without a cover (with **Fix match**), the same album twice, albums with a track twice, and one artist under two spellings. **Merge** makes two copies of an album, or an artist's spellings, one in Flexarr, and new tracks land in the one kept; no files are moved or deleted. Albums count towards the health score.
 - On Android and Android TV, albums and artists in Home's rows look as they do in the music library (square covers, round artists), and pressing and holding one no longer offers *Mark as watched*.
 - A music library's page now works like Movies and TV on the web, iPhone, iPad, Apple TV, Android and Android TV. A picture across the top starts with the album you played last, and **Resume** carries on from the next track. Then come artists you play, with **Play** and **Radio**, and the newest albums.
 - **Artists**, **Albums** and **Genres** sit beside **Browse** at the top. Albums lists every album, sorted A to Z, by date added or by year. Each genre opens its albums, and **Play** or **Shuffle** plays up to 200 of its tracks.
