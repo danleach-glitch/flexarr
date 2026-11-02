@@ -180,6 +180,8 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     private var lastRecovery = 0L
     /** What was played before the current title in this sitting, for Previous episode (on shuffle, the server can't say). */
     private val trail = mutableListOf<ItemSummary>()
+    /** The title this sitting was started with (what Play was pressed on), whatever it has moved on to since. */
+    private var startedWith: String? = null
     /** Playing a download from this phone, with no session: what's watched goes to the downloads, for the server later. */
     var isOffline by mutableStateOf(false)
         private set
@@ -254,6 +256,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     fun start(itemId: String, fromBeginning: Boolean = false, shuffle: Boolean = false, startAt: Double? = null) {
         // A new sitting: nothing before it for Previous episode.
         trail.clear()
+        startedWith = itemId
         play(itemId, fromBeginning, shuffle, startAt)
     }
 
@@ -282,6 +285,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
      */
     fun startOffline(downloadId: String) {
         trail.clear()
+        startedWith = model.downloads.byId(downloadId)?.item?.id
         playOffline(downloadId)
     }
 
@@ -1087,6 +1091,12 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         val session = info?.sessionId
         val at = player.currentPosition / 1000.0
         info?.let { if (model.recordsHistory && isPastCredits(it, at)) ReviewPrompt.titleFinished(closing = true) }
+        val started = startedWith
+        info?.let {
+            if (started != null) {
+                model.videoEnded(PlaybackEnding(started, it.item.id, model.recordsHistory && isPastCredits(it, at), it.next?.id))
+            }
+        }
         player.release()
         if (isOffline) {
             info?.let { if (model.recordsHistory) recordOffline(it, at, ended = false) }

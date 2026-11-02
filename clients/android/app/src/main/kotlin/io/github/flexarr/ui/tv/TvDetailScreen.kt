@@ -102,6 +102,8 @@ import io.github.flexarr.ui.theme.FlexarrIcons
 fun TvDetailScreen(model: AppModel, id: String) {
     val client = model.client ?: return
     var detail by remember(id) { mutableStateOf<ItemDetail?>(null) }
+    // The episode shown now, once watching from this page has moved it on from [id].
+    var shownId by remember(id) { mutableStateOf<String?>(null) }
     var error by remember(id) { mutableStateOf<String?>(null) }
     var nextUp by remember(id) { mutableStateOf<ItemSummary?>(null) }
     var similar by remember(id) { mutableStateOf(emptyList<ItemSummary>()) }
@@ -113,7 +115,15 @@ fun TvDetailScreen(model: AppModel, id: String) {
 
     LaunchedEffect(id, model.watchStateVersion, attempt) {
         try {
-            var loaded = client.item(id)
+            var loaded = client.item(shownId ?: id)
+            // Back from watching an episode started here: on to the next one (or the one it stopped part way through).
+            val target = if (loaded.item.kind == MediaKind.Episode) model.takeEnding(startedWith = loaded.item.id)?.moveOn else null
+            if (target != null) {
+                runCatching { client.item(target) }.getOrNull()?.takeIf { it.item.kind == MediaKind.Episode }?.let {
+                    shownId = target
+                    loaded = it
+                }
+            }
             // A season opens as its show, with that season selected.
             val parent = loaded.item.parentId
             if (loaded.item.kind == MediaKind.Season && parent != null) {

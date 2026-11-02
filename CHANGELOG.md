@@ -5,7 +5,8 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ## Unreleased
 
 ### Playback
-- On the Apple TV, iPhone and iPad, finishing an episode now takes its page on to the next one, whether you played it from the show's page or from the episode's own page, instead of still offering the episode you just watched.
+- Finishing an episode now takes the page you played it from on to the next one, in every app: a show's page offers the next episode, and an episode's own page becomes the next episode's, instead of still offering the one you just watched. Stopping part way through an episode the player had moved on to shows that one.
+- On the web, closing the player goes back to the page you pressed Play on, as in the apps.
 
 ### Audiobooks
 - On iPhone, iPad, Android phones and the Apple TV, an audiobooks library's **Genres** are tiles showing a few of each genre's covers, like the genres of movies and TV shows (and as on the web).

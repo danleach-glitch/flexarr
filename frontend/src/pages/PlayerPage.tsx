@@ -41,6 +41,7 @@ import { usePolling } from '../hooks/usePolling'
 import { hasSoundGraph, MAX_AUDIO_DELAY_SECONDS, useSoundChain } from '../hooks/soundChain'
 import { useAgeLimits } from '../hooks/sessionContext'
 import { announceWatched } from '../hooks/watched'
+import { recordEnding, takeEnding } from '../hooks/playbackEnding'
 import { episodeCode, formatClock } from '../lib/format'
 import { belongsToFocused } from '../lib/focusedKeys'
 import { mediaErrorRecovery } from '../lib/hlsRecovery'
@@ -65,6 +66,9 @@ const speeds = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2] as const
 
 /** The countdown between one episode finishing and the next starting. */
 const UP_NEXT_SECONDS = 5
+
+/** Watched this far through (with no credits marked earlier), the server counts it watched. */
+const WATCHED_SHARE = 0.92
 
 /**
  * The next episode's session, started during the credits so it opens at once. Kept outside the page so it survives
@@ -186,6 +190,9 @@ export function PlayerPage() {
   // The episode actually playing, once known: a shuffle starts from the show, and restarts (another audio track, a
   // recovery) must carry on with this episode rather than pick a new one.
   const playingItem = useRef<string | undefined>(undefined)
+  // What Play was pressed on, whatever this sitting has moved on to since (Next replaces the page, keeping this).
+  const startedWith = useRef(id)
+  const leaving = useRef(false)
 
   const container = useRef<HTMLDivElement>(null)
   const video = useRef<HTMLVideoElement>(null)
@@ -703,9 +710,30 @@ export function PlayerPage() {
     if (document.fullscreenElement) void document.exitFullscreen()
     else void container.current?.requestFullscreen?.()
   }
-  const exit = () => {
-    const back = info?.ancestors[0]?.id ?? info?.item.id
-    navigate(back ? `/item/${info?.item.kind === 'Episode' ? info.item.id : back}` : '/')
+  // Back to where Play was pressed, as the apps' players close. That page moves on if it showed the episode just
+  // watched (see takeEnding).
+  const exit = () => void leave()
+  const leave = async () => {
+    if (leaving.current) return
+    leaving.current = true
+    const at = video.current?.currentTime ?? time
+    const watched = finished || at >= Math.min(credits?.start ?? Infinity, duration > 0 ? duration * WATCHED_SHARE : Infinity)
+    const ending = info ? { startedWith: startedWith.current, stoppedOn: info.item.id, watched, next: info.next?.id ?? null } : undefined
+    if (ending) recordEnding(ending)
+    // The server has where it stopped before the page behind loads again: asked sooner, a show's next up was still
+    // the episode just watched. Not long, though, if the server is slow to answer.
+    if (session.current && at > 0) {
+      await Promise.race([reportProgress(session.current, at, true).catch(() => undefined), new Promise((r) => setTimeout(r, 2000))])
+    }
+    if ((window.history.state as { idx?: number } | null)?.idx) {
+      navigate(-1)
+    } else {
+      // Opened straight from a link: the episode's page (moved on, as above), else its show's or the film's.
+      const back = info?.ancestors[0]?.id ?? info?.item.id
+      const episode = ending && info?.item.kind === 'Episode' ? ((ending.watched && ending.next) || ending.stoppedOn) : undefined
+      if (ending) takeEnding(ending.startedWith)
+      navigate(episode ? `/item/${episode}` : back ? `/item/${back}` : '/')
+    }
   }
 
   function chooseSubtitle(key: string | null) {

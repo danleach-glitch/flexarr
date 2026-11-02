@@ -8,6 +8,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import io.github.flexarr.core.FlexarrClient
+import io.github.flexarr.player.PlaybackEnding
 import io.github.flexarr.core.FlexarrException
 import io.github.flexarr.core.LiveTvStatus
 import io.github.flexarr.core.liveTvStatus
@@ -1081,6 +1082,20 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
             runCatching { client.removeFromUpNext(episodeId) }
             PodcastWidgets.refresh(context)
         }
+    }
+
+    /** How the last video ended, so the page it was played from can move on (see [PlaybackEnding]). */
+    private var lastEnding: PlaybackEnding? = null
+
+    fun videoEnded(ending: PlaybackEnding) {
+        lastEnding = ending
+    }
+
+    /** The last video's ending, if it was started with [id] a moment ago; taken, so only one page moves on with it. */
+    fun takeEnding(startedWith: String): PlaybackEnding? {
+        val ending = lastEnding?.takeIf { it.startedWith == startedWith && System.currentTimeMillis() - it.at < 60_000 } ?: return null
+        lastEnding = null
+        return ending
     }
 
     fun watchStateChanged() {

@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { PageError } from '../components/PageStatus'
 import { openAddToCollection } from '../components/AddToCollection'
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router'
@@ -33,6 +33,7 @@ import { WatchlistButton } from '../components/WatchlistButton'
 import { useAgeLimits, useSession } from '../hooks/sessionContext'
 import { announceWatched } from '../hooks/watched'
 import { useApi } from '../hooks/useApi'
+import { moveOn, takeEnding } from '../hooks/playbackEnding'
 import { AlbumPage, ArtistPage } from './MusicPages'
 import { BookPage } from './BookPage'
 import {
@@ -52,6 +53,14 @@ export function ItemPage() {
   const [params] = useSearchParams()
   // A series comes with its Up Next and the season to show (picking another season later fetches just that one).
   const { data, error, reload } = useApi((signal) => getItemPage(id, params.get('season'), signal), [id, version])
+  const navigate = useNavigate()
+  // Back from watching an episode started here: on to the next one (or the one it stopped part way through).
+  useEffect(() => {
+    if (data?.item.kind !== 'Episode' || data.item.id !== id) return
+    const ending = takeEnding(id)
+    const target = ending && moveOn(ending)
+    if (target) navigate(`/item/${target}`, { replace: true })
+  }, [data, id, navigate])
 
   if (error) return <PageError error={error} onRetry={reload} />
   if (!data) return <div className="detail-hero detail-loading" aria-busy="true" />
