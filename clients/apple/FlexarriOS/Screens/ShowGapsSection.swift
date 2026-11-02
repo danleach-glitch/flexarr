@@ -15,7 +15,6 @@ struct ShowGapsSection: View {
     @State private var asked: Set<Int> = []
     @State private var searched: Set<Int> = []
     @State private var busy = false
-    @State private var choosing: MissingSeason?
     @State private var said: String?
 
     var body: some View {
@@ -44,37 +43,12 @@ struct ShowGapsSection: View {
                     SectionHeading(title: "Coming up")
                     VStack(alignment: .leading, spacing: 8) {
                         ForEach(gaps.upcoming) { episode in
-                            HStack(alignment: .firstTextBaseline, spacing: 10) {
-                                Text(episode.code)
-                                    .font(.subheadline.weight(.semibold).monospacedDigit())
-                                    .foregroundStyle(Color.screen)
-                                Text(episode.title ?? "")
-                                    .font(.subheadline)
-                                    .foregroundStyle(Color.screen.opacity(0.85))
-                                    .lineLimit(1)
-                                Spacer(minLength: 8)
-                                if let airs = episode.airs() {
-                                    Text(airs).font(.subheadline).foregroundStyle(Color.usher)
-                                }
-                            }
-                            .accessibilityElement(children: .combine)
+                            episodeLine(episode, detail: episode.airs())
                         }
                     }
                     .padding(.horizontal, Layout.edge)
                 }
             }
-        }
-        .confirmationDialog(choosing?.title ?? "", isPresented: Binding(get: { choosing != nil }, set: { if !$0 { choosing = nil } }),
-                            titleVisibility: .visible, presenting: choosing) { season in
-            switch gaps.action(for: season) {
-            case .request:
-                Button { Task { await request(season) } } label: { Label("Request", systemImage: Symbol.request) }
-            case .search:
-                Button { Task { await search(season.seasonNumber) } } label: { Label("Search", systemImage: Symbol.search) }
-            default:
-                EmptyView()
-            }
-            Button("Cancel", role: .cancel) {}
         }
         .banner($said)
     }
@@ -83,70 +57,70 @@ struct ShowGapsSection: View {
         asked.contains(season.seasonNumber) ? .requested : searched.contains(season.seasonNumber) ? .requested : gaps.action(for: season)
     }
 
+    /// Poster, name and episodes, with Request (or Search) under it, as on the web.
     private func seasonCard(_ season: MissingSeason) -> some View {
         let width = Layout.posterWidth(sizeClass)
         let action = state(season)
-        return Button {
-            if action == .request || action == .search { choosing = season }
-        } label: {
-            VStack(alignment: .leading, spacing: 6) {
-                Color.seat
-                    .aspectRatio(2 / 3, contentMode: .fit)
-                    .overlay {
-                        RemoteImage(url: model.client?.imageURL(season.poster, width: 342)) {
-                            Text(season.title)
-                                .font(.marquee(18, weight: .bold, scales: false))
-                                .foregroundStyle(Color.screen.opacity(0.8))
-                                .multilineTextAlignment(.center)
-                                .padding(8)
-                        }
+        return VStack(alignment: .leading, spacing: 6) {
+            Color.seat
+                .aspectRatio(2 / 3, contentMode: .fit)
+                .overlay {
+                    RemoteImage(url: model.client?.imageURL(season.poster, width: 342)) {
+                        Text(season.title)
+                            .font(.marquee(18, weight: .bold, scales: false))
+                            .foregroundStyle(Color.screen.opacity(0.8))
+                            .multilineTextAlignment(.center)
+                            .padding(8)
                     }
-                    .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
-                    .opacity(action == .requested ? 0.55 : 1)
-                    .overlay(alignment: .bottomTrailing) {
-                        if action == .request || action == .search {
-                            Image(systemName: action == .request ? Symbol.request : Symbol.search)
-                                .font(.caption.weight(.bold))
-                                .foregroundStyle(Color.screen)
-                                .padding(7)
-                                .background(Circle().fill(.black.opacity(0.55)))
-                                .padding(6)
-                        }
-                    }
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(season.title)
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(Color.screen.opacity(0.9))
-                    Text(caption(season, action))
-                        .font(.caption)
-                        .foregroundStyle(Color.usher)
                 }
-                .lineLimit(1)
+                .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(season.title)
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(Color.screen.opacity(0.9))
+                Text(caption(season))
+                    .font(.caption)
+                    .foregroundStyle(Color.usher)
             }
-            .frame(width: width)
-            .contentShape(Rectangle())
+            .lineLimit(1)
+            .accessibilityElement(children: .combine)
+            switch action {
+            case .request:
+                actionButton("Request", symbol: Symbol.request, label: "Request \(season.title)") { await request(season) }
+            case .search:
+                actionButton("Search", symbol: Symbol.search, label: "Search for \(season.title)") { await search(season.seasonNumber) }
+            case .requested:
+                Text(searched.contains(season.seasonNumber) ? "Searching" : "Requested")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(Color.usher)
+            default:
+                EmptyView()
+            }
         }
-        .buttonStyle(CardButtonStyle())
-        .disabled(busy || !(action == .request || action == .search))
-        .accessibilityElement(children: .combine)
-        .accessibilityHint(action == .request ? "Requests it" : action == .search ? "Asks Sonarr to search for it" : "")
+        .frame(width: width, alignment: .leading)
     }
 
-    private func caption(_ season: MissingSeason, _ action: MissingSeasonAction) -> String {
+    private func actionButton(_ title: String, symbol: String, label: String, run: @escaping () async -> Void) -> some View {
+        Button { Task { await run() } } label: { Label(title, systemImage: symbol) }
+            .buttonStyle(.bordered)
+            .tint(Color.screen)
+            .controlSize(.small)
+            .disabled(busy)
+            .accessibilityLabel(label)
+    }
+
+    private func caption(_ season: MissingSeason) -> String {
         [season.episodes > 0 ? (season.episodes == 1 ? "1 episode" : "\(season.episodes) episodes") : nil,
-         season.year.map(String.init),
-         action == .requested ? "Requested" : nil].compactMap(\.self).joined(separator: ", ")
+         season.year.map(String.init)].compactMap(\.self).joined(separator: ", ")
     }
 
     private func missingEpisodes(season: Int, episodes: [ShowEpisode]) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
-                Text("Season \(season)")
+                Text("Season \(season): \(episodes.count == 1 ? "1 episode" : "\(episodes.count) episodes")")
                     .font(.headline)
                     .foregroundStyle(Color.screen)
-                Text(episodes.count == 1 ? "1 episode missing" : "\(episodes.count) episodes missing")
-                    .font(.subheadline)
-                    .foregroundStyle(Color.usher)
                 Spacer()
                 if gaps.canSearch && gaps.source == "sonarr" {
                     if searched.contains(season) {
@@ -162,13 +136,28 @@ struct ShowGapsSection: View {
                 }
             }
             ForEach(episodes) { episode in
-                Text([episode.code, episode.title].compactMap(\.self).joined(separator: " · "))
-                    .font(.subheadline)
-                    .foregroundStyle(Color.screen.opacity(0.8))
-                    .lineLimit(1)
+                episodeLine(episode, detail: episode.aired())
             }
         }
         .padding(.horizontal, Layout.edge)
+    }
+
+    /// "S2E3  Title  12 Nov": the code, the title (or "Episode 3") and a date, as on the web.
+    private func episodeLine(_ episode: ShowEpisode, detail: String?) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Text(episode.code)
+                .font(.subheadline.weight(.semibold).monospacedDigit())
+                .foregroundStyle(Color.usher)
+            Text(episode.title ?? "Episode \(episode.episodeNumber)")
+                .font(.subheadline)
+                .foregroundStyle(Color.screen.opacity(0.85))
+                .lineLimit(1)
+            Spacer(minLength: 8)
+            if let detail {
+                Text(detail).font(.subheadline).foregroundStyle(Color.usher)
+            }
+        }
+        .accessibilityElement(children: .combine)
     }
 
     private func request(_ season: MissingSeason) async {

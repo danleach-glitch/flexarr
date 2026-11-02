@@ -362,8 +362,15 @@ struct DetailView: View {
             ScrollView(.horizontal) {
                 HStack(spacing: 18) {
                     ForEach(seasonList) { season in
-                        // "Season 1  8 of 10" when some of its aired episodes aren't in the library.
-                        Button(gaps.countLabel(season: season.seasonNumber).map { "\(season.title)  \($0)" } ?? season.title) { selectedSeasonID = season.id }
+                        // "Season 1" with a quieter "8 of 10" beside it when some of its aired episodes aren't in the library.
+                        Button { selectedSeasonID = season.id } label: {
+                            HStack(spacing: 10) {
+                                Text(season.title)
+                                if let count = gaps.countLabel(season: season.seasonNumber) {
+                                    Text(count).font(.system(size: 22, weight: .medium)).opacity(0.7)
+                                }
+                            }
+                        }
                             .buttonStyle(PillButtonStyle(selected: season.id == selectedSeasonID, ambient: ambient))
                             .focused($focusedSeason, equals: season.id)
                     }

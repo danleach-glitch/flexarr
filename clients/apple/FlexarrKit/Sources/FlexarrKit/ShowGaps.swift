@@ -53,10 +53,16 @@ public struct ShowEpisode: Codable, Sendable, Hashable, Identifiable {
     public func airs(now: Date = Date(), calendar: Calendar = .current, locale: Locale = .current) -> String? {
         guard let airDate else { return nil }
         if calendar.isDate(airDate, inSameDayAs: now) { return "Airs today" }
+        return aired(now: now, calendar: calendar, locale: locale).map { "Airs " + $0 }
+    }
+
+    /// When a missing episode aired: "12 Nov", or "12 Nov 2021" when it wasn't this year.
+    public func aired(now: Date = Date(), calendar: Calendar = .current, locale: Locale = .current) -> String? {
+        guard let airDate else { return nil }
         let style = calendar.component(.year, from: airDate) == calendar.component(.year, from: now)
             ? Date.FormatStyle(date: .omitted, time: .omitted).day().month(.abbreviated)
             : Date.FormatStyle(date: .omitted, time: .omitted).day().month(.abbreviated).year()
-        return "Airs " + airDate.formatted(style.locale(locale))
+        return airDate.formatted(style.locale(locale))
     }
 }
 
@@ -148,10 +154,10 @@ public struct MissingBook: Codable, Sendable, Hashable, Identifiable {
     public let cover: String?
 
     public var id: String { asin }
-    /// "Book 3 · 2021".
+    /// "Book 3, 2021".
     public var caption: String? {
         let parts = [sequence.map { "Book \($0)" }, year.map(String.init)].compactMap(\.self)
-        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+        return parts.isEmpty ? nil : parts.joined(separator: ", ")
     }
 
     public init(asin: String, title: String, sequence: String?, authors: [String], year: Int?, cover: String?) {

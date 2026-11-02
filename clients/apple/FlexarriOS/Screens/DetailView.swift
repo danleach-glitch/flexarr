@@ -355,7 +355,7 @@ struct DetailView: View {
                     ScrollView(.horizontal) {
                         HStack(spacing: 8) {
                             ForEach(seasonList) { season in
-                                Button(seasonLabel(season)) { selectedSeasonID = season.id }
+                                Button { selectedSeasonID = season.id } label: { seasonPillLabel(season) }
                                     .buttonStyle(PillButtonStyle(selected: season.id == selectedSeasonID, ambient: ambient))
                                     .id(season.id)
                             }
@@ -366,7 +366,7 @@ struct DetailView: View {
                     .onAppear { if let selectedSeasonID { proxy.scrollTo(selectedSeasonID, anchor: .center) } }
                 }
             } else if let only = seasonList.first {
-                SectionHeading(title: seasonLabel(only))
+                SectionHeading(title: gaps.countLabel(season: only.seasonNumber).map { "\(only.title): \($0)" } ?? only.title)
             }
 
             if let season = selectedSeason {
@@ -378,9 +378,14 @@ struct DetailView: View {
         .task(id: selectedSeasonID) { await loadSelectedSeason() }
     }
 
-    /// "Season 1", or "Season 1 · 8 of 10" when some of its aired episodes aren't in the library.
-    private func seasonLabel(_ season: ItemSummary) -> String {
-        gaps.countLabel(season: season.seasonNumber).map { "\(season.title) · \($0)" } ?? season.title
+    /// "Season 1", with a quieter "8 of 10" beside it when some of its aired episodes aren't in the library (as on the web).
+    private func seasonPillLabel(_ season: ItemSummary) -> some View {
+        HStack(spacing: 6) {
+            Text(season.title)
+            if let count = gaps.countLabel(season: season.seasonNumber) {
+                Text(count).font(.footnote.weight(.medium)).opacity(0.7)
+            }
+        }
     }
 
     private func episodesList(_ season: ItemDetail) -> some View {

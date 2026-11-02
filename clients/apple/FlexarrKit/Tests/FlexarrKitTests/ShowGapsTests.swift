@@ -64,6 +64,6 @@ struct ShowGapsTests {
             {"books":[{"asin":"A4","title":"The Last Devil to Die","sequence":"4","authors":["Richard Osman"],"year":2023,"cover":null},
                       {"asin":"N","title":"Extra","sequence":null,"authors":[],"year":null,"cover":null}],"answered":true}
             """#.utf8))
-        #expect(gaps.books.map(\.caption) == ["Book 4 · 2023", nil])
+        #expect(gaps.books.map(\.caption) == ["Book 4, 2023", nil])
     }
 }

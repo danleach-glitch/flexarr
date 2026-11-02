@@ -13,7 +13,6 @@ struct ShowGapsSection: View {
     /// Seasons asked for or searched here, until the page next loads.
     @State private var asked: Set<Int> = []
     @State private var busy = false
-    @State private var choosing: MissingSeason?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 40) {
@@ -66,18 +65,6 @@ struct ShowGapsSection: View {
                 }
             }
         }
-        .confirmationDialog(choosing?.title ?? "", isPresented: Binding(get: { choosing != nil }, set: { if !$0 { choosing = nil } }),
-                            titleVisibility: .visible, presenting: choosing) { season in
-            switch gaps.action(for: season) {
-            case .request:
-                Button("Request") { Task { await request(season) } }
-            case .search:
-                Button("Search") { Task { await search(season.seasonNumber) } }
-            default:
-                EmptyView()
-            }
-            Button("Cancel", role: .cancel) {}
-        }
     }
 
     private func state(_ season: MissingSeason) -> MissingSeasonAction {
@@ -89,7 +76,9 @@ struct ShowGapsSection: View {
         let width = Layout.posterWidth
         // Always a button, whatever it can do: one that's disabled while it has focus leaves nothing focused.
         return ArtworkButton(ambient: .silver, accessibilityText: season.title) {
-            if !busy, action == .request || action == .search { choosing = season }
+            // Pressing it does what it says, as on Android TV: no dialog in between.
+            guard !busy else { return }
+            if action == .request { Task { await request(season) } } else if action == .search { Task { await search(season.seasonNumber) } }
         } artwork: {
             RemoteImage(url: model.client?.imageURL(season.poster, width: 342)) {
                 ZStack {
@@ -109,31 +98,40 @@ struct ShowGapsSection: View {
                 Text(season.title)
                     .font(.system(size: 24, weight: .semibold))
                     .foregroundStyle(focused ? Color.screen : Color.screen.opacity(0.8))
-                Text(caption(season, action))
+                Text(caption(season))
                     .font(.system(size: 21))
                     .foregroundStyle(Color.usher)
+                if let status = status(action) {
+                    Label(status.title, systemImage: status.symbol)
+                        .font(.system(size: 21, weight: .semibold))
+                        .foregroundStyle(Color.screen)
+                }
             }
             .lineLimit(1)
             .frame(width: width, alignment: .leading)
         }
     }
 
-    private func caption(_ season: MissingSeason, _ action: MissingSeasonAction) -> String {
+    private func caption(_ season: MissingSeason) -> String {
         [season.episodes > 0 ? (season.episodes == 1 ? "1 episode" : "\(season.episodes) episodes") : nil,
-         season.year.map(String.init),
-         action == .requested ? "Requested" : nil].compactMap(\.self).joined(separator: "  ")
+         season.year.map(String.init)].compactMap(\.self).joined(separator: ", ")
+    }
+
+    /// What pressing the card does, or that it's done: Request, Search or Requested.
+    private func status(_ action: MissingSeasonAction) -> (title: String, symbol: String)? {
+        switch action {
+        case .request: ("Request", Symbol.request)
+        case .search: ("Search", Symbol.search)
+        case .requested: ("Requested", Symbol.requested)
+        default: nil
+        }
     }
 
     private func missingEpisodes(season: Int, episodes: [ShowEpisode]) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline, spacing: 24) {
-                Text("Season \(season)")
-                    .font(.system(size: 30, weight: .bold))
-                    .foregroundStyle(Color.screen)
-                Text(episodes.count == 1 ? "1 episode missing" : "\(episodes.count) episodes missing")
-                    .font(.system(size: 26))
-                    .foregroundStyle(Color.usher)
-            }
+            Text("Season \(season): \(episodes.count == 1 ? "1 episode" : "\(episodes.count) episodes")")
+                .font(.system(size: 30, weight: .bold))
+                .foregroundStyle(Color.screen)
             Text(episodes.map { [$0.code, $0.title].compactMap(\.self).joined(separator: " ") }.joined(separator: "   "))
                 .font(.system(size: 24))
                 .foregroundStyle(Color.screen.opacity(0.8))
