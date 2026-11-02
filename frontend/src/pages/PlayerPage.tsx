@@ -446,6 +446,10 @@ export function PlayerPage() {
     setUpNextCancelled(false)
     setCountdown(UP_NEXT_SECONDS)
     setFinished(false)
+    // The last title's position goes too: left over, it would put the next episode in its own credits at once (Skip
+    // credits would mark it watched and count down to the one after).
+    setTime(0)
+    setBufferedTo(0)
     autoSkipped.current = new Set()
     playingItem.current = undefined
     // Come back to with Forward after closing: the title's page, not the episode again from the top.
@@ -871,6 +875,8 @@ export function PlayerPage() {
   // Skip credits: the episode is over as soon as they start.
   useEffect(() => {
     if (!preferences.skipCredits || !credits || !info?.next || upNextCancelled || finished || time < credits.start) return
+    // Only the title on screen: the moment after moving on, info can still be the last episode's.
+    if (playingItem.current !== info.item.id || (video.current?.currentTime ?? 0) < credits.start) return
     video.current?.pause()
     if (session.current) void reportProgress(session.current, time, true, true).catch(() => undefined)
     setFinished(true)
@@ -888,6 +894,8 @@ export function PlayerPage() {
 
   useEffect(() => {
     if (!counting) return
+    // Nothing plays under the countdown.
+    video.current?.pause()
     const timer = setInterval(() => setCountdown((c) => c - 1), 1000)
     return () => clearInterval(timer)
   }, [counting])
