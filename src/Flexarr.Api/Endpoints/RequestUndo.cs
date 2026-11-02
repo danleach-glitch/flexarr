@@ -24,7 +24,8 @@ public sealed record TitleUndoBody(string MediaType, int TmdbId, IReadOnlyList<i
 public static class RequestUndo
 {
     /// <summary>Which service failed, for a plain message (their own words can name addresses and go to the log).</summary>
-    public sealed class ServiceException(string service, HttpRequestException inner) : Exception($"{service} didn't answer.", inner)
+    /// <remarks>The inner exception is an <see cref="HttpRequestException"/>, or a timeout.</remarks>
+    public sealed class ServiceException(string service, Exception inner) : Exception($"{service} didn't answer.", inner)
     {
         public string Service { get; } = service;
     }
@@ -195,6 +196,10 @@ public static class RequestUndo
         {
             throw new ServiceException(service, ex);
         }
+        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        {
+            throw new ServiceException(service, ex); // HttpClient's own timeout, not the caller going away
+        }
     }
 
     private static async Task Call(string service, Func<Task> call)
@@ -206,6 +211,10 @@ public static class RequestUndo
         catch (HttpRequestException ex)
         {
             throw new ServiceException(service, ex);
+        }
+        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        {
+            throw new ServiceException(service, ex); // HttpClient's own timeout, not the caller going away
         }
     }
 }

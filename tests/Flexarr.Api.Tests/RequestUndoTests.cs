@@ -218,6 +218,23 @@ public sealed class RequestUndoTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ATimeout_SaysWhoIsntAnswering()
+    {
+        _arr.OnRequest = r =>
+        {
+            if (r.RequestUri!.Host == "seerr.test")
+            {
+                throw new TaskCanceledException("timed out", new TimeoutException());
+            }
+        };
+
+        var response = await Client().PostAsJsonAsync(Api("/requests/unrequest"), new { mediaType = "movie", tmdbId = 7006 });
+
+        Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
+        Assert.Contains("Seerr isn't answering", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task ABadMediaType_IsRefused()
     {
         var response = await Client().PostAsJsonAsync(Api("/requests/unrequest"), new { mediaType = "album", tmdbId = 1 });
