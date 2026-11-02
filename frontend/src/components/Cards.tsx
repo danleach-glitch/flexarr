@@ -165,7 +165,7 @@ export const PosterCard = memo(function PosterCard({ item, playLoneEpisode = fal
       to={itemLink(item)}
       onOpen={lone ? () => play(item) : undefined}
       playLabel={lone ? `Play the new episode of ${item.title}` : undefined}
-      className="poster-card"
+      className={item.kind === 'Artist' ? 'poster-card artist-card' : 'poster-card'}
       overlay={
         book ? (
           <button className="card-play" aria-label={`${progressOf(item) !== null ? 'Resume' : 'Play'} ${item.title}`} onClick={() => player.play([item])}>

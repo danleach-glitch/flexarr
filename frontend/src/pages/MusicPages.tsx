@@ -289,7 +289,7 @@ export function ArtistPage({ detail }: { detail: ItemDetail }) {
         {item.artwork.poster && <img src={imageUrl(item.artwork.poster, 500)} alt="" />}
       </div>
       <header className="music-header">
-        <div className="music-cover">
+        <div className="music-cover music-cover-round">
           <Artwork src={item.artwork.poster} title={item.title} width={500} shape="square" eager />
         </div>
         <div className="music-header-text">
