@@ -59,7 +59,7 @@ public class LidarrRequestClientTests
     }
 
     [Fact]
-    public async Task FollowingANewArtist_MonitorsFutureReleasesOnly()
+    public async Task FollowingANewArtist_GetsTheirLatestAlbum_AndNewReleases()
     {
         var handler = new Recorder();
         handler.Answers["POST /api/v1/artist"] = """{"id":3,"artistName":"Wet Leg"}""";
@@ -69,8 +69,8 @@ public class LidarrRequestClientTests
 
         var body = handler.Requests.Single().Body!;
         Assert.Equal("new", body["monitorNewItems"]!.GetValue<string>());
-        Assert.Equal("future", body["addOptions"]!["monitor"]!.GetValue<string>());
-        Assert.False(body["addOptions"]!["searchForMissingAlbums"]!.GetValue<bool>());
+        Assert.Equal("latest", body["addOptions"]!["monitor"]!.GetValue<string>());
+        Assert.True(body["addOptions"]!["searchForMissingAlbums"]!.GetValue<bool>());
     }
 
     [Fact]

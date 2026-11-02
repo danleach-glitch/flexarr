@@ -12,7 +12,7 @@ Flexarr plays your music library like a streaming app: artists with their pictur
 
 Lidarr isn't required, but it makes a big difference. With it, artists and albums take their names, years, descriptions and artwork from Lidarr: the artist's own picture rather than an album cover, and a cover for every album even when the files carry none. An artist's page shelves releases into **Albums**, **EPs and singles**, **Live and compilations** and **Other**. Without Lidarr, Flexarr reads everything from the files' tags.
 
-With Lidarr connected you can also find and add music you don't have: **Discover › Music**, albums missing from an artist's page, and **Follow artist** for their new releases. See [Requests › Music](requests.md#music).
+With Lidarr connected you can also find and add music you don't have: **Discover › Music**, albums missing from an artist's page, and **Follow artist** for their latest album and new releases. See [Requests › Music](requests.md#music).
 
 A track by someone other than the album's artist, such as a duet or a compilation track, shows its own artist. Compilations without an album artist are filed under **Various Artists**.
 

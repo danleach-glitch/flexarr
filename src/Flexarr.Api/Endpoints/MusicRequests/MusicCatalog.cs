@@ -22,7 +22,17 @@ public sealed class MusicCatalog(IHttpClientFactory httpFactory) : IDisposable
     private static readonly TimeSpan Charts = TimeSpan.FromHours(6);
     private static readonly TimeSpan Catalogue = TimeSpan.FromDays(1);
 
+    /// <summary>MusicBrainz takes one request a second from each caller: one at a time, spaced out.</summary>
+    private readonly SemaphoreSlim musicBrainzGate = new(1);
+
+    private DateTime nextMusicBrainz = DateTime.MinValue;
+
+    /// <summary>A barcode MusicBrainz didn't know is asked again after this: someone may have added it since.</summary>
+    private static readonly TimeSpan Unknown = TimeSpan.FromHours(1);
+
     private DeezerClient Deezer => new(httpFactory.CreateClient(nameof(DeezerClient)));
+
+    private MusicBrainzClient MusicBrainz => new(httpFactory.CreateClient(nameof(MusicBrainzClient)));
 
     public Task<IReadOnlyList<DeezerArtist>> SearchArtistsAsync(string query, int limit, CancellationToken ct) =>
         CachedAsync($"artists?{query.Trim().ToLowerInvariant()}&{limit}", Searches, () => Deezer.SearchArtistsAsync(query, limit, ct));
@@ -66,6 +76,51 @@ public sealed class MusicCatalog(IHttpClientFactory httpFactory) : IDisposable
 
     private sealed record Found(DeezerArtist? Artist);
 
+    /// <summary>
+    /// The MusicBrainz release behind a Deezer album, by its barcode (see <see cref="MusicBrainzClient"/>), or null when
+    /// MusicBrainz has none. Throws when MusicBrainz doesn't answer, which isn't remembered.
+    /// </summary>
+    public async Task<MusicBrainzRelease?> ReleaseByBarcodeAsync(string barcode, string? title, CancellationToken ct)
+    {
+        var key = $"musicbrainz/barcode/{barcode}";
+        if (cache.TryGetValue(key, out Barcoded? hit) && hit is not null)
+        {
+            return hit.Release;
+        }
+
+        await musicBrainzGate.WaitAsync(ct);
+        try
+        {
+            if (cache.TryGetValue(key, out hit) && hit is not null)
+            {
+                return hit.Release;
+            }
+
+            var wait = nextMusicBrainz - DateTime.UtcNow;
+            if (wait > TimeSpan.Zero)
+            {
+                await Task.Delay(wait, ct);
+            }
+
+            try
+            {
+                var release = await MusicBrainz.ReleaseByBarcodeAsync(barcode, title, ct);
+                cache.Set(key, new Barcoded(release), new MemoryCacheEntryOptions { AbsoluteExpirationRelativeToNow = release is null ? Unknown : Catalogue, Size = 1 });
+                return release;
+            }
+            finally
+            {
+                nextMusicBrainz = DateTime.UtcNow.AddSeconds(1.1);
+            }
+        }
+        finally
+        {
+            musicBrainzGate.Release();
+        }
+    }
+
+    private sealed record Barcoded(MusicBrainzRelease? Release);
+
     private async Task<T> CachedAsync<T>(string key, TimeSpan keep, Func<Task<T>> fetch)
     {
         if (cache.TryGetValue(key, out T? hit) && hit is not null)
@@ -100,5 +155,6 @@ public sealed class MusicCatalog(IHttpClientFactory httpFactory) : IDisposable
     {
         cache.Dispose();
         gate.Dispose();
+        musicBrainzGate.Dispose();
     }
 }

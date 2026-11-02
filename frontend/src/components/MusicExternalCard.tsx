@@ -5,7 +5,7 @@ import { useApi } from '../hooks/useApi'
 import { musicLink } from '../lib/musicLinks'
 import { AsyncButton } from './AsyncButton'
 
-type State = MusicExternal['availability'] | 'sending' | 'failed'
+type State = MusicExternal['availability'] | 'sending' | 'failed' | 'refused'
 
 /**
  * Request an album (just it) or follow an artist (their new releases) through Lidarr, or say where it stands. An
@@ -25,7 +25,8 @@ export function MusicRequestButton({
   size?: 'small' | 'large'
 }) {
   // What this button did, if anything: otherwise it says what the server says, which can change under it.
-  const [sent, setSent] = useState<'sending' | 'failed' | 'Requested'>()
+  // 'refused' is Lidarr saying no (it can't find it): asking again won't change that, so no Try again.
+  const [sent, setSent] = useState<'sending' | 'failed' | 'refused' | 'Requested'>()
   const [message, setMessage] = useState<string>()
   const state: State = sent ?? availability
   // Lidarr not answering: say so on the page, and don't offer what can't work. (Cached: every card asks.)
@@ -38,7 +39,7 @@ export function MusicRequestButton({
       await requestMusic(request)
       setSent('Requested')
     } catch (e) {
-      setSent('failed')
+      setSent(e instanceof ApiError && e.status === 409 ? 'refused' : 'failed')
       setMessage(e instanceof ApiError && e.messages[0] ? e.messages[0] : 'The request didn’t go through.')
     }
   }
@@ -46,6 +47,17 @@ export function MusicRequestButton({
   // A library artist can still be followed; a library album has nothing left to ask for.
   if (kind === 'album' && (libraryItemId || state === 'Available')) return <span className="external-state">In your library</span>
   if (state === 'Requested' || state === 'PartlyAvailable') return <span className="external-state">{kind === 'artist' ? 'Following' : 'Requested'}</span>
+  if (state === 'refused')
+    return (
+      <>
+        <span className="external-state">Can’t request</span>
+        {message && (
+          <span className="error" role="alert">
+            {message}
+          </span>
+        )}
+      </>
+    )
   return (
     <>
       <AsyncButton
@@ -57,7 +69,7 @@ export function MusicRequestButton({
       >
         {state === 'failed' ? 'Try again' : kind === 'artist' ? 'Follow artist' : 'Request album'}
       </AsyncButton>
-      {size === 'large' && state === 'failed' && message && (
+      {state === 'failed' && message && (
         <span className="error" role="alert">
           {message}
         </span>

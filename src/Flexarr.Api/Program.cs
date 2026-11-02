@@ -119,6 +119,12 @@ builder.Services.AddHttpClient<BazarrClient>(c => c.Timeout = TimeSpan.FromMinut
 builder.Services.AddHttpClient<TmdbClient>(c => c.Timeout = TimeSpan.FromSeconds(20));
 // Deezer's public API backs music discovery; every page that uses it waits on it, so it's kept short.
 builder.Services.AddHttpClient<DeezerClient>(c => c.Timeout = TimeSpan.FromSeconds(10));
+// MusicBrainz ties a Deezer album to what Lidarr downloads, by barcode. It asks every caller to say who they are.
+builder.Services.AddHttpClient<MusicBrainzClient>(c =>
+{
+    c.Timeout = TimeSpan.FromSeconds(10);
+    c.DefaultRequestHeaders.UserAgent.ParseAdd($"Flexarr/{Flexarr.Api.Backups.AppVersion.Current} ( https://flexarr.io )");
+});
 builder.Services.AddSingleton<Flexarr.Api.Endpoints.MusicRequests.MusicCatalog>();
 builder.Services.AddScoped<Flexarr.Api.Endpoints.MusicRequests.MusicRequestContext>();
 builder.Services.AddHttpClient<TvMazeClient>(c => c.DefaultRequestHeaders.UserAgent.ParseAdd("Flexarr/0.1 (+https://github.com/danleach-glitch/flexarr)"));

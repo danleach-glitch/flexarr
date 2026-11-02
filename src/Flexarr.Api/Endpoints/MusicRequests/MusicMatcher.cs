@@ -218,10 +218,19 @@ public static class MusicMatcher
     /// The MusicBrainz release group behind a Deezer album: among Lidarr's albums for the artist (when it has them) or
     /// its lookup's, the one with the same title, nearest in year. Null when none has the title.
     /// </summary>
-    public static async Task<LidarrAlbum?> MatchAlbumAsync(ArrClient client, ArrInstance lidarr, LidarrArtist artist, string title, int? year, CancellationToken ct)
+    public static async Task<LidarrAlbum?> MatchAlbumAsync(ArrClient client, ArrInstance lidarr, LidarrArtist artist, string title, int? year, CancellationToken ct,
+        string? releaseGroup = null)
     {
         var key = MusicNames.NormaliseTitle(title);
-        IEnumerable<LidarrAlbum> candidates = artist.Id > 0 ? await client.GetArtistAlbumsAsync(lidarr, artist.Id, ct) : [];
+        IReadOnlyList<LidarrAlbum> candidates = artist.Id > 0 ? await client.GetArtistAlbumsAsync(lidarr, artist.Id, ct) : [];
+
+        // Known exactly: Lidarr's own copy if it lists it, otherwise its lookup's (an EP or single its metadata profile leaves out).
+        if (releaseGroup is not null)
+        {
+            return candidates.FirstOrDefault(a => a.ForeignAlbumId == releaseGroup)
+                ?? (await client.LookupAlbumsAsync(lidarr, $"lidarr:{releaseGroup}", ct)).FirstOrDefault(a => a.ForeignAlbumId == releaseGroup);
+        }
+
         var match = Nearest(candidates.Where(a => MusicNames.NormaliseTitle(a.Title) == key), year);
         if (match is not null)
         {
