@@ -47,8 +47,15 @@ lock_stale() {
 
 with_dd() {
   [ $# -gt 0 ] || { echo "usage: sims.sh with-dd CMD..." >&2; exit 2; }
-  local key last order i dir lock got=""
+  local key last order i dir lock got="" top
   key=$(branch)
+  # Xcode checks for the tunnel's framework while planning, before the pre-build script that makes it, and keeps
+  # that "missing" in the build folder's cache. So make it first in a fresh worktree.
+  top=$(git rev-parse --show-toplevel 2>/dev/null || true)
+  if [ -n "$top" ] && [ -d "$top/clients/tunnel" ] && [ ! -d "$top/clients/tunnel/build/FlexarrTunnel.xcframework" ]; then
+    echo "sims.sh: building the tunnel first" >&2
+    PATH="$PATH:/opt/homebrew/bin:/usr/local/go/bin" make -C "$top" tunnel-apple >&2
+  fi
   last=$(cat "$STATE/$key.slot" 2>/dev/null || echo 1)
   order="$last $(seq 1 "$SLOTS" | grep -vx "$last" | tr '\n' ' ')"
   while [ -z "$got" ]; do
