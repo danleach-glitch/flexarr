@@ -23,6 +23,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -43,6 +47,9 @@ import io.github.flexarr.ui.components.RemoteImage
 import io.github.flexarr.ui.components.RowSpacing
 import io.github.flexarr.ui.components.SectionHeading
 import io.github.flexarr.ui.components.pressable
+import io.github.flexarr.ui.external.TitleRequestState
+import io.github.flexarr.ui.external.TitleUndoDialog
+import io.github.flexarr.ui.external.label
 import io.github.flexarr.ui.music.musicOnStyle
 import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.FlexarrIcons
@@ -54,9 +61,14 @@ import io.github.flexarr.ui.theme.Tokens
  */
 internal fun LazyListScope.showMissingSections(
     missing: ShowMissing,
-    /** Seasons asked for here, ahead of the server's next answer. */
+    /** Seasons searched for here, ahead of the server's next answer. */
     asked: Set<Int>,
+    /** Where a season's request stands (Request, Requested, Can't request…), counting what was done here. */
+    requestState: (MissingSeason) -> TitleRequestState,
+    /** Whether Request and Requested can be pressed now (not on a kids profile, nor while Seerr isn't answering). */
+    canAsk: Boolean,
     onRequest: (MissingSeason) -> Unit,
+    onUnrequest: (MissingSeason) -> Unit,
     onSearch: (seasonNumber: Int, episodes: List<Int>?) -> Unit,
 ) {
     if (!missing.isEmpty) {
@@ -66,7 +78,7 @@ internal fun LazyListScope.showMissingSections(
                 if (missing.seasons.isNotEmpty()) {
                     LazyRow(contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(RowSpacing), verticalAlignment = Alignment.Top) {
                         items(missing.seasons, key = { "missing-season-${it.seasonNumber}" }) { season ->
-                            MissingSeasonCard(season, missing, season.seasonNumber in asked, onRequest, onSearch)
+                            MissingSeasonCard(season, missing, season.seasonNumber in asked, requestState(season), canAsk, onRequest, onUnrequest, onSearch)
                         }
                     }
                 }
@@ -101,7 +113,17 @@ internal fun LazyListScope.showMissingSections(
 
 /** A season the library has none of: its poster, name and episodes, and Request (or Search) under it. */
 @Composable
-private fun MissingSeasonCard(season: MissingSeason, missing: ShowMissing, asked: Boolean, onRequest: (MissingSeason) -> Unit, onSearch: (Int, List<Int>?) -> Unit) {
+private fun MissingSeasonCard(
+    season: MissingSeason,
+    missing: ShowMissing,
+    asked: Boolean,
+    state: TitleRequestState,
+    canAsk: Boolean,
+    onRequest: (MissingSeason) -> Unit,
+    onUnrequest: (MissingSeason) -> Unit,
+    onSearch: (Int, List<Int>?) -> Unit,
+) {
+    var confirming by remember { mutableStateOf(false) }
     Column(Modifier.width(PosterWidth), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f).clip(RoundedCornerShape(Tokens.radiusArt)).background(Flexarr.seat)) {
             RemoteImage(season.poster, 342, Modifier.fillMaxSize()) {
@@ -114,13 +136,21 @@ private fun MissingSeasonCard(season: MissingSeason, missing: ShowMissing, asked
             Text(season.title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen.copy(alpha = 0.9f), maxLines = 1, overflow = TextOverflow.Ellipsis)
             season.detail.takeIf { it.isNotEmpty() }?.let { Text(it, fontSize = 12.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis) }
         }
-        val requested = season.requested || asked
         when {
-            requested -> MissingChip("Requested", FlexarrIcons.requested, on = true, enabled = false) {}
-            missing.canRequest -> MissingChip("Request", FlexarrIcons.request, on = false, enabled = true, description = "Request ${season.title}") { onRequest(season) }
+            // Requested through Seerr here: pressed, it asks, then takes back just this season.
+            missing.canRequest -> when (state) {
+                TitleRequestState.Requested, TitleRequestState.Undoing, TitleRequestState.Sending ->
+                    MissingChip(state.label(), FlexarrIcons.requested, on = true, enabled = canAsk && state == TitleRequestState.Requested, description = "Unrequest ${season.title}") {
+                        confirming = true
+                    }
+                TitleRequestState.Refused -> MissingChip(state.label(), null, on = false, enabled = false) {}
+                else -> MissingChip("Request", FlexarrIcons.request, on = false, enabled = canAsk, description = "Request ${season.title}") { onRequest(season) }
+            }
+            season.requested || asked -> MissingChip("Requested", FlexarrIcons.requested, on = true, enabled = false) {}
             missing.canSearch -> MissingChip("Search", FlexarrIcons.search, on = false, enabled = true, description = "Search for ${season.title}") { onSearch(season.seasonNumber, null) }
         }
     }
+    if (confirming) TitleUndoDialog(season.title, onConfirm = { onUnrequest(season) }, onDismiss = { confirming = false })
 }
 
 /** An episode the library lacks or that's still to air: "S2E3 · Title", and what's known of it under. */

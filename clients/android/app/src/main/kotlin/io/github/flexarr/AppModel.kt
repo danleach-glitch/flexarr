@@ -9,6 +9,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import io.github.flexarr.core.FlexarrClient
 import io.github.flexarr.core.MusicRequestStatus
+import io.github.flexarr.core.RequestStatus
+import io.github.flexarr.core.requestRefusal
+import io.github.flexarr.core.requestStatus
 import io.github.flexarr.core.musicRequestStatus
 import io.github.flexarr.player.PlaybackEnding
 import io.github.flexarr.core.FlexarrException
@@ -501,6 +504,98 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         musicUndoing = emptySet()
         musicUndone = emptySet()
         musicUnreachable = false
+        titleAsked = emptySet()
+        titleSending = emptySet()
+        titleUndoing = emptySet()
+        titleUndone = emptySet()
+        titleRefused = emptyMap()
+        seerrUnreachable = false
+    }
+
+    /**
+     * Seerr is connected but didn't answer the last time requests' status was asked: film and show Request and
+     * Requested wait, and the screens say so in one line.
+     */
+    var seerrUnreachable by mutableStateOf(false)
+        private set
+
+    /** Requests' status for this profile, noting whether Seerr answered ([seerrUnreachable]). */
+    suspend fun titleRequestStatus(): RequestStatus {
+        val client = client ?: return RequestStatus()
+        val status = client.requestStatus()
+        if (client.profileToken == this.client?.profileToken) seerrUnreachable = status.configured && !status.reachable
+        return status
+    }
+
+    /**
+     * Films, shows and seasons asked for here ("movie:603", "tv:1399", "tv:1399:s2"), so every screen says Requested
+     * at once, before the server's next answer does, as [musicAsked]. Forgotten with the sign-in or the profile.
+     */
+    var titleAsked: Set<String> by mutableStateOf(emptySet())
+        private set
+
+    /** Requests on their way, so a second press sends nothing. */
+    var titleSending: Set<String> by mutableStateOf(emptySet())
+        private set
+
+    /** Unrequests on their way: Requested stays, and waits, until they're done. */
+    var titleUndoing: Set<String> by mutableStateOf(emptySet())
+        private set
+
+    /** Unrequested here, so Request shows again though the screen it came from still has the server's Requested. */
+    var titleUndone: Set<String> by mutableStateOf(emptySet())
+        private set
+
+    /** Requests the server said can't be had, with why (Can't request), by key. */
+    var titleRefused: Map<String, String> by mutableStateOf(emptyMap())
+        private set
+
+    /**
+     * Asks Seerr for what [key] names, once: false, sending nothing, while it's asked already or on its way. A refusal
+     * ([requestRefusal]) is kept as Can't request; anything else is thrown, leaving it to ask again.
+     */
+    suspend fun askForTitle(key: String, send: suspend (FlexarrClient) -> Unit): Boolean {
+        val client = client ?: return false
+        if (key in titleAsked || key in titleSending || key in titleUndoing) return false
+        titleSending = titleSending + key
+        try {
+            send(client)
+            if (client.profileToken == this.client?.profileToken) {
+                titleAsked = titleAsked + key
+                titleUndone = titleUndone - key
+            }
+        } catch (e: Exception) {
+            val why = e.requestRefusal ?: throw e
+            if (client.profileToken == this.client?.profileToken) titleRefused = titleRefused + (key to why)
+        } finally {
+            titleSending = titleSending - key
+            watchlistChanged(affectsHome = false)
+        }
+        return true
+    }
+
+    /** Marks [key] asked for (the watchlist said adding it requested it). */
+    fun titleWasAsked(key: String) {
+        titleAsked = titleAsked + key
+        titleUndone = titleUndone - key
+    }
+
+    /** Unrequests what [key] names, once: false while something for it is on its way. Throws what went wrong. */
+    suspend fun undoTitle(key: String, send: suspend (FlexarrClient) -> Unit): Boolean {
+        val client = client ?: return false
+        if (key in titleSending || key in titleUndoing) return false
+        titleUndoing = titleUndoing + key
+        try {
+            send(client)
+            if (client.profileToken == this.client?.profileToken) {
+                titleAsked = titleAsked - key
+                titleUndone = titleUndone + key
+            }
+        } finally {
+            titleUndoing = titleUndoing - key
+            watchlistChanged(affectsHome = false)
+        }
+        return true
     }
 
     /**

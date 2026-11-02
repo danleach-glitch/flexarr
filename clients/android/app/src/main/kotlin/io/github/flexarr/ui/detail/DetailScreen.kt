@@ -91,7 +91,13 @@ import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.MediaFile
 import io.github.flexarr.core.MediaKind
 import io.github.flexarr.core.ShowMissing
-import io.github.flexarr.core.requestSeasons
+import io.github.flexarr.core.Availability
+import io.github.flexarr.ui.external.TitleRequestState
+import io.github.flexarr.ui.external.canAskForTitles
+import io.github.flexarr.ui.external.requestTitle
+import io.github.flexarr.ui.external.titleKey
+import io.github.flexarr.ui.external.titleState
+import io.github.flexarr.ui.external.unrequestTitle
 import io.github.flexarr.core.searchMissing
 import io.github.flexarr.core.showMissing
 import io.github.flexarr.core.effectiveDuration
@@ -198,7 +204,13 @@ fun DetailScreen(model: AppModel, id: String) {
                 val alike = if (similar.isEmpty() && item.kind != MediaKind.Episode) async { runCatching { client.similar(item.id) }.getOrNull() } else null
                 when (item.kind) {
                     MediaKind.Series -> {
-                        launch { runCatching { client.showMissing(item.id) }.onSuccess { missing = it } }
+                        launch {
+                            runCatching { client.showMissing(item.id) }.onSuccess {
+                                missing = it
+                                // Whether Seerr is answering, so a season's Request and Requested can wait while it isn't.
+                                if (it.canRequest) runCatching { model.titleRequestStatus() }
+                            }
+                        }
                         nextUp = runCatching { client.nextUp(item.id) }.getOrNull()
                         if (selectedSeasonId == null) selectedSeasonId = nextUp?.parentId ?: loaded.children.firstOrNull()?.id
                     }
@@ -249,17 +261,17 @@ fun DetailScreen(model: AppModel, id: String) {
                             showMissingSections(
                                 missing,
                                 asked,
+                                requestState = { season ->
+                                    val tmdb = loaded.tmdbId?.toIntOrNull()
+                                    if (tmdb == null) TitleRequestState.None
+                                    else model.titleState(titleKey("tv", tmdb, season.seasonNumber), if (season.requested) Availability.Requested else Availability.None)
+                                },
+                                canAsk = model.canAskForTitles,
                                 onRequest = { season ->
-                                    val tmdb = loaded.tmdbId?.toIntOrNull() ?: return@showMissingSections
-                                    asked = asked + season.seasonNumber
-                                    navigator.watchlistChange("Couldn’t request ${season.title}") {
-                                        try {
-                                            client.requestSeasons(tmdb, listOf(season.seasonNumber))
-                                        } catch (e: Exception) {
-                                            asked = asked - season.seasonNumber
-                                            throw e
-                                        }
-                                    }
+                                    loaded.tmdbId?.toIntOrNull()?.let { navigator.requestTitle(model, "tv", it, season.seasonNumber) }
+                                },
+                                onUnrequest = { season ->
+                                    loaded.tmdbId?.toIntOrNull()?.let { navigator.unrequestTitle(model, "tv", it, season.seasonNumber) }
                                 },
                                 onSearch = { season, episodes ->
                                     asked = asked + season

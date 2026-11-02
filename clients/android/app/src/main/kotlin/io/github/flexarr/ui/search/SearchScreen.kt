@@ -90,6 +90,13 @@ import io.github.flexarr.core.forgetSearch
 import io.github.flexarr.core.recentSearches
 import io.github.flexarr.core.recordSearch
 import io.github.flexarr.core.requestStatus
+import io.github.flexarr.ui.external.TitleRequestState
+import io.github.flexarr.ui.external.TitleUndoDialog
+import io.github.flexarr.ui.external.canAskForTitles
+import io.github.flexarr.ui.external.requestTitle
+import io.github.flexarr.ui.external.titleKey
+import io.github.flexarr.ui.external.titleState
+import io.github.flexarr.ui.external.unrequestTitle
 import io.github.flexarr.core.searchEverything
 import io.github.flexarr.ui.components.Edge
 import io.github.flexarr.ui.components.GridMinimum
@@ -165,7 +172,7 @@ fun SearchScreen(model: AppModel) {
     }
     LaunchedEffect(model.credentials) {
         searchesEverything = try {
-            client.requestStatus().configured
+            model.titleRequestStatus().configured
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
@@ -435,14 +442,16 @@ private fun LazyListScope.results(
 
 /**
  * A film or show from beyond the library: its poster, name and "Film, 2014". Tapping opens its page (one the library
- * has after all opens as itself); a long press offers the watchlist and, when nobody's asked for it, Request.
+ * has after all opens as itself); a long press offers the watchlist and Request, or Unrequest (asking first) when
+ * it's requested.
  */
 @Composable
 private fun ExternalCard(model: AppModel, title: ExternalTitle) {
     val navigator = LocalNavigator.current
     var menu by remember { mutableStateOf(false) }
-    // What's been done here since the search, ahead of the server's next answer.
-    var requested by remember(title.key) { mutableStateOf(false) }
+    var confirming by remember { mutableStateOf(false) }
+    val requestKey = titleKey(title.mediaType, title.tmdbId)
+    val state = model.titleState(requestKey, title.availability, inLibrary = title.libraryItemId != null)
     var onWatchlist by remember(title.key, title.onWatchlist) { mutableStateOf<Boolean?>(null) }
     val on = onWatchlist ?: title.onWatchlist ?: (title.key in model.watchlistTitles)
     val actions = buildList {
@@ -452,7 +461,7 @@ private fun ExternalCard(model: AppModel, title: ExternalTitle) {
                 navigator.watchlistChange(if (on) "Couldn’t remove this from your watchlist" else "Couldn’t add this to your watchlist") {
                     try {
                         val added = model.setTitleOnWatchlist(title.mediaType, title.tmdbId, !on)
-                        if (added?.requested == true) requested = true
+                        if (added?.requested == true) model.titleWasAsked(requestKey)
                     } catch (e: Exception) {
                         onWatchlist = on
                         throw e
@@ -460,18 +469,12 @@ private fun ExternalCard(model: AppModel, title: ExternalTitle) {
                 }
             })
         }
-        if (title.canRequest && !requested) {
-            add(MenuAction("Request") {
-                requested = true
-                navigator.watchlistChange("Couldn’t request this") {
-                    try {
-                        model.requestTitle(title.mediaType, title.tmdbId)
-                    } catch (e: Exception) {
-                        requested = false
-                        throw e
-                    }
-                }
-            })
+        if (model.canAskForTitles) {
+            when (state) {
+                TitleRequestState.CanRequest -> add(MenuAction("Request", FlexarrIcons.request) { navigator.requestTitle(model, title.mediaType, title.tmdbId) })
+                TitleRequestState.Requested -> add(MenuAction("Unrequest", FlexarrIcons.requested) { confirming = true })
+                else -> Unit
+            }
         }
     }
     Box {
@@ -501,6 +504,7 @@ private fun ExternalCard(model: AppModel, title: ExternalTitle) {
         }
         ItemMenu(actions, menu, onDismiss = { menu = false })
     }
+    if (confirming) TitleUndoDialog(title.title, onConfirm = { navigator.unrequestTitle(model, title.mediaType, title.tmdbId) }, onDismiss = { confirming = false })
 }
 
 /**
