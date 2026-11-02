@@ -376,7 +376,12 @@ fun MainScreen(model: AppModel) {
                 composable("watchlist") { WatchlistScreen(model) }
                 composable("coming-soon") { ComingSoonScreen(model) }
                 composable("livetv/recordings") { LiveRecordingsScreen(model) }
-                composable("music/{id}") { MusicLibraryScreen(model, it.arguments?.getString("id")!!) }
+                composable(
+                    "music/{id}?genre={genre}",
+                    arguments = listOf(navArgument("genre") { type = NavType.StringType; defaultValue = "" }),
+                ) { entry ->
+                    MusicLibraryScreen(model, entry.arguments?.getString("id")!!, entry.arguments?.getString("genre")?.takeIf { it.isNotEmpty() })
+                }
                 composable("artist/{id}") { ArtistScreen(model, it.arguments?.getString("id")!!) }
                 composable("album/{id}") { AlbumScreen(model, it.arguments?.getString("id")!!) }
                 composable("playlist/{id}") { PlaylistScreen(model, it.arguments?.getString("id")!!) }

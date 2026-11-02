@@ -325,9 +325,9 @@ fun TvMainScreen(model: AppModel) {
                         // A type the TV doesn't show (one it doesn't know, or audiobooks) is never a film grid.
                         when (val library = libraryList.firstOrNull { it.id == id && it.onTv }) {
                             null -> MissingLibrary()
-                            // Music has a screen of its own: artists, new albums and playlists.
+                            // Music has views of its own: Browse, Artists, Albums and Genres.
                             else -> if (library.type == LibraryType.Music) {
-                                TvMusicLibraryScreen(model, library, takeFocus = arrives(route), onFocusTaken = arrived(route))
+                                TvMusicLibraryTab(model, library, takeFocus = arrives(route), onFocusTaken = arrived(route))
                             } else {
                                 TvLibraryTab(model, library, takeFocus = arrives(route), onFocusTaken = arrived(route))
                             }
@@ -351,7 +351,10 @@ fun TvMainScreen(model: AppModel) {
                         val id = entry.arguments?.getString("id")
                         val sort = LibrarySort.entries.firstOrNull { it.raw == entry.arguments?.getString("sort") } ?: LibrarySort.Title
                         val genre = entry.arguments?.getString("genre")?.takeIf { it.isNotEmpty() }
-                        libraryList.firstOrNull { it.id == id && it.onTv }?.let { TvLibraryGrid(model, it, initialSort = sort, initialGenre = genre) } ?: MissingLibrary()
+                        // A music library's genre is its albums in that genre.
+                        libraryList.firstOrNull { it.id == id && it.onTv }?.let {
+                            TvLibraryGrid(model, it, initialSort = sort, initialGenre = genre, content = if (it.type == LibraryType.Music) TvGridContent.Albums else TvGridContent.Titles)
+                        } ?: MissingLibrary()
                     }
                 }
             }

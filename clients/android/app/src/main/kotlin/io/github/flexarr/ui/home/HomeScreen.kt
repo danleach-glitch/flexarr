@@ -245,8 +245,16 @@ internal fun HomeRowSlot(model: AppModel, row: HomeRow, home: Home) = when (row.
     else -> HomeRowView(model, row)
 }
 
+/**
+ * The featured titles, one slide at a time, moving on by themselves. [slide] draws one (a music library's albums and
+ * artists have their own); by default a film's or show's.
+ */
 @Composable
-internal fun HomeHero(home: Home, onIndex: (Int) -> Unit) {
+internal fun HomeHero(
+    home: Home,
+    onIndex: (Int) -> Unit,
+    slide: @Composable (item: ItemSummary, height: Dp) -> Unit = { item, height -> HeroSlide(home, item, height) },
+) {
     val items = home.featured
     val pager = rememberPagerState { items.size }
     val context = LocalContext.current
@@ -280,7 +288,7 @@ internal fun HomeHero(home: Home, onIndex: (Int) -> Unit) {
         },
     ) {
         // Taller than usual only when large text needs it.
-        HorizontalPager(pager, Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) { page -> HeroSlide(home, items[page], height) }
+        HorizontalPager(pager, Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) { page -> slide(items[page], height) }
         if (items.size > 1) {
             Row(Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 repeat(items.size) { index ->
@@ -338,7 +346,7 @@ private fun movesOnItsOwn(context: Context): Boolean {
 }
 
 /** Drawn into its own layer, then faded to nothing over the bottom half. */
-private fun Modifier.fadeOut() = graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen).drawWithContent {
+internal fun Modifier.fadeOut() = graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen).drawWithContent {
     drawContent()
     drawRect(Brush.verticalGradient(0.5f to Color.Black, 1f to Color.Transparent), blendMode = BlendMode.DstIn)
 }

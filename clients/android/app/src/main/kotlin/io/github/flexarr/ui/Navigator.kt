@@ -14,7 +14,11 @@ import io.github.flexarr.player.LivePlayerActivity
 import io.github.flexarr.core.LibraryType
 import io.github.flexarr.core.MediaKind
 import io.github.flexarr.core.asPodcastEpisode
+import io.github.flexarr.core.albumStart
+import io.github.flexarr.core.genreTracks
 import io.github.flexarr.core.mix
+import io.github.flexarr.core.radio
+import io.github.flexarr.core.tracks
 import io.github.flexarr.core.setBookFinished
 import io.github.flexarr.usesTvInterface
 import io.github.flexarr.player.PlayerActivity
@@ -82,6 +86,45 @@ class Navigator(private val nav: NavHostController, private val model: AppModel,
         }
     }
 
+    /**
+     * An album from a music library's hero: from [resume] (the track it carries on from, part way in when that was left
+     * half way), or from the start.
+     */
+    fun playAlbum(album: ItemSummary, resume: ItemSummary?) = playMusic("Couldn’t play this album") { client ->
+        val tracks = client.tracks(album.id)
+        val from = albumStart(tracks, resume)
+        model.music.play(tracks, start = from.index, albums = listOf(album), at = from.position)
+        tracks
+    }
+
+    /** An artist's whole catalogue shuffled, or their [radio] (them and artists like them). */
+    fun playArtist(artist: ItemSummary, radio: Boolean) = playMusic(if (radio) "Couldn’t start this radio" else "Couldn’t play this artist") { client ->
+        val tracks = if (radio) client.radio(artist.id) else client.tracks(artist.id)
+        model.music.play(tracks, shuffled = !radio)
+        tracks
+    }
+
+    /** A genre's tracks in a music library, in order or shuffled (the server shuffles them). */
+    fun playGenre(libraryId: String, genre: String, shuffled: Boolean) = playMusic("Couldn’t play this genre") { client ->
+        client.genreTracks(libraryId, genre, shuffled).also { model.music.play(it) }
+    }
+
+    /** Starts music fetched by [start] (which hands back the tracks) and opens Now Playing; nothing to play does nothing. */
+    private fun playMusic(failure: String, start: suspend (FlexarrClient) -> List<ItemSummary>) {
+        val client = model.client ?: return
+        model.scope.launch {
+            try {
+                if (start(client).isEmpty()) return@launch
+                // The TV shows Now Playing over everything when asked; the phone opens its sheet.
+                if (context.usesTvInterface) model.nowPlayingRequests++ else model.showsMusicPlayer = true
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                tell(failure, e)
+            }
+        }
+    }
+
     /** Marks a book finished, or unread (no place, not finished); Continue listening follows. */
     fun setBookFinished(item: ItemSummary, finished: Boolean) =
         changeWatchState(if (finished) "Couldn’t mark this as finished" else "Couldn’t mark this as unread") { it.setBookFinished(item.id, finished) }
@@ -114,6 +157,10 @@ class Navigator(private val nav: NavHostController, private val model: AppModel,
     fun openBookGenre(libraryId: String, genre: String) = nav.navigate("books/$libraryId?view=&genre=${Uri.encode(genre)}")
 
     fun openPlaylist(id: String) = nav.navigate("playlist/$id")
+
+    /** A music library's albums in one genre, with Play and Shuffle for its tracks, on top (Back goes to the genres). */
+    fun openMusicGenre(libraryId: String, genre: String) =
+        if (context.usesTvInterface) openLibrary(libraryId, LibrarySort.Title, genre) else nav.navigate("music/$libraryId?genre=${Uri.encode(genre)}")
 
     /** A library's poster grid; with [genre], just its titles in that genre (from a Genres tile or a genre row). */
     fun openLibrary(id: String, sort: LibrarySort = LibrarySort.Title, genre: String? = null) =

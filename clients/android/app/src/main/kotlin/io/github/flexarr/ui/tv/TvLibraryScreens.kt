@@ -54,6 +54,12 @@ import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.Library
 import io.github.flexarr.core.LibrarySort
 import io.github.flexarr.core.LibraryType
+import io.github.flexarr.core.MusicView
+import io.github.flexarr.core.Paged
+import io.github.flexarr.core.albumCount
+import io.github.flexarr.core.artistCount
+import io.github.flexarr.core.libraryAlbumGenres
+import io.github.flexarr.core.libraryAlbums
 import io.github.flexarr.core.ServerVersion
 import io.github.flexarr.core.alphabetLetter
 import io.github.flexarr.core.alphabetLetters
@@ -73,6 +79,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import io.github.flexarr.ui.theme.Tokens
+import io.github.flexarr.ui.theme.FlexarrIcons
 
 /**
  * A film or TV library's tab, as the Apple TV's LibraryTab: Browse, All or Genres, switched with the words at the top.
@@ -102,6 +109,51 @@ fun TvLibraryTab(model: AppModel, library: Library, takeFocus: Boolean, onFocusT
         TvLibraryOpening.Browse -> LibraryBrowse(model, library, takeFocus, onFocusTaken, switch)
         TvLibraryOpening.All -> TvLibraryGrid(model, library, takeFocus = takeFocus, onFocusTaken = onFocusTaken, top = switch)
         TvLibraryOpening.Genres -> LibraryGenres(model, library, takeFocus, onFocusTaken, switch)
+    }
+}
+
+/**
+ * A music library's tab, as a film or TV library's and the Apple TV's: Browse (a hero, the server's rows, Your artists),
+ * Artists, Albums and Genres, switched with the words at the top. Albums and Genres need a server from 0.59 (one that
+ * lists albums); before it, Browse and Artists. [takeFocus]: arriving from the sidebar, the hero's Play (or the first
+ * card, with no hero) takes focus once there is one, then [onFocusTaken].
+ */
+@Composable
+fun TvMusicLibraryTab(model: AppModel, library: Library, takeFocus: Boolean, onFocusTaken: () -> Unit) {
+    val client = model.client
+    // Asked once; taken as able until the server says.
+    val albums = rememberLoader(library.id) { client?.let { it.libraryAlbums(library.id, take = 1) != null } ?: true }
+    val offersAlbums = (albums.state as? Load.Loaded)?.value != false
+    var picked by rememberSaveable(library.id) { mutableStateOf(MusicView.Browse) }
+    // Just switched: the view taking over gives its switch focus, as the word pressed has gone.
+    var switching by remember { mutableStateOf(false) }
+    // Browse's Your artists See all: the first artist takes focus, as the card pressed has gone.
+    var seeingAll by remember { mutableStateOf(false) }
+    val view = if (picked.needsAlbums && !offersAlbums) MusicView.Browse else picked
+    val switch: @Composable () -> Unit = {
+        val choices = MusicView.offered(offersAlbums)
+        val requester = remember { FocusRequester() }
+        LaunchedEffect(switching) {
+            if (!switching) return@LaunchedEffect
+            runCatching { requester.requestFocus() }
+            switching = false
+        }
+        TvViewSwitch(choices.map { it.label }, choices.indexOf(view), onSelect = {
+            switching = choices[it] != view
+            picked = choices[it]
+        }, selectedFocus = requester)
+    }
+    when (view) {
+        MusicView.Browse -> TvMusicLibraryScreen(model, library, takeFocus, onFocusTaken, top = switch, onSeeAllArtists = {
+            seeingAll = true
+            picked = MusicView.Artists
+        })
+        MusicView.Artists -> TvLibraryGrid(model, library, takeFocus = takeFocus || seeingAll, onFocusTaken = {
+            seeingAll = false
+            onFocusTaken()
+        }, top = switch, content = TvGridContent.Artists)
+        MusicView.Albums -> TvLibraryGrid(model, library, takeFocus = takeFocus, onFocusTaken = onFocusTaken, top = switch, content = TvGridContent.Albums)
+        MusicView.Genres -> LibraryGenres(model, library, takeFocus, onFocusTaken, switch)
     }
 }
 
@@ -157,12 +209,16 @@ private fun LibraryBrowse(model: AppModel, library: Library, takeFocus: Boolean,
     }
 }
 
-/** A tile for each of the library's genres, biggest first, with a backdrop from one of its titles. */
+/**
+ * A tile for each of the library's genres, biggest first, with a backdrop from one of its titles. A music library's
+ * count albums (tagged on the album or its artist), with an artist's fanart, and open the genre's albums.
+ */
 @Composable
 private fun LibraryGenres(model: AppModel, library: Library, takeFocus: Boolean, onFocusTaken: () -> Unit, switch: @Composable () -> Unit) {
     val client = model.client ?: return
     val navigator = LocalNavigator.current
-    val loader = rememberLoader(library.id) { client.libraryGenres(library.id) }
+    val music = library.type == LibraryType.Music
+    val loader = rememberLoader(library.id) { if (music) client.libraryAlbumGenres(library.id).orEmpty() else client.libraryGenres(library.id) }
     val first = remember { FocusRequester() }
     RoomBackground(ambient = null) {
         when (val state = loader.state) {
@@ -187,7 +243,7 @@ private fun LibraryGenres(model: AppModel, library: Library, takeFocus: Boolean,
                     }
                     itemsIndexed(genres, key = { _, genre -> genre.name }) { index, genre ->
                         TvGenreTile(genre.name, genreCaption(library, genre), genre.backdrop, onClick = {
-                            navigator.openLibrary(library.id, LibrarySort.Title, genre.name)
+                            if (music) navigator.openMusicGenre(library.id, genre.name) else navigator.openLibrary(library.id, LibrarySort.Title, genre.name)
                         }, modifier = if (index == 0) Modifier.focusRequester(first) else Modifier)
                     }
                 }
@@ -199,6 +255,7 @@ private fun LibraryGenres(model: AppModel, library: Library, takeFocus: Boolean,
 }
 
 private fun genreCaption(library: Library, genre: GenreCount): String {
+    if (library.type == LibraryType.Music) return albumCount(genre.count)
     val noun = if (library.type == LibraryType.TvShows) (if (genre.count == 1) "show" else "shows") else (if (genre.count == 1) "movie" else "movies")
     return "${genre.count} $noun"
 }
@@ -208,10 +265,34 @@ private const val GENRES_ACROSS = 5
 /** How many pages an A–Z jump asks for at once. */
 private const val JUMP_PAGES = 3
 
+/** What a library grid lists: a library's titles, or a music library's artists (its titles) or albums. */
+enum class TvGridContent {
+    Titles,
+    Artists,
+    Albums,
+    ;
+
+    val sorts: List<LibrarySort>
+        get() = when (this) {
+            Titles -> LibrarySort.entries
+            Artists -> MusicView.Artists.sorts
+            Albums -> MusicView.Albums.sorts
+        }
+
+    /** "1,204 titles", "1 artist", "38 albums". */
+    fun count(total: Int): String = when (this) {
+        Titles -> if (total == 1) "1 title" else "%,d titles".format(total)
+        Artists -> artistCount(total)
+        Albums -> albumCount(total)
+    }
+}
+
 /**
  * Every title in a library as a poster grid, paged as it scrolls, with sort and genre at the top and an A–Z rail down
  * the right to jump through it when sorted by title. On a tab, [top] is the Browse and All switch; opened from a row's
- * "See all" or a genre, the library's name heads it instead. As the Apple TV's LibraryView.
+ * "See all" or a genre, the library's name heads it instead. As the Apple TV's LibraryView. For music ([content]): its
+ * artists as round pictures, or its albums as square covers; a genre's albums (opened from its tile) have Play and
+ * Shuffle for the genre's tracks under its name.
  */
 @Composable
 fun TvLibraryGrid(
@@ -222,6 +303,7 @@ fun TvLibraryGrid(
     takeFocus: Boolean = false,
     onFocusTaken: () -> Unit = {},
     top: (@Composable () -> Unit)? = null,
+    content: TvGridContent = TvGridContent.Titles,
 ) {
     val client = model.client ?: return
     val navigator = LocalNavigator.current
@@ -242,7 +324,14 @@ fun TvLibraryGrid(
     val targetRequester = remember { FocusRequester() }
     val firstRequester = remember { FocusRequester() }
     val grid = rememberLazyGridState()
-    val genres = rememberLoader(library.id) { client.libraryGenres(library.id) }
+    val genres = rememberLoader(library.id, content) {
+        if (content == TvGridContent.Albums) client.libraryAlbumGenres(library.id).orEmpty() else client.libraryGenres(library.id)
+    }
+    // A page of what this grid lists, as it's sorted and filtered now. A server without albums has none.
+    suspend fun page(skip: Int, take: Int): Paged<ItemSummary> = when (content) {
+        TvGridContent.Albums -> client.libraryAlbums(library.id, sort, genre, skip = skip, take = take) ?: Paged(0, emptyList())
+        else -> client.libraryItems(library.id, sort, genre, skip = skip, take = take)
+    }
     val showsLetters = sort == LibrarySort.Title && total > PAGE_SIZE
 
     // The first page, again whenever the sort or genre changes, and when what's watched may have changed (the list is
@@ -254,10 +343,10 @@ fun TvLibraryGrid(
             // As far as it had got, however far that is, a page at a time: past MAX_PAGE_SIZE, one request would cut the
             // list short and lose the place.
             val wanted = if (loadedOnce) items.size.coerceAtLeast(PAGE_SIZE) else PAGE_SIZE
-            val first = client.libraryItems(library.id, sort, genre, skip = 0, take = wanted.coerceAtMost(MAX_PAGE_SIZE))
+            val first = page(skip = 0, take = wanted.coerceAtMost(MAX_PAGE_SIZE))
             var fetched = first.items
             while (fetched.size < wanted && fetched.size < first.total) {
-                val next = client.libraryItems(library.id, sort, genre, skip = fetched.size, take = (wanted - fetched.size).coerceAtMost(MAX_PAGE_SIZE))
+                val next = page(skip = fetched.size, take = (wanted - fetched.size).coerceAtMost(MAX_PAGE_SIZE))
                 val known = fetched.map { it.id }.toSet()
                 val added = next.items.filter { it.id !in known }
                 // Nothing new (an empty page, or titles already here after one moved): asking again would get the same.
@@ -285,11 +374,11 @@ fun TvLibraryGrid(
             val skip = items.size
             loading = true
             try {
-                val page = client.libraryItems(library.id, sort, genre, skip = skip, take = PAGE_SIZE)
+                val next = page(skip = skip, take = PAGE_SIZE)
                 if (current == generation && skip == items.size) {
                     val known = items.map { it.id }.toSet()
-                    items = items + page.items.filter { it.id !in known }
-                    total = page.total
+                    items = items + next.items.filter { it.id !in known }
+                    total = next.total
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -342,7 +431,7 @@ fun TvLibraryGrid(
                     val skip = items.size
                     val pages = coroutineScope {
                         (0 until JUMP_PAGES).map { n -> skip + n * MAX_PAGE_SIZE }.filter { it < total }.map { from ->
-                            async { runCatching { client.libraryItems(library.id, sort, genre, skip = from, take = MAX_PAGE_SIZE) }.getOrNull() }
+                            async { runCatching { page(skip = from, take = MAX_PAGE_SIZE) }.getOrNull() }
                         }.awaitAll()
                     }
                     if (current != generation || skip != items.size) return@launch
@@ -369,14 +458,24 @@ fun TvLibraryGrid(
             verticalArrangement = Arrangement.spacedBy(28.dp),
         ) {
             item(span = { GridItemSpan(maxLineSpan) }) {
-                Header(library, top, total, sort, onSort = { sort = it }, genre, hasGenres = (genres.state as? Load.Loaded)?.value?.isNotEmpty() == true, onGenre = { choosingGenre = true })
+                Header(
+                    library, top, content, content.count(total), sort, onSort = { sort = it }, genre,
+                    hasGenres = (content != TvGridContent.Albums || initialGenre == null) && (genres.state as? Load.Loaded)?.value?.isNotEmpty() == true, onGenre = { choosingGenre = true },
+                    // A music genre's own page: its albums under its name, and its tracks to play.
+                    title = if (content == TvGridContent.Albums) initialGenre ?: library.name else library.name,
+                    genrePlay = initialGenre.takeIf { content == TvGridContent.Albums && top == null }?.let { name ->
+                        { shuffled: Boolean -> navigator.playGenre(library.id, name, shuffled) }
+                    },
+                    ambient = items.firstOrNull()?.let { glowColor(it.accentColor) } ?: Flexarr.silver,
+                )
             }
             when {
                 error != null && items.isEmpty() -> item(span = { GridItemSpan(maxLineSpan) }) {
                     Box(Modifier.height(300.dp)) { TvStatusView(error, retry = { attempt++ }) }
                 }
                 items.isEmpty() && loadedOnce && !loading -> item(span = { GridItemSpan(maxLineSpan) }) {
-                    Box(Modifier.height(300.dp)) { TvStatusView(genre?.let { "No $it titles here." } ?: "Nothing in this library yet.", empty = true) }
+                    val noun = if (content == TvGridContent.Albums) "albums" else "titles"
+                    Box(Modifier.height(300.dp)) { TvStatusView(genre?.let { "No $it $noun here." } ?: "Nothing in this library yet.", empty = true) }
                 }
                 else -> itemsIndexed(items, key = { _, item -> item.id }) { index, item ->
                     val modifier = when {
@@ -384,7 +483,11 @@ fun TvLibraryGrid(
                         index == 0 -> Modifier.focusRequester(firstRequester)
                         else -> Modifier
                     }
-                    TvPosterCard(item, onClick = { navigator.open(item) }, modifier = modifier)
+                    when (content) {
+                        TvGridContent.Titles -> TvPosterCard(item, onClick = { navigator.open(item) }, modifier = modifier)
+                        TvGridContent.Artists -> TvArtistCard(item, onClick = { navigator.open(item) }, modifier = modifier)
+                        TvGridContent.Albums -> TvAlbumCard(item, onClick = { navigator.open(item) }, modifier = modifier, showsArtist = true)
+                    }
                 }
             }
             if (loading && items.isNotEmpty()) {
@@ -413,26 +516,39 @@ fun TvLibraryGrid(
     }
 }
 
-/** The library's name (or the view switch) and how many titles, then the sort pills and the genre at the right. */
+/**
+ * The library's name (or the view switch) and how many titles, then the sort pills and the genre at the right. A music
+ * genre's page has Play and Shuffle ([genrePlay]) under its name.
+ */
 @Composable
 private fun Header(
     library: Library,
     top: (@Composable () -> Unit)?,
-    total: Int,
+    content: TvGridContent,
+    count: String,
     sort: LibrarySort,
     onSort: (LibrarySort) -> Unit,
     genre: String?,
     hasGenres: Boolean,
     onGenre: () -> Unit,
+    title: String = library.name,
+    genrePlay: ((shuffled: Boolean) -> Unit)? = null,
+    ambient: Color = Flexarr.silver,
 ) {
     Row(Modifier.padding(bottom = 6.dp), verticalAlignment = Alignment.Bottom) {
         Column(verticalArrangement = Arrangement.spacedBy(if (top == null) 2.dp else 8.dp)) {
-            if (top != null) top() else Text(library.name, style = marquee(38).copy(fontWeight = FontWeight.ExtraBold))
-            Text(if (total == 1) "1 title" else "%,d titles".format(total), fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher)
+            if (top != null) top() else Text(title, style = marquee(38).copy(fontWeight = FontWeight.ExtraBold))
+            Text(count, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher)
+            if (genrePlay != null) {
+                Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(13.dp)) {
+                    TvActionButton("Play", onClick = { genrePlay(false) }, icon = FlexarrIcons.play, prominent = true, ambient = ambient)
+                    TvActionButton("Shuffle", onClick = { genrePlay(true) }, icon = FlexarrIcons.shuffle, ambient = ambient)
+                }
+            }
         }
         Spacer(Modifier.weight(1f))
         Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-            LibrarySort.entries.forEach { option -> TvPill(option.label, selected = sort == option, onClick = { onSort(option) }) }
+            content.sorts.forEach { option -> TvPill(option.label, selected = sort == option, onClick = { onSort(option) }) }
             if (hasGenres) TvPill(genre ?: "All genres", selected = genre != null, onClick = onGenre)
         }
     }
