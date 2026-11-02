@@ -127,7 +127,10 @@ struct ExternalMusicCard: View {
         return canFollow
     }
 
-    private var canFollow: Bool { item.isArtist && item.libraryItemId == nil && item.hasPage && !model.isFollowing(item) }
+    /// A library artist can be followed too, on servers that say whether it is (0.59 on).
+    private var canFollow: Bool {
+        item.isArtist && (item.libraryItemId == nil || item.followed != nil) && item.hasPage && !model.isFollowing(item)
+    }
 
     private var subtitle: String? {
         var parts: [String] = []
@@ -138,10 +141,10 @@ struct ExternalMusicCard: View {
             case .inLibrary: parts.append("In your library")
             default: break
             }
-        } else if item.libraryItemId != nil {
-            parts.append("In your library")
         } else if model.isFollowing(item) {
             parts.append(MusicWords.following)
+        } else if item.libraryItemId != nil {
+            parts.append("In your library")
         }
         return parts.isEmpty ? nil : parts.joined(separator: "  ")
     }

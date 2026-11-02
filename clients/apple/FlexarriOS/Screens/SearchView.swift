@@ -250,9 +250,9 @@ struct SearchView: View {
             // Asked once, before the first search that needs it.
             looksOutside = (try? await client.requestStatus())?.configured == true
         }
-        if musicStatus == nil {
-            musicStatus = (try? await client.musicRequestStatus()) ?? .off
-        }
+        // Asked each search: the model keeps an answer for a minute, and not one that never came, so a blip doesn't hide
+        // outside music for the rest of the visit.
+        musicStatus = await model.musicRequestStatus()
         do {
             async let beyond: [ExternalTitle] = looksOutside == true ? (try? await client.searchEverything(text)) ?? [] : []
             async let music: MusicSearchResults = looksForMusic ? (try? await client.searchMusic(text)) ?? .empty : .empty

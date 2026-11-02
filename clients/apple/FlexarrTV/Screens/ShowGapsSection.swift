@@ -51,23 +51,24 @@ struct ShowGapsSection: View {
             if !gaps.upcoming.isEmpty {
                 VStack(alignment: .leading, spacing: 16) {
                     RowHeading(title: "Coming up")
-                    VStack(alignment: .leading, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 6) {
                         ForEach(gaps.upcoming) { episode in
-                            HStack(alignment: .firstTextBaseline, spacing: 18) {
-                                Text(episode.code)
-                                    .font(.system(size: 26, weight: .semibold).monospacedDigit())
-                                    .foregroundStyle(Color.screen)
-                                Text(episode.title ?? "")
-                                    .font(.system(size: 26))
-                                    .foregroundStyle(Color.screen.opacity(0.85))
-                                    .lineLimit(1)
-                                if let airs = episode.airs() {
-                                    Text(airs).font(.system(size: 26)).foregroundStyle(Color.usher)
+                            listRow {
+                                HStack(alignment: .firstTextBaseline, spacing: 18) {
+                                    Text(episode.code)
+                                        .font(.system(size: 26, weight: .semibold).monospacedDigit())
+                                    Text(episode.title ?? "")
+                                        .font(.system(size: 26))
+                                        .lineLimit(1)
+                                    if let airs = episode.airs() {
+                                        Text(airs).font(.system(size: 26))
+                                    }
                                 }
                             }
                         }
                     }
                     .padding(.horizontal, Layout.edge)
+                    .focusSection()
                 }
             }
         }
@@ -81,7 +82,10 @@ struct ShowGapsSection: View {
         let n = season.seasonNumber
         if asked.contains(n) || searched.contains(n) { return .requested }
         if undone.contains(n), gaps.canRequest { return .request }
-        return gaps.action(for: season)
+        let action = gaps.action(for: season)
+        // Without the show's TMDB id there's nothing to request it by: Search (the main profile) or nothing.
+        if action == .request, tmdbId == nil { return gaps.canSearch && gaps.source == "sonarr" ? .search : .none }
+        return action
     }
 
     /// A season requested through Seerr can be taken back from here; one Sonarr is searching for can't.
@@ -92,8 +96,14 @@ struct ShowGapsSection: View {
     private func seasonCard(_ season: MissingSeason) -> some View {
         let action = state(season)
         let width = Layout.posterWidth
+        let badge = status(action)
         // Always a button, whatever it can do: one that's disabled while it has focus leaves nothing focused.
-        return ArtworkButton(ambient: .silver, accessibilityText: season.title) {
+        // VoiceOver hears what the caption says, Request, Search or Requested among it, as the card is all it focuses.
+        return ArtworkButton(ambient: .silver,
+                             accessibilityText: [season.title, caption(season), badge?.title].compactMap(\.self)
+                                 .filter { !$0.isEmpty }.joined(separator: ", "),
+                             accessibilityHint: action == .requested && undoable(season) ? TitleWords.unrequestHint : nil,
+                             isSelected: action == .requested) {
             // Pressing it does what it says, as on Android TV: no dialog in between.
             guard !busy else { return }
             switch action {
@@ -124,7 +134,7 @@ struct ShowGapsSection: View {
                 Text(caption(season))
                     .font(.system(size: 21))
                     .foregroundStyle(Color.usher)
-                if let status = status(action) {
+                if let status = badge {
                     Label(status.title, systemImage: status.symbol)
                         .font(.system(size: 21, weight: .semibold))
                         .foregroundStyle(Color.screen)
@@ -132,6 +142,7 @@ struct ShowGapsSection: View {
             }
             .lineLimit(1)
             .frame(width: width, alignment: .leading)
+            .accessibilityHidden(true)
         }
     }
 
@@ -143,9 +154,9 @@ struct ShowGapsSection: View {
     /// What pressing the card does, or that it's done: Request, Search or Requested.
     private func status(_ action: MissingSeasonAction) -> (title: String, symbol: String)? {
         switch action {
-        case .request: ("Request", Symbol.request)
+        case .request: (TitleWords.request, Symbol.request)
         case .search: ("Search", Symbol.search)
-        case .requested: ("Requested", Symbol.requested)
+        case .requested: (TitleWords.requested, Symbol.requested)
         default: nil
         }
     }
@@ -155,11 +166,12 @@ struct ShowGapsSection: View {
             Text("Season \(season): \(episodes.count == 1 ? "1 episode" : "\(episodes.count) episodes")")
                 .font(.system(size: 30, weight: .bold))
                 .foregroundStyle(Color.screen)
-            Text(episodes.map { [$0.code, $0.title].compactMap(\.self).joined(separator: " ") }.joined(separator: "   "))
-                .font(.system(size: 24))
-                .foregroundStyle(Color.screen.opacity(0.8))
-                .lineLimit(2)
-                .frame(maxWidth: 1400, alignment: .leading)
+            listRow {
+                Text(episodes.map { [$0.code, $0.title].compactMap(\.self).joined(separator: " ") }.joined(separator: "   "))
+                    .font(.system(size: 24))
+                    .lineLimit(2)
+                    .frame(maxWidth: 1400, alignment: .leading)
+            }
             if gaps.canSearch && gaps.source == "sonarr" {
                 Button {
                     guard !busy, !asked.contains(-season) else { return }
@@ -173,6 +185,15 @@ struct ShowGapsSection: View {
             }
         }
         .focusSection()
+    }
+
+    /// A focusable row that does nothing, as an outside album's tracks are: the remote scrolls only by moving focus, so
+    /// without it the lines are skipped on the way down (for everyone but the main profile, nothing else here takes
+    /// focus). Its highlight reaches out into the margin, the words staying in line with the headings.
+    private func listRow<Content: View>(@ViewBuilder _ label: () -> Content) -> some View {
+        Button {} label: { label() }
+            .buttonStyle(TrackRowStyle(isCurrent: false))
+            .padding(.horizontal, -30)
     }
 
     private func request(_ season: MissingSeason) async {

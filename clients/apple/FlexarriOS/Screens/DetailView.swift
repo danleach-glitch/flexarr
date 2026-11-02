@@ -472,11 +472,12 @@ struct DetailView: View {
             error = nil
 
             let item = loaded.item
+            // After the page and beside the season: Sonarr or Seerr being slow never holds either up.
+            let gapsClient = item.kind == .series && !model.isKids ? client : nil
+            async let shownGaps = Self.fetchGaps(gapsClient, item.id)
             switch item.kind {
             case .series:
                 nextUp = try? await client.nextUp(item.id)
-                // After the page: Sonarr or Seerr being slow never holds it up.
-                if !model.isKids { gaps = (try? await client.showGaps(item.id)) ?? gaps }
                 if selectedSeasonID == nil {
                     selectedSeasonID = nextUp?.parentId ?? loaded.children.first?.id
                 }
@@ -488,12 +489,19 @@ struct DetailView: View {
                 break
             }
             await loadSelectedSeason(force: true)
+            if let shown = await shownGaps { gaps = shown }
             if similar.isEmpty, item.kind != .episode {
                 similar = (try? await client.similar(item.id)) ?? []
             }
         } catch {
             if detail == nil { self.error = ConnectionError(error).message }
         }
+    }
+
+    /// What the show is missing, or nil without a client (not a show, or a kids' profile) or when it can't be had.
+    nonisolated private static func fetchGaps(_ client: FlexarrClient?, _ showId: String) async -> ShowGaps? {
+        guard let client else { return nil }
+        return try? await client.showGaps(showId)
     }
 
     private func loadSelectedSeason(force: Bool = false) async {
