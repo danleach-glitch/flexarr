@@ -111,8 +111,9 @@ function ViewSwitch({ library, view }: { library: Library; view: 'browse' | 'all
           Playlists
         </Link>
       )}
-      {/* Last, so the others don't move: kept in place while the status loads, gone once it says they can't be requested. */}
-      {requestable && ((requests.data ? requests.data.configured : !requests.error) || view === 'requested') && (
+      {/* Last, so the others don't move as it arrives: only once the status says requests work (a child's is refused, so
+          it never flickers in for them), or while it's the view open. */}
+      {requestable && (requests.data?.configured || view === 'requested') && (
         <Link to={`/library/${library.id}?view=requested`} aria-current={current('requested')}>
           Requested
         </Link>

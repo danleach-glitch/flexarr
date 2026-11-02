@@ -67,6 +67,21 @@ describe('A music library', () => {
     expect(screen.getByRole('link', { name: 'Genres' })).toBeInTheDocument()
   })
 
+  it('shows Requested only once the status says requests work, so it never flickers in for a child', async () => {
+    let answer: (r: Response) => void = () => undefined
+    mockApi({
+      '/libraries/lib-music/browse': { featured: [], overviews: {}, rows: [], upcoming: [], downloading: 0 },
+      '/libraries/lib-music/items': { total: 0, items: [] },
+      '/requests/music/status': () => new Promise<Response>((resolve) => (answer = resolve)),
+    })
+    renderAt('/library/lib-music')
+
+    expect(await screen.findByRole('link', { name: 'Albums' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Requested' })).not.toBeInTheDocument()
+    answer(new Response(JSON.stringify({ configured: true, reachable: true })))
+    expect(await screen.findByRole('link', { name: 'Requested' })).toBeInTheDocument()
+  })
+
   it('ends Browse with Your artists, and See all when there are more', async () => {
     mockApi({
       '/libraries/lib-music/browse': { featured: [], overviews: {}, rows: [{ id: 'recent', title: 'New albums', style: 'poster', items: [dummy] }], upcoming: [], downloading: 0 },
