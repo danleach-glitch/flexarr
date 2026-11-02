@@ -72,6 +72,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.github.flexarr.core.MediaKind
+import io.github.flexarr.ui.music.AlbumCard
+import io.github.flexarr.ui.music.ArtistCard
 import io.github.flexarr.AppModel
 import io.github.flexarr.core.ExternalTitle
 import io.github.flexarr.core.ItemSummary
@@ -327,11 +330,32 @@ private fun LazyListScope.results(
     if (results.isEmpty && beyond.isNullOrEmpty() && (music == null || music.isEmpty) && !waitingForMore) {
         item { StatusView("Nothing matches “$query”.", empty = true, modifier = Modifier.height(240.dp)) }
     }
-    if (results.titles.isNotEmpty()) {
+    // The server lists artists among the titles: films and shows here, artists with the albums below.
+    val films = results.titles.filter { it.kind != MediaKind.Artist }
+    val artists = results.titles.filter { it.kind == MediaKind.Artist }
+    if (films.isNotEmpty()) {
         item(key = "titles") {
             Section("Movies and shows") {
                 LazyRow(contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(RowSpacing)) {
-                    items(results.titles, key = { it.id }) { PosterCard(it, onOpen = { onPick(it) }) }
+                    items(films, key = { it.id }) { PosterCard(it, onOpen = { onPick(it) }) }
+                }
+            }
+        }
+    }
+    if (artists.isNotEmpty()) {
+        item(key = "artists") {
+            Section("Artists") {
+                LazyRow(contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(RowSpacing), verticalAlignment = Alignment.Top) {
+                    items(artists, key = { it.id }) { ArtistCard(it, Modifier.width(PosterWidth)) }
+                }
+            }
+        }
+    }
+    if (results.albums.isNotEmpty()) {
+        item(key = "albums") {
+            Section("Albums") {
+                LazyRow(contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(RowSpacing), verticalAlignment = Alignment.Top) {
+                    items(results.albums, key = { it.id }) { AlbumCard(it, width = PosterWidth, showsArtist = true) }
                 }
             }
         }

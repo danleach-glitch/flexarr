@@ -542,8 +542,14 @@ public struct SearchResults: Codable, Sendable {
     /// Audiobooks (not in `titles`) and their series. Absent from servers before 0.58.
     public var books: [ItemSummary]? = nil
     public var bookSeries: [BookSeriesSearchResult]? = nil
+    /// Albums by name; artists are among `titles`. Absent from servers before music search.
+    public var albums: [ItemSummary]? = nil
 
-    public var isEmpty: Bool { titles.isEmpty && episodes.isEmpty && people.isEmpty && (books ?? []).isEmpty && (bookSeries ?? []).isEmpty }
+    /// Films and shows, without the artists `titles` also holds.
+    public var films: [ItemSummary] { titles.filter { $0.kind != .artist } }
+    public var artists: [ItemSummary] { titles.filter { $0.kind == .artist } }
+
+    public var isEmpty: Bool { titles.isEmpty && episodes.isEmpty && people.isEmpty && (books ?? []).isEmpty && (bookSeries ?? []).isEmpty && (albums ?? []).isEmpty }
 }
 
 /// The profile's last few searches and the titles opened from them, newest first, shared by all its devices.

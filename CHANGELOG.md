@@ -21,6 +21,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On Android TV, kids profiles no longer see a score on a title's page, the Home hero or an artist's page.
 
 ### Search
+- On iPhone, iPad, Android phones and the Apple TV, search lists the artists and albums you have under **Artists** and **Albums**, rather than artists among the movies and shows. The Apple TV's search finds audiobooks too.
 - On the web, a genre found by search opens that genre in its own library: a music genre's albums, a books genre's page, or the movies or shows of that genre. A genre in more than one library is listed once for each.
 
 ### Music

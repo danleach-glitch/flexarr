@@ -17,10 +17,32 @@ struct SearchView: View {
                         StatusView(state: .empty("Nothing matches \u{201C}\(query)\u{201D}."))
                             .frame(height: 300)
                     }
-                    if !results.titles.isEmpty {
+                    if !results.films.isEmpty {
                         section("Movies and shows") {
-                            ForEach(results.titles) { item in
+                            ForEach(results.films) { item in
                                 PosterCard(item: item) { open(item) }
+                            }
+                        }
+                    }
+                    // Music you have (artists come among the titles), then audiobooks, as on iPhone.
+                    if !results.artists.isEmpty {
+                        section("Artists") {
+                            ForEach(results.artists) { item in
+                                ArtistCard(item: item) { open(item) }
+                            }
+                        }
+                    }
+                    if let albums = results.albums, !albums.isEmpty {
+                        section("Albums") {
+                            ForEach(albums) { item in
+                                AlbumCard(item: item, showsArtist: true) { open(item) }
+                            }
+                        }
+                    }
+                    if let books = results.books, !books.isEmpty {
+                        section("Audiobooks") {
+                            ForEach(books) { item in
+                                BookCard(item: item) { open(item) }
                             }
                         }
                     }
