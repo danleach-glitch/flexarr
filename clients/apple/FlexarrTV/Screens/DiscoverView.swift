@@ -499,7 +499,7 @@ struct ExternalTitleView: View {
             : detail.runtimeMinutes.flatMap { Format.runtime(minutes: $0) }
         let status = detail.status.flatMap { ["Released", "Ended"].contains($0) ? nil : $0 }
         // TMDB's score when there's no IMDb score to show beside its mark.
-        let tmdb = detail.scores.imdb == nil ? detail.tmdbRating.map { String(format: "%.1f", $0) } : nil
+        let tmdb = detail.scores.imdb == nil ? detail.tmdbRating.map { String(format: "%.1f/10", $0) } : nil
         return [detail.certification, detail.year.map(String.init), length, detail.isShow ? "Show" : "Movie", status, tmdb].compactMap { $0 }
     }
 
