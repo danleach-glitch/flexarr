@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { ApiError, fixMusicMatch, imageUrl, resetMusicMatch, searchMusicMatches, type ItemDetail, type MusicMatch } from '../api/client'
+import { ApiError, fixMusicMatch, getItem, imageUrl, resetMusicMatch, searchMusicMatches, type ItemDetail, type MusicMatch } from '../api/client'
 import { albumTypeLabel } from '../lib/albums'
 import type { AlbumType } from '../api/types'
 import { useApi } from '../hooks/useApi'
@@ -175,4 +175,10 @@ function CoverOption({ src, label, selected, disabled, onSelect }: { src: string
       <span>{label}</span>
     </button>
   )
+}
+
+/** Fix match for an album or artist known only by its id (a row in Library health): its page's details first. */
+export function MusicMatchById({ id, onFixed, onClose }: { id: string; onFixed: () => void; onClose: () => void }) {
+  const detail = useApi((signal) => getItem(id, signal), [id])
+  return detail.data ? <MusicMatchDialog detail={detail.data} onFixed={onFixed} onClose={onClose} /> : null
 }

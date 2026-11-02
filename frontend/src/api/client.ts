@@ -1231,6 +1231,11 @@ export interface LibraryHealth {
     fileProblems: number
     /** Films and shows without artwork, left out of the score: no Radarr or Sonarr is connected to fill it in. */
     artworkNeedsConnection?: number
+    /** Music's checks; albums count as titles. Absent from servers before 0.59. */
+    albumsWithoutCover?: number
+    duplicateAlbums?: number
+    albumsWithRepeatedTracks?: number
+    splitArtists?: number
   }
   duplicates: {
     item: import('./types').ItemSummary
@@ -1249,6 +1254,14 @@ export interface LibraryHealth {
   downloading: Record<string, { progress: number; timeLeft: string | null; status: string | null }>
   /** Library folders whose files scans are keeping, as the folder looked unmounted or cleared out. */
   held: HeldFolder[]
+  /** Albums with no cover anywhere. Absent from servers before 0.59, as are the three below. */
+  albumsWithoutCover?: import('./types').ItemSummary[]
+  /** One release more than once (the same MusicBrainz release or Lidarr album). */
+  duplicateAlbums?: { albums: import('./types').ItemSummary[]; artist: string | null }[]
+  /** Albums with the same disc and track more than once: `repeated` tracks too many. */
+  albumsWithRepeatedTracks?: { album: import('./types').ItemSummary; artist: string | null; repeated: number }[]
+  /** One artist under two or more spellings. */
+  splitArtists?: { artists: import('./types').ItemSummary[] }[]
 }
 
 export interface HeldFolder {
@@ -1373,6 +1386,10 @@ export const searchMusicMatches = (itemId: string, q: string | undefined, signal
 export const fixMusicMatch = (itemId: string, match: { provider: string; id: string; instance?: string | null; cover?: string | null }) =>
   request<void>('POST', `/items/${itemId}/music-match`, match)
 export const resetMusicMatch = (itemId: string) => request<void>('DELETE', `/items/${itemId}/music-match`)
+
+/** Merge (Library health): everything of the others moves to the one kept, and they go. Files are left alone. */
+export const mergeArtists = (keep: string, merge: string[]) => request<void>('POST', '/library-health/merge-artists', { keep, merge })
+export const mergeAlbums = (keep: string, merge: string[]) => request<void>('POST', '/library-health/merge-albums', { keep, merge })
 
 /** Keeps the match a title search found (Library health's Ignore): refreshes leave it as it is. */
 export const keepMatch = (itemId: string) => request<void>('POST', `/items/${itemId}/match/keep`)

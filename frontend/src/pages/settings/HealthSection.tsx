@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
-import { ApiError, getLibraryHealth, confirmHeldRemoval, keepMatch, removeDuplicates, deleteCopy, getHealthCheck, startHealthCheck, type ItemSummary, type LibraryHealth, type HeldFolder, searchAgain } from '../../api/client'
+import { ApiError, getLibraryHealth, confirmHeldRemoval, keepMatch, removeDuplicates, deleteCopy, getHealthCheck, startHealthCheck, type ItemSummary, type LibraryHealth, type HeldFolder, searchAgain, mergeAlbums, mergeArtists } from '../../api/client'
 import { Artwork } from '../../components/Artwork'
 import { AsyncButton } from '../../components/AsyncButton'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { FixMatchDialog } from '../../components/FixMatchDialog'
+import { MusicMatchById } from '../../components/MusicMatchDialog'
 import { useApi } from '../../hooks/useApi'
 import { usePolling } from '../../hooks/usePolling'
 import { episodeCode, formatSize, relativeTime, unreadableReason } from '../../lib/format'
@@ -149,12 +150,18 @@ export function HealthSection() {
   }
 
   const score = data.score
+  // Albums count as titles on servers that check music.
+  const titlesNoun = score.albumsWithoutCover === undefined ? 'movies and episodes' : 'movies, episodes and albums'
   const breakdown = [
     [score.duplicates, 'with spare copies'],
     [score.unreadable, 'unreadable'],
     [score.fileProblems, 'missing or empty files'],
     [score.standardDefinition, 'only in SD'],
     [score.missingArtwork, 'without artwork'],
+    [score.albumsWithoutCover ?? 0, 'albums without a cover'],
+    [score.duplicateAlbums ?? 0, 'albums twice'],
+    [score.albumsWithRepeatedTracks ?? 0, 'albums with tracks twice'],
+    [score.splitArtists ?? 0, 'artists under two names'],
   ] as const
 
   // Groups with nothing in them drop out, so what's left is what needs a look; this line says what's fine.
@@ -176,8 +183,8 @@ export function HealthSection() {
         <div>
           <p className="health-score-summary">
             {score.withProblems === 0
-              ? `All ${score.titles.toLocaleString()} movies and episodes are in good shape.`
-              : `${(score.titles - score.withProblems).toLocaleString()} of ${score.titles.toLocaleString()} movies and episodes have no problems.`}
+              ? `All ${score.titles.toLocaleString()} ${titlesNoun} are in good shape.`
+              : `${(score.titles - score.withProblems).toLocaleString()} of ${score.titles.toLocaleString()} ${titlesNoun} have no problems.`}
           </p>
           <ul className="health-score-breakdown">
             {breakdown
@@ -375,6 +382,8 @@ export function HealthSection() {
         </HealthGroup>
       )}
 
+      <MusicHealth data={data} onChanged={reload} />
+
       {matching && <FixMatchDialog item={matching} onFixed={reload} onClose={() => setMatching(undefined)} />}
 
       {confirmAll && (
@@ -508,6 +517,116 @@ function DownloadingNote({ state }: { state: LibraryHealth['downloading'][string
   return <span className="tag health-downloading">{text}</span>
 }
 
+/** Something to merge: albums of one release, or one artist's spellings. */
+type Merging = { kind: 'albums' | 'artists'; items: ItemSummary[] }
+
+/**
+ * Music's groups: albums without a cover (Fix match on each), one release twice and one artist under two names (each
+ * with Merge, which asks which to keep), and albums with tracks twice (to tidy in Lidarr or the Finder).
+ */
+function MusicHealth({ data, onChanged }: { data: LibraryHealth; onChanged: () => void }) {
+  const [matching, setMatching] = useState<string>()
+  const [merging, setMerging] = useState<Merging>()
+  const [keep, setKeep] = useState<string>()
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string>()
+  const coverless = data.albumsWithoutCover ?? []
+  const twice = data.duplicateAlbums ?? []
+  const repeated = data.albumsWithRepeatedTracks ?? []
+  const split = data.splitArtists ?? []
+
+  function startMerge(m: Merging) {
+    setMerging(m)
+    setKeep(m.items[0].id)
+    setError(undefined)
+  }
+
+  async function merge() {
+    if (!merging || !keep) return
+    setBusy(true)
+    setError(undefined)
+    try {
+      const others = merging.items.filter((i) => i.id !== keep).map((i) => i.id)
+      await (merging.kind === 'albums' ? mergeAlbums(keep, others) : mergeArtists(keep, others))
+      setMerging(undefined)
+      onChanged()
+    } catch (e) {
+      setError(e instanceof ApiError && e.messages[0] ? e.messages[0] : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const names = (items: ItemSummary[]) => items.map((i) => i.title).join(', ')
+
+  return (
+    <>
+      <HealthGroup title="Albums without a cover" count={coverless.length} lede="No cover beside the files, in them or from Lidarr. Fix the match to choose one.">
+        {coverless.map((item) => (
+          <div key={item.id} className="health-row">
+            <HealthRowMain item={item} detail={item.seriesTitle ?? 'No cover'} />
+            <button className="button quiet small" onClick={() => setMatching(item.id)}>
+              Fix match
+            </button>
+          </div>
+        ))}
+      </HealthGroup>
+
+      <HealthGroup title="Albums twice" count={twice.length} lede="The same release more than once. Merge makes them one album; the files stay where they are.">
+        {twice.map((d) => (
+          <div key={d.albums.map((a) => a.id).join()} className="health-row">
+            <HealthRowMain item={d.albums[0]} detail={[d.artist, `${d.albums.length} copies: ${names(d.albums)}`].filter(Boolean).join('\u2003')} />
+            <button className="button quiet small" onClick={() => startMerge({ kind: 'albums', items: d.albums })}>
+              Merge
+            </button>
+          </div>
+        ))}
+      </HealthGroup>
+
+      <HealthGroup title="Artists under two names" count={split.length} lede="One artist filed under different spellings, usually from their files’ tags. Merge makes them one; the files stay where they are.">
+        {split.map((s) => (
+          <div key={s.artists.map((a) => a.id).join()} className="health-row">
+            <HealthRowMain item={s.artists[0]} detail={names(s.artists)} />
+            <button className="button quiet small" onClick={() => startMerge({ kind: 'artists', items: s.artists })}>
+              Merge
+            </button>
+          </div>
+        ))}
+      </HealthGroup>
+
+      <HealthGroup title="Tracks twice" count={repeated.length} lede="Albums with the same track more than once, usually two copies in one folder. Remove the spare in Lidarr or the Finder.">
+        {repeated.map((r) => (
+          <div key={r.album.id} className="health-row">
+            <HealthRowMain item={r.album} detail={[r.artist, r.repeated === 1 ? '1 track twice' : `${r.repeated} tracks twice`].filter(Boolean).join('\u2003')} />
+          </div>
+        ))}
+      </HealthGroup>
+
+      {matching && <MusicMatchById id={matching} onFixed={onChanged} onClose={() => setMatching(undefined)} />}
+      {merging && (
+        <ConfirmDialog
+          title={merging.kind === 'albums' ? 'Merge these albums?' : 'Merge these artists?'}
+          confirmLabel="Merge"
+          busy={busy}
+          error={error}
+          onClose={() => setMerging(undefined)}
+          onConfirm={() => void merge()}
+        >
+          <p>Which one to keep? The others’ {merging.kind === 'albums' ? 'tracks' : 'albums'} move to it, and new ones land there too. No files are moved or deleted.</p>
+          <div className="health-merge-choices" role="radiogroup" aria-label="Keep">
+            {merging.items.map((i) => (
+              <label key={i.id} className="health-merge-choice">
+                <input type="radio" name="keep" checked={keep === i.id} onChange={() => setKeep(i.id)} disabled={busy} />
+                <span>{i.title}</span>
+              </label>
+            ))}
+          </div>
+        </ConfirmDialog>
+      )}
+    </>
+  )
+}
+
 /** A titled group of problems with a count, a line on what it means, and an optional action for all of them. Nothing, when there are none. */
 function HealthGroup({ title, count, lede, action, shown, children }: { title: string; count: number; lede: string; action?: ReactNode; shown?: boolean; children: ReactNode }) {
   if (count === 0 && !shown) return null
@@ -531,7 +650,9 @@ function HealthGroup({ title, count, lede, action, shown, children }: { title: s
 function HealthRowMain({ item, file, detail }: { item: ItemSummary | null; file?: string; detail: string }) {
   return (
     <span className="health-row-main">
-      <span className="health-row-art">{item && <Artwork src={item.artwork.poster} title={item.title} width={92} shape="poster" />}</span>
+      <span className="health-row-art">
+        {item && <Artwork src={item.artwork.poster} title={item.title} width={92} shape={item.kind === 'Album' || item.kind === 'Artist' ? 'square' : 'poster'} />}
+      </span>
       <span className="health-row-text">
         {item ? (
           <Link to={item.kind === 'Episode' && item.seriesId ? `/item/${item.id}` : `/item/${item.id}`} className="health-row-title">
