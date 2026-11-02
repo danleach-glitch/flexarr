@@ -36,6 +36,17 @@ public class AudiobookApiTests(FlexarrApiFactory factory) : IClassFixture<Flexar
     }
 
     [Fact]
+    public async Task Browse_OnAnAudiobooksLibrary_IsEmpty_ItsShelvesAreItsBrowse()
+    {
+        var lib = await SeedAsync();
+
+        var browse = await GetAsync<HomeDto>($"/api/v1/libraries/{lib.Library}/browse");
+
+        Assert.Empty(browse.Featured);
+        Assert.Empty(browse.Rows);
+    }
+
+    [Fact]
     public async Task ABookSummary_HasItsAuthorsNarratorSeriesAndLength()
     {
         var lib = await SeedAsync();

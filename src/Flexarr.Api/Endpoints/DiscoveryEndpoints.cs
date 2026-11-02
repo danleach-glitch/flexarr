@@ -277,9 +277,11 @@ public static partial class DiscoveryEndpoints
 
             var me = profile.Id;
             var all = $"/library/{id}?view=all";
-            if (library.Type == LibraryType.Podcasts)
+            // Podcasts have their own pages, and an audiobooks library its shelves (/book-shelves): the film and TV
+            // rows below would look for episodes and use the Shows layout.
+            if (library.Type is LibraryType.Podcasts or LibraryType.Audiobooks)
             {
-                return Results.Ok(new HomeDto([], new Dictionary<Guid, string?>(), [], [], 0)); // Podcasts has its own pages
+                return Results.Ok(new HomeDto([], new Dictionary<Guid, string?>(), [], [], 0));
             }
 
             if (library.Type == LibraryType.Music)
