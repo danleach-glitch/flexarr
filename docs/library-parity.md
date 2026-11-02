@@ -1,7 +1,7 @@
 # Library parity: Movies, TV shows, Music, Audiobooks
 
 How the four main kinds of library compare, in the server and in every app, as of 2 November 2026 (after the music
-work in #271–#276 and the first five batches of fixes from this page). Work often goes deep on one kind of library at a time; this page says where one kind is now ahead
+work in #271–#276 and the first six batches of fixes from this page). Work often goes deep on one kind of library at a time; this page says where one kind is now ahead
 of the others, so the next brief can carry the idea across, and where the same idea looks or reads differently.
 
 It was mapped from the code, not by using the apps, so a mark can be wrong in a corner. Check before building on one.
@@ -61,11 +61,11 @@ Apps: **W** web, **i** iPhone/iPad, **tv** Apple TV, **A** Android phone, **ATV*
 | | Movies / TV (Seerr) | Music (Lidarr) | Audiobooks |
 | --- | --- | --- | --- |
 | Discover | ✅ W, tv, ATV; ❌ phones | ✅ W, tv, ATV; phones through Search | ❌ (no Readarr, by design since #257) |
-| Request button states | 🟡 Request; *Requested* is plain text | ✅ Request album / Follow, with icons | — |
-| Take a request back | ❌ | ✅ Unrequest / Unfollow, asks first | — |
-| Greyed when the service is down | ❌ | ✅ | — |
-| *Can't request* with a reason | 🟡 one case (no TVDB id) | ✅ | — |
-| Requested view with progress | 🟡 Coming soon shows download % (whole queue, not your requests) | ✅ W library tab; ❌ apps | — |
+| Request button states | ✅ Request / Requested, with icons, every app | ✅ Request album / Follow, with icons | — |
+| Take a request back | ✅ Unrequest, asks first; a show's season on its own; phones' search menus too | ✅ Unrequest / Unfollow, asks first | — |
+| Greyed when the service is down | ✅ | ✅ | — |
+| *Can't request* with a reason | ✅ Seerr's or Sonarr's reason, when asked | ✅ | — |
+| Requested view with progress | ✅ W Movies and TV library tab; ❌ apps | ✅ W library tab; ❌ apps | — |
 | Follow for new releases | ❌ (Sonarr monitoring is the nearest) | ✅ + *New from …* notification | — |
 | Search *Not in your library* | ✅ every app, opening the title's page | ✅ every app, opening the page | ❌ |
 | Request-ready notification | ✅ | ✅ | — |
@@ -75,7 +75,7 @@ Apps: **W** web, **i** iPhone/iPad, **tv** Apple TV, **A** Android phone, **ATV*
 
 | | Movies | TV shows | Music | Audiobooks |
 | --- | --- | --- | --- | --- |
-| Mark watched / finished | ✅ *Watched* | ✅ + season and whole show | ❌ | ✅ *Finished* / *Mark as unread* |
+| Mark watched / finished | ✅ *Watched* | ✅ + season and whole show | — | ✅ *Finished* / *Mark as unread* |
 | Start over | ✅ button | ✅ | — | ✅ button (asks first part way through) |
 | Shuffle | 🟡 collections only (W) | ✅ | ✅ album, artist, genre | ❌ |
 | Radio, mixes | ❌ | ❌ | ✅ | — |
@@ -136,9 +136,9 @@ Apps: **W** web, **i** iPhone/iPad, **tv** Apple TV, **A** Android phone, **ATV*
 
 ## Where one library is ahead
 
-**Music has, the others could take:** request states as
-buttons with undo, greyed when the service is down, *Can't request* reasons, a Requested view with progress; Follow
-with new-release notices.
+**Music has, the others could take:** Follow with new-release notices (a show's, through Sonarr). Its request
+buttons, undo, greying, *Can't request* and web Requested view reached films and shows in batch 6; neither has a
+Requested view in the apps yet.
 
 **Movies and TV have, the others could take:** See all on every row; Fix match and library
 health for music; the opens-on setting for music on Android TV;
@@ -151,6 +151,4 @@ film franchise's next film; time left at your speed.
 
 Batch 2 brought these into line: book buttons (`BookActions`) and album pages (`MusicActions`), the view switch,
 genres (a titled page everywhere), Shuffle's icon, the downloaded mark, artists' shape, grid errors and empty genres.
-Still different:
-
-1. A movie request's *Requested* is text; a music one is a button (srv-3).
+Batch 6 made a film's or show's *Requested* a button with undo, as music's is. Nothing listed is still different.
