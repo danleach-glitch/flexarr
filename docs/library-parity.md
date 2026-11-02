@@ -1,7 +1,7 @@
 # Library parity: Movies, TV shows, Music, Audiobooks
 
 How the four main kinds of library compare, in the server and in every app, as of 2 November 2026 (after the music
-work in #271–#276 and the first four batches of fixes from this page). Work often goes deep on one kind of library at a time; this page says where one kind is now ahead
+work in #271–#276 and the first five batches of fixes from this page). Work often goes deep on one kind of library at a time; this page says where one kind is now ahead
 of the others, so the next brief can carry the idea across, and where the same idea looks or reads differently.
 
 It was mapped from the code, not by using the apps, so a mark can be wrong in a corner. Check before building on one.
@@ -49,8 +49,9 @@ Apps: **W** web, **i** iPhone/iPad, **tv** Apple TV, **A** Android phone, **ATV*
 | IMDb / Rotten Tomatoes | ✅ | — | — |
 | People | cast and crew → person pages with bios | 🟡 artist bio text only; artists aren't people | ✅ author cards with photo and bio, narrators |
 | Similar | *More like this* (not episodes; no Seerr needed) | *Fans also like*, artists only, needs Lidarr; ❌ albums have no *More by* | *More in series*, *More by author*, *Read by* |
-| **Not in your library** | 🟡 only in franchise collections; ❌ missing seasons/episodes | ✅ artist page, every app | ❌ missing books in a series |
+| **Not in your library** | ✅ show pages, every app: missing seasons (Request, just that season) and episodes (Search, main profile); franchise collections (W) | ✅ artist page, every app | ✅ series page, every app with book pages: Audible's books you lack (no request) |
 | Trailer | ✅ | — | — |
+| Coming up | ✅ show pages: next episodes with air dates; season tabs say *8 of 10* | — | — |
 | Layout | full-width backdrop | square cover + glow | square cover + glow |
 | Series page Play next | — | — | ✅ every app with book pages |
 | Bookmarks | — | — | ✅ i; 🟡 tv lists and plays them, can't add |
@@ -66,7 +67,7 @@ Apps: **W** web, **i** iPhone/iPad, **tv** Apple TV, **A** Android phone, **ATV*
 | *Can't request* with a reason | 🟡 one case (no TVDB id) | ✅ | — |
 | Requested view with progress | 🟡 Coming soon shows download % (whole queue, not your requests) | ✅ W library tab; ❌ apps | — |
 | Follow for new releases | ❌ (Sonarr monitoring is the nearest) | ✅ + *New from …* notification | — |
-| Search *Not in your library* | ✅ i; 🟡 A opens a menu, not a page; ❌ W, tv, ATV | ✅ i, A open the page; ❌ W, tv, ATV | ❌ |
+| Search *Not in your library* | ✅ every app, opening the title's page | ✅ every app, opening the page | ❌ |
 | Request-ready notification | ✅ | ✅ | — |
 | Watchlist that requests | ✅ | — | — |
 
@@ -128,7 +129,7 @@ Apps: **W** web, **i** iPhone/iPad, **tv** Apple TV, **A** Android phone, **ATV*
 | | Movies / TV | Music | Audiobooks |
 | --- | --- | --- | --- |
 | Press-and-hold / right-click menu | ✅ every app | ✅ apps: album, artist, track and playlist cards and tracklist rows (`MusicMenu`); 🟡 W: albums and track rows only; mix cards have none | ✅ |
-| Play button on the card (W) | ❌ | ✅ | ✅ |
+| Play button on the card (W) | ✅ films, shows, seasons, episodes | ✅ | ✅ |
 | Watched tick, progress bar | ✅ | — | ✅ |
 | Downloaded mark | ✅ bottom-right (phones) | ✅ bottom-right | ✅ bottom-right |
 | Artist shape | — | ✅ round everywhere | — |
@@ -136,9 +137,8 @@ Apps: **W** web, **i** iPhone/iPad, **tv** Apple TV, **A** Android phone, **ATV*
 ## Where one library is ahead
 
 **Music has, the others could take:** request states as
-buttons with undo, greyed when the service is down, *Can't request* reasons, a Requested view with progress;
-*Not in your library* on the parent page (missing seasons for a show, missing books in a series); Follow with
-new-release notices; the card's play button on the web.
+buttons with undo, greyed when the service is down, *Can't request* reasons, a Requested view with progress; Follow
+with new-release notices.
 
 **Movies and TV have, the others could take:** See all on every row; Fix match and library
 health for music; the opens-on setting for music on Android TV;
