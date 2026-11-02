@@ -3240,3 +3240,39 @@ a.download-attention {
     animation-duration: 2.4s;
   }
 }
+
+/* ---------- A music library's Requested view ---------- */
+
+.requested-state {
+  font-size: var(--step--1);
+  font-weight: 700;
+  color: var(--silver);
+}
+
+.requested-downloading,
+.requested-importing {
+  color: var(--screen);
+}
+
+.requested-progress {
+  width: 100%;
+  height: 4px;
+  margin-top: 4px;
+  appearance: none;
+  border: 0;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--silver) 25%, transparent);
+  overflow: hidden;
+}
+
+.requested-progress::-webkit-progress-bar {
+  background: transparent;
+}
+
+.requested-progress::-webkit-progress-value {
+  background: var(--screen);
+}
+
+.requested-progress::-moz-progress-bar {
+  background: var(--screen);
+}
