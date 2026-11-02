@@ -96,6 +96,7 @@ public static class MusicMatcher
         var library = await cache.GetOrCreateAsync($"owned-music:{hidden}", async entry =>
         {
             entry.AbsoluteExpirationRelativeToNow = LibraryFor;
+            entry.AddExpirationToken(new Microsoft.Extensions.Primitives.CancellationChangeToken(Volatile.Read(ref _libraryChanged).Token));
             var artists = new Dictionary<string, Guid>();
             foreach (var artist in await db.MediaItems.AsNoTracking().Where(i => i.Kind == MediaKind.Artist).Select(i => new { i.Id, i.Title }).ToListAsync(ct))
             {
@@ -176,6 +177,16 @@ public static class MusicMatcher
             cache.Set(key, (IReadOnlyList<LidarrArtist>)[], LidarrDownFor);
             return [];
         }
+    }
+
+    private static CancellationTokenSource _libraryChanged = new();
+
+    /// <summary>The library's artists or albums changed here (a placeholder added or removed, a delete): work them out afresh.</summary>
+    public static void ForgetLibrary()
+    {
+        var old = Interlocked.Exchange(ref _libraryChanged, new CancellationTokenSource());
+        old.Cancel();
+        old.Dispose();
     }
 
     /// <summary>A Lidarr's artists will have changed (one was just added or followed).</summary>

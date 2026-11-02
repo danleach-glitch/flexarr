@@ -192,6 +192,50 @@ public sealed class ArrClient(HttpClient httpClient)
         await SendAsync<JsonObject>(lidarr, HttpMethod.Put, $"artist/{artistId}", artist, ct).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Has Lidarr stop watching for an artist's new releases. The artist stays monitored, so albums already asked for
+    /// still download.
+    /// </summary>
+    public async Task UnfollowArtistAsync(ArrInstance lidarr, int artistId, CancellationToken ct = default)
+    {
+        var artist = await GetAsync<JsonObject>(lidarr, $"artist/{artistId}", ct).ConfigureAwait(false);
+        artist["monitorNewItems"] = "none";
+        await SendAsync<JsonObject>(lidarr, HttpMethod.Put, $"artist/{artistId}", artist, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>The albums Lidarr has with this MusicBrainz release group (none or one), each with its artist's id.</summary>
+    public Task<IReadOnlyList<LidarrAlbum>> GetAlbumsByForeignIdAsync(ArrInstance lidarr, string releaseGroupId, CancellationToken ct = default) =>
+        GetAsync<IReadOnlyList<LidarrAlbum>>(lidarr, $"album?foreignAlbumId={Uri.EscapeDataString(releaseGroupId)}", ct);
+
+    /// <summary>
+    /// The albums Lidarr is waiting for: monitored, out already and without files (its Wanted › Missing), each with
+    /// its artist; up to 1,000.
+    /// </summary>
+    public async Task<IReadOnlyList<LidarrAlbum>> GetWantedAlbumsAsync(ArrInstance lidarr, CancellationToken ct = default)
+    {
+        const int PageSize = 200, MaxPages = 5;
+        var records = new List<LidarrAlbum>();
+        for (var number = 1; number <= MaxPages; number++)
+        {
+            var page = await GetAsync<ArrPage<LidarrAlbum>>(lidarr, $"wanted/missing?page={number}&pageSize={PageSize}&includeArtist=true&monitored=true&sortKey=releaseDate&sortDirection=descending", ct).ConfigureAwait(false);
+            records.AddRange(page.Records);
+            if (page.Records.Count < PageSize || records.Count >= page.TotalRecords)
+            {
+                break;
+            }
+        }
+
+        return records;
+    }
+
+    /// <summary>Monitored albums coming out between these dates, each with its artist (Lidarr's calendar).</summary>
+    public Task<IReadOnlyList<LidarrAlbum>> GetUpcomingAlbumsAsync(ArrInstance lidarr, DateTime start, DateTime end, CancellationToken ct = default) =>
+        GetAsync<IReadOnlyList<LidarrAlbum>>(lidarr, $"calendar?start={start:yyyy-MM-dd}&end={end:yyyy-MM-dd}&unmonitored=false&includeArtist=true", ct);
+
+    /// <summary>The music files Lidarr has for one album.</summary>
+    public Task<IReadOnlyList<LidarrTrackFile>> GetAlbumTrackFilesAsync(ArrInstance lidarr, int albumId, CancellationToken ct = default) =>
+        GetAsync<IReadOnlyList<LidarrTrackFile>>(lidarr, $"trackfile?albumId={albumId}", ct);
+
     /// <summary>Monitored albums are downloaded when missing.</summary>
     public async Task SetAlbumsMonitoredAsync(ArrInstance lidarr, IReadOnlyList<int> albumIds, bool monitored, CancellationToken ct = default)
     {

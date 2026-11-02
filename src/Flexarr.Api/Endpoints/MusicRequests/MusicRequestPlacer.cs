@@ -101,6 +101,8 @@ public static partial class MusicRequestPlacer
         await c.RememberAsync(new MediaRequest
         {
             ProfileId = profileId, Kind = MediaKind.Album, MusicBrainzId = albumMbid, ArtistMusicBrainzId = artistMbid, Title = title, ArtistName = artistName,
+            // Lidarr hadn't the artist: cancelling this can take them out again.
+            AddedArtist = knownArtist.Id == 0,
         }, ct);
         return Results.Accepted();
     }
@@ -110,9 +112,11 @@ public static partial class MusicRequestPlacer
         string name;
         string? musicBrainzId = null;
         List<string> known = [];
+        string? photo = null;
         if (body.DeezerId is { } deezerId)
         {
             var deezer = await c.Catalog.ArtistAsync(deezerId, ct);
+            photo = deezer.Picture;
             name = deezer.Name;
             var albums = await c.Catalog.ArtistAlbumsAsync(deezerId, ct);
             known = albums.Where(a => a.RecordType == "album").Select(a => a.Title).Take(2).ToList();
@@ -140,16 +144,22 @@ public static partial class MusicRequestPlacer
         }
 
         // Any Lidarr may already have them (not only the one new music goes to): follow them there.
+        (ArrInstance Lidarr, int Id) followed;
         if (await c.LidarrArtistAsync(artistMbid, artist.ArtistName, ct) is { Lidarr: var lidarr, Artist: var had })
         {
             await c.Client.FollowArtistAsync(lidarr, had.Id, ct);
             await GetLatestAlbumAsync(c, lidarr, had.Id, ct);
             MusicMatcher.Forget(c.Cache, lidarr);
+            followed = (lidarr, had.Id);
         }
         else
         {
-            await c.Client.AddFollowedArtistAsync(target.Lidarr, artistMbid, artist.ArtistName, target.Placement, ct);
+            var added = await c.Client.AddFollowedArtistAsync(target.Lidarr, artistMbid, artist.ArtistName, target.Placement, ct);
+            followed = (target.Lidarr, added?.Id ?? 0);
         }
+
+        // In the Artists list from now on, even before any of their music arrives.
+        await MusicPlaceholders.AddAsync(c.Db, target.LibraryId, artist.ArtistName, artistMbid, photo ?? artist.RemotePoster, followed.Lidarr.Name, followed.Id, ct);
 
         await c.RememberAsync(new MediaRequest { ProfileId = profileId, Kind = MediaKind.Artist, MusicBrainzId = artistMbid, Title = artist.ArtistName }, ct);
         return Results.Accepted();

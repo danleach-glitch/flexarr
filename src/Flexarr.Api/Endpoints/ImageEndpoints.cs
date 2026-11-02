@@ -32,6 +32,13 @@ public static class ImageEndpoints
     public static string? RemoteUrl(string? url) =>
         ArtworkUrl.TrustedRemote(url) is { } trusted ? $"/api/v1/images/remote?url={Uri.EscapeDataString(trusted)}&s={Signature(trusted)}" : null;
 
+    /// <summary>
+    /// A signed link to artwork a configured *arr holds (Lidarr's covers for albums not in the library yet); null for
+    /// anything else. The *arr's address and key never leave the server.
+    /// </summary>
+    public static string? ArrUrl(string? url) =>
+        ArtworkUrl.IsArr(url) ? $"/api/v1/images/arr?url={Uri.EscapeDataString(url!)}&s={Signature(url!)}" : null;
+
     private static string Signature(string trustedUrl)
     {
         var key = Volatile.Read(ref _remoteKey) ?? throw new InvalidOperationException("The image endpoints haven't been mapped.");
@@ -80,6 +87,11 @@ public static class ImageEndpoints
             ArtworkUrl.TrustedRemote(url) is not { } trusted ? Results.BadRequest()
             : s is null || !CryptographicOperations.FixedTimeEquals(Encoding.ASCII.GetBytes(s), Encoding.ASCII.GetBytes(Signature(trusted))) ? Results.NotFound()
             : await ServeAsync(cache, trusted, w, http, ct));
+
+        group.MapGet("/arr", async (string url, string? s, int? w, ImageCache cache, HttpContext http, CancellationToken ct) =>
+            !ArtworkUrl.IsArr(url) ? Results.BadRequest()
+            : s is null || !CryptographicOperations.FixedTimeEquals(Encoding.ASCII.GetBytes(s), Encoding.ASCII.GetBytes(Signature(url))) ? Results.NotFound()
+            : await ServeAsync(cache, url, w, http, ct));
 
         group.MapGet("/people/{id:guid}", async (Guid id, int? w, string? v, FlexarrDbContext db, IMemoryCache memory, ImageCache cache, PersonImages uploads,
             HttpContext http, CancellationToken ct) =>

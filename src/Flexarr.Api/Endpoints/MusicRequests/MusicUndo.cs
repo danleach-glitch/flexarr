@@ -1,0 +1,215 @@
+using Flexarr.Core.Media;
+using Flexarr.Integrations.Arr;
+using Flexarr.Integrations.Arr.Models;
+using Flexarr.Metadata;
+using Microsoft.EntityFrameworkCore;
+
+namespace Flexarr.Api.Endpoints.MusicRequests;
+
+/// <summary>
+/// Taking music requests back: unfollowing an artist, and cancelling an album asked for. Lidarr is the household's, so
+/// both are for everyone: every profile's request rows close, not only the asker's. Throws
+/// <see cref="HttpRequestException"/> when Lidarr refuses or doesn't answer.
+/// </summary>
+public static partial class MusicUndo
+{
+    /// <summary>
+    /// Lidarr stops watching for the artist's new releases (the artist stays, so albums already asked for still
+    /// download), every follow of theirs closes, and a placeholder of theirs that's still empty leaves the library.
+    /// </summary>
+    public static async Task<IResult> UnfollowAsync(MusicRequestContext c, MusicUndoBody body, CancellationToken ct)
+    {
+        string name;
+        string? musicBrainzId = body.MusicBrainzId;
+        if (body.ArtistId is { } libraryArtist)
+        {
+            var item = await c.Db.MediaItems.AsNoTracking().Where(i => i.Id == libraryArtist && i.Kind == MediaKind.Artist)
+                .Select(i => new { i.Title, i.MusicBrainzId }).FirstOrDefaultAsync(ct);
+            if (item is null)
+            {
+                return Results.NotFound();
+            }
+
+            (name, musicBrainzId) = (item.Title, item.MusicBrainzId ?? musicBrainzId);
+        }
+        else if (body.DeezerId is { } deezerId)
+        {
+            name = (await c.Catalog.ArtistAsync(deezerId, ct)).Name;
+        }
+        else if (musicBrainzId is not null)
+        {
+            name = (await c.LidarrArtistAsync(musicBrainzId, "", ct))?.Artist.ArtistName ?? "";
+        }
+        else
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]> { ["artistId"] = ["Give the artist's artistId, deezerId or musicBrainzId."] });
+        }
+
+        var found = (musicBrainzId is null ? null : await c.LidarrArtistAsync(musicBrainzId, name, ct)) ?? await c.LidarrArtistNamedAsync(name, ct);
+        var owned = await c.OwnedAsync(ct);
+        if (found is { Lidarr: var lidarr, Artist: var artist } && owned.Sees(MusicMatcher.LocalPath(artist, c.Options.PathMappings)))
+        {
+            if (MusicMatcher.IsFollowed(artist))
+            {
+                await c.Client.UnfollowArtistAsync(lidarr, artist.Id, ct);
+                MusicMatcher.Forget(c.Cache, lidarr);
+            }
+
+            musicBrainzId ??= artist.ForeignArtistId;
+            name = artist.ArtistName;
+        }
+
+        var key = MusicNames.Normalise(name);
+        var follows = (await c.Db.MediaRequests.Where(r => r.Kind == MediaKind.Artist && r.FulfilledAt == null).ToListAsync(ct))
+            .Where(r => (musicBrainzId is not null && r.MusicBrainzId == musicBrainzId) || MusicNames.Normalise(r.Title) == key).ToList();
+        foreach (var follow in follows)
+        {
+            follow.FulfilledAt = DateTime.UtcNow;
+        }
+
+        await c.Db.SaveChangesAsync(ct);
+        await MusicPlaceholders.RemoveAsync(c.Db, name, musicBrainzId, ct);
+        return Results.NoContent();
+    }
+
+    /// <summary>
+    /// Lidarr stops wanting the album (unmonitored, and out of its download queue), every request for it closes, and
+    /// an artist the request added to Lidarr goes again when nothing else of theirs is wanted, followed or on disk.
+    /// </summary>
+    public static async Task<IResult> UnrequestAsync(MusicRequestContext c, MusicUndoBody body, ILogger logger, CancellationToken ct)
+    {
+        (ArrInstance Lidarr, LidarrArtist Artist, LidarrAlbum Album)? found;
+        string? title = null, artistName = null;
+        if (body.MusicBrainzId is { Length: > 0 } releaseGroup)
+        {
+            found = await ByReleaseGroupAsync(c, releaseGroup, ct);
+        }
+        else if (body.DeezerId is { } deezerId)
+        {
+            var deezer = await c.Catalog.AlbumAsync(deezerId, ct);
+            (title, artistName) = (deezer.Title, deezer.Artist?.Name ?? "");
+            found = null;
+            if (await c.LidarrArtistNamedAsync(artistName, ct) is { Lidarr: var l, Artist: var a }
+                && await c.LidarrAlbumsAsync(l, a.Id, ct) is { } albums
+                && albums.Where(x => MusicNames.NormaliseTitle(x.Title) == MusicNames.NormaliseTitle(deezer.Title))
+                    .OrderBy(x => deezer.Year is { } y && x.ReleaseDate is { } d ? Math.Abs(d.Year - y) : 0).FirstOrDefault() is { } album)
+            {
+                found = (l, a, album);
+            }
+        }
+        else
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]> { ["musicBrainzId"] = ["Give the album's musicBrainzId or deezerId."] });
+        }
+
+        var owned = await c.OwnedAsync(ct);
+        if (found is { } f && !owned.Sees(MusicMatcher.LocalPath(f.Artist, c.Options.PathMappings)))
+        {
+            found = null;
+        }
+
+        if (found is { Lidarr: var lidarr, Artist: var artist, Album: var lidarrAlbum })
+        {
+            if (lidarrAlbum.Monitored)
+            {
+                await c.Client.SetAlbumsMonitoredAsync(lidarr, [lidarrAlbum.Id], monitored: false, ct);
+            }
+
+            foreach (var queued in (await c.Client.GetQueueAsync(lidarr, ct)).Where(q => q.AlbumId == lidarrAlbum.Id))
+            {
+                await c.Client.DeleteAsync(lidarr, $"queue/{queued.Id}?removeFromClient=true&blocklist=false", ct);
+            }
+
+            c.ForgetAlbums(lidarr, artist.Id);
+            (title, artistName) = (lidarrAlbum.Title, artist.ArtistName);
+        }
+
+        var releaseGroupId = found?.Album.ForeignAlbumId ?? body.MusicBrainzId;
+        var albumKey = title is null ? null : OwnedMusic.AlbumKey(artistName, title);
+        var requests = (await c.Db.MediaRequests.Where(r => r.Kind == MediaKind.Album && r.FulfilledAt == null).ToListAsync(ct))
+            .Where(r => (releaseGroupId is not null && r.MusicBrainzId == releaseGroupId) || (albumKey is not null && OwnedMusic.AlbumKey(r.ArtistName, r.Title) == albumKey))
+            .ToList();
+        if (found is null && requests.Count == 0)
+        {
+            return Results.NotFound();
+        }
+
+        foreach (var request in requests)
+        {
+            request.FulfilledAt = DateTime.UtcNow;
+        }
+
+        await c.Db.SaveChangesAsync(ct);
+
+        if (found is { Lidarr: var home, Artist: var added } && requests.Any(r => r.AddedArtist))
+        {
+            await TidyAsync(c, home, added, logger, ct);
+        }
+
+        if (found is { Lidarr: var changed })
+        {
+            MusicMatcher.Forget(c.Cache, changed);
+        }
+
+        return Results.NoContent();
+    }
+
+    /// <summary>
+    /// Takes out of Lidarr an artist a cancelled request had added, when nothing else of theirs is monitored, they
+    /// aren't followed, Lidarr has none of their files and no other request is waiting on them. Their files (none) stay.
+    /// </summary>
+    private static async Task TidyAsync(MusicRequestContext c, ArrInstance lidarr, LidarrArtist artist, ILogger logger, CancellationToken ct)
+    {
+        if (MusicMatcher.IsFollowed(artist))
+        {
+            return;
+        }
+
+        var albums = await c.Client.GetArtistAlbumsAsync(lidarr, artist.Id, ct);
+        if (albums.Any(a => a.Monitored || a.Statistics is { TrackFileCount: > 0 }))
+        {
+            return;
+        }
+
+        var mbid = artist.ForeignArtistId;
+        if (mbid is not null && await c.Db.MediaRequests.AnyAsync(r => r.FulfilledAt == null
+                && ((r.Kind == MediaKind.Album && r.ArtistMusicBrainzId == mbid) || (r.Kind == MediaKind.Artist && r.MusicBrainzId == mbid)), ct))
+        {
+            return;
+        }
+
+        await c.Client.DeleteAsync(lidarr, $"artist/{artist.Id}?deleteFiles=false&addImportListExclusion=false", ct);
+        LogTidied(logger, artist.ArtistName);
+    }
+
+    /// <summary>The album with this release group in whichever Lidarr has it, with its artist.</summary>
+    private static async Task<(ArrInstance, LidarrArtist, LidarrAlbum)?> ByReleaseGroupAsync(MusicRequestContext c, string releaseGroup, CancellationToken ct)
+    {
+        foreach (var lidarr in c.Lidarrs)
+        {
+            IReadOnlyList<LidarrAlbum> albums;
+            try
+            {
+                albums = await c.Client.GetAlbumsByForeignIdAsync(lidarr, releaseGroup, ct);
+            }
+            catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                continue;
+            }
+
+            if (albums.FirstOrDefault(a => a.ForeignAlbumId == releaseGroup) is { } album)
+            {
+                var artist = (await MusicMatcher.LidarrArtistsAsync(c.Client, lidarr, c.Cache, ct)).FirstOrDefault(a => a.Id == album.ArtistId) ?? album.Artist;
+                if (artist is not null)
+                {
+                    return (lidarr, artist, album);
+                }
+            }
+        }
+
+        return null;
+    }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Took {Artist} out of Lidarr: the only request that added them was cancelled")]
+    private static partial void LogTidied(ILogger logger, string artist);
+}

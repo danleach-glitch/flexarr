@@ -80,3 +80,24 @@ public sealed record MusicRequestStatusDto(bool Configured, bool Reachable);
 public sealed record MusicDestinationDto(Guid Id, string Name, bool IsDefault);
 
 public sealed record RequestMusicLibraryBody(Guid? LibraryId);
+
+/// <summary>Take back a follow (an artist, by any of the three) or a request (an album, by release group or Deezer id).</summary>
+/// <param name="MusicBrainzId">An artist's MusicBrainz id, or an album's release group.</param>
+/// <param name="ArtistId">A library artist, to unfollow.</param>
+public sealed record MusicUndoBody(long? DeezerId = null, string? MusicBrainzId = null, Guid? ArtistId = null);
+
+/// <summary>An album Lidarr is waiting for: asked for, monitored without files, or coming out soon.</summary>
+/// <param name="MusicBrainzId">Its release group: what unrequesting takes.</param>
+/// <param name="State">"upcoming" (not out yet), "searching", "downloading" or "importing".</param>
+/// <param name="Progress">While downloading: how far, 0 to 1.</param>
+/// <param name="ArtistLibraryItemId">The artist in the library, when they're there (a placeholder counts).</param>
+public sealed record MusicRequestedDto(
+    string MusicBrainzId,
+    string Title,
+    string Artist,
+    string? ArtistMusicBrainzId,
+    string? Image,
+    DateOnly? ReleaseDate,
+    string State,
+    double? Progress,
+    Guid? ArtistLibraryItemId);

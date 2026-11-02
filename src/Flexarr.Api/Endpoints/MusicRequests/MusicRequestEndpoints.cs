@@ -141,16 +141,21 @@ public static partial class MusicRequestEndpoints
         music.MapGet("/artist/{id:long}", async (long id, MusicRequestContext c, CancellationToken ct) =>
             await DeezerAsync(async () =>
             {
-                var artist = await c.Catalog.ArtistAsync(id, ct);
+                // Deezer's three answers side by side (each a round trip when it isn't cached), while the library is looked at.
+                var artistCall = c.Catalog.ArtistAsync(id, ct);
+                var albumsCall = c.Catalog.ArtistAlbumsAsync(id, ct);
+                var relatedCall = c.Catalog.RelatedAsync(id, ct);
                 var owned = await c.OwnedAsync(ct);
+                await Task.WhenAll(artistCall, albumsCall, relatedCall);
+                var artist = await artistCall;
                 var lidarrArtist = await c.LidarrArtistNamedAsync(artist.Name, ct);
                 if (lidarrArtist is { } had)
                 {
                     await c.NoteMonitoredAsync(owned, had, ct);
                 }
 
-                var albums = (await c.Catalog.ArtistAlbumsAsync(id, ct)).Select(a => Album(a with { Artist = artist }, owned)).ToList();
-                var similar = (await c.Catalog.RelatedAsync(id, ct)).Take(RowSize).Select(a => Artist(a, owned)).ToList();
+                var albums = (await albumsCall).Select(a => Album(a with { Artist = artist }, owned)).ToList();
+                var similar = (await relatedCall).Take(RowSize).Select(a => Artist(a, owned)).ToList();
                 return Results.Ok(new MusicArtistDetailDto(artist.Id, artist.Name, ImageEndpoints.RemoteUrl(artist.Picture), artist.NbFan, albums, similar,
                     c.IsFollowed(owned, lidarrArtist), owned.ArtistAvailability(artist.Name), owned.ArtistId(artist.Name)));
             }));
@@ -233,6 +238,20 @@ public static partial class MusicRequestEndpoints
             return Results.Ok(destinations.Select(d => new MusicDestinationDto(d.LibraryId, d.Name, d.IsDefault)).ToList());
         });
 
+        // Every album Lidarr is waiting for, with how far along each is.
+        music.MapGet("/requested", async (MusicRequestContext c, CancellationToken ct) => Results.Ok(await MusicRequested.ListAsync(c, ct)));
+
+        // Stop following an artist, for the household: Lidarr stops looking for their new releases.
+        music.MapPost("/unfollow", async (MusicUndoBody body, MusicRequestContext c, ILoggerFactory loggers, CancellationToken ct) =>
+            await LidarrAsync(() => MusicUndo.UnfollowAsync(c, body, ct), loggers.CreateLogger("Flexarr.MusicRequests"), ct));
+
+        // Cancel an album asked for, for the household: Lidarr stops wanting it and drops its download.
+        music.MapPost("/unrequest", async (MusicUndoBody body, MusicRequestContext c, ILoggerFactory loggers, CancellationToken ct) =>
+        {
+            var logger = loggers.CreateLogger("Flexarr.MusicRequests");
+            return await LidarrAsync(() => MusicUndo.UnrequestAsync(c, body, logger, ct), logger, ct);
+        });
+
         music.MapPost("/", async (MusicRequestBody body, MusicRequestContext c, CurrentProfile current, ILoggerFactory loggers, CancellationToken ct) =>
         {
             if (!c.Options.MusicRequests.Enabled)
@@ -282,6 +301,30 @@ public static partial class MusicRequestEndpoints
                 return Results.Problem("Lidarr or Deezer didn't answer in time. Try again in a minute.", statusCode: 502);
             }
         });
+    }
+
+    /// <summary>Lidarr's answer, or a plain 502 saying it refused or didn't answer (its own words go to the log).</summary>
+    private static async Task<IResult> LidarrAsync(Func<Task<IResult>> answer, ILogger logger, CancellationToken ct)
+    {
+        try
+        {
+            return await answer();
+        }
+        catch (HttpRequestException ex)
+        {
+            LogLidarrRefused(logger, ex, (int?)ex.StatusCode);
+            return ex.StatusCode is { } status && (int)status is >= 400 and < 500
+                ? Results.Problem("Lidarr turned that down.", statusCode: 502)
+                : Results.Problem("Lidarr isn't answering. Try again later.", statusCode: 502);
+        }
+        catch (DeezerException ex) when (ex.Code == 800)
+        {
+            return Results.NotFound();
+        }
+        catch (Exception ex) when (ex is DeezerException || (ex is OperationCanceledException && !ct.IsCancellationRequested))
+        {
+            return Results.Problem("Lidarr or Deezer didn't answer in time. Try again in a minute.", statusCode: 502);
+        }
     }
 
     /// <summary>
