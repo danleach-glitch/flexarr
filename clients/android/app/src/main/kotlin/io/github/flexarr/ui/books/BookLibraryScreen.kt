@@ -1,5 +1,16 @@
 package io.github.flexarr.ui.books
 
+import android.os.Build
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import io.github.flexarr.ui.components.ActionButton
+import io.github.flexarr.ui.home.FeaturedPager
+import io.github.flexarr.ui.home.fadeOut
+import io.github.flexarr.ui.theme.FlexarrIcons
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -163,6 +174,10 @@ private fun Shelves(model: AppModel, loader: Loader<BookShelves>) {
         if (shelves.isEmpty) return@Loaded StatusView("No books yet.", empty = true)
         PullToRefreshBox(isRefreshing = loader.refreshing, onRefresh = loader.retry) {
             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
+                // Servers from 0.59 pick the books for a hero; none (or an older server), no hero.
+                if (shelves.featured.isNotEmpty()) item("hero") {
+                    FeaturedPager(shelves.featured, onIndex = {}) { book, height -> BookHeroSlide(shelves, book, height) }
+                }
                 // In the profile's order, without the ones it switched off (a server before 0.58: all, in this order).
                 shelves.frontPage.forEach { shelf ->
                     when (shelf) {
@@ -182,6 +197,69 @@ private fun Shelves(model: AppModel, loader: Loader<BookShelves>) {
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * A slide of an audiobooks library's hero. Books have no backdrops, so the cover stands large over a soft blur of
+ * itself (Android 12 and later; before that, a wash of its colour), with its title, author and narrator, a few lines of
+ * overview, and Resume (part way through) or Play. Tapping elsewhere opens the book.
+ */
+@Composable
+private fun BookHeroSlide(shelves: BookShelves, book: ItemSummary, height: Dp) {
+    val navigator = LocalNavigator.current
+    val glow = glowColor(book.accentColor)
+    val cover = book.artwork.poster
+    val coverSize = if (isWide) 280.dp else 220.dp
+    val coverTop = 20.dp
+    Box(Modifier.fillMaxWidth().heightIn(min = height).pressable({ navigator.openBook(book.id) }, onClickLabel = "Open")) {
+        // Fades out rather than painting the room colour, so there's no seam with the shelves below.
+        Box(Modifier.matchParentSize().clipToBounds().fadeOut()) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                // The same width as the cover in front, so one download serves both.
+                RemoteImage(cover, 500, Modifier.fillMaxSize().graphicsLayer { scaleX = 1.3f; scaleY = 1.3f }.blur(48.dp)) {
+                    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(glow.copy(alpha = 0.4f), Flexarr.room))))
+                }
+                Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.35f)))
+            } else {
+                // Without blur the copy would show sharp behind the cover: its colour alone.
+                Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(glow.copy(alpha = 0.55f), glow.copy(alpha = 0.15f)))))
+            }
+        }
+        Box(Modifier.matchParentSize().background(Brush.verticalGradient(0.25f to Color.Transparent, 1f to Flexarr.room.copy(alpha = 0.7f))))
+        Box(
+            Modifier.align(Alignment.TopCenter).padding(top = coverTop).size(coverSize)
+                .shadow(18.dp, RoundedCornerShape(Tokens.radiusArt)).clip(RoundedCornerShape(Tokens.radiusArt)).background(Flexarr.seat),
+        ) {
+            RemoteImage(cover, 500, Modifier.fillMaxSize()) {
+                Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(glow.copy(alpha = 0.4f), Flexarr.seat))), contentAlignment = Alignment.Center) {
+                    Text(book.title, style = marquee(20, Flexarr.screen.copy(alpha = 0.8f)).copy(fontWeight = FontWeight.Bold), maxLines = 3, modifier = Modifier.padding(12.dp))
+                }
+            }
+        }
+        // Below the cover, and pushing the slide taller when large text needs the room.
+        Column(
+            Modifier.align(Alignment.BottomStart).padding(start = Edge, end = Edge, bottom = 44.dp, top = coverTop + coverSize + 20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(book.title, style = marquee(30).copy(fontWeight = FontWeight.Black), maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 520.dp))
+                book.book?.authors?.let { Text(it, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen.copy(alpha = 0.85f), maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                book.book?.narrator?.let { Text("Read by $it", fontSize = 13.sp, color = Flexarr.screen.copy(alpha = 0.65f), maxLines = 1, overflow = TextOverflow.Ellipsis) }
+            }
+            shelves.featuredOverviews[book.id]?.let {
+                Text(it, fontSize = 15.sp, color = Flexarr.screen.copy(alpha = 0.85f), maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 520.dp))
+            }
+            val partWay = book.userData.positionSeconds > 0 && !book.userData.watched
+            ActionButton(
+                if (partWay) "Resume" else "Play",
+                onClick = { navigator.playBook(book) },
+                icon = FlexarrIcons.play,
+                prominent = true,
+                ambient = glow,
+                modifier = Modifier.padding(top = 4.dp),
+            )
         }
     }
 }

@@ -194,6 +194,13 @@ data class BookShelves(
      * servers before 0.58: every shelf, in [BookShelf]'s order.
      */
     val order: List<String>? = null,
+    /**
+     * The hero's books: up to three this profile is part way through (last listened first), then the two newest not
+     * started, only books with a cover. Absent from servers before 0.59.
+     */
+    val featured: List<ItemSummary> = emptyList(),
+    /** Each [featured] book's overview, by its id (null when it has none). Absent from servers before 0.59. */
+    val featuredOverviews: Map<String, String?> = emptyMap(),
 ) {
     /** The front page's shelves to show, in order: [order]'s (ids this app doesn't know left out), or all of them. */
     val frontPage: List<BookShelf>
