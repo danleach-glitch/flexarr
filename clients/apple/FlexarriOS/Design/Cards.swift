@@ -259,6 +259,8 @@ struct ItemContextMenu: View {
             listeningMenu
         } else if item.kind == .audiobook {
             BookContextMenu(item: item)
+        } else if item.kind.isMusic {
+            MusicMenuContent(target: .item(item))
         } else {
             menu
         }

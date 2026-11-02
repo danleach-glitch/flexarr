@@ -79,6 +79,7 @@ struct PlaylistCard: View {
             }
             .frame(width: width, alignment: .leading)
         }
+        .contextMenu { MusicMenuContent(target: .playlist(playlist)) }
     }
 }
 
@@ -166,7 +167,8 @@ struct PlaylistView: View {
                         VStack(alignment: .leading, spacing: 6) {
                             ForEach(Array(tracks.enumerated()), id: \.offset) { index, track in
                                 TrackRow(track: track, number: index + 1,
-                                         isCurrent: model.music.current?.id == track.id, isPlaying: model.music.isPlaying) {
+                                         isCurrent: model.music.current?.id == track.id, isPlaying: model.music.isPlaying,
+                                         menu: .row(track, in: tracks, at: index)) {
                                     if model.music.current?.id == track.id {
                                         model.music.togglePlayPause()
                                     } else {

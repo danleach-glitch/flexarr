@@ -322,6 +322,26 @@ final class MusicPlayer {
         startCurrent()
     }
 
+    /// Slots `tracks` in right after the track playing (Play next); with no music playing, plays them.
+    func playNext(_ tracks: [ItemSummary], client: FlexarrClient) {
+        guard !tracks.isEmpty else { return }
+        guard let current, current.kind.isMusic else { return play(tracks, client: client) }
+        queue.insert(contentsOf: tracks, at: min(index + 1, queue.count))
+        // Unshuffling keeps them after the same track.
+        let after = original.firstIndex(of: current).map { $0 + 1 } ?? original.count
+        original.insert(contentsOf: tracks, at: after)
+        pushNowPlaying()
+    }
+
+    /// Adds `tracks` to the end of the queue; with no music playing, plays them.
+    func enqueue(_ tracks: [ItemSummary], client: FlexarrClient) {
+        guard !tracks.isEmpty else { return }
+        guard let current = current, current.kind.isMusic else { return play(tracks, client: client) }
+        queue += tracks
+        original += tracks
+        pushNowPlaying()
+    }
+
     /// Plays a podcast episode from where it was left, at the profile's speed (or the last one chosen here).
     func playPodcast(_ episode: ItemSummary, speed preferred: Double?, client: FlexarrClient) {
         self.client = client

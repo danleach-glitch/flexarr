@@ -43,7 +43,7 @@ struct ArtistView: View {
                                     .foregroundStyle(Color.screen)
                                 LazyVGrid(columns: columns, alignment: .leading, spacing: 56) {
                                     ForEach(page.albums) { album in
-                                        AlbumCard(item: album) { router.push(.item(album)) }
+                                        AlbumCard(item: album, offersArtist: false) { router.push(.item(album)) }
                                     }
                                 }
                                 .focusSection()
@@ -146,7 +146,7 @@ struct ArtistView: View {
     private var actions: MusicActions {
         // While the albums load, Play and Shuffle stand rather than appear late.
         MusicActions(kind: .artist, platform: .tv, hasMusic: page.detail == nil || !page.albums.isEmpty,
-                     canAsk: extras != nil && status?.configured == true)
+                     canAsk: extras != nil && status?.configured == true, canQueue: true)
     }
 
     private var following: Bool { model.isFollowing(libraryArtist: page.id, followed: extras?.followed ?? false) }
@@ -157,6 +157,7 @@ struct ArtistView: View {
         switch focusedAction {
         case .shuffle: return "Shuffle"
         case .radio: return "Radio"
+        case .more: return "More"
         default: break
         }
         if paused && actions.has(.follow) { return MusicWords.lidarrNotAnswering }
@@ -199,7 +200,15 @@ struct ArtistView: View {
                     model.invalidate()
                 }
             }
-        case .download, .request, .more:
+        case .more:
+            MusicPageMenu(items: actions.menu, item: item) {
+                guard let client = model.client else { return [] }
+                return await page.allTracks(client: client)
+            }
+            .buttonStyle(ActionButtonStyle(ambient: ambient, iconOnly: true))
+            .focused($focusedAction, equals: .more)
+            .disabled(page.albums.isEmpty)
+        case .download, .request:
             EmptyView()
         }
     }

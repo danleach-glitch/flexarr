@@ -34,6 +34,8 @@ struct AlbumCard: View {
     var width: CGFloat = Layout.posterWidth
     /// The artist under the title, where the albums are from several; the year on an artist's own page.
     var showsArtist = false
+    /// Go to artist in the menu: not on the artist's own page.
+    var offersArtist = true
     /// Shared focus state, so the row can steer focus to this card (see `RowFocus`).
     var focus: FocusState<String?>.Binding? = nil
     let action: () -> Void
@@ -56,6 +58,7 @@ struct AlbumCard: View {
             }
             .frame(width: width, alignment: .leading)
         }
+        .contextMenu { MusicMenuContent(target: .item(item), showsArtist: offersArtist) }
     }
 
     private var subtitle: String? {
@@ -99,6 +102,7 @@ struct TrackCard: View {
             }
             .frame(width: width, alignment: .leading)
         }
+        .contextMenu { MusicMenuContent(target: .item(item)) }
     }
 }
 
@@ -117,6 +121,7 @@ struct ArtistCard: View {
             }
             .buttonStyle(CircleCardStyle())
             .modifier(SharedFocus(binding: focus, id: item.id))
+            .contextMenu { MusicMenuContent(target: .item(item)) }
             VStack(spacing: 2) {
                 Text(item.title)
                     .font(.system(size: 24, weight: .semibold))
@@ -142,6 +147,10 @@ struct TrackRow: View {
     let isPlaying: Bool
     /// Under the title: the track's own artist, where it isn't the album's.
     var subtitle: String? = nil
+    /// What pressing and holding offers: the track, and the list it plays from.
+    var menu: MusicMenuTarget? = nil
+    /// Go to artist in the menu (not on an album, whose artist is a press away above).
+    var offersArtist = true
     let action: () -> Void
 
     var body: some View {
@@ -177,6 +186,7 @@ struct TrackRow: View {
             }
         }
         .buttonStyle(TrackRowStyle(isCurrent: isCurrent))
+        .contextMenu { if let menu { MusicMenuContent(target: menu, showsArtist: offersArtist) } }
     }
 }
 

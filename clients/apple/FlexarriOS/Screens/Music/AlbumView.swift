@@ -19,6 +19,9 @@ struct AlbumView: View {
 
     private var ambient: Color { page.item?.glowColor ?? .silver }
     private var tracks: [ItemSummary] { page.tracks }
+    private var actions: MusicActions {
+        MusicActions(kind: .album, platform: .phone, hasMusic: true, canDownload: true, canAsk: false, canQueue: true)
+    }
 
     var body: some View {
         ZStack {
@@ -70,10 +73,10 @@ struct AlbumView: View {
                 }
                 FactsLine(facts: facts(item))
             }
-            // In `MusicActions` order: Play spelled out, then round Shuffle and Download (on two lines when they don't fit
+            // In `MusicActions` order: Play spelled out, then round Shuffle, Download and ⋯ (on two lines when they don't fit
             // across). A library album has nothing to request.
             ActionRowLayout {
-                ForEach(MusicActions(kind: .album, platform: .phone, hasMusic: true, canDownload: true, canAsk: false).buttons,
+                ForEach(actions.buttons,
                         id: \.self) { button in
                     switch button {
                     case .play:
@@ -90,7 +93,11 @@ struct AlbumView: View {
                         .accessibilityLabel("Shuffle")
                     case .download:
                         MusicDownloadButton(source: .album(item, tracks: tracks))
-                    case .radio, .follow, .request, .more:
+                    case .more:
+                        MusicPageMenu(items: actions.menu, item: item) { tracks }
+                            .menuStyle(.button)
+                            .buttonStyle(RoundActionStyle())
+                    case .radio, .follow, .request:
                         EmptyView()
                     }
                 }
@@ -134,7 +141,9 @@ struct AlbumView: View {
                         TrackRow(track: track, number: track.trackNumber ?? offset + 1,
                                  isCurrent: model.music.current?.id == track.id, isPlaying: model.music.isPlaying,
                                  isDownloaded: downloads.isDownloaded(trackId: track.id),
-                                 subtitle: track.trackArtist) {
+                                 subtitle: track.trackArtist,
+                                 menu: tracks.firstIndex(of: track).map { .row(track, in: tracks, at: $0) },
+                                 offersArtist: false) {
                             if model.music.current?.id == track.id {
                                 model.music.togglePlayPause()
                             } else if let index = tracks.firstIndex(of: track) {

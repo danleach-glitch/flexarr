@@ -72,6 +72,7 @@ struct PlaylistCard: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(CardButtonStyle())
+        .contextMenu { MusicMenuContent(target: .playlist(playlist)) }
     }
 }
 
@@ -162,7 +163,8 @@ struct PlaylistView: View {
                             ForEach(Array(tracks.enumerated()), id: \.offset) { index, track in
                                 TrackRow(track: track, number: index + 1,
                                          isCurrent: model.music.current?.id == track.id, isPlaying: model.music.isPlaying,
-                                         isDownloaded: downloads.isDownloaded(trackId: track.id)) {
+                                         isDownloaded: downloads.isDownloaded(trackId: track.id),
+                                         menu: .row(track, in: tracks, at: index)) {
                                     if model.music.current?.id == track.id {
                                         model.music.togglePlayPause()
                                     } else {

@@ -42,7 +42,7 @@ struct ArtistView: View {
                                 SectionHeading(title: "Albums")
                                 LazyVGrid(columns: columns, alignment: .leading, spacing: 20) {
                                     ForEach(page.albums) { album in
-                                        AlbumCard(item: album)
+                                        AlbumCard(item: album, offersArtist: false)
                                     }
                                 }
                                 .padding(.horizontal, Layout.edge)
@@ -99,7 +99,7 @@ struct ArtistView: View {
     private var actions: MusicActions {
         // While the albums load, Play and Shuffle stand (greyed) rather than appear late.
         MusicActions(kind: .artist, platform: .phone, hasMusic: page.detail == nil || !page.albums.isEmpty,
-                     canAsk: extras != nil && status?.configured == true)
+                     canAsk: extras != nil && status?.configured == true, canQueue: true)
     }
 
     private func header(_ item: ItemSummary) -> some View {
@@ -185,7 +185,15 @@ struct ArtistView: View {
                     }
                 }
             }
-        case .download, .request, .more:
+        case .more:
+            MusicPageMenu(items: actions.menu, item: item) {
+                guard let client = model.client else { return [] }
+                return await page.allTracks(client: client)
+            }
+            .menuStyle(.button)
+            .buttonStyle(RoundActionStyle())
+            .disabled(nothingToPlay)
+        case .download, .request:
             EmptyView()
         }
     }

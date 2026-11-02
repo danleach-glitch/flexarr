@@ -41,6 +41,8 @@ struct AlbumCard: View {
     var width: CGFloat?
     /// The artist under the title, where the albums are from several; the year on an artist's own page.
     var showsArtist = false
+    /// Go to artist in the menu: not on the artist's own page.
+    var offersArtist = true
 
     var body: some View {
         Button { router.push(.item(item)) } label: {
@@ -63,6 +65,7 @@ struct AlbumCard: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(CardButtonStyle())
+        .contextMenu { MusicMenuContent(target: .item(item), showsArtist: offersArtist) }
     }
 
     private var subtitle: String? {
@@ -106,6 +109,7 @@ struct TrackCard: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(CardButtonStyle())
+        .contextMenu { MusicMenuContent(target: .item(item)) }
     }
 }
 
@@ -137,6 +141,7 @@ struct ArtistCard: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(CardButtonStyle())
+        .contextMenu { MusicMenuContent(target: .item(item)) }
     }
 }
 
@@ -151,6 +156,10 @@ struct TrackRow: View {
     var isDimmed = false
     /// Under the title: the track's own artist, where it isn't the album's.
     var subtitle: String? = nil
+    /// What pressing and holding offers: the track, and the list it plays from.
+    var menu: MusicMenuTarget? = nil
+    /// Go to artist in the menu (not on an album, whose artist is a tap away above).
+    var offersArtist = true
     let action: () -> Void
 
     var body: some View {
@@ -202,6 +211,7 @@ struct TrackRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(CardButtonStyle())
+        .contextMenu { if let menu { MusicMenuContent(target: menu, showsArtist: offersArtist) } }
     }
 }
 

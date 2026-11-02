@@ -120,6 +120,8 @@ final class AppModel {
     @ObservationIgnored var onBookHeard: ((String) -> Void)?
     /// Bumped when Play or Shuffle starts music on Apple TV, which then goes to its Now Playing tab.
     var nowPlayingRequests = 0
+    /// A menu asked to add something to a playlist; the iPhone shows its sheet over every tab.
+    var addingToPlaylist: PlaylistAdditionRequest?
     /// The server's error-report switch, as it last said (nil until asked, and from servers before it).
     private(set) var errorReports: ErrorReportSetting?
     /// Why the connect screen is showing when nobody asked for it: the server stopped accepting this device.
