@@ -37,7 +37,7 @@ Apps: **W** web, **i** iPhone/iPad, **tv** Apple TV, **A** Android phone, **ATV*
 | --- | --- | --- | --- | --- |
 | Tiles with pictures | ✅ one backdrop | ✅ | ✅ artist art | ✅ fan of three covers |
 | What a genre opens | its own page under the genre's name, Back to Genres (**‹ Genres** on W) | same | same, its albums | same, its books |
-| Play / Shuffle a genre | ❌ | ❌ | ✅ every app (up to 200 tracks) | ❌ |
+| Play / Shuffle a genre | ❌ (not planned) | ❌ (not planned) | ✅ every app (up to 200 tracks) | ❌ |
 | Empty genre wording | "No genres here yet. They come with…" | same | same | same |
 
 ## Detail pages
@@ -135,7 +135,7 @@ Apps: **W** web, **i** iPhone/iPad, **tv** Apple TV, **A** Android phone, **ATV*
 
 ## Where one library is ahead
 
-**Music has, the others could take:** Play/Shuffle a genre; a hero led by what you played last; request states as
+**Music has, the others could take:** a hero led by what you played last; request states as
 buttons with undo, greyed when the service is down, *Can't request* reasons, a Requested view with progress;
 *Not in your library* on the parent page (missing seasons for a show, missing books in a series); Follow with
 new-release notices; the card's play button on the web.
