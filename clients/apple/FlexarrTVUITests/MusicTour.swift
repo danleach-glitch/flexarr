@@ -23,19 +23,51 @@ final class MusicTour: XCTestCase {
         }
         client = FlexarrClient(baseURL: address, apiKey: key)
         app = XCUIApplication()
-        app.launchArguments = ["-FlexarrServer", address.absoluteString, "-FlexarrApiKey", key, "-FlexarrNoHistory", "YES"]
+        // Every run starts on Browse, whatever an earlier run left the setting at.
+        app.launchArguments = ["-FlexarrServer", address.absoluteString, "-FlexarrApiKey", key, "-FlexarrNoHistory", "YES",
+                               "-FlexarrMusicOpensOn", "browse"]
         app.launch()
         pause(6)
     }
 
-    /// The Music tab: recently added albums and the artists.
+    /// The Music tab as films and shows have it: the hero (Play has focus as the tab opens), the rows and Your artists,
+    /// then Artists, Albums and Genres from the switch at the top, and a genre's albums with Play and Shuffle.
     func test1Library() async throws {
         let libraries = try await client.libraries()
         guard let music = libraries.first(where: { $0.type == .music }) else { throw XCTSkip("no music library") }
+        let browse = try await client.libraryBrowse(music.id)
         app.openSidebarRow(music.name)
+        pause(3)
         shot("30-music-library")
+        if !browse.featured.isEmpty {
+            logFocus("hero")
+            let play = app.buttons.matching(NSPredicate(format: "label IN {'Play', 'Resume'}")).firstMatch
+            XCTAssertTrue(play.hasFocus, "the hero's Play should have focus as the tab opens")
+            // Right from the last button (More info) steps to the next slide.
+            press(.right, times: 2, wait: 1.5)
+            shot("30b-music-hero-next")
+        }
         press(.down, wait: 1.5)
         shot("31-music-library-row")
+        XCTAssertTrue(app.buttons["Browse"].exists, "Browse should have the view switch")
+
+        // Up to the switch, then each view in turn.
+        for view in ["Artists", "Albums", "Genres"] {
+            press(.up, times: 6, wait: 0.8)
+            let word = app.buttons[view]
+            guard word.exists else { return XCTFail("the switch should offer \(view)") }
+            for _ in 0..<4 where !word.hasFocus { press(.right, wait: 0.8) }
+            XCTAssertTrue(word.hasFocus, "\(view) should have focus")
+            press(.select, wait: 4)
+            shot("31-music-\(view.lowercased())")
+            press(.down, wait: 1.5)
+            shot("31-music-\(view.lowercased())-focused")
+        }
+        // Into the first genre: its albums, under Play and Shuffle.
+        press(.select, wait: 4)
+        shot("31-music-genre")
+        XCTAssertTrue(app.buttons["Shuffle"].exists, "a genre should offer Shuffle")
+        press(.menu, wait: 2)
     }
 
     /// An artist by deep link, then an album: Play, the bar, and Now Playing.
