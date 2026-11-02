@@ -237,7 +237,7 @@ struct LibraryView: View {
             StatusView(state: .failed(error) { Task { await reload() } })
                 .frame(height: 400)
         } else if items.isEmpty && !isLoading {
-            StatusView(state: .empty(genre.map { "No \($0) titles here." } ?? "Nothing in this library yet."))
+            StatusView(state: .empty(genre.map { "No \($0) \(content.noun) here." } ?? "Nothing in this library yet."))
                 .frame(height: 400)
         } else {
             LazyVGrid(columns: columns, alignment: .leading, spacing: 20) {
