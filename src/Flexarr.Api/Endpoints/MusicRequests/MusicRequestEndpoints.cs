@@ -42,10 +42,20 @@ public static partial class MusicRequestEndpoints
             }
 
             // Every artist page asks: the ping is remembered half a minute.
-            var reachable = await cache.GetOrCreateAsync($"lidarr-ping:{lidarrs[0].BaseUrl}", entry =>
+            var reachable = await cache.GetOrCreateAsync($"lidarr-ping:{lidarrs[0].BaseUrl}", async entry =>
             {
                 entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(30);
-                return client.PingAsync(lidarrs[0].BaseUrl, ct);
+                // A Lidarr that's away shouldn't hold up every page that asks: five seconds is long enough to say hello.
+                using var quick = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                quick.CancelAfter(TimeSpan.FromSeconds(5));
+                try
+                {
+                    return await client.PingAsync(lidarrs[0].BaseUrl, quick.Token);
+                }
+                catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+                {
+                    return false;
+                }
             });
             return new MusicRequestStatusDto(true, reachable);
         }).WithTags("Requests");
