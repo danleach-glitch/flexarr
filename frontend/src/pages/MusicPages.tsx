@@ -324,6 +324,8 @@ export function ArtistPage({ detail, onChange }: { detail: ItemDetail; onChange?
             )}
             {extras.data && (
               <MusicRequestButton
+                // The server's answer, fresh after Edit or Fix match, replaces what the button last did.
+                key={String(extras.data.followed)}
                 kind="artist"
                 size="large"
                 request={{ kind: 'artist', artistId: item.id }}
