@@ -72,7 +72,7 @@ export function ShowGaps({ showId, tmdbId, gaps }: { showId: string; tmdbId: num
                     <span className="card-subtitle">{[`${s.episodes} ${s.episodes === 1 ? 'episode' : 'episodes'}`, s.year].filter(Boolean).join(', ')}</span>
                     <div className="external-card-actions">
                       {gaps.canRequest && tmdbId != null ? (
-                        <RequestButton title={{ mediaType: 'tv', tmdbId, availability: s.availability, libraryItemId: null }} seasons={[s.seasonNumber]} label={`Request ${name}`} />
+                        <RequestButton title={{ mediaType: 'tv', tmdbId, availability: s.availability, libraryItemId: null }} seasons={[s.seasonNumber]} label={`Request ${name}`} name={name} />
                       ) : s.availability === 'Requested' ? (
                         <span className="external-state">Requested</span>
                       ) : gaps.canSearch ? (
