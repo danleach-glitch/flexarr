@@ -9,7 +9,15 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On the web, closing the player goes back to the page you pressed Play on, as in the apps.
 - On the web with **Skip credits** on, moving on to the next episode no longer marks it watched and jumps straight past it to the one after, and nothing plays while the next-episode countdown runs.
 
+### Libraries
+- Every library's genres open the same way, in every app: a page of that genre's titles under its name, with the way back to **Genres** (on the web, **‹ Genres** above the name). A genre's page doesn't offer other genres to filter by.
+- On the web, when a library's titles can't load, it says what went wrong, with **Try again**. An empty **Genres** reads the same in every library.
+- On the web, artists are round in your library too, as they are in Discover, and **Shuffle** has its icon on albums, artists and collections.
+- On iPhone and Android, the downloaded mark sits in the bottom-right corner of every card, and movies and episodes show it too (as do audiobooks on Android).
+- On iPhone and Android, an audiobooks library switches between **Browse**, **All books**, **Genres**, **Series** and **Authors** the way the other libraries switch views. On Android, sorting and filtering books share one button, as for movies and shows.
+
 ### Audiobooks
+- A book's page has the same buttons in the same order in every app: **Play** or **Resume**, **Start over**, **Finished**, then **Download** on the phones. On the web, **Start over** is a button of its own rather than in ⋯. Part way through, **Mark as unread** is offered when you start over (on the Apple TV too, instead of a button of its own).
 - On the web, the main profile can **Fix match** a book without its PIN, as it can a movie or show. Editing a book's details or chapters still asks for it.
 - An audiobooks library sorts with the same words as the others, in every app: **A–Z**, **Author**, **Series**, **Recently added**, **Year**, **Length** and **Recently listened**.
 - On the web, **Play** and **Shuffle** on a collection play a book in the audio player, as its own page does, instead of opening the video player.

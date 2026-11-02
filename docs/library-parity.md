@@ -1,7 +1,7 @@
 # Library parity: Movies, TV shows, Music, Audiobooks
 
 How the four main kinds of library compare, in the server and in every app, as of 2 November 2026 (after the music
-work in #271–#276 and the first batch of fixes from this page). Work often goes deep on one kind of library at a time; this page says where one kind is now ahead
+work in #271–#276 and the first two batches of fixes from this page). Work often goes deep on one kind of library at a time; this page says where one kind is now ahead
 of the others, so the next brief can carry the idea across, and where the same idea looks or reads differently.
 
 It was mapped from the code, not by using the apps, so a mark can be wrong in a corner. Check before building on one.
@@ -20,14 +20,14 @@ Apps: **W** web, **i** iPhone/iPad, **tv** Apple TV, **A** Android phone, **ATV*
 | Top 10, genre rows | ✅ | ✅ | ❌ (*Most played* tracks instead) | ❌ |
 | Coming soon row | ✅ Radarr | ✅ Sonarr | ❌ Lidarr has a calendar, unused | — |
 | Views at the top | Browse, All, Genres | Browse, All, Genres | Browse, Artists, Albums, Genres, + Playlists and Requested on W | Browse, All books, Genres, Series, Authors; 🟡 tv has no Series/Authors |
-| View switch style | segmented (pills on W) | segmented | segmented | 🟡 pills on i and A |
+| View switch style | segmented (pills on W) | segmented | segmented | segmented (pills on W) |
 | Opens-on setting | ✅ tv, ATV | ✅ tv, ATV | ✅ tv; ❌ ATV (always Browse) | 🟡 tv shares the movies/TV setting |
 | Sorts | A–Z, Recently added, Year, Rating | same | Artists A–Z, Recently added (+ Year, Rating on W/tv); Albums A–Z, Recently added, Year | A–Z, Author, Series, Recently added, Year, Length, Recently listened; tv has 4 |
 | Filters | genre | genre | 🟡 genre on tv/ATV/i; ❌ W, A | ✅ progress, length, unabridged (W only through links; ❌ tv) |
 | A–Z rail | ✅ W, tv, ATV | ✅ W, tv, ATV | ✅ W, tv, ATV | ❌ W, tv |
 | Search box in the grid (W) | ✅ | ✅ | ✅ | ❌ |
 | Back keeps your place (W) | ✅ | ✅ | ✅ | ❌ (pages of 60, place lost) |
-| Grid errors with **Try again** | 🟡 W grids show text only | 🟡 | 🟡 | 🟡 |
+| Grid errors with **Try again** | ✅ | ✅ | ✅ | ✅ |
 | Pull to refresh (A) | 🟡 not Genres | 🟡 | 🟡 not Genres | 🟡 not All, Series, Authors |
 | Android TV | ✅ | ✅ | ✅ | ❌ left off the TV; dead ends say "on your phone" |
 
@@ -36,15 +36,15 @@ Apps: **W** web, **i** iPhone/iPad, **tv** Apple TV, **A** Android phone, **ATV*
 | | Movies | TV shows | Music | Audiobooks |
 | --- | --- | --- | --- | --- |
 | Tiles with pictures | ✅ one backdrop | ✅ | ✅ artist art | ✅ fan of three covers |
-| What a genre opens | All, filtered by a chip, no title | same | Albums, titled *N Rock albums* | its own page with **‹ Genres** |
+| What a genre opens | its own page under the genre's name, Back to Genres (**‹ Genres** on W) | same | same, its albums | same, its books |
 | Play / Shuffle a genre | ❌ | ❌ | ✅ every app (up to 200 tracks) | ❌ |
-| Empty genre wording | "No genres here yet. They come with…" | same | 🟡 i says "No Rock *titles* here" for albums | "No genres yet." |
+| Empty genre wording | "No genres here yet. They come with…" | same | same | same |
 
 ## Detail pages
 
 | | Movie / show / episode | Artist / album | Book / series / author |
 | --- | --- | --- | --- |
-| Shared button model | ✅ `DetailActions` (FlexarrKit, Android core) | 🟡 `MusicActions` for artists; album pages hard-code theirs on tv and A/ATV | ❌ none: order differs (i: Play/Download, Finished, Start over; tv: Play, Start over, Finished, Unread; A: Play, Download, Finished, Start over) |
+| Shared button model | ✅ `DetailActions` (FlexarrKit, Android core) | ✅ `MusicActions`, artists and albums | ✅ `BookActions`: Play, Start over, Finished, Download (phones), ⋯ |
 | ⋯ menu | ✅ every app | 🟡 W only (Play next, Add to queue, Add to playlist, Delete); `hasMenu`/`canDelete` never set in the apps | 🟡 W only (Edit, chapters, Fix match, collections…) |
 | IMDb / Rotten Tomatoes | ✅ | — | — |
 | People | cast and crew → person pages with bios | 🟡 artist bio text only; artists aren't people | ✅ author cards with photo and bio, narrators |
@@ -75,7 +75,7 @@ Apps: **W** web, **i** iPhone/iPad, **tv** Apple TV, **A** Android phone, **ATV*
 | | Movies | TV shows | Music | Audiobooks |
 | --- | --- | --- | --- | --- |
 | Mark watched / finished | ✅ *Watched* | ✅ + season and whole show | ❌ | ✅ *Finished* / *Mark as unread* |
-| Start over | ✅ button | ✅ | — | 🟡 W hides it in ⋯ (asks first); a button in the apps |
+| Start over | ✅ button | ✅ | — | ✅ button (asks first part way through) |
 | Shuffle | 🟡 collections only (W) | ✅ | ✅ album, artist, genre | ❌ |
 | Radio, mixes | ❌ | ❌ | ✅ | — |
 | Next up | — | ✅ moves on after an episode | 🟡 hero resumes | ✅ *Next in series*, offered at the end |
@@ -130,8 +130,8 @@ Apps: **W** web, **i** iPhone/iPad, **tv** Apple TV, **A** Android phone, **ATV*
 | Press-and-hold / right-click menu | ✅ every app | ❌ album, artist, track and playlist cards in every app (W: albums only) | ✅ |
 | Play button on the card (W) | ❌ | ✅ | ✅ |
 | Watched tick, progress bar | ✅ | — | ✅ |
-| Downloaded mark | ❌ on posters | ✅ bottom-right | 🟡 bottom-left on i, ❌ A |
-| Artist shape | — | 🟡 square in the library, round outside it | — |
+| Downloaded mark | ✅ bottom-right (phones) | ✅ bottom-right | ✅ bottom-right |
+| Artist shape | — | ✅ round everywhere | — |
 
 ## Where one library is ahead
 
@@ -143,7 +143,7 @@ new-release notices; the card's play button on the web.
 **Movies and TV have, the others could take:** a ⋯ menu and press-and-hold menus on every card (music has none in the
 apps); See all on every row; Top 10, genre rows and Coming soon (Lidarr's calendar for music); Fix match and library
 health for music; the opens-on setting for music on Android TV; A–Z, search box and scroll restore for books;
-Top Shelf, Siri and CarPlay for the kinds missing them; a shared button model (`DetailActions`) for books.
+Top Shelf, Siri and CarPlay for the kinds missing them.
 
 **Audiobooks have, the others could take:** editing details by hand and locking them; a genre page with its own title
 and way back; rich filters (progress, length) where movies only filter by genre; *Next in series* as a model for a
@@ -151,10 +151,8 @@ film franchise's next film; time left at your speed.
 
 ## Same idea, different look or words
 
-1. Book buttons have no shared model and a different order in each app; album pages skip `MusicActions` on tv, A, ATV.
-2. The view switch is pills for books on i and A, segmented elsewhere.
-3. Genres open three different ways (see Genres).
-4. A movie request's *Requested* is text; a music one is a button.
-5. The downloaded mark sits in a different corner for albums and books, and not at all on posters.
-6. Shuffle has an icon on shows and genres (W) but not on albums, artists or collections.
-7. Empty and error states read differently per library; grids lack *Try again*.
+Batch 2 (#?) brought these into line: book buttons (`BookActions`) and album pages (`MusicActions`), the view switch,
+genres (a titled page everywhere), Shuffle's icon, the downloaded mark, artists' shape, grid errors and empty genres.
+Still different:
+
+1. A movie request's *Requested* is text; a music one is a button (srv-3).
