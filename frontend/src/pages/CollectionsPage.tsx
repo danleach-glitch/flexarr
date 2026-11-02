@@ -19,7 +19,7 @@ import {
 import { AsyncButton, IconButton } from '../components/AsyncButton'
 import { PosterCard } from '../components/Cards'
 import { CollectionEditor } from '../components/CollectionEditor'
-import { EyeOff, Pencil, Play, Trash } from '../components/icons'
+import { EyeOff, Pencil, Play, Shuffle, Trash } from '../components/icons'
 import { RequestButton } from '../components/RequestButton'
 import { useSession } from '../hooks/sessionContext'
 import { useApi } from '../hooks/useApi'
@@ -250,7 +250,7 @@ export function CollectionPage() {
                   return play(pick)
                 }}
               >
-                Shuffle
+                <Shuffle /> Shuffle
               </AsyncButton>
             )}
             {c.canEdit && (

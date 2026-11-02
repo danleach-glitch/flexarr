@@ -8,7 +8,8 @@ import { Hero } from '../components/Hero'
 import { HomeRows } from '../components/HomeRows'
 import { ScanProgress } from '../components/ScanProgress'
 import { useAudioPlayer } from '../hooks/audioPlayerContext'
-import { Play, Shuffle } from '../components/icons'
+import { ChevronLeft, Play, Shuffle } from '../components/icons'
+import { libraryGenreLink } from '../lib/links'
 import { useLibraries } from '../hooks/librariesContext'
 import { useApi } from '../hooks/useApi'
 import { useWatchedChanges, watchedSince } from '../hooks/watched'
@@ -44,7 +45,10 @@ export function LibraryPage() {
   // Books have shelves, series, authors and narrators of their own.
   if (library.type === 'Audiobooks') return <BooksLibrary library={library} />
 
-  // A music library's albums (its genres open them too).
+  // A genre's own page, as books have: its titles (a music library's albums) under its name, with a way back to Genres.
+  const genrePage = params.get('view') === 'genre' && params.get('genre') && hasGenres(library)
+  if (genrePage) return <LibraryAll key={`${id} genre ${params.get('genre')}`} albums={library.type === 'Music'} genrePage />
+  // A music library's albums.
   if (library.type === 'Music' && params.get('view') === 'albums') return <LibraryAll key={`${id} albums`} albums />
   // What Lidarr is waiting for (only offered when music can be requested).
   if (library.type === 'Music' && params.get('view') === 'requested')
@@ -108,7 +112,7 @@ function ViewSwitch({ library, view }: { library: Library; view: 'browse' | 'all
   )
 }
 
-/** A tile for each of the library's genres, with a backdrop from one of its titles; one opens All filtered to it. */
+/** A tile for each of the library's genres, with a backdrop from one of its titles; one opens the genre's own page. */
 function LibraryGenres({ library }: { library: Library }) {
   const music = library.type === 'Music'
   const { data, error, reload } = useApi((signal) => (music ? getLibraryAlbumGenres : getLibraryGenres)(library.id, signal), [library.id])
@@ -130,7 +134,7 @@ function LibraryGenres({ library }: { library: Library }) {
       ) : (
         <div className="genre-grid">
           {data.map((g) => (
-            <Link key={g.name} to={`/library/${library.id}?${music ? 'view=albums&' : ''}genre=${encodeURIComponent(g.name)}`} className="genre-tile">
+            <Link key={g.name} to={libraryGenreLink(library.id, library.type, g.name)} className="genre-tile">
               {g.backdrop && <img src={imageUrl(g.backdrop, 780)} alt="" loading="lazy" />}
               <span className="genre-name">{g.name}</span>
               <span className="genre-count">
@@ -388,21 +392,24 @@ function append(loaded: ItemSummary[], pages: ItemSummary[][]) {
   return [...loaded, ...pages.flat().filter((i) => !seen.has(i.id))]
 }
 
-/** Every title in a library, or (`albums`) every album in a music library, with sort, genre and letter jumps. */
-function LibraryAll({ albums = false }: { albums?: boolean }) {
+/**
+ * Every title in a library, or (`albums`) every album in a music library, with sort, genre and letter jumps. As a
+ * genre's own page (`genrePage`), the genre's alone under its name, with a way back to Genres instead of the views.
+ */
+function LibraryAll({ albums = false, genrePage = false }: { albums?: boolean; genrePage?: boolean }) {
   const { id = '' } = useParams()
   const [params, setParams] = useSearchParams()
   const sort = params.get('sort') ?? ''
   const genre = params.get('genre') ?? ''
   const { libraries } = useLibraries()
   const library = libraries.find((l) => l.id === id)
-  // Movies and shows filter by genre here; music has its Genres view for that.
-  const pills = library?.type !== 'Music'
+  // Movies and shows filter by genre here; music has its Genres view for that, and a genre's page is one genre.
+  const pills = library?.type !== 'Music' && !genrePage
   const genres = useApi((signal) => (pills ? getLibraryGenres(id, signal) : Promise.resolve(undefined)), [id, pills])
   const getPage = albums ? getLibraryAlbums : getLibraryItems
 
   // Coming back (Back from a title) picks up where you were, unless something changed meanwhile.
-  const snapshotKey = `library-${albums ? 'albums' : 'all'} ${id} ${sort} ${genre}`
+  const snapshotKey = `library-${genrePage ? 'genre' : albums ? 'albums' : 'all'} ${id} ${sort} ${genre}`
   const navigation = useNavigationType()
   const [restored] = useState(() => (navigation === 'POP' ? restorable(keptPage<GridSnapshot>(snapshotKey)) : undefined))
 
@@ -415,7 +422,7 @@ function LibraryAll({ albums = false }: { albums?: boolean }) {
   // The grid (sort, filter and search) the titles were loaded for: until a new one's first page lands, they're the old one's.
   const gridKey = `${snapshotKey} ${query}`
   const [loadedFor, setLoadedFor] = useState(restored ? gridKey : undefined)
-  const [error, setError] = useState<string>()
+  const [error, setError] = useState<Error>()
   const [busy, setBusy] = useState(false)
   // The letter being jumped to while the titles up to it load.
   const [jumping, setJumping] = useState<string>()
@@ -463,7 +470,7 @@ function LibraryAll({ albums = false }: { albums?: boolean }) {
         setError(undefined)
       })
       .catch((e: unknown) => {
-        if (!controller.signal.aborted) setError(e instanceof Error ? e.message : String(e))
+        if (!controller.signal.aborted) setError(e instanceof Error ? e : new Error(String(e)))
       })
     return () => controller.abort()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- depsKey stands for the inputs; the count is read as it is
@@ -535,7 +542,7 @@ function LibraryAll({ albums = false }: { albums?: boolean }) {
       setItems((current) => append(current, [page.items]))
       setTotal(page.total)
     } catch (e) {
-      if (run === generation.current) setError(e instanceof Error ? e.message : String(e))
+      if (run === generation.current) setError(e instanceof Error ? e : new Error(String(e)))
     } finally {
       setBusy(false)
     }
@@ -565,7 +572,7 @@ function LibraryAll({ albums = false }: { albums?: boolean }) {
         setItems(loaded)
       }
     } catch (e) {
-      if (run === generation.current) setError(e instanceof Error ? e.message : String(e))
+      if (run === generation.current) setError(e instanceof Error ? e : new Error(String(e)))
     } finally {
       setBusy(false)
       setJumping(undefined)
@@ -601,16 +608,27 @@ function LibraryAll({ albums = false }: { albums?: boolean }) {
     <div className="library-page">
       <header className="library-header">
         <div>
-          <div className="library-heading">
-            <h1>{library.name}</h1>
-            <ViewSwitch library={library} view={albums ? 'albums' : 'all'} />
-          </div>
+          {genrePage ? (
+            <div className="library-heading">
+              <Link className="genre-back" to={`/library/${library.id}?view=genres`}>
+                <ChevronLeft /> Genres
+              </Link>
+              <h1 className="library-title">{genre}</h1>
+            </div>
+          ) : (
+            <div className="library-heading">
+              <h1>{library.name}</h1>
+              <ViewSwitch library={library} view={albums ? 'albums' : 'all'} />
+            </div>
+          )}
           <p className="muted">
-            {albums
-              ? total === undefined
-                ? '\u00a0'
-                : `${total.toLocaleString()} ${genre && !query ? `${genre} ` : ''}${total === 1 ? 'album' : 'albums'}`
-              : `${(total ?? library.itemCount).toLocaleString()} ${query || genre ? 'matching' : { Movies: 'movies', TvShows: 'shows', Music: 'artists', Podcasts: 'podcasts', HomeVideos: 'folders', Audiobooks: 'books' }[library.type]}`}
+            {total === undefined && (albums || genrePage)
+              ? '\u00a0'
+              : albums
+                ? `${(total ?? 0).toLocaleString()} ${genre && !query && !genrePage ? `${genre} ` : ''}${query ? 'matching' : total === 1 ? 'album' : 'albums'}`
+                : genrePage
+                  ? `${(total ?? 0).toLocaleString()} ${query ? 'matching' : library.type === 'TvShows' ? (total === 1 ? 'show' : 'shows') : total === 1 ? 'movie' : 'movies'}`
+                  : `${(total ?? library.itemCount).toLocaleString()} ${query || genre ? 'matching' : { Movies: 'movies', TvShows: 'shows', Music: 'artists', Podcasts: 'podcasts', HomeVideos: 'folders', Audiobooks: 'books' }[library.type]}`}
           </p>
           {albums && genre && (
             // A genre plays as a station: up to 200 of its tracks, in order or shuffled.
@@ -651,7 +669,7 @@ function LibraryAll({ albums = false }: { albums?: boolean }) {
           </button>
         </p>
       )}
-      {error && <p className="error">{error}</p>}
+      {error && <PageError error={error} onRetry={() => setVersion((v) => v + 1)} />}
       {items.length === 0 && total === 0 && (
         <p className="page-message muted">
           {query ? `Nothing in ${library.name} matches “${query}”.` : library.scan ? 'Titles appear here as the scan finds them.' : 'Nothing here yet.'}

@@ -519,6 +519,8 @@ fun TvAlbumScreen(model: AppModel, id: String) {
                 val item = state.value.item
                 val tracks = state.value.children.filter { it.kind == MediaKind.Track }
                 val artist = state.value.ancestors.lastOrNull { it.kind == MediaKind.Artist }
+                // In the library already, on a TV: Play and Shuffle (no Download, nothing to request).
+                val actions = MusicActions.of(MusicActions.Input(MusicActions.Kind.ALBUM, hasMusic = true, canRequest = false, platform = MusicActions.Platform.TV))
                 LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 65.dp, bottom = 45.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     item(key = "header") {
                         MusicHeader(
@@ -527,6 +529,7 @@ fun TvAlbumScreen(model: AppModel, id: String) {
                             ambient = ambient,
                             canPlay = tracks.isNotEmpty(),
                             canShuffle = tracks.size >= 2,
+                            showsPlay = MusicActions.Button.PLAY in actions,
                             onPlay = {
                                 music.play(tracks, albums = listOf(item))
                                 model.showNowPlaying()

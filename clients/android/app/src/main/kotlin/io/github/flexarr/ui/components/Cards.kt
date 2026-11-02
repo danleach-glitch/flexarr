@@ -55,6 +55,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import io.github.flexarr.appModel
+import io.github.flexarr.ui.downloads.CardDownloadedMark
 import io.github.flexarr.core.FlexarrClient
 import io.github.flexarr.core.Format
 import io.github.flexarr.core.ItemSummary
@@ -143,6 +144,11 @@ fun PosterArtwork(item: ItemSummary, modifier: Modifier = Modifier) {
         }
         item.progress?.let { ProgressBar(it, Modifier.align(Alignment.BottomCenter).padding(6.dp)) }
         if (item.userData.watched || item.isBookFinished) WatchedBadge(Modifier.align(Alignment.TopEnd).padding(6.dp))
+        val model = androidx.compose.ui.platform.LocalContext.current.appModel
+        CardDownloadedMark(
+            if (item.kind == MediaKind.Audiobook) model.bookDownloads.isDownloaded(item.id) else model.downloads.isDownloaded(item.id),
+            raised = item.progress != null,
+        )
     }
 }
 

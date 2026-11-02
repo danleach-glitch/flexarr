@@ -46,14 +46,7 @@ struct AlbumCard: View {
         Button { router.push(.item(item)) } label: {
             VStack(alignment: .leading, spacing: 6) {
                 SquareArtwork(item: item)
-                    .overlay(alignment: .bottomTrailing) {
-                        if downloads.isDownloaded(collectionId: item.id) {
-                            DownloadedMark()
-                                .padding(4)
-                                .background(Circle().fill(Color.room.opacity(0.85)))
-                                .padding(5)
-                        }
-                    }
+                    .downloadedMark(downloads.isDownloaded(collectionId: item.id))
                 VStack(alignment: .leading, spacing: 1) {
                     Text(item.title)
                         .font(.footnote.weight(.semibold))

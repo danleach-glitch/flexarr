@@ -45,6 +45,7 @@ import io.github.flexarr.core.releaseYear
 import io.github.flexarr.ui.components.LocalNavigator
 import io.github.flexarr.ui.components.RemoteImage
 import io.github.flexarr.ui.components.pressable
+import io.github.flexarr.ui.downloads.CardDownloadedMark
 import io.github.flexarr.ui.downloads.DownloadedMark
 import io.github.flexarr.ui.podcasts.Tabular
 import io.github.flexarr.ui.theme.Flexarr
@@ -100,9 +101,7 @@ fun AlbumCard(item: ItemSummary, modifier: Modifier = Modifier, width: Dp? = nul
     ) {
         Box {
             SquareArtwork(item)
-            if (downloads.isCollectionDownloaded(item.id)) {
-                DownloadedMark(Modifier.align(Alignment.BottomEnd).padding(5.dp).clip(CircleShape).background(Flexarr.room.copy(alpha = 0.85f)).padding(4.dp))
-            }
+            CardDownloadedMark(downloads.isCollectionDownloaded(item.id))
         }
         // The artist under the title, where the albums are from several; the year on an artist's own page.
         CardCaption(item.title, if (showsArtist) item.artistName ?: item.releaseYear?.toString() else item.releaseYear?.toString())

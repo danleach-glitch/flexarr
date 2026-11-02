@@ -394,42 +394,45 @@ struct BookView: View {
                     }
                     .buttonStyle(ActionButtonStyle(ambient: item.ambientColor, prominent: true))
                     .focused($playFocused)
-                    // Only with somewhere to start over from; part way through, it asks first.
-                    if position > 0 || item.userData.watched {
-                        Button {
-                            if position > 0, !item.userData.watched { confirmingStartOver = true } else { Task { await model.listenAgain(item) } }
-                        } label: { Label("Start over", systemImage: "arrow.counterclockwise") }
-                            .buttonStyle(ActionButtonStyle(iconOnly: true))
-                            .alert("Start over?", isPresented: $confirmingStartOver) {
-                                Button("Start over", role: .destructive) { Task { await model.listenAgain(item) } }
-                                Button("Cancel", role: .cancel) {}
-                            } message: {
-                                Text("You're at \(Format.timestamp(position)).")
-                            }
-                    }
-                    if !model.isKids {
-                        // Finished, or (when it isn't) unread: no place and not finished, as if never started. Not
-                        // while it plays, which would set the place again.
-                        let unread = item.userData.watched || (position > 0 && model.music.current?.id != item.id)
-                        Button {
-                            Task {
-                                await model.setBookFinished(item, !item.userData.watched)
-                                await load()
-                            }
-                        } label: {
-                            // A closed book for unread: an arrow would look like Start over's beside it.
-                            Label(item.userData.watched ? "Mark as unread" : "Mark as finished",
-                                  systemImage: item.userData.watched ? "book.closed" : "checkmark")
-                        }
-                        .buttonStyle(ActionButtonStyle(iconOnly: true))
-                        if unread, !item.userData.watched {
+                    // After Play, in `BookActions` order: Start over, then Finished (or Unread once it's finished).
+                    ForEach(BookActions(hasProgress: position > 0 && !item.userData.watched, finished: item.userData.watched,
+                                        isKids: model.isKids, platform: .tv).buttons.dropFirst(), id: \.self) { button in
+                        switch button {
+                        case .startOver:
+                            // Part way through, it asks first, and offers Mark as unread there (as the phones do).
+                            Button {
+                                if position > 0, !item.userData.watched { confirmingStartOver = true } else { Task { await model.listenAgain(item) } }
+                            } label: { Label("Start over", systemImage: "arrow.counterclockwise") }
+                                .buttonStyle(ActionButtonStyle(iconOnly: true))
+                                .alert("Start over?", isPresented: $confirmingStartOver) {
+                                    Button("Start over", role: .destructive) { Task { await model.listenAgain(item) } }
+                                    // Not while it plays, which would set the place again.
+                                    if !model.isKids, model.music.current?.id != item.id {
+                                        Button("Mark as unread") {
+                                            Task {
+                                                await model.setBookFinished(item, false)
+                                                await load()
+                                            }
+                                        }
+                                    }
+                                    Button("Cancel", role: .cancel) {}
+                                } message: {
+                                    Text("You're at \(Format.timestamp(position)).")
+                                }
+                        case .finished:
                             Button {
                                 Task {
-                                    await model.setBookFinished(item, false)
+                                    await model.setBookFinished(item, !item.userData.watched)
                                     await load()
                                 }
-                            } label: { Label("Mark as unread", systemImage: "book.closed") }
-                                .buttonStyle(ActionButtonStyle(iconOnly: true))
+                            } label: {
+                                // A closed book for unread: an arrow would look like Start over's beside it.
+                                Label(item.userData.watched ? "Mark as unread" : "Mark as finished",
+                                      systemImage: item.userData.watched ? "book.closed" : "checkmark")
+                            }
+                            .buttonStyle(ActionButtonStyle(iconOnly: true))
+                        case .play, .download, .more:
+                            EmptyView()
                         }
                     }
                 }

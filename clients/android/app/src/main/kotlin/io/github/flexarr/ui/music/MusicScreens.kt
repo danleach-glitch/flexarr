@@ -347,6 +347,8 @@ fun AlbumScreen(model: AppModel, id: String) {
                 val item = state.value.item
                 val tracks = state.value.children.filter { it.kind == MediaKind.Track }
                 val artist = state.value.ancestors.lastOrNull { it.kind == MediaKind.Artist }
+                // In the library already: nothing to request, so Play, Shuffle and Download.
+                val actions = MusicActions.of(MusicActions.Input(MusicActions.Kind.ALBUM, hasMusic = true, canRequest = false, platform = MusicActions.Platform.PHONE, canDownload = true))
                 androidx.compose.foundation.lazy.LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp)) {
                     item {
                         MusicHeader(
@@ -365,8 +367,9 @@ fun AlbumScreen(model: AppModel, id: String) {
                             canShuffle = tracks.size >= 2,
                             onPlay = { music.play(tracks, albums = listOf(item)) },
                             onShuffle = { music.play(tracks, shuffled = true, albums = listOf(item)) },
-                            // In the library already: nothing to request (MusicActions' Play, Shuffle, Download).
-                            extra = { MusicDownloadButton(model, MusicDownloadSource.Album(item, tracks)) },
+                            showsPlay = MusicActions.Button.PLAY in actions,
+                            hasExtra = MusicActions.Button.DOWNLOAD in actions,
+                            extra = { if (MusicActions.Button.DOWNLOAD in actions) MusicDownloadButton(model, MusicDownloadSource.Album(item, tracks)) },
                         )
                     }
                     if (tracks.isEmpty()) {

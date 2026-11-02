@@ -24,7 +24,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.SwapVert
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -411,7 +411,7 @@ private fun MusicGrid(
 private fun SortMenu(sorts: List<LibrarySort>, sort: LibrarySort, onSort: (LibrarySort) -> Unit) {
     var open by remember { mutableStateOf(false) }
     Box {
-        IconButton(onClick = { open = true }) { Icon(Icons.Filled.SwapVert, contentDescription = "Sort by", tint = Flexarr.screen) }
+        IconButton(onClick = { open = true }) { Icon(Icons.Filled.FilterList, contentDescription = "Sort", tint = Flexarr.screen) }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             Text("Sort by", fontSize = 13.sp, color = Flexarr.usher, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
             sorts.forEach { option ->

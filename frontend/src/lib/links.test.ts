@@ -13,10 +13,10 @@ describe('webLink', () => {
 })
 
 describe('libraryGenreLink', () => {
-  it("opens each kind of library's own genre", () => {
-    expect(libraryGenreLink('m', 'Movies', 'Sci-Fi & Fantasy')).toBe('/library/m?genre=Sci-Fi%20%26%20Fantasy')
-    expect(libraryGenreLink('t', 'TvShows', 'Drama')).toBe('/library/t?genre=Drama')
-    expect(libraryGenreLink('a', 'Music', 'Rock')).toBe('/library/a?view=albums&genre=Rock')
+  it("opens each kind of library's own genre page", () => {
+    expect(libraryGenreLink('m', 'Movies', 'Sci-Fi & Fantasy')).toBe('/library/m?view=genre&genre=Sci-Fi%20%26%20Fantasy')
+    expect(libraryGenreLink('t', 'TvShows', 'Drama')).toBe('/library/t?view=genre&genre=Drama')
+    expect(libraryGenreLink('a', 'Music', 'Rock')).toBe('/library/a?view=genre&genre=Rock')
     expect(libraryGenreLink('b', 'Audiobooks', 'Fantasy')).toBe('/library/b?view=genre&genre=Fantasy')
   })
 })
