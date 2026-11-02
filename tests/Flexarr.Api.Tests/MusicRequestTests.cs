@@ -411,6 +411,26 @@ public sealed class MusicRequestTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AskingForOneAlbumAgainAndAgain_CountsTowardsTheDay()
+    {
+        await MusicLibraryAsync();
+        _lidarr.Responses["GET /api/v1/artist"] = $$"""[{"id":3,"artistName":"Wet Leg","foreignArtistId":"{{WetLeg}}","monitored":true,"monitorNewItems":"none"}]""";
+        _lidarr.Responses["GET /api/v1/artist/lookup?term=Wet%20Leg"] = $$"""[{"id":3,"artistName":"Wet Leg","foreignArtistId":"{{WetLeg}}"}]""";
+        _lidarr.Responses["GET /api/v1/album?artistId=3"] = $$"""[{"id":9,"artistId":3,"title":"moisturizer","foreignAlbumId":"{{Moisturizer}}","monitored":false}]""";
+        var client = Client();
+        for (var i = 0; i < 30; i++)
+        {
+            Assert.Equal(HttpStatusCode.Accepted, (await client.PostAsJsonAsync(Api("/requests/music"), new { kind = "album", deezerId = 730000661 })).StatusCode);
+        }
+
+        var response = await client.PostAsJsonAsync(Api("/requests/music"), new { kind = "album", deezerId = 730000661 });
+
+        Assert.Equal(HttpStatusCode.TooManyRequests, response.StatusCode);
+        Assert.Equal(30, _sent.Count(s => s.Request == "POST /api/v1/command"));
+        Assert.Single(await InDbAsync(db => db.MediaRequests.ToListAsync()));
+    }
+
+    [Fact]
     public async Task TheMusicDestination_IsAProfilesOwn_AndOnlyAMusicLibrary()
     {
         var (library, _, _) = await SeedOwnedAsync();
