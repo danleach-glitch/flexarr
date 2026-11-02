@@ -65,18 +65,27 @@ public static partial class MusicRequestEndpoints
         });
 
         music.MapGet("/discover", async (MusicRequestContext c, CurrentProfile current, CancellationToken ct) =>
-            await DeezerAsync(async () =>
+        {
+            var owned = await c.OwnedAsync(ct);
+            var top = await TopArtistsAsync(c.Db, current.Id, 12, ct);
+            // Each row stands alone: one that Deezer doesn't answer for is left out, not the page.
+            var rows = new List<MusicRowDto>();
+            async Task RowAsync(string id, string title, string shape, Func<Task<List<MusicExternalDto>>> items)
             {
-                var owned = await c.OwnedAsync(ct);
-                var rows = new List<MusicRowDto>
+                if (await Quietly(items) is { Count: > 0 } found)
                 {
-                    new("music-like", "Like artists you play", "artists", await LikeYoursAsync(c, owned, current.Id, ct)),
-                    new("music-new", "New from your artists", "albums", await NewFromYoursAsync(c, owned, current.Id, ct)),
-                    new("music-charts", "Top albums", "albums", (await c.Catalog.ChartAlbumsAsync(ct)).Select(a => Album(a, owned)).ToList()),
-                };
-                var genres = (await c.Catalog.GenresAsync(ct)).Select(g => new MusicGenreDto(g.Id, g.Name, ImageEndpoints.RemoteUrl(g.Picture))).ToList();
-                return Results.Ok(new MusicDiscoverDto(rows.Where(r => r.Items.Count > 0).ToList(), genres));
-            }));
+                    rows.Add(new MusicRowDto(id, title, shape, found));
+                }
+            }
+
+            await RowAsync("music-like", "Like artists you play", "artists", () => LikeYoursAsync(c, owned, top.Take(8).ToList(), ct));
+            await RowAsync("music-new", "New from your artists", "albums", () => NewFromYoursAsync(c, owned, top, ct));
+            await RowAsync("music-charts", "Top albums", "albums", async () => (await c.Catalog.ChartAlbumsAsync(ct)).Select(a => Album(a, owned)).ToList());
+            var genres = await Quietly(async () => (await c.Catalog.GenresAsync(ct)).Select(g => new MusicGenreDto(g.Id, g.Name, ImageEndpoints.RemoteUrl(g.Picture))).ToList());
+            return rows.Count == 0 && genres is null
+                ? Results.Problem("Deezer didn't answer. Try again in a minute.", statusCode: 502)
+                : Results.Ok(new MusicDiscoverDto(rows, genres ?? []));
+        });
 
         music.MapGet("/genres/{id:long}", async (long id, MusicRequestContext c, CancellationToken ct) =>
             await DeezerAsync(async () =>
@@ -97,6 +106,9 @@ public static partial class MusicRequestEndpoints
             {
                 return Results.Ok(new MusicSearchDto([], []));
             }
+
+            // No artist or album needs more; longer ones would only fill the cache.
+            q = q.Trim() is { Length: > 100 } longer ? longer[..100] : q.Trim();
 
             return await DeezerAsync(async () =>
             {
@@ -289,11 +301,11 @@ public static partial class MusicRequestEndpoints
     }
 
     /// <summary>Artists Deezer relates to the ones this profile plays most, that the library doesn't have, taking turns.</summary>
-    private static async Task<List<MusicExternalDto>> LikeYoursAsync(MusicRequestContext c, OwnedMusic owned, string profileId, CancellationToken ct)
+    private static async Task<List<MusicExternalDto>> LikeYoursAsync(MusicRequestContext c, OwnedMusic owned, List<string> seeds, CancellationToken ct)
     {
-        var seeds = await TopArtistsAsync(c.Db, profileId, 8, ct);
-        var related = await Task.WhenAll(seeds.Select(async name =>
-            await c.Catalog.ArtistNamedAsync(name, ct) is { } seed ? await c.Catalog.RelatedAsync(seed.Id, ct) : []));
+        // A seed Deezer doesn't answer for is just left out.
+        var related = await Task.WhenAll(seeds.Select(async name => await Quietly(async () =>
+            await c.Catalog.ArtistNamedAsync(name, ct) is { } seed ? await c.Catalog.RelatedAsync(seed.Id, ct) : []) ?? []));
         var picked = new List<MusicExternalDto>();
         var seen = new HashSet<long>();
         for (var round = 0; picked.Count < RowSize && related.Any(r => r.Count > round); round++)
@@ -312,14 +324,13 @@ public static partial class MusicRequestEndpoints
     }
 
     /// <summary>Releases from the last year by artists in the library, that it doesn't have yet, newest first.</summary>
-    private static async Task<List<MusicExternalDto>> NewFromYoursAsync(MusicRequestContext c, OwnedMusic owned, string profileId, CancellationToken ct)
+    private static async Task<List<MusicExternalDto>> NewFromYoursAsync(MusicRequestContext c, OwnedMusic owned, List<string> top, CancellationToken ct)
     {
-        // The artists played most first, then any others, so a big library doesn't ask Deezer about every artist.
-        var names = (await TopArtistsAsync(c.Db, profileId, 12, ct)).Concat(owned.Artists.Count <= 12
-            ? await c.Db.MediaItems.AsNoTracking().Where(i => i.Kind == MediaKind.Artist).OrderByDescending(i => i.AddedAt).Select(i => i.Title).Take(12).ToListAsync(ct)
-            : []).Distinct(StringComparer.OrdinalIgnoreCase).Take(12).ToList();
+        // The artists played most first, then the newest in the library, so a big library doesn't ask Deezer about every artist.
+        var recent = await c.Db.MediaItems.AsNoTracking().Where(i => i.Kind == MediaKind.Artist).OrderByDescending(i => i.AddedAt).Select(i => i.Title).Take(12).ToListAsync(ct);
+        var names = top.Concat(recent).Distinct(StringComparer.OrdinalIgnoreCase).Take(12).ToList();
         var since = DateOnly.FromDateTime(DateTime.UtcNow.AddYears(-1)).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
-        var albums = await Task.WhenAll(names.Select(async name =>
+        var albums = await Task.WhenAll(names.Select(async name => await Quietly(async () =>
         {
             if (await c.Catalog.ArtistNamedAsync(name, ct) is not { } artist)
             {
@@ -328,12 +339,25 @@ public static partial class MusicRequestEndpoints
 
             return (await c.Catalog.ArtistAlbumsAsync(artist.Id, ct)).Where(a => string.CompareOrdinal(a.ReleaseDate, since) >= 0 && a.RecordType is "album" or "ep")
                 .Select(a => a with { Artist = artist });
-        }));
+        }) ?? []));
         return albums.SelectMany(a => a).Where(a => owned.AlbumId(a.Artist?.Name, a.Title) is null)
             // A joint album turns up under each of its artists you have: once is enough.
             .DistinctBy(a => a.Id)
             .DistinctBy(a => OwnedMusic.AlbumKey(a.Artist?.Name, a.Title))
             .OrderByDescending(a => a.ReleaseDate, StringComparer.Ordinal).Take(RowSize).Select(a => Album(a, owned)).ToList();
+    }
+
+    /// <summary>Deezer's answer, or null when it didn't give one (an error, its rate limit, a timeout).</summary>
+    private static async Task<T?> Quietly<T>(Func<Task<T>> call) where T : class
+    {
+        try
+        {
+            return await call();
+        }
+        catch (Exception ex) when (ex is DeezerException or HttpRequestException || (ex is TaskCanceledException && ex.InnerException is TimeoutException))
+        {
+            return null;
+        }
     }
 }
 

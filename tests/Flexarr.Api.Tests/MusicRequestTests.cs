@@ -195,6 +195,20 @@ public sealed class MusicRequestTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ARowDeezerDoesntAnswerFor_IsLeftOut_NotThePage()
+    {
+        await MusicLibraryAsync();
+        _deezer.Responses.TryRemove("GET /chart/0/albums?limit=30", out _);
+
+        var response = await Client().GetAsync(Api("/requests/music/discover"));
+        var discover = await response.Content.ReadFromJsonAsync<JsonElement>();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.DoesNotContain(discover.GetProperty("rows").EnumerateArray(), r => r.GetProperty("id").GetString() == "music-charts");
+        Assert.Single(discover.GetProperty("genres").EnumerateArray());
+    }
+
+    [Fact]
     public async Task Search_FindsArtistsAndAlbums()
     {
         await MusicLibraryAsync();
