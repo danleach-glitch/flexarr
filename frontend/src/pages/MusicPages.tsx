@@ -1,6 +1,6 @@
 import { useState, type CSSProperties, type MouseEvent } from 'react'
 import { Link } from 'react-router'
-import { getRadio, getTracks, imageUrl, type AlbumType, type ItemDetail, type ItemSummary } from '../api/client'
+import { getMusicArtistExtras, getMusicRequestStatus, getRadio, getTracks, imageUrl, type AlbumType, type ItemDetail, type ItemSummary } from '../api/client'
 import { openAddToPlaylist, type PlaylistAddition } from '../components/AddToPlaylist'
 import { Artwork } from '../components/Artwork'
 import { AsyncButton } from '../components/AsyncButton'
@@ -8,6 +8,9 @@ import { PosterCard } from '../components/Cards'
 import { Menu, type MenuAction, type MenuPoint } from '../components/ItemMenu'
 import { More, Play, Radio } from '../components/icons'
 import { LyricsPanel } from '../components/LyricsPanel'
+import { MusicExternalCard, MusicRequestButton } from '../components/MusicExternalCard'
+import { Row } from '../components/Row'
+import { useApi } from '../hooks/useApi'
 import { useAudioPlayer, useAudioTime, useMusicPage, type AudioPlayer } from '../hooks/audioPlayerContext'
 import { formatClock, formatDuration } from '../lib/format'
 
@@ -211,6 +214,11 @@ export function ArtistPage({ detail }: { detail: ItemDetail }) {
   useMusicPage()
   const { item, children: albums } = detail
   const [loading, setLoading] = useState(false)
+  // From outside the library, when music can be requested: the albums of theirs you don't have, and artists like them.
+  const extras = useApi(
+    async (signal) => ((await getMusicRequestStatus(signal)).configured ? getMusicArtistExtras(item.id, signal) : undefined),
+    [item.id],
+  )
 
   // The tracks are fetched when asked for, not with the page: an artist with a hundred albums shouldn't make every
   // visit load them all.
@@ -260,6 +268,14 @@ export function ArtistPage({ detail }: { detail: ItemDetail }) {
               <Radio /> Radio
             </AsyncButton>
             <MoreButton label={`More for ${item.title}`} actions={queueActions(player, () => getTracks(item.id), item)} disabled={albums.length === 0} />
+            {extras.data && (
+              <MusicRequestButton
+                key={String(extras.data.followed)}
+                kind="artist"
+                request={{ kind: 'artist', artistId: item.id }}
+                availability={extras.data.followed ? 'Requested' : 'None'}
+              />
+            )}
           </div>
         </div>
       </header>
@@ -278,6 +294,25 @@ export function ArtistPage({ detail }: { detail: ItemDetail }) {
           </section>
         )
       })}
+      {extras.data && extras.data.missing.length > 0 && (
+        <section className="music-section music-missing" aria-labelledby="music-section-missing">
+          <h2 id="music-section-missing" className="music-section-title">
+            Not in your library
+          </h2>
+          <div className="poster-grid music-albums">
+            {extras.data.missing.map((a) => (
+              <MusicExternalCard key={`${a.deezerId}-${a.musicBrainzId ?? a.title}`} item={a} showArtist={false} />
+            ))}
+          </div>
+        </section>
+      )}
+      {extras.data && extras.data.similar.length > 0 && (
+        <Row title="Fans also like">
+          {extras.data.similar.map((s) => (
+            <MusicExternalCard key={s.deezerId} item={s} />
+          ))}
+        </Row>
+      )}
     </article>
   )
 }
