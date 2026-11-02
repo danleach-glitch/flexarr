@@ -228,6 +228,27 @@ public struct ItemSummary: Codable, Sendable, Hashable, Identifiable {
     public var homeVideo: Bool? = nil
     /// A book's authors, narrator, series and length. Absent from servers before 0.58.
     public var book: BookSummary? = nil
+    /// IMDb's rating out of 10, for movies and shows. Absent from servers before 0.59.
+    public var imdbRating: Double? = nil
+    /// The Rotten Tomatoes critics' score and its tomato. Absent from servers before 0.59 (`criticRating` has the number).
+    public var rottenTomatoes: RottenTomatoes? = nil
+}
+
+/// Rotten Tomatoes' tomato for a critics' score. `unknown` (a newer server's) is read from the score instead.
+public enum RottenTomatoesState: String, ForwardCompatibleEnum {
+    case fresh = "Fresh", rotten = "Rotten", certifiedFresh = "CertifiedFresh"
+    case unknown
+}
+
+/// A Rotten Tomatoes critics' score, percent, and its tomato.
+public struct RottenTomatoes: Codable, Sendable, Hashable {
+    public let score: Int
+    public let state: RottenTomatoesState
+
+    public init(score: Int, state: RottenTomatoesState) {
+        self.score = score
+        self.state = state
+    }
 }
 
 /// One line of a track's lyrics; `time` (seconds into the track) is set throughout synced lyrics and never otherwise.

@@ -72,10 +72,18 @@ extension ItemSummary {
         return nil
     }
 
-    /// Short facts for heroes and detail headers: year, runtime or seasons, rating, score, resolution.
+    /// IMDb and Rotten Tomatoes, shown beside their marks after the facts (docs/design.md › Scores). Older servers
+    /// only send the critics' number, whose tomato then follows the score.
+    public var scores: Scores {
+        Scores(imdb: imdbRating, rottenTomatoes: rottenTomatoes
+            ?? criticRating.map { RottenTomatoes(score: Int($0.rounded()), state: .unknown) })
+    }
+
+    /// Short facts for heroes and detail headers: year, runtime or seasons, rating, a plain score, resolution.
     public var facts: [String] { facts(scores: true) }
 
-    /// The facts, leaving out the score when `scores` is false (for a kids profile, where it means nothing).
+    /// The facts, leaving out the plain score when `scores` is false (for a kids profile, where it means nothing) or
+    /// when the title has IMDb or Rotten Tomatoes to show beside their marks instead.
     public func facts(scores: Bool) -> [String] {
         var facts: [String] = []
         if let releaseYear { facts.append(String(releaseYear)) }
@@ -100,7 +108,7 @@ extension ItemSummary {
             }
         }
         if let contentRating, !contentRating.isEmpty { facts.append(contentRating) }
-        if scores, let communityRating, communityRating > 0 { facts.append(String(format: "%.1f", communityRating)) }
+        if scores, self.scores.isEmpty, let communityRating, communityRating > 0 { facts.append(String(format: "%.1f", communityRating)) }
         if let resolution, !resolution.isEmpty { facts.append(resolution) }
         return facts
     }
@@ -347,5 +355,46 @@ public struct EmptyHomeMessage: Sendable, Hashable {
     private static func list(_ names: [String]) -> String {
         guard let last = names.last else { return "" }
         return names.count == 1 ? last : "\(names.dropLast().joined(separator: ", ")) and \(last)"
+    }
+}
+
+// MARK: - Scores
+
+/// A title's two scores (docs/design.md › Scores): IMDb out of 10 and Rotten Tomatoes critics with its tomato.
+public struct Scores: Sendable, Hashable {
+    public let imdb: Double?
+    public let rottenTomatoes: RottenTomatoes?
+
+    public init(imdb: Double?, rottenTomatoes: RottenTomatoes?) {
+        self.imdb = imdb
+        // The tomato follows the score when the server didn't say (or said something this app doesn't know).
+        self.rottenTomatoes = rottenTomatoes.map {
+            $0.state == .unknown ? RottenTomatoes(score: $0.score, state: $0.score >= 60 ? .fresh : .rotten) : $0
+        }
+    }
+
+    public var isEmpty: Bool { imdb == nil && rottenTomatoes == nil }
+
+    /// "7.8", as beside IMDb's mark.
+    public var imdbText: String? { imdb.map { String(format: "%.1f", $0) } }
+
+    /// For VoiceOver: "IMDb 7.8 out of 10".
+    public var imdbLabel: String? { imdbText.map { "IMDb \($0) out of 10" } }
+
+    /// For VoiceOver: "Rotten Tomatoes 92%, Certified Fresh".
+    public var rottenTomatoesLabel: String? {
+        rottenTomatoes.map { "Rotten Tomatoes \($0.score)%, \($0.state.words)" }
+    }
+}
+
+extension RottenTomatoesState {
+    /// What Rotten Tomatoes calls it.
+    public var words: String {
+        switch self {
+        case .certifiedFresh: "Certified Fresh"
+        case .fresh: "Fresh"
+        case .rotten: "Rotten"
+        case .unknown: "Rotten Tomatoes"
+        }
     }
 }
