@@ -405,6 +405,33 @@ public sealed class NotificationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AFollowedArtist_SecondAlbumLandingWhileTheFirstSettles_IsToldNextTime()
+    {
+        var (_, phone) = await PhoneAsync();
+        await RegisterAsync(phone);
+        await StartAsync();
+        var library = OldLibrary(LibraryType.Music);
+        var start = _clock.Now;
+        var (artist, _) = Album(library, "Wet Leg", "Wet Leg", start.AddDays(-30), artistMbid: "wl");
+        MediaItem New(string title, DateTime added) => new()
+        {
+            LibraryId = library.Id, Kind = MediaKind.Album, Title = title, SortTitle = title, AddedAt = added, ParentId = artist.Id,
+            Year = 2026, ReleaseDate = DateOnly.FromDateTime(start),
+        };
+        await SeedAsync(db =>
+        {
+            db.Libraries.Add(library);
+            db.MediaItems.AddRange(artist, New("moisturizer", start.AddMinutes(5)), New("moisturizer (Deluxe)", start.AddMinutes(8)));
+            db.MediaRequests.Add(new MediaRequest { ProfileId = PlaybackState.DefaultUser, Kind = MediaKind.Artist, MusicBrainzId = "wl", Title = "Wet Leg", RequestedAt = start.AddDays(-1) });
+        });
+
+        // At 9 minutes only the album has settled; the deluxe edition, a minute behind it, is told on the next run.
+        Assert.Equal("moisturizer is in the library.", Assert.Single(await RunAtAsync(start.AddMinutes(9))).GetProperty("b").GetString());
+        Assert.Equal("moisturizer (Deluxe) is in the library.", Assert.Single(await RunAtAsync(start.AddMinutes(12))).GetProperty("b").GetString());
+        Assert.Empty(await RunAtAsync(start.AddMinutes(20)));
+    }
+
+    [Fact]
     public async Task AnAlbumInALibraryHiddenFromWhoAsked_DoesntAnswerTheirRequest()
     {
         var (_, phone) = await PhoneAsync();
