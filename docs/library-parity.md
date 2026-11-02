@@ -145,13 +145,12 @@ apps); See all on every row; Top 10, genre rows and Coming soon (Lidarr's calend
 health for music; the opens-on setting for music on Android TV; A–Z, search box and scroll restore for books;
 Top Shelf, Siri and CarPlay for the kinds missing them.
 
-**Audiobooks have, the others could take:** editing details by hand and locking them; a genre page with its own title
-and way back; rich filters (progress, length) where movies only filter by genre; *Next in series* as a model for a
+**Audiobooks have, the others could take:** editing details by hand and locking them; rich filters (progress, length) where movies only filter by genre; *Next in series* as a model for a
 film franchise's next film; time left at your speed.
 
 ## Same idea, different look or words
 
-Batch 2 (#?) brought these into line: book buttons (`BookActions`) and album pages (`MusicActions`), the view switch,
+Batch 2 brought these into line: book buttons (`BookActions`) and album pages (`MusicActions`), the view switch,
 genres (a titled page everywhere), Shuffle's icon, the downloaded mark, artists' shape, grid errors and empty genres.
 Still different:
 
