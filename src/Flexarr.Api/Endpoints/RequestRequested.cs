@@ -98,10 +98,18 @@ public static class RequestRequested
 
         var radarrs = options.Arr.Where(a => a.Kind == ArrKind.Radarr).ToList();
         var sonarrs = options.Arr.Where(a => a.Kind == ArrKind.Sonarr).ToList();
+        // One that doesn't answer (a sleeping NAS) is asked once, not once per title, each waiting out the timeout.
+        var down = new HashSet<ArrInstance>();
         var queues = new Dictionary<ArrInstance, IReadOnlyList<ArrQueueItem>>();
         foreach (var instance in radarrs.Concat(sonarrs).Where(i => titles.Any(t => (t.Type == "movie") == (i.Kind == ArrKind.Radarr))))
         {
-            queues[instance] = await Cached(cache, $"requested-queue:{instance.BaseUrl}", ListsFor, t => arr.GetQueueAsync(instance, t), ct) ?? [];
+            var queue = await Cached(cache, $"requested-queue:{instance.BaseUrl}", ListsFor, t => arr.GetQueueAsync(instance, t), ct);
+            if (queue is null)
+            {
+                down.Add(instance);
+            }
+
+            queues[instance] = queue ?? [];
         }
 
         var now = DateTime.UtcNow;
@@ -116,8 +124,8 @@ public static class RequestRequested
             }
 
             var (found, gone) = title.Type == "movie"
-                ? await MovieAsync(arr, radarrs, queues, cache, title.TmdbId, now, ct)
-                : title.TvdbId is { } tvdb ? await ShowAsync(arr, sonarrs, queues, cache, tvdb, title.Seasons, now, ct) : (null, false);
+                ? await MovieAsync(arr, radarrs, queues, down, cache, title.TmdbId, now, ct)
+                : title.TvdbId is { } tvdb ? await ShowAsync(arr, sonarrs, queues, down, cache, tvdb, title.Seasons, now, ct) : (null, false);
 
             // Radarr or Sonarr has it all already (the library just hasn't caught up), or answered that it doesn't hold
             // an approved request's title at all (taken out since, so nobody's looking): not on its way.
@@ -167,14 +175,20 @@ public static class RequestRequested
     /// What Radarr says of the film; <c>Gone</c> when every Radarr answered and it's either on disk already or held by
     /// none of them.
     /// </returns>
+    /// <param name="down">Instances that didn't answer earlier in this listing: skipped, and any that don't now join them.</param>
     private static async Task<(Found? Found, bool Gone)> MovieAsync(ArrClient arr, List<ArrInstance> radarrs, Dictionary<ArrInstance, IReadOnlyList<ArrQueueItem>> queues,
-        IMemoryCache cache, int tmdbId, DateTime now, CancellationToken ct)
+        HashSet<ArrInstance> down, IMemoryCache cache, int tmdbId, DateTime now, CancellationToken ct)
     {
         var answered = 0;
-        foreach (var radarr in radarrs)
+        foreach (var radarr in radarrs.Where(r => !down.Contains(r)))
         {
             var films = await Cached(cache, $"requested-movie:{radarr.BaseUrl}:{tmdbId}", ListsFor, t => arr.GetMoviesByTmdbIdAsync(radarr, tmdbId, t), ct);
             answered += films is null ? 0 : 1;
+            if (films is null)
+            {
+                down.Add(radarr);
+            }
+
             if (films is not [var film, ..])
             {
                 continue;
@@ -204,13 +218,18 @@ public static class RequestRequested
     /// <param name="seasons">The seasons asked for; null for every one.</param>
     /// <returns>As <see cref="MovieAsync"/>: <c>Gone</c> when Sonarr has every season asked for, or no Sonarr holds the show.</returns>
     private static async Task<(Found? Found, bool Gone)> ShowAsync(ArrClient arr, List<ArrInstance> sonarrs, Dictionary<ArrInstance, IReadOnlyList<ArrQueueItem>> queues,
-        IMemoryCache cache, int tvdbId, IReadOnlyList<int>? seasons, DateTime now, CancellationToken ct)
+        HashSet<ArrInstance> down, IMemoryCache cache, int tvdbId, IReadOnlyList<int>? seasons, DateTime now, CancellationToken ct)
     {
         var answered = 0;
-        foreach (var sonarr in sonarrs)
+        foreach (var sonarr in sonarrs.Where(s => !down.Contains(s)))
         {
             var shows = await Cached(cache, $"requested-series:{sonarr.BaseUrl}:{tvdbId}", ListsFor, t => arr.GetSeriesByTvdbIdAsync(sonarr, tvdbId, t), ct);
             answered += shows is null ? 0 : 1;
+            if (shows is null)
+            {
+                down.Add(sonarr);
+            }
+
             if (shows is not [var show, ..])
             {
                 continue;

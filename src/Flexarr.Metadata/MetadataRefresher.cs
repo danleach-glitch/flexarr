@@ -284,13 +284,20 @@ public sealed partial class MetadataRefresher(
         item.Status = movie.Status;
         item.ReleaseDate = DateOnlyOf(movie.InCinemas ?? movie.DigitalRelease ?? movie.PhysicalRelease ?? movie.ReleaseDate);
         item.CommunityRating = movie.Ratings?.Imdb?.Value is > 0 ? movie.Ratings.Imdb.Value : movie.Ratings?.Tmdb?.Value is > 0 ? movie.Ratings.Tmdb.Value : null;
-        item.CriticRating = movie.Ratings?.RottenTomatoes?.Value is > 0 and var rt ? (int)Math.Round(rt) : null;
-        item.ImdbRating = movie.Ratings?.Imdb?.Value is > 0 and var imdb ? imdb : null;
-        item.CriticCertified &= item.CriticRating is >= 60;
         item.Popularity = movie.Popularity;
         item.TrailerYouTubeId = NullIfEmpty(movie.YouTubeTrailerId);
         item.ImdbId = NullIfEmpty(movie.ImdbId) ?? item.ImdbId;
         item.TmdbId = movie.TmdbId > 0 ? movie.TmdbId.ToString(CultureInfo.InvariantCulture) : item.TmdbId;
+
+        // Seerr's scores, while they're fresh, win: Radarr only fills what Seerr didn't give, so a film whose Radarr
+        // score is missing or differs doesn't lose Seerr's (and its Certified Fresh) on every refresh until Seerr is
+        // asked again. A film matched to a different title takes Radarr's.
+        var critic = movie.Ratings?.RottenTomatoes?.Value is > 0 and var rt ? (int)Math.Round(rt) : (int?)null;
+        var imdbRating = movie.Ratings?.Imdb?.Value is > 0 and var imdb ? imdb : (double?)null;
+        var seerrFresh = ScoresFresh(item) && IdsOf(item) == _idsBefore;
+        item.CriticRating = seerrFresh ? item.CriticRating ?? critic : critic;
+        item.ImdbRating = seerrFresh ? item.ImdbRating ?? imdbRating : imdbRating;
+        item.CriticCertified &= item.CriticRating is >= 60;
         item.ArrId = instance is null ? null : movie.Id;
         item.MetadataSource = instance?.Name ?? RadarrLookup;
         ForgetScoresIfRematched(item, keepArrScores: true);
@@ -921,7 +928,7 @@ public sealed partial class MetadataRefresher(
     {
         if (seerr is null || _seerrDown || settings.Seerr is not { } instance
             || !int.TryParse(item.TmdbId, NumberStyles.None, CultureInfo.InvariantCulture, out var tmdbId) || tmdbId <= 0
-            || item.ScoresCheckedAt is { } checkedAt && DateTime.UtcNow - checkedAt < ScoresStaleAfter + Spread(item.Id))
+            || ScoresFresh(item))
         {
             return;
         }
@@ -938,9 +945,10 @@ public sealed partial class MetadataRefresher(
         catch (Exception ex) when (!ct.IsCancellationRequested
             && ex is HttpRequestException or IOException or OperationCanceledException or System.Text.Json.JsonException)
         {
-            // Seerr unreachable, slow or refusing the key: leave it alone for the rest of this refresh. Its error for one
-            // title (Overseerr answers 500 when a lookup behind it fails) is that title's alone, unless it keeps happening.
-            var unreachable = ex is IOException or OperationCanceledException
+            // Seerr unreachable or refusing the key: leave it alone for the rest of this refresh. Its error or a slow
+            // answer for one title (Overseerr answers 500 when a lookup behind it fails) is that title's alone, unless it
+            // keeps happening.
+            var unreachable = ex is IOException
                 || ex is HttpRequestException { StatusCode: null or System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden };
             _seerrDown = unreachable || ++_seerrFailuresInARow >= SeerrFailuresBeforeGivingUp;
             LogSeerrRatingsFailed(item.Title, ex.Message, _seerrDown);
@@ -962,6 +970,9 @@ public sealed partial class MetadataRefresher(
 
         item.ImdbRating = ratings?.Imdb ?? item.ImdbRating;
     }
+
+    /// <summary>Whether Seerr gave the item's scores recently enough not to be asked again yet.</summary>
+    private static bool ScoresFresh(MediaItem item) => item.ScoresCheckedAt is { } checkedAt && DateTime.UtcNow - checkedAt < ScoresStaleAfter + Spread(item.Id);
 
     /// <summary>0 to 14 days, the same for an item every time, so a library's scores don't all go stale together.</summary>
     private static TimeSpan Spread(Guid id) => TimeSpan.FromDays(Math.Abs(id.GetHashCode() % 15));
