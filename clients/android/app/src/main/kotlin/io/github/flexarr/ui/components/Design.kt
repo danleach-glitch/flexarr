@@ -182,7 +182,7 @@ fun LabeledAction(label: String, icon: ImageVector, onClick: () -> Unit, modifie
 
 /** Small selectable pill for seasons. */
 @Composable
-fun PillButton(label: String, selected: Boolean, onClick: () -> Unit, ambient: Color = Flexarr.silver) {
+fun PillButton(label: String, selected: Boolean, onClick: () -> Unit, ambient: Color = Flexarr.silver, detail: String? = null) {
     // 36 high to see, with the touch area around it the usual 48. The touch area is its own box around the pill: given
     // the 48's minimum, the pill's 36 stretched to fit it, and its outline was drawn at both heights (a double border).
     Box(
@@ -195,7 +195,11 @@ fun PillButton(label: String, selected: Boolean, onClick: () -> Unit, ambient: C
                 .padding(horizontal = 16.dp),
             contentAlignment = Alignment.Center,
         ) {
-            Text(label, fontSize = 15.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, color = if (selected) Flexarr.screen else Flexarr.usher)
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(label, fontSize = 15.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, color = if (selected) Flexarr.screen else Flexarr.usher)
+                // Quieter beside the label, as "8 of 10" beside a season.
+                detail?.let { Text(it, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher) }
+            }
         }
     }
 }

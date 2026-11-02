@@ -345,6 +345,16 @@ fun TvMainScreen(model: AppModel) {
                     composable("music-artist/{id}") { it.arguments?.getString("id")?.toLongOrNull()?.let { id -> TvExternalArtistScreen(model, id) } }
                     composable("music-album/{id}") { it.arguments?.getString("id")?.toLongOrNull()?.let { id -> TvExternalAlbumScreen(model, id) } }
                     composable("playlist/{id}") { TvPlaylistScreen(model, it.arguments!!.getString("id")!!) }
+                    // A film or show from outside the library, opened from search (Discover keeps its own stack).
+                    composable("external/{mediaType}/{tmdbId}?title={title}") { entry ->
+                        val mediaType = entry.arguments?.getString("mediaType")
+                        val tmdbId = entry.arguments?.getString("tmdbId")?.toIntOrNull()
+                        val navigator = io.github.flexarr.ui.components.LocalNavigator.current
+                        if ((mediaType == "movie" || mediaType == "tv") && tmdbId != null) {
+                            val preview = io.github.flexarr.core.ExternalTitle(tmdbId, mediaType, entry.arguments?.getString("title").orEmpty())
+                            TvExternalTitleScreen(model, preview, open = { navigator.openExternal(it) })
+                        }
+                    }
                     composable("person/{id}?name={name}") { entry ->
                         TvPersonScreen(model, entry.arguments!!.getString("id")!!, entry.arguments?.getString("name").orEmpty())
                     }

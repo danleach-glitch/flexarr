@@ -69,6 +69,10 @@ import io.github.flexarr.core.ItemDetail
 import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.MediaFile
 import io.github.flexarr.core.MediaKind
+import io.github.flexarr.core.ShowMissing
+import io.github.flexarr.core.requestSeasons
+import io.github.flexarr.core.searchMissing
+import io.github.flexarr.core.showMissing
 import io.github.flexarr.core.episodeCode
 import io.github.flexarr.core.episodeSubtitle
 import io.github.flexarr.core.facts
@@ -117,6 +121,9 @@ fun TvDetailScreen(model: AppModel, id: String) {
     var similar by remember(id) { mutableStateOf(emptyList<ItemSummary>()) }
     var selectedSeasonId by remember(id) { mutableStateOf<String?>(null) }
     val seasons = remember(id) { mutableStateMapOf<String, ItemDetail>() }
+    // A show's gaps (seasons and episodes it lacks, what's coming), and the seasons asked for here since.
+    var missing by remember(id) { mutableStateOf(ShowMissing.None) }
+    var asked by remember(id) { mutableStateOf(emptySet<Int>()) }
     var attempt by remember { mutableIntStateOf(0) }
     var loadedAt by remember(id) { mutableStateOf<Long?>(null) }
     RefreshWhenStale(loadedAt) { attempt++ }
@@ -151,6 +158,7 @@ fun TvDetailScreen(model: AppModel, id: String) {
                 val alike = if (similar.isEmpty() && item.kind != MediaKind.Episode) async { runCatching { client.similar(item.id) }.getOrNull() } else null
                 when (item.kind) {
                     MediaKind.Series -> {
+                        launch { runCatching { client.showMissing(item.id) }.onSuccess { missing = it } }
                         nextUp = runCatching { client.nextUp(item.id) }.getOrNull()
                         if (selectedSeasonId == null) selectedSeasonId = nextUp?.parentId ?: loaded.children.firstOrNull()?.id
                     }
@@ -192,7 +200,38 @@ fun TvDetailScreen(model: AppModel, id: String) {
                         // With focus on the buttons, the page sits at the top, the whole header in view.
                         Header(item, series, loaded, ambient, nextUp, seasons[selectedSeasonId], onActionsFocused = { scope.launch { scroll.animateScrollTo(0) } })
                     }
-                    Sections(item, loaded, nextUp, seasons, selectedSeasonId, onSeason = { selectedSeasonId = it }, similar = similar, ambient = ambient)
+                    val navigator = LocalNavigator.current
+                    Sections(item, loaded, nextUp, seasons, selectedSeasonId, onSeason = { selectedSeasonId = it }, similar = similar, ambient = ambient, missing = missing) {
+                        if (item.kind == MediaKind.Series) {
+                            TvShowMissing(
+                                missing,
+                                asked,
+                                onRequest = { season ->
+                                    val tmdb = loaded.tmdbId?.toIntOrNull() ?: return@TvShowMissing
+                                    asked = asked + season.seasonNumber
+                                    navigator.watchlistChange("Couldn’t request ${season.title}") {
+                                        try {
+                                            client.requestSeasons(tmdb, listOf(season.seasonNumber))
+                                        } catch (e: Exception) {
+                                            asked = asked - season.seasonNumber
+                                            throw e
+                                        }
+                                    }
+                                },
+                                onSearch = { season, episodes ->
+                                    asked = asked + season
+                                    navigator.watchlistChange("Couldn’t search for season $season") {
+                                        try {
+                                            client.searchMissing(item.id, season, episodes)
+                                        } catch (e: Exception) {
+                                            asked = asked - season
+                                            throw e
+                                        }
+                                    }
+                                },
+                            )
+                        }
+                    }
                 }
             }
             error != null -> TvStatusView(error, retry = { attempt++ })
@@ -420,6 +459,10 @@ private fun Sections(
     onSeason: (String) -> Unit,
     similar: List<ItemSummary>,
     ambient: Color,
+    /** A show's gaps: "8 of 10" on its seasons. */
+    missing: ShowMissing = ShowMissing.None,
+    /** After the episodes, before the cast: what the library lacks of a show. */
+    gaps: @Composable () -> Unit = {},
 ) {
     val navigator = LocalNavigator.current
     val season = selectedSeasonId?.let { seasons[it] }
@@ -431,7 +474,7 @@ private fun Sections(
             LazyRow(Modifier.focusRestorer(selectedPill), contentPadding = PaddingValues(horizontal = TvLayout.Edge, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                 items(detail.children, key = { it.id }) { child ->
                     val chosen = child.id == selectedSeasonId
-                    TvPill(child.title, selected = chosen, onClick = { onSeason(child.id) }, ambient = ambient, modifier = Modifier.onFocusChanged { if (it.isFocused) onSeason(child.id) }.then(if (chosen) Modifier.focusRequester(selectedPill) else Modifier))
+                    TvPill(child.title, selected = chosen, detail = missing.countLabel(child.seasonNumber), onClick = { onSeason(child.id) }, ambient = ambient, modifier = Modifier.onFocusChanged { if (it.isFocused) onSeason(child.id) }.then(if (chosen) Modifier.focusRequester(selectedPill) else Modifier))
                 }
             }
             if (season != null) Episodes(item, season, nextUp) else Box(Modifier.heightIn(min = 210.dp))
@@ -442,6 +485,8 @@ private fun Sections(
             Episodes(item, season, nextUp)
         }
     }
+
+    gaps()
 
     val rank = mapOf(CreditRole.Actor to 0, CreditRole.Creator to 1, CreditRole.Director to 2, CreditRole.Writer to 3)
     val cast = detail.credits.sortedBy { rank[it.role] ?: 4 }

@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -75,6 +77,10 @@ import io.github.flexarr.core.LocalPhase
 import io.github.flexarr.core.bookListening
 import io.github.flexarr.core.bookNumberLine
 import io.github.flexarr.core.bookSeries
+import io.github.flexarr.core.bookSeriesMissing
+import io.github.flexarr.core.MissingBook
+import io.github.flexarr.ui.music.bleed
+import androidx.compose.ui.semantics.semantics
 import io.github.flexarr.core.bookTimeLine
 import io.github.flexarr.core.chapterAt
 import io.github.flexarr.core.deleteBookmark
@@ -491,13 +497,16 @@ fun BookSeriesScreen(model: AppModel, id: String) {
     RoomBackground(ambient = series?.books?.firstOrNull()?.book?.accentColor?.let(::glowColor), intensity = 0.25f) {
         Column {
             PageTitle(series?.name.orEmpty(), onBack = { navigator.back() })
-            Loaded(loader) { loaded -> SeriesPage(model, loaded) }
+            // The books Audible lists that the library lacks, after the page: Audible is never waited for.
+            var missing by remember(id) { mutableStateOf(emptyList<MissingBook>()) }
+            LaunchedEffect(id) { runCatching { client.bookSeriesMissing(id) }.onSuccess { missing = it.books } }
+            Loaded(loader) { loaded -> SeriesPage(model, loaded, missing) }
         }
     }
 }
 
 @Composable
-private fun SeriesPage(model: AppModel, series: BookSeries) {
+private fun SeriesPage(model: AppModel, series: BookSeries, missing: List<MissingBook>) {
     val navigator = LocalNavigator.current
     val next = series.books.firstOrNull { it.book.id == series.nextId }?.book
     var allNotes by remember { mutableStateOf(false) }
@@ -551,6 +560,28 @@ private fun SeriesPage(model: AppModel, series: BookSeries) {
                     }
                 }
             }
+        }
+        if (missing.isNotEmpty()) {
+            item("missing") {
+                Column(Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    SectionHeading("Not in your library", Modifier.bleed())
+                    LazyRow(Modifier.bleed(), contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(RowSpacing), verticalAlignment = Alignment.Top) {
+                        items(missing, key = { it.asin }) { MissingBookCard(it) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** A book of the series the library doesn't have: its cover, title, and "Book 3 · 2021". Just to know; it opens nothing. */
+@Composable
+private fun MissingBookCard(book: MissingBook) {
+    Column(Modifier.width(PosterWidth).semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        BookCover(book.cover, book.title, null, Modifier.fillMaxWidth().aspectRatio(1f), imageWidth = 342)
+        Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+            Text(book.title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen.copy(alpha = 0.9f), maxLines = 2, overflow = TextOverflow.Ellipsis)
+            book.detail.takeIf { it.isNotEmpty() }?.let { Text(it, fontSize = 12.sp, color = Flexarr.usher, maxLines = 1) }
         }
     }
 }

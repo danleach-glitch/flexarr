@@ -207,6 +207,18 @@ public sealed partial class MetadataRefresher
             db.BookSeriesEntries.RemoveRange(entries.Where(e => !kept.Contains(e)));
         }
 
+        // Audible's id for each series the book is in, so a series page can list the books of it the library lacks.
+        if (found.Series.Any(p => p.Asin is not null))
+        {
+            foreach (var entry in await SeriesEntriesAsync(book.Id, ct).ConfigureAwait(false))
+            {
+                if (entry.Series is { ExternalId: null } series && found.Series.FirstOrDefault(p => p.Asin is not null && BookInfo.SameSeries(p.Name, series.Name)) is { } part)
+                {
+                    series.ExternalId = part.Asin;
+                }
+            }
+        }
+
         // Audible's ids for its authors, on those of the same name (their photos and biographies come after, AuthorInfo).
         if (found.AuthorAsins is { Count: > 0 } asins && found.Authors.Count == asins.Count)
         {

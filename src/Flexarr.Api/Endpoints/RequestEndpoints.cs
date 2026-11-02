@@ -38,7 +38,8 @@ public sealed record ExternalTitleDto(
 
 public sealed record ExternalRowDto(string Id, string Title, IReadOnlyList<ExternalTitleDto> Items);
 
-public sealed record TitleRequest(string MediaType, int TmdbId);
+/// <param name="Seasons">For a show, just these seasons; null or empty for every one (absent from servers before 0.59).</param>
+public sealed record TitleRequest(string MediaType, int TmdbId, IReadOnlyList<int>? Seasons = null);
 
 /// <summary>A library requests can be added to, for the "new shows go to" setting.</summary>
 /// <param name="MediaType">"movie" or "tv".</param>
@@ -240,7 +241,7 @@ public static class RequestEndpoints
         });
 
         group.MapPost("/", async (TitleRequest request, IOptionsMonitor<FlexarrOptions> options, SeerrClient seerr, FlexarrDbContext db, CurrentProfile current,
-            CancellationToken ct) =>
+            Microsoft.Extensions.Caching.Memory.IMemoryCache cache, CancellationToken ct) =>
         {
             if ((await LibraryVisibility.HiddenTypesAsync(db, ct)).Hides(KindOf(request.MediaType)))
             {
@@ -259,7 +260,18 @@ public static class RequestEndpoints
 
             try
             {
-                await PlaceAsync(seerr, instance, options.CurrentValue, db, current.Id, request.MediaType, request.TmdbId, ct);
+                var seasons = request.MediaType == "tv" && request.Seasons is { Count: > 0 } chosen ? chosen.Where(n => n > 0).Distinct().Order().ToList() : null;
+                await PlaceAsync(seerr, instance, options.CurrentValue, db, current.Id, request.MediaType, request.TmdbId, ct, seasons);
+                if (seasons is not null)
+                {
+                    // The show's page asks Sonarr again, so the seasons show as requested.
+                    var tmdb = request.TmdbId.ToString(CultureInfo.InvariantCulture);
+                    foreach (var showId in await db.MediaItems.Where(i => i.Kind == MediaKind.Series && i.TmdbId == tmdb).Select(i => i.Id).ToListAsync(ct))
+                    {
+                        ShowMissingEndpoints.Forget(cache, options.CurrentValue, showId);
+                    }
+                }
+
                 return Results.Accepted();
             }
             catch (HttpRequestException ex)
@@ -280,8 +292,9 @@ public static class RequestEndpoints
     /// Flexarr did) so they hear when it's in. Throws <see cref="HttpRequestException"/> when Seerr refuses.
     /// </summary>
     /// <param name="mediaType">"movie" or "tv".</param>
+    /// <param name="seasons">For a show, just these seasons; null for every one.</param>
     internal static async Task PlaceAsync(SeerrClient seerr, SeerrInstance instance, FlexarrOptions options, FlexarrDbContext db, string profileId, string mediaType,
-        int tmdbId, CancellationToken ct)
+        int tmdbId, CancellationToken ct, IReadOnlyList<int>? seasons = null)
     {
         var kind = KindOf(mediaType);
         // Sonarr adds shows by their TheTVDB id. Seerr takes a show without one, then drops it while saying it's
@@ -292,7 +305,7 @@ public static class RequestEndpoints
         }
 
         var to = await RequestDestinations.ForRequestAsync(seerr, instance, options.PathMappings, db, profileId, kind, ct);
-        await seerr.RequestAsync(instance, mediaType, tmdbId, to, ct);
+        await seerr.RequestAsync(instance, mediaType, tmdbId, to, ct, seasons);
         if (!await db.MediaRequests.AnyAsync(r => r.ProfileId == profileId && r.Kind == kind && r.TmdbId == tmdbId && r.FulfilledAt == null, ct))
         {
             db.MediaRequests.Add(new MediaRequest { ProfileId = profileId, Kind = kind, TmdbId = tmdbId });

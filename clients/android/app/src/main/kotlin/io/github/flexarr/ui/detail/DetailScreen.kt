@@ -26,6 +26,7 @@ import androidx.compose.ui.platform.LocalDensity
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
@@ -89,6 +90,10 @@ import io.github.flexarr.core.ItemDetail
 import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.MediaFile
 import io.github.flexarr.core.MediaKind
+import io.github.flexarr.core.ShowMissing
+import io.github.flexarr.core.requestSeasons
+import io.github.flexarr.core.searchMissing
+import io.github.flexarr.core.showMissing
 import io.github.flexarr.core.effectiveDuration
 import io.github.flexarr.core.episodeCode
 import io.github.flexarr.core.episodeSubtitle
@@ -154,6 +159,9 @@ fun DetailScreen(model: AppModel, id: String) {
     var similar by remember(id) { mutableStateOf(emptyList<ItemSummary>()) }
     var selectedSeasonId by rememberSaveable(id) { mutableStateOf<String?>(null) }
     val seasons = remember(id) { mutableStateMapOf<String, ItemDetail>() }
+    // A show's gaps (seasons and episodes it lacks, what's coming), and the seasons asked for here since.
+    var missing by remember(id) { mutableStateOf(ShowMissing.None) }
+    var asked by remember(id) { mutableStateOf(emptySet<Int>()) }
     var attempt by remember { mutableStateOf(0) }
     var refreshing by remember { mutableStateOf(false) }
     var loadedAt by remember(id) { mutableStateOf<Long?>(null) }
@@ -190,6 +198,7 @@ fun DetailScreen(model: AppModel, id: String) {
                 val alike = if (similar.isEmpty() && item.kind != MediaKind.Episode) async { runCatching { client.similar(item.id) }.getOrNull() } else null
                 when (item.kind) {
                     MediaKind.Series -> {
+                        launch { runCatching { client.showMissing(item.id) }.onSuccess { missing = it } }
                         nextUp = runCatching { client.nextUp(item.id) }.getOrNull()
                         if (selectedSeasonId == null) selectedSeasonId = nextUp?.parentId ?: loaded.children.firstOrNull()?.id
                     }
@@ -235,7 +244,37 @@ fun DetailScreen(model: AppModel, id: String) {
                 val episodeColumns = if (isWide) 2 else 1
                 LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 40.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
                     item(key = "header") { Header(item, series, loaded, ambient, nextUp, seasons[selectedSeasonId]) }
-                    sections(item, loaded, seasons[selectedSeasonId], selectedSeasonId, { selectedSeasonId = it }, similar, ambient, columns = episodeColumns)
+                    sections(item, loaded, seasons[selectedSeasonId], selectedSeasonId, { selectedSeasonId = it }, similar, ambient, columns = episodeColumns, missing = missing) {
+                        if (item.kind == MediaKind.Series) {
+                            showMissingSections(
+                                missing,
+                                asked,
+                                onRequest = { season ->
+                                    val tmdb = loaded.tmdbId?.toIntOrNull() ?: return@showMissingSections
+                                    asked = asked + season.seasonNumber
+                                    navigator.watchlistChange("Couldn’t request ${season.title}") {
+                                        try {
+                                            client.requestSeasons(tmdb, listOf(season.seasonNumber))
+                                        } catch (e: Exception) {
+                                            asked = asked - season.seasonNumber
+                                            throw e
+                                        }
+                                    }
+                                },
+                                onSearch = { season, episodes ->
+                                    asked = asked + season
+                                    navigator.watchlistChange("Couldn’t search for season $season") {
+                                        try {
+                                            client.searchMissing(item.id, season, episodes)
+                                        } catch (e: Exception) {
+                                            asked = asked - season
+                                            throw e
+                                        }
+                                    }
+                                },
+                            )
+                        }
+                    }
                 }
             }
             error != null -> StatusView(error, retry = { attempt++ })
@@ -453,9 +492,13 @@ private fun androidx.compose.foundation.lazy.LazyListScope.sections(
     ambient: Color,
     /** Episodes side by side on a tablet. */
     columns: Int,
+    /** A show's gaps: "8 of 10" on its seasons. */
+    missing: ShowMissing = ShowMissing.None,
+    /** After the episodes, before the cast: what the library lacks of a show. */
+    gaps: androidx.compose.foundation.lazy.LazyListScope.() -> Unit = {},
 ) {
     if (item.kind == MediaKind.Series && detail.children.isNotEmpty()) {
-        item(key = "seasons") { SeasonPicker(detail.children, selectedSeasonId, onSeason, ambient) }
+        item(key = "seasons") { SeasonPicker(detail.children, selectedSeasonId, onSeason, ambient) { missing.countLabel(it.seasonNumber) } }
         if (season == null) {
             item(key = "season-loading") { Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Flexarr.screen) } }
         } else {
@@ -481,6 +524,8 @@ private fun androidx.compose.foundation.lazy.LazyListScope.sections(
             }
         }
     }
+
+    gaps()
 
     val rank = mapOf(CreditRole.Actor to 0, CreditRole.Creator to 1, CreditRole.Director to 2, CreditRole.Writer to 3)
     val cast = detail.credits.sortedBy { rank[it.role] ?: 4 }
@@ -511,9 +556,10 @@ private fun androidx.compose.foundation.lazy.LazyListScope.sections(
 }
 
 @Composable
-private fun SeasonPicker(seasons: List<ItemSummary>, selected: String?, onSeason: (String) -> Unit, ambient: Color) {
+private fun SeasonPicker(seasons: List<ItemSummary>, selected: String?, onSeason: (String) -> Unit, ambient: Color, count: (ItemSummary) -> String? = { null }) {
     if (seasons.size == 1) {
-        SectionHeading(seasons.first().title)
+        val only = seasons.first()
+        SectionHeading(count(only)?.let { "${only.title}: $it" } ?: only.title)
         return
     }
     val state = rememberLazyListState()
@@ -523,7 +569,7 @@ private fun SeasonPicker(seasons: List<ItemSummary>, selected: String?, onSeason
         if (index >= 0 && state.layoutInfo.visibleItemsInfo.none { it.index == index && it.offset >= 0 }) state.animateScrollToItem(index)
     }
     LazyRow(state = state, contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        items(seasons, key = { it.id }) { season -> PillButton(season.title, season.id == selected, { onSeason(season.id) }, ambient) }
+        items(seasons, key = { it.id }) { season -> PillButton(season.title, season.id == selected, { onSeason(season.id) }, ambient, detail = count(season)) }
     }
 }
 

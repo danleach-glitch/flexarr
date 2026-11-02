@@ -846,3 +846,8 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Books of the series Audible lists that the library doesn't have: plain cards, nothing to open. */
+.book-series-missing {
+  padding-bottom: 48px;
+}

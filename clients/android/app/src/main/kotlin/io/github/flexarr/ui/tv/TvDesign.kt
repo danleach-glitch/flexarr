@@ -28,6 +28,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.border
@@ -160,7 +161,7 @@ fun TvActionButton(
 
 /** A small selectable pill for seasons: the choice stays lit while focus moves elsewhere, so it's visible. */
 @Composable
-fun TvPill(label: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, ambient: Color = Flexarr.silver) {
+fun TvPill(label: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, ambient: Color = Flexarr.silver, detail: String? = null) {
     Surface(
         onClick = onClick,
         modifier = modifier.height(31.dp),
@@ -179,7 +180,11 @@ fun TvPill(label: String, selected: Boolean, onClick: () -> Unit, modifier: Modi
         glow = ClickableSurfaceDefaults.glow(focusedGlow = Glow(ambient.copy(alpha = 0.55f), 11.dp)),
     ) {
         Box(Modifier.padding(horizontal = 15.dp).align(Alignment.Center)) {
-            Text(label, fontSize = 13.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, maxLines = 1)
+            Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(label, fontSize = 13.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, maxLines = 1)
+                // Quieter beside the label, as "8 of 10" beside a season.
+                detail?.let { Text(it, fontSize = 12.sp, fontWeight = FontWeight.Normal, maxLines = 1, modifier = Modifier.alpha(0.75f)) }
+            }
         }
     }
 }

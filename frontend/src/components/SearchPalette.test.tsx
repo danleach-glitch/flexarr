@@ -42,6 +42,34 @@ describe('SearchPalette', () => {
     expect(within(screen.getByRole('group', { name: 'Tracks' })).getByText('Pulp, Different Class')).toBeInTheDocument()
   })
 
+  it('lists films, shows, artists and albums that aren’t in the library last, opening their own pages', async () => {
+    const empty = { titles: [], episodes: [], people: [], genres: [], albums: [], tracks: [] }
+    mockApi({
+      '/search': { ...empty, titles: [pulp] },
+      '/requests/status': { configured: true, reachable: true },
+      '/requests/music/status': { configured: true, reachable: true },
+      '/requests/search': [
+        { tmdbId: 7, mediaType: 'movie', title: 'Pulp Fiction', year: 1994, overview: null, poster: null, backdrop: null, rating: 8, availability: 'None', libraryItemId: null },
+        { tmdbId: 8, mediaType: 'tv', title: 'Pulp Show', year: 2001, overview: null, poster: null, backdrop: null, rating: 6, availability: 'Available', libraryItemId: null },
+      ],
+      '/requests/music/search': {
+        artists: [],
+        albums: [{ kind: 'album', deezerId: 42, title: 'This Is Hardcore', artist: 'Pulp', artistDeezerId: 1, year: 1998, image: null, availability: 'Requested', libraryItemId: null }],
+      },
+    })
+    renderPalette()
+    fireEvent.change(screen.getByLabelText('Search your library'), { target: { value: 'pulp' } })
+
+    const outside = await screen.findByRole('group', { name: 'Not in your library' }, { timeout: 2000 })
+    expect(within(outside).getByText('Movie, 1994')).toBeInTheDocument()
+    expect(within(outside).getByText('Pulp, 1998, Requested')).toBeInTheDocument()
+    expect(within(outside).queryByText('Pulp Show')).toBeNull() // Seerr says it's in hand
+    expect(screen.getAllByRole('group').map((g) => g.getAttribute('aria-label'))).toEqual(['Titles', 'Not in your library'])
+
+    fireEvent.click(within(outside).getByRole('option', { name: /Pulp Fiction/ }))
+    expect(screen.getByText('At /discover/movie/7')).toBeInTheDocument()
+  })
+
   it('opens a track’s album, and plays the track from its button without leaving the page', async () => {
     mockApi({ '/search': { titles: [], episodes: [], people: [], genres: [], albums: [], tracks: [{ item: commonPeople, album: 'Different Class' }] } })
     const { player, onClose } = renderPalette()

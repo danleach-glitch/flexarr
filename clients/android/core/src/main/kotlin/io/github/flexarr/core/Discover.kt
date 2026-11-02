@@ -139,7 +139,10 @@ suspend fun FlexarrClient.discoverRows(): List<ExternalRow> = get("requests/disc
 /** Any film or show TMDB knows, not just the library's, marked if the library has it. */
 suspend fun FlexarrClient.searchEverything(query: String): List<ExternalTitle> = get("requests/search", mapOf("q" to query))
 
-suspend fun FlexarrClient.externalTitle(title: ExternalTitle): ExternalDetail = get("requests/title/${title.mediaType}/${title.tmdbId}")
+suspend fun FlexarrClient.externalTitle(title: ExternalTitle): ExternalDetail = externalTitle(title.mediaType, title.tmdbId)
+
+/** A film or show from outside the library by its TMDB id; [mediaType] is "movie" or "tv". */
+suspend fun FlexarrClient.externalTitle(mediaType: String, tmdbId: Int): ExternalDetail = get("requests/title/$mediaType/$tmdbId")
 
 /** Asks Seerr for the title, and the server remembers who asked so they hear when it's in. */
 suspend fun FlexarrClient.request(title: ExternalTitle) {

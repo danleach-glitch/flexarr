@@ -111,3 +111,9 @@ export function unreadableReason(error: string): string {
   const reason = error.split(': ').at(-1) ?? error
   return /^[A-Z][a-z]/.test(reason) ? reason[0].toLowerCase() + reason.slice(1) : reason
 }
+
+/** "12 Nov", or "12 Nov 2021" when it isn't this year. */
+export function airDay(iso: string, now = new Date()): string {
+  const date = new Date(iso)
+  return date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: date.getFullYear() === now.getFullYear() ? undefined : 'numeric' })
+}

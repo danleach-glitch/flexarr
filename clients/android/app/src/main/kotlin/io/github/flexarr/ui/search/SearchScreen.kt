@@ -434,8 +434,8 @@ private fun LazyListScope.results(
 }
 
 /**
- * A film or show from beyond the library: its poster, name and "Film, 2014". Tapping (or a long press) offers the
- * watchlist and, when nobody's asked for it, Request; one the library has after all opens as itself.
+ * A film or show from beyond the library: its poster, name and "Film, 2014". Tapping opens its page (one the library
+ * has after all opens as itself); a long press offers the watchlist and, when nobody's asked for it, Request.
  */
 @Composable
 private fun ExternalCard(model: AppModel, title: ExternalTitle) {
@@ -474,12 +474,11 @@ private fun ExternalCard(model: AppModel, title: ExternalTitle) {
             })
         }
     }
-    val libraryId = title.libraryItemId
     Box {
         Column(
             Modifier.width(PosterWidth)
                 .pressable(
-                    onClick = { if (libraryId != null) navigator.openItem(libraryId) else if (actions.isNotEmpty()) menu = true },
+                    onClick = { navigator.openExternal(title) },
                     onLongClick = { if (actions.isNotEmpty()) menu = true },
                 )
                 .menuActions(actions),

@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react'
 import { PageError } from '../components/PageStatus'
 import { Link, useParams } from 'react-router'
-import { getBookSeries, imageUrl } from '../api/client'
+import { getBookSeries, getBookSeriesMissing, imageUrl } from '../api/client'
 import { Artwork } from '../components/Artwork'
 import { Check, Play } from '../components/icons'
 import { Overview } from '../components/Overview'
@@ -17,6 +17,8 @@ export function BookSeriesPage() {
   const { data, error, reload } = useApi((signal) => getBookSeries(id, signal), [id])
   useWatchedChanges(reload)
   const player = useAudioPlayer()
+  // After the page, so a slow Audible never holds it up.
+  const missing = useApi((signal) => getBookSeriesMissing(id, signal).catch(() => null), [id])
 
   if (error) return <PageError error={error} onRetry={reload} />
   if (!data) return <div className="music-page" aria-busy="true" />
@@ -87,6 +89,26 @@ export function BookSeriesPage() {
           )
         })}
       </ol>
+      {missing.data && missing.data.books.length > 0 && (
+        <section className="music-section book-series-missing" aria-labelledby="book-series-missing">
+          <h2 id="book-series-missing" className="music-section-title">
+            Not in your library
+          </h2>
+          <div className="poster-grid music-albums">
+            {missing.data.books.map((b) => (
+              <div key={b.asin} className="card external-card">
+                <div className="card-frame">
+                  <div className="artwork artwork-square">
+                    {b.cover ? <img src={imageUrl(b.cover, 342)} alt="" loading="lazy" /> : <span className="artwork-fallback">{b.title}</span>}
+                  </div>
+                </div>
+                <span className="card-title">{b.title}</span>
+                <span className="card-subtitle">{[b.sequence && `Book ${b.sequence}`, b.year].filter(Boolean).join(', ')}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
     </article>
   )
 }

@@ -725,6 +725,8 @@ struct BookSeriesView: View {
     @State private var series: BookSeries?
     @State private var error: String?
     @State private var loadedToken: Int?
+    /// Books Audible lists in the series that the library doesn't have.
+    @State private var gaps: BookSeriesGaps = .none
     @FocusState private var focused: String?
     @FocusState private var playFocused: Bool
 
@@ -776,6 +778,19 @@ struct BookSeriesView: View {
                         }
                     }
                     .focusSection()
+                    if !gaps.books.isEmpty {
+                        VStack(alignment: .leading, spacing: 28) {
+                            Text("Not in your library")
+                                .font(.marquee(40, weight: .bold))
+                                .foregroundStyle(Color.screen)
+                            LazyVGrid(columns: columns, alignment: .leading, spacing: 56) {
+                                ForEach(gaps.books) { book in
+                                    MissingBookCard(book: book)
+                                }
+                            }
+                            .focusSection()
+                        }
+                    }
                 } else if let error {
                     StatusView(state: .failed(error) { Task { await load() } }).frame(height: 500)
                 } else {
@@ -808,6 +823,44 @@ struct BookSeriesView: View {
             }
         } catch {
             if series == nil { self.error = ConnectionError(error).message }
+        }
+        // After the page: Audible being slow never holds it up.
+        gaps = (try? await client.bookSeriesGaps(id)) ?? gaps
+    }
+}
+
+/// A book of the series the library doesn't have: its cover, title, number and year. Focusable so the row can be
+/// reached and read, but there's nothing to open.
+struct MissingBookCard: View {
+    @Environment(AppModel.self) private var model
+    let book: MissingBook
+
+    var body: some View {
+        ArtworkButton(ambient: .silver, accessibilityText: [book.title, book.caption].compactMap(\.self).joined(separator: ", ")) {
+        } artwork: {
+            RemoteImage(url: model.client?.imageURL(book.cover, width: 400)) {
+                ZStack {
+                    LinearGradient(colors: [Color.silver.opacity(0.3), Color.seat], startPoint: .top, endPoint: .bottom)
+                    Text(book.title)
+                        .font(.marquee(26, weight: .bold))
+                        .foregroundStyle(Color.screen.opacity(0.8))
+                        .multilineTextAlignment(.center)
+                        .padding(14)
+                }
+            }
+            .frame(width: Layout.posterWidth, height: Layout.posterWidth)
+            .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
+        } caption: { focused in
+            VStack(alignment: .leading, spacing: 4) {
+                Text(book.title)
+                    .font(.system(size: 24, weight: .semibold))
+                    .foregroundStyle(focused ? Color.screen : Color.screen.opacity(0.8))
+                if let caption = book.caption {
+                    Text(caption).font(.system(size: 21)).foregroundStyle(Color.usher)
+                }
+            }
+            .lineLimit(1)
+            .frame(width: Layout.posterWidth, alignment: .leading)
         }
     }
 }

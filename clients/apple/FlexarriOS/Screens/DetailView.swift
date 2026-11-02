@@ -34,6 +34,8 @@ struct DetailView: View {
     /// On the watchlist or not, as changed here, until the page next loads.
     @State private var onWatchlist: Bool?
     @State private var showingTrailer = false
+    /// A show's seasons and episodes the library lacks, and what's coming.
+    @State private var gaps: ShowGaps = .none
     @Environment(\.scenePhase) private var scenePhase
 
     private var item: ItemSummary? { detail?.item ?? (preview?.kind == .season ? nil : preview) }
@@ -298,7 +300,11 @@ struct DetailView: View {
         if let detail {
             if item.kind == .series, !detail.children.isEmpty {
                 seasonsSection(detail.children)
-            } else if item.kind == .episode, let season = selectedSeason, season.children.count > 1 {
+            }
+            if item.kind == .series, gaps.hasMissing || !gaps.upcoming.isEmpty {
+                ShowGapsSection(showId: item.id, tmdbId: detail.tmdbId.flatMap { Int($0) }, gaps: $gaps)
+            }
+            if item.kind == .episode, let season = selectedSeason, season.children.count > 1 {
                 VStack(alignment: .leading, spacing: 10) {
                     SectionHeading(title: season.item.title)
                     episodesList(season)
@@ -349,7 +355,7 @@ struct DetailView: View {
                     ScrollView(.horizontal) {
                         HStack(spacing: 8) {
                             ForEach(seasonList) { season in
-                                Button(season.title) { selectedSeasonID = season.id }
+                                Button { selectedSeasonID = season.id } label: { seasonPillLabel(season) }
                                     .buttonStyle(PillButtonStyle(selected: season.id == selectedSeasonID, ambient: ambient))
                                     .id(season.id)
                             }
@@ -360,7 +366,7 @@ struct DetailView: View {
                     .onAppear { if let selectedSeasonID { proxy.scrollTo(selectedSeasonID, anchor: .center) } }
                 }
             } else if let only = seasonList.first {
-                SectionHeading(title: only.title)
+                SectionHeading(title: gaps.countLabel(season: only.seasonNumber).map { "\(only.title): \($0)" } ?? only.title)
             }
 
             if let season = selectedSeason {
@@ -370,6 +376,16 @@ struct DetailView: View {
             }
         }
         .task(id: selectedSeasonID) { await loadSelectedSeason() }
+    }
+
+    /// "Season 1", with a quieter "8 of 10" beside it when some of its aired episodes aren't in the library (as on the web).
+    private func seasonPillLabel(_ season: ItemSummary) -> some View {
+        HStack(spacing: 6) {
+            Text(season.title)
+            if let count = gaps.countLabel(season: season.seasonNumber) {
+                Text(count).font(.footnote.weight(.medium)).opacity(0.7)
+            }
+        }
     }
 
     private func episodesList(_ season: ItemDetail) -> some View {
@@ -459,6 +475,8 @@ struct DetailView: View {
             switch item.kind {
             case .series:
                 nextUp = try? await client.nextUp(item.id)
+                // After the page: Sonarr or Seerr being slow never holds it up.
+                if !model.isKids { gaps = (try? await client.showGaps(item.id)) ?? gaps }
                 if selectedSeasonID == nil {
                     selectedSeasonID = nextUp?.parentId ?? loaded.children.first?.id
                 }

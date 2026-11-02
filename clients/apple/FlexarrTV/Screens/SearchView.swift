@@ -8,12 +8,21 @@ struct SearchView: View {
     @State private var results: SearchResults?
     @State private var error: String?
     @State private var recents = RecentSearches()
+    /// Films, shows, artists and albums beyond the library (Seerr's and Lidarr's), after the library's own.
+    @State private var outside: [ExternalTitle] = []
+    @State private var outsideMusic: [MusicExternal] = []
+    /// Whether Seerr and music requests are set up: asked once, before the first search.
+    @State private var looksOutside: Bool?
+    @State private var musicStatus: MusicRequestStatus?
+
+    private var looksForMusic: Bool { musicStatus?.configured == true }
+    private var musicPaused: Bool { musicStatus?.configured == true && musicStatus?.reachable == false }
 
     var body: some View {
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 30) {
                 if let results {
-                    if results.isEmpty {
+                    if results.isEmpty && outside.isEmpty && outsideMusic.isEmpty {
                         StatusView(state: .empty("Nothing matches \u{201C}\(query)\u{201D}."))
                             .frame(height: 300)
                     }
@@ -52,6 +61,17 @@ struct SearchView: View {
                                 WideCard(item: item, width: 440) { open(item) }
                             }
                         }
+                    }
+                    if !outside.isEmpty || !outsideMusic.isEmpty {
+                        section("Not in your library") {
+                            ForEach(outside) { title in
+                                ExternalCard(title: title)
+                            }
+                            ForEach(outsideMusic.listed) { entry in
+                                ExternalMusicCard(item: entry.item)
+                            }
+                        }
+                        .environment(\.musicRequestsPaused, musicPaused)
                     }
                     if !results.people.isEmpty {
                         section("People") {
@@ -147,13 +167,29 @@ struct SearchView: View {
         let text = query.trimmingCharacters(in: .whitespaces)
         guard !text.isEmpty, let client = model.client else {
             results = nil
+            outside = []
+            outsideMusic = []
             await loadRecents()
             return
         }
+        if looksOutside == nil {
+            looksOutside = (try? await client.requestStatus())?.configured == true
+        }
+        if musicStatus == nil {
+            musicStatus = (try? await client.musicRequestStatus()) ?? .off
+        }
         do {
+            // Seerr and Lidarr alongside the library; either failing just leaves its part out.
+            async let beyond: [ExternalTitle] = looksOutside == true ? (try? await client.searchEverything(text)) ?? [] : []
+            async let music: MusicSearchResults = looksForMusic && text.count >= 2 ? (try? await client.searchMusic(text)) ?? .empty : .empty
             let found = try await client.search(text)
+            let more = await beyond
+            let moreMusic = await music
             guard text == query.trimmingCharacters(in: .whitespaces) else { return }
             results = found
+            // What the library has is already above.
+            outside = more.filter { $0.libraryItemId == nil && $0.availability != .available }
+            outsideMusic = (moreMusic.artists + moreMusic.albums).filter { $0.libraryItemId == nil && $0.availability != .available }
             error = nil
         } catch {
             self.error = ConnectionError(error).message

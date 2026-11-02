@@ -360,18 +360,6 @@ private struct LibraryBadge: View {
     }
 }
 
-extension Availability {
-    var label: String? {
-        switch self {
-        case .none: nil
-        case .requested: "Requested"
-        case .partlyAvailable: "Partly in your library"
-        case .available: "In your library"
-        case .unknown: "Not available"
-        }
-    }
-}
-
 /// A genre as a way in: a backdrop from one of its titles, its name and how many there are. Discover's genres, and a
 /// library's Genres view. An audiobook genre has its books' covers fanned instead (`BookGenreArt`).
 struct GenreTile: View {

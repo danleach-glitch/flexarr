@@ -308,6 +308,8 @@ data class ItemDetail(
     val book: BookDetail? = null,
     /** Films and shows: the trailer on YouTube, when the server knows one. Read through [trailerId]. */
     val trailerYouTubeId: String? = null,
+    /** TMDB's id for a film or show, as text (a show's seasons are requested by it). */
+    val tmdbId: String? = null,
 ) {
     /** The trailer's YouTube id, only when it is one: anything else from metadata never reaches a player's address. */
     val trailerId: String? get() = youTubeId(trailerYouTubeId)

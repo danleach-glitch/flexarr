@@ -36,7 +36,7 @@ The library's front page has **Continue listening**, **Next in series**, **Recen
 
 Books you're part way through also show on Home, in **Continue watching or listening** with your movies, shows and podcast episodes. To keep them in their own **Continue listening** row instead, turn off **Books and podcasts in Continue watching** in **Settings › Podcasts & audiobooks** (on the web it's in **Settings › Home & browse**, and on the Apple TV in **Settings › Playback**).
 
-A book's page shows its series ("Book 3 of 7"), authors and narrators, how long it is and how long is left at your speed, its chapters, and more in the series, by the author and read by the narrator. A series' page lists its books in order with the next one to hear picked out.
+A book's page shows its series ("Book 3 of 7"), authors and narrators, how long it is and how long is left at your speed, its chapters, and more in the series, by the author and read by the narrator. A series' page lists its books in order with the next one to hear picked out. Below them, **Not in your library** shows the books of the series that Audible has and you don't, with their number in it. It's there to know what's missing: books can't be requested.
 
 **Home** can show **Continue listening**, **Next in series** and **New audiobooks**: each profile turns them on or off in **Settings › Home & browse** on the web.
 

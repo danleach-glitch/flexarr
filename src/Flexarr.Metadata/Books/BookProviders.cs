@@ -70,6 +70,10 @@ public sealed record BookMatch(
     };
 }
 
+/// <summary>A book in a series, as Audible lists it.</summary>
+/// <param name="Sequence">Its number in the series as written ("3", "1.5"); null when Audible gives none.</param>
+public sealed record SeriesBook(string Asin, string Title, string? Sequence, IReadOnlyList<string> Authors, int? Year, string? Cover);
+
 /// <summary>An author's photo and biography.</summary>
 public sealed record BookAuthorInfo(string Name, string? Biography, string? Image);
 
@@ -277,7 +281,7 @@ public sealed partial class BookProviders(HttpClient http, Func<IMetadataSetting
         {
             if (book[key] is JsonObject s && Text(s, "name") is { } name)
             {
-                series.Add(new SeriesPart(name, Text(s, "position")));
+                series.Add(new SeriesPart(name, Text(s, "position"), Text(s, "asin")));
             }
         }
 
@@ -297,7 +301,7 @@ public sealed partial class BookProviders(HttpClient http, Func<IMetadataSetting
         var found = await GetAsync(url, ct).ConfigureAwait(false);
         return [.. (found?["products"] as JsonArray ?? []).OfType<JsonObject>().Where(p => Text(p, "asin") is not null).Select(p => new BookMatch(
             "audible", Text(p, "asin")!, Text(p, "title") ?? "", Text(p, "subtitle"), Names(p["authors"]), Names(p["narrators"]),
-            [.. (p["series"] as JsonArray ?? []).OfType<JsonObject>().Where(s => Text(s, "title") is not null).Select(s => new SeriesPart(Text(s, "title")!, Text(s, "sequence")))],
+            [.. (p["series"] as JsonArray ?? []).OfType<JsonObject>().Where(s => Text(s, "title") is not null).Select(s => new SeriesPart(Text(s, "title")!, Text(s, "sequence"), Text(s, "asin")))],
             Text(p, "merchandising_summary") is { } m ? BookSidecars.PlainText(m) : null, Text(p, "publisher_name"), Date(Text(p, "release_date")),
             Language(Text(p, "language")), null, Text(p, "asin"),
             p["product_images"] is JsonObject images ? images.Select(i => i.Value?.GetValue<string>()).LastOrDefault(i => i is not null) : null,
@@ -320,6 +324,88 @@ public sealed partial class BookProviders(HttpClient http, Func<IMetadataSetting
         }).ToList();
         return new AudibleChapters(chapters, (found["runtimeLengthMs"]?.GetValue<double>() ?? 0) / 1000, found["isAccurate"]?.GetValue<bool>() ?? false,
             (found["brandIntroDurationMs"]?.GetValue<double>() ?? 0) / 1000);
+    }
+
+    // ---- Series: the books Audible lists in one ----
+
+    /// <summary>Audible's id for the series called <paramref name="seriesName"/> that the book <paramref name="bookAsin"/> is in; null when it isn't in one by that name.</summary>
+    public async Task<string?> SeriesAsinAsync(string bookAsin, string seriesName, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(bookAsin);
+        if (!Uses("audible"))
+        {
+            return null;
+        }
+
+        var book = await TryAsync(() => GetAsync($"https://api.audnex.us/books/{Uri.EscapeDataString(bookAsin)}?region={Options.Region}", ct)).ConfigureAwait(false);
+        return SeriesKeys.Select(k => book?[k] as JsonObject)
+            .Where(s => s is not null && Text(s, "name") is { } name && BookInfo.SameSeries(name, seriesName)).Select(s => Text(s, "asin")).FirstOrDefault(a => a is not null);
+    }
+
+    private static readonly string[] SeriesKeys = ["seriesPrimary", "seriesSecondary"];
+
+    /// <summary>Most ASINs Audible's catalogue takes in one lookup.</summary>
+    private const int CatalogueBatch = 50;
+
+    /// <summary>
+    /// The books Audible lists in a series, in order, out by <paramref name="today"/>. Box sets ("1-3") and a second
+    /// edition at the same number are left out. Null when Audible can't be asked or is switched off.
+    /// </summary>
+    public async Task<IReadOnlyList<SeriesBook>?> SeriesBooksAsync(string seriesAsin, DateOnly today, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(seriesAsin);
+        if (!Uses("audible"))
+        {
+            return null;
+        }
+
+        var series = await TryAsync(() => GetAsync($"https://{AudibleHost}/1.0/catalog/products/{Uri.EscapeDataString(seriesAsin)}?response_groups=relationships", ct)).ConfigureAwait(false);
+        if (series?["product"]?["relationships"] is not JsonArray relationships)
+        {
+            return null;
+        }
+
+        var parts = relationships.OfType<JsonObject>()
+            .Where(r => Text(r, "relationship_to_product") == "child" && Text(r, "relationship_type") == "series" && Text(r, "asin") is not null)
+            .Select(r => (Asin: Text(r, "asin")!, Sequence: Text(r, "sequence"), Sort: double.TryParse(Text(r, "sort"), NumberStyles.Float, CultureInfo.InvariantCulture, out var n) ? n : double.MaxValue))
+            .Where(r => r.Sequence is null || !r.Sequence.Contains('-', StringComparison.Ordinal))
+            .OrderBy(r => r.Sort).ToList();
+        if (parts.Count == 0)
+        {
+            return [];
+        }
+
+        var products = new Dictionary<string, JsonObject>(StringComparer.OrdinalIgnoreCase);
+        foreach (var chunk in parts.Select(p => p.Asin).Distinct().Chunk(CatalogueBatch))
+        {
+            var url = $"https://{AudibleHost}/1.0/catalog/products?asins={string.Join(',', chunk.Select(Uri.EscapeDataString))}&response_groups=contributors,media,product_attrs";
+            var found = await TryAsync(() => GetAsync(url, ct)).ConfigureAwait(false);
+            foreach (var p in (found?["products"] as JsonArray ?? []).OfType<JsonObject>())
+            {
+                if (Text(p, "asin") is { } asin)
+                {
+                    products[asin] = p;
+                }
+            }
+        }
+
+        var books = new List<SeriesBook>();
+        var numbers = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var part in parts)
+        {
+            if (!products.TryGetValue(part.Asin, out var p) || Text(p, "title") is not { } title
+                || Text(p, "content_delivery_type") is "BookSeries" or "Periodical"
+                || Date(Text(p, "release_date")) is { } released && released > today
+                || part.Sequence is { } number && !numbers.Add(number))
+            {
+                continue;
+            }
+
+            books.Add(new SeriesBook(part.Asin, title, part.Sequence, Names(p["authors"]), Date(Text(p, "release_date"))?.Year,
+                p["product_images"] is JsonObject images ? images.Select(i => i.Value?.GetValue<string>()).LastOrDefault(i => i is not null) : null));
+        }
+
+        return books;
     }
 
     // ---- Authors: unlike books, a provider that can't be asked throws, so the author is looked up again later ----

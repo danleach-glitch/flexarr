@@ -1377,7 +1377,76 @@ export interface RequestDestination {
 
 /** The libraries the current profile's requests can go to (every one, for the main profile). */
 export const getRequestDestinations = (signal?: AbortSignal) => apiGet<RequestDestination[]>('/requests/destinations', signal)
-export const requestTitle = (mediaType: string, tmdbId: number) => request<void>('POST', '/requests', { mediaType, tmdbId })
+/** Requests a film or show; for a show, `seasons` asks for just those (servers before 0.59 ask for every season). */
+export const requestTitle = (mediaType: string, tmdbId: number, seasons?: number[]) =>
+  request<void>('POST', '/requests', seasons?.length ? { mediaType, tmdbId, seasons } : { mediaType, tmdbId })
+
+/** A season of a show that the library has none of. */
+export interface MissingSeason {
+  seasonNumber: number
+  name: string | null
+  /** How many of its episodes have aired. */
+  episodes: number
+  year: number | null
+  poster: string | null
+  availability: ExternalTitle['availability']
+}
+
+/** An episode that aired and isn't in the library, or one still to air. `airDate` is UTC. */
+export interface ShowEpisode {
+  seasonNumber: number
+  episodeNumber: number
+  title: string | null
+  airDate: string | null
+  still: string | null
+  monitored: boolean
+}
+
+/** What a show has that the library doesn't, and what's coming. Absent from servers before 0.59. */
+export interface ShowMissing {
+  source: 'sonarr' | 'seerr' | 'none'
+  canRequest: boolean
+  canSearch: boolean
+  seasons: MissingSeason[]
+  episodes: ShowEpisode[]
+  upcoming: ShowEpisode[]
+  /** Each season the library has, with how many of its aired episodes are in it. */
+  counts: { seasonNumber: number; have: number; aired: number }[]
+}
+
+/** A show's gaps; null from a server too old to say. */
+export async function getShowMissing(id: string, signal?: AbortSignal): Promise<ShowMissing | null> {
+  try {
+    return await apiGet<ShowMissing>(`/items/${id}/missing`, signal)
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) return null
+    throw e
+  }
+}
+
+/** Asks Sonarr to look for a season's missing episodes (all of them, or just `episodeNumbers`). Main profile. */
+export const searchMissing = (id: string, seasonNumber: number, episodeNumbers?: number[]) =>
+  request<void>('POST', `/items/${id}/missing/search`, { seasonNumber, episodeNumbers })
+
+/** A book of a series the library doesn't have, as Audible lists it. */
+export interface MissingBook {
+  asin: string
+  title: string
+  sequence: string | null
+  authors: string[]
+  year: number | null
+  cover: string | null
+}
+
+/** A series' books that the library lacks; null from a server too old to say. */
+export async function getBookSeriesMissing(id: string, signal?: AbortSignal): Promise<{ books: MissingBook[]; answered: boolean } | null> {
+  try {
+    return await apiGet<{ books: MissingBook[]; answered: boolean }>(`/book-series/${id}/missing`, signal)
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) return null
+    throw e
+  }
+}
 
 /** An artist or album you may not have (Deezer's, or Lidarr's for an album Deezer lacks), with whether you do. Absent from servers before 0.59. */
 export interface MusicExternal {

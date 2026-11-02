@@ -530,6 +530,7 @@ describe('Series page', () => {
     expect(paths.filter((u) => u.pathname.startsWith('/api/v1/items/')).map((u) => u.pathname + u.search)).toEqual([
       '/api/v1/items/s?includeSeason=true',
       '/api/v1/items/s/similar',
+      '/api/v1/items/s/missing',
     ])
   })
 })

@@ -401,6 +401,11 @@ fun MainScreen(model: AppModel) {
                 composable("album/{id}") { AlbumScreen(model, it.arguments?.getString("id")!!) }
                 composable("music-artist/{id}") { it.arguments?.getString("id")?.toLongOrNull()?.let { id -> ExternalArtistScreen(model, id) } }
                 composable("music-album/{id}") { it.arguments?.getString("id")?.toLongOrNull()?.let { id -> ExternalAlbumScreen(model, id) } }
+                composable("external/{mediaType}/{tmdbId}?title={title}") { entry ->
+                    val mediaType = entry.arguments?.getString("mediaType")
+                    val tmdbId = entry.arguments?.getString("tmdbId")?.toIntOrNull()
+                    if ((mediaType == "movie" || mediaType == "tv") && tmdbId != null) io.github.flexarr.ui.external.ExternalTitleScreen(model, mediaType, tmdbId)
+                }
                 composable("playlist/{id}") { PlaylistScreen(model, it.arguments?.getString("id")!!) }
                 composable(
                     "books/{id}?view={view}&genre={genre}",

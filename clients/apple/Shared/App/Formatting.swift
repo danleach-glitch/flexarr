@@ -11,6 +11,19 @@ enum Freshness {
     }
 }
 
+/// Where a title from outside the library stands, in words; nil when it can be requested.
+extension Availability {
+    var label: String? {
+        switch self {
+        case .none: nil
+        case .requested: "Requested"
+        case .partlyAvailable: "Partly in your library"
+        case .available: "In your library"
+        case .unknown: "Not available"
+        }
+    }
+}
+
 extension VideoRange {
     var label: String {
         switch self {

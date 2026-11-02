@@ -4,11 +4,17 @@ import {
   clearRecentSearches,
   forgetRecentItem,
   forgetSearch,
+  getMusicRequestStatus,
   getRecentSearches,
+  getRequestStatus,
   imageUrl,
   recordSearch,
   search,
+  searchEverything,
+  searchMusic,
+  type ExternalTitle,
   type ItemSummary,
+  type MusicExternal,
   type RecentSearches,
   type SearchResults,
 } from '../api/client'
@@ -16,6 +22,7 @@ import { useAudioPlayer } from '../hooks/audioPlayerContext'
 import { authorsLine, isBook } from '../lib/books'
 import { episodeCode, year } from '../lib/format'
 import { itemLink, libraryGenreLink } from '../lib/links'
+import { musicLink } from '../lib/musicLinks'
 import { Close, History, Play, Search } from './icons'
 
 interface Result {
@@ -144,6 +151,42 @@ function genreResults(results: SearchResults): Result[] {
   })
 }
 
+const OUTSIDE = 'Not in your library'
+
+/** Films and shows (Seerr's) and artists and albums (Deezer's) that the library doesn't have, opening their own pages. */
+function outsideResults(titles: ExternalTitle[], music: { artists: MusicExternal[]; albums: MusicExternal[] }): Result[] {
+  const wanted = <T extends { libraryItemId: string | null; availability: ExternalTitle['availability'] }>(x: T) => x.libraryItemId == null && x.availability !== 'Available'
+  const requested = (x: { availability: ExternalTitle['availability'] }) => (x.availability === 'Requested' ? 'Requested' : null)
+  return [
+    ...titles.filter(wanted).slice(0, 6).map((t) => ({
+      key: `x-${t.mediaType}-${t.tmdbId}`,
+      group: OUTSIDE,
+      title: t.title,
+      detail: [t.mediaType === 'tv' ? 'Series' : 'Movie', t.year, requested(t)].filter(Boolean).join(', '),
+      image: t.poster ? imageUrl(t.poster, 92) : undefined,
+      href: `/discover/${t.mediaType}/${t.tmdbId}`,
+      thumb: 'titles',
+      itemId: null,
+    })),
+    ...[...music.artists.slice(0, 3), ...music.albums.slice(0, 3)].filter(wanted).flatMap((m): Result[] => {
+      const href = musicLink(m)
+      if (!href) return []
+      return [
+        {
+          key: `x-${m.kind}-${m.deezerId}`,
+          group: OUTSIDE,
+          title: m.title,
+          detail: [m.kind === 'artist' ? 'Artist' : m.artist, m.kind === 'album' ? m.year : null, requested(m)].filter(Boolean).join(', '),
+          image: m.image ? imageUrl(m.image, 92) : undefined,
+          href,
+          thumb: m.kind === 'artist' ? 'people' : 'albums',
+          itemId: null,
+        },
+      ]
+    }),
+  ]
+}
+
 /** What shows before anything's typed: the profile's recent searches, then what they opened from them. */
 function recentResults(recent: RecentSearches | null): Result[] {
   if (!recent) return []
@@ -182,6 +225,9 @@ export function SearchPalette({ onClose }: { onClose: () => void }) {
   const [recent, setRecent] = useState<RecentSearches | null>(null)
   const [active, setActive] = useState(0)
   const [loading, setLoading] = useState(false)
+  // What's outside the library, for the query it was found for (it arrives after the library's own results).
+  const [outside, setOutside] = useState<{ query: string; results: Result[] }>({ query: '', results: [] })
+  const services = useRef<Promise<{ titles: boolean; music: boolean }>>(null)
   const navigate = useNavigate()
   const player = useAudioPlayer()
   const input = useRef<HTMLInputElement>(null)
@@ -218,7 +264,35 @@ export function SearchPalette({ onClose }: { onClose: () => void }) {
     }
   }, [query])
 
-  const results = useMemo(() => (query.trim() ? found : recentResults(recent)), [query, found, recent])
+  // Seerr and Deezer are slower, so they're asked once typing settles, and only where they're set up.
+  useEffect(() => {
+    const q = query.trim()
+    if (q.length < 2) return
+    const controller = new AbortController()
+    const timer = setTimeout(async () => {
+      services.current ??= Promise.all([
+        getRequestStatus().then((s) => s.configured).catch(() => false),
+        getMusicRequestStatus().then((s) => s?.configured === true).catch(() => false),
+      ]).then(([titles, music]) => ({ titles, music }))
+      const can = await services.current
+      if (!can.titles && !can.music) return
+      const [titles, music] = await Promise.all([
+        can.titles ? searchEverything(q, controller.signal).catch(() => []) : [],
+        can.music ? searchMusic(q, controller.signal).catch(() => ({ artists: [], albums: [] })) : { artists: [], albums: [] },
+      ])
+      if (!controller.signal.aborted) setOutside({ query: q, results: outsideResults(titles, music) })
+    }, 400)
+    return () => {
+      clearTimeout(timer)
+      controller.abort()
+    }
+  }, [query])
+
+  // The outside results go last, so the selection never jumps when they arrive.
+  const results = useMemo(
+    () => (query.trim() ? [...found, ...(outside.query === query.trim() ? outside.results : [])] : recentResults(recent)),
+    [query, found, outside, recent],
+  )
 
   const groups = useMemo(() => {
     const map = new Map<string, Result[]>()
