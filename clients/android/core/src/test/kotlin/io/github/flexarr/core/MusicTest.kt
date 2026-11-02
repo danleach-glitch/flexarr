@@ -185,8 +185,26 @@ class MusicTest {
         }
     }
 
+    /** What a server answers for a path it doesn't know: the web app's page. */
+    private fun webPage() = MockResponse.Builder().code(200).addHeader("Content-Type", "text/html; charset=utf-8").body("<!doctype html><html></html>").build()
+
     @Test
     fun `a server before albums has no Albums or Genres`() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            // 0.58 answers an unknown path with the web app's page.
+            server.enqueue(webPage())
+            server.enqueue(webPage())
+            val client = FlexarrClient(server.url("/"))
+            assertNull(client.libraryAlbums("lib"))
+            assertNull(client.libraryAlbumGenres("lib"))
+            assertEquals(listOf(MusicView.Browse, MusicView.Artists), MusicView.offered(albums = false))
+            assertEquals(MusicView.entries, MusicView.offered(albums = true))
+        }
+    }
+
+    @Test
+    fun `a 404 for albums reads as a server without them too`() = runTest {
         MockWebServer().use { server ->
             server.start()
             server.enqueue(MockResponse.Builder().code(404).build())
@@ -194,8 +212,41 @@ class MusicTest {
             val client = FlexarrClient(server.url("/"))
             assertNull(client.libraryAlbums("lib"))
             assertNull(client.libraryAlbumGenres("lib"))
-            assertEquals(listOf(MusicView.Browse, MusicView.Artists), MusicView.offered(albums = false))
-            assertEquals(MusicView.entries, MusicView.offered(albums = true))
+        }
+    }
+
+    private fun status(version: String) = json("""{"appName":"Flexarr","version":"$version"}""")
+
+    @Test
+    fun `albums are offered by the server's version, without asking for one`() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(status("0.58.0"))
+            server.enqueue(status("0.59.0-dev.1a2b3c4"))
+            server.enqueue(status("0.59.0+d4c892c6"))
+            val client = FlexarrClient(server.url("/"))
+            assertEquals(false, client.offersAlbums("lib"))
+            assertEquals(true, client.offersAlbums("lib"))
+            assertEquals(true, client.offersAlbums("lib"))
+            assertEquals(3, server.requestCount)
+        }
+    }
+
+    @Test
+    fun `a version that doesn't read falls back to asking for one album`() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(status("custom"))
+            server.enqueue(json("""{"total":3,"items":[]}"""))
+            server.enqueue(MockResponse.Builder().code(500).build())
+            server.enqueue(webPage())
+            val client = FlexarrClient(server.url("/"))
+            assertEquals(true, client.offersAlbums("lib"))
+            server.takeRequest()
+            val probe = server.takeRequest().url
+            assertEquals("/api/v1/libraries/lib/albums", probe.encodedPath)
+            assertEquals("1", probe.queryParameter("take"))
+            assertEquals(false, client.offersAlbums("lib"))
         }
     }
 

@@ -144,7 +144,7 @@ data class Paged<T>(
 
 /** Sort orders accepted by `GET /libraries/{id}/items`; `raw` is the query value (none for title). */
 enum class LibrarySort(val raw: String, val label: String) {
-    Title("", "Title"),
+    Title("", "A–Z"),
     Added("added", "Recently added"),
     Year("year", "Year"),
     Rating("rating", "Rating"),

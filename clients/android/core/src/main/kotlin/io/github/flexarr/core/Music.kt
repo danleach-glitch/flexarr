@@ -99,7 +99,9 @@ suspend fun FlexarrClient.tracks(id: String): List<ItemSummary> =
 
 /**
  * A music library's albums (its items are its artists), A–Z, newest added or by year, optionally in one genre (on the
- * album or its artist). Null from servers before the endpoint (0.59), which answer 404: they have no Albums or Genres.
+ * album or its artist). Null from servers before the endpoint (0.59): they have no Albums or Genres. They answer with
+ * the web app's page (200, text/html) for a path they don't know, which the client turns down as UnexpectedResponse; a
+ * 404 (a proxy in front, say) reads the same.
  */
 suspend fun FlexarrClient.libraryAlbums(
     libraryId: String,
@@ -120,15 +122,36 @@ suspend fun FlexarrClient.libraryAlbums(
         )
     } catch (e: FlexarrException.Http) {
         if (e.status == 404) null else throw e
+    } catch (_: FlexarrException.UnexpectedResponse) {
+        null
     }
 
-/** A music library's genres counted by album, each with an artist's fanart. Null from servers before 0.59. */
+/** A music library's genres counted by album, each with an artist's fanart. Null from servers before 0.59, as [libraryAlbums]. */
 suspend fun FlexarrClient.libraryAlbumGenres(libraryId: String): List<GenreCount>? =
     try {
         get("libraries/$libraryId/album-genres")
     } catch (e: FlexarrException.Http) {
         if (e.status == 404) null else throw e
+    } catch (_: FlexarrException.UnexpectedResponse) {
+        null
     }
+
+/**
+ * Whether a music library offers Albums and Genres: by the server's version (0.59 on, its dev builds included), or, when
+ * it doesn't give one that reads, by asking for one album ([libraryAlbums] isn't null).
+ */
+suspend fun FlexarrClient.offersAlbums(libraryId: String): Boolean {
+    val version = try {
+        systemStatus().version
+    } catch (e: CancellationException) {
+        throw e
+    } catch (_: Exception) {
+        null
+    }
+    // A version that reads as one is at least 0.0.0.
+    if (version != null && ServerVersion.atLeast(version, 0, 0)) return ServerVersion.atLeast(version, 0, 59)
+    return libraryAlbums(libraryId, take = 1) != null
+}
 
 /** Up to 200 of a genre's tracks in a music library: by artist, album and track, or shuffled by the server. */
 suspend fun FlexarrClient.genreTracks(libraryId: String, genre: String, shuffled: Boolean = false): List<ItemSummary> =
