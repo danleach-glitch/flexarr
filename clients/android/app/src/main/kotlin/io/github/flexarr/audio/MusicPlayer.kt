@@ -221,6 +221,24 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
         startCurrent()
     }
 
+    /** Slots [tracks] in right after the current track (shuffled or not); with nothing queued, plays them. */
+    fun playNext(tracks: List<ItemSummary>, albums: List<ItemSummary> = emptyList()) =
+        edit(tracks, albums) { it.playNext(tracks) }
+
+    /** Adds [tracks] to the end of the queue; with nothing queued, plays them. */
+    fun enqueue(tracks: List<ItemSummary>, albums: List<ItemSummary> = emptyList()) =
+        edit(tracks, albums) { it.enqueue(tracks) }
+
+    private fun edit(tracks: List<ItemSummary>, albums: List<ItemSummary>, change: (MusicQueue) -> MusicQueue) {
+        if (tracks.isEmpty()) return
+        if (queue.isEmpty()) return play(tracks, albums = albums)
+        if (client == null) client = model.client
+        val edited = change(MusicQueue(queue, original, index, isShuffled))
+        original = edited.original
+        queue = edited.tracks
+        albumTitles = albumTitles + albums.associate { it.id to it.title }
+    }
+
     fun togglePlayPause() = if (player.isPlaying) pause() else resume()
 
     fun pause() {
@@ -278,7 +296,9 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
             index = original.indexOfFirst { it.id == current.id }.coerceAtLeast(0)
         } else {
             isShuffled = true
-            queue = listOf(current) + original.filter { it.id != current.id }.shuffled()
+            // Only the one copy of it: a track queued twice keeps its other place.
+            val rest = original.toMutableList().apply { indexOfFirst { it.id == current.id }.takeIf { it >= 0 }?.let(::removeAt) }
+            queue = listOf(current) + rest.shuffled()
             index = 0
         }
     }
