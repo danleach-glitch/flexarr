@@ -35,7 +35,7 @@ public sealed class DropFormatGenresTests : IAsyncLifetime
 
         // The schema is the same before and after (the migration only changes data), so today's model can seed it,
         // once it has the columns added since (and loses them again before the migrations that add them).
-        await _db.Database.ExecuteSqlRawAsync("ALTER TABLE MediaItems ADD COLUMN CriticCertified INTEGER NOT NULL DEFAULT 0; ALTER TABLE MediaItems ADD COLUMN ImdbRating REAL;");
+        await _db.Database.ExecuteSqlRawAsync("ALTER TABLE MediaItems ADD COLUMN CriticCertified INTEGER NOT NULL DEFAULT 0; ALTER TABLE MediaItems ADD COLUMN ImdbRating REAL; ALTER TABLE MediaItems ADD COLUMN ScoresCheckedAt TEXT;");
         Genre G(string name) => new() { Name = name };
         var (audiobook, unabridged, spoken, speech, mystery) = (G("Audiobook"), G("Audiobooks - Unabridged"), G("Spoken-Word"), G("Speech"), G("Mystery"));
         var books = new Library { Name = "Books", Type = LibraryType.Audiobooks };
@@ -49,7 +49,7 @@ public sealed class DropFormatGenresTests : IAsyncLifetime
         _db.AddRange(books, films, book, film);
         await _db.SaveChangesAsync();
         _db.ChangeTracker.Clear();
-        await _db.Database.ExecuteSqlRawAsync("ALTER TABLE MediaItems DROP COLUMN CriticCertified; ALTER TABLE MediaItems DROP COLUMN ImdbRating;");
+        await _db.Database.ExecuteSqlRawAsync("ALTER TABLE MediaItems DROP COLUMN CriticCertified; ALTER TABLE MediaItems DROP COLUMN ImdbRating; ALTER TABLE MediaItems DROP COLUMN ScoresCheckedAt;");
 
         await migrator.MigrateAsync();
 

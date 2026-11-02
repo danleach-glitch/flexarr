@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Flexarr.Core.Data.Migrations
 {
     [DbContext(typeof(FlexarrDbContext))]
-    [Migration("20261102031912_AddImdbRatingAndCertified")]
+    [Migration("20261102041253_AddImdbRatingAndCertified")]
     partial class AddImdbRatingAndCertified
     {
         /// <inheritdoc />
@@ -916,6 +916,9 @@ namespace Flexarr.Core.Data.Migrations
 
                     b.Property<int?>("RuntimeMinutes")
                         .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("ScoresCheckedAt")
+                        .HasColumnType("TEXT");
 
                     b.Property<int?>("SeasonNumber")
                         .HasColumnType("INTEGER");

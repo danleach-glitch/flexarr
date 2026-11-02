@@ -914,6 +914,9 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<int?>("RuntimeMinutes")
                         .HasColumnType("INTEGER");
 
+                    b.Property<DateTime?>("ScoresCheckedAt")
+                        .HasColumnType("TEXT");
+
                     b.Property<int?>("SeasonNumber")
                         .HasColumnType("INTEGER");
 

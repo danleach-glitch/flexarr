@@ -21,8 +21,9 @@ public sealed record SeerrRatings(int? CriticScore, bool Certified, int? Audienc
 
         var rt = movie ? (r.TryGetProperty("rt", out var x) && x.ValueKind == JsonValueKind.Object ? x : default) : r;
         var imdb = movie && r.TryGetProperty("imdb", out var i) && i.ValueKind == JsonValueKind.Object ? Number(i, "criticsScore") : null;
-        var critics = Number(rt, "criticsScore") is >= 0 and <= 100 and var c ? (int?)(int)Math.Round(c) : null;
-        var audience = Number(rt, "audienceScore") is >= 0 and <= 100 and var a ? (int?)(int)Math.Round(a) : null;
+        // 0 is what Seerr says for a title without a Tomatometer yet, as Radarr's 0 is: no score.
+        var critics = Number(rt, "criticsScore") is > 0 and <= 100 and var c ? (int?)(int)Math.Round(c) : null;
+        var audience = Number(rt, "audienceScore") is > 0 and <= 100 and var a ? (int?)(int)Math.Round(a) : null;
         var certified = critics is not null && rt.ValueKind == JsonValueKind.Object && rt.TryGetProperty("criticsRating", out var state)
             && state.ValueKind == JsonValueKind.String && string.Equals(state.GetString(), "Certified Fresh", StringComparison.OrdinalIgnoreCase);
         var imdbScore = imdb is > 0 and <= 10 ? Math.Round(imdb.Value, 1) : (double?)null;

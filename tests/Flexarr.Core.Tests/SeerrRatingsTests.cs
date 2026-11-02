@@ -39,6 +39,7 @@ public sealed class SeerrRatingsTests
     [InlineData("[]")]
     [InlineData("""{"rt":"nope","imdb":{"criticsScore":"8"}}""")]
     [InlineData("""{"rt":{"criticsScore":140}}""")]
+    [InlineData("""{"rt":{"criticsScore":0,"audienceScore":0}}""")] // no Tomatometer yet
     public void NothingUsable_IsNull(string json) => Assert.Null(SeerrRatings.Parse(Json(json), movie: true));
 
     [Fact]

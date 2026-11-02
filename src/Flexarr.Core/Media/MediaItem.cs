@@ -121,6 +121,9 @@ public sealed class MediaItem
     /// <summary>IMDb's rating out of 10, shown beside its mark (unlike <see cref="CommunityRating"/>, which may come from anywhere).</summary>
     public double? ImdbRating { get; set; }
 
+    /// <summary>When Seerr was last asked for the scores; asked again after about a month, or when this is null.</summary>
+    public DateTime? ScoresCheckedAt { get; set; }
+
     public double? Popularity { get; set; }
     public string? TrailerYouTubeId { get; set; }
 

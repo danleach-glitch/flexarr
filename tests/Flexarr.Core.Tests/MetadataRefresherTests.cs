@@ -227,17 +227,37 @@ public sealed class MetadataRefresherTests : IAsyncLifetime
         Assert.DoesNotContain(_radarr.Paths, p => p.StartsWith("/api/v1/", StringComparison.Ordinal));
     }
 
+    private const string TwoFilms = """
+        [{"id":7,"title":"Dune","year":2021,"tmdbId":438631,"path":"/movies/Dune","ratings":{"imdb":{"value":8.0},"rottenTomatoes":{"value":83}}},
+         {"id":9,"title":"Heat","year":1995,"tmdbId":949,"path":"/movies/Heat","ratings":{"imdb":{"value":8.3},"rottenTomatoes":{"value":88}}}]
+        """;
+
     [Fact]
-    public async Task SeerrFailing_KeepsTheScores_AndIsAskedOnce()
+    public async Task SeerrsErrorForOneTitle_KeepsItsScores_AndTheNextIsStillAsked()
     {
         await AddMovieAsync("Dune", null, poster: null, arrId: 7, tmdbId: "438631");
         await AddMovieAsync("Heat", null, poster: null, arrId: 9, tmdbId: "949");
-        _radarr.Responses["/api/v3/movie"] = """
-            [{"id":7,"title":"Dune","year":2021,"tmdbId":438631,"path":"/movies/Dune","ratings":{"imdb":{"value":8.0},"rottenTomatoes":{"value":83}}},
-             {"id":9,"title":"Heat","year":1995,"tmdbId":949,"path":"/movies/Heat","ratings":{"imdb":{"value":8.3},"rottenTomatoes":{"value":88}}}]
-            """;
-        _radarr.Fail.Add("/api/v1/movie/438631/ratingscombined");
-        _radarr.Fail.Add("/api/v1/movie/949/ratingscombined");
+        _radarr.Responses["/api/v3/movie"] = TwoFilms;
+        _radarr.Fail.Add("/api/v1/movie/438631/ratingscombined"); // Overseerr's 500 when a lookup behind it fails
+        _radarr.Responses["/api/v1/movie/949/ratingscombined"] = """{"rt":{"criticsRating":"Certified Fresh","criticsScore":88}}""";
+
+        await Refresher(seerr: true).RefreshLibraryAsync(_library, force: true, default);
+
+        var items = await _db.MediaItems.AsNoTracking().ToDictionaryAsync(i => i.Title);
+        Assert.Equal((8.0, 83, false), (items["Dune"].ImdbRating, items["Dune"].CriticRating, items["Dune"].CriticCertified));
+        Assert.Null(items["Dune"].ScoresCheckedAt); // asked again next time
+        Assert.Equal((88, true), (items["Heat"].CriticRating, items["Heat"].CriticCertified));
+        Assert.Equal(2, _radarr.Paths.Count(p => p.StartsWith("/api/v1/", StringComparison.Ordinal)));
+    }
+
+    [Fact]
+    public async Task SeerrUnreachable_IsAskedOnce_AndTheScoresStay()
+    {
+        await AddMovieAsync("Dune", null, poster: null, arrId: 7, tmdbId: "438631");
+        await AddMovieAsync("Heat", null, poster: null, arrId: 9, tmdbId: "949");
+        _radarr.Responses["/api/v3/movie"] = TwoFilms;
+        _radarr.Unreachable.Add("/api/v1/movie/438631/ratingscombined");
+        _radarr.Unreachable.Add("/api/v1/movie/949/ratingscombined");
 
         await Refresher(seerr: true).RefreshLibraryAsync(_library, force: true, default);
 
@@ -245,6 +265,46 @@ public sealed class MetadataRefresherTests : IAsyncLifetime
         Assert.Equal((8.0, 83), (items["Dune"].ImdbRating, items["Dune"].CriticRating));
         Assert.Equal((8.3, 88), (items["Heat"].ImdbRating, items["Heat"].CriticRating));
         Assert.Single(_radarr.Paths, p => p.StartsWith("/api/v1/", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task SeerrsScores_AreKeptForAMonth()
+    {
+        await AddMovieAsync("Dune", null, poster: null, arrId: 7, tmdbId: "438631");
+        _radarr.Responses["/api/v3/movie"] = """
+            [{"id":7,"title":"Dune","year":2021,"tmdbId":438631,"path":"/movies/Dune","ratings":{"rottenTomatoes":{"value":83}}}]
+            """;
+        _radarr.Responses["/api/v1/movie/438631/ratingscombined"] = """{"rt":{"criticsRating":"Certified Fresh","criticsScore":84}}""";
+        var refresher = Refresher(seerr: true);
+
+        await refresher.RefreshLibraryAsync(_library, force: true, default);
+        await refresher.RefreshLibraryAsync(_library, force: true, default);
+
+        Assert.Single(_radarr.Paths, p => p.StartsWith("/api/v1/", StringComparison.Ordinal));
+        var dune = await _db.MediaItems.AsNoTracking().SingleAsync(i => i.Title == "Dune");
+        Assert.Equal((83, true), (dune.CriticRating, dune.CriticCertified)); // Radarr's score, Seerr's certificate
+    }
+
+    [Fact]
+    public async Task ARematch_DropsTheOldTitlesScores()
+    {
+        var folder = Directory.CreateDirectory(Path.Combine(_dir, "Arrival")).FullName;
+        await File.WriteAllTextAsync(Path.Combine(folder, "movie.nfo"), """
+            <movie><title>Arrival</title><ratings><rating name="imdb" max="10"><value>7.9</value></rating></ratings>
+            <uniqueid type="tmdb">329865</uniqueid></movie>
+            """);
+        _db.MediaItems.Add(new MediaItem
+        {
+            LibraryId = _library.Id, Kind = MediaKind.Movie, Title = "Wrong film", SortTitle = "wrong film", Path = folder, TmdbId = "1",
+            ImdbRating = 9.1, CriticRating = 97, CriticCertified = true, ScoresCheckedAt = DateTime.UtcNow,
+        });
+        await _db.SaveChangesAsync();
+
+        await Refresher().RefreshLibraryAsync(_library, force: true, default);
+
+        var item = await _db.MediaItems.AsNoTracking().SingleAsync();
+        Assert.Equal(("329865", 7.9, (int?)null, false, (DateTime?)null),
+            (item.TmdbId, item.ImdbRating, item.CriticRating, item.CriticCertified, item.ScoresCheckedAt));
     }
 
     [Fact]
@@ -298,6 +358,9 @@ public sealed class MetadataRefresherTests : IAsyncLifetime
         /// <summary>Paths that answer 500.</summary>
         public HashSet<string> Fail { get; } = [];
 
+        /// <summary>Paths whose host can't be reached.</summary>
+        public HashSet<string> Unreachable { get; } = [];
+
         /// <summary>Bodies by path and query.</summary>
         public Dictionary<string, string> Responses { get; } = [];
 
@@ -315,6 +378,11 @@ public sealed class MetadataRefresherTests : IAsyncLifetime
             if (DropArtwork && request.RequestUri!.Host == "image.test")
             {
                 return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new DroppingStream()) });
+            }
+
+            if (Unreachable.Contains(request.RequestUri!.PathAndQuery))
+            {
+                throw new HttpRequestException("Connection refused (seerr.test:443)");
             }
 
             if (Fail.Contains(request.RequestUri!.PathAndQuery))
