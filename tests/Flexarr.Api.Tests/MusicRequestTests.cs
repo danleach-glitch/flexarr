@@ -259,6 +259,24 @@ public sealed class MusicRequestTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task RequestingAnAlbum_ByAnArtistLidarrHasUnmonitored_MonitorsThemButNotTheirNewReleases()
+    {
+        await MusicLibraryAsync();
+        _lidarr.Responses["GET /api/v1/artist"] = $$"""[{"id":3,"artistName":"Wet Leg","foreignArtistId":"{{WetLeg}}","monitored":false,"monitorNewItems":"none"}]""";
+        _lidarr.Responses["GET /api/v1/artist/lookup?term=Wet%20Leg"] = $$"""[{"id":3,"artistName":"Wet Leg","foreignArtistId":"{{WetLeg}}"}]""";
+        _lidarr.Responses["GET /api/v1/artist/3"] = $$"""{"id":3,"artistName":"Wet Leg","foreignArtistId":"{{WetLeg}}","monitored":false,"monitorNewItems":"none"}""";
+        _lidarr.Responses["PUT /api/v1/artist/3"] = """{"id":3,"artistName":"Wet Leg"}""";
+        _lidarr.Responses["GET /api/v1/album?artistId=3"] = $$"""[{"id":9,"artistId":3,"title":"moisturizer","foreignAlbumId":"{{Moisturizer}}","monitored":false}]""";
+
+        var response = await Client().PostAsJsonAsync(Api("/requests/music"), new { kind = "album", deezerId = 730000661 });
+
+        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+        var artist = _sent.Single(s => s.Request == "PUT /api/v1/artist/3").Body!;
+        Assert.Equal((true, "none"), (artist["monitored"]!.GetValue<bool>(), artist["monitorNewItems"]!.GetValue<string>()));
+        Assert.Equal([9], _sent.Single(s => s.Request == "PUT /api/v1/album/monitor").Body!["albumIds"]!.AsArray().Select(n => n!.GetValue<int>()));
+    }
+
+    [Fact]
     public async Task FollowingAnArtist_GetsTheirLatestAlbum_AndNewReleases()
     {
         await MusicLibraryAsync();

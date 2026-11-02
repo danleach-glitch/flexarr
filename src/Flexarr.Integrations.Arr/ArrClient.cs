@@ -257,6 +257,17 @@ public sealed class ArrClient(HttpClient httpClient)
     }
 
     /// <summary>
+    /// Has Lidarr monitor an artist, so its RSS sync and Wanted › Missing look for the albums asked for. Which of their
+    /// future albums it wants (monitorNewItems) stays as it was.
+    /// </summary>
+    public async Task MonitorArtistAsync(ArrInstance lidarr, int artistId, CancellationToken ct = default)
+    {
+        var artist = await GetAsync<JsonObject>(lidarr, $"artist/{artistId}", ct).ConfigureAwait(false);
+        artist["monitored"] = true;
+        await SendAsync<JsonObject>(lidarr, HttpMethod.Put, $"artist/{artistId}", artist, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
     /// Has Lidarr stop watching for an artist's new releases. The artist stays monitored, so albums already asked for
     /// still download.
     /// </summary>
