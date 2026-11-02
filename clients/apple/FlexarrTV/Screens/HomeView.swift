@@ -250,6 +250,9 @@ struct HomeHero: View {
             // the sidebar); entering the hero should always land on Play.
             if old == nil, new != nil, new != .play { focusedButton = .play }
         }
+        // Moving on from an artist (by itself, or left and right) while Radio has focus: the next slide may not have
+        // Radio, so focus goes to Play rather than wherever the focus engine sends it.
+        .onChange(of: item.id) { if focusedButton == .radio, item.kind != .artist { focusedButton = .play } }
         .onAppear(perform: takeFocus)
         .onChange(of: takesFocus.wrappedValue, takeFocus)
         .task(id: HeroClock(index: index, focused: focusedButton != nil)) {
@@ -407,7 +410,7 @@ struct HomeRowView: View {
                         }
                     }
                     if let library = linkedLibrary {
-                        SeeAllCard(style: row.style, square: isBooks) { router.push(.library(library.library, library.sort, genre: library.genre)) }
+                        SeeAllCard(style: row.style, square: isBooks) { router.push(library) }
                     } else if row.link == "/watchlist" {
                         SeeAllCard(style: row.style, square: isBooks) { router.push(.watchlist) }
                     }
@@ -449,14 +452,19 @@ struct HomeRowView: View {
     }
 
     /// Rows link to "/library/{id}?view=all&sort=added" (or "&genre=Drama"); map that to a library destination.
-    private var linkedLibrary: (library: Library, sort: LibrarySort, genre: String?)? {
+    private var linkedLibrary: Route? {
         guard let link = row.link, let components = URLComponents(string: link),
               components.path.hasPrefix("/library/") else { return nil }
         let id = String(components.path.dropFirst("/library/".count))
         guard let library = model.libraries.first(where: { $0.id == id }) else { return nil }
         let query = components.queryItems ?? []
         let sort = query.first(where: { $0.name == "sort" })?.value.flatMap(LibrarySort.init(rawValue:)) ?? .title
-        return (library, sort, query.first(where: { $0.name == "genre" })?.value)
+        let genre = query.first(where: { $0.name == "genre" })?.value.flatMap { $0.isEmpty ? nil : $0 }
+        // A music library's albums (New albums, from 0.59); its other links are its artists.
+        if library.type == .music, genre == nil, query.contains(where: { $0.name == "view" && $0.value == "albums" }) {
+            return .albums(library, sort)
+        }
+        return .library(library, sort, genre: genre)
     }
 }
 

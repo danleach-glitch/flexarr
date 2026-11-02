@@ -16,6 +16,9 @@ struct LibraryView: View {
     var musicSwitch: Binding<MusicOpening>?
     var offersAlbums = true
 
+    /// A music genre's page is that genre's: its heading and Play are, so it offers no other.
+    private var showsGenreFilter: Bool { !(content == .albums && initialGenre != nil && !onTab) }
+
     /// On a tab, under the sidebar's label, rather than pushed with the library's name as a heading.
     private var onTab: Bool { viewSwitch != nil || musicSwitch != nil }
 
@@ -85,7 +88,7 @@ struct LibraryView: View {
                     StatusView(state: .failed(error) { Task { await reload() } })
                         .frame(height: 500)
                 } else if items.isEmpty && !isLoading {
-                    StatusView(state: .empty(genre == nil ? "Nothing in this library yet." : "No \(genre!) titles here."))
+                    StatusView(state: .empty(genre == nil ? "Nothing in this library yet." : "No \(genre!) \(content.noun) here."))
                         .frame(height: 500)
                 } else {
                     LazyVGrid(columns: columns, alignment: .leading, spacing: 64) {
@@ -121,7 +124,10 @@ struct LibraryView: View {
                 if loadedToken != model.refreshToken || Freshness.isStale(loadedAt) { await refreshLoaded() }
                 return
             }
-            async let genresTask = content == .albums ? (try? model.client?.libraryAlbumGenres(library.id)) ?? nil : try? model.client?.libraryGenres(library.id)
+            // A genre's own page doesn't offer another genre, so it doesn't need the list.
+            async let genresTask = showsGenreFilter
+                ? (content == .albums ? (try? model.client?.libraryAlbumGenres(library.id)) ?? nil : try? model.client?.libraryGenres(library.id))
+                : nil
             await reload()
             genres = await genresTask ?? []
         }
@@ -194,7 +200,7 @@ struct LibraryView: View {
                         .buttonStyle(PillButtonStyle(selected: sort == option))
                         .focused($focusedControl, equals: "sort-\(option.rawValue)")
                 }
-                if !genres.isEmpty {
+                if showsGenreFilter, !genres.isEmpty {
                     Menu {
                         Button("All genres") { genre = nil }
                         ForEach(genres, id: \.name) { g in

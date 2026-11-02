@@ -22,8 +22,6 @@ struct MusicLibraryView: View {
     /// Where across a row focus last was, so up and down keep to it (see `RowFocus`).
     @State private var column = 0
 
-    /// How many artists the Your artists row shows before its See all.
-    private static let artistsInRow = 20
 
     init(library: Library, view: Binding<MusicOpening>? = nil, offersAlbums: Bool = true) {
         _browse = State(initialValue: MusicBrowseModel(library: library))
@@ -50,6 +48,9 @@ struct MusicLibraryView: View {
                     if let error = browse.error, browse.artists.isEmpty {
                         StatusView(state: .failed(error) { Task { await load() } })
                             .frame(height: 500)
+                    } else if browse.loadedAt == nil {
+                        StatusView(state: .loading)
+                            .frame(height: 500)
                     } else if browse.isEmpty {
                         StatusView(state: .empty("Nothing in this library yet."))
                             .frame(height: 500)
@@ -69,7 +70,9 @@ struct MusicLibraryView: View {
             .animation(.easeInOut(duration: 0.8), value: featured?.id))
         .task {
             // Coming back from an artist or another tab runs this again: keep what's loaded unless it's getting old.
-            if browse.loadedAt != nil, !Freshness.isStale(browse.loadedAt) { return }
+            // Music played since (from the hero, say) may have moved Resume on.
+            let played = browse.playingWhenLoaded != model.music.current?.id
+            if browse.loadedAt != nil, !Freshness.isStale(browse.loadedAt), !played { return }
             let first = browse.loadedAt == nil
             await load()
             // Opened from the sidebar, the page had nothing to focus until it loaded, so focus went nowhere and the
@@ -126,13 +129,16 @@ struct MusicLibraryView: View {
                 }
             }
             if !browse.artists.isEmpty {
-                let artists = Array(browse.artists.prefix(Self.artistsInRow))
-                fallbackRow("Your artists", ids: artists.map(\.id) + ["see-all-artists"]) {
+                let artists = Array(browse.artists.prefix(MusicBrowseModel.artistsInRow))
+                // See all only when there are more than the row shows; it opens every artist over Browse, so Menu
+                // comes back here, as a film row's See all does.
+                let more = browse.total > artists.count
+                fallbackRow("Your artists", ids: artists.map(\.id) + (more ? ["see-all-artists"] : [])) {
                     ForEach(artists) { artist in
                         ArtistCard(item: artist, focus: $focusedCard) { router.push(.item(artist)) }
                     }
-                    SeeAllArtistsCard(focus: $focusedCard) {
-                        if let view { view.wrappedValue = .artists } else { router.push(.library(browse.library, .title)) }
+                    if more {
+                        SeeAllArtistsCard(focus: $focusedCard) { router.push(.artists(browse.library)) }
                     }
                 }
             }
@@ -157,6 +163,7 @@ struct MusicLibraryView: View {
 
     private func load() async {
         guard let client = model.client else { return }
+        browse.playingWhenLoaded = model.music.current?.id
         await browse.load(client: client)
     }
 }
@@ -179,6 +186,7 @@ private struct SeeAllArtistsCard: View {
                 .clipShape(Circle())
             }
             .buttonStyle(CircleCardStyle())
+            .accessibilityLabel("See all artists")
             .modifier(SharedFocus(binding: focus, id: "see-all-artists"))
         }
     }

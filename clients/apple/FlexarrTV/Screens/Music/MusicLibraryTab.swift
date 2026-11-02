@@ -33,8 +33,9 @@ struct MusicLibraryTab: View {
     @State private var picked: MusicOpening?
     @State private var switching = false
     @State private var arriving = false
-    /// Whether the server lists albums (and so has Albums and Genres): asked once, assumed until it answers.
-    @State private var offersAlbums = true
+    /// Whether the server lists albums (and so has Albums and Genres): from 0.59, asked once per server. Until it
+    /// answers, Browse and Artists.
+    private var offersAlbums: Bool { model.offersMusicAlbums == true }
 
     var body: some View {
         let view = Binding { shown(picked ?? opensOn) } set: {
@@ -42,21 +43,22 @@ struct MusicLibraryTab: View {
             picked = $0
         }
         Group {
-            switch view.wrappedValue {
-            case .browse: MusicLibraryView(library: library, view: view, offersAlbums: offersAlbums)
-            case .artists: LibraryView(library: library, content: .artists, musicSwitch: view, offersAlbums: offersAlbums)
-            case .albums: LibraryView(library: library, content: .albums, musicSwitch: view, offersAlbums: offersAlbums)
-            case .genres: LibraryGenresView(library: library, musicView: view, offersAlbums: offersAlbums)
+            // Opening on Albums or Genres waits for the answer, rather than showing Browse first.
+            if (picked ?? opensOn).needsAlbums, model.offersMusicAlbums == nil {
+                StatusView(state: .loading).frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                switch view.wrappedValue {
+                case .browse: MusicLibraryView(library: library, view: view, offersAlbums: offersAlbums)
+                case .artists: LibraryView(library: library, content: .artists, musicSwitch: view, offersAlbums: offersAlbums)
+                case .albums: LibraryView(library: library, content: .albums, musicSwitch: view, offersAlbums: offersAlbums)
+                case .genres: LibraryGenresView(library: library, musicView: view, offersAlbums: offersAlbums)
+                }
             }
         }
         .environment(\.focusesViewSwitch, $switching)
         .environment(\.focusesContent, $arriving)
         .onChange(of: opensOn) { picked = nil }
-        .task(id: library.id) {
-            guard let client = model.client else { return }
-            // Nil (rather than an error) only from a server without the endpoint.
-            do { offersAlbums = try await client.libraryAlbums(library.id, take: 1) != nil } catch {}
-        }
+        .task(id: library.id) { await model.checkMusicAlbums(library: library) }
     }
 
     private func shown(_ view: MusicOpening) -> MusicOpening { view.needsAlbums && !offersAlbums ? .browse : view }

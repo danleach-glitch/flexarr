@@ -474,6 +474,10 @@ struct TabStack<Content: View>: View {
         case .library(let library, _, let genre?) where library.type == .music:
             // A music genre: its albums, with Play and Shuffle.
             LibraryView(library: library, initialGenre: genre, content: .albums)
+        case .albums(let library, let sort):
+            LibraryView(library: library, initialSort: sort, content: .albums)
+        case .artists(let library):
+            LibraryView(library: library, content: .artists)
         case .library(let library, let sort, nil) where library.type == .music:
             LibraryView(library: library, initialSort: sort, content: .artists)
         case .library(let library, _, let genre?) where library.type == .audiobooks:

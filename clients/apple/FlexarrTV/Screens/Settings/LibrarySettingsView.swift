@@ -7,14 +7,14 @@ struct LibrarySettingsView: View {
 
     var body: some View {
         SettingsPage(title: "Libraries") {
-            SettingsGroupLabel("Open on")
+            SettingsGroupLabel("Movies, shows and books")
             ForEach(LibraryOpening.allCases, id: \.self) { opening in
                 SettingsRow(title: opening.label, symbol: opening.symbol,
                             help: opening.help, accessory: opensOn == opening ? .checkmark : .none) {
                     opensOn = opening
                 }
             }
-            SettingsGroupLabel("Music opens on")
+            SettingsGroupLabel("Music")
             ForEach(MusicOpening.allCases, id: \.self) { opening in
                 SettingsRow(title: opening.label, symbol: opening.symbol,
                             help: opening.help, accessory: musicOpensOn == opening ? .checkmark : .none) {
@@ -46,10 +46,10 @@ private extension LibraryOpening {
 private extension MusicOpening {
     var help: String {
         switch self {
-        case .browse: "Music opens on the album you played last, then your rows and artists."
-        case .artists: "Music opens on every artist, A to Z."
-        case .albums: "Music opens on every album, with sorting, genres and a letter rail."
-        case .genres: "Music opens on its genres, each with a picture of one of its artists."
+        case .browse: "The album you played last, then your rows."
+        case .artists: "Every artist, A to Z."
+        case .albums: "Every album, A to Z."
+        case .genres: "A tile for each genre."
         }
     }
 
