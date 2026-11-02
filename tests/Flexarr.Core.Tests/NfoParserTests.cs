@@ -37,6 +37,7 @@ public class NfoParserTests
         Assert.Equal(new DateOnly(2016, 11, 11), nfo.Premiered);
         Assert.Equal(["Drama", "Science Fiction", "Mystery"], nfo.Genres);
         Assert.Equal(7.9, nfo.Rating);
+        Assert.Equal(7.9, nfo.ImdbRating);
         Assert.Equal(new ExternalIds(null, "329865", "tt2543164"), nfo.Ids);
     }
 
@@ -76,6 +77,7 @@ public class NfoParserTests
         var nfo = NfoParser.Parse("""<movie><ratings><rating name="tomatometer" max="100"><value>94</value></rating></ratings></movie>""", "movie");
 
         Assert.Equal(9.4, nfo?.Rating);
+        Assert.Null(nfo?.ImdbRating); // only a rating named imdb is IMDb's
     }
 
     [Fact]

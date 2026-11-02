@@ -192,15 +192,89 @@ public sealed class MetadataRefresherTests : IAsyncLifetime
         await _db.SaveChangesAsync();
     }
 
-    private MetadataRefresher Refresher()
+    [Fact]
+    public async Task Scores_ComeFromRadarr_ThenSeerr()
     {
-        var settings = new Settings(_dir);
+        await AddMovieAsync("Dune", null, poster: null, arrId: 7, tmdbId: "438631");
+        _radarr.Responses["/api/v3/movie"] = """
+            [{"id":7,"title":"Dune","year":2021,"tmdbId":438631,"path":"/movies/Dune",
+              "ratings":{"imdb":{"votes":900000,"value":8.0},"tmdb":{"value":7.8},"rottenTomatoes":{"value":83}}}]
+            """;
+        _radarr.Responses["/api/v1/movie/438631/ratingscombined"] = """
+            {"rt":{"title":"Dune","criticsRating":"Certified Fresh","criticsScore":84,"audienceRating":"Upright","audienceScore":90},
+             "imdb":{"title":"Dune","criticsScore":8.1}}
+            """;
+
+        await Refresher(seerr: true).RefreshLibraryAsync(_library, force: true, default);
+
+        var dune = await _db.MediaItems.AsNoTracking().SingleAsync(i => i.Title == "Dune");
+        Assert.Equal((8.1, 84, true), (dune.ImdbRating, dune.CriticRating, dune.CriticCertified));
+        Assert.Equal(8.0, dune.CommunityRating); // what sorting and smart collections use doesn't change
+    }
+
+    [Fact]
+    public async Task WithoutSeerr_RadarrsScoresStand_AndNothingIsCertified()
+    {
+        await AddMovieAsync("Dune", null, poster: null, arrId: 7, tmdbId: "438631");
+        _radarr.Responses["/api/v3/movie"] = """
+            [{"id":7,"title":"Dune","year":2021,"tmdbId":438631,"path":"/movies/Dune","ratings":{"imdb":{"value":8.0},"rottenTomatoes":{"value":83}}}]
+            """;
+
+        await Refresher().RefreshLibraryAsync(_library, force: true, default);
+
+        var dune = await _db.MediaItems.AsNoTracking().SingleAsync(i => i.Title == "Dune");
+        Assert.Equal((8.0, 83, false), (dune.ImdbRating, dune.CriticRating, dune.CriticCertified));
+        Assert.DoesNotContain(_radarr.Paths, p => p.StartsWith("/api/v1/", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task SeerrFailing_KeepsTheScores_AndIsAskedOnce()
+    {
+        await AddMovieAsync("Dune", null, poster: null, arrId: 7, tmdbId: "438631");
+        await AddMovieAsync("Heat", null, poster: null, arrId: 9, tmdbId: "949");
+        _radarr.Responses["/api/v3/movie"] = """
+            [{"id":7,"title":"Dune","year":2021,"tmdbId":438631,"path":"/movies/Dune","ratings":{"imdb":{"value":8.0},"rottenTomatoes":{"value":83}}},
+             {"id":9,"title":"Heat","year":1995,"tmdbId":949,"path":"/movies/Heat","ratings":{"imdb":{"value":8.3},"rottenTomatoes":{"value":88}}}]
+            """;
+        _radarr.Fail.Add("/api/v1/movie/438631/ratingscombined");
+        _radarr.Fail.Add("/api/v1/movie/949/ratingscombined");
+
+        await Refresher(seerr: true).RefreshLibraryAsync(_library, force: true, default);
+
+        var items = await _db.MediaItems.AsNoTracking().ToDictionaryAsync(i => i.Title);
+        Assert.Equal((8.0, 83), (items["Dune"].ImdbRating, items["Dune"].CriticRating));
+        Assert.Equal((8.3, 88), (items["Heat"].ImdbRating, items["Heat"].CriticRating));
+        Assert.Single(_radarr.Paths, p => p.StartsWith("/api/v1/", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ARottenScore_LosesItsCertificate()
+    {
+        await AddMovieAsync("Dune", null, poster: null, arrId: 7, tmdbId: "438631");
+        await _db.MediaItems.ExecuteUpdateAsync(u => u.SetProperty(i => i.CriticCertified, true).SetProperty(i => i.CriticRating, 84));
+        _db.ChangeTracker.Clear();
+        _radarr.Responses["/api/v3/movie"] = """
+            [{"id":7,"title":"Dune","year":2021,"tmdbId":438631,"path":"/movies/Dune","ratings":{"rottenTomatoes":{"value":41}}}]
+            """;
+
+        await Refresher().RefreshLibraryAsync(_library, force: true, default);
+
+        var dune = await _db.MediaItems.AsNoTracking().SingleAsync(i => i.Title == "Dune");
+        Assert.Equal((41, false, (double?)null), (dune.CriticRating, dune.CriticCertified, dune.ImdbRating));
+    }
+
+    private MetadataRefresher Refresher(bool seerr = false)
+    {
+        var settings = new Settings(_dir) { Seerr = seerr ? new SeerrInstance(new Uri("http://seerr.test"), "key") : null };
         return new MetadataRefresher(_db, new ArrClient(new HttpClient(_radarr)), new TvMazeClient(new HttpClient(_radarr)),
-            new ImageCache(new HttpClient(_radarr), settings, NullLogger<ImageCache>.Instance), settings, NullLogger<MetadataRefresher>.Instance);
+            new ImageCache(new HttpClient(_radarr), settings, NullLogger<ImageCache>.Instance), settings, NullLogger<MetadataRefresher>.Instance,
+            seerr: new SeerrClient(new HttpClient(_radarr)));
     }
 
     private sealed class Settings(string cache) : IMetadataSettings
     {
+        public SeerrInstance? Seerr { get; init; }
+
         public IReadOnlyList<ArrInstance> ArrInstances { get; } =
             [new ArrInstance { Name = "Radarr", Kind = ArrKind.Radarr, BaseUrl = new Uri("http://radarr.test"), ApiKey = "key" }];
 
@@ -221,6 +295,9 @@ public sealed class MetadataRefresherTests : IAsyncLifetime
         /// <summary>Artwork (from image.test) starts to arrive, then the connection closes.</summary>
         public bool DropArtwork;
 
+        /// <summary>Paths that answer 500.</summary>
+        public HashSet<string> Fail { get; } = [];
+
         /// <summary>Bodies by path and query.</summary>
         public Dictionary<string, string> Responses { get; } = [];
 
@@ -238,6 +315,11 @@ public sealed class MetadataRefresherTests : IAsyncLifetime
             if (DropArtwork && request.RequestUri!.Host == "image.test")
             {
                 return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new DroppingStream()) });
+            }
+
+            if (Fail.Contains(request.RequestUri!.PathAndQuery))
+            {
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.InternalServerError));
             }
 
             var body = Responses.GetValueOrDefault(request.RequestUri!.PathAndQuery, "[]");
