@@ -113,7 +113,7 @@ struct MusicLibraryView: View {
     @ViewBuilder
     private var rows: some View {
         VStack(alignment: .leading, spacing: 44) {
-            ForEach(browse.rows) { MusicRowView(row: $0, column: $column) { Task { await load() } } }
+            ForEach(browse.rows) { MusicRowView(row: $0, library: browse.library, column: $column) { Task { await load() } } }
             if browse.rows.isEmpty, !browse.playlists.isEmpty {
                 fallbackRow("Your playlists", ids: browse.playlists.map(\.id)) {
                     ForEach(browse.playlists) { playlist in
@@ -193,11 +193,12 @@ private struct SeeAllArtistsCard: View {
 }
 
 /// One of a music library's Browse rows: playlists and mixes, albums that open, or tracks that play (the one pressed
-/// first, the rest of the row after it). No "See all": its links lead back to this page.
+/// first, the rest of the row after it). A See all card only where the row leads to Albums (New albums, newest first).
 private struct MusicRowView: View {
     @Environment(AppModel.self) private var model
     @Environment(Router.self) private var router
     let row: HomeRow
+    let library: Library
     @Binding var column: Int
     @FocusState private var focusedCard: String?
     /// Loads the page again, when a mix in the row turns out to be yesterday's.
@@ -222,6 +223,9 @@ private struct MusicRowView: View {
                         } else {
                             AlbumCard(item: item, showsArtist: true, focus: $focusedCard) { router.push(.item(item)) }
                         }
+                    }
+                    if let sort = row.albumsSort {
+                        SeeAllCard(style: row.style, square: true) { router.push(.albums(library, sort)) }
                     }
                 }
                 .padding(.top, 28)

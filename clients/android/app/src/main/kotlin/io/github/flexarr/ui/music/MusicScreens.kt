@@ -102,7 +102,9 @@ internal fun LazyGridScope.fullWidth(key: Any? = null, content: @Composable () -
 @Composable
 internal fun MusicShelf(model: AppModel, row: HomeRow) {
     val width = PosterWidth * 1.15f
-    Shelf(row.title) {
+    // New albums links to Albums, newest first; the other rows have no link.
+    val seeAll = LocalNavigator.current.libraryLink(row.link, music = true)
+    Shelf(row.title, onSeeAll = seeAll, seeAllLabel = seeAll?.let { "See all albums" }) {
         when (row.style) {
             HomeRowStyle.Playlists -> items(row.playlists.orEmpty(), key = { it.id }) { PlaylistCard(it, width) }
             HomeRowStyle.Mixes -> items(row.mixes.orEmpty(), key = { it.id }) { MixCard(it, width) }

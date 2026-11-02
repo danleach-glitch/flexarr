@@ -45,7 +45,12 @@ public sealed record SearchResultsDto(
     IReadOnlyList<SearchTrackDto> Tracks,
     // Audiobooks, and their series, apart from films and shows. Absent from servers before 0.58.
     IReadOnlyList<ItemSummaryDto>? Books = null,
-    IReadOnlyList<Books.BookSeriesSearchDto>? BookSeries = null);
+    IReadOnlyList<Books.BookSeriesSearchDto>? BookSeries = null,
+    // Each matching genre with a library it's in, so it opens that library's genre. Absent from servers before 0.59.
+    IReadOnlyList<SearchGenreDto>? GenreLibraries = null);
+
+/// <summary>A genre that matched a search, in one library of the kind that has it (its albums for music).</summary>
+public sealed record SearchGenreDto(string Name, Guid LibraryId, string Library, LibraryType Type, int Count);
 
 public sealed record GenreDto(string Name, int Movies, int Shows, string? Backdrop);
 
@@ -272,9 +277,11 @@ public static partial class DiscoveryEndpoints
 
             var me = profile.Id;
             var all = $"/library/{id}?view=all";
-            if (library.Type == LibraryType.Podcasts)
+            // Podcasts have their own pages, and an audiobooks library its shelves (/book-shelves): the film and TV
+            // rows below would look for episodes and use the Shows layout.
+            if (library.Type is LibraryType.Podcasts or LibraryType.Audiobooks)
             {
-                return Results.Ok(new HomeDto([], new Dictionary<Guid, string?>(), [], [], 0)); // Podcasts has its own pages
+                return Results.Ok(new HomeDto([], new Dictionary<Guid, string?>(), [], [], 0));
             }
 
             if (library.Type == LibraryType.Music)
@@ -472,7 +479,22 @@ public static partial class DiscoveryEndpoints
                 genres.AddRange(close.Select(m => m.Name).Where(n => !genres.Contains(n)).Take(5 - genres.Count));
             }
 
-            return new SearchResultsDto(titles, episodes, people, genres, albums, tracks, books, series);
+            // Where each genre lives: films and shows by their title, music by its albums (whose genres the Genres view
+            // counts), books by the book. The biggest library first, so a genre in two opens the fuller one.
+            var genreLibraries = genres.Count == 0 ? [] : (await db.MediaItems
+                    .Where(i => (i.ParentId == null && (i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series || i.Kind == MediaKind.Audiobook))
+                        || i.Kind == MediaKind.Album)
+                    .SelectMany(i => i.Genres, (i, g) => new { g.Name, i.LibraryId })
+                    .Where(x => genres.Contains(x.Name))
+                    .GroupBy(x => new { x.Name, x.LibraryId })
+                    .Select(g => new { g.Key.Name, g.Key.LibraryId, Count = g.Count() })
+                    .ToListAsync(ct))
+                .Join(await db.Libraries.Select(l => new { l.Id, l.Name, l.Type }).ToListAsync(ct), g => g.LibraryId, l => l.Id,
+                    (g, l) => new SearchGenreDto(g.Name, l.Id, l.Name, l.Type, g.Count))
+                .OrderBy(g => genres.IndexOf(g.Name)).ThenByDescending(g => g.Count)
+                .ToList();
+
+            return new SearchResultsDto(titles, episodes, people, genres, albums, tracks, books, series, genreLibraries);
         }).WithTags("Discovery");
 
         api.MapGet("/genres", async (FlexarrDbContext db, CancellationToken ct) =>

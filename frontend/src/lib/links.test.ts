@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { webLink } from './links'
+import { libraryGenreLink, webLink } from './links'
 
 describe('webLink', () => {
   it('passes web addresses, and nothing that would run or go elsewhere', () => {
@@ -9,5 +9,14 @@ describe('webLink', () => {
     expect(webLink('data:text/html,hi')).toBeUndefined()
     expect(webLink('not a url')).toBeUndefined()
     expect(webLink(null)).toBeUndefined()
+  })
+})
+
+describe('libraryGenreLink', () => {
+  it("opens each kind of library's own genre", () => {
+    expect(libraryGenreLink('m', 'Movies', 'Sci-Fi & Fantasy')).toBe('/library/m?genre=Sci-Fi%20%26%20Fantasy')
+    expect(libraryGenreLink('t', 'TvShows', 'Drama')).toBe('/library/t?genre=Drama')
+    expect(libraryGenreLink('a', 'Music', 'Rock')).toBe('/library/a?view=albums&genre=Rock')
+    expect(libraryGenreLink('b', 'Audiobooks', 'Fantasy')).toBe('/library/b?view=genre&genre=Fantasy')
   })
 })

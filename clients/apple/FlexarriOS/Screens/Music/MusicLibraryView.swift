@@ -45,7 +45,7 @@ struct MusicLibraryView<Header: View>: View {
                         .frame(height: 400)
                 } else {
                     if !browse.rows.isEmpty {
-                        ForEach(browse.rows) { MusicRowView(row: $0, width: cardWidth) { Task { await load() } } }
+                        ForEach(browse.rows) { MusicRowView(row: $0, library: browse.library, width: cardWidth) { Task { await load() } } }
                     }
                     if browse.rows.isEmpty, !browse.playlists.isEmpty {
                         row("Your playlists") {
@@ -110,17 +110,20 @@ struct MusicLibraryView<Header: View>: View {
 }
 
 /// One of a music library's Browse rows: playlists and mixes, albums that open, or tracks that play (the one tapped
-/// first, the rest of the row after it). No "See all": its links lead back to this page.
+/// first, the rest of the row after it). See all only where the row leads to Albums (New albums, newest first).
 private struct MusicRowView: View {
     @Environment(AppModel.self) private var model
+    @Environment(Router.self) private var router
     let row: HomeRow
+    let library: Library
     let width: CGFloat
     /// Loads the page again, when a mix in the row turns out to be yesterday's.
     let onStale: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            SectionHeading(title: row.title)
+            SectionHeading(title: row.title, action: row.albumsSort.map { sort in { router.push(.albums(library, sort)) } },
+                           actionLabel: "See all albums")
             ScrollView(.horizontal) {
                 LazyHStack(alignment: .top, spacing: Layout.rowSpacing) {
                     ForEach(row.playlists ?? []) { PlaylistCard(playlist: $0, width: width) }

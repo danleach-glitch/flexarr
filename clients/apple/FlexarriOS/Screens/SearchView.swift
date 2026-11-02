@@ -31,12 +31,29 @@ struct SearchView: View {
                         StatusView(state: .empty("Nothing matches \u{201C}\(query)\u{201D}."))
                             .frame(height: 240)
                     }
-                    if !results.titles.isEmpty {
+                    if !results.films.isEmpty {
                         section("Movies and shows") {
-                            ForEach(results.titles) { item in
+                            ForEach(results.films) { item in
                                 PosterCard(item: item, width: Layout.posterWidth(sizeClass)) {
                                     model.recordSearch(query: query, item: item)
                                 }
+                            }
+                        }
+                    }
+                    // Music you have: artists, then albums (the server lists artists among the titles).
+                    if !results.artists.isEmpty {
+                        section("Artists") {
+                            ForEach(results.artists) { item in
+                                ArtistCard(item: item, width: Layout.posterWidth(sizeClass))
+                                    .simultaneousGesture(TapGesture().onEnded { model.recordSearch(query: query, item: item) })
+                            }
+                        }
+                    }
+                    if let albums = results.albums, !albums.isEmpty {
+                        section("Albums") {
+                            ForEach(albums) { item in
+                                AlbumCard(item: item, width: Layout.posterWidth(sizeClass), showsArtist: true)
+                                    .simultaneousGesture(TapGesture().onEnded { model.recordSearch(query: query, item: item) })
                             }
                         }
                     }

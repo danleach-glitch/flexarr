@@ -542,8 +542,14 @@ public struct SearchResults: Codable, Sendable {
     /// Audiobooks (not in `titles`) and their series. Absent from servers before 0.58.
     public var books: [ItemSummary]? = nil
     public var bookSeries: [BookSeriesSearchResult]? = nil
+    /// Albums by name; artists are among `titles`. Absent from servers before music search.
+    public var albums: [ItemSummary]? = nil
 
-    public var isEmpty: Bool { titles.isEmpty && episodes.isEmpty && people.isEmpty && (books ?? []).isEmpty && (bookSeries ?? []).isEmpty }
+    /// Films and shows, without the artists `titles` also holds.
+    public var films: [ItemSummary] { titles.filter { $0.kind != .artist } }
+    public var artists: [ItemSummary] { titles.filter { $0.kind == .artist } }
+
+    public var isEmpty: Bool { titles.isEmpty && episodes.isEmpty && people.isEmpty && (books ?? []).isEmpty && (bookSeries ?? []).isEmpty && (albums ?? []).isEmpty }
 }
 
 /// The profile's last few searches and the titles opened from them, newest first, shared by all its devices.
@@ -1665,4 +1671,15 @@ struct AudioDelayBody: Codable, Sendable {
 
 struct PlaybackSpeedBody: Codable, Sendable {
     let speed: Double
+}
+
+extension HomeRow {
+    /// The sort to open a music library's Albums with, when the row's link leads there (`?view=albums`, as
+    /// *New albums* does). Nil for every other link.
+    public var albumsSort: LibrarySort? {
+        guard let link, let components = URLComponents(string: link), components.path.hasPrefix("/library/") else { return nil }
+        let query = components.queryItems ?? []
+        guard query.contains(where: { $0.name == "view" && $0.value == "albums" }) else { return nil }
+        return query.first(where: { $0.name == "sort" })?.value.flatMap(LibrarySort.init(rawValue:)) ?? .title
+    }
 }

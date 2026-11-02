@@ -232,11 +232,11 @@ enum class BookProgressFilter(val raw: String, val label: String) {
 
 /** Orders `GET /libraries/{id}/books` takes. */
 enum class BookSort(val raw: String, val label: String) {
-    Title("title", "Title"),
+    Title("title", "A–Z"),
     Author("author", "Author"),
     Series("series", "Series"),
     Added("added", "Recently added"),
-    Released("released", "Release date"),
+    Released("released", "Year"),
     Length("length", "Length"),
     Listened("listened", "Recently listened"),
 }

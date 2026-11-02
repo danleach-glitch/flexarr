@@ -10,6 +10,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On the web with **Skip credits** on, moving on to the next episode no longer marks it watched and jumps straight past it to the one after, and nothing plays while the next-episode countdown runs.
 
 ### Audiobooks
+- On the web, the main profile can **Fix match** a book without its PIN, as it can a movie or show. Editing a book's details or chapters still asks for it.
+- An audiobooks library sorts with the same words as the others, in every app: **A–Z**, **Author**, **Series**, **Recently added**, **Year**, **Length** and **Recently listened**.
+- On the web, **Play** and **Shuffle** on a collection play a book in the audio player, as its own page does, instead of opening the video player.
 - On iPhone, iPad, Android phones and the Apple TV, an audiobooks library's **Genres** are tiles showing a few of each genre's covers, like the genres of movies and TV shows (and as on the web).
 - On the Apple TV, an audiobooks library has **Browse**, **All books** and **Genres** at the top, as Movies and TV Shows do. **All books** sorts by title, author, recently added or last listened, and **Settings › Libraries** chooses which one it opens on.
 
@@ -19,7 +22,12 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Discover's title pages show IMDb and Rotten Tomatoes in place of the four scores they had (TMDB, IMDb, critics and audience). TMDB's score stays when there's no IMDb score.
 - On Android TV, kids profiles no longer see a score on a title's page, the Home hero or an artist's page.
 
+### Search
+- On iPhone, iPad, Android phones and the Apple TV, search lists the artists and albums you have under **Artists** and **Albums**, rather than artists among the movies and shows. The Apple TV's search finds audiobooks too.
+- On the web, a genre found by search opens that genre in its own library: a music genre's albums, a books genre's page, or the movies or shows of that genre. A genre in more than one library is listed once for each.
+
 ### Music
+- On Android and Android TV, albums and artists in Home's rows look as they do in the music library (square covers, round artists), and pressing and holding one no longer offers *Mark as watched*.
 - A music library's page now works like Movies and TV on the web, iPhone, iPad, Apple TV, Android and Android TV. A picture across the top starts with the album you played last, and **Resume** carries on from the next track. Then come artists you play, with **Play** and **Radio**, and the newest albums.
 - **Artists**, **Albums** and **Genres** sit beside **Browse** at the top. Albums lists every album, sorted A to Z, by date added or by year. Each genre opens its albums, and **Play** or **Shuffle** plays up to 200 of its tracks.
 - Browse ends with **Your artists**, and **See all** opens every artist. **See all** on **New albums** opens Albums, newest first.

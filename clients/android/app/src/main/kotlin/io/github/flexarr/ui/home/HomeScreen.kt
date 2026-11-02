@@ -99,6 +99,9 @@ import io.github.flexarr.ui.components.Loaded
 import io.github.flexarr.ui.components.PosterCard
 import io.github.flexarr.ui.components.PosterWidth
 import io.github.flexarr.ui.components.RemoteImage
+import io.github.flexarr.core.MediaKind
+import io.github.flexarr.ui.music.AlbumCard
+import io.github.flexarr.ui.music.ArtistCard
 import io.github.flexarr.ui.music.MixCard
 import io.github.flexarr.ui.music.PlaylistCard
 import io.github.flexarr.ui.music.TrackCard
@@ -371,7 +374,14 @@ private fun HomeRowView(model: AppModel, row: HomeRow) {
                     }
                     HomeRowStyle.Playlists -> items(row.playlists.orEmpty(), key = { it.id }) { PlaylistCard(it, PosterWidth) }
                     HomeRowStyle.Mixes -> items(row.mixes.orEmpty(), key = { it.id }) { MixCard(it, PosterWidth) }
-                    else -> items(row.items, key = { it.id }) { PosterCard(it) }
+                    // Albums and artists as the music library draws them (square, round), not as posters with a film's menu.
+                    else -> items(row.items, key = { it.id }) {
+                        when (it.kind) {
+                            MediaKind.Album -> AlbumCard(it, width = PosterWidth, showsArtist = true)
+                            MediaKind.Artist -> ArtistCard(it, Modifier.width(PosterWidth))
+                            else -> PosterCard(it)
+                        }
+                    }
                 }
             }
         }

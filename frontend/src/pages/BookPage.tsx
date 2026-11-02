@@ -109,8 +109,8 @@ export function BookPage({ detail, onChange }: { detail: ItemDetail; onChange: (
     // Saving takes the admin: the PIN first, if it's run out here.
     more.push({ label: 'Edit…', run: () => void unlockFirst().then((unlocked) => unlocked && setEditing('details')) })
     more.push({ label: 'Edit chapters…', run: () => setEditing('chapters') })
-    // Its search is a read the server keeps to the unlocked main profile, so a locked one doesn't get to ask for the PIN.
-    if (me?.isAdmin === true) more.push({ label: 'Fix match…', run: () => setEditing('match') })
+    // The main profile, locked or not, as for a film or show (servers before 0.59 ask for the admin to choose).
+    more.push({ label: 'Fix match…', run: () => setEditing('match') })
     more.push('divider', { label: 'Delete…', run: () => setDeleting(true), danger: true })
   }
 

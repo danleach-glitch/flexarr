@@ -345,7 +345,7 @@ data class SearchResults(
     /** Book series by name. Absent from servers before 0.58. */
     val bookSeries: List<BookSeriesSearch> = emptyList(),
 ) {
-    val isEmpty: Boolean get() = titles.isEmpty() && episodes.isEmpty() && people.isEmpty() && books.isEmpty() && bookSeries.isEmpty()
+    val isEmpty: Boolean get() = titles.isEmpty() && episodes.isEmpty() && people.isEmpty() && books.isEmpty() && bookSeries.isEmpty() && albums.isEmpty()
 }
 
 @Serializable

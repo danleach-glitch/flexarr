@@ -236,7 +236,7 @@ export function CollectionPage() {
           {c.description && <p className="detail-overview">{c.description}</p>}
           <div className="detail-actions">
             {next && (
-              <AsyncButton className="button" onClick={() => (next.kind === 'Series' ? play(next) : navigate(`/play/${next.id}`))}>
+              <AsyncButton className="button" onClick={() => play(next)}>
                 <Play /> {next.userData.watched ? 'Play' : `Play ${next.title}`}
               </AsyncButton>
             )}
@@ -246,8 +246,8 @@ export function CollectionPage() {
                 onClick={() => {
                   const pool = items.filter((i) => !i.userData.watched)
                   const pick = (pool.length ? pool : items)[Math.floor(Math.random() * (pool.length || items.length))]
-                  if (pick.kind === 'Series') return play(pick)
-                  navigate(`/play/${pick.id}`)
+                  // A show plays its next episode and a book plays in the audio player (usePlay).
+                  return play(pick)
                 }}
               >
                 Shuffle

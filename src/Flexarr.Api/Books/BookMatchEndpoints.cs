@@ -42,15 +42,19 @@ public sealed record BookEditSeries(string Name, string? Sequence = null);
 /// <summary>Audible's chapters, moved by some seconds (its times often run ahead by the length of the opening credits).</summary>
 public sealed record AudibleChaptersRequest(double ShiftSeconds = 0);
 
-/// <summary>Fix match and the chapter tools for books. Admins only: a book's details and chapters are the household's.</summary>
+/// <summary>
+/// Fix match and the chapter tools for books. Fix match is the main profile's, locked or not, as a film's or show's
+/// is; editing a book's details and chapters by hand takes the admin (they're the household's).
+/// </summary>
 public static class BookMatchEndpoints
 {
     public static RouteGroupBuilder MapBookMatchEndpoints(this RouteGroupBuilder api)
     {
         var item = api.MapGroup("/items/{id:guid}").WithTags("Audiobooks").RequireAuthorization(FlexarrClaims.AdminPolicy);
 
-        // Searching is a read: the main profile may look with settings locked, and unlocks to choose.
-        api.MapGroup("/items/{id:guid}").WithTags("Audiobooks").RequireAuthorization(FlexarrClaims.MainProfilePolicy).MapGet("/book-match", async (Guid id, string? q, string? author, FlexarrDbContext db, BookProviders providers, CancellationToken ct) =>
+        // Fix match takes the main profile, as films' and shows' does (MatchEndpoints): searching and choosing.
+        var match = api.MapGroup("/items/{id:guid}").WithTags("Audiobooks").RequireAuthorization(FlexarrClaims.MainProfilePolicy);
+        match.MapGet("/book-match", async (Guid id, string? q, string? author, FlexarrDbContext db, BookProviders providers, CancellationToken ct) =>
         {
             if (await db.MediaItems.AsNoTracking().FirstOrDefaultAsync(i => i.Id == id && i.Kind == MediaKind.Audiobook, ct) is not { } book)
             {
@@ -62,7 +66,7 @@ public static class BookMatchEndpoints
             return Results.Ok(results.Select(ToDto).ToList());
         });
 
-        item.MapPost("/book-match", async (Guid id, BookMatchRequest request, FlexarrDbContext db, BookProviders providers, MetadataRefresher refresher, CancellationToken ct) =>
+        match.MapPost("/book-match", async (Guid id, BookMatchRequest request, FlexarrDbContext db, BookProviders providers, MetadataRefresher refresher, CancellationToken ct) =>
         {
             var book = await db.MediaItems.Include(i => i.Book).Include(i => i.Genres).Include(i => i.Credits).ThenInclude(c => c.Person)
                 .FirstOrDefaultAsync(i => i.Id == id && i.Kind == MediaKind.Audiobook, ct);
