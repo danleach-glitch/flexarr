@@ -195,6 +195,12 @@ export interface ItemDetail {
   kidsOverride?: KidsOverride | null
   /** A book's edition, series, chapters and bookmarks. Absent from servers before 0.58. */
   book?: BookDetail | null
+  /** Details edited by hand (films, shows, albums), which refreshes keep. Absent from servers before 0.59. */
+  detailsLocked?: boolean | null
+  /** The title it's sorted by. Absent from servers before 0.59. */
+  sortTitle?: string | null
+  /** A cover chosen by hand in Fix match, which refreshes keep. Absent from servers before 0.59. */
+  artworkLocked?: boolean | null
 }
 
 export type KidsOverride = 'None' | 'Allow' | 'Block'

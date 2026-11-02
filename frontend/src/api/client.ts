@@ -1321,6 +1321,59 @@ export const fixMatch = (itemId: string, id: number) =>
 
 /** Back to automatic matching. */
 export const resetMatch = (itemId: string) => request<void>('DELETE', `/items/${itemId}/match`)
+/** A film's or show's details as edited by hand. Blank fields clear; a blank sort title is worked out from the title. */
+export interface DetailsEdit {
+  title: string
+  sortTitle?: string | null
+  originalTitle?: string | null
+  year?: number | null
+  overview?: string | null
+  genres?: string[]
+  studio?: string | null
+  locked: boolean
+}
+
+export interface AlbumEdit {
+  title: string
+  year?: number | null
+  genres?: string[]
+  albumType?: string | null
+  locked: boolean
+}
+
+export const editDetails = (itemId: string, edit: DetailsEdit) => request<void>('PUT', `/items/${itemId}/details`, edit)
+export const editAlbum = (itemId: string, edit: AlbumEdit) => request<void>('PUT', `/items/${itemId}/album-details`, edit)
+/** Back to automatic: the details come from the sources again. */
+export const resetDetails = (itemId: string) => request<void>('DELETE', `/items/${itemId}/details`)
+
+/** An album or artist a library one could be (Fix match): one Lidarr has, or Deezer's. */
+export interface MusicMatch {
+  provider: 'lidarr' | 'deezer'
+  id: string
+  instance: string | null
+  title: string
+  artist: string | null
+  year: number | null
+  tracks: number | null
+  type: string | null
+  /** The picture to show. */
+  cover: string | null
+  /** What to send back to choose it as the cover. */
+  coverValue: string | null
+  current: boolean
+  /** Another album or artist in the library already matched to it. */
+  inLibrary: string | null
+  /** An artist Lidarr follows. */
+  followed: boolean
+}
+
+export const searchMusicMatches = (itemId: string, q: string | undefined, signal?: AbortSignal) =>
+  apiGet<MusicMatch[]>(`/items/${itemId}/music-match${queryString({ q })}`, signal)
+/** Cover: undefined for the match's own, 'current' to keep the one there, or a result's coverValue. */
+export const fixMusicMatch = (itemId: string, match: { provider: string; id: string; instance?: string | null; cover?: string | null }) =>
+  request<void>('POST', `/items/${itemId}/music-match`, match)
+export const resetMusicMatch = (itemId: string) => request<void>('DELETE', `/items/${itemId}/music-match`)
+
 /** Keeps the match a title search found (Library health's Ignore): refreshes leave it as it is. */
 export const keepMatch = (itemId: string) => request<void>('POST', `/items/${itemId}/match/keep`)
 
