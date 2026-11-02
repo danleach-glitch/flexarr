@@ -60,7 +60,7 @@ public static class ItemEditEndpoints
             }
 
             entity.Title = request.Title.Trim();
-            entity.SortTitle = Blank(request.SortTitle) ?? SortTitle.For(entity.Title);
+            entity.SortTitle = Blank(request.SortTitle)?.ToLowerInvariant() ?? SortTitle.For(entity.Title); // As typed, articles and all.
             entity.OriginalTitle = Blank(request.OriginalTitle) is { } original && original != entity.Title ? original : null;
             entity.Year = request.Year;
             entity.Overview = Blank(request.Overview);

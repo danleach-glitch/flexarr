@@ -51,7 +51,7 @@ public sealed class MusicHealthTests : IAsyncLifetime
 
         Assert.Equal(["25"], health.GetProperty("albumsWithoutCover").EnumerateArray().Select(a => a.GetProperty("title").GetString()));
         var duplicate = Assert.Single(health.GetProperty("duplicateAlbums").EnumerateArray());
-        Assert.Equal([_lemonade.Id, _lemonadeAgain.Id], Ids(duplicate.GetProperty("albums")).Order());
+        Assert.Equal(new[] { _lemonade.Id, _lemonadeAgain.Id }.Order(), Ids(duplicate.GetProperty("albums")).Order());
         var repeated = Assert.Single(health.GetProperty("albumsWithRepeatedTracks").EnumerateArray());
         Assert.Equal((_repeated.Id, 1, "The Beatles"), (repeated.GetProperty("album").GetProperty("id").GetGuid(), repeated.GetProperty("repeated").GetInt32(), repeated.GetProperty("artist").GetString()));
         var split = health.GetProperty("splitArtists").EnumerateArray().Select(s => s.GetProperty("artists").EnumerateArray().Select(a => a.GetProperty("title").GetString()).Order().ToList()).ToList();
@@ -72,7 +72,7 @@ public sealed class MusicHealthTests : IAsyncLifetime
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
         Assert.False(await db.MediaItems.AnyAsync(i => i.Id == _beyonce.Id));
-        Assert.Equal([_lemonade.Id, _lemonadeAgain.Id], (await db.MediaItems.Where(i => i.ParentId == _beyonceAccented.Id).Select(i => i.Id).ToListAsync()).Order());
+        Assert.Equal(new[] { _lemonade.Id, _lemonadeAgain.Id }.Order(), (await db.MediaItems.Where(i => i.ParentId == _beyonceAccented.Id).Select(i => i.Id).ToListAsync()).Order());
         var alias = await db.MusicAliases.SingleAsync();
         Assert.Equal(("artist:beyonce", _beyonceAccented.Id), (alias.Key, alias.ItemId));
         Assert.DoesNotContain(health(await HealthAsync()), s => s.Contains("Beyonce"));
