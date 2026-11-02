@@ -144,6 +144,19 @@ data class MusicArtistExtras(
 )
 
 @Serializable
+internal data class MusicUnfollowBody(
+    val artistId: String? = null,
+    val deezerId: Long? = null,
+    val musicBrainzId: String? = null,
+)
+
+@Serializable
+internal data class MusicUnrequestBody(
+    val musicBrainzId: String? = null,
+    val deezerId: Long? = null,
+)
+
+@Serializable
 internal data class MusicRequestBody(
     val kind: String,
     val deezerId: Long? = null,
@@ -198,4 +211,27 @@ suspend fun FlexarrClient.followArtist(deezerId: Long) {
 /** Follows a library artist, by its id here. */
 suspend fun FlexarrClient.followLibraryArtist(artistId: String) {
     send("POST", "requests/music", body = FlexarrClient.json.encodeToString(MusicRequestBody.serializer(), MusicRequestBody("artist", artistId = artistId)))
+}
+
+/**
+ * Stops following an artist, for the whole household (Lidarr is shared): albums already asked for still come, new ones
+ * don't. By [artistId] (a library artist), [deezerId] or [musicBrainzId]: the first one given. Absent from servers
+ * before music-polish, which answer 404.
+ */
+suspend fun FlexarrClient.unfollowArtist(artistId: String? = null, deezerId: Long? = null, musicBrainzId: String? = null) {
+    val body = when {
+        artistId != null -> MusicUnfollowBody(artistId = artistId)
+        deezerId != null && deezerId != 0L -> MusicUnfollowBody(deezerId = deezerId)
+        else -> MusicUnfollowBody(musicBrainzId = requireNotNull(musicBrainzId) { "Nothing to unfollow the artist by." })
+    }
+    send("POST", "requests/music/unfollow", body = FlexarrClient.json.encodeToString(MusicUnfollowBody.serializer(), body))
+}
+
+/**
+ * Cancels an album's request, for the whole household: Lidarr stops looking for it. By its release group when it's
+ * known (Lidarr's own id for it), else its Deezer id. Absent from servers before music-polish, which answer 404.
+ */
+suspend fun FlexarrClient.unrequestAlbum(album: MusicExternal) {
+    val body = if (album.musicBrainzId != null) MusicUnrequestBody(musicBrainzId = album.musicBrainzId) else MusicUnrequestBody(deezerId = album.deezerId.takeIf { it != 0L } ?: error("Nothing to cancel the request by."))
+    send("POST", "requests/music/unrequest", body = FlexarrClient.json.encodeToString(MusicUnrequestBody.serializer(), body))
 }

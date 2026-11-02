@@ -120,3 +120,38 @@ struct MusicRequestTests {
         }
     }
 }
+
+struct MusicUndoTests {
+    private func sent(_ call: (FlexarrClient) async throws -> Void) async throws -> (path: String?, body: NSDictionary?) {
+        let (client, host) = stubbedClient(.init(status: 204, body: Data()))
+        try await call(client)
+        let request = try #require(StubProtocol.recorded(host: host).first)
+        #expect(request.httpMethod == "POST")
+        return (request.url?.path, try JSONSerialization.jsonObject(with: request.httpBody ?? Data()) as? NSDictionary)
+    }
+
+    @Test func unfollowSendsOnlyTheIdGiven() async throws {
+        let library = try await sent { try await $0.unfollowArtist(libraryArtistId: "a1") }
+        #expect(library.path == "/api/v1/requests/music/unfollow")
+        #expect(library.body == ["artistId": "a1"])
+        let deezer = try await sent { try await $0.unfollowArtist(deezerId: 27) }
+        #expect(deezer.body == ["deezerId": 27])
+    }
+
+    @Test func unrequestPrefersMusicBrainz() async throws {
+        let lidarr = MusicExternal(kind: "album", deezerId: 5, title: "Homework", musicBrainzId: "rg-1")
+        let byMbid = try await sent { try await $0.unrequestAlbum(lidarr) }
+        #expect(byMbid.path == "/api/v1/requests/music/unrequest")
+        #expect(byMbid.body == ["musicBrainzId": "rg-1"])
+        let deezerOnly = MusicExternal(kind: "album", deezerId: 5, title: "Homework")
+        #expect(try await sent { try await $0.unrequestAlbum(deezerOnly) }.body == ["deezerId": 5])
+    }
+
+    @Test func lidarrRefusalsCarryTheDetail() async throws {
+        let (client, _) = stubbedClient(.init(status: 502, body: Data(#"{"title":"Bad Gateway","detail":"Lidarr isn't answering."}"#.utf8),
+                                              contentType: "application/problem+json"))
+        await #expect(throws: FlexarrClientError.http(status: 502, message: "Lidarr isn't answering.")) {
+            try await client.unfollowArtist(deezerId: 1)
+        }
+    }
+}

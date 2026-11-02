@@ -230,6 +230,13 @@ struct MusicRequestBody: Encodable, Equatable {
     var artistId: String? = nil
 }
 
+/// Who to stop following, or which album to stop wanting: by whichever id the page has.
+struct MusicUndoBody: Encodable, Equatable {
+    var artistId: String? = nil
+    var deezerId: Int? = nil
+    var musicBrainzId: String? = nil
+}
+
 // MARK: - Endpoints
 
 extension FlexarrClient {
@@ -276,5 +283,28 @@ extension FlexarrClient {
     /// Asks Lidarr for an album, or to follow an artist; the server remembers who asked so they hear when it's in.
     public func requestMusic(_ target: MusicRequestTarget) async throws {
         _ = try await send("POST", "requests/music", body: target.body)
+    }
+
+    /// Stops following an artist, for the whole household (Lidarr is shared): Lidarr stops looking for their new
+    /// releases, and a placeholder artist with no albums leaves the library. By the library artist's id, Deezer's or
+    /// MusicBrainz's. A 502 carries Lidarr's refusal in its detail. Absent from servers before music-polish (404).
+    public func unfollowArtist(libraryArtistId: String? = nil, deezerId: Int? = nil, musicBrainzId: String? = nil) async throws {
+        let body = MusicUndoBody(artistId: libraryArtistId, deezerId: deezerId, musicBrainzId: musicBrainzId)
+        _ = try await send("POST", "requests/music/unfollow", body: body)
+    }
+
+    /// Cancels an album asked for, for the whole household: Lidarr stops wanting it and drops its download. By its
+    /// MusicBrainz release group or Deezer's id. Absent from servers before music-polish (404).
+    public func unrequestAlbum(musicBrainzId: String? = nil, deezerId: Int? = nil) async throws {
+        _ = try await send("POST", "requests/music/unrequest", body: MusicUndoBody(deezerId: deezerId, musicBrainzId: musicBrainzId))
+    }
+
+    /// Cancels an album from a row or page: by its MusicBrainz release group when Lidarr listed it, else Deezer's id.
+    public func unrequestAlbum(_ album: MusicExternal) async throws {
+        if let mbid = album.musicBrainzId {
+            try await unrequestAlbum(musicBrainzId: mbid)
+        } else {
+            try await unrequestAlbum(deezerId: album.deezerId)
+        }
     }
 }

@@ -158,6 +158,46 @@ class MusicRequestsTest {
     }
 
     @Test
+    fun `unfollows an artist by library id, Deezer id or MusicBrainz id`() = runTest {
+        val client = client()
+        repeat(3) { server.enqueue(MockResponse.Builder().code(204).build()) }
+
+        client.unfollowArtist(artistId = "a1", deezerId = 27)
+        client.unfollowArtist(deezerId = 27)
+        client.unfollowArtist(musicBrainzId = "mb-1")
+        val sent = List(3) { server.takeRequest() }
+        assertTrue(sent.all { it.method == "POST" && it.target == "/api/v1/requests/music/unfollow" })
+        assertEquals(listOf("""{"artistId":"a1"}""", """{"deezerId":27}""", """{"musicBrainzId":"mb-1"}"""), sent.map { it.body?.utf8() })
+    }
+
+    @Test
+    fun `cancels an album's request by release group when known, else Deezer id`() = runTest {
+        val client = client()
+        repeat(2) { server.enqueue(MockResponse.Builder().code(204).build()) }
+
+        client.unrequestAlbum(MusicExternal("album", 302127, "Discovery", availability = Availability.Requested, musicBrainzId = "rg-1"))
+        client.unrequestAlbum(MusicExternal("album", 302127, "Discovery", availability = Availability.Requested))
+        val sent = List(2) { server.takeRequest() }
+        assertTrue(sent.all { it.method == "POST" && it.target == "/api/v1/requests/music/unrequest" })
+        assertEquals(listOf("""{"musicBrainzId":"rg-1"}""", """{"deezerId":302127}"""), sent.map { it.body?.utf8() })
+    }
+
+    @Test
+    fun `an undo Lidarr refuses says why`() = runTest {
+        server.enqueue(
+            MockResponse.Builder().code(502).addHeader("Content-Type", "application/problem+json")
+                .body("""{"title":"Bad Gateway","status":502,"detail":"Lidarr isn't answering."}""").build(),
+        )
+        try {
+            client().unrequestAlbum(MusicExternal("album", 1, "A", availability = Availability.Requested))
+            fail("expected a refusal")
+        } catch (e: FlexarrException.Http) {
+            assertEquals(502, e.status)
+            assertTrue(e.message!!.contains("Lidarr isn't answering."))
+        }
+    }
+
+    @Test
     fun `a refused request says why`() = runTest {
         server.enqueue(
             MockResponse.Builder().code(409).addHeader("Content-Type", "application/problem+json")
