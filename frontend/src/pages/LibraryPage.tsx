@@ -17,7 +17,7 @@ import { useWatchedChanges } from '../hooks/watched'
 import { BooksLibrary } from './BooksLibrary'
 import { LibraryRequested } from './LibraryRequested'
 import { PlaylistsPage } from './PlaylistsPage'
-import { AlphaPicker, AlphaRail, useLibraryGrid } from './libraryGrid'
+import { AlphaPicker, AlphaRail, ShowMore, useLibraryGrid } from './libraryGrid'
 
 const PAGE_SIZE = 200
 
@@ -348,7 +348,7 @@ function LibraryAll({ albums = false, genrePage = false }: { albums?: boolean; g
     const timer = setTimeout(() => setQuery(search.trim()), 250)
     return () => clearTimeout(timer)
   }, [search])
-  const { items, total, error, busy, jumping, grid, empty, small, grown, loadedCount, onGridClick, loadMore, jump, restart } = useLibraryGrid({
+  const { items, total, error, moreError, busy, jumping, grid, empty, small, grown, loadedCount, onGridClick, loadMore, jump, restart } = useLibraryGrid({
     snapshotKey,
     query,
     pageSize: PAGE_SIZE,
@@ -455,13 +455,7 @@ function LibraryAll({ albums = false, genrePage = false }: { albums?: boolean; g
         {letters && <AlphaRail jump={(l) => void jump(l)} jumping={jumping} empty={empty} />}
       </div>
 
-      {total !== undefined && items.length < total && (
-        <div className="load-more">
-          <AsyncButton className="button quiet" onClick={() => loadMore()} disabled={busy}>
-            Show {Math.min(PAGE_SIZE, total - items.length)} more
-          </AsyncButton>
-        </div>
-      )}
+      <ShowMore loaded={items.length} total={total} pageSize={PAGE_SIZE} busy={busy} error={moreError} onMore={() => void loadMore()} />
     </div>
   )
 }

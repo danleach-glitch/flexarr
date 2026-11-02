@@ -25,7 +25,7 @@ import { Row } from '../components/Row'
 import { ScanProgress } from '../components/ScanProgress'
 import { useApi } from '../hooks/useApi'
 import { useWatchedChanges } from '../hooks/watched'
-import { AlphaPicker, AlphaRail, useLibraryGrid } from './libraryGrid'
+import { AlphaPicker, AlphaRail, ShowMore, useLibraryGrid } from './libraryGrid'
 
 const PAGE_SIZE = 60
 
@@ -239,7 +239,7 @@ function AllBooks({ library, view }: { library: Library; view: 'all' | 'genre' }
     const timer = setTimeout(() => setQuery(search.trim()), 250)
     return () => clearTimeout(timer)
   }, [search])
-  const { items, total, error, busy, jumping, grid, empty, small, grown, loadedCount, onGridClick, loadMore, jump, restart } = useLibraryGrid({
+  const { items, total, error, moreError, busy, jumping, grid, empty, small, grown, loadedCount, onGridClick, loadMore, jump, restart } = useLibraryGrid({
     snapshotKey: `books-${view} ${library.id} ${key}`,
     query,
     pageSize: PAGE_SIZE,
@@ -314,13 +314,7 @@ function AllBooks({ library, view }: { library: Library; view: 'all' | 'genre' }
         </div>
         {letters && <AlphaRail jump={(l) => void jump(l)} jumping={jumping} empty={empty} />}
       </div>
-      {total !== undefined && items.length < total && (
-        <div className="load-more">
-          <AsyncButton className="button quiet" onClick={() => loadMore()} disabled={busy}>
-            Show {Math.min(PAGE_SIZE, total - items.length)} more
-          </AsyncButton>
-        </div>
-      )}
+      <ShowMore loaded={items.length} total={total} pageSize={PAGE_SIZE} busy={busy} error={moreError} onMore={() => void loadMore()} />
     </>
   )
 }
