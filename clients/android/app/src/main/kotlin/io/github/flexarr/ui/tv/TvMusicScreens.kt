@@ -54,6 +54,12 @@ import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.Library
 import io.github.flexarr.core.LibrarySort
 import io.github.flexarr.core.MediaKind
+import io.github.flexarr.core.MusicArtistExtras
+import io.github.flexarr.core.followLibraryArtist
+import io.github.flexarr.core.musicArtistExtras
+import io.github.flexarr.core.musicRequestStatus
+import io.github.flexarr.ui.music.MusicRequestState
+import io.github.flexarr.ui.music.icon
 import io.github.flexarr.core.artistName
 import io.github.flexarr.core.discs
 import io.github.flexarr.core.facts
@@ -310,6 +316,8 @@ private fun MusicHeader(
     onShuffle: () -> Unit,
     busy: Boolean = false,
     alignment: Alignment.Vertical = Alignment.Bottom,
+    /** After Play and Shuffle: an artist's Follow artist. */
+    extra: @Composable () -> Unit = {},
     art: @Composable () -> Unit,
     below: @Composable () -> Unit,
 ) {
@@ -323,6 +331,7 @@ private fun MusicHeader(
             Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(13.dp), verticalAlignment = Alignment.CenterVertically) {
                 TvActionButton("Play", onClick = onPlay, icon = Icons.Filled.PlayArrow, prominent = true, ambient = ambient, enabled = canPlay && !busy, modifier = Modifier.focusRequester(play))
                 TvActionButton("Shuffle", onClick = onShuffle, icon = Icons.Filled.Shuffle, ambient = ambient, enabled = canShuffle && !busy)
+                extra()
                 if (busy) CircularProgressIndicator(Modifier.size(20.dp), color = Flexarr.screen, strokeWidth = 2.dp)
             }
         }
@@ -339,6 +348,19 @@ fun TvArtistScreen(model: AppModel, id: String) {
     var queueing by remember { mutableStateOf(false) }
     val detail = (page.state as? Load.Loaded)?.value
     val ambient = detail?.item?.let { glowColor(it.accentColor) } ?: Flexarr.silver
+    // From outside the library, when this profile can request music: their albums the library lacks, artists like
+    // them, and whether Lidarr follows them. Anything failing leaves the page as it was.
+    var extras by remember(id) { mutableStateOf<MusicArtistExtras?>(null) }
+    var followedHere by remember(id) { mutableStateOf(false) }
+    LaunchedEffect(id, model.credentials) {
+        extras = try {
+            if (client.musicRequestStatus().configured) client.musicArtistExtras(id) else null
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            null
+        }
+    }
 
     RoomBackground(ambient = ambient, intensity = 0.4f) {
         when (val state = page.state) {
@@ -370,6 +392,29 @@ fun TvArtistScreen(model: AppModel, id: String) {
                             onShuffle = { playAll(shuffled = true) },
                             busy = queueing,
                             alignment = Alignment.CenterVertically,
+                            extra = {
+                                // Shown once it's known they aren't followed; one button throughout, so focus stays on it.
+                                if (extras?.followed == false) {
+                                    TvActionButton(
+                                        if (followedHere) "Following" else "Follow artist",
+                                        onClick = {
+                                            if (!followedHere) {
+                                                followedHere = true
+                                                navigator.watchlistChange("Couldn’t follow this artist") {
+                                                    try {
+                                                        client.followLibraryArtist(id)
+                                                    } catch (e: Exception) {
+                                                        followedHere = false
+                                                        throw e
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        icon = if (followedHere) MusicRequestState.Requested.icon else MusicRequestState.CanRequest.icon,
+                                        ambient = ambient,
+                                    )
+                                }
+                            },
                             art = { Box(Modifier.shadow(15.dp, CircleShape)) { TvSquareArtwork(item, 180.dp, circular = true) } },
                             below = {
                                 Row(horizontalArrangement = Arrangement.spacedBy(11.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -387,8 +432,15 @@ fun TvArtistScreen(model: AppModel, id: String) {
                     if (albums.isNotEmpty()) {
                         item(key = "albums-heading") { TvRowHeading("Albums", Modifier.padding(top = 14.dp)) }
                         gridRows(albums, key = "albums") { _, album -> TvAlbumCard(album, onClick = { navigator.open(album) }) }
-                    } else {
+                    } else if (extras?.missing.isNullOrEmpty()) {
                         item(key = "empty") { Box(Modifier.height(100.dp)) { TvStatusView("No albums yet.", empty = true) } }
+                    }
+                    extras?.missing?.takeIf { it.isNotEmpty() }?.let { missing ->
+                        item(key = "missing-heading") { TvRowHeading("Not in your library", Modifier.padding(top = 14.dp)) }
+                        requestableAlbumRows(model, missing, "missing")
+                    }
+                    extras?.similar?.takeIf { it.isNotEmpty() }?.let { similar ->
+                        item(key = "similar") { TvMusicExternalRow("Fans also like", similar) }
                     }
                 }
             }
