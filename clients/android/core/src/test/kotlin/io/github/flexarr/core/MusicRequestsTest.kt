@@ -44,6 +44,14 @@ class MusicRequestsTest {
     }
 
     @Test
+    fun `a server that answers the status with its web page or anything else has them off`() = runTest {
+        server.enqueue(MockResponse.Builder().addHeader("Content-Type", "text/html").body("<!doctype html><html></html>").build())
+        server.enqueue(json("""{"something":"else"}"""))
+        server.enqueue(json("not json"))
+        repeat(3) { assertEquals(MusicRequestStatus(configured = false, reachable = false), client().musicRequestStatus()) }
+    }
+
+    @Test
     fun `discover's rows have a shape and genres`() {
         val discover = decode<MusicDiscover>(
             """{"rows":[{"id":"like","title":"Like artists you play","shape":"artists","items":[

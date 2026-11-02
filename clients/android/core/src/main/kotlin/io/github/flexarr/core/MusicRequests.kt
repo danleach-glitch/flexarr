@@ -4,7 +4,7 @@ import kotlinx.serialization.Serializable
 
 // Music requests: artists and albums from outside the library (from Deezer, matched to MusicBrainz through Lidarr),
 // requesting an album and following an artist, as FlexarrKit's MusicRequests.swift. Everything here is absent from
-// servers before music requests, which answer the status with 404: off.
+// servers before music requests, which answer the status with their web page (or a 404): off.
 
 /** Whether music requests are on for this profile: a Lidarr is connected, and answered just now. */
 @Serializable
@@ -140,13 +140,22 @@ internal data class MusicRequestBody(
     val artistId: String? = null,
 )
 
-/** Whether this profile can request music. Servers before music requests answer 404: no. */
+/**
+ * Whether this profile can request music. Servers before music requests answer with their web page (200 text/html)
+ * or a 404, which read as off; so does any other answer that doesn't read as a status. Sign-in and network failures
+ * still throw.
+ */
 suspend fun FlexarrClient.musicRequestStatus(): MusicRequestStatus =
     try {
         get("requests/music/status")
     } catch (e: FlexarrException.Http) {
-        if (e.status == 404) MusicRequestStatus(configured = false, reachable = false) else throw e
+        if (e.status == 404) MusicRequestOff else throw e
+    } catch (_: FlexarrException.UnexpectedResponse) {
+        // An HTML page, or JSON that isn't a status.
+        MusicRequestOff
     }
+
+private val MusicRequestOff = MusicRequestStatus(configured = false, reachable = false)
 
 /** Discover's music rows (like artists played here, new from them, charts) and genre tiles, from Deezer. */
 suspend fun FlexarrClient.musicDiscover(): MusicDiscover = get("requests/music/discover")
