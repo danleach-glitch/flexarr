@@ -95,8 +95,14 @@ struct ShowGapsSection: View {
     private func seasonCard(_ season: MissingSeason) -> some View {
         let action = state(season)
         let width = Layout.posterWidth
+        let badge = status(action)
         // Always a button, whatever it can do: one that's disabled while it has focus leaves nothing focused.
-        return ArtworkButton(ambient: .silver, accessibilityText: season.title) {
+        // VoiceOver hears what the caption says, Request, Search or Requested among it, as the card is all it focuses.
+        return ArtworkButton(ambient: .silver,
+                             accessibilityText: [season.title, caption(season), badge?.title].compactMap(\.self)
+                                 .filter { !$0.isEmpty }.joined(separator: ", "),
+                             accessibilityHint: action == .requested && undoable(season) ? TitleWords.unrequestHint : nil,
+                             isSelected: action == .requested) {
             // Pressing it does what it says, as on Android TV: no dialog in between.
             guard !busy else { return }
             switch action {
@@ -127,7 +133,7 @@ struct ShowGapsSection: View {
                 Text(caption(season))
                     .font(.system(size: 21))
                     .foregroundStyle(Color.usher)
-                if let status = status(action) {
+                if let status = badge {
                     Label(status.title, systemImage: status.symbol)
                         .font(.system(size: 21, weight: .semibold))
                         .foregroundStyle(Color.screen)
@@ -135,6 +141,7 @@ struct ShowGapsSection: View {
             }
             .lineLimit(1)
             .frame(width: width, alignment: .leading)
+            .accessibilityHidden(true)
         }
     }
 
