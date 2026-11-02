@@ -9,6 +9,10 @@ struct ExternalAlbumView: View {
     let preview: MusicExternal
     @State private var detail: MusicAlbumDetail?
     @State private var error: String?
+    /// Focus starts on Request album, not on the tracks (which only take focus so the remote can scroll): the tracks
+    /// arrive with the details, and would otherwise take it from the header as they appear.
+    @Namespace private var page
+    @FocusState private var requestFocused: Bool
 
     private var album: MusicExternal { detail?.summary ?? preview }
 
@@ -32,6 +36,7 @@ struct ExternalAlbumView: View {
                 .padding(.bottom, 90)
             }
             .scrollClipDisabled()
+            .focusScope(page)
         }
         .task { await load() }
     }
@@ -55,6 +60,8 @@ struct ExternalAlbumView: View {
                 // can't be asked for has none, and focus goes to its artist or the tracks.
                 HStack(spacing: 26) {
                     MusicAlbumRequestButton(album: album, takesLinkFocus: true)
+                        .focused($requestFocused)
+                        .prefersDefaultFocus(true, in: page)
                     if let artist = album.artistPage {
                         Button { router.push(.musicArtist(artist)) } label: {
                             Text(artist.title)
@@ -127,8 +134,13 @@ struct ExternalAlbumView: View {
     private func load() async {
         guard let client = model.client, preview.hasPage else { return }
         do {
+            let first = detail == nil
             detail = try await client.musicAlbum(deezerId: preview.deezerId)
             error = nil
+            if first {
+                try? await Task.sleep(for: .milliseconds(100))
+                requestFocused = true
+            }
         } catch {
             self.error = ConnectionError(error).message
         }
