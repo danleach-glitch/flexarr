@@ -1,0 +1,153 @@
+{
+ "id": 730000661,
+ "title": "moisturizer",
+ "upc": "887828053063",
+ "link": "https://www.deezer.com/album/730000661",
+ "share": "https://www.deezer.com/album/730000661?utm_source=deezer&utm_content=album-730000661&utm_term=0_1793590847&utm_medium=web",
+ "cover": "https://api.deezer.com/album/730000661/image",
+ "cover_small": "https://cdn-images.dzcdn.net/images/cover/8a22859ecaf89fcb363298f165377b83/56x56-000000-80-0-0.jpg",
+ "cover_medium": "https://cdn-images.dzcdn.net/images/cover/8a22859ecaf89fcb363298f165377b83/250x250-000000-80-0-0.jpg",
+ "cover_big": "https://cdn-images.dzcdn.net/images/cover/8a22859ecaf89fcb363298f165377b83/500x500-000000-80-0-0.jpg",
+ "cover_xl": "https://cdn-images.dzcdn.net/images/cover/8a22859ecaf89fcb363298f165377b83/1000x1000-000000-80-0-0.jpg",
+ "md5_image": "8a22859ecaf89fcb363298f165377b83",
+ "genre_id": 85,
+ "genres": {
+  "data": [
+   {
+    "id": 85,
+    "name": "Alternative",
+    "picture": "https://api.deezer.com/genre/85/image",
+    "type": "genre"
+   }
+  ]
+ },
+ "label": "Domino Recording Co",
+ "nb_tracks": 12,
+ "duration": 2302,
+ "fans": 15673,
+ "release_date": "2025-07-11",
+ "record_type": "album",
+ "available": true,
+ "tracklist": "https://api.deezer.com/album/730000661/tracks",
+ "explicit_lyrics": true,
+ "explicit_content_lyrics": 4,
+ "explicit_content_cover": 2,
+ "artist": {
+  "id": 134334152,
+  "name": "Wet Leg",
+  "picture": "https://api.deezer.com/artist/134334152/image",
+  "picture_small": "https://cdn-images.dzcdn.net/images/artist/6df9f45478aa0c897b028e06eb189159/56x56-000000-80-0-0.jpg",
+  "picture_medium": "https://cdn-images.dzcdn.net/images/artist/6df9f45478aa0c897b028e06eb189159/250x250-000000-80-0-0.jpg",
+  "picture_big": "https://cdn-images.dzcdn.net/images/artist/6df9f45478aa0c897b028e06eb189159/500x500-000000-80-0-0.jpg",
+  "picture_xl": "https://cdn-images.dzcdn.net/images/artist/6df9f45478aa0c897b028e06eb189159/1000x1000-000000-80-0-0.jpg",
+  "tracklist": "https://api.deezer.com/artist/134334152/top?limit=50",
+  "type": "artist"
+ },
+ "type": "album",
+ "tracks": {
+  "data": [
+   {
+    "id": 3285890701,
+    "readable": true,
+    "title": "CPR",
+    "title_short": "CPR",
+    "title_version": "",
+    "link": "https://www.deezer.com/track/3285890701",
+    "duration": 170,
+    "rank": 531726,
+    "explicit_lyrics": false,
+    "explicit_content_lyrics": 0,
+    "explicit_content_cover": 2,
+    "preview": "https://cdnt-preview.dzcdn.net/api/1/1/b/a/0/0/ba0dcdb2abc0c4f316f26934b40e199d.mp3?hdnea=exp=1793591747~acl=/api/1/1/b/a/0/0/ba0dcdb2abc0c4f316f26934b40e199d.mp3*~data=user_id=0,application_id=42~hmac=5d68283060e6b915832e96d57d5eb36a96428c5fb278326d6c9110e52cf1c28f",
+    "md5_image": "8a22859ecaf89fcb363298f165377b83",
+    "artist": {
+     "id": 134334152,
+     "name": "Wet Leg",
+     "tracklist": "https://api.deezer.com/artist/134334152/top?limit=50",
+     "type": "artist"
+    },
+    "album": {
+     "id": 730000661,
+     "title": "moisturizer",
+     "cover": "https://api.deezer.com/album/730000661/image",
+     "cover_small": "https://cdn-images.dzcdn.net/images/cover/8a22859ecaf89fcb363298f165377b83/56x56-000000-80-0-0.jpg",
+     "cover_medium": "https://cdn-images.dzcdn.net/images/cover/8a22859ecaf89fcb363298f165377b83/250x250-000000-80-0-0.jpg",
+     "cover_big": "https://cdn-images.dzcdn.net/images/cover/8a22859ecaf89fcb363298f165377b83/500x500-000000-80-0-0.jpg",
+     "cover_xl": "https://cdn-images.dzcdn.net/images/cover/8a22859ecaf89fcb363298f165377b83/1000x1000-000000-80-0-0.jpg",
+     "md5_image": "8a22859ecaf89fcb363298f165377b83",
+     "tracklist": "https://api.deezer.com/album/730000661/tracks",
+     "type": "album"
+    },
+    "type": "track"
+   },
+   {
+    "id": 3285890711,
+    "readable": true,
+    "title": "liquidize",
+    "title_short": "liquidize",
+    "title_version": "",
+    "link": "https://www.deezer.com/track/3285890711",
+    "duration": 147,
+    "rank": 449280,
+    "explicit_lyrics": true,
+    "explicit_content_lyrics": 1,
+    "explicit_content_cover": 2,
+    "preview": "https://cdnt-preview.dzcdn.net/api/1/1/5/9/8/0/598a451be78106529c206483fa18f927.mp3?hdnea=exp=1793591747~acl=/api/1/1/5/9/8/0/598a451be78106529c206483fa18f927.mp3*~data=user_id=0,application_id=42~hmac=89b5068b6dca6482b45f0891e268d04d5231ff056c04dbc9c3b034a3af9de9e6",
+    "md5_image": "8a22859ecaf89fcb363298f165377b83",
+    "artist": {
+     "id": 134334152,
+     "name": "Wet Leg",
+     "tracklist": "https://api.deezer.com/artist/134334152/top?limit=50",
+     "type": "artist"
+    },
+    "album": {
+     "id": 730000661,
+     "title": "moisturizer",
+     "cover": "https://api.deezer.com/album/730000661/image",
+     "cover_small": "https://cdn-images.dzcdn.net/images/cover/8a22859ecaf89fcb363298f165377b83/56x56-000000-80-0-0.jpg",
+     "cover_medium": "https://cdn-images.dzcdn.net/images/cover/8a22859ecaf89fcb363298f165377b83/250x250-000000-80-0-0.jpg",
+     "cover_big": "https://cdn-images.dzcdn.net/images/cover/8a22859ecaf89fcb363298f165377b83/500x500-000000-80-0-0.jpg",
+     "cover_xl": "https://cdn-images.dzcdn.net/images/cover/8a22859ecaf89fcb363298f165377b83/1000x1000-000000-80-0-0.jpg",
+     "md5_image": "8a22859ecaf89fcb363298f165377b83",
+     "tracklist": "https://api.deezer.com/album/730000661/tracks",
+     "type": "album"
+    },
+    "type": "track"
+   },
+   {
+    "id": 3285890721,
+    "readable": true,
+    "title": "catch these fists",
+    "title_short": "catch these fists",
+    "title_version": "",
+    "link": "https://www.deezer.com/track/3285890721",
+    "duration": 188,
+    "rank": 555269,
+    "explicit_lyrics": false,
+    "explicit_content_lyrics": 0,
+    "explicit_content_cover": 2,
+    "preview": "https://cdnt-preview.dzcdn.net/api/1/1/b/b/f/0/bbf511520b139ee7ba3dc41a79b9f228.mp3?hdnea=exp=1793591747~acl=/api/1/1/b/b/f/0/bbf511520b139ee7ba3dc41a79b9f228.mp3*~data=user_id=0,application_id=42~hmac=be3242cb02799c3df4f93a5ba2de623223d01548030f0cc26c224977b50038a0",
+    "md5_image": "8a22859ecaf89fcb363298f165377b83",
+    "artist": {
+     "id": 134334152,
+     "name": "Wet Leg",
+     "tracklist": "https://api.deezer.com/artist/134334152/top?limit=50",
+     "type": "artist"
+    },
+    "album": {
+     "id": 730000661,
+     "title": "moisturizer",
+     "cover": "https://api.deezer.com/album/730000661/image",
+     "cover_small": "https://cdn-images.dzcdn.net/images/cover/8a22859ecaf89fcb363298f165377b83/56x56-000000-80-0-0.jpg",
+     "cover_medium": "https://cdn-images.dzcdn.net/images/cover/8a22859ecaf89fcb363298f165377b83/250x250-000000-80-0-0.jpg",
+     "cover_big": "https://cdn-images.dzcdn.net/images/cover/8a22859ecaf89fcb363298f165377b83/500x500-000000-80-0-0.jpg",
+     "cover_xl": "https://cdn-images.dzcdn.net/images/cover/8a22859ecaf89fcb363298f165377b83/1000x1000-000000-80-0-0.jpg",
+     "md5_image": "8a22859ecaf89fcb363298f165377b83",
+     "tracklist": "https://api.deezer.com/album/730000661/tracks",
+     "type": "album"
+    },
+    "type": "track"
+   }
+  ]
+ }
+}

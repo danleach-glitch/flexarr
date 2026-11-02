@@ -29,6 +29,9 @@ public static partial class ArtworkUrl
         // no file name, only the volume's id (see GoogleCover).
         ["assets.hardcover.app"] = ["/"],
         ["books.google.com"] = ["/books/content"],
+        // Deezer's artist photos, album covers and genre pictures (music discovery).
+        ["cdn-images.dzcdn.net"] = ["/images/artist/", "/images/cover/", "/images/misc/"],
+        ["e-cdns-images.dzcdn.net"] = ["/images/artist/", "/images/cover/", "/images/misc/"],
     };
 
     /// <summary>

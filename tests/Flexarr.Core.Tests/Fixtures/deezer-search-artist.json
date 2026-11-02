@@ -1,0 +1,51 @@
+{
+ "data": [
+  {
+   "id": 134334152,
+   "name": "Wet Leg",
+   "link": "https://www.deezer.com/artist/134334152",
+   "picture": "https://api.deezer.com/artist/134334152/image",
+   "picture_small": "https://cdn-images.dzcdn.net/images/artist/6df9f45478aa0c897b028e06eb189159/56x56-000000-80-0-0.jpg",
+   "picture_medium": "https://cdn-images.dzcdn.net/images/artist/6df9f45478aa0c897b028e06eb189159/250x250-000000-80-0-0.jpg",
+   "picture_big": "https://cdn-images.dzcdn.net/images/artist/6df9f45478aa0c897b028e06eb189159/500x500-000000-80-0-0.jpg",
+   "picture_xl": "https://cdn-images.dzcdn.net/images/artist/6df9f45478aa0c897b028e06eb189159/1000x1000-000000-80-0-0.jpg",
+   "nb_album": 14,
+   "nb_fan": 63124,
+   "radio": true,
+   "tracklist": "https://api.deezer.com/artist/134334152/top?limit=50",
+   "type": "artist"
+  },
+  {
+   "id": 4611283,
+   "name": "Wesley Safad\u00e3o",
+   "link": "https://www.deezer.com/artist/4611283",
+   "picture": "https://api.deezer.com/artist/4611283/image",
+   "picture_small": "https://cdn-images.dzcdn.net/images/artist/9664c1225a643b51ab4070800c1f3076/56x56-000000-80-0-0.jpg",
+   "picture_medium": "https://cdn-images.dzcdn.net/images/artist/9664c1225a643b51ab4070800c1f3076/250x250-000000-80-0-0.jpg",
+   "picture_big": "https://cdn-images.dzcdn.net/images/artist/9664c1225a643b51ab4070800c1f3076/500x500-000000-80-0-0.jpg",
+   "picture_xl": "https://cdn-images.dzcdn.net/images/artist/9664c1225a643b51ab4070800c1f3076/1000x1000-000000-80-0-0.jpg",
+   "nb_album": 233,
+   "nb_fan": 5027776,
+   "radio": true,
+   "tracklist": "https://api.deezer.com/artist/4611283/top?limit=50",
+   "type": "artist"
+  },
+  {
+   "id": 7879126,
+   "name": "Weslei Santos",
+   "link": "https://www.deezer.com/artist/7879126",
+   "picture": "https://api.deezer.com/artist/7879126/image",
+   "picture_small": "https://cdn-images.dzcdn.net/images/artist/4a6bf109992d3af4308a8312824a1385/56x56-000000-80-0-0.jpg",
+   "picture_medium": "https://cdn-images.dzcdn.net/images/artist/4a6bf109992d3af4308a8312824a1385/250x250-000000-80-0-0.jpg",
+   "picture_big": "https://cdn-images.dzcdn.net/images/artist/4a6bf109992d3af4308a8312824a1385/500x500-000000-80-0-0.jpg",
+   "picture_xl": "https://cdn-images.dzcdn.net/images/artist/4a6bf109992d3af4308a8312824a1385/1000x1000-000000-80-0-0.jpg",
+   "nb_album": 46,
+   "nb_fan": 55849,
+   "radio": true,
+   "tracklist": "https://api.deezer.com/artist/7879126/top?limit=50",
+   "type": "artist"
+  }
+ ],
+ "total": 28,
+ "next": "https://api.deezer.com/search/artist?q=wet%20leg&limit=3&index=3"
+}
