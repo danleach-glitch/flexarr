@@ -1,18 +1,22 @@
 import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
-import { getExternalDiscover, getGenreItems, getGenres, imageUrl, searchEverything } from '../api/client'
+import { getExternalDiscover, getGenreItems, getGenres, getMusicRequestStatus, imageUrl, searchEverything } from '../api/client'
 import { ExternalCard } from '../components/ExternalCard'
 import { Row } from '../components/Row'
 import { PosterCard } from '../components/Cards'
 import { useApi } from '../hooks/useApi'
+import { DiscoverSwitch, MusicDiscover, MusicGenrePage, MusicSearchResults } from './DiscoverMusic'
 
 export function DiscoverPage() {
   const [params, setParams] = useSearchParams()
+  const music = params.get('view') === 'music'
   const genre = params.get('genre')
   const kind = params.get('kind') ?? ''
-  const genres = useApi(getGenres, [])
-  const external = useApi(getExternalDiscover, [])
-  const items = useApi((signal) => (genre ? getGenreItems(genre, kind || undefined, signal) : Promise.resolve(undefined)), [genre, kind])
+  const musicStatus = useApi(getMusicRequestStatus, [])
+  const offersMusic = musicStatus.data?.configured === true
+  const genres = useApi((signal) => (music ? Promise.resolve(undefined) : getGenres(signal)), [music])
+  const external = useApi((signal) => (music ? Promise.resolve(undefined) : getExternalDiscover(signal)), [music])
+  const items = useApi((signal) => (genre && !music ? getGenreItems(genre, kind || undefined, signal) : Promise.resolve(undefined)), [genre, kind, music])
 
   // Search goes beyond the library: anything on TMDB, so something new can be found and requested from here.
   const query = params.get('q') ?? ''
@@ -21,11 +25,13 @@ export function DiscoverPage() {
   useEffect(() => {
     const term = typed.trim().length >= 2 ? typed.trim() : ''
     const timer = setTimeout(() => {
-      if (term !== query) setParams(term ? { q: term } : {}, { replace: true })
+      if (term !== query) setParams({ ...(music ? { view: 'music' } : {}), ...(term ? { q: term } : {}) }, { replace: true })
     }, 350)
     return () => clearTimeout(timer)
-  }, [typed, query, setParams])
-  const results = useApi((signal) => (query ? searchEverything(query, signal) : Promise.resolve(undefined)), [query])
+  }, [typed, query, setParams, music])
+  const results = useApi((signal) => (query && !music ? searchEverything(query, signal) : Promise.resolve(undefined)), [query, music])
+
+  if (music && genre) return <MusicGenrePage id={genre} />
 
   if (genre) {
     return (
@@ -59,16 +65,24 @@ export function DiscoverPage() {
     )
   }
 
+  const placeholder = music ? 'Search for any artist or album' : 'Search for any movie or show'
   const searchBox = (
-    <input
-      type="search"
-      className="discover-search"
-      placeholder="Search for any movie or show"
-      aria-label="Search for any movie or show"
-      value={typed}
-      onChange={(e) => setTyped(e.target.value)}
-    />
+    <input type="search" className="discover-search" placeholder={placeholder} aria-label={placeholder} value={typed} onChange={(e) => setTyped(e.target.value)} />
   )
+  const switcher = offersMusic && <DiscoverSwitch music={music} />
+
+  if (music) {
+    return (
+      <div className="discover-page">
+        <header className="library-header">
+          <h1>Discover</h1>
+          {searchBox}
+        </header>
+        {switcher}
+        {query ? <MusicSearchResults query={query} /> : <MusicDiscover />}
+      </div>
+    )
+  }
 
   if (query) {
     return (
@@ -77,6 +91,7 @@ export function DiscoverPage() {
           <h1>Discover</h1>
           {searchBox}
         </header>
+        {switcher}
         {results.error && <p className="error">{results.error.message}</p>}
         {results.loading && !results.data && <p className="muted">Searching…</p>}
         {results.data && results.data.length === 0 && <p className="muted">Nothing found for “{query}”. Try a different spelling, or the original title.</p>}
@@ -121,6 +136,7 @@ export function DiscoverPage() {
         <h1>Discover</h1>
         {searchBox}
       </header>
+      {switcher}
       {external.data && external.data.length > 0 && (
         <div className="discover-external">
           {external.data.map((row) => (
