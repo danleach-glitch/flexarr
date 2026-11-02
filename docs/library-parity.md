@@ -1,7 +1,7 @@
 # Library parity: Movies, TV shows, Music, Audiobooks
 
 How the four main kinds of library compare, in the server and in every app, as of 2 November 2026 (after the music
-work in #271–#276 and the first two batches of fixes from this page). Work often goes deep on one kind of library at a time; this page says where one kind is now ahead
+work in #271–#276 and the first three batches of fixes from this page). Work often goes deep on one kind of library at a time; this page says where one kind is now ahead
 of the others, so the next brief can carry the idea across, and where the same idea looks or reads differently.
 
 It was mapped from the code, not by using the apps, so a mark can be wrong in a corner. Check before building on one.
@@ -45,7 +45,7 @@ Apps: **W** web, **i** iPhone/iPad, **tv** Apple TV, **A** Android phone, **ATV*
 | | Movie / show / episode | Artist / album | Book / series / author |
 | --- | --- | --- | --- |
 | Shared button model | ✅ `DetailActions` (FlexarrKit, Android core) | ✅ `MusicActions`, artists and albums | ✅ `BookActions`: Play, Start over, Finished, Download (phones), ⋯ |
-| ⋯ menu | ✅ every app | 🟡 W only (Play next, Add to queue, Add to playlist, Delete); `hasMenu`/`canDelete` never set in the apps | 🟡 W only (Edit, chapters, Fix match, collections…) |
+| ⋯ menu | ✅ every app | ✅ album and artist pages: Play next, Add to queue, Add to playlist (W, phones); Delete W only | 🟡 W only (Edit, chapters, Fix match, collections…); the apps have nothing to put in one yet |
 | IMDb / Rotten Tomatoes | ✅ | — | — |
 | People | cast and crew → person pages with bios | 🟡 artist bio text only; artists aren't people | ✅ author cards with photo and bio, narrators |
 | Similar | *More like this* (not episodes; no Seerr needed) | *Fans also like*, artists only, needs Lidarr; ❌ albums have no *More by* | *More in series*, *More by author*, *Read by* (❌ *Read by* on tv) |
@@ -88,7 +88,7 @@ Apps: **W** web, **i** iPhone/iPad, **tv** Apple TV, **A** Android phone, **ATV*
 | --- | --- | --- | --- | --- |
 | Watchlist | ✅ | ✅ | ❌ (Follow is the nearest) | ❌ |
 | Collections | ✅ W only | ✅ W only | ❌ | 🟡 W only |
-| Playlists | ❌ | ❌ | ✅ W; 🟡 apps play them but can't make one or add to one | ❌ |
+| Playlists | ❌ | ❌ | ✅ W; ✅ phones add to one or start one; 🟡 apps can't rename, reorder or delete; TVs only play them | ❌ |
 | Favourites | ❌ (only Live TV channels) | ❌ | ❌ | ❌ |
 
 ## Looking after a library (main profile, web)
@@ -127,7 +127,7 @@ Apps: **W** web, **i** iPhone/iPad, **tv** Apple TV, **A** Android phone, **ATV*
 
 | | Movies / TV | Music | Audiobooks |
 | --- | --- | --- | --- |
-| Press-and-hold / right-click menu | ✅ every app | ❌ album, artist, track and playlist cards in every app (W: albums only) | ✅ |
+| Press-and-hold / right-click menu | ✅ every app | ✅ apps: album, artist, track and playlist cards and tracklist rows (`MusicMenu`); 🟡 W: albums and track rows only; mix cards have none | ✅ |
 | Play button on the card (W) | ❌ | ✅ | ✅ |
 | Watched tick, progress bar | ✅ | — | ✅ |
 | Downloaded mark | ✅ bottom-right (phones) | ✅ bottom-right | ✅ bottom-right |
@@ -140,8 +140,7 @@ buttons with undo, greyed when the service is down, *Can't request* reasons, a R
 *Not in your library* on the parent page (missing seasons for a show, missing books in a series); Follow with
 new-release notices; the card's play button on the web.
 
-**Movies and TV have, the others could take:** a ⋯ menu and press-and-hold menus on every card (music has none in the
-apps); See all on every row; Top 10, genre rows and Coming soon (Lidarr's calendar for music); Fix match and library
+**Movies and TV have, the others could take:** See all on every row; Top 10, genre rows and Coming soon (Lidarr's calendar for music); Fix match and library
 health for music; the opens-on setting for music on Android TV; A–Z, search box and scroll restore for books;
 Top Shelf, Siri and CarPlay for the kinds missing them.
 
