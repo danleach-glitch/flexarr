@@ -45,9 +45,9 @@ public static partial class DeleteEndpoints
                 return Results.NotFound();
             }
 
-            if (item.Kind is not (MediaKind.Movie or MediaKind.Series or MediaKind.Episode or MediaKind.Audiobook))
+            if (item.Kind is not (MediaKind.Movie or MediaKind.Series or MediaKind.Episode or MediaKind.Audiobook or MediaKind.Album or MediaKind.Artist))
             {
-                return Results.Problem("Only movies, shows, episodes and audiobooks can be deleted.", statusCode: 400);
+                return Results.Problem("Only movies, shows, episodes, audiobooks, albums and artists can be deleted.", statusCode: 400);
             }
 
             if (item.Kind == MediaKind.Audiobook)
@@ -59,6 +59,7 @@ public static partial class DeleteEndpoints
             }
 
             var (instance, managedId) = Manager(item, options.CurrentValue);
+            var keepArtist = false;
             if (instance is null || managedId is not { } arrId)
             {
                 return await DeleteFromDiskAsync(db, item, logs.CreateLogger("Flexarr.Delete"), ct);
@@ -73,6 +74,20 @@ public static partial class DeleteEndpoints
                         break;
                     case MediaKind.Series:
                         await arr.DeleteAsync(instance, $"series/{arrId}?deleteFiles=true&addImportListExclusion=false", ct);
+                        break;
+                    case MediaKind.Artist:
+                        await arr.DeleteAsync(instance, $"artist/{arrId}?deleteFiles=true&addImportListExclusion=false", ct);
+                        break;
+                    case MediaKind.Album:
+                        // Unmonitored rather than removed, or Lidarr would download it again (or add it back on its
+                        // next refresh); it stays requestable.
+                        await arr.SetAlbumsMonitoredAsync(instance, [arrId], monitored: false, ct);
+                        foreach (var file in await arr.GetAlbumTrackFilesAsync(instance, arrId, ct))
+                        {
+                            await arr.DeleteAsync(instance, $"trackfile/{file.Id}", ct);
+                        }
+
+                        keepArtist = await FollowedAsync(arr, instance, item.Parent, ct);
                         break;
                     default:
                         // Unmonitor first, or Sonarr would download the episode again.
@@ -91,7 +106,7 @@ public static partial class DeleteEndpoints
                 return Results.Problem($"{instance.Name} didn't delete it ({(int?)ex.StatusCode ?? 0}). Nothing was removed from Flexarr.", statusCode: 502);
             }
 
-            await RemoveFromLibraryAsync(db, item, ct);
+            await RemoveFromLibraryAsync(db, item, keepArtist, ct);
             LogDeleted(logs.CreateLogger("Flexarr.Delete"), item.Kind, Name(item), instance.Name);
             return Results.NoContent();
         }).WithTags("Items").RequireAuthorization(FlexarrClaims.MainProfilePolicy);
@@ -103,7 +118,7 @@ public static partial class DeleteEndpoints
     private static (ArrInstance? Instance, int? ArrId) Manager(MediaItem item, FlexarrOptions options)
     {
         var source = item.Kind == MediaKind.Episode ? item.Parent?.Parent?.MetadataSource ?? item.MetadataSource : item.MetadataSource;
-        var kind = item.Kind == MediaKind.Movie ? ArrKind.Radarr : ArrKind.Sonarr;
+        var kind = item.Kind switch { MediaKind.Movie => ArrKind.Radarr, MediaKind.Album or MediaKind.Artist => ArrKind.Lidarr, _ => ArrKind.Sonarr };
         var instance = options.Arr.FirstOrDefault(a => a.Name == source && a.Kind == kind);
         return instance is not null && item.ArrId is { } arrId ? (instance, arrId) : (null, null);
     }
@@ -140,7 +155,7 @@ public static partial class DeleteEndpoints
             RemoveEmptyFolders(folder, roots);
         }
 
-        await RemoveFromLibraryAsync(db, item, ct);
+        await RemoveFromLibraryAsync(db, item, keepArtist: false, ct);
         LogDeletedFromDisk(logger, item.Kind, Name(item), files.Count);
         return Results.NoContent();
     }
@@ -173,7 +188,26 @@ public static partial class DeleteEndpoints
         }
     }
 
-    private static async Task RemoveFromLibraryAsync(FlexarrDbContext db, MediaItem item, CancellationToken ct)
+    /// <summary>Whether Lidarr follows the album's artist, so an album delete that leaves them empty keeps them (as a placeholder).</summary>
+    private static async Task<bool> FollowedAsync(ArrClient arr, ArrInstance lidarr, MediaItem? artist, CancellationToken ct)
+    {
+        if (artist?.ArrId is not { } artistId || artist.MetadataSource != lidarr.Name)
+        {
+            return false;
+        }
+
+        try
+        {
+            return (await arr.GetArtistsAsync(lidarr, ct)).FirstOrDefault(a => a.Id == artistId) is { } found && MusicRequests.MusicMatcher.IsFollowed(found);
+        }
+        catch (HttpRequestException)
+        {
+            return false;
+        }
+    }
+
+    /// <param name="keepArtist">An album's artist, left with no albums, stays as a placeholder (they're followed).</param>
+    private static async Task RemoveFromLibraryAsync(FlexarrDbContext db, MediaItem item, bool keepArtist, CancellationToken ct)
     {
         // Seasons and episodes go with their show (cascade); an emptied season goes too. Emptied for good, that is:
         // episodes briefly missing from disk (mid-copy, say) still count, or they'd go too, with their watch history.
@@ -182,6 +216,18 @@ public static partial class DeleteEndpoints
             && !await db.MediaItems.IgnoreQueryFilters().AnyAsync(i => i.ParentId == seasonId && i.LibraryId == item.LibraryId, ct))
         {
             await db.MediaItems.Where(i => i.Id == seasonId).ExecuteDeleteAsync(ct);
+        }
+
+        if (item.Kind is MediaKind.Album or MediaKind.Artist)
+        {
+            if (item.Kind == MediaKind.Album && item.ParentId is { } artistId
+                && !await db.MediaItems.IgnoreQueryFilters().AnyAsync(i => i.ParentId == artistId && i.LibraryId == item.LibraryId, ct))
+            {
+                var emptied = db.MediaItems.IgnoreQueryFilters().Where(i => i.Id == artistId);
+                await (keepArtist ? emptied.ExecuteUpdateAsync(u => u.SetProperty(i => i.Placeholder, true), ct) : emptied.ExecuteDeleteAsync(ct));
+            }
+
+            MusicRequests.MusicMatcher.ForgetLibrary();
         }
     }
 
