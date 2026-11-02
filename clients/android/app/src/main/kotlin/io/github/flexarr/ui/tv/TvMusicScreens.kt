@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -61,6 +62,8 @@ import androidx.compose.ui.semantics.hideFromAccessibility
 import androidx.compose.ui.semantics.semantics
 import io.github.flexarr.core.musicArtistExtras
 import io.github.flexarr.ui.music.LidarrNotAnswering
+import io.github.flexarr.ui.music.LocalMusicPaused
+import io.github.flexarr.ui.music.lidarrSilentHere
 import io.github.flexarr.ui.music.followState
 import io.github.flexarr.ui.music.libraryArtistKeys
 import io.github.flexarr.core.artistName
@@ -146,7 +149,8 @@ fun TvMusicLibraryScreen(
     RefreshWhenStale(loadedAt) { attempt++ }
 
     // Again after playback too, so the hero's album resumes from where it's got to.
-    LaunchedEffect(libraryId, attempt, model.watchStateVersion) {
+    // And when an artist has left the library from here (a placeholder unfollowed), so they don't stay in the row.
+    LaunchedEffect(libraryId, attempt, model.watchStateVersion, model.musicArtistsVersion) {
         loading = true
         try {
             coroutineScope {
@@ -416,7 +420,8 @@ fun TvArtistScreen(model: AppModel, id: String) {
                     }
                 }
 
-                LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 65.dp, bottom = 45.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                // Lidarr didn't answer for this page: Follow and the album chips wait, and the page says so.
+                CompositionLocalProvider(LocalMusicPaused provides (extras?.lidarrPaused == true)) { LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 65.dp, bottom = 45.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     item(key = "header") {
                         Box(Modifier.focusMemory(focus, "header")) { MusicHeader(
                             title = item.title,
@@ -448,7 +453,12 @@ fun TvArtistScreen(model: AppModel, id: String) {
                                         ambient = ambient,
                                         request = { it.followLibraryArtist(id) },
                                         undo = { it.unfollowArtist(artistId = id) },
-                                        onUndone = { if (albums.isEmpty()) gone = true },
+                                        onUndone = {
+                                            if (albums.isEmpty()) {
+                                                model.musicArtistLeft()
+                                                gone = true
+                                            }
+                                        },
                                     )
                                 }
                             },
@@ -463,7 +473,7 @@ fun TvArtistScreen(model: AppModel, id: String) {
                                 state.value.overview?.takeIf { it.isNotEmpty() }?.let {
                                     Text(it, fontSize = 13.sp, lineHeight = 18.sp, color = Flexarr.screen.copy(alpha = 0.88f), maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 500.dp))
                                 }
-                                if (extras != null && model.musicUnreachable) Text(LidarrNotAnswering, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher)
+                                if (extras != null && model.lidarrSilentHere) Text(LidarrNotAnswering, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher)
                             },
                         ) }
                     }
@@ -480,7 +490,7 @@ fun TvArtistScreen(model: AppModel, id: String) {
                     extras?.similar?.takeIf { it.isNotEmpty() }?.let { similar ->
                         item(key = "similar") { TvMusicExternalRow("Fans also like", similar, cardModifier = { Modifier.focusMemory(focus, "similar/${it.id}") }) }
                     }
-                }
+                } }
             }
             is Load.Failed -> TvStatusView(state.message, retry = page.retry)
             Load.Loading -> TvStatusView()

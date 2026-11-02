@@ -115,6 +115,23 @@ class MusicRequestsTest {
     }
 
     @Test
+    fun `a page Lidarr didn't answer for is paused, and an older server's isn't`() {
+        val artist = """{"deezerId":27,"name":"Daft Punk","albums":[],"similar":[],"followed":false,"availability":"None"}"""
+        val album = """{"deezerId":1,"title":"A","artist":"B","genres":[],"tracks":[],"durationSeconds":0,"availability":"None"}"""
+        val extras = """{"missing":[],"similar":[],"followed":false}"""
+        // Before 0.59: absent, so nothing is paused.
+        assertNull(decode<MusicArtistDetail>(artist).lidarrAnswered)
+        assertFalse(decode<MusicArtistDetail>(artist).lidarrPaused)
+        assertFalse(decode<MusicAlbumDetail>(album).lidarrPaused)
+        assertFalse(decode<MusicArtistExtras>(extras).lidarrPaused)
+        fun answered(json: String, answered: Boolean) = json.dropLast(1) + ""","lidarrAnswered":$answered}"""
+        assertTrue(decode<MusicArtistDetail>(answered(artist, false)).lidarrPaused)
+        assertTrue(decode<MusicAlbumDetail>(answered(album, false)).lidarrPaused)
+        assertTrue(decode<MusicArtistExtras>(answered(extras, false)).lidarrPaused)
+        assertFalse(decode<MusicArtistExtras>(answered(extras, true)).lidarrPaused)
+    }
+
+    @Test
     fun `fetches the outside pages and a library artist's extras`() = runTest {
         val client = client()
         server.enqueue(json("""{"artists":[{"kind":"artist","deezerId":27,"title":"Daft Punk","availability":"None"}],"albums":[]}"""))
@@ -214,17 +231,32 @@ class MusicRequestsTest {
     }
 
     @Test
+    fun `an undo the server can't find says the server's words, not to update it`() = runTest {
+        server.enqueue(
+            MockResponse.Builder().code(404).addHeader("Content-Type", "application/problem+json")
+                .body("""{"title":"Not Found","status":404,"detail":"Lidarr isn't following this artist."}""").build(),
+        )
+        try {
+            client().unfollowArtist(deezerId = 27)
+            fail("expected a 404")
+        } catch (e: FlexarrException.Http) {
+            assertEquals(404, e.status)
+            assertEquals("Lidarr isn't following this artist.", e.message)
+        }
+    }
+
+    @Test
     fun `a guest's undo says the server's words`() = runTest {
         server.enqueue(
             MockResponse.Builder().code(403).addHeader("Content-Type", "application/problem+json")
-                .body("""{"title":"Forbidden","status":403,"detail":"Ask your host to stop following them."}""").build(),
+                .body("""{"title":"Forbidden","status":403,"detail":"Guests can't undo music requests."}""").build(),
         )
         try {
             client().unfollowArtist(artistId = "a1")
             fail("expected a refusal")
         } catch (e: FlexarrException.Http) {
             assertEquals(403, e.status)
-            assertTrue(e.message!!.contains("Ask your host"))
+            assertEquals("Guests can't undo music requests.", e.message)
         }
     }
 

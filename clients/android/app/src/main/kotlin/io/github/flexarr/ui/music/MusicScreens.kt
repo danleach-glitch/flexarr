@@ -33,6 +33,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -252,7 +253,8 @@ fun ArtistScreen(model: AppModel, id: String) {
                     MusicActions.Input(MusicActions.Kind.ARTIST, hasMusic = albums.isNotEmpty(), canRequest = known != null, platform = MusicActions.Platform.PHONE, canRadio = true),
                 )
                 val followKeys = libraryArtistKeys(id, known?.deezerId)
-                LazyVerticalGrid(
+                // Lidarr didn't answer for this page: Follow and the album chips wait, and the page says so.
+                CompositionLocalProvider(LocalMusicPaused provides (known?.lidarrPaused == true)) { LazyVerticalGrid(
                     columns = GridCells.Adaptive(105.dp),
                     contentPadding = PaddingValues(start = Edge, end = Edge, bottom = 32.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -290,7 +292,14 @@ fun ArtistScreen(model: AppModel, id: String) {
                                         model, model.followState(followKeys, known.followed), isArtist = true, name = item.title, ambient = ambient,
                                         undoing = model.isUndoingMusic(followKeys),
                                         onRequest = { navigator.followLibraryArtist(model, id, known.deezerId) },
-                                        onUndo = { navigator.unfollowMusic(model, followKeys, onDone = { if (placeholder) gone = true }) { it.unfollowArtist(artistId = id) } },
+                                        onUndo = {
+                                            navigator.unfollowMusic(model, followKeys, onDone = {
+                                                if (placeholder) {
+                                                    model.musicArtistLeft()
+                                                    gone = true
+                                                }
+                                            }) { it.unfollowArtist(artistId = id) }
+                                        },
                                         labelled = MusicActions.Button.PLAY !in actions,
                                     )
                                 }
@@ -311,7 +320,7 @@ fun ArtistScreen(model: AppModel, id: String) {
                     extras?.similar?.takeIf { it.isNotEmpty() }?.let { similar ->
                         fullWidth { MusicExternalShelf(model, "Fans also like", similar, Modifier.bleed()) }
                     }
-                }
+                } }
             }
             is Load.Failed -> StatusView(state.message, page.retry)
             Load.Loading -> StatusView()

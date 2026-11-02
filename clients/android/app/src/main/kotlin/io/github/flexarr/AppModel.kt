@@ -551,6 +551,18 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         return true
     }
 
+    /**
+     * Bumped when an artist leaves the library from here (a placeholder unfollowed: the server takes them out), so the
+     * Artists lists load again rather than keep one that's gone.
+     */
+    var musicArtistsVersion by mutableIntStateOf(0)
+        private set
+
+    /** An artist left the library from here: the Artists lists load again ([musicArtistsVersion]). */
+    fun musicArtistLeft() {
+        musicArtistsVersion++
+    }
+
     /** Unfollows or unrequests on their way: the control stays Following or Requested, and waits, until they're done. */
     var musicUndoing: Set<String> by mutableStateOf(emptySet())
         private set

@@ -112,7 +112,15 @@ data class MusicArtistDetail(
     val followed: Boolean = false,
     val availability: Availability = Availability.Unknown,
     val libraryItemId: String? = null,
-)
+    /**
+     * False when Lidarr didn't answer, so whether they're followed (and their albums requested) couldn't be checked:
+     * the page's Follow and Request album wait. Absent from servers before 0.59.
+     */
+    val lidarrAnswered: Boolean? = null,
+) {
+    /** Lidarr didn't answer for this page: its Follow and Request album wait. */
+    val lidarrPaused: Boolean get() = lidarrAnswered == false
+}
 
 @Serializable
 data class MusicAlbumDetail(
@@ -128,7 +136,15 @@ data class MusicAlbumDetail(
     val durationSeconds: Int = 0,
     val availability: Availability = Availability.Unknown,
     val libraryItemId: String? = null,
+    /**
+     * False when Lidarr didn't answer, so whether it's requested couldn't be checked: the page's Request album waits.
+     * Absent from servers before 0.59.
+     */
+    val lidarrAnswered: Boolean? = null,
 ) {
+    /** Lidarr didn't answer for this page: its Request album waits. */
+    val lidarrPaused: Boolean get() = lidarrAnswered == false
+
     /** The album as a row knows it, for its request. */
     val summary: MusicExternal
         get() = MusicExternal("album", deezerId, title, artist, artistDeezerId, year, image, availability, libraryItemId, recordType)
@@ -142,7 +158,15 @@ data class MusicArtistExtras(
     val followed: Boolean = false,
     /** The artist on Deezer, for their outside page; null when Deezer doesn't know them. */
     val deezerId: Long? = null,
-)
+    /**
+     * False when Lidarr didn't answer, so whether they're followed (and their albums requested) couldn't be checked:
+     * the page's Follow and Request album wait. Absent from servers before 0.59.
+     */
+    val lidarrAnswered: Boolean? = null,
+) {
+    /** Lidarr didn't answer for this page: its Follow and Request album wait. */
+    val lidarrPaused: Boolean get() = lidarrAnswered == false
+}
 
 @Serializable
 internal data class MusicUnfollowBody(
@@ -230,8 +254,8 @@ suspend fun FlexarrClient.unfollowArtist(artistId: String? = null, deezerId: Lon
 
 /**
  * Cancels an album's request, for the whole household: Lidarr stops looking for it. By its release group when it's
- * known (Lidarr's own id for it), else its Deezer id. Absent from servers before 0.59, which answer 404: that throws
- * [UndoNeedsNewerServer]'s words.
+ * known (Lidarr's own id for it), else its Deezer id. Absent from servers before 0.59, which answer a bare 404: that
+ * throws [UndoNeedsNewerServer]'s words.
  */
 suspend fun FlexarrClient.unrequestAlbum(album: MusicExternal) {
     val body = if (album.musicBrainzId != null) MusicUnrequestBody(musicBrainzId = album.musicBrainzId) else MusicUnrequestBody(deezerId = album.deezerId.takeIf { it != 0L } ?: error("Nothing to cancel the request by."))
@@ -242,14 +266,15 @@ suspend fun FlexarrClient.unrequestAlbum(album: MusicExternal) {
 const val UndoNeedsNewerServer = "Update the server to undo this."
 
 /**
- * An unfollow or unrequest, a 404 (or 405) from a server before 0.59 saying so in [UndoNeedsNewerServer]'s words.
- * Anything else (a family guest's 403, Lidarr's refusal) keeps the server's own.
+ * An unfollow or unrequest, a bare 404 (or 405) from a server before 0.59, with no word of its own, saying so in
+ * [UndoNeedsNewerServer]'s words. Anything else (a 404 with the server's own detail, such as an artist Lidarr doesn't
+ * have; a family guest's 403; Lidarr not answering, 502) keeps the server's own.
  */
 private suspend fun undoing(send: suspend () -> Unit) {
     try {
         send()
     } catch (e: FlexarrException.Http) {
-        if (e.status == 404 || e.status == 405) throw FlexarrException.Http(e.status, UndoNeedsNewerServer, e.detail)
+        if ((e.status == 404 || e.status == 405) && e.detail == null) throw FlexarrException.Http(e.status, UndoNeedsNewerServer)
         throw e
     }
 }
