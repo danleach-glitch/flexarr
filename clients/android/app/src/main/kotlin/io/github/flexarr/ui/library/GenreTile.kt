@@ -86,8 +86,9 @@ private fun BookGenreArt(covers: List<String>, modifier: Modifier) {
         }
         RemoteImage(front, 185, Modifier.fillMaxSize().graphicsLayer { scaleX = 1.4f; scaleY = 1.4f }.blur(26.dp)) { Wash() }
         Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.4f)))
-        val side = maxHeight * 0.5f
-        Box(Modifier.align(Alignment.TopEnd).padding(top = maxHeight * 0.09f, end = maxWidth * 0.06f).size(side)) {
+        // Smaller than the web's half, so on a phone's tile the covers stay clear of the name beneath.
+        val side = maxHeight * 0.4f
+        Box(Modifier.align(Alignment.TopEnd).padding(top = maxHeight * 0.08f, end = maxWidth * 0.06f).size(side)) {
             // Back to front: each further back is smaller, dimmer and turned further out to the left.
             shown.indices.reversed().forEach { index ->
                 val scale = listOf(1f, 0.9f, 0.8f)[index]

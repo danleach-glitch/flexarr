@@ -334,7 +334,8 @@ struct GenreTile: View {
             .aspectRatio(16 / 9, contentMode: .fit)
             .overlay {
                 if let covers = genre.covers {
-                    BookGenreArt(covers: covers)
+                    // Smaller than the web's half, so on a phone's tile the covers stay clear of the name beneath.
+                    BookGenreArt(covers: covers, fan: 0.4)
                 } else {
                     RemoteImage(url: model.client?.imageURL(genre.backdrop, width: 640)) {
                         LinearGradient(colors: [Color.silver.opacity(0.3), Color.seat], startPoint: .topLeading, endPoint: .bottomTrailing)
