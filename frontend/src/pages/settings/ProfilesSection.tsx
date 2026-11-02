@@ -6,10 +6,13 @@ import {
   deleteProfile,
   getAllLibraries,
   getMe,
+  getMusicDestinations,
+  getMusicRequestStatus,
   getRequestDestinations,
   removeProfileImage,
   setAgeLimit,
   setRequestLibraries,
+  setRequestMusicLibrary,
   setWatchlistRequests,
   uploadProfileImage,
   getProfiles,
@@ -35,6 +38,9 @@ export function ProfilesSection() {
   const libraries = useApi(getAllLibraries, []).data ?? []
   // Seerr being away only takes the request choices out of the form.
   const destinations = useApi(getRequestDestinations, []).data ?? []
+  // The same for music, through Lidarr, when music requests are on.
+  const musicDestinations =
+    useApi(async (signal) => ((await getMusicRequestStatus(signal)).configured ? getMusicDestinations(signal) : []), []).data ?? []
   const [editing, setEditing] = useState<Profile | 'new'>()
   // A kids profile is only as safe as the admin PIN, which is what it takes to leave one.
   const me = useApi(getMe, [])
@@ -65,6 +71,7 @@ export function ProfilesSection() {
             defaultColour={freeColour(data ?? [])}
             libraries={libraries}
             destinations={destinations}
+            musicDestinations={musicDestinations}
             mainHasPin={mainHasPin}
             onDone={reload}
             onCancel={() => setEditing(undefined)}
@@ -80,6 +87,7 @@ export function ProfilesSection() {
               defaultColour={freeColour(data)}
               libraries={libraries}
               destinations={destinations}
+              musicDestinations={musicDestinations}
               mainHasPin={mainHasPin}
               onDone={reload}
               onCancel={() => setEditing(undefined)}
@@ -126,6 +134,7 @@ function ProfileForm({
   defaultColour,
   libraries,
   destinations,
+  musicDestinations,
   mainHasPin,
   onDone,
   onCancel,
@@ -134,6 +143,7 @@ function ProfileForm({
   defaultColour: string
   libraries: Library[]
   destinations: RequestDestination[]
+  musicDestinations: { id: string; name: string; isDefault: boolean }[]
   mainHasPin: boolean
   onDone: () => void
   onCancel: () => void
@@ -147,6 +157,9 @@ function ProfileForm({
   const [autoRequest, setAutoRequest] = useState(profile?.autoRequestWatchlist ?? false)
   // Only kinds with a choice left once the hidden libraries are taken out.
   const requestFields = requestRows.map((r) => ({ ...r, choices: requestChoices(destinations, r.mediaType, hidden) })).filter((r) => r.choices.length > 1)
+  // Music asks only when the profile can see more than one music library Lidarr adds to.
+  const musicChoices = musicDestinations.filter((d) => !hidden.includes(d.id))
+  const [musicLibrary, setMusicLibrary] = useState(profile?.requestMusicLibraryId ?? null)
   const [picture, setPicture] = useState<File | null>()
   const preview = usePreviewUrl(picture)
   const shownImage = picture === null ? null : (preview ?? profile?.image ?? null)
@@ -178,6 +191,7 @@ function ProfileForm({
       const { requestShowsLibraryId: showsLibraryId, requestFilmsLibraryId: filmsLibraryId } = requestLibraries
       if (showsLibraryId !== (profile?.requestShowsLibraryId ?? null) || filmsLibraryId !== (profile?.requestFilmsLibraryId ?? null))
         await setRequestLibraries(saved.id, { showsLibraryId, filmsLibraryId })
+      if (musicLibrary !== (profile?.requestMusicLibraryId ?? null)) await setRequestMusicLibrary(saved.id, musicLibrary)
       if (autoRequest !== (profile?.autoRequestWatchlist ?? false)) await setWatchlistRequests(saved.id, autoRequest)
       if (picture) await uploadProfileImage(saved.id, picture)
       else if (picture === null && profile?.image) await removeProfileImage(saved.id)
@@ -376,7 +390,7 @@ function ProfileForm({
         </fieldset>
       )}
       {/* A profile with an age limit doesn't request: Seerr's titles have no ages Flexarr can check. */}
-      {requestFields.length > 0 && maxRatingAge === null && (
+      {(requestFields.length > 0 || musicChoices.length > 1) && maxRatingAge === null && (
         <fieldset className="profile-section profile-libraries">
           <legend className="visually-hidden">Requests</legend>
           <span className="setting-text">
@@ -389,6 +403,12 @@ function ProfileForm({
                 <RequestLibrarySelect choices={r.choices} value={requestLibraries[r.key]} onChange={(id) => setRequestLibraryIds({ ...requestLibraries, [r.key]: id })} />
               </label>
             ))}
+            {musicChoices.length > 1 && (
+              <label className="profile-library">
+                <span>New music goes to</span>
+                <RequestLibrarySelect choices={musicChoices} value={musicLibrary} onChange={setMusicLibrary} />
+              </label>
+            )}
           </div>
         </fieldset>
       )}

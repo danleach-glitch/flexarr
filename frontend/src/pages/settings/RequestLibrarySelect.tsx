@@ -10,7 +10,7 @@ export function RequestLibrarySelect({
   onChange,
   label,
 }: {
-  choices: RequestDestination[]
+  choices: Pick<RequestDestination, 'id' | 'name' | 'isDefault'>[]
   value: string | null | undefined
   onChange: (libraryId: string | null) => void
   label?: string

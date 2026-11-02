@@ -27,7 +27,7 @@ import { FolderPicker } from '../../components/FolderPicker'
 import { useApi } from '../../hooks/useApi'
 import { usePolling } from '../../hooks/usePolling'
 import { appLogos } from '../../lib/apps'
-import { OpenApp, SaveStatus, SettingsGroup, SettingsHeader } from './shared'
+import { OpenApp, SaveStatus, SettingsGroup, SettingsHeader, ToggleRow } from './shared'
 import { errorText, useSettings } from './useSettings'
 
 /** Settings › Trakt may have come or gone: the Settings page looks again. */
@@ -42,7 +42,7 @@ const arrKinds = ['Sonarr', 'Radarr', 'Lidarr'] as const
 const purpose: Record<ArrKind | OtherService, string> = {
   Sonarr: 'Shows',
   Radarr: 'Movies',
-  Lidarr: 'Music',
+  Lidarr: 'Music and music requests',
   seerr: 'Discover and requests',
   bazarr: 'Subtitles',
   tmdb: 'Movie details without Radarr',
@@ -142,6 +142,16 @@ export function ConnectionsSection() {
                   onOpen={() => setOpen(`new-${kind}`)}
                   onClose={() => setOpen(undefined)}
                   onSave={(c) => saveArr('new', c)}
+                />
+              ),
+              // Lidarr is also where music requests go: on unless turned off here (servers before 0.59 don't say).
+              kind === 'Lidarr' && connected.length > 0 && settings.allowMusicRequests != null && (
+                <ToggleRow
+                  key="music-requests"
+                  label="Music requests"
+                  help="Discover and request artists and albums."
+                  checked={settings.allowMusicRequests}
+                  onChange={(on) => void save({ allowMusicRequests: on })}
                 />
               ),
             ]
