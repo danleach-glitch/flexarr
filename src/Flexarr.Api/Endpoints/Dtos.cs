@@ -119,7 +119,13 @@ public sealed record ItemDetailDto(
     // A parent's Allow or Block for profiles with an age limit; only for the main profile. Absent from servers before 0.56.
     KidsOverride? KidsOverride = null,
     // A book's edition, series, chapters and bookmarks. Absent from servers before 0.58.
-    Books.BookDetailDto? Book = null);
+    Books.BookDetailDto? Book = null,
+    // Details edited by hand, which refreshes keep (films, shows, albums). Absent from servers before 0.59.
+    bool? DetailsLocked = null,
+    // The title it's sorted by. Absent from servers before 0.59.
+    string? SortTitle = null,
+    // A cover chosen by hand in Fix match, which refreshes keep. Absent from servers before 0.59.
+    bool? ArtworkLocked = null);
 
 /// <summary>A parent's say over a title for profiles with an age limit.</summary>
 public sealed record KidsOverrideRequest(KidsOverride Override);
