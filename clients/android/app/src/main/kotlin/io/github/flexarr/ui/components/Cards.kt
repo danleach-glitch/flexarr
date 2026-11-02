@@ -264,6 +264,8 @@ fun itemActions(item: ItemSummary, showsDetails: Boolean = false, downloads: Boo
     val leave = if (inContinueWatching) listOf(MenuAction("Remove", Icons.Outlined.RemoveCircleOutline) { navigator.removeFromContinueWatching(item) }) else emptyList()
     if (item.kind == MediaKind.Audiobook) return bookActions(item, showsDetails, downloads) + leave
     if (item.kind == MediaKind.PodcastEpisode) return podcastEpisodeActions(item, showsDetails, kids = model.isKids) + leave
+    // Albums, artists and tracks aren't watched: until music has a menu of its own, they have none.
+    if (item.kind.isMusic) return emptyList()
     return buildList {
         if (item.kind == MediaKind.Movie || item.kind == MediaKind.Episode) {
             add(MenuAction(if (item.isResumable) "Resume" else "Play", FlexarrIcons.play) { navigator.play(item) })

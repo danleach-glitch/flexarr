@@ -24,6 +24,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On the web, a genre found by search opens that genre in its own library: a music genre's albums, a books genre's page, or the movies or shows of that genre. A genre in more than one library is listed once for each.
 
 ### Music
+- On Android and Android TV, albums and artists in Home's rows look as they do in the music library (square covers, round artists), and pressing and holding one no longer offers *Mark as watched*.
 - A music library's page now works like Movies and TV on the web, iPhone, iPad, Apple TV, Android and Android TV. A picture across the top starts with the album you played last, and **Resume** carries on from the next track. Then come artists you play, with **Play** and **Radio**, and the newest albums.
 - **Artists**, **Albums** and **Genres** sit beside **Browse** at the top. Albums lists every album, sorted A to Z, by date added or by year. Each genre opens its albums, and **Play** or **Shuffle** plays up to 200 of its tracks.
 - Browse ends with **Your artists**, and **See all** opens every artist. **See all** on **New albums** opens Albums, newest first.

@@ -339,7 +339,14 @@ private fun HomeRowView(row: HomeRow) {
                     HomeRowStyle.Mixes -> items(row.mixes.orEmpty(), key = { it.id }) { TvMixCard(it, onClick = { navigator.playMix(it.id) }) }
                     HomeRowStyle.Wide -> items(items, key = { it.id }) { TvWideCard(it, onClick = { navigator.play(it) }) }
                     HomeRowStyle.Top10 -> itemsIndexed(items, key = { _, item -> item.id }) { index, item -> TvTop10Card(index + 1, item, onClick = { navigator.open(item) }) }
-                    else -> items(items, key = { it.id }) { TvPosterCard(it, onClick = { navigator.open(it) }) }
+                    // Albums and artists as the music library draws them, not as posters with a film's menu.
+                    else -> items(items, key = { it.id }) {
+                        when (it.kind) {
+                            MediaKind.Album -> TvAlbumCard(it, onClick = { navigator.open(it) }, showsArtist = true)
+                            MediaKind.Artist -> TvArtistCard(it, onClick = { navigator.open(it) })
+                            else -> TvPosterCard(it, onClick = { navigator.open(it) })
+                        }
+                    }
                 }
                 navigator.libraryLink(row.link)?.let { seeAll -> item(key = "see-all") { TvSeeAllCard(wide = row.style == HomeRowStyle.Wide, onClick = seeAll) } }
             }
