@@ -20,7 +20,11 @@ public sealed record NfoInfo(
     DateOnly? Premiered,
     double? Rating,
     IReadOnlyList<string> Genres,
-    ExternalIds Ids);
+    ExternalIds Ids)
+{
+    /// <summary>The rating named <c>imdb</c>, out of 10; null when the file has none.</summary>
+    public double? ImdbRating { get; init; }
+}
 
 /// <summary>
 /// Reads the .nfo files Kodi, Jellyfin, Emby, tinyMediaManager (and Sonarr's and Radarr's Kodi metadata option) write
@@ -94,7 +98,10 @@ public static partial class NfoParser
             premiered,
             Rating(element),
             genres,
-            Ids(element, Linked(text[(end + endTag.Length)..]), root));
+            Ids(element, Linked(text[(end + endTag.Length)..]), root))
+        {
+            ImdbRating = NamedRating(element, "imdb"),
+        };
     }
 
     private static NfoInfo Empty(ExternalIds ids) => new(null, null, null, null, null, null, null, null, null, [], ids);
@@ -146,12 +153,25 @@ public static partial class NfoParser
         var chosen = ratings.FirstOrDefault(r => string.Equals(r.Attribute("default")?.Value, "true", StringComparison.OrdinalIgnoreCase)) ?? ratings.FirstOrDefault();
         if (chosen is not null)
         {
-            var value = Decimal(chosen.Elements().FirstOrDefault(e => Is(e, "value"))?.Value);
-            var max = Decimal(chosen.Attribute("max")?.Value) is > 0 and var m ? m : 10;
-            return value is > 0 ? Math.Round(value.Value * 10 / max, 1) : null;
+            return OutOfTen(chosen);
         }
 
         return Decimal(element.Elements().FirstOrDefault(e => Is(e, "rating"))?.Value) is > 0 and <= 10 and var plain ? plain : null;
+    }
+
+    /// <summary>The rating called <paramref name="name"/> (<c>&lt;rating name="imdb"&gt;</c>), out of 10.</summary>
+    private static double? NamedRating(XElement element, string name)
+    {
+        var rating = element.Elements().FirstOrDefault(e => Is(e, "ratings"))?.Elements()
+            .FirstOrDefault(e => Is(e, "rating") && string.Equals(e.Attribute("name")?.Value, name, StringComparison.OrdinalIgnoreCase));
+        return rating is null ? null : OutOfTen(rating);
+    }
+
+    private static double? OutOfTen(XElement rating)
+    {
+        var value = Decimal(rating.Elements().FirstOrDefault(e => Is(e, "value"))?.Value);
+        var max = Decimal(rating.Attribute("max")?.Value) is > 0 and var m ? m : 10;
+        return value is > 0 ? Math.Round(value.Value * 10 / max, 1) : null;
     }
 
     /// <summary>"Rated PG-13" and "US:PG-13" are both PG-13.</summary>
