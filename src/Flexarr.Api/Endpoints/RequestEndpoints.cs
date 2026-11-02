@@ -4,6 +4,7 @@ using Flexarr.Api.Configuration;
 using Flexarr.Api.Endpoints.MusicRequests;
 using Flexarr.Api.Profiles;
 using Flexarr.Core.Data;
+using Flexarr.Core.Libraries;
 using Flexarr.Core.Media;
 using Flexarr.Core.Notifications;
 using Flexarr.Integrations.Arr;
@@ -265,6 +266,7 @@ public static partial class RequestEndpoints
             {
                 var seasons = request.MediaType == "tv" && request.Seasons is { Count: > 0 } chosen ? chosen.Where(n => n > 0).Distinct().Order().ToList() : null;
                 await PlaceAsync(seerr, instance, options.CurrentValue, db, current.Id, request.MediaType, request.TmdbId, ct, seasons);
+                RequestRequested.Forget();
                 if (seasons is not null)
                 {
                     // The show's page asks Sonarr again, so the seasons show as requested.
@@ -285,6 +287,31 @@ public static partial class RequestEndpoints
             {
                 return Results.Problem(ex.Message, statusCode: 409);
             }
+        });
+
+        // Every film and show Seerr is waiting for, with how far along each is. Given a library, only titles in it
+        // (that library's Requested view).
+        group.MapGet("/requested", async (Guid? libraryId, IOptionsMonitor<FlexarrOptions> options, SeerrClient seerr, ArrClient arr, FlexarrDbContext db,
+            Microsoft.Extensions.Caching.Memory.IMemoryCache cache, CancellationToken ct) =>
+        {
+            Library? library = null;
+            if (libraryId is { } id)
+            {
+                library = await db.Libraries.AsNoTracking().FirstOrDefaultAsync(l => l.Id == id && (l.Type == LibraryType.Movies || l.Type == LibraryType.TvShows), ct);
+                if (library is null)
+                {
+                    return Results.NotFound();
+                }
+            }
+
+            if (options.CurrentValue.Seerr?.Instance is not { } instance)
+            {
+                return Results.Ok(Array.Empty<TitleRequestedDto>());
+            }
+
+            return await RequestRequested.ListAsync(instance, seerr, arr, options.CurrentValue, db, cache, library, ct) is { } listed
+                ? Results.Ok(listed)
+                : Results.Problem("Seerr isn't answering. Try again later.", statusCode: 502);
         });
 
         // Take a film or show request back, for the household: Seerr's request goes, Radarr or Sonarr stop wanting it.
@@ -471,7 +498,7 @@ public static partial class RequestEndpoints
             watchlist?.Contains(key));
     }
 
-    private static string? Tmdb(string? path, string size) =>
+    internal static string? Tmdb(string? path, string size) =>
         path is null ? null : ImageEndpoints.RemoteUrl($"https://image.tmdb.org/t/p/{size}{path}");
 
     /// <summary>"movie:123" / "tv:456" (TMDB ids) → library item.</summary>
