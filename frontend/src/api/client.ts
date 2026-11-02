@@ -1340,6 +1340,9 @@ export interface ExternalTitle {
 }
 
 export const getRequestStatus = (signal?: AbortSignal) => apiGet<{ configured: boolean; reachable: boolean }>('/requests/status', signal)
+/** Whether Seerr is set up and answering, kept a minute: every request button asks. */
+export const getRequestStatusCached = (signal?: AbortSignal) =>
+  cachedGet<{ configured: boolean; reachable: boolean }>('/requests/status', signal, 60_000)
 export const getExternalDiscover = (signal?: AbortSignal) =>
   apiGet<{ id: string; title: string; items: ExternalTitle[] }[]>('/requests/discover', signal)
 /** Every film and show TMDB knows (through Seerr), marked when you already have them. */
@@ -1380,6 +1383,35 @@ export const getRequestDestinations = (signal?: AbortSignal) => apiGet<RequestDe
 /** Requests a film or show; for a show, `seasons` asks for just those (servers before 0.59 ask for every season). */
 export const requestTitle = (mediaType: string, tmdbId: number, seasons?: number[]) =>
   request<void>('POST', '/requests', seasons?.length ? { mediaType, tmdbId, seasons } : { mediaType, tmdbId })
+
+/**
+ * Takes back a film or show request, for the household: Seerr's request goes and Radarr or Sonarr stop wanting it.
+ * For a show, `seasons` takes back just those. Servers before 0.59 answer 404 (see `undoFailure`).
+ */
+export const unrequestTitle = (mediaType: string, tmdbId: number, seasons?: number[]) =>
+  request<void>('POST', '/requests/unrequest', seasons?.length ? { mediaType, tmdbId, seasons } : { mediaType, tmdbId })
+
+/** A film or show Seerr is waiting for. Absent from servers before 0.59. */
+export interface TitleRequested {
+  mediaType: 'movie' | 'tv'
+  /** With `mediaType`, what Unrequest takes. */
+  tmdbId: number
+  title: string
+  year: number | null
+  poster: string | null
+  /** When it's out (upcoming). */
+  releaseDate: string | null
+  state: 'upcoming' | 'searching' | 'downloading' | 'importing'
+  /** While downloading, 0 to 1. */
+  progress: number | null
+  /** For a show, the seasons asked for; null for every one. */
+  seasons: number[] | null
+  /** A show that's partly in the library already. */
+  libraryItemId: string | null
+}
+/** What Seerr awaits; given a library, only what's going there. */
+export const getTitlesRequested = (libraryId?: string, signal?: AbortSignal) =>
+  apiGet<TitleRequested[]>(`/requests/requested${libraryId ? `?libraryId=${encodeURIComponent(libraryId)}` : ''}`, signal)
 
 /** A season of a show that the library has none of. */
 export interface MissingSeason {

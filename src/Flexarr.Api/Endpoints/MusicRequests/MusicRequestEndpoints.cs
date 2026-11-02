@@ -332,11 +332,12 @@ public static partial class MusicRequestEndpoints
     /// Why this profile can't undo now, or null when it can. Family guests can ask for music but not take back the
     /// household's (Lidarr is shared); everyone else has an hourly cap, as asking has a daily one.
     /// </summary>
-    private static IResult? UndoRefused(CurrentProfile current, IMemoryCache cache)
+    /// <param name="guests">What a family guest is told.</param>
+    internal static IResult? UndoRefused(CurrentProfile current, IMemoryCache cache, string guests = "Guests can't undo music requests.")
     {
         if (current.IsGuest)
         {
-            return Results.Problem("Guests can't undo music requests.", statusCode: 403);
+            return Results.Problem(guests, statusCode: 403);
         }
 
         return UndoCount(current, cache).Value >= UndoHourlyLimit
@@ -344,8 +345,8 @@ public static partial class MusicRequestEndpoints
             : null;
     }
 
-    /// <summary>An undo that reached Lidarr (or found nothing to do) counts towards the hour's; a malformed one or a failure doesn't.</summary>
-    private static IResult Counted(CurrentProfile current, IMemoryCache cache, IResult result)
+    /// <summary>An undo (music's, or a film's or show's) that reached Lidarr (or found nothing to do) counts towards the hour's; a malformed one or a failure doesn't.</summary>
+    internal static IResult Counted(CurrentProfile current, IMemoryCache cache, IResult result)
     {
         if (result is IStatusCodeHttpResult { StatusCode: < 400 })
         {

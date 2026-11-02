@@ -23,6 +23,26 @@ public sealed record SeerrResult
     public SeerrMediaInfo? MediaInfo { get; init; }
 }
 
+/// <summary>A request Seerr holds: <see cref="Status"/> 1 pending, 2 approved, 3 declined, 4 failed, 5 completed.</summary>
+/// <param name="Type">"movie" or "tv".</param>
+/// <param name="Seasons">For a show, the seasons asked for.</param>
+/// <param name="RootFolder">Where Seerr told Radarr or Sonarr to put it, as they see it; null for their default.</param>
+public sealed record SeerrRequest(int Id, int Status, string Type, SeerrRequestMedia? Media, IReadOnlyList<SeerrRequestSeason>? Seasons, string? RootFolder,
+    DateTime? CreatedAt);
+
+/// <summary>
+/// The title a request is for, as Seerr tracks it: <see cref="Status"/> 1 unknown, 2 pending, 3 processing, 4 partly
+/// available, 5 available.
+/// </summary>
+public sealed record SeerrRequestMedia(int Id, int TmdbId, int? TvdbId, int Status, string? MediaType);
+
+public sealed record SeerrRequestSeason(int SeasonNumber);
+
+/// <summary>A title's own record in Seerr and the requests it holds for it (from <c>mediaInfo</c>).</summary>
+/// <param name="Status">As <see cref="SeerrRequestMedia.Status"/>.</param>
+/// <param name="TvdbId">A show's TheTVDB id, how Sonarr knows it.</param>
+public sealed record SeerrMediaRecord(int Id, int Status, int? TvdbId, IReadOnlyList<SeerrRequest>? Requests);
+
 public sealed record SeerrPage(int Page, int TotalPages, IReadOnlyList<SeerrResult> Results);
 
 /// <summary>One of the Sonarr or Radarr servers Seerr sends requests to.</summary>
@@ -81,6 +101,63 @@ public sealed class SeerrClient(HttpClient http)
         request.Content = JsonContent.Create(body, options: Json);
         using var response = await http.SendAsync(request, ct).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
+    }
+
+    /// <summary>Every request Seerr holds (any status), newest first, up to <paramref name="limit"/>.</summary>
+    public async Task<IReadOnlyList<SeerrRequest>> RequestsAsync(SeerrInstance seerr, CancellationToken ct, int limit = 500)
+    {
+        const int PageSize = 100;
+        var all = new List<SeerrRequest>();
+        for (var skip = 0; skip < limit; skip += PageSize)
+        {
+            using var request = Request(seerr, HttpMethod.Get, $"request?take={PageSize}&skip={skip}&filter=all&sort=added");
+            using var response = await http.SendAsync(request, ct).ConfigureAwait(false);
+            response.EnsureSuccessStatusCode();
+            var page = await response.Content.ReadFromJsonAsync<SeerrRequestPage>(Json, ct).ConfigureAwait(false);
+            all.AddRange(page?.Results ?? []);
+            if (page is null || page.Results.Count < PageSize)
+            {
+                break;
+            }
+        }
+
+        return all;
+    }
+
+    private sealed record SeerrRequestPage(IReadOnlyList<SeerrRequest> Results);
+
+    /// <summary>A title's record in Seerr with its requests; null when Seerr has none (nobody asked, nothing synced).</summary>
+    /// <param name="mediaType">"movie" or "tv".</param>
+    public async Task<SeerrMediaRecord?> MediaAsync(SeerrInstance seerr, string mediaType, int tmdbId, CancellationToken ct)
+    {
+        if (await GetAsync(seerr, $"{mediaType}/{tmdbId.ToString(System.Globalization.CultureInfo.InvariantCulture)}", ct) is not { } title
+            || title.ValueKind != JsonValueKind.Object || !title.TryGetProperty("mediaInfo", out var info) || info.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        return info.Deserialize<SeerrMediaRecord>(Json);
+    }
+
+    /// <summary>Deletes a request (Seerr itself; Radarr and Sonarr aren't told). Gone already counts as done.</summary>
+    public Task DeleteRequestAsync(SeerrInstance seerr, int requestId, CancellationToken ct) =>
+        DeleteAsync(seerr, $"request/{requestId.ToString(System.Globalization.CultureInfo.InvariantCulture)}", ct);
+
+    /// <summary>
+    /// Forgets Seerr's record of a title (its status and requests), so it reads as not requested; Radarr, Sonarr and the
+    /// files aren't touched, and Seerr's next sync with them brings back whatever they still have.
+    /// </summary>
+    public Task DeleteMediaAsync(SeerrInstance seerr, int mediaId, CancellationToken ct) =>
+        DeleteAsync(seerr, $"media/{mediaId.ToString(System.Globalization.CultureInfo.InvariantCulture)}", ct);
+
+    private async Task DeleteAsync(SeerrInstance seerr, string path, CancellationToken ct)
+    {
+        using var request = Request(seerr, HttpMethod.Delete, path);
+        using var response = await http.SendAsync(request, ct).ConfigureAwait(false);
+        if (response.StatusCode != System.Net.HttpStatusCode.NotFound)
+        {
+            response.EnsureSuccessStatusCode();
+        }
     }
 
     /// <summary>Any read-only Seerr API path (e.g. "movie/603"), as JSON; null when Seerr has nothing there.</summary>

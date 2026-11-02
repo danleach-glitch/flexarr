@@ -93,14 +93,23 @@ A title's button changes to show where it stands:
 | You see | What it means |
 | --- | --- |
 | **Request** | Not in your library and not asked for. |
-| **Requested** | Seerr has it. Radarr or Sonarr will download it when they find it. |
+| **Requested** | Seerr has it. Radarr or Sonarr will download it when they find it. Press it to take the request back. |
 | **Partly in your library** | Some of it is here already, such as some seasons of a show. |
 | **In your library** | You have it. |
-| **Try again** | The request didn't go through, perhaps because it's already been requested. |
+| **Can't request** | Seerr or Sonarr can't take it, and says why (a show TheTVDB doesn't list, for example). |
+| **Try again** | The request didn't go through. Press it to ask again. |
+
+If Seerr is connected but isn't answering, the buttons are greyed with **Seerr isn't answering** until it's back.
+
+### Taking a request back
+
+Press **Requested** to take a movie or show back. It asks first, then **Unrequest** does it for the whole household, as Seerr is shared: Seerr forgets the request, Radarr or Sonarr stop looking for it and cancel its download, and a title with nothing downloaded yet is taken out of them. Nothing on disk is deleted, and a show you have some of keeps the seasons you have. On a show's page, a requested season under **Not in your library** can be taken back on its own. On iPhone and Android, **Not in your library** results in Search offer **Unrequest** in their press-and-hold menu too. Family guests can ask for a title but can't take one back.
 
 Flexarr remembers who asked for what. When the movie or show arrives, whoever requested it gets a **Your request is ready** notification on their iPhone or iPad, if notifications are on for that profile. See [Notifications and widgets](notifications-and-widgets.md).
 
-To follow a request while it downloads, use Seerr itself, or **Coming soon** in Flexarr's sidebar for what Sonarr and Radarr are expecting.
+To follow a request while it downloads, open the library's **Requested** view on the web (below), or **Coming soon** in Flexarr's sidebar for what Sonarr and Radarr are expecting.
+
+On the web, Movies and TV libraries have a **Requested** view: every movie or show asked for through Seerr (in Flexarr or in Seerr itself) that's on its way to that library and isn't in yet. Each says **Searching**, **Downloading** with how far it's got, **Importing**, or **Out** and its date. A show lists the seasons asked for. **Unrequest** takes one back.
 
 ## Music
 

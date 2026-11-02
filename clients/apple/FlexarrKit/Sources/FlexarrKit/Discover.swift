@@ -6,6 +6,14 @@ import Foundation
 public struct RequestStatus: Codable, Sendable, Hashable {
     public let configured: Bool
     public let reachable: Bool
+
+    public init(configured: Bool, reachable: Bool) {
+        self.configured = configured
+        self.reachable = reachable
+    }
+
+    /// No requests here (no Seerr, an older server, or a profile that can't ask).
+    public static let off = RequestStatus(configured: false, reachable: false)
 }
 
 /// Where a title from outside the library stands.
@@ -133,6 +141,49 @@ private struct TitleRequest: Encodable {
     let tmdbId: Int
 }
 
+/// Taking a film or show request back; `seasons` (just those of a show) is left out for the whole title.
+private struct TitleUndo: Encodable {
+    let mediaType: String
+    let tmdbId: Int
+    let seasons: [Int]?
+}
+
+/// Where a film or show (or some of a show's seasons) stands for its request button, the same on every app: ask for
+/// it, asked (pressing it asks, then takes the request back), or nothing to press.
+public enum TitleRequestState: Sendable, Hashable {
+    case requestable
+    case requested
+    case partlyAvailable
+    case inLibrary
+    /// Nothing to offer: a state from a newer server.
+    case none
+
+    /// What the server says, overridden by what was done here since (`asked`: requested; `undone`: taken back), so
+    /// the button changes at once, before the server's next answer says so.
+    public static func of(_ availability: Availability, inLibrary: Bool = false, asked: Bool = false, undone: Bool = false) -> TitleRequestState {
+        if inLibrary || availability == .available { return .inLibrary }
+        if availability == .partlyAvailable { return .partlyAvailable }
+        if undone { return .requestable }
+        if asked || availability == .requested { return .requested }
+        return availability == .none ? .requestable : .none
+    }
+
+    /// A request the server or Seerr turned down for good (Seerr can't add it, or the profile can't ask for that kind):
+    /// the button says Can't request with the reason, rather than offering Try again.
+    public static func isRefusal(_ error: Error) -> Bool {
+        if case FlexarrClientError.http(status: let status, _) = error { return status == 409 || status == 403 }
+        return false
+    }
+
+    /// A server from before taking requests back (0.59) answers a bare 404 or 405, or the web app's page.
+    public static func needsNewerServer(_ error: Error) -> Bool {
+        switch error as? FlexarrClientError {
+        case .http(status: 404, message: nil), .http(status: 405, message: nil), .unexpectedResponse: true
+        default: false
+        }
+    }
+}
+
 // MARK: - Endpoints
 
 extension FlexarrClient {
@@ -161,7 +212,20 @@ extension FlexarrClient {
 
     /// Asks Seerr for the title, and the server remembers who asked so they hear when it's in.
     public func request(_ title: ExternalTitle) async throws {
-        _ = try await send("POST", "requests", body: TitleRequest(mediaType: title.mediaType, tmdbId: title.tmdbId))
+        try await request(mediaType: title.mediaType, tmdbId: title.tmdbId)
+    }
+
+    /// Asks Seerr for a film or show by its TMDB id.
+    public func request(mediaType: String, tmdbId: Int) async throws {
+        _ = try await send("POST", "requests", body: TitleRequest(mediaType: mediaType, tmdbId: tmdbId))
+    }
+
+    /// Takes a film or show request back, for the whole household: Seerr's request goes, and Radarr or Sonarr stop
+    /// wanting it and drop its download (files are never deleted). For a show, `seasons` takes back just those.
+    /// Absent from servers before 0.59 (404). A 502 carries Seerr's, Radarr's or Sonarr's refusal in its detail.
+    public func unrequest(mediaType: String, tmdbId: Int, seasons: [Int]? = nil) async throws {
+        let body = TitleUndo(mediaType: mediaType, tmdbId: tmdbId, seasons: seasons?.isEmpty == false ? seasons : nil)
+        _ = try await send("POST", "requests/unrequest", body: body)
     }
 
     /// The library's genres, biggest first.

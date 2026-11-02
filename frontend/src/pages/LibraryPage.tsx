@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import { PageError } from '../components/PageStatus'
 import { Link, Navigate, useNavigationType, useParams, useSearchParams } from 'react-router'
-import { forgetPage, getGenreTracks, getLibraryAlbumGenres, getLibraryAlbums, getLibraryBrowse, getLibraryGenres, getLibraryItems, getMusicRequestStatus, imageUrl, keepPage, keptPage, type HomeRow, type Library } from '../api/client'
+import { forgetPage, getGenreTracks, getLibraryAlbumGenres, getLibraryAlbums, getLibraryBrowse, getLibraryGenres, getLibraryItems, getMusicRequestStatus, getRequestStatusCached, imageUrl, keepPage, keptPage, type HomeRow, type Library } from '../api/client'
 import { AsyncButton } from '../components/AsyncButton'
 import { PosterCard } from '../components/Cards'
 import { Hero } from '../components/Hero'
@@ -50,8 +50,8 @@ export function LibraryPage() {
   if (genrePage) return <LibraryAll key={`${id} genre ${params.get('genre')}`} albums={library.type === 'Music'} genrePage />
   // A music library's albums.
   if (library.type === 'Music' && params.get('view') === 'albums') return <LibraryAll key={`${id} albums`} albums />
-  // What Lidarr is waiting for (only offered when music can be requested).
-  if (library.type === 'Music' && params.get('view') === 'requested')
+  // What Lidarr (music) or Seerr (films and shows) is waiting for: only offered when they can be requested.
+  if (hasRequested(library) && params.get('view') === 'requested')
     return <LibraryRequested key={`${id} requested`} library={library} viewSwitch={<ViewSwitch library={library} view="requested" />} />
   // The profile's playlists, under the library's views.
   if (library.type === 'Music' && params.get('view') === 'playlists')
@@ -72,13 +72,20 @@ export function LibraryPage() {
   return <LibraryBrowse key={id} library={library} />
 }
 
+const hasRequested = (library: Library) => library.type === 'Music' || library.type === 'Movies' || library.type === 'TvShows'
+
 const hasGenres = (library: Library) => library.type === 'Movies' || library.type === 'TvShows' || library.type === 'Music'
 
 function ViewSwitch({ library, view }: { library: Library; view: 'browse' | 'all' | 'albums' | 'genres' | 'playlists' | 'requested' }) {
   const current = (v: typeof view) => (view === v ? 'page' : undefined)
-  // Requested is there when music can be asked for (through Lidarr). The status is cached, so every view asking is cheap.
+  // Requested is there when the library's kind can be asked for (music through Lidarr, films and shows through Seerr).
+  // The status is cached, so every view asking is cheap.
   const music = library.type === 'Music'
-  const requests = useApi((signal) => (music ? getMusicRequestStatus(signal) : Promise.resolve(undefined)), [music])
+  const requestable = hasRequested(library)
+  const requests = useApi(
+    (signal) => (music ? getMusicRequestStatus(signal) : requestable ? getRequestStatusCached(signal) : Promise.resolve(undefined)),
+    [music, requestable],
+  )
   return (
     <nav className="view-switch" aria-label={`${library.name} views`}>
       <Link to={`/library/${library.id}`} aria-current={current('browse')}>
@@ -102,8 +109,8 @@ function ViewSwitch({ library, view }: { library: Library; view: 'browse' | 'all
           Playlists
         </Link>
       )}
-      {/* Last, so the others don't move: kept in place while the status loads, gone once it says music can't be requested. */}
-      {music && ((requests.data ? requests.data.configured : !requests.error) || view === 'requested') && (
+      {/* Last, so the others don't move: kept in place while the status loads, gone once it says they can't be requested. */}
+      {requestable && ((requests.data ? requests.data.configured : !requests.error) || view === 'requested') && (
         <Link to={`/library/${library.id}?view=requested`} aria-current={current('requested')}>
           Requested
         </Link>

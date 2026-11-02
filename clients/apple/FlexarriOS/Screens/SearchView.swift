@@ -381,17 +381,18 @@ struct PersonView: View {
 }
 
 /// A film or show the library doesn't have, from search or a title's *If you like this*: tap for its page (one the
-/// library has opens as itself); hold for Add to watchlist and Request.
+/// library has opens as itself); hold for Add to watchlist, and Request or Unrequest (which asks first).
 struct OutsideTitleCard: View {
     @Environment(AppModel.self) private var model
     @Environment(Router.self) private var router
     let title: ExternalTitle
     let width: CGFloat
     @State private var onList: Bool?
-    @State private var requested = false
+    @State private var confirmingUndo = false
 
     var body: some View {
         let isOn = onList ?? title.onWatchlist ?? false
+        let state = model.titleState(title)
         Button {
             router.push(title.libraryItemId.map(Route.itemID) ?? .external(title))
         } label: {
@@ -422,7 +423,7 @@ struct OutsideTitleCard: View {
                     Text(title.title)
                         .font(.footnote.weight(.semibold))
                         .foregroundStyle(Color.screen.opacity(0.9))
-                    Text([title.isShow ? "Show" : "Movie", title.year.map(String.init), requested || title.availability == .requested ? "Requested" : nil]
+                    Text([title.isShow ? "Show" : "Movie", title.year.map(String.init), state == .requested ? TitleWords.requested : nil]
                         .compactMap { $0 }.joined(separator: ", "))
                         .font(.caption)
                         .foregroundStyle(Color.usher)
@@ -442,20 +443,28 @@ struct OutsideTitleCard: View {
                     Label(isOn ? "Remove from watchlist" : "Add to watchlist", systemImage: isOn ? Symbol.onWatchlist : Symbol.watchlist)
                 }
             }
-            if title.availability == .none && !requested {
+            if state == .requestable {
                 Button {
                     Task {
-                        do {
-                            try await model.client?.request(title)
-                            requested = true
-                        } catch {
-                            model.requestError = ConnectionError(error).message
+                        switch await model.requestTitle(mediaType: title.mediaType, tmdbId: title.tmdbId) {
+                        case .sent: break
+                        case .refused(let reason), .failed(let reason): model.requestError = reason
                         }
                     }
                 } label: {
-                    Label("Request", systemImage: Symbol.request)
+                    Label(TitleWords.request, systemImage: Symbol.request)
+                }
+            } else if state == .requested {
+                Button(role: .destructive) { confirmingUndo = true } label: {
+                    Label(TitleWords.unrequestAction, systemImage: Symbol.requested)
                 }
             }
+        }
+        .confirmationDialog(TitleWords.unrequest(title.title), isPresented: $confirmingUndo, titleVisibility: .visible) {
+            Button(TitleWords.unrequestAction, role: .destructive) {
+                Task { if let failure = await model.unrequestTitle(mediaType: title.mediaType, tmdbId: title.tmdbId) { model.requestError = failure } }
+            }
+            Button(TitleWords.keepIt, role: .cancel) {}
         }
     }
 }

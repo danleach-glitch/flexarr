@@ -1,6 +1,17 @@
 import { useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
-import { getMusicRequested, getMusicRequestStatusNow, imageUrl, unrequestAlbum, type Library, type MusicRequested } from '../api/client'
+import {
+  getMusicRequested,
+  getMusicRequestStatusNow,
+  getRequestStatus,
+  getTitlesRequested,
+  imageUrl,
+  unrequestAlbum,
+  unrequestTitle,
+  type Library,
+  type MusicRequested,
+  type TitleRequested,
+} from '../api/client'
 import { AsyncButton } from '../components/AsyncButton'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { PageError, PageLoading } from '../components/PageStatus'
@@ -8,33 +19,52 @@ import { useApi } from '../hooks/useApi'
 import { requestedState } from '../lib/requestedState'
 import { undoFailure } from '../lib/musicUndo'
 
-/** How many albums show at first; Show more adds as many again. */
+/** How many cards show at first; Show more adds as many again. */
 const PAGE_SIZE = 200
 
+/** One card of the view, whichever library it's in. */
+interface Row {
+  key: string
+  title: string
+  subtitle: ReactNode
+  image: string | null
+  /** Where the artwork goes, if anywhere. */
+  link?: string
+  /** What the artwork's link says. */
+  linkLabel: string
+  state: MusicRequested['state']
+  progress: number | null
+  releaseDate: string | null
+  undo: () => Promise<void>
+}
+
 /**
- * A music library's Requested view: every album Lidarr is waiting for with this library's artists (asked for,
- * monitored without files, or not out yet), with how far along each is and Unrequest. When Lidarr doesn't answer, it
- * says so rather than that nothing is coming.
+ * A library's Requested view. Music: every album Lidarr is waiting for with this library's artists (asked for,
+ * monitored without files, or not out yet). Films and shows: every one asked for through Seerr that isn't in yet and
+ * is going to this library. Each with how far along it is and Unrequest. When Lidarr or Seerr doesn't answer, it says
+ * so rather than that nothing is coming.
  */
 export function LibraryRequested({ library, viewSwitch }: { library: Library; viewSwitch: ReactNode }) {
+  const music = library.type === 'Music'
+  const service = music ? 'Lidarr' : 'Seerr'
   const { data, error, reload } = useApi(
     async (signal) => {
-      const albums = await getMusicRequested(library.id, signal)
-      // Asked after the list, which marks a Lidarr that didn't answer it.
-      const status = await getMusicRequestStatusNow(signal).catch(() => undefined)
-      return { albums, answering: status?.reachable !== false }
+      const rows = music ? (await getMusicRequested(library.id, signal)).map(albumRow) : (await getTitlesRequested(library.id, signal)).map(titleRow)
+      // Asked after the list, which marks a Lidarr or Seerr that didn't answer it.
+      const status = await (music ? getMusicRequestStatusNow : getRequestStatus)(signal).catch(() => undefined)
+      return { rows, answering: status?.reachable !== false }
     },
-    [library.id],
+    [library.id, music],
   )
   const [gone, setGone] = useState<Set<string>>(new Set())
   const [shown, setShown] = useState(PAGE_SIZE)
   const grid = useRef<HTMLDivElement>(null)
-  const albums = data?.albums.filter((r) => !gone.has(r.musicBrainzId))
+  const rows = data?.rows.filter((r) => !gone.has(r.key))
   const answering = data?.answering !== false
 
   // The card that opened the dialog is gone: the keyboard moves on to the next one's Unrequest (or the grid).
-  function remove(id: string, index: number) {
-    setGone((g) => new Set(g).add(id))
+  function remove(key: string, index: number) {
+    setGone((g) => new Set(g).add(key))
     requestAnimationFrame(() => {
       const buttons = grid.current?.querySelectorAll<HTMLButtonElement>('.requested-card .external-card-actions button')
       const next = buttons?.[Math.min(index, buttons.length - 1)]
@@ -53,25 +83,25 @@ export function LibraryRequested({ library, viewSwitch }: { library: Library; vi
       </header>
       {error ? (
         <PageError error={error} onRetry={reload} />
-      ) : !albums ? (
-        <PageLoading label="Loading requested albums" />
+      ) : !rows ? (
+        <PageLoading label={music ? 'Loading requested albums' : `Loading requested ${library.type === 'Movies' ? 'movies' : 'shows'}`} />
       ) : (
         <>
           {!answering && (
             <p className="page-message muted" role="status">
-              Lidarr isn’t answering.
+              {service} isn’t answering.
             </p>
           )}
-          {albums.length === 0 ? (
+          {rows.length === 0 ? (
             answering && <p className="page-message muted">Nothing on its way.</p>
           ) : (
-            <div className="poster-grid music-albums" ref={grid} tabIndex={-1}>
-              {albums.slice(0, shown).map((r, i) => (
-                <RequestedCard key={r.musicBrainzId} item={r} offline={!answering} onGone={() => remove(r.musicBrainzId, i)} />
+            <div className={music ? 'poster-grid music-albums' : 'poster-grid'} ref={grid} tabIndex={-1}>
+              {rows.slice(0, shown).map((r, i) => (
+                <RequestedCard key={r.key} row={r} square={music} offline={!answering} service={service} onGone={() => remove(r.key, i)} />
               ))}
             </div>
           )}
-          {albums.length > shown && (
+          {rows.length > shown && (
             <div className="load-more">
               <button className="button quiet" onClick={() => setShown((n) => n + PAGE_SIZE)}>
                 Show more
@@ -84,15 +114,53 @@ export function LibraryRequested({ library, viewSwitch }: { library: Library; vi
   )
 }
 
-function RequestedCard({ item, offline, onGone }: { item: MusicRequested; offline: boolean; onGone: () => void }) {
+/** The album isn't anywhere yet: its artwork opens its artist, when they're in the library. */
+function albumRow(item: MusicRequested): Row {
+  const link = item.artistLibraryItemId ? `/item/${item.artistLibraryItemId}` : undefined
+  return {
+    key: item.musicBrainzId,
+    title: item.title,
+    subtitle: link ? <Link to={link}>{item.artist}</Link> : item.artist,
+    image: item.image,
+    link,
+    linkLabel: `${item.title}, by ${item.artist}`,
+    state: item.state,
+    progress: item.progress,
+    releaseDate: item.releaseDate,
+    undo: () => unrequestAlbum({ musicBrainzId: item.musicBrainzId }),
+  }
+}
+
+/** A film or show opens its page: the library's, for a show that's partly in, else the one from outside. */
+function titleRow(item: TitleRequested): Row {
+  const seasons = item.seasons?.length
+    ? item.seasons.length === 1
+      ? `Season ${item.seasons[0]}`
+      : `Seasons ${item.seasons.slice(0, -1).join(', ')} and ${item.seasons[item.seasons.length - 1]}`
+    : null
+  return {
+    key: `${item.mediaType}:${item.tmdbId}`,
+    title: item.title,
+    subtitle: seasons ?? item.year ?? '',
+    image: item.poster,
+    link: item.libraryItemId ? `/item/${item.libraryItemId}` : `/discover/${item.mediaType}/${item.tmdbId}`,
+    linkLabel: item.title,
+    state: item.state,
+    progress: item.progress,
+    releaseDate: item.releaseDate,
+    // Just the seasons asked for: a show that's partly in keeps the rest.
+    undo: () => unrequestTitle(item.mediaType, item.tmdbId, item.seasons ?? undefined),
+  }
+}
+
+function RequestedCard({ row, square, offline, service, onGone }: { row: Row; square: boolean; offline: boolean; service: string; onGone: () => void }) {
   const [asking, setAsking] = useState(false)
   const [error, setError] = useState<string>()
-  const artistLink = item.artistLibraryItemId ? `/item/${item.artistLibraryItemId}` : undefined
 
   async function unrequest() {
     setError(undefined)
     try {
-      await unrequestAlbum({ musicBrainzId: item.musicBrainzId })
+      await row.undo()
       setAsking(false)
       onGone()
     } catch (e) {
@@ -102,36 +170,35 @@ function RequestedCard({ item, offline, onGone }: { item: MusicRequested; offlin
 
   const art = (
     <div className="card-frame">
-      <div className="artwork artwork-square">
-        {item.image ? <img src={imageUrl(item.image, 342)} alt="" loading="lazy" /> : <span className="artwork-fallback">{item.title}</span>}
+      <div className={square ? 'artwork artwork-square' : 'artwork artwork-poster'}>
+        {row.image ? <img src={imageUrl(row.image, 342)} alt="" loading="lazy" /> : <span className="artwork-fallback">{row.title}</span>}
       </div>
     </div>
   )
 
   return (
-    <div className="card external-card music-external-card music-external-album requested-card">
-      {/* The album isn't anywhere yet: its artwork opens its artist, when they're in the library. */}
-      {artistLink ? (
-        <Link to={artistLink} aria-label={`${item.title}, by ${item.artist}`} tabIndex={-1}>
+    <div className={square ? 'card external-card music-external-card music-external-album requested-card' : 'card external-card requested-card'}>
+      {row.link ? (
+        <Link to={row.link} aria-label={row.linkLabel} tabIndex={-1}>
           {art}
         </Link>
       ) : (
         art
       )}
-      <span className="card-title">{item.title}</span>
-      <span className="card-subtitle">{artistLink ? <Link to={artistLink}>{item.artist}</Link> : item.artist}</span>
-      <span className={`requested-state requested-${item.state}`}>{requestedState(item)}</span>
-      {item.state === 'downloading' && item.progress != null && (
-        <progress className="requested-progress" value={item.progress} max={1} aria-label={`${item.title} downloading`} />
+      <span className="card-title">{square || !row.link ? row.title : <Link to={row.link}>{row.title}</Link>}</span>
+      <span className="card-subtitle">{row.subtitle}</span>
+      <span className={`requested-state requested-${row.state}`}>{requestedState(row)}</span>
+      {row.state === 'downloading' && row.progress != null && (
+        <progress className="requested-progress" value={row.progress} max={1} aria-label={`${row.title} downloading`} />
       )}
       <div className="external-card-actions">
-        <AsyncButton className="button small quiet" onClick={() => setAsking(true)} disabled={offline} title={offline ? 'Lidarr isn’t answering.' : undefined}>
+        <AsyncButton className="button small quiet" onClick={() => setAsking(true)} disabled={offline} title={offline ? `${service} isn’t answering.` : undefined}>
           Unrequest
         </AsyncButton>
       </div>
       {asking && (
         <ConfirmDialog
-          title={`Unrequest ${item.title}?`}
+          title={`Unrequest ${row.title}?`}
           confirmLabel="Unrequest"
           cancelLabel="Keep it"
           danger

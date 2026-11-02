@@ -21,6 +21,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -173,41 +174,35 @@ private fun Page(model: AppModel, detail: ExternalDetail) {
 @Composable
 private fun Actions(model: AppModel, detail: ExternalDetail) {
     val navigator = LocalNavigator.current
-    // What's been done here, ahead of the server's next answer.
-    var requested by remember(detail.tmdbId) { mutableStateOf(false) }
     var onWatchlist by remember(detail.tmdbId) { mutableStateOf<Boolean?>(null) }
     var showingTrailer by remember { mutableStateOf(false) }
+    var confirming by remember { mutableStateOf(false) }
     val key = "${detail.mediaType}:${detail.tmdbId}"
     val saved = onWatchlist ?: (key in model.watchlistTitles)
     val trailer = youTubeId(detail.trailerYouTubeId)
-    val canRequest = !requested && detail.availability == Availability.None && !model.isKids
-    val label = when {
-        requested -> "Requested"
-        detail.availability == Availability.None -> "Request"
-        detail.availability == Availability.Requested -> "Requested"
-        detail.availability == Availability.PartlyAvailable -> "Partly in your library"
-        detail.availability == Availability.Available -> "In your library"
-        else -> "Not available"
-    }
+    // Whether Seerr is answering, so Request and Requested can wait while it isn't.
+    LaunchedEffect(Unit) { runCatching { model.titleRequestStatus() } }
+    val requestKey = titleKey(detail.mediaType, detail.tmdbId)
+    val state = model.titleState(requestKey, detail.availability)
+    val canPress = state.pressable(model)
     Column(Modifier.padding(horizontal = Edge).widthIn(max = 520.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
-        ActionButton(
-            label,
-            onClick = {
-                requested = true
-                navigator.watchlistChange("Couldn’t request this") {
-                    try {
-                        model.requestTitle(detail.mediaType, detail.tmdbId)
-                    } catch (e: Exception) {
-                        requested = false
-                        throw e
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            ActionButton(
+                state.label(),
+                onClick = {
+                    when (state) {
+                        TitleRequestState.CanRequest -> navigator.requestTitle(model, detail.mediaType, detail.tmdbId)
+                        TitleRequestState.Requested -> confirming = true
+                        else -> Unit
                     }
-                }
-            },
-            icon = if (canRequest) FlexarrIcons.request else FlexarrIcons.requested,
-            prominent = canRequest,
-            enabled = canRequest,
-            modifier = Modifier.fillMaxWidth(),
-        )
+                },
+                icon = state.icon(),
+                prominent = state == TitleRequestState.CanRequest,
+                enabled = canPress,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            TitleRequestNote(model, requestKey, state)
+        }
         if (model.hasWatchlist || trailer != null) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (model.hasWatchlist) {
@@ -219,7 +214,7 @@ private fun Actions(model: AppModel, detail: ExternalDetail) {
                             navigator.watchlistChange(if (saved) "Couldn’t remove this from your watchlist" else "Couldn’t add this to your watchlist") {
                                 try {
                                     val added = model.setTitleOnWatchlist(detail.mediaType, detail.tmdbId, !saved)
-                                    if (added?.requested == true) requested = true
+                                    if (added?.requested == true) model.titleWasAsked(requestKey)
                                 } catch (e: Exception) {
                                     onWatchlist = saved
                                     throw e
@@ -234,6 +229,7 @@ private fun Actions(model: AppModel, detail: ExternalDetail) {
         }
     }
     if (showingTrailer && trailer != null) TrailerSheet(trailer, "${detail.title} trailer", onClose = { showingTrailer = false })
+    if (confirming) TitleUndoDialog(detail.title, onConfirm = { navigator.unrequestTitle(model, detail.mediaType, detail.tmdbId) }, onDismiss = { confirming = false })
 }
 
 /** "R   2026   1h 59m   Movie", as the TV's page. */

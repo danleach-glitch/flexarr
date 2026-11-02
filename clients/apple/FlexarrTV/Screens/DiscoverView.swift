@@ -600,31 +600,46 @@ private struct CastFace: View {
     }
 }
 
-/// Request the title through Seerr, or say where it stands if it's already asked for or in.
+/// Request the title through Seerr, or say where it stands, as music's request button does: Requested, shown on, asks
+/// (Keep first), then takes the request back for the household. One button throughout, so focus never lands on nothing
+/// when it changes; while Seerr isn't answering it stays focusable but dimmed, and presses do nothing. A request Seerr
+/// can't take says Can't request, with why.
 private struct RequestButton: View {
     @Environment(AppModel.self) private var model
     let title: ExternalTitle
 
     private enum Sending: Equatable {
-        case idle, sending, sent
+        case idle, sending
         case failed(String)
+        /// Turned down for good: asking again won't change it.
+        case refused(String)
     }
 
     @State private var sending = Sending.idle
+    @State private var confirming = false
+    @State private var paused = false
 
     var body: some View {
+        let state = model.titleState(title)
         HStack(spacing: 30) {
-            // One button throughout, whatever it says: one that's taken away or disabled while it has focus leaves
-            // nothing on the page focused, and then Menu leaves the app rather than going back.
             Button {
-                guard canRequest, sending != .sending else { return }
-                Task { await request() }
+                guard sending != .sending, !paused else { return }
+                switch state {
+                case .requestable where !refused: request()
+                case .requested: confirming = true
+                default: break
+                }
             } label: {
-                Label(label, systemImage: symbol)
+                Label(label(state), systemImage: symbol(state))
             }
-            .buttonStyle(ActionButtonStyle(prominent: canRequest))
-            if let failure {
-                Text(failure)
+            .buttonStyle(ActionButtonStyle(prominent: state == .requestable && !refused, selected: state == .requested))
+            .opacity(paused && (state == .requestable || state == .requested) ? 0.5 : 1)
+            .accessibilityHint(state == .requested ? TitleWords.unrequestHint : "")
+            .undoConfirmation(TitleWords.unrequest(title.title), isPresented: $confirming, keep: TitleWords.keepIt, undo: TitleWords.unrequestAction) {
+                unrequest()
+            }
+            if let note = note(state) {
+                Text(note)
                     .font(.system(size: 24, weight: .medium))
                     .foregroundStyle(Color.screen.opacity(0.85))
                     .lineLimit(2)
@@ -632,41 +647,62 @@ private struct RequestButton: View {
             }
         }
         .focusSection()
-    }
-
-    /// Not asked for yet, here or anywhere else.
-    private var canRequest: Bool { sending != .sent && title.availability == .none }
-
-    private var label: String {
-        if sending == .sent { return "Requested" }
-        if let state = title.availability.label { return state }
-        if sending == .sending { return "Requesting…" }
-        return failure == nil ? "Request" : "Try again"
-    }
-
-    private var symbol: String {
-        if sending == .sent { return "clock" }
-        switch title.availability {
-        case .available: return "checkmark"
-        case .requested, .partlyAvailable: return "clock"
-        case .none: return "plus"
-        case .unknown: return "minus.circle"
+        .task {
+            let status = await model.titleRequestStatus()
+            paused = status.configured && !status.reachable
         }
     }
 
-    private var failure: String? {
-        if case .failed(let message) = sending { return message }
-        return nil
+    private var refused: Bool {
+        if case .refused = sending { return true }
+        return false
     }
 
-    private func request() async {
-        guard let client = model.client else { return }
+    private func label(_ state: TitleRequestState) -> String {
+        switch state {
+        case .requested: return TitleWords.requested
+        case .requestable:
+            if refused { return TitleWords.cantRequest }
+            if sending == .sending { return "Requesting…" }
+            if case .failed = sending { return TitleWords.tryAgain }
+            return TitleWords.request
+        case .partlyAvailable, .inLibrary, .none: return title.availability.label ?? "Not available"
+        }
+    }
+
+    private func symbol(_ state: TitleRequestState) -> String {
+        switch state {
+        case .requestable: Symbol.request
+        case .requested, .partlyAvailable: Symbol.requested
+        case .inLibrary: Symbol.watched
+        case .none: "minus.circle"
+        }
+    }
+
+    /// Said beside the button: Seerr away, or why it didn't go through.
+    private func note(_ state: TitleRequestState) -> String? {
+        if paused, state == .requestable || state == .requested { return TitleWords.seerrNotAnswering }
+        switch sending {
+        case .failed(let message), .refused(let message): return message
+        default: return nil
+        }
+    }
+
+    private func request() {
         sending = .sending
-        do {
-            try await client.request(title)
-            sending = .sent
-        } catch {
-            sending = .failed(ConnectionError(error).message)
+        Task {
+            switch await model.requestTitle(mediaType: title.mediaType, tmdbId: title.tmdbId) {
+            case .sent: sending = .idle
+            case .refused(let reason): sending = .refused(reason)
+            case .failed(let reason): sending = .failed(reason)
+            }
+        }
+    }
+
+    private func unrequest() {
+        sending = .sending
+        Task {
+            if let failure = await model.unrequestTitle(mediaType: title.mediaType, tmdbId: title.tmdbId) { sending = .failed(failure) } else { sending = .idle }
         }
     }
 }

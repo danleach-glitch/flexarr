@@ -468,6 +468,9 @@ final class AppModel {
         musicAsked = []
         musicUndone = []
         musicStatusCache = nil
+        titlesAsked = []
+        titlesUndone = []
+        titleStatusCache = nil
         onWatchlistForgotten?()
     }
 
@@ -1110,6 +1113,14 @@ final class AppModel {
     /// cards say Follow or Request album at once, before the server's next answer says so.
     var musicUndone: Set<String> = []
 
+    /// Films and shows asked for here, and taken back here (`TitleRequesting.key`), so every button says Requested or
+    /// Request at once, before the server's next answer says so.
+    var titlesAsked: Set<String> = []
+    var titlesUndone: Set<String> = []
+
+    /// The last answer to whether Seerr is set up and answering, and when (see `titleRequestStatus()`).
+    @ObservationIgnored var titleStatusCache: (status: RequestStatus, at: Date)?
+
     /// The last answer to whether music requests are on, and when: music pages reuse it for a minute rather than each
     /// asking before their own call (see `musicRequestStatus()`).
     @ObservationIgnored var musicStatusCache: (status: MusicRequestStatus, at: Date)?
@@ -1208,6 +1219,7 @@ final class AppModel {
     func invalidate() {
         // Pages load again: whether music requests are on (and Lidarr answering) is asked again too.
         musicStatusCache = nil
+        titleStatusCache = nil
         refreshToken += 1
     }
 

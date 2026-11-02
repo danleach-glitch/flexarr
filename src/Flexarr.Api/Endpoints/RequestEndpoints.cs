@@ -4,6 +4,7 @@ using Flexarr.Api.Configuration;
 using Flexarr.Api.Endpoints.MusicRequests;
 using Flexarr.Api.Profiles;
 using Flexarr.Core.Data;
+using Flexarr.Core.Libraries;
 using Flexarr.Core.Media;
 using Flexarr.Core.Notifications;
 using Flexarr.Integrations.Arr;
@@ -81,8 +82,11 @@ public sealed record ExternalDetailDto(
     bool? OnWatchlist = null,
     RottenTomatoesState? RottenTomatoesState = null);
 
-public static class RequestEndpoints
+public static partial class RequestEndpoints
 {
+    [LoggerMessage(Level = LogLevel.Warning, Message = "{Service} refused or didn't answer taking a request back ({Status})")]
+    private static partial void LogUndoRefused(ILogger logger, Exception ex, string service, int? status);
+
     private static readonly (string Id, string List, string Title)[] Lists =
     [
         ("trending", "trending", "Trending this week"),
@@ -262,6 +266,7 @@ public static class RequestEndpoints
             {
                 var seasons = request.MediaType == "tv" && request.Seasons is { Count: > 0 } chosen ? chosen.Where(n => n > 0).Distinct().Order().ToList() : null;
                 await PlaceAsync(seerr, instance, options.CurrentValue, db, current.Id, request.MediaType, request.TmdbId, ct, seasons);
+                RequestRequested.Forget();
                 if (seasons is not null)
                 {
                     // The show's page asks Sonarr again, so the seasons show as requested.
@@ -281,6 +286,70 @@ public static class RequestEndpoints
             catch (NotRequestableException ex)
             {
                 return Results.Problem(ex.Message, statusCode: 409);
+            }
+        });
+
+        // Every film and show Seerr is waiting for, with how far along each is. Given a library, only titles in it
+        // (that library's Requested view).
+        group.MapGet("/requested", async (Guid? libraryId, IOptionsMonitor<FlexarrOptions> options, SeerrClient seerr, ArrClient arr, FlexarrDbContext db,
+            Microsoft.Extensions.Caching.Memory.IMemoryCache cache, CancellationToken ct) =>
+        {
+            Library? library = null;
+            if (libraryId is { } id)
+            {
+                library = await db.Libraries.AsNoTracking().FirstOrDefaultAsync(l => l.Id == id && (l.Type == LibraryType.Movies || l.Type == LibraryType.TvShows), ct);
+                if (library is null)
+                {
+                    return Results.NotFound();
+                }
+            }
+
+            if (options.CurrentValue.Seerr?.Instance is not { } instance)
+            {
+                return Results.Ok(Array.Empty<TitleRequestedDto>());
+            }
+
+            return await RequestRequested.ListAsync(instance, seerr, arr, options.CurrentValue, db, cache, library, ct) is { } listed
+                ? Results.Ok(listed)
+                : Results.Problem("Seerr isn't answering. Try again later.", statusCode: 502);
+        });
+
+        // Take a film or show request back, for the household: Seerr's request goes, Radarr or Sonarr stop wanting it.
+        group.MapPost("/unrequest", async (TitleUndoBody body, IOptionsMonitor<FlexarrOptions> options, SeerrClient seerr, ArrClient arr, FlexarrDbContext db,
+            CurrentProfile current, Microsoft.Extensions.Caching.Memory.IMemoryCache cache, ILoggerFactory loggers, CancellationToken ct) =>
+        {
+            if (body.MediaType is not ("movie" or "tv"))
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["mediaType"] = ["Use \"movie\" or \"tv\"."] });
+            }
+
+            if ((await LibraryVisibility.HiddenTypesAsync(db, ct)).Hides(KindOf(body.MediaType)))
+            {
+                return Results.Problem(body.MediaType == "movie" ? "This profile can't request movies." : "This profile can't request shows.", statusCode: 403);
+            }
+
+            if (options.CurrentValue.Seerr?.Instance is not { } instance)
+            {
+                return Results.Problem("Requests need a Seerr server. Add one under Settings › Connections.", statusCode: 409);
+            }
+
+            if (MusicRequestEndpoints.UndoRefused(current, cache, "Guests can't undo requests.") is { } refused)
+            {
+                return refused;
+            }
+
+            try
+            {
+                return MusicRequestEndpoints.Counted(current, cache,
+                    await RequestUndo.UnrequestAsync(body, instance, seerr, arr, options.CurrentValue, db, cache, ct));
+            }
+            catch (RequestUndo.ServiceException ex)
+            {
+                var status = (int?)((HttpRequestException)ex.InnerException!).StatusCode;
+                LogUndoRefused(loggers.CreateLogger("Flexarr.Requests"), ex.InnerException!, ex.Service, status);
+                return status is >= 400 and < 500
+                    ? Results.Problem($"{ex.Service} turned that down.", statusCode: 502)
+                    : Results.Problem($"{ex.Service} isn't answering. Try again later.", statusCode: 502);
             }
         });
 
@@ -429,7 +498,7 @@ public static class RequestEndpoints
             watchlist?.Contains(key));
     }
 
-    private static string? Tmdb(string? path, string size) =>
+    internal static string? Tmdb(string? path, string size) =>
         path is null ? null : ImageEndpoints.RemoteUrl($"https://image.tmdb.org/t/p/{size}{path}");
 
     /// <summary>"movie:123" / "tv:456" (TMDB ids) → library item.</summary>
