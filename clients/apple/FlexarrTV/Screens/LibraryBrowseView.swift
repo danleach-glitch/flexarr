@@ -103,6 +103,12 @@ struct ViewSwitch<Choice: Hashable>: View {
         // Coming into the switch lands on the view shown.
         .defaultFocus($focused, selection)
         .onChange(of: focused) { old, now in
+            // defaultFocus alone doesn't hold when focus comes up from right under another word (the first book of an
+            // audiobooks library sits under "All books"): coming in always lands on the view shown.
+            if old == nil, let now, now != selection {
+                focused = selection
+                return
+            }
             focusChanged(now != nil)
             // Selecting the library in the sidebar gives focus to whatever is at the top-left, which is this switch;
             // pass it on to the screen's first title. Up from there, or a switch of view, still comes here.

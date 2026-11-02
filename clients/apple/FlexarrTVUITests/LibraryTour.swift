@@ -203,6 +203,23 @@ final class LibraryTour: XCTestCase {
         XCTAssertTrue(all.hasFocus || app.buttons["Browse"].hasFocus, "up from the first title should reach the switch")
     }
 
+    /// The switch's Genres: a tile for each genre (films' and shows' with a backdrop, books' with their covers), and one
+    /// opening its titles.
+    func test9Genres() throws {
+        openTab(named: env("FLEXARR_LIBRARY") ?? "Movies")
+        press(.up, wait: 1.5)
+        let genres = app.buttons["Genres"]
+        XCTAssertTrue(genres.exists, "the switch should offer Genres")
+        for _ in 0..<3 where !genres.hasFocus { press(.right, wait: 0.8) }
+        press(.select, wait: 4)
+        shot("72-genres")
+        press(.down, wait: 1.5)
+        shot("73-genres-tile-focused")
+        press(.select, wait: 4)
+        shot("74-genre-opened")
+        press(.menu, wait: 2)
+    }
+
     private func env(_ name: String) -> String? { ProcessInfo.processInfo.environment[name] }
 
     /// Selects the library in the sidebar; focus goes on into it.
