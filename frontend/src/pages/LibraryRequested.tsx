@@ -1,11 +1,12 @@
 import { useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
-import { ApiError, getMusicRequested, getMusicRequestStatusNow, imageUrl, unrequestAlbum, type Library, type MusicRequested } from '../api/client'
+import { getMusicRequested, getMusicRequestStatusNow, imageUrl, unrequestAlbum, type Library, type MusicRequested } from '../api/client'
 import { AsyncButton } from '../components/AsyncButton'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { PageError, PageLoading } from '../components/PageStatus'
 import { useApi } from '../hooks/useApi'
 import { requestedState } from '../lib/requestedState'
+import { undoFailure } from '../lib/musicUndo'
 
 /** How many albums show at first; Show more adds as many again. */
 const PAGE_SIZE = 200
@@ -95,13 +96,7 @@ function RequestedCard({ item, offline, onGone }: { item: MusicRequested; offlin
       setAsking(false)
       onGone()
     } catch (e) {
-      setError(
-        e instanceof ApiError && (e.status === 404 || e.status === 405)
-          ? 'Update the server to undo this.'
-          : e instanceof ApiError && e.messages[0]
-            ? e.messages[0]
-            : 'That didn’t work. Try again.',
-      )
+      setError(undoFailure(e))
     }
   }
 

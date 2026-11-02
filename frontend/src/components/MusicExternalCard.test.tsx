@@ -157,4 +157,14 @@ describe('MusicExternalCard', () => {
 
     await waitFor(() => expect(screen.getByRole('alert').textContent).toBe('Update the server to undo this.'))
   })
+
+  it('says the server’s own words for a 404 that carries them', async () => {
+    refusal = new ApiError(404, 'Not Found', ['Deezer doesn’t know that any more.'], undefined, { detail: 'Deezer doesn’t know that any more.' })
+    renderCard({ ...album, availability: 'Requested' })
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Requested' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Unrequest' }))
+
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toBe('Deezer doesn’t know that any more.'))
+  })
 })

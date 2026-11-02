@@ -360,7 +360,7 @@ export function ArtistPage({ detail }: { detail: ItemDetail }) {
       {extras.data && extras.data.similar.length > 0 && (
         <Row title="Fans also like">
           {extras.data.similar.map((s, i) => (
-            <MusicExternalCard key={`${i}-${s.deezerId}`} item={s} />
+            <MusicExternalCard key={`${i}-${s.deezerId}`} item={s} unanswered={extras.data?.lidarrAnswered === false} />
           ))}
         </Row>
       )}

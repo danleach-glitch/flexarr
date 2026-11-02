@@ -70,7 +70,7 @@ export function MusicExternalArtistPage() {
       {a.similar.length > 0 && (
         <Row title="Fans also like">
           {a.similar.map((s, i) => (
-            <MusicExternalCard key={`${i}-${s.deezerId}`} item={s} />
+            <MusicExternalCard key={`${i}-${s.deezerId}`} item={s} unanswered={a.lidarrAnswered === false} />
           ))}
         </Row>
       )}

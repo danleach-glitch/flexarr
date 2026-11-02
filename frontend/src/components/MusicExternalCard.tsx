@@ -6,6 +6,7 @@ import { musicLink } from '../lib/musicLinks'
 import { AsyncButton } from './AsyncButton'
 import { ConfirmDialog } from './ConfirmDialog'
 import { icon } from './icons.generated'
+import { undoFailure } from '../lib/musicUndo'
 
 type State = MusicExternal['availability'] | 'sending' | 'failed' | 'refused'
 
@@ -68,14 +69,7 @@ export function MusicRequestButton({
       setAsking(false)
       onUndone?.()
     } catch (e) {
-      // A server from before undo (it answers 404 to any of these) can't do it.
-      setUndoError(
-        e instanceof ApiError && (e.status === 404 || e.status === 405)
-          ? 'Update the server to undo this.'
-          : e instanceof ApiError && e.messages[0]
-            ? e.messages[0]
-            : 'That didn’t work. Try again.',
-      )
+      setUndoError(undoFailure(e))
     }
   }
 
@@ -97,6 +91,7 @@ export function MusicRequestButton({
         >
           <Icon aria-hidden /> {kind === 'artist' ? 'Following' : 'Requested'}
         </AsyncButton>
+        {offline && size === 'large' && <span className="external-state">Lidarr isn’t answering.</span>}
         {asking && (
           <ConfirmDialog
             title={kind === 'artist' ? `Stop following ${title ?? 'this artist'}?` : `Unrequest ${title ?? 'this album'}?`}
@@ -137,6 +132,7 @@ export function MusicRequestButton({
       >
         <Icon aria-hidden /> {state === 'failed' ? 'Try again' : kind === 'artist' ? 'Follow' : 'Request album'}
       </AsyncButton>
+      {offline && size === 'large' && <span className="external-state">Lidarr isn’t answering.</span>}
       {state === 'failed' && message && (
         <span className="error" role="alert">
           {message}
