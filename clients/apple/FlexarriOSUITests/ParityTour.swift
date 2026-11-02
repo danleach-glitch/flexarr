@@ -9,8 +9,9 @@ import XCTest
 ///
 ///     TEST_RUNNER_FLEXARR_SERVER=http://192.168.1.20:8383 TEST_RUNNER_FLEXARR_KEY=... \
 ///     TEST_RUNNER_PARITY_SHOTS_DIR=/tmp/parity \
-///     xcodebuild test -project Flexarr.xcodeproj -scheme FlexarriOS -destination 'platform=iOS Simulator,name=iPhone Air' \
-///       -only-testing:FlexarriOSUITests/ParityTour
+///     ../../scripts/claude/sims.sh with-dd sh -c 'xcodebuild test -project Flexarr.xcodeproj -scheme FlexarriOS \
+///       -destination "id=$(../../scripts/claude/sims.sh ios)" -derivedDataPath "$DD" \
+///       -only-testing:FlexarriOSUITests/ParityTour'
 ///
 /// Shots are saved as `iphone-<nn>-<name>.png` in PARITY_SHOTS_DIR, and attached to the test result too.
 @MainActor

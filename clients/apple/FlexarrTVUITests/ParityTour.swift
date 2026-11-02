@@ -9,8 +9,9 @@ import XCTest
 ///
 ///     TEST_RUNNER_FLEXARR_SERVER=http://192.168.1.20:8383 TEST_RUNNER_FLEXARR_KEY=... \
 ///     TEST_RUNNER_PARITY_SHOTS_DIR=/tmp/parity \
-///     xcodebuild test -project Flexarr.xcodeproj -scheme FlexarrTV -destination 'platform=tvOS Simulator,name=Apple TV 4K (Flexarr)' \
-///       -only-testing:FlexarrTVUITests/ParityTour
+///     ../../scripts/claude/sims.sh with-dd sh -c 'xcodebuild test -project Flexarr.xcodeproj -scheme FlexarrTV \
+///       -destination "id=$(../../scripts/claude/sims.sh tv)" -derivedDataPath "$DD" \
+///       -only-testing:FlexarrTVUITests/ParityTour'
 ///
 /// Shots are saved as `tv-<nn>-<name>.png` in PARITY_SHOTS_DIR, and attached to the test result too.
 @MainActor
