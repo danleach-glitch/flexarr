@@ -1,8 +1,9 @@
 import FlexarrKit
 import SwiftUI
 
-/// Poster grid for one library, paged with skip/take, with sort and genre in the toolbar. A film or TV library also has
-/// Genres: a tile for each, opening its titles in that genre.
+/// One library: Browse (a hero and rows of just this library), All (a poster grid paged with skip/take, with sort and
+/// genre in the toolbar) and, for films and shows, Genres (a tile for each, opening its titles in that genre). The
+/// plain library opens on Browse; one asked for with a sort or genre (a row's See all) opens on its titles.
 struct LibraryView: View {
     @Environment(AppModel.self) private var model
     let library: Library
@@ -10,8 +11,11 @@ struct LibraryView: View {
     /// Opened from a genre's tile: just its titles, under its name.
     var initialGenre: String?
 
-    private enum Showing: Hashable { case all, genres }
-    @State private var showing = Showing.all
+    enum Showing: Hashable { case browse, all, genres }
+    @State private var showing: Showing
+    /// The views opened so far. Each stays in place, hidden, when another is picked, so switching back finds it
+    /// where it was left rather than loading it again.
+    @State private var opened: Set<Showing>
 
     @State private var sort: LibrarySort = .title
     @State private var genre: String?
@@ -35,43 +39,100 @@ struct LibraryView: View {
     /// The most the server sends in one page (ItemEndpoints' MaxPageSize).
     private static let maxPageSize = 500
 
+    init(library: Library, initialSort: LibrarySort = .title, initialGenre: String? = nil) {
+        self.library = library
+        self.initialSort = initialSort
+        self.initialGenre = initialGenre
+        let first: Showing = Self.hasBrowse(library, genre: initialGenre) && initialSort == .title && initialGenre == nil ? .browse : .all
+        _showing = State(initialValue: first)
+        _opened = State(initialValue: [first])
+    }
+
     private var columns: [GridItem] {
         let minimum: CGFloat = sizeClass == .regular ? 140 : 100
         return [GridItem(.adaptive(minimum: minimum, maximum: minimum * 1.45), spacing: 12, alignment: .top)]
+    }
+
+    /// Films, shows and home videos have a Browse page; a genre's own page doesn't offer it again.
+    private static func hasBrowse(_ library: Library, genre: String?) -> Bool {
+        genre == nil && [.movies, .tvShows, .homeVideos].contains(library.type)
     }
 
     /// Films and shows have genres to browse by; a genre's own page doesn't offer them again.
     private var hasGenres: Bool { initialGenre == nil && (library.type == .movies || library.type == .tvShows) }
 
     var body: some View {
-        ScrollView(.vertical) {
-            VStack(alignment: .leading, spacing: 12) {
-                if hasGenres {
-                    Picker("Show", selection: $showing) {
-                        Text(library.type == .tvShows ? "All shows" : "All movies").tag(Showing.all)
-                        Text("Genres").tag(Showing.genres)
-                    }
-                    .pickerStyle(.segmented)
-                    .padding(.horizontal, Layout.edge)
-                    .padding(.bottom, 4)
-                }
-                if showing == .genres {
-                    LibraryGenreGrid(library: library, genres: genres)
-                } else {
-                    titles
+        ZStack {
+            if opened.contains(.all) { kept(.all) { allTitles } }
+            if opened.contains(.genres) { kept(.genres) { genreTiles } }
+            if opened.contains(.browse) {
+                kept(.browse) {
+                    LibraryBrowseView(library: library, showAll: { showing = .all }) { viewSwitch }
                 }
             }
-            .padding(.bottom, 32)
         }
-        .background(RoomBackground(ambient: items.first?.glowColor, intensity: 0.18))
         .navigationTitle(initialGenre ?? library.name)
         .toolbar {
             if showing == .all {
                 ToolbarItem(placement: .topBarTrailing) { sortAndFilter }
             }
         }
+        .task {
+            // For the toolbar's genre menu and the Genres view, whichever comes first.
+            if hasGenres, genres.isEmpty { genres = await (try? model.client?.libraryGenres(library.id)) ?? [] }
+        }
+        .onChange(of: showing) { opened.insert(showing) }
+    }
+
+    /// One of the views, shown when it's the one picked and otherwise kept out of sight, touch and VoiceOver.
+    private func kept(_ view: Showing, @ViewBuilder _ content: () -> some View) -> some View {
+        let current = showing == view
+        return content()
+            .opacity(current ? 1 : 0)
+            .allowsHitTesting(current)
+            .accessibilityHidden(!current)
+            .zIndex(current ? 1 : 0)
+    }
+
+    /// Browse, All (movies, shows or folders) and Genres, as one segmented control at the top of each view.
+    @ViewBuilder
+    private var viewSwitch: some View {
+        if Self.hasBrowse(library, genre: initialGenre) || hasGenres {
+            Picker("Show", selection: $showing) {
+                if Self.hasBrowse(library, genre: initialGenre) { Text("Browse").tag(Showing.browse) }
+                Text(library.type == .tvShows ? "All shows" : library.type == .homeVideos ? "All folders" : "All movies").tag(Showing.all)
+                if hasGenres { Text("Genres").tag(Showing.genres) }
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal, Layout.edge)
+            .padding(.bottom, 4)
+        }
+    }
+
+    private var genreTiles: some View {
+        ScrollView(.vertical) {
+            VStack(alignment: .leading, spacing: 12) {
+                viewSwitch
+                LibraryGenreGrid(library: library, genres: genres)
+            }
+            .padding(.bottom, 32)
+        }
+        .background(RoomBackground(ambient: items.first?.glowColor, intensity: 0.18))
+        .refreshable { genres = await (try? model.client?.libraryGenres(library.id)) ?? genres }
+    }
+
+    private var allTitles: some View {
+        ScrollView(.vertical) {
+            VStack(alignment: .leading, spacing: 12) {
+                viewSwitch
+                titles
+            }
+            .padding(.bottom, 32)
+        }
+        .background(RoomBackground(ambient: items.first?.glowColor, intensity: 0.18))
         .refreshable { await reload() }
         .task {
+            // The sort and genre a link asked for, before the first page.
             if !didApplyInitialSort {
                 didApplyInitialSort = true
                 sort = initialSort
@@ -83,9 +144,7 @@ struct LibraryView: View {
                 if loadedToken != model.refreshToken || Freshness.isStale(loadedAt) { await refreshLoaded() }
                 return
             }
-            async let genresTask = try? model.client?.libraryGenres(library.id)
             await reload()
-            genres = await genresTask ?? []
         }
         .onAppear { isVisible = true }
         .onDisappear { isVisible = false }
