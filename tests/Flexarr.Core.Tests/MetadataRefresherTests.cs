@@ -282,7 +282,14 @@ public sealed class MetadataRefresherTests : IAsyncLifetime
 
         Assert.Single(_radarr.Paths, p => p.StartsWith("/api/v1/", StringComparison.Ordinal));
         var dune = await _db.MediaItems.AsNoTracking().SingleAsync(i => i.Title == "Dune");
-        Assert.Equal((83, true), (dune.CriticRating, dune.CriticCertified)); // Radarr's score, Seerr's certificate
+        Assert.Equal((84, true), (dune.CriticRating, dune.CriticCertified)); // Seerr's, not Radarr's differing 83
+
+        // Radarr losing its score meanwhile doesn't take Seerr's away either.
+        _radarr.Responses["/api/v3/movie"] = """[{"id":7,"title":"Dune","year":2021,"tmdbId":438631,"path":"/movies/Dune","ratings":{"imdb":{"value":8.0}}}]""";
+        await refresher.RefreshLibraryAsync(_library, force: true, default);
+
+        dune = await _db.MediaItems.AsNoTracking().SingleAsync(i => i.Title == "Dune");
+        Assert.Equal((84, true, 8.0), (dune.CriticRating, dune.CriticCertified, dune.ImdbRating)); // and Radarr fills what Seerr didn't give
     }
 
     [Fact]
