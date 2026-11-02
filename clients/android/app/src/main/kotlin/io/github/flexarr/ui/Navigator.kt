@@ -74,6 +74,15 @@ class Navigator(private val nav: NavHostController, private val model: AppModel,
         }
     }
 
+    /** A film or show from outside the library ([mediaType] "movie" or "tv"): its own page. */
+    fun openExternal(mediaType: String, tmdbId: Int) = nav.navigate("external/$mediaType/$tmdbId")
+
+    /** A film or show from Seerr: one the library has opens as itself, the rest their outside page. */
+    fun openExternal(title: io.github.flexarr.core.ExternalTitle) {
+        val id = title.libraryItemId
+        if (id != null) openItem(id) else openExternal(title.mediaType, title.tmdbId)
+    }
+
     fun openBook(id: String) = nav.navigate("book/$id")
 
     fun openBookSeries(id: String) = nav.navigate("book-series/$id")
