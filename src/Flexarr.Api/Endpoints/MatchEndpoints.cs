@@ -90,6 +90,10 @@ public static partial class MatchEndpoints
                 return Results.NotFound();
             }
 
+            // A different title than the one it is: its details edited by hand were about the old one, so they go.
+            var current = item.Kind == MediaKind.Movie ? item.TmdbId : item.TvdbId ?? item.TvMazeId;
+            var rematched = current != request.Id.ToString(CultureInfo.InvariantCulture);
+
             var config = options.CurrentValue;
             var kind = KindFor(item);
             var noun = item.Kind == MediaKind.Movie ? "movie" : "show";
@@ -103,7 +107,7 @@ public static partial class MatchEndpoints
 
                 // Nothing to add it to: the choice alone is kept, and TMDB or TVmaze supply the rest.
                 var source = item.Kind == MediaKind.Movie ? MetadataRefresher.Tmdb : MetadataRefresher.TvMaze;
-                Forget(db, item);
+                Forget(db, item, rematched);
                 item.TmdbId = item.Kind == MediaKind.Movie ? request.Id.ToString(CultureInfo.InvariantCulture) : null;
                 item.TvMazeId = item.Kind == MediaKind.Series ? request.Id.ToString(CultureInfo.InvariantCulture) : null;
                 await refresher.RefreshItemAsync(item, ct);
@@ -174,7 +178,7 @@ public static partial class MatchEndpoints
                 return Results.Problem($"{kind} didn't answer ({(int?)ex.StatusCode ?? 0}), so the match wasn't changed.", statusCode: 502);
             }
 
-            Forget(db, item);
+            Forget(db, item, rematched);
             item.TvdbId = item.Kind == MediaKind.Series ? request.Id.ToString(CultureInfo.InvariantCulture) : null;
             item.TmdbId = item.Kind == MediaKind.Movie ? request.Id.ToString(CultureInfo.InvariantCulture) : null;
 
@@ -228,9 +232,17 @@ public static partial class MatchEndpoints
         return api;
     }
 
-    /// <summary>Forgets everything the wrong match brought, so none of it carries over, and keeps the one chosen.</summary>
-    private static void Forget(FlexarrDbContext db, MediaItem item)
+    /// <summary>
+    /// Forgets everything the wrong match brought, so none of it carries over, and keeps the one chosen. Choosing a
+    /// different title also unlocks details edited by hand.
+    /// </summary>
+    private static void Forget(FlexarrDbContext db, MediaItem item, bool rematched)
     {
+        if (rematched)
+        {
+            item.DetailsLocked = false;
+        }
+
         item.TvdbId = null;
         item.TmdbId = null;
         item.ImdbId = null;
