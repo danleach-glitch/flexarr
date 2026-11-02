@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Requests · Flexarr guide</title>
-  <meta name="description" content="Find movies and shows you don&#39;t have yet, request them through Seerr from any of the apps, and choose which library they go to.">
+  <meta name="description" content="Find movies, shows and music you don&#39;t have yet, request them from any of the apps, and choose which library they go to.">
   <meta name="theme-color" content="#1b1720">
   <meta name="color-scheme" content="dark">
   <meta name="apple-itunes-app" content="app-id=6826618084">
@@ -12,7 +12,7 @@
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <meta property="og:title" content="Requests · Flexarr guide">
-  <meta property="og:description" content="Find movies and shows you don&#39;t have yet, request them through Seerr from any of the apps, and choose which library they go to.">
+  <meta property="og:description" content="Find movies, shows and music you don&#39;t have yet, request them from any of the apps, and choose which library they go to.">
   <meta property="og:image" content="https://flexarr.io/shots/og.jpg">
   <meta property="og:url" content="https://flexarr.io/guide/requests">
   <meta name="twitter:card" content="summary_large_image">
@@ -115,8 +115,8 @@
       <article>
         <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Your *arrs</p>
         <h1>Requests</h1>
-        <p class="lede">Find movies and shows you don&#39;t have yet, request them through Seerr from any of the apps, and choose which library they go to.</p>
-        <p class="meta">4 min read</p>
+        <p class="lede">Find movies, shows and music you don&#39;t have yet, request them from any of the apps, and choose which library they go to.</p>
+        <p class="meta">6 min read</p>
         <nav class="toc" aria-label="On this page">
           <p>On this page</p>
           <ol>
@@ -128,6 +128,7 @@
             <li><a href="#who-can-request">Who can request</a></li>
             <li><a href="#where-requests-go">Where requests go</a></li>
             <li><a href="#status-and-when-it-arrives">Status and when it arrives</a></li>
+            <li><a href="#music">Music</a></li>
             <li><a href="#if-requests-don-t-work">If requests don&#39;t work</a></li>
           </ol>
         </nav>
@@ -137,7 +138,7 @@
 <h2 id="before-you-start"><a class="anchor" href="#before-you-start" aria-hidden="true" tabindex="-1">#</a>Before you start</h2>
 <p>Connect Seerr in <strong>Settings › Connections</strong>: under <strong>Apps &amp; Integrations</strong>, choose <strong>Connect</strong> beside <strong>Seerr</strong>, type its <strong>Address</strong> (usually <code>http://&lt;host&gt;:5055</code>) and its <strong>API key</strong> (in Seerr, under <strong>Settings › General</strong>), and choose <strong>Connect</strong>. See <a href="/guide/connect-arrs">Connect Sonarr, Radarr, Lidarr and Seerr</a>.</p>
 <p>Seerr itself needs Radarr and Sonarr set up in its own settings, since it hands requests to them. Connect Sonarr and Radarr to Flexarr too, so requested titles show up the moment they&#39;re downloaded (see <a href="/guide/connect-arrs#webhooks-new-downloads-appear-straight-away">Webhooks</a>).</p>
-<blockquote class="callout note"><p><strong>Note</strong> Requests are for movies and shows. Audiobooks and music aren&#39;t requested.</p>
+<blockquote class="callout note"><p><strong>Note</strong> Music is requested through Lidarr rather than Seerr: see <a href="#music">Music</a>. Audiobooks aren&#39;t requested.</p>
 </blockquote>
 <h2 id="where-you-can-request"><a class="anchor" href="#where-you-can-request" aria-hidden="true" tabindex="-1">#</a>Where you can request</h2>
 <div class="table"><table>
@@ -228,12 +229,53 @@
 </tbody></table></div>
 <p>Flexarr remembers who asked for what. When the movie or show arrives, whoever requested it gets a <strong>Your request is ready</strong> notification on their iPhone or iPad, if notifications are on for that profile. See <a href="/guide/notifications-and-widgets">Notifications and widgets</a>.</p>
 <p>To follow a request while it downloads, use Seerr itself, or <strong>Coming soon</strong> in Flexarr&#39;s sidebar for what Sonarr and Radarr are expecting.</p>
+<h2 id="music"><a class="anchor" href="#music" aria-hidden="true" tabindex="-1">#</a>Music</h2>
+<p>Seerr doesn&#39;t do music, so music requests go straight to Lidarr. With Lidarr connected, you can find artists and albums you don&#39;t have and add them.</p>
+<p><strong>Before you start:</strong> connect Lidarr in <strong>Settings › Connections</strong> (see <a href="/guide/connect-arrs">Connect Sonarr, Radarr, Lidarr and Seerr</a>). <strong>Music requests</strong> is on below Lidarr there; turn it off to keep Lidarr connected without anyone requesting music. Lidarr needs a root folder, an indexer and a download client of its own.</p>
+<p>Suggestions and charts come from Deezer, which needs no account. Requests use Lidarr&#39;s own search, which looks artists and albums up on MusicBrainz.</p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>Where</th>
+<th>Find music</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Web app, Apple TV and Android TV</td>
+<td><strong>Discover</strong>, then <strong>Music</strong></td>
+</tr>
+<tr>
+<td>iPhone, iPad and Android phones</td>
+<td><strong>Search</strong>, under <strong>Not in your library</strong></td>
+</tr>
+<tr>
+<td>Every app</td>
+<td>An artist&#39;s page in your music library</td>
+</tr>
+</tbody></table></div>
+<p><strong>Discover › Music</strong> has these rows:</p>
+<ul>
+<li><strong>Like artists you play</strong>: artists like the ones you listen to most.</li>
+<li><strong>New from your artists</strong>: this year&#39;s releases by artists you have, that you don&#39;t have yet.</li>
+<li><strong>Top albums</strong>: what&#39;s charting now.</li>
+</ul>
+<p>Below them are genres. Each one opens its best-known artists.</p>
+<p>There are two kinds of music request:</p>
+<ul>
+<li><strong>Request album</strong> downloads that album and nothing else. If Lidarr doesn&#39;t have the artist yet, it adds them without their other albums.</li>
+<li><strong>Follow artist</strong> has Lidarr download the artist&#39;s new releases from now on. Their older albums are still requested one at a time.</li>
+</ul>
+<p>An artist&#39;s page in your library ends with <strong>Not in your library</strong>: the albums of theirs you don&#39;t have, each with <strong>Request album</strong>. Below that, <strong>Fans also like</strong> suggests artists like them.</p>
+<p>When an album you asked for arrives, you get a <strong>Your request is ready</strong> notification. When an artist you follow puts out an album, you get <strong>New from</strong> the artist.</p>
+<p>The same profiles can request music as can request movies and shows. Kids profiles, profiles with an age limit and profiles that can&#39;t see a music library can&#39;t. With two or more music libraries Lidarr adds to, <strong>New music goes to</strong> in the profile&#39;s settings picks which one gets the profile&#39;s requests.</p>
 <h2 id="if-requests-don-t-work"><a class="anchor" href="#if-requests-don-t-work" aria-hidden="true" tabindex="-1">#</a>If requests don&#39;t work</h2>
 <ul>
 <li><strong>Discover has no Seerr rows:</strong> check Seerr shows a green dot in <strong>Settings › Connections</strong>. If it says it can&#39;t be reached, or the API key isn&#39;t right, edit it there.</li>
 <li><strong>&quot;Requests need a Seerr server&quot;:</strong> Seerr isn&#39;t connected yet.</li>
 <li><strong>&quot;This profile can&#39;t request movies&quot; (or shows):</strong> that kind of library is hidden from the profile you&#39;re using.</li>
 <li><strong>&quot;Seerr didn&#39;t accept the request&quot;:</strong> it may already be requested, or Seerr turned it down. Seerr&#39;s own requests page says why.</li>
+<li><strong>&quot;Lidarr doesn&#39;t know&quot; an artist or album:</strong> Lidarr&#39;s search couldn&#39;t find it on MusicBrainz, or found more than one artist with that name. Add it in Lidarr itself.</li>
+<li><strong>&quot;Lidarr didn&#39;t take the request&quot;:</strong> Lidarr isn&#39;t reachable, or turned the request down. Lidarr&#39;s <strong>Activity</strong> page says why.</li>
 </ul>
 
         </div>

@@ -263,7 +263,7 @@ function NameStep({ nav }: { nav: StepNav }) {
 }
 
 const arrKinds: ArrKind[] = ['Sonarr', 'Radarr', 'Lidarr']
-const arrPurpose: Record<ArrKind, string> = { Sonarr: 'TV shows', Radarr: 'Movies', Lidarr: 'Music' }
+const arrPurpose: Record<ArrKind, string> = { Sonarr: 'TV shows', Radarr: 'Movies', Lidarr: 'Music, and music requests' }
 const usualUrl: Record<ArrKind, string> = { Sonarr: 'http://localhost:8989', Radarr: 'http://localhost:7878', Lidarr: 'http://localhost:8686' }
 
 function AppsStep({ nav }: { nav: StepNav }) {

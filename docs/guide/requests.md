@@ -1,6 +1,6 @@
 ---
 title: Requests
-description: Find movies and shows you don't have yet, request them through Seerr from any of the apps, and choose which library they go to.
+description: Find movies, shows and music you don't have yet, request them from any of the apps, and choose which library they go to.
 ---
 
 With Seerr connected, Flexarr can show you movies and shows you don't have yet, and request them in one go. Seerr passes the request to Radarr or Sonarr, they download it, and it turns up in your library.
@@ -13,7 +13,7 @@ Connect Seerr in **Settings › Connections**: under **Apps & Integrations**, ch
 
 Seerr itself needs Radarr and Sonarr set up in its own settings, since it hands requests to them. Connect Sonarr and Radarr to Flexarr too, so requested titles show up the moment they're downloaded (see [Webhooks](connect-arrs.md#webhooks-new-downloads-appear-straight-away)).
 
-> **Note** Requests are for movies and shows. Audiobooks and music aren't requested.
+> **Note** Music is requested through Lidarr rather than Seerr: see [Music](#music). Audiobooks aren't requested.
 
 ## Where you can request
 
@@ -90,9 +90,44 @@ Flexarr remembers who asked for what. When the movie or show arrives, whoever re
 
 To follow a request while it downloads, use Seerr itself, or **Coming soon** in Flexarr's sidebar for what Sonarr and Radarr are expecting.
 
+## Music
+
+Seerr doesn't do music, so music requests go straight to Lidarr. With Lidarr connected, you can find artists and albums you don't have and add them.
+
+**Before you start:** connect Lidarr in **Settings › Connections** (see [Connect Sonarr, Radarr, Lidarr and Seerr](connect-arrs.md)). **Music requests** is on below Lidarr there; turn it off to keep Lidarr connected without anyone requesting music. Lidarr needs a root folder, an indexer and a download client of its own.
+
+Suggestions and charts come from Deezer, which needs no account. Requests use Lidarr's own search, which looks artists and albums up on MusicBrainz.
+
+| Where | Find music |
+| --- | --- |
+| Web app, Apple TV and Android TV | **Discover**, then **Music** |
+| iPhone, iPad and Android phones | **Search**, under **Not in your library** |
+| Every app | An artist's page in your music library |
+
+**Discover › Music** has these rows:
+
+- **Like artists you play**: artists like the ones you listen to most.
+- **New from your artists**: this year's releases by artists you have, that you don't have yet.
+- **Top albums**: what's charting now.
+
+Below them are genres. Each one opens its best-known artists.
+
+There are two kinds of music request:
+
+- **Request album** downloads that album and nothing else. If Lidarr doesn't have the artist yet, it adds them without their other albums.
+- **Follow artist** has Lidarr download the artist's new releases from now on. Their older albums are still requested one at a time.
+
+An artist's page in your library ends with **Not in your library**: the albums of theirs you don't have, each with **Request album**. Below that, **Fans also like** suggests artists like them.
+
+When an album you asked for arrives, you get a **Your request is ready** notification. When an artist you follow puts out an album, you get **New from** the artist.
+
+The same profiles can request music as can request movies and shows. Kids profiles, profiles with an age limit and profiles that can't see a music library can't. With two or more music libraries Lidarr adds to, **New music goes to** in the profile's settings picks which one gets the profile's requests.
+
 ## If requests don't work
 
 - **Discover has no Seerr rows:** check Seerr shows a green dot in **Settings › Connections**. If it says it can't be reached, or the API key isn't right, edit it there.
 - **"Requests need a Seerr server":** Seerr isn't connected yet.
 - **"This profile can't request movies" (or shows):** that kind of library is hidden from the profile you're using.
 - **"Seerr didn't accept the request":** it may already be requested, or Seerr turned it down. Seerr's own requests page says why.
+- **"Lidarr doesn't know" an artist or album:** Lidarr's search couldn't find it on MusicBrainz, or found more than one artist with that name. Add it in Lidarr itself.
+- **"Lidarr didn't take the request":** Lidarr isn't reachable, or turned the request down. Lidarr's **Activity** page says why.
