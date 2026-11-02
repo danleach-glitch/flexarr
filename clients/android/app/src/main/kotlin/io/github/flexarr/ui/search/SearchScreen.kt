@@ -26,6 +26,7 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -375,7 +376,8 @@ private fun LazyListScope.results(
                     // Artists, then albums: each opens its outside page, and a long press asks for it.
                     listOfNotNull(music?.artists, music?.albums).filter { it.isNotEmpty() }.forEach { row ->
                         LazyRow(contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(RowSpacing), verticalAlignment = Alignment.Top) {
-                            items(row, key = { it.id }) { MusicExternalCard(model, it, width = PosterWidth) }
+                            // The same album can be listed twice (a joint album under each artist): its place keeps the keys apart.
+                            itemsIndexed(row, key = { index, item -> "$index-${item.id}" }) { _, item -> MusicExternalCard(model, item, width = PosterWidth) }
                         }
                     }
                 }

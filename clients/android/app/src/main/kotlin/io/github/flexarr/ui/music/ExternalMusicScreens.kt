@@ -44,8 +44,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.itemsIndexed as rowItemsIndexed
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.ui.draw.shadow
@@ -221,7 +221,8 @@ internal fun MusicExternalShelf(model: AppModel, title: String, items: List<Musi
     Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         SectionHeading(title)
         LazyRow(contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(RowSpacing), verticalAlignment = Alignment.Top) {
-            items(items, key = { it.id }) { MusicExternalCard(model, it, width = width) }
+            // The same artist or album can be in a list twice (a joint album under each artist): its place keeps the keys apart.
+            rowItemsIndexed(items, key = { index, item -> "$index-${item.id}" }) { _, item -> MusicExternalCard(model, item, width = width) }
         }
     }
 }
@@ -302,7 +303,7 @@ fun ExternalArtistScreen(model: AppModel, deezerId: Long) {
                     }
                     if (artist.albums.isNotEmpty()) {
                         fullWidth { SectionHeading("Albums", Modifier.bleed()) }
-                        items(artist.albums, key = { it.id }) { album -> MusicExternalCard(model, album, width = null, showsRequest = true) }
+                        itemsIndexed(artist.albums, key = { index, album -> "album-$index-${album.id}" }) { _, album -> MusicExternalCard(model, album, width = null, showsRequest = true) }
                     }
                     if (artist.similar.isNotEmpty()) {
                         fullWidth { MusicExternalShelf(model, "Fans also like", artist.similar, Modifier.bleed()) }

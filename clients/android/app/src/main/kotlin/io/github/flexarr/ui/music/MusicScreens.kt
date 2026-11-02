@@ -20,7 +20,6 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridScope
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
-import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed as rowItemsIndexed
 import androidx.compose.foundation.shape.CircleShape
@@ -286,7 +285,7 @@ fun ArtistScreen(model: AppModel, id: String) {
                     }
                     extras?.missing?.takeIf { it.isNotEmpty() }?.let { missing ->
                         fullWidth { SectionHeading("Not in your library", Modifier.bleed()) }
-                        gridItems(missing, key = { "missing-" + it.id }) { album -> MusicExternalCard(model, album, width = null, showsRequest = true) }
+                        itemsIndexed(missing, key = { index, album -> "missing-$index-${album.id}" }) { _, album -> MusicExternalCard(model, album, width = null, showsRequest = true) }
                     }
                     extras?.similar?.takeIf { it.isNotEmpty() }?.let { similar ->
                         fullWidth { MusicExternalShelf(model, "Fans also like", similar, Modifier.bleed()) }

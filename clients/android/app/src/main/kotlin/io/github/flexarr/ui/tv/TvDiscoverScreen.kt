@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -492,7 +493,7 @@ private fun MusicBrowse(
                     }
                     if (genres.isNotEmpty()) {
                         item(key = "genres") { TvRowHeading("Genres") }
-                        items(genres.chunked(GenreTileAcross), key = { "genres/" + it.first().id }) { line ->
+                        itemsIndexed(genres.chunked(GenreTileAcross), key = { index, _ -> "genres/$index" }) { _, line ->
                             Row(Modifier.padding(horizontal = TvLayout.Edge), horizontalArrangement = Arrangement.spacedBy(GenreTileSpacing)) {
                                 line.forEach { genre ->
                                     TvGenreTile(genre.name, null, genre.image, onClick = { onGenre(genre.id, genre.name) }, modifier = Modifier.focusMemory(focus, "genre/${genre.id}"))
@@ -589,7 +590,7 @@ private fun TvMusicGenreScreen(client: FlexarrClient, id: Long, name: String) {
             val shown = genre
             when {
                 shown != null && shown.artists.isEmpty() -> item(key = "empty") { Box(Modifier.fillMaxWidth().height(200.dp)) { TvStatusView("No artists here yet.", empty = true) } }
-                shown != null -> items(shown.artists.chunked(MusicGenreAcross), key = { "artists/" + it.first().id }) { line ->
+                shown != null -> itemsIndexed(shown.artists.chunked(MusicGenreAcross), key = { index, _ -> "artists/$index" }) { _, line ->
                     Row(Modifier.padding(horizontal = TvLayout.Edge), horizontalArrangement = Arrangement.spacedBy(TvLayout.RowSpacing), verticalAlignment = Alignment.Top) {
                         line.forEach { artist -> TvMusicExternalCard(artist, onClick = { navigator.openMusic(artist) }, modifier = Modifier.focusMemory(focus, artist.id)) }
                     }

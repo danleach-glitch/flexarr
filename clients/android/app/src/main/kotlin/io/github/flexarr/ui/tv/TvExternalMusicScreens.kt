@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -144,7 +143,8 @@ internal fun TvMusicExternalRow(title: String, items: List<MusicExternal>, cardM
             horizontalArrangement = Arrangement.spacedBy(TvLayout.RowSpacing),
             verticalAlignment = Alignment.Top,
         ) {
-            items(items, key = { it.id }) { TvMusicExternalCard(it, onClick = { navigator.openMusic(it) }, modifier = cardModifier(it)) }
+            // The same artist or album can be in a list twice (a joint album under each artist): its place keeps the keys apart.
+            itemsIndexed(items, key = { index, item -> "$index-${item.id}" }) { _, item -> TvMusicExternalCard(item, onClick = { navigator.openMusic(item) }, modifier = cardModifier(item)) }
         }
     }
 }
@@ -181,7 +181,7 @@ internal fun TvRequestableAlbum(model: AppModel, item: MusicExternal, modifier: 
 internal fun LazyListScope.requestableAlbumRows(model: AppModel, albums: List<MusicExternal>, key: String) {
     val across = 6
     val spacing = (960.dp - TvLayout.Edge * 2 - TvLayout.PosterWidth * across) / (across - 1)
-    itemsIndexed(albums.chunked(across), key = { _, row -> "$key-${row.first().id}" }) { _, row ->
+    itemsIndexed(albums.chunked(across), key = { index, _ -> "$key-$index" }) { _, row ->
         Row(Modifier.padding(start = TvLayout.Edge, end = TvLayout.Edge, bottom = 10.dp), horizontalArrangement = Arrangement.spacedBy(spacing), verticalAlignment = Alignment.Top) {
             row.forEach { TvRequestableAlbum(model, it) }
         }
