@@ -109,6 +109,9 @@ public sealed class ArrClient(HttpClient httpClient)
     public Task<IReadOnlyList<LidarrArtist>> GetArtistsAsync(ArrInstance lidarr, CancellationToken ct = default) =>
         GetAsync<IReadOnlyList<LidarrArtist>>(lidarr, "artist", ct);
 
+    public Task<LidarrArtist> GetArtistAsync(ArrInstance lidarr, int artistId, CancellationToken ct = default) =>
+        GetAsync<LidarrArtist>(lidarr, $"artist/{artistId}", ct);
+
     /// <summary>Every release group Lidarr lists for an artist, owned or not.</summary>
     public Task<IReadOnlyList<LidarrAlbum>> GetArtistAlbumsAsync(ArrInstance lidarr, int artistId, CancellationToken ct = default) =>
         GetAsync<IReadOnlyList<LidarrAlbum>>(lidarr, $"album?artistId={artistId}", ct);

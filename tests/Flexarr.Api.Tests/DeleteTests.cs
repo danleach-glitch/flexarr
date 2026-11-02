@@ -69,12 +69,18 @@ public class DeleteTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
     {
         using var scope = app.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
-        var library = new Library { Name = $"Music {Guid.NewGuid():N}", Type = LibraryType.Music };
+        var library = new Library { Name = $"Music {Guid.NewGuid():N}", Type = LibraryType.Music, Folders = [new LibraryFolder { Path = $"/Volumes/Media/data/music-{Guid.NewGuid():N}" }] };
         var artist = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Artist, Title = "Wet Leg", SortTitle = "wet leg", MetadataSource = managed ? "Lidarr" : null, ArrId = managed ? 3 : null };
         var album = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Album, Title = "moisturizer", SortTitle = "moisturizer", Parent = artist, MetadataSource = managed ? "Lidarr" : null, ArrId = managed ? 9 : null };
         db.AddRange(library, artist, album);
         await db.SaveChangesAsync();
         return (artist, album);
+    }
+
+    private static async Task<T> InScopeAsync<T>(Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<Program> app, Func<FlexarrDbContext, Task<T>> query)
+    {
+        using var scope = app.Services.CreateScope();
+        return await query(scope.ServiceProvider.GetRequiredService<FlexarrDbContext>());
     }
 
     private static HttpClient Admin(Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<Program> app)
@@ -115,13 +121,25 @@ public class DeleteTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
         Assert.Equal(artistStays, kept?.Placeholder ?? false);
     }
 
-    [Fact]
-    public async Task AnArtistLidarrManages_IsDeletedThere_WithTheirFiles()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task AnArtistLidarrManages_IsDeletedThere_WithTheirFiles_OnlyWhenTheirFolderIsThisLibrarys(bool inLibrary)
     {
         var arr = new FakeArr();
         arr.Responses["DELETE /api/v1/artist/3?deleteFiles=true&addImportListExclusion=false"] = "{}";
         using var app = WithLidarr(arr, factory);
         var (artist, album) = await AddMusicAsync(app, managed: true);
+        var folder = await InScopeAsync(app, db => db.LibraryFolders.Where(f => f.LibraryId == artist.LibraryId).Select(f => f.Path).SingleAsync());
+        var lidarrPath = inLibrary ? folder.Replace("/Volumes/Media/data", "/data", StringComparison.Ordinal) + "/Wet Leg" : "/data/elsewhere/Wet Leg";
+        arr.Responses["GET /api/v1/artist/3"] = $$"""{"id":3,"artistName":"Wet Leg","path":"{{lidarrPath}}"}""";
+        if (!inLibrary)
+        {
+            var refused = await Admin(app).DeleteAsync(new Uri($"/api/v1/items/{artist.Id}", UriKind.Relative));
+            Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+            Assert.DoesNotContain(arr.Requests, r => r.StartsWith("DELETE", StringComparison.Ordinal));
+            return;
+        }
 
         var response = await Admin(app).DeleteAsync(new Uri($"/api/v1/items/{artist.Id}", UriKind.Relative));
 

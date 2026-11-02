@@ -144,22 +144,22 @@ public static partial class MusicRequestPlacer
         }
 
         // Any Lidarr may already have them (not only the one new music goes to): follow them there.
-        (ArrInstance Lidarr, int Id) followed;
+        (ArrInstance Lidarr, int Id, string? Path) followed;
         if (await c.LidarrArtistAsync(artistMbid, artist.ArtistName, ct) is { Lidarr: var lidarr, Artist: var had })
         {
             await c.Client.FollowArtistAsync(lidarr, had.Id, ct);
             await GetLatestAlbumAsync(c, lidarr, had.Id, ct);
             MusicMatcher.Forget(c.Cache, lidarr);
-            followed = (lidarr, had.Id);
+            followed = (lidarr, had.Id, MusicMatcher.LocalPath(had, c.Options.PathMappings));
         }
         else
         {
             var added = await c.Client.AddFollowedArtistAsync(target.Lidarr, artistMbid, artist.ArtistName, target.Placement, ct);
-            followed = (target.Lidarr, added?.Id ?? 0);
+            followed = (target.Lidarr, added?.Id ?? 0, added is null ? null : MusicMatcher.LocalPath(added, c.Options.PathMappings));
         }
 
         // In the Artists list from now on, even before any of their music arrives.
-        await MusicPlaceholders.AddAsync(c.Db, target.LibraryId, artist.ArtistName, artistMbid, photo ?? artist.RemotePoster, followed.Lidarr.Name, followed.Id, ct);
+        await MusicPlaceholders.AddAsync(c.Db, target.LibraryId, artist.ArtistName, artistMbid, photo ?? artist.RemotePoster, followed.Lidarr.Name, followed.Id, followed.Path, ct);
 
         await c.RememberAsync(new MediaRequest { ProfileId = profileId, Kind = MediaKind.Artist, MusicBrainzId = artistMbid, Title = artist.ArtistName }, ct);
         return Results.Accepted();

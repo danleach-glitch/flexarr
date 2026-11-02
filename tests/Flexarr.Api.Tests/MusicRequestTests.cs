@@ -52,7 +52,7 @@ public sealed class MusicRequestTests : IAsyncLifetime
         _lidarr.Responses["GET /api/v1/artist/lookup?term=Wet%20Leg"] = File.ReadAllText(Fixture("lidarr-artist-lookup.json"));
         _lidarr.Responses["GET /api/v1/album/lookup?term=Wet%20Leg%20moisturizer"] = File.ReadAllText(Fixture("lidarr-album-lookup.json"));
         _lidarr.Responses["POST /api/v1/album"] = """{"id":9,"artistId":3,"title":"moisturizer"}""";
-        _lidarr.Responses["POST /api/v1/artist"] = """{"id":3,"artistName":"Wet Leg"}""";
+        _lidarr.Responses["POST /api/v1/artist"] = """{"id":3,"artistName":"Wet Leg","path":"/data/music/Wet Leg"}""";
         _lidarr.Responses["PUT /api/v1/album/monitor"] = "[]";
         _lidarr.Responses["POST /api/v1/command"] = "{}";
 

@@ -76,6 +76,14 @@ public static partial class DeleteEndpoints
                         await arr.DeleteAsync(instance, $"series/{arrId}?deleteFiles=true&addImportListExclusion=false", ct);
                         break;
                     case MediaKind.Artist:
+                        // Lidarr deletes the artist's whole folder: only when that folder is this library's.
+                        var lidarrArtist = await arr.GetArtistAsync(instance, arrId, ct);
+                        var roots = await db.LibraryFolders.Where(f => f.LibraryId == item.LibraryId).Select(f => f.Path).ToListAsync(ct);
+                        if (lidarrArtist.Path is not { } lidarrPath || !roots.Any(r => PathComparison.IsUnder(PathMapper.Map(lidarrPath, options.CurrentValue.PathMappings), r)))
+                        {
+                            return Results.Problem($"{instance.Name} keeps this artist's files outside this library, so Flexarr won't delete them. Nothing was deleted.", statusCode: 409);
+                        }
+
                         await arr.DeleteAsync(instance, $"artist/{arrId}?deleteFiles=true&addImportListExclusion=false", ct);
                         break;
                     case MediaKind.Album:
