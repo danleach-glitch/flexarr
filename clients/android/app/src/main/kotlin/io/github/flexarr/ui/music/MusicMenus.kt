@@ -50,21 +50,49 @@ fun musicMenuActions(
     showsArtist: Boolean = true,
     onPlay: (() -> Unit)? = null,
 ): List<MenuAction> {
+    val model = LocalContext.current.appModel
+    val kind = subjectKind(subject) ?: return emptyList()
+    val artistId = (subject as? MusicMenuSubject.Item)?.item?.seriesId?.takeIf { showsArtist }
+    val canDownload = platform == MusicActions.Platform.PHONE && model.downloads.collection(subject.id) == null
+    return musicActions(subject, MusicMenu.of(kind, place, platform, hasArtist = artistId != null, canDownload = canDownload), onPlay)
+}
+
+/**
+ * An album's or artist's page ⋯: [MusicActions.menu]'s Play next, Add to queue and (phones) Add to playlist…, for
+ * everything it has.
+ */
+@Composable
+fun musicPageMenuActions(item: ItemSummary, menu: List<MusicActions.MenuItem>): List<MenuAction> =
+    musicActions(
+        MusicMenuSubject.Item(item),
+        menu.map {
+            when (it) {
+                MusicActions.MenuItem.PLAY_NEXT -> MusicMenu.Item.PLAY_NEXT
+                MusicActions.MenuItem.ADD_TO_QUEUE -> MusicMenu.Item.ADD_TO_QUEUE
+                MusicActions.MenuItem.ADD_TO_PLAYLIST -> MusicMenu.Item.ADD_TO_PLAYLIST
+            }
+        },
+        onPlay = null,
+    )
+
+private fun subjectKind(subject: MusicMenuSubject): MusicMenu.Subject? = when (subject) {
+    is MusicMenuSubject.Playlist -> MusicMenu.Subject.PLAYLIST
+    is MusicMenuSubject.Item -> when (subject.item.kind) {
+        MediaKind.Artist -> MusicMenu.Subject.ARTIST
+        MediaKind.Album -> MusicMenu.Subject.ALBUM
+        MediaKind.Track -> MusicMenu.Subject.TRACK
+        else -> null
+    }
+}
+
+/** [items] as actions on [subject]. */
+@Composable
+private fun musicActions(subject: MusicMenuSubject, items: List<MusicMenu.Item>, onPlay: (() -> Unit)?): List<MenuAction> {
     val navigator = LocalNavigator.current
     val context = LocalContext.current
     val model = context.appModel
-    val kind = when (subject) {
-        is MusicMenuSubject.Playlist -> MusicMenu.Subject.PLAYLIST
-        is MusicMenuSubject.Item -> when (subject.item.kind) {
-            MediaKind.Artist -> MusicMenu.Subject.ARTIST
-            MediaKind.Album -> MusicMenu.Subject.ALBUM
-            MediaKind.Track -> MusicMenu.Subject.TRACK
-            else -> return emptyList()
-        }
-    }
-    val artistId = (subject as? MusicMenuSubject.Item)?.item?.seriesId?.takeIf { showsArtist }
-    val canDownload = platform == MusicActions.Platform.PHONE && model.downloads.collection(subject.id) == null
-    val items = MusicMenu.of(kind, place, platform, hasArtist = artistId != null, canDownload = canDownload)
+    val kind = subjectKind(subject) ?: return emptyList()
+    val artistId = (subject as? MusicMenuSubject.Item)?.item?.seriesId
 
     /** Everything it has, in order: an album's or artist's tracks, a playlist's, or the one track. */
     suspend fun tracks(client: FlexarrClient): List<ItemSummary> = when (subject) {
