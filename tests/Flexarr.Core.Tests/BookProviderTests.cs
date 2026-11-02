@@ -12,7 +12,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Flexarr.Core.Tests;
 
-/// <summary>Books looked up online (Audible through Audnexus, Audible's catalogue, Open Library, Google Books), from recorded answers.</summary>
+/// <summary>Books looked up online (Audible through Audnexus, Audible's catalogue, Apple Books, Open Library), from recorded answers.</summary>
 public sealed class BookProviderTests : IAsyncLifetime
 {
     private const string Tmc = "0241988292";
@@ -90,20 +90,6 @@ public sealed class BookProviderTests : IAsyncLifetime
         var book = await _db.MediaItems.Include(i => i.Book).SingleAsync();
         Assert.Equal(("Ballantine Books", new DateOnly(2021, 5, 4)), (book.Book!.Publisher, book.ReleaseDate!.Value));
         Assert.Equal("https://covers.openlibrary.org/b/id/12455001-L.jpg", book.PosterUrl);
-    }
-
-    [Fact]
-    public async Task GoogleBooks_NeedsAKey_AndReadsItsVolumes()
-    {
-        _books = new("us", ["google"]);
-        var providers = new BookProviders(new HttpClient(_web), () => new Settings(_dir, _books));
-
-        Assert.Empty(await providers.SearchAsync("Project Hail Mary", "Weir", default));
-
-        _books = new("us", ["google"], GoogleBooksKey: "key");
-        var found = Assert.Single(await providers.SearchAsync("Project Hail Mary", "Weir", default));
-        Assert.Equal(("Project Hail Mary", "A Novel", "9780593135204"), (found.Title, found.Subtitle, found.Isbn));
-        Assert.Equal("Ryland Grace is the sole survivor on a desperate, last-chance mission.", found.Description);
     }
 
     [Fact]
@@ -245,11 +231,11 @@ public sealed class BookProviderTests : IAsyncLifetime
     [Fact]
     public void AProviderAddedSinceTheListWasSaved_IsSwitchedOnInItsPlace()
     {
-        // Saved with Open Library turned off, before Apple Books.
-        Assert.Equal(["audible", "itunes", "google"], BookMetadataSettings.WithNewProviders(["audible", "google"], BookMetadataSettings.FirstProviders));
+        // Saved with Open Library turned off, before Apple Books (and with Google Books, since taken out).
+        Assert.Equal(["audible", "itunes"], BookMetadataSettings.WithNewProviders(["audible", "google"], BookMetadataSettings.FirstProviders));
         Assert.Equal(["itunes", "openlibrary"], BookMetadataSettings.WithNewProviders(["openlibrary"], BookMetadataSettings.FirstProviders));
         // Saved since, with Apple Books turned off: it stays off.
-        Assert.Equal(["audible", "google"], BookMetadataSettings.WithNewProviders(["audible", "google"], BookMetadataSettings.AllProviders));
+        Assert.Equal(["audible", "openlibrary"], BookMetadataSettings.WithNewProviders(["audible", "openlibrary"], BookMetadataSettings.AllProviders));
     }
 
     private async Task<List<string>> NamesAsync(Guid book, CreditRole role) =>
@@ -331,7 +317,6 @@ public sealed class BookProviderTests : IAsyncLifetime
                 ("openlibrary.org", "/isbn/9780593135204.json") => Fixture("openlibrary-isbn.json"),
                 ("openlibrary.org", "/search.json") => Fixture("openlibrary-search.json"),
                 ("itunes.apple.com", "/search") => Fixture(url.Query.Contains("country=gb", StringComparison.Ordinal) ? "itunes-search-gb.json" : "itunes-search-dcc.json"),
-                ("www.googleapis.com", "/books/v1/volumes") when url.Query.Contains("key=key", StringComparison.Ordinal) => Fixture("google-search.json"),
                 _ => null,
             };
             return Task.FromResult(body is null

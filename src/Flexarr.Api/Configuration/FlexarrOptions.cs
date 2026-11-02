@@ -230,7 +230,7 @@ public sealed class BookMetadataOptions
     /// <summary>Audible's store ("uk", "us"…). Unset, the server's own country's, or the US store.</summary>
     public string? Region { get; set; }
 
-    /// <summary>Providers to ask, in order. Unset, all of them: Audible, Apple Books, Open Library, Google Books, Hardcover.</summary>
+    /// <summary>Providers to ask, in order. Unset, all of them: Audible, Apple Books, Open Library.</summary>
     public List<string>? Providers { get; set; }
 
     /// <summary>
@@ -239,8 +239,6 @@ public sealed class BookMetadataOptions
     /// </summary>
     public List<string>? KnownProviders { get; set; }
 
-    public string? GoogleBooksKey { get; set; }
-    public string? HardcoverToken { get; set; }
 
     /// <param name="country">The server's country ("gb", "us"), for a region nobody chose.</param>
     public Flexarr.Metadata.Books.BookMetadataSettings Resolved(string country)
@@ -249,8 +247,7 @@ public sealed class BookMetadataOptions
         return new(Flexarr.Metadata.Books.BookMetadataSettings.Regions.Contains(region) ? region : "us",
             Providers is { Count: > 0 } chosen
                 ? Flexarr.Metadata.Books.BookMetadataSettings.WithNewProviders(chosen, KnownProviders ?? [.. Flexarr.Metadata.Books.BookMetadataSettings.FirstProviders])
-                : Flexarr.Metadata.Books.BookMetadataSettings.AllProviders,
-            GoogleBooksKey is { Length: > 0 } g ? g : null, HardcoverToken is { Length: > 0 } h ? h : null);
+                : Flexarr.Metadata.Books.BookMetadataSettings.AllProviders);
     }
 }
 

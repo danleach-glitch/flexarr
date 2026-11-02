@@ -220,8 +220,6 @@ public static class BookEndpoints
                 ["knownProviders"] = request.Providers is not null || current.Providers is not null
                     ? new System.Text.Json.Nodes.JsonArray([.. (request.Providers is not null ? Flexarr.Metadata.Books.BookMetadataSettings.AllProviders : current.KnownProviders ?? [.. Flexarr.Metadata.Books.BookMetadataSettings.FirstProviders]).Select(p => (System.Text.Json.Nodes.JsonNode?)p)])
                     : null,
-                ["googleBooksKey"] = request.GoogleBooksKey is { } g ? (g.Trim() is { Length: > 0 } gk ? gk : null) : current.GoogleBooksKey,
-                ["hardcoverToken"] = request.HardcoverToken is { } h ? (h.Trim() is { Length: > 0 } hk ? hk : null) : current.HardcoverToken,
             });
             return Results.Ok(MetadataSettings(options.CurrentValue));
         });
@@ -238,7 +236,7 @@ public static class BookEndpoints
     private static BookMetadataSettingsDto MetadataSettings(Configuration.FlexarrOptions options)
     {
         var resolved = options.BookMetadata.Resolved(options.Podcasts.ResolvedCountry);
-        return new BookMetadataSettingsDto(resolved.Region, resolved.Providers, resolved.GoogleBooksKey is not null, resolved.HardcoverToken is not null,
+        return new BookMetadataSettingsDto(resolved.Region, resolved.Providers,
             Flexarr.Metadata.Books.BookMetadataSettings.Regions, Flexarr.Metadata.Books.BookMetadataSettings.AllProviders);
     }
 

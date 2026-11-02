@@ -9,11 +9,11 @@ public class BookMetadataSettingsTests(FlexarrApiFactory factory) : IClassFixtur
     private static Uri Api(string path) => new($"/api/v1{path}", UriKind.Relative);
 
     [Fact]
-    public void AListSavedBeforeAppleBooks_GetsItSwitchedOn()
+    public void AListSavedBeforeAppleBooks_GetsItSwitchedOn_AndLosesTheProvidersTakenOut()
     {
-        var saved = new BookMetadataOptions { Providers = ["audible", "google"] };
+        var saved = new BookMetadataOptions { Providers = ["audible", "google", "hardcover"] };
 
-        Assert.Equal(["audible", "itunes", "google"], saved.Resolved("us").Providers);
+        Assert.Equal(["audible", "itunes"], saved.Resolved("us").Providers);
     }
 
     [Fact]

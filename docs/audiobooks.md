@@ -4,7 +4,7 @@ Being built on `library/audiobooks`. Audiobooks become a library type like films
 
 Decided so far:
 
-- **No \*arr connection (dropped 1 November 2026, before release).** The plan was to connect any Readarr-compatible app (Readarr, Bookshelf, Chaptarr) for imports, metadata, Coming soon, deleting and requests. It was built, then taken out: Bookshelf's metadata server can't search by title (it falls back to Goodreads, which times out), doesn't know Audible ASINs, and rate-limits, so on the household server it matched 1 book in 43 and requests, Coming soon and delete-through had nothing to work with. Online metadata (Audible, Apple Books, Open Library, Google Books, Hardcover) and the files themselves do the job instead. The sections below that described the connection are gone; phases 0, 2 and 5 were dropped.
+- **No \*arr connection (dropped 1 November 2026, before release).** The plan was to connect any Readarr-compatible app (Readarr, Bookshelf, Chaptarr) for imports, metadata, Coming soon, deleting and requests. It was built, then taken out: Bookshelf's metadata server can't search by title (it falls back to Goodreads, which times out), doesn't know Audible ASINs, and rate-limits, so on the household server it matched 1 book in 43 and requests, Coming soon and delete-through had nothing to work with. Online metadata (Audible, Apple Books, Open Library) and the files themselves do the job instead. The sections below that described the connection are gone; phases 0, 2 and 5 were dropped.
 - **Ebooks:** audiobooks first. The data model leaves room for an ebook edition of the same book later.
 - **First release:** phases 1–5 below plus Android: library and web, online metadata, the iPhone and iPad app, and the Android app. Chapter tools, Apple TV listening, and Home Assistant and MCP come with it. The branch lands whole, so there's no preview setting.
 - **Later:** the Audiobookshelf import, listening stats, voice boost and silence trimming, the automatic sleep timer, Android TV, ebooks.
@@ -168,8 +168,6 @@ Providers sit behind one interface, and admins set their order and region (Audib
 | Audible, through Audnexus | title, subtitle, authors, narrators, series and order, description, cover, genres, chapters with exact times, author photos and biographies | Lookups by ASIN. Search runs on Audible's catalogue by title and author. Both are unofficial and community-run, so the results are cached and nothing depends on them staying up |
 | Apple Books, through the iTunes Search API | title, series and number (read from the title), authors, description, large covers, publisher, release date, one genre | No key. Search only: it lists no ISBNs, ASINs, narrators or chapters. Apple asks for about 20 requests a minute at most; results are cached like the rest |
 | Open Library | ISBN lookups, covers, author data | Free, no key needed |
-| Google Books | descriptions and covers by ISBN or title | Optional key |
-| Hardcover | series, ratings, descriptions | Optional token |
 
 - **Fix match:** search every provider, pick a result, and lock it. This is the existing `MatchLocked` flow.
 - **Chapter tools** (phase 8):
@@ -208,7 +206,7 @@ The first release covers phases 0, 1, 3, 4 and 7, plus chapter tools, Apple TV l
 | 0 | **Try things on the Mini:** gather a sample library covering every layout above | S |
 | 1 | **Library and web:** library type, scanner, sidecars, tags and chapters, data model and migration, book manifest and HLS, progress, bookmarks, web browse and player | L |
 | 2 | ~~\*arr connection~~ (dropped, see the top) | — |
-| 3 | **Online metadata:** Audnexus/Audible, Open Library, Google Books, Hardcover; Fix match; author photos | M |
+| 3 | **Online metadata:** Audnexus/Audible, Apple Books, Open Library; Fix match; author photos | M |
 | 4 | **iPhone and iPad:** browse, player, downloads, lock screen, CarPlay, widget, Siri. Remove the preview setting | L |
 | 5 | ~~Requests through the \*arr~~ (dropped with it) | — |
 | 6 | **Import from Audiobookshelf** | S–M |

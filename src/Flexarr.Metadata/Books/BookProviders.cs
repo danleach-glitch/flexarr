@@ -9,29 +9,30 @@ using Flexarr.Core.Books;
 
 namespace Flexarr.Metadata.Books;
 
-/// <summary>How the server looks books up online. Admins set the order and Audible's region; keys are optional.</summary>
+/// <summary>How the server looks books up online. Admins choose the providers and the store's region; none needs a key.</summary>
 /// <param name="Region">Audible's store: "us", "uk", "ca", "au", "de", "fr", "it", "es", "in", "jp".</param>
-/// <param name="Providers">The providers to ask, in order: "audible", "itunes", "openlibrary", "google", "hardcover".</param>
-public sealed record BookMetadataSettings(string Region, IReadOnlyList<string> Providers, string? GoogleBooksKey = null, string? HardcoverToken = null)
+/// <param name="Providers">The providers to ask, in order: "audible", "itunes", "openlibrary".</param>
+public sealed record BookMetadataSettings(string Region, IReadOnlyList<string> Providers)
 {
     /// <summary>Every provider, in the order of trust Settings keeps them in.</summary>
-    public static readonly IReadOnlyList<string> AllProviders = ["audible", "itunes", "openlibrary", "google", "hardcover"];
+    public static readonly IReadOnlyList<string> AllProviders = ["audible", "itunes", "openlibrary"];
 
     /// <summary>
     /// The providers there were before Apple Books was added: a list saved back then gets the newer ones switched on
-    /// (see <c>BookMetadataOptions.Resolved</c>), since nobody chose to leave them off.
+    /// (see <c>BookMetadataOptions.Resolved</c>), since nobody chose to leave them off. Google Books and Hardcover were
+    /// among them, and were taken out.
     /// </summary>
     public static readonly IReadOnlyList<string> FirstProviders = ["audible", "openlibrary", "google", "hardcover"];
 
     /// <summary>
-    /// A saved list, with each provider the admin hadn't seen yet (not in <paramref name="known"/>) switched on in its
-    /// place in the order of trust.
+    /// A saved list without any provider there no longer is, and with each one the admin hadn't seen yet (not in
+    /// <paramref name="known"/>) switched on in its place in the order of trust.
     /// </summary>
     public static IReadOnlyList<string> WithNewProviders(IReadOnlyList<string> chosen, IReadOnlyCollection<string> known)
     {
         ArgumentNullException.ThrowIfNull(chosen);
         ArgumentNullException.ThrowIfNull(known);
-        var list = chosen.ToList();
+        var list = chosen.Where(AllProviders.Contains).Distinct().ToList();
         for (var i = 0; i < AllProviders.Count; i++)
         {
             var provider = AllProviders[i];
@@ -54,7 +55,7 @@ public sealed record BookMetadataSettings(string Region, IReadOnlyList<string> P
 }
 
 /// <summary>A book as an online provider describes it.</summary>
-/// <param name="Provider">"audible", "itunes", "openlibrary", "google" or "hardcover".</param>
+/// <param name="Provider">"audible", "itunes" or "openlibrary".</param>
 /// <param name="Id">Its id there (an ASIN for Audible).</param>
 public sealed record BookMatch(
     string Provider, string Id, string Title, string? Subtitle, IReadOnlyList<string> Authors, IReadOnlyList<string> Narrators,
@@ -138,7 +139,7 @@ public sealed class BookProviderThrottle(TimeProvider? time = null)
 
 /// <summary>
 /// Looks books up online: Audible (through Audnexus, and Audible's own catalogue for searching), Apple Books (the iTunes
-/// Search API), Open Library, Google Books and Hardcover. All of them are someone else's service, Audnexus and the catalogue unofficially so, so answers
+/// Search API) and Open Library. All of them are someone else's service, Audnexus and the catalogue unofficially so, so answers
 /// are kept on disk for a month and nothing depends on any of them staying up: a provider that fails is skipped, and
 /// one that says it's had too many requests is left alone for a while (see <see cref="BookProviderThrottle"/>).
 /// </summary>
@@ -151,12 +152,7 @@ public sealed partial class BookProviders(HttpClient http, Func<IMetadataSetting
 
     private BookMetadataSettings Options => settings().Books;
 
-    private IEnumerable<string> Enabled => Options.Providers.Where(p => p switch
-    {
-        "google" => Options.GoogleBooksKey is { Length: > 0 },
-        "hardcover" => Options.HardcoverToken is { Length: > 0 },
-        _ => BookMetadataSettings.AllProviders.Contains(p),
-    });
+    private IEnumerable<string> Enabled => Options.Providers.Where(BookMetadataSettings.AllProviders.Contains);
 
     /// <summary>The first provider's answer for a book by its ids: an ASIN through Audible, an ISBN through the rest.</summary>
     public async Task<BookMatch?> LookupAsync(string? asin, string? isbn, CancellationToken ct)
@@ -167,7 +163,6 @@ public sealed partial class BookProviders(HttpClient http, Func<IMetadataSetting
             {
                 "audible" when asin is { Length: > 0 } => await TryAsync(() => AudibleBookAsync(asin, ct)).ConfigureAwait(false),
                 "openlibrary" when isbn is { Length: > 0 } => await TryAsync(() => OpenLibraryIsbnAsync(isbn, ct)).ConfigureAwait(false),
-                "google" when isbn is { Length: > 0 } => (await TryListAsync(() => GoogleSearchAsync($"isbn:{isbn}", ct)).ConfigureAwait(false)).FirstOrDefault(),
                 _ => null,
             };
             if (match is not null)
@@ -232,8 +227,6 @@ public sealed partial class BookProviders(HttpClient http, Func<IMetadataSetting
         "audible" => AudibleSearchAsync(title, author, ct),
         "itunes" => AppleSearchAsync(title, author, ct),
         "openlibrary" => OpenLibrarySearchAsync(title, author, ct),
-        "google" => GoogleSearchAsync($"intitle:{title}" + (author is null ? "" : $"+inauthor:{author}"), ct),
-        "hardcover" => HardcoverSearchAsync(title, author, ct),
         _ => Task.FromResult(new List<BookMatch>()),
     });
 
@@ -494,47 +487,6 @@ public sealed partial class BookProviders(HttpClient http, Func<IMetadataSetting
             Strings(d["publisher"]).FirstOrDefault(), d["first_publish_year"] is { } y ? new DateOnly(y.GetValue<int>(), 1, 1) : null, null,
             Strings(d["isbn"]).FirstOrDefault(i => i.Length == 13), null,
             d["cover_i"] is { } c ? $"https://covers.openlibrary.org/b/id/{c.GetValue<long>()}-L.jpg" : null, [.. Strings(d["subject"]).Take(5)], null))];
-    }
-
-    // ---- Google Books (with a key) ----
-
-    private async Task<List<BookMatch>> GoogleSearchAsync(string query, CancellationToken ct)
-    {
-        var url = $"https://www.googleapis.com/books/v1/volumes?q={Uri.EscapeDataString(query)}&maxResults=5&key={Uri.EscapeDataString(Options.GoogleBooksKey ?? "")}";
-        var found = await GetAsync(url, ct, cacheKey: $"google:{query}").ConfigureAwait(false);
-        return [.. (found?["items"] as JsonArray ?? []).OfType<JsonObject>().Select(i => (Id: Text(i, "id"), Info: i["volumeInfo"] as JsonObject))
-            .Where(v => v.Id is not null && v.Info is not null && Text(v.Info, "title") is not null).Select(v => new BookMatch(
-                "google", v.Id!, Text(v.Info!, "title")!, Text(v.Info!, "subtitle"), Strings(v.Info!["authors"]), [], [],
-                Text(v.Info!, "description") is { } desc ? BookSidecars.PlainText(desc) : null, Text(v.Info!, "publisher"), Date(Text(v.Info!, "publishedDate")),
-                Text(v.Info!, "language"),
-                (v.Info!["industryIdentifiers"] as JsonArray ?? []).OfType<JsonObject>().Where(x => Text(x, "type") == "ISBN_13").Select(x => Text(x, "identifier")).FirstOrDefault(),
-                null, (v.Info!["imageLinks"] as JsonObject) is { } links ? Text(links, "thumbnail")?.Replace("http://", "https://", StringComparison.Ordinal) : null,
-                [.. Strings(v.Info!["categories"]).SelectMany(c => c.Split('/', StringSplitOptions.TrimEntries)).Distinct().Take(5)], null))];
-    }
-
-    // ---- Hardcover (with a token) ----
-
-    private async Task<List<BookMatch>> HardcoverSearchAsync(string title, string? author, CancellationToken ct)
-    {
-        const string Query = "query($q: String!) { search(query: $q, query_type: \"Book\", per_page: 5) { results } }";
-        var q = author is null ? title : $"{title} {author}";
-        var key = $"hardcover:{q}";
-        var found = await CachedAsync(key, async () =>
-        {
-            using var request = new HttpRequestMessage(HttpMethod.Post, "https://api.hardcover.app/v1/graphql")
-            {
-                Content = JsonContent.Create(new { query = Query, variables = new { q } }),
-            };
-            request.Headers.TryAddWithoutValidation("authorization", Options.HardcoverToken!.StartsWith("Bearer ", StringComparison.Ordinal) ? Options.HardcoverToken : $"Bearer {Options.HardcoverToken}");
-            using var response = await _throttle.SendAsync(http, request, ct).ConfigureAwait(false);
-            return response?.IsSuccessStatusCode == true ? await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false) : null;
-        }).ConfigureAwait(false);
-        var hits = found?["data"]?["search"]?["results"]?["hits"] as JsonArray ?? [];
-        return [.. hits.OfType<JsonObject>().Select(h => h["document"] as JsonObject).OfType<JsonObject>().Where(d => Text(d, "title") is not null).Select(d => new BookMatch(
-            "hardcover", Text(d, "id") ?? Text(d, "slug") ?? "", Text(d, "title")!, Text(d, "subtitle"), Strings(d["author_names"]), [],
-            d["featured_series"] is JsonObject fs && fs["series"] is JsonObject s && Text(s, "name") is { } sn ? [new SeriesPart(sn, Text(fs, "position"))] : [],
-            Text(d, "description"), null, d["release_year"] is { } ry && ry.GetValueKind() == JsonValueKind.Number ? new DateOnly(ry.GetValue<int>(), 1, 1) : null, null,
-            Strings(d["isbns"]).FirstOrDefault(i => i.Length == 13), null, d["image"] is JsonObject img ? Text(img, "url") : null, [.. Strings(d["genres"]).Take(5)], null))];
     }
 
     // ---- Plumbing ----

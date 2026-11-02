@@ -607,19 +607,16 @@ export const searchBookMatches = (id: string, q: string, author?: string, signal
 export const fixBookMatch = (id: string, match: { provider: string; id: string; query: string; author?: string }) =>
   request<void>('POST', `/items/${id}/book-match`, match)
 
-/** How the server looks books up online (main profile only); keys are never sent back, only whether there is one. */
+/** How the server looks books up online (main profile only). */
 export interface BookMetadataSettings {
   region: string
   /** In order of trust, from the ones in `allProviders`. */
   providers: string[]
-  hasGoogleBooksKey: boolean
-  hasHardcoverToken: boolean
   regions: string[]
   allProviders: string[]
 }
 export const getBookMetadataSettings = (signal?: AbortSignal) => apiGet<BookMetadataSettings>('/settings/book-metadata', signal)
-/** An empty key removes it. */
-export const saveBookMetadataSettings = (changes: { region?: string; providers?: string[]; googleBooksKey?: string; hardcoverToken?: string }) =>
+export const saveBookMetadataSettings = (changes: { region?: string; providers?: string[] }) =>
   request<BookMetadataSettings>('PUT', '/settings/book-metadata', changes)
 export const getBookListening = (signal?: AbortSignal) => cachedGet<BookListening>('/books/listening', signal)
 export async function saveBookListening(changes: Partial<BookListening>) {

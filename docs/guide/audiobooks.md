@@ -63,7 +63,7 @@ The **Continue listening** widget and "Resume listening in Flexarr" with Siri pi
 
 ## Details from the internet
 
-When a book's files leave gaps, Flexarr fills them from Audible (through the community-run Audnexus service), Apple Books, Open Library, and if you add keys, Google Books and Hardcover. The main profile chooses the **Audible store** under **Audiobook details** in the web app's **Settings › Libraries**; Google Books and Hardcover turn on once their key or token is saved there.
+When a book's files leave gaps, Flexarr fills them from Audible (through the community-run Audnexus service), Apple Books and Open Library. None needs a key. The main profile chooses the **Audible store** (Apple Books uses the same country) and which sources to use under **Audiobook details** in the web app's **Settings › Libraries**.
 
 Audible's chapters replace guessed ones when they match the book's length. On the web, the main profile can change a book's chapters: open its page, choose **⋯ › Edit chapters…**, rename them or **Shift all by** a few seconds, then **Save**. **Use Audible's** fills them in; **Save** keeps them. **⋯ › Fix match…** finds the right book when Flexarr picked the wrong one.
 

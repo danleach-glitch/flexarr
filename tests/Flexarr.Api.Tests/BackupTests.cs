@@ -722,7 +722,7 @@ public class BackupTests
             File.WriteAllText(restored, """
                 {"apiKey":"theirs","serverId":"backup-server","setupOpen":false,"askPinForMainProfile":true,"ratingAges":"uk",
                  "pathMappingsDetected":["/tv"],"logs":{"errorReports":true,"retentionDays":7,"directory":"/elsewhere/logs"},
-                 "updates":{"automatic":true},"bookMetadata":{"googleBooksKey":"g-key","hardcoverToken":"h-token","region":"uk"},
+                 "updates":{"automatic":true},"bookMetadata":{"providers":["itunes"],"region":"uk"},
                  "setupGuide":{"dismissed":true},"transcoding":{"softwarePreset":"slow"},
                  "ffmpegPath":"/tmp/not-ffmpeg","cacheDirectory":"/elsewhere/cache","backups":{"folder":"/elsewhere/backups"},
                  "dataDirectory":"/","configRevision":"old","madeUp":1,"backups:folder":"/tmp/planted"}
@@ -744,8 +744,7 @@ public class BackupTests
             Assert.Equal(7, config["logs"]!["retentionDays"]!.GetValue<int>());
             Assert.Equal("/here/logs", config["logs"]!["directory"]!.GetValue<string>());
             Assert.True(config["updates"]!["automatic"]!.GetValue<bool>());
-            Assert.Equal("g-key", config["bookMetadata"]!["googleBooksKey"]!.GetValue<string>());
-            Assert.Equal("h-token", config["bookMetadata"]!["hardcoverToken"]!.GetValue<string>());
+            Assert.Equal("itunes", config["bookMetadata"]!["providers"]![0]!.GetValue<string>());
             Assert.Equal("uk", config["bookMetadata"]!["region"]!.GetValue<string>());
             Assert.True(config["setupGuide"]!["dismissed"]!.GetValue<bool>());
             Assert.Equal("slow", config["transcoding"]!["softwarePreset"]!.GetValue<string>());
