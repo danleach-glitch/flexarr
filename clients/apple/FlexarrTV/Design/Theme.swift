@@ -13,14 +13,18 @@ enum Layout {
     static let gridSpacing: CGFloat = (1920 - 2 * edge - 6 * posterWidth) / 5
 }
 
-/// "2016   1h 56m   TV-MA": facts separated by space, never middle dots.
+/// "2016   1h 56m   TV-MA": facts separated by space, never middle dots, then any scores beside their marks.
 struct FactsLine: View {
     let facts: [String]
+    var scores: Scores? = nil
 
     var body: some View {
         HStack(spacing: 22) {
             ForEach(Array(facts.enumerated()), id: \.offset) { _, fact in
                 Text(fact)
+            }
+            if let scores, !scores.isEmpty {
+                ScoreChips(scores: scores, markHeight: 28, spacing: 22)
             }
         }
         .font(.system(size: 26, weight: .semibold))

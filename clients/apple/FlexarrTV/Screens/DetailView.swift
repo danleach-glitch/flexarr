@@ -138,7 +138,7 @@ struct DetailView: View {
             }
 
             HStack(spacing: 22) {
-                FactsLine(facts: item.facts(scores: !model.isKids))
+                FactsLine(facts: item.facts(scores: !model.isKids), scores: model.isKids ? nil : item.scores)
                 if let genres = detail?.genres, !genres.isEmpty {
                     Text(genres.prefix(3).joined(separator: ", "))
                         .font(.system(size: 26, weight: .medium))
