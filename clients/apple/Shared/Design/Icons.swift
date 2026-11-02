@@ -22,6 +22,16 @@ enum Symbol {
     static let watchlist = "bookmark"
     /// On the watchlist.
     static let onWatchlist = "bookmark.fill"
+    /// Request a title or an album.
+    static let request = "plus"
+    /// Asked for, on its way.
+    static let requested = "clock"
+    /// Follow an artist's new releases.
+    static let follow = "person.badge.plus"
+    /// Following an artist.
+    static let following = "checkmark"
+    /// Go to the artist.
+    static let goToArtist = "music.mic"
     /// Download.
     static let download = "arrow.down.circle"
     /// Search for subtitles.
@@ -64,5 +74,5 @@ enum Symbol {
     static let homeVideos = "folder"
 
     /// Every name above, so a debug build can check each one exists on this system.
-    static let all = [play, startOver, shuffle, radio, trailer, watched, isWatched, markUnwatched, watchlist, onWatchlist, download, subtitles, goToShow, more, home, libraries, search, settings, downloads, discover, comingSoon, liveTv, collections, nowPlaying, movies, shows, music, podcasts, audiobooks, homeVideos]
+    static let all = [play, startOver, shuffle, radio, trailer, watched, isWatched, markUnwatched, watchlist, onWatchlist, request, requested, follow, following, goToArtist, download, subtitles, goToShow, more, home, libraries, search, settings, downloads, discover, comingSoon, liveTv, collections, nowPlaying, movies, shows, music, podcasts, audiobooks, homeVideos]
 }
